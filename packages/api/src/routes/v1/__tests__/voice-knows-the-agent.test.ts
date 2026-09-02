@@ -201,7 +201,7 @@ describe('an ordinary voice session is untouched', () => {
       'canvas',
       'generateFile',
       'createAgent',
-      'createTrigger',
+      'createAutomation',
       'listTriggers',
       'getWhatsAppChats',
       'sendWhatsAppMessage',

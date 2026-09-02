@@ -1,115 +1,23 @@
 /**
  * Trigger Management Tools
  *
- * Allow users to create, list, update, and delete triggers/routines conversationally.
- * Example: "Every morning at 8am, check my GitHub PRs and send me a summary on Telegram"
+ * Transitional maintenance tools for legacy triggers. New recurring work is
+ * created only through the normalized createAutomation tool.
  */
 
 import { tool } from 'ai';
 import { z } from 'zod';
 import { getDb } from '../../db/index.js';
 import {
-  createTrigger,
   deleteTriggerForUser,
   findTriggerForUser,
   listTriggers,
   updateTrigger,
-  type NewTrigger,
 } from '../../db/automation/triggerRepository.js';
 import { disableLegacyTriggerAutomation } from '../../db/automation/automationDefinitionRepository.js';
 import { reloadTrigger } from '../trigger-engine.js';
-import { generateWebhookToken } from '../trigger-engine.js';
-import { log } from '../logger.js';
 import { getErrorMessage } from '../errors/index.js';
 import { automationReceipt, syncStructuredAutomation } from '../structured-automation.js';
-
-export function createTriggerTool(userId: string) {
-  return tool({
-    description: 'Create an automated trigger/routine that runs on a schedule, webhook, or integration event. Use when the user wants recurring tasks, reminders, monitoring, or automations.',
-    inputSchema: z.object({
-      name: z.string().describe('Short name for the trigger (e.g., "Morning GitHub Summary")'),
-      description: z.string().optional().describe('Description of what this trigger does'),
-      prompt: z.string().describe('Instructions for what the AI should do when triggered'),
-      type: z.enum(['schedule', 'webhook']).default('schedule').describe('Trigger type'),
-      scheduleType: z.enum(['daily', 'interval', 'cron']).optional().describe('Schedule type (for schedule triggers)'),
-      time: z.string().optional().describe('Time in HH:MM format (for daily schedules)'),
-      days: z.array(z.string()).optional().describe('Days of week (monday, tuesday, etc.) — omit for every day'),
-      intervalMinutes: z.number().optional().describe('Interval in minutes (for interval schedules)'),
-      cron: z.string().optional().describe('Raw cron expression (for advanced users)'),
-      timezone: z.string().optional().describe('IANA timezone (e.g., "America/New_York")'),
-      useTools: z.boolean().default(true).describe('Whether the AI can use tools (web search, integrations, etc.)'),
-      notify: z.boolean().default(true).describe('Whether to send a notification with the result'),
-      channelId: z.string().optional().describe('Channel to notify on (telegram, discord, whatsapp, slack)'),
-    }),
-    execute: async (args) => {
-      try {
-        const triggerData: NewTrigger = {
-          oxyUserId: userId,
-          name: args.name,
-          description: args.description,
-          type: args.type,
-          enabled: true,
-          action: {
-            prompt: args.prompt,
-            useTools: args.useTools,
-            notify: args.notify,
-            channelId: args.channelId,
-          },
-        };
-
-        if (args.type === 'schedule') {
-          triggerData.schedule = {
-            type: args.scheduleType || 'daily',
-            time: args.time,
-            days: args.days,
-            intervalMinutes: args.intervalMinutes,
-            cron: args.cron,
-            timezone: args.timezone,
-          };
-        } else if (args.type === 'webhook') {
-          triggerData.webhook = {
-            token: generateWebhookToken(),
-          };
-        }
-
-        const trigger = await createTrigger(getDb(), triggerData);
-        const automation = await syncStructuredAutomation(trigger);
-
-        // Start cron schedule if applicable
-        await reloadTrigger(trigger._id);
-
-        const summary: Record<string, unknown> = {
-          success: true,
-          triggerId: trigger._id.toString(),
-          name: trigger.name,
-          type: trigger.type,
-          enabled: true,
-          automation,
-          receipt: automationReceipt(automation),
-        };
-
-        if (trigger.type === 'schedule' && trigger.schedule) {
-          summary.schedule = {
-            type: trigger.schedule.type,
-            time: trigger.schedule.time,
-            days: trigger.schedule.days,
-            intervalMinutes: trigger.schedule.intervalMinutes,
-            timezone: trigger.schedule.timezone,
-          };
-        }
-
-        if (trigger.type === 'webhook' && trigger.webhook) {
-          summary.webhookUrl = `/triggers/webhook/${trigger.webhook.token}`;
-        }
-
-        return summary;
-      } catch (error: unknown) {
-        log.triggers.error({ err: error }, 'Failed to create trigger via tool');
-        return { success: false, error: getErrorMessage(error) };
-      }
-    },
-  });
-}
 
 export function listTriggersTool(userId: string) {
   return tool({

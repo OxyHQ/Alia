@@ -1,9 +1,6 @@
-import { uuidv7 } from '@oxyhq/db';
 import { Router, type Request, type Response } from 'express';
 import { z } from 'zod';
-import { findAgentById } from '../db/agents/agentRepository.js';
 import {
-  createAutomationDefinition,
   findAutomationDefinition,
   listActiveAutomationAuthorizations,
   listAutomationDefinitions,
@@ -11,7 +8,6 @@ import {
   listAutomationRunSteps,
   markAutomationAuthorizationsRevoked,
   setAutomationEnabled,
-  upsertAutomationActionAuthorizations,
 } from '../db/automation/automationDefinitionRepository.js';
 import { getDb } from '../db/index.js';
 import {
@@ -20,76 +16,22 @@ import {
   type ProvisionedAutomationAuthorization,
 } from '../lib/automation-authority.js';
 import {
-  loadAutomationActorCandidates,
-  planAutomationStages,
-  provisionableAutomationPairs,
   uniqueAutomationResources,
-  type AutomationActionPlanInput,
 } from '../lib/automation-coordination.js';
 import { log } from '../lib/logger.js';
-import { automationScheduleError, reloadAutomationSchedule } from '../lib/trigger-engine.js';
+import {
+  AutomationCreationError,
+  createAutomationSchema,
+  createStructuredAutomation,
+  executionAuthorityPairs,
+  ownedAutomationAgents,
+  persistAutomationAuthorityAndActivate,
+  refreshAutomationSchedule,
+  revokeProvisionedAutomationAuthority,
+} from '../lib/structured-automation-creation.js';
 import { authenticateToken } from '../middleware/auth.js';
 
-const resourceSchema = z.object({
-  appId: z.string().min(1),
-  effectiveAccountId: z.string().min(1),
-  resourceType: z.string().min(1),
-  resourceId: z.string().min(1),
-}).strict();
-const limitSchema = z.object({
-  key: z.string().min(1),
-  value: z.union([z.string(), z.number().finite(), z.boolean(), z.array(z.string())]),
-}).strict();
-const actionLimitSchema = z.object({
-  key: z.string().min(1),
-  value: z.union([z.number().finite(), z.boolean()]),
-}).strict();
-const actionSchema = z.object({
-  resource: resourceSchema,
-  tool: z.string().min(1),
-  input: z.record(z.unknown()).default({}),
-  limits: z.array(actionLimitSchema).default([]),
-}).strict();
-const triggerSchema = z.discriminatedUnion('type', [
-  z.object({ type: z.literal('manual') }).strict(),
-  z.object({
-    type: z.literal('event'),
-    appId: z.string().min(1),
-    eventType: z.string().min(1),
-    resource: resourceSchema.optional(),
-  }).strict(),
-  z.object({
-    type: z.literal('schedule'),
-    cron: z.string().min(1),
-    timezone: z.string().min(1),
-  }).strict(),
-]);
-const actorSelectionSchema = z.discriminatedUnion('mode', [
-  z.object({ mode: z.literal('fixed'), agentId: z.string().min(1) }).strict(),
-  z.object({
-    mode: z.literal('automatic'),
-    eligibleAgentIds: z.array(z.string().min(1)).min(1),
-  }).strict(),
-]);
-const createSchema = z.object({
-  objective: z.string().trim().min(1),
-  trigger: triggerSchema,
-  actorSelection: actorSelectionSchema,
-  executionMode: z.enum(['observe', 'execute']).default('observe'),
-  actions: z.array(actionSchema).min(1),
-  inputs: z.record(z.unknown()).default({}),
-  resources: z.array(resourceSchema).default([]),
-  dataFlow: z.object({
-    sources: z.array(resourceSchema),
-    destinations: z.array(resourceSchema),
-  }).strict(),
-  maximumAutonomy: z.enum(['read_only', 'draft', 'execute_on_request', 'autonomous']),
-  limits: z.array(limitSchema).default([]),
-  enabled: z.boolean().default(true),
-}).strict();
-
 type AutomationRecord = NonNullable<Awaited<ReturnType<typeof findAutomationDefinition>>>;
-type ParsedAction = z.infer<typeof actionSchema>;
 
 const router = Router();
 router.use(authenticateToken);
@@ -98,102 +40,13 @@ function userId(request: Request): string | null {
   return request.user?.id ?? null;
 }
 
-async function ownedAgents(ownerAccountId: string, agentIds: readonly string[]) {
-  const agents = await Promise.all(agentIds.map((agentId) => findAgentById(getDb(), agentId)));
-  if (!agents.every((agent, index) => (
-    agent !== null && agent.author === ownerAccountId && agent.id === agentIds[index]
-  ))) return null;
-  return agents.filter((agent): agent is NonNullable<typeof agent> => agent !== null);
-}
-
-async function executionAuthorityPairs(input: {
-  ownerAccountId: string;
-  agents: NonNullable<Awaited<ReturnType<typeof findAgentById>>>[];
-  actions: readonly AutomationActionPlanInput[];
-  sourceResources: AutomationRecord['dataFlow']['sources'];
-}) {
-  const candidates = await loadAutomationActorCandidates(input.ownerAccountId, input.agents);
-  const plan = planAutomationStages({
-    candidates,
-    sourceResources: input.sourceResources,
-    actions: input.actions,
-  });
-  if (!plan) return null;
-  return provisionableAutomationPairs({ candidates, actions: input.actions });
-}
-
-function sameResource(
-  left: z.infer<typeof resourceSchema>,
-  right: z.infer<typeof resourceSchema>,
-): boolean {
-  return left.appId === right.appId
-    && left.effectiveAccountId === right.effectiveAccountId
-    && left.resourceType === right.resourceType
-    && left.resourceId === right.resourceId;
-}
-
-function actionKey(action: ParsedAction): string {
-  return JSON.stringify([
-    action.resource.appId,
-    action.resource.effectiveAccountId,
-    action.resource.resourceType,
-    action.resource.resourceId,
-    action.tool,
-  ]);
-}
-
-async function revokeProvisioned(
-  accessToken: string | undefined,
-  provisioned: readonly ProvisionedAutomationAuthorization[],
-): Promise<void> {
-  if (!accessToken || provisioned.length === 0) return;
-  const result = await revokeAutomationAuthorizations(
-    accessToken,
-    provisioned.map((authorization) => authorization.oxyAuthorizationId),
-  );
-  if (result.failed.length > 0) {
-    log.triggers.error(
-      { failed: result.failed.length },
-      'Failed to compensate some newly provisioned Oxy automation authorizations',
-    );
-  }
-}
-
-async function persistAuthorityAndActivate(input: {
-  automationId: string;
-  ownerAccountId: string;
-  provisioned: readonly ProvisionedAutomationAuthorization[];
-}): Promise<AutomationRecord> {
-  return getDb().transaction(async (transaction) => {
-    await upsertAutomationActionAuthorizations(transaction, input.provisioned);
-    const automation = await setAutomationEnabled(
-      transaction,
-      input.automationId,
-      input.ownerAccountId,
-      true,
-    );
-    if (!automation) throw new Error('Persisted automation disappeared before activation');
-    return automation;
-  });
-}
-
-async function refreshSchedule(automationId: string): Promise<void> {
-  try {
-    await reloadAutomationSchedule(automationId);
-  } catch (error: unknown) {
-    // The elected scheduler also reconciles every 30 seconds, so persistence is
-    // authoritative even if this immediate local refresh loses a DB round trip.
-    log.triggers.warn({ err: error, automationId }, 'Immediate automation schedule refresh failed');
-  }
-}
-
 async function stopAutomation(input: {
   request: Request;
   ownerAccountId: string;
   automation: AutomationRecord;
 }) {
   const stopped = await setAutomationEnabled(getDb(), input.automation.id, input.ownerAccountId, false);
-  await refreshSchedule(input.automation.id);
+  await refreshAutomationSchedule(input.automation.id);
   const active = await listActiveAutomationAuthorizations(getDb(), input.automation.id);
   if (active.length === 0) return { automation: stopped, revoked: 0, failed: 0 };
   if (!input.request.accessToken) {
@@ -226,144 +79,24 @@ router.get('/', async (request: Request, response: Response) => {
 router.post('/', async (request: Request, response: Response) => {
   const ownerAccountId = userId(request);
   if (!ownerAccountId) return response.status(401).json({ error: 'Unauthorized' });
-  const parsed = createSchema.safeParse(request.body);
+  const parsed = createAutomationSchema.safeParse(request.body);
   if (!parsed.success) {
     return response.status(400).json({ error: 'invalid_automation', details: parsed.error.flatten() });
   }
-  if (parsed.data.trigger.type === 'event' && parsed.data.dataFlow.sources.length === 0) {
-    return response.status(400).json({ error: 'event_automation_requires_explicit_data_source' });
-  }
-  if (parsed.data.trigger.type === 'schedule') {
-    const scheduleError = automationScheduleError(
-      parsed.data.trigger.cron,
-      parsed.data.trigger.timezone,
-    );
-    if (scheduleError) return response.status(400).json({ error: scheduleError });
-  }
-  if (parsed.data.actions.some((action) => (
-    !parsed.data.resources.some((resource) => sameResource(resource, action.resource))
-  ))) {
-    return response.status(400).json({ error: 'automation_action_resource_not_declared' });
-  }
-  if (new Set(parsed.data.actions.map(actionKey)).size !== parsed.data.actions.length) {
-    return response.status(400).json({ error: 'duplicate_automation_action' });
-  }
-  if (parsed.data.actions.some((action) => (
-    new Set(action.limits.map((limit) => limit.key)).size !== action.limits.length
-  ))) {
-    return response.status(400).json({ error: 'duplicate_automation_action_limit' });
-  }
-
-  const selection = parsed.data.actorSelection;
-  const agentIds = selection.mode === 'fixed' ? [selection.agentId] : selection.eligibleAgentIds;
-  if (new Set(agentIds).size !== agentIds.length) {
-    return response.status(400).json({ error: 'duplicate_automation_agent' });
-  }
-  const agents = await ownedAgents(ownerAccountId, agentIds);
-  if (!agents) return response.status(403).json({ error: 'automation_agent_not_owned' });
-  if (parsed.data.executionMode === 'execute' && parsed.data.enabled && !request.accessToken) {
-    return response.status(401).json({ error: 'user_session_required_for_execution_authority' });
-  }
-
-  const automationId = uuidv7();
-  const actions = parsed.data.actions.map((action) => ({ id: uuidv7(), ...action }));
-  const trigger = parsed.data.trigger;
-  const sourceResources = uniqueAutomationResources([
-    ...(trigger.type === 'event' && trigger.resource ? [trigger.resource] : []),
-    ...parsed.data.dataFlow.sources,
-  ]);
-  const authorityPairs = parsed.data.executionMode === 'execute' && parsed.data.enabled
-    ? await executionAuthorityPairs({ ownerAccountId, agents, actions, sourceResources })
-    : [];
-  if (authorityPairs === null) {
-    return response.status(403).json({ error: 'automation_actor_coverage_missing' });
-  }
-  let automation: Awaited<ReturnType<typeof createAutomationDefinition>>;
   try {
-    automation = await createAutomationDefinition(getDb(), {
-      id: automationId,
+    const created = await createStructuredAutomation({
       ownerAccountId,
-      objective: parsed.data.objective,
-      triggerKind: trigger.type,
-      ...(trigger.type === 'event' ? {
-        eventAppId: trigger.appId,
-        eventType: trigger.eventType,
-        eventResource: trigger.resource,
-      } : {}),
-      ...(trigger.type === 'schedule' ? {
-        scheduleCron: trigger.cron,
-        scheduleTimezone: trigger.timezone,
-      } : {}),
-      actorMode: selection.mode,
-      fixedAgentId: selection.mode === 'fixed' ? selection.agentId : undefined,
-      eligibleAgentIds: selection.mode === 'automatic' ? selection.eligibleAgentIds : [],
-      executionMode: parsed.data.executionMode,
-      actions,
-      inputs: parsed.data.inputs,
-      resources: parsed.data.resources,
-      dataFlow: parsed.data.dataFlow,
-      maximumAutonomy: parsed.data.maximumAutonomy,
-      limits: parsed.data.limits,
-      // Execute definitions stay inert until every remote authorization is
-      // durably referenced below. Observation needs no remote state.
-      enabled: parsed.data.executionMode === 'observe' ? parsed.data.enabled : false,
+      accessToken: request.accessToken,
+      definition: parsed.data,
     });
+    return response.status(201).json(created);
   } catch (error: unknown) {
-    log.triggers.error({ err: error, ownerAccountId }, 'Could not persist automation definition');
+    if (error instanceof AutomationCreationError) {
+      return response.status(error.status).json({ error: error.code, ...error.context });
+    }
+    log.triggers.error({ err: error, ownerAccountId }, 'Unexpected automation creation failure');
     return response.status(503).json({ error: 'automation_store_unavailable' });
   }
-
-  if (parsed.data.executionMode === 'execute' && parsed.data.enabled && request.accessToken) {
-    let provisioned: ProvisionedAutomationAuthorization[];
-    try {
-      provisioned = await provisionAutomationAuthorizations({
-        accessToken: request.accessToken,
-        ownerAccountId,
-        automationId,
-        maximumAutonomy: parsed.data.maximumAutonomy,
-        pairs: authorityPairs,
-      });
-    } catch (error: unknown) {
-      log.triggers.warn({ err: error, ownerAccountId, automationId }, 'Oxy refused automation execution authority');
-      return response.status(403).json({
-        error: 'automation_execution_authority_refused',
-        automationId,
-        stopped: true,
-      });
-    }
-    try {
-      automation = await persistAuthorityAndActivate({
-        automationId,
-        ownerAccountId,
-        provisioned,
-      });
-    } catch (error: unknown) {
-      await revokeProvisioned(request.accessToken, provisioned);
-      log.triggers.error({ err: error, ownerAccountId, automationId }, 'Could not persist automation authority');
-      return response.status(503).json({
-        error: 'automation_store_unavailable',
-        automationId,
-        stopped: true,
-      });
-    }
-  }
-
-  await refreshSchedule(automation.id);
-
-  return response.status(201).json({
-    automation,
-    receipt: {
-      trigger: automation.trigger,
-      actors: automation.actorSelection,
-      executionMode: automation.executionMode,
-      actions: automation.actions,
-      resources: automation.resources,
-      dataFlow: automation.dataFlow,
-      maximumAutonomy: automation.maximumAutonomy,
-      limits: automation.limits,
-      undo: { method: 'DELETE', path: `/automations/${automation.id}` },
-    },
-  });
 });
 
 router.get('/runs', async (request: Request, response: Response) => {
@@ -408,7 +141,7 @@ router.patch('/:id', async (request: Request, response: Response) => {
     const agentIds = existing.actorSelection.mode === 'fixed'
       ? [existing.actorSelection.agentId].filter((id): id is string => Boolean(id))
       : existing.actorSelection.eligibleAgentIds;
-    const agents = await ownedAgents(ownerAccountId, agentIds);
+    const agents = await ownedAutomationAgents(ownerAccountId, agentIds);
     if (!agents) return response.status(403).json({ error: 'automation_agent_not_owned' });
     const authorityPairs = await executionAuthorityPairs({
       ownerAccountId,
@@ -438,21 +171,21 @@ router.patch('/:id', async (request: Request, response: Response) => {
       return response.status(403).json({ error: 'automation_execution_authority_refused' });
     }
     try {
-      const automation = await persistAuthorityAndActivate({
+      const automation = await persistAutomationAuthorityAndActivate({
         automationId: existing.id,
         ownerAccountId,
         provisioned,
       });
-      await refreshSchedule(existing.id);
+      await refreshAutomationSchedule(existing.id);
       return response.json({ automation });
     } catch (error: unknown) {
-      await revokeProvisioned(request.accessToken, provisioned);
+      await revokeProvisionedAutomationAuthority(request.accessToken, provisioned);
       log.triggers.error({ err: error, automationId: existing.id }, 'Could not persist restored automation authority');
       return response.status(503).json({ error: 'automation_store_unavailable' });
     }
   }
   const automation = await setAutomationEnabled(getDb(), existing.id, ownerAccountId, true);
-  await refreshSchedule(existing.id);
+  await refreshAutomationSchedule(existing.id);
   return response.json({ automation });
 });
 

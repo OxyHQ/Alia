@@ -26,7 +26,7 @@ const READ_ONLY_TOOLS = new Set([
 const REVERSIBLE_WRITE_TOOLS = new Set([
   'write_file',
   'edit_file',
-  'createTrigger',
+  'createAutomation',
   'updateTrigger',
   'saveUserMemory',
   'updateUserMemory',
