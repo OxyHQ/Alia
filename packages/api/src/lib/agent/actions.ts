@@ -87,7 +87,11 @@ export interface AgentRuntimeContext {
  * could never end its own session. `delegate` needs a grant AND something to
  * delegate THROUGH, which is structural and separate.
  */
-export function buildRuntimeTools(ctx: AgentRuntimeContext, grants: CapabilityGrantSet): ToolSet {
+export function buildRuntimeTools(
+  ctx: AgentRuntimeContext,
+  grants: CapabilityGrantSet,
+  options: { protocolOnly?: boolean } = {},
+): ToolSet {
   const {
     session, onComplete, onHireAgent,
     todoManager, workspaceMemory,
@@ -99,7 +103,7 @@ export function buildRuntimeTools(ctx: AgentRuntimeContext, grants: CapabilityGr
 
   // ── 1. shell — Persistent terminal ──
 
-  if (grants.allows('shell')) actions.shell = tool({
+  if (!options.protocolOnly && grants.allows('shell')) actions.shell = tool({
     description: 'Run a bash command in a persistent terminal session. Working directory, environment variables, and installed packages persist between calls. A container is created automatically on first use.',
     inputSchema: z.object({
       command: z.string().describe('Bash command to execute'),
@@ -116,7 +120,7 @@ export function buildRuntimeTools(ctx: AgentRuntimeContext, grants: CapabilityGr
 
   // ── 2. browser — Web search, navigation, screenshots ──
 
-  if (grants.allows('browser')) actions.browser = tool({
+  if (!options.protocolOnly && grants.allows('browser')) actions.browser = tool({
     description: 'Interact with a web browser. Use for web research, reading pages, and interactive browsing. Actions: search (web search), goto (navigate to URL), get_text (extract page text), screenshot (capture page), click (click element), type (fill input), scroll_down, scroll_up, back, wait.',
     inputSchema: z.object({
       action: z.enum(['goto', 'click', 'type', 'scroll_down', 'scroll_up', 'screenshot', 'get_text', 'search', 'back', 'wait']),
@@ -152,7 +156,7 @@ export function buildRuntimeTools(ctx: AgentRuntimeContext, grants: CapabilityGr
 
   // ── 3. file_edit — Read/write/edit files ──
 
-  if (grants.allows('files')) actions.file_edit = tool({
+  if (!options.protocolOnly && grants.allows('files')) actions.file_edit = tool({
     description: 'Read, write, edit, or list files in the workspace. Use "read" to view file contents, "write" to create/overwrite a file, "edit" to find and replace text in a file, "list" to list files in a directory. More precise than shell commands for file modifications.',
     inputSchema: z.object({
       action: z.enum(['read', 'write', 'edit', 'list']),
@@ -270,7 +274,7 @@ export function buildRuntimeTools(ctx: AgentRuntimeContext, grants: CapabilityGr
 
   // ── 5. delegate — Hire specialist agents ──
 
-  if (onHireAgent && grants.allows('delegation')) {
+  if (!options.protocolOnly && onHireAgent && grants.allows('delegation')) {
     actions.delegate = tool({
       description: 'Hire a specialist agent for a subtask. The agent works autonomously and returns the result. Use for tasks outside your expertise or to parallelize work.',
       inputSchema: z.object({
