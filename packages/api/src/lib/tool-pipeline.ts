@@ -498,6 +498,7 @@ export class ToolPipeline {
                   : { type: 'alia', ownerAccountId: oxyOwnerAccountId },
                 runId: runId ?? requestId,
                 autonomy: oxyAutonomy,
+                userAccessToken: isDirectSession ? accessToken : undefined,
               })
                 .catch(bulkFailure('oxy-service')),
           actsForPerson && wants('agent')

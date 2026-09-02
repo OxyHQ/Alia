@@ -7,6 +7,16 @@
  */
 
 import { createHash, randomUUID } from 'node:crypto';
+import {
+  appCapabilityCatalogSchema,
+  autonomyLevelSchema,
+  resourceRefSchema,
+  type ActorRef,
+  type AppCapabilityCatalog,
+  type AutonomyLevel,
+  type CatalogTool,
+  type ResourceRef,
+} from '@oxyhq/contracts';
 import { tool, type ToolSet } from 'ai';
 import { z, type ZodTypeAny } from 'zod';
 import { jsonSchemaToZod } from './mcp-schema.js';
@@ -18,49 +28,15 @@ import { TTLCache } from '../ttl-cache.js';
 const TOOL_TIMEOUT_MS = 15_000;
 const OXY_API_URL = (process.env.OXY_API_URL || 'https://api.oxy.so').replace(/\/$/, '');
 
-const autonomySchema = z.enum(['read_only', 'draft', 'execute_on_request', 'autonomous']);
-export type OxyToolAutonomy = z.infer<typeof autonomySchema>;
+export type OxyToolAutonomy = AutonomyLevel;
 
-const resourceSchema = z.object({
-  appId: z.string().min(1),
-  effectiveAccountId: z.string().min(1),
-  resourceType: z.string().min(1),
-  resourceId: z.string().min(1),
-});
-const catalogToolSchema = z.object({
-  name: z.string().min(1),
-  version: z.string().min(1),
-  description: z.string().min(1),
-  inputSchema: z.record(z.unknown()),
-  outputSchema: z.record(z.unknown()),
-  capabilityPackage: z.string().min(1),
-  requiredCapabilities: z.array(z.string()),
-  resourceTypes: z.array(z.string()).min(1),
-  effect: z.enum(['read', 'write', 'external', 'financial', 'security']),
-  idempotency: z.enum(['none', 'supported', 'required']),
-  rollback: z.enum(['none', 'manual', 'supported']),
-  exposure: z.array(z.enum(['internal', 'mcp'])),
-  invocation: z.object({
-    method: z.enum(['GET', 'POST', 'PATCH', 'PUT', 'DELETE']),
-    path: z.string().min(1),
-  }),
-});
-const catalogSchema = z.object({
-  schemaVersion: z.literal('1'),
-  appId: z.string().min(1),
-  version: z.string().min(1),
-  audience: z.string().min(1),
-  accountResourceType: z.string().min(1),
-  tools: z.array(catalogToolSchema),
-  events: z.array(z.unknown()),
-});
 const catalogsResponseSchema = z.object({
-  registrations: z.array(z.object({ catalog: catalogSchema })),
+  registrations: z.array(z.object({ catalog: appCapabilityCatalogSchema })),
 });
 const assignmentSchema = z.object({
   grantId: z.string().min(1),
-  resource: resourceSchema,
-  maximumAutonomy: autonomySchema,
+  resource: resourceRefSchema,
+  maximumAutonomy: autonomyLevelSchema,
   limits: z.array(z.object({ key: z.string(), value: z.unknown() })),
   toolNames: z.array(z.string()),
 });
@@ -69,42 +45,54 @@ const ticketResponseSchema = z.object({
   decision: z.object({ allowed: z.boolean(), reason: z.string() }).passthrough(),
   ticket: z.string().min(1).optional(),
 });
+const serviceIdentityResponseSchema = z.object({
+  service: z.object({
+    applicationId: z.string().min(1),
+    credentialId: z.string().min(1),
+  }).passthrough(),
+}).passthrough();
+const executionAuthorizationResponseSchema = z.object({
+  authorization: z.object({ id: z.string().min(1) }).passthrough(),
+});
 
-type Catalog = z.infer<typeof catalogSchema>;
-type CatalogTool = z.infer<typeof catalogToolSchema>;
-type Resource = z.infer<typeof resourceSchema>;
-type Actor =
-  | { type: 'alia'; ownerAccountId: string }
-  | { type: 'agent'; accountId: string };
 type Assignment = z.infer<typeof assignmentSchema>;
 
 export interface OxyToolExecutionContext {
   requesterAccountId: string;
   ownerAccountId: string;
-  actor: Actor;
+  actor: ActorRef;
   runId?: string;
   autonomy?: OxyToolAutonomy;
+  /** Live caller credential used only to create/revoke direct Oxy authority. */
+  userAccessToken?: string;
+  /** Pre-authorized exact steps for background runs, keyed by resource and tool. */
+  executionAuthorizations?: Readonly<Record<string, string>>;
 }
 
 interface CompiledTool {
-  catalog: Catalog;
+  catalog: AppCapabilityCatalog;
   definition: CatalogTool;
   inputSchema: ZodTypeAny;
 }
 interface CatalogDef {
-  catalog: Catalog;
+  catalog: AppCapabilityCatalog;
   displayName: string;
   compiledTools: CompiledTool[];
 }
 interface BoundTool {
   compiled: CompiledTool;
-  resource: Resource;
+  resource: ResourceRef;
   suffix: string | null;
 }
 
 const defsCache = new TTLCache<CatalogDef[]>({ ttlMs: 60_000, maxSize: 1 });
 const contextCache = new TTLCache<string>({ ttlMs: 60_000, maxSize: 2_000 });
+const serviceIdentityCache = new TTLCache<{ applicationId: string; credentialId: string }>({
+  ttlMs: 60_000,
+  maxSize: 1,
+});
 const DEFS_KEY = 'catalogs';
+const SERVICE_IDENTITY_KEY = 'alia';
 
 async function safeExecute(service: string, operation: () => Promise<unknown>): Promise<unknown> {
   try {
@@ -137,6 +125,40 @@ async function oxyAuthorityFetch(path: string, init: RequestInit = {}): Promise<
     throw new Error(`Oxy authority error (${response.status}): ${(await response.text()).slice(0, 240)}`);
   }
   return response.json();
+}
+
+async function userAuthorityFetch(
+  accessToken: string,
+  path: string,
+  init: RequestInit = {},
+): Promise<unknown> {
+  const response = await fetch(`${OXY_API_URL}${path}`, {
+    ...init,
+    headers: {
+      authorization: `Bearer ${accessToken}`,
+      accept: 'application/json',
+      ...(init.body ? { 'content-type': 'application/json' } : {}),
+      ...init.headers,
+    },
+    signal: init.signal ?? AbortSignal.timeout(TOOL_TIMEOUT_MS),
+  });
+  if (!response.ok) {
+    throw new Error(`Oxy user authority error (${response.status}): ${(await response.text()).slice(0, 240)}`);
+  }
+  if (response.status === 204) return undefined;
+  return response.json();
+}
+
+async function coordinatorIdentity(): Promise<{ applicationId: string; credentialId: string }> {
+  return serviceIdentityCache.getOrLoad(SERVICE_IDENTITY_KEY, async () => {
+    const parsed = serviceIdentityResponseSchema.parse(
+      await oxyAuthorityFetch('/capabilities/service-identity'),
+    );
+    return {
+      applicationId: parsed.service.applicationId,
+      credentialId: parsed.service.credentialId,
+    };
+  });
 }
 
 function appDisplayName(appId: string): string {
@@ -175,7 +197,7 @@ async function agentAssignments(context: OxyToolExecutionContext): Promise<Assig
 export async function getOxyAgentCapabilityMap(
   context: OxyToolExecutionContext,
 ): Promise<ReadonlyArray<{
-  resource: Resource;
+  resource: ResourceRef;
   maximumAutonomy: OxyToolAutonomy;
   limits: ReadonlyArray<{ key: string; value?: unknown }>;
   toolNames: readonly string[];
@@ -232,7 +254,11 @@ function agentBindings(defs: readonly CatalogDef[], assignments: readonly Assign
   });
 }
 
-function resolveInvocation(definition: CatalogTool, args: Record<string, unknown>): {
+function resolveInvocation(
+  catalog: AppCapabilityCatalog,
+  definition: CatalogTool,
+  args: Record<string, unknown>,
+): {
   url: URL;
   body: Record<string, unknown> | undefined;
 } {
@@ -243,7 +269,11 @@ function resolveInvocation(definition: CatalogTool, args: Record<string, unknown
     if (value === undefined || value === null) throw new Error(`Missing required path parameter: ${parameter}`);
     return encodeURIComponent(String(value));
   });
-  const url = new URL(path, `${OXY_API_URL}/`);
+  const baseUrl = new URL(catalog.internalBaseUrl);
+  const url = new URL(path, `${catalog.internalBaseUrl}/`);
+  if (url.origin !== baseUrl.origin) {
+    throw new Error(`Catalog invocation for ${definition.name} escapes its registered app origin`);
+  }
   if (definition.invocation.method === 'GET') {
     for (const [key, value] of Object.entries(remaining)) {
       if (value !== undefined && value !== null) url.searchParams.set(key, String(value));
@@ -253,32 +283,134 @@ function resolveInvocation(definition: CatalogTool, args: Record<string, unknown
   return { url, body: remaining };
 }
 
-async function issueTicket(
+export function oxyExecutionAuthorizationKey(resource: ResourceRef, toolName: string): string {
+  return JSON.stringify([
+    resource.appId,
+    resource.effectiveAccountId,
+    resource.resourceType,
+    resource.resourceId,
+    toolName,
+  ]);
+}
+
+function sortJson(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(sortJson);
+  if (typeof value !== 'object' || value === null) return value;
+  return Object.fromEntries(
+    Object.entries(value)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, entry]) => [key, sortJson(entry)]),
+  );
+}
+
+function idempotencyKey(runId: string, toolName: string, args: Record<string, unknown>): string {
+  return createHash('sha256')
+    .update(JSON.stringify(sortJson([runId, toolName, args])))
+    .digest('hex');
+}
+
+function directMaximumAutonomy(
   context: OxyToolExecutionContext,
-  resource: Resource,
+  definition: CatalogTool,
+): OxyToolAutonomy {
+  if (definition.effect === 'read') return 'read_only';
+  return context.autonomy === 'autonomous'
+    ? 'execute_on_request'
+    : context.autonomy ?? 'execute_on_request';
+}
+
+async function createDirectExecutionAuthorization(
+  context: OxyToolExecutionContext,
+  resource: ResourceRef,
   definition: CatalogTool,
   runId: string,
 ): Promise<string> {
-  const requestedAutonomy: OxyToolAutonomy = definition.effect === 'read'
-    ? 'read_only'
-    : context.autonomy ?? 'execute_on_request';
-  const parsed = ticketResponseSchema.parse(await oxyAuthorityFetch('/capabilities/tickets', {
-    method: 'POST',
-    body: JSON.stringify({
-      requesterAccountId: context.requesterAccountId,
-      ownerAccountId: context.ownerAccountId,
-      actor: context.actor,
-      resource,
-      tool: definition.name,
-      runId,
-      requestedAutonomy,
-      coordinatorMaximumAutonomy: context.autonomy ?? 'execute_on_request',
-    }),
-  }));
-  if (!parsed.decision.allowed || !parsed.ticket) {
-    throw new Error(`Oxy policy denied ${definition.name}: ${parsed.decision.reason}`);
+  if (!context.userAccessToken) {
+    throw new Error(`No direct or automation authority exists for ${definition.name}`);
   }
-  return parsed.ticket;
+  const coordinator = await coordinatorIdentity();
+  const parsed = executionAuthorizationResponseSchema.parse(await userAuthorityFetch(
+    context.userAccessToken,
+    '/capabilities/execution-authorizations',
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        kind: 'direct_request',
+        ownerAccountId: context.ownerAccountId,
+        coordinatorApplicationId: coordinator.applicationId,
+        coordinatorCredentialId: coordinator.credentialId,
+        actor: context.actor,
+        resource,
+        tool: definition.name,
+        runId,
+        maximumAutonomy: directMaximumAutonomy(context, definition),
+        limits: [],
+        expiresAt: new Date(Date.now() + 2 * 60_000).toISOString(),
+      }),
+    },
+  ));
+  return parsed.authorization.id;
+}
+
+interface IssuedTicket {
+  ticket: string;
+  transientAuthorizationId?: string;
+}
+
+async function revokeTransientAuthorization(
+  context: OxyToolExecutionContext,
+  authorizationId: string,
+  runId: string,
+  toolName: string,
+): Promise<void> {
+  if (!context.userAccessToken) return;
+  try {
+    await userAuthorityFetch(
+      context.userAccessToken,
+      `/capabilities/execution-authorizations/${encodeURIComponent(authorizationId)}`,
+      { method: 'DELETE' },
+    );
+  } catch (error: unknown) {
+    log.general.warn(
+      { err: error, runId, tool: toolName },
+      'Could not revoke transient Oxy execution authorization; expiry remains active',
+    );
+  }
+}
+
+async function issueTicket(
+  context: OxyToolExecutionContext,
+  resource: ResourceRef,
+  definition: CatalogTool,
+  runId: string,
+): Promise<IssuedTicket> {
+  const preauthorizedId = context.executionAuthorizations?.[
+    oxyExecutionAuthorizationKey(resource, definition.name)
+  ];
+  const executionAuthorizationId = preauthorizedId ?? await createDirectExecutionAuthorization(
+    context,
+    resource,
+    definition,
+    runId,
+  );
+  try {
+    const parsed = ticketResponseSchema.parse(await oxyAuthorityFetch('/capabilities/tickets', {
+      method: 'POST',
+      body: JSON.stringify({ executionAuthorizationId }),
+    }));
+    if (!parsed.decision.allowed || !parsed.ticket) {
+      throw new Error(`Oxy policy denied ${definition.name}: ${parsed.decision.reason}`);
+    }
+    return {
+      ticket: parsed.ticket,
+      ...(preauthorizedId ? {} : { transientAuthorizationId: executionAuthorizationId }),
+    };
+  } catch (error: unknown) {
+    if (!preauthorizedId) {
+      await revokeTransientAuthorization(context, executionAuthorizationId, runId, definition.name);
+    }
+    throw error;
+  }
 }
 
 async function callBoundTool(
@@ -287,28 +419,41 @@ async function callBoundTool(
   context: OxyToolExecutionContext,
 ): Promise<unknown> {
   const runId = context.runId ?? randomUUID();
-  const capabilityTicket = await issueTicket(context, binding.resource, binding.compiled.definition, runId);
-  const { url, body } = resolveInvocation(binding.compiled.definition, args);
-  const headers: Record<string, string> = {
-    authorization: `Capability ${capabilityTicket}`,
-    accept: 'application/json',
-  };
-  if (body) headers['content-type'] = 'application/json';
-  if (binding.compiled.definition.idempotency === 'required') {
-    headers['idempotency-key'] = createHash('sha256')
-      .update(`${runId}:${binding.compiled.definition.name}:${JSON.stringify(args)}`)
-      .digest('hex');
+  const issued = await issueTicket(context, binding.resource, binding.compiled.definition, runId);
+  try {
+    const { url, body } = resolveInvocation(binding.compiled.catalog, binding.compiled.definition, args);
+    const headers: Record<string, string> = {
+      authorization: `Capability ${issued.ticket}`,
+      accept: 'application/json',
+    };
+    if (body) headers['content-type'] = 'application/json';
+    if (binding.compiled.definition.idempotency === 'required') {
+      headers['idempotency-key'] = idempotencyKey(
+        runId,
+        binding.compiled.definition.name,
+        args,
+      );
+    }
+    const response = await fetch(url, {
+      method: binding.compiled.definition.invocation.method,
+      headers,
+      ...(body ? { body: JSON.stringify(body) } : {}),
+      signal: AbortSignal.timeout(TOOL_TIMEOUT_MS),
+    });
+    if (!response.ok) throw new Error(`Oxy app error (${response.status}): ${(await response.text()).slice(0, 240)}`);
+    return response.headers.get('content-type')?.includes('application/json')
+      ? response.json()
+      : response.text();
+  } finally {
+    if (issued.transientAuthorizationId && context.userAccessToken) {
+      await revokeTransientAuthorization(
+        context,
+        issued.transientAuthorizationId,
+        runId,
+        binding.compiled.definition.name,
+      );
+    }
   }
-  const response = await fetch(url, {
-    method: binding.compiled.definition.invocation.method,
-    headers,
-    ...(body ? { body: JSON.stringify(body) } : {}),
-    signal: AbortSignal.timeout(TOOL_TIMEOUT_MS),
-  });
-  if (!response.ok) throw new Error(`Oxy app error (${response.status}): ${(await response.text()).slice(0, 240)}`);
-  return response.headers.get('content-type')?.includes('application/json')
-    ? response.json()
-    : response.text();
 }
 
 function sanitizeName(name: string): string {
@@ -352,7 +497,7 @@ export async function buildOxyServiceTools(
   }
 }
 
-export async function getOxyServiceContext(userId: string, _accessToken: string): Promise<string> {
+export async function getOxyServiceContext(userId: string, accessToken: string): Promise<string> {
   const cached = contextCache.get(userId);
   if (cached !== undefined) return cached;
   const context: OxyToolExecutionContext = {
@@ -360,6 +505,7 @@ export async function getOxyServiceContext(userId: string, _accessToken: string)
     ownerAccountId: userId,
     actor: { type: 'alia', ownerAccountId: userId },
     autonomy: 'read_only',
+    userAccessToken: accessToken,
   };
   try {
     const defs = await getCatalogDefs();
