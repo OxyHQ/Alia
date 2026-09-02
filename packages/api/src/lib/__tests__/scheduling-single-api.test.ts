@@ -3,8 +3,8 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 /**
- * Triggers are the only scheduling API — epic #139 workstream 13, "Preserve
- * triggers as the single scheduling API".
+ * The trigger engine is the only recurring scheduler. During migration it
+ * reads both legacy trigger rows and normalized automation definitions.
  *
  * ## What "single" is being claimed about, precisely
  *
@@ -18,8 +18,8 @@ import { describe, expect, it } from 'vitest';
  * The claim that can be checked, and that is the one the epic makes, is about
  * RECURRING USER-DEFINED EXECUTION: a schedule a user or an agent configured,
  * which survives a restart because it is a row. Exactly one mechanism in this
- * package does that — `node-cron`, driven by `lib/trigger-engine.ts` from
- * trigger rows — and the census below is over that mechanism.
+ * package does that — `node-cron`, driven by `lib/trigger-engine.ts` — and the
+ * census below is over that mechanism.
  *
  * A second scheduler is not a hypothetical: an agent archetype with a
  * `schedule`, a daily briefing and an agent `scheduleInterval` are three
@@ -84,6 +84,7 @@ function readSources(): Source[] {
 const SOURCES = readSources();
 const TRIGGER_ENGINE = 'lib/trigger-engine.ts';
 const TRIGGER_REPOSITORY = 'db/automation/triggerRepository.js';
+const AUTOMATION_REPOSITORY = 'db/automation/automationDefinitionRepository.js';
 
 describe('the census reads what it claims to read', () => {
   it('scans the whole package, so a clean result means clean', () => {
@@ -130,7 +131,7 @@ describe('exactly one module can put work on a recurring schedule', () => {
   });
 });
 
-describe('the surfaces that accept a schedule write a trigger row instead', () => {
+describe('the scheduling surfaces persist through one of the engine repositories', () => {
   /**
    * The three places a user or an agent configures recurring work. Each is
    * listed with what makes it a scheduling surface, so an entry cannot be added
@@ -141,6 +142,10 @@ describe('the surfaces that accept a schedule write a trigger row instead', () =
     { file: 'routes/agents/crud.ts', why: 'an agent archetype with a schedule' },
     { file: 'lib/daily-briefing.ts', why: "a user's morning briefing" },
   ];
+  const NORMALIZED_SURFACE = {
+    file: 'routes/automations.ts',
+    why: 'the normalized automation control plane',
+  };
 
   it('each one persists through the trigger repository', () => {
     for (const surface of SCHEDULING_SURFACES) {
@@ -153,11 +158,20 @@ describe('the surfaces that accept a schedule write a trigger row instead', () =
     }
   });
 
+  it('the normalized control plane persists through the automation repository', () => {
+    const source = SOURCES.find((entry) => entry.file === NORMALIZED_SURFACE.file);
+    expect(source, `${NORMALIZED_SURFACE.file} (${NORMALIZED_SURFACE.why}) was not scanned`).toBeDefined();
+    expect(source?.specifiers.some((specifier) => specifier.endsWith(AUTOMATION_REPOSITORY))).toBe(true);
+  });
+
   it('and none of them schedules anything itself', () => {
     for (const surface of SCHEDULING_SURFACES) {
       const source = SOURCES.find((entry) => entry.file === surface.file);
       expect(source?.specifiers).not.toContain('node-cron');
       expect(source?.calls).not.toContain('cron');
     }
+    const normalized = SOURCES.find((entry) => entry.file === NORMALIZED_SURFACE.file);
+    expect(normalized?.specifiers).not.toContain('node-cron');
+    expect(normalized?.calls).not.toContain('cron');
   });
 });
