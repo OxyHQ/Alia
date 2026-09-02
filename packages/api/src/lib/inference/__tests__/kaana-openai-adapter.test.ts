@@ -334,10 +334,11 @@ describe('a normalized event becomes an OpenAI chunk, or nothing at all', () => 
     const renderer = new ChatCompletionsRenderer(FRAME);
     const chunk = renderer.render(
       parsed({
-        schemaVersion: 1,
+        schemaVersion: 2,
         type: 'usage',
         requestId: 'r',
         sequence: 1,
+        deploymentId: 'deployment-1',
         units: [
           { unit: 'input_tokens', quantity: 40 },
           { unit: 'cached_input_tokens', quantity: 32 },

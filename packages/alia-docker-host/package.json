@@ -11,7 +11,7 @@
     "start": "node dist/index.js"
   },
   "dependencies": {
-    "@oxyhq/core": "^23.0.2",
+    "@oxyhq/core": "^23.1.0",
     "dockerode": "^4.0.12",
     "express": "^4.22.2",
     "helmet": "^8.3.0",

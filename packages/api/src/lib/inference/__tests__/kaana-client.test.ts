@@ -705,10 +705,11 @@ describe('retry rules that cannot double-charge or duplicate a tool effect', () 
 
   it('does NOT retry once the request has been metered', async () => {
     const usage = {
-      schemaVersion: 1,
+      schemaVersion: 2,
       type: 'usage',
       requestId: WIRE_REQUEST_ID,
       sequence: 1,
+      deploymentId: 'deployment-1',
       units: [{ unit: 'input_tokens', quantity: 12 }],
       usageSource: 'provider_reported',
     };
@@ -1052,10 +1053,11 @@ describe('generate folds the stream, because the contract publishes no completio
         complete: true,
       },
       {
-        schemaVersion: 1,
+        schemaVersion: 2,
         type: 'usage',
         requestId: WIRE_REQUEST_ID,
         sequence: 6,
+        deploymentId: 'deployment-1',
         units: [
           { unit: 'input_tokens', quantity: 40 },
           { unit: 'cached_input_tokens', quantity: 32 },
@@ -1195,4 +1197,3 @@ describe('degradation is a decision about the surface, not about the error', () 
     expect(sanitizeMessage('served by openai')).not.toBe('served by openai');
   });
 });
-
