@@ -256,7 +256,8 @@ each is easy to break by accident and none is caught by types:
 1. Never expose an upstream operator name or upstream model ID on the **product surface** —
    product API responses, errors, the UI, customer-facing analytics. It is a product and
    privacy boundary, not a global ban on the words.
-2. `Triggers` is the only scheduling API. Do not add a second one.
+2. `trigger-engine.ts` is the only scheduler. Legacy triggers and structured automation
+   schedules must both register through it; do not add a second scheduling loop.
 3. The `alia-*` identifier set is frozen. A pull request adding one is rejected on
    [ADR 0002](docs/adr/0002-alia-is-a-kaana-consumer-and-future-model-publisher.md), and
    nothing may be published under the reserved `alia/*` namespace without the four

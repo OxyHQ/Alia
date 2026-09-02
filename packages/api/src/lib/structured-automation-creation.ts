@@ -19,6 +19,7 @@ import {
   uniqueAutomationResources,
   type AutomationActionPlanInput,
 } from './automation-coordination.js';
+import { automationExecutionPolicyError } from './automation-execution-policy.js';
 import { log } from './logger.js';
 import { automationReceipt } from './structured-automation.js';
 import { automationScheduleError, reloadAutomationSchedule } from './trigger-engine.js';
@@ -117,15 +118,25 @@ export async function executionAuthorityPairs(input: {
   agents: NonNullable<Awaited<ReturnType<typeof findAgentById>>>[];
   actions: readonly AutomationActionPlanInput[];
   sourceResources: CreateAutomationInput['dataFlow']['sources'];
+  requiredAutonomy: CreateAutomationInput['maximumAutonomy'];
 }) {
-  const candidates = await loadAutomationActorCandidates(input.ownerAccountId, input.agents);
+  const candidates = await loadAutomationActorCandidates(
+    input.ownerAccountId,
+    input.agents,
+    input.requiredAutonomy,
+  );
   const plan = planAutomationStages({
     candidates,
     sourceResources: input.sourceResources,
     actions: input.actions,
+    requiredAutonomy: input.requiredAutonomy,
   });
   if (!plan) return null;
-  return provisionableAutomationPairs({ candidates, actions: input.actions });
+  return provisionableAutomationPairs({
+    candidates,
+    actions: input.actions,
+    requiredAutonomy: input.requiredAutonomy,
+  });
 }
 
 export async function revokeProvisionedAutomationAuthority(
@@ -193,6 +204,13 @@ function actionKey(action: CreateAutomationInput['actions'][number]): string {
 }
 
 function validateDefinition(definition: CreateAutomationInput): void {
+  const executionPolicyError = automationExecutionPolicyError({
+    enabled: definition.enabled,
+    executionMode: definition.executionMode,
+    maximumAutonomy: definition.maximumAutonomy,
+    triggerType: definition.trigger.type,
+  });
+  if (executionPolicyError) throw new AutomationCreationError(executionPolicyError, 400);
   if (definition.trigger.type === 'event' && definition.dataFlow.sources.length === 0) {
     throw new AutomationCreationError('event_automation_requires_explicit_data_source', 400);
   }
@@ -252,6 +270,7 @@ export async function createStructuredAutomation(input: {
       agents,
       actions,
       sourceResources,
+      requiredAutonomy: input.definition.maximumAutonomy,
     })
     : [];
   if (authorityPairs === null) {

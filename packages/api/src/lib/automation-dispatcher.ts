@@ -20,9 +20,16 @@ import {
 } from './automation-coordination.js';
 import { sendNotification } from './notification-service.js';
 import { automationStageTaskInputs, renderAutomationStageTask } from './automation-stage-task.js';
+import { automationExecutionPolicyError } from './automation-execution-policy.js';
 import { enqueueAgentSession } from './task-queue.js';
 
 export type AutomationDispatchTrigger =
+  | {
+      kind: 'manual';
+      id: string;
+      occurredAt: Date;
+      requesterAccountId: string;
+    }
   | {
       kind: 'event';
       id: string;
@@ -59,10 +66,15 @@ async function notifyNoExecution(
   trigger: AutomationDispatchTrigger,
   reason: string,
 ): Promise<void> {
+  const source = trigger.kind === 'event'
+    ? trigger.appId
+    : trigger.kind === 'schedule'
+      ? 'Scheduled'
+      : 'Manual';
   await sendNotification({
     userId: automation.ownerAccountId,
     type: 'oxy_service',
-    title: `${trigger.kind === 'event' ? trigger.appId : 'Scheduled'} automation did not run`,
+    title: `${source} automation did not run`,
     body: reason,
     priority: 'normal',
     channels: ['in_app', 'push'],
@@ -88,19 +100,38 @@ export async function dispatchStructuredAutomation(
   automation: AutomationDefinitionRecord,
   trigger: AutomationDispatchTrigger,
 ): Promise<AutomationDispatchResult> {
+  if (trigger.kind === 'manual' && trigger.requesterAccountId !== automation.ownerAccountId) {
+    return { status: 'denied', reason: 'manual_requester_not_owner' };
+  }
+  if (trigger.kind !== automation.trigger.type) {
+    return { status: 'denied', reason: 'automation_trigger_mismatch' };
+  }
   if (!automation.enabled) return { status: 'denied', reason: 'automation_disabled' };
-  if (automation.maximumAutonomy !== 'autonomous') {
+  const executionPolicyError = automationExecutionPolicyError({
+    enabled: automation.enabled,
+    executionMode: automation.executionMode,
+    maximumAutonomy: automation.maximumAutonomy,
+    triggerType: trigger.kind,
+  });
+  if (executionPolicyError) {
     const reason = `“${automation.objective}” needs approval under its ${automation.maximumAutonomy} policy.`;
     await notifyNoExecution(automation, trigger, reason);
-    return { status: 'denied', reason: 'autonomy_requires_approval' };
+    return { status: 'denied', reason: executionPolicyError };
   }
 
+  const requiredAutonomy = automation.executionMode === 'observe' || trigger.kind === 'manual'
+    ? automation.maximumAutonomy
+    : 'autonomous';
   const sourceResources = uniqueAutomationResources([
     ...(trigger.kind === 'event' ? [trigger.resource] : []),
     ...automation.dataFlow.sources,
   ]);
   const agents = await eligibleAgents(automation);
-  const candidates = await loadAutomationActorCandidates(automation.ownerAccountId, agents);
+  const candidates = await loadAutomationActorCandidates(
+    automation.ownerAccountId,
+    agents,
+    requiredAutonomy,
+  );
   const activeAuthorizationPairs = automation.executionMode === 'execute'
     ? new Set((await listActiveAutomationAuthorizations(getDb(), automation.id)).map((authorization) => (
         authorizationPairKey(authorization.automationActionId, authorization.agentId)
@@ -111,6 +142,7 @@ export async function dispatchStructuredAutomation(
     sourceResources,
     actions: automation.actions,
     activeAuthorizationPairs,
+    requiredAutonomy,
   });
   if (!stages || stages.length === 0) {
     const reason = 'No deterministic actor plan currently covers the source resources and every declared action.';
@@ -119,6 +151,9 @@ export async function dispatchStructuredAutomation(
   }
 
   const resource = primaryResource(automation, trigger, sourceResources);
+  const requesterAccountId = trigger.kind === 'manual'
+    ? trigger.requesterAccountId
+    : automation.ownerAccountId;
   const taskInputs = automationStageTaskInputs(automation, trigger, stages);
   const runStages = stages.map((stage, index) => ({
     stage: stage.stage,
@@ -132,7 +167,7 @@ export async function dispatchStructuredAutomation(
     const created = await createObservedAutomationRun({
       db: getDb(),
       automationId: automation.id,
-      requesterAccountId: automation.ownerAccountId,
+      requesterAccountId,
       triggerEventId: trigger.id,
       stages: runStages,
     });
@@ -145,7 +180,7 @@ export async function dispatchStructuredAutomation(
       db: transaction,
       runId,
       automationId: automation.id,
-      requesterAccountId: automation.ownerAccountId,
+      requesterAccountId,
       triggerEventId: trigger.id,
       stages: runStages,
     });

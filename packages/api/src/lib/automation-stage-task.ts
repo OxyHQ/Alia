@@ -28,21 +28,28 @@ const taskInputSchema = z.object({
 export type AutomationStageTaskInput = z.infer<typeof taskInputSchema>;
 
 function triggerContext(trigger: AutomationDispatchTrigger): Record<string, unknown> {
-  return trigger.kind === 'event'
-    ? {
-        type: 'event',
-        eventId: trigger.id,
-        appId: trigger.appId,
-        eventType: trigger.eventType,
-        occurredAt: trigger.occurredAt.toISOString(),
-        resource: trigger.resource,
-        data: trigger.data,
-      }
-    : {
-        type: 'schedule',
-        occurrenceId: trigger.id,
-        occurredAt: trigger.occurredAt.toISOString(),
-      };
+  if (trigger.kind === 'event') {
+    return {
+      type: 'event',
+      eventId: trigger.id,
+      appId: trigger.appId,
+      eventType: trigger.eventType,
+      occurredAt: trigger.occurredAt.toISOString(),
+      resource: trigger.resource,
+      data: trigger.data,
+    };
+  }
+  if (trigger.kind === 'schedule') {
+    return {
+      type: 'schedule',
+      occurrenceId: trigger.id,
+      occurredAt: trigger.occurredAt.toISOString(),
+    };
+  }
+  return {
+    type: 'manual',
+    occurredAt: trigger.occurredAt.toISOString(),
+  };
 }
 
 function receivesPreviousResult(

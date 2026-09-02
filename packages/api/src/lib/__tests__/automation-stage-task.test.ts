@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import type { AutomationDefinitionRecord } from '../../db/automation/automationDefinitionRepository.js';
 import { automationStageTaskInputs, renderAutomationStageTask } from '../automation-stage-task.js';
 
 const source = {
@@ -16,7 +17,7 @@ const destination = {
 const readAction = { id: 'read', position: 0, resource: source, tool: 'searchNotes', input: {}, limits: [] };
 const publishAction = { id: 'publish', position: 1, resource: destination, tool: 'publishPost', input: {}, limits: [] };
 
-function automation(destinations = [destination]) {
+function automation(destinations = [destination]): AutomationDefinitionRecord {
   return {
     id: 'automation-1',
     ownerAccountId: 'owner-1',
@@ -33,7 +34,7 @@ function automation(destinations = [destination]) {
     enabled: true,
     createdAt: new Date(),
     updatedAt: new Date(),
-  } as never;
+  };
 }
 
 const stages = [
@@ -64,5 +65,25 @@ describe('automation stage task data flow', () => {
     if (!publisherInput) throw new Error('Expected publisher stage input');
     expect(publisherInput.receivePreviousResult).toBe(false);
     expect(renderAutomationStageTask(publisherInput, 'private summary')).not.toContain('private summary');
+  });
+
+  it('keeps manual request identity in audit storage rather than the agent task', () => {
+    const [input] = automationStageTaskInputs({
+      ...automation(),
+      trigger: { type: 'manual' },
+    }, {
+      kind: 'manual',
+      id: 'manual:automation-1:request-0001',
+      requesterAccountId: 'owner-1',
+      occurredAt: new Date('2026-09-07T09:00:00.000Z'),
+    }, stages);
+    if (!input) throw new Error('Expected manual stage input');
+
+    expect(input.trigger).toEqual({
+      type: 'manual',
+      occurredAt: '2026-09-07T09:00:00.000Z',
+    });
+    expect(JSON.stringify(input.trigger)).not.toContain('request-0001');
+    expect(JSON.stringify(input.trigger)).not.toContain('owner-1');
   });
 });

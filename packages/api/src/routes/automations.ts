@@ -18,6 +18,8 @@ import {
 import {
   uniqueAutomationResources,
 } from '../lib/automation-coordination.js';
+import { dispatchStructuredAutomation } from '../lib/automation-dispatcher.js';
+import { automationExecutionPolicyError } from '../lib/automation-execution-policy.js';
 import { log } from '../lib/logger.js';
 import {
   AutomationCreationError,
@@ -32,6 +34,12 @@ import {
 import { authenticateToken } from '../middleware/auth.js';
 
 type AutomationRecord = NonNullable<Awaited<ReturnType<typeof findAutomationDefinition>>>;
+
+const idempotencyKeySchema = z.string()
+  .trim()
+  .min(8)
+  .max(128)
+  .regex(/^[A-Za-z0-9._:-]+$/);
 
 const router = Router();
 router.use(authenticateToken);
@@ -116,6 +124,37 @@ router.get('/runs/:runId/steps', async (request: Request, response: Response) =>
   return response.json({ steps: await listAutomationRunSteps(getDb(), String(request.params.runId)) });
 });
 
+router.post('/:id/run', async (request: Request, response: Response) => {
+  const ownerAccountId = userId(request);
+  if (!ownerAccountId) return response.status(401).json({ error: 'Unauthorized' });
+  const idempotencyKey = idempotencyKeySchema.safeParse(request.get('idempotency-key'));
+  if (!idempotencyKey.success) {
+    return response.status(400).json({ error: 'valid_idempotency_key_required' });
+  }
+  const automation = await findAutomationDefinition(
+    getDb(),
+    String(request.params.id),
+    ownerAccountId,
+  );
+  if (!automation) return response.status(404).json({ error: 'Automation not found' });
+  if (automation.trigger.type !== 'manual') {
+    return response.status(409).json({ error: 'automation_trigger_is_not_manual' });
+  }
+
+  try {
+    const run = await dispatchStructuredAutomation(automation, {
+      kind: 'manual',
+      id: `manual:${automation.id}:${idempotencyKey.data}`,
+      occurredAt: new Date(),
+      requesterAccountId: ownerAccountId,
+    });
+    return response.status(run.status === 'queued' ? 202 : run.status === 'denied' ? 409 : 200).json({ run });
+  } catch (error: unknown) {
+    log.triggers.error({ err: error, automationId: automation.id }, 'Could not dispatch manual automation');
+    return response.status(503).json({ error: 'automation_dispatch_unavailable' });
+  }
+});
+
 router.patch('/:id', async (request: Request, response: Response) => {
   const ownerAccountId = userId(request);
   if (!ownerAccountId) return response.status(401).json({ error: 'Unauthorized' });
@@ -135,6 +174,13 @@ router.patch('/:id', async (request: Request, response: Response) => {
   }
 
   if (existing.executionMode === 'execute') {
+    const executionPolicyError = automationExecutionPolicyError({
+      enabled: true,
+      executionMode: existing.executionMode,
+      maximumAutonomy: existing.maximumAutonomy,
+      triggerType: existing.trigger.type,
+    });
+    if (executionPolicyError) return response.status(409).json({ error: executionPolicyError });
     if (!request.accessToken) {
       return response.status(401).json({ error: 'user_session_required_for_execution_authority' });
     }
@@ -147,6 +193,7 @@ router.patch('/:id', async (request: Request, response: Response) => {
       ownerAccountId,
       agents,
       actions: existing.actions,
+      requiredAutonomy: existing.maximumAutonomy,
       sourceResources: uniqueAutomationResources([
         ...(existing.trigger.type === 'event' && existing.trigger.resource
           ? [existing.trigger.resource]
