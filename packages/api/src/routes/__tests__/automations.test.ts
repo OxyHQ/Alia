@@ -15,6 +15,7 @@ const state = vi.hoisted(() => ({
   revoke: vi.fn(),
   reload: vi.fn(),
   scheduleError: vi.fn(),
+  oxyMap: vi.fn(),
 }));
 
 const database = { transaction: vi.fn(async (callback) => callback(database)) };
@@ -33,6 +34,7 @@ vi.mock('../../db/agents/agentRepository.js', () => ({
     _id: id,
     author: 'owner-1',
     oxyAccountId: `bot-${id}`,
+    status: 'active',
   })),
 }));
 vi.mock('../../db/automation/automationDefinitionRepository.js', () => ({
@@ -49,6 +51,9 @@ vi.mock('../../db/automation/automationDefinitionRepository.js', () => ({
 vi.mock('../../lib/automation-authority.js', () => ({
   provisionAutomationAuthorizations: state.provision,
   revokeAutomationAuthorizations: state.revoke,
+}));
+vi.mock('../../lib/tools/oxy-services.js', () => ({
+  getOxyAgentCapabilityMap: state.oxyMap,
 }));
 vi.mock('../../lib/trigger-engine.js', () => ({
   automationScheduleError: state.scheduleError,
@@ -145,6 +150,12 @@ beforeEach(() => {
   state.markRevoked.mockResolvedValue(undefined);
   state.reload.mockResolvedValue(undefined);
   state.scheduleError.mockReturnValue(null);
+  state.oxyMap.mockResolvedValue([{
+    resource,
+    maximumAutonomy: 'autonomous',
+    limits: [],
+    toolNames: ['replyToEmail'],
+  }]);
   state.setEnabled.mockImplementation(async (_db, id, _owner, enabled) => ({ id, enabled }));
 });
 
@@ -185,7 +196,7 @@ describe('structured automation control plane', () => {
 
   it('persists only opaque authorization references for execute mode', async () => {
     state.provision.mockImplementationOnce(async (input) => [{
-      automationActionId: input.actions[0].id,
+      automationActionId: input.pairs[0].action.id,
       agentId: 'agent-1',
       actorAccountId: 'bot-agent-1',
       oxyAuthorizationId: 'authorization-1',

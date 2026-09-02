@@ -1,22 +1,26 @@
 /** Shared policy, actor selection and queueing for normalized automations. */
 
+import { uuidv7 } from '@oxyhq/db';
 import type { AutomationDefinitionRecord } from '../db/automation/automationDefinitionRepository.js';
 import {
-  automationHasActiveAuthorizationCoverage,
-  createAutomationRunForSession,
+  claimAutomationRunPlan,
   createObservedAutomationRun,
+  listActiveAutomationAuthorizations,
   markAutomationRunForSession,
 } from '../db/automation/automationDefinitionRepository.js';
 import { findAgentById } from '../db/agents/agentRepository.js';
 import { createAgentSession, updateAgentSession } from '../db/agents/agentSessionRepository.js';
 import { getDb } from '../db/index.js';
 import type { AutomationResourceRef } from '../db/schema/agency.js';
-import { log } from './logger.js';
+import {
+  authorizationPairKey,
+  loadAutomationActorCandidates,
+  planAutomationStages,
+  uniqueAutomationResources,
+} from './automation-coordination.js';
 import { sendNotification } from './notification-service.js';
+import { automationStageTaskInputs, renderAutomationStageTask } from './automation-stage-task.js';
 import { enqueueAgentSession } from './task-queue.js';
-import { getOxyAgentCapabilityMap } from './tools/oxy-services.js';
-
-type AutomationAction = AutomationDefinitionRecord['actions'][number];
 
 export type AutomationDispatchTrigger =
   | {
@@ -40,87 +44,14 @@ export type AutomationDispatchResult =
   | { status: 'duplicate' }
   | { status: 'denied'; reason: string };
 
-function sameResource(left: AutomationResourceRef, right: AutomationResourceRef): boolean {
-  return left.appId === right.appId
-    && left.effectiveAccountId === right.effectiveAccountId
-    && left.resourceType === right.resourceType
-    && left.resourceId === right.resourceId;
-}
-
-function uniqueResources(resources: readonly AutomationResourceRef[]): AutomationResourceRef[] {
-  return resources.filter((resource, index) => (
-    resources.findIndex((candidate) => sameResource(candidate, resource)) === index
-  ));
-}
-
-function assignmentCoversResource(assignment: {
-  resource: AutomationResourceRef;
-  maximumAutonomy: 'read_only' | 'draft' | 'execute_on_request' | 'autonomous';
-}, resource: AutomationResourceRef): boolean {
-  if (assignment.maximumAutonomy !== 'autonomous') return false;
-  const granted = assignment.resource;
-  if (granted.appId !== resource.appId
-    || granted.effectiveAccountId !== resource.effectiveAccountId) return false;
-  if (granted.resourceType === resource.resourceType) return granted.resourceId === resource.resourceId;
-  // An Inbox email-account grant contains its mailboxes. No hierarchy is
-  // inferred for another app or resource type.
-  return granted.appId === 'inbox'
-    && granted.resourceType === 'email_account'
-    && resource.resourceType === 'mailbox'
-    && granted.resourceId === granted.effectiveAccountId;
-}
-
-export function assignmentsCoverAutomation(input: {
-  assignments: ReadonlyArray<{
-    resource: AutomationResourceRef;
-    maximumAutonomy: 'read_only' | 'draft' | 'execute_on_request' | 'autonomous';
-    toolNames: readonly string[];
-  }>;
-  sourceResources: readonly AutomationResourceRef[];
-  actions: readonly AutomationAction[];
-}): boolean {
-  const sourcesCovered = input.sourceResources.every((resource) => input.assignments.some((assignment) => (
-    assignment.toolNames.length > 0 && assignmentCoversResource(assignment, resource)
-  )));
-  return sourcesCovered && input.actions.every((action) => input.assignments.some((assignment) => (
-    assignment.toolNames.includes(action.tool)
-    && assignmentCoversResource(assignment, action.resource)
-  )));
-}
-
-async function eligibleAgent(
-  automation: AutomationDefinitionRecord,
-  sourceResources: readonly AutomationResourceRef[],
-) {
+async function eligibleAgents(automation: AutomationDefinitionRecord) {
   const candidateIds = automation.actorSelection.mode === 'fixed'
     ? [automation.actorSelection.agentId].filter((id): id is string => Boolean(id))
     : automation.actorSelection.eligibleAgentIds;
-  for (const agentId of candidateIds) {
-    const agent = await findAgentById(getDb(), agentId);
-    if (!agent || agent.author !== automation.ownerAccountId) continue;
-    try {
-      const assignments = await getOxyAgentCapabilityMap({
-        requesterAccountId: automation.ownerAccountId,
-        ownerAccountId: automation.ownerAccountId,
-        actor: { type: 'agent', accountId: agent.oxyAccountId },
-        autonomy: 'autonomous',
-      });
-      if (!assignmentsCoverAutomation({ assignments, sourceResources, actions: automation.actions })) continue;
-      if (automation.executionMode === 'execute' && !await automationHasActiveAuthorizationCoverage(
-        getDb(),
-        automation.id,
-        agent.id,
-        automation.actions.map((action) => action.id),
-      )) continue;
-      return agent;
-    } catch (error: unknown) {
-      log.triggers.warn(
-        { err: error, agentId, ownerAccountId: automation.ownerAccountId },
-        'Agent capability-map lookup failed closed',
-      );
-    }
-  }
-  return null;
+  const agents = await Promise.all(candidateIds.map((agentId) => findAgentById(getDb(), agentId)));
+  return agents.filter((agent): agent is NonNullable<typeof agent> => (
+    agent !== null && agent.author === automation.ownerAccountId
+  ));
 }
 
 async function notifyNoExecution(
@@ -137,41 +68,6 @@ async function notifyNoExecution(
     channels: ['in_app', 'push'],
     data: { automationId: automation.id, triggerId: trigger.id, triggerKind: trigger.kind },
   });
-}
-
-function taskFor(
-  automation: AutomationDefinitionRecord,
-  trigger: AutomationDispatchTrigger,
-): string {
-  const triggerContext = trigger.kind === 'event'
-    ? {
-        type: 'event',
-        eventId: trigger.id,
-        appId: trigger.appId,
-        eventType: trigger.eventType,
-        occurredAt: trigger.occurredAt.toISOString(),
-        resource: trigger.resource,
-        data: trigger.data,
-      }
-    : {
-        type: 'schedule',
-        occurrenceId: trigger.id,
-        occurredAt: trigger.occurredAt.toISOString(),
-      };
-  return [
-    automation.objective,
-    '',
-    'This run was started by a normalized Oxy automation. Use only the declared actions and minimum trigger data below.',
-    JSON.stringify({
-      trigger: triggerContext,
-      inputs: automation.inputs,
-      actions: automation.actions.map((action) => ({
-        resource: action.resource,
-        tool: action.tool,
-        input: action.input,
-      })),
-    }),
-  ].join('\n');
 }
 
 function primaryResource(
@@ -199,66 +95,80 @@ export async function dispatchStructuredAutomation(
     return { status: 'denied', reason: 'autonomy_requires_approval' };
   }
 
-  const sourceResources = uniqueResources([
+  const sourceResources = uniqueAutomationResources([
     ...(trigger.kind === 'event' ? [trigger.resource] : []),
     ...automation.dataFlow.sources,
   ]);
-  const agent = await eligibleAgent(automation, sourceResources);
-  if (!agent) {
-    const reason = 'No eligible agent currently covers every source resource and declared action.';
+  const agents = await eligibleAgents(automation);
+  const candidates = await loadAutomationActorCandidates(automation.ownerAccountId, agents);
+  const activeAuthorizationPairs = automation.executionMode === 'execute'
+    ? new Set((await listActiveAutomationAuthorizations(getDb(), automation.id)).map((authorization) => (
+        authorizationPairKey(authorization.automationActionId, authorization.agentId)
+      )))
+    : undefined;
+  const stages = planAutomationStages({
+    candidates,
+    sourceResources,
+    actions: automation.actions,
+    activeAuthorizationPairs,
+  });
+  if (!stages || stages.length === 0) {
+    const reason = 'No deterministic actor plan currently covers the source resources and every declared action.';
     await notifyNoExecution(automation, trigger, reason);
-    return { status: 'denied', reason: 'no_eligible_agent' };
+    return { status: 'denied', reason: 'no_eligible_actor_plan' };
   }
 
   const resource = primaryResource(automation, trigger, sourceResources);
+  const taskInputs = automationStageTaskInputs(automation, trigger, stages);
+  const runStages = stages.map((stage, index) => ({
+    stage: stage.stage,
+    selectedAgentId: stage.agentId,
+    selectedActorAccountId: stage.actorAccountId,
+    resource: stage.actions[0]?.resource ?? resource,
+    taskInput: taskInputs[index] ?? {},
+    actions: stage.actions,
+  }));
   if (automation.executionMode === 'observe') {
     const created = await createObservedAutomationRun({
       db: getDb(),
       automationId: automation.id,
       requesterAccountId: automation.ownerAccountId,
-      selectedAgentId: agent.id,
-      selectedActorAccountId: agent.oxyAccountId,
       triggerEventId: trigger.id,
-      resource,
-      objective: automation.objective,
-      actions: automation.actions,
+      stages: runStages,
     });
     return { status: created ? 'observed' : 'duplicate' };
   }
 
-  const task = taskFor(automation, trigger);
-  const session = await createAgentSession(getDb(), {
-    agentId: agent.id,
-    oxyUserId: automation.ownerAccountId,
-    task,
-    status: 'queued',
-    messages: [{ role: 'user', content: task, timestamp: new Date() }],
-  });
-  const claimed = await createAutomationRunForSession({
-    db: getDb(),
-    sessionId: session.id,
-    automationId: automation.id,
-    requesterAccountId: automation.ownerAccountId,
-    selectedAgentId: agent.id,
-    selectedActorAccountId: agent.oxyAccountId,
-    triggerEventId: trigger.id,
-    resource,
-    objective: automation.objective,
-    actions: automation.actions,
-  });
-  if (!claimed) {
-    await updateAgentSession(getDb(), session.id, {
-      status: 'cancelled',
-      result: 'Duplicate automation occurrence',
+  const runId = uuidv7();
+  const session = await getDb().transaction(async (transaction) => {
+    const claimed = await claimAutomationRunPlan({
+      db: transaction,
+      runId,
+      automationId: automation.id,
+      requesterAccountId: automation.ownerAccountId,
+      triggerEventId: trigger.id,
+      stages: runStages,
     });
-    return { status: 'duplicate' };
-  }
+    if (!claimed) return null;
+    const first = stages[0];
+    const task = renderAutomationStageTask(taskInputs[0] ?? {});
+    return createAgentSession(transaction, {
+      agentId: first.agentId,
+      oxyUserId: automation.ownerAccountId,
+      automationRunId: runId,
+      automationStage: first.stage,
+      task,
+      status: 'queued',
+      messages: [{ role: 'user', content: task, timestamp: new Date() }],
+    });
+  });
+  if (!session) return { status: 'duplicate' };
   try {
     await enqueueAgentSession({
       sessionId: session.id,
       userId: automation.ownerAccountId,
-      agentId: agent.id,
-      agentName: `Agent ${agent.id}`,
+      agentId: session.agentId,
+      agentName: `Agent ${session.agentId}`,
     });
   } catch (error: unknown) {
     await Promise.all([

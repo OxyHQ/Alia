@@ -195,7 +195,9 @@ export const automationSteps = pgTable(
     runId: text().notNull(),
     automationActionId: text().references(() => automationActions.id, { onDelete: 'set null' }),
     position: integer().notNull(),
+    stage: integer(),
     actorType: text({ enum: ['alia', 'agent'] as unknown as [string, ...string[]] }).notNull(),
+    agentId: text(),
     actorAccountId: text().notNull(),
     resource: jsonb().$type<AutomationResourceRef>().notNull(),
     tool: text().notNull(),
@@ -214,6 +216,7 @@ export const automationSteps = pgTable(
     uniqueIndex('automation_steps_run_position_key').on(table.runId, table.position),
     uniqueIndex('automation_steps_run_idempotency_key').on(table.runId, table.idempotencyKey),
     index('automation_steps_run_status_idx').on(table.runId, table.status),
+    index('automation_steps_run_stage_idx').on(table.runId, table.stage, table.position),
     checkOneOf('automation_steps_status_check', table.status, AUTOMATION_STEP_STATUSES),
   ],
 );

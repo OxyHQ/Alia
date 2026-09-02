@@ -179,6 +179,9 @@ describe('Oxy capability tools', () => {
     });
     const search = tools.oxy_inbox__searchEmails as unknown as ExecutableTool;
     await search.execute({ q: 'hello' });
+    await expect(search.execute({ q: 'second' })).resolves.toEqual({
+      error: 'searchEmails is authorized once for this automation stage',
+    });
 
     const controlPlaneCalls = fetchMock.mock.calls.filter(([input]) => (
       String(input).endsWith('/capabilities/execution-authorizations')
@@ -191,5 +194,20 @@ describe('Oxy capability tools', () => {
       ['step-user-3', 'running'],
       ['step-user-3', 'succeeded'],
     ]);
+    expect(fetchMock.mock.calls.filter(([input]) => (
+      String(input).startsWith('https://inbox.example.test/')
+    ))).toHaveLength(1);
+  });
+
+  it('does not expose undeclared Oxy tools to a pre-authorized background stage', async () => {
+    const tools = await buildOxyServiceTools('user-4', {
+      requesterAccountId: 'user-4',
+      ownerAccountId: 'user-4',
+      actor: { type: 'alia', ownerAccountId: 'user-4' },
+      runId: 'run-user-4',
+      autonomy: 'autonomous',
+      executionAuthorizations: {},
+    });
+    expect(tools).toEqual({});
   });
 });

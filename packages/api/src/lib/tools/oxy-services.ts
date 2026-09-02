@@ -434,20 +434,35 @@ export async function buildOxyServiceTools(
     const defs = allowed
       ? allDefs.filter((entry) => allowed.has(entry.catalog.appId) || allowed.has(`oxy-${entry.catalog.appId}`))
       : allDefs;
-    const bindings = context.actor.type === 'agent'
+    const candidateBindings = context.actor.type === 'agent'
       ? agentBindings(defs, await agentAssignments(context))
       : regularAliaBindings(defs, context);
+    const bindings = context.executionAuthorizations === undefined
+      ? candidateBindings
+      : candidateBindings.filter((binding) => Object.hasOwn(
+          context.executionAuthorizations ?? {},
+          oxyExecutionAuthorizationKey(binding.resource, binding.compiled.definition.name),
+        ));
     const tools: ToolSet = {};
     for (const binding of bindings) {
       const baseName = `oxy_${sanitizeName(binding.compiled.catalog.appId)}__${sanitizeName(binding.compiled.definition.name)}`;
       const toolName = binding.suffix ? `${baseName}__${binding.suffix}` : baseName;
+      let preauthorizedInvocationStarted = false;
       tools[toolName] = tool({
         description: `[${appDisplayName(binding.compiled.catalog.appId)}] ${binding.compiled.definition.description} Resource: ${binding.resource.resourceType}/${binding.resource.resourceId}.`,
         inputSchema: binding.compiled.inputSchema,
-        execute: async (args: Record<string, unknown>) => safeExecute(
-          binding.compiled.catalog.appId,
-          () => callBoundTool(binding, args, context),
-        ),
+        execute: async (args: Record<string, unknown>) => {
+          if (context.executionAuthorizations !== undefined) {
+            if (preauthorizedInvocationStarted) {
+              return { error: `${binding.compiled.definition.name} is authorized once for this automation stage` };
+            }
+            preauthorizedInvocationStarted = true;
+          }
+          return safeExecute(
+            binding.compiled.catalog.appId,
+            () => callBoundTool(binding, args, context),
+          );
+        },
       });
     }
     log.general.info({ userId: oxyUserId, toolCount: Object.keys(tools).length }, 'Oxy capability tools loaded');

@@ -232,6 +232,12 @@ export interface ForUserOptions {
    */
   instancedSources?: readonly InstancedToolSource[];
   /**
+   * Restrict a normalized background stage to its protocol tools and the exact
+   * Oxy actions named by `oxyExecutionAuthorizations`. No user-bound, web,
+   * editor, skill, connector, shell, file, browser or delegation tool is built.
+   */
+  toolScope?: 'standard' | 'preauthorized_oxy_automation';
+  /**
    * One hosted MCP connector selected for this turn, by the person composing it.
    *
    * `undefined` keeps the compatibility behaviour (all runnable connectors),
@@ -292,6 +298,7 @@ export class ToolPipeline {
       isLocalRuntime,
       instancedSources,
       skills,
+      toolScope = 'standard',
     } = opts;
 
     const toolNameMapping = new Map<string, string>();
@@ -317,6 +324,28 @@ export class ToolPipeline {
      */
     if (!toolsEnabled) {
       return { tools: { getCurrentDate: getCurrentDateTool }, toolNameMapping };
+    }
+
+    if (toolScope === 'preauthorized_oxy_automation') {
+      if (!agent || !runtime || oxyExecutionAuthorizations === undefined) {
+        throw new Error('Preauthorized Oxy automation scope requires an agent, runtime, and exact authorizations');
+      }
+      const oxyServiceTools = await buildOxyServiceTools(userId, {
+        requesterAccountId: agent.author,
+        ownerAccountId: agent.author,
+        actor: { type: 'agent', accountId: agent.oxyAccountId },
+        runId: runId ?? requestId,
+        autonomy: oxyAutonomy,
+        executionAuthorizations: oxyExecutionAuthorizations,
+        onStepStatus: onOxyStepStatus,
+      });
+      const tools: ToolSet = {
+        getCurrentDate: getCurrentDateTool,
+        ...buildRuntimeTools(runtime, grants, { protocolOnly: true }),
+        ...oxyServiceTools,
+      };
+      await applyRuntimePolicy(tools, runtime, new Set());
+      return { tools, toolNameMapping };
     }
 
     // 1. Convert editor tools from OpenAI format and build name mapping
