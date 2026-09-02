@@ -28,25 +28,17 @@ migrated by `packages/api/src/db/migrate.ts`, which requires an explicit
 migration; a zero-capacity deploy exits before the post-migration step, so a `post`
 migration does not land on one.
 
-**MongoDB** is no longer part of this service. `lib/db.ts` and the boot-time
-`connectDB()` are deleted, and no Mongoose model is registered.
-`packages/api/src/db/__tests__/bootWiring.test.ts` asserts this twice, because the
-two failures are different: it walks the import graph from `src/index.ts` and
-finds no Mongoose driver reachable from it, and it freezes the set of files in the
-package that import the driver AT ALL as exactly one. The first is what protects a
-request in production; the second is what catches a model declared today and
-routed next week.
+MongoDB is not part of this service. `lib/db.ts`, the boot-time `connectDB()` and
+the last backup-only operator script are deleted; no Mongoose model is
+registered and no Mongo driver is declared. The old script could not reach the
+destroyed source database and was not a restore or backfill path.
 
-That one file is `packages/api/src/scripts/purge-ip-fields.ts`, an operator
-one-shot for a RESTORED BACKUP, which takes `MONGODB_URI` and computes
-`alia-{NODE_ENV}` as its `dbName` — so never embed the database name in that URI.
-It is kept because the archives it operates on are kept: the shared Mongo
-instance was destroyed on 2026-08-10, but the pre-drop archives sit under the
-`final/` prefix of `s3://oxy-mongo-backups-usw2-<account>`, which the bucket's
-`daily/`-scoped lifecycle rule does not expire, and the archived
-`alia-production` carried 120 `apikeyusages` documents with an `ipAddress` field.
-Deleting the script is what would let `mongoose` leave
-`packages/api/package.json`, and the two go in one commit.
+`packages/api/src/db/__tests__/bootWiring.test.ts` asserts the boundary twice:
+it walks the import graph from `src/index.ts`, and it scans every tracked source
+file plus the package manifest for either Mongo driver. The first protects a
+request in production; the second catches a model declared today and routed
+next week. The pre-drop archive is external retention data and was not modified
+by this repository cleanup.
 
 The `integrations` service is a separate process with its own manifest.
 

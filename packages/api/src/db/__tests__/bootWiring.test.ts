@@ -34,12 +34,11 @@ const code = stripComments(source);
  *
  * ## Why a graph walk and not a grep
  *
- * `git grep mongoose` over this package returns fourteen files and answers the
- * wrong question. Thirteen of them are COMMENTS — repository modules recording
- * what the Mongo version of a query did — and a grep that counts them cannot be
- * made to distinguish a comment from `import mongoose from 'mongoose'` two hops
- * down a repository chain. What matters is neither of those: it is whether a
- * module the entrypoint actually loads pulls the driver in.
+ * `git grep mongoose` over this package finds many historical comments and
+ * answers the wrong question. A grep that counts them cannot distinguish those
+ * migration notes from `import mongoose from 'mongoose'` two hops down a
+ * repository chain. What matters is whether a module the entrypoint actually
+ * loads pulls the driver in.
  *
  * So this resolves the real import graph from `src/index.ts` — static imports,
  * re-exports and dynamic `import()` alike — and asks which bare specifiers it
@@ -49,16 +48,15 @@ const code = stripComments(source);
  * ## The two controls, and what each of them would catch
  *
  * A walker that resolved nothing would report "no mongoose" from any entrypoint,
- * which is indistinguishable from a clean tree. Both halves are controlled:
- * DETECTION against `scripts/purge-ip-fields.ts`, which really does import
- * mongoose and is expected to be found; and TRAVERSAL against `drizzle-orm`,
- * which `src/index.ts` does not import directly and which must therefore be
- * found through a chain of at least two files.
+ * which is indistinguishable from a clean tree. TRAVERSAL is controlled against
+ * `drizzle-orm`, which `src/index.ts` does not import directly and which must
+ * therefore be found through a chain of at least two files. The package-wide
+ * importer census below has its own positive control over the same source tree.
  */
 const PACKAGE_SRC = resolve(__dirname, '..', '..');
 const PACKAGE_ROOT = resolve(PACKAGE_SRC, '..');
 
-/** Block comments and whole-line `//` comments. Thirteen of the fourteen mongoose mentions are here. */
+/** Block comments and whole-line `//` comments contain the migration-history mentions. */
 function stripComments(text: string): string {
   return text
     .replace(/\/\*[\s\S]*?\*\//g, '')
@@ -258,17 +256,6 @@ describe('the boot path reaches no MongoDB driver', () => {
     expect(drizzle?.[0]).toBe('index.ts');
   });
 
-  it('finds mongoose where mongoose really is', () => {
-    /*
-     * DETECTION control. `scripts/purge-ip-fields.ts` is a one-shot operator
-     * script for a RESTORED BACKUP — it is a build entrypoint of its own and is
-     * reachable from nothing — and it is the last first-party importer of the
-     * driver. If this stops finding it, the assertion below means nothing.
-     */
-    const script = walkFrom('scripts/purge-ip-fields.ts');
-    expect([...script.externals.keys()]).toContain('mongoose');
-  });
-
   it('never reaches mongoose or the raw driver from src/index.ts', () => {
     const drivers = [...boot.externals.keys()].filter(
       (specifier) => specifier === 'mongoose' || specifier === 'mongodb' || specifier.startsWith('mongodb/'),
@@ -303,19 +290,12 @@ describe('the boot path reaches no MongoDB driver', () => {
  * the two directories those walks enumerated, and cannot pass by finding
  * nothing — an empty result fails it just as loudly as a wrong one.
  *
- * ## What is allowed to be here, and why exactly one thing is
- *
- * `scripts/purge-ip-fields.ts` erases persisted user IPs from documents restored
- * from a Mongo backup. It is not dead: the final pre-drop archives are under the
- * `final/2026-08-10-pre-drop/` prefix of `s3://oxy-mongo-backups-usw2-…`, they
- * are outside the lifecycle rule that expires `daily/`, and the archived
- * `alia-production` database held 120
- * `apikeyusages` rows carrying `ipAddress` at dump time. It is a build entrypoint
- * of its own, imported by nothing, and the DETECTION control above depends on it
- * really importing the driver. Deleting it is what makes `mongoose` removable
- * from `package.json`, and not before.
+ * There is no exception list. The former backup-only purge script could not
+ * reach the destroyed source database and kept the whole driver installed, so
+ * it and the dependency were retired together. Any new importer is therefore a
+ * second store with no migration ledger and must fail this gate.
  */
-describe('the Mongo driver is imported by exactly one file', () => {
+describe('the Mongo drivers have no first-party surface', () => {
   /** Every tracked TypeScript source in this package, relative to the package root. */
   function trackedSources(): string[] {
     return execFileSync('git', ['ls-files', 'src'], { cwd: PACKAGE_ROOT, encoding: 'utf8' })
@@ -327,12 +307,11 @@ describe('the Mongo driver is imported by exactly one file', () => {
    * Files whose CODE names `pkg` as a module specifier, in any spelling —
    * `from`, a bare `import`, a dynamic `import()` or a `require()`.
    *
-   * Comments are stripped first, and that is the whole difficulty. Twenty-five
-   * files under `src/` contain the string `mongoose`; twenty-four of them are
-   * prose recording what the Mongo version of a query did, and those citations
-   * are load-bearing — `retiredModelFiles.ts` and `ttlRegistryCoverage.test.ts`
-   * are nothing but citations. A text census cannot be made to tell one from an
-   * import, so it is not attempted.
+   * Comments are stripped first, and that is the whole difficulty. Many files
+   * under `src/` contain prose recording what the Mongo version of a query did,
+   * and those citations are load-bearing — `retiredModelFiles.ts` and
+   * `ttlRegistryCoverage.test.ts` are nothing but citations. A text census
+   * cannot be made to tell one from an import, so it is not attempted.
    */
   function importersOf(pkg: string): string[] {
     const pattern = new RegExp(`(?:from|import|require)\\s*\\(?\\s*['"]${pkg}(?:/[^'"]*)?['"]`);
@@ -372,18 +351,27 @@ describe('the Mongo driver is imported by exactly one file', () => {
     expect(importersOf('mongoose').length).toBeLessThan(mentions.length);
   });
 
-  it('is the operator one-shot, and nothing else', () => {
+  it('has no importer and no direct dependency', () => {
     const importers = [
       ...new Set([...importersOf('mongoose'), ...importersOf('mongodb')]),
     ].sort();
 
     expect(
       importers,
-      'the set of files importing the Mongo driver has changed. Adding one ' +
-        'reintroduces a store this service does not have: no migration ledger ' +
-        'covers it, no expiry sweep reaps it and no unique-constraint parity ' +
-        'gate sees it. Removing the last one means `mongoose` should leave ' +
-        'packages/api/package.json in the same commit.',
-    ).toEqual(['src/scripts/purge-ip-fields.ts']);
+      'a Mongo driver reintroduces a store this service does not have: no ' +
+        'migration ledger covers it, no expiry sweep reaps it and no ' +
+        'unique-constraint parity gate sees it.',
+    ).toEqual([]);
+
+    const manifest = JSON.parse(readFileSync(join(PACKAGE_ROOT, 'package.json'), 'utf8')) as {
+      dependencies?: Record<string, unknown>;
+      devDependencies?: Record<string, unknown>;
+    };
+    const declared = {
+      ...manifest.dependencies,
+      ...manifest.devDependencies,
+    };
+    expect(declared).not.toHaveProperty('mongoose');
+    expect(declared).not.toHaveProperty('mongodb');
   });
 });
