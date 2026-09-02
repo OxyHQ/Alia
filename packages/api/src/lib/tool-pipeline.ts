@@ -105,8 +105,8 @@ import {
 import type { SkillRuntime } from './skills/runtime.js';
 import { canvasTool } from './tools/canvas.js';
 import { createGetDeviceInfoTool } from './tools/device-info.js';
+import { createAutomationTool } from './tools/automation-create.js';
 import {
-  createTriggerTool,
   listTriggersTool,
   updateTriggerTool,
   deleteTriggerTool,
@@ -428,12 +428,16 @@ export class ToolPipeline {
         getWhatsAppMessages: createGetWhatsAppMessagesTool(userId),
         sendWhatsAppMessage: createSendWhatsAppMessageTool(userId),
       });
-      if (grants.allows('automation')) Object.assign(aliaTools, {
-        createTrigger: createTriggerTool(userId),
-        listTriggers: listTriggersTool(userId),
-        updateTrigger: updateTriggerTool(userId),
-        deleteTrigger: deleteTriggerTool(userId),
-      });
+      if (grants.allows('automation')) {
+        if (isDirectSession) {
+          aliaTools.createAutomation = createAutomationTool(userId, accessToken);
+        }
+        Object.assign(aliaTools, {
+          listTriggers: listTriggersTool(userId),
+          updateTrigger: updateTriggerTool(userId),
+          deleteTrigger: deleteTriggerTool(userId),
+        });
+      }
       // `web`, not a family of its own: what it does is read the open web, and
       // it is withheld from an unreserved turn for the reason `isLocalRuntime`
       // gives above.

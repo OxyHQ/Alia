@@ -2,7 +2,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const {
   automationReceipt,
-  createTrigger,
   database,
   deleteTriggerForUser,
   disableLegacyTriggerAutomation,
@@ -12,7 +11,6 @@ const {
   updateTrigger,
 } = vi.hoisted(() => ({
   automationReceipt: vi.fn(),
-  createTrigger: vi.fn(),
   database: { kind: 'test-db' },
   deleteTriggerForUser: vi.fn(),
   disableLegacyTriggerAutomation: vi.fn(),
@@ -24,7 +22,6 @@ const {
 
 vi.mock('../../db/index.js', () => ({ getDb: () => database }));
 vi.mock('../../db/automation/triggerRepository.js', () => ({
-  createTrigger,
   deleteTriggerForUser,
   findTriggerForUser,
   listTriggers: vi.fn(),
@@ -34,7 +31,6 @@ vi.mock('../../db/automation/automationDefinitionRepository.js', () => ({
   disableLegacyTriggerAutomation,
 }));
 vi.mock('../trigger-engine.js', () => ({
-  generateWebhookToken: vi.fn(() => 'webhook-token'),
   reloadTrigger,
 }));
 vi.mock('../structured-automation.js', () => ({
@@ -46,7 +42,6 @@ vi.mock('../logger.js', () => ({
 }));
 
 import {
-  createTriggerTool,
   deleteTriggerTool,
   updateTriggerTool,
 } from '../tools/trigger-management.js';
@@ -55,55 +50,13 @@ interface ExecutableTool {
   execute: (args: Record<string, unknown>) => Promise<Record<string, unknown>>;
 }
 
-describe('conversational trigger creation', () => {
+describe('conversational legacy trigger maintenance', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    createTrigger.mockResolvedValue({
-      _id: 'trigger-1',
-      oxyUserId: 'owner-1',
-      name: 'Weekly notes',
-      type: 'schedule',
-      enabled: true,
-      action: { prompt: 'Summarize my notes', useTools: true, notify: true },
-      schedule: { type: 'cron', cron: '0 9 * * 1', timezone: 'UTC' },
-      triggerCount: 0,
-      createdAt: new Date('2026-09-02T00:00:00.000Z'),
-      updatedAt: new Date('2026-09-02T00:00:00.000Z'),
-    });
     syncStructuredAutomation.mockResolvedValue({ id: 'automation-1' });
     automationReceipt.mockReturnValue({ undo: { method: 'DELETE', path: '/automations/automation-1' } });
     reloadTrigger.mockResolvedValue(undefined);
     disableLegacyTriggerAutomation.mockResolvedValue(undefined);
-  });
-
-  it('persists a structured definition and returns its editable receipt', async () => {
-    const tool = createTriggerTool('owner-1') as unknown as ExecutableTool;
-    const result = await tool.execute({
-      name: 'Weekly notes',
-      prompt: 'Summarize my notes',
-      type: 'schedule',
-      scheduleType: 'cron',
-      cron: '0 9 * * 1',
-      timezone: 'UTC',
-      useTools: true,
-      notify: true,
-    });
-
-    expect(createTrigger).toHaveBeenCalledWith(database, expect.objectContaining({
-      oxyUserId: 'owner-1',
-      name: 'Weekly notes',
-      action: expect.objectContaining({ prompt: 'Summarize my notes' }),
-    }));
-    expect(syncStructuredAutomation).toHaveBeenCalledWith(expect.objectContaining({
-      _id: 'trigger-1',
-    }));
-    expect(reloadTrigger).toHaveBeenCalledWith('trigger-1');
-    expect(result).toMatchObject({
-      success: true,
-      triggerId: 'trigger-1',
-      automation: { id: 'automation-1' },
-      receipt: { undo: { method: 'DELETE', path: '/automations/automation-1' } },
-    });
   });
 
   it('keeps the structured definition aligned after a conversational update', async () => {
