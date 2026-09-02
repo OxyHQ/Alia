@@ -2,20 +2,16 @@
 
 Plataforma de IA multi-proveedor. Agente: `alia`.
 
-**Kaana es el proveedor de inferencia que Alia consume; Alia no aloja lógica de
-proveedor.** Es el único nombre que se usa dentro de Alia: módulos, tipos,
-comentarios, docs y el campo `kaana` de `/health`. Cualquier adaptador de
-proveedor o tabla de routing que quede dentro de Alia es transitorio y se está
-retirando.
+**Kaana es el plano de inferencia que Alia debe consumir a través del edge de
+Oxy.** Su único origen firmado canónico es `https://kaana.ai`; no añadas un host
+Kaana bajo `oxy.so` ni un nombre nuevo de `Relay`. Alia conserva agentes,
+conversaciones, memoria, herramientas y aprobaciones.
 
-`Relay` fue su nombre de trabajo y sobrevive **sólo** donde el nombre no lo
-decide Alia: el repositorio (`~/Oxy/Relay`), sus recursos de AWS, las cabeceras
-firmadas `X-Oxy-Relay-*` con el separador de dominio `oxy-relay-envelope:v1`, el
-host `relay.oxy.so` y las variables de entorno `ALIA_RELAY_*` / `RELAY_BASE_URL`
-que la task definition viva ya declara. Renombrar cualquiera de esos es un
-cambio coordinado con infraestructura o con Kaana, nunca un renombrado dentro de
-este repo. `lib/mcp-relay.ts` es otro sistema — el relay WebSocket de MCP — y no
-tiene nada que ver.
+No copies identificadores heredados `Relay` a código o documentación nuevos ni
+llames completado al corte sin la verificación coordinada de Oxy, Kaana e infra.
+El estado y la deuda existente se documentan en `README.md` y ADR 0001, no aquí.
+`lib/mcp-relay.ts` es otro sistema — el transporte WebSocket de MCP — y no se
+renombra.
 
 Los **shows** son series de podcast publicadas en **Syra** (`syra.fm`), no audio
 guardado en Alia. El worker que las produce no lleva credencial de usuario y Syra
