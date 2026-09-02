@@ -66,6 +66,7 @@ export interface ChatRequestContext {
     conversationId?: string;
     tools?: OpenAITool[];
     mcpServerId?: unknown;
+    agentId?: unknown;
   };
   messages: ChatMessage[];
   conversationId: string | undefined;
@@ -225,6 +226,44 @@ export async function buildChatRequestContext(
   // Determine if this is a direct user session (not API key)
   // API key requests should be neutral and not include creator's personal info
   const isDirectUserSession = !!req.user && !req.apiKey;
+
+  /**
+   * An agent id is an exact identity selector, never a hint.
+   *
+   * Validate it before opening SSE or reserving credits. API keys cannot select
+   * a person's agent because they do not carry the direct user session whose
+   * Oxy standing authorises it. Both that case and an unauthenticated direct
+   * invocation use the same neutral error as a missing/private agent so this
+   * boundary does not disclose whether the id exists.
+   */
+  let requestedAgentId: string | undefined;
+  if (body.agentId !== undefined) {
+    if (typeof body.agentId !== 'string' || body.agentId.trim() === '') {
+      res.status(400).json({
+        error: {
+          message: 'agentId must be a non-empty agent id.',
+          type: 'invalid_request_error',
+          param: 'agentId',
+          code: 'invalid_agent_id',
+        },
+      });
+      return null;
+    }
+    if (!isDirectUserSession || !req.user?.id) {
+      res.status(404).json({
+        error: {
+          message: 'The selected agent is unavailable.',
+          type: 'invalid_request_error',
+          param: 'agentId',
+          code: 'agent_unavailable',
+        },
+      });
+      return null;
+    }
+    // Preserve the caller's exact id. Trimming or name-based recovery would be
+    // a different identity and is deliberately not attempted.
+    requestedAgentId = body.agentId;
+  }
 
   /**
    * The skills the person picked for this message, by name.
@@ -600,22 +639,20 @@ export async function buildChatRequestContext(
      * the system prompt, the tool set and the escalation branch all name the
      * same agent, and three lookups of one id are three chances to disagree.
      */
-    (typeof body.agentId === 'string' && body.agentId !== '' && isDirectUserSession && req.user)
+    (requestedAgentId !== undefined && req.user)
       ? loadTurnAgent(getDb(), {
-          agentId: body.agentId,
+          agentId: requestedAgentId,
           oxyUserId: req.user.id,
           accessToken: req.accessToken,
         }).catch((err: unknown) => {
           /**
-           * A THROW is not `identity_unavailable`. `loadTurnAgent` returns that
-           * for the case it knows about — Oxy answering something other than a
-           * verdict — and anything reaching here is a bug in the lookup itself,
-           * which is the pre-existing "run as ordinary Alia" behaviour and stays
-           * that way. Widening this catch would turn every future defect in the
-           * repository layer into a 502 on every agent turn.
+           * A repository failure is not permission to substitute another
+           * identity. It is surfaced through the same retryable refusal as an
+           * unavailable identity lookup; the important invariant here is that
+           * an explicit selector can never become `kind: 'none'`.
            */
-          log.v1.warn({ err, agentId: body.agentId }, 'Could not resolve the turn agent');
-          return { kind: 'none' } as const;
+          log.v1.warn({ err, agentId: requestedAgentId }, 'Could not resolve the turn agent');
+          return { kind: 'resolution_unavailable' } as const;
         })
       : Promise.resolve({ kind: 'none' } as const),
   ]);
@@ -660,11 +697,6 @@ export async function buildChatRequestContext(
    * either fails or says so out loud, and this is the surface with nowhere to
    * say it.
    *
-   * Only `identity_unavailable` — "Oxy could not be asked". An agent that is
-   * genuinely out of reach (deleted, unshared, a stale id in an old client)
-   * stays `kind: 'none'` and still runs as ordinary Alia, which is the decided,
-   * documented behaviour and a different question.
-   *
    * 502 because nothing about the request is wrong and retrying may work, and
    * it is `refusalStatus`/`refusalMessage`'s own answer for this refusal rather
    * than a second opinion about it. The reservation is refunded, matching every
@@ -684,6 +716,46 @@ export async function buildChatRequestContext(
       sse.writeError(refusal);
     } else {
       res.status(refusalStatus('identity_unavailable')).json({ error: refusal });
+    }
+    return null;
+  }
+
+  if (turnAgent.kind === 'resolution_unavailable') {
+    if (creditReservation) await refundReservation(creditReservation);
+    clearTimeout(globalTimer);
+    const refusal = {
+      message: 'The selected agent could not be resolved. Please try again.',
+      type: 'server_error',
+      param: 'agentId',
+      code: 'AGENT_RESOLUTION_UNAVAILABLE',
+    };
+    if (sse.sent) {
+      sse.writeError(refusal);
+    } else {
+      res.status(503).json({ error: refusal });
+    }
+    return null;
+  }
+
+  /**
+   * Missing and unauthorised are deliberately the same public refusal. The
+   * typed internal reason remains useful for tests and telemetry, but exposing
+   * it would let a caller probe private agent ids. Most importantly, neither
+   * outcome falls through to `linkedAgent = null`, which is ordinary Alia.
+   */
+  if (turnAgent.kind === 'unavailable') {
+    if (creditReservation) await refundReservation(creditReservation);
+    clearTimeout(globalTimer);
+    const refusal = {
+      message: 'The selected agent is unavailable.',
+      type: 'invalid_request_error',
+      param: 'agentId',
+      code: 'agent_unavailable',
+    };
+    if (sse.sent) {
+      sse.writeError(refusal);
+    } else {
+      res.status(404).json({ error: refusal });
     }
     return null;
   }
