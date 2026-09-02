@@ -7,7 +7,7 @@
  * reachable at all.
  *
  * Only OXY is replaced. `lib/agent-account.ts` runs for real — including
- * `canSwitchIntoAccount` from `@oxyhq/core`, which is imported for real through
+ * `resolveAccountDelegationAccess` from `@oxyhq/core`, imported for real through
  * `importActual`, so what these assert is the SHIPPED act-as rule rather than a
  * fixture's opinion of it. The repository is a spy because what matters here is
  * whether it was reached, and with what.
@@ -24,7 +24,7 @@ const state = vi.hoisted(() => ({
     accountId: string;
     kind: string;
     relationship: string;
-    callerMembership: null | { permissions: string[] };
+    callerMembership: null | { permissions: string[]; status?: string };
   },
   /** `true` makes `getAccount` reject with a transport failure, not a 404. */
   unreachable: false,
@@ -65,7 +65,9 @@ vi.mock('@oxyhq/core', async () => {
           kind: state.account.kind,
           relationship: state.account.relationship,
           account: { id: accountId, kind: state.account.kind },
-          callerMembership: state.account.callerMembership,
+          callerMembership: state.account.callerMembership === null
+            ? null
+            : { status: 'active', ...state.account.callerMembership },
         };
       }
     },
@@ -267,9 +269,8 @@ describe('the account has to be a bot account this caller may act as', () => {
 
   /**
    * `personal` is the case that matters most, and it is why `kind === 'bot'` is
-   * checked SEPARATELY from the act-as verdict: `canSwitchIntoAccount` passes
-   * any account whose relationship is `self`, whatever its kind, so a caller
-   * naming their OWN account would otherwise turn themselves into an agent.
+   * checked SEPARATELY from the act-as verdict so a caller naming their own
+   * personal account can never turn themselves into an agent.
    */
   it('refuses the caller’s own personal account', async () => {
     state.account = {

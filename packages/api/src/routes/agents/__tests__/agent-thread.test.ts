@@ -7,7 +7,7 @@
  * this route rather than `/:id/activity` with the id read as the word `thread`.
  *
  * Only OXY is replaced. `lib/agent-account.ts` runs for real — including
- * `canSwitchIntoAccount` from `@oxyhq/core`, imported through `importActual` —
+ * `resolveAccountDelegationAccess` from `@oxyhq/core`, imported through `importActual` —
  * so what these assert is the SHIPPED act-as rule, not a fixture's opinion of
  * it. The repository is a spy: what matters here is which pair it was asked
  * for, and `db/__tests__/agentThread.pgdb.test.ts` covers what it then does.
@@ -67,7 +67,9 @@ vi.mock('@oxyhq/core', async () => {
           kind: state.account.kind,
           relationship: state.account.relationship,
           account: { id: accountId, kind: state.account.kind },
-          callerMembership: state.account.callerMembership,
+          callerMembership: state.account.callerMembership === null
+            ? null
+            : { status: 'active', ...state.account.callerMembership },
         };
       }
     },

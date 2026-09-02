@@ -28,16 +28,14 @@
  * `GET /accounts/:id` returns the account (with its `kind`) AND
  * `callerMembership`, which is the server's OWN resolution of what this caller
  * holds — direct or inherited through the tree. So existence, kind and
- * `account:act_as` cost one round trip, not three, and the act-as verdict is
- * read through `canSwitchIntoAccount` from `@oxyhq/core` rather than by testing
- * for the permission string here. That predicate is the same one
- * `POST /accounts/:id/switch` enforces; a second copy of the rule in Alia would
- * be a place for it to go stale.
+ * `account:act_as` cost one round trip, not three, and both standing and act-as
+ * are read through `resolveAccountDelegationAccess` from `@oxyhq/core` rather
+ * than by testing permission strings here. Human account switching deliberately
+ * excludes bots; service delegation deliberately includes them.
  *
  * `kind === 'bot'` is checked SEPARATELY and is not implied by the act-as
- * verdict: `organization` and `project` are act-as eligible too, and
- * `canSwitchIntoAccount` passes any account whose `relationship` is `self` —
- * the caller's own personal account — whatever its kind.
+ * verdict: `organization` and `project` are delegation-eligible too, while a
+ * personal account is never a delegation subject.
  *
  * ## A MUTATION never reads a cached verdict
  *
@@ -63,7 +61,7 @@
  * its own client. One is built per cache MISS, not per request.
  */
 
-import { OxyServices, canSwitchIntoAccount, type AccountNode } from '@oxyhq/core';
+import { OxyServices, resolveAccountDelegationAccess } from '@oxyhq/core';
 import type { AccountCategoryId } from '@oxyhq/contracts';
 import type { Executor } from '../db/index.js';
 import { findAgentById, type AgentRecord } from '../db/agents/agentRepository.js';
@@ -158,30 +156,6 @@ function remember(key: string, verdict: AgentAccountVerdict, standing: boolean):
 }
 
 /**
- * Does the caller hold any standing in this account at all?
- *
- * A weaker question than `account:act_as`, and it has to be: sharing an agent
- * IS adding somebody to its bot account, and a role that can use an agent is
- * not necessarily one that can BECOME it. Reading `act_as` as "was shared with
- * me" would make sharing work only for the roles that can also edit.
- *
- * Owner is included without a membership row, because ownership is implicit
- * there — `callerMembership` is `null` on an account you own.
- */
-function hasStanding(node: AccountNode): boolean {
-  if (node.relationship === 'self' || node.relationship === 'owner') return true;
-  /**
-   * A SUPERSET of the act-as verdict, never a rival test. Whoever may become
-   * the account plainly has standing in it, and deciding this on the membership
-   * row alone would refuse somebody the other question just admitted — an
-   * inconsistency with no way to reach it from the outside and no way to
-   * explain it from the inside.
-   */
-  if (canSwitchIntoAccount(node)) return true;
-  return node.callerMembership?.status === 'active';
-}
-
-/**
  * May this caller act as this Oxy `bot` account?
  *
  * `identity_unavailable` is a REFUSAL and is never cached as a grant: an Oxy
@@ -228,14 +202,14 @@ export async function verifyAgentAccount(params: {
     return { permitted: false, refusal: 'identity_unavailable' };
   }
 
-  const standing = hasStanding(node);
+  const access = resolveAccountDelegationAccess(node);
   if (node.account?.kind !== 'bot') {
-    return remember(key, { permitted: false, refusal: 'not_a_bot_account' }, standing);
+    return remember(key, { permitted: false, refusal: 'not_a_bot_account' }, access.hasStanding);
   }
-  if (!canSwitchIntoAccount(node)) {
-    return remember(key, { permitted: false, refusal: 'not_permitted' }, standing);
+  if (!access.canActAs) {
+    return remember(key, { permitted: false, refusal: 'not_permitted' }, access.hasStanding);
   }
-  return remember(key, PERMITTED, standing);
+  return remember(key, PERMITTED, access.hasStanding);
 }
 
 /**
