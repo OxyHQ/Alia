@@ -2,8 +2,9 @@ import { uuidv7 } from '@oxyhq/db';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   automationHasActiveAuthorizationCoverage,
+  automationRunProgressForSession,
+  claimAutomationRunPlan,
   createAutomationDefinition,
-  createAutomationRunForSession,
   createObservedAutomationRun,
   findAutomationDefinition,
   findAutomationDefinitionById,
@@ -12,9 +13,11 @@ import {
   listAutomationRunSteps,
   listSchedulableAutomationDefinitions,
   markAutomationActionStep,
+  markAutomationRunForSession,
   upsertLegacyTriggerAutomation,
   upsertAutomationActionAuthorizations,
 } from '../automation/automationDefinitionRepository';
+import { createAutomationStageSession } from '../agents/agentSessionRepository';
 import { closePostgres, connectPostgres, type ApiDatabase } from '../index';
 
 let db: ApiDatabase;
@@ -38,7 +41,7 @@ describe('normalized automation definitions', () => {
   it('persists exact actions and materializes fresh run and step correlation', async () => {
     const automationId = uuidv7();
     const actionId = uuidv7();
-    const sessionId = uuidv7();
+    const runId = uuidv7();
     const authorizationId = `oxy-auth-${uuidv7()}`;
     const automation = await createAutomationDefinition(db, {
       id: automationId,
@@ -87,20 +90,23 @@ describe('normalized automation definitions', () => {
       [actionId],
     )).toBe(true);
 
-    await expect(createAutomationRunForSession({
+    await expect(claimAutomationRunPlan({
       db,
-      sessionId,
+      runId,
       automationId,
       requesterAccountId: 'aut-owner-1',
-      selectedAgentId: 'aut-agent-1',
-      selectedActorAccountId: 'aut-bot-1',
       triggerEventId: `event-${uuidv7()}`,
-      resource,
-      objective: automation.objective,
-      actions: automation.actions,
+      stages: [{
+        stage: 0,
+        selectedAgentId: 'aut-agent-1',
+        selectedActorAccountId: 'aut-bot-1',
+        resource,
+        taskInput: { objective: automation.objective },
+        actions: automation.actions,
+      }],
     })).resolves.toBe(true);
 
-    const references = await listAutomationExecutionAuthorizationsForRun(db, sessionId, 'aut-agent-1');
+    const references = await listAutomationExecutionAuthorizationsForRun(db, runId, 'aut-agent-1', 0);
     expect(references).toEqual([expect.objectContaining({
       automationActionId: actionId,
       oxyAuthorizationId: authorizationId,
@@ -109,7 +115,7 @@ describe('normalized automation definitions', () => {
     const stepId = references[0]?.stepId;
     if (!stepId) throw new Error('Expected an action step');
     await markAutomationActionStep(db, stepId, 'succeeded');
-    expect((await listAutomationRunSteps(db, sessionId)).find((step) => step.id === stepId)?.status)
+    expect((await listAutomationRunSteps(db, runId)).find((step) => step.id === stepId)?.status)
       .toBe('succeeded');
   });
 
@@ -148,24 +154,30 @@ describe('normalized automation definitions', () => {
       db,
       automationId,
       requesterAccountId: 'aut-owner-observe',
-      selectedAgentId: 'aut-agent-observe',
-      selectedActorAccountId: 'aut-bot-observe',
       triggerEventId: eventId,
-      resource: observedAction.resource,
-      objective: automation.objective,
-      actions: automation.actions,
+      stages: [{
+        stage: 0,
+        selectedAgentId: 'aut-agent-observe',
+        selectedActorAccountId: 'aut-bot-observe',
+        resource: observedAction.resource,
+        taskInput: { objective: automation.objective },
+        actions: automation.actions,
+      }],
     })).resolves.toBe(true);
 
     expect(await createObservedAutomationRun({
       db,
       automationId,
       requesterAccountId: 'aut-owner-observe',
-      selectedAgentId: 'aut-agent-observe',
-      selectedActorAccountId: 'aut-bot-observe',
       triggerEventId: eventId,
-      resource: observedAction.resource,
-      objective: automation.objective,
-      actions: automation.actions,
+      stages: [{
+        stage: 0,
+        selectedAgentId: 'aut-agent-observe',
+        selectedActorAccountId: 'aut-bot-observe',
+        resource: observedAction.resource,
+        taskInput: { objective: automation.objective },
+        actions: automation.actions,
+      }],
     })).toBe(false);
     const runs = await listAutomationRuns(db, 'aut-owner-observe', automationId);
     expect(runs).toHaveLength(1);
@@ -176,6 +188,137 @@ describe('normalized automation definitions', () => {
       .toEqual(['observed', 'observed']);
     expect(await findAutomationDefinition(db, automationId, 'aut-owner-observe'))
       .toEqual(expect.objectContaining({ executionMode: 'observe' }));
+  });
+
+  it('advances two agent stages once each and finishes only after every action succeeds', async () => {
+    const automationId = uuidv7();
+    const readActionId = uuidv7();
+    const publishActionId = uuidv7();
+    const runId = uuidv7();
+    const mentionResource = {
+      appId: 'mention',
+      effectiveAccountId: 'aut-owner-multi',
+      resourceType: 'social_account',
+      resourceId: 'profile-1',
+    };
+    const automation = await createAutomationDefinition(db, {
+      id: automationId,
+      ownerAccountId: 'aut-owner-multi',
+      objective: 'Read notes and publish their summary',
+      triggerKind: 'schedule',
+      scheduleCron: '0 9 * * 1',
+      scheduleTimezone: 'UTC',
+      actorMode: 'automatic',
+      eligibleAgentIds: ['reader-agent', 'publisher-agent'],
+      executionMode: 'execute',
+      actions: [
+        { id: readActionId, resource, tool: 'searchEmails', input: {}, limits: [] },
+        { id: publishActionId, resource: mentionResource, tool: 'publishPost', input: {}, limits: [] },
+      ],
+      inputs: {},
+      resources: [resource, mentionResource],
+      dataFlow: { sources: [resource], destinations: [mentionResource] },
+      maximumAutonomy: 'autonomous',
+      limits: [],
+      enabled: true,
+    });
+    const [readAction, publishAction] = automation.actions;
+    if (!readAction || !publishAction) throw new Error('Expected two automation actions');
+    await upsertAutomationActionAuthorizations(db, [
+      {
+        automationActionId: readActionId,
+        agentId: 'reader-agent',
+        actorAccountId: 'reader-bot',
+        oxyAuthorizationId: `oxy-auth-${uuidv7()}`,
+        expiresAt: new Date(Date.now() + 60_000),
+      },
+      {
+        automationActionId: publishActionId,
+        agentId: 'publisher-agent',
+        actorAccountId: 'publisher-bot',
+        oxyAuthorizationId: `oxy-auth-${uuidv7()}`,
+        expiresAt: new Date(Date.now() + 60_000),
+      },
+    ]);
+    await expect(claimAutomationRunPlan({
+      db,
+      runId,
+      automationId,
+      requesterAccountId: 'aut-owner-multi',
+      triggerEventId: `schedule:${automationId}:2026-09-07T09:00:00.000Z`,
+      stages: [
+        {
+          stage: 0,
+          selectedAgentId: 'reader-agent',
+          selectedActorAccountId: 'reader-bot',
+          resource,
+          taskInput: { objective: automation.objective },
+          actions: [readAction],
+        },
+        {
+          stage: 1,
+          selectedAgentId: 'publisher-agent',
+          selectedActorAccountId: 'publisher-bot',
+          resource: mentionResource,
+          taskInput: { objective: automation.objective, receivePreviousResult: true },
+          actions: [publishAction],
+        },
+      ],
+    })).resolves.toBe(true);
+
+    const reader = await createAutomationStageSession(db, {
+      agentId: 'reader-agent',
+      oxyUserId: 'aut-owner-multi',
+      automationRunId: runId,
+      automationStage: 0,
+      task: 'read',
+    });
+    const [readAuthorization] = await listAutomationExecutionAuthorizationsForRun(
+      db,
+      runId,
+      'reader-agent',
+      0,
+    );
+    if (!readAuthorization) throw new Error('Expected reader authorization');
+    await markAutomationActionStep(db, readAuthorization.stepId, 'succeeded');
+    await markAutomationRunForSession(db, reader.session.id, 'succeeded');
+    await expect(automationRunProgressForSession(db, reader.session.id)).resolves.toEqual(
+      expect.objectContaining({ kind: 'next', runId, stage: 1, agentId: 'publisher-agent' }),
+    );
+
+    const publisher = await createAutomationStageSession(db, {
+      agentId: 'publisher-agent',
+      oxyUserId: 'aut-owner-multi',
+      automationRunId: runId,
+      automationStage: 1,
+      task: 'publish',
+    });
+    const duplicatePublisher = await createAutomationStageSession(db, {
+      agentId: 'publisher-agent',
+      oxyUserId: 'aut-owner-multi',
+      automationRunId: runId,
+      automationStage: 1,
+      task: 'publish again',
+    });
+    expect(publisher.created).toBe(true);
+    expect(duplicatePublisher).toEqual(expect.objectContaining({
+      created: false,
+      session: expect.objectContaining({ id: publisher.session.id }),
+    }));
+    const [publishAuthorization] = await listAutomationExecutionAuthorizationsForRun(
+      db,
+      runId,
+      'publisher-agent',
+      1,
+    );
+    if (!publishAuthorization) throw new Error('Expected publisher authorization');
+    await markAutomationActionStep(db, publishAuthorization.stepId, 'succeeded');
+    await markAutomationRunForSession(db, publisher.session.id, 'succeeded');
+    await expect(automationRunProgressForSession(db, publisher.session.id)).resolves.toEqual({
+      kind: 'terminal',
+      runId,
+      status: 'succeeded',
+    });
   });
 
   it('schedules normalized definitions without duplicating legacy trigger rows', async () => {

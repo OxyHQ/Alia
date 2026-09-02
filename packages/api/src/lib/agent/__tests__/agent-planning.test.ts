@@ -398,7 +398,9 @@ describe('orchestration is gated, and the gate is the plan (#139 ws6)', () => {
     // every assertion above would keep passing and no session would ever plan.
     const runner = code('lib/agent/runner.ts');
     expect(runner).toContain('export async function runAgentSession');
-    expect(runner).toMatch(/if \(shouldOrchestrate\(session\.task, session\.depth\)\) \{/);
+    expect(runner).toMatch(
+      /if \(!session\.automationRunId && shouldOrchestrate\(session\.task, session\.depth\)\) \{/,
+    );
     expect(runner).toMatch(/await orchestrate\(\{/);
 
     const orchestrator = code('lib/agent/orchestrator.ts');

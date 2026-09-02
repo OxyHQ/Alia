@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gt, inArray, isNull } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, inArray, isNotNull, isNull } from 'drizzle-orm';
 import { uuidv7 } from '@oxyhq/db';
 import type { ApiDatabase, Executor } from '../index';
 import {
@@ -14,6 +14,7 @@ import {
   type AutomationLimit,
   type AutomationResourceRef,
 } from '../schema/agency';
+import { agentSessions } from '../schema/agent-sessions';
 
 type DefinitionRow = typeof automationDefinitions.$inferSelect;
 type ActionRow = typeof automationActions.$inferSelect;
@@ -466,61 +467,105 @@ export async function matchingEventAutomations(
   ));
 }
 
-export async function createAutomationRunForSession(input: {
-  db: ApiDatabase;
-  sessionId: string;
-  automationId: string;
-  requesterAccountId: string;
+export interface AutomationRunStageInput {
+  stage: number;
   selectedAgentId: string;
   selectedActorAccountId: string;
-  triggerEventId: string;
   resource: AutomationResourceRef;
-  objective: string;
-  actions: ReturnType<typeof toAction>[];
-}): Promise<boolean> {
-  return input.db.transaction(async (transaction) => {
-    const inserted = await transaction.insert(automationRuns).values({
-      id: input.sessionId,
-      automationId: input.automationId,
-      requesterAccountId: input.requesterAccountId,
-      selectedActorType: 'agent',
-      selectedAgentId: input.selectedAgentId,
-      triggerEventId: input.triggerEventId,
-      idempotencyKey: `${input.automationId}:${input.triggerEventId}`,
-      status: 'planned',
-      policyDecision: { allowed: true, reason: 'matched_structured_automation' },
-      startedAt: new Date(),
-    }).onConflictDoNothing({ target: automationRuns.idempotencyKey }).returning({ id: automationRuns.id });
-    if (inserted.length === 0) return false;
-    await transaction.insert(automationSteps).values([
-      {
-        runId: input.sessionId,
-        position: 0,
-        actorType: 'agent' as const,
-        actorAccountId: input.selectedActorAccountId,
-        resource: input.resource,
-        tool: 'agent.run',
-        input: { objective: input.objective, triggerEventId: input.triggerEventId },
-        status: 'planned' as const,
-        policyDecision: { allowed: true, reason: 'actor_selected_deterministically' },
-        idempotencyKey: `${input.sessionId}:agent.run`,
+  taskInput: Record<string, unknown>;
+  actions: Array<{
+    id: string;
+    resource: AutomationResourceRef;
+    tool: string;
+    input: Record<string, unknown>;
+    limits: readonly AutomationActionLimit[];
+  }>;
+}
+
+function runStepRows(
+  runId: string,
+  stages: readonly AutomationRunStageInput[],
+  status: 'planned' | 'observed',
+) {
+  let position = 0;
+  return stages.flatMap((stage) => {
+    const startedAt = status === 'observed' ? new Date() : undefined;
+    const control = {
+      runId,
+      position: position++,
+      stage: stage.stage,
+      actorType: 'agent' as const,
+      agentId: stage.selectedAgentId,
+      actorAccountId: stage.selectedActorAccountId,
+      resource: stage.resource,
+      tool: status === 'observed' ? 'agent.select' : 'agent.run',
+      input: stage.taskInput,
+      status,
+      policyDecision: {
+        allowed: true,
+        reason: status === 'observed'
+          ? 'observation_mode_no_execution'
+          : 'actor_selected_deterministically',
       },
-      ...input.actions.map((action, index) => ({
-        runId: input.sessionId,
+      idempotencyKey: `${runId}:stage:${stage.stage}:${status === 'observed' ? 'agent.select' : 'agent.run'}`,
+      ...(startedAt ? { startedAt, completedAt: startedAt } : {}),
+    };
+    return [
+      control,
+      ...stage.actions.map((action) => ({
+        runId,
         automationActionId: action.id,
-        position: index + 1,
+        position: position++,
+        stage: stage.stage,
         actorType: 'agent' as const,
-        actorAccountId: input.selectedActorAccountId,
+        agentId: stage.selectedAgentId,
+        actorAccountId: stage.selectedActorAccountId,
         resource: action.resource,
         tool: action.tool,
         input: action.input,
-        status: 'planned' as const,
-        policyDecision: { allowed: true, reason: 'declared_automation_action' },
-        idempotencyKey: `${input.sessionId}:action:${action.id}`,
+        status,
+        policyDecision: {
+          allowed: true,
+          reason: status === 'observed'
+            ? 'observation_mode_no_execution'
+            : 'declared_automation_action',
+        },
+        idempotencyKey: `${runId}:action:${action.id}`,
+        ...(startedAt ? { startedAt, completedAt: startedAt } : {}),
       })),
-    ]);
-    return true;
+    ];
   });
+}
+
+/** Insert one run plan. Callers use a transaction when session creation follows. */
+export async function claimAutomationRunPlan(input: {
+  db: Executor;
+  runId: string;
+  automationId: string;
+  requesterAccountId: string;
+  triggerEventId: string;
+  stages: readonly AutomationRunStageInput[];
+}): Promise<boolean> {
+  const selectedAgentIds = [...new Set(input.stages.map((stage) => stage.selectedAgentId))];
+  const inserted = await input.db.insert(automationRuns).values({
+    id: input.runId,
+    automationId: input.automationId,
+    requesterAccountId: input.requesterAccountId,
+    selectedActorType: 'agent',
+    selectedAgentId: selectedAgentIds.length === 1 ? selectedAgentIds[0] : null,
+    triggerEventId: input.triggerEventId,
+    idempotencyKey: `${input.automationId}:${input.triggerEventId}`,
+    status: 'planned',
+    policyDecision: {
+      allowed: true,
+      reason: 'matched_structured_automation',
+      selectedAgentIds,
+    },
+    startedAt: new Date(),
+  }).onConflictDoNothing({ target: automationRuns.idempotencyKey }).returning({ id: automationRuns.id });
+  if (inserted.length === 0) return false;
+  await input.db.insert(automationSteps).values(runStepRows(input.runId, input.stages, 'planned'));
+  return true;
 }
 
 /** Record the exact decision graph without creating a session or executing an effect. */
@@ -528,61 +573,28 @@ export async function createObservedAutomationRun(input: {
   db: ApiDatabase;
   automationId: string;
   requesterAccountId: string;
-  selectedAgentId: string;
-  selectedActorAccountId: string;
   triggerEventId: string;
-  resource: AutomationResourceRef;
-  objective: string;
-  actions: ReturnType<typeof toAction>[];
+  stages: readonly AutomationRunStageInput[];
 }): Promise<boolean> {
   const runId = uuidv7();
   return input.db.transaction(async (transaction) => {
     const now = new Date();
+    const selectedAgentIds = [...new Set(input.stages.map((stage) => stage.selectedAgentId))];
     const inserted = await transaction.insert(automationRuns).values({
       id: runId,
       automationId: input.automationId,
       requesterAccountId: input.requesterAccountId,
       selectedActorType: 'agent',
-      selectedAgentId: input.selectedAgentId,
+      selectedAgentId: selectedAgentIds.length === 1 ? selectedAgentIds[0] : null,
       triggerEventId: input.triggerEventId,
       idempotencyKey: `${input.automationId}:${input.triggerEventId}`,
       status: 'observed',
-      policyDecision: { allowed: true, reason: 'observation_mode_no_execution' },
+      policyDecision: { allowed: true, reason: 'observation_mode_no_execution', selectedAgentIds },
       startedAt: now,
       completedAt: now,
     }).onConflictDoNothing({ target: automationRuns.idempotencyKey }).returning({ id: automationRuns.id });
     if (inserted.length === 0) return false;
-    await transaction.insert(automationSteps).values([
-      {
-        runId,
-        position: 0,
-        actorType: 'agent' as const,
-        actorAccountId: input.selectedActorAccountId,
-        resource: input.resource,
-        tool: 'agent.select',
-        input: { objective: input.objective, triggerEventId: input.triggerEventId },
-        status: 'observed' as const,
-        policyDecision: { allowed: true, reason: 'actor_selected_deterministically' },
-        idempotencyKey: `${runId}:agent.select`,
-        startedAt: now,
-        completedAt: now,
-      },
-      ...input.actions.map((action, index) => ({
-        runId,
-        automationActionId: action.id,
-        position: index + 1,
-        actorType: 'agent' as const,
-        actorAccountId: input.selectedActorAccountId,
-        resource: action.resource,
-        tool: action.tool,
-        input: action.input,
-        status: 'observed' as const,
-        policyDecision: { allowed: true, reason: 'observation_mode_no_execution' },
-        idempotencyKey: `${runId}:action:${action.id}`,
-        startedAt: now,
-        completedAt: now,
-      })),
-    ]);
+    await transaction.insert(automationSteps).values(runStepRows(runId, input.stages, 'observed'));
     return true;
   });
 }
@@ -670,7 +682,12 @@ export async function listAutomationExecutionAuthorizationsForRun(
   db: Executor,
   runId: string,
   agentId: string,
+  stage?: number,
 ) {
+  const predicates = [eq(automationSteps.runId, runId)];
+  if (stage !== undefined) {
+    predicates.push(eq(automationSteps.stage, stage), eq(automationSteps.agentId, agentId));
+  }
   return db.select({
     stepId: automationSteps.id,
     automationActionId: automationSteps.automationActionId,
@@ -688,7 +705,7 @@ export async function listAutomationExecutionAuthorizationsForRun(
       isNull(automationActionAuthorizations.revokedAt),
       gt(automationActionAuthorizations.expiresAt, new Date()),
     ))
-    .where(eq(automationSteps.runId, runId))
+    .where(and(...predicates))
     .orderBy(automationSteps.position);
 }
 
@@ -705,10 +722,85 @@ export async function markAutomationActionStep(
 }
 
 export async function markAutomationRunForSession(
-  db: Executor,
+  db: ApiDatabase,
   sessionId: string,
   status: 'running' | 'succeeded' | 'failed' | 'cancelled',
 ): Promise<void> {
+  const [binding] = await db.select({
+    runId: agentSessions.automationRunId,
+    stage: agentSessions.automationStage,
+  }).from(agentSessions).where(eq(agentSessions.id, sessionId)).limit(1);
+  if (binding?.runId !== null && binding?.runId !== undefined
+    && binding.stage !== null && binding.stage !== undefined) {
+    const runId = binding.runId;
+    const stage = binding.stage;
+    await db.transaction(async (transaction) => {
+      const now = new Date();
+      const stagePredicate = and(
+        eq(automationSteps.runId, runId),
+        eq(automationSteps.stage, stage),
+      );
+      if (status === 'running') {
+        await transaction.update(automationRuns).set({ status: 'running' })
+          .where(eq(automationRuns.id, runId));
+        await transaction.update(automationSteps).set({ status: 'running', startedAt: now })
+          .where(and(stagePredicate, eq(automationSteps.tool, 'agent.run')));
+        return;
+      }
+
+      if (status === 'failed' || status === 'cancelled') {
+        await transaction.update(automationRuns).set({ status, completedAt: now })
+          .where(eq(automationRuns.id, runId));
+        await transaction.update(automationSteps).set({ status, completedAt: now })
+          .where(and(stagePredicate, inArray(automationSteps.status, ['planned', 'running'])));
+        await transaction.update(automationSteps).set({ status: 'cancelled', completedAt: now })
+          .where(and(
+            eq(automationSteps.runId, runId),
+            gt(automationSteps.stage, stage),
+            eq(automationSteps.status, 'planned'),
+          ));
+        return;
+      }
+
+      const actionRows = await transaction.select({ status: automationSteps.status })
+        .from(automationSteps)
+        .where(and(stagePredicate, isNotNull(automationSteps.automationActionId)));
+      const stageSucceeded = actionRows.length > 0
+        && actionRows.every((row) => row.status === 'succeeded');
+      if (!stageSucceeded) {
+        await transaction.update(automationRuns).set({ status: 'failed', completedAt: now })
+          .where(eq(automationRuns.id, runId));
+        await transaction.update(automationSteps).set({ status: 'failed', completedAt: now })
+          .where(and(stagePredicate, inArray(automationSteps.status, ['planned', 'running'])));
+        await transaction.update(automationSteps).set({ status: 'cancelled', completedAt: now })
+          .where(and(
+            eq(automationSteps.runId, runId),
+            gt(automationSteps.stage, stage),
+            eq(automationSteps.status, 'planned'),
+          ));
+        return;
+      }
+
+      await transaction.update(automationSteps).set({ status: 'succeeded', completedAt: now })
+        .where(and(stagePredicate, eq(automationSteps.tool, 'agent.run')));
+      const [nextStage] = await transaction.select({ id: automationSteps.id })
+        .from(automationSteps)
+        .where(and(
+          eq(automationSteps.runId, runId),
+          gt(automationSteps.stage, stage),
+          eq(automationSteps.tool, 'agent.run'),
+          eq(automationSteps.status, 'planned'),
+        )).orderBy(automationSteps.stage).limit(1);
+      await transaction.update(automationRuns).set(nextStage
+        ? { status: 'running' }
+        : { status: 'succeeded', completedAt: now })
+        .where(eq(automationRuns.id, runId));
+    });
+    return;
+  }
+
+  // Legacy normalized runs used the session id as the run id. Keep pending
+  // pre-migration jobs and transitional trigger executions readable.
   await Promise.all([
     db.update(automationRuns).set({
       status,
@@ -719,4 +811,69 @@ export async function markAutomationRunForSession(
       ...(status === 'running' ? { startedAt: new Date() } : { completedAt: new Date() }),
     }).where(and(eq(automationSteps.runId, sessionId), eq(automationSteps.tool, 'agent.run'))),
   ]);
+}
+
+export type AutomationRunProgress =
+  | { kind: 'none' }
+  | { kind: 'invalid'; runId: string }
+  | { kind: 'terminal'; runId: string; status: 'succeeded' | 'failed' | 'cancelled' }
+  | {
+      kind: 'next';
+      runId: string;
+      stage: number;
+      agentId: string;
+      actorAccountId: string;
+      ownerAccountId: string;
+      taskInput: Record<string, unknown>;
+    };
+
+/** Read the next stage only after the runner has finalized the current stage. */
+export async function automationRunProgressForSession(
+  db: Executor,
+  sessionId: string,
+): Promise<AutomationRunProgress> {
+  const [binding] = await db.select({
+    runId: agentSessions.automationRunId,
+    stage: agentSessions.automationStage,
+  }).from(agentSessions).where(eq(agentSessions.id, sessionId)).limit(1);
+  if (binding?.runId === null || binding?.runId === undefined
+    || binding.stage === null || binding.stage === undefined) return { kind: 'none' };
+  const [run] = await db.select({
+    status: automationRuns.status,
+    ownerAccountId: automationRuns.requesterAccountId,
+  }).from(automationRuns).where(eq(automationRuns.id, binding.runId)).limit(1);
+  if (!run) return { kind: 'none' };
+  if (run.status === 'succeeded' || run.status === 'failed' || run.status === 'cancelled') {
+    return { kind: 'terminal', runId: binding.runId, status: run.status };
+  }
+  const [current] = await db.select({ status: automationSteps.status })
+    .from(automationSteps).where(and(
+      eq(automationSteps.runId, binding.runId),
+      eq(automationSteps.stage, binding.stage),
+      eq(automationSteps.tool, 'agent.run'),
+    )).limit(1);
+  if (current?.status !== 'succeeded') return { kind: 'invalid', runId: binding.runId };
+  const [next] = await db.select({
+    stage: automationSteps.stage,
+    agentId: automationSteps.agentId,
+    actorAccountId: automationSteps.actorAccountId,
+    taskInput: automationSteps.input,
+  }).from(automationSteps).where(and(
+    eq(automationSteps.runId, binding.runId),
+    gt(automationSteps.stage, binding.stage),
+    eq(automationSteps.tool, 'agent.run'),
+    eq(automationSteps.status, 'planned'),
+  )).orderBy(automationSteps.stage).limit(1);
+  if (!next || next.stage === null || next.agentId === null) {
+    return { kind: 'invalid', runId: binding.runId };
+  }
+  return {
+    kind: 'next',
+    runId: binding.runId,
+    stage: next.stage,
+    agentId: next.agentId,
+    actorAccountId: next.actorAccountId,
+    ownerAccountId: run.ownerAccountId,
+    taskInput: next.taskInput,
+  };
 }

@@ -133,6 +133,8 @@ export interface AgentSessionRecord {
   agentId: string;
   oxyUserId: string;
   parentSessionId: string | null;
+  automationRunId: string | null;
+  automationStage: number | null;
   status: AgentSessionStatus;
   task: string;
   result: string | null;
@@ -212,6 +214,8 @@ export function toAgentSessionRecord(row: AgentSessionRow): AgentSessionRecord {
     agentId: row.agentId,
     oxyUserId: row.oxyUserId,
     parentSessionId: row.parentSessionId,
+    automationRunId: row.automationRunId,
+    automationStage: row.automationStage,
     status: row.status as AgentSessionStatus,
     task: row.task,
     result: row.result,
@@ -610,11 +614,36 @@ export interface CreateAgentSessionInput {
   oxyUserId: string;
   task: string;
   parentSessionId?: string;
+  automationRunId?: string;
+  automationStage?: number;
   status?: AgentSessionStatus;
   depth?: number;
   messages?: AgentSessionMessage[];
   creditReservation?: AgentSessionCreditReservation;
   config?: Partial<AgentSessionConfig>;
+}
+
+function agentSessionValues(input: CreateAgentSessionInput): typeof agentSessions.$inferInsert {
+  return {
+    agentId: input.agentId,
+    oxyUserId: input.oxyUserId,
+    task: input.task,
+    parentSessionId: input.parentSessionId ?? null,
+    automationRunId: input.automationRunId ?? null,
+    automationStage: input.automationStage ?? null,
+    ...(input.status !== undefined && { status: input.status }),
+    ...(input.depth !== undefined && { depth: input.depth }),
+    ...(input.messages !== undefined && { messages: input.messages }),
+    ...(input.creditReservation !== undefined && {
+      creditReservationOxyUserId: input.creditReservation.userId,
+      creditReservationCreditsReserved: input.creditReservation.creditsReserved,
+      creditReservationInitialFreeCredits: input.creditReservation.initialFreeCredits,
+      creditReservationInitialPaidCredits: input.creditReservation.initialPaidCredits,
+    }),
+    ...(input.config?.maxSteps !== undefined && { configMaxSteps: input.config.maxSteps }),
+    ...(input.config?.maxTokens !== undefined && { configMaxTokens: input.config.maxTokens }),
+    ...(input.config?.maxVMs !== undefined && { configMaxVms: input.config.maxVMs }),
+  };
 }
 
 export async function createAgentSession(
@@ -623,26 +652,29 @@ export async function createAgentSession(
 ): Promise<AgentSessionRecord> {
   const [row] = await db
     .insert(agentSessions)
-    .values({
-      agentId: input.agentId,
-      oxyUserId: input.oxyUserId,
-      task: input.task,
-      parentSessionId: input.parentSessionId ?? null,
-      ...(input.status !== undefined && { status: input.status }),
-      ...(input.depth !== undefined && { depth: input.depth }),
-      ...(input.messages !== undefined && { messages: input.messages }),
-      ...(input.creditReservation !== undefined && {
-        creditReservationOxyUserId: input.creditReservation.userId,
-        creditReservationCreditsReserved: input.creditReservation.creditsReserved,
-        creditReservationInitialFreeCredits: input.creditReservation.initialFreeCredits,
-        creditReservationInitialPaidCredits: input.creditReservation.initialPaidCredits,
-      }),
-      ...(input.config?.maxSteps !== undefined && { configMaxSteps: input.config.maxSteps }),
-      ...(input.config?.maxTokens !== undefined && { configMaxTokens: input.config.maxTokens }),
-      ...(input.config?.maxVMs !== undefined && { configMaxVms: input.config.maxVMs }),
-    })
+    .values(agentSessionValues(input))
     .returning();
   return toAgentSessionRecord(row);
+}
+
+/** Idempotently create the one session allowed to execute a run stage. */
+export async function createAutomationStageSession(
+  db: Executor,
+  input: CreateAgentSessionInput & { automationRunId: string; automationStage: number },
+): Promise<{ session: AgentSessionRecord; created: boolean }> {
+  const [inserted] = await db.insert(agentSessions)
+    .values(agentSessionValues(input))
+    .onConflictDoNothing({
+      target: [agentSessions.automationRunId, agentSessions.automationStage],
+    })
+    .returning();
+  if (inserted) return { session: toAgentSessionRecord(inserted), created: true };
+  const [existing] = await db.select().from(agentSessions).where(and(
+    eq(agentSessions.automationRunId, input.automationRunId),
+    eq(agentSessions.automationStage, input.automationStage),
+  )).limit(1);
+  if (!existing) throw new Error('Automation stage session conflict did not identify an existing row');
+  return { session: toAgentSessionRecord(existing), created: false };
 }
 
 /**
