@@ -42,6 +42,7 @@ import { WorkspaceMemory } from './workspace-memory.js';
 import { TerminalSession, inferImage } from './terminal-session.js';
 import { BrowserSession } from './browser-session.js';
 import { ToolPipeline } from '../tool-pipeline.js';
+import { oxyExecutionAuthorizationKey } from '../tools/oxy-services.js';
 import { agentRemitPrompt } from './archetype-prompts.js';
 import {
   agentPromptName,
@@ -57,7 +58,11 @@ import { orchestrate, shouldOrchestrate } from './orchestrator.js';
 import { compactContext } from './context-compaction.js';
 import { redactSecrets } from './secret-scanner.js';
 import { readCapabilityGrants } from '../../domain/capability-grants.js';
-import { markAutomationRunForSession } from '../../db/automation/automationDefinitionRepository.js';
+import {
+  listAutomationExecutionAuthorizationsForRun,
+  markAutomationActionStep,
+  markAutomationRunForSession,
+} from '../../db/automation/automationDefinitionRepository.js';
 
 /** Regex to detect browser-related tasks for pre-initialization */
 const BROWSER_HINT_RE = /\b(browse|browser|website|web page|screenshot|http|https|www\.|\.com|\.org|url|navigate|click|open site)\b/i;
@@ -424,6 +429,21 @@ export async function runAgentSession(sessionId: string): Promise<void> {
       }
     : undefined;
 
+  const oxyAuthorizationRows = await listAutomationExecutionAuthorizationsForRun(
+    getDb(),
+    session.id,
+    agent.id,
+  );
+  const oxyExecutionAuthorizations = Object.fromEntries(oxyAuthorizationRows.map((authorization) => [
+    oxyExecutionAuthorizationKey({
+      appId: authorization.resourceAppId,
+      effectiveAccountId: authorization.effectiveAccountId,
+      resourceType: authorization.resourceType,
+      resourceId: authorization.resourceId,
+    }, authorization.tool),
+    { id: authorization.oxyAuthorizationId, stepId: authorization.stepId },
+  ]));
+
   // Transition: INITIALIZING → PLANNING
   stateMachine.transition('initialized');
 
@@ -448,6 +468,14 @@ export async function runAgentSession(sessionId: string): Promise<void> {
     agent,
     runId: session.id,
     oxyAutonomy: 'autonomous',
+    oxyExecutionAuthorizations,
+    onOxyStepStatus: async (stepId, status) => {
+      try {
+        await markAutomationActionStep(getDb(), stepId, status);
+      } catch (error: unknown) {
+        log.agents.warn({ err: error, sessionId, stepId, status }, 'Could not update automation action step');
+      }
+    },
     runtime: {
       session,
       onComplete,

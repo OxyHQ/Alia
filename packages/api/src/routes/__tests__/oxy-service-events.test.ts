@@ -26,7 +26,8 @@ vi.mock('../../lib/logger.js', () => {
 
 const serviceFetch = vi.fn();
 vi.stubGlobal('fetch', serviceFetch);
-const { default: router } = await import('../oxy-service-events.js');
+const eventsModule = await import('../oxy-service-events.js');
+const router = eventsModule.default;
 
 let server: Server;
 let port: number;
@@ -86,6 +87,39 @@ beforeEach(() => {
 });
 
 describe('normalized Oxy app events', () => {
+  it('requires one agent capability map to cover the event and every declared action', () => {
+    const mentionResource = {
+      appId: 'mention', effectiveAccountId: 'account-1',
+      resourceType: 'social_account', resourceId: 'social-1',
+    };
+    const assignments = [{
+      resource: event.resource,
+      maximumAutonomy: 'autonomous' as const,
+      toolNames: ['readEmail'],
+    }, {
+      resource: mentionResource,
+      maximumAutonomy: 'autonomous' as const,
+      toolNames: ['publishPost'],
+    }];
+    const actions = [{
+      id: 'action-1',
+      resource: mentionResource,
+      tool: 'publishPost',
+      input: {},
+      limits: [],
+    }];
+    expect(eventsModule.assignmentsCoverAutomation({
+      assignments,
+      eventResource: event.resource,
+      actions,
+    })).toBe(true);
+    expect(eventsModule.assignmentsCoverAutomation({
+      assignments: assignments.slice(0, 1),
+      eventResource: event.resource,
+      actions,
+    })).toBe(false);
+  });
+
   it('requires a centrally verifiable service bearer before claiming an event', async () => {
     expect((await post(event)).status).toBe(401);
     expect(serviceFetch).not.toHaveBeenCalled();

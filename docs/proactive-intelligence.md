@@ -1,17 +1,23 @@
 # Proactive Intelligence
 
-Last updated: 2026-03-07
+Last updated: 2026-09-02
 
-Alia proactive intelligence is built on `triggers` + autonomy runtime + policy controls.
+Alia proactive intelligence has one normalized control plane (`/automations`) and
+one scheduler (`trigger-engine.ts`) during the trigger migration. Automation
+definitions own actors, exact Oxy actions, data flow, limits and execution mode;
+triggers remain only the clock/event adapter for legacy definitions.
 
 ## Architecture
 
 1. User message (or external event) arrives.
 2. Runtime classifies intent and recalls context graph.
-3. Trigger/action executes with tools.
-4. Governance checks risk (`R0`..`R3`).
-5. Result is stored and optionally notified.
-6. Learnings update source ranking and rules.
+3. The coordinator filters agents whose live capability map cannot cover the
+   event and every declared action.
+4. Observation mode records the selected actor and action graph without making
+   a session or an external effect.
+5. Execution mode loads opaque, durable Oxy authorization ids and asks Oxy for
+   a fresh capability ticket bound to the current run and step.
+6. Result is stored and optionally notified.
 
 ## Trigger Engine
 
@@ -48,6 +54,10 @@ Each run writes a `TriggerExecution` record with:
 - token usage
 - duration
 
+Normalized runs also write `automation_runs` and ordered `automation_steps`.
+Each Oxy step carries its stable action id, fresh run/step correlation and
+policy decision. Alia stores no user bearer or app credential.
+
 ## Governance and Approvals
 
 - `R0`: auto-run.
@@ -57,16 +67,23 @@ Each run writes a `TriggerExecution` record with:
 
 Approvals emit `alia.approval_request` and `alia.approval_result`.
 
+The Oxy autonomy vocabulary is `read_only`, `draft`, `execute_on_request` and
+`autonomous`; the most restrictive live policy wins. Risk classes still govern
+Alia-local tools, while Oxy app effects are authorized by exact action/resource
+capability tickets.
+
 ## Oxy Service Events
 
 Source: `packages/api/src/routes/oxy-service-events.ts`
 
 Behavior:
 
-- Dedupe by `eventId`.
-- Store event log (`OxyServiceEventLog`).
-- For autonomous events, create persistent `AgentSession` before queueing.
-- If autonomous execution fails, send fallback notification.
+- Authenticate the publisher with an Oxy service identity and its signed app catalog.
+- Dedupe by `(appId, eventId)` in `automation_events`.
+- Match explicit source resources and deterministically select an eligible agent.
+- In observation mode, persist the decision graph and execute nothing.
+- In execution mode, require live capability coverage plus every durable action authorization before queueing.
+- If autonomous execution fails, send an in-app/push fallback notification.
 
 ## Client Event Parity
 
@@ -84,4 +101,5 @@ All chat clients consume the same named events with `eventVersion: 1`:
 
 ## Important
 
-Scheduled/proactive execution is trigger-native.
+Scheduled execution remains trigger-engine-native until every legacy trigger is
+backfilled. `/automations` is the normalized control plane, not a second scheduler.

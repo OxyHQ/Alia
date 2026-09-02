@@ -400,6 +400,13 @@
       "when": 1788298800183,
       "tag": "0056_tough_synch",
       "breakpoints": true
+    },
+    {
+      "idx": 57,
+      "version": "7",
+      "when": 1788355756813,
+      "tag": "0057_sleepy_pride",
+      "breakpoints": true
     }
   ]
 }

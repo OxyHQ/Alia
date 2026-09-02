@@ -99,9 +99,15 @@ describe('Oxy capability tools', () => {
       }
       if (url.endsWith('/capabilities/tickets')) {
         expect((init?.headers as Record<string, string>).authorization).toBe('Bearer ALIA-SERVICE-TOKEN');
-        expect(['AUTHORIZATION-1', 'PREAUTHORIZED-1']).toContain(
-          JSON.parse(String(init?.body)).executionAuthorizationId,
-        );
+        const request = JSON.parse(String(init?.body)) as Record<string, unknown>;
+        expect(['AUTHORIZATION-1', 'PREAUTHORIZED-1']).toContain(request.executionAuthorizationId);
+        if (request.executionAuthorizationId === 'PREAUTHORIZED-1') {
+          expect(request).toEqual({
+            executionAuthorizationId: 'PREAUTHORIZED-1',
+            runId: 'run-user-3',
+            stepId: 'step-user-3',
+          });
+        }
         return new Response(JSON.stringify({ decision: { allowed: true, reason: 'allowed' }, ticket: 'SHORT-TICKET' }), {
           status: 201,
           headers: { 'content-type': 'application/json' },
@@ -156,6 +162,7 @@ describe('Oxy capability tools', () => {
       resourceType: 'email_account',
       resourceId: 'user-3',
     };
+    const onStepStatus = vi.fn(async () => undefined);
     const tools = await buildOxyServiceTools('user-3', {
       requesterAccountId: 'user-3',
       ownerAccountId: 'user-3',
@@ -163,8 +170,12 @@ describe('Oxy capability tools', () => {
       runId: 'run-user-3',
       autonomy: 'autonomous',
       executionAuthorizations: {
-        [oxyExecutionAuthorizationKey(resource, 'searchEmails')]: 'PREAUTHORIZED-1',
+        [oxyExecutionAuthorizationKey(resource, 'searchEmails')]: {
+          id: 'PREAUTHORIZED-1',
+          stepId: 'step-user-3',
+        },
       },
+      onStepStatus,
     });
     const search = tools.oxy_inbox__searchEmails as unknown as ExecutableTool;
     await search.execute({ q: 'hello' });
@@ -176,5 +187,9 @@ describe('Oxy capability tools', () => {
     expect(fetchMock.mock.calls.some(([input]) => (
       String(input).endsWith('/capabilities/execution-authorizations/PREAUTHORIZED-1')
     ))).toBe(false);
+    expect(onStepStatus.mock.calls).toEqual([
+      ['step-user-3', 'running'],
+      ['step-user-3', 'succeeded'],
+    ]);
   });
 });
