@@ -81,7 +81,11 @@ import {
 import { buildMcpTools } from './tools/mcp.js';
 import { buildAskAgentTool } from './tools/ask-agent.js';
 import { buildIntegrationTools } from './tools/integrations.js';
-import { buildOxyServiceTools, type OxyToolAutonomy } from './tools/oxy-services.js';
+import {
+  buildOxyServiceTools,
+  type OxyExecutionAuthorizationRef,
+  type OxyToolAutonomy,
+} from './tools/oxy-services.js';
 import { convertOpenAIToolsToToolSet, type OpenAITool } from './tool-converter.js';
 import { log } from './logger.js';
 import type { SSEEmitter } from './sse-emitter.js';
@@ -142,6 +146,9 @@ export interface ForUserOptions {
   runId?: string;
   /** Maximum autonomy already selected by the direct request or automation. */
   oxyAutonomy?: OxyToolAutonomy;
+  /** Exact durable Oxy authorizations for a normalized background run. */
+  oxyExecutionAuthorizations?: Readonly<Record<string, OxyExecutionAuthorizationRef>>;
+  onOxyStepStatus?: (stepId: string, status: 'running' | 'succeeded' | 'failed') => Promise<void>;
   /**
    * Whether this turn may use tools AT ALL. No default: every caller states it.
    *
@@ -276,6 +283,8 @@ export class ToolPipeline {
       requestId,
       runId,
       oxyAutonomy,
+      oxyExecutionAuthorizations,
+      onOxyStepStatus,
       editorToolDefinitions,
       sseEmitter,
       webSearch,
@@ -499,6 +508,8 @@ export class ToolPipeline {
                 runId: runId ?? requestId,
                 autonomy: oxyAutonomy,
                 userAccessToken: isDirectSession ? accessToken : undefined,
+                executionAuthorizations: oxyExecutionAuthorizations,
+                onStepStatus: onOxyStepStatus,
               })
                 .catch(bulkFailure('oxy-service')),
           actsForPerson && wants('agent')

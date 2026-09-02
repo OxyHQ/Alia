@@ -47,19 +47,26 @@ MCP capabilities are visible to the model with the same calling convention as na
 
 ## Oxy service connector
 
-Alia is part of the Oxy ecosystem. Services in that ecosystem register a manifest row in the `oxy_services` table; Alia auto-discovers their tools and exposes them in chat. Registering a service is a data change with no Alia code change. Two files own this:
+Alia is part of the Oxy ecosystem. Each app registers one signed capability
+catalog in Oxy; Alia builds its internal tools from that registry. Adding an app
+requires a catalog and handlers in the app, not app-specific code in Alia.
 
-- `packages/api/src/db/integrations/oxyServiceRepository.ts` — reads the manifest (tools, scopes)
-- `packages/api/src/lib/tools/oxy-services.ts` — tool builder that turns manifest entries into AI SDK tools
+- Oxy owns catalog registration, delegations and live authorization decisions.
+- `packages/api/src/lib/tools/oxy-services.ts` turns internal catalog tools into AI SDK tools.
+- `packages/api/src/lib/oxy-capability-authority.ts` exchanges request-scoped user approval for opaque execution-authorization ids.
 
-Inbound service events go through `POST /webhooks/oxy/:serviceId`:
+Inbound service events go through `POST /webhooks/oxy`:
 
-- Signature verified against the registered service secret
-- `eventId` deduplicated against `oxy_service_event_logs`
-- Persistent `AgentSession` created before queueing autonomous work
-- If autonomous execution fails, a notification fallback is dispatched
+- The Oxy service bearer is verified centrally; Alia stores no per-app HMAC secret.
+- The publisher may emit only events declared by a catalog it owns.
+- `(appId, eventId)` is deduplicated before matching automations.
+- Observation records actor/action decisions with no execution.
+- Execution requires every declared resource/tool authorization, then obtains a
+  short-lived capability ticket for the fresh run and step.
 
-The connector reuses the same `service-token` flow as the rest of the Oxy ecosystem so Alia can act as either a tool host or a tool consumer.
+User sessions are never forwarded to apps or retained by background runs. The
+app receives only a one-minute capability ticket with its exact audience,
+resource, actor, account, run, step and tool.
 
 ## Channel integrations
 
@@ -86,7 +93,10 @@ Outbound tools (e.g. `sendTelegramMessage`, `sendWhatsAppMessage`) require `R2` 
 
 ## Triggers
 
-`/triggers` is the only scheduling primitive — there is no separate automations API. A trigger ties an action prompt to one of four sources:
+`/triggers` is the transitional scheduler. `/automations` is the normalized
+control plane that stores the objective, actor selection, trigger, exact actions,
+data flow, limits, autonomy and `observe | execute` mode. It does not create a
+second scheduling loop.
 
 ```ts
 type TriggerType = 'schedule' | 'webhook' | 'integration_event' | 'agent_heartbeat';
@@ -114,6 +124,17 @@ Endpoints:
 | `POST` | `/triggers/:id/run` | Manual run |
 | `GET` | `/triggers/:id/executions` | Execution history |
 | `POST` | `/triggers/webhook/:token` | Public webhook entry point |
+
+Structured control-plane endpoints:
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `GET` | `/automations` | List definitions and declared actions |
+| `POST` | `/automations` | Create an observe/execute definition and editable receipt |
+| `PATCH` | `/automations/:id` | Enable or stop; reauthorization is required after a stop |
+| `DELETE` | `/automations/:id` | Stop immediately and revoke its Oxy authorizations |
+| `GET` | `/automations/runs` | Decision and execution history |
+| `GET` | `/automations/runs/:runId/steps` | Ordered, correlated step history |
 
 ## Sandbox and Docker host
 
