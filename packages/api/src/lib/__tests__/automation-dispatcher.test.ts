@@ -94,6 +94,13 @@ const scheduleTrigger = {
   occurredAt: new Date('2026-09-07T09:00:00.000Z'),
 };
 
+const manualTrigger = {
+  kind: 'manual' as const,
+  id: 'manual:automation-1:request-0001',
+  occurredAt: new Date('2026-09-07T09:00:00.000Z'),
+  requesterAccountId: 'owner-1',
+};
+
 beforeEach(() => {
   vi.clearAllMocks();
   database.transaction.mockImplementation(async (callback) => callback(database));
@@ -149,6 +156,19 @@ describe('normalized automation dispatch', () => {
     expect(state.enqueue).not.toHaveBeenCalled();
   });
 
+  it('records observation without requiring autonomous execution policy', async () => {
+    state.oxyMap.mockResolvedValue([
+      { resource: inbox, maximumAutonomy: 'draft', limits: [], toolNames: ['searchNotes'] },
+      { resource: mention, maximumAutonomy: 'draft', limits: [], toolNames: ['publishPost'] },
+    ]);
+    await expect(dispatchStructuredAutomation(
+      automation({ maximumAutonomy: 'draft' }),
+      scheduleTrigger,
+    )).resolves.toEqual({ status: 'observed' });
+    expect(state.oxyMap).toHaveBeenCalledWith(expect.objectContaining({ autonomy: 'draft' }));
+    expect(state.observe).toHaveBeenCalled();
+  });
+
   it('does not select an unavailable agent', async () => {
     state.findAgent.mockImplementation(async (_db, id: string) => ({
       id,
@@ -186,6 +206,84 @@ describe('normalized automation dispatch', () => {
       task: expect.stringContaining('"type":"schedule"'),
     }));
     expect(state.enqueue).toHaveBeenCalledWith(expect.objectContaining({ sessionId: 'session-1' }));
+  });
+
+  it('runs an execute-on-request definition only for its owner and audits the requester', async () => {
+    state.oxyMap.mockResolvedValueOnce([
+      { resource: inbox, maximumAutonomy: 'execute_on_request', limits: [], toolNames: ['searchNotes'] },
+      { resource: mention, maximumAutonomy: 'execute_on_request', limits: [], toolNames: ['publishPost'] },
+    ]);
+
+    await expect(dispatchStructuredAutomation(
+      automation({
+        executionMode: 'execute',
+        maximumAutonomy: 'execute_on_request',
+        trigger: { type: 'manual' },
+      }),
+      manualTrigger,
+    )).resolves.toEqual({ status: 'queued', sessionId: 'session-1' });
+
+    expect(state.oxyMap).toHaveBeenCalledWith(expect.objectContaining({
+      ownerAccountId: 'owner-1',
+      autonomy: 'execute_on_request',
+    }));
+    expect(state.createRun).toHaveBeenCalledWith(expect.objectContaining({
+      requesterAccountId: 'owner-1',
+      triggerEventId: manualTrigger.id,
+    }));
+    expect(state.createSession).toHaveBeenCalledWith(database, expect.objectContaining({
+      task: expect.stringContaining('"type":"manual"'),
+    }));
+  });
+
+  it('does not execute a non-autonomous definition from a schedule', async () => {
+    await expect(dispatchStructuredAutomation(
+      automation({ executionMode: 'execute', maximumAutonomy: 'execute_on_request' }),
+      scheduleTrigger,
+    )).resolves.toEqual({
+      status: 'denied',
+      reason: 'background_execution_requires_autonomous_policy',
+    });
+
+    expect(state.oxyMap).not.toHaveBeenCalled();
+    expect(state.createRun).not.toHaveBeenCalled();
+  });
+
+  it('does not treat a manual request as approval for a draft definition', async () => {
+    await expect(dispatchStructuredAutomation(
+      automation({
+        executionMode: 'execute',
+        maximumAutonomy: 'draft',
+        trigger: { type: 'manual' },
+      }),
+      manualTrigger,
+    )).resolves.toEqual({
+      status: 'denied',
+      reason: 'manual_execution_requires_request_autonomy',
+    });
+
+    expect(state.oxyMap).not.toHaveBeenCalled();
+    expect(state.createRun).not.toHaveBeenCalled();
+  });
+
+  it('rejects a manual requester that does not own the definition', async () => {
+    await expect(dispatchStructuredAutomation(automation(), {
+      ...manualTrigger,
+      requesterAccountId: 'other-owner',
+    })).resolves.toEqual({ status: 'denied', reason: 'manual_requester_not_owner' });
+
+    expect(state.findAgent).not.toHaveBeenCalled();
+    expect(state.createRun).not.toHaveBeenCalled();
+  });
+
+  it('rejects a dispatch trigger that does not match the stored definition', async () => {
+    await expect(dispatchStructuredAutomation(automation(), manualTrigger)).resolves.toEqual({
+      status: 'denied',
+      reason: 'automation_trigger_mismatch',
+    });
+
+    expect(state.findAgent).not.toHaveBeenCalled();
+    expect(state.createRun).not.toHaveBeenCalled();
   });
 
   it('splits ordered actions between differently capable agents', async () => {

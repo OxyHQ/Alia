@@ -134,8 +134,13 @@ Structured control-plane endpoints:
 | `POST` | `/automations` | Create an observe/execute definition and editable receipt |
 | `PATCH` | `/automations/:id` | Enable or stop; reauthorization is required after a stop |
 | `DELETE` | `/automations/:id` | Stop immediately and revoke its Oxy authorizations |
+| `POST` | `/automations/:id/run` | Execute a manual definition; owner-only and idempotency-keyed |
 | `GET` | `/automations/runs` | Decision and execution history |
 | `GET` | `/automations/runs/:runId/steps` | Ordered, correlated step history |
+
+Manual execution requires `execute_on_request` or `autonomous`. Background event and
+schedule execution requires `autonomous`; `draft` and `read_only` definitions cannot
+produce effects without a future explicit approval flow.
 
 ## Sandbox and Docker host
 
