@@ -95,6 +95,8 @@ const NOT_APPLICABLE: Readonly<Record<string, string>> = {
     'Test of key-manager.ts, which is mapped (row `key-manager`). Moves or dies with it.',
   'packages/api/src/internal/providers/lib/__tests__/seed-provider-admission.test.ts':
     'Test of seed-model-configs.ts and provider-names.ts, both mapped (rows `dead-startup-seed` and `tuple-provider-names`). Moves or dies with them.',
+  'packages/api/src/internal/providers/lib/__tests__/seed-model-configs.test.ts':
+    'Fail-closed test of seed-model-configs.ts, which is mapped (row `dead-startup-seed`). Moves or dies with it.',
   'packages/api/src/internal/providers/lib/__tests__/image-providers.test.ts':
     'Test of image-providers.ts, which is mapped (row `image-providers`). Moves or dies with it.',
   'packages/api/src/internal/providers/lib/__tests__/voice-session-credits.pgdb.test.ts':
@@ -106,7 +108,7 @@ const NOT_APPLICABLE: Readonly<Record<string, string>> = {
   'packages/api/src/internal/providers/lib/__tests__/credit-multipliers.test.ts':
     'Test of alia-models.ts, which is mapped (row `alia-models`), and of lib/credits-manager.ts, which is not in this subtree (rows `concept-credit-multiplier` and `credits-manager-voice`). It freezes each alias’s `creditMultiplier` at its literal value, through the table AND through the billing read. It lives here rather than beside credits-manager because reading the shipped alias set from lib/__tests__/ would widen gate 1’s frozen importer list, the way sound-effect-failover.test.ts above already avoids. Moves or dies with the alias layer.',
 };
-const NOT_APPLICABLE_COUNT = 16;
+const NOT_APPLICABLE_COUNT = 17;
 
 interface MatrixRow {
   readonly id: string;
