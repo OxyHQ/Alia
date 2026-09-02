@@ -43,6 +43,53 @@ let queue: Queue<AgentJobData, AgentJobResult> | null = null;
 let worker: Worker<AgentJobData, AgentJobResult> | null = null;
 let redisAvailable = false;
 
+async function processAgentSession(data: AgentJobData): Promise<AgentJobResult> {
+  const { sessionId, userId, agentId, agentName } = data;
+  const { runAgentSession } = await import('./agent/runner.js');
+  await runAgentSession(sessionId);
+
+  const { getDb } = await import('../db/index.js');
+  const { findAgentSessionById } = await import('../db/agents/agentSessionRepository.js');
+  const session = await findAgentSessionById(getDb(), sessionId);
+  const result = session?.result || 'Task finished.';
+  const { advanceAutomationRunAfterSession } = await import('./automation-run-coordinator.js');
+  const advance = session
+    ? await advanceAutomationRunAfterSession(session)
+    : { kind: 'not_automation' as const };
+
+  if (advance.kind === 'next') {
+    await enqueueAgentSession({
+      sessionId: advance.session.id,
+      userId: advance.session.oxyUserId,
+      agentId: advance.session.agentId,
+      agentName: `Agent ${advance.session.agentId}`,
+    });
+    return { sessionId, status: 'completed', result };
+  }
+
+  const status = advance.kind === 'terminal'
+    ? (advance.status === 'succeeded' ? 'completed' : 'failed')
+    : (session?.status === 'completed' ? 'completed' : 'failed');
+  try {
+    const { sendNotification } = await import('./notification-service.js');
+    await sendNotification({
+      userId,
+      type: 'agent_task_complete',
+      title: status === 'completed' ? `${agentName} finished` : `${agentName} failed`,
+      body: result.slice(0, 500),
+      data: {
+        sessionId,
+        agentId,
+        status,
+        ...(advance.kind === 'terminal' ? { automationRunId: advance.runId } : {}),
+      },
+    });
+  } catch (notifErr) {
+    log.agents.warn({ notifErr, sessionId }, 'Failed to send completion notification');
+  }
+  return { sessionId, status, result };
+}
+
 /**
  * Initialize the task queue. Call once at server startup.
  * If Redis is not configured, the queue won't start and
@@ -92,33 +139,7 @@ export async function startWorker(): Promise<void> {
       log.agents.info({ sessionId, jobId: job.id }, 'Worker processing agent session');
 
       try {
-        // Lazy import to avoid circular deps
-        const { runAgentSession } = await import('./agent/runner.js');
-        await runAgentSession(sessionId);
-
-        // Read final status from DB
-        const { getDb } = await import('../db/index.js');
-        const { findAgentSessionById } = await import('../db/agents/agentSessionRepository.js');
-        const session = await findAgentSessionById(getDb(), sessionId);
-
-        const status = session?.status === 'completed' ? 'completed' : 'failed';
-        const result = session?.result || 'Task finished.';
-
-        // Send notification
-        try {
-          const { sendNotification } = await import('./notification-service.js');
-          await sendNotification({
-            userId,
-            type: 'agent_task_complete',
-            title: `${agentName} finished`,
-            body: result.slice(0, 500),
-            data: { sessionId, agentId, status },
-          });
-        } catch (notifErr) {
-          log.agents.warn({ notifErr, sessionId }, 'Failed to send completion notification');
-        }
-
-        return { sessionId, status, result };
+        return await processAgentSession(job.data);
       } catch (err: unknown) {
         log.agents.error({ err, sessionId }, 'Worker: agent session failed');
 
@@ -190,9 +211,9 @@ export async function enqueueAgentSession(
     }
   }
 
-  // Fallback: direct execution (fire-and-forget)
-  const { runAgentSession } = await import('./agent/runner.js');
-  runAgentSession(data.sessionId).catch(err => {
+  // Fallback: direct execution (fire-and-forget) through the same lifecycle as
+  // the Redis worker, including deterministic automation-stage advancement.
+  processAgentSession(data).catch(err => {
     log.agents.error({ err, sessionId: data.sessionId }, 'Direct agent session failed');
   });
 

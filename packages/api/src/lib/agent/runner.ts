@@ -431,8 +431,9 @@ export async function runAgentSession(sessionId: string): Promise<void> {
 
   const oxyAuthorizationRows = await listAutomationExecutionAuthorizationsForRun(
     getDb(),
-    session.id,
+    session.automationRunId ?? session.id,
     agent.id,
+    session.automationStage ?? undefined,
   );
   const oxyExecutionAuthorizations = Object.fromEntries(oxyAuthorizationRows.map((authorization) => [
     oxyExecutionAuthorizationKey({
@@ -466,9 +467,12 @@ export async function runAgentSession(sessionId: string): Promise<void> {
     webSearch: true,
     isLocalRuntime: false,
     agent,
-    runId: session.id,
+    runId: session.automationRunId ?? session.id,
     oxyAutonomy: 'autonomous',
     oxyExecutionAuthorizations,
+    toolScope: session.automationRunId
+      ? 'preauthorized_oxy_automation'
+      : 'standard',
     onOxyStepStatus: async (stepId, status) => {
       try {
         await markAutomationActionStep(getDb(), stepId, status);
@@ -518,7 +522,7 @@ export async function runAgentSession(sessionId: string): Promise<void> {
 
   try {
     // ── Orchestrator mode check ──
-    if (shouldOrchestrate(session.task, session.depth)) {
+    if (!session.automationRunId && shouldOrchestrate(session.task, session.depth)) {
       eventStream.append('system_message', 'Task complexity detected — activating orchestrated execution');
 
       const orchResult = await orchestrate({

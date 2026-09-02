@@ -76,6 +76,7 @@ import { createdAt, generatedId, timestamptz, updatedAt } from '@oxyhq/db';
 import { checkOneOf } from './columns';
 import { AGENT_SESSION_RESOURCE_STATUSES, AGENT_SESSION_RESOURCE_TYPES, AGENT_SESSION_STATUSES } from '../../domain/agent-session.js';
 import { agents } from './agents';
+import { automationRuns } from './agency';
 
 /** One item of a session's plan, as `TodoManager` serialises it. */
 export interface AgentSessionPlanItem {
@@ -136,6 +137,10 @@ export const agentSessions = pgTable(
     oxyUserId: text().notNull(),
     /** A delegating parent session. Self-referencing, optional. */
     parentSessionId: text(),
+    /** The structured automation run this session executes, if any. */
+    automationRunId: text(),
+    /** Zero-based position within a deterministic multi-agent run. */
+    automationStage: integer(),
     status: text({ enum: AGENT_SESSION_STATUSES as unknown as [string, ...string[]] })
       .notNull()
       .default('queued'),
@@ -184,6 +189,11 @@ export const agentSessions = pgTable(
       columns: [t.parentSessionId],
       foreignColumns: [t.id],
     }).onDelete('set null'),
+    foreignKey({
+      name: 'agent_sessions_automation_run_id_fk',
+      columns: [t.automationRunId],
+      foreignColumns: [automationRuns.id],
+    }).onDelete('restrict'),
     index('agent_sessions_agent_id_idx').on(t.agentId),
     index('agent_sessions_oxy_user_id_idx').on(t.oxyUserId),
     index('agent_sessions_status_idx').on(t.status),
@@ -195,6 +205,8 @@ export const agentSessions = pgTable(
     index('agent_sessions_parent_session_id_idx')
       .on(t.parentSessionId)
       .where(sql`${t.parentSessionId} is not null`),
+    uniqueIndex('agent_sessions_automation_run_stage_key')
+      .on(t.automationRunId, t.automationStage),
     checkOneOf('agent_sessions_status_check', t.status, AGENT_SESSION_STATUSES),
     /**
      * The plan is set and cleared as a unit by every writer, so both columns are
@@ -204,6 +216,10 @@ export const agentSessions = pgTable(
     check(
       'agent_sessions_plan_shape_check',
       sql`(${t.planObjective} is null) = (${t.planItems} is null)`,
+    ),
+    check(
+      'agent_sessions_automation_binding_check',
+      sql`(${t.automationRunId} is null) = (${t.automationStage} is null)`,
     ),
   ],
 );

@@ -28,6 +28,11 @@ export interface ProvisionedAutomationAuthorization {
   expiresAt: Date;
 }
 
+export interface AutomationAuthorityPair {
+  agent: AutomationAuthorityAgent;
+  action: AutomationAuthorityAction;
+}
+
 export async function revokeAutomationAuthorizations(
   accessToken: string,
   authorizationIds: readonly string[],
@@ -53,12 +58,10 @@ export async function provisionAutomationAuthorizations(input: {
   ownerAccountId: string;
   automationId: string;
   maximumAutonomy: AutonomyLevel;
-  agents: readonly AutomationAuthorityAgent[];
-  actions: readonly AutomationAuthorityAction[];
+  pairs: readonly AutomationAuthorityPair[];
 }): Promise<ProvisionedAutomationAuthorization[]> {
   const expiresAt = new Date(Date.now() + AUTOMATION_AUTHORIZATION_LIFETIME_MS);
-  const pairs = input.agents.flatMap((agent) => input.actions.map((action) => ({ agent, action })));
-  const results = await Promise.allSettled(pairs.map(async ({ agent, action }) => ({
+  const results = await Promise.allSettled(input.pairs.map(async ({ agent, action }) => ({
     automationActionId: action.id,
     agentId: agent.agentId,
     actorAccountId: agent.actorAccountId,

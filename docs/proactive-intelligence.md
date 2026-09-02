@@ -12,13 +12,21 @@ rows without duplicating cron processes.
 
 1. User message (or external event) arrives.
 2. Runtime classifies intent and recalls context graph.
-3. The coordinator filters agents whose live capability map cannot cover the
-   event and every declared action.
-4. Observation mode records the selected actor and action graph without making
-   a session or an external effect.
-5. Execution mode loads opaque, durable Oxy authorization ids and asks Oxy for
-   a fresh capability ticket bound to the current run and step.
-6. Result is stored and optionally notified.
+3. The coordinator assigns each ordered action to the first eligible agent
+   whose live capability map covers it. The first stage must also cover every
+   declared source resource.
+4. Consecutive actions for the same agent form one stage. Each stage has its
+   own session; one run may therefore identify several real Oxy bot accounts.
+5. Observation mode records the complete actor/action graph without making a
+   session or an external effect.
+6. Execution mode loads only that stage's opaque Oxy authorization ids and asks
+   Oxy for fresh capability tickets bound to the shared run and exact steps.
+7. Stages run sequentially, with one durable session per `(run, stage)`. Each
+   declared Oxy action can begin once in that session, and app idempotency keys
+   protect effect retries. A prior result reaches the next agent only when the
+   definition explicitly names a source and destination for that handoff.
+8. The run finishes only after every declared action step succeeds, then sends
+   the configured result notification.
 
 ## Trigger Engine
 
@@ -57,7 +65,9 @@ Each run writes a `TriggerExecution` record with:
 
 Normalized runs also write `automation_runs` and ordered `automation_steps`.
 Each Oxy step carries its stable action id, fresh run/step correlation and
-policy decision. Alia stores no user bearer or app credential.
+policy decision. Agent sessions carry an explicit `(automationRunId, stage)`
+binding; a unique database index prevents duplicate sessions for one stage.
+Alia stores no user bearer or app credential.
 
 ## Governance and Approvals
 
@@ -81,7 +91,8 @@ Behavior:
 
 - Authenticate the publisher with an Oxy service identity and its signed app catalog.
 - Dedupe by `(appId, eventId)` in `automation_events`.
-- Match explicit source resources and deterministically select an eligible agent.
+- Match explicit source resources and deterministically build the eligible
+  single- or multi-agent stage plan.
 - In observation mode, persist the decision graph and execute nothing.
 - In execution mode, require live capability coverage plus every durable action authorization before queueing.
 - If autonomous execution fails, send an in-app/push fallback notification.

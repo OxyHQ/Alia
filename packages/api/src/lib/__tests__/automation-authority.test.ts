@@ -38,11 +38,16 @@ describe('durable automation authority', () => {
       ownerAccountId: 'account-1',
       automationId: 'automation-1',
       maximumAutonomy: 'autonomous',
-      agents: [
-        { agentId: 'agent-1', actorAccountId: 'bot-1' },
-        { agentId: 'agent-2', actorAccountId: 'bot-2' },
+      pairs: [
+        {
+          agent: { agentId: 'agent-1', actorAccountId: 'bot-1' },
+          action: { id: 'action-1', resource, tool: 'sendEmail', limits: [{ key: 'daily', value: 5 }] },
+        },
+        {
+          agent: { agentId: 'agent-2', actorAccountId: 'bot-2' },
+          action: { id: 'action-1', resource, tool: 'sendEmail', limits: [{ key: 'daily', value: 5 }] },
+        },
       ],
-      actions: [{ id: 'action-1', resource, tool: 'sendEmail', limits: [{ key: 'daily', value: 5 }] }],
     });
 
     expect(result.map((entry) => entry.oxyAuthorizationId)).toEqual([
@@ -70,10 +75,15 @@ describe('durable automation authority', () => {
       ownerAccountId: 'account-1',
       automationId: 'automation-1',
       maximumAutonomy: 'autonomous',
-      agents: [{ agentId: 'agent-1', actorAccountId: 'bot-1' }],
-      actions: [
-        { id: 'action-1', resource, tool: 'searchEmails', limits: [] },
-        { id: 'action-2', resource, tool: 'sendEmail', limits: [] },
+      pairs: [
+        {
+          agent: { agentId: 'agent-1', actorAccountId: 'bot-1' },
+          action: { id: 'action-1', resource, tool: 'searchEmails', limits: [] },
+        },
+        {
+          agent: { agentId: 'agent-1', actorAccountId: 'bot-1' },
+          action: { id: 'action-2', resource, tool: 'sendEmail', limits: [] },
+        },
       ],
     })).rejects.toThrow('policy denied');
 

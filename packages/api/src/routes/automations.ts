@@ -19,6 +19,13 @@ import {
   revokeAutomationAuthorizations,
   type ProvisionedAutomationAuthorization,
 } from '../lib/automation-authority.js';
+import {
+  loadAutomationActorCandidates,
+  planAutomationStages,
+  provisionableAutomationPairs,
+  uniqueAutomationResources,
+  type AutomationActionPlanInput,
+} from '../lib/automation-coordination.js';
 import { log } from '../lib/logger.js';
 import { automationScheduleError, reloadAutomationSchedule } from '../lib/trigger-engine.js';
 import { authenticateToken } from '../middleware/auth.js';
@@ -97,6 +104,22 @@ async function ownedAgents(ownerAccountId: string, agentIds: readonly string[]) 
     agent !== null && agent.author === ownerAccountId && agent.id === agentIds[index]
   ))) return null;
   return agents.filter((agent): agent is NonNullable<typeof agent> => agent !== null);
+}
+
+async function executionAuthorityPairs(input: {
+  ownerAccountId: string;
+  agents: NonNullable<Awaited<ReturnType<typeof findAgentById>>>[];
+  actions: readonly AutomationActionPlanInput[];
+  sourceResources: AutomationRecord['dataFlow']['sources'];
+}) {
+  const candidates = await loadAutomationActorCandidates(input.ownerAccountId, input.agents);
+  const plan = planAutomationStages({
+    candidates,
+    sourceResources: input.sourceResources,
+    actions: input.actions,
+  });
+  if (!plan) return null;
+  return provisionableAutomationPairs({ candidates, actions: input.actions });
 }
 
 function sameResource(
@@ -245,6 +268,16 @@ router.post('/', async (request: Request, response: Response) => {
   const automationId = uuidv7();
   const actions = parsed.data.actions.map((action) => ({ id: uuidv7(), ...action }));
   const trigger = parsed.data.trigger;
+  const sourceResources = uniqueAutomationResources([
+    ...(trigger.type === 'event' && trigger.resource ? [trigger.resource] : []),
+    ...parsed.data.dataFlow.sources,
+  ]);
+  const authorityPairs = parsed.data.executionMode === 'execute' && parsed.data.enabled
+    ? await executionAuthorityPairs({ ownerAccountId, agents, actions, sourceResources })
+    : [];
+  if (authorityPairs === null) {
+    return response.status(403).json({ error: 'automation_actor_coverage_missing' });
+  }
   let automation: Awaited<ReturnType<typeof createAutomationDefinition>>;
   try {
     automation = await createAutomationDefinition(getDb(), {
@@ -288,8 +321,7 @@ router.post('/', async (request: Request, response: Response) => {
         ownerAccountId,
         automationId,
         maximumAutonomy: parsed.data.maximumAutonomy,
-        agents: agents.map((agent) => ({ agentId: agent.id, actorAccountId: agent.oxyAccountId })),
-        actions,
+        pairs: authorityPairs,
       });
     } catch (error: unknown) {
       log.triggers.warn({ err: error, ownerAccountId, automationId }, 'Oxy refused automation execution authority');
@@ -378,6 +410,20 @@ router.patch('/:id', async (request: Request, response: Response) => {
       : existing.actorSelection.eligibleAgentIds;
     const agents = await ownedAgents(ownerAccountId, agentIds);
     if (!agents) return response.status(403).json({ error: 'automation_agent_not_owned' });
+    const authorityPairs = await executionAuthorityPairs({
+      ownerAccountId,
+      agents,
+      actions: existing.actions,
+      sourceResources: uniqueAutomationResources([
+        ...(existing.trigger.type === 'event' && existing.trigger.resource
+          ? [existing.trigger.resource]
+          : []),
+        ...existing.dataFlow.sources,
+      ]),
+    });
+    if (!authorityPairs) {
+      return response.status(403).json({ error: 'automation_actor_coverage_missing' });
+    }
     let provisioned: ProvisionedAutomationAuthorization[];
     try {
       provisioned = await provisionAutomationAuthorizations({
@@ -385,8 +431,7 @@ router.patch('/:id', async (request: Request, response: Response) => {
         ownerAccountId,
         automationId: existing.id,
         maximumAutonomy: existing.maximumAutonomy,
-        agents: agents.map((agent) => ({ agentId: agent.id, actorAccountId: agent.oxyAccountId })),
-        actions: existing.actions,
+        pairs: authorityPairs,
       });
     } catch (error: unknown) {
       log.triggers.warn({ err: error, automationId: existing.id }, 'Oxy refused restored automation authority');
