@@ -142,12 +142,19 @@ encrypted tokens are written by one process and read by the other.
   sites repo-wide. Upstream credentials live in the `provider_keys` table, not in the
   environment.
 
-### Kaana client
+### Kaana client migration state
 
-Seven variables, all unset in every environment today, and **all or nothing**: when
-`ALIA_RELAY_CLIENT_ENABLED` is exactly the literal `true`, the process refuses to start
-unless the other six describe a principal `@oxyhq/contracts` accepts and an approved Kaana
-origin (`packages/api/src/lib/inference/kaana-boot-check.ts`).
+The only canonical signed Kaana origin is `https://kaana.ai`. Current `main` has not
+completed that identity cut: its dormant client still uses the legacy variable names
+below, and `KAANA_ALLOWED_ORIGINS` still names `api.oxy.so` plus the obsolete
+`relay.oxy.so` data-plane origin rather than the canonical apex. This section documents
+the code that exists; it is not an instruction to enable that legacy route or a claim
+that production has cut over.
+
+The legacy variables are **all or nothing**: when `ALIA_RELAY_CLIENT_ENABLED` is exactly
+the literal `true`, the process refuses to start unless the other values describe a
+principal `@oxyhq/contracts` accepts and an origin permitted by the current source
+(`packages/api/src/lib/inference/kaana-boot-check.ts`).
 
 ```bash
 ALIA_RELAY_CLIENT_ENABLED=true        # exactly `true`; `1` and `TRUE` do not enable it
@@ -156,7 +163,7 @@ ALIA_RELAY_APPLICATION_ID=<oxy-app>
 ALIA_RELAY_CREDENTIAL_ID=<oxy-credential>
 ALIA_RELAY_ENVIRONMENT=production     # development | staging | production
 ALIA_RELAY_INFERENCE_SCOPES=inference:invoke
-RELAY_BASE_URL=https://api.oxy.so     # must be an approved origin; see below
+RELAY_BASE_URL=https://api.oxy.so     # legacy variable; current Oxy-edge route only
 ```
 
 `ALIA_RELAY_ENVIRONMENT` is the environment the **credential** was issued into, and on a
@@ -165,15 +172,16 @@ production task bills test traffic to the production account, and no later query
 it out again. A development process is left alone, so a local run may point wherever it was
 configured.
 
-`RELAY_BASE_URL` is **pinned to an allow-list**, not merely read
+`RELAY_BASE_URL` is **pinned to the current source allow-list**, not merely read
 (`packages/api/src/lib/inference/kaana-endpoint.ts`, `KAANA_ALLOWED_ORIGINS`). A production
-or staging process accepts only an approved Oxy origin and refuses to start on anything
+or staging process accepts only an origin in that list and refuses to start on anything
 else — a near miss such as `https://api.oxy.so.example`, a scheme downgrade, a URL carrying
 credentials, and loopback are all refused. A **development** process may additionally point
 at `localhost` or `127.0.0.1`; that is the only relaxation, it is keyed on `NODE_ENV`, and
 there is deliberately no variable that widens the list. The client re-checks the value on
 every call as well, so a configuration mutated after boot cannot ride a boot-time approval.
-Adding a host is an edit to `KAANA_ALLOWED_ORIGINS` and therefore a reviewed diff.
+The remaining legacy origin must be removed by the coordinated identity cut; do not add a
+new alias or treat it as a supported Kaana hostname.
 
 Deliberately absent from `.do/app.yaml` and from `deploy-aws.yml`'s secret list. Adding
 them there before `Oxy API → Kaana` is mounted would be configuration for a service that
