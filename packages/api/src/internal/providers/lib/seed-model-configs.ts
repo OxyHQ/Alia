@@ -34,7 +34,6 @@ const SEED_ACTOR: ConfigAuditActor = {
 import { getDb } from '../../../db/index.js';
 import { TIER_MODEL_MAPPINGS, KAANA_ROUTING_PROFILES, type ModelCapabilities } from './routing-profile-catalogue.js';
 import { log } from '../../../lib/logger.js';
-import { isDuplicateKeyError } from '../../../lib/errors/index.js';
 
 // Human-readable display names for common models
 const MODEL_DISPLAY_NAMES: Record<string, string> = {
@@ -159,12 +158,11 @@ export async function seedModelConfigs(): Promise<{ seeded: number; skipped: num
 
         seen.add(uniqueKey);
       } catch (error: unknown) {
-        // Handle duplicate key errors gracefully (same model in multiple tiers)
-        if (isDuplicateKeyError(error)) {
-          skipped++;
-        } else {
-          log.seed.error({ err: error, uniqueKey }, 'Error seeding ModelConfig');
-        }
+        // The statement is already an idempotent PostgreSQL upsert. Any error
+        // that reaches here is therefore not the expected duplicate path and
+        // must fail the deploy-time seed rather than leave a partial catalogue.
+        log.seed.error({ err: error, uniqueKey }, 'Error seeding ModelConfig');
+        throw error;
       }
     }
   }
@@ -251,11 +249,11 @@ export async function seedRoutingProfiles(): Promise<{ seeded: number; skipped: 
         skipped++;
       }
     } catch (error: unknown) {
-      if (isDuplicateKeyError(error)) {
-        skipped++;
-      } else {
-        log.seed.error({ err: error, modelId }, 'Error seeding RoutingProfile');
-      }
+      // `upsertAliaModel` owns its conflict target. An error here is a real
+      // schema, constraint or infrastructure failure and cannot be counted as
+      // an idempotent skip.
+      log.seed.error({ err: error, modelId }, 'Error seeding RoutingProfile');
+      throw error;
     }
   }
 

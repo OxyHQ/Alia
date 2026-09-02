@@ -28,19 +28,18 @@ credential never join Kaana's hosted credential pool.
 2. `buildChatRequestContext` validates the requested identity, entitlement,
    product mode and capabilities, then reserves product credits.
 3. Alia assembles conversation context, memory, agent instructions and tools.
-4. The inference seam translates the product request into the shared contract.
-5. Oxy resolves the customer's routing policy into ordered
+4. The inference seam calls `@oxyhq/core`'s `OxyInferenceClient` with an exact
+   routing profile or concrete model and Alia's service credential.
+5. Oxy authenticates that credential and resolves routing policy into ordered
    `authorizedRoutes`, signs the final envelope, and sends it to Kaana.
 6. Kaana executes only those authorized deployments, streams contract events
    and emits metered usage.
 7. Alia translates the result into its product stream, persists the turn and
    finalizes product accounting.
 
-Step 5 is currently the cutover blocker: the implemented Alia transport posts a
-signed request directly to Kaana and does not supply `authorizedRoutes`. Kaana
-correctly rejects routing-profile targets without that list. No provider,
-deployment, region or permissive fallback may be invented in Alia; the path
-must enter through Oxy's policy boundary.
+Alia never constructs `authorizedRoutes`, signs an edge envelope or calls a
+Kaana URL. Those are Oxy-owned responsibilities. No provider, deployment,
+region or permissive fallback may be invented in Alia.
 
 ## Request shape
 

@@ -43,7 +43,7 @@ describe('Alia hosted provider runtime retirement', () => {
 
   it('drops legacy hosted-runtime tables only in the post-cutover migration', () => {
     const migration = readFileSync(
-      path.join(REPO_ROOT, 'packages/api/drizzle/0057_remove_alia_hosted_provider_runtime.sql'),
+      path.join(REPO_ROOT, 'packages/api/drizzle/0059_remove_alia_hosted_provider_runtime.sql'),
       'utf8',
     );
     expect(migration).toMatch(/^-- oxy:deploy-phase=post$/m);
@@ -52,12 +52,13 @@ describe('Alia hosted provider runtime retirement', () => {
     }
   });
 
-  it('syncs and binds the Kaana signing key without provider credentials', () => {
+  it('binds only the Oxy service credential for hosted inference', () => {
     const workflow = readFileSync(path.join(REPO_ROOT, '.github/workflows/deploy-aws.yml'), 'utf8');
-    expect(workflow).toContain('APP_KAANA_EDGE_SIGNING_PRIVATE_KEY: ${{ secrets.KAANA_EDGE_SIGNING_PRIVATE_KEY }}');
     expect(workflow).toContain(
-      'sync_secret KAANA_EDGE_SIGNING_PRIVATE_KEY "$APP_KAANA_EDGE_SIGNING_PRIVATE_KEY" "/oxy/$APP/KAANA_EDGE_SIGNING_PRIVATE_KEY"',
+      'sync_secret ALIA_KAANA_CREDENTIAL_KEY "$APP_ALIA_KAANA_CREDENTIAL_KEY" "/oxy/$APP/ALIA_KAANA_CREDENTIAL_KEY"',
     );
+    expect(workflow).toContain('ALIA_KAANA_CREDENTIAL_SECRET: $secret');
+    expect(workflow).not.toContain('EDGE_SIGNING_PRIVATE_KEY');
     expect(workflow).not.toContain('oxy-task-ssm-alia-provider-keys');
   });
 

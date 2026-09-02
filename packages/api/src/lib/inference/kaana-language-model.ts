@@ -8,12 +8,9 @@
  * migrates all of them by substitution instead: the call sites do not change,
  * and what they are talking to does.
  *
- * ## What this is not
- *
- * Not a second dialect. `kaana-openai-adapter.ts` owns the OpenAI
- * chat-completions translation and this module owns the AI SDK's, and neither
- * knows about the other — two adapters at one boundary, not one adapter with
- * two personalities. The client under both speaks only the contract.
+ * Alia translates its AI SDK calls to the public Oxy inference request once.
+ * `OxyInferenceClient` owns the HTTP protocol and calls Oxy; Alia has no direct
+ * Kaana transport, signing dialect or provider adapter.
  *
  * ## Tools are the whole point of this file existing
  *
@@ -27,7 +24,7 @@
  * ## The parts that are deliberately absent
  *
  * Images, audio and files in the PROMPT are refused with a warning rather than
- * dropped: Kaana's OpenAI-compatible adapter serves text today and answers any
+ * dropped: the current Oxy inference surface serves text today and answers any
  * other modality with `unsupported_modality`, so silently discarding an image
  * would produce an answer about a question the user did not ask. A warning is
  * what the AI SDK has for "I could not do this part", and `streamText` surfaces
@@ -41,6 +38,7 @@ import type {
   ToolChoice,
   ToolDefinition,
 } from '@oxyhq/contracts';
+import type { OxyInferenceResponse, OxyResponsesRequest } from '@oxyhq/core';
 import type {
   LanguageModelV3,
   LanguageModelV3CallOptions,
@@ -53,16 +51,17 @@ import type {
   LanguageModelV3Usage,
 } from '@ai-sdk/provider';
 
-import { getKaanaClient } from './kaana.js';
-import type { AliaInferenceContext, AliaInferenceSurface } from './product-seam.js';
-import type { KaanaRequestPayload } from './kaana-request.js';
+import { getOxyInferenceClient } from './oxy-inference.js';
+import type { AliaInferenceSurface } from './product-seam.js';
 
 /** One text block per response, because the contract streams one channel of it. */
 const TEXT_BLOCK_ID = 'kaana-text';
 
 export interface KaanaModelOptions {
-  /** What Kaana should route to: a profile like `auto`, or a concrete model. */
-  readonly modelReference: string;
+  /** The exact Oxy catalogue target; its kind is never inferred from its text. */
+  readonly target:
+    | { readonly kind: 'routing_profile'; readonly routingProfile: string }
+    | { readonly kind: 'model'; readonly model: string };
   readonly surface: AliaInferenceSurface;
   readonly oxyUserId?: string | null;
 }
@@ -390,42 +389,59 @@ function toUsage(units: readonly { unit: string; quantity: number }[] | undefine
   };
 }
 
-function contextFor(options: KaanaModelOptions): AliaInferenceContext {
-  return {
-    surface: options.surface,
-    visibility: 'user_turn',
-    caller: { oxyUserId: options.oxyUserId ?? null, billing: 'user_credits', viaApiKey: false },
-    model: { kind: 'user_selected', productModelId: options.modelReference },
-    conversationId: null,
-    fallbackPolicy: null,
-    budget: { totalMs: 120_000, connectMs: 5_000, firstTokenMs: 30_000, idleStreamMs: 30_000 },
-    onDisconnect: 'abort',
-  };
+function targetId(options: KaanaModelOptions): string {
+  return options.target.kind === 'model'
+    ? options.target.model
+    : options.target.routingProfile;
 }
 
-function payloadFor(
+function requestFor(
+  modelOptions: KaanaModelOptions,
   options: LanguageModelV3CallOptions,
   translation: Translation,
-): KaanaRequestPayload {
+): OxyResponsesRequest {
   const responseFormat = toResponseFormat(options.responseFormat);
   return {
-    modality: 'text',
-    // `messages`, not `text`: the contract reads a bare `text` input as an
-    // EMBEDDING input, and a chat model refuses it with `unsupported_modality`.
-    input: { format: 'messages', messages: translation.messages },
+    ...(modelOptions.target.kind === 'model'
+      ? { model: modelOptions.target.model }
+      : { routingProfile: modelOptions.target.routingProfile }),
+    input: translation.messages,
     maxOutputTokens: options.maxOutputTokens ?? 4096,
-    sampling: {
-      ...(options.temperature === undefined ? {} : { temperature: options.temperature }),
-      ...(options.topP === undefined ? {} : { topP: options.topP }),
-      ...(options.stopSequences === undefined ? {} : { stopSequences: options.stopSequences }),
-    },
-    // Declared even when empty: the contract distinguishes "this call offers no
-    // tools" from "this field was forgotten", and only the first is ever true.
+    ...(options.temperature === undefined ? {} : { temperature: options.temperature }),
+    ...(options.topP === undefined ? {} : { topP: options.topP }),
+    ...(options.stopSequences === undefined ? {} : { stopSequences: options.stopSequences }),
     tools: translation.tools,
     ...(translation.toolChoice === undefined ? {} : { toolChoice: translation.toolChoice }),
     ...(responseFormat === undefined ? {} : { responseFormat }),
-    client: { apiFormat: 'chat_completions', endpoint: '/v1/chat/completions' },
+    labels: { 'alia.surface': modelOptions.surface },
   };
+}
+
+function contentFrom(response: OxyInferenceResponse): {
+  readonly content: LanguageModelV3Content[];
+  readonly toolCalls: number;
+} {
+  const content: LanguageModelV3Content[] = [];
+  let toolCalls = 0;
+
+  for (const message of response.output) {
+    for (const part of message.content) {
+      if (part.type === 'text' || part.type === 'refusal') {
+        content.push({ type: 'text', text: part.text });
+      }
+    }
+    for (const toolCall of message.toolCalls ?? []) {
+      content.push({
+        type: 'tool-call',
+        toolCallId: toolCall.id,
+        toolName: toolCall.name,
+        input: toolCall.arguments,
+      });
+      toolCalls += 1;
+    }
+  }
+
+  return { content, toolCalls };
 }
 
 /**
@@ -440,53 +456,42 @@ export function kaanaLanguageModel(options: KaanaModelOptions): LanguageModelV3 
   return {
     specificationVersion: 'v3',
     provider: 'kaana',
-    modelId: options.modelReference,
+    modelId: targetId(options),
     supportedUrls: {},
 
     async doGenerate(call) {
-      const client = getKaanaClient();
-      if (client === null) throw new Error('Kaana is not configured for this deployment');
+      const client = getOxyInferenceClient();
+      if (client === null) throw new Error('Oxy inference is not configured for this deployment');
 
       const translation = translate(call);
-      const completion = await client.generate(
-        { context: contextFor(options), payload: payloadFor(call, translation) },
-        call.abortSignal ?? AbortSignal.timeout(120_000),
-      );
-
-      const content: LanguageModelV3Content[] = [];
-      if (completion.reasoningText !== '') {
-        content.push({ type: 'reasoning', text: completion.reasoningText });
-      }
-      if (completion.outputText !== '') {
-        content.push({ type: 'text', text: completion.outputText });
-      }
-      for (const toolCall of completion.toolCalls) {
-        content.push({
-          type: 'tool-call',
-          toolCallId: toolCall.id,
-          toolName: toolCall.name,
-          input: toolCall.arguments,
-        });
-      }
+      const completion = await client.respond(requestFor(options, call, translation), {
+        signal: call.abortSignal ?? AbortSignal.timeout(120_000),
+        ...(options.oxyUserId === undefined || options.oxyUserId === null
+          ? {}
+          : { delegatedUserId: options.oxyUserId }),
+      });
+      const generated = contentFrom(completion);
 
       return {
-        content,
-        finishReason: withToolCalls(toFinishReason(completion.finishReason), completion.toolCalls.length),
+        content: generated.content,
+        finishReason: withToolCalls(toFinishReason(completion.finishReason), generated.toolCalls),
         usage: toUsage(completion.usage),
         warnings: translation.warnings,
       };
     },
 
     async doStream(call) {
-      const client = getKaanaClient();
-      if (client === null) throw new Error('Kaana is not configured for this deployment');
+      const client = getOxyInferenceClient();
+      if (client === null) throw new Error('Oxy inference is not configured for this deployment');
 
       const translation = translate(call);
       const signal = call.abortSignal ?? AbortSignal.timeout(120_000);
-      const events = client.stream(
-        { context: contextFor(options), payload: payloadFor(call, translation) },
+      const events = client.stream(requestFor(options, call, translation), {
         signal,
-      );
+        ...(options.oxyUserId === undefined || options.oxyUserId === null
+          ? {}
+          : { delegatedUserId: options.oxyUserId }),
+      });
 
       /**
        * One text block, opened on the first delta rather than up front.

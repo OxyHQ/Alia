@@ -7,7 +7,7 @@
  * reachable at all.
  *
  * Only OXY is replaced. `lib/agent-account.ts` runs for real — including
- * `canSwitchIntoAccount` from `@oxyhq/core`, which is imported for real through
+ * `resolveAccountDelegationAccess` from `@oxyhq/core`, imported for real through
  * `importActual`, so what these assert is the SHIPPED act-as rule rather than a
  * fixture's opinion of it. The repository is a spy because what matters here is
  * whether it was reached, and with what.
@@ -16,7 +16,6 @@
 import express, { type Express, type NextFunction, type Request, type Response } from 'express';
 import type { Server } from 'node:http';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { constraintNameOf, isUniqueViolation } from '@oxyhq/db';
 
 /** An `AccountNode` as `GET /accounts/:id` answers it, or a refusal. */
 const state = vi.hoisted(() => ({
@@ -25,7 +24,7 @@ const state = vi.hoisted(() => ({
     accountId: string;
     kind: string;
     relationship: string;
-    callerMembership: null | { permissions: string[] };
+    callerMembership: null | { permissions: string[]; status?: string };
   },
   /** `true` makes `getAccount` reject with a transport failure, not a 404. */
   unreachable: false,
@@ -66,7 +65,9 @@ vi.mock('@oxyhq/core', async () => {
           kind: state.account.kind,
           relationship: state.account.relationship,
           account: { id: accountId, kind: state.account.kind },
-          callerMembership: state.account.callerMembership,
+          callerMembership: state.account.callerMembership === null
+            ? null
+            : { status: 'active', ...state.account.callerMembership },
         };
       }
     },
@@ -144,7 +145,6 @@ const AGENT_ROW = {
   isPublished: true,
   status: 'active',
   allowHiring: false,
-  handlesAutonomousEvents: false,
   systemPrompt: null,
   preferredImage: null,
   allowedModels: ['kaana-v1'],
@@ -269,9 +269,8 @@ describe('the account has to be a bot account this caller may act as', () => {
 
   /**
    * `personal` is the case that matters most, and it is why `kind === 'bot'` is
-   * checked SEPARATELY from the act-as verdict: `canSwitchIntoAccount` passes
-   * any account whose relationship is `self`, whatever its kind, so a caller
-   * naming their OWN account would otherwise turn themselves into an agent.
+   * checked SEPARATELY from the act-as verdict so a caller naming their own
+   * personal account can never turn themselves into an agent.
    */
   it('refuses the caller’s own personal account', async () => {
     state.account = {
@@ -552,74 +551,5 @@ describe('a mutation never trusts a cached verdict', () => {
     };
 
     expect((await patch({ tagline: 'after revocation' })).status).toBe(404);
-  });
-});
-
-/**
- * A unique violation shaped like the one postgres.js actually throws.
- *
- * MEASURED, not guessed: `name`, `code` and `constraint_name` sit on the error
- * ITSELF, and `@oxyhq/db`'s reader walks the `cause` chain only while each link
- * `instanceof Error`. An earlier version of this fixture hung the fields on a
- * plain-object `cause`, which the walk cannot enter — so it was not a unique
- * violation at all and the case it was written for passed for the wrong reason.
- *
- * `assertFaithful` below is the positive control that keeps it honest: if the
- * shape ever stops satisfying the SHIPPED predicate, this fails here rather
- * than quietly making every case in this block vacuous.
- */
-function uniqueViolation(constraint: string): Error {
-  return Object.assign(new Error('duplicate key value violates unique constraint'), {
-    name: 'PostgresError',
-    code: '23505',
-    constraint_name: constraint,
-  });
-}
-
-describe('the autonomy designation is declared, and bounded to one per owner', () => {
-  it('uses a violation fixture the SHIPPED predicate recognises', () => {
-    const violation = uniqueViolation('agents_one_autonomy_per_owner');
-    expect(isUniqueViolation(violation)).toBe(true);
-    expect(constraintNameOf(violation)).toBe('agents_one_autonomy_per_owner');
-  });
-
-  it('accepts it on create and passes it to the repository', async () => {
-    const res = await post({ ...VALID_BODY, handlesAutonomousEvents: true });
-
-    expect(res.status).toBe(201);
-    const input = repository.createAgent.mock.calls[0][1] as Record<string, unknown>;
-    expect(input.handlesAutonomousEvents).toBe(true);
-  });
-
-  it('defaults to false rather than to whatever the column says', async () => {
-    await post(VALID_BODY);
-
-    const input = repository.createAgent.mock.calls[0][1] as Record<string, unknown>;
-    expect(input.handlesAutonomousEvents).toBe(false);
-  });
-
-  /**
-   * The partial unique index is the authority, so a second designation arrives
-   * as a constraint violation. A 500 would tell the owner their edit broke
-   * Alia; a 409 tells them they already have one.
-   */
-  it('answers 409, not 500, when the owner already has a designated agent', async () => {
-    const violation = uniqueViolation('agents_one_autonomy_per_owner');
-    repository.updateAgent.mockRejectedValueOnce(violation);
-
-    const res = await patch({ handlesAutonomousEvents: true });
-
-    expect(res.status).toBe(409);
-    expect(res.body.error).toBe('Another of your agents already handles autonomous events');
-  });
-
-  /** A DIFFERENT unique violation is not this one, and must not read as a 409. */
-  it('does not turn an unrelated unique violation into that 409', async () => {
-    const violation = uniqueViolation('agents_oxy_account_id_key');
-    repository.updateAgent.mockRejectedValueOnce(violation);
-
-    const res = await patch({ handlesAutonomousEvents: true });
-
-    expect(res.status).toBe(500);
   });
 });

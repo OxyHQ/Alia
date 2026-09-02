@@ -67,10 +67,9 @@ export const FIXED_CAPABILITY_FAMILIES = [
  *
  * The rule is not a judgement call: a family is instanced exactly when nobody
  * can enumerate its members at the time this file is written, so a grant has to
- * name one. Three of them generate their tool NAMES from those rows as well —
- * `mcp_<connector>__<tool>` and `oxy_<service>__<tool>` are built from
- * `mcp_servers` and `oxy_services` rows, and an integration is a row in the
- * owner's connected services — and for those a whole-family grant is a blank
+ * name one. Two of them generate their tool NAMES from those rows as well —
+ * `mcp_<connector>__<tool>` is built from `mcp_servers` rows, and an integration
+ * is a row in the owner's connected services — and for those a whole-family grant is a blank
  * cheque over rows that do not exist yet, which is precisely what an agent
  * inheriting *all* of its owner's connectors was.
  *
@@ -80,15 +79,22 @@ export const FIXED_CAPABILITY_FAMILIES = [
  * selection resolves to none, so the family is still absent rather than inert.
  * {@link EVERY_ROW_FAMILIES} is where its bare grant is argued.
  */
-export const INSTANCED_CAPABILITY_FAMILIES = ['mcp', 'oxy_service', 'integration', 'agent'] as const;
+export const INSTANCED_CAPABILITY_FAMILIES = ['mcp', 'integration', 'agent'] as const;
+
+/**
+ * Oxy apps are fetched like an instanced source, but are no longer granted in
+ * this Alia-owned vocabulary. Oxy's normalized DelegationGrant records are the
+ * sole authority for them.
+ */
+export const OXY_SERVICE_TOOL_SOURCE = 'oxy_service' as const;
 
 /**
  * The instanced family whose BARE grant is a decision rather than a blank
  * cheque: every row I have, resolved again on every turn.
  *
  * `mcp` alone is refused above, and the argument is about what a future row
- * carries. An MCP connector, an integration and an Oxy service each hold or
- * forward a CREDENTIAL, so "every one I will ever install" hands an agent
+ * carries. An MCP connector or integration can hold or forward a CREDENTIAL,
+ * so "every one I will ever install" hands an agent
  * access nobody has considered yet — one row at a time is the only honest
  * grant.
  *
@@ -114,6 +120,7 @@ export const CAPABILITY_FAMILIES = [
 
 export type FixedCapabilityFamily = (typeof FIXED_CAPABILITY_FAMILIES)[number];
 export type InstancedCapabilityFamily = (typeof INSTANCED_CAPABILITY_FAMILIES)[number];
+export type InstancedToolSource = InstancedCapabilityFamily | typeof OXY_SERVICE_TOOL_SOURCE;
 export type CapabilityFamily = (typeof CAPABILITY_FAMILIES)[number];
 
 /**
@@ -249,10 +256,10 @@ export interface CapabilityGrantSet {
    * The granted rows of an instanced family.
    *
    * `null` means EVERY row, resolved by the source at the moment it is asked.
-   * {@link GRANTS_EVERYTHING} answers it for all four families; an agent's set
+   * {@link GRANTS_EVERYTHING} answers it for every instanced family; an agent's set
    * answers it only for a family in {@link EVERY_ROW_FAMILIES} whose bare grant
    * the owner actually wrote, and an ARRAY — empty when nothing was granted —
-   * for the other three. That is what keeps `mcp` a per-row decision no matter
+   * for the others. That is what keeps `mcp` a per-row decision no matter
    * what is stored, since the same array is also what a denied family answers.
    */
   instances(family: InstancedCapabilityFamily): readonly string[] | null;
@@ -263,8 +270,8 @@ export interface CapabilityGrantSet {
  *
  * Not "an agent with every grant". An agent's set returns `null` from
  * {@link CapabilityGrantSet.instances} for at most ONE family — `agent`, and
- * only when its owner wrote the bare grant — so for `mcp`, `oxy_service` and
- * `integration` the difference still holds exactly as it did: a missing agent
+ * only when its owner wrote the bare grant — so for `mcp` and `integration`
+ * the difference still holds exactly as it did: a missing agent
  * cannot read as a fully-granted one, which is what stops `mcpSelection` from
  * handing an agent every runnable connector.
  */

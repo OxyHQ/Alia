@@ -20,10 +20,8 @@ import { kaanaCapabilityUnavailable } from './inference/hosted-capability-error.
 // ============== TYPES ==============
 
 export interface KeyConfig {
-  keyId?: string;
   provider: string;
   modelId: string;
-  key: string;
   /**
    * Whose machine answers, when `provider` is `user-runtime`.
    *
@@ -34,15 +32,6 @@ export interface KeyConfig {
    * `lib/inference/user-runtime-bridge.ts`.
    */
   userRuntime?: { userId: string; runtimeId: string };
-  isPaid?: boolean;
-  rps?: number;
-  rpm?: number;
-  rph?: number;
-  rpd?: number;
-  tps?: number;
-  tpm?: number;
-  tph?: number;
-  tpd?: number;
 }
 
 export interface RoutingProfile {
@@ -256,7 +245,7 @@ export async function resolveRoutingProfile(
     publisher: 'kaana',
     model: target,
     modelId: target,
-    keyConfig: { provider: 'kaana', modelId: target, key: '' },
+    keyConfig: { provider: 'kaana', modelId: target },
     routingProfile,
     isFallback: false,
   };

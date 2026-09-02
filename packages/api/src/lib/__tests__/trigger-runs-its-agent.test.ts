@@ -60,6 +60,10 @@ vi.mock('../../middleware/auth.js', () => ({
   oxyClient: { getUserById: vi.fn(async () => ({ name: { full: 'Nate Isern' }, username: 'nate' })) },
 }));
 vi.mock('../../db/index.js', () => ({ getDb: vi.fn(() => ({})) }));
+vi.mock('../../db/automation/automationDefinitionRepository.js', () => ({
+  beginLegacyTriggerAutomationRun: vi.fn(async () => true),
+  markAutomationRunForSession: vi.fn(async () => undefined),
+}));
 vi.mock('../../db/memory/userMemoryRepository.js', () => ({
   findUserMemory: vi.fn(async () => ({ memories: [{ title: 'Balcony', summary: 'Has a big balcony' }] })),
 }));

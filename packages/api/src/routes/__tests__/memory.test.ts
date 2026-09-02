@@ -253,23 +253,22 @@ describe('POST /memory/import/from-text', () => {
     expect(mockSaveUserMemoryTool).toHaveBeenCalledWith('user-1', { initiatedBy: 'user' });
   });
 
-  it('retries with a different provider when the first one fails, and succeeds', async () => {
+  it('delegates retries to Oxy and never selects a second provider in Alia', async () => {
     const mockResolveModel = resolveModel as unknown as ReturnType<typeof vi.fn>;
     const mockGenerateText = generateText as unknown as ReturnType<typeof vi.fn>;
     mockResolveModel.mockClear();
     mockGenerateText.mockClear();
 
-    mockResolveModel
-      .mockResolvedValueOnce({ provider: 'google', modelId: 'gemini-2.5-flash', keyConfig: { keyId: 'key-1' } })
-      .mockResolvedValueOnce({ provider: 'openrouter', modelId: 'some-model', keyConfig: { keyId: 'key-2' } });
+    mockResolveModel.mockResolvedValueOnce({
+      provider: 'kaana',
+      modelId: 'kaana-v1',
+      oxyInferenceTarget: { kind: 'routing_profile', routingProfile: 'kaana-v1' },
+      keyConfig: { provider: 'kaana', modelId: 'kaana-v1' },
+    });
 
-    mockGenerateText
-      .mockRejectedValueOnce(Object.assign(new Error('quota exceeded'), { statusCode: 429 }))
-      .mockResolvedValueOnce({
-        toolResults: [
-          { toolName: 'saveUserMemory', input: { title: 'Food', summary: 'Loves strawberries', type: 'topic' }, output: { success: true } },
-        ],
-      });
+    mockGenerateText.mockRejectedValueOnce(
+      Object.assign(new Error('Oxy inference unavailable'), { statusCode: 503 }),
+    );
 
     const handler = getRouteHandler('post', '/import/from-text');
     const req: any = { user: { id: 'user-1' }, body: { text: 'The user loves strawberries.' } };
@@ -277,8 +276,9 @@ describe('POST /memory/import/from-text', () => {
 
     await handler(req, res);
 
-    expect(mockGenerateText).toHaveBeenCalledTimes(2);
-    expect(res.statusCode).toBe(200);
-    expect(res.body).toEqual({ saved: [{ title: 'Food', summary: 'Loves strawberries', type: 'topic' }] });
+    expect(mockResolveModel).toHaveBeenCalledTimes(1);
+    expect(mockGenerateText).toHaveBeenCalledTimes(1);
+    expect(res.statusCode).toBe(500);
+    expect(res.body).toEqual({ error: 'Failed to import from text' });
   });
 });

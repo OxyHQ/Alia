@@ -216,8 +216,8 @@ describe('every unauthenticated inbound entry point is replay-protected (#139 ws
   const SURFACES = [
     {
       route: 'routes/oxy-service-events.ts',
-      /** A database-backed claim on `(serviceId, oxyUserId, eventId)`. */
-      marker: 'claimOxyServiceEvent',
+      /** A database-backed claim on `(appId, eventId)`. */
+      marker: 'claimAutomationEvent',
     },
     {
       route: 'routes/crowdsource-webhook.ts',
@@ -240,17 +240,14 @@ describe('every unauthenticated inbound entry point is replay-protected (#139 ws
     }
   });
 
-  it('the signed surfaces verify before they act, with a constant-time compare', () => {
+  it('the Oxy event surface verifies central service identity before it acts', () => {
     const events = code('routes/oxy-service-events.ts');
-    expect(events).toContain('crypto.timingSafeEqual');
-    // Verification precedes the claim, or a forged event could burn an id.
-    //
-    // Compared at the CALL, not at the identifier: the first occurrence of
-    // `claimOxyServiceEvent` in this file is its import, which sits above
-    // everything and would make the ordering trivially false. It did, on the
-    // first run of this test.
-    const verifyAt = events.indexOf('verifySignature(rawBody');
-    const claimAt = events.indexOf('await claimOxyServiceEvent(');
+    expect(events).toContain('/capabilities/service-identity');
+    expect(events).not.toContain('timingSafeEqual');
+    // Central service verification precedes the database claim, or a forged
+    // event could still burn its idempotency key.
+    const verifyAt = events.indexOf('await identifyPublisher(token)');
+    const claimAt = events.indexOf('await claimAutomationEvent(');
     expect(verifyAt).toBeGreaterThan(-1);
     expect(claimAt).toBeGreaterThan(-1);
     expect(verifyAt).toBeLessThan(claimAt);

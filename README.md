@@ -72,11 +72,11 @@ on the second.
 [ADR 0004](docs/adr/0004-product-endpoints-versus-generic-inference-endpoints.md); new
 generic integrations go to Oxy Console and `api.oxy.so/v1`.
 
-Hosted inference goes through Kaana. Alia stores no upstream provider credential,
-constructs no provider client and has no direct-provider fallback. Kaana owns the
-provider credentials and runtime state in its database. Routing-profile traffic remains
-fail-closed until Oxy resolves policy into the signed `authorizedRoutes` list; Alia's
-current direct transport deliberately does not invent that authorization.
+Hosted inference follows `Alia -> Oxy -> Kaana` through the published
+`OxyInferenceClient`. Alia stores no upstream provider credential, constructs no
+provider client, signs no Kaana envelope and has no direct-provider fallback.
+Kaana owns provider credentials and runtime state in its PostgreSQL database;
+Oxy resolves identity and routing policy before forwarding the request.
 
 `/triggers` is the **only** scheduling API. It covers scheduled, webhook, integration and
 heartbeat executions. There is no second scheduler, and no backward-compatible model
@@ -89,15 +89,14 @@ PostgreSQL through drizzle is the primary store: 80 tables under
 [`packages/api/src/db/schema/`](packages/api/src/db/schema/), and the API exits at boot if
 it cannot connect. Readiness (`GET /health/ready`) issues a real statement against it.
 
-It is the only store. `@alia/api` opens no MongoDB connection and registers no Mongoose
-model — the last domains (conversations and messages, agents and their sessions, teams and
-reviews, organizations, containers, skills, learning rules, rollback records, canvas
-sessions and event-stream entries) landed in PostgreSQL with the port tracked on
-[#139](https://github.com/OxyHQ/Alia/issues/139). The driver survives as a dependency of one
-operator one-shot,
-[`packages/api/src/scripts/purge-ip-fields.ts`](packages/api/src/scripts/purge-ip-fields.ts),
-which strips persisted IPs out of a restored backup; `packages/api/src/db/__tests__/bootWiring.test.ts`
-freezes the set of files allowed to import it at exactly that one.
+It is the only store. `@alia/api` opens no MongoDB connection, registers no Mongoose
+model and declares no Mongo driver dependency — the last domains (conversations and
+messages, agents and their sessions, teams and reviews, organizations, containers,
+skills, learning rules, rollback records, canvas sessions and event-stream entries)
+landed in PostgreSQL with the port tracked on
+[#139](https://github.com/OxyHQ/Alia/issues/139).
+`packages/api/src/db/__tests__/bootWiring.test.ts` walks the real boot graph and the
+whole tracked source tree, and fails on any Mongo driver import or direct dependency.
 
 `@alia/integrations` is on PostgreSQL too, under its own schema and its own migration
 ledger: the WhatsApp, Telegram and Signal gateways plus the MCP connector OAuth records.

@@ -37,12 +37,9 @@ import { EFFORT_LEVELS, type EffortLevel } from '../reasoning-effort.js';
  * the fourth, and `instant` recording a level while applying no prompt is the
  * shape a careless edit reintroduces.
  *
- * The third leg — that the level reaches a PROVIDER — is asserted in
- * `lib/chat/__tests__/reasoning-provider-options.test.ts`, against the installed
- * SDK. It has to be separate: this file drives real prompt files off disk and
- * that one drives a real provider client, and the failure the whole epic exists
- * to prevent (an option written under a key nobody reads) is invisible to any
- * assertion made on the object this side produces.
+ * The third leg is the routing profile sent through Oxy, asserted in
+ * `lib/chat/__tests__/reasoning-on-the-wire.test.ts`. Alia does not construct
+ * an upstream provider's private reasoning options.
  */
 
 const REPO_ROOT = path.resolve(fileURLToPath(new URL('../../../../../', import.meta.url)));

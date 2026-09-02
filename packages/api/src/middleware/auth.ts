@@ -72,11 +72,8 @@ export const oxyServiceAuth = oxyClient.serviceAuth({ debug: true });
  * developer machine. Nothing in Alia reads the field today, which is exactly why
  * a wrong value could sit there: the first reader would inherit the lie.
  *
- * The same three-way mapping as `lib/inference/kaana-client.ts`'s
- * `resolveDeploymentEnvironment`, and deliberately NOT imported from it — that
- * module is the unwired Kaana client, and a middleware that imported it would
- * make the client reachable from the request path, which
- * `lib/inference/__tests__/kaana-boundary.test.ts` freezes against.
+ * Kept local because authentication must not import the hosted inference
+ * client or make outbound inference configuration part of the auth graph.
  */
 function deploymentEnvironment(): OxyServiceAppContext['environment'] {
   if (process.env.NODE_ENV === 'production') return 'production';

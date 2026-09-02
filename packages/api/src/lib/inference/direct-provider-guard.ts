@@ -26,9 +26,9 @@
  *
  * Unset `GATEWAY_API_URL` and provider credentials. That is the migration's own
  * end state, and it is not "turn inference off" — the
- * other half of boot, `kaana-boot-check.ts`, refuses to start unless the Kaana
- * endpoint, principal and token-exchange variables are complete. The
- * two checks together admit exactly one configuration: Kaana configured,
+ * other half of boot, `oxy-inference-boot-check.ts`, refuses to start unless the
+ * Oxy endpoint and token-exchange variables are complete. The two checks
+ * together admit exactly one configuration: Oxy inference configured,
  * provider configuration absent.
  *
  * There is no cutover flag and no rollback branch that re-enables hosted direct
@@ -83,7 +83,7 @@ export const PROVIDER_CREDENTIAL_ENV: readonly string[] = [
  * Why this process must not start, or `null` when it may.
  *
  * A returned reason rather than a throw, for the same reason
- * {@link import('./kaana-boot-check.js').kaanaBootConfigurationFailure} returns
+ * {@link import('./oxy-inference-boot-check.js').oxyInferenceBootConfigurationFailure} returns
  * one: the caller is `src/index.ts`, which wants to log and exit.
  *
  * Kaana is the only hosted inference route, so this refusal is unconditional.

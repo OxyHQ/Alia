@@ -1,101 +1,180 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-// Shared mock state (hoisted above the vi.mock factories below).
-const { mockServices, findMock } = vi.hoisted(() => ({
-  mockServices: [
-    {
-      serviceId: 'inbox',
-      displayName: 'Inbox',
-      description: 'Email service',
-      contextEndpoint: null,
-      tools: [
-        {
-          name: 'searchEmails',
-          description: 'Search emails',
-          inputSchema: { type: 'object', properties: { query: { type: 'string' } } },
-          endpoint: { method: 'GET', path: '/inbox/search' },
-          confirmBeforeExecute: false,
-        },
-      ],
-    },
-  ],
-  findMock: vi.fn(),
+const { getServiceToken } = vi.hoisted(() => ({
+  getServiceToken: vi.fn(async () => 'ALIA-SERVICE-TOKEN'),
 }));
 
-vi.mock('../../db/integrations/oxyServiceRepository.js', () => ({
-  listActiveOxyServiceDefs: findMock,
+vi.mock('../oxy-service-client.js', () => ({
+  oxyServiceClient: () => ({ getServiceToken }),
 }));
-
-// The handle is never used — `listActiveOxyServiceDefs` is mocked — but
-// `getDb()` throws when Postgres is not connected, which is the correct
-// production behaviour and would fail this unit test for the wrong reason.
-vi.mock('../../db/index.js', () => ({ getDb: () => ({}) }));
 
 vi.mock('../logger.js', () => {
   const child = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };
   return { log: { general: child } };
 });
 
-import { buildOxyServiceTools, getOxyServicePromptFragment } from '../tools/oxy-services.js';
+import {
+  buildOxyServiceTools,
+  getOxyServicePromptFragment,
+  oxyExecutionAuthorizationKey,
+  type OxyToolExecutionContext,
+} from '../tools/oxy-services.js';
+
+const CATALOG = {
+  schemaVersion: '1',
+  appId: 'inbox',
+  version: '1.0.0',
+  audience: 'oxy-inbox-api',
+  internalBaseUrl: 'https://inbox.example.test',
+  accountResourceType: 'email_account',
+  tools: [{
+    name: 'searchEmails',
+    version: '1.0.0',
+    description: 'Search emails',
+    inputSchema: { type: 'object', properties: { q: { type: 'string' } }, additionalProperties: false },
+    outputSchema: { type: 'object' },
+    capabilityPackage: 'read',
+    requiredCapabilities: ['email.read'],
+    resourceTypes: ['email_account'],
+    effect: 'read',
+    idempotency: 'none',
+    rollback: 'none',
+    exposure: ['internal', 'mcp'],
+    invocation: { method: 'GET', path: '/email/search' },
+    limitKeys: [],
+  }],
+  events: [],
+};
 
 interface ExecutableTool {
   execute: (args: Record<string, unknown>) => Promise<unknown>;
 }
 
-function lastAuthHeader(fetchMock: ReturnType<typeof vi.fn>): string | undefined {
-  const call = fetchMock.mock.calls.at(-1);
-  const init = call?.[1] as { headers?: Record<string, string> } | undefined;
-  return init?.headers?.Authorization;
+function context(userId: string): OxyToolExecutionContext {
+  return {
+    requesterAccountId: userId,
+    ownerAccountId: userId,
+    actor: { type: 'alia', ownerAccountId: userId },
+    runId: `run-${userId}`,
+    autonomy: 'execute_on_request',
+    userAccessToken: 'USER-TOKEN',
+  };
 }
 
-describe('oxy-services tool token freshness', () => {
+describe('Oxy capability tools', () => {
   let fetchMock: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
-    findMock.mockResolvedValue(mockServices);
-    fetchMock = vi.fn(async () => ({
-      ok: true,
-      headers: { get: (h: string) => (h === 'content-type' ? 'application/json' : null) },
-      json: async () => ({ results: [] }),
-      text: async () => '',
-    }));
+    fetchMock = vi.fn(async (input: string | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith('/capabilities/catalogs')) {
+        return new Response(JSON.stringify({ registrations: [{ catalog: CATALOG }] }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
+      }
+      if (url.endsWith('/capabilities/service-identity')) {
+        expect((init?.headers as Record<string, string>).authorization).toBe('Bearer ALIA-SERVICE-TOKEN');
+        return new Response(JSON.stringify({
+          service: { applicationId: 'alia-app', credentialId: 'alia-credential' },
+        }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
+      }
+      if (url.endsWith('/capabilities/execution-authorizations') && init?.method === 'POST') {
+        expect((init.headers as Record<string, string>).authorization).toBe('Bearer USER-TOKEN');
+        expect(JSON.parse(String(init.body))).toMatchObject({
+          kind: 'direct_request',
+          coordinatorApplicationId: 'alia-app',
+          coordinatorCredentialId: 'alia-credential',
+          tool: 'searchEmails',
+          runId: 'run-user-1',
+          maximumAutonomy: 'read_only',
+        });
+        return new Response(JSON.stringify({ authorization: { id: 'AUTHORIZATION-1' } }), {
+          status: 201,
+          headers: { 'content-type': 'application/json' },
+        });
+      }
+      if (url.endsWith('/capabilities/tickets')) {
+        expect((init?.headers as Record<string, string>).authorization).toBe('Bearer ALIA-SERVICE-TOKEN');
+        expect(['AUTHORIZATION-1', 'PREAUTHORIZED-1']).toContain(
+          JSON.parse(String(init?.body)).executionAuthorizationId,
+        );
+        return new Response(JSON.stringify({ decision: { allowed: true, reason: 'allowed' }, ticket: 'SHORT-TICKET' }), {
+          status: 201,
+          headers: { 'content-type': 'application/json' },
+        });
+      }
+      if (url.includes('/email/search')) {
+        expect(url).toBe('https://inbox.example.test/email/search?q=hello');
+        expect((init?.headers as Record<string, string>).authorization).toBe('Capability SHORT-TICKET');
+        return new Response(JSON.stringify({ data: [] }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
+      }
+      if (url.endsWith('/capabilities/execution-authorizations/AUTHORIZATION-1') && init?.method === 'DELETE') {
+        expect((init.headers as Record<string, string>).authorization).toBe('Bearer USER-TOKEN');
+        return new Response(null, { status: 204 });
+      }
+      return new Response('not found', { status: 404 });
+    });
     vi.stubGlobal('fetch', fetchMock);
   });
 
-  afterEach(() => {
-    vi.unstubAllGlobals();
-    findMock.mockClear();
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('uses user authority only on Oxy control-plane calls and sends only a ticket to the app', async () => {
+    const tools = await buildOxyServiceTools('user-1', context('user-1'));
+    const search = tools.oxy_inbox__searchEmails as unknown as ExecutableTool;
+    expect(search).toBeDefined();
+    await search.execute({ q: 'hello' });
+
+    const appCall = fetchMock.mock.calls.find(([input]) => String(input).startsWith('https://inbox.example.test/'));
+    expect(appCall).toBeDefined();
+    expect(((appCall?.[1] as RequestInit).headers as Record<string, string>).authorization)
+      .toBe('Capability SHORT-TICKET');
+    expect(fetchMock.mock.calls.some(([input, init]) => (
+      String(input).endsWith('/capabilities/execution-authorizations/AUTHORIZATION-1')
+      && (init as RequestInit).method === 'DELETE'
+    ))).toBe(true);
   });
 
-  it('builds each caller its own tools carrying its own token, from one shared DB read', async () => {
-    findMock.mockClear();
-
-    // Same user, two different tokens within the cache TTL — the exact
-    // stale-token scenario. The service defs are cached globally; only the
-    // token-bound tool closures are rebuilt per call.
-    const toolsT1 = await buildOxyServiceTools('user1', 'T1');
-    const toolsT2 = await buildOxyServiceTools('user1', 'T2');
-
-    const t1 = toolsT1['oxy_inbox__searchEmails'] as unknown as ExecutableTool;
-    const t2 = toolsT2['oxy_inbox__searchEmails'] as unknown as ExecutableTool;
-    expect(t1).toBeDefined();
-    expect(t2).toBeDefined();
-
-    await t1.execute({ query: 'hello' });
-    expect(lastAuthHeader(fetchMock)).toBe('Bearer T1');
-
-    await t2.execute({ query: 'hello' });
-    expect(lastAuthHeader(fetchMock)).toBe('Bearer T2');
-
-    // Global defs cache: the manifest DB query ran exactly once for both builds.
-    expect(findMock).toHaveBeenCalledTimes(1);
-  });
-
-  it('renders the prompt fragment from the shared defs once they are warm', async () => {
-    await buildOxyServiceTools('user2', 'T3');
-
-    const fragment = getOxyServicePromptFragment('user2');
+  it('renders its prompt from the same registry snapshot', async () => {
+    await buildOxyServiceTools('user-2', context('user-2'));
+    const fragment = getOxyServicePromptFragment('user-2');
     expect(fragment).toContain('Inbox');
     expect(fragment).toContain('oxy_inbox__searchEmails');
+  });
+
+  it('uses an exact pre-authorization for a background step without a user bearer', async () => {
+    const resource = {
+      appId: 'inbox',
+      effectiveAccountId: 'user-3',
+      resourceType: 'email_account',
+      resourceId: 'user-3',
+    };
+    const tools = await buildOxyServiceTools('user-3', {
+      requesterAccountId: 'user-3',
+      ownerAccountId: 'user-3',
+      actor: { type: 'alia', ownerAccountId: 'user-3' },
+      runId: 'run-user-3',
+      autonomy: 'autonomous',
+      executionAuthorizations: {
+        [oxyExecutionAuthorizationKey(resource, 'searchEmails')]: 'PREAUTHORIZED-1',
+      },
+    });
+    const search = tools.oxy_inbox__searchEmails as unknown as ExecutableTool;
+    await search.execute({ q: 'hello' });
+
+    const controlPlaneCalls = fetchMock.mock.calls.filter(([input]) => (
+      String(input).endsWith('/capabilities/execution-authorizations')
+    ));
+    expect(controlPlaneCalls).toHaveLength(0);
+    expect(fetchMock.mock.calls.some(([input]) => (
+      String(input).endsWith('/capabilities/execution-authorizations/PREAUTHORIZED-1')
+    ))).toBe(false);
   });
 });

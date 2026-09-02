@@ -12,7 +12,7 @@
 --
 -- Columns on shared telemetry tables cannot use that technique because the
 -- table name is unchanged. They therefore live side by side for the rollout and
--- a trigger mirrors whichever spelling the active image writes. 0056 removes
+-- a trigger mirrors whichever spelling the active image writes. 0058 removes
 -- every temporary view, trigger and old column after the new image is stable.
 
 ALTER TABLE "alia_model_provider_mappings" RENAME TO "routing_profile_provider_mappings";--> statement-breakpoint

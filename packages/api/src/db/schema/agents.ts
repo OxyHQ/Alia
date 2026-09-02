@@ -166,25 +166,6 @@ export const agents = pgTable(
     access: text({ enum: AGENT_ACCESS as unknown as [string, ...string[]] })
       .notNull()
       .default('private'),
-    /**
-     * The one agent this owner has DESIGNATED to run autonomous Oxy service
-     * events. A declared fact, never an inferred one.
-     *
-     * The predecessor to this column was a convention — an agent whose
-     * `category` was `automation` and whose `tags` contained `autonomy` — and
-     * both of those are things the OWNER edits by hand: `category` is free text
-     * with no CHECK and `tags` is a `text[]` on the edit screen. So a person
-     * tagging an agent "autonomy" for tidiness silently changed which agent
-     * received their events, and two so tagged gave whichever the query
-     * happened to return first.
-     *
-     * `agents_one_autonomy_per_owner` is what makes "the one" true: a PARTIAL
-     * unique index over `author_oxy_user_id` where the flag is set, so a second
-     * designation is a refused write rather than an arbitrary winner. Partial
-     * rather than plain, because every owner has many agents that are NOT
-     * designated and a full unique index would allow only one agent each.
-     */
-    handlesAutonomousEvents: boolean().notNull().default(false),
     systemPrompt: text(),
     preferredImage: text(),
     allowedModels: text().array().notNull().default(['kaana-v1', 'kaana-v1-pro']),
@@ -219,15 +200,6 @@ export const agents = pgTable(
       t.createdAt.desc(),
     ),
     index('agents_category_published_idx').on(t.category, t.isPublished),
-    /**
-     * ONE designated autonomy agent per owner, enforced by the database.
-     *
-     * Also the lookup the webhook path uses, so the index that makes the rule
-     * true is the same one that makes the read cheap.
-     */
-    uniqueIndex('agents_one_autonomy_per_owner')
-      .on(t.authorOxyUserId)
-      .where(sql`${t.handlesAutonomousEvents}`),
     checkOneOf('agents_status_check', t.status, AGENT_STATUSES),
     checkOneOf('agents_access_check', t.access, AGENT_ACCESS),
     checkOneOf('agents_archetype_check', t.archetype, AGENT_ARCHETYPES),

@@ -56,6 +56,7 @@ import { orchestrate, shouldOrchestrate } from './orchestrator.js';
 import { compactContext } from './context-compaction.js';
 import { redactSecrets } from './secret-scanner.js';
 import { readCapabilityGrants } from '../../domain/capability-grants.js';
+import { markAutomationRunForSession } from '../../db/automation/automationDefinitionRepository.js';
 
 /** Regex to detect browser-related tasks for pre-initialization */
 const BROWSER_HINT_RE = /\b(browse|browser|website|web page|screenshot|http|https|www\.|\.com|\.org|url|navigate|click|open site)\b/i;
@@ -301,6 +302,7 @@ export async function runAgentSession(sessionId: string): Promise<void> {
   const found = await findAgentById(getDb(), session.agentId);
   if (!found) {
     await updateAgentSession(getDb(), sessionId, { status: 'failed', result: 'Agent not found' });
+    await markAutomationRunForSession(getDb(), sessionId, 'failed');
     return;
   }
   // Identity is resolved ONCE per run, not per prompt: the system prompt, the
@@ -369,6 +371,7 @@ export async function runAgentSession(sessionId: string): Promise<void> {
     status: 'running',
     stats: { startedAt, lastActivityAt: startedAt },
   });
+  await markAutomationRunForSession(getDb(), sessionId, 'running');
 
   eventStream.append('system_message', `Task received: ${session.task}`);
   eventStream.append('user_message', session.task);
@@ -442,6 +445,8 @@ export async function runAgentSession(sessionId: string): Promise<void> {
     webSearch: true,
     isLocalRuntime: false,
     agent,
+    runId: session.id,
+    oxyAutonomy: 'autonomous',
     runtime: {
       session,
       onComplete,
@@ -854,6 +859,11 @@ export async function runAgentSession(sessionId: string): Promise<void> {
           ...(creditsCharged !== undefined && { creditsCharged }),
         },
       });
+      if (finalStatus === 'completed') {
+        await markAutomationRunForSession(getDb(), sessionId, 'succeeded');
+      } else if (finalStatus === 'cancelled') {
+        await markAutomationRunForSession(getDb(), sessionId, 'cancelled');
+      }
     } catch (saveErr: unknown) {
       log.agents.warn({ saveErr, sessionId }, 'Failed to save session on completion');
     }
@@ -898,6 +908,7 @@ export async function runAgentSession(sessionId: string): Promise<void> {
         eventStream: eventStream.toJSON(),
         stats: { completedAt: new Date() },
       });
+      await markAutomationRunForSession(getDb(), sessionId, 'failed');
     } catch (saveErr: unknown) {
       log.agents.error({ saveErr, sessionId }, 'Failed to save session in outer catch');
     }

@@ -28,25 +28,17 @@ migrated by `packages/api/src/db/migrate.ts`, which requires an explicit
 migration; a zero-capacity deploy exits before the post-migration step, so a `post`
 migration does not land on one.
 
-**MongoDB** is no longer part of this service. `lib/db.ts` and the boot-time
-`connectDB()` are deleted, and no Mongoose model is registered.
-`packages/api/src/db/__tests__/bootWiring.test.ts` asserts this twice, because the
-two failures are different: it walks the import graph from `src/index.ts` and
-finds no Mongoose driver reachable from it, and it freezes the set of files in the
-package that import the driver AT ALL as exactly one. The first is what protects a
-request in production; the second is what catches a model declared today and
-routed next week.
+MongoDB is not part of this service. `lib/db.ts`, the boot-time `connectDB()` and
+the last backup-only operator script are deleted; no Mongoose model is
+registered and no Mongo driver is declared. The old script could not reach the
+destroyed source database and was not a restore or backfill path.
 
-That one file is `packages/api/src/scripts/purge-ip-fields.ts`, an operator
-one-shot for a RESTORED BACKUP, which takes `MONGODB_URI` and computes
-`alia-{NODE_ENV}` as its `dbName` — so never embed the database name in that URI.
-It is kept because the archives it operates on are kept: the shared Mongo
-instance was destroyed on 2026-08-10, but the pre-drop archives sit under the
-`final/` prefix of `s3://oxy-mongo-backups-usw2-<account>`, which the bucket's
-`daily/`-scoped lifecycle rule does not expire, and the archived
-`alia-production` carried 120 `apikeyusages` documents with an `ipAddress` field.
-Deleting the script is what would let `mongoose` leave
-`packages/api/package.json`, and the two go in one commit.
+`packages/api/src/db/__tests__/bootWiring.test.ts` asserts the boundary twice:
+it walks the import graph from `src/index.ts`, and it scans every tracked source
+file plus the package manifest for either Mongo driver. The first protects a
+request in production; the second catches a model declared today and routed
+next week. The pre-drop archive is external retention data and was not modified
+by this repository cleanup.
 
 The `integrations` service is a separate process with its own manifest.
 
@@ -139,53 +131,27 @@ hosted runtime has one inference boundary, Kaana, and boot guards reject a task
 that combines it with a direct-provider route. Provider credentials live only in
 Kaana's encrypted database; they never live in Alia's environment or SSM tree.
 
-### Kaana client
+### Hosted inference through Oxy
 
 The configuration is all-or-nothing. There is no enable flag and no direct
-provider fallback: when the task is configured for hosted inference, the boot
-guard requires the complete principal, approved origin, Oxy application
-credential and edge-signing identity.
+provider or direct-Kaana fallback. Alia uses the published `OxyInferenceClient`;
+Oxy derives principal IDs and authorised routes from the service token before
+calling Kaana.
 
 ```bash
-ALIA_KAANA_ACCOUNT_ID=<oxy-account>   # who is charged; never an end user
-ALIA_KAANA_APPLICATION_ID=<oxy-app>
-ALIA_KAANA_CREDENTIAL_ID=<oxy-credential>
-ALIA_KAANA_ENVIRONMENT=production     # development | staging | production
-ALIA_KAANA_INFERENCE_SCOPES=inference:invoke
+OXY_API_URL=https://api.oxy.so
 ALIA_KAANA_CREDENTIAL_KEY=<oxy-application-key>
 ALIA_KAANA_CREDENTIAL_SECRET=<oxy-application-secret>
-KAANA_BASE_URL=https://kaana.ai   # must be an approved origin; see below
-KAANA_EDGE_KEY_ID=<trusted-edge-key-id>
-KAANA_EDGE_SIGNING_PRIVATE_KEY=<ed25519-pkcs8-pem>
 ```
 
-`ALIA_KAANA_ENVIRONMENT` is the environment the **credential** was issued into, and on a
-production or staging task it must match `NODE_ENV`: a staging credential presented by a
-production task bills test traffic to the production account, and no later query separates
-it out again. A development process is left alone, so a local run may point wherever it was
-configured.
+`OXY_API_URL` is pinned to `https://api.oxy.so` in deployed environments. Local
+development may use loopback. Paths, query strings, embedded credentials,
+scheme downgrades and near-miss origins are rejected. Alia does not configure a
+Kaana URL, signing key, account/application/credential IDs or route list.
 
-`KAANA_BASE_URL` is **pinned to an allow-list**, not merely read
-(`packages/api/src/lib/inference/kaana-endpoint.ts`, `KAANA_ALLOWED_ORIGINS`). A production
-or staging process accepts only an approved Oxy origin and refuses to start on anything
-else — a near miss such as `https://api.oxy.so.example`, a scheme downgrade, a URL carrying
-credentials, and loopback are all refused. A **development** process may additionally point
-at `localhost` or `127.0.0.1`; that is the only relaxation, it is keyed on `NODE_ENV`, and
-there is deliberately no variable that widens the list. The client re-checks the value on
-every call as well, so a configuration mutated after boot cannot ride a boot-time approval.
-Adding a host is an edit to `KAANA_ALLOWED_ORIGINS` and therefore a reviewed diff.
-
-The Oxy application credential and the Kaana edge key are not upstream-provider
-credentials. Their exact bindings are declared by `deploy-aws.yml`; adding an
-SSM value without adding or preserving its task-definition binding delivers
-nothing.
-
-The hosted cutover remains blocked while Alia signs a direct Kaana request:
-Oxy's inference edge is the component that resolves policy into the non-empty
-`authorizedRoutes` list Kaana requires for a routing profile. Alia must enter
-through that Oxy boundary (or receive an equivalent reviewed Oxy-owned
-resolution) before profile traffic can be enabled. Do not hardcode routes,
-regions or providers here.
+The two `ALIA_KAANA_CREDENTIAL_*` names are retained for deployment
+compatibility. Their values are one Oxy ApplicationCredential, not a provider
+or Kaana credential. Their exact bindings are declared by `deploy-aws.yml`.
 
 ### Secrets
 
@@ -206,8 +172,8 @@ end of the `server.listen` callback — named rather than cited by line, because
 number in a document drifts with every edit above it):
 
 1. Connect to PostgreSQL, or exit.
-2. Check the complete Kaana client configuration, or exit — see *Kaana client*
-   above. There is no enable flag and no partial/direct-provider mode.
+2. Check the complete Oxy inference SDK configuration, or exit — see *Hosted
+   inference through Oxy* above. There is no partial/direct-provider mode.
 3. Start listening. Nothing below blocks the listener.
 4. Start the expiry sweeper, which deletes rows whose retention has passed. It depends only
    on PostgreSQL.

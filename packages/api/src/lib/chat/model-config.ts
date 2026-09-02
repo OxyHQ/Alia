@@ -3,9 +3,10 @@
  *
  * Assembles the `baseConfig` object shared by the streaming (`streamText`) and
  * non-streaming (`generateText`) paths — temperature, tool set, `stopWhen`,
- * the token-usage `onFinish` capture, the reasoning-effort provider options,
- * the optional `max_tokens` cap — and wires the per-provider
- * first-byte abort: a 20s timer that aborts the attempt if the provider sends
+ * the token-usage `onFinish` capture and the optional `max_tokens` cap. The
+ * selected routing profile expresses reasoning intent; Alia never constructs
+ * provider-specific options. This also wires the first-byte abort: a 20s timer
+ * that aborts the attempt if the inference stream sends
  * nothing, plus `clearFirstByteTimer()` to cancel it once a byte arrives.
  *
  * Behaviour is byte-identical to the inline assembly it replaced. Two pieces
@@ -24,7 +25,7 @@ import { getAIModel, type ResolvedModel } from '../chat-core.js';
 import { log } from '../logger.js';
 import type { CreditUsage } from '../credits-manager.js';
 import type { StreamRunnerState } from './stream-runner.js';
-import { reasoningPayloadFor, type EffortLevel } from '../reasoning-effort.js';
+import type { EffortLevel } from '../reasoning-effort.js';
 
 export interface BuildBaseConfigParams {
   /** The resolved provider/model for this attempt. */
@@ -126,58 +127,17 @@ export function buildBaseConfig(params: BuildBaseConfigParams): BaseConfigResult
   }
 
   /**
-   * The reasoning budget, under a key the installed SDK actually reads.
-   *
-   * What was here wrote `experimental_thinking` and
-   * `experimental_providerMetadata`. Those are AI SDK **v4** option names; this
-   * service runs `ai@6`, whose option is `providerOptions`, and neither old
-   * string occurs anywhere in the installed package — measured, with
-   * `providerOptions` (116 occurrences) and `stopWhen` (12) as the positive
-   * controls that make a zero a fact about the SDK rather than about the
-   * search. `baseConfig` is typed `any` with an eslint-disable, so `tsc` had
-   * nothing to say about either, and the options were assembled, logged
-   * ("Enabled Anthropic thinking mode") and dropped on the floor.
-   *
-   * There was a second, independent defect in the same ten lines: the Google
-   * branch was NOT conditional on the caller wanting reasoning, so every Gemini
-   * request asked for thought summaries. Fixing only the key would have turned
-   * that on for everybody at once. Both are gated on the level now.
-   *
-   * `reasoningPayloadFor` returns `null` for every route that cannot carry the
-   * option — a model that does not reason, a level that model does not offer,
-   * or a provider serving somebody else's model over an OpenAI-compatible
-   * endpoint that never promised to honour the parameter. Nothing is written in
-   * that case, deliberately: an empty `providerOptions` key is a different
-   * request from one that omits it.
+   * Reasoning is product intent, not an upstream wire option in Alia.
+   * `request-context` resolves that intent to a canonical Oxy routing profile;
+   * Oxy and Kaana own any provider-specific translation. Logging the selected
+   * level here preserves product observability without leaking provider dialect
+   * into this request.
    */
   if (reasoningEffort) {
-    const reasoning = reasoningPayloadFor(
-      resolved.provider,
-      resolved.publisher,
-      resolved.model,
-      reasoningEffort,
+    log.v1.info(
+      { level: reasoningEffort, routingProfileId: resolved.routingProfileId },
+      'Reasoning effort is expressed by the selected Oxy routing profile',
     );
-    if (reasoning) {
-      baseConfig.providerOptions = { [reasoning.providerKey]: reasoning.payload };
-      /**
-       * Anthropic refuses a thinking budget that is not strictly below
-       * `max_tokens`, and the caller rarely sends one — so a level that raised
-       * the budget without raising the ceiling would 400 the moment a person
-       * chose it. The caller's own `max_tokens` still wins where it was given.
-       */
-      if (reasoning.maxOutputTokens !== null && baseConfig.maxOutputTokens === undefined) {
-        baseConfig.maxOutputTokens = reasoning.maxOutputTokens;
-      }
-      log.v1.info(
-        { level: reasoningEffort, provider: resolved.provider },
-        'Reasoning effort applied',
-      );
-    } else {
-      log.v1.info(
-        { level: reasoningEffort, provider: resolved.provider },
-        'Reasoning effort requested but this route carries none',
-      );
-    }
   }
 
   if (process.env.NODE_ENV !== 'production') {

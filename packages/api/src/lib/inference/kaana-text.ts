@@ -1,28 +1,23 @@
 /**
- * One-shot text generation through Kaana, for product code.
+ * One-shot text generation through Oxy inference, for product code.
  *
- * The client speaks the contract's vocabulary — envelopes, principals, routing
- * policies, stream events. Most of Alia does not need any of that: thirty-odd
- * modules want a string back from a prompt. This is that call, and it is the
- * FIRST product-facing entry to Kaana in this repository.
+ * Most of Alia needs only a string back from a prompt. This helper sends that
+ * request through the published `OxyInferenceClient`; Oxy authenticates Alia,
+ * resolves policy and is the only component that calls Kaana.
  *
  * An empty generated answer is represented as `null`; configuration and
  * transport failures throw. Hosted callers never select a second provider path.
  *
  * ## What it does not do
  *
- * Tools, streaming, images, audio. Kaana's OpenAI-compatible adapter refuses
- * every modality but text today, and the streaming path has its own event
- * contract that the product's stream consumers do not speak yet. Both are
- * deliberate omissions rather than oversights: this is the narrow seam that
- * proves the wire in production, not the whole surface.
+ * Tools, streaming, images and audio. The chat adapter carries the larger
+ * surface; this helper stays intentionally narrow for one-shot derivations.
  */
 
 import type { ResponseFormat } from '@oxyhq/contracts';
 
-import { getKaanaClient } from './kaana.js';
-import type { AliaInferenceContext, AliaInferenceSurface } from './product-seam.js';
-import type { KaanaRequestPayload } from './kaana-request.js';
+import { getOxyInferenceClient } from './oxy-inference.js';
+import type { AliaInferenceSurface } from './product-seam.js';
 
 /**
  * How long a call may take when the caller does not say.
@@ -51,11 +46,8 @@ export interface KaanaTextRequest {
   /**
    * How long the whole call may take, in milliseconds.
    *
-   * One number for two clocks on purpose. Kaana enforces its own deadline from
-   * the budget in the envelope and this process enforces one with the abort
-   * signal, and a caller that could raise one without the other would be
-   * raising the one that does not decide: a longer signal against a 30-second
-   * envelope is still cancelled at thirty seconds, by the other end.
+   * The SDK request is aborted at this deadline. Oxy and Kaana may enforce
+   * tighter upstream limits independently.
    */
   readonly budgetMs?: number;
   readonly signal?: AbortSignal;
@@ -71,7 +63,7 @@ export class KaanaClientUnavailableError extends Error {
 }
 
 /**
- * The generated text, or `null` when Kaana did not serve it.
+ * The generated text, or `null` when Oxy inference returned no text.
  *
  * `derived` visibility and `drop` on disconnect: every caller today is a
  * background derivation — a suggestion, a title, a summary — that nobody is
@@ -79,61 +71,28 @@ export class KaanaClientUnavailableError extends Error {
  * questions and should build its own context rather than inherit these.
  */
 export async function generateTextViaKaana(request: KaanaTextRequest): Promise<string | null> {
-  const client = getKaanaClient();
+  const client = getOxyInferenceClient();
   if (client === null) throw new KaanaClientUnavailableError();
 
   const budgetMs = request.budgetMs ?? DEFAULT_BUDGET_MS;
-
-  const context: AliaInferenceContext = {
-    surface: request.surface,
-    visibility: 'derived',
-    caller: {
-      oxyUserId: request.oxyUserId ?? null,
-      // A derivation nobody asked for is not the user's spend. `platform_cost`
-      // is the mode for work the product decided to do on its own behalf.
-      billing: 'platform_cost',
-      viaApiKey: false,
-    },
-    model: { kind: 'product_default' },
-    conversationId: null,
-    fallbackPolicy: null,
-    // The two sub-budgets stay at half the total, which is where they were when
-    // the total was fixed at thirty seconds. They scale rather than staying put
-    // because they measure the same generation: a reasoning model that needs
-    // fifty seconds to answer can spend twenty-five of them before its first
-    // token, and a `firstTokenMs` frozen at fifteen would cancel it for being
-    // slow at the part it was given the extra budget for.
-    budget: {
-      totalMs: budgetMs,
-      connectMs: 5_000,
-      firstTokenMs: Math.floor(budgetMs / 2),
-      idleStreamMs: Math.floor(budgetMs / 2),
-    },
-    // Nobody is watching, so a client that goes away takes the call with it
-    // rather than finishing work whose result has nowhere to go.
-    onDisconnect: 'abort',
-  };
-
-  const payload: KaanaRequestPayload = {
-    modality: 'text',
-    // `messages`, not `text`: the contract reads a bare `text` input as an
-    // EMBEDDING input, and a chat model refuses it with `unsupported_modality`.
-    input: {
-      format: 'messages',
-      messages: [{ role: 'user', content: [{ type: 'text', text: request.prompt }] }],
-    },
+  const completion = await client.respond({
+    input: [{ role: 'user', content: [{ type: 'text', text: request.prompt }] }],
     maxOutputTokens: request.maxOutputTokens,
-    sampling: { temperature: request.temperature ?? 0.7 },
-    // Declared empty rather than omitted: the contract distinguishes "this call
-    // offers no tools" from "this field was forgotten", and only the first is
-    // true here.
+    temperature: request.temperature ?? 0.7,
     tools: [],
     ...(request.responseFormat === undefined ? {} : { responseFormat: request.responseFormat }),
-    client: { apiFormat: 'chat_completions', endpoint: '/v1/chat/completions' },
-  };
-
-  const signal = request.signal ?? AbortSignal.timeout(budgetMs);
-  const completion = await client.generate({ context, payload }, signal);
-  const text = completion.outputText.trim();
+    labels: { 'alia.surface': request.surface, 'alia.visibility': 'derived' },
+  }, {
+    signal: request.signal ?? AbortSignal.timeout(budgetMs),
+    ...(request.oxyUserId === undefined || request.oxyUserId === null
+      ? {}
+      : { delegatedUserId: request.oxyUserId }),
+  });
+  const text = completion.output
+    .flatMap((message) => message.content)
+    .filter((part) => part.type === 'text' || part.type === 'refusal')
+    .map((part) => part.text)
+    .join('')
+    .trim();
   return text === '' ? null : text;
 }

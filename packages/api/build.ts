@@ -50,21 +50,6 @@ await esbuild.build({
   logLevel: 'info',
 });
 
-// One-shot operational scripts — bundled so they ship in the runtime image and
-// can be run as a Fargate command override (e.g. the IP-purge migration).
-await esbuild.build({
-  entryPoints: ['src/scripts/purge-ip-fields.ts'],
-  bundle: true,
-  platform: 'node',
-  target: 'node20',
-  format: 'esm',
-  outfile: 'dist/scripts/purge-ip-fields.js',
-  plugins: [externalizeNodeModules],
-  sourcemap: false,
-  minify: false,
-  logLevel: 'info',
-});
-
 // The database migrator, bundled so it ships in the runtime image and can be run
 // as a Fargate command override before the rollout.
 //
@@ -145,6 +130,25 @@ try {
   console.log('✅ Copied prompts to dist/');
 } catch (error) {
   console.error('⚠️ Failed to copy prompts:', error);
+}
+
+/**
+ * The built-in Agent Skills, beside the prompts and for the same reason.
+ *
+ * `lib/skills/seed.ts` resolves `<bundle>/../skills` at runtime, which is
+ * `dist/skills` — the bundle is emitted to `dist/scripts/seed.js`. The
+ * Dockerfile also copies `packages/api/skills`, but nothing reads THAT path
+ * from inside the bundle: this copy is what puts the directory where the code
+ * looks. Its absence cost a production deploy — the seed threw
+ * `No built-in skills directory found`, the reconciliation task exited 1, and
+ * ECS rolled the service back onto an image older than the migrations that had
+ * already applied.
+ */
+try {
+  await cp('skills', 'dist/skills', { recursive: true });
+  console.log('✅ Copied skills to dist/');
+} catch (error) {
+  console.error('⚠️ Failed to copy skills:', error);
 }
 
 console.log('✅ Build complete');

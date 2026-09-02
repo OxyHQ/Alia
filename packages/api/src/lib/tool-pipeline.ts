@@ -81,7 +81,7 @@ import {
 import { buildMcpTools } from './tools/mcp.js';
 import { buildAskAgentTool } from './tools/ask-agent.js';
 import { buildIntegrationTools } from './tools/integrations.js';
-import { buildOxyServiceTools } from './tools/oxy-services.js';
+import { buildOxyServiceTools, type OxyToolAutonomy } from './tools/oxy-services.js';
 import { convertOpenAIToolsToToolSet, type OpenAITool } from './tool-converter.js';
 import { log } from './logger.js';
 import type { SSEEmitter } from './sse-emitter.js';
@@ -90,7 +90,7 @@ import {
   GRANTS_EVERYTHING,
   readCapabilityGrants,
   type CapabilityGrantSet,
-  type InstancedCapabilityFamily,
+  type InstancedToolSource,
 } from '../domain/capability-grants.js';
 import type { DeviceInfo } from './tools/device-info.js';
 import {
@@ -138,6 +138,10 @@ export interface ForUserOptions {
   actsForPerson: boolean;
   agentMode: boolean;
   requestId?: string;
+  /** Correlation id shared by every Oxy subaction in this run. */
+  runId?: string;
+  /** Maximum autonomy already selected by the direct request or automation. */
+  oxyAutonomy?: OxyToolAutonomy;
   /**
    * Whether this turn may use tools AT ALL. No default: every caller states it.
    *
@@ -219,7 +223,7 @@ export interface ForUserOptions {
    * answer different questions — which families to fetch at all, and which
    * connector the person picked.
    */
-  instancedSources?: readonly InstancedCapabilityFamily[];
+  instancedSources?: readonly InstancedToolSource[];
   /**
    * One hosted MCP connector selected for this turn, by the person composing it.
    *
@@ -270,6 +274,8 @@ export class ToolPipeline {
       deviceInfo,
       runtime,
       requestId,
+      runId,
+      oxyAutonomy,
       editorToolDefinitions,
       sseEmitter,
       webSearch,
@@ -470,28 +476,36 @@ export class ToolPipeline {
      * `instancedSources`: three round trips to build tools that are about to be
      * thrown away is latency somebody is standing in.
      */
-    const wants = (family: InstancedCapabilityFamily): boolean =>
+    const wants = (family: InstancedToolSource): boolean =>
       instancedSources === undefined || instancedSources.includes(family);
 
-    const [mcpTools, integrationTools, oxyServiceTools, ownAgentTools] = actsForPerson
-      ? await Promise.all([
-          wants('mcp')
+    const oxyOwnerAccountId = agent?.author ?? userId;
+    const [mcpTools, integrationTools, oxyServiceTools, ownAgentTools] = await Promise.all([
+          actsForPerson && wants('mcp')
             ? buildMcpTools(userId, mcpSelection(mcpServerId, grants)).catch(bulkFailure('mcp'))
             : {},
-          wants('integration')
+          actsForPerson && wants('integration')
             ? buildIntegrationTools(userId, grants.instances('integration') ?? undefined)
                 .catch(bulkFailure('integration'))
             : {},
-          accessToken === undefined || !wants('oxy_service')
+          !wants('oxy_service') || (!actsForPerson && !agent)
             ? {}
-            : buildOxyServiceTools(userId, accessToken, grants.instances('oxy_service') ?? undefined)
+            : buildOxyServiceTools(userId, {
+                requesterAccountId: oxyOwnerAccountId,
+                ownerAccountId: oxyOwnerAccountId,
+                actor: agent
+                  ? { type: 'agent', accountId: agent.oxyAccountId }
+                  : { type: 'alia', ownerAccountId: oxyOwnerAccountId },
+                runId: runId ?? requestId,
+                autonomy: oxyAutonomy,
+                userAccessToken: isDirectSession ? accessToken : undefined,
+              })
                 .catch(bulkFailure('oxy-service')),
-          wants('agent')
+          actsForPerson && wants('agent')
             ? buildAskAgentTool(userId, ownAgentSelection(grants, agent, userId), agent?._id ?? null)
                 .catch(bulkFailure('agent'))
             : {},
-        ])
-      : [{}, {}, {}, {}];
+        ]);
     Object.assign(aliaTools, mcpTools, integrationTools, oxyServiceTools, ownAgentTools);
 
     // Skills: `loadSkill`, `readSkillFile` and — where a sandbox exists —

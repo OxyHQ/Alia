@@ -28,16 +28,14 @@
  * `GET /accounts/:id` returns the account (with its `kind`) AND
  * `callerMembership`, which is the server's OWN resolution of what this caller
  * holds — direct or inherited through the tree. So existence, kind and
- * `account:act_as` cost one round trip, not three, and the act-as verdict is
- * read through `canSwitchIntoAccount` from `@oxyhq/core` rather than by testing
- * for the permission string here. That predicate is the same one
- * `POST /accounts/:id/switch` enforces; a second copy of the rule in Alia would
- * be a place for it to go stale.
+ * `account:act_as` cost one round trip, not three, and both standing and act-as
+ * are read through `resolveAccountDelegationAccess` from `@oxyhq/core` rather
+ * than by testing permission strings here. Human account switching deliberately
+ * excludes bots; service delegation deliberately includes them.
  *
  * `kind === 'bot'` is checked SEPARATELY and is not implied by the act-as
- * verdict: `organization` and `project` are act-as eligible too, and
- * `canSwitchIntoAccount` passes any account whose `relationship` is `self` —
- * the caller's own personal account — whatever its kind.
+ * verdict: `organization` and `project` are delegation-eligible too, while a
+ * personal account is never a delegation subject.
  *
  * ## A MUTATION never reads a cached verdict
  *
@@ -63,7 +61,7 @@
  * its own client. One is built per cache MISS, not per request.
  */
 
-import { OxyServices, canSwitchIntoAccount, type AccountNode } from '@oxyhq/core';
+import { OxyServices, resolveAccountDelegationAccess } from '@oxyhq/core';
 import type { AccountCategoryId } from '@oxyhq/contracts';
 import type { Executor } from '../db/index.js';
 import { findAgentById, type AgentRecord } from '../db/agents/agentRepository.js';
@@ -158,30 +156,6 @@ function remember(key: string, verdict: AgentAccountVerdict, standing: boolean):
 }
 
 /**
- * Does the caller hold any standing in this account at all?
- *
- * A weaker question than `account:act_as`, and it has to be: sharing an agent
- * IS adding somebody to its bot account, and a role that can use an agent is
- * not necessarily one that can BECOME it. Reading `act_as` as "was shared with
- * me" would make sharing work only for the roles that can also edit.
- *
- * Owner is included without a membership row, because ownership is implicit
- * there — `callerMembership` is `null` on an account you own.
- */
-function hasStanding(node: AccountNode): boolean {
-  if (node.relationship === 'self' || node.relationship === 'owner') return true;
-  /**
-   * A SUPERSET of the act-as verdict, never a rival test. Whoever may become
-   * the account plainly has standing in it, and deciding this on the membership
-   * row alone would refuse somebody the other question just admitted — an
-   * inconsistency with no way to reach it from the outside and no way to
-   * explain it from the inside.
-   */
-  if (canSwitchIntoAccount(node)) return true;
-  return node.callerMembership?.status === 'active';
-}
-
-/**
  * May this caller act as this Oxy `bot` account?
  *
  * `identity_unavailable` is a REFUSAL and is never cached as a grant: an Oxy
@@ -228,14 +202,14 @@ export async function verifyAgentAccount(params: {
     return { permitted: false, refusal: 'identity_unavailable' };
   }
 
-  const standing = hasStanding(node);
+  const access = resolveAccountDelegationAccess(node);
   if (node.account?.kind !== 'bot') {
-    return remember(key, { permitted: false, refusal: 'not_a_bot_account' }, standing);
+    return remember(key, { permitted: false, refusal: 'not_a_bot_account' }, access.hasStanding);
   }
-  if (!canSwitchIntoAccount(node)) {
-    return remember(key, { permitted: false, refusal: 'not_permitted' }, standing);
+  if (!access.canActAs) {
+    return remember(key, { permitted: false, refusal: 'not_permitted' }, access.hasStanding);
   }
-  return remember(key, PERMITTED, standing);
+  return remember(key, PERMITTED, access.hasStanding);
 }
 
 /**
@@ -467,8 +441,10 @@ function isConflict(error: unknown): boolean {
  * it is".
  *
  * Every caller must therefore say what it does with the third answer.
- * {@link loadThreadAgent} and `routes/agents/hire.ts` deliberately treat it as a
- * refusal — see their own comments — and {@link loadTurnAgent} does not.
+ * {@link loadThreadAgent} conceals every refusal behind the same not-found
+ * surface because a handle is guessable. {@link loadTurnAgent} keeps the
+ * outcomes typed so a request that explicitly selected an agent can fail
+ * closed without confirming whether that id exists.
  */
 export async function canReachAgent(
   agent: AgentRecord,
@@ -586,12 +562,12 @@ export async function loadThreadAgent(
  * By {@link canReachAgent}, which is the same rule `GET /agents/thread/:username`
  * applies — published-and-active, or `account:act_as` on the bot account.
  *
- * A refusal is `none` rather than an error. A turn naming an agent the caller
- * may not use is still a valid chat turn; it simply runs as ordinary Alia,
- * which is exactly what happened for every turn before this worked. That covers
- * a deleted agent, an agent no longer shared, and a stale id in an old client —
- * all of which have a person on the other end who may legitimately still send
- * it.
+ * A refusal is a typed unavailable result, never `none`. The request explicitly
+ * selected an identity; silently replacing a deleted, unshared or stale id with
+ * ordinary Alia would put Alia's answer underneath somebody else's name and
+ * colour in the client. The request boundary maps both not-found and
+ * out-of-reach to one neutral public error so it does not become an existence
+ * oracle.
  *
  * ## `identity_unavailable` is NOT that, and is the third answer
  *
@@ -601,28 +577,29 @@ export async function loadThreadAgent(
  * caller refuses the turn instead: `routes/v1/chat-completions.ts` and
  * `routes/v1/voice.ts` both answer `identity_unavailable` and refund.
  *
- * Two questions, deliberately kept apart. "You may not use this agent" is
- * settled and has a legitimate case behind it; "I could not find out" has
- * neither. Answering them the same way is what this changes, and only that.
+ * The reasons stay separate internally because retryability differs, while the
+ * chat surface refuses all of them before any model is invoked.
  */
 export type TurnAgent =
   /** Resolved and authorised. */
   | { readonly kind: 'agent'; readonly agent: HydratedAgent }
-  /** No such agent, or this caller may not use it. Run as ordinary Alia. */
-  | { readonly kind: 'none' }
+  /** The id did not resolve, or the caller may not use the resolved agent. */
+  | { readonly kind: 'unavailable'; readonly reason: 'not_found' | 'out_of_reach' }
   /** Oxy could not be asked. The caller must refuse rather than substitute. */
-  | { readonly kind: 'identity_unavailable' };
+  | { readonly kind: 'identity_unavailable' }
+  /** Alia could not load the selected agent. The caller may retry. */
+  | { readonly kind: 'resolution_unavailable' };
 
 export async function loadTurnAgent(
   db: Executor,
   params: { agentId: string; oxyUserId: string; accessToken: string | undefined },
 ): Promise<TurnAgent> {
   const agent = await findAgentById(db, params.agentId);
-  if (agent === null) return { kind: 'none' };
+  if (agent === null) return { kind: 'unavailable', reason: 'not_found' };
 
   const reach = await canReachAgent(agent, params);
   if (reach === 'identity_unavailable') return { kind: 'identity_unavailable' };
-  if (reach === 'out_of_reach') return { kind: 'none' };
+  if (reach === 'out_of_reach') return { kind: 'unavailable', reason: 'out_of_reach' };
 
   return { kind: 'agent', agent: await attachAgentIdentity(agent) };
 }

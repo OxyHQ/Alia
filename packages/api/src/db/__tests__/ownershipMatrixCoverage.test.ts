@@ -77,10 +77,12 @@ const NOT_APPLICABLE: Readonly<Record<string, string>> = {
     'Test of generate-model-mappings.ts and model-capabilities-data.ts, both mapped (rows `tier-mappings-generated` and `model-capabilities-data`). Moves or dies with them.',
   'packages/api/src/internal/providers/lib/__tests__/model-publishers.test.ts':
     'Test of model-publishers.ts and the publisher column in generate-model-mappings.ts, both mapped (rows `tuple-model-publishers` and `tier-mappings-generated`). Moves or dies with them.',
+  'packages/api/src/internal/providers/lib/__tests__/seed-model-configs.test.ts':
+    'Fail-closed test of seed-model-configs.ts, which is mapped (row `dead-startup-seed`). Moves or dies with it.',
   'packages/api/src/internal/providers/lib/__tests__/credit-multipliers.test.ts':
     'Test of routing-profile-catalogue.ts and the product credit multiplier that remains in Alia. It does not exercise provider credentials or provider egress.',
 };
-const NOT_APPLICABLE_COUNT = 3;
+const NOT_APPLICABLE_COUNT = 4;
 
 interface MatrixRow {
   readonly id: string;
@@ -200,8 +202,15 @@ interface MatrixRow {
  * `dead`. The replacement routing-profile catalogue and tier vocabulary have
  * their own live Kaana-owned rows, so the matrix covers both sides instead of
  * treating a rename as an exemption.
+ *
+ * ## 101 -> 102: `migration-purge-ip-fields-unrunnable`
+ *
+ * The source Mongo database had already been destroyed. The backup-only purge
+ * script therefore stopped being a working safety net and was the sole reason
+ * the Mongoose driver remained installed. The script and dependency leave in
+ * one cut; the retained pre-drop archive is external data and is not deleted.
  */
-const REMOVED_ROW_COUNT = 101;
+const REMOVED_ROW_COUNT = 102;
 
 const OWNERS = new Set(['alia', 'oxy', 'kaana', 'delete']);
 const REACHABLE = new Set(['live', 'dead', 'unverified', 'loaded-not-invoked']);

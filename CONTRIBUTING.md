@@ -11,7 +11,9 @@ Alia is a multi surface context agent platform: one chat runtime behind an Expo 
 - **PostgreSQL**, local or remote. `DATABASE_URL` is the one variable the API cannot start without: it exits at boot if it cannot connect.
 - **Redis**, optional. Caching and rate limiting fall back gracefully without it.
 
-`@alia/api` needs no MongoDB. It registers no Mongoose model, and the driver is a dependency of one operator one-shot (`packages/api/src/scripts/purge-ip-fields.ts`) that the server never imports. `packages/integrations` is a separate process; check its own manifest before assuming the same of it.
+`@alia/api` is PostgreSQL-only. It registers no Mongoose model and declares no Mongo
+driver dependency. `packages/integrations` is a separate process with its own
+PostgreSQL schema and migration ledger; check its own manifest when changing it.
 
 Upstream model credentials are not configured in this repository or its
 environment. Kaana stores and administers them in its own database; Alia only

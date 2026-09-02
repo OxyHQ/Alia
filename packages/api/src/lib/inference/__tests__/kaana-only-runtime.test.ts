@@ -43,7 +43,7 @@ describe('Kaana-only hosted inference architecture', () => {
     expect(runtime).not.toContain(retiredFlag);
     expect(runtime).not.toContain(retiredModule);
     expect(runtime).not.toContain('GATEWAY_API_URL');
-    expect(source('lib/inference/kaana-boot-check.ts')).not.toContain(
+    expect(source('lib/inference/oxy-inference-boot-check.ts')).not.toContain(
       ['is', 'Kaana', 'Client', 'Enabled'].join(''),
     );
   });

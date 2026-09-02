@@ -36,6 +36,7 @@
  */
 
 import { existsSync, readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
@@ -133,7 +134,24 @@ describe('the runtime image ships what the code reads by path', () => {
   it('copies the same directory name the skill seed resolves at runtime', () => {
     const seedSource = readFileSync(`${packageRoot}src/lib/skills/seed.ts`, 'utf8');
     expect(seedSource).toContain("'../../../skills'");
+    // The deploy runs dist/scripts/seed.js, not a bundle directly under dist/.
+    // From that concrete entrypoint, ../../skills is /app/packages/api/skills —
+    // exactly where the Dockerfile copies the directory. Without this candidate
+    // the image contains every skill but the post-rollout seed still fails.
+    expect(seedSource).toContain("'../../skills'");
     expect(existsSync(`${packageRoot}skills/code-reviewer/SKILL.md`)).toBe(true);
+  });
+
+  it('resolves the deployed seed bundle to the directory copied into the image', () => {
+    const buildSource = readFileSync(`${packageRoot}build.ts`, 'utf8');
+    const seedSource = readFileSync(`${packageRoot}src/lib/skills/seed.ts`, 'utf8');
+    expect(buildSource).toContain("outfile: 'dist/scripts/seed.js'");
+
+    const candidates = [...seedSource.matchAll(/join\(HERE, '([^']*skills)'\)/g)]
+      .map((match) => resolve('/app/packages/api/dist/scripts', match[1]));
+
+    expect(candidates).toContain('/app/packages/api/skills');
+    expect(copiedIntoPackage).toContain('skills');
   });
 
   /**

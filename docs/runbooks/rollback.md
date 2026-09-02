@@ -1,63 +1,48 @@
 # Runbook: rolling Alia back
 
-A safe rollback restores product behaviour without restoring a direct upstream
-provider path. Alia's hosted inference provider is Kaana; there is no emergency
-provider bypass and no environment-key fallback.
+A safe rollback restores product behaviour without restoring a direct provider
+or direct Kaana path. Alia's hosted inference route is always
+`Alia -> OxyInferenceClient -> Oxy -> Kaana`.
 
 ## Choose a safe revision
 
-Inspect the candidate task definition before repointing. It must:
+Inspect the candidate task definition and image before repointing. It must:
 
-- contain the complete Kaana/Oxy application configuration described in
-  [kaana-cutover](./kaana-cutover.md);
-- contain no upstream-provider credential variable or provider endpoint;
-- use `KAANA_BASE_URL` and Kaana-signed headers only;
-- depend on Oxy policy resolution for routing-profile `authorizedRoutes`.
+- contain `OXY_API_URL` and both Oxy ApplicationCredential bindings;
+- contain no upstream-provider credential or provider endpoint;
+- contain no Kaana URL, signing key or custom signed-envelope transport;
+- depend on Oxy policy resolution for routing profiles.
 
-If the candidate calls a provider directly, do not deploy it. Fix forward or
-stop hosted inference visibly. Availability does not authorize restoring the
-credential/routing boundary this migration removes.
+If the candidate violates that boundary, do not deploy it. Fix forward or stop
+hosted inference visibly.
 
 ## Repoint ECS
 
 Resolve the current service and candidate revision read-only, then update the
-service to that exact revision:
-
-```bash
-aws ecs update-service \
-  --profile oxy \
-  --region us-west-2 \
-  --cluster oxy-cluster \
-  --service alia \
-  --task-definition oxy-alia:<revision>
-```
-
-Wait for stability and read back all of the following:
+service to that exact approved revision. Afterward verify:
 
 - `services[0].taskDefinition` equals the requested revision;
-- `runningCount == desiredCount` and desired count is positive;
+- `runningCount == desiredCount`, desired is positive and `pendingCount == 0`;
 - the primary deployment is `COMPLETED`;
-- `/health` comes from that image and reports the `kaana` field;
-- one real inference request returns a Kaana receipt with expected Oxy
-  attribution.
+- `/health` comes from that image and reports the `kaana` compatibility field;
+- one real inference request returns expected Oxy attribution and Kaana usage.
 
-`COMPLETED` at zero tasks, a registered-but-unadopted revision, or a successful
-health endpoint without an inference receipt are false passes.
+Steady state at zero tasks, a registered-but-unadopted revision, or a health
+endpoint without a real inference request are false passes.
 
 ## Database migrations
 
 Do not reverse an applied destructive migration by deploying older code.
-Migrations 0055 and 0056 rename the active routing-profile schema in `pre` and
-remove the rolling compatibility surface in `post`. After 0056, an older image
-that queries the removed names is not a valid rollback target.
+Migrations `0057` and `0058` rename the active routing-profile schema in `pre`
+and remove its rolling compatibility surface in `post`; `0059` removes Alia's
+hosted-provider runtime tables. Once those post phases apply, an older image
+that queries removed names or tables is not a valid rollback target.
 
-If a post-phase migration failed, inspect the migration ledger before any new
-deploy. A pending `post` can block later `pre` migrations; clear it with the
-repo's migrator and the exact approved phase, not with ad-hoc SQL.
+Inspect the migration ledger before any new deploy. Clear an approved pending
+phase through the repository migrator, never with ad-hoc SQL.
 
-## Secrets and credentials
+## Secrets
 
-Rolling Alia back does not rotate Oxy application credentials or the Kaana edge
-signing key. Rotate them separately if compromise is suspected. Upstream
-provider credentials are owned by Kaana's database and credential roles; an
-Alia rollback must neither read nor recreate them.
+Rolling Alia back does not rotate its Oxy ApplicationCredential. Rotate it
+separately if compromise is suspected. Provider credentials remain owned by
+Kaana's PostgreSQL database and must never be recreated in Alia.

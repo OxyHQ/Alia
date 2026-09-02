@@ -42,7 +42,7 @@ Hosted inference goes through Kaana. Alia exposes canonical `kaana-*` routing pr
      +------------------+
 ```
 
-PostgreSQL is Alia's product store. The last domains — conversations, messages, agents, organizations, containers, skills and the rest — are ported, and `packages/api` opens no MongoDB connection and registers no Mongoose model. Under [ADR 0001](./adr/0001-alia-oxy-kaana-responsibility-boundary.md), every hosted inference call crosses the typed Kaana client; only a user's explicitly connected local runtime stays outside that hop.
+PostgreSQL is Alia's product store. The last domains — conversations, messages, agents, organizations, containers, skills and the rest — are ported, and `packages/api` opens no MongoDB connection and registers no Mongoose model. Under [ADR 0001](./adr/0001-alia-oxy-kaana-responsibility-boundary.md), every hosted inference call crosses the published Oxy inference client and Oxy calls Kaana; only a user's explicitly connected local runtime stays outside that hop.
 
 | App | Stack | Purpose |
 | --- | --- | --- |
@@ -66,7 +66,7 @@ The monorepo uses Bun workspaces and Turbo. Bun is the only supported package ma
 bun install
 ```
 
-Copy `packages/api/.env.example` to `packages/api/.env` and fill it in. Boot requires `DATABASE_URL` and the complete Kaana endpoint, principal and signing configuration. `MONGODB_URI` is not read by the server at all; the one first-party importer of the Mongo driver left is `packages/api/src/scripts/purge-ip-fields.ts`, an operator one-shot for a restored backup, whose database name is computed as `alia-{NODE_ENV}` and must not be embedded in the URI. Provider credentials are not Alia environment variables and do not live in Alia's runtime database; Kaana stores and uses them in its own database.
+Copy `packages/api/.env.example` to `packages/api/.env` and fill it in. `DATABASE_URL` is the only database variable and the API refuses to boot without it. Alia declares no Mongo driver dependency. Hosted provider credentials are not Alia environment variables or database rows; Kaana stores and uses them in its own PostgreSQL database. Alia authenticates to Oxy with its Oxy application service credential, and Oxy is the only hop that calls Kaana.
 
 ## Quick start
 
@@ -152,8 +152,8 @@ Approvals are real-time. The client receives `alia.approval_request` while the s
 ### Model abstraction
 
 The product exposes modes and canonical `kaana-*` routing profiles. Alia sends
-the selected profile or concrete model reference to Kaana without selecting an
-upstream deployment itself. Kaana owns provider credentials, health, routing,
+the selected profile or concrete model reference to Oxy without selecting an
+upstream deployment itself. Oxy resolves policy; Kaana owns provider credentials, health, routing,
 retry and fallback; provider names and endpoints do not appear on the product
 surface.
 

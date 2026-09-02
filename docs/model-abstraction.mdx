@@ -39,12 +39,12 @@ For hosted text inference:
 
 1. The request boundary validates the requested product mode or Kaana profile.
 2. `packages/api/src/lib/chat-core.ts` produces a credential-free resolution
-   carrying `kaanaReference`.
+   carrying an explicit `routing_profile` or `model` target.
 3. `getAIModel()` returns the Kaana AI SDK adapter.
-4. The Kaana transport signs the normalized inference envelope and sends it to
-   the configured Kaana endpoint.
-5. Kaana resolves the profile or model reference and owns every provider-side
-   decision.
+4. `@oxyhq/core`'s `OxyInferenceClient` authenticates to Oxy with Alia's
+   short-lived service credential.
+5. Oxy resolves identity and authorised routing policy, then signs and forwards
+   the request to Kaana. Kaana owns every provider-side execution decision.
 
 Alia performs one hosted attempt. It does not rotate provider keys, construct
 provider clients or widen a policy after an error. Provider health and
@@ -82,7 +82,7 @@ API keys from its environment and cannot enable hosted inference with one.
 
 The routing catalogue and its foreign keys use `routing_profiles` and
 `routing_profile_id`; older names survive only inside immutable migration history.
-Migration 0057 is explicitly post-cutover: it removes Alia's legacy provider keys,
+Migration 0059 is explicitly post-cutover: it removes Alia's legacy provider keys,
 health, usage and fallback tables only after credential import and reconciliation in
 Kaana are verified and rollback to the Alia provider runtime is forbidden.
 
@@ -96,11 +96,10 @@ credential or endpoint. `sanitizeMessage()` remains the product-surface guard,
 while logs and migration tooling may retain the exact historical identity they
 need to reconcile data.
 
-The runtime boundary is enforced by architecture tests that census Kaana client
-importers, provider-tree imports, direct-provider hosts, boot environment reads
-and the local-runtime exception. The direction of travel for historical
-provider code and tables is removal after migration verification; the hosted
-runtime boundary is already Kaana-only.
+The runtime boundary is enforced by architecture tests that require the
+published Oxy SDK, reject retired signing/transport files and forbid provider
+or direct-Kaana configuration. The local user-runtime exception remains
+explicit and can never become a hosted fallback.
 
 See also:
 

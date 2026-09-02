@@ -1,11 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-// Standalone Mongo has no change streams, so trigger-engine reconciles the
-// in-memory cron registry against the DB on a timer. This suite exercises that
-// reconcile loop; every heavy collaborator of trigger-engine is stubbed so the
-// module imports cheaply and only the scheduling bookkeeping is under test.
+// The trigger engine reconciles its in-memory cron registry against PostgreSQL
+// on a timer. This suite exercises that loop; every heavy collaborator is
+// stubbed so the module imports cheaply and only the scheduling bookkeeping is
+// under test.
 
-vi.mock('mongoose', () => ({ default: { connection: { db: undefined, collection: vi.fn() } } }));
 vi.mock('node-cron', () => ({ default: { schedule: vi.fn(), validate: vi.fn(() => true) } }));
 vi.mock('ai', () => ({ generateText: vi.fn(), stepCountIs: vi.fn() }));
 vi.mock('../chat-core.js', () => ({ resolveModel: vi.fn(), getAIModel: vi.fn(), getDefaultRoutingProfile: vi.fn() }));
@@ -34,6 +33,10 @@ vi.mock('../agent/archetype-prompts.js', () => ({ buildArchetypeSystemPrompt: vi
 vi.mock('../agent/routing-handler.js', () => ({ handleRoutingDecision: vi.fn() }));
 vi.mock('../../middleware/auth.js', () => ({ oxyClient: { getUserById: vi.fn() } }));
 vi.mock('../../db/index.js', () => ({ getDb: vi.fn(() => ({})) }));
+vi.mock('../../db/automation/automationDefinitionRepository.js', () => ({
+  beginLegacyTriggerAutomationRun: vi.fn(async () => true),
+  markAutomationRunForSession: vi.fn(async () => undefined),
+}));
 vi.mock('../../db/memory/userMemoryRepository.js', () => ({ findUserMemory: vi.fn() }));
 vi.mock('../../db/agents/agentRepository.js', () => ({
   findAgentById: vi.fn(async () => null),

@@ -54,14 +54,9 @@ import {
   type McpServerRow,
 } from '../../db/integrations/mcpServerRepository.js';
 import {
-  listActiveOxyServiceDefs,
-  type OxyServiceDefRow,
-} from '../../db/integrations/oxyServiceRepository.js';
-import {
   listIntegrationsForUser,
   type IntegrationSafeRow,
 } from '../../db/integrations/integrationRepository.js';
-import { constraintNameOf, isUniqueViolation } from '@oxyhq/db';
 import type { Request, Response } from 'express';
 
 const router = Router();
@@ -175,22 +170,6 @@ async function withChildLists(agent: AgentRecord): Promise<AgentRecord> {
   return { ...agent, skills, knowledge };
 }
 
-/**
- * The message for a refused SECOND autonomy designation, or null.
- *
- * `agents_one_autonomy_per_owner` is what makes "one per owner" true, so a
- * second designation arrives here as a unique violation rather than as a
- * validation error — and a 500 would tell the owner their edit broke Alia
- * rather than that they already have one. Recognised by CONSTRAINT NAME, and
- * the SQLSTATE lives on `cause` rather than on `error.code`, which is what
- * `isUniqueViolation`/`constraintNameOf` exist to read.
- */
-function designationConflict(error: unknown): string | null {
-  if (!isUniqueViolation(error)) return null;
-  if (constraintNameOf(error) !== 'agents_one_autonomy_per_owner') return null;
-  return 'Another of your agents already handles autonomous events';
-}
-
 /** The refusal shape every write path here answers with. */
 function answerRefusal(res: Response, refusal: AgentAccountRefusal | 'agent_not_found'): Response {
   if (refusal === 'agent_not_found') return res.status(404).json({ error: 'Agent not found' });
@@ -293,13 +272,12 @@ router.get('/health', async (_req: Request, res: Response) => {
 /**
  * GET /agents/capability-connectors — the ROWS this caller can grant an agent.
  *
- * Four of the thirteen capability families are granted one row at a time
- * (`mcp:<id>`, `oxy_service:<id>`, `integration:<service>`, `agent:<id>`),
+ * Three capability families are granted one row at a time
+ * (`mcp:<id>`, `integration:<service>`, `agent:<id>`),
  * because nobody can enumerate their members in advance. A screen offering
  * those grants has to know which rows exist, and only this service knows all
- * four: MCP connectors, OAuth integrations and the caller's agents are the
- * caller's own rows, and the Oxy service manifests are global and have no
- * client-facing listing anywhere else.
+ * three. Oxy app/resource delegation is deliberately absent: it is edited in
+ * Oxy Settings and stored in Oxy's normalized DelegationGrant records.
  *
  * `?agent=<id>` is the agent being EDITED, left out of its own list. Cosmetic
  * only — the assembler excludes the calling agent whatever is stored — but an
@@ -321,9 +299,8 @@ router.get('/capability-connectors', authenticateToken, async (req: Request, res
   const oxyUserId = req.user.id;
 
   const excludeAgentId = typeof req.query.agent === 'string' ? req.query.agent : undefined;
-  const [mcp, oxyService, integration, ownAgents] = await Promise.all([
+  const [mcp, integration, ownAgents] = await Promise.all([
     listMcpServersForUser(getDb(), oxyUserId).catch(connectorFailure<McpServerRow>('mcp')),
-    listActiveOxyServiceDefs(getDb()).catch(connectorFailure<OxyServiceDefRow>('oxy_service')),
     listIntegrationsForUser(getDb(), oxyUserId).catch(connectorFailure<IntegrationSafeRow>('integration')),
     grantableAgentRows(oxyUserId, excludeAgentId).catch(connectorFailure<GrantableConnectorRow>('agent')),
   ]);
@@ -338,12 +315,6 @@ router.get('/capability-connectors', authenticateToken, async (req: Request, res
         // What the agent would actually gain. A connector with no tools grants
         // nothing, and saying so is better than an inert toggle.
         detail: `${server.tools.length} tool${server.tools.length === 1 ? '' : 's'}`,
-      })),
-      ...oxyService.map((service) => ({
-        grant: formatCapabilityGrant('oxy_service', service.serviceId),
-        family: 'oxy_service',
-        label: service.displayName,
-        detail: service.description,
       })),
       ...integration.map((row) => ({
         // The SERVICE, not the row id: `buildIntegrationTools` matches on
@@ -529,7 +500,6 @@ const createAgentSchema = z
     knowledge: z.array(z.string()).optional(),
     isPublished: z.boolean().optional(),
     access: accessSchema.optional(),
-    handlesAutonomousEvents: z.boolean().optional(),
     systemPrompt: z.string().optional(),
     archetype: archetypeSchema.optional(),
     archetypeConfig: z.unknown().optional(),
@@ -579,7 +549,6 @@ router.post('/', authenticateToken, async (req: Request, res: Response) => {
        */
       isPublished: data.isPublished ?? true,
       access: data.access ?? 'private',
-      handlesAutonomousEvents: data.handlesAutonomousEvents ?? false,
       ...(data.systemPrompt !== undefined && { systemPrompt: data.systemPrompt }),
       ...(data.archetype !== undefined && { archetype: data.archetype }),
       ...(data.archetypeConfig !== undefined && { archetypeConfig: data.archetypeConfig }),
@@ -590,8 +559,6 @@ router.post('/', authenticateToken, async (req: Request, res: Response) => {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: 'Invalid input', details: error.errors });
     }
-    const conflict = designationConflict(error);
-    if (conflict !== null) return res.status(409).json({ error: conflict });
     log.agents.error({ err: error }, 'Error creating agent');
     res.status(500).json({ error: 'Failed to create agent' });
   }
@@ -620,7 +587,6 @@ const updateAgentSchema = z
     isPublished: z.boolean().optional(),
     status: statusSchema.optional(),
     access: accessSchema.optional(),
-    handlesAutonomousEvents: z.boolean().optional(),
     systemPrompt: z.string().optional(),
     allowedModels: z.array(z.string()).optional(),
     scheduleInterval: z.number().int().optional(),
@@ -690,8 +656,6 @@ router.patch('/:id', authenticateToken, async (req: Request, res: Response) => {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: 'Invalid input', details: error.errors });
     }
-    const conflict = designationConflict(error);
-    if (conflict !== null) return res.status(409).json({ error: conflict });
     log.agents.error({ err: error }, 'Error updating agent');
     res.status(500).json({ error: 'Failed to update agent' });
   }

@@ -79,13 +79,12 @@ describe.skipIf(!MODEL)('a real local model answering through the bridge', () =>
         publisher: 'unknown',
         model: String(MODEL),
         modelId: String(MODEL),
-        // Null for the same reason the product sets it null: Kaana cannot reach
-        // a process on this machine, so the Kaana branch must not be entered.
-        kaanaReference: null,
+        // Null for the same reason the product sets it null: hosted Oxy
+        // inference cannot reach a process on this machine.
+        oxyInferenceTarget: null,
         keyConfig: {
           provider: USER_RUNTIME_PROVIDER,
           modelId: String(MODEL),
-          key: '',
           userRuntime: { userId: OWNER, runtimeId: RUNTIME_ID },
         },
         routingProfile: {

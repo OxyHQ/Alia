@@ -5,11 +5,9 @@ interface Probe {
   readonly body: Record<string, unknown>;
 }
 
-type KaanaState = 'unknown' | 'reachable' | 'unreachable';
-
 async function probe(
   route: '/' | '/live' | '/ready',
-  options: { readonly postgresReady?: boolean; readonly kaana?: KaanaState } = {},
+  options: { readonly postgresReady?: boolean; readonly inferenceConfigured?: boolean } = {},
 ): Promise<Probe> {
   vi.resetModules();
   const postgresReady = options.postgresReady ?? true;
@@ -21,11 +19,8 @@ async function probe(
     }),
   }));
   vi.doMock('../../lib/task-queue.js', () => ({ isQueueActive: () => true }));
-  vi.doMock('../../lib/inference/kaana-connectivity.js', () => ({
-    kaanaConnectivity: () => options.kaana ?? 'unknown',
-  }));
-  vi.doMock('../../lib/inference/kaana.js', () => ({
-    unsetKaanaVariables: () => [],
+  vi.doMock('../../lib/inference/oxy-inference.js', () => ({
+    unsetOxyInferenceVariables: () => options.inferenceConfigured === false ? ['credential'] : [],
   }));
 
   const { default: router } = await import('../health.js');
@@ -58,38 +53,30 @@ function kaana(body: Record<string, unknown>): Record<string, unknown> {
 afterEach(() => {
   vi.doUnmock('../../db/index.js');
   vi.doUnmock('../../lib/task-queue.js');
-  vi.doUnmock('../../lib/inference/kaana-connectivity.js');
-  vi.doUnmock('../../lib/inference/kaana.js');
+  vi.doUnmock('../../lib/inference/oxy-inference.js');
 });
 
 describe('health routes after the Kaana cutover', () => {
-  it('reports a healthy configured Kaana snapshot without provider telemetry', async () => {
-    const result = await probe('/', { kaana: 'reachable' });
+  it('reports the Oxy path without pretending to probe Kaana', async () => {
+    const result = await probe('/');
     expect(result.status).toBe(200);
     expect(result.body.status).toBe('healthy');
     expect(result.body.postgres).toBe('connected');
-    expect(kaana(result.body)).toEqual({ credentials: 'configured', client: 'reachable' });
+    expect(kaana(result.body)).toEqual({ path: 'oxy', credentials: 'configured' });
     expect(result.body).not.toHaveProperty('providers');
   });
 
-  it('degrades the detailed snapshot when Kaana is known unreachable', async () => {
-    const result = await probe('/', { kaana: 'unreachable' });
-    expect(result.status).toBe(503);
-    expect(result.body.status).toBe('degraded');
-    expect(kaana(result.body).client).toBe('unreachable');
-  });
-
-  it('keeps a cold Kaana observation distinct from an outage', async () => {
-    const result = await probe('/', { kaana: 'unknown' });
+  it('reports incomplete inference configuration without faking an outage', async () => {
+    const result = await probe('/', { inferenceConfigured: false });
     expect(result.status).toBe(200);
-    expect(kaana(result.body).client).toBe('unknown');
+    expect(kaana(result.body)).toEqual({ path: 'oxy', credentials: 'not_configured' });
   });
 
   it('readiness is decided by this task database and still reports Kaana', async () => {
-    const ready = await probe('/ready', { kaana: 'unreachable' });
+    const ready = await probe('/ready', { inferenceConfigured: false });
     expect(ready.status).toBe(200);
     expect(ready.body.status).toBe('ready');
-    expect(kaana(ready.body).client).toBe('unreachable');
+    expect(kaana(ready.body)).toEqual({ path: 'oxy', credentials: 'not_configured' });
 
     const unavailable = await probe('/ready', { postgresReady: false });
     expect(unavailable).toEqual({
@@ -99,7 +86,7 @@ describe('health routes after the Kaana cutover', () => {
   });
 
   it('liveness consults no dependency', async () => {
-    const result = await probe('/live', { postgresReady: false, kaana: 'unreachable' });
+    const result = await probe('/live', { postgresReady: false, inferenceConfigured: false });
     expect(result).toEqual({ status: 200, body: { status: 'alive' } });
   });
 });

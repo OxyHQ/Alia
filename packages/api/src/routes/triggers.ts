@@ -17,8 +17,15 @@ import {
   processWebhookTrigger,
   generateWebhookToken,
 } from '../lib/trigger-engine.js';
+import {
+  disableLegacyTriggerAutomation,
+} from '../db/automation/automationDefinitionRepository.js';
 import { log } from '../lib/logger.js';
 import type { Request, Response } from 'express';
+import {
+  automationReceipt,
+  syncStructuredAutomation,
+} from '../lib/structured-automation.js';
 
 const router = Router();
 
@@ -125,6 +132,7 @@ authRouter.post('/', async (req: Request, res: Response) => {
       integrationEvent: type === 'integration_event' ? integrationEvent : undefined,
       enabled: enabled ?? true,
     });
+    const automation = await syncStructuredAutomation(trigger);
 
     // Reload scheduler if it's a schedule trigger
     reloadTrigger(trigger._id).catch((err) =>
@@ -138,7 +146,11 @@ authRouter.post('/', async (req: Request, res: Response) => {
       triggerResponse.webhookUrl = `${baseUrl}/triggers/webhook/${trigger.webhook.token}`;
     }
 
-    res.status(201).json({ trigger: triggerResponse });
+    res.status(201).json({
+      trigger: triggerResponse,
+      automation,
+      receipt: automationReceipt(automation),
+    });
   } catch (error: unknown) {
     log.triggers.error({ err: error }, 'Error creating trigger');
     res.status(500).json({ error: 'Failed to create trigger' });
@@ -169,12 +181,14 @@ authRouter.patch('/:id', async (req: Request, res: Response) => {
       integrationEvent,
       webhook,
     });
+    if (!trigger) return res.status(404).json({ error: 'Trigger not found' });
+    const automation = await syncStructuredAutomation(trigger);
 
     reloadTrigger(existing._id).catch((err) =>
       log.triggers.error({ err }, 'Failed to reload trigger')
     );
 
-    res.json({ trigger });
+    res.json({ trigger, automation });
   } catch (error: unknown) {
     log.triggers.error({ err: error }, 'Error updating trigger');
     res.status(500).json({ error: 'Failed to update trigger' });
@@ -188,6 +202,7 @@ authRouter.delete('/:id', async (req: Request, res: Response) => {
 
     const deleted = await deleteTriggerForUser(getDb(), String(req.params.id), req.user.id);
     if (!deleted) return res.status(404).json({ error: 'Trigger not found' });
+    await disableLegacyTriggerAutomation(getDb(), String(req.params.id));
 
     reloadTrigger(String(req.params.id)).catch((err) =>
       log.triggers.error({ err }, 'Failed to reload trigger')

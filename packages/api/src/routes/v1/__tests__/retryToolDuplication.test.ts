@@ -5,11 +5,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  * epic #139 workstream 13, "Ensure retries/fallbacks do not duplicate tools or
  * agent side effects".
  *
- * ## Why this exists beside the Kaana client's own retry tests
- *
- * `lib/inference/__tests__/kaana-client.test.ts` guards retries inside the Kaana
- * client. Alia's `runProviderLoop` makes one hosted attempt; Kaana owns route
- * changes and therefore sees whether a tool side effect has already occurred.
+ * Alia's `runProviderLoop` makes one hosted attempt. Oxy and Kaana own route
+ * changes and therefore see whether a tool side effect has already occurred.
  *
  * ## Where the property actually lives, measured
  *

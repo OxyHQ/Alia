@@ -1,6 +1,6 @@
 -- oxy:deploy-phase=post
 --
--- Kaana routing-profile vocabulary, part two of two. 0055 kept the previous
+-- Kaana routing-profile vocabulary, part two of two. 0057 kept the previous
 -- image's names live through compatibility views and mirrored columns. The new
 -- image is now stable, so this removes that temporary surface and leaves only
 -- routing-profile identity in the active database.

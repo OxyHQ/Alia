@@ -198,7 +198,7 @@ the vocabulary.
 
 - `internal/providers/lib/routing-profile-catalogue.ts` -- the product-facing Kaana routing profiles
 - `internal/providers/lib/generate-model-mappings.ts` -- compatibility inputs for the product catalogue
-- `lib/gateway-client.ts` -- the fail-closed Kaana request boundary
+- `lib/inference/oxy-inference.ts` -- the fail-closed published Oxy SDK boundary
 - `routes/v1/models.ts` -- the public catalogue
 - `lib/errors/sanitize.ts` -- the two sanitisation rules, and which surfaces each covers
 
@@ -256,12 +256,11 @@ bun run --filter @alia/api db:generate   # Generate a migration from the schema
 `test:pg` and the integrations suite need a real PostgreSQL and read `TEST_DATABASE_URL`;
 each run creates and migrates its own throwaway database.
 
-Environment: copy `.env.example` to `.env` in `packages/api/` and fill it in. `DATABASE_URL`
-is the only variable the API cannot start without -- boot refuses without it. `MONGODB_URI`
-is not read by the server at all; only `packages/api/src/scripts/purge-ip-fields.ts` reads
-it, and its database name is computed as `alia-{NODE_ENV}`, so do not embed it in the URI.
-Upstream model credentials live exclusively in Kaana's database and are never Alia
-environment variables or Alia database rows.
+Environment: copy `.env.example` to `.env` in `packages/api/` and fill it in.
+`DATABASE_URL` is the only database variable and the API refuses to boot without
+it. Alia declares no Mongo driver dependency. Hosted provider credentials live
+exclusively in Kaana's PostgreSQL database; Alia reaches inference through Oxy
+with an Oxy application service credential and never receives a provider key.
 
 ---
 

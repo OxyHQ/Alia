@@ -1,344 +1,263 @@
 /**
- * Oxy Service Events — Webhook endpoint for Oxy apps to push events to Alia.
+ * Normalized Oxy application events.
  *
- * - Idempotent by eventId (dedupe at DB level)
- * - Autonomous mode always creates a persisted AgentSession before enqueue
- * - Guaranteed fallback to notification on autonomous execution failure
+ * The caller is authenticated by Oxy's service identity. Alia stores neither a
+ * per-app webhook secret nor a user bearer, and an event can only claim an app
+ * whose signed capability catalog is owned by the calling application.
  */
 
-import crypto from 'crypto';
-import { Router, Request, Response } from 'express';
+import { Router, type Request, type Response } from 'express';
+import { z } from 'zod';
 import { getDb } from '../db/index.js';
-import { findActiveOxyService } from '../db/integrations/oxyServiceRepository.js';
 import {
-  claimOxyServiceEvent,
-  markOxyServiceEventDuplicate,
-  markOxyServiceEventFailed,
-  markOxyServiceEventProcessed,
-} from '../db/integrations/oxyServiceEventLogRepository.js';
-import { findDesignatedAutonomyAgent } from '../db/agents/agentRepository.js';
-import {
-  createAgentSession,
-  updateAgentSession,
-} from '../db/agents/agentSessionRepository.js';
-import {
-  recordSourceRun,
-  upsertContextNode,
-} from '../db/autonomy/contextGraphRepository.js';
-import { sendNotification } from '../lib/notification-service.js';
+  claimAutomationEvent,
+  createAutomationRunForSession,
+  markAutomationEventStatus,
+  matchingEventAutomations,
+  type NormalizedAutomationEventInput,
+} from '../db/automation/automationDefinitionRepository.js';
+import { createAgentSession, updateAgentSession } from '../db/agents/agentSessionRepository.js';
+import { findAgentById } from '../db/agents/agentRepository.js';
+import { getOxyAgentCapabilityMap } from '../lib/tools/oxy-services.js';
 import { enqueueAgentSession } from '../lib/task-queue.js';
-import { log } from '../lib/logger.js';
+import { sendNotification } from '../lib/notification-service.js';
 import { getErrorMessage } from '../lib/errors/index.js';
-import { autonomyFlags } from '../lib/autonomy/flags.js';
+import { log } from '../lib/logger.js';
 
-const router = Router();
+const OXY_API_URL = (process.env.OXY_API_URL || 'https://api.oxy.so').replace(/\/$/, '');
 
-function verifySignature(payload: string, signature: string, secret: string): boolean {
-  const expected = crypto.createHmac('sha256', secret).update(payload).digest('hex');
-  if (expected.length !== signature.length) return false;
-  return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(signature));
+const resourceSchema = z.object({
+  appId: z.string().min(1),
+  effectiveAccountId: z.string().min(1),
+  resourceType: z.string().min(1),
+  resourceId: z.string().min(1),
+}).strict();
+
+const normalizedEventSchema = z.object({
+  eventId: z.string().min(1),
+  appId: z.string().min(1),
+  accountId: z.string().min(1),
+  resource: resourceSchema,
+  type: z.string().min(1),
+  occurredAt: z.string().datetime(),
+  data: z.record(z.unknown()).default({}),
+}).strict();
+
+const serviceIdentitySchema = z.object({
+  service: z.object({
+    appId: z.string().min(1),
+    scopes: z.array(z.string()),
+  }).passthrough(),
+  catalogAppIds: z.array(z.string()),
+  catalogs: z.array(z.object({
+    appId: z.string().min(1),
+    eventTypes: z.array(z.string().min(1)),
+  }).strict()),
+}).strict();
+
+type EventResource = z.infer<typeof resourceSchema>;
+
+function bearer(request: Request): string | null {
+  const authorization = request.headers.authorization;
+  if (!authorization?.startsWith('Bearer ')) return null;
+  const token = authorization.slice('Bearer '.length).trim();
+  return token.length > 0 ? token : null;
 }
 
-function isObjectId(value: string): boolean {
-  return /^[a-f0-9]{24}$/i.test(value);
+async function identifyPublisher(token: string) {
+  const response = await fetch(`${OXY_API_URL}/capabilities/service-identity`, {
+    headers: { authorization: `Bearer ${token}`, accept: 'application/json' },
+    signal: AbortSignal.timeout(10_000),
+  });
+  if (!response.ok) throw new Error(`Oxy service identity rejected (${response.status})`);
+  return serviceIdentitySchema.parse(await response.json());
 }
 
-function hashPayload(value: unknown): string {
-  return crypto.createHash('sha256').update(JSON.stringify(value ?? {})).digest('hex');
+function assignmentCoversEvent(assignment: {
+  resource: EventResource;
+  maximumAutonomy: 'read_only' | 'draft' | 'execute_on_request' | 'autonomous';
+  toolNames: readonly string[];
+}, eventResource: EventResource): boolean {
+  if (assignment.maximumAutonomy !== 'autonomous' || assignment.toolNames.length === 0) return false;
+  const granted = assignment.resource;
+  if (granted.appId !== eventResource.appId
+    || granted.effectiveAccountId !== eventResource.effectiveAccountId) return false;
+  if (granted.resourceType === eventResource.resourceType) {
+    return granted.resourceId === eventResource.resourceId;
+  }
+  // An email-account grant intentionally contains its mailboxes. No other
+  // resource hierarchy is inferred here; apps must delegate it explicitly.
+  return granted.appId === 'inbox'
+    && granted.resourceType === 'email_account'
+    && eventResource.resourceType === 'mailbox'
+    && granted.resourceId === granted.effectiveAccountId;
 }
 
-function buildEventId(req: Request): string {
-  const bodyEventId = typeof req.body?.eventId === 'string' ? req.body.eventId.trim() : '';
-  const headerEventId = typeof req.headers['x-oxy-event-id'] === 'string' ? req.headers['x-oxy-event-id'].trim() : '';
-  if (bodyEventId) return bodyEventId;
-  if (headerEventId) return headerEventId;
-  return `hash:${hashPayload(req.body)}`;
+async function eligibleAgent(
+  ownerAccountId: string,
+  candidateIds: readonly string[],
+  resource: EventResource,
+) {
+  for (const agentId of candidateIds) {
+    const agent = await findAgentById(getDb(), agentId);
+    if (!agent || agent.author !== ownerAccountId) continue;
+    try {
+      const assignments = await getOxyAgentCapabilityMap({
+        requesterAccountId: ownerAccountId,
+        ownerAccountId,
+        actor: { type: 'agent', accountId: agent.oxyAccountId },
+        autonomy: 'autonomous',
+      });
+      if (assignments.some((assignment) => assignmentCoversEvent(assignment, resource))) return agent;
+    } catch (error: unknown) {
+      log.triggers.warn({ err: error, agentId, ownerAccountId }, 'Agent capability-map lookup failed closed');
+    }
+  }
+  return null;
 }
 
-/**
- * The agent this account DESIGNATED for autonomous events, or NOTHING.
- *
- * ## Nothing is created here any more
- *
- * An agent IS an Oxy `bot` account, and `POST /accounts` mints one under the
- * caller's own tree with the CALLER's bearer. This is a webhook: it carries an
- * `oxy_services` id and an HMAC signature over the body, and no user credential
- * of any kind. No service verb fills the gap either, and that is a boundary Oxy
- * drew on purpose rather than an omission — `accounts/service/channels` is
- * pinned to `kind: 'channel'` precisely because a membership on an act-as
- * eligible kind IS a session, so service-minting a `bot` would be the
- * escalation that restriction exists to refuse.
- *
- * Which leaves the right answer anyway: conjuring an identity in Oxy's global
- * namespace, in somebody's name, from a third party's webhook and with no human
- * present, is not something this service should do even where it could.
- *
- * So the agent is DESIGNATED by its owner from a signed-in surface. When none
- * is, the event still reaches the person as a notification — the same path a
- * queue failure takes, and the one this endpoint's contract already promises.
- *
- * ## The designation is a column, not a convention
- *
- * `handles_autonomous_events`, with a PARTIAL unique index over the owner. Its
- * predecessor matched `category = 'automation'` plus an `autonomy` tag, both of
- * which the owner edits by hand — so tagging an agent for tidiness silently
- * changed which agent received their events, and two so tagged gave whichever
- * the query returned first. The index makes "the one" a fact the database
- * enforces rather than a race this code resolves.
- *
- * Nothing here asks Oxy anything, so an identity outage cannot stop autonomous
- * processing.
- */
-async function findAutonomyAgent(userId: string): Promise<string | null> {
-  const designated = await findDesignatedAutonomyAgent(getDb(), userId);
-  return designated?._id ?? null;
-}
-
-async function notifyFallback(params: {
-  userId: string;
-  displayName: string;
-  event: string;
-  title?: string;
-  message?: string;
-  data?: any;
-  reason?: string;
-}) {
+async function notifyNoExecution(event: NormalizedAutomationEventInput, reason: string): Promise<void> {
   await sendNotification({
-    userId: params.userId,
+    userId: event.accountId,
     type: 'oxy_service',
-    title: params.title || `${params.displayName}: ${params.event}`,
-    body: params.message || `Event received from ${params.displayName}${params.reason ? ` (${params.reason})` : ''}`,
-    data: { event: params.event, ...params.data, fallback: true, reason: params.reason },
-    priority: 'high',
+    title: `${event.appId} automation did not run`,
+    body: reason,
+    priority: 'normal',
+    channels: ['in_app', 'push'],
+    data: { eventId: event.eventId, appId: event.appId, eventType: event.eventType },
   });
 }
 
-async function ingestOxySignal(userId: string, serviceId: string, event: string, data?: any): Promise<void> {
-  const now = new Date();
-  await recordSourceRun(getDb(), {
-    oxyUserId: userId,
-    sourceKey: `oxy:${serviceId}`,
-    kind: 'oxy_service',
-    label: serviceId,
-    successfulReadsDelta: 1,
-    freshnessScore: 0.95,
-    precisionScore: 0.8,
-    lastSuccessAt: now,
-  }).catch(() => {});
+async function dispatchEvent(event: NormalizedAutomationEventInput): Promise<void> {
+  const definitions = await matchingEventAutomations(getDb(), event);
+  if (definitions.length === 0) {
+    await markAutomationEventStatus(getDb(), event.appId, event.eventId, 'processed');
+    return;
+  }
+  await markAutomationEventStatus(getDb(), event.appId, event.eventId, 'matched');
 
-  const nodeKey = `oxy-event:${serviceId}:${event}:${hashPayload(data).slice(0, 12)}`;
-  await upsertContextNode(getDb(), {
-    oxyUserId: userId,
-    nodeKey,
-    type: 'service',
-    label: `${serviceId}:${event}`,
-    lastSeenAt: now,
-    freshnessScore: 0.95,
-  }).catch(() => {});
-}
-
-async function processEvent(params: {
-  logId: string;
-  serviceId: string;
-  displayName: string;
-  action: 'notify' | 'context' | 'autonomous';
-  userId: string;
-  event: string;
-  data?: any;
-  title?: string;
-  message?: string;
-}): Promise<void> {
-  const { logId, serviceId, displayName, action, userId, event, data, title, message } = params;
-  const db = getDb();
-
-  try {
-    log.general.info({ serviceId, event, action, userId }, 'Processing Oxy service event');
-    await ingestOxySignal(userId, serviceId, event, data);
-
-    if (action === 'notify') {
-      await sendNotification({
-        userId,
-        type: 'oxy_service',
-        title: title || `${displayName}: ${event}`,
-        body: message || `New event from ${displayName}`,
-        data: { serviceId, event, ...data },
-      });
-
-      await markOxyServiceEventProcessed(db, logId);
-      return;
+  for (const { row, eligibleAgentIds } of definitions) {
+    if (row.maximumAutonomy !== 'autonomous') {
+      await notifyNoExecution(event, `“${row.objective}” needs approval under its ${row.maximumAutonomy} policy.`);
+      continue;
     }
-
-    if (action === 'context') {
-      // Context endpoint is pulled at chat-time; this event acts as freshness signal.
-      await markOxyServiceEventProcessed(db, logId);
-      return;
-    }
-
-    if (!autonomyFlags.oxyAutonomousEnabled) {
-      await notifyFallback({ userId, displayName, event, title, message, data, reason: 'autonomy_disabled' });
-      await markOxyServiceEventFailed(db, logId, 'autonomy_disabled');
-      return;
-    }
-
-    if (!isObjectId(userId)) {
-      await notifyFallback({ userId, displayName, event, title, message, data, reason: 'invalid_user_id' });
-      await markOxyServiceEventFailed(db, logId, 'invalid_user_id');
-      return;
-    }
-
-    const agentId = await findAutonomyAgent(userId);
-    if (agentId === null) {
-      // No runtime agent to run this on, and none can be minted from a webhook.
-      // The event is still delivered, as a notification.
-      log.general.warn(
-        { userId, serviceId, event },
-        'No agent is designated for autonomous events on this account; falling back to a notification',
-      );
-      await notifyFallback({ userId, displayName, event, title, message, data, reason: 'no_autonomy_agent' });
-      await markOxyServiceEventFailed(db, logId, 'no_autonomy_agent');
-      return;
+    const candidates = row.actorMode === 'fixed' && row.fixedAgentId
+      ? [row.fixedAgentId]
+      : eligibleAgentIds;
+    const agent = await eligibleAgent(event.accountId, candidates, event.resource);
+    if (!agent) {
+      await notifyNoExecution(event, `No eligible agent currently has access to ${event.resource.resourceType} ${event.resource.resourceId}.`);
+      continue;
     }
 
     const task = [
-      `Process Oxy service event from ${displayName}.`,
-      `Event: ${event}`,
-      message ? `Message: ${message}` : '',
-      data ? `Payload:\n${JSON.stringify(data, null, 2).slice(0, 6000)}` : '',
-      'Return a concise summary and next actions.',
-    ].filter(Boolean).join('\n\n');
-
+      row.objective,
+      '',
+      'This run was triggered by a normalized Oxy event. Use only the delegated resource and minimum event data below.',
+      JSON.stringify({
+        eventId: event.eventId,
+        appId: event.appId,
+        type: event.eventType,
+        occurredAt: event.occurredAt.toISOString(),
+        resource: event.resource,
+        data: event.data,
+      }),
+    ].join('\n');
     const session = await createAgentSession(getDb(), {
-      agentId,
-      oxyUserId: userId,
-      status: 'queued',
+      agentId: agent.id,
+      oxyUserId: event.accountId,
       task,
-      depth: 0,
-      messages: [{ role: 'system', content: 'Autonomous Oxy service event execution', timestamp: new Date() }],
+      status: 'queued',
+      messages: [{ role: 'user', content: task, timestamp: new Date() }],
     });
-
-    try {
-      await enqueueAgentSession({
-        sessionId: session._id,
-        userId,
-        agentId,
-        // The designated agent's own name is the bot account's, and resolving
-        // it here would put an Oxy round trip on the queue path for a label.
-        // The queue entry names the ROLE; the agent id beside it is exact.
-        agentName: 'Designated autonomy agent',
+    const claimed = await createAutomationRunForSession({
+      db: getDb(),
+      sessionId: session.id,
+      automationId: row.id,
+      requesterAccountId: event.accountId,
+      selectedAgentId: agent.id,
+      selectedActorAccountId: agent.oxyAccountId,
+      triggerEventId: event.eventId,
+      resource: event.resource,
+      objective: row.objective,
+    });
+    if (!claimed) {
+      await updateAgentSession(getDb(), session.id, {
+        status: 'cancelled',
+        result: 'Duplicate automation event',
       });
-
-      await markOxyServiceEventProcessed(db, logId, session._id);
-    } catch (queueErr: unknown) {
-      await notifyFallback({ userId, displayName, event, title, message, data, reason: 'autonomous_queue_failed' });
-
-      const failedAt = new Date();
-      await updateAgentSession(getDb(), session._id, {
-        status: 'failed',
-        result: 'Failed to enqueue autonomous session; fallback notification sent.',
-        stats: { completedAt: failedAt, lastActivityAt: failedAt },
-      });
-
-      await markOxyServiceEventFailed(
-        db,
-        logId,
-        getErrorMessage(queueErr) || 'autonomous_queue_failed',
-        session._id,
-      );
+      continue;
     }
-
-    return;
-  } catch (err: unknown) {
-    await notifyFallback({ userId, displayName, event, title, message, data, reason: 'autonomous_execution_failed' }).catch(() => {});
-
-    await markOxyServiceEventFailed(db, logId, getErrorMessage(err) || 'unknown_error').catch(
-      () => {},
-    );
-
-    log.general.error({ err, serviceId, event }, 'Failed to process Oxy service event');
+    await enqueueAgentSession({
+      sessionId: session.id,
+      userId: event.accountId,
+      agentId: agent.id,
+      agentName: `Agent ${agent.id}`,
+    });
   }
+  await markAutomationEventStatus(getDb(), event.appId, event.eventId, 'processed');
 }
 
-router.post('/:serviceId', async (req: Request, res: Response) => {
-  const serviceId = req.params.serviceId as string;
+const router = Router();
 
+router.post('/', async (request: Request, response: Response) => {
+  const token = bearer(request);
+  if (!token) return response.status(401).json({ error: 'service_bearer_required' });
+  const parsed = normalizedEventSchema.safeParse(request.body);
+  if (!parsed.success) {
+    return response.status(400).json({ error: 'invalid_normalized_event', details: parsed.error.flatten() });
+  }
+  if (parsed.data.resource.appId !== parsed.data.appId) {
+    return response.status(400).json({ error: 'event_resource_app_mismatch' });
+  }
+  if (parsed.data.resource.effectiveAccountId !== parsed.data.accountId) {
+    return response.status(400).json({ error: 'event_resource_account_mismatch' });
+  }
+  let publisher: z.infer<typeof serviceIdentitySchema>;
   try {
-    const db = getDb();
-    const service = await findActiveOxyService(db, serviceId);
-    if (!service) {
-      res.status(404).json({ error: 'Service not found' });
-      return;
-    }
-
-    if (service.webhookSecret) {
-      const signature = req.headers['x-oxy-signature'] as string;
-      if (!signature) {
-        res.status(401).json({ error: 'Missing signature' });
-        return;
-      }
-
-      const rawBody = JSON.stringify(req.body);
-      if (!verifySignature(rawBody, signature, service.webhookSecret)) {
-        log.general.warn({ serviceId }, 'Invalid webhook signature');
-        res.status(401).json({ error: 'Invalid signature' });
-        return;
-      }
-    }
-
-    const { userId, event, data, title, message } = req.body;
-    if (!userId || !event) {
-      res.status(400).json({ error: 'Missing required fields: userId, event' });
-      return;
-    }
-    if (!isObjectId(userId)) {
-      res.status(400).json({ error: 'Invalid userId' });
-      return;
-    }
-
-    const action = service.events.find((e) => e.name === event)?.action ?? 'notify';
-    const eventId = buildEventId(req);
-    const payloadHash = hashPayload(req.body);
-
-    // A `null` id means the idempotency key was already taken, which is the same
-    // answer the source got from a duplicate-key ERROR — but with no failed
-    // statement, so the duplicate-marking update below cannot inherit an aborted
-    // transaction. A genuine failure still throws out of here.
-    const logId = await claimOxyServiceEvent(db, {
-      serviceId,
-      oxyUserId: userId,
-      eventId,
-      eventName: event,
-      action,
-      payloadHash,
+    publisher = await identifyPublisher(token);
+  } catch (error: unknown) {
+    log.triggers.warn({ err: error }, 'Oxy event publisher authentication failed');
+    return response.status(401).json({ error: 'invalid_service_identity' });
+  }
+  if (!publisher.service.scopes.includes('capability-events:publish')) {
+    return response.status(403).json({ error: 'insufficient_service_scope', requiredScope: 'capability-events:publish' });
+  }
+  if (!publisher.catalogAppIds.includes(parsed.data.appId)) {
+    return response.status(403).json({ error: 'catalog_not_owned_by_service' });
+  }
+  const publisherCatalog = publisher.catalogs.find((catalog) => catalog.appId === parsed.data.appId);
+  if (!publisherCatalog?.eventTypes.includes(parsed.data.type)) {
+    return response.status(400).json({ error: 'event_type_not_in_catalog' });
+  }
+  const event: NormalizedAutomationEventInput = {
+    eventId: parsed.data.eventId,
+    appId: parsed.data.appId,
+    accountId: parsed.data.accountId,
+    resource: parsed.data.resource,
+    eventType: parsed.data.type,
+    occurredAt: new Date(parsed.data.occurredAt),
+    data: parsed.data.data,
+  };
+  try {
+    const claimed = await claimAutomationEvent(getDb(), event);
+    if (!claimed) return response.status(202).json({ accepted: true, duplicate: true });
+    void dispatchEvent(event).catch(async (error: unknown) => {
+      log.triggers.error({ err: error, eventId: event.eventId, appId: event.appId }, 'Normalized Oxy event failed');
+      await markAutomationEventStatus(getDb(), event.appId, event.eventId, 'failed').catch(() => undefined);
+      await notifyNoExecution(event, `Event processing failed: ${getErrorMessage(error).slice(0, 200)}`).catch(() => undefined);
     });
-
-    if (logId === null) {
-      await markOxyServiceEventDuplicate(db, { serviceId, oxyUserId: userId, eventId }).catch(
-        () => {},
-      );
-
-      res.status(202).json({ accepted: true, duplicate: true, eventId });
-      return;
-    }
-
-    res.status(202).json({ accepted: true, eventId });
-
-    processEvent({
-      logId,
-      serviceId,
-      displayName: service.displayName,
-      action,
-      userId,
-      event,
-      data,
-      title,
-      message,
-    }).catch((err) => log.general.error({ err, serviceId, event }, 'Async processing failed'));
-  } catch (err: unknown) {
-    log.general.error({ err, serviceId }, 'Oxy service webhook error');
-    if (!res.headersSent) {
-      res.status(500).json({ error: 'Internal server error' });
-    }
+    return response.status(202).json({ accepted: true, duplicate: false });
+  } catch (error: unknown) {
+    log.triggers.error({ err: error, eventId: event.eventId }, 'Could not persist normalized Oxy event');
+    return response.status(503).json({ error: 'event_store_unavailable' });
   }
 });
+
+/** Legacy per-service HMAC webhooks are deliberately not accepted. */
+router.post('/:legacyServiceId', (_request: Request, response: Response) => response.status(410).json({
+  error: 'legacy_oxy_webhook_retired',
+  replacement: 'POST /webhooks/oxy with an Oxy service bearer and normalized event',
+}));
 
 export default router;

@@ -214,15 +214,16 @@ domain inventory named by `domain`.
 
 ## Method, and how it could be wrong
 
-**The import graph.** Reachability for `packages/api` is a static graph over all 541
-tracked `.ts` files under `packages/api/src`, seeded from the three entrypoints the build
-actually produces (`packages/api/build.ts`): `src/index.ts`, `src/db/migrate.ts` and
-`src/scripts/purge-ip-fields.ts`. Edges are static imports, `export … from`, dynamic
-`import()` and `require()`, with comments stripped so a commented-out import cannot
-manufacture a live edge.
+**The import graph.** Reachability for `packages/api` is a static graph over all 778
+tracked `.ts` files under `packages/api/src`, seeded from the six entrypoints the build
+actually produces (`packages/api/build.ts`): `src/index.ts`, `src/db/migrate.ts`,
+`src/scripts/seed.ts`, `src/scripts/provider-key.ts`, `src/scripts/plan-models.ts` and
+`src/scripts/purge-show-objects.ts`. Edges are static imports, `export … from`, dynamic
+`import()` and `require()`, parsed syntactically so neither comments nor string fixtures
+can manufacture a live edge.
 
-Result, partitioning all 541: **406 runtime-reachable, 103 reachable only from tests
-(the 97 test files themselves plus 6 modules only they import), 32 orphans, and 0
+Result, partitioning all 778: **473 runtime-reachable, 288 reachable only from tests
+(the 279 test files themselves plus 9 modules only they import), 17 orphans, and 0
 unresolved relative specifiers** — that last number matters, because an unresolved
 specifier is a silently missing edge, and there are none.
 
@@ -413,11 +414,10 @@ establish correctness in TESTS before each switch, with rows seeded by the migra
 that zero means filtering rather than emptiness.
 
 **Delete.** `spendCreditsPaidFirst` and `credits-manager.getUserCredits`, both test-only.
-`scripts/purge-ip-fields.ts`, whose target Mongo database no longer exists — a safety net
-that cannot run is worse than none, because it survives greps and reads as protection. The
-`X-Key-Used` response header, which echoes the first 8 characters of a plaintext provider
-key: unreachable today only because its router is unmounted, which is a reachability
-accident and not a control.
+The unrunnable `scripts/purge-ip-fields.ts` safety net is now deleted together with the
+last direct Mongo driver dependency. The `X-Key-Used` response header, which echoes the
+first 8 characters of a plaintext provider key, remains unreachable only because its
+router is unmounted; that is a reachability accident and not a control.
 
 ---
 

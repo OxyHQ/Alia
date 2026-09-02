@@ -39,6 +39,10 @@ import { POST_PHASE_GREP_PATTERN } from '@oxyhq/db/migrate';
 
 const workflowPath = fileURLToPath(new URL('../../../../../.github/workflows/deploy-aws.yml', import.meta.url));
 const workflow = readFileSync(workflowPath, 'utf8');
+const integrationsWorkflow = readFileSync(
+  fileURLToPath(new URL('../../../../../.github/workflows/deploy-integrations.yml', import.meta.url)),
+  'utf8',
+);
 const resolver = readFileSync(
   fileURLToPath(new URL('../../../../../.github/scripts/resolve-ecr-platform-digest.sh', import.meta.url)),
   'utf8',
@@ -63,7 +67,7 @@ describe('deploy-aws.yml migration wiring', () => {
   });
 
   it('re-asserts both names of the API public origin on every task revision', () => {
-    const from = workflow.indexOf('      - name: Stage the Kaana edge configuration');
+    const from = workflow.indexOf('      - name: Stage Oxy inference configuration');
     const to = workflow.indexOf('      # RUN_MIGRATIONS', from);
     const environmentStage = workflow.slice(from, to);
 
@@ -71,15 +75,46 @@ describe('deploy-aws.yml migration wiring', () => {
     expect(to).toBeGreaterThan(from);
     expect(environmentStage).toContain('API_BASE_URL: "https://api.alia.onl"');
     expect(environmentStage).toContain('ALIA_API_URL: "https://api.alia.onl"');
-    expect(environmentStage).toContain("jq -cs '.[0] * .[1] * .[2]'");
+    expect(environmentStage).toContain("jq -cs '.[0] * .[1]'");
     // Required values merge last, so a future optional block cannot silently
     // override the canonical production origin.
     expect(environmentStage).toContain(
-      '<(echo "${INTEGRATIONS_ENV:-{\\}}") <(echo "$kaana_env") <(echo "$required_env")',
+      '<(echo "${INTEGRATIONS_ENV:-{\\}}") <(echo "$required_env")',
     );
     expect(workflow).toContain(
       'TASK_ENV_OVERRIDES_JSON: ${{ steps.kaana.outputs.env_overrides }}',
     );
+  });
+
+  it('wires integrations from exact SSM metadata and the Terraform Cloud Map name', () => {
+    const from = workflow.indexOf('      - name: Stage the integrations service wiring');
+    const to = workflow.indexOf('      - name: Stage Oxy inference configuration', from);
+    const stage = workflow.slice(from, to);
+
+    expect(from).toBeGreaterThanOrEqual(0);
+    expect(to).toBeGreaterThan(from);
+    expect(stage).toContain('aws ssm describe-parameters');
+    expect(stage).toContain("--query 'Parameters[0].[Name,Type]'");
+    expect(stage).toContain('actual_type" != "SecureString');
+    expect(stage).toContain('arn:aws:ssm:$AWS_REGION:237343248947:parameter/oxy/$APP/INTEGRATIONS_SECRET');
+    expect(stage).toContain('http://integrations.alia.internal.oxy.so:3005');
+    expect(stage).not.toContain('secrets.INTEGRATIONS_SECRET');
+    expect(stage).not.toContain('vars.INTEGRATIONS_URL');
+    expect(stage).not.toContain('get-parameter');
+    expect(stage).not.toContain('with-decryption');
+  });
+
+  it('does not let either deploy overwrite the SSM-owned integrations secret', () => {
+    for (const [name, source] of [
+      ['api', workflow],
+      ['integrations', integrationsWorkflow],
+    ] as const) {
+      expect(source, name).not.toContain('secrets.INTEGRATIONS_SECRET');
+      expect(source, name).not.toMatch(/put-parameter[^\n]*INTEGRATIONS_SECRET/);
+      expect(source, name).toContain('aws ssm describe-parameters');
+      expect(source, name).not.toContain('aws ssm get-parameter');
+      expect(source, name).not.toContain('--with-decryption');
+    }
   });
 
   it('deploys the validated linux/arm64 child while retaining the provenance index', () => {

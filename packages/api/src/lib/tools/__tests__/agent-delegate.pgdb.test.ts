@@ -33,39 +33,35 @@ import type { AgentDelegationResult } from '../agent-delegate.js';
 /** The account node Oxy answers with, or `null` for a 404. */
 const oxyAccount = vi.hoisted(() => ({ current: null as Record<string, unknown> | null }));
 
-vi.mock('@oxyhq/core', () => ({
-  OxyServices: class {
-    setTokens(): void {
-      /* the stub authenticates nothing */
-    }
-    /**
-     * `middleware/auth.ts` builds BOTH of its middlewares from this at MODULE
-     * LOAD, and `agent-identity.ts` imports that module — so the stub has to
-     * answer here or the import graph throws before a single case runs. No test
-     * reaches either middleware.
-     */
-    auth(): () => Promise<null> {
-      return async () => null;
-    }
-    serviceAuth(): () => Promise<null> {
-      return async () => null;
-    }
-    async getAccount(): Promise<Record<string, unknown>> {
-      if (oxyAccount.current === null) {
-        throw Object.assign(new Error('no such account'), { status: 404 });
+vi.mock('@oxyhq/core', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@oxyhq/core')>();
+  return {
+    ...actual,
+    OxyServices: class {
+      setTokens(): void {
+        /* the stub authenticates nothing */
       }
-      return oxyAccount.current;
-    }
-  },
-  /**
-   * FALSE always, which is deliberate rather than a shortcut: it makes the
-   * shared-agent case below run on STANDING alone. If the gate ever collapsed
-   * back into the act-as question, that case would go red instead of passing
-   * through a second route to the same answer.
-   */
-  canSwitchIntoAccount: () => false,
-  getNormalizedUserHandle: (user: { username?: string }) => user.username ?? null,
-}));
+      /**
+       * `middleware/auth.ts` builds BOTH of its middlewares from this at MODULE
+       * LOAD, and `agent-identity.ts` imports that module — so the stub has to
+       * answer here or the import graph throws before a single case runs. No test
+       * reaches either middleware.
+       */
+      auth(): () => Promise<null> {
+        return async () => null;
+      }
+      serviceAuth(): () => Promise<null> {
+        return async () => null;
+      }
+      async getAccount(): Promise<Record<string, unknown>> {
+        if (oxyAccount.current === null) {
+          throw Object.assign(new Error('no such account'), { status: 404 });
+        }
+        return oxyAccount.current;
+      }
+    },
+  };
+});
 
 vi.mock('../../logger.js', () => {
   const child = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };
@@ -80,7 +76,7 @@ vi.mock('../../logger.js', () => {
 vi.mock('../../oxy-user-hydration.js', () => ({ hydrateOxyUsers: vi.fn(async () => new Map()) }));
 
 vi.mock('../../chat-core.js', () => ({
-  resolveModel: vi.fn(async (id: string) => ({ id, kaanaReference: '' })),
+  resolveModel: vi.fn(async (id: string) => ({ id, oxyInferenceTarget: { kind: 'routing_profile', routingProfile: id } })),
   getAIModel: vi.fn(() => ({ modelId: 'test-model' })),
 }));
 
@@ -220,8 +216,8 @@ describe('a delegation runs only an agent the caller may reach', () => {
     const target = await seedAgent({ author: uniqueId('other'), access: 'private' });
     /**
      * Standing WITHOUT act-as: a membership on the bot account, which is what
-     * sharing an agent is. `canSwitchIntoAccount` is stubbed false, so this
-     * case can only pass through `holdsAgentStanding`.
+     * sharing an agent is. The shared delegation resolver runs for real, so
+     * this cannot pass through a test-local interpretation of Oxy's graph.
      */
     oxyAccount.current = {
       relationship: 'member',

@@ -83,6 +83,12 @@ const H = vi.hoisted(() => {
     recalledMemories: undefined as unknown,
     userMemory: null as unknown,
     searchResults: [] as Array<{ url: string; title: string; snippet: string }>,
+    /** Exact agent row returned for `body.agentId`, or null for a stale/missing id. */
+    agent: null as null | Record<string, unknown>,
+    /** Oxy's standing verdict for a private agent selected by the caller. */
+    oxyStanding: 'denies' as 'grants' | 'denies',
+    oxyCalls: 0,
+    oxyToken: undefined as string | undefined,
     /**
      * Every request the fake model received, in call order. Reading the ASSEMBLED
      * request is what turns "recall ran first" into "recall reached the model".
@@ -123,6 +129,30 @@ const H = vi.hoisted(() => {
 const { UPSTREAM_PROVIDER, UPSTREAM_MODEL_ID, V3_USAGE } = H;
 
 // ── Module mocks: the provider boundary and the stores, nothing else ────────
+
+vi.mock('@oxyhq/core', async () => {
+  const actual = await vi.importActual<typeof import('@oxyhq/core')>('@oxyhq/core');
+  return {
+    ...actual,
+    OxyServices: class {
+      setTokens(token: string): void {
+        H.state.oxyToken = token;
+      }
+      async getAccount(accountId: string): Promise<unknown> {
+        H.state.oxyCalls++;
+        return {
+          accountId,
+          kind: 'bot',
+          relationship: H.state.oxyStanding === 'grants' ? 'owner' : 'none',
+          account: { id: accountId, kind: 'bot' },
+          callerMembership: H.state.oxyStanding === 'grants'
+            ? { status: 'active', role: 'owner', permissions: ['account:act_as'] }
+            : null,
+        };
+      }
+    },
+  };
+});
 
 vi.mock('../../../lib/chat-core.js', () => ({
   resolveModel: vi.fn(async () => {
@@ -303,7 +333,10 @@ vi.mock('../../../db/chat/messageRepository.js', () => ({
 vi.mock('../../../db/agents/skillRepository.js', () => ({
   findSkillPrompt: vi.fn(async () => undefined),
 }));
-vi.mock('../../../db/agents/agentRepository.js', () => ({ findAgentById: vi.fn(async () => null) }));
+vi.mock('../../../db/agents/agentRepository.js', () => ({
+  findAgentById: vi.fn(async () => H.state.agent),
+  findAgentSkills: vi.fn(async () => []),
+}));
 
 vi.mock('../../../lib/tools/mcp.js', () => ({ buildMcpTools: vi.fn(async () => ({})) }));
 vi.mock('../../../lib/tools/integrations.js', () => ({ buildIntegrationTools: vi.fn(async () => ({})) }));
@@ -343,6 +376,7 @@ vi.mock('../../../lib/logger.js', () => {
 
 import { handleChatCompletions } from '../chat-completions.js';
 import { resolveModel } from '../../../lib/chat-core.js';
+import { clearAgentAccountVerdicts } from '../../../lib/agent-account.js';
 
 // ── Frame classification: the recorder, pinned by its own tests below ───────
 
@@ -555,8 +589,13 @@ beforeEach(() => {
   H.state.recalledMemories = undefined;
   H.state.userMemory = null;
   H.state.searchResults = [];
+  H.state.agent = null;
+  H.state.oxyStanding = 'denies';
+  H.state.oxyCalls = 0;
+  H.state.oxyToken = undefined;
   H.state.calls.length = 0;
   H.state.onModelCall = null;
+  clearAgentAccountVerdicts();
 });
 
 afterEach(() => {
@@ -623,6 +662,71 @@ describe('the frame classifier recognises every shape the route writes', () => {
     // frame gets a loud label instead, so it shows up in the diff.
     expect(classifyFrame('retry: 5000\n\n')).toBe('sse:UNRECOGNISED(retry: 5000\n\n)');
     expect(classifyFrame('data: not json\n\n')).toBe('sse:UNPARSEABLE(not json)');
+  });
+});
+
+// ===========================================================================
+// Exact-agent refusal — the route must never substitute generic Alia
+// ===========================================================================
+
+describe('fixture: an explicit agent id is fail-closed at the streaming route', () => {
+  const request = (agentId: string) => recordingReq({
+    accessToken: 'bearer-user-ws13',
+    body: {
+      messages: [{ role: 'user', content: 'answer as the selected agent' }],
+      model: 'kaana-v1',
+      stream: true,
+      agentId,
+    },
+  });
+
+  function clientFrames(res: RecordingRes): string[] {
+    return res.raw.map(classifyFrame);
+  }
+
+  it('ends a nonexistent selection with a typed SSE error and never starts Alia', async () => {
+    H.state.agent = null;
+    const res = recordingRes();
+
+    await run(request('agent-does-not-exist'), res);
+
+    expect(clientFrames(res)).toEqual([
+      'sse:comment(keep-alive)',
+      'sse:error(agent_unavailable)',
+      'sse:[DONE]',
+    ]);
+    expect(H.timeline).not.toContain('model:doStream');
+    expect(H.timeline).not.toContain('model:doGenerate');
+    expect(H.state.calls).toHaveLength(0);
+    expect(H.timeline.filter((entry) => entry.startsWith('credits:'))).toEqual([
+      'credits:reserve', 'credits:refund',
+    ]);
+  });
+
+  it('does the same for a private agent the bearer may not use', async () => {
+    H.state.agent = {
+      _id: 'agent-private',
+      id: 'agent-private',
+      oxyAccountId: 'oxy-bot-private',
+      isPublished: true,
+      access: 'private',
+      status: 'active',
+      systemPrompt: 'This prompt must never run for this caller.',
+    };
+    H.state.oxyStanding = 'denies';
+    const res = recordingRes();
+
+    await run(request('agent-private'), res);
+
+    expect(clientFrames(res)).toEqual([
+      'sse:comment(keep-alive)',
+      'sse:error(agent_unavailable)',
+      'sse:[DONE]',
+    ]);
+    expect(H.state.oxyCalls).toBe(1);
+    expect(H.state.oxyToken).toBe('bearer-user-ws13');
+    expect(H.timeline).not.toContain('model:doStream');
+    expect(H.state.calls).toHaveLength(0);
   });
 });
 

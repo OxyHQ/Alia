@@ -257,9 +257,8 @@ function inlineToolLiterals(): string[] {
  *    false-positive class the generic-constraint case above records.
  *  - **Keyed on an array in the `tools:` position.** That is what the object
  *    census does, and transposed to arrays it finds `tools: ['shell']` in
- *    `threat-patterns.ts` and the `tools` array of an `oxy_services` MANIFEST
- *    in `seed-oxy-services.ts` — data with the same field name and nothing to
- *    do with what a model may call. Worse, it MISSED `voice.ts`, whose array
+ *    `threat-patterns.ts` — data with the same field name and nothing to do
+ *    with what a model may call. Worse, it MISSED `voice.ts`, whose array
  *    now reaches the call through a filtering function, so it reported three
  *    files and not the one it exists for.
  *

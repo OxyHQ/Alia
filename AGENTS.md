@@ -2,15 +2,14 @@
 
 Producto de IA sobre Oxy y Kaana. Agente: `alia`.
 
-**Kaana es el proveedor de inferencia que Alia consume; Alia no aloja lógica de
-proveedor.** Es el único nombre que se usa dentro de Alia: módulos, tipos,
-comentarios, docs y el campo `kaana` de `/health`. Cualquier adaptador de
-proveedor o tabla de routing que quede dentro de Alia es transitorio y se está
-retirando.
+**Kaana es el plano de inferencia de Alia, pero Alia nunca lo llama ni lo firma
+directamente.** Alia usa `@oxyhq/core` (`OxyInferenceClient`) con una credencial
+de servicio: `Alia -> Oxy -> Kaana`. Oxy resuelve identidad y rutas autorizadas;
+Alia no aloja lógica ni credenciales de proveedor, claves de firma de Kaana o
+un transporte alternativo.
 
 El antiguo nombre de trabajo `Relay` está retirado. El repositorio es
-`~/Oxy/Kaana`; sus recursos, cabeceras, dominio de firma, endpoint y variables
-usan únicamente Kaana. No se admiten aliases de compatibilidad. `lib/mcp-relay.ts`
+`~/Oxy/Kaana`; no se admiten aliases de compatibilidad. `lib/mcp-relay.ts`
 es otro sistema — el relay WebSocket de MCP — y conserva ese nombre porque
 describe el protocolo que implementa.
 

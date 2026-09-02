@@ -1,8 +1,7 @@
 import { Router } from 'express';
 import { sql } from 'drizzle-orm';
 import { getDb } from '../db/index.js';
-import { kaanaConnectivity, type KaanaConnectivity } from '../lib/inference/kaana-connectivity.js';
-import { unsetKaanaVariables } from '../lib/inference/kaana.js';
+import { unsetOxyInferenceVariables } from '../lib/inference/oxy-inference.js';
 import { isQueueActive } from '../lib/task-queue.js';
 import { log } from '../lib/logger.js';
 
@@ -10,8 +9,8 @@ import { log } from '../lib/logger.js';
  * Liveness, readiness and the detailed dependency snapshot.
  *
  * Liveness is process-only. Readiness executes a real Postgres statement and
- * reports the current Kaana connectivity state without attempting to mirror
- * Kaana provider health or credentials. Kaana owns all hosted-provider runtime
+ * reports whether the Oxy inference lane is configured without pretending to
+ * probe Oxy or Kaana. Kaana owns all hosted-provider runtime
  * state; Alia exposes no provider-key census or provider-specific readiness.
  */
 
@@ -42,23 +41,18 @@ async function isPostgresReady(): Promise<boolean> {
 }
 
 /**
- * Everything this process knows about Kaana, under ONE name.
+ * Everything this process knows about its Kaana path, under ONE compatibility name.
  *
- * The two questions share the one canonical Kaana identity:
- *
- *  - `credentials` — whether this process HAS what it needs to reach Kaana.
- *    `configured`, not `serving`: nothing is probed to answer it, and a field
- *    claiming reachability without a request would be the same lie in the other
- *    direction.
- *  - `client` — what the last Kaana call observed.
+ * `credentials` says only whether this process has what it needs to authenticate
+ * to Oxy. `configured` is not `serving`: nothing is probed to answer it.
  */
 function kaanaReport(): {
+  readonly path: 'oxy';
   readonly credentials: 'configured' | 'not_configured';
-  readonly client: KaanaConnectivity;
 } {
   return {
-    credentials: unsetKaanaVariables().length === 0 ? 'configured' : 'not_configured',
-    client: kaanaConnectivity(),
+    path: 'oxy',
+    credentials: unsetOxyInferenceVariables().length === 0 ? 'configured' : 'not_configured',
   };
 }
 
@@ -73,9 +67,7 @@ async function getHealthSnapshot() {
   const redisStatus = isQueueActive() ? 'connected' : 'unavailable';
   const kaana = kaanaReport();
 
-  const isHealthy =
-    postgresReady &&
-    kaana.client !== 'unreachable';
+  const isHealthy = postgresReady;
 
   const snapshot = {
     status: isHealthy ? 'healthy' : 'degraded',

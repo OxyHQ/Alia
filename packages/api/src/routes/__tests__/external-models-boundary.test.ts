@@ -11,7 +11,7 @@ describe('external-model leaderboard boundary', () => {
       'lib/chat-core.ts',
       'lib/chat/provider-loop.ts',
       'lib/gateway-client.ts',
-      'lib/inference/kaana-client.ts',
+      'lib/inference/oxy-inference.ts',
     ]) {
       expect(readFileSync(path.join(API_SRC, relative), 'utf8'), relative).not.toContain('externalModels');
     }

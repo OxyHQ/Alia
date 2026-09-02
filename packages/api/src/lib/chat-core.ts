@@ -47,7 +47,10 @@ export interface ResolvedModel {
    * The routing profile or pinned model to send Kaana. It is `null` only for a
    * user-runtime model, which Kaana cannot reach by construction.
    */
-  kaanaReference: string | null;
+  oxyInferenceTarget:
+    | { readonly kind: 'routing_profile'; readonly routingProfile: string }
+    | { readonly kind: 'model'; readonly model: string }
+    | null;
   routingProfile: RoutingProfile;
   isFallback: boolean;
   fallbackIndex?: number;
@@ -75,17 +78,18 @@ export async function resolveModel(
   }
 
   const target = options?.pinnedModel === undefined
-    ? routingProfileId
-    : formatModelIdentity(options.pinnedModel);
+    ? { kind: 'routing_profile' as const, routingProfile: routingProfileId }
+    : { kind: 'model' as const, model: formatModelIdentity(options.pinnedModel) };
+  const targetId = target.kind === 'model' ? target.model : target.routingProfile;
 
   return {
     routingProfileId,
     provider: 'kaana',
     publisher: 'kaana',
-    model: target,
-    modelId: target,
-    keyConfig: { provider: 'kaana', modelId: target, key: '' },
-    kaanaReference: target,
+    model: targetId,
+    modelId: targetId,
+    keyConfig: { provider: 'kaana', modelId: targetId },
+    oxyInferenceTarget: target,
     routingProfile,
     isFallback: false,
   };
@@ -106,9 +110,9 @@ export function getAIModel(resolved: ResolvedModel, surface: AliaInferenceSurfac
     return runtime.chat(resolved.modelId);
   }
 
-  const reference = resolved.kaanaReference;
-  if (typeof reference !== 'string' || reference === '') {
-    throw new Error('A hosted inference route arrived without a Kaana target');
+  const target = resolved.oxyInferenceTarget;
+  if (target === null) {
+    throw new Error('A hosted inference route arrived without an Oxy inference target');
   }
-  return kaanaLanguageModel({ modelReference: reference, surface });
+  return kaanaLanguageModel({ target, surface });
 }

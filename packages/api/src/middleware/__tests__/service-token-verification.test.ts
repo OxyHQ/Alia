@@ -431,11 +431,13 @@ describe('inbound verification is @oxyhq/core, not a local implementation (#139 
       ),
     ).toEqual(['jwt.verify']);
 
-    // The credential interface has exactly the two members a PRESENTER needs.
-    const client = readFileSync(path.join(kaanaDir, 'kaana-client.ts'), 'utf8');
-    const block = /export interface KaanaServiceCredential \{([\s\S]*?)\n\}/.exec(client)?.[1] ?? '';
-    expect(block).toContain('getServiceToken(): Promise<string>');
-    expect(block).toContain('invalidateServiceToken(): void');
-    expect(block).not.toMatch(/verify|decode|parse/i);
+    // The published SDK receives a presenter function backed by OxyServices;
+    // Alia neither verifies nor parses an outbound token.
+    const credential = readFileSync(
+      path.join(kaanaDir, 'oxy-inference-credential.ts'),
+      'utf8',
+    );
+    expect(credential).toContain('return () => oxy.getServiceToken()');
+    expect(credential).not.toMatch(/jwt\.verify|verifyToken|jwtVerify/);
   });
 });
