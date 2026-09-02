@@ -445,7 +445,9 @@ const UNIQUES_RETIRED_SINCE: readonly RetiredUnique[] = [
     model: 'OxyService',
     file: 'src/models/oxy-service.ts',
     retiredBy: '4f18671b',
-    table: 'oxy_services',
+    // 0056 archives the service registry after migrating it to structured
+    // automations. PostgreSQL keeps the index name across a table rename.
+    table: 'legacy_oxy_services',
     constraint: 'oxy_services_service_id_key',
     mongooseKey: ['serviceId'],
   },
@@ -453,7 +455,7 @@ const UNIQUES_RETIRED_SINCE: readonly RetiredUnique[] = [
     model: 'OxyServiceEventLog',
     file: 'src/models/oxy-service-event-log.ts',
     retiredBy: '4f18671b',
-    table: 'oxy_service_event_logs',
+    table: 'legacy_oxy_service_event_logs',
     constraint: 'oxy_service_event_logs_service_user_event_key',
     mongooseKey: ['serviceId', 'oxyUserId', 'eventId'],
   },
