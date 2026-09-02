@@ -14,11 +14,14 @@ import {
   findTriggerForUser,
   listTriggers,
   updateTrigger,
+  type NewTrigger,
 } from '../../db/automation/triggerRepository.js';
+import { disableLegacyTriggerAutomation } from '../../db/automation/automationDefinitionRepository.js';
 import { reloadTrigger } from '../trigger-engine.js';
 import { generateWebhookToken } from '../trigger-engine.js';
 import { log } from '../logger.js';
 import { getErrorMessage } from '../errors/index.js';
+import { automationReceipt, syncStructuredAutomation } from '../structured-automation.js';
 
 export function createTriggerTool(userId: string) {
   return tool({
@@ -40,7 +43,7 @@ export function createTriggerTool(userId: string) {
     }),
     execute: async (args) => {
       try {
-        const triggerData: any = {
+        const triggerData: NewTrigger = {
           oxyUserId: userId,
           name: args.name,
           description: args.description,
@@ -70,16 +73,19 @@ export function createTriggerTool(userId: string) {
         }
 
         const trigger = await createTrigger(getDb(), triggerData);
+        const automation = await syncStructuredAutomation(trigger);
 
         // Start cron schedule if applicable
         await reloadTrigger(trigger._id);
 
-        const summary: any = {
+        const summary: Record<string, unknown> = {
           success: true,
           triggerId: trigger._id.toString(),
           name: trigger.name,
           type: trigger.type,
           enabled: true,
+          automation,
+          receipt: automationReceipt(automation),
         };
 
         if (trigger.type === 'schedule' && trigger.schedule) {
@@ -188,14 +194,18 @@ export function updateTriggerTool(userId: string) {
           },
           ...(schedule ? { schedule } : {}),
         });
+        if (!trigger) throw new Error('Trigger disappeared while it was being updated');
+        const automation = await syncStructuredAutomation(trigger);
 
         await reloadTrigger(existing._id);
 
         return {
           success: true,
           triggerId: existing._id,
-          name: trigger?.name ?? existing.name,
-          enabled: trigger?.enabled ?? existing.enabled,
+          name: trigger.name,
+          enabled: trigger.enabled,
+          automation,
+          receipt: automationReceipt(automation),
         };
       } catch (error: unknown) {
         return { success: false, error: getErrorMessage(error) };
@@ -217,12 +227,14 @@ export function deleteTriggerTool(userId: string) {
         if (!deleted) {
           return { success: false, error: 'Trigger not found' };
         }
+        await disableLegacyTriggerAutomation(getDb(), triggerId);
 
         // Stop the cron schedule
         await reloadTrigger(triggerId);
 
         return {
           success: true,
+          stopped: true,
           message: `Trigger "${deleted.name}" deleted`,
         };
       } catch (error: unknown) {
