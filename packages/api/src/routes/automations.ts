@@ -20,6 +20,7 @@ import {
   type ProvisionedAutomationAuthorization,
 } from '../lib/automation-authority.js';
 import { log } from '../lib/logger.js';
+import { automationScheduleError, reloadAutomationSchedule } from '../lib/trigger-engine.js';
 import { authenticateToken } from '../middleware/auth.js';
 
 const resourceSchema = z.object({
@@ -153,12 +154,23 @@ async function persistAuthorityAndActivate(input: {
   });
 }
 
+async function refreshSchedule(automationId: string): Promise<void> {
+  try {
+    await reloadAutomationSchedule(automationId);
+  } catch (error: unknown) {
+    // The elected scheduler also reconciles every 30 seconds, so persistence is
+    // authoritative even if this immediate local refresh loses a DB round trip.
+    log.triggers.warn({ err: error, automationId }, 'Immediate automation schedule refresh failed');
+  }
+}
+
 async function stopAutomation(input: {
   request: Request;
   ownerAccountId: string;
   automation: AutomationRecord;
 }) {
   const stopped = await setAutomationEnabled(getDb(), input.automation.id, input.ownerAccountId, false);
+  await refreshSchedule(input.automation.id);
   const active = await listActiveAutomationAuthorizations(getDb(), input.automation.id);
   if (active.length === 0) return { automation: stopped, revoked: 0, failed: 0 };
   if (!input.request.accessToken) {
@@ -197,6 +209,13 @@ router.post('/', async (request: Request, response: Response) => {
   }
   if (parsed.data.trigger.type === 'event' && parsed.data.dataFlow.sources.length === 0) {
     return response.status(400).json({ error: 'event_automation_requires_explicit_data_source' });
+  }
+  if (parsed.data.trigger.type === 'schedule') {
+    const scheduleError = automationScheduleError(
+      parsed.data.trigger.cron,
+      parsed.data.trigger.timezone,
+    );
+    if (scheduleError) return response.status(400).json({ error: scheduleError });
   }
   if (parsed.data.actions.some((action) => (
     !parsed.data.resources.some((resource) => sameResource(resource, action.resource))
@@ -297,6 +316,8 @@ router.post('/', async (request: Request, response: Response) => {
     }
   }
 
+  await refreshSchedule(automation.id);
+
   return response.status(201).json({
     automation,
     receipt: {
@@ -377,6 +398,7 @@ router.patch('/:id', async (request: Request, response: Response) => {
         ownerAccountId,
         provisioned,
       });
+      await refreshSchedule(existing.id);
       return response.json({ automation });
     } catch (error: unknown) {
       await revokeProvisioned(request.accessToken, provisioned);
@@ -385,6 +407,7 @@ router.patch('/:id', async (request: Request, response: Response) => {
     }
   }
   const automation = await setAutomationEnabled(getDb(), existing.id, ownerAccountId, true);
+  await refreshSchedule(existing.id);
   return response.json({ automation });
 });
 

@@ -125,10 +125,12 @@ function toDefinition(
   };
 }
 
-export async function listAutomationDefinitions(db: Executor, ownerAccountId: string) {
-  const rows = await db.select().from(automationDefinitions)
-    .where(eq(automationDefinitions.ownerAccountId, ownerAccountId))
-    .orderBy(desc(automationDefinitions.createdAt));
+export type AutomationDefinitionRecord = ReturnType<typeof toDefinition>;
+
+async function hydrateDefinitions(
+  db: Executor,
+  rows: DefinitionRow[],
+): Promise<AutomationDefinitionRecord[]> {
   const ids = rows.map((row) => row.id);
   const [assignments, actions] = await Promise.all([
     assignmentsFor(db, ids),
@@ -141,6 +143,13 @@ export async function listAutomationDefinitions(db: Executor, ownerAccountId: st
   ));
 }
 
+export async function listAutomationDefinitions(db: Executor, ownerAccountId: string) {
+  const rows = await db.select().from(automationDefinitions)
+    .where(eq(automationDefinitions.ownerAccountId, ownerAccountId))
+    .orderBy(desc(automationDefinitions.createdAt));
+  return hydrateDefinitions(db, rows);
+}
+
 export async function findAutomationDefinition(db: Executor, id: string, ownerAccountId: string) {
   const [row] = await db.select().from(automationDefinitions)
     .where(and(eq(automationDefinitions.id, id), eq(automationDefinitions.ownerAccountId, ownerAccountId)))
@@ -151,6 +160,36 @@ export async function findAutomationDefinition(db: Executor, id: string, ownerAc
     actionsFor(db, [id]),
   ]);
   return toDefinition(row, assignments.get(id) ?? [], actions.get(id) ?? []);
+}
+
+/** Scheduler-only lookup; ownership is preserved on the returned definition. */
+export async function findAutomationDefinitionById(db: Executor, id: string) {
+  const [row] = await db.select().from(automationDefinitions)
+    .where(eq(automationDefinitions.id, id))
+    .limit(1);
+  if (!row) return null;
+  return (await hydrateDefinitions(db, [row]))[0] ?? null;
+}
+
+/** Normalized schedules only. Legacy definitions continue through trigger rows. */
+export async function listSchedulableAutomationDefinitions(db: Executor) {
+  const rows = await db.select().from(automationDefinitions).where(and(
+    eq(automationDefinitions.triggerKind, 'schedule'),
+    eq(automationDefinitions.enabled, true),
+    isNull(automationDefinitions.legacyTriggerId),
+  )).orderBy(automationDefinitions.id);
+  return hydrateDefinitions(db, rows);
+}
+
+export async function listSchedulableAutomationVersions(db: Executor) {
+  return db.select({
+    id: automationDefinitions.id,
+    updatedAt: automationDefinitions.updatedAt,
+  }).from(automationDefinitions).where(and(
+    eq(automationDefinitions.triggerKind, 'schedule'),
+    eq(automationDefinitions.enabled, true),
+    isNull(automationDefinitions.legacyTriggerId),
+  )).orderBy(automationDefinitions.id);
 }
 
 export async function createAutomationDefinition(db: ApiDatabase, input: AutomationDefinitionInput) {
@@ -404,6 +443,7 @@ export async function matchingEventAutomations(
     eq(automationDefinitions.ownerAccountId, event.accountId),
     eq(automationDefinitions.triggerKind, 'event'),
     eq(automationDefinitions.enabled, true),
+    isNull(automationDefinitions.legacyTriggerId),
   )).orderBy(automationDefinitions.id);
   const matching = rows.filter((row) => (
     (row.eventAppId === null || row.eventAppId === '*' || row.eventAppId === event.appId)
@@ -419,11 +459,11 @@ export async function matchingEventAutomations(
     assignmentsFor(db, ids),
     actionsFor(db, ids),
   ]);
-  return matching.map((row) => ({
+  return matching.map((row) => toDefinition(
     row,
-    actions: actions.get(row.id) ?? [],
-    eligibleAgentIds: assignments.get(row.id) ?? [],
-  }));
+    assignments.get(row.id) ?? [],
+    actions.get(row.id) ?? [],
+  ));
 }
 
 export async function createAutomationRunForSession(input: {

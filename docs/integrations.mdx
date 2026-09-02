@@ -93,10 +93,11 @@ Outbound tools (e.g. `sendTelegramMessage`, `sendWhatsAppMessage`) require `R2` 
 
 ## Triggers
 
-`/triggers` is the transitional scheduler. `/automations` is the normalized
-control plane that stores the objective, actor selection, trigger, exact actions,
-data flow, limits, autonomy and `observe | execute` mode. It does not create a
-second scheduling loop.
+`/triggers` is the transitional API for legacy routines. `/automations` is the
+normalized control plane that stores the objective, actor selection, trigger,
+exact actions, data flow, limits, autonomy and `observe | execute` mode. Both
+row types are reconciled by the one elected `trigger-engine.ts` cron registry;
+there is no second scheduling loop.
 
 ```ts
 type TriggerType = 'schedule' | 'webhook' | 'integration_event' | 'agent_heartbeat';
