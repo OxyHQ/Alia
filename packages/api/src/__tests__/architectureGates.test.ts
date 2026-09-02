@@ -2782,7 +2782,6 @@ const PERMITTED_ENV_VARS: readonly string[] = [
   'LIVEKIT_INTERNAL_URL',
   'LIVEKIT_URL',
   'LOG_LEVEL',
-  'MONGODB_URI',
   'NODE_ENV',
   'OXY_API_URL',
   'PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH',
@@ -2851,7 +2850,9 @@ const PERMITTED_ENV_VARS: readonly string[] = [
 // 98 -> 99: `GITHUB_TOKEN`, optional, sent by the skill importer purely to
 // raise GitHub's anonymous rate limit. Not a provider credential — every
 // import works without it.
-const PERMITTED_ENV_VAR_COUNT = 99;
+// 99 -> 98: `MONGODB_URI` left with the final operator-only Mongoose script.
+// PostgreSQL is now the only first-party database contract in this repository.
+const PERMITTED_ENV_VAR_COUNT = 98;
 
 /**
  * Vendor tokens that name an inference provider but are not in `PROVIDER_NAMES`.

@@ -90,15 +90,14 @@ PostgreSQL through drizzle is the primary store: 80 tables under
 [`packages/api/src/db/schema/`](packages/api/src/db/schema/), and the API exits at boot if
 it cannot connect. Readiness (`GET /health/ready`) issues a real statement against it.
 
-It is the only store. `@alia/api` opens no MongoDB connection and registers no Mongoose
-model — the last domains (conversations and messages, agents and their sessions, teams and
-reviews, organizations, containers, skills, learning rules, rollback records, canvas
-sessions and event-stream entries) landed in PostgreSQL with the port tracked on
-[#139](https://github.com/OxyHQ/Alia/issues/139). The driver survives as a dependency of one
-operator one-shot,
-[`packages/api/src/scripts/purge-ip-fields.ts`](packages/api/src/scripts/purge-ip-fields.ts),
-which strips persisted IPs out of a restored backup; `packages/api/src/db/__tests__/bootWiring.test.ts`
-freezes the set of files allowed to import it at exactly that one.
+It is the only store. `@alia/api` opens no MongoDB connection, registers no Mongoose
+model and declares no Mongo driver dependency — the last domains (conversations and
+messages, agents and their sessions, teams and reviews, organizations, containers,
+skills, learning rules, rollback records, canvas sessions and event-stream entries)
+landed in PostgreSQL with the port tracked on
+[#139](https://github.com/OxyHQ/Alia/issues/139).
+`packages/api/src/db/__tests__/bootWiring.test.ts` walks the real boot graph and the
+whole tracked source tree, and fails on any Mongo driver import or direct dependency.
 
 `@alia/integrations` is on PostgreSQL too, under its own schema and its own migration
 ledger: the WhatsApp, Telegram and Signal gateways plus the MCP connector OAuth records.
