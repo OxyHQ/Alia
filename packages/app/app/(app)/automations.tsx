@@ -1,12 +1,11 @@
-import { useState } from 'react';
-import { View, ScrollView, Pressable } from 'react-native';
+import { useCallback, useMemo, useState } from 'react';
+import { View, ScrollView, Pressable, ActivityIndicator } from 'react-native';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
-import { DrawerToggle } from '@/components/ui/drawer-toggle';
 import { Dialog } from '@oxy.so/bloom/dialog';
 import { CloudCog, Plus } from 'lucide-react-native';
 import { useColorScheme } from '@/lib/useColorScheme';
@@ -14,41 +13,94 @@ import { toast } from '@oxy.so/bloom/toast';
 import { useTranslation } from '@/lib/hooks/use-translation';
 import { errorMessage as getErrorMessage } from '@/lib/errors/error-utils';
 import { ContentPanel } from '@oxy.so/bloom/content-panel';
-import { to24Hour } from '@/lib/automations/format';
+import { AutomationCard } from '@/components/automations/automation-card';
+import { latestRunsByAutomation, to24Hour } from '@/lib/automations/format';
+import { buildScheduledAutomationCreate } from '@/lib/automations/create';
+import type { AutomationDefinition, AutomationExecutionMode } from '@/lib/automations/types';
 import {
-  ALL_DAYS,
-  INITIAL_SUGGESTIONS,
-  MORE_SUGGESTIONS,
-  defaultAutomationFormState,
-  intervalMinutesValue,
-  suggestionFormState,
-  type AutomationFormState,
-  type AutomationSuggestion,
-  type Weekday,
-} from '@/lib/automations/suggestions';
-import type { LegacyAutomationCreateInput } from '@/lib/automations/types';
-import { useCreateLegacyAutomation } from '@/lib/hooks/use-automations';
+  useAutomationOverview,
+  useCreateAutomation,
+  useRunAutomation,
+  useSetAutomationEnabled,
+  useStopAutomation,
+} from '@/lib/hooks/use-automations';
+import { useMyAgents } from '@/lib/hooks/use-my-agents';
 import { useRouter } from 'expo-router';
 
-/**
- * The welcome screen that CREATES an automation.
- *
- * It used to also list the automations a person had, under the suggestions.
- * That list now lives on the Tasks page beside the sessions agents run (#537):
- * work is managed in one place, and this page is the intro, the suggestion
- * grid and the create dialog. Creation invalidates the automation overview
- * query, which is what Tasks reads, so a new automation shows there without
- * a reload — the toast points the way.
- */
+const INITIAL_SUGGESTIONS = [
+  {
+    emoji: '🔍',
+    description: 'Find and fix a bug every morning with a short summary',
+  },
+  {
+    emoji: '🌈',
+    description: 'Every evening, look through my recent threads and create new skills',
+  },
+  {
+    emoji: '🧪',
+    description: "Add tests every evening for today's code changes",
+  },
+  {
+    emoji: '💬',
+    description: 'Review PR comments every hour and share next steps',
+  },
+  {
+    emoji: '✏️',
+    description: 'Draft release notes every week from recent changes in this repo',
+  },
+  {
+    emoji: '📋',
+    description: "Summarize my team's PRs from last week every Monday morning",
+  },
+  {
+    emoji: '📱',
+    description: 'Update AGENTS.md every week with new project details',
+  },
+  {
+    emoji: '🚀',
+    description: 'Look through recent Linear tickets and start a few PRs for simple tasks',
+  },
+  {
+    emoji: '📊',
+    description: 'Write release notes every week for the latest build',
+  },
+];
 
-const DAYS_OF_WEEK: ReadonlyArray<{ label: string; name: string; value: Weekday }> = [
-  { label: 'Mo', name: 'Monday', value: 'monday' },
-  { label: 'Tu', name: 'Tuesday', value: 'tuesday' },
-  { label: 'We', name: 'Wednesday', value: 'wednesday' },
-  { label: 'Th', name: 'Thursday', value: 'thursday' },
-  { label: 'Fr', name: 'Friday', value: 'friday' },
-  { label: 'Sa', name: 'Saturday', value: 'saturday' },
-  { label: 'Su', name: 'Sunday', value: 'sunday' },
+const MORE_SUGGESTIONS = [
+  {
+    emoji: '🛡️',
+    description: 'Run a security audit every week and summarize findings',
+  },
+  {
+    emoji: '📈',
+    description: 'Generate a weekly performance report from monitoring data',
+  },
+  {
+    emoji: '🧹',
+    description: 'Clean up stale branches every Friday afternoon',
+  },
+  {
+    emoji: '📝',
+    description: 'Summarize daily standups and post to the team channel every morning',
+  },
+  {
+    emoji: '🔔',
+    description: 'Check for dependency updates every Monday and open upgrade PRs',
+  },
+  {
+    emoji: '💡',
+    description: 'Review new issues every morning and suggest labels and priorities',
+  },
+];
+
+const DAYS_OF_WEEK = [
+  { label: 'Mo', value: 'monday' },
+  { label: 'Tu', value: 'tuesday' },
+  { label: 'We', value: 'wednesday' },
+  { label: 'Th', value: 'thursday' },
+  { label: 'Fr', value: 'friday' },
+  { label: 'Sa', value: 'saturday' },
+  { label: 'Su', value: 'sunday' },
 ];
 
 export default function AutomationsScreen() {
@@ -57,80 +109,108 @@ export default function AutomationsScreen() {
   const { colors } = useColorScheme();
   const [expanded, setExpanded] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
-  /**
-   * The whole dialog as one value, replaced wholesale on every open. Six
-   * separate states were what let a suggestion inherit the schedule the last
-   * dialog was closed with (#533): name and prompt were reset, the rest never.
-   */
-  const [form, setForm] = useState<AutomationFormState>(defaultAutomationFormState);
-  const patchForm = (patch: Partial<AutomationFormState>) => (
-    setForm((current) => ({ ...current, ...patch }))
+  const [name, setName] = useState('');
+  const [prompt, setPrompt] = useState('');
+  const [scheduleType, setScheduleType] = useState<'daily' | 'hourly'>('daily');
+  const [time, setTime] = useState('06:00 PM');
+  const [timezone, setTimezone] = useState(
+    () => Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
+  );
+  const [selectedAgentId, setSelectedAgentId] = useState('');
+  const [executionMode, setExecutionMode] = useState<AutomationExecutionMode>('observe');
+  const [resourceAppId, setResourceAppId] = useState('');
+  const [effectiveAccountId, setEffectiveAccountId] = useState('');
+  const [resourceType, setResourceType] = useState('');
+  const [resourceId, setResourceId] = useState('');
+  const [tool, setTool] = useState('');
+  const [selectedDays, setSelectedDays] = useState<string[]>([
+    'monday',
+    'tuesday',
+    'wednesday',
+    'thursday',
+    'friday',
+    'saturday',
+    'sunday',
+  ]);
+
+  const overview = useAutomationOverview();
+  const agents = useMyAgents();
+  const createAutomation = useCreateAutomation();
+  const setEnabled = useSetAutomationEnabled();
+  const stopAutomation = useStopAutomation();
+  const runAutomation = useRunAutomation();
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const automations = overview.data?.automations ?? [];
+  const latestRuns = useMemo(
+    () => latestRunsByAutomation(overview.data?.runs ?? []),
+    [overview.data?.runs],
+  );
+  const agentNames = useMemo(
+    () => new Map((agents.data ?? []).map((agent) => [
+      agent._id,
+      agent.name ?? agent.handle ?? `Agent ${agent._id.slice(0, 8)}`,
+    ])),
+    [agents.data],
+  );
+  const agentName = useCallback(
+    (agentId: string) => agentNames.get(agentId) ?? `Agent ${agentId.slice(0, 8)}`,
+    [agentNames],
   );
 
-  const createAutomation = useCreateLegacyAutomation();
-
-  const handleCardPress = (suggestion: AutomationSuggestion) => {
-    setForm(suggestionFormState(suggestion));
+  const handleCardPress = (description: string) => {
+    setName('');
+    setPrompt(description);
+    setSelectedAgentId((current) => current || agents.data?.[0]?._id || '');
     setDialogOpen(true);
   };
 
   const handleCreatePress = () => {
-    setForm(defaultAutomationFormState());
+    setName('');
+    setPrompt('');
+    setSelectedAgentId((current) => current || agents.data?.[0]?._id || '');
     setDialogOpen(true);
   };
 
-  const toggleDay = (day: Weekday) => {
-    setForm((current) => ({
-      ...current,
-      selectedDays: current.selectedDays.includes(day)
-        ? current.selectedDays.filter((d) => d !== day)
-        : ALL_DAYS.filter((d) => d === day || current.selectedDays.includes(d)),
-    }));
-  };
-
   const handleCreate = async () => {
-    if (!form.name.trim() || !form.prompt.trim()) {
+    if (!name.trim() || !prompt.trim()) {
       toast.error('Name and prompt are required');
       return;
     }
 
+    const scheduledTime = scheduleType === 'daily' ? to24Hour(time) : null;
+    if (scheduleType === 'daily' && !scheduledTime) {
+      toast.error('Enter a valid time, such as 06:00 PM or 18:00');
+      return;
+    }
+    const request = buildScheduledAutomationCreate({
+      objective: name,
+      instructions: prompt,
+      schedule: scheduleType === 'daily'
+        ? { type: 'daily', time: scheduledTime ?? '', days: selectedDays }
+        : { type: 'hourly' },
+      timezone,
+      agentId: selectedAgentId,
+      executionMode,
+      resource: {
+        appId: resourceAppId,
+        effectiveAccountId,
+        resourceType,
+        resourceId,
+      },
+      tool,
+    });
+    if (!request.ok) {
+      toast.error(request.error);
+      return;
+    }
+
     try {
-      let schedule: LegacyAutomationCreateInput['schedule'];
-      if (form.scheduleType === 'daily') {
-        const scheduledTime = to24Hour(form.time);
-        if (!scheduledTime) {
-          toast.error('Enter a valid time, such as 06:00 PM or 18:00');
-          return;
-        }
-        if (form.selectedDays.length === 0) {
-          toast.error('Select at least one day');
-          return;
-        }
-        schedule = { type: 'daily', time: scheduledTime, days: form.selectedDays };
-      } else {
-        const intervalMinutes = intervalMinutesValue(form);
-        if (intervalMinutes === null) {
-          toast.error('Enter an interval of at least 1 minute');
-          return;
-        }
-        schedule = { type: 'interval', intervalMinutes };
-      }
-      await createAutomation.mutateAsync({
-        name: form.name.trim(),
-        type: 'schedule',
-        action: {
-          prompt: form.prompt.trim(),
-          useTools: true,
-        },
-        schedule,
-      });
+      const created = await createAutomation.mutateAsync(request.value);
       setDialogOpen(false);
-      toast.success(t('automations.created'), {
-        description: t('automations.createdDescription'),
-        action: {
-          label: t('automations.viewTasks'),
-          onClick: () => router.push('/(app)/tasks'),
-        },
+      toast.success('Automation created');
+      router.push({
+        pathname: '/(app)/automations/[id]',
+        params: { id: created.automation.id },
       });
     } catch (error: unknown) {
       console.error('Failed to create automation:', error);
@@ -138,12 +218,62 @@ export default function AutomationsScreen() {
     }
   };
 
-  const intervalMinutes = intervalMinutesValue(form);
-  const intervalSummary = intervalMinutes === null
-    ? t('automations.intervalInvalid')
-    : intervalMinutes === 60
-      ? t('automations.runsEveryHour')
-      : t('automations.runsEveryMinutes', { minutes: intervalMinutes });
+  const handleToggleEnabled = async (automation: AutomationDefinition, enabled: boolean) => {
+    setBusyId(automation.id);
+    try {
+      const result = await setEnabled.mutateAsync({ automation, enabled });
+      if (result.revocation?.failed) {
+        toast.error(
+          `Automation stopped, but ${result.revocation.failed} authorization revocation failed`,
+        );
+      }
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, 'Failed to update automation'));
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const handleStop = async (automation: AutomationDefinition) => {
+    setBusyId(automation.id);
+    try {
+      const result = await stopAutomation.mutateAsync(automation);
+      if (result.revocation?.failed) {
+        toast.error(
+          `Automation stopped, but ${result.revocation.failed} authorization revocation failed`,
+        );
+      } else {
+        toast.success(
+          'Automation stopped and access revoked',
+        );
+      }
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, 'Failed to stop automation'));
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const handleRunNow = async (automation: AutomationDefinition) => {
+    setBusyId(automation.id);
+    try {
+      await runAutomation.mutateAsync(automation);
+      toast.success('Automation queued');
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, 'Automation run failed'));
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const handleViewHistory = useCallback((automation: AutomationDefinition) => {
+    router.push({
+      pathname: '/(app)/automations/[id]',
+      params: { id: automation.id },
+    });
+  }, [router]);
+
+  const hasAutomations = automations.length > 0;
 
   return (
     <ContentPanel surfaceClassName="bg-background">
@@ -160,15 +290,64 @@ export default function AutomationsScreen() {
             </Text>
           </View>
 
+          {/* User's Automations */}
+          {overview.isLoading ? (
+            <View className="items-center py-8">
+              <ActivityIndicator size="small" color={colors.mutedForeground} />
+            </View>
+          ) : overview.isError ? (
+            <View className="items-center px-6 py-8 gap-3">
+              <Text className="text-sm text-muted-foreground text-center" selectable>
+                Could not load your automations.
+              </Text>
+              <Button variant="outline" size="sm" onPress={() => void overview.refetch()}>
+                Retry
+              </Button>
+            </View>
+          ) : hasAutomations ? (
+            <View className="px-6 pb-6">
+              <View className="flex-row items-center justify-between mb-4">
+                <Text className="text-lg font-semibold text-foreground">
+                  Your Automations
+                </Text>
+                <Text className="text-sm text-muted-foreground">
+                  {automations.length} total
+                </Text>
+              </View>
+
+              <View className="gap-3 max-w-3xl mx-auto">
+                {automations.map((automation) => (
+                  <AutomationCard
+                    key={automation.id}
+                    automation={automation}
+                    latestRun={latestRuns.get(automation.id)}
+                    agentName={agentName}
+                    busy={busyId === automation.id}
+                    controlsDisabled={busyId !== null}
+                    onToggle={handleToggleEnabled}
+                    onRun={handleRunNow}
+                    onStop={handleStop}
+                    onViewHistory={handleViewHistory}
+                  />
+                ))}
+              </View>
+
+              {/* Suggestions header when user has automations */}
+              <View className="mt-8 mb-4">
+                <Text className="text-lg font-semibold text-foreground">
+                  Suggestions
+                </Text>
+              </View>
+            </View>
+          ) : null}
+
           {/* Automation Cards Grid (Suggestions) */}
           <View className="px-6 pb-6">
             <View className="flex-row flex-wrap gap-3 max-w-3xl mx-auto">
-              {(expanded ? [...INITIAL_SUGGESTIONS, ...MORE_SUGGESTIONS] : INITIAL_SUGGESTIONS).map((item) => (
+              {(expanded ? [...INITIAL_SUGGESTIONS, ...MORE_SUGGESTIONS] : INITIAL_SUGGESTIONS).map((item, index) => (
                 <Pressable
-                  key={item.description}
-                  accessibilityRole="button"
-                  accessibilityLabel={item.description}
-                  onPress={() => handleCardPress(item)}
+                  key={index}
+                  onPress={() => handleCardPress(item.description)}
                   className="w-[48%] md:w-[31%] rounded-2xl bg-surface border border-border p-4 active:bg-muted/50"
                 >
                   <Text className="text-2xl mb-3">{item.emoji}</Text>
@@ -192,19 +371,12 @@ export default function AutomationsScreen() {
           </View>
         </ScrollView>
 
-        {/* Drawer opener at narrow widths (#532); hidden where the sidebar is permanent. */}
-        <View className="absolute top-4 left-4">
-          <DrawerToggle />
-        </View>
-
         {/* Floating Add Button */}
         <View className="absolute top-4 right-4">
           <Button
             variant="default"
             size="icon"
             className="rounded-full h-10 w-10"
-            accessibilityRole="button"
-            accessibilityLabel={t('automations.createAutomation')}
             onPress={handleCreatePress}
           >
             <Plus size={20} className="text-primary-foreground" />
@@ -232,23 +404,124 @@ export default function AutomationsScreen() {
             <View className="gap-2">
               <Label>{t('automations.name')}</Label>
               <Input
-                value={form.name}
-                onChangeText={(name) => patchForm({ name })}
+                value={name}
+                onChangeText={setName}
                 placeholder={t('automations.namePlaceholder')}
                 placeholderTextColor={colors.mutedForeground}
-                accessibilityLabel={t('automations.name')}
               />
             </View>
 
             <View className="gap-2">
               <Label>{t('automations.prompt')}</Label>
               <Textarea
-                value={form.prompt}
-                onChangeText={(prompt) => patchForm({ prompt })}
+                value={prompt}
+                onChangeText={setPrompt}
                 placeholder={t('automations.promptPlaceholder')}
                 placeholderTextColor={colors.mutedForeground}
-                accessibilityLabel={t('automations.prompt')}
               />
+            </View>
+
+            <View className="gap-3">
+              <Label>Responsible agent</Label>
+              {(agents.data ?? []).length > 0 ? (
+                <View className="flex-row flex-wrap gap-2">
+                  {(agents.data ?? []).map((agent) => {
+                    const selected = selectedAgentId === agent._id;
+                    return (
+                      <Pressable
+                        key={agent._id}
+                        accessibilityRole="radio"
+                        accessibilityState={{ checked: selected }}
+                        onPress={() => setSelectedAgentId(agent._id)}
+                        className={`rounded-lg border px-3 py-2 ${
+                          selected ? 'border-primary bg-primary/10' : 'border-border bg-background'
+                        }`}
+                      >
+                        <Text className={selected ? 'text-sm font-medium text-primary' : 'text-sm text-foreground'}>
+                          {agentNames.get(agent._id) ?? `Agent ${agent._id.slice(0, 8)}`}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              ) : (
+                <Text className="text-sm text-muted-foreground">
+                  Create an agent and delegate an exact app resource before adding an automation.
+                </Text>
+              )}
+            </View>
+
+            <View className="gap-3">
+              <Label>Execution</Label>
+              <ToggleGroup
+                type="single"
+                value={executionMode}
+                onValueChange={(value) => {
+                  if (value === 'observe' || value === 'execute') setExecutionMode(value);
+                }}
+                className="gap-0 self-start rounded-lg border border-border overflow-hidden"
+              >
+                <ToggleGroupItem
+                  value="observe"
+                  className="rounded-none border-0 px-3 py-1.5"
+                  activeClassName="bg-foreground"
+                  activeTextClassName="text-background"
+                >
+                  Observe
+                </ToggleGroupItem>
+                <ToggleGroupItem
+                  value="execute"
+                  className="rounded-none border-0 px-3 py-1.5"
+                  activeClassName="bg-foreground"
+                  activeTextClassName="text-background"
+                >
+                  Execute
+                </ToggleGroupItem>
+              </ToggleGroup>
+              <Text className="text-xs text-muted-foreground">
+                Execute provisions exact Oxy authority. Observe records decisions without effects.
+              </Text>
+            </View>
+
+            <View className="gap-3">
+              <Label>Exact Oxy action</Label>
+              <View className="flex-row flex-wrap gap-2">
+                <Input
+                  className="min-w-40 flex-1"
+                  value={resourceAppId}
+                  onChangeText={setResourceAppId}
+                  placeholder="App ID"
+                  accessibilityLabel="Action app ID"
+                />
+                <Input
+                  className="min-w-40 flex-1"
+                  value={effectiveAccountId}
+                  onChangeText={setEffectiveAccountId}
+                  placeholder="Effective account"
+                  accessibilityLabel="Action effective account"
+                />
+                <Input
+                  className="min-w-40 flex-1"
+                  value={resourceType}
+                  onChangeText={setResourceType}
+                  placeholder="Resource type"
+                  accessibilityLabel="Action resource type"
+                />
+                <Input
+                  className="min-w-40 flex-1"
+                  value={resourceId}
+                  onChangeText={setResourceId}
+                  placeholder="Resource ID"
+                  accessibilityLabel="Action resource ID"
+                />
+                <Input
+                  className="min-w-40 flex-1"
+                  value={tool}
+                  onChangeText={setTool}
+                  placeholder="Exact tool name"
+                  accessibilityLabel="Action tool name"
+                />
+              </View>
             </View>
 
             <View className="gap-3">
@@ -256,9 +529,9 @@ export default function AutomationsScreen() {
                 <Label>{t('automations.schedule')}</Label>
                 <ToggleGroup
                   type="single"
-                  value={form.scheduleType}
+                  value={scheduleType}
                   onValueChange={(val) => {
-                    if (val === 'daily' || val === 'interval') patchForm({ scheduleType: val });
+                    if (val === 'daily' || val === 'hourly') setScheduleType(val);
                   }}
                   className="gap-0 rounded-lg border border-border overflow-hidden"
                 >
@@ -271,83 +544,78 @@ export default function AutomationsScreen() {
                     {t('automations.daily')}
                   </ToggleGroupItem>
                   <ToggleGroupItem
-                    value="interval"
+                    value="hourly"
                     className="rounded-none border-0 px-3 py-1.5"
                     activeClassName="bg-foreground"
                     activeTextClassName="text-background"
                   >
-                    {t('automations.interval')}
+                    {t('automations.hourly')}
                   </ToggleGroupItem>
                 </ToggleGroup>
               </View>
 
-              {form.scheduleType === 'daily' ? (
-                /**
-                 * Time on its own row, the week on the next. In one row a
-                 * `flex-1` input beside seven fixed 36px buttons was squeezed
-                 * to 29px at phone widths and the value was unreadable (#535).
-                 */
+              {scheduleType === 'daily' ? (
                 <View className="rounded-xl bg-muted p-4 gap-3">
-                  <Input
-                    className="w-full"
-                    value={form.time}
-                    onChangeText={(time) => patchForm({ time })}
-                    placeholder="06:00 PM"
-                    accessibilityLabel="Schedule time"
-                    autoCapitalize="characters"
-                  />
-                  <View className="flex-row flex-wrap gap-1.5">
-                    {DAYS_OF_WEEK.map((day) => {
-                      const isSelected = form.selectedDays.includes(day.value);
-                      return (
-                        <Pressable
-                          key={day.value}
-                          accessibilityRole="button"
-                          accessibilityLabel={day.name}
-                          accessibilityState={{ selected: isSelected }}
-                          onPress={() => toggleDay(day.value)}
-                          className="active:opacity-70"
-                        >
-                          <View
-                            className={`w-9 h-9 rounded-full items-center justify-center ${
-                              isSelected
-                                ? 'bg-foreground'
-                                : 'bg-background border border-border'
-                            }`}
+                  <View className="flex-row items-center gap-3">
+                    <Input
+                      className="flex-1"
+                      value={time}
+                      onChangeText={setTime}
+                      placeholder="06:00 PM"
+                      accessibilityLabel="Schedule time"
+                      autoCapitalize="characters"
+                    />
+                    <View className="flex-row gap-1.5">
+                      {DAYS_OF_WEEK.map((day) => {
+                        const isSelected = selectedDays.includes(day.value);
+                        return (
+                          <Pressable
+                            key={day.value}
+                            onPress={() => {
+                              setSelectedDays((prev) =>
+                                prev.includes(day.value)
+                                  ? prev.filter((d) => d !== day.value)
+                                  : [...prev, day.value],
+                              );
+                            }}
+                            className="active:opacity-70"
                           >
-                            <Text
-                              className={`text-xs font-medium ${
+                            <View
+                              className={`w-9 h-9 rounded-full items-center justify-center ${
                                 isSelected
-                                  ? 'text-background'
-                                  : 'text-foreground'
+                                  ? 'bg-foreground'
+                                  : 'bg-background border border-border'
                               }`}
                             >
-                              {day.label}
-                            </Text>
-                          </View>
-                        </Pressable>
-                      );
-                    })}
+                              <Text
+                                className={`text-xs font-medium ${
+                                  isSelected
+                                    ? 'text-background'
+                                    : 'text-foreground'
+                                }`}
+                              >
+                                {day.label}
+                              </Text>
+                            </View>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
                   </View>
                 </View>
               ) : (
-                <View className="rounded-xl bg-muted p-4 gap-3">
-                  <View className="flex-row items-center gap-3">
-                    <Label className="flex-1">{t('automations.intervalMinutes')}</Label>
-                    <Input
-                      className="w-24"
-                      value={form.intervalMinutes}
-                      onChangeText={(intervalMinutes) => patchForm({ intervalMinutes })}
-                      placeholder="60"
-                      keyboardType="number-pad"
-                      accessibilityLabel="Interval minutes"
-                    />
-                  </View>
+                <View className="rounded-xl bg-muted p-4">
                   <Text className="text-sm text-muted-foreground" selectable>
-                    {intervalSummary}
+                    Runs every hour.
                   </Text>
                 </View>
               )}
+              <Input
+                value={timezone}
+                onChangeText={setTimezone}
+                placeholder="Europe/Bucharest"
+                accessibilityLabel="Schedule timezone"
+              />
             </View>
           </View>
         </Dialog>

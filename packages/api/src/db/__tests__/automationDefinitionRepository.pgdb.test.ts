@@ -16,7 +16,6 @@ import {
   markAutomationActionStep,
   markAutomationRunForSession,
   updateAutomationDefinition,
-  upsertLegacyTriggerAutomation,
   upsertAutomationActionAuthorizations,
 } from '../automation/automationDefinitionRepository';
 import { createAutomationStageSession } from '../agents/agentSessionRepository';
@@ -404,7 +403,7 @@ describe('normalized automation definitions', () => {
     });
   });
 
-  it('schedules normalized definitions without duplicating legacy trigger rows', async () => {
+  it('schedules normalized definitions', async () => {
     const automationId = uuidv7();
     await createAutomationDefinition(db, {
       id: automationId,
@@ -431,19 +430,6 @@ describe('normalized automation definitions', () => {
       limits: [],
       enabled: true,
     });
-    const legacyTriggerId = uuidv7();
-    await upsertLegacyTriggerAutomation({
-      db,
-      legacyTriggerId,
-      ownerAccountId: 'aut-owner-schedule',
-      objective: 'Legacy schedule',
-      triggerKind: 'schedule',
-      scheduleCron: '0 10 * * 1',
-      scheduleTimezone: 'UTC',
-      inputs: {},
-      enabled: true,
-    });
-
     const scheduled = await listSchedulableAutomationDefinitions(db);
     expect(scheduled.filter((entry) => entry.ownerAccountId === 'aut-owner-schedule'))
       .toEqual([expect.objectContaining({ id: automationId })]);
@@ -452,6 +438,6 @@ describe('normalized automation definitions', () => {
         trigger: { type: 'schedule', cron: '0 9 * * 1', timezone: 'UTC' },
       }));
     expect(await listAutomationDefinitions(db, 'aut-owner-schedule'))
-      .toContainEqual(expect.objectContaining({ legacyTriggerId }));
+      .toContainEqual(expect.objectContaining({ id: automationId }));
   });
 });
