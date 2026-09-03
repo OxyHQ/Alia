@@ -179,8 +179,67 @@ describe('consumeAliaChatStream', () => {
     await expect(consume([new Uint8Array([0xc3, 0x28])])).rejects.toBeInstanceOf(TypeError);
   });
 
+  it('completes at terminal DONE without waiting for the transport to close', async () => {
+    let cancelled = false;
+    const response = new Response(
+      new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(encoder.encode(frames(
+            chunk({ content: 'finished' }),
+            chunk({}, 'stop'),
+            '[DONE]',
+          )));
+        },
+        cancel() {
+          cancelled = true;
+        },
+      }),
+      { headers: { 'content-type': 'text/event-stream' } },
+    );
+
+    await expect(consumeAliaChatStream(response, () => undefined)).resolves.toEqual({
+      answerReceived: true,
+      finishReason: 'stop',
+    });
+    expect(cancelled).toBe(true);
+  });
+
+  it('cancels a transport that does not propagate its caller abort signal', async () => {
+    let cancelled = false;
+    const response = new Response(
+      new ReadableStream<Uint8Array>({
+        cancel() {
+          cancelled = true;
+        },
+      }),
+      { headers: { 'content-type': 'text/event-stream' } },
+    );
+    const controller = new AbortController();
+    const consumption = consumeAliaChatStream(response, () => undefined, controller.signal);
+    controller.abort();
+
+    await expect(consumption).rejects.toMatchObject({ name: 'AbortError' });
+    expect(cancelled).toBe(true);
+  });
+
+  it('drains complete frames before applying the unfinished-frame buffer limit', async () => {
+    const content = 'x'.repeat(1000);
+    const wire = frames(
+      ...Array.from({ length: 1100 }, () => chunk({ content })),
+      chunk({}, 'stop'),
+      '[DONE]',
+    );
+    let receivedBytes = 0;
+
+    await consumeAliaChatStream(responseFrom([wire]), (event) => {
+      if (event.kind === 'content') receivedBytes += event.content.length;
+    });
+
+    expect(receivedBytes).toBe(1_100_000);
+  });
+
   it('bounds the number of lines it will process', async () => {
-    const keepAlives = ': keepalive\n\n'.repeat(4097);
+    const keepAlives = ': keepalive\n\n'.repeat(65_537);
     await expect(consume([keepAlives])).rejects.toThrow('exceeded its line limit');
   });
 

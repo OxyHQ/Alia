@@ -1,7 +1,7 @@
 import type { PlanStep, ResearchProgress, ResearchSource } from '../types';
 
 const MAX_STREAM_BYTES = 8 * 1024 * 1024;
-const MAX_STREAM_LINES = 4096;
+const MAX_STREAM_LINES = 65_536;
 const MAX_BUFFER_BYTES = 1024 * 1024;
 
 type JsonObject = Record<string, unknown>;
@@ -43,6 +43,16 @@ export class AliaChatStreamError extends Error {
     super(message);
     this.name = 'AliaChatStreamError';
   }
+}
+
+function abortError(): Error {
+  const error = new Error('The Alia stream was aborted.');
+  error.name = 'AbortError';
+  return error;
+}
+
+function throwIfAborted(signal: AbortSignal | undefined): void {
+  if (signal?.aborted) throw abortError();
 }
 
 function fail(message: string): never {
@@ -436,7 +446,9 @@ function splitNextFrame(buffer: string): { frame: string; rest: string } | null 
 export async function consumeAliaChatStream(
   response: Response,
   onEvent: (event: AliaChatStreamEvent) => void,
+  signal?: AbortSignal,
 ): Promise<AliaChatStreamResult> {
+  throwIfAborted(signal);
   const mime = response.headers.get('content-type')?.split(';', 1)[0]?.trim().toLowerCase();
   if (mime !== 'text/event-stream') {
     await response.body?.cancel().catch(() => undefined);
@@ -447,6 +459,10 @@ export async function consumeAliaChatStream(
   }
 
   const reader = response.body.getReader();
+  const onAbort = (): void => {
+    void reader.cancel().catch(() => undefined);
+  };
+  signal?.addEventListener('abort', onAbort, { once: true });
   const decoder = new TextDecoder('utf-8', { fatal: true });
   let buffer = '';
   let totalBytes = 0;
@@ -497,7 +513,9 @@ export async function consumeAliaChatStream(
 
   try {
     while (true) {
+      throwIfAborted(signal);
       const chunk = await reader.read();
+      throwIfAborted(signal);
       if (chunk.done) {
         buffer += decoder.decode();
         break;
@@ -505,16 +523,22 @@ export async function consumeAliaChatStream(
       totalBytes += chunk.value.byteLength;
       if (totalBytes > MAX_STREAM_BYTES) fail('The Alia stream exceeded its byte limit.');
       buffer += decoder.decode(chunk.value, { stream: true });
-      if (buffer.length > MAX_BUFFER_BYTES) fail('The Alia stream contains an oversized frame.');
 
       let next = splitNextFrame(buffer);
       while (next !== null) {
+        throwIfAborted(signal);
         buffer = next.rest;
         lineCount += next.frame.split('\n').length;
         if (lineCount > MAX_STREAM_LINES) fail('The Alia stream exceeded its line limit.');
         const frame = parseSSEFrame(next.frame);
         if (frame !== null) dispatch(frame);
         next = splitNextFrame(buffer);
+      }
+      if (buffer.length > MAX_BUFFER_BYTES) fail('The Alia stream contains an oversized frame.');
+      if (doneReceived) {
+        if (buffer.trim().length > 0) fail('The Alia stream continued after [DONE].');
+        await reader.cancel().catch(() => undefined);
+        break;
       }
     }
 
@@ -527,6 +551,7 @@ export async function consumeAliaChatStream(
     await reader.cancel().catch(() => undefined);
     throw error;
   } finally {
+    signal?.removeEventListener('abort', onAbort);
     reader.releaseLock();
   }
 }

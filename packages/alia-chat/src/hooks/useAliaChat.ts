@@ -17,9 +17,9 @@ export interface UseAliaChatOptions {
   /** App context injected as system message so Alia knows which app the user is in. */
   clientContext?: string;
   /**
-   * @deprecated Authentication is owned by the surrounding OxyProvider. When
-   * supplied, this value is accepted only if it is the provider's active token;
-   * the SDK never writes it to an Authorization header itself.
+   * Optional assertion for callers that already hold the surrounding
+   * OxyProvider's active token. A different token is refused; the SDK never
+   * writes this value to an Authorization header itself.
    */
   accessToken?: string;
 }
