@@ -2,7 +2,8 @@
  * The retained routing catalogue: which Kaana routing profile a caller asks
  * for and the historical provider-model mapping awaiting Kaana reconciliation.
  *
- * Four tables. Three are the retained model catalogue;
+ * Five tables. Three are the retained model catalogue; `provider_keys` is a
+ * dormant rollback asset until the separately gated retirement release;
  * `external_models` is unrelated to routing and is here because it is the other
  * thing in this service called a "model" — a read-only mirror of a third party's
  * public leaderboard, which nothing in the completion path consults.
@@ -47,9 +48,23 @@ import {
 import { sql } from 'drizzle-orm';
 import { createdAt, generatedId, timestamptz, updatedAt } from '@oxyhq/db';
 import { checkOneOf } from './columns';
+import { organizations } from './organizations';
 import { ROUTING_TIERS } from '../../internal/providers/lib/routing-tiers.js';
 import { PROVIDER_NAMES } from '../../internal/providers/lib/provider-names.js';
 import { MODEL_PRICING_TIERS } from '../../domain/model-config.js';
+
+// These tuples exist only to keep the dormant provider_keys table represented
+// exactly as the first cutover release leaves it. No provider runtime imports or
+// writes them.
+const RETIRED_PROVIDER_KEY_ENVIRONMENTS = ['production', 'staging', 'development'] as const;
+const RETIRED_PROVIDER_KEY_TIERS = ['free', 'freemium', 'paid', 'enterprise'] as const;
+const RETIRED_PROVIDER_KEY_CREDIT_RENEWALS = ['never', 'weekly', 'monthly'] as const;
+const RETIRED_PROVIDER_KEY_ROTATION_SCHEDULES = [
+  'manual',
+  'monthly',
+  'quarterly',
+  'yearly',
+] as const;
 
 /**
  * One provider model this service knows how to call.
@@ -270,6 +285,126 @@ export const routingProfileProviderMappings = pgTable(
     check(
       'routing_profile_provider_mappings_quality_score_range_check',
       sql`${t.qualityScore} between 0 and 100`,
+    ),
+  ],
+);
+
+/**
+ * Dormant rollback copy of Alia's former hosted-provider credentials.
+ *
+ * No repository, route, adapter or runtime service imports this declaration.
+ * The table remains intact for the first cutover release as a reconciliation
+ * and forensic safety snapshot while the real Oxy -> Kaana canary is verified.
+ * It does not authorise restoring the direct-provider runtime. A later,
+ * separately approved migration may drop it only after the cutover gate closes.
+ */
+export const providerKeys = pgTable(
+  'provider_keys',
+  {
+    id: generatedId(),
+    name: text().notNull(),
+    provider: text({ enum: PROVIDER_NAMES as unknown as [string, ...string[]] }).notNull(),
+    environment: text({
+      enum: RETIRED_PROVIDER_KEY_ENVIRONMENTS as unknown as [string, ...string[]],
+    })
+      .notNull()
+      .default('production'),
+    keyHash: text().notNull(),
+    keyPrefix: text().notNull(),
+    key: text(),
+    rateLimitRps: integer(),
+    rateLimitRpm: integer(),
+    rateLimitRph: integer(),
+    rateLimitRpd: integer(),
+    rateLimitTps: integer(),
+    rateLimitTpm: integer(),
+    rateLimitTph: integer(),
+    rateLimitTpd: integer(),
+    isActive: boolean().notNull().default(true),
+    isPaid: boolean().notNull().default(false),
+    tier: text({ enum: RETIRED_PROVIDER_KEY_TIERS as unknown as [string, ...string[]] })
+      .notNull()
+      .default('free'),
+    currentPriority: integer().notNull().default(10),
+    originalPriority: integer().notNull().default(10),
+    description: text(),
+    creditLimitUsd: doublePrecision('credit_limit_usd'),
+    spentUsd: doublePrecision('spent_usd').notNull().default(0),
+    creditRenews: text({
+      enum: RETIRED_PROVIDER_KEY_CREDIT_RENEWALS as unknown as [string, ...string[]],
+    })
+      .notNull()
+      .default('never'),
+    creditPeriodStart: timestamptz(),
+    lastUsedAt: timestamptz(),
+    lastSuccessAt: timestamptz(),
+    totalRequests: integer().notNull().default(0),
+    totalTokens: integer().notNull().default(0),
+    successCount: integer().notNull().default(0),
+    consecutiveFailures: integer().notNull().default(0),
+    totalFailures: integer().notNull().default(0),
+    lastFailureAt: timestamptz(),
+    lastFailureReason: text(),
+    cooldownUntil: timestamptz(),
+    rateLimitResetMs: integer(),
+    maxTotalFailures: integer().notNull().default(100),
+    isArchived: boolean().notNull().default(false),
+    archivedAt: timestamptz(),
+    archivedReason: text(),
+    rotatedAt: timestamptz(),
+    expiresAt: timestamptz(),
+    rotationSchedule: text({
+      enum: RETIRED_PROVIDER_KEY_ROTATION_SCHEDULES as unknown as [string, ...string[]],
+    })
+      .notNull()
+      .default('manual'),
+    ownerId: text(),
+    organizationId: text().references(() => organizations.id, { onDelete: 'cascade' }),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    uniqueIndex('provider_keys_key_hash_key').on(t.keyHash),
+    index('provider_keys_rotation_idx').on(
+      t.provider,
+      t.isActive,
+      t.isArchived,
+      t.currentPriority,
+    ),
+    index('provider_keys_environment_active_idx').on(t.environment, t.isActive),
+    index('provider_keys_owner_id_idx').on(t.ownerId).where(sql`${t.ownerId} is not null`),
+    index('provider_keys_organization_id_idx')
+      .on(t.organizationId)
+      .where(sql`${t.organizationId} is not null`),
+    checkOneOf('provider_keys_provider_check', t.provider, PROVIDER_NAMES),
+    checkOneOf(
+      'provider_keys_environment_check',
+      t.environment,
+      RETIRED_PROVIDER_KEY_ENVIRONMENTS,
+    ),
+    checkOneOf('provider_keys_tier_check', t.tier, RETIRED_PROVIDER_KEY_TIERS),
+    checkOneOf(
+      'provider_keys_credit_renews_check',
+      t.creditRenews,
+      RETIRED_PROVIDER_KEY_CREDIT_RENEWALS,
+    ),
+    checkOneOf(
+      'provider_keys_rotation_schedule_check',
+      t.rotationSchedule,
+      RETIRED_PROVIDER_KEY_ROTATION_SCHEDULES,
+    ),
+    check(
+      'provider_keys_current_priority_range_check',
+      sql`${t.currentPriority} between 1 and 1000`,
+    ),
+    check(
+      'provider_keys_original_priority_range_check',
+      sql`${t.originalPriority} between 1 and 100`,
+    ),
+    check('provider_keys_spent_usd_check', sql`${t.spentUsd} >= 0`),
+    check(
+      'provider_keys_max_total_failures_range_check',
+      sql`${t.maxTotalFailures} between 10 and 1000`,
     ),
   ],
 );

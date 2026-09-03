@@ -4,9 +4,10 @@ Binding for every table in this schema. Decision and reason, nothing else.
 
 > Post-cutover note: references below to `provider_keys`, `provider_health`,
 > `api_usage` and `fallback_events` document immutable migration decisions only.
-> They are not active Alia tables after post-cutover migration 0057. Kaana owns
-> hosted provider credentials and runtime telemetry; do not reintroduce readers,
-> writers or compatibility endpoints in Alia.
+> They remain dormant during the first release's rollback window, with no Alia
+> readers, writers, sweepers or compatibility endpoints. Kaana owns hosted
+> provider credentials and runtime telemetry. Their destructive migration is a
+> separate release after a real Oxy -> Kaana canary closes rollback.
 
 `packages/integrations/src/db/schema/CONVENTIONS.md` established the toolchain on
 the smallest service. This file does NOT repeat it — read that one first. What

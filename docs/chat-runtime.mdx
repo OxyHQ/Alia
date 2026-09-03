@@ -13,11 +13,17 @@ is delegated to Kaana.
 
 ## Identity
 
-The request `model` field names either a Kaana routing profile such as
-`kaana-v1`, or a concrete `<publisher>/<model>[@<revision>]` reference. A routing
-profile is a policy choice, not an Alia-branded model and not a provider alias.
-Removed `alia-*` identifiers are unregistered; there is no translation or
-deprecation shim for them.
+The request `model` field names either an exact Alia product routing identifier
+such as `kaana-v1`, or a concrete `<publisher>/<model>[@<revision>]` reference.
+The identifier is matched by exact string equality, never by display name,
+database order or a first-row fallback. Alia translates an accepted public
+profile through the reviewed closed map in
+`packages/api/src/config/oxy-inference-routing-profile-ids.ts` and sends Oxy its
+opaque routing-profile primary key as `routingProfileId`. Oxy validates that
+exact row before building the Kaana v2 envelope; Kaana never receives or looks
+up the product spelling. A routing profile is a policy choice, not an
+Alia-branded model and not a provider alias. Removed `alia-*` identifiers are
+unregistered; there is no translation or deprecation shim for them.
 
 User-owned runtimes are a separate explicit path. Their user-supplied model and
 credential never join Kaana's hosted credential pool.
@@ -29,7 +35,7 @@ credential never join Kaana's hosted credential pool.
    product mode and capabilities, then reserves product credits.
 3. Alia assembles conversation context, memory, agent instructions and tools.
 4. The inference seam calls `@oxyhq/core`'s `OxyInferenceClient` with an exact
-   routing profile or concrete model and Alia's service credential.
+   opaque `routingProfileId` or concrete model and Alia's service credential.
 5. Oxy authenticates that credential and resolves routing policy into ordered
    `authorizedRoutes`, signs the final envelope, and sends it to Kaana.
 6. Kaana executes only those authorized deployments, streams contract events
@@ -84,3 +90,9 @@ and must not be exposed through Alia responses or errors.
 
 If Oxy or Kaana is unavailable, hosted inference fails visibly with the typed
 product error. Alia does not fall back to an in-process provider adapter.
+
+## Automation control plane
+
+`/automations` is the normalized structured control plane. `/triggers` remains
+available for legacy routines; both scheduled row types use the same elected
+scheduler.

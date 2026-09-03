@@ -1,5 +1,10 @@
 # Epic #139: the decisions only a person can make
 
+> **Archived decision inventory.** “Open”, “live” and provider-custody claims
+> below are pinned to the 2026-08-17 measurement; they do not describe current
+> runtime. Current hosted inference is Alia → Oxy → Kaana, and provider keys
+> exist only in Kaana's encrypted PostgreSQL/KMS custody.
+
 Fourteen sections covering fifteen items from [issue #139](https://github.com/OxyHQ/Alia/issues/139)
 that no agent can land, because each is a product, commercial, legal or operational call rather than
 an engineering one.

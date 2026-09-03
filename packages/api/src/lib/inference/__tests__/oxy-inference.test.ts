@@ -29,6 +29,7 @@ vi.mock('@oxyhq/core', () => ({
 
 import {
   buildOxyInferenceClient,
+  buildOxyInferenceClientForServiceToken,
   oxyInferenceEndpointRefusal,
   resetOxyInferenceClient,
 } from '../oxy-inference.js';
@@ -36,8 +37,8 @@ import {
 const configured = {
   NODE_ENV: 'production',
   OXY_API_URL: 'https://api.oxy.so',
-  ALIA_KAANA_CREDENTIAL_KEY: 'credential-key',
-  ALIA_KAANA_CREDENTIAL_SECRET: 'credential-secret',
+  OXY_SERVICE_API_KEY: 'credential-key',
+  OXY_SERVICE_API_SECRET: 'credential-secret',
 } as NodeJS.ProcessEnv;
 
 describe('Oxy inference client', () => {
@@ -49,7 +50,7 @@ describe('Oxy inference client', () => {
   });
 
   it('fails closed when the Oxy service credential is incomplete', () => {
-    expect(buildOxyInferenceClient({ ...configured, ALIA_KAANA_CREDENTIAL_SECRET: '' })).toBeNull();
+    expect(buildOxyInferenceClient({ ...configured, OXY_SERVICE_API_SECRET: '' })).toBeNull();
     expect(mocks.clientOptions).toEqual([]);
   });
 
@@ -70,5 +71,18 @@ describe('Oxy inference client', () => {
     const options = mocks.clientOptions[0] as { baseURL: string; credential: () => Promise<string> };
     expect(options.baseURL).toBe('https://api.oxy.so');
     await expect(options.credential()).resolves.toBe('short-lived-oxy-service-token');
+  });
+
+  it('builds a request-scoped client from the verified product token without Alia credentials', () => {
+    expect(buildOxyInferenceClientForServiceToken(' product-service-token ', {
+      NODE_ENV: 'production',
+      OXY_API_URL: 'https://api.oxy.so',
+    })).not.toBeNull();
+    expect(mocks.serviceOptions).toEqual([]);
+    expect(mocks.configuredCredentials).toEqual([]);
+    expect(mocks.clientOptions).toEqual([{
+      baseURL: 'https://api.oxy.so',
+      credential: 'product-service-token',
+    }]);
   });
 });

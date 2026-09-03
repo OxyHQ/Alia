@@ -43,6 +43,7 @@ import type { EffortLevel } from './reasoning-effort.js';
 const EXTENDED_REASONING_PROMPT = 'extended-reasoning';
 import { log } from './logger.js';
 import { agentPromptName, type HydratedAgent } from './agent-identity.js';
+import { readCapabilityGrants } from '../domain/capability-grants.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -88,7 +89,7 @@ export interface SystemPromptOptions {
    * person asked for are prepended, above the base prompt, where a skill can
    * shape how the turn is answered. Neither goes above the identity guard.
    */
-  skills?: { index: string; active: string } | null;
+  skills?: { index: string; active: string; agentScoped?: boolean } | null;
   /** Linked agent (for archetype prompt injection) */
   linkedAgent?: HydratedAgent | null;
   /** Whether agent mode is active */
@@ -146,6 +147,27 @@ export class SystemPromptBuilder {
     } = opts;
 
     /**
+     * Prompt context and executable tools share one authority decision.
+     *
+     * The tool pipeline has always read `capabilityGrants` deny-by-default,
+     * but this builder used to append the person's memories, profile, connected
+     * Inbox context and communication/delegation hints independently. That made
+     * an agent with no grants unable to CALL a memory tool while still reading
+     * the same memory in its system prompt. A capability boundary applies to
+     * information as well as effects, so every user-owned prompt fragment is
+     * gated from this same parsed set.
+     *
+     * Ordinary Alia has no linked agent and remains unpartitioned.
+     */
+    const agentGrants = linkedAgent
+      ? readCapabilityGrants(linkedAgent.capabilityGrants ?? [])
+      : null;
+    const mayReadMemory = agentGrants === null || agentGrants.allows('memory');
+    const mayUseMessaging = agentGrants === null || agentGrants.allows('messaging');
+    const mayDelegate = agentGrants === null || agentGrants.allows('delegation');
+    const mayReadSkills = agentGrants === null || skills?.agentScoped === true;
+
+    /**
      * 1. Base prompt, selected through the product prompt registry.
      *
      * `loadPrompt` reads `prompts/<name>.md`; the registry deliberately keeps
@@ -180,7 +202,7 @@ export class SystemPromptBuilder {
     }
 
     // 4. Recalled memories from hooks
-    if (recalledMemories?.length) {
+    if (mayReadMemory && recalledMemories?.length) {
       const memoryLines = recalledMemories.slice(0, 12).map((m) => `- ${m.title}: ${m.summary}`).join('\n');
       systemMessage += `\n\n## Recalled Memories\n${memoryLines}`;
     }
@@ -201,15 +223,21 @@ export class SystemPromptBuilder {
     if (isDirectUserSession) {
       // User name
       const userName = oxyUser?.name?.full || oxyUser?.name?.first || oxyUser?.username;
-      if (userName) {
+      if (agentGrants === null && userName) {
         systemMessage += `\n\nThe user's name is ${userName}.`;
       }
 
       // Communication tools hint
-      systemMessage += '\n\nYou have `sendTelegramMessage` and WhatsApp tools (`getWhatsAppChats`, `getWhatsAppMessages`, `sendWhatsAppMessage`). Use them when the user asks. For WhatsApp, call getWhatsAppChats first to get chat JIDs.';
+      if (mayUseMessaging) {
+        systemMessage += '\n\nYou have `sendTelegramMessage` and WhatsApp tools (`getWhatsAppChats`, `getWhatsAppMessages`, `sendWhatsAppMessage`). Use them when the user asks. For WhatsApp, call getWhatsAppChats first to get chat JIDs.';
+      }
 
-      // Oxy service context (non-blocking)
-      if (userId && accessToken) {
+      // Oxy service context (non-blocking). Agent access to Oxy apps is decided
+      // by normalized DelegationGrant assignments in `buildOxyServiceTools`,
+      // not by the person's direct-session context. Until that resolver returns
+      // a prompt-safe projection, exposing the person's Inbox context here
+      // would be a second, ungoverned authorization path.
+      if (agentGrants === null && userId && accessToken) {
         try {
           const [oxyServicePrompt, oxyServiceCtx] = await Promise.all([
             getOxyServicePromptFragment(userId),
@@ -223,13 +251,13 @@ export class SystemPromptBuilder {
       }
 
       // Agent mode hint
-      if (agentMode) {
+      if (agentMode && mayDelegate) {
         systemMessage += '\n\nAGENT MODE: You have `searchAgents` and `delegateToAgent` tools. Search for specialist agents, delegate to the best match, and briefly explain why. If no agent fits, handle it yourself.';
       }
     }
 
     // 7. User memory (direct sessions only)
-    if (userMemory && isDirectUserSession) {
+    if (mayReadMemory && userMemory && isDirectUserSession) {
       systemMessage += '\n\n## User Information';
 
       if (userMemory.memories && userMemory.memories.length > 0) {
@@ -263,10 +291,10 @@ export class SystemPromptBuilder {
     // replaces. Authorization is an install owned by the caller's account, and a
     // developer key carries its owner's — so there is nothing here that leaks
     // one account's material into another's request.
-    if (skills?.index) {
+    if (mayReadSkills && skills?.index) {
       systemMessage += skills.index;
     }
-    if (skills?.active) {
+    if (mayReadSkills && skills?.active) {
       systemMessage = `${skills.active}\n\n---\n\n${systemMessage}`;
       log.general.info({ chars: skills.active.length }, 'Skills activated');
     }

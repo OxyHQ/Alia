@@ -166,7 +166,6 @@ channel emits cache-invalidation events for conversation, trigger and notificati
 |---|---|
 | `GET /catalogue` | The truthful catalogue: routing profiles keyed `profile:*` and individually selectable models keyed `<publisher>/<model>`, each carrying its real kind (`routes/catalogue.ts`) |
 | `GET /catalogue/modes` | The product modes a person picks between (`routes/catalogue.ts`) |
-| `GET /models/stats`, `GET /models/stats/:modelId` | Product usage statistics per Alia identifier (`routes/models-stats.ts`) |
 | `GET /external-models`, `/external-models/organizations`, `/external-models/:modelId` | The external-model leaderboard (`routes/external-models.ts`) |
 | `/analytics` | Product analytics |
 | `/audit`, `/reports` | Audit trail and user reports |
@@ -305,15 +304,14 @@ what a request on that model is billed at.
 request is a property of the deployment and appears nowhere in this response. No `alia-*`
 identifier appears anywhere in it either.
 
-**`availability.status` means a route could actually serve you.** An entry is `available`
-when at least one route behind it is on a provider holding a usable credential AND has an
-unbroken circuit; otherwise it is `unavailable`, and choosing it answers with a refusal
-rather than a slow reply. Both halves are load-bearing and the first is the one clients
-should not try to infer: a circuit breaker records what happened to traffic and cannot
-record traffic that never left, so a deployment with no provider credential at all reports
-every breaker closed. A catalogue that could not be computed is a `500`, never a catalogue
-in which nothing is available — "we could not find out" and "nothing works" are different
-answers.
+**`availability.status` is product-catalogue reachability from Alia's point of
+view, not live provider health.** An entry is `available` when at least one
+candidate route remains in the Kaana-facing product catalogue, and `unavailable`
+when it has none. Alia never derives this field from its dormant provider-key,
+health or circuit-breaker tables. Oxy/Kaana own live deployment availability;
+the inference response is authoritative for a particular invocation. A
+catalogue that cannot be computed is a `500`, never a fabricated availability
+result.
 
 ### `GET /catalogue/modes`
 

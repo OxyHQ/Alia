@@ -6,11 +6,13 @@
 
 import { createOpenAI } from '@ai-sdk/openai';
 
+import { getOxyKaanaRoutingProfileId } from '../config/oxy-inference-routing-profile-ids.js';
 import { USER_RUNTIME_PROVIDER, userRuntimeFetch } from './inference/user-runtime-bridge.js';
 import { kaanaLanguageModel } from './inference/kaana-language-model.js';
 import type { AliaInferenceSurface } from './inference/product-seam.js';
 import { formatModelIdentity } from './routing/model-identity.js';
 import { UnregisteredModelError } from './routing/policy.js';
+import { assertUnreservedModelIdentifier } from './reserved-namespace.js';
 import {
   getDefaultRoutingProfile,
   isRoutingProfile,
@@ -48,7 +50,7 @@ export interface ResolvedModel {
    * user-runtime model, which Kaana cannot reach by construction.
    */
   oxyInferenceTarget:
-    | { readonly kind: 'routing_profile'; readonly routingProfile: string }
+    | { readonly kind: 'routing_profile_id'; readonly routingProfileId: string }
     | { readonly kind: 'model'; readonly model: string }
     | null;
   routingProfile: RoutingProfile;
@@ -59,7 +61,7 @@ export interface ResolvedModel {
 /**
  * Resolve an Alia product profile to Kaana.
  *
- * @param routingProfileId - The Kaana routing profile ID (e.g., "kaana-v1", "kaana-lite")
+ * @param routingProfileId - Alia's product profile ID (e.g., "kaana-v1", "kaana-lite")
  * @param options - Per-request routing options, including an optional model pin
  * @returns A credential-free Kaana resolution
  * @throws UnregisteredModelError when `routingProfileId` names no registered model
@@ -71,6 +73,7 @@ export async function resolveModel(
   _skipKeyIds?: Set<string>,
   options?: RoutingOptions
 ): Promise<ResolvedModel | null> {
+  assertUnreservedModelIdentifier(routingProfileId);
   const models = await getAllRoutingProfiles();
   const routingProfile = models.find((model) => model.id === routingProfileId);
   if (routingProfile === undefined) {
@@ -78,17 +81,28 @@ export async function resolveModel(
   }
 
   const target = options?.pinnedModel === undefined
-    ? { kind: 'routing_profile' as const, routingProfile: routingProfileId }
+    ? (() => {
+        const oxyRoutingProfileId = getOxyKaanaRoutingProfileId(routingProfileId);
+        if (oxyRoutingProfileId === null) {
+          throw new UnregisteredModelError(
+            routingProfileId,
+            models
+              .map((model) => model.id)
+              .filter((id) => getOxyKaanaRoutingProfileId(id) !== null),
+          );
+        }
+        return { kind: 'routing_profile_id' as const, routingProfileId: oxyRoutingProfileId };
+      })()
     : { kind: 'model' as const, model: formatModelIdentity(options.pinnedModel) };
-  const targetId = target.kind === 'model' ? target.model : target.routingProfile;
+  const productModelId = target.kind === 'model' ? target.model : routingProfileId;
 
   return {
     routingProfileId,
     provider: 'kaana',
     publisher: 'kaana',
-    model: targetId,
-    modelId: targetId,
-    keyConfig: { provider: 'kaana', modelId: targetId },
+    model: productModelId,
+    modelId: productModelId,
+    keyConfig: { provider: 'kaana', modelId: productModelId },
     oxyInferenceTarget: target,
     routingProfile,
     isFallback: false,
@@ -98,7 +112,12 @@ export async function resolveModel(
 /**
  * Create the AI SDK model for Kaana or the caller's own machine.
  */
-export function getAIModel(resolved: ResolvedModel, surface: AliaInferenceSurface) {
+export function getAIModel(
+  resolved: ResolvedModel,
+  surface: AliaInferenceSurface,
+  oxyUserId?: string,
+  serviceToken?: string,
+) {
   if (resolved.provider === USER_RUNTIME_PROVIDER) {
     const binding = resolved.keyConfig.userRuntime;
     if (!binding) throw new Error('A user-runtime route arrived without a device binding');
@@ -114,5 +133,11 @@ export function getAIModel(resolved: ResolvedModel, surface: AliaInferenceSurfac
   if (target === null) {
     throw new Error('A hosted inference route arrived without an Oxy inference target');
   }
-  return kaanaLanguageModel({ target, surface });
+  return kaanaLanguageModel({
+    target,
+    modelId: resolved.modelId,
+    surface,
+    ...(oxyUserId === undefined ? {} : { oxyUserId }),
+    ...(serviceToken === undefined ? {} : { serviceToken }),
+  });
 }

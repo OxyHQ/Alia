@@ -1,8 +1,9 @@
 # Migration ownership: Alia / Oxy / Kaana
 
 > Historical migration inventory. Current Alia hosted inference has no provider
-> adapter/key/fallback runtime and no `provider_keys`, `provider_health`,
-> `api_usage` or `fallback_events` schema after post-cutover migration 0057.
+> adapter/key/fallback runtime. `provider_keys`, `provider_health`, `api_usage`
+> and `fallback_events` remain dormant rollback tables during the first cutover
+> release; their later destructive migration requires a real canary first.
 > References below describe the measured source state and extraction plan.
 
 The human half of the deliverable for [issue #139](https://github.com/OxyHQ/Alia/issues/139)

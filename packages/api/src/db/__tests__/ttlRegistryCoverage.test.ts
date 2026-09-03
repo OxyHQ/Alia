@@ -285,11 +285,11 @@ const MONGO_MODEL_TO_TABLE: Readonly<Record<string, string>> = {
 };
 
 /**
- * Historical TTL rules whose Alia tables are intentionally removed only by
- * the Kaana post-cutover migration. Their declarations stay in this closed
- * record for rollback archaeology; they no longer owe Alia a live sweeper.
+ * Historical TTL rules whose Alia tables are intentionally frozen for the
+ * first cutover release's rollback window. They remain represented in the
+ * schema but no longer owe Alia a sweeper, reader or writer.
  */
-const POST_CUTOVER_DROPPED = new Set(['ApiUsage', 'FallbackEvent']);
+const DORMANT_ROLLBACK_TABLES = new Set(['ApiUsage', 'FallbackEvent']);
 
 /** Postgres tables that exist today, by SQL table name. */
 function portedTables(): Map<string, PgTable> {
@@ -342,7 +342,7 @@ describe('every TTL index Mongo enforced has a matching expiry-sweep target', ()
      * table was never mapped, or was later dropped from the schema, keeps the
      * count at 13 while asserting about nothing at all.
      */
-    const orphaned = MONGO_TTLS.filter((t) => !POST_CUTOVER_DROPPED.has(t.model)).filter((t) => {
+    const orphaned = MONGO_TTLS.filter((t) => !DORMANT_ROLLBACK_TABLES.has(t.model)).filter((t) => {
       const table = MONGO_MODEL_TO_TABLE[t.model];
       return !table || !tables.has(table);
     }).map((t) => t.model);
@@ -362,7 +362,7 @@ describe('every TTL index Mongo enforced has a matching expiry-sweep target', ()
       EXPIRY_TARGETS.map((t) => [getTableName(t.table), t]),
     );
 
-    const missing = MONGO_TTLS.filter((ttl) => !POST_CUTOVER_DROPPED.has(ttl.model)).filter(
+    const missing = MONGO_TTLS.filter((ttl) => !DORMANT_ROLLBACK_TABLES.has(ttl.model)).filter(
       (ttl) => !byTable.has(MONGO_MODEL_TO_TABLE[ttl.model] ?? ''),
     ).map((ttl) => `${ttl.model} -> ${String(MONGO_MODEL_TO_TABLE[ttl.model])}`);
 

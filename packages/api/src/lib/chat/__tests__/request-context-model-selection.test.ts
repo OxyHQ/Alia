@@ -43,6 +43,7 @@ vi.mock('@oxyhq/core', async () => {
         if (oxy.mode === 'unreachable') throw new Error('ECONNREFUSED api.oxy.so');
         return {
           accountId,
+          parentAccountId: 'owner-account-1',
           kind: 'bot',
           relationship: oxy.mode === 'grants' ? 'owner' : 'none',
           account: { id: accountId, kind: 'bot' },
@@ -132,6 +133,12 @@ async function run(
     directUserId?: string;
     apiKey?: boolean;
     agentId?: unknown;
+    serviceApp?: {
+      appId: string;
+      scopes: string[];
+    };
+    delegatedScopes?: string[];
+    accessToken?: string;
     /** A streaming request: headers are already out, so a refusal is an SSE event. */
     sseSent?: boolean;
   } = {},
@@ -157,7 +164,21 @@ async function run(
     },
     ...(options.directUserId === undefined ? {} : { user: { id: options.directUserId } }),
     ...(options.apiKey ? { apiKey: { id: 'key-1' } } : {}),
-    accessToken: 'token-1',
+    ...(options.serviceApp === undefined
+      ? {}
+      : {
+          serviceApp: {
+            ...options.serviceApp,
+            appName: 'product',
+            credentialId: 'credential-1',
+            ownerAccountId: 'product-cost-centre',
+            environment: 'production',
+          },
+        }),
+    ...(options.delegatedScopes === undefined || options.directUserId === undefined
+      ? {}
+      : { serviceActingAs: { userId: options.directUserId, scopes: options.delegatedScopes } }),
+    accessToken: options.accessToken ?? 'token-1',
   };
   if (options.agentId !== undefined) {
     (req.body as Record<string, unknown>).agentId = options.agentId;
@@ -336,6 +357,63 @@ describe('agentId is an exact fail-closed selector', () => {
     expect(captured.body?.error).toMatchObject({ code: 'agent_unavailable', param: 'agentId' });
     expect(findAgentById).not.toHaveBeenCalled();
     expect(reserveCredits).not.toHaveBeenCalled();
+  });
+
+  it('accepts an app-bound agent only through the exact delegated product credential', async () => {
+    findAgentById.mockResolvedValue({
+      ...privateAgent,
+      access: 'public',
+      applicationId: 'homiio-app-id',
+    });
+
+    const { ctx, captured } = await run(undefined, {
+      directUserId: 'user-1',
+      agentId: 'agent-2',
+      serviceApp: { appId: 'homiio-app-id', scopes: ['inference:invoke'] },
+      delegatedScopes: ['inference:invoke'],
+      accessToken: 'verified-homiio-service-token',
+    });
+
+    expect(captured.status).toBeNull();
+    expect(ctx?.linkedAgent?._id).toBe('agent-2');
+    expect(ctx?.inferenceServiceToken).toBe('verified-homiio-service-token');
+  });
+
+  it('does not let the agent id select Alia as payer when product inference scope is absent', async () => {
+    findAgentById.mockResolvedValue({
+      ...privateAgent,
+      access: 'public',
+      applicationId: 'homiio-app-id',
+    });
+
+    const { ctx, captured } = await run(undefined, {
+      directUserId: 'user-1',
+      agentId: 'agent-2',
+      serviceApp: { appId: 'homiio-app-id', scopes: ['user:read'] },
+      delegatedScopes: ['user:read'],
+      accessToken: 'verified-homiio-service-token',
+    });
+
+    expect(ctx).toBeNull();
+    expect(captured.status).toBe(404);
+    expect(captured.body?.error).toMatchObject({ code: 'agent_unavailable', param: 'agentId' });
+  });
+
+  it('does not let a human bearer invoke a public app-bound agent by known id', async () => {
+    findAgentById.mockResolvedValue({
+      ...privateAgent,
+      access: 'public',
+      applicationId: 'homiio-app-id',
+    });
+
+    const { ctx, captured } = await run(undefined, {
+      directUserId: 'user-1',
+      agentId: 'agent-2',
+    });
+
+    expect(ctx).toBeNull();
+    expect(captured.status).toBe(404);
+    expect(captured.body?.error).toMatchObject({ code: 'agent_unavailable', param: 'agentId' });
   });
 });
 

@@ -15,14 +15,14 @@
 import { Link, createFileRoute } from '@tanstack/react-router';
 import { HugeiconsIcon } from '@hugeicons/react';
 import { ArrowLeft01Icon, ArrowRight01Icon } from '@hugeicons/core-free-icons';
+import type {
+  CapabilityAvailability,
+  CatalogueEntry,
+  TokenBound,
+} from '@/hooks/use-catalogue';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import {
-  useCatalogue,
-  type CapabilityAvailability,
-  type CatalogueEntry,
-  type TokenBound,
-} from '@/hooks/use-catalogue';
+import { useCatalogue } from '@/hooks/use-catalogue';
 
 export const Route = createFileRoute('/_layout/documentation/models')({
   component: ModelsDocPage,

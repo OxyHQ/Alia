@@ -107,6 +107,29 @@ await esbuild.build({
   logLevel: 'info',
 });
 
+// Internal Sindi/Clarity bootstrap. It is an operator one-shot and the runtime
+// image carries no Bun or TypeScript sources, so it must ship as its own Node
+// entrypoint just like the migrator and seeder.
+await esbuild.build({
+  entryPoints: ['src/scripts/bootstrap-native-product-agents.ts'],
+  bundle: true,
+  platform: 'node',
+  target: 'node20',
+  format: 'esm',
+  outfile: 'dist/scripts/bootstrap-native-product-agents.js',
+  plugins: [externalizeNodeModules],
+  sourcemap: false,
+  minify: false,
+  logLevel: 'info',
+});
+
+// The bootstrap hashes these exact bytes before touching Postgres. Keep them
+// beside its bundle so `import.meta.url` resolves identically in source/tests
+// and in the slim production image.
+await cp('src/config/native-product-prompts', 'dist/scripts/native-product-prompts', {
+  recursive: true,
+});
+
 // The show-object purge. Same reason as every one-shot above, with one of its
 // own: it is the S3 half of migration 0034, so it runs in the same window as
 // that migration, against the same image, on a Fargate command override — and

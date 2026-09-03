@@ -326,6 +326,10 @@ describe('the customer charge and the upstream cost share no reader (#139 ws12)'
    * than quietly narrowing what the disjointness below is about.
    */
   const COST_READERS = [
+    // A schema declaration, not a runtime reader: provider_keys is frozen and
+    // dormant through the rollback window, but its historical spent_usd column
+    // remains physically present until the separately gated retirement release.
+    `${API_SRC}/db/schema/providers.ts`,
     `${API_SRC}/db/schema/usage.ts`,
     `${API_SRC}/db/usage/costEntryRepository.ts`,
     `${API_SRC}/lib/cost-tracker.ts`,
@@ -368,7 +372,7 @@ describe('the customer charge and the upstream cost share no reader (#139 ws12)'
   it('the frozen lists are not empty, and each is what its name says', () => {
     // A vacuity floor for both lists, plus one membership fact per list that a
     // wholesale replacement would break.
-    expect(COST_READERS.length).toBeGreaterThanOrEqual(3);
+    expect(COST_READERS.length).toBeGreaterThanOrEqual(4);
     expect(CHARGE_WRITERS.length).toBeGreaterThan(3);
     expect(COST_READERS).toContain(`${API_SRC}/lib/cost-tracker.ts`);
     expect(CHARGE_WRITERS).toContain(`${API_SRC}/routes/billing.ts`);

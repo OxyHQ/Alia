@@ -97,7 +97,7 @@ describe('the preload bridge exposes what the renderer expects', () => {
     // The vacuity floor. An empty list satisfies every "each one unsubscribes"
     // assertion below, and a renamed export or a failed mock produces exactly
     // that.
-    expect(subscribers.length).toBe(12)
+    expect(subscribers.length).toBe(13)
   })
 })
 

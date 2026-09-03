@@ -12,13 +12,31 @@
 --
 -- Columns on shared telemetry tables cannot use that technique because the
 -- table name is unchanged. They therefore live side by side for the rollout and
--- a trigger mirrors whichever spelling the active image writes. 0058 removes
--- every temporary view, trigger and old column after the new image is stable.
+-- a trigger mirrors whichever spelling the active image writes. A separately
+-- gated later release removes every temporary view, trigger and old column only
+-- after a correlated inference canary and the rollback window have completed.
 
 ALTER TABLE "alia_model_provider_mappings" RENAME TO "routing_profile_provider_mappings";--> statement-breakpoint
 ALTER TABLE "alia_models" RENAME TO "routing_profiles";--> statement-breakpoint
 ALTER TABLE "routing_profile_provider_mappings" RENAME COLUMN "alia_model_id" TO "routing_profile_id";--> statement-breakpoint
 ALTER TABLE "routing_profiles" RENAME COLUMN "alias_model_id" TO "routing_profile_id";--> statement-breakpoint
+
+-- PostgreSQL keeps an index or constraint's old NAME when its table/column is
+-- renamed. Rename every dependent object in the same additive migration so the
+-- physical database matches the Drizzle schema and future migrations do not
+-- try to recreate an already-enforced rule under a second name.
+ALTER INDEX "alia_model_provider_mappings_alia_model_priority_idx" RENAME TO "routing_profile_provider_mappings_routing_profile_priority_idx";--> statement-breakpoint
+ALTER INDEX "alia_model_provider_mappings_model_config_key" RENAME TO "routing_profile_provider_mappings_model_config_key";--> statement-breakpoint
+ALTER TABLE "routing_profile_provider_mappings" RENAME CONSTRAINT "alia_model_provider_mappings_alia_model_id_fk" TO "routing_profile_provider_mappings_routing_profile_id_fk";--> statement-breakpoint
+ALTER TABLE "routing_profile_provider_mappings" RENAME CONSTRAINT "alia_model_provider_mappings_model_config_id_fk" TO "routing_profile_provider_mappings_model_config_id_fk";--> statement-breakpoint
+ALTER TABLE "routing_profile_provider_mappings" RENAME CONSTRAINT "alia_model_provider_mappings_priority_range_check" TO "routing_profile_provider_mappings_priority_range_check";--> statement-breakpoint
+ALTER TABLE "routing_profile_provider_mappings" RENAME CONSTRAINT "alia_model_provider_mappings_provider_check" TO "routing_profile_provider_mappings_provider_check";--> statement-breakpoint
+ALTER TABLE "routing_profile_provider_mappings" RENAME CONSTRAINT "alia_model_provider_mappings_quality_score_range_check" TO "routing_profile_provider_mappings_quality_score_range_check";--> statement-breakpoint
+ALTER INDEX "alia_models_active_deprecated_idx" RENAME TO "routing_profiles_active_deprecated_idx";--> statement-breakpoint
+ALTER INDEX "alia_models_alias_model_id_key" RENAME TO "routing_profiles_routing_profile_id_key";--> statement-breakpoint
+ALTER INDEX "alia_models_tier_active_idx" RENAME TO "routing_profiles_tier_active_idx";--> statement-breakpoint
+ALTER TABLE "routing_profiles" RENAME CONSTRAINT "alia_models_credit_multiplier_range_check" TO "routing_profiles_credit_multiplier_range_check";--> statement-breakpoint
+ALTER TABLE "routing_profiles" RENAME CONSTRAINT "alia_models_tier_check" TO "routing_profiles_tier_check";--> statement-breakpoint
 
 CREATE VIEW "alia_models" AS
 SELECT
@@ -176,4 +194,13 @@ CREATE INDEX "cost_entries_routing_profile_timestamp_idx" ON "cost_entries" USIN
 CREATE INDEX "cost_entries_user_routing_profile_idx" ON "cost_entries" USING btree ("user_id","routing_profile_id");--> statement-breakpoint
 CREATE INDEX "voice_call_usage_routing_profile_start_time_idx" ON "voice_call_usage" USING btree ("routing_profile_id","start_time" DESC NULLS LAST);--> statement-breakpoint
 
-ALTER TABLE "agents" ALTER COLUMN "allowed_models" SET DEFAULT '{"kaana-v1","kaana-v1-pro"}';
+ALTER TABLE "agents" ALTER COLUMN "allowed_models" SET DEFAULT '{"kaana-v1","kaana-v1-pro"}';--> statement-breakpoint
+
+-- Agent authority is Oxy account/application identity, never the historical
+-- listing author. Existing rows stay nullable and fail closed until an Oxy
+-- reconciliation writes the bot's exact parent. Product agents additionally
+-- bind to the application id derived from a verified service credential.
+ALTER TABLE "agents" ADD COLUMN "owner_oxy_account_id" text;--> statement-breakpoint
+ALTER TABLE "agents" ADD COLUMN "application_id" text;--> statement-breakpoint
+CREATE INDEX "agents_owner_oxy_account_id_idx" ON "agents" USING btree ("owner_oxy_account_id");--> statement-breakpoint
+CREATE INDEX "agents_application_id_idx" ON "agents" USING btree ("application_id");

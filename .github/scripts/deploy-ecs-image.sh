@@ -48,6 +48,12 @@ TASK_SECRET_OVERRIDES_JSON="${TASK_SECRET_OVERRIDES_JSON:-}"
 # reason: an override here is re-asserted on every deploy, so a rollback cannot
 # lose it.
 TASK_ENV_OVERRIDES_JSON="${TASK_ENV_OVERRIDES_JSON:-}"
+# Plain environment variables to DROP from the inherited task definition.
+#
+# ECS revisions are rendered from the running revision, so deleting a variable
+# in source or Terraform does not delete the carried-forward `.environment`
+# entry. This is the explicit retirement path for obsolete runtime contracts.
+TASK_CONFIGURATION_REMOVALS_JSON="${TASK_CONFIGURATION_REMOVALS_JSON:-}"
 # Secrets to DROP from the revision, by variable name.
 #
 # The render carries `.secrets` forward from the running task definition, and an
@@ -167,6 +173,24 @@ if ! jq -e '
   )
 ' <<<"$TASK_ENV_OVERRIDES_JSON" >/dev/null; then
   echo "::error::TASK_ENV_OVERRIDES_JSON must map environment variable names to non-empty string values."
+  exit 1
+fi
+if [[ -z "$TASK_CONFIGURATION_REMOVALS_JSON" ]]; then
+  TASK_CONFIGURATION_REMOVALS_JSON='[]'
+fi
+if ! jq -e '
+  type == "array" and
+  length <= 40 and
+  all(.[]; type == "string" and test("^[A-Z][A-Z0-9_]{0,127}$"))
+' <<<"$TASK_CONFIGURATION_REMOVALS_JSON" >/dev/null; then
+  echo "::error::TASK_CONFIGURATION_REMOVALS_JSON must be a JSON array of environment variable names."
+  exit 1
+fi
+if ! jq -e -n \
+  --argjson removals "$TASK_CONFIGURATION_REMOVALS_JSON" \
+  --argjson overrides "$TASK_ENV_OVERRIDES_JSON" \
+  '[$removals[] | select(. as $n | ($overrides | has($n)))] | length == 0' >/dev/null; then
+  echo "::error::TASK_CONFIGURATION_REMOVALS_JSON and TASK_ENV_OVERRIDES_JSON name the same variable."
   exit 1
 fi
 
@@ -521,6 +545,7 @@ jq \
   --argjson taskSecretOverrides "$task_secret_overrides" \
   --argjson taskSecretRemovals "$TASK_SECRET_REMOVALS_JSON" \
   --argjson taskEnvOverrides "$task_env_overrides" \
+  --argjson taskConfigurationRemovals "$TASK_CONFIGURATION_REMOVALS_JSON" \
   '
     del(
       .taskDefinitionArn,
@@ -574,6 +599,7 @@ jq \
                     select(
                       .name as $existingName
                       | ($taskEnvNames | index($existingName)) == null
+                        and ($taskConfigurationRemovals | index($existingName)) == null
                     )
                   ))
               + $taskEnvOverrides

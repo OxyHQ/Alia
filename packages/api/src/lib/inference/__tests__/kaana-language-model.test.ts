@@ -50,18 +50,23 @@ describe('Kaana AI SDK adapter through Oxy', () => {
 
   it('sends an exact routing profile and delegated user to Oxy', async () => {
     const model = kaanaLanguageModel({
-      target: { kind: 'routing_profile', routingProfile: 'kaana-v1-thinking' },
+      target: {
+        kind: 'routing_profile_id',
+        routingProfileId: '01a06477-94f5-74f0-bc25-628b5f45d802',
+      },
+      modelId: 'kaana-v1-thinking',
       surface: 'chat',
       oxyUserId: 'user-id',
     });
     const result = await model.doGenerate({ prompt, maxOutputTokens: 128 } as never);
 
     expect(mocks.requests[0]).toMatchObject({
-      routingProfile: 'kaana-v1-thinking',
+      routingProfileId: '01a06477-94f5-74f0-bc25-628b5f45d802',
       maxOutputTokens: 128,
       labels: { 'alia.surface': 'chat' },
     });
     expect(mocks.requests[0]).not.toHaveProperty('model');
+    expect(mocks.requests[0]).not.toHaveProperty('routingProfile');
     expect(mocks.options[0]).toMatchObject({ delegatedUserId: 'user-id' });
     expect(result.content).toEqual([{ type: 'text', text: 'hola' }]);
   });
@@ -69,6 +74,7 @@ describe('Kaana AI SDK adapter through Oxy', () => {
   it('sends a pinned canonical model without guessing from its spelling', async () => {
     const model = kaanaLanguageModel({
       target: { kind: 'model', model: 'openai/gpt-5-mini' },
+      modelId: 'openai/gpt-5-mini',
       surface: 'authoring',
     });
     await model.doGenerate({ prompt } as never);
@@ -84,7 +90,11 @@ describe('Kaana AI SDK adapter through Oxy', () => {
       { type: 'done', finishReason: 'stop' },
     );
     const model = kaanaLanguageModel({
-      target: { kind: 'routing_profile', routingProfile: 'kaana-v1-fast' },
+      target: {
+        kind: 'routing_profile_id',
+        routingProfileId: '01a06477-94f5-74f0-bc25-4c5c13b93ccd',
+      },
+      modelId: 'kaana-v1',
       surface: 'chat',
     });
     const parts = await drain((await model.doStream({ prompt } as never)).stream);

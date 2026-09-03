@@ -51,7 +51,10 @@ import type {
   LanguageModelV3Usage,
 } from '@ai-sdk/provider';
 
-import { getOxyInferenceClient } from './oxy-inference.js';
+import {
+  buildOxyInferenceClientForServiceToken,
+  getOxyInferenceClient,
+} from './oxy-inference.js';
 import type { AliaInferenceSurface } from './product-seam.js';
 
 /** One text block per response, because the contract streams one channel of it. */
@@ -60,10 +63,20 @@ const TEXT_BLOCK_ID = 'kaana-text';
 export interface KaanaModelOptions {
   /** The exact Oxy catalogue target; its kind is never inferred from its text. */
   readonly target:
-    | { readonly kind: 'routing_profile'; readonly routingProfile: string }
+    | { readonly kind: 'routing_profile_id'; readonly routingProfileId: string }
     | { readonly kind: 'model'; readonly model: string };
+  /** Alia's product-facing request identity; never the opaque Oxy row ID. */
+  readonly modelId: string;
   readonly surface: AliaInferenceSurface;
   readonly oxyUserId?: string | null;
+  /** Verified inbound product service token; absent keeps Alia's own credential lane. */
+  readonly serviceToken?: string;
+}
+
+function inferenceClient(options: KaanaModelOptions) {
+  return options.serviceToken === undefined
+    ? getOxyInferenceClient()
+    : buildOxyInferenceClientForServiceToken(options.serviceToken);
 }
 
 /**
@@ -389,12 +402,6 @@ function toUsage(units: readonly { unit: string; quantity: number }[] | undefine
   };
 }
 
-function targetId(options: KaanaModelOptions): string {
-  return options.target.kind === 'model'
-    ? options.target.model
-    : options.target.routingProfile;
-}
-
 function requestFor(
   modelOptions: KaanaModelOptions,
   options: LanguageModelV3CallOptions,
@@ -404,7 +411,7 @@ function requestFor(
   return {
     ...(modelOptions.target.kind === 'model'
       ? { model: modelOptions.target.model }
-      : { routingProfile: modelOptions.target.routingProfile }),
+      : { routingProfileId: modelOptions.target.routingProfileId }),
     input: translation.messages,
     maxOutputTokens: options.maxOutputTokens ?? 4096,
     ...(options.temperature === undefined ? {} : { temperature: options.temperature }),
@@ -456,11 +463,11 @@ export function kaanaLanguageModel(options: KaanaModelOptions): LanguageModelV3 
   return {
     specificationVersion: 'v3',
     provider: 'kaana',
-    modelId: targetId(options),
+    modelId: options.modelId,
     supportedUrls: {},
 
     async doGenerate(call) {
-      const client = getOxyInferenceClient();
+      const client = inferenceClient(options);
       if (client === null) throw new Error('Oxy inference is not configured for this deployment');
 
       const translation = translate(call);
@@ -481,7 +488,7 @@ export function kaanaLanguageModel(options: KaanaModelOptions): LanguageModelV3 
     },
 
     async doStream(call) {
-      const client = getOxyInferenceClient();
+      const client = inferenceClient(options);
       if (client === null) throw new Error('Oxy inference is not configured for this deployment');
 
       const translation = translate(call);

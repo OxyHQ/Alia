@@ -56,14 +56,9 @@ const SECRET_PATTERNS: SecretPattern[] = [
 
   // ── Additional provider credential formats ──
   //
-  // The historical provider set included twenty providers and the three above
-  // covered only three of them, so the redactor missed several credential
-  // formats. Each entry here
-  // is a prefix its vendor documents; the providers whose keys are opaque
-  // strings with no prefix at all — Mistral, Cohere, Together, SambaNova,
-  // Hyperbolic, Novita, Cloudflare — cannot be matched by any pattern, and are
-  // covered instead by the exact-credential pass in
-  // `internal/providers/lib/provider-error-body.ts`.
+  // Historical vendor formats remain useful when scanning untrusted text from
+  // users, tools and integrations. Alia owns none of these provider credentials
+  // at runtime; the patterns are content-safety signatures, not configuration.
   { type: 'groq_api_key', pattern: /\bgsk_[a-zA-Z0-9]{20,}\b/g, severity: 'critical', redact: prefixRedact(4) },
   { type: 'xai_api_key', pattern: /\bxai-[a-zA-Z0-9]{20,}\b/g, severity: 'critical', redact: prefixRedact(4) },
   { type: 'openrouter_api_key', pattern: /\bsk-or-v1-[a-zA-Z0-9]{20,}\b/g, severity: 'critical', redact: prefixRedact(9) },

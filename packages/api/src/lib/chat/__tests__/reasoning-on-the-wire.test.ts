@@ -7,20 +7,30 @@ import type { EffortLevel } from '../../reasoning-effort.js';
 
 const mocks = vi.hoisted(() => ({
   requests: [] as Array<Record<string, unknown>>,
+  options: [] as Array<Record<string, unknown>>,
+  serviceTokens: [] as string[],
 }));
 
-vi.mock('../../inference/oxy-inference.js', () => ({
-  getOxyInferenceClient: () => ({
-    respond: async (request: Record<string, unknown>) => {
+vi.mock('../../inference/oxy-inference.js', () => {
+  const client = () => ({
+    respond: async (request: Record<string, unknown>, options: Record<string, unknown>) => {
       mocks.requests.push(request);
+      mocks.options.push(options);
       return {
         output: [{ role: 'assistant', content: [{ type: 'text', text: 'ok' }] }],
         finishReason: 'stop',
         usage: [],
       };
     },
-  }),
-}));
+  });
+  return {
+    getOxyInferenceClient: client,
+    buildOxyInferenceClientForServiceToken: (token: string) => {
+      mocks.serviceTokens.push(token);
+      return client();
+    },
+  };
+});
 
 function resolved(): ResolvedModel {
   return {
@@ -30,13 +40,16 @@ function resolved(): ResolvedModel {
     model: 'kaana-v1-thinking',
     modelId: 'kaana-v1-thinking',
     keyConfig: { provider: 'kaana', modelId: 'kaana-v1-thinking' },
-    oxyInferenceTarget: { kind: 'routing_profile', routingProfile: 'kaana-v1-thinking' },
+    oxyInferenceTarget: {
+      kind: 'routing_profile_id',
+      routingProfileId: '01a06477-94f5-74f0-bc25-628b5f45d802',
+    },
     routingProfile: { id: 'kaana-v1-thinking' },
     isFallback: false,
   } as ResolvedModel;
 }
 
-async function requestFor(reasoningEffort: EffortLevel | null): Promise<Record<string, unknown>> {
+async function requestFor(reasoningEffort: EffortLevel | null, serviceToken?: string): Promise<Record<string, unknown>> {
   const { config, clearFirstByteTimer } = buildBaseConfig({
     resolved: resolved(),
     body: {},
@@ -45,6 +58,8 @@ async function requestFor(reasoningEffort: EffortLevel | null): Promise<Record<s
     reasoningEffort,
     systemPromptTokens: 0,
     streamState: { hasStreamedContent: false } as never,
+    oxyUserId: 'oxy-user-id',
+    serviceToken,
     onUsage: () => undefined,
   });
   clearFirstByteTimer();
@@ -57,11 +72,16 @@ async function requestFor(reasoningEffort: EffortLevel | null): Promise<Record<s
 
 beforeEach(() => {
   mocks.requests.length = 0;
+  mocks.options.length = 0;
+  mocks.serviceTokens.length = 0;
 });
 
 describe('reasoning crosses the Oxy inference boundary', () => {
   it('keeps reasoning in the selected routing profile', async () => {
-    expect(await requestFor('max')).toMatchObject({ routingProfile: 'kaana-v1-thinking' });
+    expect(await requestFor('max')).toMatchObject({
+      routingProfileId: '01a06477-94f5-74f0-bc25-628b5f45d802',
+    });
+    expect(await requestFor('max')).not.toHaveProperty('routingProfile');
   });
 
   it('does not construct provider-specific options in Alia', async () => {
@@ -70,5 +90,16 @@ describe('reasoning crosses the Oxy inference boundary', () => {
     expect(wire).not.toContain('budgetTokens');
     expect(wire).not.toContain('thinkingConfig');
     expect(wire).not.toContain('reasoningEffort');
+  });
+
+  it('attributes the hosted turn to the authenticated Oxy user', async () => {
+    await requestFor(null);
+    expect(mocks.options[0]).toMatchObject({ delegatedUserId: 'oxy-user-id' });
+  });
+
+  it('uses the exact verified product bearer for a product-agent turn', async () => {
+    await requestFor(null, 'verified-product-service-token');
+    expect(mocks.serviceTokens).toEqual(['verified-product-service-token']);
+    expect(mocks.options[0]).toMatchObject({ delegatedUserId: 'oxy-user-id' });
   });
 });

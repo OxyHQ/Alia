@@ -140,6 +140,7 @@ async function seedAgent(
 ): Promise<{ _id: string; oxyAccountId: string; price: number }> {
   const agent = await createAgent(db, {
     oxyAccountId: `oxy-bot-handoff-${SUITE}-${seq++}`,
+    ownerOxyAccountId: SUITE,
     tagline: 'runs things',
     description: 'd',
     authorOxyUserId: SUITE,

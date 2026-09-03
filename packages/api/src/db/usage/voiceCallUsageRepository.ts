@@ -1,9 +1,10 @@
 /**
  * Realtime voice sessions: how long each ran and what it charged.
  *
- * Written by `internal/providers/lib/voice-session-manager.ts` at two moments —
- * once when the session starts and once when it ends — and read by
- * `lib/voice-usage.ts` to enforce a plan's voice-minute entitlement.
+ * The first cutover release keeps this PostgreSQL compatibility table intact
+ * for rollback and historical entitlement reads. Hosted voice is currently
+ * refused at the capability boundary, so the active Alia runtime has no writer;
+ * `lib/voice-usage.ts` can still sum completed historical sessions.
  *
  * ## The two writes are deliberately different statements
  *
@@ -27,7 +28,7 @@ import type { ApiDatabase } from '../index';
 import { voiceCallUsage } from '../schema/usage';
 import type { CreditFundingSource } from '../../domain/credit-funding.js';
 
-/** One session's record. Mirrors what the voice manager assembles. */
+/** One historical session record, retained for rollback compatibility. */
 export interface VoiceCallUsageRecord {
   readonly sessionId: string;
   readonly oxyUserId: string;

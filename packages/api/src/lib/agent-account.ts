@@ -79,6 +79,8 @@ export type AgentAccountRefusal =
   | 'account_not_found'
   /** The account exists but is not a `bot`. */
   | 'not_a_bot_account'
+  /** Bot accounts are managed children; a root bot has no authority owner. */
+  | 'account_has_no_parent'
   /** The account exists and is a bot, but this caller holds no `account:act_as`. */
   | 'not_permitted'
   /** Oxy could not be asked. NOT a denial — see {@link verifyAgentAccount}. */
@@ -90,10 +92,8 @@ export type AgentAccountRefusal =
  * grant, and the compiler would not mind.
  */
 export type AgentAccountVerdict =
-  | { readonly permitted: true }
+  | { readonly permitted: true; readonly ownerAccountId: string }
   | { readonly permitted: false; readonly refusal: AgentAccountRefusal };
-
-const PERMITTED: AgentAccountVerdict = { permitted: true };
 
 /**
  * How long a verdict may be reused.
@@ -206,10 +206,17 @@ export async function verifyAgentAccount(params: {
   if (node.account?.kind !== 'bot') {
     return remember(key, { permitted: false, refusal: 'not_a_bot_account' }, access.hasStanding);
   }
+  if (!node.parentAccountId) {
+    return remember(key, { permitted: false, refusal: 'account_has_no_parent' }, access.hasStanding);
+  }
   if (!access.canActAs) {
     return remember(key, { permitted: false, refusal: 'not_permitted' }, access.hasStanding);
   }
-  return remember(key, PERMITTED, access.hasStanding);
+  return remember(
+    key,
+    { permitted: true, ownerAccountId: node.parentAccountId },
+    access.hasStanding,
+  );
 }
 
 /**
@@ -231,6 +238,7 @@ export function refusalStatus(refusal: AgentAccountRefusal): 400 | 403 | 404 | 5
     case 'account_not_found':
       return 404;
     case 'not_a_bot_account':
+    case 'account_has_no_parent':
       return 400;
     case 'not_permitted':
       return 403;
@@ -246,6 +254,8 @@ export function refusalMessage(refusal: AgentAccountRefusal): string {
       return 'Account not found';
     case 'not_a_bot_account':
       return 'The account is not a bot account';
+    case 'account_has_no_parent':
+      return 'The bot account has no owner account';
     case 'not_permitted':
       return 'You do not have permission to act as this account';
     case 'identity_unavailable':
@@ -448,8 +458,26 @@ function isConflict(error: unknown): boolean {
  */
 export async function canReachAgent(
   agent: AgentRecord,
-  caller: { oxyUserId: string; accessToken: string | undefined },
+  caller: {
+    oxyUserId: string;
+    accessToken: string | undefined;
+    /** Verified service-token application id, never a request-body value. */
+    applicationId?: string;
+  },
 ): Promise<AgentReach> {
+  /**
+   * A product-bound agent has a separate ingress rule from marketplace access.
+   * Matching is against `req.serviceApp.appId`, which the Oxy middleware reads
+   * from a verified service-token claim. A human bearer, developer key or
+   * client-supplied id therefore cannot select Sindi/Clarity just by knowing
+   * the agent id. The delegated end user remains `oxyUserId`; it is not the
+   * application identity.
+   */
+  if (agent.applicationId != null) {
+    return agent.status === 'active' && caller.applicationId === agent.applicationId
+      ? 'reachable'
+      : 'out_of_reach';
+  }
   if (agent.access === 'public' && agent.status === 'active') return 'reachable';
   // No bearer is not a failure to ask; it is an answer, and the answer is no.
   if (caller.accessToken === undefined) return 'out_of_reach';
@@ -532,7 +560,12 @@ export async function holdsAgentStanding(params: {
  */
 export async function loadThreadAgent(
   db: Executor,
-  params: { username: string; oxyUserId: string; accessToken: string | undefined },
+  params: {
+    username: string;
+    oxyUserId: string;
+    accessToken: string | undefined;
+    applicationId?: string;
+  },
 ): Promise<HydratedAgent | null> {
   const agent = await findAgentByOxyHandle(db, params.username, { hireableOnly: false });
   if (agent === null) return null;
@@ -592,7 +625,12 @@ export type TurnAgent =
 
 export async function loadTurnAgent(
   db: Executor,
-  params: { agentId: string; oxyUserId: string; accessToken: string | undefined },
+  params: {
+    agentId: string;
+    oxyUserId: string;
+    accessToken: string | undefined;
+    applicationId?: string;
+  },
 ): Promise<TurnAgent> {
   const agent = await findAgentById(db, params.agentId);
   if (agent === null) return { kind: 'unavailable', reason: 'not_found' };

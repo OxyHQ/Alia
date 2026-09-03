@@ -114,6 +114,22 @@ export const agents = pgTable(
      * and avatar are read from it; none of them is stored here.
      */
     oxyAccountId: text().notNull(),
+    /**
+     * The bot account's direct parent in Oxy's account graph.
+     *
+     * Nullable only for rows imported before this invariant existed. Runtime
+     * authority fails closed for those rows; it never substitutes the listing
+     * author. New writes resolve this value from Oxy when the bot is verified.
+     */
+    ownerOxyAccountId: text(),
+    /**
+     * An Oxy Application id allowed to invoke this product agent.
+     *
+     * NULL means this is an ordinary Alia agent governed by `access`. A value
+     * means only a verified service credential for that exact application may
+     * run it; the id is never accepted from a chat request.
+     */
+    applicationId: text(),
     tagline: text().notNull(),
     description: text().notNull(),
     /**
@@ -190,6 +206,8 @@ export const agents = pgTable(
   },
   (t) => [
     uniqueIndex('agents_oxy_account_id_key').on(t.oxyAccountId),
+    index('agents_owner_oxy_account_id_idx').on(t.ownerOxyAccountId),
+    index('agents_application_id_idx').on(t.applicationId),
     index('agents_author_oxy_user_id_idx').on(t.authorOxyUserId),
     index('agents_category_idx').on(t.category),
     index('agents_archetype_idx').on(t.archetype),

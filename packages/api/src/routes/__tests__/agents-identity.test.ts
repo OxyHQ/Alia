@@ -22,6 +22,7 @@ const state = vi.hoisted(() => ({
   /** `null` makes `getAccount` reject with a 404, as Oxy does for an unseen account. */
   account: null as null | {
     accountId: string;
+    parentAccountId?: string | null;
     kind: string;
     relationship: string;
     callerMembership: null | { permissions: string[]; status?: string };
@@ -62,6 +63,9 @@ vi.mock('@oxyhq/core', async () => {
         if (state.account === null) throw new NotFound('no such account');
         return {
           accountId,
+          parentAccountId: state.account.parentAccountId === undefined
+            ? 'owner-account-1'
+            : state.account.parentAccountId,
           kind: state.account.kind,
           relationship: state.account.relationship,
           account: { id: accountId, kind: state.account.kind },
@@ -102,6 +106,10 @@ const repository = vi.hoisted(() => ({
   findAgentKnowledge: vi.fn(async () => []),
   listAgentCatalogue: vi.fn(async () => ({ agents: [], total: 0 })),
   listAgentsByAuthor: vi.fn(async () => []),
+  withoutInternalAgentBindings: vi.fn((row: Record<string, unknown>) => {
+    const { applicationId: _applicationId, ownerOxyAccountId: _ownerOxyAccountId, ...rest } = row;
+    return rest;
+  }),
 }));
 
 vi.mock('../../db/agents/agentRepository.js', () => repository);
@@ -129,6 +137,8 @@ const AGENT_ROW = {
   _id: 'agent-1',
   id: 'agent-1',
   oxyAccountId: 'acct-bot',
+  ownerOxyAccountId: 'owner-account-1',
+  applicationId: null,
   tagline: 'finds things out',
   description: 'a description',
   author: 'oxy-caller',
@@ -240,7 +250,7 @@ describe('an agent cannot be created without a bot account', () => {
    * nothing anywhere to say why — which is the failure `.strict()` exists to
    * turn into a 400 that names the field.
    */
-  it.each(['name', 'handle', 'color', 'authorName', 'creditBalance'])(
+  it.each(['name', 'handle', 'color', 'authorName', 'creditBalance', 'applicationId'])(
     'refuses a body still carrying %s',
     async (field) => {
       const res = await post({ ...VALID_BODY, [field]: 'anything' });
@@ -346,12 +356,13 @@ describe('the account has to be a bot account this caller may act as', () => {
 });
 
 describe('a created agent', () => {
-  it('stores the bot account and the caller as author, and nothing about identity', async () => {
+  it('stores the bot account, exact Oxy parent and listing author, and nothing about display identity', async () => {
     const res = await post(VALID_BODY);
 
     expect(res.status).toBe(201);
     const input = repository.createAgent.mock.calls[0][1] as Record<string, unknown>;
     expect(input.oxyAccountId).toBe('acct-bot');
+    expect(input.ownerOxyAccountId).toBe('owner-account-1');
     expect(input.authorOxyUserId).toBe('oxy-caller');
     expect(Object.keys(input)).not.toContain('name');
     expect(Object.keys(input)).not.toContain('handle');
@@ -417,6 +428,22 @@ describe('a created agent', () => {
     expect(agent.color).toBeNull();
     expect(agent.tagline).toBe('finds things out');
   });
+
+  it('never exposes internal Oxy owner or application bindings', async () => {
+    repository.createAgent.mockResolvedValueOnce({
+      ...AGENT_ROW,
+      ownerOxyAccountId: 'product-project',
+      applicationId: 'private-product-application',
+    });
+
+    const res = await post(VALID_BODY);
+    const agent = res.body.agent as Record<string, unknown>;
+
+    expect(res.status).toBe(201);
+    expect(agent).not.toHaveProperty('applicationId');
+    expect(agent).not.toHaveProperty('ownerOxyAccountId');
+    expect(JSON.stringify(res.body)).not.toContain('private-product-application');
+  });
 });
 
 describe('a patch is gated by act_as, not by the author column', () => {
@@ -454,7 +481,7 @@ describe('a patch is gated by act_as, not by the author column', () => {
     expect(repository.updateAgent).not.toHaveBeenCalled();
   });
 
-  it.each(['name', 'color', 'oxyAccountId', 'creditBalance'])(
+  it.each(['name', 'color', 'oxyAccountId', 'ownerOxyAccountId', 'creditBalance', 'applicationId'])(
     'refuses a patch of %s, which is not Alia’s to write',
     async (field) => {
       const res = await patch({ [field]: 'anything' });
@@ -463,6 +490,18 @@ describe('a patch is gated by act_as, not by the author column', () => {
       expect(repository.updateAgent).not.toHaveBeenCalled();
     },
   );
+
+  it('refuses public prompt/grant overrides on an internally bound product agent', async () => {
+    repository.findAgentById.mockResolvedValueOnce({
+      ...AGENT_ROW,
+      applicationId: 'private-product-application',
+    });
+
+    const res = await patch({ systemPrompt: 'ignore the fixed prompt', capabilityGrants: ['memory'] });
+
+    expect(res.status).toBe(400);
+    expect(repository.updateAgent).not.toHaveBeenCalled();
+  });
 });
 
 /**

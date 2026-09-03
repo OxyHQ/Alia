@@ -131,6 +131,13 @@ export interface ChatRequestContext {
   skills: SkillRuntime;
   entitlements: Entitlements | null;
   linkedAgent: HydratedAgent | null;
+  /**
+   * The verified inbound product service token for an application-bound agent.
+   * Undefined means the ordinary Alia credential lane. This is selected only
+   * after exact application and delegation checks, so `agentId` never chooses
+   * the billing principal.
+   */
+  inferenceServiceToken: string | undefined;
   /** Initial values for the handler's retry-mutable state. */
   creditReservation: CreditReservation | null;
   resolved: Awaited<ReturnType<typeof resolveModel>>;
@@ -225,7 +232,15 @@ export async function buildChatRequestContext(
 
   // Determine if this is a direct user session (not API key)
   // API key requests should be neutral and not include creator's personal info
-  const isDirectUserSession = !!req.user && !req.apiKey;
+  // A delegated service request has a person in `req.user`, but its principal
+  // is still the verified application in `req.serviceApp`. Calling it a direct
+  // session would erase the application boundary and expose direct-only
+  // context/tools to a machine caller.
+  const isDirectUserSession = !!req.user && !req.apiKey && !req.serviceApp;
+  const isDelegatedServiceSession =
+    !!req.user?.id &&
+    !!req.serviceApp &&
+    req.serviceActingAs?.userId === req.user.id;
 
   /**
    * An agent id is an exact identity selector, never a hint.
@@ -249,7 +264,7 @@ export async function buildChatRequestContext(
       });
       return null;
     }
-    if (!isDirectUserSession || !req.user?.id) {
+    if ((!isDirectUserSession && !isDelegatedServiceSession) || !req.user?.id) {
       res.status(404).json({
         error: {
           message: 'The selected agent is unavailable.',
@@ -643,6 +658,7 @@ export async function buildChatRequestContext(
           agentId: requestedAgentId,
           oxyUserId: req.user.id,
           accessToken: req.accessToken,
+          applicationId: req.serviceApp?.appId,
         }).catch((err: unknown) => {
           /**
            * A repository failure is not permission to substitute another
@@ -762,6 +778,40 @@ export async function buildChatRequestContext(
   const linkedAgent = turnAgent.kind === 'agent' ? turnAgent.agent : null;
 
   /**
+   * Product-agent inference is charged to the product application that entered
+   * this request. The same already-verified service token is forwarded to Oxy;
+   * Oxy therefore derives payer, application and credential from its claims.
+   * The delegated user remains attribution only. No request body field and no
+   * agent row can choose the payer.
+   */
+  let inferenceServiceToken: string | undefined;
+  if (linkedAgent?.applicationId != null) {
+    const exactApplication = req.serviceApp?.appId === linkedAgent.applicationId;
+    const exactDelegation =
+      req.user?.id !== undefined &&
+      req.serviceActingAs?.userId === req.user.id;
+    const hasInferenceScope =
+      req.serviceApp?.scopes.includes('inference:invoke') === true &&
+      req.serviceActingAs?.scopes.includes('inference:invoke') === true;
+    if (!exactApplication || !exactDelegation || !hasInferenceScope || !req.accessToken) {
+      clearTimeout(globalTimer);
+      const refusal = {
+        message: 'The selected agent is unavailable.',
+        type: 'invalid_request_error',
+        param: 'agentId',
+        code: 'agent_unavailable',
+      };
+      if (sse.sent) {
+        sse.writeError(refusal);
+      } else {
+        res.status(404).json({ error: refusal });
+      }
+      return null;
+    }
+    inferenceServiceToken = req.accessToken;
+  }
+
+  /**
    * Skills, after the batch rather than inside it: the candidate set includes
    * the skills linked to whichever agent this conversation runs, and that agent
    * is one of the things the batch resolves.
@@ -778,6 +828,9 @@ export async function buildChatRequestContext(
         conversationId,
         selectedNames: selectedSkillNames,
         agentSkillIds: linkedAgent ? (await findAgentSkills(getDb(), linkedAgent.id)).map((ref) => ref._id) : [],
+        // Linking a skill to an agent is the explicit grant. A person's other
+        // installed skills are not inherited by every agent they talk to.
+        includeUserInstalled: linkedAgent === null,
       }).catch((err) => {
         log.v1.warn({ err }, 'Skill runtime unavailable for this turn');
         return null;
@@ -889,9 +942,10 @@ export async function buildChatRequestContext(
     clientContext,
     userMemory,
     oxyUser,
-    skills: skills ?? { index: '', active: '', tools: {}, candidateIds: [], activated: () => [] },
+    skills: skills ?? { index: '', active: '', tools: {}, agentScoped: false, candidateIds: [], activated: () => [] },
     entitlements,
     linkedAgent,
+    inferenceServiceToken,
     creditReservation,
     resolved,
     routingProfileId,

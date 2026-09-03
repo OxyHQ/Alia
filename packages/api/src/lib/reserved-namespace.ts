@@ -32,12 +32,10 @@
  *    `upsertRoutingProfile` are the only writers of `routing_profiles.routing_profile_id`;
  *    `updateRoutingProfile` deletes the column from its own SET clause, so an alias
  *    identity cannot move through an update.
- *  - **Serve** — `lib/gateway-client.ts` `resolveRoutingProfile()`. Outside the
- *    provider tree that is the ONLY door into model resolution, which the
- *    architecture gates prove: their frozen importer list records exactly one
- *    module reaching `internal/providers/lib/model-resolver`, and it is
- *    gateway-client. Refusing there covers the remote gateway branch and the
- *    local branch together.
+ *  - **Serve** — `lib/chat-core.ts` `resolveModel()`, the hosted-model resolver
+ *    shared by chat, agent, research, webhook and automation turns. Refusing
+ *    there covers every product path before it can construct an Oxy inference
+ *    target.
  *
  * `GET /v1/models/:modelId` needs nothing added: it looks the identifier up in
  * `KAANA_ROUTING_PROFILES`, which is keyed by the thirteen hyphenated aliases, so a slashed

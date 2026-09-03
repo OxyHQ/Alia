@@ -163,6 +163,54 @@ describe('a turn that belongs to an agent', () => {
       expect(message).toContain(provider);
     }
   });
+
+  it('does not disclose person-owned context to a new agent with no grants', async () => {
+    const message = await SystemPromptBuilder.build({
+      ...turn,
+      linkedAgent: { ...claudio, capabilityGrants: [] },
+      userId: 'person-1',
+      accessToken: 'person-bearer',
+      oxyUser: { name: { full: 'Private Person' }, username: 'private-person' },
+      recalledMemories: [{ title: 'Private recall', summary: 'a confidential remembered fact' }],
+      userMemory: {
+        memories: [{ title: 'Private fact', summary: 'another confidential fact' }],
+        preferences: { privatePreference: 'never disclose' },
+        context: { privateContext: 'personal workspace' },
+      },
+      skills: {
+        index: '\n\n## Skills\n- private-skill: user-only instructions',
+        active: '# ACTIVE SKILLS\n\nDo the private thing.',
+      },
+      agentMode: true,
+    });
+
+    expect(message).not.toContain('Private Person');
+    expect(message).not.toContain('Private recall');
+    expect(message).not.toContain('Private fact');
+    expect(message).not.toContain('privatePreference');
+    expect(message).not.toContain('privateContext');
+    expect(message).not.toContain('sendTelegramMessage');
+    expect(message).not.toContain('AGENT MODE');
+  });
+
+  it('discloses only the prompt families the owner explicitly granted', async () => {
+    const message = await SystemPromptBuilder.build({
+      ...turn,
+      linkedAgent: { ...claudio, capabilityGrants: ['memory', 'messaging', 'delegation'] },
+      oxyUser: { name: { full: 'Still Private' } },
+      recalledMemories: [{ title: 'Granted recall', summary: 'may be used' }],
+      userMemory: { memories: [{ title: 'Granted fact', summary: 'may also be used' }] },
+      agentMode: true,
+    });
+
+    expect(message).toContain('Granted recall');
+    expect(message).toContain('Granted fact');
+    expect(message).toContain('sendTelegramMessage');
+    expect(message).toContain('AGENT MODE');
+    // A profile/name is not one of Alia's grant families. It remains withheld
+    // until a resource-specific delegation authority exists for it.
+    expect(message).not.toContain('Still Private');
+  });
 });
 
 describe('a turn that belongs to nobody — the control', () => {

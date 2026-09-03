@@ -8,6 +8,10 @@ de servicio: `Alia -> Oxy -> Kaana`. Oxy resuelve identidad y rutas autorizadas;
 Alia no aloja lógica ni credenciales de proveedor, claves de firma de Kaana o
 un transporte alternativo.
 
+Los perfiles que Alia envía a Oxy usan exclusivamente los IDs opacos exactos
+revisados en `packages/api/src/config/oxy-inference-routing-profile-ids.ts`.
+Nunca selecciones uno por nombre, slug, primer resultado u orden de consulta.
+
 El antiguo nombre de trabajo `Relay` está retirado. El repositorio es
 `~/Oxy/Kaana` y su único origen firmado canónico es `https://kaana.ai`; no se
 admiten aliases de compatibilidad ni un host Kaana bajo `oxy.so`. No llames

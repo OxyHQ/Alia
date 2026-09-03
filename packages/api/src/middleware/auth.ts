@@ -6,6 +6,7 @@ import {
   createOxyAuthMiddleware,
   type OxyRequestUser,
   type OxyServiceAppContext,
+  type OxyServiceActingAsContext,
 } from '@oxyhq/core/server';
 import { recordApiKeyUsage } from '../db/telemetry/apiKeyUsageRepository.js';
 import { API_KEY_USAGE_METHODS } from '../domain/api-key-usage.js';
@@ -35,6 +36,8 @@ declare global {
         scopes: string[];
       };
       serviceApp?: OxyServiceAppContext;
+      /** Present only after Oxy verified the app's delegation grant for X-Oxy-User-Id. */
+      serviceActingAs?: OxyServiceActingAsContext;
       _usageRecorded?: boolean;
       workspace?: {
         id: string | null;

@@ -1,15 +1,16 @@
 ---
 title: "Kaana model abstraction"
-description: "How Alia names product choices while Kaana owns hosted inference routing and provider execution."
+description: "How Alia names product choices while Oxy authorizes routes and Kaana executes them."
 order: 2
 ---
 
 # Kaana model abstraction
 
-Alia is a product consumer of Kaana. Alia owns product modes, prompts,
-conversation state and user-facing presentation. Kaana owns hosted inference:
-provider credentials, deployments, health, routing, retries, fallback and usage
-against the upstream execution plane.
+Alia is a product consumer of Kaana through Oxy. Alia owns product modes,
+prompts, conversation state and user-facing presentation. Oxy authenticates,
+authorizes and orders the exact deployment routes. Kaana owns provider
+credentials, deployment execution, health, retries, failover within that signed
+order and technical usage against the upstream execution plane.
 
 There is no hosted direct-provider mode in Alia. Provider environment keys and
 `GATEWAY_API_URL` are refused at boot rather than treated as alternate
@@ -22,8 +23,12 @@ The public vocabulary deliberately separates three things:
 - A **product mode** is what a person selects in Alia, such as Automatic, Fast,
   Balanced, Maximum quality, Coding or Deep research. Modes are serialized as
   `object: "product_mode"`.
-- A **Kaana routing profile** is a canonical `kaana-*` policy identifier. It is
-  configuration with no weights and is never serialized as a concrete model.
+- A **product routing profile** is a canonical `kaana-*` identifier at Alia's
+  public boundary. It is configuration with no weights, is matched only by
+  exact ID and is never serialized as a concrete model. Alia's reviewed closed
+  map translates it to an opaque Oxy profile primary key; Oxy validates that
+  exact row before the Kaana v2 envelope. Neither Oxy nor Kaana looks up the
+  product spelling.
 - A **model reference** uses canonical `<publisher>/<model>` form. An immutable
   revision adds `@<revision>`. A concrete reference remains concrete through the
   request path.
@@ -31,7 +36,10 @@ The public vocabulary deliberately separates three things:
 The canonical routing-profile set is defined in
 `packages/api/src/lib/routing/kaana-profiles.ts`. Product visibility belongs to
 `packages/api/src/lib/product-modes.ts`; changing what Alia offers does not
-change Kaana's provider routing.
+change Kaana's provider routing. The subset provisioned in Oxy and its exact
+opaque IDs are pinned in
+`packages/api/src/config/oxy-inference-routing-profile-ids.ts`; an absent entry
+fails closed.
 
 ## Hosted request path
 
@@ -39,7 +47,7 @@ For hosted text inference:
 
 1. The request boundary validates the requested product mode or Kaana profile.
 2. `packages/api/src/lib/chat-core.ts` produces a credential-free resolution
-   carrying an explicit `routing_profile` or `model` target.
+   carrying an explicit `routing_profile_id` or `model` target.
 3. `getAIModel()` returns the Kaana AI SDK adapter.
 4. `@oxyhq/core`'s `OxyInferenceClient` authenticates to Oxy with Alia's
    short-lived service credential.
@@ -82,9 +90,11 @@ API keys from its environment and cannot enable hosted inference with one.
 
 The routing catalogue and its foreign keys use `routing_profiles` and
 `routing_profile_id`; older names survive only inside immutable migration history.
-Migration 0059 is explicitly post-cutover: it removes Alia's legacy provider keys,
-health, usage and fallback tables only after credential import and reconciliation in
-Kaana are verified and rollback to the Alia provider runtime is forbidden.
+The first cutover release deliberately includes no destructive migration for
+Alia's legacy provider keys, health, usage and fallback tables. They remain
+dormant and unconsumed until a real Oxy -> Kaana canary is verified. A second,
+separately gated release removes them only after rollback to the former Alia
+provider runtime is forbidden.
 
 Alia contains no hosted provider adapter tree or administrative provider-key script.
 Product inference cannot import or construct a direct provider client.

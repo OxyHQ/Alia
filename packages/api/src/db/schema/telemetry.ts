@@ -2,14 +2,57 @@
  * Platform telemetry — health, usage and routing records.
  *
  * Active product/auth telemetry with explicit retention. Hosted-provider key
- * usage, health and fallback telemetry moved to Kaana and their legacy Alia
- * tables are removed by post-cutover migration 0057.
+ * usage, health and fallback telemetry have moved to Kaana; their legacy Alia
+ * tables remain dormant only for the first cutover release's rollback window.
  */
 
-import { doublePrecision, index, integer, pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
+import {
+  boolean,
+  doublePrecision,
+  index,
+  integer,
+  jsonb,
+  pgTable,
+  text,
+  uniqueIndex,
+} from 'drizzle-orm/pg-core';
 import { createdAt, generatedId, timestamptz, updatedAt } from '@oxyhq/db';
 import { checkOneOf } from './columns';
 import { API_KEY_USAGE_AUTH_TYPES, API_KEY_USAGE_METHODS } from '../../domain/api-key-usage.js';
+
+/** Dormant rollback state; no hosted inference runtime reads or writes it. */
+export const CIRCUIT_STATES = ['closed', 'open', 'half-open'] as const;
+export type CircuitState = (typeof CIRCUIT_STATES)[number];
+
+export const providerHealth = pgTable(
+  'provider_health',
+  {
+    id: generatedId(),
+    provider: text().notNull(),
+    modelId: text().notNull(),
+    successCount: integer().notNull().default(0),
+    failureCount: integer().notNull().default(0),
+    totalRequests: integer().notNull().default(0),
+    successRate: doublePrecision().notNull().default(100),
+    averageLatencyMs: doublePrecision().notNull().default(0),
+    latencySamples: doublePrecision().array().notNull().default([]),
+    lastSuccess: timestamptz(),
+    lastFailure: timestamptz(),
+    consecutiveFailures: integer().notNull().default(0),
+    consecutiveSuccesses: integer().notNull().default(0),
+    circuitState: text({ enum: CIRCUIT_STATES }).notNull().default('closed'),
+    circuitOpenedAt: timestamptz(),
+    halfOpenAttempts: integer().notNull().default(0),
+    lastHealthCheck: timestamptz(),
+    isHealthy: boolean().notNull().default(true),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    uniqueIndex('provider_health_provider_model_key').on(t.provider, t.modelId),
+    checkOneOf('provider_health_circuit_state_check', t.circuitState, CIRCUIT_STATES),
+  ],
+);
 
 /**
  * Authentication successes and failures, bucketed by hour and method.
@@ -45,6 +88,48 @@ export const authHealthMetrics = pgTable(
     uniqueIndex('auth_health_metrics_method_hour_key').on(t.method, t.hour),
     // The expiry sweep's predicate column. Indexed because the sweep scans it.
     index('auth_health_metrics_created_at_idx').on(t.createdAt),
+  ],
+);
+
+/** Dormant rollback accounting; no hosted inference runtime reads or writes it. */
+export const apiUsage = pgTable(
+  'api_usage',
+  {
+    id: generatedId(),
+    keyId: text().notNull(),
+    provider: text().notNull(),
+    modelId: text().notNull(),
+    tokens: integer().notNull().default(0),
+    timestamp: timestamptz().notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    index('api_usage_key_timestamp_idx').on(t.keyId, t.timestamp.desc()),
+    index('api_usage_provider_idx').on(t.provider),
+    index('api_usage_timestamp_idx').on(t.timestamp),
+  ],
+);
+
+/** Dormant rollback diagnostics; no hosted inference runtime reads or writes it. */
+export const fallbackEvents = pgTable(
+  'fallback_events',
+  {
+    id: generatedId(),
+    timestamp: timestamptz().notNull(),
+    aliasModel: text().notNull(),
+    attempts: jsonb().notNull().default([]),
+    finalProvider: text(),
+    finalModel: text(),
+    success: boolean().notNull(),
+    totalLatencyMs: integer(),
+    fallbackPolicy: text(),
+    routingPolicyVersion: integer(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    index('fallback_events_timestamp_idx').on(t.timestamp),
+    index('fallback_events_alias_timestamp_idx').on(t.aliasModel, t.timestamp.desc()),
+    index('fallback_events_success_timestamp_idx').on(t.success, t.timestamp.desc()),
   ],
 );
 

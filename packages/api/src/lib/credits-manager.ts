@@ -107,11 +107,10 @@ export const CREDITS_CONFIG = {
 /**
  * A charge that named a model nothing can price.
  *
- * A distinct type rather than a bare `Error` because one caller acts on it:
- * `internal/providers/lib/voice-session-manager.ts` refunds on it, and may only
- * do so because this error is raised before any balance moves — see
- * {@link getCreditMultiplier}. A generic failure carries no such guarantee, so
- * refunding on one would be the double-credit half of the same bug.
+ * A distinct type rather than a bare `Error` so callers and observability can
+ * distinguish an invalid routing profile from an accounting failure. It is
+ * raised before any balance moves — see {@link getCreditMultiplier} — and must
+ * remain separate from failures that can happen after a reservation.
  */
 export class UnpricedModelError extends Error {
   constructor(readonly routingProfileId: string) {
@@ -163,8 +162,8 @@ export class UnpricedModelError extends Error {
  * `_adjustReservation` touches a row. So a throw leaves the reservation exactly
  * as it was found — never half-settled — and each caller's existing release
  * point gives it back: the chat path leaves `creditsSettled` false and
- * `routes/v1/chat-completions.ts` refunds, both webhook handlers refund in
- * their `finally`, and the voice session manager refunds on the type above.
+ * `routes/v1/chat-completions.ts` refunds, while both webhook handlers refund
+ * in their `finally` blocks.
  */
 export async function getCreditMultiplier(routingProfileId?: string): Promise<number> {
   if (routingProfileId === undefined) return 1;

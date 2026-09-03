@@ -103,6 +103,8 @@ export interface ProviderLoopParams {
    */
   autonomyRuntime: AutonomyRuntimeContext | null;
   includeUsage: boolean;
+  /** Product service token selected by the authenticated app/agent binding gate. */
+  inferenceServiceToken?: string;
 }
 
 export type ProviderLoopResult =
@@ -115,7 +117,7 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
     req, res, sse, requestId, requestStartTime, globalTimer, globalTimeoutMs, state,
     body, messages, conversationId, reasoningEffort, convertedMessages, truncatedTools,
     toolNameMapping, agentMessages, systemPromptTokens, requestedModel,
-    autonomyRuntime, includeUsage, skills,
+    autonomyRuntime, includeUsage, skills, inferenceServiceToken,
   } = params;
 
   // Track token usage (streaming path; the non-streaming path owns its own)
@@ -213,6 +215,8 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
       reasoningEffort,
       systemPromptTokens,
       streamState,
+      oxyUserId: req.user?.id,
+      serviceToken: inferenceServiceToken,
       onUsage: (usage) => { tokenUsage = usage; },
     });
 

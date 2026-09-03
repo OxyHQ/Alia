@@ -48,7 +48,14 @@ describe('Alia to Oxy to Kaana boundary', () => {
       'x-kaana-signature',
     ];
     for (const file of activeFiles) {
-      const source = read(file);
+      // The deploy workflow names retired variables only in explicit removal
+      // lists. Exclude those two declarations from the active-configuration
+      // census; deployWorkflow.test.ts separately proves the lists are exact
+      // and the ECS renderer really deletes them.
+      const source = read(file)
+        .split('\n')
+        .filter((line) => !/TASK_(?:SECRET|CONFIGURATION)_REMOVALS_JSON:/.test(line))
+        .join('\n');
       for (const token of forbidden) expect(source, `${file}: ${token}`).not.toContain(token);
     }
   });

@@ -118,7 +118,7 @@ function PlaygroundPage() {
   // is sorted by credit multiplier. No effect, so there is no render where the
   // selection is empty and no stale read after the catalogue loads.
   const models = catalogue ?? [];
-  const selectedModel = chosenModel ?? models[0]?.id ?? '';
+  const selectedModel = chosenModel || models[0]?.id || '';
   const currentModel = models.find((m) => m.id === selectedModel);
 
   const handleSend = useCallback(async () => {

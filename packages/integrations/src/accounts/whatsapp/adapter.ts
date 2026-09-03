@@ -12,6 +12,8 @@ import { createLogger } from '../../shared/logger';
 
 const logger = createLogger('WhatsApp');
 
+type AccountRequest = Request<Record<string, string>>;
+
 export class WhatsAppAdapter implements AccountAdapter {
   name = 'whatsapp';
 
@@ -33,7 +35,7 @@ export class WhatsAppAdapter implements AccountAdapter {
      * Body: { oxyUserId: string }
      * Response: { sessionId, status, qr }
      */
-    router.post('/sessions/connect', async (req: Request, res: Response) => {
+    router.post('/sessions/connect', async (req: AccountRequest, res: Response) => {
       const { oxyUserId } = req.body;
 
       if (!oxyUserId) {
@@ -63,7 +65,7 @@ export class WhatsAppAdapter implements AccountAdapter {
      * GET /sessions/:sessionId/qr
      * Returns the current QR code for a session that is awaiting scanning.
      */
-    router.get('/sessions/:sessionId/qr', async (req: Request, res: Response) => {
+    router.get('/sessions/:sessionId/qr', async (req: AccountRequest, res: Response) => {
       const { sessionId } = req.params;
 
       try {
@@ -104,7 +106,7 @@ export class WhatsAppAdapter implements AccountAdapter {
      * GET /sessions/:sessionId/status
      * Returns the current connection status of a session.
      */
-    router.get('/sessions/:sessionId/status', async (req: Request, res: Response) => {
+    router.get('/sessions/:sessionId/status', async (req: AccountRequest, res: Response) => {
       const { sessionId } = req.params;
 
       try {
@@ -135,7 +137,7 @@ export class WhatsAppAdapter implements AccountAdapter {
      * POST /sessions/:sessionId/disconnect
      * Disconnects a specific WhatsApp session and clears auth data.
      */
-    router.post('/sessions/:sessionId/disconnect', async (req: Request, res: Response) => {
+    router.post('/sessions/:sessionId/disconnect', async (req: AccountRequest, res: Response) => {
       const { sessionId } = req.params;
 
       try {
@@ -154,7 +156,7 @@ export class WhatsAppAdapter implements AccountAdapter {
      * GET /sessions/user/:userId
      * List all sessions for a specific user.
      */
-    router.get('/sessions/user/:userId', async (req: Request, res: Response) => {
+    router.get('/sessions/user/:userId', async (req: AccountRequest, res: Response) => {
       const { userId } = req.params;
 
       try {
@@ -184,7 +186,7 @@ export class WhatsAppAdapter implements AccountAdapter {
      * GET /sessions/:sessionId/chats
      * Returns the session's recent WhatsApp chats.
      */
-    router.get('/sessions/:sessionId/chats', async (req: Request, res: Response) => {
+    router.get('/sessions/:sessionId/chats', async (req: AccountRequest, res: Response) => {
       const { sessionId } = req.params;
 
       try {
@@ -217,7 +219,7 @@ export class WhatsAppAdapter implements AccountAdapter {
      * Returns recent messages from a specific chat.
      * Query: ?limit=20 (default 20, max 50)
      */
-    router.get('/sessions/:sessionId/chats/:jid/messages', async (req: Request, res: Response) => {
+    router.get('/sessions/:sessionId/chats/:jid/messages', async (req: AccountRequest, res: Response) => {
       const { sessionId, jid } = req.params;
       const limit = Math.min(parseInt(req.query.limit as string) || 20, 50);
 
@@ -244,7 +246,7 @@ export class WhatsAppAdapter implements AccountAdapter {
      * Send a message to a specific JID via a specific session.
      * Body: { jid: string, text: string }
      */
-    router.post('/sessions/:sessionId/send', async (req: Request, res: Response) => {
+    router.post('/sessions/:sessionId/send', async (req: AccountRequest, res: Response) => {
       const { sessionId } = req.params;
       const { jid, text } = req.body;
 

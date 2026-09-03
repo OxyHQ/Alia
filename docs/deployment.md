@@ -140,8 +140,8 @@ calling Kaana.
 
 ```bash
 OXY_API_URL=https://api.oxy.so
-ALIA_KAANA_CREDENTIAL_KEY=<oxy-application-key>
-ALIA_KAANA_CREDENTIAL_SECRET=<oxy-application-secret>
+OXY_SERVICE_API_KEY=<oxy-application-key>
+OXY_SERVICE_API_SECRET=<oxy-application-secret>
 ```
 
 `OXY_API_URL` is pinned to `https://api.oxy.so` in deployed environments. Local
@@ -149,9 +149,9 @@ development may use loopback. Paths, query strings, embedded credentials,
 scheme downgrades and near-miss origins are rejected. Alia does not configure a
 Kaana URL, signing key, account/application/credential IDs or route list.
 
-The two `ALIA_KAANA_CREDENTIAL_*` names are retained for deployment
-compatibility. Their values are one Oxy ApplicationCredential, not a provider
-or Kaana credential. Their exact bindings are declared by `deploy-aws.yml`.
+The two `OXY_SERVICE_API_*` values are one Oxy ApplicationCredential, not a
+provider or Kaana credential. Their exact bindings are declared by
+`deploy-aws.yml`; no legacy spelling is accepted by the runtime.
 
 Merging this configuration does not prove production cutover. The rollout must
 still verify the deployed Alia task revision, Oxy route and Kaana health, and
@@ -168,9 +168,12 @@ list is enumerated one secret at a time on purpose: a workflow that walks the wh
 human approval. **Adding a new secret means adding it to that list, or it never reaches
 SSM.**
 
-`/oxy/alia/INTEGRATIONS_SECRET` and
-`/oxy/alia-integrations/DATABASE_URL` are SSM-owned exceptions. Deploys verify
-only their name and type, never retrieve, decrypt, log or overwrite their value.
+`/oxy/alia/INTEGRATIONS_SECRET`,
+`/oxy/alia-integrations/DATABASE_URL` and the Oxy-provisioned
+`/oxy/alia/OXY_SERVICE_API_*` pair are SSM-owned exceptions. Deploys verify only
+their name and type, never retrieve, decrypt, log or overwrite their value. The
+Oxy pair comes from the ApplicationCredential record and its provisioning
+workflow, never from an Alia GitHub secret.
 
 Never set a repository secret to a placeholder. The sync job overwrites the real value.
 
@@ -191,7 +194,9 @@ number in a document drifts with every edit above it):
    connection resolving, which after the decommission it never did, so none of them had run
    in production since; the gate is gone rather than relaxed, and each one self-gates on the
    dependency it actually reads.
-6. Pre-warm TLS connections to upstream endpoints.
+6. Check Redis connectivity asynchronously; without `REDIS_URL`, rate limiting
+   is disabled and the service records that state without inventing another
+   inference path.
 
 ## Health checks
 

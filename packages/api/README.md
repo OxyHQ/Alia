@@ -132,6 +132,22 @@ database; Alia must not receive them through environment variables, SSM or its o
 Postgres schema. User-supplied local-runtime bindings are a separate compute boundary
 and are never reused for hosted inference.
 
+### Native product-agent bootstrap
+
+`bun run bootstrap:native-product-agents` is dry-run by default. It takes an
+advisory transaction lock, verifies every reserved project, bot and application
+by exact primary key through Oxy, and prints the complete non-secret plan plus
+its SHA-256. It never queries Oxy's database directly and has no name/slug/list
+fallback. The Oxy operator bearer must be supplied through a mode-0600 file in
+`OXY_BOOTSTRAP_ACCESS_TOKEN_FILE`.
+
+Re-run with `APPLY=1`, or with `ROLLBACK=1`, only after setting exact
+`BOOTSTRAP_ACTOR`, `BOOTSTRAP_REASON` and the observed
+`EXPECTED_PLAN_SHA256`. Rollback keeps both rows, makes them offline/private,
+and clears only their application bindings. It never deletes an agent, project,
+bot or application. If Oxy cannot prove an exact parent/owner relationship the
+transaction fails closed without writing.
+
 ## Notes
 
 - Keep user-facing errors sanitized through `sanitizeMessage()`.

@@ -12,7 +12,13 @@ Alia is a multi-surface context-agent platform focused on autonomous execution w
 
 A single chat runtime (`/alia/chat` and `/v1/chat/completions`) serves every surface. Each turn runs the autonomy loop `classify → recall → retrieve → act → learn`, draws from a per-user context graph, and is governed by an explicit risk policy (`R0`/`R1`/`R2`/`R3`) so writes are reversible, external impact requires approval, and destructive actions are blocked.
 
-Hosted inference goes through Kaana. Alia exposes canonical `kaana-*` routing profiles and product modes, while Kaana owns provider credentials, deployments, health, retry and fallback. [Model abstraction](./model-abstraction.mdx) describes the boundary, and [ADR 0003](./adr/0003-model-revision-deployment-provider-routing-profile.md) records the vocabulary behind it.
+Hosted inference follows `Alia -> Oxy -> Kaana`. Alia exposes canonical
+`kaana-*` product routing identifiers and modes. Oxy authenticates the caller
+and signs the exact ordered deployments; Kaana owns provider credentials,
+deployment execution, health and failover within that order. [Model
+abstraction](./model-abstraction.mdx) describes the boundary, and [ADR
+0003](./adr/0003-model-revision-deployment-provider-routing-profile.md) records
+the vocabulary behind it.
 
 ## Architecture
 
@@ -32,9 +38,12 @@ Hosted inference goes through Kaana. Alia exposes canonical `kaana-*` routing pr
               +----------------+          +-----------------+
               |                                             |
      +--------v---------+                       +-----------v-----------+
-     |   PostgreSQL     |                       |  Kaana inference      |
-     |   (drizzle)      |                       |  data plane           |
-     +--------+---------+                       +-----------------------+
+     |   PostgreSQL     |                       |  Oxy inference edge   |
+     |   (drizzle)      |                       +-----------+-----------+
+     +--------+---------+                                   |
+                                                  +---------v---------+
+                                                  | Kaana data plane  |
+                                                  +-------------------+
      +--------v---------+
      |  Redis (Valkey)  |     Socket.IO (real-time events,
      |  rate limits,    |     approval requests, streaming)

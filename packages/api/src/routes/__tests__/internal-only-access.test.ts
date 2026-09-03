@@ -24,7 +24,7 @@ import { routingTargetSchema } from '@oxyhq/contracts';
  * There are exactly three ways that could happen, and each has a block below:
  *
  *  1. **By naming one in the request.** It cannot be named: `routingTargetSchema`
- *     is a two-member union — `model` and `routing_profile` — with no deployment
+ *     is a two-member union — `model` and `routing_profile_id` — with no deployment
  *     member at all. Asserted against the live contract schema, not a copy.
  *  2. **By becoming an internal principal.** `req.serviceApp` is what marks a
  *     caller internal, and it is reachable only through a constant-time compare
@@ -81,14 +81,16 @@ describe('the request envelope cannot name a deployment at all (#139 ws17)', () 
       true,
     );
     expect(
-      routingTargetSchema.safeParse({ kind: 'routing_profile', routingProfile: 'balanced' }).success,
+      routingTargetSchema.safeParse({ kind: 'routing_profile_id', routingProfileId: 'profile-id' }).success,
     ).toBe(true);
 
     // Every shape an internal deployment could arrive as. All refused.
     for (const target of [
       { kind: 'deployment', deploymentId: 'dep_internal_1' },
       { kind: 'model', modelReference: 'oxy/atlas', deploymentId: 'dep_internal_1' },
+      { kind: 'routing_profile', routingProfile: 'balanced' },
       { kind: 'routing_profile', routingProfile: 'balanced', availabilityScope: 'internal_alia' },
+      { kind: 'routing_profile_id', routingProfileId: 'profile-id', availabilityScope: 'internal_alia' },
       { kind: 'internal_alia', deploymentId: 'dep_internal_1' },
     ]) {
       expect(routingTargetSchema.safeParse(target).success, JSON.stringify(target)).toBe(false);
@@ -97,7 +99,7 @@ describe('the request envelope cannot name a deployment at all (#139 ws17)', () 
 
   it('the hosted runtime carries only explicit model/profile target fields', () => {
     const source = code('lib/chat-core.ts');
-    expect(source).toContain("kind: 'routing_profile'");
+    expect(source).toContain("kind: 'routing_profile_id'");
     expect(source).toContain("kind: 'model'");
     expect(source).not.toContain('deploymentId');
     expect(source).not.toContain('availabilityScope');

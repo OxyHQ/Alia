@@ -90,8 +90,8 @@ export interface RoutingPreset {
   /**
    * What a turn on this profile costs, relative to the base rate.
    *
-   * Read by `lib/credits-manager.ts` on every billed request, and published by
-   * `lib/catalogue.ts` and `routes/models-stats.ts`. It is a property of the
+   * Read by `lib/credits-manager.ts` on every billed request and published by
+   * `lib/catalogue.ts`. It is a property of the
    * POLICY and not of the model that answered — `lib/routing/model-selection.ts`
    * explains at length why that is sound, and it is the reason a request naming
    * `<publisher>/<model>` is priced through the profile that model is homed
@@ -99,8 +99,7 @@ export interface RoutingPreset {
    */
   readonly creditMultiplier: number;
   /**
-   * The output ceiling registered for this profile, published by
-   * `routes/models-stats.ts`.
+   * The historical output ceiling registered for this profile.
    *
    * Stated rather than enforced, and that is worth knowing before relying on
    * it: Alia publishes the value but does not turn it into a Kaana route or
@@ -116,8 +115,7 @@ export interface RoutingPreset {
    * One value for the profile, which is what both readers already resolved: an
    * entry is built from the primary Kaana profile, so `profile:v1-pro-max` has always
    * been served as `general`. Its other identifier, `kaana-v1-thinking`,
-   * registers `coding` on its own record and `routes/models-stats.ts` still
-   * lists it that way. That divergence is pinned in `routing-policy.test.ts`
+   * registers `coding` on its own record. That divergence is pinned in `routing-policy.test.ts`
    * rather than resolved here: it is one identifier's presentation, and this
    * change is not the place to alter what an operator sees.
    */

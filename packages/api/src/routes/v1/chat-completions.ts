@@ -18,6 +18,10 @@ import { buildChatRequestContext } from '../../lib/chat/request-context.js';
 import type { AgentMessage } from '../../lib/chat/stream-runner.js';
 import { runProviderLoop, type ChatLoopState } from '../../lib/chat/provider-loop.js';
 import { getDefaultRoutingProfile } from '../../lib/chat-core.js';
+import {
+  productAgentClientContext,
+  withoutProductAgentSystemMessages,
+} from '../../lib/native-product-agent-prompt.js';
 
 const router = Router();
 
@@ -208,7 +212,9 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
       // The product's routing-profile id, or the product default for a model
       // running on the caller's own machine.
       routingProfileId: promptModelId,
-      clientContext,
+      // A product agent's fixed prompt is bootstrap-controlled. A caller's
+      // system-role message is never promoted into that prompt.
+      clientContext: productAgentClientContext(clientContext, linkedAgent?.applicationId),
       isDirectUserSession,
       userId: req.user?.id,
       accessToken: req.accessToken,
@@ -224,7 +230,9 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
 
 
     // Replace or inject system message
-    const rawMessages = [...messages];
+    // Product ingress cannot append a second system role after the fixed
+    // bootstrap prompt. Ordinary Alia keeps the existing client-context path.
+    const rawMessages = withoutProductAgentSystemMessages(messages, linkedAgent?.applicationId);
     if (rawMessages.length === 0 || rawMessages[0].role !== 'system') {
       // No system message, add ours at the start
       rawMessages.unshift({ role: 'system', content: systemMessage });
@@ -281,6 +289,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
       requestedModel,
       autonomyRuntime,
       includeUsage,
+      inferenceServiceToken: ctx.inferenceServiceToken,
     });
 
     if (loopResult.status === 'completed') return; // Response fully sent

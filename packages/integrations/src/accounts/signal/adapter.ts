@@ -12,6 +12,8 @@ import { createLogger } from '../../shared/logger';
 
 const logger = createLogger('Signal');
 
+type AccountRequest = Request<Record<string, string>>;
+
 export class SignalAdapter implements AccountAdapter {
   name = 'signal-gateway';
 
@@ -27,7 +29,7 @@ export class SignalAdapter implements AccountAdapter {
     const router = Router();
 
     // POST /sessions/link — link a new Signal device for user
-    router.post('/sessions/link', async (req: Request, res: Response) => {
+    router.post('/sessions/link', async (req: AccountRequest, res: Response) => {
       const { oxyUserId } = req.body;
       if (!oxyUserId) {
         return res.status(400).json({ error: 'oxyUserId is required' });
@@ -48,7 +50,7 @@ export class SignalAdapter implements AccountAdapter {
     });
 
     // GET /sessions/:sessionId/qr
-    router.get('/sessions/:sessionId/qr', async (req: Request, res: Response) => {
+    router.get('/sessions/:sessionId/qr', async (req: AccountRequest, res: Response) => {
       try {
         const session = await sessionManager.getQr(req.params.sessionId);
         if (!session) return res.status(404).json({ error: 'Session not found' });
@@ -63,7 +65,7 @@ export class SignalAdapter implements AccountAdapter {
     });
 
     // GET /sessions/:sessionId/status
-    router.get('/sessions/:sessionId/status', async (req: Request, res: Response) => {
+    router.get('/sessions/:sessionId/status', async (req: AccountRequest, res: Response) => {
       try {
         const session = await sessionManager.getStatus(req.params.sessionId);
         if (!session) return res.status(404).json({ error: 'Session not found' });
@@ -74,7 +76,7 @@ export class SignalAdapter implements AccountAdapter {
     });
 
     // POST /sessions/:sessionId/unlink
-    router.post('/sessions/:sessionId/unlink', async (req: Request, res: Response) => {
+    router.post('/sessions/:sessionId/unlink', async (req: AccountRequest, res: Response) => {
       try {
         await sessionManager.unlinkDevice(req.params.sessionId);
         return res.json({ status: 'unlinked', message: 'Device unlinked' });
@@ -84,7 +86,7 @@ export class SignalAdapter implements AccountAdapter {
     });
 
     // GET /sessions/user/:userId
-    router.get('/sessions/user/:userId', async (req: Request, res: Response) => {
+    router.get('/sessions/user/:userId', async (req: AccountRequest, res: Response) => {
       try {
         const sessions = await sessionManager.getUserSessions(req.params.userId);
         return res.json({ sessions });
@@ -104,7 +106,7 @@ export class SignalAdapter implements AccountAdapter {
     });
 
     // GET /sessions/:sessionId/chats
-    router.get('/sessions/:sessionId/chats', async (req: Request, res: Response) => {
+    router.get('/sessions/:sessionId/chats', async (req: AccountRequest, res: Response) => {
       try {
         const sessionId = req.params.sessionId;
         const dbChats = await listSignalChats(getDb(), sessionId, 50);
@@ -130,7 +132,7 @@ export class SignalAdapter implements AccountAdapter {
     });
 
     // GET /sessions/:sessionId/chats/:contactId/messages
-    router.get('/sessions/:sessionId/chats/:contactId/messages', async (req: Request, res: Response) => {
+    router.get('/sessions/:sessionId/chats/:contactId/messages', async (req: AccountRequest, res: Response) => {
       const { sessionId, contactId } = req.params;
       const limit = Math.min(parseInt(req.query.limit as string) || 20, 50);
 
@@ -152,7 +154,7 @@ export class SignalAdapter implements AccountAdapter {
     });
 
     // POST /sessions/:sessionId/send
-    router.post('/sessions/:sessionId/send', async (req: Request, res: Response) => {
+    router.post('/sessions/:sessionId/send', async (req: AccountRequest, res: Response) => {
       const { contactId, text } = req.body;
       if (!contactId || !text) {
         return res.status(400).json({ error: 'contactId and text are required' });

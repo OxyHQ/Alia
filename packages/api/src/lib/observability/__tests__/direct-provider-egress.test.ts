@@ -65,14 +65,14 @@ const POLICY_ENV: NodeJS.ProcessEnv = {};
 const [PROVIDER_HOST, SECOND_PROVIDER_HOST] = Object.values(PROVIDER_API_HOSTS);
 
 /**
- * Where `Oxy API -> Kaana` will answer from.
+ * The only hosted-inference origin Alia may contact directly.
  *
- * Kaana has no origin of its own yet — `lib/inference/__tests__/kaana-egress.test.ts`
- * freezes that fact — so the positive control is the Oxy host it will live
- * behind. Classified rather than contacted: this is an assertion about the
- * policy, not about Oxy being up.
+ * Oxy authenticates Alia and forwards the request to Kaana at its canonical
+ * `kaana.ai` boundary; Alia never receives a Kaana credential or contacts that
+ * data-plane origin itself. Classified rather than contacted: this asserts the
+ * policy without depending on either service being reachable.
  */
-const KAANA_HOST = 'api.oxy.so';
+const OXY_INFERENCE_HOST = 'api.oxy.so';
 
 const raised: Alert[] = [];
 onAlert((alert) => raised.push(alert));
@@ -204,7 +204,7 @@ describe('the installed policy reaches the recorder', () => {
   it('leaves the host Kaana will answer from permitted', () => {
     // Classified rather than contacted: the assertion is about the policy, and a
     // real request would make it about whether Oxy is reachable from CI.
-    expect(providerEgressDecision(KAANA_HOST, POLICY_ENV)).toBe('allow');
+    expect(providerEgressDecision(OXY_INFERENCE_HOST, POLICY_ENV)).toBe('allow');
     expect(providerEgressDecision(PROVIDER_HOST, POLICY_ENV)).toBe('refuse');
   });
 

@@ -49,7 +49,7 @@ rather than an investigation.
 
 > [!IMPORTANT]
 > **The product surface exposes Kaana routing-profile identifiers only.** The public
-> `kaana-*` profiles are served today; upstream operator names and deployment IDs never appear
+> `kaana-*` profiles are defined in source; upstream operator names and deployment IDs never appear
 > in a product API response, an error, the UI or a customer-facing analytics event, and
 > user-facing errors go through a sanitiser first. The rule is a product and privacy
 > boundary, not a global ban on the words — engineering docs and ADRs name publishers,
@@ -75,8 +75,9 @@ generic integrations go to Oxy Console and `api.oxy.so/v1`.
 Hosted inference follows `Alia -> Oxy -> Kaana` through the published
 `OxyInferenceClient`. Alia stores no upstream provider credential, constructs no
 provider client, signs no Kaana envelope and has no direct-provider fallback.
-Kaana owns provider credentials and runtime state in its PostgreSQL database;
-Oxy resolves identity and routing policy before forwarding the request.
+Kaana owns provider credentials and execution state in its PostgreSQL database.
+Oxy resolves identity, policy and the exact ordered deployments; Kaana executes
+only that signed order and performs failover only within it.
 
 That is the source target, not a claim that production has already cut over.
 Kaana's PostgreSQL/KMS provider-credential custody is merged, but the coordinated

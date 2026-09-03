@@ -1,5 +1,11 @@
 # Archive: what an operator did in Gateway Admin, and where it goes now
 
+> **Historical record only.** The screen inventory and the later “operator”
+> table record the state at the time this archive was written. They are not
+> current procedures. Provider credentials, routing and provider operations now
+> belong to Kaana/Oxy; Alia must never administer them or read/write its dormant
+> compatibility tables for hosted inference.
+
 `packages/alia-gateway-admin` was deleted by [#141](https://github.com/OxyHQ/Alia/pull/141).
 It was an eleven-screen Vite SPA that administered the provider stack, the plan catalogue and
 customer billing. This is the operator-facing record of it: per screen, the actions it offered
@@ -71,19 +77,19 @@ the two can be diffed.
 | --- | --- | --- |
 | **Login** (`*`, unauthenticated) | An Oxy sign-in shell branded "Alia Providers / Admin Panel", shown to any unauthenticated or unauthorized visitor. Authentication belongs to `@oxyhq/services`; the shell had nothing to preserve. | `ga-screen-login` |
 
-## What an operator can do today
+## What an operator could do when this archive was written
 
-**Ten of the eleven screens have no replacement surface.** `internal-kaana-ops` names a Kaana
-operations surface that does not exist — the Kaana data plane does not exist — and
-`keep-as-alia-product-setting` names Alia product settings that were never built. Both are open
-checkboxes on #139 workstream 9:
+At the time of this archive, **ten of the eleven screens had no replacement
+surface**. `internal-kaana-ops` named a future Kaana operations surface and
+`keep-as-alia-product-setting` named Alia product settings that had not been
+built. Both were open checkboxes on #139 workstream 9:
 
 - *"Move customer-facing application, credential, usage, billing, model and routing controls to
   Oxy Console."*
 - *"Move provider/deployment operational controls to an internal Kaana operations surface if still
   required."*
 
-Until those land, the operator paths are:
+The operator paths recorded at that time were:
 
 | Was | Is now |
 | --- | --- |

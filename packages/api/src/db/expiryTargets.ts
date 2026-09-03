@@ -14,7 +14,8 @@
  * The active registry covers product/auth telemetry, developer API usage,
  * automation, notifications, moderation, OAuth state and organization invites.
  * Historical Mongo TTL models for Alia's former hosted-provider runtime are
- * excluded after post-cutover migration 0057 removes their Postgres tables.
+ * excluded while their Postgres tables remain frozen as rollback assets. The
+ * first cutover release must neither mutate nor destroy that snapshot.
  *
  * ## The one that cannot be copied, and what to do about it
  *

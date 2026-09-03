@@ -97,6 +97,30 @@ export function buildOxyInferenceClient(
   });
 }
 
+/**
+ * Build a request-scoped client from an already VERIFIED inbound Oxy service
+ * token. Product-agent turns use this lane so Oxy charges the calling product
+ * application's owner/cost centre, never Alia's process credential and never
+ * an `agentId`. The caller decides whether the token is eligible only after
+ * matching the agent's application binding and effective inference scope.
+ */
+export function buildOxyInferenceClientForServiceToken(
+  serviceToken: string,
+  env: NodeJS.ProcessEnv = process.env,
+): OxyInferenceClient | null {
+  const bearer = serviceToken.trim();
+  if (bearer.length === 0) return null;
+
+  const baseURL = (env[OXY_API_URL_ENV] ?? '').trim();
+  const refusal = oxyInferenceEndpointRefusal(
+    baseURL,
+    resolveOxyDeploymentEnvironment(env),
+  );
+  if (refusal !== null) return null;
+
+  return new OxyInferenceClient({ baseURL, credential: bearer });
+}
+
 let cached: OxyInferenceClient | null | undefined;
 
 /** The one process-wide SDK client, preserving the service-token cache. */

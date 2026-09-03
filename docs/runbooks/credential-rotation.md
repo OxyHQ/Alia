@@ -12,18 +12,19 @@ Kaana's incident runbook. Removing it from Alia is cleanup, not revocation.
 
 | Credential | Owner and storage | Rotation effect |
 | --- | --- | --- |
-| Alia-to-Oxy application key and secret | GitHub secret -> `/oxy/alia/ALIA_KAANA_CREDENTIAL_*` -> ECS binding | New tasks authenticate with the replacement pair |
+| Alia-to-Oxy application key and secret | Oxy ApplicationCredential record -> Oxy provisioner -> `/oxy/alia/OXY_SERVICE_API_*` -> ECS binding | New tasks authenticate with the replacement pair |
 | Developer API keys | `developer_api_keys.key_hash` | Revoke the row and issue a replacement; plaintext is never recoverable |
 | OAuth and connector tokens | encrypted PostgreSQL columns | API and integrations must share `TOKEN_ENCRYPTION_KEY` |
 | Bot/platform tokens | PostgreSQL; encrypted where declared | Restart or reconnect the affected integration |
-| Webhook secrets | PostgreSQL | Producer and verifier must overlap or switch atomically |
+| Trigger and product webhook secrets | PostgreSQL | Producer and verifier must overlap or switch atomically |
 
 ## Alia-to-Oxy application credential
 
-Create the replacement in Oxy with only the scopes the Alia task needs. Update
-the two GitHub repository secrets through stdin or the GitHub UI. The deploy
-workflow writes them to Alia's exact SSM parameters and binds them into a new
-immutable task revision.
+Create the replacement in Oxy with only the scopes the Alia task needs, then run
+Oxy's credential provisioner so it writes the pair to Alia's exact SSM
+parameters. Do not copy either value into GitHub. Alia's deploy validates only
+the parameter names and `SecureString` types, then binds them into a new
+immutable task revision without reading or overwriting their values.
 
 Deploy and verify the running task-definition ARN, secret names, positive task
 count and a real Oxy-authenticated inference request before revoking the old
@@ -32,6 +33,13 @@ rotation.
 
 Alia has no Kaana signing key to rotate. Oxy owns the Oxy-to-Kaana signing
 boundary and rotates it independently.
+
+Oxy application events have no Alia-held per-app webhook secret. Migration
+`0056` removed the former `oxy_services.webhook_secret` values and retired the
+legacy table. Rotate or revoke the publisher's centralized Oxy service
+credential in Oxy; do not add a replacement secret to Alia. User-owned
+`triggers.webhook_secret` values remain part of the trigger API and must be
+rotated with the producer and verifier in agreement.
 
 ## `TOKEN_ENCRYPTION_KEY`
 

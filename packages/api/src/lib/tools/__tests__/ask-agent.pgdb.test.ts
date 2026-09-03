@@ -75,7 +75,13 @@ vi.mock('../../oxy-user-hydration.js', () => ({
 }));
 
 vi.mock('../../chat-core.js', () => ({
-  resolveModel: vi.fn(async (id: string) => ({ id, oxyInferenceTarget: { kind: 'routing_profile', routingProfile: id } })),
+  resolveModel: vi.fn(async (id: string) => ({
+    id,
+    oxyInferenceTarget: {
+      kind: 'routing_profile_id',
+      routingProfileId: '01a06477-94f5-74f0-bc25-4c5c13b93ccd',
+    },
+  })),
   getAIModel: vi.fn(() => ({ modelId: 'test-model' })),
 }));
 

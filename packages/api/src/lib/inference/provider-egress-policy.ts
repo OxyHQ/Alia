@@ -18,11 +18,9 @@
  * So the policy names the hosts that must become unreachable, and the
  * completeness problem a deny list normally has is answered OUTSIDE the runtime:
  * `__tests__/provider-egress-policy.test.ts` derives the true provider host set
- * from `internal/providers/**`'s own source and fails if this list does not
- * cover it, and `__tests__/architectureGates.test.ts` gate 2 asserts this map
- * has an entry for every provider the catalogue's CHECK constraint accepts. A
- * provider added without a host fails there; an adapter pointed at a new host
- * fails here.
+ * from the retired provider sources and fails if this list does not cover it.
+ * A new hosted adapter would also be rejected by the focused inference
+ * boundary tests.
  *
  * ## Why the hostnames live in product code
  *

@@ -1,5 +1,12 @@
 # Epic #139 status audit
 
+> **Archived measurement, not current architecture or an operating runbook.**
+> The statements below describe the named commits and dates only. Current Alia
+> is PostgreSQL-only and sends hosted inference through Oxy to Kaana; it holds no
+> provider credentials. Use [`../index.mdx`](../index.mdx), the
+> [responsibility-boundary ADR](../adr/0001-alia-oxy-kaana-responsibility-boundary.md)
+> and current runbooks for live behavior.
+
 A measurement, not a plan. For every one of the 246 checkboxes that were unticked in
 [issue #139](https://github.com/OxyHQ/Alia/issues/139) when this was taken, it records a verdict and
 one line of evidence — a path, a command output, or the named external artefact that is missing. The

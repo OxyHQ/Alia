@@ -87,18 +87,15 @@ jobs:
       # CLOUDFLARE_API_TOKEN, ADD_TO_PROJECT_TOKEN) ended up in this app's SSM
       # namespace.
       #
-      # The list is the secrets the `alia` task definition actually consumes.
-      # Adding a new one means adding it here, or it never reaches SSM.
+      # The list is the GitHub-owned secrets the `alia` task definition
+      # consumes. Oxy's ApplicationCredential is intentionally absent: Oxy
+      # provisions it from its database into SSM, and the inference stage below
+      # only validates and binds those existing parameters.
       - name: Sync GitHub secrets -> SSM (GitHub is the source of truth)
         env:
           APP_DATABASE_URL: ${{ secrets.DATABASE_URL }}
           APP_SERVICE_SECRET: ${{ secrets.SERVICE_SECRET }}
           APP_TOKEN_ENCRYPTION_KEY: ${{ secrets.TOKEN_ENCRYPTION_KEY }}
-          # The Oxy ApplicationCredential Alia presents to mint a short-lived
-          # service token. Oxy resolves identity and routing before it calls
-          # Kaana. These are not provider credentials.
-          APP_ALIA_KAANA_CREDENTIAL_KEY: ${{ secrets.ALIA_KAANA_CREDENTIAL_KEY }}
-          APP_ALIA_KAANA_CREDENTIAL_SECRET: ${{ secrets.ALIA_KAANA_CREDENTIAL_SECRET }}
           APP_VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY }}
           APP_VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
           SHARED_AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -121,8 +118,6 @@ jobs:
           sync_secret SERVICE_SECRET "$APP_SERVICE_SECRET" "/oxy/$APP/SERVICE_SECRET"
           sync_secret TOKEN_ENCRYPTION_KEY "$APP_TOKEN_ENCRYPTION_KEY" "/oxy/$APP/TOKEN_ENCRYPTION_KEY"
           sync_secret VAPID_PUBLIC_KEY "$APP_VAPID_PUBLIC_KEY" "/oxy/$APP/VAPID_PUBLIC_KEY"
-          sync_secret ALIA_KAANA_CREDENTIAL_KEY "$APP_ALIA_KAANA_CREDENTIAL_KEY" "/oxy/$APP/ALIA_KAANA_CREDENTIAL_KEY"
-          sync_secret ALIA_KAANA_CREDENTIAL_SECRET "$APP_ALIA_KAANA_CREDENTIAL_SECRET" "/oxy/$APP/ALIA_KAANA_CREDENTIAL_SECRET"
           sync_secret VAPID_PRIVATE_KEY "$APP_VAPID_PRIVATE_KEY" "/oxy/$APP/VAPID_PRIVATE_KEY"
           sync_secret AWS_ACCESS_KEY_ID "$SHARED_AWS_ACCESS_KEY_ID" "/oxy/_shared/AWS_ACCESS_KEY_ID"
           sync_secret AWS_SECRET_ACCESS_KEY "$SHARED_AWS_SECRET_ACCESS_KEY" "/oxy/_shared/AWS_SECRET_ACCESS_KEY"
@@ -313,16 +308,32 @@ jobs:
           INTEGRATIONS_SECRETS: ${{ steps.integrations.outputs.secret_overrides }}
           INTEGRATIONS_ENV: ${{ steps.integrations.outputs.env_overrides }}
         run: |
+          # Oxy provisions this ApplicationCredential from its database and
+          # writes the two secret values to SSM. Alia may bind them but must not
+          # copy a second value from GitHub or read/decrypt them in CI.
+          for name in OXY_SERVICE_API_KEY OXY_SERVICE_API_SECRET; do
+            parameter_name="/oxy/$APP/$name"
+            metadata="$(aws ssm describe-parameters \
+              --parameter-filters "Key=Name,Option=Equals,Values=$parameter_name" \
+              --query 'Parameters[0].[Name,Type]' \
+              --output text)"
+            read -r actual_name actual_type <<<"$metadata"
+            if [ "$actual_name" != "$parameter_name" ] || [ "$actual_type" != "SecureString" ]; then
+              echo "::error::required Oxy-provisioned SecureString metadata is absent for $parameter_name"
+              exit 1
+            fi
+          done
+
           required_env="$(jq -cn '{
             API_BASE_URL: "https://api.alia.onl",
             ALIA_API_URL: "https://api.alia.onl"
           }')"
 
           oxy_inference_secrets="$(jq -cn \
-            --arg key "arn:aws:ssm:$AWS_REGION:237343248947:parameter/oxy/$APP/ALIA_KAANA_CREDENTIAL_KEY" \
-            --arg secret "arn:aws:ssm:$AWS_REGION:237343248947:parameter/oxy/$APP/ALIA_KAANA_CREDENTIAL_SECRET" \
-            '{ALIA_KAANA_CREDENTIAL_KEY: $key,
-              ALIA_KAANA_CREDENTIAL_SECRET: $secret}')"
+            --arg key "arn:aws:ssm:$AWS_REGION:237343248947:parameter/oxy/$APP/OXY_SERVICE_API_KEY" \
+            --arg secret "arn:aws:ssm:$AWS_REGION:237343248947:parameter/oxy/$APP/OXY_SERVICE_API_SECRET" \
+            '{OXY_SERVICE_API_KEY: $key,
+              OXY_SERVICE_API_SECRET: $secret}')"
 
           merged_secrets="$(jq -cs '.[0] * .[1]' <(echo "${INTEGRATIONS_SECRETS:-{\}}") <(echo "$oxy_inference_secrets"))"
           merged_env="$(jq -cs '.[0] * .[1]' <(echo "${INTEGRATIONS_ENV:-{\}}") <(echo "$required_env"))"
@@ -397,7 +408,12 @@ jobs:
           # Safe only because `lib/s3.ts` now omits the `credentials` key when
           # the environment carries no pair, instead of passing an EMPTY one that
           # the SDK signs with. That landed first, deliberately.
-          TASK_SECRET_REMOVALS_JSON: '["AWS_ACCESS_KEY_ID","AWS_SECRET_ACCESS_KEY"]'
+          TASK_SECRET_REMOVALS_JSON: '["AWS_ACCESS_KEY_ID","AWS_SECRET_ACCESS_KEY","KAANA_EDGE_SIGNING_PRIVATE_KEY","ALIA_RELAY_CREDENTIAL_KEY","ALIA_RELAY_CREDENTIAL_SECRET","ALIA_KAANA_CREDENTIAL_KEY","ALIA_KAANA_CREDENTIAL_SECRET"]'
+          # Remove every legacy plain Relay/direct-Kaana binding inherited from
+          # the live task definition. Keeping a removal here is harmless after
+          # the first clean revision and prevents a rollback descendant from
+          # silently reintroducing the obsolete contract.
+          TASK_CONFIGURATION_REMOVALS_JSON: '["RELAY_BASE_URL","ALIA_RELAY_APPLICATION_ID","ALIA_RELAY_ACCOUNT_ID","ALIA_RELAY_CREDENTIAL_ID","ALIA_RELAY_ENVIRONMENT","ALIA_RELAY_INFERENCE_SCOPES","KAANA_EDGE_KEY_ID","ALIA_KAANA_CLIENT_ENABLED","ALIA_KAANA_APPLICATION_ID","ALIA_KAANA_ACCOUNT_ID","ALIA_KAANA_CREDENTIAL_ID","ALIA_KAANA_ENVIRONMENT","ALIA_KAANA_INFERENCE_SCOPES","KAANA_BASE_URL"]'
           TASK_ENV_OVERRIDES_JSON: ${{ steps.kaana.outputs.env_overrides }}
         run: |
           STATUS=$(aws ecs describe-services --cluster "$CLUSTER" --services "$APP" --query 'services[0].status' --output text 2>/dev/null || echo NONE)

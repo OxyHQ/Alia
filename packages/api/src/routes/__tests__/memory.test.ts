@@ -262,7 +262,10 @@ describe('POST /memory/import/from-text', () => {
     mockResolveModel.mockResolvedValueOnce({
       provider: 'kaana',
       modelId: 'kaana-v1',
-      oxyInferenceTarget: { kind: 'routing_profile', routingProfile: 'kaana-v1' },
+      oxyInferenceTarget: {
+        kind: 'routing_profile_id',
+        routingProfileId: '01a06477-94f5-74f0-bc25-4c5c13b93ccd',
+      },
       keyConfig: { provider: 'kaana', modelId: 'kaana-v1' },
     });
 

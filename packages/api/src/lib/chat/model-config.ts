@@ -47,6 +47,10 @@ export interface BuildBaseConfigParams {
   systemPromptTokens: number;
   /** Shared with the stream runner; the first-byte timer reads it. */
   streamState: StreamRunnerState;
+  /** The authenticated Oxy account this hosted turn is attributed to. */
+  oxyUserId?: string;
+  /** A verified inbound product credential, used only for an app-bound agent turn. */
+  serviceToken?: string;
   /** Called from `onFinish` to hand captured usage back to the route's `let`. */
   onUsage: (usage: CreditUsage) => void;
 }
@@ -60,9 +64,9 @@ export interface BaseConfigResult {
 
 /** Assemble the shared AI SDK config for one provider attempt + its first-byte abort. */
 export function buildBaseConfig(params: BuildBaseConfigParams): BaseConfigResult {
-  const { resolved, body, convertedMessages, truncatedTools, reasoningEffort, systemPromptTokens, streamState, onUsage } = params;
+  const { resolved, body, convertedMessages, truncatedTools, reasoningEffort, systemPromptTokens, streamState, oxyUserId, serviceToken, onUsage } = params;
 
-  const model = getAIModel(resolved, 'chat');
+  const model = getAIModel(resolved, 'chat', oxyUserId, serviceToken);
 
   // Build common config for both streaming and non-streaming
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- AI SDK config is dynamically extended; strict SDK param types don't support this pattern

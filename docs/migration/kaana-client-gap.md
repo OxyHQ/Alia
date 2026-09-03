@@ -1,5 +1,11 @@
 # Kaana client gap analysis
 
+> **Archived pre-cutover analysis.** Every use of “today” or “live” below is
+> pinned to the 2026-08-16 measurement and is not a statement about current
+> Alia. Current hosted inference is Alia → Oxy → Kaana, and Alia has no provider
+> key custody or direct provider adapters. See [`../index.mdx`](../index.mdx)
+> and the [responsibility-boundary ADR](../adr/0001-alia-oxy-kaana-responsibility-boundary.md).
+
 The pre-publish half of [issue #139](https://github.com/OxyHQ/Alia/issues/139)
 workstream 3, *"Introduce a typed Kaana client boundary"*.
 
@@ -159,7 +165,7 @@ to parse one through the schema.
 
 **Since 2026-08-17 (#139 ws2).** The replacement half of that edit exists:
 `lib/inference/kaana-credential.ts` configures `@oxyhq/core` with the
-ApplicationCredential in `ALIA_KAANA_CREDENTIAL_KEY` / `ALIA_KAANA_CREDENTIAL_SECRET`
+ApplicationCredential in `OXY_SERVICE_API_KEY` / `OXY_SERVICE_API_SECRET`
 and returns it typed as `RelayClientConfig['credential']`, so the token the
 client presents is minted, cached and refreshed by the SDK — measured against a
 real `/auth/service-token` round trip in `__tests__/kaana-credential.test.ts`.

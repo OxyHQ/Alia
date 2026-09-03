@@ -241,10 +241,10 @@ function markerFor(token: string): string | null {
  * URLs and hostnames that describe Alia's internal topology, and the upstream
  * error-code vocabulary that is a raw upstream body's fingerprint.
  *
- * Defence in depth rather than the primary control for credentials — an
- * upstream body is redacted where it is born
- * (`internal/providers/lib/provider-error-body.ts`) — but the primary control
- * covers the provider tree only, and an error string can be assembled anywhere.
+ * The product-surface boundary is deliberately independent of transport: an
+ * SDK, Oxy response or local integration may assemble an error string anywhere,
+ * so every user-bound message is scrubbed here even though provider responses
+ * and provider credentials no longer exist in the Alia runtime.
  *
  * Use this alone where the text is the caller's own and concealment would only
  * make the message unactionable.

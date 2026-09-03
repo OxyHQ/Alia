@@ -12,6 +12,8 @@ import { createLogger } from '../../shared/logger';
 
 const logger = createLogger('Telegram');
 
+type AccountRequest = Request<Record<string, string>>;
+
 export class TelegramGatewayAdapter implements AccountAdapter {
   name = 'telegram-gateway';
 
@@ -27,7 +29,7 @@ export class TelegramGatewayAdapter implements AccountAdapter {
     const router = Router();
 
     // POST /sessions/connect — create new session, return QR
-    router.post('/sessions/connect', async (req: Request, res: Response) => {
+    router.post('/sessions/connect', async (req: AccountRequest, res: Response) => {
       const { oxyUserId } = req.body;
       if (!oxyUserId) {
         return res.status(400).json({ error: 'oxyUserId is required' });
@@ -48,7 +50,7 @@ export class TelegramGatewayAdapter implements AccountAdapter {
     });
 
     // GET /sessions/:sessionId/qr
-    router.get('/sessions/:sessionId/qr', async (req: Request, res: Response) => {
+    router.get('/sessions/:sessionId/qr', async (req: AccountRequest, res: Response) => {
       try {
         const session = await sessionManager.getQr(req.params.sessionId);
         if (!session) return res.status(404).json({ error: 'Session not found' });
@@ -63,7 +65,7 @@ export class TelegramGatewayAdapter implements AccountAdapter {
     });
 
     // GET /sessions/:sessionId/status
-    router.get('/sessions/:sessionId/status', async (req: Request, res: Response) => {
+    router.get('/sessions/:sessionId/status', async (req: AccountRequest, res: Response) => {
       try {
         const session = await sessionManager.getStatus(req.params.sessionId);
         if (!session) return res.status(404).json({ error: 'Session not found' });
@@ -74,7 +76,7 @@ export class TelegramGatewayAdapter implements AccountAdapter {
     });
 
     // POST /sessions/:sessionId/disconnect
-    router.post('/sessions/:sessionId/disconnect', async (req: Request, res: Response) => {
+    router.post('/sessions/:sessionId/disconnect', async (req: AccountRequest, res: Response) => {
       try {
         await sessionManager.disconnectSession(req.params.sessionId);
         return res.json({ status: 'logged-out', message: 'Session disconnected' });
@@ -84,7 +86,7 @@ export class TelegramGatewayAdapter implements AccountAdapter {
     });
 
     // GET /sessions/user/:userId
-    router.get('/sessions/user/:userId', async (req: Request, res: Response) => {
+    router.get('/sessions/user/:userId', async (req: AccountRequest, res: Response) => {
       try {
         const sessions = await sessionManager.getUserSessions(req.params.userId);
         return res.json({ sessions });
@@ -104,7 +106,7 @@ export class TelegramGatewayAdapter implements AccountAdapter {
     });
 
     // GET /sessions/:sessionId/chats
-    router.get('/sessions/:sessionId/chats', async (req: Request, res: Response) => {
+    router.get('/sessions/:sessionId/chats', async (req: AccountRequest, res: Response) => {
       try {
         const sessionId = req.params.sessionId;
         const dbChats = await listTelegramChats(getDb(), sessionId, 50);
@@ -130,7 +132,7 @@ export class TelegramGatewayAdapter implements AccountAdapter {
     });
 
     // GET /sessions/:sessionId/chats/:chatId/messages
-    router.get('/sessions/:sessionId/chats/:chatId/messages', async (req: Request, res: Response) => {
+    router.get('/sessions/:sessionId/chats/:chatId/messages', async (req: AccountRequest, res: Response) => {
       const { sessionId, chatId } = req.params;
       const limit = Math.min(parseInt(req.query.limit as string) || 20, 50);
 
@@ -152,7 +154,7 @@ export class TelegramGatewayAdapter implements AccountAdapter {
     });
 
     // POST /sessions/:sessionId/send
-    router.post('/sessions/:sessionId/send', async (req: Request, res: Response) => {
+    router.post('/sessions/:sessionId/send', async (req: AccountRequest, res: Response) => {
       const { chatId, text } = req.body;
       if (!chatId || !text) {
         return res.status(400).json({ error: 'chatId and text are required' });

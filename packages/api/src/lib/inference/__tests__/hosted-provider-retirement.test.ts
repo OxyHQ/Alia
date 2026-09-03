@@ -28,8 +28,11 @@ describe('Alia hosted provider runtime retirement', () => {
     }
 
     const build = readFileSync(path.join(REPO_ROOT, 'packages/api/build.ts'), 'utf8');
+    const gateway = readFileSync(path.join(API_SRC, 'lib/gateway-client.ts'), 'utf8');
     expect(build).not.toContain('src/scripts/provider-key.ts');
     expect(build).not.toContain('dist/scripts/provider-key.js');
+    expect(gateway).not.toContain('callProviderAPI');
+    expect(gateway).not.toContain('getProviderTimeout');
   });
 
   it('keeps provider-shaped environment values fail-closed', () => {
@@ -41,24 +44,51 @@ describe('Alia hosted provider runtime retirement', () => {
     }
   });
 
-  it('drops legacy hosted-runtime tables only in the post-cutover migration', () => {
-    const migration = readFileSync(
-      path.join(REPO_ROOT, 'packages/api/drizzle/0059_remove_alia_hosted_provider_runtime.sql'),
-      'utf8',
-    );
-    expect(migration).toMatch(/^-- oxy:deploy-phase=post$/m);
-    for (const table of ['provider_keys', 'provider_health', 'api_usage', 'fallback_events']) {
-      expect(migration).toContain(`DROP TABLE "${table}" CASCADE`);
+  it('keeps rollback tables dormant and defers their destructive migration', () => {
+    for (const destructiveMigration of [
+      '0060_remove_alias_identity.sql',
+      '0061_remove_alia_hosted_provider_runtime.sql',
+    ]) {
+      expect(existsSync(path.join(REPO_ROOT, 'packages/api/drizzle', destructiveMigration))).toBe(
+        false,
+      );
     }
+    const journal = JSON.parse(
+      readFileSync(path.join(REPO_ROOT, 'packages/api/drizzle/meta/_journal.json'), 'utf8'),
+    ) as { entries: Array<{ tag: string }> };
+    expect(journal.entries.at(-1)?.tag).toBe('0059_kaana_routing_profiles');
+
+    const schema = [
+      readFileSync(path.join(API_SRC, 'db/schema/providers.ts'), 'utf8'),
+      readFileSync(path.join(API_SRC, 'db/schema/telemetry.ts'), 'utf8'),
+    ].join('\n');
+    for (const table of ['provider_keys', 'provider_health', 'api_usage', 'fallback_events']) {
+      expect(schema).toContain(`'${table}'`);
+    }
+    expect(schema).toContain('Dormant rollback');
+  });
+
+  it('has no direct hosted provider SDK or inert provider metric', () => {
+    const manifest = readFileSync(path.join(REPO_ROOT, 'packages/api/package.json'), 'utf8');
+    const metrics = readFileSync(path.join(API_SRC, 'lib/observability/metrics.ts'), 'utf8');
+    const observability = readFileSync(path.join(API_SRC, 'lib/observability/index.ts'), 'utf8');
+
+    expect(manifest).not.toContain('@ai-sdk/anthropic');
+    expect(manifest).not.toContain('@ai-sdk/google');
+    expect(metrics).not.toContain('alia_provider_');
+    expect(metrics).not.toContain('providerRequestRecorded');
+    expect(observability).not.toContain('providerRequestRecorded');
   });
 
   it('binds only the Oxy service credential for hosted inference', () => {
     const workflow = readFileSync(path.join(REPO_ROOT, '.github/workflows/deploy-aws.yml'), 'utf8');
-    expect(workflow).toContain(
-      'sync_secret ALIA_KAANA_CREDENTIAL_KEY "$APP_ALIA_KAANA_CREDENTIAL_KEY" "/oxy/$APP/ALIA_KAANA_CREDENTIAL_KEY"',
-    );
-    expect(workflow).toContain('ALIA_KAANA_CREDENTIAL_SECRET: $secret');
-    expect(workflow).not.toContain('EDGE_SIGNING_PRIVATE_KEY');
+    expect(workflow).toContain('for name in OXY_SERVICE_API_KEY OXY_SERVICE_API_SECRET');
+    expect(workflow).toContain('required Oxy-provisioned SecureString metadata is absent');
+    expect(workflow).not.toContain('secrets.OXY_SERVICE_API_KEY');
+    expect(workflow).not.toContain('sync_secret OXY_SERVICE_API_');
+    expect(workflow).toContain('OXY_SERVICE_API_SECRET: $secret');
+    expect(workflow).not.toContain('secrets.ALIA_KAANA_CREDENTIAL_');
+    expect(workflow).not.toContain('sync_secret ALIA_RELAY_CREDENTIAL_');
     expect(workflow).not.toContain('oxy-task-ssm-alia-provider-keys');
   });
 

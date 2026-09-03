@@ -59,8 +59,8 @@ import { OxyServices, type OxyInferenceCredential } from '@oxyhq/core';
  * No former spelling is read; a partial rollout is a boot refusal.
  */
 export const OXY_INFERENCE_CREDENTIAL_ENV = {
-  apiKey: 'ALIA_KAANA_CREDENTIAL_KEY',
-  apiSecret: 'ALIA_KAANA_CREDENTIAL_SECRET',
+  apiKey: 'OXY_SERVICE_API_KEY',
+  apiSecret: 'OXY_SERVICE_API_SECRET',
 } as const;
 
 /**

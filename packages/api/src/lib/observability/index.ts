@@ -38,6 +38,6 @@ export function recordMetric(metric: ObserverMetric): void {
 }
 
 // ── Extended observability modules ──
-export { exportMetrics, agentSessionStarted, agentSessionEnded, agentStepTaken, agentTokensUsed, toolCallRecorded, providerRequestRecorded, contextCompactionRecorded, chatRequestRecorded } from './metrics.js';
+export { exportMetrics, agentSessionStarted, agentSessionEnded, agentStepTaken, agentTokensUsed, toolCallRecorded, contextCompactionRecorded, chatRequestRecorded } from './metrics.js';
 export { SessionTrace, type Span, type SpanEvent } from './tracing.js';
 export { onAlert, getRecentAlerts, checkInfiniteLoop, checkSessionRunaway, cleanupSessionAlerts, type Alert } from './alerts.js';

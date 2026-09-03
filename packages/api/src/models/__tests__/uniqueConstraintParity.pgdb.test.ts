@@ -592,7 +592,7 @@ const UNIQUES_SUPERSEDED: readonly SupersededUnique[] = [
     wasConstraint: 'alia_models_alias_model_id_key',
     nowConstraint: 'routing_profiles_routing_profile_id_key',
     reason:
-      'Migration 0055 renamed the same catalogue table and identity column from the retired Alia alias vocabulary to a Kaana routing profile; 0056 then renamed the unique index. The identity remains protected under its canonical name without rewriting the frozen record of what Mongoose declared.',
+      'Migration 0059 renamed the same catalogue table, identity column and unique index from the retired Alia alias vocabulary to a Kaana routing profile. The identity remains protected under its canonical name without rewriting the frozen record of what Mongoose declared.',
   },
   {
     model: 'Skill',
@@ -626,16 +626,7 @@ interface UniqueRemovedWithCapability {
   readonly reason: string;
 }
 
-const UNIQUES_REMOVED_WITH_CAPABILITY: readonly UniqueRemovedWithCapability[] = [
-  {
-    model: 'ProviderKey',
-    table: 'provider_keys',
-    constraint: 'provider_keys_key_hash_key',
-    removedBy: '0057_remove_alia_hosted_provider_runtime',
-    reason:
-      "Kaana owns upstream provider credentials after cutover. Migration 0057 removes Alia's provider_keys table together with the hosted provider runtime; restoring this uniqueness would restore credential state in the wrong service.",
-  },
-];
+const UNIQUES_REMOVED_WITH_CAPABILITY: readonly UniqueRemovedWithCapability[] = [];
 
 /**
  * The THIRD state: a `unique` that was retired outright rather than ported.
@@ -1081,7 +1072,7 @@ describe('every uniqueness Mongoose enforced exists in PostgreSQL', () => {
     expect(stillThere).toEqual([]);
   });
 
-  it('keeps uniquenesses removed with an exited capability absent and historically backed', async () => {
+  it('keeps any uniquenesses removed in a later retirement absent and historically backed', async () => {
     const present = new Set((await databaseUniques()).map((r) => `${r.table}.${r.name}`));
     const historical = new Set(
       [...UNIQUES_AT_FREEZE, ...UNIQUES_RETIRED_SINCE].map((r) => `${r.model}|${r.table}|${r.constraint}`),
@@ -1304,7 +1295,7 @@ describe('the ratchet', () => {
       'UNIQUES_REMOVED_WITH_CAPABILITY excuses a previously ported uniqueness only ' +
         'when its whole owning capability deliberately leaves Alia. Audit every new ' +
         'entry and pin the new count rather than letting this become a gap bucket.',
-    ).toBe(1);
+    ).toBe(0);
   });
 
   /**

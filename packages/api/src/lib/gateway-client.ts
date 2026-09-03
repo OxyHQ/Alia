@@ -9,13 +9,10 @@
  */
 
 import type { PlanFilter } from '../db/billing/planRepository.js';
-import { assertUnreservedModelIdentifier } from './reserved-namespace.js';
 import type { AvailabilityScope } from './availability-scope.js';
 import type { RequiredAttribution } from './model-attribution.js';
 import type { FallbackPolicy } from './routing/policy.js';
-import { UnregisteredModelError } from './routing/policy.js';
-import { formatModelIdentity, type ModelIdentity } from './routing/model-identity.js';
-import { kaanaCapabilityUnavailable } from './inference/hosted-capability-error.js';
+import type { ModelIdentity } from './routing/model-identity.js';
 
 // ============== TYPES ==============
 
@@ -100,24 +97,6 @@ export interface ModelMapping {
   availabilityScope?: AvailabilityScope;
   /** What this route's licence requires be displayed. Same seam, same absence. */
   attribution?: RequiredAttribution;
-}
-
-export interface ResolvedModel {
-  routingProfileId: string;
-  provider: string;
-  /**
-   * Who RELEASED the model, and their own name for it — the pair Kaana names
-   * every deployment by.
-   *
-   * Optional because a routing profile does not identify the concrete model
-   * Kaana will eventually choose. A pinned model carries both fields.
-   */
-  publisher?: string;
-  model?: string;
-  modelId: string;
-  keyConfig: KeyConfig;
-  routingProfile: RoutingProfile;
-  isFallback: boolean;
 }
 
 /**
@@ -209,84 +188,6 @@ export interface PlanFeatureData {
   limitValue?: number;
   displayLabel?: string;
   displayDescription?: string;
-}
-
-// ============== MODEL RESOLUTION ==============
-
-/**
- * Resolve an Alia product profile to a credential-free Kaana target.
- *
- * `options.fallbackPolicy` is a property of the REQUEST (ADR 0003 invariant 3),
- * so it crosses this seam with the request rather than being read from process
- * config on the far side. Kaana, not this function, owns route attempts.
- */
-export async function resolveRoutingProfile(
-  model: string,
-  tokens: number = 1000,
-  skipProviders: Set<string> = new Set(),
-  skipKeyIds?: Set<string>,
-  options: RoutingOptions = {}
-): Promise<ResolvedModel | null> {
-  // ADR 0002: the `alia/*` publisher namespace is reserved and empty. Refused
-  // here before any target is handed to Kaana.
-  assertUnreservedModelIdentifier(model);
-
-  void tokens;
-  void skipProviders;
-  void skipKeyIds;
-  const routingProfile = await getRoutingProfile(model);
-  if (routingProfile === null) {
-    throw new UnregisteredModelError(model, (await getAllRoutingProfiles()).map((entry) => entry.id));
-  }
-  const target = options.pinnedModel === undefined ? model : formatModelIdentity(options.pinnedModel);
-  return {
-    routingProfileId: model,
-    provider: 'kaana',
-    publisher: 'kaana',
-    model: target,
-    modelId: target,
-    keyConfig: { provider: 'kaana', modelId: target },
-    routingProfile,
-    isFallback: false,
-  };
-}
-
-// ============== RETIRED PROVIDER COMPATIBILITY SHAPES ==============
-
-/** DO async-invoke models (fal-ai) need longer timeouts for queue + cold start + execution */
-export function getProviderTimeout(modelId: string): number {
-  return modelId.startsWith('fal-ai/') ? 120_000 : 15_000;
-}
-
-export interface ProviderCallOptions {
-  provider: string;
-  modelId: string;
-  endpoint: string;
-  body?: Record<string, unknown>;
-  audio?: { base64: string; mimeType: string; filename: string };
-  extraFormFields?: Record<string, string>;
-  maxAttempts?: number;
-  timeout?: number;
-  responseType?: 'json' | 'arrayBuffer';
-  signal?: AbortSignal;
-}
-
-/**
- * Compatibility seam for callers not yet migrated to a Kaana modality.
- * It never resolves a provider, credential or URL; every call fails closed with
- * the capability-specific Kaana error.
- */
-export async function callProviderAPI<T = unknown>(options: ProviderCallOptions): Promise<T> {
-  const capability = options.endpoint.includes('transcriptions')
-    ? 'speech_transcription'
-    : options.endpoint.includes('speech')
-      ? 'speech_synthesis'
-      : options.endpoint.includes('image')
-        ? 'image_generation'
-        : options.endpoint.includes('embedding')
-          ? 'embedding'
-          : 'audio_generation';
-  throw kaanaCapabilityUnavailable(capability);
 }
 
 // ============== MODEL DATA ==============

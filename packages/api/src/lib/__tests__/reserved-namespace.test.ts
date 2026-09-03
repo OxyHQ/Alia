@@ -15,8 +15,9 @@ import {
   assertUnreservedModelIdentifier,
   isReservedModelNamespace,
 } from '../reserved-namespace.js';
-import { resolveRoutingProfile } from '../gateway-client.js';
+import { resolveModel } from '../chat-core.js';
 import { KAANA_ROUTING_PROFILE_IDS } from '../routing/kaana-profiles.js';
+import { UnregisteredModelError } from '../routing/policy.js';
 
 describe('the alia/* publisher namespace is reserved', () => {
   const reserved = [
@@ -84,26 +85,25 @@ describe('the reservation does not touch anything that is not in it', () => {
 describe('the serving chokepoint refuses it, not just the validator', () => {
   /**
    * A validator with no caller is green and inert at once. This drives the real
-   * entrypoint: `gateway-client.resolveRoutingProfile` is the only door into model
-   * resolution from outside `internal/providers/` — which is not an assumption,
-   * it is what gate 1's frozen importer list in `architectureGates.test.ts`
-   * measures — so refusing there is refusing everywhere product code can ask.
+   * entrypoint: `chat-core.resolveModel` is the one hosted-model resolver used
+   * by product turns, so refusing there is refusing everywhere product code can
+   * ask for inference.
    */
   it('rejects a reserved identifier before it can resolve to anything', async () => {
-    await expect(resolveRoutingProfile('alia/atlas')).rejects.toBeInstanceOf(ReservedNamespaceError);
-    await expect(resolveRoutingProfile('alia/atlas@2026-08-01')).rejects.toBeInstanceOf(ReservedNamespaceError);
+    await expect(resolveModel('alia/atlas')).rejects.toBeInstanceOf(ReservedNamespaceError);
+    await expect(resolveModel('alia/atlas@2026-08-01')).rejects.toBeInstanceOf(ReservedNamespaceError);
   });
 
-  it('does not refuse a registered alias on its way through', async () => {
-    // The negative control the assertion above needs. Without it, a guard that
-    // threw `ReservedNamespaceError` for EVERY identifier would pass the test
-    // above and take down all thirteen aliases. Resolution legitimately fails
-    // here for want of a database and provider keys; what matters is the shape
-    // of the failure, not that there is one.
-    const outcome: unknown = await resolveRoutingProfile('kaana-v1').then(
-      () => null,
-      (error: unknown) => error,
-    );
-    expect(outcome).not.toBeInstanceOf(ReservedNamespaceError);
+  it('translates a registered product profile to its exact reviewed Oxy ID', async () => {
+    const outcome = await resolveModel('kaana-v1');
+    expect(outcome?.oxyInferenceTarget).toEqual({
+      kind: 'routing_profile_id',
+      routingProfileId: '01a06477-94f5-74f0-bc25-4c5c13b93ccd',
+    });
+    expect(outcome?.modelId).toBe('kaana-v1');
+  });
+
+  it('refuses a local profile with no reviewed Oxy ID instead of falling back', async () => {
+    await expect(resolveModel('kaana-v1-vision')).rejects.toBeInstanceOf(UnregisteredModelError);
   });
 });

@@ -33,10 +33,14 @@ endpoint without a real inference request are false passes.
 ## Database migrations
 
 Do not reverse an applied destructive migration by deploying older code.
-Migrations `0057` and `0058` rename the active routing-profile schema in `pre`
-and remove its rolling compatibility surface in `post`; `0059` removes Alia's
-hosted-provider runtime tables. Once those post phases apply, an older image
-that queries removed names or tables is not a valid rollback target.
+Migration `0059` expands the active routing-profile schema and keeps its rolling
+compatibility surface intact. The first cutover release deliberately removes
+neither that compatibility surface nor Alia's former hosted-provider tables;
+they remain dormant as a rollback, reconciliation and forensic safety snapshot
+while the real Oxy -> Kaana canary and rollback window are completed. They do
+not make an old direct-provider image a valid long-term target. Removing both
+surfaces belongs to a separately gated second release only after the cutover
+gate is explicitly closed.
 
 Inspect the migration ledger before any new deploy. Clear an approved pending
 phase through the repository migrator, never with ad-hoc SQL.

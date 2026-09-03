@@ -51,6 +51,7 @@ const botAccount = () => `oxy-bot-${Math.random().toString(36).slice(2, 10)}`;
 function newAgentInput(overrides: Record<string, unknown> = {}) {
   return {
     oxyAccountId: botAccount(),
+    ownerOxyAccountId: OWNER,
     tagline: 'finds things out',
     description: 'a longer description',
     authorOxyUserId: OWNER,

@@ -52,7 +52,7 @@ export interface CatalogueCapabilities {
    * can be `sometimes` and still offer nothing, and that is the case a client
    * must render no control from.
    */
-  reasoningLevels: readonly string[];
+  reasoningLevels: ReadonlyArray<string>;
   structuredOutput: CapabilityAvailability;
   contextWindow: TokenBound | null;
   maxOutput: TokenBound | null;
@@ -145,7 +145,7 @@ function parseEntry(raw: unknown): CatalogueEntry | null {
 export function useCatalogue() {
   return useQuery({
     queryKey: ['catalogue'],
-    queryFn: async (): Promise<CatalogueEntry[]> => {
+    queryFn: async (): Promise<Array<CatalogueEntry>> => {
       const { data } = await apiClient.get('/catalogue');
       const entries = asObject(data)?.data;
       if (!Array.isArray(entries)) return [];

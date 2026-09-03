@@ -84,6 +84,7 @@ function hydrated(agent: AgentRecord): HydratedAgent {
 async function seedAgent(): Promise<AgentRecord> {
   return createAgent(db, {
     oxyAccountId: `oxy-bot-routing-${SUITE}-${seq++}`,
+    ownerOxyAccountId: SUITE,
     tagline: 'does the work',
     description: 'd',
     authorOxyUserId: SUITE,

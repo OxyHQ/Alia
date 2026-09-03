@@ -113,6 +113,10 @@ export interface AgentRecord {
    * record, so nothing here can disagree with Oxy.
    */
   oxyAccountId: string;
+  /** Exact bot parent from Oxy; null only on unreconciled legacy rows. */
+  ownerOxyAccountId: string | null;
+  /** Exact Oxy application allowed to invoke this product agent. */
+  applicationId: string | null;
   tagline: string;
   description: string;
   author: string;
@@ -203,6 +207,8 @@ export function toAgentRecord(row: AgentRow): AgentRecord {
     _id: row.id,
     id: row.id,
     oxyAccountId: row.oxyAccountId,
+    ownerOxyAccountId: row.ownerOxyAccountId,
+    applicationId: row.applicationId,
     tagline: row.tagline,
     description: row.description,
     author: row.authorOxyUserId,
@@ -443,6 +449,18 @@ function catalogueFilter(query: AgentCatalogueQuery): SQL | undefined {
  */
 export function withoutSystemPrompt(record: AgentRecord): AgentRecord {
   return { ...record, systemPrompt: null };
+}
+
+/** Oxy product bindings are authorization facts and never public API fields. */
+export function withoutInternalAgentBindings<
+  T extends { applicationId: string | null; ownerOxyAccountId: string | null },
+>(record: T): Omit<T, 'applicationId' | 'ownerOxyAccountId'> {
+  const {
+    applicationId: _applicationId,
+    ownerOxyAccountId: _ownerOxyAccountId,
+    ...publicRecord
+  } = record;
+  return publicRecord;
 }
 
 /**
@@ -773,6 +791,10 @@ export async function replaceAgentKnowledge(
 export interface CreateAgentInput {
   /** The Oxy `bot` account the agent IS. Verified by the caller before it gets here. */
   oxyAccountId: string;
+  /** The bot's exact direct parent, resolved from Oxy rather than `author`. */
+  ownerOxyAccountId: string;
+  /** Restrict invocation to one credential-derived Oxy application id. */
+  applicationId?: string | null;
   tagline: string;
   description: string;
   authorOxyUserId: string;
@@ -811,6 +833,8 @@ export async function createAgent(
       .insert(agents)
       .values({
         oxyAccountId: input.oxyAccountId,
+        ownerOxyAccountId: input.ownerOxyAccountId,
+        applicationId: input.applicationId ?? null,
         tagline: input.tagline,
         description: input.description,
         authorOxyUserId: input.authorOxyUserId,
@@ -858,6 +882,8 @@ export interface UpdateAgentInput {
   archetypeConfig?: unknown;
   skillIds?: string[];
   libraryFileIds?: string[];
+  /** Binding only narrows which verified Oxy application may invoke the agent. */
+  applicationId?: string | null;
 }
 
 /**

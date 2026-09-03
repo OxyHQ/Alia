@@ -98,7 +98,7 @@ describe('the console does not call them Alia’s models', () => {
    * the one page, because the claim is about what the console says and the next
    * copy of it will not be in the file that had it last.
    */
-  const FORBIDDEN: readonly RegExp[] = [
+  const FORBIDDEN: ReadonlyArray<RegExp> = [
     /alia offers a range of models/i,
     /available models/i,
     /alia'?s own models/i,
@@ -113,7 +113,7 @@ describe('the console does not call them Alia’s models', () => {
   ];
 
   it('says none of the forbidden sentences, anywhere in the documentation', () => {
-    const offenders: string[] = [];
+    const offenders: Array<string> = [];
     for (const file of DOCS) {
       const text = read(file);
       // Per-file floor: an unreadable or emptied page offends nothing.

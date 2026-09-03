@@ -327,11 +327,10 @@ export const chatAnalytics = pgTable(
  * the writer. They are ported so the shape is faithful; confirm they are
  * entirely absent before anybody reads one as meaningful.
  *
- * `session_id` is the provider's own session identifier and is UNIQUE, which is
- * load-bearing rather than decorative: `voice-session-manager.ts:1258` upserts
- * the final record on it, and `:1260` plainly inserts the non-final one, so the
- * unique is what stops a session accumulating duplicate rows. It is NOT a
- * primary key — CONVENTIONS.md keeps Mongo's `_id`.
+ * `session_id` is the historical provider session identifier and is UNIQUE.
+ * The first cutover release keeps the table and constraint unchanged for the
+ * rollback window; hosted voice is refused and the active Alia runtime writes
+ * no new rows. It is NOT a primary key — CONVENTIONS.md keeps Mongo's `_id`.
  *
  * `oxy_user_id` is a plain Oxy account id: no foreign key, and unlike its
  * neighbours in this file it was declared a bare `String` in Mongoose rather

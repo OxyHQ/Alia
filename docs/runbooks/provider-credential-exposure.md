@@ -32,9 +32,10 @@ history: forks, archives, CI caches and existing clones remain exposed.
    Any match is another disclosure and requires rotation.
 5. Record only identifiers, timestamps and affected counts.
 
-Do not query an Alia `provider_keys` table or run an Alia provider-key script. Those were
-legacy hosted-runtime surfaces and are removed only by the post-cutover migration after
-rollback to that runtime is no longer permitted.
+Do not query Alia's dormant `provider_keys` rollback table or run an Alia
+provider-key script. The table has no runtime reader or writer in the first
+cutover release. A separate destructive release removes it only after a real
+Oxy -> Kaana canary succeeds and rollback to the former runtime is forbidden.
 
 ## Separate credential classes
 
