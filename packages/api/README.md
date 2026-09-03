@@ -57,7 +57,7 @@ Express + TypeScript API for Alia autonomy runtime.
 
 ### Oxy Event Ingestion
 
-- `POST /webhooks/oxy/:serviceId`
+- `POST /webhooks/oxy`
 
 ### Structured Automations
 
