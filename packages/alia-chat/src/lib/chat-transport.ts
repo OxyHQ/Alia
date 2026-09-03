@@ -51,5 +51,5 @@ export async function streamAliaChat(
     throw new Error(`Alia request failed with status ${response.status}.`);
   }
 
-  return consumeAliaChatStream(response, onEvent);
+  return consumeAliaChatStream(response, onEvent, signal);
 }

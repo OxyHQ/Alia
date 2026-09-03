@@ -66,8 +66,10 @@ function current(): UseAliaChatReturn {
   return latest;
 }
 
+let hookOptions: Parameters<typeof useAliaChat>[0];
+
 function Harness(): null {
-  latest = useAliaChat({ apiUrl: 'https://api.alia.onl', model: 'profile:v1' });
+  latest = useAliaChat({ apiUrl: 'https://api.alia.onl', model: 'profile:v1', ...hookOptions });
   return null;
 }
 
@@ -89,6 +91,7 @@ async function waitUntilIdle(): Promise<void> {
 describe('useAliaChat request lifecycle', () => {
   beforeEach(() => {
     latest = null;
+    hookOptions = undefined;
     mocks.resolveModelId.mockClear();
     (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean })
       .IS_REACT_ACT_ENVIRONMENT = true;
@@ -118,6 +121,21 @@ describe('useAliaChat request lifecycle', () => {
       ['assistant', 'Respuesta'],
     ]);
     expect(session.disposals[0]).toHaveBeenCalledOnce();
+
+    await act(async () => renderer.unmount());
+  });
+
+  it('refuses a caller token that is not the surrounding Oxy session', async () => {
+    hookOptions = { accessToken: 'different-session' };
+    const session = createSession(async () => successfulResponse());
+    const renderer = await renderHarness();
+
+    await act(async () => current().send('Pregunta'));
+
+    expect(session.createLinkedClient).not.toHaveBeenCalled();
+    expect(session.request).not.toHaveBeenCalled();
+    expect(current().messages).toEqual([]);
+    expect(current().error).toBe('The supplied token is not the active Oxy session.');
 
     await act(async () => renderer.unmount());
   });
@@ -219,6 +237,33 @@ describe('useAliaChat request lifecycle', () => {
     await vi.waitFor(() => expect(session.disposals[0]).toHaveBeenCalledOnce());
 
     expect(signals[0]?.aborted).toBe(true);
+    expect(current().isStreaming).toBe(false);
+    expect(current().messages.map((message) => message.role)).toEqual(['user']);
+
+    await act(async () => renderer.unmount());
+  });
+
+  it('stops a response body even when the request transport does not propagate abort', async () => {
+    let bodyCancelled = false;
+    const response = new Response(
+      new ReadableStream<Uint8Array>({
+        cancel() {
+          bodyCancelled = true;
+        },
+      }),
+      { headers: { 'content-type': 'text/event-stream' } },
+    );
+    const session = createSession(async () => response);
+    const renderer = await renderHarness();
+
+    await act(async () => {
+      current().send('Pregunta');
+      await vi.waitFor(() => expect(session.request).toHaveBeenCalledOnce());
+    });
+    await act(async () => current().stop());
+    await vi.waitFor(() => expect(session.disposals[0]).toHaveBeenCalledOnce());
+
+    expect(bodyCancelled).toBe(true);
     expect(current().isStreaming).toBe(false);
     expect(current().messages.map((message) => message.role)).toEqual(['user']);
 
