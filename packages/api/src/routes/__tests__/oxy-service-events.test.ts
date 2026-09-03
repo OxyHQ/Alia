@@ -3,21 +3,18 @@ import type { Server } from 'node:http';
 import { request as httpRequest } from 'node:http';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const state = vi.hoisted(() => ({ claim: vi.fn(async () => false) }));
+const state = vi.hoisted(() => ({
+  claim: vi.fn(async () => false),
+  dispatch: vi.fn(),
+}));
 
 vi.mock('../../db/index.js', () => ({ getDb: vi.fn(() => ({})) }));
 vi.mock('../../db/automation/automationDefinitionRepository.js', () => ({
   claimAutomationEvent: state.claim,
-  createAutomationRunForSession: vi.fn(),
   markAutomationEventStatus: vi.fn(),
   matchingEventAutomations: vi.fn(async () => []),
 }));
-vi.mock('../../db/agents/agentSessionRepository.js', () => ({
-  createAgentSession: vi.fn(), updateAgentSession: vi.fn(),
-}));
-vi.mock('../../db/agents/agentRepository.js', () => ({ findAgentById: vi.fn() }));
-vi.mock('../../lib/tools/oxy-services.js', () => ({ getOxyAgentCapabilityMap: vi.fn() }));
-vi.mock('../../lib/task-queue.js', () => ({ enqueueAgentSession: vi.fn() }));
+vi.mock('../../lib/automation-dispatcher.js', () => ({ dispatchStructuredAutomation: state.dispatch }));
 vi.mock('../../lib/notification-service.js', () => ({ sendNotification: vi.fn() }));
 vi.mock('../../lib/logger.js', () => {
   const child = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };
@@ -26,7 +23,8 @@ vi.mock('../../lib/logger.js', () => {
 
 const serviceFetch = vi.fn();
 vi.stubGlobal('fetch', serviceFetch);
-const { default: router } = await import('../oxy-service-events.js');
+const eventsModule = await import('../oxy-service-events.js');
+const router = eventsModule.default;
 
 let server: Server;
 let port: number;
@@ -78,6 +76,7 @@ afterAll(async () => new Promise<void>((resolve, reject) => server.close((error)
 
 beforeEach(() => {
   state.claim.mockReset().mockResolvedValue(false);
+  state.dispatch.mockReset();
   serviceFetch.mockReset().mockResolvedValue(new Response(JSON.stringify({
     service: { appId: 'application-1', scopes: ['capability-events:publish'] },
     catalogAppIds: ['inbox'],
@@ -109,6 +108,7 @@ describe('normalized Oxy app events', () => {
     expect(response.status).toBe(202);
     expect(response.body).toEqual({ accepted: true, duplicate: true });
     expect(state.claim).toHaveBeenCalledTimes(1);
+    expect(state.dispatch).not.toHaveBeenCalled();
   });
 
   it('rejects a resource that claims a different app', async () => {

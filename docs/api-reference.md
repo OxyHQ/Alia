@@ -93,10 +93,11 @@ earlier revisions of this page had both wrong:
 | `/tools` | `routes/tools-proxy.ts`, proxied to the integrations service |
 | `/mcp` | `routes/mcp.ts` |
 
-### Triggers
+### Triggers and structured automations
 
-`/triggers` is the only scheduling API. There is no second scheduler; all `/automations*`
-endpoints were removed.
+`/triggers` remains the transitional API for legacy routines. `/automations` is the
+normalized control plane for explicit actors, resources, actions, data flow and autonomy.
+Both scheduled row types are reconciled by the same elected scheduler.
 
 | Route | Purpose |
 |---|---|
@@ -107,12 +108,22 @@ endpoints were removed.
 | `POST /triggers/:id/run` | Manual run |
 | `GET /triggers/:id/executions` | Execution history |
 | `POST /triggers/webhook/:token` | Run a webhook trigger by token |
+| `GET /automations` | List structured definitions |
+| `POST /automations` | Create an observe/execute definition and receipt |
+| `PATCH /automations/:id` | Enable or stop a definition |
+| `DELETE /automations/:id` | Stop and revoke its execution authorizations |
+| `POST /automations/:id/run` | Run a manual definition with an `Idempotency-Key` |
+| `GET /automations/runs` | List decision and execution history |
+| `GET /automations/runs/:runId/steps` | List correlated steps for an owned run |
 
 ### Webhooks and events
 
-**`POST /webhooks/oxy/:serviceId`** — Oxy service events (`routes/oxy-service-events.ts`).
-Idempotent by `eventId`, HMAC verified, creates a persistent `AgentSession` before
-autonomous queueing, and falls back to a notification if autonomous execution fails.
+**`POST /webhooks/oxy`** — normalized Oxy application events
+(`routes/oxy-service-events.ts`). The publisher authenticates with an Oxy service bearer,
+must own the signed capability catalog for the declared app and may publish only event
+types in that catalog. The route enforces app/account/resource consistency, claims each
+`(appId, eventId)` once and dispatches matching structured automations. The former
+per-service HMAC route, `POST /webhooks/oxy/:serviceId`, returns `410 Gone`.
 
 **`/webhooks`** — channel bot inbound (`routes/webhooks.ts`) plus the CrowdSource webhook
 routes mounted at `packages/api/src/index.ts:194`.
@@ -346,8 +357,6 @@ rather than deleting a route and returning a bare `404`.
 
 The two `/codea` routes still run `authenticateApiKey` and the per-key rate limit before
 answering `410`, so an unauthenticated caller gets a `401` rather than the `410`.
-
-All `/automations*` endpoints were removed outright; use `/triggers`.
 
 ---
 

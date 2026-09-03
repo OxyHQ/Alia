@@ -164,14 +164,16 @@ the current boundary and the conditions for removing those retained records.
 
 ### Trigger engine
 
-The only scheduling primitive is `/triggers`. Trigger types:
+`/automations` is the normalized scheduling and control API. It records explicit actors,
+resources, actions, data flow, limits, autonomy and `observe | execute` mode. `/triggers`
+remains the transitional API for these legacy trigger types:
 
 - `schedule` — cron, daily, or interval
 - `webhook` — token URL with optional HMAC and IP allowlist
 - `integration_event` — matched by `service + event + filters`
 - `agent_heartbeat` — periodic agent health / status check
 
-Each run writes a `trigger_executions` row with status, tool calls, token usage and duration, through `db/automation/triggerRepository.ts`. Trigger actions follow the unified action contract: `{ prompt, agentId?, roleId?, useTools, notify?, channelId? }`.
+Legacy runs write a `trigger_executions` row with status, tool calls, token usage and duration, through `db/automation/triggerRepository.ts`. Structured runs and decisions use `automation_runs` and `automation_steps`. Both row types are reconciled by the same elected scheduler, and legacy trigger actions follow the unified action contract: `{ prompt, agentId?, roleId?, useTools, notify?, channelId? }`.
 
 ## Deep dives
 

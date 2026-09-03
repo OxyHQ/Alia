@@ -22,6 +22,10 @@ import { z, type ZodTypeAny } from 'zod';
 import { jsonSchemaToZod } from './mcp-schema.js';
 import { getErrorMessage } from '../errors/index.js';
 import { log } from '../logger.js';
+import {
+  createOxyExecutionAuthorization,
+  revokeOxyExecutionAuthorization,
+} from '../oxy-capability-authority.js';
 import { oxyServiceClient } from '../oxy-service-client.js';
 import { TTLCache } from '../ttl-cache.js';
 
@@ -45,17 +49,13 @@ const ticketResponseSchema = z.object({
   decision: z.object({ allowed: z.boolean(), reason: z.string() }).passthrough(),
   ticket: z.string().min(1).optional(),
 });
-const serviceIdentityResponseSchema = z.object({
-  service: z.object({
-    applicationId: z.string().min(1),
-    credentialId: z.string().min(1),
-  }).passthrough(),
-}).passthrough();
-const executionAuthorizationResponseSchema = z.object({
-  authorization: z.object({ id: z.string().min(1) }).passthrough(),
-});
-
 type Assignment = z.infer<typeof assignmentSchema>;
+
+export interface OxyExecutionAuthorizationRef {
+  id: string;
+  /** Correlates Oxy's audit with the normalized action step in Alia. */
+  stepId: string;
+}
 
 export interface OxyToolExecutionContext {
   requesterAccountId: string;
@@ -66,7 +66,8 @@ export interface OxyToolExecutionContext {
   /** Live caller credential used only to create/revoke direct Oxy authority. */
   userAccessToken?: string;
   /** Pre-authorized exact steps for background runs, keyed by resource and tool. */
-  executionAuthorizations?: Readonly<Record<string, string>>;
+  executionAuthorizations?: Readonly<Record<string, OxyExecutionAuthorizationRef>>;
+  onStepStatus?: (stepId: string, status: 'running' | 'succeeded' | 'failed') => Promise<void>;
 }
 
 interface CompiledTool {
@@ -87,12 +88,7 @@ interface BoundTool {
 
 const defsCache = new TTLCache<CatalogDef[]>({ ttlMs: 60_000, maxSize: 1 });
 const contextCache = new TTLCache<string>({ ttlMs: 60_000, maxSize: 2_000 });
-const serviceIdentityCache = new TTLCache<{ applicationId: string; credentialId: string }>({
-  ttlMs: 60_000,
-  maxSize: 1,
-});
 const DEFS_KEY = 'catalogs';
-const SERVICE_IDENTITY_KEY = 'alia';
 
 async function safeExecute(service: string, operation: () => Promise<unknown>): Promise<unknown> {
   try {
@@ -125,40 +121,6 @@ async function oxyAuthorityFetch(path: string, init: RequestInit = {}): Promise<
     throw new Error(`Oxy authority error (${response.status}): ${(await response.text()).slice(0, 240)}`);
   }
   return response.json();
-}
-
-async function userAuthorityFetch(
-  accessToken: string,
-  path: string,
-  init: RequestInit = {},
-): Promise<unknown> {
-  const response = await fetch(`${OXY_API_URL}${path}`, {
-    ...init,
-    headers: {
-      authorization: `Bearer ${accessToken}`,
-      accept: 'application/json',
-      ...(init.body ? { 'content-type': 'application/json' } : {}),
-      ...init.headers,
-    },
-    signal: init.signal ?? AbortSignal.timeout(TOOL_TIMEOUT_MS),
-  });
-  if (!response.ok) {
-    throw new Error(`Oxy user authority error (${response.status}): ${(await response.text()).slice(0, 240)}`);
-  }
-  if (response.status === 204) return undefined;
-  return response.json();
-}
-
-async function coordinatorIdentity(): Promise<{ applicationId: string; credentialId: string }> {
-  return serviceIdentityCache.getOrLoad(SERVICE_IDENTITY_KEY, async () => {
-    const parsed = serviceIdentityResponseSchema.parse(
-      await oxyAuthorityFetch('/capabilities/service-identity'),
-    );
-    return {
-      applicationId: parsed.service.applicationId,
-      credentialId: parsed.service.credentialId,
-    };
-  });
 }
 
 function appDisplayName(appId: string): string {
@@ -328,28 +290,18 @@ async function createDirectExecutionAuthorization(
   if (!context.userAccessToken) {
     throw new Error(`No direct or automation authority exists for ${definition.name}`);
   }
-  const coordinator = await coordinatorIdentity();
-  const parsed = executionAuthorizationResponseSchema.parse(await userAuthorityFetch(
-    context.userAccessToken,
-    '/capabilities/execution-authorizations',
-    {
-      method: 'POST',
-      body: JSON.stringify({
-        kind: 'direct_request',
-        ownerAccountId: context.ownerAccountId,
-        coordinatorApplicationId: coordinator.applicationId,
-        coordinatorCredentialId: coordinator.credentialId,
-        actor: context.actor,
-        resource,
-        tool: definition.name,
-        runId,
-        maximumAutonomy: directMaximumAutonomy(context, definition),
-        limits: [],
-        expiresAt: new Date(Date.now() + 2 * 60_000).toISOString(),
-      }),
-    },
-  ));
-  return parsed.authorization.id;
+  return createOxyExecutionAuthorization({
+    accessToken: context.userAccessToken,
+    kind: 'direct_request',
+    ownerAccountId: context.ownerAccountId,
+    actor: context.actor,
+    resource,
+    tool: definition.name,
+    runId,
+    maximumAutonomy: directMaximumAutonomy(context, definition),
+    limits: [],
+    expiresAt: new Date(Date.now() + 2 * 60_000),
+  });
 }
 
 interface IssuedTicket {
@@ -365,11 +317,7 @@ async function revokeTransientAuthorization(
 ): Promise<void> {
   if (!context.userAccessToken) return;
   try {
-    await userAuthorityFetch(
-      context.userAccessToken,
-      `/capabilities/execution-authorizations/${encodeURIComponent(authorizationId)}`,
-      { method: 'DELETE' },
-    );
+    await revokeOxyExecutionAuthorization(context.userAccessToken, authorizationId);
   } catch (error: unknown) {
     log.general.warn(
       { err: error, runId, tool: toolName },
@@ -384,10 +332,10 @@ async function issueTicket(
   definition: CatalogTool,
   runId: string,
 ): Promise<IssuedTicket> {
-  const preauthorizedId = context.executionAuthorizations?.[
+  const preauthorized = context.executionAuthorizations?.[
     oxyExecutionAuthorizationKey(resource, definition.name)
   ];
-  const executionAuthorizationId = preauthorizedId ?? await createDirectExecutionAuthorization(
+  const executionAuthorizationId = preauthorized?.id ?? await createDirectExecutionAuthorization(
     context,
     resource,
     definition,
@@ -396,17 +344,20 @@ async function issueTicket(
   try {
     const parsed = ticketResponseSchema.parse(await oxyAuthorityFetch('/capabilities/tickets', {
       method: 'POST',
-      body: JSON.stringify({ executionAuthorizationId }),
+      body: JSON.stringify({
+        executionAuthorizationId,
+        ...(preauthorized ? { runId, stepId: preauthorized.stepId } : {}),
+      }),
     }));
     if (!parsed.decision.allowed || !parsed.ticket) {
       throw new Error(`Oxy policy denied ${definition.name}: ${parsed.decision.reason}`);
     }
     return {
       ticket: parsed.ticket,
-      ...(preauthorizedId ? {} : { transientAuthorizationId: executionAuthorizationId }),
+      ...(preauthorized ? {} : { transientAuthorizationId: executionAuthorizationId }),
     };
   } catch (error: unknown) {
-    if (!preauthorizedId) {
+    if (!preauthorized) {
       await revokeTransientAuthorization(context, executionAuthorizationId, runId, definition.name);
     }
     throw error;
@@ -419,8 +370,13 @@ async function callBoundTool(
   context: OxyToolExecutionContext,
 ): Promise<unknown> {
   const runId = context.runId ?? randomUUID();
-  const issued = await issueTicket(context, binding.resource, binding.compiled.definition, runId);
+  const stepId = context.executionAuthorizations?.[
+    oxyExecutionAuthorizationKey(binding.resource, binding.compiled.definition.name)
+  ]?.stepId;
+  if (stepId) await context.onStepStatus?.(stepId, 'running');
+  let issued: IssuedTicket | undefined;
   try {
+    issued = await issueTicket(context, binding.resource, binding.compiled.definition, runId);
     const { url, body } = resolveInvocation(binding.compiled.catalog, binding.compiled.definition, args);
     const headers: Record<string, string> = {
       authorization: `Capability ${issued.ticket}`,
@@ -441,11 +397,16 @@ async function callBoundTool(
       signal: AbortSignal.timeout(TOOL_TIMEOUT_MS),
     });
     if (!response.ok) throw new Error(`Oxy app error (${response.status}): ${(await response.text()).slice(0, 240)}`);
-    return response.headers.get('content-type')?.includes('application/json')
+    const result = await (response.headers.get('content-type')?.includes('application/json')
       ? response.json()
-      : response.text();
+      : response.text());
+    if (stepId) await context.onStepStatus?.(stepId, 'succeeded');
+    return result;
+  } catch (error: unknown) {
+    if (stepId) await context.onStepStatus?.(stepId, 'failed');
+    throw error;
   } finally {
-    if (issued.transientAuthorizationId && context.userAccessToken) {
+    if (issued?.transientAuthorizationId && context.userAccessToken) {
       await revokeTransientAuthorization(
         context,
         issued.transientAuthorizationId,
@@ -473,20 +434,35 @@ export async function buildOxyServiceTools(
     const defs = allowed
       ? allDefs.filter((entry) => allowed.has(entry.catalog.appId) || allowed.has(`oxy-${entry.catalog.appId}`))
       : allDefs;
-    const bindings = context.actor.type === 'agent'
+    const candidateBindings = context.actor.type === 'agent'
       ? agentBindings(defs, await agentAssignments(context))
       : regularAliaBindings(defs, context);
+    const bindings = context.executionAuthorizations === undefined
+      ? candidateBindings
+      : candidateBindings.filter((binding) => Object.hasOwn(
+          context.executionAuthorizations ?? {},
+          oxyExecutionAuthorizationKey(binding.resource, binding.compiled.definition.name),
+        ));
     const tools: ToolSet = {};
     for (const binding of bindings) {
       const baseName = `oxy_${sanitizeName(binding.compiled.catalog.appId)}__${sanitizeName(binding.compiled.definition.name)}`;
       const toolName = binding.suffix ? `${baseName}__${binding.suffix}` : baseName;
+      let preauthorizedInvocationStarted = false;
       tools[toolName] = tool({
         description: `[${appDisplayName(binding.compiled.catalog.appId)}] ${binding.compiled.definition.description} Resource: ${binding.resource.resourceType}/${binding.resource.resourceId}.`,
         inputSchema: binding.compiled.inputSchema,
-        execute: async (args: Record<string, unknown>) => safeExecute(
-          binding.compiled.catalog.appId,
-          () => callBoundTool(binding, args, context),
-        ),
+        execute: async (args: Record<string, unknown>) => {
+          if (context.executionAuthorizations !== undefined) {
+            if (preauthorizedInvocationStarted) {
+              return { error: `${binding.compiled.definition.name} is authorized once for this automation stage` };
+            }
+            preauthorizedInvocationStarted = true;
+          }
+          return safeExecute(
+            binding.compiled.catalog.appId,
+            () => callBoundTool(binding, args, context),
+          );
+        },
       });
     }
     log.general.info({ userId: oxyUserId, toolCount: Object.keys(tools).length }, 'Oxy capability tools loaded');

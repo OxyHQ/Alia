@@ -222,6 +222,27 @@ beforeEach(() => {
 });
 
 describe('an agent reaches exactly what it was granted', () => {
+  it('withholds automation creation when there is no live user session', async () => {
+    const names = await namesFor(['automation'], { isDirectSession: false, accessToken: undefined });
+
+    expect(names).not.toContain('createAutomation');
+    expect(names).toEqual(expect.arrayContaining(['listTriggers', 'updateTrigger', 'deleteTrigger']));
+  });
+
+  it('limits a preauthorized Oxy automation stage to protocol and Oxy sources', async () => {
+    const names = await namesFor([...EVERY_GRANT], {
+      isDirectSession: false,
+      toolScope: 'preauthorized_oxy_automation',
+      oxyExecutionAuthorizations: {},
+    });
+
+    expect(names).toEqual(['getCurrentDate', 'plan']);
+    expect(asked.oxy_service).toEqual([undefined]);
+    expect(asked.mcp).toEqual([]);
+    expect(asked.integration).toEqual([]);
+    expect(asked.agent).toEqual([]);
+  });
+
   it('gets ONLY the ungranted tools when its grant list is empty', async () => {
     const names = await namesFor([]);
 

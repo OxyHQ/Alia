@@ -253,33 +253,37 @@ User approvals are interactive and real-time. `alia.approval_request` and `alia.
 
 ## Triggers and Proactive Runs
 
-Proactive execution uses `/triggers` only.
+`/automations` is the normalized control plane for proactive work. Each definition stores
+its objective, actor selection, trigger, resources, exact actions, allowed data flow,
+limits, autonomy policy and `observe | execute` mode. Runs and their correlated policy
+and tool decisions are persisted in `automation_runs` and `automation_steps`.
 
-Trigger types:
+`/triggers` remains the transitional API for legacy routines. It supports:
 
 - `schedule`
 - `webhook`
 - `integration_event`
 - `agent_heartbeat`
 
-Each execution is stored in `trigger_executions` with status, tool calls, tokens, and duration.
+Legacy executions remain in `trigger_executions`. Both scheduled row types are reconciled
+by the same elected scheduler; there is no second automation runtime.
 
 ## Oxy Event Autonomy
 
-`POST /webhooks/oxy/:serviceId` supports:
+`POST /webhooks/oxy` accepts normalized application events and enforces:
 
-- Signature verification.
-- Event idempotency (`eventId` dedupe).
-- Persistent `AgentSession` creation before queueing.
-- Guaranteed notification fallback on autonomous failure.
+- Central Oxy service-identity authentication with the
+  `capability-events:publish` scope.
+- Ownership of the signed capability catalog for the event's app and declaration of
+  the event type in that catalog.
+- Exact app, effective-account and resource agreement in the event envelope.
+- Idempotency by `(appId, eventId)` before matching structured automations.
+- In-app and push notification fallback when asynchronous dispatch fails.
 
-The webhook carries an `oxy_services` id and an HMAC signature over the body,
-and **no user credential of any kind** — so it cannot mint the `bot` account an
-agent now needs. The autonomy runtime agent must therefore already exist,
-created by its owner from a signed-in surface; when it does not, the event still
-reaches the person as a notification (`reason: 'no_autonomy_agent'`). Oxy's
-service-token provisioning does not close the gap: `provisionChannelAccount`
-mints `channel` accounts only, and a channel is deliberately act-as ineligible.
+Alia stores neither per-app HMAC secrets nor user bearer tokens for these events. An event
+selects an existing eligible automation and actor; execution authorization is resolved
+at run time through Oxy and delivered to each app as a short-lived capability ticket.
+The former `POST /webhooks/oxy/:serviceId` route is retired and returns `410 Gone`.
 
 ## Model Abstraction
 

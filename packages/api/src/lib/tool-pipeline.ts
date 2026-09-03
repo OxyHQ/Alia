@@ -81,7 +81,11 @@ import {
 import { buildMcpTools } from './tools/mcp.js';
 import { buildAskAgentTool } from './tools/ask-agent.js';
 import { buildIntegrationTools } from './tools/integrations.js';
-import { buildOxyServiceTools, type OxyToolAutonomy } from './tools/oxy-services.js';
+import {
+  buildOxyServiceTools,
+  type OxyExecutionAuthorizationRef,
+  type OxyToolAutonomy,
+} from './tools/oxy-services.js';
 import { convertOpenAIToolsToToolSet, type OpenAITool } from './tool-converter.js';
 import { log } from './logger.js';
 import type { SSEEmitter } from './sse-emitter.js';
@@ -101,8 +105,8 @@ import {
 import type { SkillRuntime } from './skills/runtime.js';
 import { canvasTool } from './tools/canvas.js';
 import { createGetDeviceInfoTool } from './tools/device-info.js';
+import { createAutomationTool } from './tools/automation-create.js';
 import {
-  createTriggerTool,
   listTriggersTool,
   updateTriggerTool,
   deleteTriggerTool,
@@ -142,6 +146,9 @@ export interface ForUserOptions {
   runId?: string;
   /** Maximum autonomy already selected by the direct request or automation. */
   oxyAutonomy?: OxyToolAutonomy;
+  /** Exact durable Oxy authorizations for a normalized background run. */
+  oxyExecutionAuthorizations?: Readonly<Record<string, OxyExecutionAuthorizationRef>>;
+  onOxyStepStatus?: (stepId: string, status: 'running' | 'succeeded' | 'failed') => Promise<void>;
   /**
    * Whether this turn may use tools AT ALL. No default: every caller states it.
    *
@@ -225,6 +232,12 @@ export interface ForUserOptions {
    */
   instancedSources?: readonly InstancedToolSource[];
   /**
+   * Restrict a normalized background stage to its protocol tools and the exact
+   * Oxy actions named by `oxyExecutionAuthorizations`. No user-bound, web,
+   * editor, skill, connector, shell, file, browser or delegation tool is built.
+   */
+  toolScope?: 'standard' | 'preauthorized_oxy_automation';
+  /**
    * One hosted MCP connector selected for this turn, by the person composing it.
    *
    * `undefined` keeps the compatibility behaviour (all runnable connectors),
@@ -276,6 +289,8 @@ export class ToolPipeline {
       requestId,
       runId,
       oxyAutonomy,
+      oxyExecutionAuthorizations,
+      onOxyStepStatus,
       editorToolDefinitions,
       sseEmitter,
       webSearch,
@@ -283,6 +298,7 @@ export class ToolPipeline {
       isLocalRuntime,
       instancedSources,
       skills,
+      toolScope = 'standard',
     } = opts;
 
     const toolNameMapping = new Map<string, string>();
@@ -308,6 +324,28 @@ export class ToolPipeline {
      */
     if (!toolsEnabled) {
       return { tools: { getCurrentDate: getCurrentDateTool }, toolNameMapping };
+    }
+
+    if (toolScope === 'preauthorized_oxy_automation') {
+      if (!agent || !runtime || oxyExecutionAuthorizations === undefined) {
+        throw new Error('Preauthorized Oxy automation scope requires an agent, runtime, and exact authorizations');
+      }
+      const oxyServiceTools = await buildOxyServiceTools(userId, {
+        requesterAccountId: agent.author,
+        ownerAccountId: agent.author,
+        actor: { type: 'agent', accountId: agent.oxyAccountId },
+        runId: runId ?? requestId,
+        autonomy: oxyAutonomy,
+        executionAuthorizations: oxyExecutionAuthorizations,
+        onStepStatus: onOxyStepStatus,
+      });
+      const tools: ToolSet = {
+        getCurrentDate: getCurrentDateTool,
+        ...buildRuntimeTools(runtime, grants, { protocolOnly: true }),
+        ...oxyServiceTools,
+      };
+      await applyRuntimePolicy(tools, runtime, new Set());
+      return { tools, toolNameMapping };
     }
 
     // 1. Convert editor tools from OpenAI format and build name mapping
@@ -390,12 +428,16 @@ export class ToolPipeline {
         getWhatsAppMessages: createGetWhatsAppMessagesTool(userId),
         sendWhatsAppMessage: createSendWhatsAppMessageTool(userId),
       });
-      if (grants.allows('automation')) Object.assign(aliaTools, {
-        createTrigger: createTriggerTool(userId),
-        listTriggers: listTriggersTool(userId),
-        updateTrigger: updateTriggerTool(userId),
-        deleteTrigger: deleteTriggerTool(userId),
-      });
+      if (grants.allows('automation')) {
+        if (isDirectSession) {
+          aliaTools.createAutomation = createAutomationTool(userId, accessToken);
+        }
+        Object.assign(aliaTools, {
+          listTriggers: listTriggersTool(userId),
+          updateTrigger: updateTriggerTool(userId),
+          deleteTrigger: deleteTriggerTool(userId),
+        });
+      }
       // `web`, not a family of its own: what it does is read the open web, and
       // it is withheld from an unreserved turn for the reason `isLocalRuntime`
       // gives above.
@@ -499,6 +541,8 @@ export class ToolPipeline {
                 runId: runId ?? requestId,
                 autonomy: oxyAutonomy,
                 userAccessToken: isDirectSession ? accessToken : undefined,
+                executionAuthorizations: oxyExecutionAuthorizations,
+                onStepStatus: onOxyStepStatus,
               })
                 .catch(bulkFailure('oxy-service')),
           actsForPerson && wants('agent')

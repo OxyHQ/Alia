@@ -7,6 +7,8 @@ Express + TypeScript API for Alia autonomy runtime.
 - Single chat runtime for all surfaces (`/alia/chat` and `/v1/chat/completions`).
 - Autonomy loop with intent classification and context-graph recall.
 - Trigger engine (`/triggers`) for schedule, webhook, integration event, and agent heartbeat tasks.
+- Structured automation control plane (`/automations`) for explicit actors, resources,
+  data flow, autonomy, observation and execution.
 - Oxy service event ingestion with idempotency and autonomous session creation.
 - Governance by risk level (`R0` read, `R1` reversible write + rollback record, `R2` approval required, `R3` blocked).
 - Model abstraction on the product surface: only the `alia-*` identifiers are exposed.
@@ -28,6 +30,7 @@ Express + TypeScript API for Alia autonomy runtime.
 - `src/lib/agent/governance.ts` - Risk policy and rollback registration.
 - `src/lib/agent/action-approval.ts` - Approval request/decision lifecycle.
 - `src/lib/trigger-engine.ts` - Unified trigger scheduler/executor.
+- `src/lib/automation-dispatcher.ts` - Deterministic structured automation coordinator.
 - `src/routes/oxy-service-events.ts` - Oxy event webhook + autonomous execution.
 
 ## Public Endpoints
@@ -56,13 +59,22 @@ Express + TypeScript API for Alia autonomy runtime.
 
 - `POST /webhooks/oxy/:serviceId`
 
+### Structured Automations
+
+- `GET /automations`
+- `POST /automations`
+- `PATCH /automations/:id`
+- `DELETE /automations/:id`
+- `POST /automations/:id/run` (manual definitions; requires `Idempotency-Key`)
+- `GET /automations/runs`
+- `GET /automations/runs/:runId/steps`
+
 ### Removed (hard cut)
 
 - `POST /v1/resolve-model` -> `410`
 - `POST /v1/report-usage` -> `410`
 - `POST /codea/resolve-model` -> `410`
 - `POST /codea/report-usage` -> `410`
-- All `/automations*` routes removed.
 
 ## Streaming Event Contract (`eventVersion: 1`)
 

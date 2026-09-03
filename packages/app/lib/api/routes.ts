@@ -89,6 +89,17 @@ export const API_ROUTES = {
     run: (id: string) => `/triggers/${id}/run`,
   },
 
+  // Structured automations. Legacy trigger-backed rows identify their source,
+  // so the client can call the owning control plane throughout the migration.
+  automations: {
+    list: '/automations',
+    runs: '/automations/runs',
+    update: (id: string) => `/automations/${id}`,
+    stop: (id: string) => `/automations/${id}`,
+    run: (id: string) => `/automations/${id}/run`,
+    steps: (runId: string) => `/automations/runs/${runId}/steps`,
+  },
+
   // Analytics routes
   analytics: {
     usage: '/analytics/usage',

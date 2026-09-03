@@ -214,8 +214,10 @@ healthy and still receives traffic. Moving the target group to `/health/ready` i
 1. `GET /health/ready` returns ready.
 2. A chat stream works on `POST /v1/chat/completions`.
 3. `GET /v1/models` lists the Alia identifiers.
-4. Trigger create and run work via `/triggers`.
-5. `POST /webhooks/oxy/:serviceId` accepts an event and deduplicates on `eventId`.
+4. Automation create and manual run work via `/automations`; legacy `/triggers` rows are
+   still reconciled by the same scheduler.
+5. `POST /webhooks/oxy` accepts a normalized event from an authorized Oxy service and
+   deduplicates on `(appId, eventId)`; `POST /webhooks/oxy/:serviceId` returns `410`.
 6. The four removed endpoints return `410`: `/v1/resolve-model`, `/v1/report-usage`,
    `/codea/resolve-model`, `/codea/report-usage`.
 
