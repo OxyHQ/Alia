@@ -46,6 +46,21 @@ import { PROVIDER_API_HOSTS } from './provider-egress-policy.js';
 export const GATEWAY_URL_ENV = 'GATEWAY_API_URL';
 
 /**
+ * Prefixes owned by the retired Relay/direct-Kaana integration.
+ *
+ * Prefix matching is deliberate: an explicit list only rejects spellings that
+ * existed when the list was written and silently accepts the next inherited
+ * credential, endpoint or feature flag. Alia owns no environment variable in
+ * any of these namespaces now, so every non-empty value is invalid.
+ */
+export const LEGACY_DIRECT_INFERENCE_ENV_PREFIXES = [
+  'ALIA_KAANA_',
+  'ALIA_RELAY_',
+  'KAANA_',
+  'RELAY_',
+] as const;
+
+/**
  * Credential variables that do not follow `<PROVIDER>_API_KEY`.
  *
  * Exactly one today: `GROK_API_KEY`, whose provider is registered as `xai`, so a
@@ -96,12 +111,20 @@ export function directProviderModeFailure(
   for (const variable of PROVIDER_CREDENTIAL_ENV) {
     if ((env[variable] ?? '').trim().length > 0) offenders.push(variable);
   }
+  for (const [variable, value] of Object.entries(env)) {
+    if (
+      (value ?? '').trim().length > 0
+      && LEGACY_DIRECT_INFERENCE_ENV_PREFIXES.some((prefix) => variable.startsWith(prefix))
+    ) {
+      offenders.push(variable);
+    }
+  }
 
   if (offenders.length === 0) return null;
 
   // The variable NAMES, never their values: every one of these holds a
   // credential or a route to one, and a boot log is not a secret store.
-  return `Kaana is the only hosted inference route and direct provider configuration is still present: ${offenders.join(', ')}`;
+  return `Kaana is the only hosted inference route and direct provider configuration is still present: ${[...new Set(offenders)].sort().join(', ')}`;
 }
 
 /** The exit code a refused boot uses, matching `connectPostgresOrExit`. */

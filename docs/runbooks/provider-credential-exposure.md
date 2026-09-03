@@ -32,10 +32,10 @@ history: forks, archives, CI caches and existing clones remain exposed.
    Any match is another disclosure and requires rotation.
 5. Record only identifiers, timestamps and affected counts.
 
-Do not query Alia's dormant `provider_keys` rollback table or run an Alia
-provider-key script. The table has no runtime reader or writer in the first
-cutover release. A separate destructive release removes it only after a real
-Oxy -> Kaana canary succeeds and rollback to the former runtime is forbidden.
+Do not attempt to restore or query Alia's former `provider_keys` table, and do
+not run an Alia provider-key script. Post-rollout migration 0061 drops that
+duplicate credential store without reading or copying it. Credential recovery,
+rotation and incident response now happen only in Kaana.
 
 ## Separate credential classes
 

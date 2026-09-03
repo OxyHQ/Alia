@@ -58,9 +58,7 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4150';
 export const AUTOMATIC = 'automatic';
 
 /** Which routing profile a request made in this mode goes through. */
-export type ProductModeRouting =
-  | { readonly kind: 'profile'; readonly profileId: string }
-  | { readonly kind: 'default' };
+export type ProductModeRouting = { readonly kind: 'profile'; readonly profileId: string };
 
 export interface ProductMode {
   readonly id: string;
@@ -129,14 +127,16 @@ export function parseCatalogue(payload: unknown): CatalogueEntry[] {
   return entries;
 }
 
-function parseRouting(value: unknown): ProductModeRouting {
+function parseRouting(value: unknown): ProductModeRouting | null {
   const raw = asObject(value);
-  if (raw === null) return { kind: 'default' };
+  if (raw === null) return null;
   if (raw.kind === 'profile') {
     const profileId = asText(raw.profile_id);
-    if (profileId !== null) return { kind: 'profile', profileId };
+    if (profileId !== null && profileId !== '' && profileId.trim() === profileId) {
+      return { kind: 'profile', profileId };
+    }
   }
-  return { kind: 'default' };
+  return null;
 }
 
 /** Turn a modes response into modes, or throw — same reasoning as {@link parseCatalogue}. */
@@ -148,16 +148,22 @@ export function parseModes(payload: unknown): ProductMode[] {
   const modes: ProductMode[] = [];
   for (const value of data) {
     const raw = asObject(value);
-    if (raw === null) continue;
-    if (raw.object !== 'product_mode') continue;
+    if (raw === null || raw.object !== 'product_mode') {
+      throw new Error('The product modes response could not be read.');
+    }
     const id = asText(raw.id);
     const label = asText(raw.label);
-    if (id === null || label === null) continue;
+    const routing = parseRouting(raw.routing);
+    if (
+      id === null || id === '' || id.trim() !== id || !id.startsWith('mode:')
+      || label === null || label === '' || label.trim() !== label
+      || routing === null
+    ) throw new Error('The product modes response could not be read.');
     modes.push({
       id,
       label,
       description: asText(raw.description) ?? '',
-      routing: parseRouting(raw.routing),
+      routing,
       deepResearch: raw.deep_research === true,
     });
   }
@@ -179,8 +185,16 @@ function presentation(
   entry: CatalogueEntry,
   modes: readonly ProductMode[],
 ): { readonly label: string; readonly description: string } {
-  const mode =
-    modes.find((m) => m.routing.kind === 'profile' && m.routing.profileId === entry.id) ?? null;
+  const expectedModeId: Record<string, string> = {
+    'kaana-lite': 'mode:fast',
+    'kaana-v1': 'mode:balanced',
+    'kaana-v1-pro-max': 'mode:maximum-quality',
+    'kaana-v1-codea': 'mode:coding',
+  };
+  const modeId = expectedModeId[entry.id];
+  const mode = modeId === undefined
+    ? null
+    : modes.find((candidate) => candidate.id === modeId && candidate.routing.profileId === entry.id) ?? null;
   if (mode === null) return { label: entry.displayName, description: entry.description };
   return { label: mode.label, description: mode.description };
 }
@@ -197,7 +211,7 @@ export function offeredModes(
   entries: readonly CatalogueEntry[],
   modes: readonly ProductMode[],
 ): OfferedMode[] {
-  const automatic = modes.find((mode) => mode.routing.kind === 'default' && !mode.deepResearch);
+  const automatic = modes.find((mode) => mode.id === 'mode:automatic');
   const rows = entries
     .filter((entry) => entry.chatVisible)
     .map((entry) => ({ id: entry.id, ...presentation(entry, modes) }));

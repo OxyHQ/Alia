@@ -65,6 +65,7 @@ async function seedAgent(overrides: Record<string, unknown> = {}): Promise<strin
     description: 'd',
     authorOxyUserId: OWNER,
     category: 'research',
+    routingProfileId: '01a06477-94f5-74f0-bc25-4c5c13b93ccd',
     ...overrides,
   });
   return agent._id;

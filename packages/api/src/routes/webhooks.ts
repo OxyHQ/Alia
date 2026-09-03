@@ -3,7 +3,7 @@ import crypto from 'crypto';
 import { verifySecret } from '@oxyhq/core/server';
 import { generateText, stepCountIs } from 'ai';
 import { getChannel } from '../lib/channels/registry.js';
-import { resolveModel, getAIModel, getDefaultRoutingProfile } from '../lib/chat-core.js';
+import { resolveModel, resolveOxyRoutingProfileId, getAIModel } from '../lib/chat-core.js';
 import { sendChannelMessage } from '../lib/channels/outbound.js';
 import { ToolPipeline } from '../lib/tool-pipeline.js';
 import { agentPromptName, attachAgentIdentity } from '../lib/agent-identity.js';
@@ -187,17 +187,32 @@ export async function processChannelMessage(
      * publishes (#244), and this column is shared with that service — the same
      * `bot_users.preferred_model` row feeds both. Everything below wants the
      * canonical Kaana profile: `resolveModel` and `finalizeCredits` consume the
-     * same identity. An unknown stored value falls
-     * back to the product default rather than leaving that person with a bot
-     * that answers nothing. The fallback is logged because it means a stored
-     * preference has gone stale.
+     * same identity. A null or unknown stored value fails closed and tells the
+     * person that the exact profile must be reconciled; this route never picks
+     * a product default, array position or similarly named profile for them.
      */
-    const preferred = botUser.preferredModel || getDefaultRoutingProfile();
+    const preferred = botUser.preferredModel;
+    if (preferred === null) {
+      await sendChannelMessage(
+        channelType,
+        message.chatId,
+        'No routing profile is configured for this chat.',
+        { replyToId: message.replyToId, threadId: message.threadId },
+      );
+      return;
+    }
     const routable = toRoutingProfile(preferred);
     if (routable === null) {
       log.channels.warn({ preferred }, 'Stored bot model preference names no routing profile');
+      await sendChannelMessage(
+        channelType,
+        message.chatId,
+        'The configured routing profile is unavailable.',
+        { replyToId: message.replyToId, threadId: message.threadId },
+      );
+      return;
     }
-    const routingProfileId = routable ?? getDefaultRoutingProfile();
+    const routingProfileId = routable;
 
     // Reserve credits before processing
     await getOrCreateUserCredits(userId);
@@ -421,12 +436,14 @@ export async function processAgentBotMessage(
     const found = bot.agentId ? await findAgentById(getDb(), bot.agentId) : null;
     const agent = found === null ? null : await attachAgentIdentity(found);
 
-    const routingProfileId = agent?.allowedModels[0] || getDefaultRoutingProfile();
-    const resolved = await resolveModel(routingProfileId);
-    if (!resolved) {
+    const resolved = agent === null || agent.routingProfileId === null
+      ? null
+      : await resolveOxyRoutingProfileId(agent.routingProfileId);
+    if (resolved === null) {
       await sendChannelMessage(channelType, message.chatId, 'Sorry, no AI models are available right now.', outboundOpts);
       return;
     }
+    const routingProfileId = resolved.routingProfileId;
     const model = getAIModel(resolved, 'agent_run');
 
     /**

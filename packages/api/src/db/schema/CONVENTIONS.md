@@ -4,10 +4,10 @@ Binding for every table in this schema. Decision and reason, nothing else.
 
 > Post-cutover note: references below to `provider_keys`, `provider_health`,
 > `api_usage` and `fallback_events` document immutable migration decisions only.
-> They remain dormant during the first release's rollback window, with no Alia
-> readers, writers, sweepers or compatibility endpoints. Kaana owns hosted
-> provider credentials and runtime telemetry. Their destructive migration is a
-> separate release after a real Oxy -> Kaana canary closes rollback.
+> Alia has no readers, writers, sweepers or compatibility endpoints for them.
+> Migration `0061_remove_alia_provider_credentials.sql` drops `provider_keys`
+> post-rollout without reading or copying it; Kaana is the sole credential
+> custodian. The other historical telemetry tables remain non-runtime evidence.
 
 `packages/integrations/src/db/schema/CONVENTIONS.md` established the toolchain on
 the smallest service. This file does NOT repeat it — read that one first. What
@@ -815,15 +815,15 @@ observable behaviour changes and no stored timestamp moves**, so there is nothin
 to announce. Check the call sites before believing a hook is load-bearing — a
 dead hook and a live one look identical in the schema file.
 
-## A credential at rest, and the projection rule that goes with it
+## Historical credential-at-rest decision
 
-**`provider_keys.key` holds a PLAINTEXT provider API key.** Not a hash —
-`key_hash` is that, and `lib/key-manager.ts` reads the plaintext to sign the
-upstream call. It was at rest in Mongo and it is at rest here; the port neither
-introduced nor fixed that.
+Before Kaana custody, **`provider_keys.key` held a PLAINTEXT provider API key.**
+Not a hash — `key_hash` was that, and the retired `lib/key-manager.ts` read the
+plaintext to sign an upstream call. Migration 0061 now drops that whole table
+without selecting, exporting or copying its contents. This section is retained
+only as the security rule that governed the historical Postgres port.
 
-Until a repository exists there is no mechanism to enforce, so the rule is
-written in the two places somebody will look — the column's own comment and here:
+While the historical table existed, the rule was:
 
 - never `select()` this table whole. Name columns, and leave `key` out of every
   projection but the one call that must sign a request;
@@ -1149,10 +1149,9 @@ modelled shape:
   reason. Do not "repair" a dangling one during the backfill and do not add the
   constraint in 9c or 9d; `agentsSupport.pgdb.test.ts` stores an unmatched id so
   that adding it fails there rather than in the governance write path.
-- `provider_keys.organization_id` must be entirely NULL before its CASCADE
-  foreign key applies. It should be — the column is declared and indexed in
-  Mongoose and never written, verified package-wide — but confirm rather than
-  assume.
+- The historical `provider_keys.organization_id` precondition below applied to
+  the original Mongo-to-Postgres port. Migration 0061 drops the table without
+  `CASCADE`; it does not recreate or validate that legacy relationship.
 - `voice_call_usage.average_latency_ms` and `.client_type` are declared in
   Mongoose and written by nothing in the package, verified whole-package rather
   than around the writer. Confirm they are entirely absent before anybody reads

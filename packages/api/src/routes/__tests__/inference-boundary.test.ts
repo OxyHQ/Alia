@@ -23,15 +23,12 @@ import { describe, expect, it } from 'vitest';
  * ## What was found when this file was written, at `a1b74a6b`
  *
  * `middleware/auth.ts` constructs `oxyClient.serviceAuth({ debug: true })` with
- * no `jwtSecret`, and no code path and no workflow names a
- * `SERVICE_TOKEN_SECRET` — this file and that one now discuss it in PROSE, which
- * is why the assertion below reads comment-stripped source instead of grepping.
- * `@oxyhq/core`'s middleware answers
- * every service token with 403 `SERVICE_TOKEN_NOT_CONFIGURED` in that state, so
- * `POST /internal/trigger` accepts none. That is fail-CLOSED — a broken feature,
- * not a hole — and the checkbox is blocked on a secret that lives in
- * `oxy-infra`, not on Alia code. What IS assertable, and is asserted here, is
- * that no Alia code path grants privilege from a decoded-but-unverified token.
+ * no `jwtSecret`, and no code path or workflow names an Oxy access-token secret
+ * or service-token private key. The compatible `@oxyhq/core` release verifies
+ * Ed25519 service tokens from Oxy's public JWKS and fails closed if the endpoint
+ * or exact `kid` is unavailable. What IS assertable here is that no Alia code
+ * path grants privilege from a decoded-but-unverified token or imports private
+ * signing material.
  *
  * `POST /alia/chat` reached the same inference handler as
  * `POST /v1/chat/completions` with neither authentication nor a rate limiter.
@@ -99,8 +96,9 @@ describe('no privilege comes from an unverified token (#139 ws15)', () => {
   it('nothing in the API decodes a JWT itself', () => {
     // The failure mode this forbids: reading `sub` or `scopes` out of a token's
     // payload and acting on it. `@oxyhq/core` decodes to pick a branch and then
-    // VERIFIES (HMAC-SHA256 plus issuer, audience and expiry) before granting
-    // anything; a second, local decoder would have no such obligation.
+    // VERIFIES (Ed25519 through Oxy's public JWKS, plus issuer, audience,
+    // lifetime, type and scopes) before granting anything; a second, local
+    // decoder would have no such obligation.
     const files = execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard', '--', 'packages/api/src'], {
       cwd: REPO_ROOT,
       encoding: 'utf8',
@@ -164,20 +162,17 @@ describe('no privilege comes from an unverified token (#139 ws15)', () => {
     expect(auth).toMatch(/return 'development'/);
   });
 
-  it('records that Alia configures no service-token verification secret', () => {
-    // Pinned as the state it IS, with the finding at the assertion: with no
-    // `jwtSecret`, `@oxyhq/core` refuses every service token rather than
-    // trusting it, so this is fail-closed. When `SERVICE_TOKEN_SECRET` is
-    // provisioned in oxy-infra, `serviceAuth` gains `{ jwtSecret: ... }` and
-    // THIS test is what has to be rewritten — which is the review the checkbox
-    // wants, arriving at the moment verification becomes possible.
+  it('uses public-JWKS service-token verification without private material', () => {
+    // External consumers must rely on the public JWKS path built into the
+    // compatible core release. Passing `jwtSecret` here would distribute Oxy's
+    // access-token signing capability into Alia and is therefore forbidden.
     const auth = code('middleware/auth.ts');
     expect(auth).toContain('oxyClient.serviceAuth(');
     expect(auth).not.toContain('jwtSecret');
 
     /**
-     * The secret is referenced nowhere it could take effect: not in API CODE,
-     * and not in the deploy that would put it in the task definition.
+     * Private key material is referenced nowhere it could take effect: not in
+     * API CODE and not in the deploy task definition.
      *
      * Measured against comment-stripped source rather than a repo-wide grep,
      * which is the census-reads-its-own-explanation trap — a repo grep finds
@@ -185,10 +180,17 @@ describe('no privilege comes from an unverified token (#139 ws15)', () => {
      * this was being written. Narrowing the grep by excluding those files is
      * the wrong repair: the exclusion list grows until it excludes the answer.
      */
-    const codeMentions = gitGrepFiles('SERVICE_TOKEN_SECRET', ['packages/api/src'])
-      .filter((file) => file !== SELF)
-      .filter((file) => code(path.relative(API_SRC, path.join(REPO_ROOT, file))).includes('SERVICE_TOKEN_SECRET'));
-    expect(codeMentions).toEqual([]);
+    for (const privateName of [
+      'ACCESS_TOKEN_SECRET',
+      'SERVICE_TOKEN_PRIVATE_KEY',
+      'SERVICE_TOKEN_SECRET',
+    ]) {
+      const codeMentions = gitGrepFiles(privateName, ['packages/api/src'])
+        .filter((file) => file !== SELF)
+        .filter((file) => code(path.relative(API_SRC, path.join(REPO_ROOT, file))).includes(privateName));
+      expect(codeMentions).toEqual([]);
+      expect(gitGrepFiles(privateName, ['.github'])).toEqual([]);
+    }
 
     // The control: the same pipeline DOES report a file whose CODE names it,
     // so the empty list is absence rather than a filter that rejects everything.
@@ -197,9 +199,6 @@ describe('no privilege comes from an unverified token (#139 ws15)', () => {
         .filter((file) => code(path.relative(API_SRC, path.join(REPO_ROOT, file))).includes('SERVICE_SECRET')),
     ).toContain('packages/api/src/middleware/auth.ts');
 
-    // And the deploy does not provision it either, which is what makes the
-    // 403 above the state of production rather than of this checkout.
-    expect(gitGrepFiles('SERVICE_TOKEN_SECRET', ['.github'])).toEqual([]);
     expect(gitGrepFiles('SERVICE_SECRET', ['.github'])).not.toEqual([]);
   });
 });

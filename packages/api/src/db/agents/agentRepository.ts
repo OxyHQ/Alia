@@ -71,6 +71,7 @@ import { conversations } from '../schema/chat';
 import { libraryFiles } from '../schema/library';
 import { skills } from '../schema/skills';
 import type { AgentAccess, AgentArchetype, AgentStatus } from '../../domain/agent';
+import type { OxyKaanaRoutingProfileId } from '../../config/oxy-inference-routing-profile-ids';
 
 type AgentRow = typeof agents.$inferSelect;
 
@@ -142,7 +143,8 @@ export interface AgentRecord {
   access: AgentAccess;
   systemPrompt: string | null;
   preferredImage: string | null;
-  allowedModels: string[];
+  /** Exact Oxy routing-profile PK; null only on unreconciled legacy rows. */
+  routingProfileId: string | null;
   scheduleInterval: number | null;
   /** ABSENT on an agent that has never evolved. */
   soul?: AgentSoul;
@@ -227,7 +229,7 @@ export function toAgentRecord(row: AgentRow): AgentRecord {
     access: row.access as AgentAccess,
     systemPrompt: row.systemPrompt,
     preferredImage: row.preferredImage,
-    allowedModels: row.allowedModels,
+    routingProfileId: row.routingProfileId,
     scheduleInterval: row.scheduleInterval,
     soul: toSoul(row),
     archetype: row.archetype as AgentArchetype,
@@ -806,8 +808,8 @@ export interface CreateAgentInput {
   isPublished?: boolean;
   access?: AgentAccess;
   systemPrompt?: string;
-  /** Omit to take the column default, which is what `POST /agents` does. */
-  allowedModels?: string[];
+  /** Exact reviewed Oxy routing-profile PK. No default or name translation. */
+  routingProfileId: OxyKaanaRoutingProfileId;
   archetype?: AgentArchetype;
   archetypeConfig?: unknown;
   skillIds?: string[];
@@ -845,7 +847,7 @@ export async function createAgent(
         isPublished: input.isPublished ?? true,
         access: input.access ?? 'private',
         ...(input.systemPrompt !== undefined && { systemPrompt: input.systemPrompt }),
-        ...(input.allowedModels !== undefined && { allowedModels: input.allowedModels }),
+        routingProfileId: input.routingProfileId,
         ...(input.archetype !== undefined && { archetype: input.archetype }),
         ...(input.archetypeConfig !== undefined && { archetypeConfig: input.archetypeConfig }),
       })
@@ -876,7 +878,6 @@ export interface UpdateAgentInput {
   status?: AgentStatus;
   access?: AgentAccess;
   systemPrompt?: string;
-  allowedModels?: string[];
   scheduleInterval?: number;
   archetype?: AgentArchetype;
   archetypeConfig?: unknown;

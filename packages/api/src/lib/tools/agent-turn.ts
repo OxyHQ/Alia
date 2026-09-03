@@ -57,7 +57,7 @@ import { generateText, stepCountIs } from 'ai';
 import { agentPromptName, type HydratedAgent } from '../agent-identity.js';
 import { agentRemitPrompt } from '../agent/archetype-prompts.js';
 import { buildIdentityGuard } from '../identity-guard.js';
-import { resolveModel, getAIModel } from '../chat-core.js';
+import { resolveOxyRoutingProfileId, getAIModel } from '../chat-core.js';
 import { evolveAgentSoul } from '../agent/soul.js';
 import {
   finalizeCredits,
@@ -134,21 +134,12 @@ export async function runAgentTurn(input: {
     agentName: agentPromptName(agent),
   })}\n\n---\n\n${agentRemitPrompt(agent)}`;
 
-  /**
-   * The agent's own first choice, then the lightweight default — and the ALIAS
-   * is kept beside the resolution, because it is what prices the turn.
-   *
-   * Written as a literal in the fallback position rather than lifted into a
-   * `const`. `lib/__tests__/defaultChatModel.test.ts` censuses exactly this
-   * spelling, and a name one line earlier is invisible to it: the restated
-   * default would leave the frozen list by being harder to see rather than by
-   * being removed.
-   */
-  const preferredModel = agent.allowedModels[0] || 'kaana-lite';
-  const resolvedPreferred = await resolveModel(preferredModel);
-  const routingProfileId = resolvedPreferred ? preferredModel : 'kaana-lite';
-  const resolved = resolvedPreferred ?? (await resolveModel('kaana-lite'));
-  if (!resolved) return failed('No model available for agent execution');
+  if (agent.routingProfileId === null) {
+    return failed('That agent has no exact routing profile configured');
+  }
+  const resolved = await resolveOxyRoutingProfileId(agent.routingProfileId);
+  if (resolved === null) return failed('That agent has no valid routing profile configured');
+  const routingProfileId = resolved.routingProfileId;
 
   const model = getAIModel(resolved, 'agent_run');
 

@@ -421,6 +421,20 @@
       "when": 1788386016096,
       "tag": "0059_kaana_routing_profiles",
       "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1788418518263,
+      "tag": "0060_agent_routing_profile_identity",
+      "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "7",
+      "when": 1788418584250,
+      "tag": "0061_remove_alia_provider_credentials",
+      "breakpoints": true
     }
   ]
 }

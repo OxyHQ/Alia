@@ -18,12 +18,10 @@ import {
  * Product modes — #139 workstream 4, *"replace fake aliases with clearly typed
  * product modes/routing presets"*.
  *
- * Every binding in `product-modes.ts` claims to be READ off something the
- * product already publishes rather than assigned. This file is where that claim
- * is checked, by recomputing each derivation from the live tables and from the
- * consumers on disk. A routing change, a re-priced tier or a Codea default that
- * moved fails here instead of leaving a mode pointing somewhere it no longer
- * belongs.
+ * Every binding in `product-modes.ts` is an explicit product decision. This
+ * file checks those exact identities against the live tables. A routing change
+ * cannot silently retarget a mode through array order, price sorting or an
+ * implicit default.
  */
 
 const REPO_ROOT = path.resolve(fileURLToPath(new URL('../../../../../', import.meta.url)));
@@ -38,10 +36,9 @@ function mode(id: string): ProductMode {
   return found;
 }
 
-/** The profile a mode pins, or `null` when it pins none. */
-function pinned(id: string): string | null {
-  const routing = mode(id).routing;
-  return routing.kind === 'profile' ? routing.profile : null;
+/** The exact profile a mode pins. */
+function pinned(id: string): string {
+  return mode(id).routing.profile;
 }
 
 describe('the mode table is what #139 asks for, and nothing may pass for a model', () => {
@@ -82,46 +79,12 @@ describe('the mode table is what #139 asks for, and nothing may pass for a model
   });
 });
 
-describe('the three general-purpose modes are an ORDERING, not three assignments', () => {
-  /**
-   * Exactly three identifiers are category `general` and offered in the picker,
-   * so ordering them by credit multiplier is total and has no ties: cheapest is
-   * Fast, dearest is Maximum quality, the remaining one is Balanced. Recomputed
-   * here from `KAANA_ROUTING_PROFILES` and the preset table on every run.
-   */
-  const generalOffered = Object.values(KAANA_ROUTING_PROFILES)
-    .filter((m) => m.category === 'general' && isProfileOffered(m.id))
-    .sort((a, b) => a.creditMultiplier - b.creditMultiplier);
-
-  it('the derivation is total and unambiguous', () => {
-    expect(generalOffered).toHaveLength(3);
-    // Strictly increasing: a tie would make "cheapest" and "dearest" depend on
-    // object key order, and the whole derivation would become an assignment
-    // wearing a sort's clothes.
-    const multipliers = generalOffered.map((m) => m.creditMultiplier);
-    expect(multipliers[0]).toBeLessThan(multipliers[1]);
-    expect(multipliers[1]).toBeLessThan(multipliers[2]);
-  });
-
-  it('binds Fast, Balanced and Maximum quality to that order', () => {
-    const profiles = generalOffered.map((m) => m.id);
-    expect(profiles.every((p) => p !== undefined)).toBe(true);
-    expect(pinned('mode:fast')).toBe(profiles[0]);
-    expect(pinned('mode:balanced')).toBe(profiles[1]);
-    expect(pinned('mode:maximum-quality')).toBe(profiles[2]);
-    // The three are distinct, so a table that pointed all of them at one
-    // profile could not satisfy the line above by accident.
-    expect(new Set(profiles).size).toBe(3);
-  });
-
-  it('agrees with the product copy where the product copy says anything', () => {
-    // The cross-check, not the derivation. Two of the three descriptions use
-    // the mode's own word; the dearest says "Best available models for
-    // demanding tasks" rather than "maximum", so it is asserted for what it
-    // does say instead of being forced to match a label it never used.
-    expect(generalOffered[0].description.toLowerCase()).toContain('fast');
-    expect(generalOffered[1].description.toLowerCase()).toContain('balanced');
-    expect(generalOffered[2].description.toLowerCase()).toContain('best available');
+describe('general-purpose modes pin exact profile identities', () => {
+  it('does not derive routing from price, order or a first row', () => {
+    expect(pinned('mode:automatic')).toBe('kaana-lite');
+    expect(pinned('mode:fast')).toBe('kaana-lite');
+    expect(pinned('mode:balanced')).toBe('kaana-v1');
+    expect(pinned('mode:maximum-quality')).toBe('kaana-v1-pro-max');
   });
 });
 
@@ -172,26 +135,13 @@ describe('Coding is read off the coding product, not chosen', () => {
   });
 });
 
-describe('two modes pin no profile, because neither changes routing today', () => {
-  it('Automatic and Deep research carry the default routing, and nothing else does', () => {
-    const unpinned = PRODUCT_MODES.filter((m) => m.routing.kind === 'default').map((m) => m.id);
-    expect(unpinned).toEqual(['mode:automatic', 'mode:deep-research']);
-  });
-
-  it('Automatic names the path a request with no model already takes', () => {
-    // `default` is not a stub: `lib/chat/request-context.ts` falls back to
-    // `getDefaultRoutingProfile()` when the body names no model, which is exactly
-    // "the product decides". Asserted against that source so a rewrite that
-    // removed the fallback would land here.
-    const context = repoFile('packages/api/src/lib/chat/request-context.ts');
-    expect(context).toContain('body.model || getDefaultRoutingProfile()');
-    expect(pinned('mode:automatic')).toBeNull();
+describe('Automatic and Deep research have no implicit routing default', () => {
+  it('pins both to the exact current product identity', () => {
+    expect(pinned('mode:automatic')).toBe('kaana-lite');
+    expect(pinned('mode:deep-research')).toBe('kaana-lite');
   });
 
   it('Deep research differs from Automatic in exactly the request flag it sets', () => {
-    // A pipeline, not a tier: the handler runs on whatever the request already
-    // resolved, so a profile binding here would be a routing claim the product
-    // does not make.
     const handler = repoFile('packages/api/src/lib/chat-modes/deep-research-handler.ts');
     expect(handler).toContain('routingProfileId: string');
     expect(handler).not.toMatch(/'kaana-v1[a-z-]*'/);

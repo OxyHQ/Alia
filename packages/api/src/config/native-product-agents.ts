@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
+import { OXY_KAANA_ROUTING_PROFILE_IDS } from './oxy-inference-routing-profile-ids.js';
 
 export const NATIVE_PRODUCT_AGENT_IDENTITY = Object.freeze({
   schemaVersion: 1,
@@ -11,6 +12,7 @@ export const NATIVE_PRODUCT_AGENT_IDENTITY = Object.freeze({
       botAccountId: '01a0646a-078f-7974-9645-a5e8be237f47',
       agentId: '01a0646a-078f-7514-9800-9f43ceed7df8',
       bindingApplicationId: '6a2f851751b784a86fd0e922',
+      routingProfileId: OXY_KAANA_ROUTING_PROFILE_IDS['kaana-v1'],
       capabilityGrants: Object.freeze(['web'] as const),
       prompt: Object.freeze({
         source: 'Homiio/packages/backend/routes/ai.ts#SINDI_SYSTEM_PROMPT',
@@ -25,6 +27,7 @@ export const NATIVE_PRODUCT_AGENT_IDENTITY = Object.freeze({
       botAccountId: '01a0646a-078f-7120-a993-a03c180c81b0',
       agentId: '01a0646a-078f-7642-95ef-439952f4f3f9',
       bindingApplicationId: '01a0648b-8d73-70ad-8e67-1c07ddc5eb6e',
+      routingProfileId: OXY_KAANA_ROUTING_PROFILE_IDS['kaana-v1'],
       capabilityGrants: Object.freeze(['web', 'artifacts', 'memory'] as const),
       prompt: Object.freeze({
         source: 'Clarity/packages/backend/prompts/base.md',
@@ -54,6 +57,7 @@ export interface LoadedNativeProductAgentSpec {
   botAccountId: string;
   agentId: string;
   bindingApplicationId: string;
+  routingProfileId: string;
   capabilityGrants: readonly string[];
   prompt: {
     source: string;
@@ -75,7 +79,7 @@ export interface LoadedNativeProductAgentSpec {
     status: 'active';
     access: 'private';
     systemPrompt: string;
-    allowedModels: readonly string[];
+    routingProfileId: string;
     archetype: 'general';
     archetypeConfig: null;
   };
@@ -120,7 +124,7 @@ export function loadNativeProductAgentSpecs(): readonly LoadedNativeProductAgent
         status: 'active' as const,
         access: 'private' as const,
         systemPrompt: loadPrompt('sindi').content,
-        allowedModels: ['kaana-v1', 'kaana-v1-pro'],
+        routingProfileId: sindi.routingProfileId,
         archetype: 'general' as const,
         archetypeConfig: null,
       },
@@ -144,7 +148,7 @@ export function loadNativeProductAgentSpecs(): readonly LoadedNativeProductAgent
         status: 'active' as const,
         access: 'private' as const,
         systemPrompt: loadPrompt('clarity').content,
-        allowedModels: ['kaana-v1', 'kaana-v1-pro'],
+        routingProfileId: clarity.routingProfileId,
         archetype: 'general' as const,
         archetypeConfig: null,
       },
@@ -162,6 +166,7 @@ export function nativeProductAgentHandoffManifest() {
       oxyAccountId: spec.botAccountId,
       ownerOxyAccountId: spec.projectAccountId,
       applicationId: spec.bindingApplicationId,
+      routingProfileId: spec.routingProfileId,
       product: spec.product,
       visibility: 'private' as const,
       capabilityGrants: [...spec.capabilityGrants],

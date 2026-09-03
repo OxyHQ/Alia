@@ -17,46 +17,20 @@
  * `kaana-v1-cowork`). ADR 0002 calls that last case "a reasoning setting wearing
  * a model's name". A mode is where those decisions belong.
  *
- * ## Every binding below is measured, not assigned
+ * ## Every binding below is explicit
  *
  * #139 names six modes by way of example. Which routing profile each one
- * selects is a product decision, and PR #156 declined to make it rather than
- * invent one. It is not invented here either: every binding is read off a
- * property the product already publishes, and `__tests__/product-modes.test.ts`
- * recomputes each one from the live tables, so a routing or catalogue change
- * that moved a binding fails there instead of leaving a stale label.
+ * selects is a product decision, so the exact profile identity is committed on
+ * each row below. No array position, price ordering or implicit default is
+ * routing authority. `__tests__/product-modes.test.ts` checks each declared ID
+ * against the live routing table and fails closed if one disappears.
  *
- * The three general-purpose modes come from ONE derivation rather than three.
- * Exactly three identifiers are category `general` and offered in the picker —
- * `kaana-lite`, `kaana-v1` and `kaana-v1-pro-max` — so ordering them by credit
- * multiplier is total and has no ties: cheapest is Fast, dearest is Maximum
- * quality, and the one left over is Balanced. Their own descriptions agree
- * word for word ("Fast responses for simple tasks", "Balanced performance for
- * everyday tasks", "Best available models for demanding tasks"), which is the
- * cross-check rather than the derivation.
- *
- * Coding is read off the CONSUMERS instead: `packages/alia-codea/package.json`,
- * `packages/alia-codea/src/*` and `packages/alia-codea-cli/src/utils/config.ts`
- * all default to `kaana-v1-codea`, so the coding profile is the one the coding
- * product already selects.
- *
- * ## Two modes pin no profile, and that is the measurement too
- *
- * Automatic and Deep research both carry {@link ProductModeRouting} `default`,
- * because neither changes routing today and saying otherwise would be the
- * invention this file exists to avoid.
- *
- *  - **Automatic** is the mode that expresses no preference. A request that
- *    names no model already routes through `getDefaultRoutingProfile()`
- *    (`lib/chat/request-context.ts:161`), so `default` is not a stub — it is
- *    that path, named. Selecting a profile per request from the prompt is
- *    routing work, and ADR 0001 puts routing behind Kaana.
- *  - **Deep research** is a PIPELINE, not a tier. `handleDeepResearch` runs on
- *    `ctx.routingProfileId` — whatever the request already resolved
- *    (`lib/chat-modes/deep-research-handler.ts:31`) — so binding it to a
- *    quality tier would attach a routing claim to a mode that makes none. It
- *    differs from Automatic in exactly one published field, {@link
- *    ProductMode.deepResearch}, which is the request flag it sets.
+ * Automatic and Deep research both explicitly retain the previously observed
+ * product default, `kaana-lite`. Freezing that current identity removes the
+ * hidden dependency on `getDefaultRoutingProfile()` without changing which
+ * profile those modes selected at the time of this migration. Deep research
+ * still differs through its pipeline flag; it no longer inherits an unrelated
+ * request default by omission.
  */
 
 import { isKaanaRoutingProfileId, type KaanaRoutingProfileId } from './routing/kaana-profiles.js';
@@ -73,9 +47,7 @@ export type RoutingProfileId = KaanaRoutingProfileId;
  * configured", and those render as opposite things in a picker. `default` is a
  * live, named path — `getDefaultRoutingProfile()` — not an absence.
  */
-export type ProductModeRouting =
-  | { readonly kind: 'profile'; readonly profile: RoutingProfileId }
-  | { readonly kind: 'default' };
+export type ProductModeRouting = { readonly kind: 'profile'; readonly profile: RoutingProfileId };
 
 export interface ProductMode {
   /**
@@ -112,7 +84,7 @@ export const PRODUCT_MODES: readonly ProductMode[] = [
     id: 'mode:automatic',
     label: 'Automatic',
     description: 'Alia picks how to answer.',
-    routing: { kind: 'default' },
+    routing: { kind: 'profile', profile: 'kaana-lite' },
     deepResearch: false,
   },
   {
@@ -147,7 +119,7 @@ export const PRODUCT_MODES: readonly ProductMode[] = [
     id: 'mode:deep-research',
     label: 'Deep research',
     description: 'Multi-step research across sources, answered with citations.',
-    routing: { kind: 'default' },
+    routing: { kind: 'profile', profile: 'kaana-lite' },
     deepResearch: true,
   },
 ];
@@ -187,9 +159,9 @@ const OFFERED = new Set<string>(OFFERED_PROFILES);
 /** Internal policy preset → its primary canonical Kaana routing profile. */
 const ROUTING_PROFILE_BY_POLICY: ReadonlyMap<string, RoutingProfileId> = new Map(
   ROUTING_PRESETS.map((preset) => {
-    const profileId = preset.profileIds[0];
-    if (!isKaanaRoutingProfileId(profileId)) {
-      throw new Error(`routing preset ${preset.id} has no canonical Kaana routing profile`);
+    const profileId = preset.primaryProfileId;
+    if (!isKaanaRoutingProfileId(profileId) || !preset.profileIds.includes(profileId)) {
+      throw new Error(`routing preset ${preset.id} has an invalid explicit primary Kaana routing profile`);
     }
     return [preset.id, profileId] as const;
   }),

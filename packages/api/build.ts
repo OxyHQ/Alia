@@ -123,6 +123,21 @@ await esbuild.build({
   logLevel: 'info',
 });
 
+// Read-only rollout gate: list active agent IDs that lack a reviewed exact Oxy
+// routing-profile PK before ECS points at an image that refuses legacy arrays.
+await esbuild.build({
+  entryPoints: ['src/scripts/check-agent-routing-profile-readiness.ts'],
+  bundle: true,
+  platform: 'node',
+  target: 'node20',
+  format: 'esm',
+  outfile: 'dist/scripts/check-agent-routing-profile-readiness.js',
+  plugins: [externalizeNodeModules],
+  sourcemap: false,
+  minify: false,
+  logLevel: 'info',
+});
+
 // The bootstrap hashes these exact bytes before touching Postgres. Keep them
 // beside its bundle so `import.meta.url` resolves identically in source/tests
 // and in the slim production image.

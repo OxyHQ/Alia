@@ -394,6 +394,7 @@ jobs:
           # separately-written paths for one fact is exactly how a `pre` and a
           # `post` phase end up migrating different packages.
           MIGRATION_ENTRYPOINT: packages/api/dist/db/migrate.js
+          PRE_DEPLOY_TASK_COMMAND_JSON: '["node","packages/api/dist/scripts/check-agent-routing-profile-readiness.js","--target-database=alia"]'
           POST_DEPLOY_TASK_COMMAND_JSON: ${{ steps.phases.outputs.post_command }}
           TASK_SECRET_OVERRIDES_JSON: ${{ steps.kaana.outputs.secret_overrides }}
           # Stop injecting a static IAM user's keys.

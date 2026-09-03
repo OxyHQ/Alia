@@ -78,7 +78,7 @@ function state(row: typeof agents.$inferSelect): NativeProductAgentStoredState {
     status: row.status,
     access: row.access,
     systemPrompt: row.systemPrompt,
-    allowedModels: row.allowedModels,
+    routingProfileId: row.routingProfileId,
     archetype: row.archetype,
     archetypeConfig: row.archetypeConfig,
   };
@@ -131,7 +131,7 @@ async function writePlan(
         status: desired.status,
         access: desired.access,
         systemPrompt: desired.systemPrompt,
-        allowedModels: [...desired.allowedModels],
+        routingProfileId: desired.routingProfileId,
         archetype: desired.archetype,
         archetypeConfig: desired.archetypeConfig,
       })
@@ -150,7 +150,7 @@ async function writePlan(
           status: desired.status,
           access: desired.access,
           systemPrompt: desired.systemPrompt,
-          allowedModels: [...desired.allowedModels],
+          routingProfileId: desired.routingProfileId,
           archetype: desired.archetype,
           archetypeConfig: desired.archetypeConfig,
           updatedAt: new Date(),

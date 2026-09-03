@@ -32,7 +32,10 @@ new task definition. A value in SSM without a live task binding is not delivered
 
 Do not enable production traffic until all of these pass:
 
-1. `@oxyhq/core@23.2.0` or later is installed and Alia's hosted paths call
+1. The JWKS-capable `@oxyhq/core` from Oxy
+   [PR #1167](https://github.com/OxyHQ/oxy/pull/1167) is published, and Alia's
+   manifest plus frozen lock resolve that released version. The currently
+   locked `23.2.0` does not verify public-JWKS service tokens. Hosted paths call
    `OxyInferenceClient`, never a bespoke transport.
 2. Alia sends only the reviewed opaque `routingProfileId`; Oxy authenticates
    the Alia service credential, validates that exact profile row and resolves it

@@ -81,6 +81,8 @@ export interface RoutingPreset {
    * is what makes that unambiguous to a client.
    */
   readonly id: `profile:${string}`;
+  /** Explicit primary identity; array order is never routing authority. */
+  readonly primaryProfileId: KaanaRoutingProfileId;
   /** The canonical Kaana routing-profile identifiers selecting this preset. */
   readonly profileIds: readonly KaanaRoutingProfileId[];
   /** The tier whose ranked candidate list this preset routes over. */
@@ -134,6 +136,7 @@ export interface RoutingPreset {
 export const ROUTING_PRESETS: readonly RoutingPreset[] = [
   {
     id: 'profile:lite',
+    primaryProfileId: 'kaana-lite',
     profileIds: ['kaana-lite'],
     tier: 'lite',
     fallbackPolicy: DEFAULT_FALLBACK_POLICY,
@@ -143,6 +146,7 @@ export const ROUTING_PRESETS: readonly RoutingPreset[] = [
   },
   {
     id: 'profile:v1',
+    primaryProfileId: 'kaana-v1',
     profileIds: ['kaana-v1'],
     tier: 'v1',
     fallbackPolicy: DEFAULT_FALLBACK_POLICY,
@@ -152,6 +156,7 @@ export const ROUTING_PRESETS: readonly RoutingPreset[] = [
   },
   {
     id: 'profile:v1-codea',
+    primaryProfileId: 'kaana-v1-codea',
     profileIds: ['kaana-v1-codea'],
     tier: 'v1-codea',
     fallbackPolicy: DEFAULT_FALLBACK_POLICY,
@@ -161,6 +166,7 @@ export const ROUTING_PRESETS: readonly RoutingPreset[] = [
   },
   {
     id: 'profile:v1-cowork',
+    primaryProfileId: 'kaana-v1-cowork',
     profileIds: ['kaana-v1-cowork'],
     tier: 'v1-cowork',
     fallbackPolicy: DEFAULT_FALLBACK_POLICY,
@@ -170,6 +176,7 @@ export const ROUTING_PRESETS: readonly RoutingPreset[] = [
   },
   {
     id: 'profile:v1-browser',
+    primaryProfileId: 'kaana-v1-browser',
     profileIds: ['kaana-v1-browser'],
     tier: 'v1-browser',
     fallbackPolicy: DEFAULT_FALLBACK_POLICY,
@@ -179,6 +186,7 @@ export const ROUTING_PRESETS: readonly RoutingPreset[] = [
   },
   {
     id: 'profile:v1-vision',
+    primaryProfileId: 'kaana-v1-vision',
     profileIds: ['kaana-v1-vision'],
     tier: 'v1-vision',
     fallbackPolicy: DEFAULT_FALLBACK_POLICY,
@@ -188,6 +196,7 @@ export const ROUTING_PRESETS: readonly RoutingPreset[] = [
   },
   {
     id: 'profile:v1-audio',
+    primaryProfileId: 'kaana-v1-audio',
     profileIds: ['kaana-v1-audio'],
     tier: 'v1-audio',
     fallbackPolicy: DEFAULT_FALLBACK_POLICY,
@@ -197,6 +206,7 @@ export const ROUTING_PRESETS: readonly RoutingPreset[] = [
   },
   {
     id: 'profile:v1-multimodal',
+    primaryProfileId: 'kaana-v1-multimodal',
     profileIds: ['kaana-v1-multimodal'],
     tier: 'v1-multimodal',
     fallbackPolicy: DEFAULT_FALLBACK_POLICY,
@@ -206,6 +216,7 @@ export const ROUTING_PRESETS: readonly RoutingPreset[] = [
   },
   {
     id: 'profile:v1-pro',
+    primaryProfileId: 'kaana-v1-pro',
     profileIds: ['kaana-v1-pro'],
     tier: 'v1-pro',
     fallbackPolicy: DEFAULT_FALLBACK_POLICY,
@@ -215,6 +226,7 @@ export const ROUTING_PRESETS: readonly RoutingPreset[] = [
   },
   {
     id: 'profile:v1-pro-max',
+    primaryProfileId: 'kaana-v1-pro-max',
     // Two identifiers, one policy. Both are live and a caller may hold either.
     profileIds: ['kaana-v1-pro-max', 'kaana-v1-thinking'],
     tier: 'v1-pro-max',
@@ -227,6 +239,7 @@ export const ROUTING_PRESETS: readonly RoutingPreset[] = [
   },
   {
     id: 'profile:v1-voice',
+    primaryProfileId: 'kaana-v1-voice',
     profileIds: ['kaana-v1-voice'],
     tier: 'v1-voice',
     fallbackPolicy: DEFAULT_FALLBACK_POLICY,
@@ -236,6 +249,7 @@ export const ROUTING_PRESETS: readonly RoutingPreset[] = [
   },
   {
     id: 'profile:v1-voice-pro',
+    primaryProfileId: 'kaana-v1-voice-pro',
     profileIds: ['kaana-v1-voice-pro'],
     tier: 'v1-voice-pro',
     fallbackPolicy: DEFAULT_FALLBACK_POLICY,

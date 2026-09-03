@@ -253,7 +253,11 @@ export async function buildChatRequestContext(
    */
   let requestedAgentId: string | undefined;
   if (body.agentId !== undefined) {
-    if (typeof body.agentId !== 'string' || body.agentId.trim() === '') {
+    if (
+      typeof body.agentId !== 'string'
+      || body.agentId === ''
+      || body.agentId.trim() !== body.agentId
+    ) {
       res.status(400).json({
         error: {
           message: 'agentId must be a non-empty agent id.',

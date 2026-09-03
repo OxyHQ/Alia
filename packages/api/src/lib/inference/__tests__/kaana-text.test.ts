@@ -27,8 +27,9 @@ describe('one-shot product inference through Oxy', () => {
     mocks.options = null;
   });
 
-  it('delegates routing to the Oxy application policy default', async () => {
+  it('sends the exact reviewed opaque routing-profile primary key', async () => {
     await expect(generateTextViaKaana({
+      routingProfileId: '01a06477-94f5-74f0-bc25-4c5c13b93ccd',
       prompt: 'resume esto',
       surface: 'background',
       maxOutputTokens: 128,
@@ -38,6 +39,7 @@ describe('one-shot product inference through Oxy', () => {
     expect(mocks.request).not.toHaveProperty('model');
     expect(mocks.request).not.toHaveProperty('routingProfile');
     expect(mocks.request).toMatchObject({
+      routingProfileId: '01a06477-94f5-74f0-bc25-4c5c13b93ccd',
       labels: { 'alia.surface': 'background', 'alia.visibility': 'derived' },
     });
     expect(mocks.options).toMatchObject({ delegatedUserId: 'user-id' });
@@ -51,6 +53,7 @@ describe('one-shot product inference through Oxy', () => {
       strict: false,
     };
     await generateTextViaKaana({
+      routingProfileId: '01a06477-94f5-74f0-bc25-4c5c13b93ccd',
       prompt: 'resume esto',
       surface: 'authoring',
       maxOutputTokens: 128,

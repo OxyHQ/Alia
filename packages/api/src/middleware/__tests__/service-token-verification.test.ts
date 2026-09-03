@@ -21,10 +21,9 @@ import { describe, expect, it } from 'vitest';
  *  - **Something → Alia is the inbound hop, and is where verification lives.**
  *    `POST /internal/trigger` is the one route that accepts a service token, and
  *    it does so through `@oxyhq/core`'s `serviceAuth` — which verifies an
- *    HMAC-SHA256 signature plus issuer, audience and expiry before granting.
- *    Alia holds no `SERVICE_TOKEN_SECRET`, so today that middleware refuses
- *    every service token with 403; `routes/__tests__/inference-boundary.test.ts`
- *    pins that state and is the file to rewrite when the secret is provisioned.
+ *    Ed25519 signature from Oxy's public JWKS plus issuer, audience, lifetime,
+ *    token type and scopes before granting. Alia holds no private verification
+ *    secret; inability to resolve an exact public `kid` fails closed.
  *
  * So this file guards the inbound direction, which is the one that exists.
  *

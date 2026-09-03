@@ -227,10 +227,9 @@ function serializeEntry(entry: CatalogueEntry): Record<string, unknown> {
  * measures: gate 5 drives this handler and reads the value back, so a branch
  * that could emit `model` fails there rather than shipping.
  *
- * `routing` is published rather than resolved to a profile id, because the two
- * `default` modes genuinely pin no profile and flattening them to whichever
- * profile the default happens to be today would publish a routing claim the
- * product does not make. A client renders the discriminant.
+ * `routing` publishes the exact product profile committed on every mode. There
+ * is no default branch: a mode without a valid profile is a source error, not a
+ * request to choose one from another table.
  */
 function serializeMode(mode: ProductMode): Record<string, unknown> {
   return {
@@ -238,10 +237,7 @@ function serializeMode(mode: ProductMode): Record<string, unknown> {
     object: 'product_mode',
     label: mode.label,
     description: mode.description,
-    routing:
-      mode.routing.kind === 'profile'
-        ? { kind: 'profile', profile_id: mode.routing.profile }
-        : { kind: 'default' },
+    routing: { kind: 'profile', profile_id: mode.routing.profile },
     deep_research: mode.deepResearch,
   };
 }

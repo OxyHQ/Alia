@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  getOxyKaanaProductProfileId,
   getOxyKaanaRoutingProfileId,
   OXY_KAANA_ROUTING_PROFILE_IDS,
 } from '../oxy-inference-routing-profile-ids.js';
@@ -27,5 +28,22 @@ describe('reviewed Oxy Kaana routing-profile IDs', () => {
     expect(getOxyKaanaRoutingProfileId('Kaana')).toBeNull();
     expect(getOxyKaanaRoutingProfileId('kaana-v1-vision')).toBeNull();
     expect(getOxyKaanaRoutingProfileId('kaana-v1-unknown')).toBeNull();
+  });
+
+  it.each([
+    ' kaana-v1',
+    'kaana-v1 ',
+    '\tkaana-v1',
+    'kaana-v1\n',
+  ])('rejects a product profile whose bytes were padded: %j', (id) => {
+    expect(getOxyKaanaRoutingProfileId(id)).toBeNull();
+  });
+
+  it('reverse-resolves only the byte-exact opaque primary key', () => {
+    const exact = OXY_KAANA_ROUTING_PROFILE_IDS['kaana-v1'];
+    expect(getOxyKaanaProductProfileId(exact)).toBe('kaana-v1');
+    expect(getOxyKaanaProductProfileId(` ${exact}`)).toBeNull();
+    expect(getOxyKaanaProductProfileId(`${exact} `)).toBeNull();
+    expect(getOxyKaanaProductProfileId(exact.toUpperCase())).toBeNull();
   });
 });

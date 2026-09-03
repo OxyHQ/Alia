@@ -23,14 +23,9 @@
  * `mode:fast` says "the profile `profile:lite` is what Fast means"; the picker
  * renders "Fast" and still sends `profile:lite`.
  *
- * ## Two modes name no profile, and they are not rendered as rows
- *
- * `Automatic` and `Deep research` both carry `routing.kind === 'default'`,
- * because neither changes routing. They are real product concepts and they are
- * deliberately NOT folded into the profile list: Automatic is the absence of a
- * choice, and Deep research is a pipeline flag (`deep_research`), not a tier.
- * Rendering either as a profile row would attach a routing claim the product
- * does not make — the exact thing this module exists to stop.
+ * Every mode carries one exact profile identity. Automatic and Deep research
+ * are found by their exact `mode:*` IDs when their own labels are needed; they
+ * are never inferred from array position or a `default` discriminant.
  */
 
 import { useQuery } from '@tanstack/react-query';
@@ -39,9 +34,7 @@ import { queryKeys } from './query-keys';
 import type { CatalogueEntry } from './use-catalogue';
 
 /** Which routing profile a request made in this mode goes through. */
-export type ProductModeRouting =
-  | { readonly kind: 'profile'; readonly profileId: string }
-  | { readonly kind: 'default' };
+export type ProductModeRouting = { readonly kind: 'profile'; readonly profileId: string };
 
 export interface ProductMode {
   /** `mode:*`. Never sent as a request `model` — see the note above. */
@@ -65,17 +58,16 @@ function asText(value: unknown): string | null {
   return typeof value === 'string' ? value : null;
 }
 
-function parseRouting(value: unknown): ProductModeRouting {
+function parseRouting(value: unknown): ProductModeRouting | null {
   const raw = asObject(value);
-  if (raw === null) return { kind: 'default' };
+  if (raw === null) return null;
   if (raw.kind === 'profile') {
     const profileId = asText(raw.profile_id);
-    // A `profile` routing with no id is a shape break, not a default. Reading it
-    // as `default` would silently move the mode's meaning, so the entry is
-    // dropped by the caller instead.
-    if (profileId !== null) return { kind: 'profile', profileId };
+    if (profileId !== null && profileId !== '' && profileId.trim() === profileId) {
+      return { kind: 'profile', profileId };
+    }
   }
-  return { kind: 'default' };
+  return null;
 }
 
 function parseMode(value: unknown): ProductMode | null {
@@ -85,13 +77,18 @@ function parseMode(value: unknown): ProductMode | null {
 
   const id = asText(raw.id);
   const label = asText(raw.label);
-  if (id === null || label === null) return null;
+  const routing = parseRouting(raw.routing);
+  if (
+    id === null || id === '' || id.trim() !== id || !id.startsWith('mode:')
+    || label === null || label === '' || label.trim() !== label
+    || routing === null
+  ) return null;
 
   return {
     id,
     label,
     description: asText(raw.description) ?? '',
-    routing: parseRouting(raw.routing),
+    routing,
     deepResearch: raw.deep_research === true,
   };
 }
@@ -112,10 +109,8 @@ export function parseModes(payload: unknown): ProductMode[] {
   const modes: ProductMode[] = [];
   for (const value of data) {
     const mode = parseMode(value);
-    if (mode !== null) modes.push(mode);
-  }
-  if (data.length > 0 && modes.length === 0) {
-    throw new Error('The product modes response could not be read.');
+    if (mode === null) throw new Error('The product modes response could not be read.');
+    modes.push(mode);
   }
   return modes;
 }
@@ -150,10 +145,26 @@ export function modeForProfile(
   modes: readonly ProductMode[] | undefined,
 ): ProductMode | null {
   if (modes === undefined) return null;
+  const expectedModeId: Record<string, string> = {
+    'kaana-lite': 'mode:fast',
+    'kaana-v1': 'mode:balanced',
+    'kaana-v1-pro-max': 'mode:maximum-quality',
+    'kaana-v1-codea': 'mode:coding',
+  };
+  const modeId = expectedModeId[profileId];
+  if (modeId === undefined) return null;
   return (
-    modes.find((mode) => mode.routing.kind === 'profile' && mode.routing.profileId === profileId) ??
+    modes.find((mode) => mode.id === modeId && mode.routing.profileId === profileId) ??
     null
   );
+}
+
+/** Resolve a product concept by its exact committed identity. */
+export function modeById(
+  id: string,
+  modes: readonly ProductMode[] | undefined,
+): ProductMode | null {
+  return modes?.find((mode) => mode.id === id) ?? null;
 }
 
 /**

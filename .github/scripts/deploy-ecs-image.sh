@@ -68,6 +68,7 @@ TASK_SECRET_REMOVALS_JSON="${TASK_SECRET_REMOVALS_JSON:-}"
 AWS_ACCOUNT_ID="${AWS_ACCOUNT_ID:-}"
 AWS_PARTITION="${AWS_PARTITION:-aws}"
 POST_DEPLOY_SMOKE_SCRIPT="${POST_DEPLOY_SMOKE_SCRIPT:-}"
+PRE_DEPLOY_TASK_COMMAND_JSON="${PRE_DEPLOY_TASK_COMMAND_JSON:-}"
 POST_DEPLOY_TASK_COMMAND_JSON="${POST_DEPLOY_TASK_COMMAND_JSON:-}"
 # Exit code a smoke script uses to say "this failed, and rolling back cannot fix
 # it" — a check that crosses a boundary this deploy does not own (a CDN in front
@@ -108,6 +109,15 @@ if [[ -n "$POST_DEPLOY_TASK_COMMAND_JSON" ]] &&
      all(.[]; type == "string" and length > 0)
    ' <<<"$POST_DEPLOY_TASK_COMMAND_JSON" >/dev/null; then
   echo "::error::POST_DEPLOY_TASK_COMMAND_JSON must be a non-empty JSON string array."
+  exit 1
+fi
+if [[ -n "$PRE_DEPLOY_TASK_COMMAND_JSON" ]] &&
+   ! jq -e '
+     type == "array" and
+     length > 0 and
+     all(.[]; type == "string" and length > 0)
+   ' <<<"$PRE_DEPLOY_TASK_COMMAND_JSON" >/dev/null; then
+  echo "::error::PRE_DEPLOY_TASK_COMMAND_JSON must be a non-empty JSON string array."
   exit 1
 fi
 if [[ -z "$TASK_SECRET_OVERRIDES_JSON" ]]; then
@@ -615,7 +625,7 @@ new_task_definition="$(aws ecs register-task-definition \
   --output text)"
 
 one_shot_run_task_args=()
-if [[ "$RUN_MIGRATIONS" == "true" || -n "$POST_DEPLOY_TASK_COMMAND_JSON" ]]; then
+if [[ "$RUN_MIGRATIONS" == "true" || -n "$PRE_DEPLOY_TASK_COMMAND_JSON" || -n "$POST_DEPLOY_TASK_COMMAND_JSON" ]]; then
   network_configuration="$(jq -c '.services[0].networkConfiguration' <<<"$service_json")"
   if [[ -z "$network_configuration" || "$network_configuration" == "null" ]]; then
     echo "::error::ECS service $APP has no network configuration for the migration task."
@@ -663,6 +673,14 @@ if [[ "$RUN_MIGRATIONS" == "true" ]]; then
       --arg target "--target-database=$MIGRATION_TARGET_DATABASE" \
       --arg phase "--phase=$MIGRATION_PHASE" \
       '["node",$entrypoint,$target,$phase]')"; then
+    exit 1
+  fi
+fi
+
+# This runs on the newly registered image after its additive migration, but
+# before ECS is updated. A failure leaves the old service revision untouched.
+if [[ -n "$PRE_DEPLOY_TASK_COMMAND_JSON" ]]; then
+  if ! run_one_shot_command "Pre-deploy readiness" "$PRE_DEPLOY_TASK_COMMAND_JSON"; then
     exit 1
   fi
 fi

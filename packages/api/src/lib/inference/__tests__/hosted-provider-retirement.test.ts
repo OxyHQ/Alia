@@ -44,28 +44,37 @@ describe('Alia hosted provider runtime retirement', () => {
     }
   });
 
-  it('keeps rollback tables dormant and defers their destructive migration', () => {
-    for (const destructiveMigration of [
-      '0060_remove_alias_identity.sql',
-      '0061_remove_alia_hosted_provider_runtime.sql',
-    ]) {
-      expect(existsSync(path.join(REPO_ROOT, 'packages/api/drizzle', destructiveMigration))).toBe(
-        false,
-      );
-    }
+  it('drops provider credential custody post-rollout without reading or copying keys', () => {
+    const migration = readFileSync(
+      path.join(REPO_ROOT, 'packages/api/drizzle/0061_remove_alia_provider_credentials.sql'),
+      'utf8',
+    );
+    const executableSql = migration
+      .split('\n')
+      .filter((line) => !line.trimStart().startsWith('--'))
+      .join('\n');
+    expect(migration).toMatch(/^-- oxy:deploy-phase=post$/m);
+    expect(executableSql).toContain('DROP TABLE "provider_keys";');
+    expect(executableSql).not.toMatch(/\b(SELECT|INSERT|UPDATE|COPY)\b/i);
+    expect(executableSql).not.toMatch(/DROP TABLE[^;]*CASCADE/i);
+
     const journal = JSON.parse(
       readFileSync(path.join(REPO_ROOT, 'packages/api/drizzle/meta/_journal.json'), 'utf8'),
     ) as { entries: Array<{ tag: string }> };
-    expect(journal.entries.at(-1)?.tag).toBe('0059_kaana_routing_profiles');
+    expect(journal.entries.at(-1)?.tag).toBe('0061_remove_alia_provider_credentials');
 
     const schema = [
       readFileSync(path.join(API_SRC, 'db/schema/providers.ts'), 'utf8'),
       readFileSync(path.join(API_SRC, 'db/schema/telemetry.ts'), 'utf8'),
     ].join('\n');
-    for (const table of ['provider_keys', 'provider_health', 'api_usage', 'fallback_events']) {
+    expect(schema).not.toContain("'provider_keys'");
+    for (const table of ['provider_health', 'api_usage', 'fallback_events']) {
       expect(schema).toContain(`'${table}'`);
     }
-    expect(schema).toContain('Dormant rollback');
+
+    const agents = readFileSync(path.join(API_SRC, 'db/schema/agents.ts'), 'utf8');
+    expect(agents).toContain('allowedModels: text().array()');
+    expect(agents).toContain('non-authoritative reconciliation evidence');
   });
 
   it('has no direct hosted provider SDK or inert provider metric', () => {

@@ -19,7 +19,7 @@ export interface NativeProductAgentStoredState {
   status: string;
   access: string;
   systemPrompt: string | null;
-  allowedModels: string[];
+  routingProfileId: string | null;
   archetype: string;
   archetypeConfig: unknown;
 }
@@ -79,7 +79,6 @@ function desiredState(spec: LoadedNativeProductAgentSpec): NativeProductAgentSto
     ...spec.row,
     tags: [...spec.row.tags],
     capabilityGrants: [...spec.row.capabilityGrants],
-    allowedModels: [...spec.row.allowedModels],
   };
 }
 

@@ -108,8 +108,9 @@ The second rule is what makes the first one durable. A single sanctioned bypass 
 
 - Alia gains an availability dependency on Kaana. Degradation behaviour becomes a product design question rather than an infrastructure accident, and it must be designed explicitly.
 - Provider credentials have left Alia's runtime and deployment environment. The
-  legacy `provider_keys` table remains dormant for the first release's rollback
-  window and is removed only by a later, separately gated migration.
+  post-rollout `0061_remove_alia_provider_credentials.sql` migration removes the
+  legacy `provider_keys` table without reading, exporting or copying its values.
+  Kaana remains the sole credential custodian.
 - The routing catalogue tables stop being written by Alia. They become migration inputs, not live state, and are dropped under the gates in workstream 10 of #139.
 - Alia's public generic inference surface stops being canonical. ADR 0004 records what happens to `api.alia.onl/v1/*`.
 - Alia's financial tables stop being the source of truth for money. ADR 0005 records the split between entitlements and the ledger.

@@ -136,7 +136,7 @@ router.get('/thread/:username', authenticateToken, async (req: Request, res: Res
     res.json({
       /**
        * The agent, narrowed to what a thread header draws. Not the whole
-       * record: `system_prompt`, `allowed_models` and the rest are
+       * record: `system_prompt`, exact `routing_profile_id` and the rest are
        * `GET /agents/:id`'s business, and a screen that only needs a name
        * should not be the reason a draft's prompt travels.
        */

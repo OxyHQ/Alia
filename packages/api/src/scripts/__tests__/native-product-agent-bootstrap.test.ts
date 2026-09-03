@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   NATIVE_PRODUCT_AGENT_IDENTITY,
+  isNativeProductAgentId,
   loadNativeProductAgentSpecs,
   nativeProductAgentHandoffManifest,
 } from '../../config/native-product-agents.js';
@@ -18,6 +19,9 @@ import { assertOxyBootstrapOrigin } from '../bootstrap-native-product-agents.js'
 const specs = loadNativeProductAgentSpecs();
 
 function reader(overrides: {
+  organizationId?: string;
+  projectId?: string;
+  botId?: string;
   botParent?: string;
   projectParent?: string;
   applicationOwner?: string;
@@ -26,19 +30,19 @@ function reader(overrides: {
   return {
     async getAccount(id) {
       if (id === NATIVE_PRODUCT_AGENT_IDENTITY.oxyOrganizationId) {
-        return { accountId: id, kind: 'organization', parentAccountId: 'platform-owner' };
+        return { accountId: overrides.organizationId ?? id, kind: 'organization', parentAccountId: 'platform-owner' };
       }
       const project = specs.find((spec) => spec.projectAccountId === id);
       if (project) {
         return {
-          accountId: id,
+          accountId: overrides.projectId ?? id,
           kind: 'project',
           parentAccountId: overrides.projectParent ?? NATIVE_PRODUCT_AGENT_IDENTITY.oxyOrganizationId,
         };
       }
       const bot = specs.find((spec) => spec.botAccountId === id);
       if (!bot) throw new Error(`unexpected account ${id}`);
-      return { accountId: id, kind: 'bot', parentAccountId: overrides.botParent ?? bot.projectAccountId };
+      return { accountId: overrides.botId ?? id, kind: 'bot', parentAccountId: overrides.botParent ?? bot.projectAccountId };
     },
     async getApplication(id) {
       const spec = specs.find((candidate) => candidate.bindingApplicationId === id);
@@ -65,7 +69,6 @@ function stored(spec: (typeof specs)[number]): NativeProductAgentStoredState {
     ...spec.row,
     tags: [...spec.row.tags],
     capabilityGrants: [...spec.row.capabilityGrants],
-    allowedModels: [...spec.row.allowedModels],
   };
 }
 
@@ -80,6 +83,7 @@ describe('native product agent manifest', () => {
           oxyAccountId: '01a0646a-078f-7974-9645-a5e8be237f47',
           ownerOxyAccountId: '01a0646a-078f-72ea-8759-86326484a7e0',
           applicationId: '6a2f851751b784a86fd0e922',
+          routingProfileId: '01a06477-94f5-74f0-bc25-4c5c13b93ccd',
           visibility: 'private',
           capabilityGrants: ['web'],
           systemPrompt: expect.objectContaining({ sha256: 'e343b294c14ca519f8edb66552d00eb11c9386f2ec42b41ea1ff145cb6e958e0' }),
@@ -89,6 +93,7 @@ describe('native product agent manifest', () => {
           oxyAccountId: '01a0646a-078f-7120-a993-a03c180c81b0',
           ownerOxyAccountId: '01a0646a-078f-7f53-848d-a0f82d9f7fa6',
           applicationId: '01a0648b-8d73-70ad-8e67-1c07ddc5eb6e',
+          routingProfileId: '01a06477-94f5-74f0-bc25-4c5c13b93ccd',
           visibility: 'private',
           capabilityGrants: ['web', 'artifacts', 'memory'],
           systemPrompt: expect.objectContaining({ sha256: 'e261b272d30a2f99f14de50c2c7fd9fc4990e7df5b1db20c2f3d7ceaf8647f09' }),
@@ -111,6 +116,32 @@ describe('native product agent manifest', () => {
       ),
     ).rejects.toThrow(/mismatch/);
   });
+
+  it.each([
+    ['organization id leading whitespace', { organizationId: ` ${NATIVE_PRODUCT_AGENT_IDENTITY.oxyOrganizationId}` }],
+    ['organization id trailing whitespace', { organizationId: `${NATIVE_PRODUCT_AGENT_IDENTITY.oxyOrganizationId} ` }],
+    ['project id leading whitespace', { projectId: ` ${specs[0]!.projectAccountId}` }],
+    ['project id trailing whitespace', { projectId: `${specs[0]!.projectAccountId} ` }],
+    ['bot id leading whitespace', { botId: ` ${specs[0]!.botAccountId}` }],
+    ['bot id trailing whitespace', { botId: `${specs[0]!.botAccountId} ` }],
+    ['application id leading whitespace', { applicationId: ` ${specs[0]!.bindingApplicationId}` }],
+    ['application id trailing whitespace', { applicationId: `${specs[0]!.bindingApplicationId} ` }],
+  ])('rejects %s instead of normalizing identity', async (_label, override) => {
+    await expect(
+      verifyNativeProductAgentAuthority(
+        reader(override),
+        NATIVE_PRODUCT_AGENT_IDENTITY.oxyOrganizationId,
+        specs,
+      ),
+    ).rejects.toThrow(/mismatch/);
+  });
+
+  it('recognizes reserved agent primary keys byte-for-byte only', () => {
+    const id = specs[0]!.agentId;
+    expect(isNativeProductAgentId(id)).toBe(true);
+    expect(isNativeProductAgentId(` ${id}`)).toBe(false);
+    expect(isNativeProductAgentId(`${id} `)).toBe(false);
+  });
 });
 
 describe('native product agent plan', () => {
@@ -128,10 +159,13 @@ describe('native product agent plan', () => {
     grantDrift.after[1]!.capabilityGrants = ['web'];
     const bindingDrift = structuredClone(plan);
     bindingDrift.after[0]!.applicationId = 'wrong';
+    const routingDrift = structuredClone(plan);
+    routingDrift.after[0]!.routingProfileId = 'wrong';
 
     expect(nativeProductAgentPlanSha256(promptDrift)).not.toBe(nativeProductAgentPlanSha256(plan));
     expect(nativeProductAgentPlanSha256(grantDrift)).not.toBe(nativeProductAgentPlanSha256(plan));
     expect(nativeProductAgentPlanSha256(bindingDrift)).not.toBe(nativeProductAgentPlanSha256(plan));
+    expect(nativeProductAgentPlanSha256(routingDrift)).not.toBe(nativeProductAgentPlanSha256(plan));
   });
 
   it('refuses bot and reserved-PK collisions instead of rebinding them', async () => {

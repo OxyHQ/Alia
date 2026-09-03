@@ -23,6 +23,20 @@ export type OxyKaanaProductProfileId = keyof typeof OXY_KAANA_ROUTING_PROFILE_ID
 export type OxyKaanaRoutingProfileId =
   (typeof OXY_KAANA_ROUTING_PROFILE_IDS)[OxyKaanaProductProfileId];
 
+export const OXY_KAANA_ROUTING_PROFILE_ID_LIST = Object.freeze(
+  Object.values(OXY_KAANA_ROUTING_PROFILE_IDS),
+) as readonly OxyKaanaRoutingProfileId[];
+
+const PRODUCT_PROFILE_BY_OXY_ROUTING_PROFILE_ID: ReadonlyMap<
+  string,
+  OxyKaanaProductProfileId
+> = new Map(
+  Object.entries(OXY_KAANA_ROUTING_PROFILE_IDS).map(([productProfileId, routingProfileId]) => [
+    routingProfileId,
+    productProfileId as OxyKaanaProductProfileId,
+  ]),
+);
+
 function isOxyKaanaProductProfileId(value: string): value is OxyKaanaProductProfileId {
   return Object.prototype.hasOwnProperty.call(OXY_KAANA_ROUTING_PROFILE_IDS, value);
 }
@@ -34,4 +48,11 @@ export function getOxyKaanaRoutingProfileId(
   return isOxyKaanaProductProfileId(productProfileId)
     ? OXY_KAANA_ROUTING_PROFILE_IDS[productProfileId]
     : null;
+}
+
+/** Exact reverse lookup for an opaque ID stored by an Alia agent. */
+export function getOxyKaanaProductProfileId(
+  routingProfileId: string,
+): OxyKaanaProductProfileId | null {
+  return PRODUCT_PROFILE_BY_OXY_ROUTING_PROFILE_ID.get(routingProfileId) ?? null;
 }

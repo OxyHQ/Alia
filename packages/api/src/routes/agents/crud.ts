@@ -50,6 +50,7 @@ import {
 import { log } from '../../lib/logger.js';
 import { z } from 'zod';
 import { isNativeProductAgentId } from '../../config/native-product-agents.js';
+import { OXY_KAANA_ROUTING_PROFILE_IDS } from '../../config/oxy-inference-routing-profile-ids.js';
 import { formatCapabilityGrant, isCapabilityGrant } from '../../domain/capability-grants.js';
 import {
   listMcpServersForUser,
@@ -548,6 +549,7 @@ router.post('/', authenticateToken, async (req: Request, res: Response) => {
       description: data.description,
       authorOxyUserId: req.user.id,
       category: data.category,
+      routingProfileId: OXY_KAANA_ROUTING_PROFILE_IDS['kaana-v1'],
       tags: data.tags ?? [],
       price: data.price ?? null,
       capabilityGrants: data.capabilityGrants ?? [],
@@ -602,7 +604,6 @@ const updateAgentSchema = z
     status: statusSchema.optional(),
     access: accessSchema.optional(),
     systemPrompt: z.string().optional(),
-    allowedModels: z.array(z.string()).optional(),
     scheduleInterval: z.number().int().optional(),
     archetype: archetypeSchema.optional(),
     archetypeConfig: z.unknown().optional(),
@@ -635,7 +636,6 @@ router.patch('/:id', authenticateToken, async (req: Request, res: Response) => {
       && (
         data.systemPrompt !== undefined
         || data.capabilityGrants !== undefined
-        || data.allowedModels !== undefined
         || data.access !== undefined
         || data.isPublished !== undefined
         || data.status !== undefined

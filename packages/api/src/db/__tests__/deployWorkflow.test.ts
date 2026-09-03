@@ -39,6 +39,10 @@ import { POST_PHASE_GREP_PATTERN } from '@oxyhq/db/migrate';
 
 const workflowPath = fileURLToPath(new URL('../../../../../.github/workflows/deploy-aws.yml', import.meta.url));
 const workflow = readFileSync(workflowPath, 'utf8');
+const nativeProductBootstrapWorkflow = readFileSync(
+  fileURLToPath(new URL('../../../../../.github/workflows/bootstrap-native-product-agents.yml', import.meta.url)),
+  'utf8',
+);
 const integrationsWorkflow = readFileSync(
   fileURLToPath(new URL('../../../../../.github/workflows/deploy-integrations.yml', import.meta.url)),
   'utf8',
@@ -161,6 +165,33 @@ describe('deploy-aws.yml migration wiring', () => {
    */
   it('states the migration target rather than letting it default', () => {
     expect(workflow).toContain('MIGRATION_TARGET_DATABASE: ${{ env.APP }}');
+  });
+
+  it('runs the exact agent-routing readiness report before ECS is updated', () => {
+    const build = readFileSync(fileURLToPath(new URL('../../../build.ts', import.meta.url)), 'utf8');
+    expect(build).toContain("entryPoints: ['src/scripts/check-agent-routing-profile-readiness.ts']");
+    expect(build).toContain("outfile: 'dist/scripts/check-agent-routing-profile-readiness.js'");
+    expect(workflow).toContain(
+      `PRE_DEPLOY_TASK_COMMAND_JSON: '["node","packages/api/dist/scripts/check-agent-routing-profile-readiness.js","--target-database=alia"]'`,
+    );
+  });
+
+  it('exposes only dry-run/apply over the committed exact-ID native-agent manifest', () => {
+    const inputs = nativeProductBootstrapWorkflow.slice(
+      nativeProductBootstrapWorkflow.indexOf('    inputs:'),
+      nativeProductBootstrapWorkflow.indexOf('\npermissions:'),
+    );
+    expect(nativeProductBootstrapWorkflow).toContain('name: Bootstrap native product agents');
+    expect(nativeProductBootstrapWorkflow).toContain("if: github.ref == 'refs/heads/main'");
+    expect(nativeProductBootstrapWorkflow).toContain('environment: production');
+    expect(nativeProductBootstrapWorkflow).toContain('- dry-run\n          - apply');
+    expect(nativeProductBootstrapWorkflow).toContain("grep -Eq '^[0-9a-f]{64}$'");
+    expect(nativeProductBootstrapWorkflow).toContain('OXY_API_URL: https://api.oxy.so');
+    expect(nativeProductBootstrapWorkflow).toContain('OXY_BOOTSTRAP_ACCESS_TOKEN_FILE: ${{ runner.temp }}/oxy-bootstrap-access-token');
+    expect(nativeProductBootstrapWorkflow).toContain('bootstrap:native-product-agents');
+    expect(inputs).not.toMatch(/^\s+(agent|bot|project|application|routing_profile)_id:/m);
+    expect(nativeProductBootstrapWorkflow).not.toMatch(/\$\{\{\s*inputs\.(agent|bot|project|application|routing_profile)_id/);
+    expect(nativeProductBootstrapWorkflow).not.toContain('ROLLBACK');
   });
 
   it('greps for the post-phase marker with the pattern @oxyhq/db exports, not a copy', () => {

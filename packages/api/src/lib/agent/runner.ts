@@ -31,7 +31,7 @@ import {
   listRecentEventStreamEntries,
   type EventStreamEntryMetadata,
 } from '../../db/agents/eventStreamEntryRepository.js';
-import { resolveModel, getAIModel, getDefaultRoutingProfile } from '../chat-core.js';
+import { resolveOxyRoutingProfileId, getAIModel } from '../chat-core.js';
 import { cleanupSessionResources } from './session-resources.js';
 import { log } from '../logger.js';
 import { EventStream } from './event-stream.js';
@@ -149,87 +149,6 @@ ${actionLines(agent)}
 ## Budget
 - Maximum ${config.maxSteps} steps. Be efficient.
 - Use actions only when necessary — think before acting.`;
-}
-
-// ── Model Selection ──
-
-interface StepContext {
-  allowedModels: string[];
-  task: string;
-  stepNumber: number;
-  maxSteps: number;
-  errorCount: number;
-  currentState: string;
-  recentToolNames: string[];
-}
-
-function selectModelForStep(ctx: StepContext): string {
-  const { allowedModels, task, stepNumber, maxSteps, errorCount, currentState, recentToolNames } = ctx;
-
-  if (allowedModels.length === 0) return getDefaultRoutingProfile();
-  if (allowedModels.length === 1) return allowedModels[0];
-
-  const tierOrder: Record<string, number> = {
-    'kaana-lite': 0,
-    'kaana-v1': 1,
-    'kaana-v1-codea': 2,
-    'kaana-v1-cowork': 2,
-    'kaana-v1-browser': 2,
-    'kaana-v1-vision': 2,
-    'kaana-v1-pro': 3,
-    'kaana-v1-thinking': 4,
-    'kaana-v1-pro-max': 4,
-  };
-
-  // `?? 1` does not catch an inherited property: `tierOrder['constructor']` is a
-  // function, and `function - function` is NaN, which makes the comparator
-  // return NaN and the sort order arbitrary. The ids come from the caller's
-  // entitlements, so they are stored user input.
-  const rank = (id: string): number => (Object.hasOwn(tierOrder, id) ? tierOrder[id] : 1);
-  const sorted = [...allowedModels].sort((a, b) => rank(a) - rank(b));
-
-  const cheapest = sorted[0];
-  const mid = sorted[Math.floor(sorted.length / 2)];
-  const best = sorted[sorted.length - 1];
-
-  // Escalate to best model when too many tool errors (self-correction)
-  if (errorCount >= 3) return best;
-
-  // Escalate when running out of step budget (>70% used)
-  if (stepNumber > maxSteps * 0.7) return best;
-
-  // Escalate in REFLECTING state (after errors — needs stronger reasoning)
-  if (currentState === 'REFLECTING') return mid;
-
-  // Use mid-tier for shell-heavy work (code execution needs good reasoning)
-  const shellCount = recentToolNames.filter(n => n === 'shell').length;
-  if (shellCount >= 2) return mid;
-
-  // Use mid-tier for browser work (navigation decisions need reasoning)
-  const browserCount = recentToolNames.filter(n => n === 'browser').length;
-  if (browserCount >= 1) return mid;
-
-  // First step: classify task complexity from the prompt
-  if (stepNumber === 0) {
-    const complexIndicators = [
-      /\b(analyze|architect|design|implement|debug|refactor|optimize)\b/i,
-      /\b(code|script|program|function|algorithm|API)\b/i,
-      /\b(complex|difficult|advanced|detailed|comprehensive)\b/i,
-    ];
-    const simpleIndicators = [
-      /\b(what|when|where|who|how much)\b/i,
-      /\b(simple|quick|brief|short)\b/i,
-    ];
-    const complexScore = complexIndicators.filter(r => r.test(task)).length;
-    const simpleScore = simpleIndicators.filter(r => r.test(task)).length;
-
-    if (complexScore >= 2) return best;
-    if (simpleScore > complexScore) return cheapest;
-    return mid;
-  }
-
-  // Default: mid-tier (not cheapest — agents need decent reasoning throughout)
-  return mid;
 }
 
 // ── Context Builder (Manus KV-cache optimization) ──
@@ -498,10 +417,6 @@ export async function runAgentSession(sessionId: string): Promise<void> {
   // The agent's OWN name. It used to be told it was Alia, above its own prompt.
   const systemPrompt = `${buildIdentityGuard({ agentName: agentPromptName(agent) })}\n\n---\n\n${buildSystemPrompt(agent, session.config)}`;
 
-  const allowedModels = agent.allowedModels.length > 0
-    ? agent.allowedModels
-    : ['kaana-lite', 'kaana-v1'];
-
   let totalSteps = 0;
   let totalTokens = 0;
   let lastStepHadToolCalls: boolean;
@@ -511,7 +426,6 @@ export async function runAgentSession(sessionId: string): Promise<void> {
   // ── Error loop detection (Phase 2: Self-Correction) ──
   const toolErrorTracker = new Map<string, { count: number; errors: string[] }>();
   let consecutiveErrors = 0;
-  let totalToolErrors = 0;
   const recentToolNames: string[] = []; // Track last N tool names for model selection
 
   // ── Session time limit ──
@@ -599,38 +513,28 @@ export async function runAgentSession(sessionId: string): Promise<void> {
         },
       );
 
-      // Select model (runtime-aware: escalates on errors, budget pressure, and task type)
-      const modelId = selectModelForStep({
-        allowedModels,
-        task: session.task,
-        stepNumber: totalSteps,
-        maxSteps: session.config.maxSteps,
-        errorCount: totalToolErrors,
-        currentState: stateMachine.current(),
-        recentToolNames,
-      });
-
-      eventStream.append('thinking', `Step ${totalSteps + 1}: Using model ${modelId} in state ${stateMachine.current()}`);
-
-      // Resolve model provider (with kaana-lite fallback)
-      let activeResolved = await resolveModel(modelId);
-      if (!activeResolved && modelId !== 'kaana-lite') {
-        activeResolved = await resolveModel('kaana-lite');
-      }
+      // The agent stores the reviewed Oxy routing-profile PK. Never select from
+      // an ordered list or substitute a product default for a missing binding.
+      const activeResolved = agent.routingProfileId === null
+        ? null
+        : await resolveOxyRoutingProfileId(agent.routingProfileId);
       if (!activeResolved) {
-        eventStream.append('error', 'No AI models available');
+        eventStream.append('error', 'Agent has no valid Oxy routing profile');
         stateMachine.transition('error');
-        sessionResult = 'No AI models available';
+        sessionResult = 'Agent has no valid Oxy routing profile';
         try {
           await updateAgentSession(getDb(), sessionId, {
             status: 'failed',
-            result: 'No AI models available',
+            result: 'Agent has no valid Oxy routing profile',
           });
         } catch (saveErr: unknown) {
-          log.agents.warn({ saveErr, sessionId }, 'Failed to record the no-models failure');
+          log.agents.warn({ saveErr, sessionId }, 'Failed to record the invalid-routing-profile failure');
         }
-        throw new Error('No AI models available');
+        throw new Error('Agent has no valid Oxy routing profile');
       }
+
+      const modelId = activeResolved.routingProfileId;
+      eventStream.append('thinking', `Step ${totalSteps + 1}: Using routing profile ${modelId} in state ${stateMachine.current()}`);
 
       const model = getAIModel(activeResolved, 'agent_run');
       const startMs = Date.now();
@@ -705,7 +609,6 @@ export async function runAgentSession(sessionId: string): Promise<void> {
                 const isToolError = resultStr.startsWith('Error:') || resultStr.startsWith('Browser error:') || resultStr.startsWith('MCP tool error:');
                 if (isToolError) {
                   consecutiveErrors++;
-                  totalToolErrors++;
                   const key = tr.toolName || 'unknown';
                   const existing = toolErrorTracker.get(key) || { count: 0, errors: [] };
                   existing.count++;

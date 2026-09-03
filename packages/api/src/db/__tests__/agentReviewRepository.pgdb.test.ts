@@ -61,6 +61,7 @@ async function seedAgent(): Promise<string> {
     description: 'd',
     authorOxyUserId: AUTHOR,
     category: 'research',
+    routingProfileId: '01a06477-94f5-74f0-bc25-4c5c13b93ccd',
   });
   return agent._id;
 }

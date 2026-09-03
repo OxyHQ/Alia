@@ -6,7 +6,10 @@
 
 import { createOpenAI } from '@ai-sdk/openai';
 
-import { getOxyKaanaRoutingProfileId } from '../config/oxy-inference-routing-profile-ids.js';
+import {
+  getOxyKaanaProductProfileId,
+  getOxyKaanaRoutingProfileId,
+} from '../config/oxy-inference-routing-profile-ids.js';
 import { USER_RUNTIME_PROVIDER, userRuntimeFetch } from './inference/user-runtime-bridge.js';
 import { kaanaLanguageModel } from './inference/kaana-language-model.js';
 import type { AliaInferenceSurface } from './inference/product-seam.js';
@@ -107,6 +110,23 @@ export async function resolveModel(
     routingProfile,
     isFallback: false,
   };
+}
+
+/** Resolve an agent's stored opaque Oxy routing-profile PK without normalising it. */
+export async function resolveOxyRoutingProfileId(
+  routingProfileId: string,
+): Promise<ResolvedModel | null> {
+  const productProfileId = getOxyKaanaProductProfileId(routingProfileId);
+  if (productProfileId === null) return null;
+  const resolved = await resolveModel(productProfileId);
+  if (
+    resolved === null
+    || resolved.oxyInferenceTarget?.kind !== 'routing_profile_id'
+    || resolved.oxyInferenceTarget.routingProfileId !== routingProfileId
+  ) {
+    return null;
+  }
+  return resolved;
 }
 
 /**

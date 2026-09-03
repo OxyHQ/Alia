@@ -56,6 +56,7 @@ function newAgentInput(overrides: Record<string, unknown> = {}) {
     description: 'a longer description',
     authorOxyUserId: OWNER,
     category: 'research',
+    routingProfileId: '01a06477-94f5-74f0-bc25-4c5c13b93ccd' as const,
     ...overrides,
   };
 }

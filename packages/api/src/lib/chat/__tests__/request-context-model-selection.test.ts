@@ -337,7 +337,7 @@ describe('the turn resolves the agent it NAMED', () => {
 
 describe('agentId is an exact fail-closed selector', () => {
   it('rejects malformed ids before lookup or credit reservation', async () => {
-    for (const agentId of ['', '   ', 42, null]) {
+    for (const agentId of ['', '   ', ' agent-1', 'agent-1 ', 42, null]) {
       const { ctx, captured } = await run(undefined, { directUserId: 'user-1', agentId });
       expect(ctx).toBeNull();
       expect(captured.status).toBe(400);

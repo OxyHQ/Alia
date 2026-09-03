@@ -626,7 +626,16 @@ interface UniqueRemovedWithCapability {
   readonly reason: string;
 }
 
-const UNIQUES_REMOVED_WITH_CAPABILITY: readonly UniqueRemovedWithCapability[] = [];
+const UNIQUES_REMOVED_WITH_CAPABILITY: readonly UniqueRemovedWithCapability[] = [
+  {
+    model: 'ProviderKey',
+    table: 'provider_keys',
+    constraint: 'provider_keys_key_hash_key',
+    removedBy: '0061_remove_alia_provider_credentials',
+    reason:
+      'Kaana is the sole provider-credential custodian. The post-rollout migration drops the whole Alia table without reading or copying its secrets, so its exact-key uniqueness must leave with it.',
+  },
+];
 
 /**
  * The THIRD state: a `unique` that was retired outright rather than ported.

@@ -62,6 +62,14 @@ or fallback is allowed. A product agent is active/private/unpublished for the
 canary. Rollback makes it offline/private and clears the application binding,
 without deleting the row.
 
+The manual `Bootstrap native product agents` workflow exposes dry-run and
+apply only. Both run the exact Sindi/Clarity IDs committed in that manifest;
+there is intentionally no name, slug, position or ID input. Apply is main-only,
+requires the exact SHA-256 from a matching dry-run and uses the protected
+production environment. The workflow must have `DATABASE_URL` and
+`OXY_BOOTSTRAP_ACCESS_TOKEN`; it writes the latter to a mode-0600 temporary
+file and never passes it on the command line.
+
   **An agent has no picture.** It is drawn as a glyph tinted with its Oxy
   account's `User.color`, a Bloom preset key — so `AgentIdentity` carries
   `color` where it used to carry `avatar`, and there is no image-generation step

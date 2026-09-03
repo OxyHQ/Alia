@@ -57,13 +57,11 @@ export const authenticateToken = createOxyAuthMiddleware(oxyClient, { auth: { de
  * Service-only auth — rejects anything that isn't a service token.
  * Use for internal-only endpoints (e.g., /internal/trigger).
  *
- * No `jwtSecret`, and Alia has none to give: `SERVICE_TOKEN_SECRET` exists in
- * neither this repository nor `deploy-aws.yml`. `@oxyhq/core` treats that as a
- * refusal rather than a licence — every service token gets 403
- * `SERVICE_TOKEN_NOT_CONFIGURED` — so this is fail-CLOSED and `/internal/trigger`
- * currently accepts nothing. Provisioning the secret in `oxy-infra` is what
- * turns it on, and `routes/__tests__/inference-boundary.test.ts` is the test
- * that has to be rewritten at that moment (epic #139 workstream 15).
+ * Alia deliberately supplies no private verification secret. The compatible
+ * `@oxyhq/core` release verifies Ed25519 service tokens against Oxy's public
+ * `/.well-known/jwks.json`, including issuer, audience, lifetime, type and
+ * scopes. The middleware fails closed when that endpoint or exact `kid` is not
+ * available. Never add `ACCESS_TOKEN_SECRET` or a private signing key here.
  */
 export const oxyServiceAuth = oxyClient.serviceAuth({ debug: true });
 

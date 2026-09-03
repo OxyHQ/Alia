@@ -213,6 +213,22 @@ describe('direct provider configuration is always refused', () => {
     expect(exits).toEqual([1]);
   });
 
+  it.each([
+    'ALIA_KAANA_CREDENTIAL_KEY',
+    'ALIA_RELAY_CREDENTIAL_SECRET',
+    'KAANA_EDGE_SIGNING_PRIVATE_KEY',
+    'KAANA_BASE_URL',
+    'RELAY_BASE_URL',
+  ])('terminates when legacy direct-inference variable %s reappears', async (variable) => {
+    const { exits, egressInstalls } = await run({
+      ...HEALTHY_ENV,
+      ...BOOTABLE_OXY_INFERENCE,
+      [variable]: 'present',
+    });
+    expect(exits).toEqual([1]);
+    expect(egressInstalls).toBe(0);
+  });
+
 });
 
 /* -------------------------------------------------------------------------- */

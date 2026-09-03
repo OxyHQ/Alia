@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { generateObject, NoObjectGeneratedError, zodSchema } from 'ai';
 import { z } from 'zod';
+import { OXY_KAANA_ROUTING_PROFILE_IDS } from '../config/oxy-inference-routing-profile-ids.js';
 import { getDb } from '../db/index.js';
 import { findUserMemory } from '../db/memory/userMemoryRepository.js';
 import {
@@ -395,6 +396,7 @@ router.post('/generate', authenticateToken, async (req: Request, res: Response) 
     // replaces. A failure here is not fatal while both paths exist.
     try {
       kaanaText = await generateTextViaKaana({
+        routingProfileId: OXY_KAANA_ROUTING_PROFILE_IDS['kaana-lite'],
         prompt,
         // `authoring`: the surface vocabulary names what the work IS, and
         // writing prompt suggestions is authoring. There is no `suggestions`

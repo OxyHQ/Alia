@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 import {
   directProviderModeFailure,
   GATEWAY_URL_ENV,
+  LEGACY_DIRECT_INFERENCE_ENV_PREFIXES,
   PROVIDER_CREDENTIAL_ENV,
 } from '../direct-provider-guard.js';
 import {
@@ -83,6 +84,28 @@ describe('Kaana-only hosted inference architecture', () => {
     expect(directProviderModeFailure({ [GATEWAY_URL_ENV]: 'https://gateway.invalid' })).toContain(
       GATEWAY_URL_ENV,
     );
+  });
+
+  it('refuses every legacy Relay and direct-Kaana environment namespace', () => {
+    expect(LEGACY_DIRECT_INFERENCE_ENV_PREFIXES).toEqual([
+      'ALIA_KAANA_',
+      'ALIA_RELAY_',
+      'KAANA_',
+      'RELAY_',
+    ]);
+    for (const variable of [
+      'ALIA_KAANA_CREDENTIAL_KEY',
+      'ALIA_KAANA_FUTURE_SECRET',
+      'ALIA_RELAY_CREDENTIAL_KEY',
+      'ALIA_RELAY_FUTURE_SECRET',
+      'KAANA_BASE_URL',
+      'KAANA_EDGE_SIGNING_PRIVATE_KEY',
+      'KAANA_FUTURE_CONFIG',
+      'RELAY_BASE_URL',
+      'RELAY_FUTURE_CONFIG',
+    ]) {
+      expect(directProviderModeFailure({ [variable]: 'present' }), variable).toContain(variable);
+    }
   });
 
   it('uses one stable typed refusal for unsupported hosted modalities', () => {

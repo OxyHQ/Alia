@@ -1,0 +1,97 @@
+name: Bootstrap native product agents
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Dry-run the committed exact-ID manifest or apply its reviewed plan
+        required: true
+        default: dry-run
+        type: choice
+        options:
+          - dry-run
+          - apply
+      expected_plan_sha256:
+        description: Exact SHA-256 printed by a matching dry-run; required for apply
+        required: false
+        type: string
+      reason:
+        description: Audit reason; required for apply and must not have surrounding whitespace
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bootstrap-alia-native-product-agents
+  cancel-in-progress: false
+
+jobs:
+  bootstrap:
+    # Applying a workflow from an arbitrary ref would let unreviewed IDs become
+    # database writes. Dry-runs use the same main-only manifest for the same
+    # reason: the reviewed plan hash must describe the bytes apply will run.
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04-arm
+    environment: production
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.5
+
+      - name: Install the reviewed source tree
+        run: bun install --frozen-lockfile
+
+      - name: Build the committed bootstrap entrypoint
+        run: bun run --filter @alia/api build
+
+      - name: Validate operator inputs byte-for-byte
+        env:
+          MODE: ${{ inputs.mode }}
+          EXPECTED_PLAN_SHA256: ${{ inputs.expected_plan_sha256 }}
+          BOOTSTRAP_REASON: ${{ inputs.reason }}
+        run: |
+          if [ "$MODE" = "dry-run" ]; then
+            if [ -n "$EXPECTED_PLAN_SHA256" ] || [ -n "$BOOTSTRAP_REASON" ]; then
+              echo "::error::dry-run does not accept approval inputs"
+              exit 1
+            fi
+          elif [ "$MODE" = "apply" ]; then
+            if ! printf '%s' "$EXPECTED_PLAN_SHA256" | grep -Eq '^[0-9a-f]{64}$'; then
+              echo "::error::apply requires an exact lowercase SHA-256"
+              exit 1
+            fi
+            if [ -z "$BOOTSTRAP_REASON" ] || [ "$BOOTSTRAP_REASON" != "$(printf '%s' "$BOOTSTRAP_REASON" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')" ]; then
+              echo "::error::apply reason must be non-empty and byte-exact"
+              exit 1
+            fi
+          else
+            echo "::error::unsupported mode"
+            exit 1
+          fi
+
+      - name: Materialize the Oxy authority token without exposing it as an argument
+        env:
+          OXY_BOOTSTRAP_ACCESS_TOKEN: ${{ secrets.OXY_BOOTSTRAP_ACCESS_TOKEN }}
+        run: |
+          if [ -z "$OXY_BOOTSTRAP_ACCESS_TOKEN" ]; then
+            echo "::error::OXY_BOOTSTRAP_ACCESS_TOKEN is required"
+            exit 1
+          fi
+          umask 077
+          printf '%s' "$OXY_BOOTSTRAP_ACCESS_TOKEN" > "$RUNNER_TEMP/oxy-bootstrap-access-token"
+
+      - name: Bootstrap the committed Sindi and Clarity identities
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          OXY_API_URL: https://api.oxy.so
+          OXY_BOOTSTRAP_ACCESS_TOKEN_FILE: ${{ runner.temp }}/oxy-bootstrap-access-token
+          APPLY: ${{ inputs.mode == 'apply' && '1' || '0' }}
+          EXPECTED_PLAN_SHA256: ${{ inputs.expected_plan_sha256 }}
+          BOOTSTRAP_ACTOR: ${{ github.actor }}
+          BOOTSTRAP_REASON: ${{ inputs.reason }}
+        run: bun run --filter @alia/api bootstrap:native-product-agents

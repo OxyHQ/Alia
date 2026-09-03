@@ -123,6 +123,7 @@ async function seedAgent(): Promise<string> {
     description: 'd',
     authorOxyUserId: SUITE,
     category: 'research',
+    routingProfileId: '01a06477-94f5-74f0-bc25-4c5c13b93ccd',
     price: 15,
     isPublished: true,
     /**
