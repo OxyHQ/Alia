@@ -1,27 +1,26 @@
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useOxy } from '@oxyhq/services';
 import type { ChatMessage, ToolInvocation } from '../types';
 import { getTextFromContent } from '../lib/content-utils';
 import { resolveModelId } from '../lib/catalogue';
 import { PREFERRED_CHAT_MODEL_ID } from '../lib/config';
+import { streamAliaChat } from '../lib/chat-transport';
+import type { AliaChatStreamEvent } from '../lib/chat-stream';
 
 const API_URL = process.env.EXPO_PUBLIC_ALIA_API_URL ?? 'https://api.alia.onl';
 
 export interface UseAliaChatOptions {
   /** Alia API base URL (default: EXPO_PUBLIC_ALIA_API_URL or https://api.alia.onl) */
   apiUrl?: string;
-  /**
-   * Alia model to use.
-   *
-   * Optional, and checked against `GET /catalogue` before a request carries it:
-   * an identifier the server no longer offers is replaced rather than sent, so a
-   * retirement does not turn into a 400 inside a consumer's app. Omitted, the
-   * build's `PREFERRED_CHAT_MODEL_ID` is what gets checked.
-   */
+  /** Alia model or routing profile to use. */
   model?: string;
-  /** App context injected as system message so Alia knows which app the user is in */
+  /** App context injected as system message so Alia knows which app the user is in. */
   clientContext?: string;
-  /** Access token override — if not provided, fetched from useOxy() */
+  /**
+   * Optional assertion for callers that already hold the surrounding
+   * OxyProvider's active token. A different token is refused; the SDK never
+   * writes this value to an Authorization header itself.
+   */
   accessToken?: string;
 }
 
@@ -35,6 +34,19 @@ export interface UseAliaChatReturn {
   error: string | null;
 }
 
+interface ActiveRequest {
+  readonly key: symbol;
+  readonly controller: AbortController;
+}
+
+interface PendingUpdates {
+  readonly assistantId: string;
+  content: string;
+  reasoning: string;
+  tools: ToolInvocation[];
+  timer: ReturnType<typeof setTimeout> | null;
+}
+
 function generateId(): string {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
     return `msg-${crypto.randomUUID()}`;
@@ -42,12 +54,41 @@ function generateId(): string {
   return `msg-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
+function isAbort(error: unknown, signal: AbortSignal): boolean {
+  return signal.aborted || (error instanceof Error && error.name === 'AbortError');
+}
+
+function abortError(): Error {
+  const error = new Error('The Alia request was aborted.');
+  error.name = 'AbortError';
+  return error;
+}
+
+function waitWithAbort<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
+  if (signal.aborted) return Promise.reject(abortError());
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = (): void => reject(abortError());
+    signal.addEventListener('abort', onAbort, { once: true });
+    promise.then(
+      (value) => {
+        signal.removeEventListener('abort', onAbort);
+        resolve(value);
+      },
+      (error: unknown) => {
+        signal.removeEventListener('abort', onAbort);
+        reject(error);
+      },
+    );
+  });
+}
+
 /**
  * SSE streaming chat hook for Alia.
  *
- * Sends messages to Alia's /v1/chat/completions endpoint and streams
- * responses back, including tool invocations, reasoning, research progress,
- * and plan previews.
+ * The SDK deliberately stays on `/v1/chat/completions`: unlike the product
+ * origin, this raw-source package is embedded by apps whose browser origins are
+ * not all on Alia's narrow CORS allowlist. The endpoint is still Alia's product
+ * handler during its recorded compatibility window.
  */
 export function useAliaChat(options: UseAliaChatOptions = {}): UseAliaChatReturn {
   const {
@@ -56,449 +97,318 @@ export function useAliaChat(options: UseAliaChatOptions = {}): UseAliaChatReturn
     clientContext,
     accessToken: accessTokenProp,
   } = options;
+  const requestUrl = '/v1/chat/completions';
 
   const { oxyServices } = useOxy();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const abortRef = useRef<AbortController | null>(null);
-
-  // Use a ref to read current messages without putting it in send's dep array
   const messagesRef = useRef<ChatMessage[]>([]);
-  useEffect(() => { messagesRef.current = messages; }, [messages]);
+  const activeRequestRef = useRef<ActiveRequest | null>(null);
+  const pendingRef = useRef<PendingUpdates | null>(null);
+  const mountedRef = useRef(true);
 
-  // Batching: accumulate streaming content and flush at ~20fps
-  const pendingContentRef = useRef('');
-  const pendingReasoningRef = useRef('');
-  const toolInvocationsRef = useRef<ToolInvocation[]>([]);
-  const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const flushPendingUpdates = useCallback(() => {
-    const content = pendingContentRef.current;
-    const reasoning = pendingReasoningRef.current;
-    const tools = toolInvocationsRef.current;
-    if (!content && !reasoning && tools.length === 0) return;
-
-    pendingContentRef.current = '';
-    pendingReasoningRef.current = '';
-
-    setMessages((prev) => {
-      const updated = [...prev];
-      const last = updated[updated.length - 1];
-      if (last?.role === 'assistant') {
-        const changes: Partial<ChatMessage> = {};
-        if (content) changes.content = last.content + content;
-        if (reasoning) changes.thinking = (last.thinking || '') + reasoning;
-        if (tools.length > 0) changes.toolInvocations = [...tools];
-        updated[updated.length - 1] = { ...last, ...changes };
-      }
-      return updated;
-    });
-  }, []);
-
-  const scheduleFlush = useCallback(() => {
-    if (flushTimerRef.current) return;
-    flushTimerRef.current = setTimeout(() => {
-      flushTimerRef.current = null;
-      flushPendingUpdates();
-    }, 50);
-  }, [flushPendingUpdates]);
-
-  // Cleanup flush timer on unmount
   useEffect(() => {
-    return () => {
-      flushPendingUpdates();
-      if (flushTimerRef.current) {
-        clearTimeout(flushTimerRef.current);
-        flushTimerRef.current = null;
-      }
-    };
-  }, [flushPendingUpdates]);
+    messagesRef.current = messages;
+  }, [messages]);
 
-  const getToken = useCallback((): string | null => {
-    if (accessTokenProp) return accessTokenProp;
-    return oxyServices.httpService.getAccessToken();
-  }, [accessTokenProp, oxyServices]);
-
-  /** Update the last assistant message with partial changes (callback receives current message) */
   const updateAssistant = useCallback(
-    (updater: (msg: ChatMessage) => Partial<ChatMessage>) => {
-      setMessages((prev) => {
-        const updated = [...prev];
-        const last = updated[updated.length - 1];
-        if (last?.role === 'assistant') {
-          updated[updated.length - 1] = { ...last, ...updater(last) };
-        }
+    (assistantId: string, updater: (message: ChatMessage) => Partial<ChatMessage>) => {
+      if (!mountedRef.current) return;
+      setMessages((previous) => {
+        const index = previous.findIndex((message) => message.id === assistantId);
+        if (index < 0 || previous[index]?.role !== 'assistant') return previous;
+        const updated = [...previous];
+        const current = updated[index];
+        if (!current) return previous;
+        updated[index] = { ...current, ...updater(current) };
+        messagesRef.current = updated;
         return updated;
       });
     },
     [],
   );
 
-  /** Apply a tool result to the last assistant message and sync the ref */
-  const applyToolResult = useCallback(
-    (toolCallId: string, name: string | undefined, output: unknown) => {
-      updateAssistant((last) => {
-        const invocations = [...(last.toolInvocations || [])];
-        const idx = invocations.findIndex((t) => t.toolCallId === toolCallId);
-        if (idx >= 0) {
-          invocations[idx] = { ...invocations[idx], state: 'result', result: output };
-        } else {
-          invocations.push({ toolCallId, toolName: name || 'unknown', state: 'result', result: output });
-        }
-        return { toolInvocations: invocations };
-      });
-      toolInvocationsRef.current = toolInvocationsRef.current.map((t) =>
-        t.toolCallId === toolCallId ? { ...t, state: 'result' as const, result: output } : t
-      );
+  const removeEmptyAssistant = useCallback((assistantId: string) => {
+    if (!mountedRef.current) return;
+    setMessages((previous) => {
+      const target = previous.find((message) => message.id === assistantId);
+      if (
+        target?.role !== 'assistant' ||
+        getTextFromContent(target.content).trim().length > 0 ||
+        (target.thinking?.trim().length ?? 0) > 0 ||
+        (target.toolInvocations?.length ?? 0) > 0
+      ) {
+        return previous;
+      }
+      const updated = previous.filter((message) => message.id !== assistantId);
+      messagesRef.current = updated;
+      return updated;
+    });
+  }, []);
+
+  const flushPendingUpdates = useCallback(
+    (pending: PendingUpdates) => {
+      const content = pending.content;
+      const reasoning = pending.reasoning;
+      const tools = [...pending.tools];
+      if (!content && !reasoning && tools.length === 0) return;
+
+      pending.content = '';
+      pending.reasoning = '';
+      updateAssistant(pending.assistantId, (last) => ({
+        ...(content ? { content: getTextFromContent(last.content) + content } : {}),
+        ...(reasoning ? { thinking: (last.thinking ?? '') + reasoning } : {}),
+        ...(tools.length > 0 ? { toolInvocations: tools } : {}),
+      }));
     },
     [updateAssistant],
   );
 
+  const cancelPendingTimer = useCallback((pending: PendingUpdates) => {
+    if (pending.timer !== null) {
+      clearTimeout(pending.timer);
+      pending.timer = null;
+    }
+  }, []);
+
+  const scheduleFlush = useCallback(
+    (pending: PendingUpdates) => {
+      if (pending.timer !== null) return;
+      pending.timer = setTimeout(() => {
+        pending.timer = null;
+        flushPendingUpdates(pending);
+      }, 50);
+    },
+    [flushPendingUpdates],
+  );
+
+  const stop = useCallback(() => {
+    const active = activeRequestRef.current;
+    activeRequestRef.current = null;
+    active?.controller.abort();
+
+    const pending = pendingRef.current;
+    if (pending !== null) {
+      cancelPendingTimer(pending);
+      flushPendingUpdates(pending);
+      pendingRef.current = null;
+    }
+    if (mountedRef.current) setIsStreaming(false);
+  }, [cancelPendingTimer, flushPendingUpdates]);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      activeRequestRef.current?.controller.abort();
+      activeRequestRef.current = null;
+      const pending = pendingRef.current;
+      if (pending !== null) cancelPendingTimer(pending);
+      pendingRef.current = null;
+    };
+  }, [cancelPendingTimer]);
+
   const send = useCallback(
     async (text: string) => {
       const trimmed = text.trim();
-      if (!trimmed || isStreaming) return;
+      if (!trimmed) return;
 
-      const token = getToken();
-      if (!token) {
-        setError('Not authenticated');
+      const activeToken = oxyServices.getAccessToken();
+      if (accessTokenProp !== undefined && accessTokenProp !== activeToken) {
+        setError('The supplied token is not the active Oxy session.');
         return;
       }
 
-      setError(null);
+      // A new turn supersedes the previous one. Scope every later update to its
+      // assistant id and request key so an abort racing with the replacement
+      // cannot mutate the new placeholder or clear its streaming state.
+      const previousRequest = activeRequestRef.current;
+      activeRequestRef.current = null;
+      previousRequest?.controller.abort();
+      const previousPending = pendingRef.current;
+      if (previousPending !== null) {
+        cancelPendingTimer(previousPending);
+        flushPendingUpdates(previousPending);
+      }
 
-      // Add user message
-      const userMsg: ChatMessage = {
+      const userMessage: ChatMessage = {
         id: generateId(),
         role: 'user',
         content: trimmed,
         createdAt: Date.now(),
       };
-
-      // Prepare assistant placeholder
-      const assistantMsg: ChatMessage = {
+      const assistantMessage: ChatMessage = {
         id: generateId(),
         role: 'assistant',
         content: '',
         toolInvocations: [],
         createdAt: Date.now(),
       };
-
-      setMessages((prev) => [...prev, userMsg, assistantMsg]);
+      const history = messagesRef.current.filter(
+        (message) =>
+          message.role !== 'assistant' ||
+          getTextFromContent(message.content).trim().length > 0 ||
+          (message.thinking?.trim().length ?? 0) > 0 ||
+          (message.toolInvocations?.length ?? 0) > 0,
+      );
+      setMessages((previous) => {
+        const updated = [...previous, userMessage, assistantMessage];
+        messagesRef.current = updated;
+        return updated;
+      });
+      setError(null);
       setIsStreaming(true);
 
-      // Build messages payload for the API (read from ref, not closure)
       const apiMessages: Array<{ role: string; content: string }> = [];
-
-      if (clientContext) {
-        apiMessages.push({ role: 'system', content: clientContext });
-      }
-
-      // Include full conversation history with tool context
-      for (const msg of messagesRef.current) {
-        if (msg.role === 'system') continue;
-        apiMessages.push({ role: msg.role, content: getTextFromContent(msg.content) });
-        // Include tool results so the AI has full context
-        if (msg.toolInvocations?.length) {
-          for (const tool of msg.toolInvocations) {
-            if (tool.state === 'result' && tool.result != null) {
-              apiMessages.push({
-                role: 'system',
-                content: `[Tool result from ${tool.toolName}: ${JSON.stringify(tool.result).slice(0, 500)}]`,
-              });
-            }
+      if (clientContext) apiMessages.push({ role: 'system', content: clientContext });
+      for (const message of history) {
+        if (message.role === 'system') continue;
+        apiMessages.push({ role: message.role, content: getTextFromContent(message.content) });
+        for (const tool of message.toolInvocations ?? []) {
+          if (tool.state === 'result' && tool.result !== undefined && tool.result !== null) {
+            apiMessages.push({
+              role: 'system',
+              content: `[Tool result from ${tool.toolName}: ${JSON.stringify(tool.result).slice(0, 500)}]`,
+            });
           }
         }
       }
-
       apiMessages.push({ role: 'user', content: trimmed });
 
+      const pending: PendingUpdates = {
+        assistantId: assistantMessage.id,
+        content: '',
+        reasoning: '',
+        tools: [],
+        timer: null,
+      };
+      pendingRef.current = pending;
       const controller = new AbortController();
-      abortRef.current = controller;
+      const request: ActiveRequest = { key: Symbol('alia-chat-request'), controller };
+      activeRequestRef.current = request;
+      const linked = oxyServices.createLinkedClient({ baseURL: apiUrl });
 
-      // Reset batching state
-      pendingContentRef.current = '';
-      pendingReasoningRef.current = '';
-      toolInvocationsRef.current = [];
+      const applyEvent = (event: AliaChatStreamEvent): void => {
+        switch (event.kind) {
+          case 'content':
+            pending.content += event.content;
+            scheduleFlush(pending);
+            return;
+          case 'reasoning':
+            pending.reasoning += event.content;
+            scheduleFlush(pending);
+            return;
+          case 'tool_call': {
+            const invocation: ToolInvocation = {
+              toolCallId: event.toolCallId,
+              toolName: event.toolName,
+              state: 'call',
+              args: event.args,
+            };
+            const index = pending.tools.findIndex((tool) => tool.toolCallId === event.toolCallId);
+            if (index < 0) pending.tools = [...pending.tools, invocation];
+            else pending.tools[index] = invocation;
+            flushPendingUpdates(pending);
+            return;
+          }
+          case 'tool_result': {
+            const index = pending.tools.findIndex((tool) => tool.toolCallId === event.toolCallId);
+            const result: ToolInvocation = {
+              toolCallId: event.toolCallId,
+              toolName: event.toolName,
+              state: 'result',
+              result: event.output,
+              ...(index < 0 ? {} : { args: pending.tools[index]?.args }),
+            };
+            if (index < 0) pending.tools = [...pending.tools, result];
+            else pending.tools[index] = result;
+            flushPendingUpdates(pending);
+            return;
+          }
+          case 'research_progress':
+            updateAssistant(pending.assistantId, (last) => ({
+              researchProgress: {
+                ...event.progress,
+                subQuestions:
+                  event.progress.subQuestions ?? last.researchProgress?.subQuestions,
+              },
+            }));
+            return;
+          case 'plan_preview':
+            updateAssistant(pending.assistantId, () => ({
+              pendingPlan: {
+                planId: event.planId,
+                steps: event.steps,
+                approved: false,
+                rejected: false,
+              },
+            }));
+            return;
+          case 'agent_answer':
+            pending.content += event.content;
+            updateAssistant(pending.assistantId, () => ({ agentInfo: event.agent }));
+            scheduleFlush(pending);
+            return;
+        }
+      };
 
       try {
-        /**
-         * This SDK stays on `/v1/chat/completions`, and that is a decision
-         * rather than an oversight — epic #139 workstream 6.
-         *
-         * Every other first-party Alia client moved to the product runtime at
-         * `POST /alia/chat`, which serves the identical handler. This one cannot
-         * follow, for two reasons that are independent of each other.
-         *
-         * **CORS.** `/v1` is the only surface with the public wildcard policy;
-         * everything else falls to the Oxy allowlist
-         * (`packages/api/src/index.ts`). Measured 2026-08-19 against the running
-         * service: an `OPTIONS /alia/chat` preflight from
-         * `https://alia.onl` and `https://console.alia.onl` is answered with a
-         * matching `access-control-allow-origin`, and one from an unlisted
-         * origin comes back with NO such header, so a browser blocks the
-         * request. `OPTIONS /v1/chat/completions` answers `*` for all three.
-         * This package is installed by apps on origins Alia does not enumerate,
-         * so the product surface would refuse them. Widening the allowlist is
-         * not the repair: the narrow policy is what makes `/alia/chat` a product
-         * surface, and it is one of the three recorded differences in
-         * `packages/api/src/routes/__tests__/v1-compatibility-surface.test.ts`.
-         *
-         * **Raw source.** `@alia.onl/sdk` publishes `src/`, so consumers' own
-         * Metro and tsc compile this line and it changes what every installed
-         * copy sends on its NEXT build — not on a release this repository
-         * controls. `docs/migration/compatibility-window.md` records the same
-         * property for the aliases: installed copies resume sending whatever
-         * their source says the moment the service is reachable.
-         *
-         * The consequence is recorded rather than hidden: `/v1/chat/completions`
-         * cannot reach its removal gate while this SDK is a consumer, so
-         * migrating it is a browser-CORS decision on the product surface, taken
-         * with the SDK's consumers enumerated.
-         */
-        const response = await fetch(`${apiUrl}/v1/chat/completions`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            // Resolved HERE rather than at render: this is the moment a request
-            // is about to name a model, and it is the only moment at which
-            // sending a retired identifier would actually cost anything. A
-            // catalogue that cannot be read leaves the choice alone.
-            model: await resolveModelId(apiUrl, model, token, PREFERRED_CHAT_MODEL_ID),
-            messages: apiMessages,
-            stream: true,
-          }),
-          signal: controller.signal,
-        });
-
-        if (!response.ok) {
-          const body = await response.text().catch(() => '');
-          throw new Error(`API error ${response.status}: ${body.slice(0, 200)}`);
-        }
-
-        // Non-streaming fallback
-        if (!response.body || typeof response.body.getReader !== 'function') {
-          const json = await response.json();
-          const content = json.choices?.[0]?.message?.content ?? '';
-          updateAssistant(() => ({ content }));
-          return;
-        }
-
-        // Stream SSE (supports named events: event: X\ndata: Y)
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = '';
-        let currentEventType = '';
-
-        try {
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-
-            buffer += decoder.decode(value, { stream: true });
-            const lines = buffer.split('\n');
-            buffer = lines.pop() ?? '';
-
-            for (const line of lines) {
-              // Track named SSE event type
-              if (line.startsWith('event: ')) {
-                currentEventType = line.slice(7).trim();
-                continue;
-              }
-
-              // Reset event type on empty line (SSE event boundary)
-              if (line === '') {
-                currentEventType = '';
-                continue;
-              }
-
-              const trimmedLine = line.trim();
-              if (!trimmedLine.startsWith('data: ')) continue;
-              const data = trimmedLine.slice(6);
-              if (data === '[DONE]') { currentEventType = ''; continue; }
-
-              try {
-                const parsed = JSON.parse(data);
-
-                // ── Named SSE events (Alia extensions) ──
-                if (currentEventType) {
-                  switch (currentEventType) {
-                    case 'alia.reasoning': {
-                      const content = parsed.content;
-                      if (content) {
-                        pendingReasoningRef.current += content;
-                        scheduleFlush();
-                      }
-                      currentEventType = '';
-                      continue;
-                    }
-                    case 'alia.tool_result': {
-                      const { tool_call_id, name, output } = parsed;
-                      if (tool_call_id) {
-                        applyToolResult(tool_call_id, name, output);
-                      }
-                      currentEventType = '';
-                      continue;
-                    }
-                    case 'alia.research_progress': {
-                      updateAssistant((last) => ({
-                        researchProgress: {
-                          phase: parsed.phase,
-                          message: parsed.message,
-                          subQuestions: parsed.subQuestions || last.researchProgress?.subQuestions,
-                          sourcesFound: parsed.sourcesFound,
-                          currentQuery: parsed.currentQuery,
-                          iteration: parsed.iteration,
-                        },
-                      }));
-                      currentEventType = '';
-                      continue;
-                    }
-                    case 'alia.plan_preview': {
-                      updateAssistant(() => ({
-                        pendingPlan: {
-                          planId: parsed.planId,
-                          steps: parsed.steps || [],
-                          approved: false,
-                          rejected: false,
-                        },
-                      }));
-                      currentEventType = '';
-                      continue;
-                    }
-                    default:
-                      // Unknown named event — skip
-                      currentEventType = '';
-                      continue;
-                  }
-                }
-
-                // ── Standard OpenAI data events ──
-
-                const choice = parsed.choices?.[0];
-                if (!choice) {
-                  // Legacy alia.tool_call event (type-based, not named SSE)
-                  if (parsed.type === 'alia.tool_call') {
-                    toolInvocationsRef.current = [
-                      ...toolInvocationsRef.current,
-                      {
-                        toolName: parsed.tool || 'unknown',
-                        state: 'call',
-                        args: parsed.args,
-                      },
-                    ];
-                    flushPendingUpdates();
-                  }
-                  // Legacy format matches by toolName (no toolCallId), so can't use applyToolResult
-                  if (parsed.type === 'alia.tool_result') {
-                    toolInvocationsRef.current = toolInvocationsRef.current.map((t) =>
-                      t.toolName === parsed.tool && t.state === 'call'
-                        ? { ...t, state: 'result' as const, result: parsed.result }
-                        : t,
-                    );
-                    flushPendingUpdates();
-                  }
-                  continue;
-                }
-
-                const delta = choice.delta;
-                if (!delta) continue;
-
-                // Reasoning/thinking content (batched)
-                if (delta.reasoning) {
-                  pendingReasoningRef.current += delta.reasoning;
-                  scheduleFlush();
-                }
-
-                // Text content (batched)
-                if (delta.content) {
-                  pendingContentRef.current += delta.content;
-                  scheduleFlush();
-                }
-
-                // Tool calls (OpenAI format: delta.tool_calls)
-                if (delta.tool_calls && Array.isArray(delta.tool_calls)) {
-                  for (const tc of delta.tool_calls) {
-                    const toolCallId = tc.id;
-                    const toolName = tc.function?.name;
-                    if (!toolCallId || !toolName) continue;
-
-                    let args: Record<string, unknown> | undefined;
-                    if (tc.function?.arguments) {
-                      try { args = JSON.parse(tc.function.arguments) as Record<string, unknown>; } catch { args = { _raw: tc.function.arguments }; }
-                    }
-
-                    const invocation: ToolInvocation = { toolCallId, toolName, state: 'call', args };
-                    const idx = toolInvocationsRef.current.findIndex((t) => t.toolCallId === toolCallId);
-                    if (idx >= 0) {
-                      toolInvocationsRef.current[idx] = invocation;
-                    } else {
-                      toolInvocationsRef.current = [...toolInvocationsRef.current, invocation];
-                    }
-                    flushPendingUpdates();
-                  }
-                }
-
-                // Tool results (delta.tool_result)
-                if (delta.tool_result) {
-                  const { tool_call_id, name, output } = delta.tool_result;
-                  if (tool_call_id) {
-                    applyToolResult(tool_call_id, name, output);
-                  }
-                }
-              } catch {
-                // Skip malformed chunks
-              }
-            }
-          }
-        } finally {
-          reader.releaseLock();
-        }
-      } catch (err: unknown) {
-        if (err instanceof Error && err.name === 'AbortError') return;
-        const errorMessage = err instanceof Error ? err.message : 'Something went wrong';
-        setError(errorMessage);
-        updateAssistant((last) =>
-          !last.content ? { content: "I'm having trouble connecting right now. Please try again." } : {}
+        const effectiveModel = await waitWithAbort(
+          resolveModelId(apiUrl, model, undefined, PREFERRED_CHAT_MODEL_ID),
+          controller.signal,
         );
-      } finally {
-        // Flush any remaining batched content
-        flushPendingUpdates();
-        if (flushTimerRef.current) {
-          clearTimeout(flushTimerRef.current);
-          flushTimerRef.current = null;
+        await streamAliaChat(
+          linked.client,
+          { url: requestUrl, model: effectiveModel, messages: apiMessages },
+          controller.signal,
+          applyEvent,
+        );
+      } catch (caught: unknown) {
+        cancelPendingTimer(pending);
+        flushPendingUpdates(pending);
+        if (isAbort(caught, controller.signal)) {
+          removeEmptyAssistant(pending.assistantId);
+        } else if (mountedRef.current) {
+          const message = caught instanceof Error ? caught.message : 'Something went wrong.';
+          setError(message);
+          updateAssistant(pending.assistantId, (last) =>
+            getTextFromContent(last.content).trim().length === 0
+              ? { content: "I'm having trouble connecting right now. Please try again." }
+              : {},
+          );
         }
-        setIsStreaming(false);
-        abortRef.current = null;
+      } finally {
+        cancelPendingTimer(pending);
+        flushPendingUpdates(pending);
+        linked.dispose();
+        if (pendingRef.current === pending) pendingRef.current = null;
+        if (activeRequestRef.current?.key === request.key) {
+          activeRequestRef.current = null;
+          if (mountedRef.current) setIsStreaming(false);
+        }
       }
     },
-    [isStreaming, getToken, apiUrl, model, clientContext, scheduleFlush, flushPendingUpdates, updateAssistant, applyToolResult],
+    [
+      accessTokenProp,
+      apiUrl,
+      cancelPendingTimer,
+      clientContext,
+      flushPendingUpdates,
+      model,
+      oxyServices,
+      requestUrl,
+      removeEmptyAssistant,
+      scheduleFlush,
+      updateAssistant,
+    ],
   );
-
-  const stop = useCallback(() => {
-    if (abortRef.current) {
-      abortRef.current.abort();
-      abortRef.current = null;
-    }
-    flushPendingUpdates();
-    if (flushTimerRef.current) {
-      clearTimeout(flushTimerRef.current);
-      flushTimerRef.current = null;
-    }
-    setIsStreaming(false);
-  }, [flushPendingUpdates]);
 
   const clear = useCallback(() => {
     stop();
+    messagesRef.current = [];
     setMessages([]);
     setError(null);
-    pendingContentRef.current = '';
-    pendingReasoningRef.current = '';
-    toolInvocationsRef.current = [];
   }, [stop]);
 
   return { messages, setMessages, send, isStreaming, stop, clear, error };

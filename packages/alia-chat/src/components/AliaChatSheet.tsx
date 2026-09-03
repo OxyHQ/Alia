@@ -82,6 +82,7 @@ export const AliaChatSheet = forwardRef<AliaChatSheetRef, AliaChatSheetProps>(
     const [rendered, setRendered] = useState(false);
     const hasClosedRef = useRef(false);
     const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const chatStopRef = useRef<(() => void) | null>(null);
 
     // Reanimated shared values
     const translateY = useSharedValue(SCREEN_HEIGHT);
@@ -112,6 +113,14 @@ export const AliaChatSheet = forwardRef<AliaChatSheetRef, AliaChatSheetProps>(
       setRendered(false);
     }, []);
 
+    const stopChat = useCallback(() => {
+      chatStopRef.current?.();
+    }, []);
+
+    const registerChatStop = useCallback((stop: (() => void) | null) => {
+      chatStopRef.current = stop;
+    }, []);
+
     const handlePresent = useCallback(() => {
       hasClosedRef.current = false;
       if (closeTimeoutRef.current) {
@@ -124,6 +133,7 @@ export const AliaChatSheet = forwardRef<AliaChatSheetRef, AliaChatSheetProps>(
     }, []);
 
     const handleDismiss = useCallback(() => {
+      stopChat();
       backdropOpacity.value = withTiming(0, { duration: 250 }, (finished) => {
         if (finished) runOnJS(finishDismiss)();
       });
@@ -136,7 +146,7 @@ export const AliaChatSheet = forwardRef<AliaChatSheetRef, AliaChatSheetProps>(
         finishDismiss();
         closeTimeoutRef.current = null;
       }, 350);
-    }, [finishDismiss]);
+    }, [finishDismiss, stopChat]);
 
     useEffect(
       () => () => {
@@ -181,6 +191,7 @@ export const AliaChatSheet = forwardRef<AliaChatSheetRef, AliaChatSheetProps>(
           velocity > 900 || (distance > closeThreshold && velocity > -300);
 
         if (shouldClose) {
+          runOnJS(stopChat)();
           translateY.value = withSpring(SCREEN_HEIGHT, {
             ...SPRING_CONFIG,
             velocity,
@@ -191,7 +202,7 @@ export const AliaChatSheet = forwardRef<AliaChatSheetRef, AliaChatSheetProps>(
         } else {
           translateY.value = withSpring(0, { ...SPRING_CONFIG, velocity });
         }
-      }), [nativeGesture, finishDismiss]);
+      }), [nativeGesture, finishDismiss, stopChat]);
 
     // Animated styles
     const backdropAnimStyle = useAnimatedStyle(() => ({
@@ -258,6 +269,7 @@ export const AliaChatSheet = forwardRef<AliaChatSheetRef, AliaChatSheetProps>(
                   primaryColor={primaryColor}
                   isDarkMode={isDarkMode ?? isDark}
                   voiceSession={voiceSession}
+                  onStopReady={registerChatStop}
                   header={({ markState, hasMessages, clear }) => (
                     <View style={styles.header}>
                       <View style={styles.headerLeft}>

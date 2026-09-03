@@ -1,5 +1,27 @@
 # @alia.onl/sdk
 
+## 7.1.1
+
+### A stream either answers or fails
+
+Text chat now uses the linked Oxy client, so the session manager performs its
+preflight refresh and its one supported 401 retry. The SDK no longer copies a
+bearer token into a raw `fetch` call.
+
+The response must be SSE and must satisfy the Alia/OpenAI stream contract: valid
+UTF-8 and JSON, typed product events, a finish chunk, a visible assistant answer,
+and terminal `[DONE]`. A malformed, truncated, empty or error stream is a failed
+turn and receives the existing visible retry message instead of becoming an
+empty successful assistant bubble.
+
+Active text requests are cancelled when their component unmounts, when a sheet
+starts closing, when the user stops the turn, or when another send supersedes
+it. Parser failures cancel the response reader as well. The parser bounds total
+bytes, buffered frame size and line count so a broken stream cannot grow memory
+without limit.
+
+The 7.1.0 sampled-audio behavior and the root/voice entry split are unchanged.
+
 ## 7.1.0
 
 ### The read-aloud field answers the audio
