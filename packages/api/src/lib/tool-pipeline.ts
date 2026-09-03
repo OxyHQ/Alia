@@ -14,8 +14,8 @@
  *
  *  - Only THIS one included `buildOxyServiceTools`, so an agent answering on
  *    its owner's Telegram bot could not reach a single first-party Oxy service.
- *  - Only `buildChatTools` included `canvas` and the four trigger-management
- *    tools, so the main chat could not create a trigger and Telegram could.
+ *  - Only `buildChatTools` included `canvas` and the former trigger-management
+ *    tools, so the main chat could not create proactive work and Telegram could.
  *  - The Telegram tool had TWO NAMES for one factory — `sendTelegram` here,
  *    `sendTelegramMessage` in the other three — so a prompt or a skill naming
  *    one silently did nothing on the other paths. `sendTelegramMessage` won.
@@ -106,11 +106,6 @@ import type { SkillRuntime } from './skills/runtime.js';
 import { canvasTool } from './tools/canvas.js';
 import { createGetDeviceInfoTool } from './tools/device-info.js';
 import { createAutomationTool } from './tools/automation-create.js';
-import {
-  listTriggersTool,
-  updateTriggerTool,
-  deleteTriggerTool,
-} from './tools/trigger-management.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -156,10 +151,9 @@ export interface ForUserOptions {
   /**
    * Whether this turn may use tools AT ALL. No default: every caller states it.
    *
-   * The one caller that says `false` is a trigger whose author opted out
-   * (`trigger.action.useTools`), and what it gets is the date and nothing else
-   * — which is what `buildTriggerTools` did, preserved rather than reasoned
-   * away. A default would make the opt-out something a new call site forgets.
+   * Background automation stages pass this explicitly after their exact action
+   * authorizations have been resolved. A default would let a new call site
+   * accidentally widen a run.
    */
   toolsEnabled: boolean;
   /**
@@ -436,11 +430,6 @@ export class ToolPipeline {
         if (isDirectSession) {
           aliaTools.createAutomation = createAutomationTool(userId, accessToken);
         }
-        Object.assign(aliaTools, {
-          listTriggers: listTriggersTool(userId),
-          updateTrigger: updateTriggerTool(userId),
-          deleteTrigger: deleteTriggerTool(userId),
-        });
       }
       // `web`, not a family of its own: what it does is read the open web, and
       // it is withheld from an unreserved turn for the reason `isLocalRuntime`

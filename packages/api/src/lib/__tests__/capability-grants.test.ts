@@ -226,7 +226,9 @@ describe('an agent reaches exactly what it was granted', () => {
     const names = await namesFor(['automation'], { isDirectSession: false, accessToken: undefined });
 
     expect(names).not.toContain('createAutomation');
-    expect(names).toEqual(expect.arrayContaining(['listTriggers', 'updateTrigger', 'deleteTrigger']));
+    expect(names).not.toContain('listTriggers');
+    expect(names).not.toContain('updateTrigger');
+    expect(names).not.toContain('deleteTrigger');
   });
 
   it('limits a preauthorized Oxy automation stage to protocol and Oxy sources', async () => {

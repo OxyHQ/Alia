@@ -362,7 +362,7 @@
     "promptPlaceholder": "Describe lo que esta automatización debe hacer...",
     "schedule": "Horario",
     "daily": "Diario",
-    "interval": "Intervalo"
+    "hourly": "Cada hora"
   },
   "skills": {
     "title": "Skills",

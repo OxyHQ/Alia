@@ -88,7 +88,7 @@ the environment.
 | MCP connector OAuth state | `mcp_connector_auths.*` | encrypted |
 | Messaging session credentials | `telegram_sessions`, `whatsapp_sessions`, `signal_sessions` | **plaintext**, projection-protected only |
 | User-supplied MCP server config | `mcp_servers.config_headers`, `config_env` | **plaintext jsonb** |
-| Trigger webhook secrets | `triggers.webhook_secret` | **plaintext** |
+| Retired trigger webhook secrets | `triggers.webhook_secret` | **plaintext historical data** |
 | Process secrets | environment / SSM | plaintext |
 
 Every row above except the last one lives in PostgreSQL, so it is reachable by
@@ -530,10 +530,10 @@ only events declared by a signed catalog they own. Rotate or revoke those servic
 credentials centrally in Oxy; never add a replacement secret to Alia.
 
 **`triggers.webhook_secret`** (`packages/api/src/db/schema/automation.ts:100`) is
-an optional per-trigger HMAC secret, user-owned, alongside `webhook_token`
-(`:98`) which is the public URL's path segment and also a lookup key. Rotating
-the token changes the trigger's URL; rotating the secret changes only the
-signature. Both are the user's to rotate, through the triggers API.
+retained only on historical trigger rows. The retired webhook route never reads
+or validates it, and legacy token/secret mutation returns `410 Gone`. Do not
+rotate these values; create a structured event automation whose publisher is
+authenticated by Oxy service identity.
 
 **Stripe's webhook secret** is read at request time in
 `packages/api/src/routes/billing.ts:621`, which returns 500 when it is absent.

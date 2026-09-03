@@ -63,6 +63,25 @@ export interface AutomationUpdateInput {
   enabled: boolean;
 }
 
+export interface AutomationCreateInput {
+  objective: string;
+  trigger: AutomationUpdateTrigger;
+  actorSelection: AutomationUpdateActorSelection;
+  executionMode: AutomationExecutionMode;
+  actions: Array<{
+    resource: AutomationResource;
+    tool: string;
+    input: Record<string, unknown>;
+    limits: Array<{ key: string; value: number | boolean }>;
+  }>;
+  inputs: Record<string, unknown>;
+  resources: AutomationResource[];
+  dataFlow: { sources: AutomationResource[]; destinations: AutomationResource[] };
+  maximumAutonomy: AutomationAutonomy;
+  limits: Array<{ key: string; value: string | number | boolean | string[] }>;
+  enabled: boolean;
+}
+
 export interface AutomationReceipt {
   objective: string;
   trigger: AutomationTrigger;
@@ -117,13 +136,4 @@ export interface AutomationStep {
 export interface AutomationOverview {
   automations: AutomationDefinition[];
   runs: AutomationRun[];
-}
-
-export interface LegacyAutomationCreateInput {
-  name: string;
-  type: 'schedule';
-  action: { prompt: string; useTools: boolean };
-  schedule:
-    | { type: 'daily'; time: string; days: string[] }
-    | { type: 'interval'; intervalMinutes: number };
 }

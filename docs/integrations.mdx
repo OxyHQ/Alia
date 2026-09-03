@@ -87,56 +87,34 @@ resource, actor, account, run, step and tool.
 Inbound messages arrive at the API as either:
 
 - **Channel-bound conversations** — each chat becomes a conversation scoped to that channel and a user, so the autonomy loop can reuse the same context graph
-- **Webhook events** — for trigger-driven actions, the integration emits an `integration_event` matched by `service + event + filters`
+- **Oxy application events** — authenticated service publishers send normalized events to
+  `/webhooks/oxy`, where structured automations match explicit app, event and resource fields
 
-Outbound tools (e.g. `sendTelegramMessage`, `sendWhatsAppMessage`) require `R2` approval by default. The trigger engine respects the same risk class when integrations call tools autonomously.
+Outbound tools (e.g. `sendTelegramMessage`, `sendWhatsAppMessage`) require `R2` approval by default. Structured automation actions remain bound by their exact Oxy authority and Alia risk policy.
 
-## Triggers
+## Structured Automations
 
-`/triggers` is the transitional API for legacy routines. `/automations` is the
-normalized control plane that stores the objective, actor selection, trigger,
-exact actions, data flow, limits, autonomy and `observe | execute` mode. Both
-row types are reconciled by the one elected `trigger-engine.ts` cron registry;
-there is no second scheduling loop.
+`/automations` stores the objective, actor selection, exact actions and resources,
+data flow, limits, autonomy and `observe | execute` mode. Scheduled definitions use
+the one elected `trigger-engine.ts` cron registry. Event definitions are matched by
+the normalized Oxy event route. `/triggers` is read-only historical data; its writes
+and webhook execution return `410 Gone`.
 
-```ts
-type TriggerType = 'schedule' | 'webhook' | 'integration_event' | 'agent_heartbeat';
-
-interface TriggerAction {
-  prompt: string;
-  agentId?: ObjectId;
-  roleId?: string;
-  useTools: boolean;
-  notify?: boolean;
-  channelId?: string;
-}
-```
-
-Each invocation runs the same autonomy loop as a chat turn, writes a `TriggerExecution` record (status, tool calls, token usage, duration), and respects the user's risk policy. Webhook triggers expose a token URL with optional HMAC and IP allowlist; integration triggers match against the event filter; heartbeats run on a fixed cadence.
-
-Endpoints:
-
-| Method | Path | Purpose |
-|--------|------|---------|
-| `GET` | `/triggers` | List user triggers |
-| `POST` | `/triggers` | Create trigger |
-| `PATCH` | `/triggers/:id` | Update trigger |
-| `DELETE` | `/triggers/:id` | Delete trigger |
-| `POST` | `/triggers/:id/run` | Manual run |
-| `GET` | `/triggers/:id/executions` | Execution history |
-| `POST` | `/triggers/webhook/:token` | Public webhook entry point |
-
-Structured control-plane endpoints:
+Active control-plane endpoints:
 
 | Method | Path | Purpose |
 |--------|------|---------|
 | `GET` | `/automations` | List definitions and declared actions |
 | `POST` | `/automations` | Create an observe/execute definition and editable receipt |
-| `PATCH` | `/automations/:id` | Enable or stop; reauthorization is required after a stop |
+| `PATCH` | `/automations/:id` | Edit the receipt fields and revalidate execution authority |
 | `DELETE` | `/automations/:id` | Stop immediately and revoke its Oxy authorizations |
 | `POST` | `/automations/:id/run` | Execute a manual definition; owner-only and idempotency-keyed |
 | `GET` | `/automations/runs` | Decision and execution history |
 | `GET` | `/automations/runs/:runId/steps` | Ordered, correlated step history |
+
+Historical `GET /triggers`, `GET /triggers/:id` and
+`GET /triggers/:id/executions` remain available. All other `/triggers` methods return
+`410 Gone` without changing state.
 
 Manual execution requires `execute_on_request` or `autonomous`. Background event and
 schedule execution requires `autonomous`; `draft` and `read_only` definitions cannot

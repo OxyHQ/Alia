@@ -2,15 +2,14 @@ import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tansta
 import { useOxy } from '@oxyhq/services';
 import apiClient from '../api/client';
 import { API_ROUTES } from '../api/routes';
-import { automationControlRequests } from '../automations/control';
 import type {
+  AutomationCreateInput,
   AutomationDefinition,
   AutomationOverview,
   AutomationReceipt,
   AutomationRun,
   AutomationStep,
   AutomationUpdateInput,
-  LegacyAutomationCreateInput,
 } from '../automations/types';
 import { createRandomUuid } from '../utils/random-uuid';
 import { queryKeys } from './query-keys';
@@ -71,11 +70,18 @@ export function useAutomationRunSteps(runId: string, enabled: boolean) {
   });
 }
 
-export function useCreateLegacyAutomation() {
+export function useCreateAutomation() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (input: LegacyAutomationCreateInput): Promise<void> => {
-      await apiClient.post(API_ROUTES.triggers.create, input);
+    mutationFn: async (input: AutomationCreateInput): Promise<{
+      automation: AutomationDefinition;
+      receipt: AutomationReceipt;
+    }> => {
+      const response = await apiClient.post<{
+        automation: AutomationDefinition;
+        receipt: AutomationReceipt;
+      }>(API_ROUTES.automations.create, input);
+      return response.data;
     },
     onSuccess: () => invalidateOverview(queryClient),
   });
@@ -88,8 +94,10 @@ export function useSetAutomationEnabled() {
       automation: AutomationDefinition;
       enabled: boolean;
     }): Promise<AutomationControlResult> => {
-      const request = automationControlRequests(automation).update;
-      const response = await apiClient.patch<AutomationControlResult>(request.path, { enabled });
+      const response = await apiClient.patch<AutomationControlResult>(
+        API_ROUTES.automations.update(automation.id),
+        { enabled },
+      );
       return response.data;
     },
     onSuccess: () => invalidateOverview(queryClient),
@@ -117,12 +125,9 @@ export function useStopAutomation() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (automation: AutomationDefinition): Promise<AutomationControlResult> => {
-      const request = automationControlRequests(automation).stop;
-      if (request.method === 'PATCH') {
-        const response = await apiClient.patch<AutomationControlResult>(request.path, { enabled: false });
-        return response.data;
-      }
-      const response = await apiClient.delete<AutomationControlResult>(request.path);
+      const response = await apiClient.delete<AutomationControlResult>(
+        API_ROUTES.automations.stop(automation.id),
+      );
       return response.data;
     },
     onSuccess: () => invalidateOverview(queryClient),
@@ -133,16 +138,13 @@ export function useRunAutomation() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (automation: AutomationDefinition): Promise<void> => {
-      const request = automationControlRequests(automation).run;
-      if (!request) {
+      if (automation.trigger.type !== 'manual') {
         throw new Error('Only manual structured automations can be run on request');
       }
       await apiClient.post(
-        request.path,
+        API_ROUTES.automations.run(automation.id),
         undefined,
-        automation.legacyTriggerId
-          ? undefined
-          : { headers: { 'Idempotency-Key': createRandomUuid() } },
+        { headers: { 'Idempotency-Key': createRandomUuid() } },
       );
     },
     onSuccess: () => invalidateOverview(queryClient),

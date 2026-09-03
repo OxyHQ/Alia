@@ -87,9 +87,9 @@ they are, this README deliberately describes the direct Alia path above instead 
 pretending that provider keys have already left Alia production.
 
 `/automations` is the normalized scheduling and control API for explicit actors,
-resources, actions, data flow and autonomy. `/triggers` remains available for legacy
-routines, and both row types use the same elected scheduler rather than competing
-runtimes. There is no backward-compatible model resolution endpoint —
+resources, actions, data flow and autonomy. The elected scheduler reads only structured
+automation definitions. `/triggers` exposes read-only history from the retired runtime;
+all of its writes and webhook execution return `410 Gone`. There is no backward-compatible model resolution endpoint —
 `POST /v1/resolve-model` and `POST /v1/report-usage` return `410 Gone`.
 
 ## Storage
@@ -257,8 +257,8 @@ each is easy to break by accident and none is caught by types:
 1. Never expose an upstream operator name or upstream model ID on the **product surface** —
    product API responses, errors, the UI, customer-facing analytics. It is a product and
    privacy boundary, not a global ban on the words.
-2. `trigger-engine.ts` is the only scheduler. Legacy triggers and structured automation
-   schedules must both register through it; do not add a second scheduling loop.
+2. `trigger-engine.ts` is the only scheduler and reads structured automation definitions;
+   do not add another scheduling loop or reconnect retired trigger rows.
 3. The `alia-*` identifier set is frozen. A pull request adding one is rejected on
    [ADR 0002](docs/adr/0002-alia-is-a-kaana-consumer-and-future-model-publisher.md), and
    nothing may be published under the reserved `alia/*` namespace without the four

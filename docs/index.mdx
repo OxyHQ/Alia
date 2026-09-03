@@ -164,15 +164,13 @@ Two of those identifiers share a tier, several are routing policies rather than 
 ### Trigger engine
 
 `/automations` is the normalized scheduling and control API. It records explicit actors,
-resources, actions, data flow, limits, autonomy and `observe | execute` mode. `/triggers`
-remains the transitional API for these legacy trigger types:
+resources, actions, data flow, limits, autonomy and `observe | execute` mode. The elected
+`trigger-engine.ts` scheduler reads only enabled structured schedule definitions.
+Structured decisions and runs use `automation_runs` and `automation_steps`.
 
-- `schedule` — cron, daily, or interval
-- `webhook` — token URL with optional HMAC and IP allowlist
-- `integration_event` — matched by `service + event + filters`
-- `agent_heartbeat` — periodic agent health / status check
-
-Legacy runs write a `trigger_executions` row with status, tool calls, token usage and duration, through `db/automation/triggerRepository.ts`. Structured runs and decisions use `automation_runs` and `automation_steps`. Both row types are reconciled by the same elected scheduler, and legacy trigger actions follow the unified action contract: `{ prompt, agentId?, roleId?, useTools, notify?, channelId? }`.
+Legacy trigger rows and their `trigger_executions` remain available through historical
+GET routes. They are not scheduled or dispatched; every legacy write or execution route
+returns `410 Gone` and points callers to `/automations`.
 
 ## Deep dives
 
