@@ -564,6 +564,11 @@ export async function searchActiveAgents(
         )`,
       ),
     )
+    // Relevance predicates deliberately do not invent a fuzzy score. When
+    // candidates are otherwise equivalent, the stable primary key is the
+    // coordinator's final tie-breaker so repeated requests return the same
+    // eligible set in the same order.
+    .orderBy(asc(agents.id))
     .limit(limit);
   return rows;
 }
