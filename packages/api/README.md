@@ -54,7 +54,7 @@ return `410 Gone` with `/automations` as the replacement.
 
 ### Oxy Event Ingestion
 
-- `POST /webhooks/oxy/:serviceId`
+- `POST /webhooks/oxy`
 
 ### Structured Automations
 

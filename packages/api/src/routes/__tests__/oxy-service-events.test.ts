@@ -1,4 +1,5 @@
 import express from 'express';
+import { readFileSync } from 'node:fs';
 import type { Server } from 'node:http';
 import { request as httpRequest } from 'node:http';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -85,6 +86,16 @@ beforeEach(() => {
 });
 
 describe('normalized Oxy app events', () => {
+  it('is mounted before the broad channel webhook route', () => {
+    const source = readFileSync(new URL('../../index.ts', import.meta.url), 'utf8');
+    const normalizedMount = "app.use('/webhooks/oxy', oxyServiceEventsRouter);";
+    const channelMount = "app.use('/webhooks', webhooksRouter);";
+
+    expect(source.split(normalizedMount)).toHaveLength(2);
+    expect(source.split(channelMount)).toHaveLength(2);
+    expect(source.indexOf(normalizedMount)).toBeLessThan(source.indexOf(channelMount));
+  });
+
   it('requires a centrally verifiable service bearer before claiming an event', async () => {
     expect((await post(event)).status).toBe(401);
     expect(serviceFetch).not.toHaveBeenCalled();
