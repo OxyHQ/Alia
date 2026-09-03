@@ -173,6 +173,13 @@ export function parseModes(payload: unknown): ProductMode[] {
   return modes;
 }
 
+const PRESENTATION_MODE_IDS: ReadonlySet<string> = new Set([
+  'mode:fast',
+  'mode:balanced',
+  'mode:maximum-quality',
+  'mode:coding',
+]);
+
 /**
  * What a person reads for an entry: the product's word for it, or the
  * catalogue's own.
@@ -185,16 +192,12 @@ function presentation(
   entry: CatalogueEntry,
   modes: readonly ProductMode[],
 ): { readonly label: string; readonly description: string } {
-  const expectedModeId: Record<string, string> = {
-    'kaana-lite': 'mode:fast',
-    'kaana-v1': 'mode:balanced',
-    'kaana-v1-pro-max': 'mode:maximum-quality',
-    'kaana-v1-codea': 'mode:coding',
-  };
-  const modeId = expectedModeId[entry.id];
-  const mode = modeId === undefined
-    ? null
-    : modes.find((candidate) => candidate.id === modeId && candidate.routing.profileId === entry.id) ?? null;
+  let mode: ProductMode | null = null;
+  for (const candidate of modes) {
+    if (!PRESENTATION_MODE_IDS.has(candidate.id) || candidate.routing.profileId !== entry.id) continue;
+    if (mode !== null) return { label: entry.displayName, description: entry.description };
+    mode = candidate;
+  }
   if (mode === null) return { label: entry.displayName, description: entry.description };
   return { label: mode.label, description: mode.description };
 }

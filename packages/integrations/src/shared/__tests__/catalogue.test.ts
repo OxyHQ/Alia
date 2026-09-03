@@ -10,6 +10,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   labelForPreference,
+  modeForProfile,
   offeredModes,
   parseCatalogue,
   parseModes,
@@ -144,6 +145,17 @@ describe('presentation', () => {
   it("falls back to the catalogue's own name for a profile no mode selects", () => {
     const pro = entries.find((entry) => entry.id === 'kaana-v1-pro');
     expect(presentation(pro ?? entries[0], modes).label).toBe('Codea Pro');
+  });
+
+  it('fails closed when two presentation modes claim the same exact profile', () => {
+    const balanced = modes.find((mode) => mode.id === 'mode:balanced');
+    expect(balanced).toBeDefined();
+    if (balanced === undefined) throw new Error('fixture is missing mode:balanced');
+
+    const ambiguous = modes.map((mode) => mode.id === balanced.id
+      ? { ...mode, routing: { kind: 'profile' as const, profileId: 'kaana-lite' } }
+      : mode);
+    expect(modeForProfile('kaana-lite', ambiguous)).toBeNull();
   });
 });
 

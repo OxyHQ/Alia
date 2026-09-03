@@ -169,20 +169,25 @@ export function parseModes(payload: unknown): ProductMode[] {
   return modes;
 }
 
+const PRESENTATION_MODE_IDS: ReadonlySet<string> = new Set([
+  'mode:fast',
+  'mode:balanced',
+  'mode:maximum-quality',
+  'mode:coding',
+]);
+
 /** The product's word for a routing profile, or `null` when it has none. */
 export function modeForProfile(
   profileId: string,
   modes: readonly ProductMode[],
 ): ProductMode | null {
-  const expectedModeId: Record<string, string> = {
-    'kaana-lite': 'mode:fast',
-    'kaana-v1': 'mode:balanced',
-    'kaana-v1-pro-max': 'mode:maximum-quality',
-    'kaana-v1-codea': 'mode:coding',
-  };
-  const modeId = expectedModeId[profileId];
-  if (modeId === undefined) return null;
-  return modes.find((mode) => mode.id === modeId && mode.routing.profileId === profileId) ?? null;
+  let match: ProductMode | null = null;
+  for (const mode of modes) {
+    if (!PRESENTATION_MODE_IDS.has(mode.id) || mode.routing.profileId !== profileId) continue;
+    if (match !== null) return null;
+    match = mode;
+  }
+  return match;
 }
 
 /**
