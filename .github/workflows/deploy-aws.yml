@@ -326,7 +326,8 @@ jobs:
 
           required_env="$(jq -cn '{
             API_BASE_URL: "https://api.alia.onl",
-            ALIA_API_URL: "https://api.alia.onl"
+            ALIA_API_URL: "https://api.alia.onl",
+            OXY_API_URL: "https://api.oxy.so"
           }')"
 
           oxy_inference_secrets="$(jq -cn \

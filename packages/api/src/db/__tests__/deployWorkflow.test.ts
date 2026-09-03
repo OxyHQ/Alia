@@ -66,7 +66,7 @@ describe('deploy-aws.yml migration wiring', () => {
     expect(workflow).toContain("RUN_MIGRATIONS: 'true'");
   });
 
-  it('re-asserts both names of the API public origin on every task revision', () => {
+  it('re-asserts both Alia origins and the Oxy inference origin on every task revision', () => {
     const from = workflow.indexOf('      - name: Stage Oxy inference configuration');
     const to = workflow.indexOf('      # RUN_MIGRATIONS', from);
     const environmentStage = workflow.slice(from, to);
@@ -75,6 +75,7 @@ describe('deploy-aws.yml migration wiring', () => {
     expect(to).toBeGreaterThan(from);
     expect(environmentStage).toContain('API_BASE_URL: "https://api.alia.onl"');
     expect(environmentStage).toContain('ALIA_API_URL: "https://api.alia.onl"');
+    expect(environmentStage).toContain('OXY_API_URL: "https://api.oxy.so"');
     expect(environmentStage).toContain("jq -cs '.[0] * .[1]'");
     // Required values merge last, so a future optional block cannot silently
     // override the canonical production origin.
