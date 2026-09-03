@@ -103,6 +103,7 @@ describe('structured automation synchronization', () => {
       updatedAt: new Date('2026-09-02T00:00:00.000Z'),
     };
     expect(automationReceipt(automation)).toEqual({
+      objective: 'Summarize my notes',
       trigger: { type: 'schedule', cron: '0 9 * * 1', timezone: 'UTC' },
       actors: { mode: 'automatic', eligibleAgentIds: [] },
       executionMode: 'execute',
@@ -111,6 +112,7 @@ describe('structured automation synchronization', () => {
       dataFlow: { sources: [], destinations: [] },
       maximumAutonomy: 'autonomous',
       limits: [],
+      enabled: true,
       undo: { method: 'DELETE', path: '/automations/automation-1' },
     });
   });

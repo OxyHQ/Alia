@@ -3,7 +3,11 @@ import { z } from 'zod';
 import { findAgentById } from '../db/agents/agentRepository.js';
 import {
   createAutomationDefinition,
+  listActiveAutomationAuthorizations,
+  markAutomationAuthorizationsRevoked,
   setAutomationEnabled,
+  updateAutomationDefinition,
+  type AutomationDefinitionRecord,
   upsertAutomationActionAuthorizations,
 } from '../db/automation/automationDefinitionRepository.js';
 import { getDb } from '../db/index.js';
@@ -31,10 +35,24 @@ export const automationResourceSchema = z.object({
   resourceId: z.string().min(1).describe('Exact resource identifier within the effective account'),
 }).strict();
 
-const automationLimitSchema = z.object({
+export const automationLimitSchema = z.object({
   key: z.string().min(1),
   value: z.union([z.string(), z.number().finite(), z.boolean(), z.array(z.string())]),
 }).strict();
+
+const automationLimitsSchema = z.array(automationLimitSchema).superRefine((limits, context) => {
+  const keys = new Set<string>();
+  limits.forEach((limit, index) => {
+    if (keys.has(limit.key)) {
+      context.addIssue({
+        code: 'custom',
+        path: [index, 'key'],
+        message: 'Limit keys must be unique',
+      });
+    }
+    keys.add(limit.key);
+  });
+});
 
 const automationActionLimitSchema = z.object({
   key: z.string().min(1),
@@ -48,7 +66,7 @@ const automationActionSchema = z.object({
   limits: z.array(automationActionLimitSchema).default([]),
 }).strict();
 
-const automationTriggerSchema = z.discriminatedUnion('type', [
+export const automationTriggerSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('manual') }).strict(),
   z.object({
     type: z.literal('event'),
@@ -63,7 +81,7 @@ const automationTriggerSchema = z.discriminatedUnion('type', [
   }).strict(),
 ]);
 
-const automationActorSelectionSchema = z.discriminatedUnion('mode', [
+export const automationActorSelectionSchema = z.discriminatedUnion('mode', [
   z.object({ mode: z.literal('fixed'), agentId: z.string().min(1) }).strict(),
   z.object({
     mode: z.literal('automatic'),
@@ -86,18 +104,33 @@ export const createAutomationSchema = z.object({
     destinations: z.array(automationResourceSchema),
   }).strict(),
   maximumAutonomy: z.enum(['read_only', 'draft', 'execute_on_request', 'autonomous']),
-  limits: z.array(automationLimitSchema).default([]),
+  limits: automationLimitsSchema.default([]),
   enabled: z.boolean().default(true),
 }).strict();
 
 export type CreateAutomationInput = z.infer<typeof createAutomationSchema>;
+
+export const updateAutomationSchema = z.object({
+  objective: createAutomationSchema.shape.objective.optional(),
+  trigger: automationTriggerSchema.optional(),
+  actorSelection: automationActorSelectionSchema.optional(),
+  resources: z.array(automationResourceSchema).optional(),
+  dataFlow: createAutomationSchema.shape.dataFlow.optional(),
+  maximumAutonomy: createAutomationSchema.shape.maximumAutonomy.optional(),
+  limits: automationLimitsSchema.optional(),
+  enabled: z.boolean().optional(),
+}).strict().refine((value) => Object.keys(value).length > 0, {
+  message: 'At least one editable field is required',
+});
+
+export type UpdateAutomationInput = z.infer<typeof updateAutomationSchema>;
 
 type AutomationRecord = Awaited<ReturnType<typeof createAutomationDefinition>>;
 
 export class AutomationCreationError extends Error {
   constructor(
     readonly code: string,
-    readonly status: 400 | 401 | 403 | 503,
+    readonly status: 400 | 401 | 403 | 409 | 503,
     readonly context: { automationId?: string; stopped?: boolean } = {},
   ) {
     super(code);
@@ -234,6 +267,212 @@ function validateDefinition(definition: CreateAutomationInput): void {
   ))) {
     throw new AutomationCreationError('duplicate_automation_action_limit', 400);
   }
+}
+
+function editableDefinition(
+  existing: AutomationDefinitionRecord,
+  patch: UpdateAutomationInput,
+): CreateAutomationInput {
+  const merged = createAutomationSchema.safeParse({
+    objective: patch.objective ?? existing.objective,
+    trigger: patch.trigger ?? existing.trigger,
+    actorSelection: patch.actorSelection ?? existing.actorSelection,
+    executionMode: existing.executionMode,
+    actions: existing.actions.map((action) => ({
+      resource: action.resource,
+      tool: action.tool,
+      input: action.input,
+      limits: action.limits,
+    })),
+    inputs: existing.inputs,
+    resources: patch.resources ?? existing.resources,
+    dataFlow: patch.dataFlow ?? existing.dataFlow,
+    maximumAutonomy: patch.maximumAutonomy ?? existing.maximumAutonomy,
+    limits: patch.limits ?? existing.limits,
+    enabled: patch.enabled ?? existing.enabled,
+  });
+  if (!merged.success) {
+    throw new AutomationCreationError('invalid_automation_patch', 400);
+  }
+  return merged.data;
+}
+
+async function stopAndRevokeCurrentAuthority(input: {
+  accessToken?: string;
+  automation: AutomationDefinitionRecord;
+}): Promise<{ updatedAt: Date; revoked: number }> {
+  const active = await listActiveAutomationAuthorizations(getDb(), input.automation.id);
+  if (active.length > 0 && !input.accessToken) {
+    throw new AutomationCreationError('user_session_required_for_execution_authority', 401);
+  }
+  const stopped = input.automation.enabled
+    ? await setAutomationEnabled(
+      getDb(),
+      input.automation.id,
+      input.automation.ownerAccountId,
+      false,
+      input.automation.updatedAt,
+    )
+    : input.automation;
+  if (!stopped) throw new AutomationCreationError('automation_concurrent_update', 409);
+  if (active.length === 0 || !input.accessToken) {
+    return { updatedAt: stopped.updatedAt, revoked: 0 };
+  }
+
+  const revoked = await revokeAutomationAuthorizations(
+    input.accessToken,
+    active.map((authorization) => authorization.oxyAuthorizationId),
+  );
+  await markAutomationAuthorizationsRevoked(getDb(), revoked.revoked);
+  if (revoked.failed.length > 0) {
+    throw new AutomationCreationError(
+      'automation_authority_revocation_incomplete',
+      503,
+      { automationId: input.automation.id, stopped: true },
+    );
+  }
+  return { updatedAt: stopped.updatedAt, revoked: revoked.revoked.length };
+}
+
+/**
+ * Update one structured definition without changing its exact action ids.
+ * Active authority is recreated from the merged definition, the automation is
+ * stopped before old authority is revoked, and it is re-enabled only after the
+ * new references and editable fields commit together.
+ */
+export async function updateStructuredAutomation(input: {
+  ownerAccountId: string;
+  accessToken?: string;
+  existing: AutomationDefinitionRecord;
+  patch: UpdateAutomationInput;
+}) {
+  if (input.existing.legacyTriggerId) {
+    throw new AutomationCreationError('legacy_automation_not_editable', 409);
+  }
+  const definition = editableDefinition(input.existing, input.patch);
+  const executionPolicyError = automationExecutionPolicyError({
+    enabled: definition.enabled,
+    executionMode: definition.executionMode,
+    maximumAutonomy: definition.maximumAutonomy,
+    triggerType: definition.trigger.type,
+  });
+  if (executionPolicyError) throw new AutomationCreationError(executionPolicyError, 409);
+  validateDefinition(definition);
+  const selection = definition.actorSelection;
+  const agentIds = selection.mode === 'fixed' ? [selection.agentId] : selection.eligibleAgentIds;
+  if (new Set(agentIds).size !== agentIds.length) {
+    throw new AutomationCreationError('duplicate_automation_agent', 400);
+  }
+  const agents = await ownedAutomationAgents(input.ownerAccountId, agentIds);
+  if (!agents) throw new AutomationCreationError('automation_agent_not_owned', 403);
+  if (definition.executionMode === 'execute' && definition.enabled && !input.accessToken) {
+    throw new AutomationCreationError('user_session_required_for_execution_authority', 401);
+  }
+
+  const sourceResources = uniqueAutomationResources([
+    ...(definition.trigger.type === 'event' && definition.trigger.resource
+      ? [definition.trigger.resource]
+      : []),
+    ...definition.dataFlow.sources,
+  ]);
+  const authorityPairs = definition.executionMode === 'execute' && definition.enabled
+    ? await executionAuthorityPairs({
+      ownerAccountId: input.ownerAccountId,
+      agents,
+      actions: input.existing.actions,
+      sourceResources,
+      requiredAutonomy: definition.maximumAutonomy,
+    })
+    : [];
+  if (authorityPairs === null) {
+    throw new AutomationCreationError('automation_actor_coverage_missing', 403);
+  }
+
+  let provisioned: ProvisionedAutomationAuthorization[] = [];
+  if (definition.executionMode === 'execute' && definition.enabled && input.accessToken) {
+    try {
+      provisioned = await provisionAutomationAuthorizations({
+        accessToken: input.accessToken,
+        ownerAccountId: input.ownerAccountId,
+        automationId: input.existing.id,
+        maximumAutonomy: definition.maximumAutonomy,
+        pairs: authorityPairs,
+      });
+    } catch (error: unknown) {
+      log.triggers.warn(
+        { err: error, automationId: input.existing.id },
+        'Oxy refused updated automation authority',
+      );
+      throw new AutomationCreationError('automation_execution_authority_refused', 403);
+    }
+  }
+
+  let stopped: { updatedAt: Date; revoked: number };
+  try {
+    stopped = await stopAndRevokeCurrentAuthority({
+      accessToken: input.accessToken,
+      automation: input.existing,
+    });
+  } catch (error: unknown) {
+    await revokeProvisionedAutomationAuthority(input.accessToken, provisioned);
+    throw error;
+  }
+
+  const trigger = definition.trigger;
+  let automation: AutomationDefinitionRecord | null;
+  try {
+    automation = await updateAutomationDefinition(getDb(), {
+      id: input.existing.id,
+      ownerAccountId: input.ownerAccountId,
+      expectedUpdatedAt: stopped.updatedAt,
+      objective: definition.objective,
+      triggerKind: trigger.type,
+      ...(trigger.type === 'event' ? {
+        eventAppId: trigger.appId,
+        eventType: trigger.eventType,
+        eventResource: trigger.resource,
+      } : {}),
+      ...(trigger.type === 'schedule' ? {
+        scheduleCron: trigger.cron,
+        scheduleTimezone: trigger.timezone,
+      } : {}),
+      actorMode: selection.mode,
+      fixedAgentId: selection.mode === 'fixed' ? selection.agentId : undefined,
+      eligibleAgentIds: selection.mode === 'automatic' ? selection.eligibleAgentIds : [],
+      resources: definition.resources,
+      dataFlow: definition.dataFlow,
+      maximumAutonomy: definition.maximumAutonomy,
+      limits: definition.limits,
+      enabled: definition.enabled,
+      authorizations: provisioned,
+    });
+  } catch (error: unknown) {
+    await revokeProvisionedAutomationAuthority(input.accessToken, provisioned);
+    log.triggers.error(
+      { err: error, automationId: input.existing.id },
+      'Could not persist updated automation',
+    );
+    throw new AutomationCreationError(
+      'automation_store_unavailable',
+      503,
+      { automationId: input.existing.id, stopped: true },
+    );
+  }
+  if (!automation) {
+    await revokeProvisionedAutomationAuthority(input.accessToken, provisioned);
+    throw new AutomationCreationError(
+      'automation_concurrent_update',
+      409,
+      { automationId: input.existing.id, stopped: true },
+    );
+  }
+
+  await refreshAutomationSchedule(automation.id);
+  return {
+    automation,
+    receipt: automationReceipt(automation),
+    revocation: { revoked: stopped.revoked, failed: 0 },
+  };
 }
 
 /**

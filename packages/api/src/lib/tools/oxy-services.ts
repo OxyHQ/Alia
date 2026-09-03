@@ -67,7 +67,11 @@ export interface OxyToolExecutionContext {
   userAccessToken?: string;
   /** Pre-authorized exact steps for background runs, keyed by resource and tool. */
   executionAuthorizations?: Readonly<Record<string, OxyExecutionAuthorizationRef>>;
-  onStepStatus?: (stepId: string, status: 'running' | 'succeeded' | 'failed') => Promise<void>;
+  onStepStatus?: (
+    stepId: string,
+    status: 'running' | 'succeeded' | 'failed',
+    auditEventId?: string,
+  ) => Promise<void>;
 }
 
 interface CompiledTool {
@@ -309,6 +313,17 @@ interface IssuedTicket {
   transientAuthorizationId?: string;
 }
 
+const auditedResultSchema = z.object({
+  auditEventId: z.string().trim().min(1),
+}).passthrough();
+
+function responseAuditEventId(response: Response, result: unknown): string | undefined {
+  const header = response.headers.get('x-oxy-audit-event-id')?.trim();
+  if (header) return header;
+  const parsed = auditedResultSchema.safeParse(result);
+  return parsed.success ? parsed.data.auditEventId : undefined;
+}
+
 async function revokeTransientAuthorization(
   context: OxyToolExecutionContext,
   authorizationId: string,
@@ -400,7 +415,13 @@ async function callBoundTool(
     const result = await (response.headers.get('content-type')?.includes('application/json')
       ? response.json()
       : response.text());
-    if (stepId) await context.onStepStatus?.(stepId, 'succeeded');
+    if (stepId) {
+      await context.onStepStatus?.(
+        stepId,
+        'succeeded',
+        responseAuditEventId(response, result),
+      );
+    }
     return result;
   } catch (error: unknown) {
     if (stepId) await context.onStepStatus?.(stepId, 'failed');
