@@ -73,6 +73,8 @@ export interface AliaChatContentProps {
    * from this module. May be a `React.lazy` component.
    */
   voiceSession?: VoiceSessionComponent;
+  /** Internal sheet lifecycle bridge: receives the live request canceller. */
+  onStopReady?: (stop: (() => void) | null) => void;
 }
 
 /** Adapt a voice message into the chat message format. */
@@ -110,10 +112,16 @@ export function AliaChatContent({
   primaryColor,
   isDarkMode,
   voiceSession: VoiceSession,
+  onStopReady,
 }: AliaChatContentProps) {
   // ── Chat ──
   const chatOptions: UseAliaChatOptions = { apiUrl, model, clientContext };
   const { messages, setMessages, send, isStreaming, stop, clear } = useAliaChat(chatOptions);
+
+  useEffect(() => {
+    onStopReady?.(stop);
+    return () => onStopReady?.(null);
+  }, [onStopReady, stop]);
 
   // ── Input state ──
   const [inputValue, setInputValue] = useState('');
