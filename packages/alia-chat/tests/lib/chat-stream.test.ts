@@ -222,6 +222,25 @@ describe('consumeAliaChatStream', () => {
     expect(cancelled).toBe(true);
   });
 
+  it('cancels a response returned after its caller was already aborted', async () => {
+    let cancelled = false;
+    const response = new Response(
+      new ReadableStream<Uint8Array>({
+        cancel() {
+          cancelled = true;
+        },
+      }),
+      { headers: { 'content-type': 'text/event-stream' } },
+    );
+    const controller = new AbortController();
+    controller.abort();
+
+    await expect(
+      consumeAliaChatStream(response, () => undefined, controller.signal),
+    ).rejects.toMatchObject({ name: 'AbortError' });
+    expect(cancelled).toBe(true);
+  });
+
   it('drains complete frames before applying the unfinished-frame buffer limit', async () => {
     const content = 'x'.repeat(1000);
     const wire = frames(
