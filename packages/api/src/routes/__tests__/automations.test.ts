@@ -9,6 +9,7 @@ const state = vi.hoisted(() => ({
   dispatch: vi.fn(),
   find: vi.fn(),
   setEnabled: vi.fn(),
+  update: vi.fn(),
   listActive: vi.fn(),
   markRevoked: vi.fn(),
   upsert: vi.fn(),
@@ -47,6 +48,7 @@ vi.mock('../../db/automation/automationDefinitionRepository.js', () => ({
   listAutomationRunSteps: vi.fn(async () => []),
   markAutomationAuthorizationsRevoked: state.markRevoked,
   setAutomationEnabled: state.setEnabled,
+  updateAutomationDefinition: state.update,
   upsertAutomationActionAuthorizations: state.upsert,
 }));
 vi.mock('../../lib/automation-authority.js', () => ({
@@ -119,6 +121,28 @@ const payload = {
   maximumAutonomy: 'autonomous',
 };
 
+function storedAutomation(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 'automation-1',
+    ownerAccountId: 'owner-1',
+    objective: payload.objective,
+    trigger: payload.trigger,
+    actorSelection: payload.actorSelection,
+    executionMode: 'execute',
+    actions: [{ id: 'action-1', position: 0, ...payload.actions[0] }],
+    inputs: {},
+    resources: payload.resources,
+    dataFlow: payload.dataFlow,
+    maximumAutonomy: payload.maximumAutonomy,
+    limits: [],
+    enabled: true,
+    legacyTriggerId: null,
+    createdAt: new Date('2026-09-01T10:00:00.000Z'),
+    updatedAt: new Date('2026-09-01T10:00:00.000Z'),
+    ...overrides,
+  };
+}
+
 beforeAll(async () => {
   const app = express();
   app.use(express.json());
@@ -169,7 +193,28 @@ beforeEach(() => {
     limits: [],
     toolNames: ['replyToEmail'],
   }]);
-  state.setEnabled.mockImplementation(async (_db, id, _owner, enabled) => ({ id, enabled }));
+  state.setEnabled.mockImplementation(async (_db, id, _owner, enabled) => ({
+    ...storedAutomation({ id, enabled }),
+    updatedAt: new Date('2026-09-01T10:01:00.000Z'),
+  }));
+  state.update.mockImplementation(async (_db, input) => storedAutomation({
+    id: input.id,
+    objective: input.objective,
+    trigger: input.triggerKind === 'schedule'
+      ? { type: 'schedule', cron: input.scheduleCron, timezone: input.scheduleTimezone }
+      : input.triggerKind === 'event'
+        ? { type: 'event', appId: input.eventAppId, eventType: input.eventType, resource: input.eventResource }
+        : { type: 'manual' },
+    actorSelection: input.actorMode === 'fixed'
+      ? { mode: 'fixed', agentId: input.fixedAgentId }
+      : { mode: 'automatic', eligibleAgentIds: input.eligibleAgentIds },
+    resources: input.resources,
+    dataFlow: input.dataFlow,
+    maximumAutonomy: input.maximumAutonomy,
+    limits: input.limits,
+    enabled: input.enabled,
+    updatedAt: new Date('2026-09-01T10:02:00.000Z'),
+  }));
 });
 
 describe('structured automation control plane', () => {
@@ -275,19 +320,155 @@ describe('structured automation control plane', () => {
   });
 
   it('does not reactivate an execute definition with an incompatible policy', async () => {
-    state.find.mockResolvedValue({
-      id: 'automation-1',
-      ownerAccountId: 'owner-1',
+    state.find.mockResolvedValue(storedAutomation({
       trigger: { type: 'schedule', cron: '0 9 * * 1', timezone: 'Europe/Madrid' },
-      executionMode: 'execute',
       maximumAutonomy: 'draft',
       enabled: false,
-    });
+    }));
 
     const response = await send('PATCH', '/automations/automation-1', { enabled: true });
 
     expect(response.status).toBe(409);
     expect(response.body.error).toBe('background_execution_requires_autonomous_policy');
+    expect(state.provision).not.toHaveBeenCalled();
+    expect(state.setEnabled).not.toHaveBeenCalled();
+  });
+
+  it('edits every mutable field and returns a refreshed receipt', async () => {
+    state.find.mockResolvedValue(storedAutomation({ executionMode: 'observe' }));
+    const noted = { ...resource, appId: 'noted', resourceType: 'workspace', resourceId: 'notes-1' };
+    const update = {
+      objective: 'Prepare a weekly note digest',
+      trigger: { type: 'schedule', cron: '0 9 * * 1', timezone: 'Europe/Madrid' },
+      actorSelection: { mode: 'automatic', eligibleAgentIds: ['agent-2', 'agent-1'] },
+      resources: [resource, noted],
+      dataFlow: { sources: [resource], destinations: [noted] },
+      maximumAutonomy: 'autonomous',
+      limits: [{ key: 'weekly', value: 1 }],
+      enabled: true,
+    };
+
+    const response = await send('PATCH', '/automations/automation-1', update);
+
+    expect(response.status).toBe(200);
+    expect(state.update).toHaveBeenCalledWith(database, expect.objectContaining({
+      objective: update.objective,
+      triggerKind: 'schedule',
+      actorMode: 'automatic',
+      eligibleAgentIds: ['agent-2', 'agent-1'],
+      resources: [resource, noted],
+      dataFlow: update.dataFlow,
+      maximumAutonomy: 'autonomous',
+      limits: update.limits,
+      enabled: true,
+      authorizations: [],
+    }));
+    expect(response.body.receipt).toEqual(expect.objectContaining({
+      objective: update.objective,
+      trigger: update.trigger,
+      actors: update.actorSelection,
+      resources: update.resources,
+      dataFlow: update.dataFlow,
+      limits: update.limits,
+      enabled: true,
+    }));
+  });
+
+  it('rotates exact Oxy authority before re-enabling an edited execute definition', async () => {
+    state.find.mockResolvedValue(storedAutomation());
+    state.listActive.mockResolvedValue([{ oxyAuthorizationId: 'authorization-old' }]);
+    state.provision.mockResolvedValue([{
+      automationActionId: 'action-1',
+      agentId: 'agent-1',
+      actorAccountId: 'bot-agent-1',
+      oxyAuthorizationId: 'authorization-new',
+      expiresAt: new Date('2027-09-01T10:00:00.000Z'),
+    }]);
+    state.revoke.mockResolvedValue({ revoked: ['authorization-old'], failed: [] });
+
+    const response = await send('PATCH', '/automations/automation-1', {
+      objective: 'Reply to urgent email only',
+    });
+
+    expect(response.status).toBe(200);
+    expect(state.provision).toHaveBeenCalledWith(expect.objectContaining({
+      automationId: 'automation-1',
+      accessToken: 'user-token',
+    }));
+    expect(state.setEnabled).toHaveBeenCalledWith(
+      database,
+      'automation-1',
+      'owner-1',
+      false,
+      new Date('2026-09-01T10:00:00.000Z'),
+    );
+    expect(state.revoke).toHaveBeenCalledWith('user-token', ['authorization-old']);
+    expect(state.markRevoked).toHaveBeenCalledWith(database, ['authorization-old']);
+    expect(state.update).toHaveBeenCalledWith(database, expect.objectContaining({
+      authorizations: [expect.objectContaining({ oxyAuthorizationId: 'authorization-new' })],
+      enabled: true,
+    }));
+    expect(response.body.revocation).toEqual({ revoked: 1, failed: 0 });
+  });
+
+  it('revalidates authority against the newly assigned actor capability map', async () => {
+    state.find.mockResolvedValue(storedAutomation());
+    state.listActive.mockResolvedValue([{ oxyAuthorizationId: 'authorization-old' }]);
+    state.revoke.mockResolvedValue({ revoked: ['authorization-old'], failed: [] });
+    state.provision.mockImplementationOnce(async (input) => [{
+      automationActionId: input.pairs[0].action.id,
+      agentId: input.pairs[0].agent.agentId,
+      actorAccountId: input.pairs[0].agent.actorAccountId,
+      oxyAuthorizationId: 'authorization-agent-2',
+      expiresAt: new Date('2027-09-01T10:00:00.000Z'),
+    }]);
+
+    const response = await send('PATCH', '/automations/automation-1', {
+      actorSelection: { mode: 'fixed', agentId: 'agent-2' },
+    });
+
+    expect(response.status).toBe(200);
+    expect(state.oxyMap).toHaveBeenCalledWith(expect.objectContaining({
+      actor: { type: 'agent', accountId: 'bot-agent-2' },
+    }));
+    expect(state.provision).toHaveBeenCalledWith(expect.objectContaining({
+      pairs: [expect.objectContaining({
+        agent: expect.objectContaining({ agentId: 'agent-2', actorAccountId: 'bot-agent-2' }),
+      })],
+    }));
+    expect(state.update).toHaveBeenCalledWith(database, expect.objectContaining({
+      fixedAgentId: 'agent-2',
+      authorizations: [expect.objectContaining({
+        agentId: 'agent-2',
+        oxyAuthorizationId: 'authorization-agent-2',
+      })],
+    }));
+  });
+
+  it('refuses to edit a legacy projection through the structured control plane', async () => {
+    state.find.mockResolvedValue(storedAutomation({ legacyTriggerId: 'trigger-1' }));
+
+    const response = await send('PATCH', '/automations/automation-1', {
+      objective: 'Changed legacy automation',
+    });
+
+    expect(response.status).toBe(409);
+    expect(response.body.error).toBe('legacy_automation_not_editable');
+    expect(state.update).not.toHaveBeenCalled();
+  });
+
+  it('rejects duplicate global limits before rotating authority', async () => {
+    state.find.mockResolvedValue(storedAutomation());
+
+    const response = await send('PATCH', '/automations/automation-1', {
+      limits: [
+        { key: 'daily', value: 5 },
+        { key: 'daily', value: 10 },
+      ],
+    });
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toBe('invalid_automation_patch');
     expect(state.provision).not.toHaveBeenCalled();
     expect(state.setEnabled).not.toHaveBeenCalled();
   });

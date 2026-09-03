@@ -118,7 +118,10 @@ describe('Oxy capability tools', () => {
         expect((init?.headers as Record<string, string>).authorization).toBe('Capability SHORT-TICKET');
         return new Response(JSON.stringify({ data: [] }), {
           status: 200,
-          headers: { 'content-type': 'application/json' },
+          headers: {
+            'content-type': 'application/json',
+            'x-oxy-audit-event-id': 'audit-event-1',
+          },
         });
       }
       if (url.endsWith('/capabilities/execution-authorizations/AUTHORIZATION-1') && init?.method === 'DELETE') {
@@ -192,7 +195,7 @@ describe('Oxy capability tools', () => {
     ))).toBe(false);
     expect(onStepStatus.mock.calls).toEqual([
       ['step-user-3', 'running'],
-      ['step-user-3', 'succeeded'],
+      ['step-user-3', 'succeeded', 'audit-event-1'],
     ]);
     expect(fetchMock.mock.calls.filter(([input]) => (
       String(input).startsWith('https://inbox.example.test/')

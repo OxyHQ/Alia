@@ -15,6 +15,7 @@ import {
   listSchedulableAutomationDefinitions,
   markAutomationActionStep,
   markAutomationRunForSession,
+  updateAutomationDefinition,
   upsertLegacyTriggerAutomation,
   upsertAutomationActionAuthorizations,
 } from '../automation/automationDefinitionRepository';
@@ -115,9 +116,90 @@ describe('normalized automation definitions', () => {
     })]);
     const stepId = references[0]?.stepId;
     if (!stepId) throw new Error('Expected an action step');
-    await markAutomationActionStep(db, stepId, 'succeeded');
-    expect((await listAutomationRunSteps(db, runId)).find((step) => step.id === stepId)?.status)
-      .toBe('succeeded');
+    await markAutomationActionStep(db, stepId, 'succeeded', 'audit-event-1');
+    expect((await listAutomationRunSteps(db, runId)).find((step) => step.id === stepId))
+      .toEqual(expect.objectContaining({ status: 'succeeded', auditEventId: 'audit-event-1' }));
+  });
+
+  it('updates editable fields and assignment order without replacing exact actions', async () => {
+    const automationId = uuidv7();
+    const actionId = uuidv7();
+    const initial = await createAutomationDefinition(db, {
+      id: automationId,
+      ownerAccountId: 'aut-owner-edit',
+      objective: 'Initial objective',
+      triggerKind: 'manual',
+      actorMode: 'fixed',
+      fixedAgentId: 'editor-agent-1',
+      eligibleAgentIds: [],
+      executionMode: 'observe',
+      actions: [{
+        id: actionId,
+        resource: { ...resource, effectiveAccountId: 'aut-owner-edit' },
+        tool: 'searchEmails',
+        input: {},
+        limits: [],
+      }],
+      inputs: {},
+      resources: [{ ...resource, effectiveAccountId: 'aut-owner-edit' }],
+      dataFlow: { sources: [], destinations: [] },
+      maximumAutonomy: 'execute_on_request',
+      limits: [],
+      enabled: false,
+    });
+    const destination = {
+      appId: 'mention',
+      effectiveAccountId: 'aut-owner-edit',
+      resourceType: 'social_account',
+      resourceId: 'profile-edit',
+    };
+
+    const updated = await updateAutomationDefinition(db, {
+      id: automationId,
+      ownerAccountId: 'aut-owner-edit',
+      expectedUpdatedAt: initial.updatedAt,
+      objective: 'Weekly published digest',
+      triggerKind: 'schedule',
+      scheduleCron: '0 9 * * 1',
+      scheduleTimezone: 'UTC',
+      actorMode: 'automatic',
+      eligibleAgentIds: ['editor-agent-2', 'editor-agent-1'],
+      resources: [...initial.resources, destination],
+      dataFlow: { sources: initial.resources, destinations: [destination] },
+      maximumAutonomy: 'autonomous',
+      limits: [{ key: 'weekly', value: 1 }],
+      enabled: true,
+      authorizations: [],
+    });
+
+    expect(updated).toEqual(expect.objectContaining({
+      objective: 'Weekly published digest',
+      trigger: { type: 'schedule', cron: '0 9 * * 1', timezone: 'UTC' },
+      actorSelection: {
+        mode: 'automatic',
+        eligibleAgentIds: ['editor-agent-2', 'editor-agent-1'],
+      },
+      maximumAutonomy: 'autonomous',
+      limits: [{ key: 'weekly', value: 1 }],
+      enabled: true,
+      actions: [expect.objectContaining({ id: actionId, tool: 'searchEmails' })],
+    }));
+    await expect(updateAutomationDefinition(db, {
+      id: automationId,
+      ownerAccountId: 'aut-owner-edit',
+      expectedUpdatedAt: new Date(0),
+      objective: 'Stale overwrite',
+      triggerKind: 'manual',
+      actorMode: 'fixed',
+      fixedAgentId: 'editor-agent-1',
+      eligibleAgentIds: [],
+      resources: initial.resources,
+      dataFlow: initial.dataFlow,
+      maximumAutonomy: 'execute_on_request',
+      limits: [],
+      enabled: false,
+      authorizations: [],
+    })).resolves.toBeNull();
   });
 
   it('records observation mode without creating executable authority', async () => {

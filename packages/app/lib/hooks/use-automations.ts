@@ -6,8 +6,10 @@ import { automationControlRequests } from '../automations/control';
 import type {
   AutomationDefinition,
   AutomationOverview,
+  AutomationReceipt,
   AutomationRun,
   AutomationStep,
+  AutomationUpdateInput,
   LegacyAutomationCreateInput,
 } from '../automations/types';
 import { createRandomUuid } from '../utils/random-uuid';
@@ -18,6 +20,8 @@ async function invalidateOverview(queryClient: QueryClient): Promise<void> {
 }
 
 export interface AutomationControlResult {
+  automation?: AutomationDefinition;
+  receipt?: AutomationReceipt;
   revocation?: { revoked: number; failed: number };
 }
 
@@ -86,6 +90,23 @@ export function useSetAutomationEnabled() {
     }): Promise<AutomationControlResult> => {
       const request = automationControlRequests(automation).update;
       const response = await apiClient.patch<AutomationControlResult>(request.path, { enabled });
+      return response.data;
+    },
+    onSuccess: () => invalidateOverview(queryClient),
+  });
+}
+
+export function useUpdateAutomation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ automationId, update }: {
+      automationId: string;
+      update: AutomationUpdateInput;
+    }): Promise<AutomationControlResult> => {
+      const response = await apiClient.patch<AutomationControlResult>(
+        API_ROUTES.automations.update(automationId),
+        update,
+      );
       return response.data;
     },
     onSuccess: () => invalidateOverview(queryClient),

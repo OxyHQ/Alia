@@ -50,6 +50,28 @@ export interface AutomationDefinitionInput {
   enabled: boolean;
 }
 
+export interface AutomationDefinitionUpdateInput {
+  id: string;
+  ownerAccountId: string;
+  expectedUpdatedAt: Date;
+  objective: string;
+  triggerKind: 'manual' | 'event' | 'schedule';
+  eventAppId?: string;
+  eventType?: string;
+  eventResource?: AutomationResourceRef;
+  scheduleCron?: string;
+  scheduleTimezone?: string;
+  actorMode: 'fixed' | 'automatic';
+  fixedAgentId?: string;
+  eligibleAgentIds: string[];
+  resources: AutomationResourceRef[];
+  dataFlow: AutomationDataFlow;
+  maximumAutonomy: 'read_only' | 'draft' | 'execute_on_request' | 'autonomous';
+  limits: AutomationLimit[];
+  enabled: boolean;
+  authorizations: readonly AutomationAuthorizationInput[];
+}
+
 function toAction(row: ActionRow) {
   return {
     id: row.id,
@@ -254,10 +276,17 @@ export async function setAutomationEnabled(
   id: string,
   ownerAccountId: string,
   enabled: boolean,
+  expectedUpdatedAt?: Date,
 ) {
+  const ownedDefinition = and(
+    eq(automationDefinitions.id, id),
+    eq(automationDefinitions.ownerAccountId, ownerAccountId),
+  );
   const [row] = await db.update(automationDefinitions)
     .set({ enabled })
-    .where(and(eq(automationDefinitions.id, id), eq(automationDefinitions.ownerAccountId, ownerAccountId)))
+    .where(expectedUpdatedAt
+      ? and(ownedDefinition, eq(automationDefinitions.updatedAt, expectedUpdatedAt))
+      : ownedDefinition)
     .returning();
   if (!row) return null;
   const [assignments, actions] = await Promise.all([
@@ -265,6 +294,55 @@ export async function setAutomationEnabled(
     actionsFor(db, [id]),
   ]);
   return toDefinition(row, assignments.get(id) ?? [], actions.get(id) ?? []);
+}
+
+/**
+ * Replace the editable definition fields and actor assignment order together.
+ * Exact actions keep their ids so run history and Oxy authorization correlation
+ * remain stable. The timestamp predicate prevents a stale editor from silently
+ * overwriting a concurrent change.
+ */
+export async function updateAutomationDefinition(
+  db: ApiDatabase,
+  input: AutomationDefinitionUpdateInput,
+) {
+  return db.transaction(async (transaction) => {
+    const [row] = await transaction.update(automationDefinitions).set({
+      objective: input.objective,
+      triggerKind: input.triggerKind,
+      eventAppId: input.eventAppId ?? null,
+      eventType: input.eventType ?? null,
+      eventResource: input.eventResource ?? null,
+      scheduleCron: input.scheduleCron ?? null,
+      scheduleTimezone: input.scheduleTimezone ?? null,
+      actorMode: input.actorMode,
+      fixedAgentId: input.fixedAgentId ?? null,
+      resources: input.resources,
+      dataFlow: input.dataFlow,
+      maximumAutonomy: input.maximumAutonomy,
+      limits: input.limits,
+      enabled: input.enabled,
+    }).where(and(
+      eq(automationDefinitions.id, input.id),
+      eq(automationDefinitions.ownerAccountId, input.ownerAccountId),
+      eq(automationDefinitions.updatedAt, input.expectedUpdatedAt),
+    )).returning();
+    if (!row) return null;
+
+    const assigned = input.actorMode === 'fixed' && input.fixedAgentId
+      ? [input.fixedAgentId]
+      : input.eligibleAgentIds;
+    await transaction.delete(automationActorAssignments)
+      .where(eq(automationActorAssignments.automationId, row.id));
+    if (assigned.length > 0) {
+      await transaction.insert(automationActorAssignments).values(
+        assigned.map((agentId, priority) => ({ automationId: row.id, agentId, priority })),
+      );
+    }
+    await replaceAutomationActionAuthorizations(transaction, row.id, input.authorizations);
+    const actions = await actionsFor(transaction, [row.id]);
+    return toDefinition(row, assigned, actions.get(row.id) ?? []);
+  });
 }
 
 /** Keep the transitional trigger scheduler and the structured control plane in sync. */
@@ -630,6 +708,26 @@ export async function upsertAutomationActionAuthorizations(
   }
 }
 
+/**
+ * Retire every locally active reference before installing the freshly
+ * revalidated set. Remote ids are revoked by the caller before this transaction;
+ * keeping the old rows makes incomplete external cleanup observable.
+ */
+export async function replaceAutomationActionAuthorizations(
+  db: Executor,
+  automationId: string,
+  authorizations: readonly AutomationAuthorizationInput[],
+): Promise<void> {
+  const current = await listActiveAutomationAuthorizations(db, automationId);
+  if (current.length > 0) {
+    await markAutomationAuthorizationsRevoked(
+      db,
+      current.map((authorization) => authorization.oxyAuthorizationId),
+    );
+  }
+  await upsertAutomationActionAuthorizations(db, authorizations);
+}
+
 export async function listActiveAutomationAuthorizations(
   db: Executor,
   automationId: string,
@@ -714,10 +812,12 @@ export async function markAutomationActionStep(
   db: Executor,
   stepId: string,
   status: 'running' | 'succeeded' | 'failed',
+  auditEventId?: string,
 ): Promise<void> {
   const now = new Date();
   await db.update(automationSteps).set({
     status,
+    ...(auditEventId ? { auditEventId } : {}),
     ...(status === 'running' ? { startedAt: now } : { completedAt: now }),
   }).where(eq(automationSteps.id, stepId));
 }

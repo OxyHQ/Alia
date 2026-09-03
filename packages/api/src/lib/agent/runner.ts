@@ -473,11 +473,14 @@ export async function runAgentSession(sessionId: string): Promise<void> {
     toolScope: session.automationRunId
       ? 'preauthorized_oxy_automation'
       : 'standard',
-    onOxyStepStatus: async (stepId, status) => {
+    onOxyStepStatus: async (stepId, status, auditEventId) => {
       try {
-        await markAutomationActionStep(getDb(), stepId, status);
+        await markAutomationActionStep(getDb(), stepId, status, auditEventId);
       } catch (error: unknown) {
-        log.agents.warn({ err: error, sessionId, stepId, status }, 'Could not update automation action step');
+        log.agents.warn(
+          { err: error, sessionId, stepId, status, auditEventId },
+          'Could not update automation action step',
+        );
       }
     },
     runtime: {

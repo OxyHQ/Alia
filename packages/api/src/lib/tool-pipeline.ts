@@ -148,7 +148,11 @@ export interface ForUserOptions {
   oxyAutonomy?: OxyToolAutonomy;
   /** Exact durable Oxy authorizations for a normalized background run. */
   oxyExecutionAuthorizations?: Readonly<Record<string, OxyExecutionAuthorizationRef>>;
-  onOxyStepStatus?: (stepId: string, status: 'running' | 'succeeded' | 'failed') => Promise<void>;
+  onOxyStepStatus?: (
+    stepId: string,
+    status: 'running' | 'succeeded' | 'failed',
+    auditEventId?: string,
+  ) => Promise<void>;
   /**
    * Whether this turn may use tools AT ALL. No default: every caller states it.
    *

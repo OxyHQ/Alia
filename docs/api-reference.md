@@ -110,7 +110,7 @@ Both scheduled row types are reconciled by the same elected scheduler.
 | `POST /triggers/webhook/:token` | Run a webhook trigger by token |
 | `GET /automations` | List structured definitions |
 | `POST /automations` | Create an observe/execute definition and receipt |
-| `PATCH /automations/:id` | Enable or stop a definition |
+| `PATCH /automations/:id` | Edit objective, trigger, actor assignment, resources, data flow, autonomy, limits, or enabled state; execution authority is revalidated |
 | `DELETE /automations/:id` | Stop and revoke its execution authorizations |
 | `POST /automations/:id/run` | Run a manual definition with an `Idempotency-Key` |
 | `GET /automations/runs` | List decision and execution history |

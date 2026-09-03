@@ -43,6 +43,40 @@ export interface AutomationDefinition {
   updatedAt: string;
 }
 
+export type AutomationUpdateTrigger =
+  | { type: 'manual' }
+  | { type: 'event'; appId: string; eventType: string; resource?: AutomationResource }
+  | { type: 'schedule'; cron: string; timezone: string };
+
+export type AutomationUpdateActorSelection =
+  | { mode: 'fixed'; agentId: string }
+  | { mode: 'automatic'; eligibleAgentIds: string[] };
+
+export interface AutomationUpdateInput {
+  objective: string;
+  trigger: AutomationUpdateTrigger;
+  actorSelection: AutomationUpdateActorSelection;
+  resources: AutomationResource[];
+  dataFlow: { sources: AutomationResource[]; destinations: AutomationResource[] };
+  maximumAutonomy: AutomationAutonomy;
+  limits: Array<{ key: string; value: string | number | boolean | string[] }>;
+  enabled: boolean;
+}
+
+export interface AutomationReceipt {
+  objective: string;
+  trigger: AutomationTrigger;
+  actors: AutomationActorSelection;
+  executionMode: AutomationExecutionMode;
+  actions: AutomationAction[];
+  resources: AutomationResource[];
+  dataFlow: AutomationDefinition['dataFlow'];
+  maximumAutonomy: AutomationAutonomy;
+  limits: AutomationDefinition['limits'];
+  enabled: boolean;
+  undo: { method: 'DELETE'; path: string };
+}
+
 export type AutomationRunStatus =
   | 'planned'
   | 'running'

@@ -11,25 +11,17 @@ import {
 } from '../db/automation/automationDefinitionRepository.js';
 import { getDb } from '../db/index.js';
 import {
-  provisionAutomationAuthorizations,
   revokeAutomationAuthorizations,
-  type ProvisionedAutomationAuthorization,
 } from '../lib/automation-authority.js';
-import {
-  uniqueAutomationResources,
-} from '../lib/automation-coordination.js';
 import { dispatchStructuredAutomation } from '../lib/automation-dispatcher.js';
-import { automationExecutionPolicyError } from '../lib/automation-execution-policy.js';
 import { log } from '../lib/logger.js';
 import {
   AutomationCreationError,
   createAutomationSchema,
   createStructuredAutomation,
-  executionAuthorityPairs,
-  ownedAutomationAgents,
-  persistAutomationAuthorityAndActivate,
   refreshAutomationSchedule,
-  revokeProvisionedAutomationAuthority,
+  updateAutomationSchema,
+  updateStructuredAutomation,
 } from '../lib/structured-automation-creation.js';
 import { authenticateToken } from '../middleware/auth.js';
 
@@ -158,82 +150,29 @@ router.post('/:id/run', async (request: Request, response: Response) => {
 router.patch('/:id', async (request: Request, response: Response) => {
   const ownerAccountId = userId(request);
   if (!ownerAccountId) return response.status(401).json({ error: 'Unauthorized' });
-  const parsed = z.object({ enabled: z.boolean() }).strict().safeParse(request.body);
-  if (!parsed.success) return response.status(400).json({ error: 'invalid_automation_patch' });
+  const parsed = updateAutomationSchema.safeParse(request.body);
+  if (!parsed.success) {
+    return response.status(400).json({
+      error: 'invalid_automation_patch',
+      details: parsed.error.flatten(),
+    });
+  }
   const existing = await findAutomationDefinition(getDb(), String(request.params.id), ownerAccountId);
   if (!existing) return response.status(404).json({ error: 'Automation not found' });
-  if (existing.enabled === parsed.data.enabled) return response.json({ automation: existing });
-
-  if (!parsed.data.enabled) {
-    const stopped = await stopAutomation({ request, ownerAccountId, automation: existing });
-    return response.json({
-      automation: stopped.automation,
-      stopped: true,
-      revocation: { revoked: stopped.revoked, failed: stopped.failed },
-    });
-  }
-
-  if (existing.executionMode === 'execute') {
-    const executionPolicyError = automationExecutionPolicyError({
-      enabled: true,
-      executionMode: existing.executionMode,
-      maximumAutonomy: existing.maximumAutonomy,
-      triggerType: existing.trigger.type,
-    });
-    if (executionPolicyError) return response.status(409).json({ error: executionPolicyError });
-    if (!request.accessToken) {
-      return response.status(401).json({ error: 'user_session_required_for_execution_authority' });
-    }
-    const agentIds = existing.actorSelection.mode === 'fixed'
-      ? [existing.actorSelection.agentId].filter((id): id is string => Boolean(id))
-      : existing.actorSelection.eligibleAgentIds;
-    const agents = await ownedAutomationAgents(ownerAccountId, agentIds);
-    if (!agents) return response.status(403).json({ error: 'automation_agent_not_owned' });
-    const authorityPairs = await executionAuthorityPairs({
+  try {
+    return response.json(await updateStructuredAutomation({
       ownerAccountId,
-      agents,
-      actions: existing.actions,
-      requiredAutonomy: existing.maximumAutonomy,
-      sourceResources: uniqueAutomationResources([
-        ...(existing.trigger.type === 'event' && existing.trigger.resource
-          ? [existing.trigger.resource]
-          : []),
-        ...existing.dataFlow.sources,
-      ]),
-    });
-    if (!authorityPairs) {
-      return response.status(403).json({ error: 'automation_actor_coverage_missing' });
+      accessToken: request.accessToken,
+      existing,
+      patch: parsed.data,
+    }));
+  } catch (error: unknown) {
+    if (error instanceof AutomationCreationError) {
+      return response.status(error.status).json({ error: error.code, ...error.context });
     }
-    let provisioned: ProvisionedAutomationAuthorization[];
-    try {
-      provisioned = await provisionAutomationAuthorizations({
-        accessToken: request.accessToken,
-        ownerAccountId,
-        automationId: existing.id,
-        maximumAutonomy: existing.maximumAutonomy,
-        pairs: authorityPairs,
-      });
-    } catch (error: unknown) {
-      log.triggers.warn({ err: error, automationId: existing.id }, 'Oxy refused restored automation authority');
-      return response.status(403).json({ error: 'automation_execution_authority_refused' });
-    }
-    try {
-      const automation = await persistAutomationAuthorityAndActivate({
-        automationId: existing.id,
-        ownerAccountId,
-        provisioned,
-      });
-      await refreshAutomationSchedule(existing.id);
-      return response.json({ automation });
-    } catch (error: unknown) {
-      await revokeProvisionedAutomationAuthority(request.accessToken, provisioned);
-      log.triggers.error({ err: error, automationId: existing.id }, 'Could not persist restored automation authority');
-      return response.status(503).json({ error: 'automation_store_unavailable' });
-    }
+    log.triggers.error({ err: error, automationId: existing.id }, 'Unexpected automation update failure');
+    return response.status(503).json({ error: 'automation_store_unavailable' });
   }
-  const automation = await setAutomationEnabled(getDb(), existing.id, ownerAccountId, true);
-  await refreshAutomationSchedule(existing.id);
-  return response.json({ automation });
 });
 
 router.delete('/:id', async (request: Request, response: Response) => {
