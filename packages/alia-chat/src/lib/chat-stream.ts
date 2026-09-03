@@ -438,7 +438,10 @@ export async function consumeAliaChatStream(
   onEvent: (event: AliaChatStreamEvent) => void,
 ): Promise<AliaChatStreamResult> {
   const mime = response.headers.get('content-type')?.split(';', 1)[0]?.trim().toLowerCase();
-  if (mime !== 'text/event-stream') fail('Alia returned a non-streaming response.');
+  if (mime !== 'text/event-stream') {
+    await response.body?.cancel().catch(() => undefined);
+    fail('Alia returned a non-streaming response.');
+  }
   if (!response.body || typeof response.body.getReader !== 'function') {
     fail('Alia returned no readable stream.');
   }
