@@ -1,11 +1,12 @@
 #!/usr/bin/env node
 /**
- * No client package hardcodes an `alia-*` identifier as a model default.
+ * No client package hardcodes a routing identifier outside its audited
+ * preference module.
  *
  * Epic #139 workstream 5, `Update Codea, Cowork, CLI and SDK pickers
  * consistently.` The clients used to bake an alias into the shipped artefact —
- * `alia-v1-codea` in the VS Code extension and the CLI, `alia-v1-cowork` in the
- * Electron main process, `alia-v1` and `alia-v1-voice` in the published SDK — so
+ * `kaana-v1-codea` in the VS Code extension and the CLI, `kaana-v1-cowork` in the
+ * Electron main process, `kaana-v1` and `kaana-v1-voice` in the published SDK — so
  * a retired identifier became a 400 inside somebody else's installed build, with
  * nothing they could do about it. Every one of those now asks
  * `GET /catalogue` and resolves through the same fallback
@@ -73,8 +74,8 @@ const ROOT = resolve(import.meta.dirname, '..');
  * The three trees added by #244 — canvas, the Codea webview and integrations —
  * were each a live defect rather than a latent one, because `GET /v1/models`
  * has served an empty list since #178: canvas rendered a hardcoded
- * `Alia Lite`, the webview a hardcoded `alia-v1-codea`, and the Telegram and
- * Discord bots printed `Model: alia-lite` to every user. This script was green
+ * `Kaana Lite`, the webview a hardcoded `kaana-v1-codea`, and the Telegram and
+ * Discord bots printed `Model: kaana-lite` to every user. This script was green
  * throughout, reporting `245 files walked`, because none of the three was in
  * this list.
  */
@@ -101,7 +102,7 @@ export const TREES = [
  */
 export const NOT_A_CLIENT = {
   'packages/api':
-    'the server. Its `alia-*` literals ARE the routing table — `internal/providers/lib/alia-models.ts` is the frozen set every other package resolves against.',
+    'the server. Its `alia-*` literals ARE the routing table — `internal/providers/lib/routing-profile-catalogue.ts` is the frozen set every other package resolves against.',
   'packages/app':
     'its picker reads the catalogue (#156); the literals it keeps are policy tables, reconciled under their own box. See the note on TREES.',
   'packages/alia-docker-host':
@@ -146,7 +147,8 @@ const PREFERENCE_MODULES = new Map([
 ]);
 
 /**
- * A routing identifier a client could hardcode, in EITHER vocabulary.
+ * A routing identifier a client could hardcode, in any supported or retired
+ * vocabulary.
  *
  * `profile:*` is what `GET /catalogue` publishes and what a client should send
  * (`lib/chat/request-context.ts` accepts it, or a legacy `alia-*`, and refuses
@@ -154,11 +156,12 @@ const PREFERENCE_MODULES = new Map([
  * #178 but still resolving — installed `@alia.onl/sdk` and `@alia-codea/cli`
  * copies still send them, so it stays a shape this census must recognise.
  *
- * Both are matched because the hazard is identical either way: an identifier
- * baked into a shipped artefact is one a retirement cannot reach. Anchored, so
- * `alia-codea-cli` (a package name) is not mistaken for one.
+ * Canonical `kaana-*` IDs are included too: the identifier is legitimate, but
+ * baking it into an unaudited module still makes a future catalogue change
+ * unable to reach an installed client. Anchored, so `alia-codea-cli` (a package
+ * name) is not mistaken for one.
  */
-const IDENTIFIER = /^(profile:[a-z0-9][a-z0-9-]*|alia-(v\d[a-z0-9-]*|lite))$/;
+const IDENTIFIER = /^(?:profile:[a-z0-9][a-z0-9-]*|(?:alia|kaana)-(?:v\d[a-z0-9-]*|lite))$/;
 
 export function sourceFiles(dir) {
   const out = [];
@@ -311,12 +314,12 @@ function main() {
   // Positive control: the detector fires on the shape it looks for, and ignores
   // a comment. A detector broken by a parser upgrade reports the same clean zero
   // as a correct one, and only this tells them apart.
-  const control = identifiersIn('control.tsx', "const m = 'alia-v1-codea';\n// 'alia-lite'\n");
-  if (control.length !== 1 || control[0].text !== 'alia-v1-codea') {
+  const control = identifiersIn('control.tsx', "const m = 'kaana-v1-codea';\n// 'kaana-lite'\n");
+  if (control.length !== 1 || control[0].text !== 'kaana-v1-codea') {
     console.error('check-model-defaults: the detector does not detect. Refusing to report a pass.');
     process.exit(1);
   }
-  if (identifiersIn('control.tsx', "<Button>alia-v1</Button>").length !== 1) {
+  if (identifiersIn('control.tsx', "<Button>kaana-v1</Button>").length !== 1) {
     console.error('check-model-defaults: the detector cannot see a JSX label.');
     process.exit(1);
   }

@@ -26,7 +26,7 @@
  */
 
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
@@ -224,7 +224,7 @@ function code(relative: string): string {
 function sourceFiles(pathspec: string): string[] {
   return execFileSync('git', ['ls-files', '--', pathspec], { cwd: REPO_ROOT, encoding: 'utf8' })
     .split('\n')
-    .filter((file) => file.endsWith('.ts') && !file.includes('/__tests__/'))
+    .filter((file) => file.endsWith('.ts') && !file.includes('/__tests__/') && existsSync(path.join(REPO_ROOT, file)))
     .map((file) => path.relative(API_SRC, path.join(REPO_ROOT, file)));
 }
 

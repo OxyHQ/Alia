@@ -132,41 +132,52 @@ const workingPhrases = [
 // Animated thinking indicator component
 function ThinkingIndicator({ isWorking = false }: { isWorking?: boolean }) {
   const phrases = isWorking ? workingPhrases : thinkingPhrases
-  const [phraseIndex, setPhraseIndex] = React.useState(() => Math.floor(Math.random() * phrases.length))
-  const [displayText, setDisplayText] = React.useState("")
-  const [isTyping, setIsTyping] = React.useState(true)
+  const [animation, setAnimation] = React.useState(() => ({
+    phraseIndex: Math.floor(Math.random() * phrases.length),
+    displayText: "",
+    isTyping: true,
+  }))
+  const phrase = phrases[animation.phraseIndex % phrases.length]
 
   React.useEffect(() => {
-    const phrase = phrases[phraseIndex]
     let charIndex = 0
-    setIsTyping(true)
-    setDisplayText("")
+    let nextPhraseTimeout: ReturnType<typeof setTimeout> | undefined
 
     // Type out the phrase
     const typeInterval = setInterval(() => {
       if (charIndex < phrase.length) {
-        setDisplayText(phrase.slice(0, charIndex + 1))
         charIndex++
+        setAnimation((current) => ({
+          ...current,
+          displayText: phrase.slice(0, charIndex),
+        }))
       } else {
         clearInterval(typeInterval)
-        setIsTyping(false)
+        setAnimation((current) => ({ ...current, isTyping: false }))
 
         // Wait then switch to next phrase
-        setTimeout(() => {
-          setPhraseIndex((prev) => (prev + 1) % phrases.length)
+        nextPhraseTimeout = setTimeout(() => {
+          setAnimation((current) => ({
+            phraseIndex: (current.phraseIndex + 1) % phrases.length,
+            displayText: "",
+            isTyping: true,
+          }))
         }, 1500)
       }
     }, 40)
 
-    return () => clearInterval(typeInterval)
-  }, [phraseIndex, phrases])
+    return () => {
+      clearInterval(typeInterval)
+      if (nextPhraseTimeout) clearTimeout(nextPhraseTimeout)
+    }
+  }, [phrase, phrases.length])
 
   return (
     <div className="flex items-center gap-2 py-1 text-sm text-muted-foreground">
       <span className="animate-spin">✱</span>
       <span>
-        {displayText}
-        {isTyping && <span className="animate-pulse">|</span>}
+        {animation.displayText}
+        {animation.isTyping && <span className="animate-pulse">|</span>}
       </span>
     </div>
   )
@@ -692,7 +703,7 @@ function ToolExecutionItem({ execution }: { execution: ToolExecution; stepNumber
         return String(execution.args.path || '.')
       case 'search_files':
         return `"${execution.args.query || execution.args.pattern}" ${execution.args.path ? `in ${execution.args.path}` : ''}`
-      case 'run_command':
+      case 'run_command': {
         // Try to extract a description from the command
         const cmd = String(execution.args.command || '')
         if (cmd.includes('npm run build')) return 'Build the project'
@@ -704,6 +715,7 @@ function ToolExecutionItem({ execution }: { execution: ToolExecution; stepNumber
         if (cmd.includes('git commit')) return 'Commit changes'
         if (cmd.includes('ls ')) return 'List directory'
         return ''
+      }
       case 'set_mode':
         return `→ ${execution.args.mode}`
       default:

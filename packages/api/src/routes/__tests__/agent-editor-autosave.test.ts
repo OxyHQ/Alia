@@ -86,6 +86,10 @@ const repository = vi.hoisted(() => ({
   findAgentKnowledge: vi.fn(async (): Promise<AgentKnowledgeRef[]> => []),
   listAgentCatalogue: vi.fn(async () => ({ agents: [], total: 0 })),
   listAgentsByAuthor: vi.fn(async () => []),
+  withoutInternalAgentBindings: vi.fn((agent: Record<string, unknown>) => {
+    const { applicationId: _applicationId, ownerOxyAccountId: _owner, ...rest } = agent;
+    return rest;
+  }),
 }));
 vi.mock('../../db/agents/agentRepository.js', () => repository);
 vi.mock('../../db/index.js', () => ({ getDb: () => ({}) }));
@@ -129,7 +133,7 @@ const AGENT_ROW = {
   access: 'private',
   systemPrompt: null,
   preferredImage: null,
-  allowedModels: ['alia-v1'],
+  allowedModels: ['kaana-v1'],
   scheduleInterval: null,
   archetype: 'general',
   archetypeConfig: null,
@@ -253,7 +257,7 @@ const VALUE_FOR: Readonly<Record<string, unknown>> = {
   archetypeConfig: { citeSources: true },
   isPublished: false,
   status: 'active',
-  allowedModels: ['alia-v1'],
+  allowedModels: ['kaana-v1'],
   scheduleInterval: 60,
 };
 

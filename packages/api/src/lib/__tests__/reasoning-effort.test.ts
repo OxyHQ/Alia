@@ -10,7 +10,7 @@ import { reasoningEffortOf } from '../observability/requested-model.js';
  * Extended reasoning is a REQUEST PARAMETER, not a model identity
  * (#139 workstream 4).
  *
- * `alia-v1-thinking` and `alia-v1-pro-max` route to the same nine candidates at
+ * `kaana-v1-thinking` and `kaana-v1-pro-max` route to the same nine candidates at
  * the same credit multiplier. The only thing that differed was which prompt
  * file their model id loaded — so "extended thinking" was sold as a model when
  * it is a setting. The epic says it plainly: *"use runtime parameters/presets
@@ -32,22 +32,22 @@ const REPO_ROOT = path.resolve(fileURLToPath(new URL('../../../../../', import.m
 
 /** The file the parameter selects, read from disk so the assertion is about content. */
 const REASONING_PROMPT = readFileSync(
-  path.join(REPO_ROOT, 'packages/api/prompts/alia-v1-thinking.md'),
+  path.join(REPO_ROOT, 'packages/api/prompts/extended-reasoning.md'),
   'utf8',
 ).trim();
 
 /** A distinctive sentence from it, so a match cannot be an accident of shared boilerplate. */
 const REASONING_MARKER = 'extended reasoning capabilities';
 
-async function build(aliasModelId: string, thinkingMode: boolean | undefined): Promise<string> {
+async function build(routingProfileId: string, thinkingMode: boolean | undefined): Promise<string> {
   // The boolean is the caller-facing spelling this suite was written against;
   // `reasoningEffortOf` is the one place it becomes a level, so the suite keeps
   // asking in the old words and the conversion is exercised rather than
   // bypassed.
   return SystemPromptBuilder.build({
-    aliasModelId,
+    routingProfileId,
     isDirectUserSession: false,
-    reasoningEffort: reasoningEffortOf({ thinkingMode, requestedModel: aliasModelId }),
+    reasoningEffort: reasoningEffortOf({ thinkingMode, requestedModel: routingProfileId }),
   });
 }
 
@@ -61,30 +61,30 @@ describe('the fixture is a real prompt with something to look for', () => {
   it('the marker is not in the profile it will be layered onto', () => {
     // The control that makes "the marker appeared" mean the layer was added,
     // rather than it having been there all along.
-    const proMax = readFileSync(path.join(REPO_ROOT, 'packages/api/prompts/alia-v1-pro-max.md'), 'utf8');
+    const proMax = readFileSync(path.join(REPO_ROOT, 'packages/api/prompts/pro-max.md'), 'utf8');
     expect(proMax).not.toContain(REASONING_MARKER);
   });
 });
 
 describe('any profile can carry extended reasoning', () => {
   it('adds the layer when the request asks for it', async () => {
-    const withReasoning = await build('alia-v1-pro-max', true);
+    const withReasoning = await build('kaana-v1-pro-max', true);
     expect(withReasoning).toContain(REASONING_MARKER);
   });
 
   it('leaves it out when the request does not', async () => {
     // Both the explicit `false` and the absent case, because a parameter that
     // is always on is not a parameter.
-    expect(await build('alia-v1-pro-max', false)).not.toContain(REASONING_MARKER);
-    expect(await build('alia-v1-pro-max', undefined)).not.toContain(REASONING_MARKER);
+    expect(await build('kaana-v1-pro-max', false)).not.toContain(REASONING_MARKER);
+    expect(await build('kaana-v1-pro-max', undefined)).not.toContain(REASONING_MARKER);
   });
 
-  it('works on a profile that is nothing to do with the retired alias', async () => {
+  it('works on any canonical profile', async () => {
     // The point of it being a parameter: extended reasoning is no longer
     // reachable only through one tier's identity.
-    const lite = await build('alia-lite', true);
+    const lite = await build('kaana-lite', true);
     expect(lite).toContain(REASONING_MARKER);
-    expect(await build('alia-lite', false)).not.toContain(REASONING_MARKER);
+    expect(await build('kaana-lite', false)).not.toContain(REASONING_MARKER);
   });
 });
 
@@ -92,13 +92,13 @@ describe('the retired alias keeps its behaviour and gains no duplicate', () => {
   it('still loads the reasoning prompt when named directly', async () => {
     // It still resolves, so a caller still holding it is unaffected — that is
     // what "advertised nowhere" means, as opposed to removed.
-    expect(await build('alia-v1-thinking', undefined)).toContain(REASONING_MARKER);
+    expect(await build('kaana-v1-thinking', undefined)).toContain(REASONING_MARKER);
   });
 
   it('does not say it twice when the parameter is also set', async () => {
     // `loadBasePrompt` already loaded this exact file for that id. Layering it
     // again would tell the model the same thing in two voices.
-    const both = await build('alia-v1-thinking', true);
+    const both = await build('kaana-v1-thinking', true);
     const occurrences = both.split(REASONING_MARKER).length - 1;
     expect(occurrences).toBe(1);
   });
@@ -108,8 +108,8 @@ describe('the retired alias keeps its behaviour and gains no duplicate', () => {
     // whole distinguishing content is reachable from the profile it shares plus
     // the parameter. Compared on the reasoning layer, since the two entries
     // legitimately differ in their own identity blurb.
-    const viaAlias = await build('alia-v1-thinking', undefined);
-    const viaParameter = await build('alia-v1-pro-max', true);
+    const viaAlias = await build('kaana-v1-thinking', undefined);
+    const viaParameter = await build('kaana-v1-pro-max', true);
     for (const line of REASONING_PROMPT.split('\n').filter((l) => l.trim().length > 20)) {
       expect(viaAlias, line).toContain(line.trim());
       expect(viaParameter, line).toContain(line.trim());

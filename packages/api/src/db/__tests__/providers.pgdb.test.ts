@@ -2,15 +2,14 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { eq, sql } from 'drizzle-orm';
 import { constraintNameOf, isCheckViolation, isUniqueViolation } from '@oxyhq/db';
 import { closePostgres, connectPostgres, type ApiDatabase } from '../index';
-import { providerKeyIdByHash, updateProviderKey } from '../providers/providerKeyRepository';
-import { aliaModelProviderMappings, aliaModels, modelConfigs, providerKeys } from '../schema/providers';
+import { routingProfileProviderMappings, routingProfiles, modelConfigs } from '../schema/providers';
 import { apiKeyUsage } from '../schema/telemetry';
-import { ALIA_TIERS } from '../../internal/providers/lib/alia-tiers';
-import { TIER_MODEL_MAPPINGS } from '../../internal/providers/lib/alia-models';
+import { ROUTING_TIERS } from '../../internal/providers/lib/routing-tiers';
+import { TIER_MODEL_MAPPINGS } from '../../internal/providers/lib/routing-profile-catalogue';
 import { seedModelConfigs } from '../../internal/providers/lib/seed-model-configs';
 
 /**
- * The routing catalogue and its credentials, against a REAL server.
+ * The retained routing catalogue, against a REAL server.
  *
  * The two things worth a test here are the ones Mongo could not express at all:
  * the provider mappings are a child table with real foreign keys where they were
@@ -93,10 +92,10 @@ describe('a provider model is identified by (provider, model_id)', () => {
 
 describe('provider mappings are a child table, which is what makes them checkable', () => {
   beforeAll(async () => {
-    await db.insert(aliaModels).values({
+    await db.insert(routingProfiles).values({
       id: 'am-1',
-      aliasModelId: 'alia-v1',
-      displayName: 'Alia V1',
+      routingProfileId: 'kaana-v1',
+      displayName: 'Kaana V1',
       tier: 'v1',
     });
     await db.insert(modelConfigs).values(modelConfigValues({ id: 'mc-mapped', modelId: 'model-mapped' }));
@@ -109,9 +108,9 @@ describe('provider mappings are a child table, which is what makes them checkabl
      * whose configuration no longer existed. `jsonb` would have preserved that
      * bug by making the reference unenforceable.
      */
-    await db.insert(aliaModelProviderMappings).values({
+    await db.insert(routingProfileProviderMappings).values({
       id: 'map-cascade',
-      aliaModelId: 'am-1',
+      routingProfileId: 'am-1',
       modelConfigId: 'mc-mapped',
       provider: 'openai',
       modelId: 'model-mapped',
@@ -122,7 +121,7 @@ describe('provider mappings are a child table, which is what makes them checkabl
     await db.delete(modelConfigs).where(eq(modelConfigs.id, 'mc-mapped'));
 
     const rows = await db.execute<{ n: string }>(
-      sql`select count(*)::text as n from ${aliaModelProviderMappings} where id = 'map-cascade'`,
+      sql`select count(*)::text as n from ${routingProfileProviderMappings} where id = 'map-cascade'`,
     );
     expect(rows[0]?.n).toBe('0');
   });
@@ -130,9 +129,9 @@ describe('provider mappings are a child table, which is what makes them checkabl
   it('refuses a priority outside the range the router orders by', async () => {
     await db.insert(modelConfigs).values(modelConfigValues({ id: 'mc-range', modelId: 'model-range' }));
 
-    const insert = db.insert(aliaModelProviderMappings).values({
+    const insert = db.insert(routingProfileProviderMappings).values({
       id: 'map-range',
-      aliaModelId: 'am-1',
+      routingProfileId: 'am-1',
       modelConfigId: 'mc-range',
       provider: 'openai',
       modelId: 'model-range',
@@ -142,16 +141,16 @@ describe('provider mappings are a child table, which is what makes them checkabl
 
     await expect(insert).rejects.toSatisfy((error: unknown) => {
       expect(isCheckViolation(error)).toBe(true);
-      expect(constraintNameOf(error)).toBe('alia_model_provider_mappings_priority_range_check');
+      expect(constraintNameOf(error)).toBe('routing_profile_provider_mappings_priority_range_check');
       return true;
     });
   });
 
-  it('refuses the same provider model twice for one Alia model', async () => {
+  it('refuses the same provider model twice for one Kaana routing profile', async () => {
     await db.insert(modelConfigs).values(modelConfigValues({ id: 'mc-twice', modelId: 'model-twice' }));
-    await db.insert(aliaModelProviderMappings).values({
+    await db.insert(routingProfileProviderMappings).values({
       id: 'map-twice-1',
-      aliaModelId: 'am-1',
+      routingProfileId: 'am-1',
       modelConfigId: 'mc-twice',
       provider: 'openai',
       modelId: 'model-twice',
@@ -159,9 +158,9 @@ describe('provider mappings are a child table, which is what makes them checkabl
       qualityScore: 90,
     });
 
-    const duplicate = db.insert(aliaModelProviderMappings).values({
+    const duplicate = db.insert(routingProfileProviderMappings).values({
       id: 'map-twice-2',
-      aliaModelId: 'am-1',
+      routingProfileId: 'am-1',
       modelConfigId: 'mc-twice',
       provider: 'openai',
       modelId: 'model-twice',
@@ -171,7 +170,7 @@ describe('provider mappings are a child table, which is what makes them checkabl
 
     await expect(duplicate).rejects.toSatisfy((error: unknown) => {
       expect(isUniqueViolation(error)).toBe(true);
-      expect(constraintNameOf(error)).toBe('alia_model_provider_mappings_model_config_key');
+      expect(constraintNameOf(error)).toBe('routing_profile_provider_mappings_model_config_key');
       return true;
     });
   });
@@ -199,77 +198,17 @@ describe('the provider vocabulary is closed in the database, not just the editor
     });
   });
 
-  it('refuses an Alia tier outside ALIA_TIERS', async () => {
+  it('refuses an Alia tier outside ROUTING_TIERS', async () => {
     const insert = db.execute(sql`
-      insert into ${aliaModels} (id, alias_model_id, display_name, tier)
+      insert into ${routingProfiles} (id, routing_profile_id, display_name, tier)
       values ('am-badtier', 'alia-x', 'X', 'v9-imaginary')
     `);
 
     await expect(insert).rejects.toSatisfy((error: unknown) => {
       expect(isCheckViolation(error)).toBe(true);
-      expect(constraintNameOf(error)).toBe('alia_models_tier_check');
+      expect(constraintNameOf(error)).toBe('routing_profiles_tier_check');
       return true;
     });
-  });
-});
-
-describe('a provider key records its own spend', () => {
-  it('refuses a negative spend', async () => {
-    const insert = db.execute(sql`
-      insert into ${providerKeys} (id, name, provider, key_hash, key_prefix, spent_usd)
-      values ('pk-negative', 'k', 'openai', 'hash-neg', 'sk-abc...', -1)
-    `);
-
-    await expect(insert).rejects.toSatisfy((error: unknown) => {
-      expect(isCheckViolation(error)).toBe(true);
-      expect(constraintNameOf(error)).toBe('provider_keys_spent_usd_check');
-      return true;
-    });
-  });
-
-  it('refuses two keys with the same hash', async () => {
-    await db.insert(providerKeys).values({
-      id: 'pk-1',
-      name: 'primary',
-      provider: 'openai',
-      keyHash: 'hash-shared',
-      keyPrefix: 'sk-abc...',
-    });
-
-    const second = db.insert(providerKeys).values({
-      id: 'pk-2',
-      name: 'duplicate',
-      provider: 'openai',
-      keyHash: 'hash-shared',
-      keyPrefix: 'sk-abc...',
-    });
-
-    await expect(second).rejects.toSatisfy((error: unknown) => {
-      expect(isUniqueViolation(error)).toBe(true);
-      expect(constraintNameOf(error)).toBe('provider_keys_key_hash_key');
-      return true;
-    });
-  });
-
-  it('lets the dynamic priority hold the displacement a failure applies', async () => {
-    // `recordFailure` sets `current_priority = maxPriority + 1`, which is why
-    // this range is 1..1000 while `original_priority` is 1..100. A single shared
-    // bound would make the demotion itself a constraint violation.
-    await db.insert(providerKeys).values({
-      id: 'pk-demoted',
-      name: 'demoted',
-      provider: 'openai',
-      keyHash: 'hash-demoted',
-      keyPrefix: 'sk-abc...',
-      currentPriority: 1000,
-      originalPriority: 10,
-    });
-
-    const [row] = await db
-      .select({ current: providerKeys.currentPriority })
-      .from(providerKeys)
-      .where(eq(providerKeys.id, 'pk-demoted'));
-    expect(row?.current).toBe(1000);
   });
 });
 
@@ -308,91 +247,6 @@ describe('developer API usage is recorded with its own clock', () => {
   });
 });
 
-/**
- * A key's PROVENANCE — why the credit exists, how much of it there is, whether
- * it renews — is the part an operator has to be able to correct.
- *
- * `scripts/provider-key.ts` is the only sanctioned writer and it used to return
- * on "already present", so a key installed without a description could never
- * acquire one. Four production keys were in exactly that state, and the only
- * remaining route was hand-written SQL against production, which is the thing
- * that script exists to prevent.
- */
-describe('a provider key can be told why it exists, after it exists', () => {
-  const ACTOR = { kind: 'service' as const, id: 'providers.pgdb.test' };
-
-  it('finds the row by its hash without reading the credential', async () => {
-    await db.insert(providerKeys).values({
-      id: 'pk-prov-1',
-      name: 'granted',
-      provider: 'openai',
-      keyHash: 'hash-provenance',
-      keyPrefix: 'sk-abc...',
-    });
-
-    expect(await providerKeyIdByHash(db, 'hash-provenance')).toBe('pk-prov-1');
-    // Negative control: a hash nobody installed resolves to nothing, so a
-    // lookup that always answered would be visible here.
-    expect(await providerKeyIdByHash(db, 'hash-nobody-installed')).toBeNull();
-  });
-
-  it('corrects the tier, which is what decides routing order', async () => {
-    // Keys load FREE BEFORE PAID, so a genuinely free credential labelled
-    // `paid` is tried after ones that cost money — the wrong way round for a
-    // platform that prefers the cheapest route, and the state `groq` was in.
-    await db.insert(providerKeys).values({
-      id: 'pk-prov-3',
-      name: 'free tier',
-      provider: 'groq',
-      keyHash: 'hash-provenance-3',
-      keyPrefix: 'gsk_abc...',
-      tier: 'paid',
-    });
-
-    await updateProviderKey(db, 'pk-prov-3', { tier: 'free' }, ACTOR);
-
-    const [row] = await db
-      .select({ tier: providerKeys.tier })
-      .from(providerKeys)
-      .where(eq(providerKeys.id, 'pk-prov-3'));
-    expect(row?.tier).toBe('free');
-  });
-
-  it('records the grant, its size and its period on a row that already existed', async () => {
-    await db.insert(providerKeys).values({
-      id: 'pk-prov-2',
-      name: 'granted',
-      provider: 'openrouter',
-      keyHash: 'hash-provenance-2',
-      keyPrefix: 'sk-or-v1...',
-    });
-
-    await updateProviderKey(
-      db,
-      'pk-prov-2',
-      { description: '$500 startup-plan credit', creditLimitUsd: 500, creditRenews: 'never' },
-      ACTOR,
-    );
-
-    const [row] = await db
-      .select({
-        description: providerKeys.description,
-        creditLimitUsd: providerKeys.creditLimitUsd,
-        creditRenews: providerKeys.creditRenews,
-        keyHash: providerKeys.keyHash,
-      })
-      .from(providerKeys)
-      .where(eq(providerKeys.id, 'pk-prov-2'));
-
-    expect(row?.description).toBe('$500 startup-plan credit');
-    expect(Number(row?.creditLimitUsd)).toBe(500);
-    expect(row?.creditRenews).toBe('never');
-    // The credential is not what this writes. A provenance update that also
-    // moved the hash would silently detach the row from the key it describes.
-    expect(row?.keyHash).toBe('hash-provenance-2');
-  });
-});
-
 describe('the deploy seeder can write the catalogue it is given', () => {
   /**
    * The seeder ran on every deploy and Postgres refused five of its rows.
@@ -401,9 +255,9 @@ describe('the deploy seeder can write the catalogue it is given', () => {
    * ModelConfig` per boot, each `new row for relation "model_configs" violates
    * check constraint "model_configs_alia_tier_check"`, for `dall-e-3`,
    * `openai-gpt-image-1`, `fal-ai/flux/schnell`, `fal-ai/fast-sdxl` and
-   * `grok-imagine-image` — every mapping of the `v1-image` tier. `ALIA_TIERS`
+   * `grok-imagine-image` — every mapping of the `v1-image` tier. `ROUTING_TIERS`
    * renders that CHECK and held thirteen values; the routing table it is the
-   * vocabulary FOR held fourteen, because `alia-models.ts` kept a second
+   * vocabulary FOR held fourteen, because `routing-profile-catalogue.ts` kept a second
    * literal union with `v1-image` in it.
    *
    * The real seeder against the real migrations, because that pairing is the
@@ -447,7 +301,7 @@ describe('the deploy seeder can write the catalogue it is given', () => {
 
   it('admits every tier the vocabulary declares, so the CHECK matches the tuple', async () => {
     /**
-     * Against `alia_models.tier`, which is now the only column `ALIA_TIERS`
+     * Against `routing_profiles.tier`, which is now the only column `ROUTING_TIERS`
      * renders a CHECK for.
      *
      * It used to probe `model_configs.alia_tier`, and that column is gone: it
@@ -459,13 +313,13 @@ describe('the deploy seeder can write the catalogue it is given', () => {
      * happened to carry it, so it survives the move intact.
      *
      * The negative control sits next door: `v9-imaginary` is refused by this
-     * same `alia_models_tier_check`, so a green loop here is agreement and not
+     * same `routing_profiles_tier_check`, so a green loop here is agreement and not
      * a constraint that admits everything.
      */
-    for (const tier of ALIA_TIERS) {
-      const insert = db.insert(aliaModels).values({
+    for (const tier of ROUTING_TIERS) {
+      const insert = db.insert(routingProfiles).values({
         id: `am-tier-${tier}`,
-        aliasModelId: `alia-tier-probe-${tier}`,
+        routingProfileId: `alia-tier-probe-${tier}`,
         displayName: `Tier probe ${tier}`,
         tier,
       });
@@ -473,6 +327,6 @@ describe('the deploy seeder can write the catalogue it is given', () => {
     }
     // The floor: a tuple that had gone empty would pass the loop by not
     // iterating.
-    expect(ALIA_TIERS.length).toBeGreaterThan(10);
+    expect(ROUTING_TIERS.length).toBeGreaterThan(10);
   });
 });

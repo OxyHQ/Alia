@@ -322,6 +322,15 @@ jobs:
       - name: Test console
         run: bun run --filter alia-console test
 
+      # Nitro depends on unstorage, whose broad OPTIONAL peer set leaves a
+      # mongodb resolution in bun.lock even though Alia is PostgreSQL-only.
+      # Replacing Nitro is outside this cutover; build the actual server and
+      # prove the optional driver did not enter its runtime artefact.
+      - name: Prove the console runtime contains no Mongo driver
+        run: |
+          bun run --filter alia-console build
+          node scripts/check-no-mongodb-runtime.mjs
+
       # The VS Code extension parses `GET /catalogue` and `GET /catalogue/modes`
       # itself — it bundles with esbuild and cannot depend on an unpublished
       # workspace package, so the parsing is its own. It had a `test` script and
@@ -417,7 +426,7 @@ jobs:
       # PRESENTED as an Alia-owned model. The census above covers the
       # identifiers a request carries; this covers the text a person reads, and
       # they failed independently — a `<Label>Model</Label>`, a Telegram command
-      # menu reading "Change AI model" and a CLI printing "Model: Alia Lite"
+      # menu reading "Change AI model" and a CLI printing "Model: Kaana Lite"
       # contain no identifier between them, so nothing turned red for any of
       # the three.
       - name: Check no client tells a person a profile is a model

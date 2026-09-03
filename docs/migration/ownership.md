@@ -1,4 +1,11 @@
-# Migration ownership: Alia / Oxy / Relay
+# Migration ownership: Alia / Oxy / Kaana
+
+> Historical migration inventory. Current Alia hosted inference has no provider
+> adapter/key/fallback runtime. The post-rollout
+> `0061_remove_alia_provider_credentials.sql` migration drops `provider_keys`
+> without reading or copying it; Kaana is the sole credential custodian.
+> `provider_health`, `api_usage` and `fallback_events` are non-runtime historical
+> tables. References below describe the measured source state and extraction plan.
 
 The human half of the deliverable for [issue #139](https://github.com/OxyHQ/Alia/issues/139)
 workstreams 0 and 1. The machine-readable half is
@@ -10,7 +17,7 @@ dependencies and the condition that must hold before it leaves Alia.
 |                          | rows |
 | ------------------------ | ---- |
 | stay in **Alia**         | 195  |
-| move to **Relay**        | 89   |
+| move to **Kaana**        | 89   |
 | **deleted**              | 57   |
 | move to **Oxy**          | 17   |
 
@@ -57,7 +64,7 @@ was safe to remove.
 (`createOpenAI`, `createAnthropic`, `createGoogleGenerativeAI`) with keys and base URLs
 resolved through `packages/api/src/lib/gateway-client.ts` in LOCAL mode, which reads
 `internal/providers/lib/{model-resolver,key-manager,provider-health,fallback-engine}.ts`
-and the `provider_keys` Postgres table. The extraction target for Relay is chat-core's
+and the `provider_keys` Postgres table. The extraction target for Kaana is chat-core's
 provider construction plus those four modules — **not** the 19 adapter files under
 `internal/providers/lib/providers/`.
 
@@ -157,7 +164,7 @@ outbound requests to provider hosts on every boot.
 | WS9: "`packages/alia-gateway-admin/**` administers the current Alia-specific gateway" | The gateway service was deleted in `bfb2bc18`. The admin outlived it. |
 | WS8: "Delete `GATEWAY_API_ENABLED` dual-mode behavior" | Accurate, with a nuance: it is not an environment variable but a derived constant, `!!(SERVICE_SECRET && GATEWAY_API_URL)` (`lib/gateway-client.ts:32`), guarding seven `if` branches. |
 | "Alia owns plans, credits, subscriptions… that overlap the Oxy boundary" | True, and the ADMIN side of plans/features/credit packages lives in the dead gateway admin. Retiring it without an Alia-side editor freezes entitlements at whatever the database holds. |
-| WS4: `alia-lite` … are "public model IDs backed by hidden third-party models" | True. Also two documented ids, `alia-v1-tts` and `alia-v1-image`, are NOT servable, and the real `alia-v1-thinking` is missing from two of the three published tables. |
+| WS4: `kaana-lite` … are "public model IDs backed by hidden third-party models" | True. Also two documented ids, `kaana-v1-tts` and `kaana-v1-image`, are NOT servable, and the real `kaana-v1-thinking` is missing from two of the three published tables. |
 
 ---
 
@@ -171,8 +178,8 @@ outbound requests to provider hosts on every boot.
   "kind": "module",                     // package|module|route|table|column|env|screen|doc|dependency|stream-event|behaviour
   "currentPath": "packages/api/src/internal/providers/lib/provider-health.ts",
   "reachable": "live",                  // see below
-  "owner": "relay",                     // alia|oxy|relay|delete
-  "targetPath": "relay:health/circuit-breaker.ts",
+  "owner": "kaana",                     // alia|oxy|kaana|delete
+  "targetPath": "kaana:health/circuit-breaker.ts",
   "dependsOn": ["table-provider-health"],
   "removalGate": "BLOCKS ON THE LOAD BALANCER: …",
   "provenance": "re-derived",           // measured-by-lead|inventory-<domain>|re-derived
@@ -272,7 +279,7 @@ calling a gateway that no longer exists.
 
 ## Provider runtime — 150 rows
 
-62 to Relay, 53 stay in Alia, 35 deleted. 101 live, 26 dead, 19 loaded-not-invoked.
+62 to Kaana, 53 stay in Alia, 35 deleted. 101 live, 26 dead, 19 loaded-not-invoked.
 
 **What leaves.** The whole inference mechanism: `chat-core.ts`'s provider construction,
 `provider-api.ts` and its non-streaming multi-modal path, `model-resolver.ts`,
@@ -283,11 +290,11 @@ pricing), `tts-providers.ts`, `digitalocean-async.ts`, the provider half of
 packages, and the per-modality timeout/retry/fallback behaviours.
 
 **What stays.** `ALIA_MODELS` — the branded catalogue is the product, and it is the one
-vocabulary that must never leak into Relay's. `sanitize.ts` and its 16 call sites.
+vocabulary that must never leak into Kaana's. `sanitize.ts` and its 16 call sites.
 `PROVIDER_NAMES`, because the sanitizer builds its scrub list from that array and deleting
 it silently reduces the scrubber to five hardcoded patterns. `ALIA_TIERS`, because it
 renders live CHECK constraints. `gateway-client.ts` itself: it is the seam that made
-deleting the gateway service safe, and Relay replaces the target of its remote branch, not
+deleting the gateway service safe, and Kaana replaces the target of its remote branch, not
 the module. LiveKit transport. Credits.
 
 **What is simply deleted.** The 15 thin OpenAI-compatible adapters (37-42 lines each,
@@ -314,16 +321,16 @@ deleted service and today fetches the literal string `undefined/gateway/v1/keys`
    one must accept a model object it did not construct.
 4. Repoint the eight `callProviderAPI` sites together. Three of them (`v1/images.ts`,
    `agents-avatar.ts`, `canvas/execute.ts`) are three copies of one image loop with
-   different error mapping; `agents-avatar.ts` maps `content_filter` to a 400 that Relay
+   different error mapping; `agents-avatar.ts` maps `content_filter` to a 400 that Kaana
    must keep distinguishable.
 5. `voice-session-manager.ts` splits rather than moves: LiveKit lifecycle, credit
-   reservation and tool execution are product logic; only the provider socket is Relay's.
+   reservation and tool execution are product logic; only the provider socket is Kaana's.
 
 ---
 
 ## Product API — 89 rows
 
-78 stay in Alia, 8 deleted, 3 have a Relay implementation behind an Alia facade. 70 live,
+78 stay in Alia, 8 deleted, 3 have a Kaana implementation behind an Alia facade. 70 live,
 14 unverified, 5 dead.
 
 **What stays.** All of `/v1`. It is the public product contract: the OpenAI-compatible
@@ -371,9 +378,9 @@ moves.
 
 ## Data and billing — 62 rows
 
-37 stay in Alia, 14 to Relay, 6 to Oxy, 5 deleted. 56 live, 6 dead.
+37 stay in Alia, 14 to Kaana, 6 to Oxy, 5 deleted. 56 live, 6 dead.
 
-**To Relay.** `provider_keys` (and its `key` / `key_hash` columns), `model_configs`,
+**To Kaana.** `provider_keys` (and its `key` / `key_hash` columns), `model_configs`,
 `alia_model_provider_mappings`, `api_usage` (the per-provider-key rate-limit windows),
 `provider_health`, `cost_entries`, and the tuples that render their CHECK constraints.
 
@@ -384,7 +391,7 @@ provisioning, and the transaction vocabulary tuples.
 **Stays in Alia.** `plans`, `features`, `plan_features`, `credit_packages`,
 `user_credits`, `voice_call_usage`, `chat_analytics`, `developer_apps`,
 `developer_api_keys`, `api_key_usage`: the entitlement and product-usage layer. A credit
-is the product unit — Relay bills Alia in dollars, Alia bills the user in credits.
+is the product unit — Kaana bills Alia in dollars, Alia bills the user in credits.
 
 **The failures to plan for are all silent and all permissive.**
 
@@ -418,7 +425,7 @@ router is unmounted; that is a reachability accident and not a control.
 
 ## Frontends and admin — 55 rows
 
-27 stay in Alia, 11 to Oxy, 9 deleted, 8 to a Relay operations surface. 38 live, 15 dead,
+27 stay in Alia, 11 to Oxy, 9 deleted, 8 to a Kaana operations surface. 38 live, 15 dead,
 2 unverified.
 
 **`packages/alia-gateway-admin` was dead UI, and #141 DELETED it.** Twenty rows named a
@@ -437,8 +444,8 @@ which has any code either:
 
 | capability | current state | proposed owner |
 | --- | --- | --- |
-| provider key create/rotate/deactivate | done by hand against the table | Relay ops |
-| alias→provider routing editor | the code table is authoritative; the editor is dead | Relay ops |
+| provider key create/rotate/deactivate | done by hand against the table | Kaana ops |
+| alias→provider routing editor | the code table is authoritative; the editor is dead | Kaana ops |
 | plan / feature / credit-pack editing | dead; the catalogue has no writer at all | Alia |
 | customer billing browser | dead | Alia or Oxy |
 
@@ -470,10 +477,10 @@ with health metrics and no provider column, driven entirely by `GET /models/stat
 DTO having no `provider` field is a load-bearing invariant that nothing currently enforces.
 
 **The app, SDK, Codea, Cowork and Canvas all stay** — and they are where alias retirement
-actually hurts. `alia-v1` and `alia-v1-voice` are compiled into a published npm package
-that ships as raw source; `alia-v1-codea` is the default of a VS Code SETTING that
-persists in users' `settings.json` after an update; `alia-v1-cowork` is an electron-store
-default on disk; `alia-lite` is pinned in saved Canvas workflow node data; and
+actually hurts. `kaana-v1` and `kaana-v1-voice` are compiled into a published npm package
+that ships as raw source; `kaana-v1-codea` is the default of a VS Code SETTING that
+persists in users' `settings.json` after an update; `kaana-v1-cowork` is an electron-store
+default on disk; `kaana-lite` is pinned in saved Canvas workflow node data; and
 `packages/app`'s model store persists the selected id to AsyncStorage with no validation
 against the catalogue. **No alias may be retired by deletion — only behind the
 `is_legacy` flag `GET /v1/models` already exposes.**
@@ -519,16 +526,16 @@ is a product or architecture decision, not a measurement.
    itself "the canonical superset" and has no dependents anywhere in the repo. Delete it,
    or make it authoritative and have the API import it. Both inventories are certain and
    they disagree. This blocks workstream 4.
-3. **`telemetry-provider-columns-elsewhere`** — after the switch, does Relay report the
+3. **`telemetry-provider-columns-elsewhere`** — after the switch, does Kaana report the
    chosen route back so `chat_analytics.provider`, `cost_entries.actual_provider` and
    `voice_call_usage.provider` keep meaning something, or do they go permanently null while
    every query grouping on them silently returns nothing?
-4. **`table-fallback-events`** — does Alia want routing telemetry at all once Relay routes?
+4. **`table-fallback-events`** — does Alia want routing telemetry at all once Kaana routes?
    The table is write-only today; its only reader is unmounted.
 5. **`concept-tier-rate-limits`** — `TIER_RATE_LIMITS` is a code constant duplicating what
    `plan_features` expresses. Both are live. Name the authority before either moves.
 6. **`cost-calculator`** — build the savings feature (it needs per-tier pricing from
-   Relay) or delete the file. It has no importers today.
+   Kaana) or delete the file. It has no importers today.
 7. **`sse-named-event-contract`** — wire `AliaChatEventName` into the emitters and the app,
    or delete it. It currently constrains nothing.
 

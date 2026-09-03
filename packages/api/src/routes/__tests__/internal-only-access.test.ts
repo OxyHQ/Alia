@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
@@ -24,10 +24,8 @@ import { routingTargetSchema } from '@oxyhq/contracts';
  * There are exactly three ways that could happen, and each has a block below:
  *
  *  1. **By naming one in the request.** It cannot be named: `routingTargetSchema`
- *     is a two-member union — `model` and `routing_profile` — with no deployment
- *     member at all, and `resolveRoutingTarget` maps a product model id onto one
- *     of those two or refuses. Asserted against the live contract schema, not a
- *     copy of it, so a third member arriving upstream fails here.
+ *     is a two-member union — `model` and `routing_profile_id` — with no deployment
+ *     member at all. Asserted against the live contract schema, not a copy.
  *  2. **By becoming an internal principal.** `req.serviceApp` is what marks a
  *     caller internal, and it is reachable only through a constant-time compare
  *     against `SERVICE_SECRET`. The behavioural half below drives the real
@@ -39,14 +37,10 @@ import { routingTargetSchema } from '@oxyhq/contracts';
  *
  * ## What this file cannot prove, stated rather than implied
  *
- * Alia does not yet hold a deployment catalogue — `KaanaTransport` ships no
- * endpoint (see `lib/inference/kaana-endpoint.ts` for the origins it is now
- * pinned to) and Kaana is not mounted. So there is no live "internal deployment"
- * in this repository to attempt access against, and no test here can pretend
- * otherwise. What is provable today is that the ENVELOPE cannot express one and
- * that no public credential acquires internal standing, which is what the
- * checkbox is asking to be true BEFORE the deployments exist. When they do, a
- * catalogue-level check joins this file.
+ * Alia does not hold a deployment catalogue. Oxy resolves deployments after it
+ * authenticates the service credential, so no Alia route can select one. What
+ * is provable here is that the SDK request cannot express a deployment and no
+ * public credential acquires internal standing.
  */
 
 const REPO_ROOT = path.resolve(fileURLToPath(new URL('../../../../../', import.meta.url)));
@@ -87,67 +81,28 @@ describe('the request envelope cannot name a deployment at all (#139 ws17)', () 
       true,
     );
     expect(
-      routingTargetSchema.safeParse({ kind: 'routing_profile', routingProfile: 'balanced' }).success,
+      routingTargetSchema.safeParse({ kind: 'routing_profile_id', routingProfileId: 'profile-id' }).success,
     ).toBe(true);
 
     // Every shape an internal deployment could arrive as. All refused.
     for (const target of [
       { kind: 'deployment', deploymentId: 'dep_internal_1' },
       { kind: 'model', modelReference: 'oxy/atlas', deploymentId: 'dep_internal_1' },
+      { kind: 'routing_profile', routingProfile: 'balanced' },
       { kind: 'routing_profile', routingProfile: 'balanced', availabilityScope: 'internal_alia' },
+      { kind: 'routing_profile_id', routingProfileId: 'profile-id', availabilityScope: 'internal_alia' },
       { kind: 'internal_alia', deploymentId: 'dep_internal_1' },
     ]) {
       expect(routingTargetSchema.safeParse(target).success, JSON.stringify(target)).toBe(false);
     }
   });
 
-  it('a product model id resolves to a model or a profile, never to anything else', async () => {
-    const { resolveRoutingTarget } = await import('../../lib/inference/kaana-request.js');
-    const { KaanaInferenceError } = await import('../../lib/inference/kaana-error.js');
-    const fallback = { kind: 'routing_profile', routingProfile: 'auto' } as const;
-
-    // The two legal outcomes.
-    expect(
-      resolveRoutingTarget({ kind: 'user_selected', productModelId: 'oxy/atlas' }, fallback, 'req-1').kind,
-    ).toBe('model');
-    expect(
-      resolveRoutingTarget({ kind: 'user_selected', productModelId: 'alia-v1-pro' }, fallback, 'req-1').kind,
-    ).toBe('routing_profile');
-
-    /**
-     * A deployment-shaped identifier, MEASURED rather than assumed.
-     *
-     * `dep_internal_1` is a syntactically valid routing-profile slug, so it
-     * resolves to `{ kind: 'routing_profile' }` rather than being refused — and
-     * that is the correct answer, not a hole. The dangerous outcome would be a
-     * target that NAMES the deployment, and there is no such target: a profile
-     * slug is resolved by Kaana against the account's own routing configuration,
-     * so the worst a caller achieves by writing a deployment id there is to name
-     * a profile that does not exist.
-     *
-     * This assertion is therefore about the KIND, for every input, including
-     * the ones a caller would try. The version that expected a refusal here was
-     * wrong, and passed only until it was run.
-     */
-    for (const id of ['dep_internal_1', 'internal_alia', 'oxy/atlas', 'alia-lite']) {
-      const target = resolveRoutingTarget({ kind: 'user_selected', productModelId: id }, fallback, 'req-1');
-      expect(['model', 'routing_profile'], id).toContain(target.kind);
-      expect(Object.keys(target).sort(), id).not.toContain('deploymentId');
-    }
-
-    // And an identifier that parses as neither grammar is `invalid_request`,
-    // never quietly treated as a profile — the silent-substitution failure ADR
-    // 0003 forbids.
-    for (const id of ['deployment:dep_1', 'has space', '', '../etc/passwd', 'UPPER']) {
-      let thrown: unknown = null;
-      try {
-        resolveRoutingTarget({ kind: 'user_selected', productModelId: id }, fallback, 'req-1');
-      } catch (cause) {
-        thrown = cause;
-      }
-      expect(thrown, id).toBeInstanceOf(KaanaInferenceError);
-      expect((thrown as InstanceType<typeof KaanaInferenceError>).code, id).toBe('invalid_request');
-    }
+  it('the hosted runtime carries only explicit model/profile target fields', () => {
+    const source = code('lib/chat-core.ts');
+    expect(source).toContain("kind: 'routing_profile_id'");
+    expect(source).toContain("kind: 'model'");
+    expect(source).not.toContain('deploymentId');
+    expect(source).not.toContain('availabilityScope');
   });
 
   it('exactly four modules know what an availability scope is', () => {
@@ -178,7 +133,7 @@ describe('the request envelope cannot name a deployment at all (#139 ws17)', () 
       encoding: 'utf8',
     })
       .split('\n')
-      .filter((file) => file.endsWith('.ts') && !file.includes('/__tests__/'));
+      .filter((file) => file.endsWith('.ts') && !file.includes('/__tests__/') && existsSync(path.join(REPO_ROOT, file)));
 
     const naming = files.filter((file) =>
       /\binternal_alia\b|\bavailabilityScope\b/.test(readFileSync(path.join(REPO_ROOT, file), 'utf8')),
@@ -405,7 +360,7 @@ describe('the internal surface takes service tokens and nothing else (#139 ws17)
       encoding: 'utf8',
     })
       .split('\n')
-      .filter((file) => file.endsWith('.ts') && !file.includes('/__tests__/'));
+      .filter((file) => file.endsWith('.ts') && !file.includes('/__tests__/') && existsSync(path.join(REPO_ROOT, file)));
 
     expect(routes.length).toBeGreaterThan(20);
     const offenders = routes

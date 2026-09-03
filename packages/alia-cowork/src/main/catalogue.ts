@@ -3,7 +3,7 @@
  * (`GET /catalogue`, epic #139 workstream 5).
  *
  * Cowork used to read `GET /v1/models?category=coding` for its model list and
- * hardcode `alia-v1-cowork` in three places besides. `/v1/models` serializes
+ * hardcode `kaana-v1-cowork` in three places besides. `/v1/models` serializes
  * every entry with `object: "model"`, including the twelve that are routing
  * profiles — which is precisely the claim ADR 0003 invariant 1 forbids a client
  * from repeating to a user. `/catalogue` distinguishes them, so this reads that.

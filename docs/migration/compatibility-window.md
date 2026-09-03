@@ -7,7 +7,7 @@
 
 **Applies to:** epic #139, workstream 0. Referenced by ADR 0002, ADR 0003 and ADR 0004.
 
-Three things survive the migration to Oxy and Relay for a bounded period, because removing them the day the new path lands would break callers who have not been given a way to move:
+Three things survive the migration to Oxy and Kaana for a bounded period, because removing them the day the new path lands would break callers who have not been given a way to move:
 
 - **(a)** the `alia-*` model aliases;
 - **(b)** the `api.alia.onl/v1/*` HTTP surface;
@@ -103,7 +103,7 @@ That distinction is the whole shape of this closure. Removal — a request namin
 
 **The evidence, and what it does not prove.** `https://api.alia.onl/v1/models` and `/health` both returned HTTP 503 from the ALB when this was taken (2026-08-17): the service is parked at desired count 0, so no external caller is being served and nothing breaks at the moment of the cut.
 
-**That proves nobody is served TODAY. It does not prove nobody uses these identifiers.** Two published npm packages hardcode them — `@alia.onl/sdk` (which ships raw source, so every consumer compiles `src/` directly and sends `model: 'alia-v1'` or `'alia-v1-voice'`) and `@alia-codea/cli` (`alia-v1-codea`), plus the VS Code extension's own default. Editing this repository cannot migrate an installed copy, and those copies resume sending aliases the moment the service scales up. Stored per-conversation selections are not measurable from here at all, and the two usage instruments named above were unreachable with the database down. **Anyone reading "production was 503" as "there were no users" is reading it wrong.**
+**That proves nobody is served TODAY. It does not prove nobody uses these identifiers.** Two published npm packages hardcode them — `@alia.onl/sdk` (which ships raw source, so every consumer compiles `src/` directly and sends `model: 'kaana-v1'` or `'kaana-v1-voice'`) and `@alia-codea/cli` (`kaana-v1-codea`), plus the VS Code extension's own default. Editing this repository cannot migrate an installed copy, and those copies resume sending aliases the moment the service scales up. Stored per-conversation selections are not measurable from here at all, and the two usage instruments named above were unreachable with the database down. **Anyone reading "production was 503" as "there were no users" is reading it wrong.**
 
 De-advertising needs none of that evidence, which is why it could happen now: it breaks no caller. Removal needs all of it.
 

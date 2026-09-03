@@ -327,7 +327,7 @@ export interface Entitlements {
 }
 
 const FREE_ENTITLEMENTS: Entitlements = {
-  allowedModelIds: ['alia-lite', 'alia-v1', 'alia-v1-audio'],
+  allowedModelIds: ['kaana-lite', 'kaana-v1', 'kaana-v1-audio'],
   features: {},
   planId: 'free',
 };

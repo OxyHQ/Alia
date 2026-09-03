@@ -180,8 +180,7 @@ export const organizationMembers = pgTable(
  *
  * `token` is a live credential in the clear — whoever holds it can join the
  * organization. It is `unique`, never logged, and must not appear in any
- * projection but the one that validates a redemption. `provider_keys.key` has
- * the same rule for the same reason.
+ * projection but the one that validates a redemption.
  */
 export const organizationInvites = pgTable(
   'organization_invites',

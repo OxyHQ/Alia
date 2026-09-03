@@ -15,7 +15,10 @@ Alia is a multi surface context agent platform: one chat runtime behind an Expo 
 driver dependency. `packages/integrations` is a separate process with its own
 PostgreSQL schema and migration ledger; check its own manifest when changing it.
 
-Upstream model credentials are not environment variables. They live in the `provider_keys` table, and there is no gateway service to point at — see the `GATEWAY_API_URL` note in `packages/api/.env.example` before setting it.
+Upstream model credentials are not configured in this repository or its
+environment. Kaana stores and administers them in its own database; Alia only
+needs the signed Kaana edge configuration documented in
+`packages/api/.env.example`.
 
 ## Setup
 
@@ -44,7 +47,9 @@ A bun workspaces monorepo, no Turborepo and no Nx. Alia is the exception to the 
 Three things worth knowing before your first pull request:
 
 - `packages/alia-chat` publishes to npm as `@alia.onl/sdk`, as **raw source**, so consumers compile `src/` with their own Metro or tsc. It has to resolve and typecheck under a real external install, not only inside this monorepo.
-- There is no gateway service. `packages/api/src/lib/gateway-client.ts` runs model calls in process, and is the seam any future remote tier would go behind — do not add a second copy of that logic.
+- `packages/api/src/lib/gateway-client.ts` is the product seam for signed Kaana
+  calls. It must not grow an in-process provider fallback or a second hosted
+  inference path.
 - Alia is mid-migration. Read [`docs/adr/`](docs/adr/README.md) before a change that touches inference, developer credentials, billing or the model catalogue; [`docs/migration/compatibility-window.md`](docs/migration/compatibility-window.md) says what is frozen and on what gate it is removed. Every pull request against epic [#139](https://github.com/OxyHQ/Alia/issues/139) names its workstream and the exact checkboxes it completes.
 
 ## Tests

@@ -58,7 +58,7 @@ const isTestFile = (f: string) => f.includes('/__tests__/') || f.endsWith('.test
 function trackedSources(prefix: string): string[] {
   return execFileSync('git', ['ls-files', '--', prefix], { cwd: REPO_ROOT, encoding: 'utf8' })
     .split('\n')
-    .filter((f) => f.endsWith('.ts') && f !== SELF);
+    .filter((f) => f.endsWith('.ts') && f !== SELF && existsSync(path.join(REPO_ROOT, f)));
 }
 
 const parse = (file: string): ts.SourceFile =>
@@ -240,7 +240,7 @@ describe('the scanner recognises every form these gates rely on', () => {
     // place to hide things.
     const unfiltered = execFileSync('git', ['ls-files', '--', API_SRC], { cwd: REPO_ROOT, encoding: 'utf8' })
       .split('\n')
-      .filter((f) => f.endsWith('.ts'));
+      .filter((f) => f.endsWith('.ts') && existsSync(path.join(REPO_ROOT, f)));
     expect(unfiltered.length - tracked.length).toBe(1);
   });
 });
@@ -326,11 +326,8 @@ describe('the customer charge and the upstream cost share no reader (#139 ws12)'
    * than quietly narrowing what the disjointness below is about.
    */
   const COST_READERS = [
-    `${API_SRC}/db/providers/providerKeyRepository.ts`,
-    `${API_SRC}/db/schema/providers.ts`,
     `${API_SRC}/db/schema/usage.ts`,
     `${API_SRC}/db/usage/costEntryRepository.ts`,
-    `${API_SRC}/internal/providers/lib/key-manager.ts`,
     `${API_SRC}/lib/cost-tracker.ts`,
   ];
 
@@ -371,7 +368,7 @@ describe('the customer charge and the upstream cost share no reader (#139 ws12)'
   it('the frozen lists are not empty, and each is what its name says', () => {
     // A vacuity floor for both lists, plus one membership fact per list that a
     // wholesale replacement would break.
-    expect(COST_READERS.length).toBeGreaterThan(3);
+    expect(COST_READERS.length).toBeGreaterThanOrEqual(3);
     expect(CHARGE_WRITERS.length).toBeGreaterThan(3);
     expect(COST_READERS).toContain(`${API_SRC}/lib/cost-tracker.ts`);
     expect(CHARGE_WRITERS).toContain(`${API_SRC}/routes/billing.ts`);
@@ -650,29 +647,10 @@ describe('the billing path audit matches the tree it describes (#139 ws12)', () 
       .sort();
 
     expect(derived).toEqual([...audit.balanceSurfaces.modules].sort());
-    // 13 -> 14: the comp grant reaches the balance row to create it before
-    // crediting a comped account's plan credits. Read off the scan, as the
-    // writer count above is — arithmetic on a measurement is how a plausible
-    // wrong one lands.
-    // 14 -> 15: `routes/shows.ts`. Creating a series draws cover art, which is
-    // a real image generation, so it reserves and settles credits exactly as
-    // the images endpoint does rather than being free.
-    // 15 -> 16: `lib/agent/session-handoff.ts`. Hiring an agent already reached
-    // the balance row through `reserveCredits`; what it did not do was CREATE
-    // the row it was spending from, so a first-time owner was refused for
-    // credits they were entitled to. It provisions the payer now, which is the
-    // hop this list counts.
-    // 16 -> 15: `services/chat.service.ts` is GONE. Its `loadUserContext`
-    // reserved a credit and had no callers at all — a reservation nobody could
-    // trigger, which is why it never showed as a leak — and every other export
-    // in the file was dead too. It went with the five tool assemblers becoming
-    // one, and this is the only list that counted it.
-    //
-    // The number below is READ OFF `derived`, the scan of the tree. This branch
-    // has now been rebased across two different bases, each with its own delta
-    // to this list; adding them up gives a plausible number that is wrong and
-    // still compiles, which is why it is measured on each rebase instead.
-    expect(derived.length).toBe(15);
+    // Hosted provider voice/image/audio surfaces are absent after cutover; this
+    // count is read from the surviving product tree rather than preserved as a
+    // compatibility floor for deleted modules.
+    expect(derived.length).toBe(11);
   });
 });
 
@@ -737,17 +715,6 @@ describe('a cost record says which balance funded it (#139 ws12)', () => {
     expect(parse(`${API_SRC}/db/agents/agentSessionRepository.ts`).getFullText()).toContain(
       'grantKind: fundingSourceOf(initialFreeCredits)',
     );
-  });
-
-  it('the one live settlement writes it from the reservation', () => {
-    // The "green and inert" half. A column, a tuple and a type that nothing sets
-    // is a mechanism, not an attribution.
-    const voice = parse(`${API_SRC}/internal/providers/lib/voice-session-manager.ts`).getFullText();
-    expect(voice).toContain('grantKind: session.creditReservation?.grantKind ?? null');
-    // And it is inside the record BOTH writes send, not only the final one: an
-    // abandoned session leaves the interim row as the whole cost record.
-    expect(voice).toContain('await upsertVoiceCallUsage(getDb(), record)');
-    expect(voice).toContain('await insertVoiceCallUsage(getDb(), record)');
   });
 
   it('the token-metered ledger still has no writer, and this is the count that says so', () => {

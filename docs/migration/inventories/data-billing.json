@@ -34,9 +34,9 @@
       "name": "model_configs",
       "currentPath": "packages/api/src/db/schema/providers.ts",
       "summary": "One provider model this service knows how to call: capabilities, limits, published per-1M-token pricing, alia tier and routing priority.",
-      "billingClass": "relay-upstream-cost",
-      "proposedOwner": "relay",
-      "targetPath": "relay: upstream model catalogue + published rates",
+      "billingClass": "kaana-upstream-cost",
+      "proposedOwner": "kaana",
+      "targetPath": "kaana: upstream model catalogue + published rates",
       "readers": [
         "packages/api/src/internal/providers/routes/models.ts",
         "packages/api/src/internal/providers/routes/alia-models.ts",
@@ -61,7 +61,7 @@
       "kind": "table",
       "name": "alia_models",
       "currentPath": "packages/api/src/db/schema/providers.ts",
-      "summary": "A virtual Alia-branded model (alia-v1, alia-lite) with its tier, credit multiplier, free-tier flag and aggregated capabilities.",
+      "summary": "A virtual Alia-branded model (kaana-v1, kaana-lite) with its tier, credit multiplier, free-tier flag and aggregated capabilities.",
       "billingClass": "alia-product-entitlement",
       "proposedOwner": "alia",
       "targetPath": "alia: product catalogue (the Alia-branded name is the product)",
@@ -90,9 +90,9 @@
       "name": "alia_model_provider_mappings",
       "currentPath": "packages/api/src/db/schema/providers.ts",
       "summary": "Child table: which provider models can serve an Alia model, in preference order, with a per-mapping is_active toggle. Cascades from both parents.",
-      "billingClass": "relay-upstream-cost",
-      "proposedOwner": "relay",
-      "targetPath": "relay: routing preference order",
+      "billingClass": "kaana-upstream-cost",
+      "proposedOwner": "kaana",
+      "targetPath": "kaana: routing preference order",
       "readers": [
         "packages/api/src/db/providers/aliaModelRepository.ts",
         "packages/api/src/internal/providers/routes/alia-models.ts"
@@ -113,9 +113,9 @@
       "name": "provider_keys",
       "currentPath": "packages/api/src/db/schema/providers.ts",
       "summary": "HIGHEST RISK. Holds upstream provider API credentials in PLAINTEXT (`key`), their sha256 (`key_hash`), rate limits, rotation state and a running spend estimate.",
-      "billingClass": "relay-upstream-cost",
-      "proposedOwner": "relay",
-      "targetPath": "relay: the credential pool belongs entirely to the inference tier",
+      "billingClass": "kaana-upstream-cost",
+      "proposedOwner": "kaana",
+      "targetPath": "kaana: the credential pool belongs entirely to the inference tier",
       "readers": [
         "packages/api/src/internal/providers/lib/key-manager.ts",
         "packages/api/src/internal/providers/routes/keys.ts",
@@ -148,9 +148,9 @@
       "name": "provider_keys.key",
       "currentPath": "packages/api/src/db/schema/providers.ts",
       "summary": "PLAINTEXT upstream provider API key at rest. Not encrypted, not a hash. Flows into KeyConfig.key and out to every provider adapter.",
-      "billingClass": "relay-upstream-cost",
-      "proposedOwner": "relay",
-      "targetPath": "relay secret store (SSM/secrets manager), never an application table",
+      "billingClass": "kaana-upstream-cost",
+      "proposedOwner": "kaana",
+      "targetPath": "kaana secret store (SSM/secrets manager), never an application table",
       "readers": [
         "packages/api/src/db/providers/providerKeyRepository.ts (loadActiveProviderKeys, findProviderKeyById \u2014 both `select()` the whole row)",
         "packages/api/src/internal/providers/lib/key-manager.ts:149 (copies it into KeyConfig.key)",
@@ -165,7 +165,7 @@
       "dependsOn": [
         "table-provider-keys"
       ],
-      "removalGate": "production row count audited AND every value rotated upstream AND the six read sites above re-pointed at the relay. The schema comment states there is NO protected-column mechanism in this service \u2014 the comment and CONVENTIONS.md are the whole of the protection.",
+      "removalGate": "production row count audited AND every value rotated upstream AND the six read sites above re-pointed at the kaana. The schema comment states there is NO protected-column mechanism in this service \u2014 the comment and CONVENTIONS.md are the whole of the protection.",
       "evidence": "packages/api/src/db/schema/providers.ts:315"
     },
     {
@@ -174,7 +174,7 @@
       "name": "X-Key-Used response header",
       "currentPath": "packages/api/src/internal/providers/routes/providers.ts",
       "summary": "Sets a response header containing the first 8 characters of the PLAINTEXT provider key on a proxied completion, alongside X-Provider-Used which names the provider outright.",
-      "billingClass": "relay-upstream-cost",
+      "billingClass": "kaana-upstream-cost",
       "proposedOwner": "delete",
       "targetPath": "delete \u2014 nothing should echo credential material or a provider name to a caller",
       "readers": [],
@@ -194,9 +194,9 @@
       "name": "provider_keys.key_hash",
       "currentPath": "packages/api/src/db/schema/providers.ts",
       "summary": "sha256 of a live upstream credential. An exact-match oracle \u2014 equally protected, not a safer alias for the key.",
-      "billingClass": "relay-upstream-cost",
-      "proposedOwner": "relay",
-      "targetPath": "relay",
+      "billingClass": "kaana-upstream-cost",
+      "proposedOwner": "kaana",
+      "targetPath": "kaana",
       "readers": [
         "packages/api/src/db/providers/providerKeyRepository.ts (providerKeyHashExists \u2014 the duplicate check)"
       ],
@@ -432,9 +432,9 @@
       "name": "cost_entries",
       "currentPath": "packages/api/src/db/schema/usage.ts",
       "summary": "Per-request upstream spend ledger in USD (double precision), carrying actual_provider and actual_model_id \u2014 the INTERNAL identity behind the Alia alias.",
-      "billingClass": "relay-upstream-cost",
-      "proposedOwner": "relay",
-      "targetPath": "relay: what Alia paid upstream is the relay's ledger, and its columns are the exact thing the model-abstraction rule forbids Alia from exposing",
+      "billingClass": "kaana-upstream-cost",
+      "proposedOwner": "kaana",
+      "targetPath": "kaana: what Alia paid upstream is the kaana's ledger, and its columns are the exact thing the model-abstraction rule forbids Alia from exposing",
       "readers": [
         "packages/api/src/lib/cost-tracker.ts (getUserCostSummary, getGlobalCostStats, getTopUsersByCost, getModelEfficiency)",
         "packages/api/src/internal/providers/routes/usage.ts:14 (getGlobalCostStats)",
@@ -453,7 +453,7 @@
       "summary": "Per-completion usage record written by the analytics hook: token counts, latency, platform, and TWO model ids (`model` = provider's id, `alia_model_id` = the Alia alias).",
       "billingClass": "disposable-telemetry",
       "proposedOwner": "alia",
-      "targetPath": "alia analytics, with the `provider` and `model` columns dropped or moved to relay \u2014 they are internal identity in a user-facing analytics table",
+      "targetPath": "alia analytics, with the `provider` and `model` columns dropped or moved to kaana \u2014 they are internal identity in a user-facing analytics table",
       "readers": [
         "packages/api/src/routes/analytics.ts (GET /analytics/usage, /models, /credits)",
         "packages/api/src/db/usage/chatAnalyticsRepository.ts"
@@ -475,7 +475,7 @@
       "summary": "One realtime voice session: fractional duration_minutes (double precision \u2014 an integer would truncate the BILLING quantity), credits_charged, cost_per_minute, plus a cohost pair of each. session_id is UNIQUE and load-bearing for the final-record upsert.",
       "billingClass": "alia-product-entitlement",
       "proposedOwner": "alia",
-      "targetPath": "alia: it is both the usage record and the entitlement meter (voice minutes per plan). cost_per_minute alone is relay-upstream-cost",
+      "targetPath": "alia: it is both the usage record and the entitlement meter (voice minutes per plan). cost_per_minute alone is kaana-upstream-cost",
       "readers": [
         "packages/api/src/lib/voice-usage.ts:37 (sumVoiceMinutesUsed \u2014 enforces the plan's voice-minute entitlement)",
         "packages/api/src/routes/billing.ts:609 (GET /billing/voice-usage)",
@@ -581,9 +581,9 @@
       "name": "api_usage",
       "currentPath": "packages/api/src/db/schema/telemetry.ts",
       "summary": "Token consumption per PROVIDER key (Alia's own upstream credential). TTL 48 hours. One character from api_key_usage and unrelated to it.",
-      "billingClass": "relay-upstream-cost",
-      "proposedOwner": "relay",
-      "targetPath": "relay: it accounts for what an upstream credential spent",
+      "billingClass": "kaana-upstream-cost",
+      "proposedOwner": "kaana",
+      "targetPath": "kaana: it accounts for what an upstream credential spent",
       "readers": [
         "packages/api/src/internal/providers/lib/key-manager.ts:26 (keyUsageWindows \u2014 the provider-key rate limiter)",
         "packages/api/src/db/telemetry/apiUsageRepository.ts"
@@ -605,7 +605,7 @@
       "summary": "The spend chokepoint: reserveCredits takes credits up front, finalizeCredits trues up against actual tokens, refundReservation/safeRefund return them on failure. CREDITS_CONFIG holds the rates.",
       "billingClass": "alia-product-entitlement",
       "proposedOwner": "alia",
-      "targetPath": "alia \u2014 the credit is the product unit; relay bills Alia in dollars, Alia bills the user in credits",
+      "targetPath": "alia \u2014 the credit is the product unit; kaana bills Alia in dollars, Alia bills the user in credits",
       "readers": [
         "packages/api/src/lib/chat/request-context.ts:147",
         "packages/api/src/lib/show/show-pipeline.ts:98,111,209,234",
@@ -776,9 +776,9 @@
       "name": "Provider key spend estimate and credit exhaustion",
       "currentPath": "packages/api/src/internal/providers/lib/key-manager.ts",
       "summary": "provider_keys.spent_usd accumulates estimated cost per call; a key past credit_limit_usd is skipped, and markKeyCreditExhausted parks it. Null limit means UNLIMITED, not zero.",
-      "billingClass": "relay-upstream-cost",
-      "proposedOwner": "relay",
-      "targetPath": "relay",
+      "billingClass": "kaana-upstream-cost",
+      "proposedOwner": "kaana",
+      "targetPath": "kaana",
       "readers": [
         "packages/api/src/internal/providers/lib/key-manager.ts:126",
         "packages/api/src/internal/providers/routes/keys.ts"
@@ -828,8 +828,8 @@
       "currentPath": "packages/api/src/internal/providers/lib/alia-models.ts",
       "summary": "The CODE source of truth for Alia model definitions and their provider routing order. The alia_models / model_configs tables mirror it; the completion path reads the code, not the tables.",
       "billingClass": "n/a",
-      "proposedOwner": "relay",
-      "targetPath": "relay owns TIER_MODEL_MAPPINGS (provider routing); alia keeps ALIA_MODELS (the branded product names)",
+      "proposedOwner": "kaana",
+      "targetPath": "kaana owns TIER_MODEL_MAPPINGS (provider routing); alia keeps ALIA_MODELS (the branded product names)",
       "readers": [
         "packages/api/src/lib/chat-core.ts",
         "packages/api/src/lib/cost-calculator.ts:12",
@@ -842,7 +842,7 @@
         "table-alia-models",
         "table-model-configs"
       ],
-      "removalGate": "n/a for deletion \u2014 this is the thing the epic should be splitting. Its value is that the routing catalogue is already code, so the relay boundary can be drawn here without a data migration.",
+      "removalGate": "n/a for deletion \u2014 this is the thing the epic should be splitting. Its value is that the routing catalogue is already code, so the kaana boundary can be drawn here without a data migration.",
       "evidence": "packages/api/src/internal/providers/lib/alia-models.ts:248"
     },
     {
@@ -876,7 +876,7 @@
       "summary": "Mounts /v1/keys, /v1/models, /v1/alia-models, /v1/plans, /v1/credit-packages, /v1/features, /v1/plan-features, /v1/billing, /v1/usage, /v1/providers, /v1/auth-health, /v1/fallback-stats behind authenticateService. NOTHING IMPORTS IT.",
       "billingClass": "n/a",
       "proposedOwner": "delete",
-      "targetPath": "delete, or move wholesale to the relay/oxy admin surface",
+      "targetPath": "delete, or move wholesale to the kaana/oxy admin surface",
       "readers": [
         "packages/alia-gateway-admin/src/lib/api/client.ts (10 pages target these endpoints and cannot reach them)"
       ],
@@ -1110,8 +1110,8 @@
       "currentPath": "packages/api/src/internal/providers/lib/provider-names.ts",
       "summary": "19 provider names. Renders live CHECK constraints on model_configs.provider, provider_keys.provider and alia_model_provider_mappings.provider \u2014 so appending to it is a MIGRATION, in the same PR.",
       "billingClass": "n/a",
-      "proposedOwner": "relay",
-      "targetPath": "relay",
+      "proposedOwner": "kaana",
+      "targetPath": "kaana",
       "readers": [
         "packages/api/src/db/schema/providers.ts:52",
         "packages/api/src/internal/providers/lib/alia-tiers.ts",
@@ -1231,9 +1231,9 @@
       "name": "MODEL_PRICING_TIERS",
       "currentPath": "packages/api/src/domain/model-config.ts",
       "summary": "['free','freemium','paid']. Renders the CHECK on model_configs.pricing_tier. Deliberately NOT shared with PROVIDER_KEY_TIERS, which additionally carries 'enterprise'.",
-      "billingClass": "relay-upstream-cost",
-      "proposedOwner": "relay",
-      "targetPath": "relay",
+      "billingClass": "kaana-upstream-cost",
+      "proposedOwner": "kaana",
+      "targetPath": "kaana",
       "readers": [
         "packages/api/src/db/schema/providers.ts:53"
       ],
@@ -1250,9 +1250,9 @@
       "name": "PROVIDER_KEY_ENVIRONMENTS / PROVIDER_KEY_TIERS / PROVIDER_KEY_ROTATION_SCHEDULES",
       "currentPath": "packages/api/src/domain/provider-key.ts",
       "summary": "Three tuples rendering three CHECKs on provider_keys.",
-      "billingClass": "relay-upstream-cost",
-      "proposedOwner": "relay",
-      "targetPath": "relay",
+      "billingClass": "kaana-upstream-cost",
+      "proposedOwner": "kaana",
+      "targetPath": "kaana",
       "readers": [
         "packages/api/src/db/schema/providers.ts:54"
       ],
@@ -1351,7 +1351,7 @@
       "readers": "87 distinct file paths appearing in any item's `readers`, deduplicated after stripping parenthetical/line annotations. Includes the 17 db/ repository files (the statement layer) and 9 frontend files found by endpoint-grep; the backend application-layer reader count is therefore lower, and the frontend portion is the weakest-evidence part of the census.",
       "writers": "31 distinct file paths across all items' `writers`. 24 of the 87 readers are also writers. Of these 31, the following are UNREACHABLE in the running service and are counted anyway because they are live source: the 12 internal/providers/routes/* files (unmounted router) and the 4 seed-*.ts files (runStartupSeed has no caller).",
       "items": "57 items: 19 tables, 11 fields/tuples, 10 migrations, 9 billing concepts, 4 readers, 3 writers, 1 model-ledger entry.",
-      "billingClassSplit": "alia-product-entitlement 20, relay-upstream-cost 11, oxy-financial-record 6, disposable-telemetry 5, n/a 15."
+      "billingClassSplit": "alia-product-entitlement 20, kaana-upstream-cost 11, oxy-financial-record 6, disposable-telemetry 5, n/a 15."
     }
   }
 }

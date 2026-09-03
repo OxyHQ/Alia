@@ -378,7 +378,7 @@ function WorkspaceSettingsPage() {
                       <AvatarFallback>
                         {(
                           member.name?.[0] ||
-                          member.email?.[0] ||
+                          member.email[0] ||
                           '?'
                         ).toUpperCase()}
                       </AvatarFallback>

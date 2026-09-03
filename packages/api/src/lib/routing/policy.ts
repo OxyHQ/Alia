@@ -61,8 +61,8 @@ export const DEFAULT_FALLBACK_POLICY: FallbackPolicy = 'cross-model';
 /**
  * The version of the routing-policy configuration that answered a request.
  *
- * Recorded per request on `fallback_events` so "why did this response come from
- * this model" stays answerable after the preset table changes. It is an opaque
+ * Included in the routing configuration handed to the policy owner so changes
+ * remain attributable after the preset table changes. It is an opaque
  * integer, bumped whenever `ROUTING_PRESETS` or `DEFAULT_FALLBACK_POLICY`
  * changes meaning — pinned by a digest in `routing-policy.test.ts`, so editing
  * the table without bumping the version fails there rather than silently
@@ -85,8 +85,8 @@ export function isFallbackPolicy(value: unknown): value is FallbackPolicy {
 /**
  * A model identifier nobody registered reached a resolver.
  *
- * Before this existed, `fallback-engine.ts` answered such a request from
- * `alia-v1` and reported the requested name back to the caller. That is ADR
+ * Before strict refusal, the legacy resolver answered such a request from
+ * `kaana-v1` and reported the requested name back to the caller. That is ADR
  * 0003 invariant 2 failing in the plainest way, and it is the one behaviour on
  * this page that is NOT preserved: an identifier nobody registered was never a
  * working request, so there is nothing to preserve.
@@ -96,13 +96,13 @@ export function isFallbackPolicy(value: unknown): value is FallbackPolicy {
  * The requested identifier is echoed back because a refusal that does not say
  * what it refused is not actionable. The commonest wrong value is a provider's
  * own model id — an OpenAI-compatible client pointed at `/v1` sends whatever it
- * was configured with — and telling that caller `"gpt-4o" is not an Alia model`
+ * was configured with — and telling that caller `"gpt-4o" is not a Kaana routing profile`
  * is the whole point of the message.
  *
  * The echo therefore takes `redactUnsafeDetail`, not `sanitizeMessage`. Route
  * concealment protects Alia's ROUTING decisions on the product surface
  * (`lib/errors/sanitize.ts`), and a string the caller just sent reveals none of
- * them; running it here only produced `"Alia4o" is not an Alia model`. What
+ * them; running it here only produced `"Alia4o" is not a Kaana routing profile`. What
  * still applies is the absolute half — a caller can put a credential in that
  * field, and a credential is redacted wherever it appears.
  */
@@ -111,7 +111,7 @@ export class UnregisteredModelError extends AliaError {
     readonly requested: string,
     readonly available: readonly string[],
   ) {
-    const detail = `"${requested}" is not an Alia model. Available models: ${[...available].sort().join(', ')}.`;
+    const detail = `"${requested}" is not a Kaana routing profile. Available models: ${[...available].sort().join(', ')}.`;
     super({
       code: AliaErrorCode.INVALID_REQUEST,
       message: `Unregistered model identifier: ${requested}`,

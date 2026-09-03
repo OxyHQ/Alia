@@ -11,7 +11,7 @@ import {
   useCatalogue,
   type CatalogueEntry,
 } from "@/lib/hooks/use-catalogue";
-import { presentation, useProductModes } from "@/lib/hooks/use-product-modes";
+import { modeById, presentation, useProductModes } from "@/lib/hooks/use-product-modes";
 import { useLocalModelOptions } from "@/lib/hooks/use-local-runtimes";
 import { LocalModelsInvite } from "@/components/local-models-invite";
 
@@ -35,9 +35,7 @@ export function ModelSelector({ selectedModel, onModelChange }: ModelSelectorPro
   const selectedLocal = localModels.find((model) => model.id === selection.effectiveId);
   const isAutomatic = selection.requestedId === AUTOMATIC_SELECTION_ID;
 
-  const automaticMode = (modes ?? []).find(
-    (mode) => mode.routing.kind === "default" && !mode.deepResearch,
-  );
+  const automaticMode = modeById("mode:automatic", modes);
   const automaticLabel = automaticMode?.label ?? t("models.automatic.label");
   const modelLabel = isAutomatic
     ? automaticLabel

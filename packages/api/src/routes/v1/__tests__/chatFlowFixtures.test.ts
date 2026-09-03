@@ -194,7 +194,7 @@ vi.mock('../../../lib/chat-core.js', () => ({
   reportModelUsage: vi.fn(async (_keyId: unknown, _provider: unknown, _modelId: unknown, success: boolean) => {
     H.timeline.push(`provider:reportUsage:${success ? 'ok' : 'fail'}`);
   }),
-  getDefaultAliaModel: vi.fn(() => 'alia-v1'),
+  getDefaultRoutingProfile: vi.fn(() => 'kaana-v1'),
 }));
 
 /**
@@ -221,7 +221,7 @@ vi.mock('../../../lib/inference/user-runtime-bridge.js', async () => {
 });
 
 vi.mock('../../../lib/gateway-client.js', () => ({
-  getAliaModel: vi.fn(async (id: string) => ({ id, name: 'Alia V1', tier: 'v1', creditMultiplier: 1 })),
+  getRoutingProfile: vi.fn(async (id: string) => ({ id, name: 'Kaana V1', tier: 'v1', creditMultiplier: 1 })),
   getModelMappingsForTier: vi.fn(async () => [{ provider: H.UPSTREAM_PROVIDER, modelId: H.UPSTREAM_MODEL_ID, capabilities: { maxContextTokens: 128000 } }]),
 }));
 
@@ -376,7 +376,6 @@ vi.mock('../../../lib/logger.js', () => {
 
 import { handleChatCompletions } from '../chat-completions.js';
 import { resolveModel } from '../../../lib/chat-core.js';
-import { ALIAS_SUNSET } from '../../../middleware/alias-deprecation.js';
 import { clearAgentAccountVerdicts } from '../../../lib/agent-account.js';
 
 // ── Frame classification: the recorder, pinned by its own tests below ───────
@@ -532,11 +531,11 @@ const callTool = (id: string, toolName: string, input: string) => [
 ];
 
 const RESOLVED = {
-  aliasModelId: 'alia-v1',
+  routingProfileId: 'kaana-v1',
   provider: UPSTREAM_PROVIDER,
   modelId: UPSTREAM_MODEL_ID,
   keyConfig: { provider: UPSTREAM_PROVIDER, key: 'secret-not-for-clients', modelId: UPSTREAM_MODEL_ID, keyId: 'key-ws13' },
-  aliaModel: { name: 'Alia V1', creditMultiplier: 1 },
+  routingProfile: { name: 'Kaana V1', creditMultiplier: 1 },
   isFallback: false,
   fallbackIndex: 0,
 };
@@ -546,7 +545,7 @@ const RESERVATION = { userId: 'user-ws13', creditsReserved: 1, initialFreeCredit
 const ENTITLEMENTS = {
   tier: 'free',
   features: {},
-  allowedModelIds: ['alia-v1', 'alia-lite', 'alia-v1-codea', 'alia-v1-cowork'],
+  allowedModelIds: ['kaana-v1', 'kaana-lite', 'kaana-v1-codea', 'kaana-v1-cowork'],
 };
 
 /**
@@ -757,7 +756,7 @@ describe('fixture: app chat flow — streaming, direct user session, one server 
     const req = recordingReq({
       body: {
         messages: [{ role: 'user', content: 'what day is it' }],
-        model: 'alia-v1',
+        model: 'kaana-v1',
         stream: true,
         conversationId: 'conv-ws13',
         stream_options: { include_usage: true },
@@ -780,12 +779,6 @@ describe('fixture: app chat flow — streaming, direct user session, one server 
       // Memory recall runs here — before the model call, and its result reaches
       // the system prompt (asserted separately below).
       'recall:beforeChatHooks',
-      // The compatibility window's stream signal, ahead of every other frame,
-      // because this request names one of the thirteen deprecated aliases
-      // (#139 workstream 4, `docs/migration/compatibility-window.md` (a)). A
-      // request naming a non-deprecated identifier emits nothing here, which is
-      // asserted in `middleware/__tests__/alias-deprecation.test.ts`.
-      'sse:event:alia.deprecation',
       'observe:agent.start',
       // Turn 1: the model asks for a tool, the SDK runs it, the result is echoed
       // to the client as an Alia product event, then turn 2 speaks.
@@ -814,7 +807,7 @@ describe('fixture: app chat flow — streaming, direct user session, one server 
   });
 
   it('recall reaches the model call, not merely precedes it', async () => {
-    const body = { messages: [{ role: 'user', content: 'what day is it' }], model: 'alia-v1', stream: true, conversationId: 'conv-ws13' };
+    const body = { messages: [{ role: 'user', content: 'what day is it' }], model: 'kaana-v1', stream: true, conversationId: 'conv-ws13' };
     await run(recordingReq({ body: { ...body } }), recordingRes());
 
     // Ordering alone is a weak claim: a recall that ran first and was then
@@ -840,7 +833,7 @@ describe('fixture: app chat flow — streaming, direct user session, one server 
 
   it('executes the tool for real between the call frame and the result frame', async () => {
     const req = recordingReq({
-      body: { messages: [{ role: 'user', content: 'what day is it' }], model: 'alia-v1', stream: true, conversationId: 'conv-ws13' },
+      body: { messages: [{ role: 'user', content: 'what day is it' }], model: 'kaana-v1', stream: true, conversationId: 'conv-ws13' },
     });
     const res = recordingRes();
     const before = Date.now();
@@ -873,7 +866,7 @@ describe('fixture: app chat flow — streaming, direct user session, one server 
     const req = recordingReq({
       body: {
         messages: [{ role: 'user', content: 'what day is it' }],
-        model: 'alia-v1',
+        model: 'kaana-v1',
         stream: true,
         conversationId: 'conv-ws13',
         stream_options: { include_usage: true },
@@ -885,7 +878,7 @@ describe('fixture: app chat flow — streaming, direct user session, one server 
     // Positive control: the scan sees a named event at all. Without it, "no
     // unexpected events" is what a scan of an empty array also reports.
     const named = res.raw.filter((frame) => frame.startsWith('event: ')).map((frame) => frame.slice(7, frame.indexOf('\n')));
-    expect(named).toEqual(['alia.deprecation', 'alia.tool_result', 'alia.title']);
+    expect(named).toEqual(['alia.tool_result', 'alia.title']);
 
     // The generic half: every `data:` frame that is not the terminator carries
     // the OpenAI chunk envelope, and the model field is the ALIA ALIAS — never
@@ -896,7 +889,7 @@ describe('fixture: app chat flow — streaming, direct user session, one server 
       .map((frame) => JSON.parse(frame.slice(6).trim()) as { object?: string; model?: string });
     expect(dataFrames.length).toBeGreaterThan(0);
     expect(new Set(dataFrames.map((frame) => frame.object))).toEqual(new Set(['chat.completion.chunk']));
-    expect(new Set(dataFrames.map((frame) => frame.model))).toEqual(new Set(['alia-v1']));
+    expect(new Set(dataFrames.map((frame) => frame.model))).toEqual(new Set(['kaana-v1']));
 
     // And the same invariant over the WHOLE byte stream, named events included.
     // This is the successful path deliberately: on the all-providers-exhausted
@@ -905,47 +898,14 @@ describe('fixture: app chat flow — streaming, direct user session, one server 
     // mutating exactly that line and watching it survive. The place a provider
     // identity can actually escape is a request that resolved.
     const bytes = res.raw.join('');
-    expect(bytes).toContain('alia-v1');
+    expect(bytes).toContain('kaana-v1');
     expect(bytes).not.toContain(UPSTREAM_PROVIDER);
     expect(bytes).not.toContain(UPSTREAM_MODEL_ID);
   });
 
-  it('carries the announced sunset date on the alia.deprecation frame it actually writes', async () => {
-    // The route reads `ALIAS_SUNSET` and hands it to `aliasDeprecationEvent`
-    // (`chat-completions.ts`). A unit test of that builder proves the builder
-    // works; it proves nothing about what the ROUTE passes, and the route passing
-    // `null` is exactly how a set constant ships inert. So this reads the bytes.
-    const req = recordingReq({
-      body: {
-        messages: [{ role: 'user', content: 'what day is it' }],
-        model: 'alia-v1',
-        stream: true,
-        conversationId: 'conv-ws13',
-        stream_options: { include_usage: true },
-      },
-    });
-    const res = recordingRes();
-    await run(req, res);
-
-    const index = res.raw.findIndex((frame) => frame.startsWith('event: alia.deprecation'));
-    // Floor: a missing frame would make every assertion below vacuously skipped.
-    expect(index).toBeGreaterThanOrEqual(0);
-
-    const payload = JSON.parse(
-      res.raw[index].slice(res.raw[index].indexOf('data: ') + 6).trim(),
-    ) as { identifier: string; replacement: string; sunsetAt: string | null };
-
-    expect(payload.identifier).toBe('alia-v1');
-    expect(payload.sunsetAt).toBe('2026-10-01T00:00:00.000Z');
-    expect(payload.sunsetAt).toBe(ALIAS_SUNSET.toISOString());
-    // Not null, stated separately: `toBe` between two nulls is what this test
-    // reported before the date was set, and it passed.
-    expect(payload.sunsetAt).not.toBeNull();
-  });
-
   it('does not emit an approval request over SSE — approvals are a socket surface', async () => {
     const req = recordingReq({
-      body: { messages: [{ role: 'user', content: 'what day is it' }], model: 'alia-v1', stream: true, conversationId: 'conv-ws13' },
+      body: { messages: [{ role: 'user', content: 'what day is it' }], model: 'kaana-v1', stream: true, conversationId: 'conv-ws13' },
     });
     const res = recordingRes();
     await run(req, res);
@@ -973,7 +933,7 @@ describe('fixture: app chat flow — streaming, direct user session, one server 
     const req = recordingReq({
       body: {
         messages: [{ role: 'user', content: 'what day is it' }],
-        model: 'alia-v1',
+        model: 'kaana-v1',
         stream: true,
         conversationId: 'conv-ws13',
       },
@@ -1067,7 +1027,7 @@ describe('fixture: what a failure surfaces to the user', () => {
     H.state.streamTurns = [[streamStart, { type: 'error', error: new Error('upstream exploded') }]];
 
     const req = recordingReq({
-      body: { messages: [{ role: 'user', content: 'summarise this file' }], model: 'alia-v1', stream: true },
+      body: { messages: [{ role: 'user', content: 'summarise this file' }], model: 'kaana-v1', stream: true },
     });
     const res = recordingRes();
     await run(req, res);
@@ -1088,7 +1048,7 @@ describe('fixture: what a failure surfaces to the user', () => {
     // stream rather than an empty string.
     expect(bytes).not.toContain(UPSTREAM_PROVIDER);
     expect(bytes).not.toContain(UPSTREAM_MODEL_ID);
-    expect(bytes).toContain('alia-v1');
+    expect(bytes).toContain('kaana-v1');
   });
 
   /**
@@ -1106,7 +1066,7 @@ describe('fixture: what a failure surfaces to the user', () => {
 
     await run(
       recordingReq({
-        body: { messages: [{ role: 'user', content: 'summarise this file' }], model: 'alia-v1', stream: true },
+        body: { messages: [{ role: 'user', content: 'summarise this file' }], model: 'kaana-v1', stream: true },
       }),
       recordingRes(),
     );
@@ -1117,7 +1077,7 @@ describe('fixture: what a failure surfaces to the user', () => {
     // The response is empty because nothing usable reached the caller, which is
     // also what the autonomy learner reads to score the run.
     expect(recorded.response).toBe('');
-    expect(recorded.requestedModel).toBe('alia-v1');
+    expect(recorded.requestedModel).toBe('kaana-v1');
     expect(recorded.cancelled).toBe(false);
   });
 
@@ -1127,7 +1087,7 @@ describe('fixture: what a failure surfaces to the user', () => {
     H.state.streamTurns = [[streamStart, ...say('t1', 'Here you go.'), finish('stop')]];
 
     await run(
-      recordingReq({ body: { messages: [{ role: 'user', content: 'hello' }], model: 'alia-v1', stream: true } }),
+      recordingReq({ body: { messages: [{ role: 'user', content: 'hello' }], model: 'kaana-v1', stream: true } }),
       recordingRes(),
     );
 
@@ -1149,21 +1109,21 @@ describe('fixture: what a failure surfaces to the user', () => {
     H.state.streamTurns = [[streamStart, { type: 'error', error: new Error('upstream exploded') }]];
 
     const spanish = recordingRes();
-    await run(recordingReq({ body: { messages: [{ role: 'user', content: 'hola, ¿qué tal?' }], model: 'alia-v1', stream: true } }), spanish);
+    await run(recordingReq({ body: { messages: [{ role: 'user', content: 'hola, ¿qué tal?' }], model: 'kaana-v1', stream: true } }), spanish);
     expect(spanish.raw.join('')).toContain('todos los modelos están ocupados');
 
     H.timeline.length = 0;
     H.state.resolveAnswers = [RESOLVED, null];
     H.state.streamTurns = [[streamStart, { type: 'error', error: new Error('upstream exploded') }]];
     const english = recordingRes();
-    await run(recordingReq({ body: { messages: [{ role: 'user', content: 'how are you' }], model: 'alia-v1', stream: true } }), english);
+    await run(recordingReq({ body: { messages: [{ role: 'user', content: 'how are you' }], model: 'kaana-v1', stream: true } }), english);
     expect(english.raw.join('')).toContain('all models are currently busy');
   });
 
   it('refuses before the model call when credits are exhausted', async () => {
     H.state.reservation = null;
     const res = recordingRes();
-    await run(recordingReq({ body: { messages: [{ role: 'user', content: 'hi' }], model: 'alia-v1', stream: false } }), res);
+    await run(recordingReq({ body: { messages: [{ role: 'user', content: 'hi' }], model: 'kaana-v1', stream: false } }), res);
 
     expect(H.timeline).toEqual(['credits:reserve', 'http:status(402)', 'http:json']);
     expect(res.jsonBody).toEqual({
@@ -1184,7 +1144,7 @@ describe('fixture: what a failure surfaces to the user', () => {
     // property rather than a surprise.
     H.state.reservation = null;
     const res = recordingRes();
-    await run(recordingReq({ body: { messages: [{ role: 'user', content: 'hi' }], model: 'alia-v1', stream: true } }), res);
+    await run(recordingReq({ body: { messages: [{ role: 'user', content: 'hi' }], model: 'kaana-v1', stream: true } }), res);
 
     expect(H.timeline).toEqual([
       'sse:comment(keep-alive)',
@@ -1196,9 +1156,9 @@ describe('fixture: what a failure surfaces to the user', () => {
   });
 
   it('refuses a model the plan does not allow, and refunds', async () => {
-    H.state.entitlements = { tier: 'free', features: {}, allowedModelIds: ['alia-lite'] };
+    H.state.entitlements = { tier: 'free', features: {}, allowedModelIds: ['kaana-lite'] };
     const res = recordingRes();
-    await run(recordingReq({ body: { messages: [{ role: 'user', content: 'hi' }], model: 'alia-v1', stream: false } }), res);
+    await run(recordingReq({ body: { messages: [{ role: 'user', content: 'hi' }], model: 'kaana-v1', stream: false } }), res);
 
     expect(H.timeline).toEqual(['credits:reserve', 'credits:refund', 'http:status(403)', 'http:json']);
     expect(res.jsonBody).toEqual({
@@ -1224,7 +1184,7 @@ describe('fixture: Codea flow — API key, non-streaming, no client tools', () =
     recordingReq({ apiKey: { id: 'key-ws13' }, user: { id: 'user-ws13' }, body });
 
   beforeEach(() => {
-    H.state.resolveAnswers = [{ ...RESOLVED, aliasModelId: 'alia-v1-codea' }];
+    H.state.resolveAnswers = [{ ...RESOLVED, routingProfileId: 'kaana-v1-codea' }];
     H.state.generateContent = [{ type: 'text', text: 'const total = items.length;' }];
   });
 
@@ -1236,7 +1196,7 @@ describe('fixture: Codea flow — API key, non-streaming, no client tools', () =
           { role: 'system', content: 'You are an expert code completion assistant.' },
           { role: 'user', content: 'complete this' },
         ],
-        model: 'alia-v1-codea',
+        model: 'kaana-v1-codea',
         max_tokens: 500,
         temperature: 0.2,
         stream: false,
@@ -1265,7 +1225,7 @@ describe('fixture: Codea flow — API key, non-streaming, no client tools', () =
       alia_usage?: Record<string, unknown>;
     };
     expect(body.object).toBe('chat.completion');
-    expect(body.model).toBe('alia-v1-codea');
+    expect(body.model).toBe('kaana-v1-codea');
     expect(body.choices?.[0].message?.content).toBe('const total = items.length;');
     // The Alia extension the app reads with a fallback to the standard block; a
     // rename degrades credit reporting silently rather than erroring
@@ -1280,7 +1240,7 @@ describe('fixture: Codea flow — API key, non-streaming, no client tools', () =
   });
 
   it('carries the synthetic marker Codea branches on when every provider fails', async () => {
-    H.state.resolveAnswers = [{ ...RESOLVED, aliasModelId: 'alia-v1-codea' }, null];
+    H.state.resolveAnswers = [{ ...RESOLVED, routingProfileId: 'kaana-v1-codea' }, null];
     const boom = new Error('upstream exploded');
     H.state.generateContent = [];
     const { getAIModel } = await import('../../../lib/chat-core.js');
@@ -1299,7 +1259,7 @@ describe('fixture: Codea flow — API key, non-streaming, no client tools', () =
     } as never);
 
     const res = recordingRes();
-    await run(codeaReq({ messages: [{ role: 'user', content: 'complete this' }], model: 'alia-v1-codea', stream: false }), res);
+    await run(codeaReq({ messages: [{ role: 'user', content: 'complete this' }], model: 'kaana-v1-codea', stream: false }), res);
 
     const body = res.jsonBody as { alia_meta?: Record<string, unknown>; choices?: Array<{ message?: { content?: string } }> };
     expect(body.alia_meta).toEqual({ synthetic: true, retryable: true });
@@ -1324,7 +1284,7 @@ describe('fixture: Codea flow — API key, non-streaming, no client tools', () =
     // an editor client gets it like everyone else.
     H.state.entitlements = { tier: 'free', features: {}, allowedModelIds: [] };
     const res = recordingRes();
-    await run(codeaReq({ messages: [{ role: 'user', content: 'complete this' }], model: 'alia-v1-codea', stream: false }), res);
+    await run(codeaReq({ messages: [{ role: 'user', content: 'complete this' }], model: 'kaana-v1-codea', stream: false }), res);
 
     // An empty allow-list would have refused an app request; the editor request
     // is served, because the plan gate is skipped for API keys.
@@ -1341,7 +1301,7 @@ describe('fixture: Codea flow — API key, non-streaming, no client tools', () =
 
 /**
  * `packages/alia-cowork/src/main/chat.ts` drives an `openai` client at
- * `${baseUrl}/v1` with `stream: true`, `model: 'alia-v1-cowork'` and its own
+ * `${baseUrl}/v1` with `stream: true`, `model: 'kaana-v1-cowork'` and its own
  * filesystem tools, then executes the returned tool calls locally.
  *
  * The property that matters most for this flow is the NAME ROUND TRIP: Alia
@@ -1355,13 +1315,13 @@ describe('fixture: Cowork flow — API key, streaming, client-supplied editor to
 
   const COWORK_BODY = {
     messages: [{ role: 'user', content: 'read the readme' }],
-    model: 'alia-v1-cowork',
+    model: 'kaana-v1-cowork',
     stream: true,
     tools: EDITOR_TOOLS,
   };
 
   beforeEach(() => {
-    H.state.resolveAnswers = [{ ...RESOLVED, aliasModelId: 'alia-v1-cowork' }];
+    H.state.resolveAnswers = [{ ...RESOLVED, routingProfileId: 'kaana-v1-cowork' }];
     H.state.streamTurns = [
       [streamStart, ...callTool('call-fs', 'workspace_write_file', '{"path":"README.md"}'), finish('tool-calls')],
       [streamStart, ...say('t1', 'The readme describes the project.'), finish('stop')],
@@ -1377,9 +1337,6 @@ describe('fixture: Cowork flow — API key, streaming, client-supplied editor to
       'sse:comment(keep-alive)',
       'credits:reserve',
       'recall:beforeChatHooks',
-      // `alia-v1-cowork` is a deprecated alias too, so the desktop app is told
-      // so on its own stream rather than only in headers it never reads.
-      'sse:event:alia.deprecation',
       'observe:agent.start',
       'model:doStream',
       'sse:chunk:tool_calls',
@@ -1491,7 +1448,7 @@ describe('fixture: deep research flow — phase events, report deltas, sources',
     recordingReq({
       body: {
         messages: [{ role: 'user', content: 'compare the two approaches' }],
-        model: 'alia-v1',
+        model: 'kaana-v1',
         stream: true,
         deepResearch: true,
         conversationId: 'conv-research',
@@ -1638,7 +1595,7 @@ describe('fixture: deep research flow — phase events, report deltas, sources',
     // identity reaches the bytes. Positive control: the alias does.
     expect(bytes).not.toContain(UPSTREAM_PROVIDER);
     expect(bytes).not.toContain(UPSTREAM_MODEL_ID);
-    expect(bytes).toContain('alia-v1');
+    expect(bytes).toContain('kaana-v1');
   });
 });
 
@@ -1713,7 +1670,7 @@ describe('fixture: a turn served by the user own device', () => {
     /**
      * Not resolved, not routed. The synthetic resolution in `request-context.ts`
      * is what keeps a local id away from `fallback-engine.ts`, which throws for
-     * anything outside `ALIA_MODELS` — so a regression here does not degrade
+     * anything outside `KAANA_ROUTING_PROFILES` — so a regression here does not degrade
      * gracefully, it 500s.
      */
     expect(vi.mocked(resolveModel)).not.toHaveBeenCalled();
@@ -1778,13 +1735,13 @@ describe('fixture: a turn served by the user own device', () => {
     expect(local).not.toContain('deepResearch');
   });
 
-  it('positive control: the same request on an Alia model IS offered it', async () => {
+  it('positive control: the same request on a Kaana routing profile IS offered it', async () => {
     // Without this the assertion above passes for a build that offers the tool
     // to nobody, which would be a different bug wearing the same green.
     const res = recordingRes();
     await run(
       recordingReq({
-        body: { messages: [{ role: 'user', content: 'hola' }], model: 'alia-v1', stream: true },
+        body: { messages: [{ role: 'user', content: 'hola' }], model: 'kaana-v1', stream: true },
       }),
       res,
     );

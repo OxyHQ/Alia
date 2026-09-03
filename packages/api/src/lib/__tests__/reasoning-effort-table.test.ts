@@ -6,7 +6,7 @@ import {
   reasoningLevelsFor,
   reasoningPayloadFor,
 } from '../reasoning-effort.js';
-import { getAllAliaModels, getModelMappingsForTier, type ModelMapping } from '../gateway-client.js';
+import { getAllRoutingProfiles, getModelMappingsForTier, type ModelMapping } from '../gateway-client.js';
 
 /**
  * The reasoning table describes routes that EXIST, and no route it does not
@@ -38,7 +38,7 @@ const FIRST_PARTY: Readonly<Record<string, string>> = {
 };
 
 async function allMappings(): Promise<ModelMapping[]> {
-  const models = await getAllAliaModels();
+  const models = await getAllRoutingProfiles();
   const tiers = [...new Set(models.map((m) => m.tier))];
   const perTier = await Promise.all(tiers.map((tier) => getModelMappingsForTier(tier)));
   return perTier.flat();

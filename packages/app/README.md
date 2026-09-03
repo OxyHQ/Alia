@@ -78,4 +78,4 @@ Expected production API:
 ## Notes
 
 - No `/automations` API calls remain in the app client.
-- Public model selection uses Alia model IDs only.
+- Public hosted selection uses Kaana routing-profile IDs only.

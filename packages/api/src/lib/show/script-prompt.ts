@@ -60,7 +60,7 @@
 
 import type { PriorEpisode } from '../../db/shows/showRepository.js';
 import type { ShowFormat, ShowSpeaker } from '../../db/schema/shows.js';
-import { PERFORMABLE_AUDIO_TAGS } from '../../internal/providers/lib/tts-providers.js';
+import { PERFORMABLE_AUDIO_TAGS } from './audio-text.js';
 import { FORMAT_DEFAULTS } from './voice-roster.js';
 
 /**

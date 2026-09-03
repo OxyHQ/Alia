@@ -9,7 +9,7 @@ import {
 } from '../model-identity.js';
 import { OFFERED_PROFILES } from '../../product-modes.js';
 import { ROUTING_PRESETS } from '../presets.js';
-import type { AliaModel, ModelMapping } from '../../gateway-client.js';
+import type { RoutingProfile, ModelMapping } from '../../gateway-client.js';
 
 /**
  * Which models a person may pick one at a time, and what admits them.
@@ -83,8 +83,8 @@ function route(overrides: RouteOverrides = {}): ModelMapping {
   };
 }
 
-/** An alias carrying a profile's facts, as `getAvailableModels` returns them. */
-function alias(id: string, tier: string, creditMultiplier: number): AliaModel {
+/** A Kaana routing-profile record, as `getAvailableModels` returns it. */
+function profileRecord(id: string, tier: string, creditMultiplier: number): RoutingProfile {
   return {
     id,
     name: id,
@@ -98,10 +98,10 @@ function alias(id: string, tier: string, creditMultiplier: number): AliaModel {
   };
 }
 
-const LITE = alias('alia-lite', 'lite', 0.5);
-const V1 = alias('alia-v1', 'v1', 1);
-const V1_PRO = alias('alia-v1-pro', 'v1-pro', 3);
-const CODEA = alias('alia-v1-codea', 'v1-codea', 1.5);
+const LITE = profileRecord('kaana-lite', 'lite', 0.5);
+const V1 = profileRecord('kaana-v1', 'v1', 1);
+const V1_PRO = profileRecord('kaana-v1-pro', 'v1-pro', 3);
+const CODEA = profileRecord('kaana-v1-codea', 'v1-codea', 1.5);
 
 const idsOf = (models: readonly { id: string }[]): string[] => models.map((m) => m.id).sort();
 
@@ -249,7 +249,7 @@ describe('the price band admits a model, or says why not', () => {
 
 describe('a model is served under exactly one profile, chosen the same way every time', () => {
   it('prefers a profile the product OFFERS over a cheaper one it does not', () => {
-    // `profile:v1-codea` is cheaper (1.5) and hidden; `profile:v1-pro` is
+    // `kaana-v1-codea` is cheaper (1.5) and hidden; `kaana-v1-pro` is
     // dearer (3) and offered. Homing under the hidden one would leave a model
     // the product can perfectly well serve out of every picker.
     const { selectable } = classifyModels(
@@ -260,8 +260,8 @@ describe('a model is served under exactly one profile, chosen the same way every
       [CODEA, V1_PRO],
     );
     expect(selectable).toHaveLength(1);
-    expect(selectable[0].profileId).toBe('profile:v1-pro');
-    expect(selectable[0].alias).toBe('alia-v1-pro');
+    expect(selectable[0].profileId).toBe('kaana-v1-pro');
+    expect(selectable[0].routingProfile).toBe('kaana-v1-pro');
     expect(selectable[0].creditMultiplier).toBe(3);
     expect(selectable[0].chatVisible).toBe(true);
     expect(OFFERED_PROFILES).toContain(selectable[0].profileId);
@@ -276,7 +276,7 @@ describe('a model is served under exactly one profile, chosen the same way every
       [LITE, V1],
     );
     expect(selectable).toHaveLength(1);
-    expect(selectable[0].profileId).toBe('profile:lite');
+    expect(selectable[0].profileId).toBe('kaana-lite');
     expect(selectable[0].creditMultiplier).toBe(0.5);
   });
 
@@ -294,7 +294,7 @@ describe('a model is served under exactly one profile, chosen the same way every
     expect(OFFERED_PROFILES).not.toContain(selectable[0].profileId);
   });
 
-  it('skips a preset whose alias the runtime catalogue does not know', () => {
+  it('skips a preset whose routing profile the runtime catalogue does not know', () => {
     // A profile pointing at nothing prices nothing. Admitting from it would
     // publish a model with no multiplier behind it.
     const { selectable } = classifyModels({ lite: [route({ priority: 1, model: 'orphan' })] }, []);
@@ -310,7 +310,7 @@ describe('an identity is two authored halves, joined and split the same way', ()
   });
 
   it('refuses a shape that is not an identity, rather than half-parsing it', () => {
-    expect(parseModelIdentity('alia-lite')).toBeNull();
+    expect(parseModelIdentity('kaana-lite')).toBeNull();
     expect(parseModelIdentity('profile:v1')).toBeNull();
     expect(parseModelIdentity('/model')).toBeNull();
     expect(parseModelIdentity('publisher/')).toBeNull();
@@ -351,10 +351,10 @@ describe('against the live routing table', () => {
     const { GENERATED_TIER_MAPPINGS } = await import(
       '../../../internal/providers/lib/generate-model-mappings.js'
     );
-    const { ALIA_MODELS } = await import('../../../internal/providers/lib/alia-models.js');
+    const { KAANA_ROUTING_PROFILES } = await import('../../../internal/providers/lib/routing-profile-catalogue.js');
     return classifyModels(
       GENERATED_TIER_MAPPINGS as unknown as Record<string, ModelMapping[]>,
-      Object.values(ALIA_MODELS) as unknown as AliaModel[],
+      Object.values(KAANA_ROUTING_PROFILES) as unknown as RoutingProfile[],
     );
   };
 
@@ -444,7 +444,7 @@ describe('against the live routing table', () => {
 
   it('is served under a profile the preset table defines', async () => {
     const { selectable } = await live();
-    const presets = new Set(ROUTING_PRESETS.map((preset) => preset.id));
+    const presets = new Set(ROUTING_PRESETS.flatMap((preset) => preset.profileIds));
     expect(selectable.filter((m) => !presets.has(m.profileId))).toEqual([]);
   });
 });
@@ -461,35 +461,34 @@ describe('what a request’s model identifier resolves to', () => {
     vi.resetModules();
     vi.doMock('../../gateway-client.js', async () => {
       const actual = await vi.importActual<
-        typeof import('../../../internal/providers/lib/alia-models.js')
-      >('../../../internal/providers/lib/alia-models.js');
+        typeof import('../../../internal/providers/lib/routing-profile-catalogue.js')
+      >('../../../internal/providers/lib/routing-profile-catalogue.js');
       return {
         getTierMappings: async () => actual.TIER_MODEL_MAPPINGS,
-        getAllAliaModels: async () => Object.values(actual.ALIA_MODELS),
+        getAllRoutingProfiles: async () => Object.values(actual.KAANA_ROUTING_PROFILES),
       };
     });
     const { resolveRequestedModel } = await import('../model-selection.js');
     return resolveRequestedModel(identifier);
   };
 
-  it('turns a model identifier into the alias it is served under, plus the identity', async () => {
+  it('turns a model identifier into its canonical Kaana profile plus the identity', async () => {
     const resolved = await resolve('deepseek/deepseek-chat');
     expect(resolved.kind).toBe('model');
     if (resolved.kind !== 'model') throw new Error('unreachable');
     expect(resolved.identity).toEqual({ publisher: 'deepseek', model: 'deepseek-chat' });
-    // The alias, not the identifier: everything downstream reads it for price,
-    // plan, prompt and tier.
-    expect(resolved.alias.startsWith('alia-')).toBe(true);
+    expect(resolved.routingProfile.startsWith('kaana-')).toBe(true);
   });
 
-  it('turns a profile identifier into its alias, unchanged from before', async () => {
-    const resolved = await resolve('profile:v1');
-    expect(resolved).toEqual({ kind: 'alias', alias: 'alia-v1' });
+  it('refuses an internal policy id at the public boundary', async () => {
+    expect(await resolve('profile:v1')).toEqual({ kind: 'unknown-profile', requested: 'profile:v1' });
   });
 
-  it('passes a legacy identifier through untouched', async () => {
-    // Every installed SDK and CLI copy still sends one of these.
-    expect(await resolve('alia-lite')).toEqual({ kind: 'alias', alias: 'alia-lite' });
+  it('accepts a canonical Kaana routing profile without translation', async () => {
+    expect(await resolve('kaana-lite')).toEqual({
+      kind: 'routing-profile',
+      routingProfile: 'kaana-lite',
+    });
   });
 
   it('refuses a model nobody may select, and says so as a MODEL', async () => {

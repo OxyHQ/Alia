@@ -103,7 +103,7 @@ function PlaygroundPage() {
    * Settings state.
    *
    * `null` means "nothing chosen yet", and the selection is DERIVED from it
-   * below rather than seeded by an effect — a hardcoded `'alia-lite'` seed is
+   * below rather than seeded by an effect — a hardcoded `'kaana-lite'` seed is
    * both a client baking in an identifier (`scripts/check-model-defaults.mjs`)
    * and, since #139 workstream 4, an identifier the catalogue does not
    * advertise.
@@ -118,7 +118,7 @@ function PlaygroundPage() {
   // is sorted by credit multiplier. No effect, so there is no render where the
   // selection is empty and no stale read after the catalogue loads.
   const models = catalogue ?? [];
-  const selectedModel = chosenModel ?? models[0]?.id ?? '';
+  const selectedModel = chosenModel || models[0]?.id || '';
   const currentModel = models.find((m) => m.id === selectedModel);
 
   const handleSend = useCallback(async () => {

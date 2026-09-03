@@ -108,6 +108,8 @@ vi.mock('@/lib/hooks/use-local-runtimes', () => ({
 
 vi.mock('@/lib/hooks/use-product-modes', () => ({
   useProductModes: () => ({ data: undefined }),
+  modeById: (id: string, modes: readonly { id: string }[] | undefined) =>
+    modes?.find((mode) => mode.id === id) ?? null,
   presentation: () => ({}),
 }));
 

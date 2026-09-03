@@ -10,7 +10,7 @@
  * - worldview: Core principles ("pragmatic", "user-first")
  * - currentFocus: What the agent has been working on recently
  *
- * Evolution runs on ~10% of interactions using alia-lite to keep costs minimal.
+ * Evolution runs on ~10% of interactions using kaana-lite to keep costs minimal.
  */
 
 import { generateText } from 'ai';
@@ -96,7 +96,7 @@ function stringList(value: unknown, max: number): string[] | undefined {
 /**
  * Evolve an agent's soul based on a completed interaction.
  *
- * Runs on alia-lite for cost efficiency. Fire-and-forget.
+ * Runs on kaana-lite for cost efficiency. Fire-and-forget.
  *
  * The model's answer is parsed into a KNOWN shape rather than spread: it is
  * generated text reaching a write path, and the columns behind it are `text[]`.
@@ -123,8 +123,8 @@ export async function evolveAgentSoul(
       .replace('{{TASK}}', task.slice(0, 500))
       .replace('{{RESPONSE}}', response.slice(0, 500));
 
-    // alia-lite, for the cheapest possible evolution.
-    const resolved = await resolveModel('alia-lite');
+    // kaana-lite, for the cheapest possible evolution.
+    const resolved = await resolveModel('kaana-lite');
     if (!resolved) {
       await bumpAgentSoulInteractions(db, agentId, newCount);
       return;

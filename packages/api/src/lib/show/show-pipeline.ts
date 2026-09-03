@@ -34,7 +34,7 @@ import {
   type ShowEpisodeRow,
   type ShowSeriesRow,
 } from '../../db/shows/showRepository.js';
-import { resolveModel, getAIModel, getDefaultAliaModel } from '../chat-core.js';
+import { resolveModel, getAIModel, getDefaultRoutingProfile } from '../chat-core.js';
 import { synthesizeSpeech } from '../synthesize-speech.js';
 import { synthesizeSoundEffect } from '../synthesize-sound-effect.js';
 import { deleteS3Objects, uploadToS3 } from '../s3.js';
@@ -639,7 +639,7 @@ async function generateScript(
   const needsTopic = episode.topic === null;
 
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-    const resolved = await resolveModel(getDefaultAliaModel(), skipProviders);
+    const resolved = await resolveModel(getDefaultRoutingProfile(), skipProviders);
     if (!resolved) break;
 
     try {

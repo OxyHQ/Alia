@@ -2,7 +2,7 @@
  * The `alia/*` publisher namespace is reserved (ADR 0002).
  *
  * ADR 0003 makes `<publisher>/<model>` the canonical form of a model identity,
- * and ADR 0002 reserves the `alia` publisher for real released Alia models —
+ * and ADR 0002 reserves the `alia` publisher for real released Kaana routing profiles —
  * weights that exist and are addressable, an immutable revision, a signed
  * release manifest, and a model card. Nothing qualifies today, and the release
  * pipeline that could produce those four things does not live in this
@@ -19,7 +19,7 @@
  * `alia/<model>` — a SLASH — is the reserved publisher namespace. Refused here.
  *
  * `alia-<name>` — a HYPHEN — is the frozen thirteen-alias set. Untouched by
- * this module: `alia-lite` and friends have no slash, so no call below can
+ * this module: `kaana-lite` and friends have no slash, so no call below can
  * reject one. That is asserted, not assumed, in the test beside this file.
  *
  * ## Where this is enforced
@@ -28,19 +28,17 @@
  * `internal/providers/` because ADR 0002 puts that tree on a path to deletion
  * and adds nothing new to it:
  *
- *  - **Register** — `db/providers/aliaModelRepository.ts`. `createAliaModel` and
- *    `upsertAliaModel` are the only writers of `alia_models.alias_model_id`;
- *    `updateAliaModel` deletes the column from its own SET clause, so an alias
+ *  - **Register** — `db/providers/routingProfileRepository.ts`. `createRoutingProfile` and
+ *    `upsertRoutingProfile` are the only writers of `routing_profiles.routing_profile_id`;
+ *    `updateRoutingProfile` deletes the column from its own SET clause, so an alias
  *    identity cannot move through an update.
- *  - **Serve** — `lib/gateway-client.ts` `resolveAliaModel()`. Outside the
- *    provider tree that is the ONLY door into model resolution, which the
- *    architecture gates prove: their frozen importer list records exactly one
- *    module reaching `internal/providers/lib/model-resolver`, and it is
- *    gateway-client. Refusing there covers the remote gateway branch and the
- *    local branch together.
+ *  - **Serve** — `lib/chat-core.ts` `resolveModel()`, the hosted-model resolver
+ *    shared by chat, agent, research, webhook and automation turns. Refusing
+ *    there covers every product path before it can construct an Oxy inference
+ *    target.
  *
  * `GET /v1/models/:modelId` needs nothing added: it looks the identifier up in
- * `ALIA_MODELS`, which is keyed by the thirteen hyphenated aliases, so a slashed
+ * `KAANA_ROUTING_PROFILES`, which is keyed by the thirteen hyphenated aliases, so a slashed
  * identifier already gets a 404. A 404 is a refusal.
  */
 

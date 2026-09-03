@@ -32,15 +32,12 @@ import {
  * seam without touching this file, and every list below is an exact equality in
  * both directions so that fails.
  *
- * ## What did NOT change when `@oxyhq/contracts` published the inference module
+ * ## Why the seam still imports no wire contract
  *
- * This file predicted that {@link FROZEN_MODULE_REFS} would gain a type-only
- * contracts import in the PR that bound the four type parameters. It did not,
- * and the prediction was wrong in an instructive direction: the parameters are
- * bound at the IMPLEMENTATION (`kaana-client.ts`, `KaanaInferencePort`), so the
- * seam still imports nothing at all. A product module that named this port
- * would otherwise have to name the wire types with it, which is the coupling the
- * port exists to remove.
+ * The published Oxy inference contract is consumed at the hosted AI SDK adapter
+ * (`kaana-language-model.ts`), not here. A product module that names this seam
+ * would otherwise have to name wire types with it, which is the coupling the
+ * seam exists to remove.
  *
  * The freeze therefore stays empty, and that emptiness is now a stronger claim
  * than it was: the contracts package IS available, and the seam still does not
@@ -235,7 +232,7 @@ const FROZEN_DECLARATIONS: readonly Declaration[] = [
   { name: 'AliaBillingMode', kind: 'type' },
   { name: 'AliaInferenceCaller', kind: 'interface' },
   { name: 'AliaCallVisibility', kind: 'type' },
-  { name: 'AliaModelChoice', kind: 'type' },
+  { name: 'RoutingProfileChoice', kind: 'type' },
   { name: 'AliaInferenceBudget', kind: 'interface' },
   { name: 'AliaDisconnectPolicy', kind: 'type' },
   { name: 'AliaDegradation', kind: 'type' },

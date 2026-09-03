@@ -11,6 +11,8 @@ import { errorMessage } from '../../shared/utils';
 import type { AccountAdapter } from '../types';
 import type { GmailSession, GmailThread, GmailMessage, SendEmailParams } from './types';
 
+type AccountRequest = Request<Record<string, string>>;
+
 const GMAIL_API = 'https://gmail.googleapis.com/gmail/v1';
 const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const API_TIMEOUT_MS = 15_000;
@@ -63,7 +65,7 @@ export class GmailAdapter implements AccountAdapter {
     const router: RouterType = Router();
 
     // Create session with OAuth tokens
-    router.post('/sessions/connect', async (req: Request, res: Response) => {
+    router.post('/sessions/connect', async (req: AccountRequest, res: Response) => {
       const { oxyUserId, accountId, accessToken, refreshToken, expiresAt, email } = req.body;
 
       if (!oxyUserId || !accessToken) {
@@ -102,7 +104,7 @@ export class GmailAdapter implements AccountAdapter {
     });
 
     // Get session status
-    router.get('/sessions/:id/status', async (req: Request, res: Response) => {
+    router.get('/sessions/:id/status', async (req: AccountRequest, res: Response) => {
       const session = sessions.get(req.params.id);
       if (!session) {
         return res.status(404).json({ error: 'Session not found' });
@@ -138,7 +140,7 @@ export class GmailAdapter implements AccountAdapter {
     });
 
     // List recent email threads (as "chats")
-    router.get('/sessions/:id/chats', async (req: Request, res: Response) => {
+    router.get('/sessions/:id/chats', async (req: AccountRequest, res: Response) => {
       const session = sessions.get(req.params.id);
       if (!session) {
         return res.status(404).json({ error: 'Session not found' });
@@ -159,7 +161,7 @@ export class GmailAdapter implements AccountAdapter {
     });
 
     // Get messages from a thread (as "messages")
-    router.get('/sessions/:id/chats/:chatId/messages', async (req: Request, res: Response) => {
+    router.get('/sessions/:id/chats/:chatId/messages', async (req: AccountRequest, res: Response) => {
       const session = sessions.get(req.params.id);
       if (!session) {
         return res.status(404).json({ error: 'Session not found' });
@@ -179,7 +181,7 @@ export class GmailAdapter implements AccountAdapter {
     });
 
     // Send email
-    router.post('/sessions/:id/send', async (req: Request, res: Response) => {
+    router.post('/sessions/:id/send', async (req: AccountRequest, res: Response) => {
       const session = sessions.get(req.params.id);
       if (!session) {
         return res.status(404).json({ error: 'Session not found' });
@@ -206,7 +208,7 @@ export class GmailAdapter implements AccountAdapter {
     });
 
     // Disconnect session
-    router.post('/sessions/:id/disconnect', (req: Request, res: Response) => {
+    router.post('/sessions/:id/disconnect', (req: AccountRequest, res: Response) => {
       sessions.delete(req.params.id);
       res.json({ success: true });
     });

@@ -42,7 +42,7 @@ const SINCE = () => daysAgo(365);
 let seq = 0;
 async function seed(row: {
   oxyUserId: string;
-  aliaModelId: string;
+  routingProfileId: string;
   requestedModelId?: string;
   totalTokens?: number;
   latencyMs?: number;
@@ -52,10 +52,10 @@ async function seed(row: {
   await insertChatAnalytics(db, {
     oxyUserId: row.oxyUserId,
     conversationId: marker,
-    aliaModelId: row.aliaModelId,
-    requestedModelId: row.requestedModelId ?? row.aliaModelId,
-    requestedModelKind: 'legacy_alias',
-    requestedProfileId: null,
+    routingProfileId: row.routingProfileId,
+    requestedModelId: row.requestedModelId ?? row.routingProfileId,
+    requestedModelKind: 'routing_profile',
+    requestedProfileId: row.requestedModelId ?? row.routingProfileId,
     reasoningEffort: null,
     promptTokens: 0,
     completionTokens: 0,
@@ -81,10 +81,10 @@ describe('insertChatAnalytics', () => {
     await insertChatAnalytics(db, {
       oxyUserId,
       conversationId: 'ca-conv-1',
-      aliaModelId: 'alia-v1-pro',
-      requestedModelId: 'alia-v1-thinking',
-      requestedModelKind: 'legacy_alias',
-      requestedProfileId: 'profile:v1-pro-max',
+      routingProfileId: 'kaana-v1-pro',
+      requestedModelId: 'kaana-v1-thinking',
+      requestedModelKind: 'routing_profile',
+      requestedProfileId: 'kaana-v1-thinking',
       reasoningEffort: 'extended',
       promptTokens: 11,
       completionTokens: 22,
@@ -104,7 +104,7 @@ describe('insertChatAnalytics', () => {
     if (!row) throw new Error('no row written');
 
     /**
-     * `conversation_id`, `alia_model_id` and the skill column were absent from
+     * `conversation_id`, `routing_profile_id` and the skill column were absent from
      * the table when it landed while the hook wrote all three. A port without
      * them type-checks, inserts cleanly and throws the values away.
      *
@@ -113,22 +113,22 @@ describe('insertChatAnalytics', () => {
      * replaced could only ever record one of them.
      */
     expect(row.conversationId).toBe('ca-conv-1');
-    expect(row.aliaModelId).toBe('alia-v1-pro');
+    expect(row.routingProfileId).toBe('kaana-v1-pro');
     expect(row.skillNames).toEqual(['ca-skill-1', 'ca-skill-2']);
     expect(row.platform).toBe('web');
     expect(row.promptTokens).toBe(11);
 
     /**
      * #139 ws19 and ws5. The requested identifier is a DIFFERENT value from the
-     * alias in this fixture, so a column that silently mirrored the other one
+     * resolved profile in this fixture, so a column that silently mirrored the other one
      * fails here rather than passing on a row where they happen to agree.
      */
-    expect(row.requestedModelId).toBe('alia-v1-thinking');
+    expect(row.requestedModelId).toBe('kaana-v1-thinking');
     // The SHAPE and the profile beside the string, so a later query does not
-    // have to read `alia-v1-thinking` as a model choice — and the reasoning
+    // have to read `kaana-v1-thinking` as a model choice — and the reasoning
     // request is in its own column rather than buried in that identifier.
-    expect(row.requestedModelKind).toBe('legacy_alias');
-    expect(row.requestedProfileId).toBe('profile:v1-pro-max');
+    expect(row.requestedModelKind).toBe('routing_profile');
+    expect(row.requestedProfileId).toBe('kaana-v1-thinking');
     expect(row.reasoningEffort).toBe('extended');
     expect(row.timeToFirstTokenMs).toBe(55);
     expect(row.errorClass).toBe('RATE_LIMITED');
@@ -136,7 +136,7 @@ describe('insertChatAnalytics', () => {
   });
 
   /**
-   * #139 ws5: *"a row whose alias is null is a defect rather than a silent
+   * #139 ws5: *"a row whose requested model is null is a defect rather than a silent
    * fallback"*.
    *
    * A property of the SCHEMA rather than of the writer, asserted against the
@@ -147,15 +147,15 @@ describe('insertChatAnalytics', () => {
   it('refuses a row that cannot say what was asked for, or what kind of thing it was', async () => {
     const missingRequested = db
       .insert(chatAnalytics)
-      .values({ oxyUserId: 'ca-null-requested', aliaModelId: 'alia-v1', requestedModelKind: 'legacy_alias' } as never);
+      .values({ oxyUserId: 'ca-null-requested', routingProfileId: 'kaana-v1', requestedModelKind: 'routing_profile' } as never);
     await expect(missingRequested).rejects.toThrow(/requested_model_id/);
 
     // The kind is NOT NULL for the same reason the identifier is: a row that
-    // records `alia-v1-pro` without saying it is a legacy alias is a row every
+    // records `kaana-v1-pro` without saying it is a routing profile is a row every
     // later query is free to read as a model choice.
     const missingKind = db
       .insert(chatAnalytics)
-      .values({ oxyUserId: 'ca-null-kind', aliaModelId: 'alia-v1', requestedModelId: 'alia-v1' } as never);
+      .values({ oxyUserId: 'ca-null-kind', routingProfileId: 'kaana-v1', requestedModelId: 'kaana-v1' } as never);
     await expect(missingKind).rejects.toThrow(/requested_model_kind/);
 
     // The positive control: the same insert with both present succeeds, so the
@@ -164,9 +164,9 @@ describe('insertChatAnalytics', () => {
       .insert(chatAnalytics)
       .values({
         oxyUserId: 'ca-null-control',
-        aliaModelId: 'alia-v1',
-        requestedModelId: 'alia-v1',
-        requestedModelKind: 'legacy_alias',
+        routingProfileId: 'kaana-v1',
+        requestedModelId: 'kaana-v1',
+        requestedModelKind: 'routing_profile',
       });
     const rows = await db
       .select()
@@ -198,7 +198,7 @@ describe('insertChatAnalytics', () => {
     const byName = new Map([...columns].map((column) => [column.column_name, column.is_nullable]));
 
     // The floor first: the query found the real table.
-    expect(byName.has('alia_model_id')).toBe(true);
+    expect(byName.has('routing_profile_id')).toBe(true);
     expect(byName.has('requested_model_id')).toBe(true);
     expect(byName.size).toBeGreaterThan(10);
 
@@ -209,10 +209,10 @@ describe('insertChatAnalytics', () => {
     const oxyUserId = 'ca-retained-columns';
     await insertChatAnalytics(db, {
       oxyUserId,
-      aliaModelId: 'alia-v1',
-      requestedModelId: 'alia-v1',
-      requestedModelKind: 'legacy_alias',
-      requestedProfileId: 'profile:v1',
+      routingProfileId: 'kaana-v1',
+      requestedModelId: 'kaana-v1',
+      requestedModelKind: 'routing_profile',
+      requestedProfileId: 'kaana-v1',
       reasoningEffort: null,
       promptTokens: 0,
       completionTokens: 0,
@@ -229,7 +229,7 @@ describe('insertChatAnalytics', () => {
       .from(chatAnalytics)
       .where(sql`${chatAnalytics.oxyUserId} = ${oxyUserId}`);
     // Written by nothing: the repository has no parameter for either, so a new
-    // row leaves them null rather than filling them with the alias and the
+    // row leaves them null rather than filling them with the routing profile and the
     // string 'unknown' as every row since 2026-03-12 did.
     expect(row?.model).toBeNull();
     expect(row?.provider).toBeNull();
@@ -239,11 +239,11 @@ describe('insertChatAnalytics', () => {
     // The other half of "replace the provider/model fields": the columns exist
     // and no aggregate selects them, so nothing they hold can reach a response.
     const oxyUserId = 'ca-read-path';
-    await seed({ oxyUserId, aliaModelId: 'alia-v1', totalTokens: 3 });
+    await seed({ oxyUserId, routingProfileId: 'kaana-v1', totalTokens: 3 });
 
     const [byModel] = await aggregateUsageByModel(db, oxyUserId, SINCE());
     expect(Object.keys(byModel ?? {}).sort()).toEqual(['_id', 'avgLatency', 'count', 'totalTokens']);
-    expect(byModel?._id).toBe('alia-v1');
+    expect(byModel?._id).toBe('kaana-v1');
   });
 
   it('accepts every AliaErrorCode, because the column has no CHECK', async () => {
@@ -257,10 +257,10 @@ describe('insertChatAnalytics', () => {
     for (const code of codes) {
       await insertChatAnalytics(db, {
         oxyUserId,
-        aliaModelId: 'alia-v1',
-        requestedModelId: 'alia-v1',
-        requestedModelKind: 'legacy_alias',
-        requestedProfileId: null,
+        routingProfileId: 'kaana-v1',
+        requestedModelId: 'kaana-v1',
+        requestedModelKind: 'routing_profile',
+        requestedProfileId: 'kaana-v1',
         reasoningEffort: null,
         promptTokens: 0,
         completionTokens: 0,
@@ -282,42 +282,42 @@ describe('insertChatAnalytics', () => {
 });
 
 describe('aggregateUsageByModel', () => {
-  it('groups under the ALIA alias, not the provider model id', async () => {
-    const oxyUserId = 'ca-alias-grouping';
-    await seed({ oxyUserId, aliaModelId: 'alia-v1-pro', requestedModelId: 'alia-v1-pro', totalTokens: 10 });
-    await seed({ oxyUserId, aliaModelId: 'alia-v1-pro', requestedModelId: 'alia-v1', totalTokens: 20 });
+  it('groups under the resolved Kaana routing profile, not the provider model id', async () => {
+    const oxyUserId = 'ca-profile-grouping';
+    await seed({ oxyUserId, routingProfileId: 'kaana-v1-pro', requestedModelId: 'kaana-v1-pro', totalTokens: 10 });
+    await seed({ oxyUserId, routingProfileId: 'kaana-v1-pro', requestedModelId: 'kaana-v1', totalTokens: 20 });
 
     const rows = await aggregateUsageByModel(db, oxyUserId, SINCE());
 
     /**
      * The load-bearing assertion of this whole table. Two turns the caller
-     * asked for under DIFFERENT names, served by ONE Alia alias, must collapse
-     * to one group named by the alias — because the route resolves that key
-     * through `getAliaModel()` and DROPS whatever will not resolve. Grouped by
+     * asked for under DIFFERENT names, served by ONE Kaana routing profile, must collapse
+     * to one group named by that profile — because the route resolves that key
+     * through `getRoutingProfile()` and DROPS whatever will not resolve. Grouped by
      * `requested_model_id` this returns two groups, and a caller who asked for
      * something unregistered would see their usage vanish from the answer.
      */
     expect(rows).toHaveLength(1);
-    expect(rows[0]?._id).toBe('alia-v1-pro');
+    expect(rows[0]?._id).toBe('kaana-v1-pro');
     expect(rows[0]?.count).toBe(2);
     expect(rows[0]?.totalTokens).toBe(30);
   });
 
   it('orders busiest first and returns NUMBERS for every aggregate', async () => {
     const oxyUserId = 'ca-model-order';
-    await seed({ oxyUserId, aliaModelId: 'alia-busy', totalTokens: 100, latencyMs: 200 });
-    await seed({ oxyUserId, aliaModelId: 'alia-busy', totalTokens: 300, latencyMs: 400 });
-    await seed({ oxyUserId, aliaModelId: 'alia-quiet', totalTokens: 1, latencyMs: 10 });
+    await seed({ oxyUserId, routingProfileId: 'kaana-v1', totalTokens: 100, latencyMs: 200 });
+    await seed({ oxyUserId, routingProfileId: 'kaana-v1', totalTokens: 300, latencyMs: 400 });
+    await seed({ oxyUserId, routingProfileId: 'kaana-lite', totalTokens: 1, latencyMs: 10 });
 
     const rows = await aggregateUsageByModel(db, oxyUserId, SINCE());
-    expect(rows.map((r) => r._id)).toEqual(['alia-busy', 'alia-quiet']);
+    expect(rows.map((r) => r._id)).toEqual(['kaana-v1', 'kaana-lite']);
 
     const busy = rows[0];
     /**
      * Three separate decodings, three separate ways to get a string:
      * `count(*)` and `sum(integer)` are `bigint`, and **`avg(integer)` is
      * `numeric`** — the one that does not look like the others. Two rows are
-     * seeded for `alia-busy` precisely so a concatenation is visible: without
+     * seeded for `kaana-v1` precisely so a concatenation is visible: without
      * the casts `totalTokens` comes back `"100300"` and `avgLatency` `"300.00"`.
      */
     expect(typeof busy?.count).toBe('number');
@@ -339,9 +339,9 @@ describe('aggregateUsageByDay', () => {
       d.setUTCHours(12, 0, 0, 0);
       return d;
     };
-    await seed({ oxyUserId, aliaModelId: 'a', totalTokens: 10, latencyMs: 100, createdAt: day(30) });
-    await seed({ oxyUserId, aliaModelId: 'a', totalTokens: 20, latencyMs: 300, createdAt: day(30) });
-    await seed({ oxyUserId, aliaModelId: 'a', totalTokens: 5, latencyMs: 50, createdAt: day(29) });
+    await seed({ oxyUserId, routingProfileId: 'a', totalTokens: 10, latencyMs: 100, createdAt: day(30) });
+    await seed({ oxyUserId, routingProfileId: 'a', totalTokens: 20, latencyMs: 300, createdAt: day(30) });
+    await seed({ oxyUserId, routingProfileId: 'a', totalTokens: 5, latencyMs: 50, createdAt: day(29) });
 
     const rows = await aggregateUsageByDay(db, oxyUserId, SINCE());
     expect(rows).toHaveLength(2);
@@ -359,7 +359,7 @@ describe('aggregateUsageByDay', () => {
     // readings disagree — which is the whole point.
     const instant = new Date(Date.now() - 60 * DAY_MS);
     instant.setUTCHours(23, 30, 0, 0);
-    await seed({ oxyUserId, aliaModelId: 'a', totalTokens: 1, createdAt: instant });
+    await seed({ oxyUserId, routingProfileId: 'a', totalTokens: 1, createdAt: instant });
 
     const utcLabel = instant.toISOString().slice(0, 10);
     const localLabel = new Date(instant.getTime() + 14 * 60 * 60 * 1000).toISOString().slice(0, 10);
@@ -390,9 +390,9 @@ describe('aggregateCreditsByDay', () => {
       d.setUTCHours(9, 0, 0, 0);
       return d;
     };
-    await seed({ oxyUserId, aliaModelId: 'a', totalTokens: 7, createdAt: day(11) });
-    await seed({ oxyUserId, aliaModelId: 'a', totalTokens: 3, createdAt: day(10) });
-    await seed({ oxyUserId, aliaModelId: 'a', totalTokens: 4, createdAt: day(10) });
+    await seed({ oxyUserId, routingProfileId: 'a', totalTokens: 7, createdAt: day(11) });
+    await seed({ oxyUserId, routingProfileId: 'a', totalTokens: 3, createdAt: day(10) });
+    await seed({ oxyUserId, routingProfileId: 'a', totalTokens: 4, createdAt: day(10) });
 
     const rows = await aggregateCreditsByDay(db, oxyUserId, SINCE());
     expect(rows.map((r) => r._id)).toEqual([
@@ -411,8 +411,8 @@ describe('the window', () => {
     const oxyUserId = 'ca-window';
     const old = new Date(Date.now() - 400 * DAY_MS);
     const recent = new Date(Date.now() - 2 * DAY_MS);
-    await seed({ oxyUserId, aliaModelId: 'a', totalTokens: 111, createdAt: old });
-    await seed({ oxyUserId, aliaModelId: 'a', totalTokens: 222, createdAt: recent });
+    await seed({ oxyUserId, routingProfileId: 'a', totalTokens: 111, createdAt: old });
+    await seed({ oxyUserId, routingProfileId: 'a', totalTokens: 222, createdAt: recent });
 
     const inWindow = await aggregateUsageByModel(db, oxyUserId, daysAgo(30));
     expect(inWindow).toHaveLength(1);

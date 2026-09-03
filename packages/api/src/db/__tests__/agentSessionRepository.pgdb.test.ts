@@ -60,10 +60,12 @@ const suffix = () => Math.random().toString(36).slice(2, 10);
 async function seedAgent(overrides: Record<string, unknown> = {}): Promise<string> {
   const agent = await createAgent(db, {
     oxyAccountId: `oxy-bot-runner-${suffix()}`,
+    ownerOxyAccountId: OWNER,
     tagline: 'runs things',
     description: 'd',
     authorOxyUserId: OWNER,
     category: 'research',
+    routingProfileId: '01a06477-94f5-74f0-bc25-4c5c13b93ccd',
     ...overrides,
   });
   return agent._id;

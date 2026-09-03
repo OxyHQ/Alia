@@ -29,7 +29,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import ts from 'typescript';
 
@@ -45,7 +45,7 @@ function trackedSources(): string[] {
   return out
     .split('\n')
     .filter((f) => f.endsWith('.ts'))
-    .filter((f) => !f.includes('__tests__') && !f.endsWith('.test.ts'));
+    .filter((f) => !f.includes('__tests__') && !f.endsWith('.test.ts') && existsSync(path.join(REPO_ROOT, f)));
 }
 
 /**

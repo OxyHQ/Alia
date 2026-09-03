@@ -56,7 +56,7 @@ function source(overrides: Partial<CatalogueSource> = {}): CatalogueSource {
     // `alia-test` is not one the product offers — so every fixture entry here
     // is `chatVisible: false` unless it says otherwise, which is what keeps
     // this file measuring classification rather than product policy.
-    offeredProfileId: 'profile:test',
+    offeredProfileId: 'kaana-test',
     name: 'Alia Test',
     description: 'A fixture',
     category: 'general',
@@ -170,7 +170,7 @@ describe('ADR 0003 invariant 1: type follows fan-out, in both directions', () =>
     expect(entry.kind).toBe('routing_profile');
     if (entry.kind !== 'routing_profile') throw new Error('unreachable');
     expect(entry.selectsAmong).toBe(3);
-    expect(entry.profileId).toBe('profile:lite');
+    expect(entry.profileId).toBe('kaana-test');
     // ADR 0003's routing-profile identity rule: never in <publisher>/<model>
     // form. One careless rename away at any time.
     expect(entry.profileId).not.toContain('/');
@@ -272,7 +272,7 @@ describe('capability availability is measured, not declared', () => {
   });
 
   it('reports sometimes when only some do', () => {
-    // The state a boolean has to lie about. `alia-lite` is this case on the live
+    // The state a boolean has to lie about. `kaana-lite` is this case on the live
     // table: four of sixteen candidates support vision while the alias declares
     // `supportsVision: false`.
     expect(deriveCapabilities([candidate('a', caps({ vision: true })), candidate('b', caps({ vision: false }))]).vision)
@@ -490,10 +490,8 @@ describe('the catalogue carries no deprecation signal, because it serves nothing
     // compatibility window and a permanently-null field would be a declaration
     // nothing enforces.
     //
-    // The signal did not disappear, it moved to where the deprecated identifier
-    // still is: `middleware/alias-deprecation.ts` sets `Deprecation` and `Link`
-    // on any response to a request NAMING an alias, and emits
-    // `alia.deprecation` on a stream. A caller still holding one is still told.
+    // Routing profiles are canonical identities, so the catalogue does not
+    // attach a deprecation signal to them.
     const entry = buildEntry(source({ id: 'profile:lite' }), [candidate('a', caps())], KNOWN, PUBLIC);
     expect(entry).not.toHaveProperty('deprecation');
 

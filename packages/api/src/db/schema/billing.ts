@@ -58,7 +58,7 @@ import { TRANSACTION_STATUSES, TRANSACTION_TYPES } from '../../domain/transactio
 /**
  * A subscription plan offered for a product.
  *
- * `model_ids` is a `text[]` of `alia_models.alias_model_id` values and carries
+ * `model_ids` is a `text[]` of `routing_profiles.routing_profile_id` values and carries
  * NO foreign key — Postgres cannot constrain array MEMBERS to another table's
  * column. The seed rewrites it wholesale on every run (`$set`, deliberately, so
  * the list stays code-managed while the prices stay admin-managed), so a stale
@@ -94,8 +94,8 @@ export const plans = pgTable(
     isFeatured: boolean().notNull().default(false),
     sortOrder: integer().notNull().default(0),
     /**
-     * The `alia_models.alias_model_id`s this plan includes — Alia-branded alias
-     * ids like `alia-v1-pro`, never a provider model id.
+     * The `routing_profiles.routing_profile_id`s this plan includes — Kaana routing profile
+     * ids like `kaana-v1-pro`, never a provider model id.
      *
      * Deliberately NOT a foreign key: it is a plan's advertised contents, and a
      * model being retired from the catalogue must not cascade into deleting or
@@ -103,10 +103,10 @@ export const plans = pgTable(
      * the write path instead.
      *
      * There is currently NO write path. `routes/plans.ts`, the admin route that
-     * called `findExistingAliasModelIds` on write, was part of the never-mounted
+     * called `findExistingRoutingProfileIds` on write, was part of the never-mounted
      * `/internal/gateway` surface and has been deleted; `seed-plans.ts` is the
      * only writer left and it does not validate. The validator itself survives
-     * uncalled at `db/providers/aliaModelRepository.ts`. Whoever adds the next
+     * uncalled at `db/providers/routingProfileRepository.ts`. Whoever adds the next
      * plan-write surface owns calling it — without a foreign key, nothing else
      * will catch an id that names no model.
      *

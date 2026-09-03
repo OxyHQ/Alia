@@ -19,13 +19,13 @@ describe('writeContentChunk', () => {
   it('tags the chunk with alia_meta when meta is given', () => {
     const { res, frames } = captureRes();
 
-    writeContentChunk(res, 'chatcmpl-test', 'alia-v1', 'brief interruption', { synthetic: true, retryable: true });
+    writeContentChunk(res, 'chatcmpl-test', 'kaana-v1', 'brief interruption', { synthetic: true, retryable: true });
 
     expect(frames).toHaveLength(1);
     expect(parseFrame(frames[0])).toMatchObject({
       id: 'chatcmpl-test',
       object: 'chat.completion.chunk',
-      model: 'alia-v1',
+      model: 'kaana-v1',
       choices: [{ index: 0, delta: { content: 'brief interruption' }, finish_reason: null, logprobs: null }],
       alia_meta: { synthetic: true, retryable: true },
     });
@@ -34,7 +34,7 @@ describe('writeContentChunk', () => {
   it('omits alia_meta entirely when no meta is given', () => {
     const { res, frames } = captureRes();
 
-    writeContentChunk(res, 'chatcmpl-test', 'alia-v1', 'a real answer');
+    writeContentChunk(res, 'chatcmpl-test', 'kaana-v1', 'a real answer');
 
     expect(frames).toHaveLength(1);
     const chunk = parseFrame(frames[0]);

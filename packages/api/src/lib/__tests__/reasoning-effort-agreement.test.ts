@@ -6,7 +6,6 @@ import { describe, expect, it } from 'vitest';
 import { SystemPromptBuilder } from '../system-prompt-builder.js';
 import { reasoningEffortOf } from '../observability/requested-model.js';
 import { ROUTING_PRESETS } from '../routing/presets.js';
-import { toRoutableAlias } from '../product-modes.js';
 import { EFFORT_LEVELS, type EffortLevel } from '../reasoning-effort.js';
 
 /**
@@ -18,7 +17,7 @@ import { EFFORT_LEVELS, type EffortLevel } from '../reasoning-effort.js';
  *  - **Applied** — `lib/system-prompt-builder.ts` puts the extended-reasoning
  *    prompt into the system message, either as an explicit layer above
  *    `instant` or because `loadBasePrompt` loaded that file for a caller who
- *    named `alia-v1-thinking` directly.
+ *    named `kaana-v1-thinking` directly.
  *  - **Recorded** — `lib/observability/requested-model.ts` `reasoningEffortOf`
  *    writes `chat_analytics.reasoning_effort`, reading the level, the legacy
  *    boolean, OR the alias.
@@ -38,20 +37,17 @@ import { EFFORT_LEVELS, type EffortLevel } from '../reasoning-effort.js';
  * the fourth, and `instant` recording a level while applying no prompt is the
  * shape a careless edit reintroduces.
  *
- * The third leg — that the level reaches a PROVIDER — is asserted in
- * `lib/chat/__tests__/reasoning-provider-options.test.ts`, against the installed
- * SDK. It has to be separate: this file drives real prompt files off disk and
- * that one drives a real provider client, and the failure the whole epic exists
- * to prevent (an option written under a key nobody reads) is invisible to any
- * assertion made on the object this side produces.
+ * The third leg is the routing profile sent through Oxy, asserted in
+ * `lib/chat/__tests__/reasoning-on-the-wire.test.ts`. Alia does not construct
+ * an upstream provider's private reasoning options.
  */
 
 const REPO_ROOT = path.resolve(fileURLToPath(new URL('../../../../../', import.meta.url)));
 
 const REASONING_MARKER = 'extended reasoning capabilities';
 
-/** The alias whose identity IS the reasoning setting. */
-const THINKING_ALIAS = 'alia-v1-thinking';
+/** The canonical profile whose product meaning includes reasoning. */
+const THINKING_PROFILE = 'kaana-v1-thinking';
 
 interface Ask {
   readonly reasoningEffort?: unknown;
@@ -60,7 +56,7 @@ interface Ask {
 
 async function applied(requestedModel: string, ask: Ask): Promise<boolean> {
   const prompt = await SystemPromptBuilder.build({
-    aliasModelId: requestedModel,
+    routingProfileId: requestedModel,
     isDirectUserSession: false,
     reasoningEffort: reasoningEffortOf({ ...ask, requestedModel }),
   });
@@ -87,25 +83,25 @@ const CASES: ReadonlyArray<{
   readonly expectedLevel: EffortLevel | null;
   readonly expectedPrompt: boolean;
 }> = [
-  { label: 'a level on a profile-translated identifier', requestedModel: 'alia-v1-pro-max', ask: { reasoningEffort: 'high' }, expectedLevel: 'high', expectedPrompt: true },
-  { label: 'a level on an unrelated tier', requestedModel: 'alia-lite', ask: { reasoningEffort: 'max' }, expectedLevel: 'max', expectedPrompt: true },
-  { label: 'the cheapest level records, but layers no prompt', requestedModel: 'alia-v1-pro-max', ask: { reasoningEffort: 'instant' }, expectedLevel: 'instant', expectedPrompt: false },
-  { label: 'a level that is not one of the four is not a level', requestedModel: 'alia-v1', ask: { reasoningEffort: 'ludicrous' }, expectedLevel: null, expectedPrompt: false },
-  { label: 'the legacy boolean means the smallest budget', requestedModel: 'alia-v1-pro-max', ask: { thinkingMode: true }, expectedLevel: 'medium', expectedPrompt: true },
-  { label: 'an explicit level beats the legacy boolean', requestedModel: 'alia-v1', ask: { reasoningEffort: 'max', thinkingMode: true }, expectedLevel: 'max', expectedPrompt: true },
-  { label: 'the retired alias alone', requestedModel: THINKING_ALIAS, ask: {}, expectedLevel: 'medium', expectedPrompt: true },
-  { label: 'the retired alias with the boolean explicitly false', requestedModel: THINKING_ALIAS, ask: { thinkingMode: false }, expectedLevel: 'medium', expectedPrompt: true },
-  { label: 'neither', requestedModel: 'alia-v1-pro-max', ask: {}, expectedLevel: null, expectedPrompt: false },
-  { label: 'the boolean explicitly false', requestedModel: 'alia-v1', ask: { thinkingMode: false }, expectedLevel: null, expectedPrompt: false },
+  { label: 'a level on a profile-translated identifier', requestedModel: 'kaana-v1-pro-max', ask: { reasoningEffort: 'high' }, expectedLevel: 'high', expectedPrompt: true },
+  { label: 'a level on an unrelated tier', requestedModel: 'kaana-lite', ask: { reasoningEffort: 'max' }, expectedLevel: 'max', expectedPrompt: true },
+  { label: 'the cheapest level records, but layers no prompt', requestedModel: 'kaana-v1-pro-max', ask: { reasoningEffort: 'instant' }, expectedLevel: 'instant', expectedPrompt: false },
+  { label: 'a level that is not one of the four is not a level', requestedModel: 'kaana-v1', ask: { reasoningEffort: 'ludicrous' }, expectedLevel: null, expectedPrompt: false },
+  { label: 'the legacy boolean means the smallest budget', requestedModel: 'kaana-v1-pro-max', ask: { thinkingMode: true }, expectedLevel: 'medium', expectedPrompt: true },
+  { label: 'an explicit level beats the legacy boolean', requestedModel: 'kaana-v1', ask: { reasoningEffort: 'max', thinkingMode: true }, expectedLevel: 'max', expectedPrompt: true },
+  { label: 'the reasoning profile alone', requestedModel: THINKING_PROFILE, ask: {}, expectedLevel: 'medium', expectedPrompt: true },
+  { label: 'the reasoning profile with the boolean explicitly false', requestedModel: THINKING_PROFILE, ask: { thinkingMode: false }, expectedLevel: 'medium', expectedPrompt: true },
+  { label: 'neither', requestedModel: 'kaana-v1-pro-max', ask: {}, expectedLevel: null, expectedPrompt: false },
+  { label: 'the boolean explicitly false', requestedModel: 'kaana-v1', ask: { thinkingMode: false }, expectedLevel: null, expectedPrompt: false },
 ];
 
 describe('the fixture can tell the two answers apart', () => {
   it('the marker exists and is absent from the tier it will be layered onto', () => {
     // Without this, every "applied" answer below is `false` for a reason that
     // has nothing to do with the code under test.
-    const reasoning = readFileSync(path.join(REPO_ROOT, `packages/api/prompts/${THINKING_ALIAS}.md`), 'utf8');
+    const reasoning = readFileSync(path.join(REPO_ROOT, 'packages/api/prompts/extended-reasoning.md'), 'utf8');
     expect(reasoning).toContain(REASONING_MARKER);
-    const proMax = readFileSync(path.join(REPO_ROOT, 'packages/api/prompts/alia-v1-pro-max.md'), 'utf8');
+    const proMax = readFileSync(path.join(REPO_ROOT, 'packages/api/prompts/pro-max.md'), 'utf8');
     expect(proMax).not.toContain(REASONING_MARKER);
   });
 
@@ -134,25 +130,12 @@ describe('applied and recorded agree, in every way a caller can ask', () => {
   });
 });
 
-describe('the alias is the only identifier that carries reasoning by name', () => {
-  it('no routing profile translates to it, so a profile never records reasoning implicitly', async () => {
-    // The case that would break the agreement quietly: if some `profile:*`
-    // resolved to `alia-v1-thinking`, selecting that profile would apply the
-    // reasoning prompt AND record a level without the caller asking — which is
-    // defensible, but it must be true on both sides or neither.
-    const translated = ROUTING_PRESETS.map((preset) => toRoutableAlias(preset.id));
-    expect(translated).not.toContain(THINKING_ALIAS);
-    // Floor: the translation actually resolved, rather than returning nulls.
-    expect(translated.filter((id) => id !== null)).toHaveLength(ROUTING_PRESETS.length);
-
-    // And selecting every offered profile with no ask records and applies
-    // nothing — the negative control across the whole preset table rather than
-    // one example.
-    for (const preset of ROUTING_PRESETS) {
-      const id = toRoutableAlias(preset.id);
-      if (id === null) continue;
-      expect(recorded(id, {}), preset.id).toBeNull();
-      expect(await applied(id, {}), preset.id).toBe(false);
+describe('only the dedicated Kaana profile carries reasoning by name', () => {
+  it('records and applies reasoning only for that canonical profile', async () => {
+    for (const profileId of ROUTING_PRESETS.flatMap((preset) => preset.profileIds)) {
+      const expectedLevel = profileId === THINKING_PROFILE ? 'medium' : null;
+      expect(recorded(profileId, {}), profileId).toBe(expectedLevel);
+      expect(await applied(profileId, {}), profileId).toBe(profileId === THINKING_PROFILE);
     }
   });
 });

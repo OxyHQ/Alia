@@ -63,7 +63,7 @@ export const developerApps = pgTable(
  * a credential is an exact-match ORACLE — anyone holding a candidate key can
  * confirm it against this column. It is not a safer thing to expose than the key
  * itself. `key_prefix` exists for display and is the only identifier safe to
- * show or log. `provider_keys` states the same rule for the same reason.
+ * show or log.
  *
  * The four `rate_limit_*` columns are the flattened sub-document, and NULL means
  * UNLIMITED rather than zero — a zero would read as "no requests permitted",

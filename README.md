@@ -48,14 +48,14 @@ rather than an investigation.
 </table>
 
 > [!IMPORTANT]
-> **The product surface exposes Alia model identifiers only.** Thirteen `alia-*`
-> identifiers are served today; upstream operator names and upstream model IDs never appear
+> **The product surface exposes Kaana routing-profile identifiers only.** The public
+> `kaana-*` profiles are defined in source; upstream operator names and deployment IDs never appear
 > in a product API response, an error, the UI or a customer-facing analytics event, and
 > user-facing errors go through a sanitiser first. The rule is a product and privacy
 > boundary, not a global ban on the words — engineering docs and ADRs name publishers,
 > because [ADR 0003](docs/adr/0003-model-revision-deployment-provider-routing-profile.md)
-> makes `<publisher>/<model>` the canonical identifier form. Several of the thirteen are
-> routing policies rather than models; see
+> makes `<publisher>/<model>` the canonical identifier form for concrete models. Profiles
+> are routing policies, not models; see
 > [model abstraction](docs/model-abstraction.mdx).
 
 ## The chat runtime
@@ -72,19 +72,18 @@ on the second.
 [ADR 0004](docs/adr/0004-product-endpoints-versus-generic-inference-endpoints.md); new
 generic integrations go to Oxy Console and `api.oxy.so/v1`.
 
-There is **no gateway service**. In current `main`, provider calls still happen in
-process: `packages/api/src/lib/chat-core.ts` builds an AI SDK client directly, against
-credentials in the `provider_keys` PostgreSQL table, with a fallback loop that retries a
-request down the tier's ranked list. This is remaining migration debt, not a second
-inference product named “Alia provider” or “Relay”. Under
-[ADR 0001](docs/adr/0001-alia-oxy-kaana-responsibility-boundary.md), the final path is
-Alia → Oxy inference edge → Kaana at the exclusive canonical origin
-`https://kaana.ai` → upstream provider.
+Hosted inference follows `Alia -> Oxy -> Kaana` through the published
+`OxyInferenceClient`. Alia stores no upstream provider credential, constructs no
+provider client, signs no Kaana envelope and has no direct-provider fallback.
+Kaana owns provider credentials and execution state in its PostgreSQL database.
+Oxy resolves identity, policy and the exact ordered deployments; Kaana executes
+only that signed order and performs failover only within it.
 
-Kaana's PostgreSQL/KMS provider-credential custody is merged in the Kaana repository,
-but the coordinated Alia/Oxy/infra cut and its production gates are not complete. Until
-they are, this README deliberately describes the direct Alia path above instead of
-pretending that provider keys have already left Alia production.
+That is the source target, not a claim that production has already cut over.
+Kaana's PostgreSQL/KMS provider-credential custody is merged, but the coordinated
+Alia/Oxy/infra rollout and live task-definition gates must still prove that no
+old Alia task or provider key remains active. The exclusive canonical Kaana
+origin is `https://kaana.ai`; Alia never configures that origin directly.
 
 `/automations` is the normalized scheduling and control API for explicit actors,
 resources, actions, data flow and autonomy. `/triggers` remains available for legacy

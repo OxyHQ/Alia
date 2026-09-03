@@ -14,7 +14,7 @@
  * would let a new category arrive unmapped, and `surfaceCanOffer` treats an
  * unmapped category as offerable — so the gap would show up as entries reaching
  * a surface that cannot render them, silently. This is the one file allowed to
- * import `internal/providers/lib/alia-models` for that comparison, recorded in
+ * import `internal/providers/lib/routing-profile-catalogue` for that comparison, recorded in
  * gate 1's allowlist.
  */
 
@@ -23,7 +23,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
-import { ALIA_MODELS } from '../../internal/providers/lib/alia-models.js';
+import { KAANA_ROUTING_PROFILES } from '../../internal/providers/lib/routing-profile-catalogue.js';
 import {
   CATEGORY_REQUIREMENTS,
   SURFACES,
@@ -92,10 +92,10 @@ describe('every surface names a workspace that exists', () => {
 
 describe('every category the alias set uses has a requirement', () => {
   it('maps exactly the categories in use, in both directions', () => {
-    const inUse = [...new Set(Object.values(ALIA_MODELS).map((m) => m.category))].sort();
+    const inUse = [...new Set(Object.values(KAANA_ROUTING_PROFILES).map((m) => m.category))].sort();
 
     // The floor before the equality: the alias set was read and is not empty.
-    expect(Object.keys(ALIA_MODELS).length).toBeGreaterThanOrEqual(12);
+    expect(Object.keys(KAANA_ROUTING_PROFILES).length).toBeGreaterThanOrEqual(12);
     expect(inUse.length).toBeGreaterThanOrEqual(5);
 
     // Exact, not a subset. A category with no entry here is OFFERED to every

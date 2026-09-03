@@ -3,7 +3,11 @@ import { Router, Request, Response } from 'express';
 import multer from 'multer';
 import { authenticateToken } from '../middleware/auth';
 import { getDb } from '../db/index.js';
-import { findAgentById, findAgentsByIds } from '../db/agents/agentRepository.js';
+import {
+  findAgentById,
+  findAgentsByIds,
+  withoutInternalAgentBindings,
+} from '../db/agents/agentRepository.js';
 import {
   acceptInvite,
   createInvite,
@@ -728,7 +732,9 @@ router.get('/:id/agents', async (req: Request, res: Response) => {
     });
 
     // Identity is the bot account's, resolved for the whole page in one call.
-    res.json({ agents: await attachAgentIdentities(agents) });
+    res.json({
+      agents: await attachAgentIdentities(agents.map(withoutInternalAgentBindings)),
+    });
   } catch (error: unknown) {
     log.organization.error({ err: error }, 'Error fetching organization agents');
     res.status(500).json({ error: 'Failed to fetch agents' });

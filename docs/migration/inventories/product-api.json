@@ -15,7 +15,7 @@
       "@alia/shared-types ORPHAN CHECK: no package.json in the repo declares '@alia/shared-types' as a dependency. Positive control: the same scan over packages/*/package.json found '@alia.onl/sdk': '*' as a real dependency of packages/app. The zero is absence.",
       "TRANSLATION STRINGS: zero alia-* model ids in packages/app/lib/i18n/locales/{en,es}.json. Positive control: the token 'Alia' matches 30 lines in en.json, so the files were read. Absent, not unmeasured.",
       "alia-docker-host: zero /v1, /alia/chat or alia-* model-id references. Positive control: case-insensitive 'docker' matched content in 3 of its 7 TypeScript files, so the scan read file bodies.",
-      "MODEL-ID CENSUS UNIT: all alia-* model-id numbers in this file are MATCH counts (grep -o), not LINE counts (grep -c). The two differ (docs/index.mdx is 4 lines but 20 matches); mixing them was avoided deliberately. Regex 'alia-(lite|v1)(-[a-z0-9]+)*' is greedy, so 'alia-v1-pro-max' is counted once as itself and never double-counted under 'alia-v1-pro'. Positive control: the census's top hit is packages/api/src/internal/providers/lib/alia-models.ts (27 matches), the file that DEFINES the ids."
+      "MODEL-ID CENSUS UNIT: all alia-* model-id numbers in this file are MATCH counts (grep -o), not LINE counts (grep -c). The two differ (docs/index.mdx is 4 lines but 20 matches); mixing them was avoided deliberately. Regex 'alia-(lite|v1)(-[a-z0-9]+)*' is greedy, so 'kaana-v1-pro-max' is counted once as itself and never double-counted under 'kaana-v1-pro'. Positive control: the census's top hit is packages/api/src/internal/providers/lib/alia-models.ts (27 matches), the file that DEFINES the ids."
     ],
     "limitations": [
       "STATIC ONLY. Nothing was executed and no production traffic was observed. Whether any EXTERNAL (non-repo) client calls /alia/chat, /v1/responses, /v1/resolve-model or /v1/report-usage cannot be answered from source - it needs ALB/CloudWatch access logs. Every 'zero consumers' claim below is scoped to THIS REPO and says so.",
@@ -25,7 +25,7 @@
       "Whether production actually sets GATEWAY_API_URL (which would flip gateway-client.ts from local to remote) was not verified here; that belongs to the providers workstream."
     ],
     "residual": [
-      "packages/api/src/routes/v1/audio.ts contains a job-queue surface (POST /generate, GET /jobs/:jobId) whose async completion arrives over the Socket.IO event 'audio:job-update'. Whether that job model should move to Relay or stay Alia product could not be decided from the route alone - it depends on whether the generation provider call is inference (out of scope for this inventory).",
+      "packages/api/src/routes/v1/audio.ts contains a job-queue surface (POST /generate, GET /jobs/:jobId) whose async completion arrives over the Socket.IO event 'audio:job-update'. Whether that job model should move to Kaana or stay Alia product could not be decided from the route alone - it depends on whether the generation provider call is inference (out of scope for this inventory).",
       "Socket.IO events 'agent-approval-request', 'agent-approval-result', 'agent-approval-decision', 'canvas-update' and 'workflow-progress' are emitted by packages/api but have ZERO in-repo listeners (checked across all *.ts/*.tsx in packages/, and packages/alia-canvas has no socket client at all). Cannot classify: either dead code or consumed by an out-of-repo client.",
       "packages/alia-gateway-admin/src/lib/websocket/client.ts speaks a hand-rolled JSON protocol ({type:'subscribe'|'ping'|'pong'|'error', channel, data}) to ws://.../internal/gateway/ws. The API serves only /ws/mcp plus socket.io, so this protocol has no server. Its message 'type' vocabulary was not enumerated because there is nothing on the other end to enumerate against.",
       "packages/api/src/routes/models-stats.ts (GET /models/stats, /models/stats/:modelId) and packages/api/src/routes/external-models.ts (GET /, /organizations, /:modelId) are mounted and live but have ZERO in-repo HTTP callers. They are model-metadata endpoints, so they plausibly belong to the removal set, but no client evidence exists either way.",
@@ -140,7 +140,7 @@
         "alia-models-registry",
         "sse-named-event-contract"
       ],
-      "removalGate": "Never removed. If inference moves to Relay, this endpoint stays as the Alia-facing facade - the OpenAI shape, the alia_* extensions and the named SSE events are the public contract and must be reproduced byte-compatibly on the far side.",
+      "removalGate": "Never removed. If inference moves to Kaana, this endpoint stays as the Alia-facing facade - the OpenAI shape, the alia_* extensions and the named SSE events are the public contract and must be reproduced byte-compatibly on the far side.",
       "evidence": "packages/api/src/routes/v1.ts:127; packages/api/src/routes/v1/chat-completions.ts:29,334"
     },
     {
@@ -180,7 +180,7 @@
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
       "dependsOn": [],
-      "removalGate": "Consumed by the published SDK (packages/alia-chat/src/hooks/useVoiceRoom.ts:325, which sends model:'alia-v1-voice'). Any change is a breaking SDK major.",
+      "removalGate": "Consumed by the published SDK (packages/alia-chat/src/hooks/useVoiceRoom.ts:325, which sends model:'kaana-v1-voice'). Any change is a breaking SDK major.",
       "evidence": "packages/api/src/routes/v1/voice.ts:31"
     },
     {
@@ -189,8 +189,8 @@
       "name": "POST /v1/voice/transcribe",
       "currentPath": "packages/api/src/routes/v1/voice.ts",
       "summary": "Speech-to-text. This IS inference (calls callProviderAPI through gateway-client), wrapped in an Alia-branded product route.",
-      "proposedOwner": "relay",
-      "targetPath": "relay:speech-to-text (Alia keeps the /v1/voice/transcribe facade)",
+      "proposedOwner": "kaana",
+      "targetPath": "kaana:speech-to-text (Alia keeps the /v1/voice/transcribe facade)",
       "dependsOn": [
         "gateway-client-seam"
       ],
@@ -203,12 +203,12 @@
       "name": "POST /v1/audio/speech",
       "currentPath": "packages/api/src/routes/v1/audio.ts",
       "summary": "Text-to-speech, OpenAI-compatible path. Fails over across TTS providers via lib/synthesize-speech.ts. Advertised in the root endpoint list.",
-      "proposedOwner": "relay",
-      "targetPath": "relay:tts (Alia keeps the /v1/audio/speech facade)",
+      "proposedOwner": "kaana",
+      "targetPath": "kaana:tts (Alia keeps the /v1/audio/speech facade)",
       "dependsOn": [
         "gateway-client-seam"
       ],
-      "removalGate": "Consumed by the published SDK (useTTS.ts:198, sending model:'alia-v1-voice'). Path is frozen by the SDK's published major.",
+      "removalGate": "Consumed by the published SDK (useTTS.ts:198, sending model:'kaana-v1-voice'). Path is frozen by the SDK's published major.",
       "evidence": "packages/api/src/routes/v1/audio.ts:35; packages/api/src/index.ts:294"
     },
     {
@@ -245,8 +245,8 @@
       "name": "POST /v1/images/generations",
       "currentPath": "packages/api/src/routes/v1/images.ts",
       "summary": "OpenAI-compatible image generation. Pure inference behind an Alia route; calls getModelMappingsForTier + callProviderAPI directly.",
-      "proposedOwner": "relay",
-      "targetPath": "relay:image-generation (Alia keeps the /v1/images/generations facade)",
+      "proposedOwner": "kaana",
+      "targetPath": "kaana:image-generation (Alia keeps the /v1/images/generations facade)",
       "dependsOn": [
         "gateway-client-seam"
       ],
@@ -457,7 +457,7 @@
       "kind": "consumer",
       "name": "@alia.onl/sdk v6.0.0 - useAliaChat",
       "currentPath": "packages/alia-chat/src/hooks/useAliaChat.ts",
-      "summary": "PUBLISHED npm package, shipped as RAW SOURCE. Calls /v1/chat/completions, defaults model:'alia-v1', and handles only 4 of the 8 named SSE events plus 2 LEGACY in-data type-based events.",
+      "summary": "PUBLISHED npm package, shipped as RAW SOURCE. Calls /v1/chat/completions, defaults model:'kaana-v1', and handles only 4 of the 8 named SSE events plus 2 LEGACY in-data type-based events.",
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
       "dependsOn": [
@@ -472,14 +472,14 @@
       "kind": "consumer",
       "name": "@alia.onl/sdk - useTTS",
       "currentPath": "packages/alia-chat/src/hooks/useTTS.ts",
-      "summary": "POSTs /v1/audio/speech with a hardcoded model:'alia-v1-voice'.",
+      "summary": "POSTs /v1/audio/speech with a hardcoded model:'kaana-v1-voice'.",
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
       "dependsOn": [
         "v1-audio-speech",
-        "model-id-alia-v1-voice"
+        "model-id-kaana-v1-voice"
       ],
-      "removalGate": "Retiring or renaming alia-v1-voice breaks a published package. Keep the id resolvable.",
+      "removalGate": "Retiring or renaming kaana-v1-voice breaks a published package. Keep the id resolvable.",
       "evidence": "packages/alia-chat/src/hooks/useTTS.ts:198,205"
     },
     {
@@ -487,12 +487,12 @@
       "kind": "consumer",
       "name": "@alia.onl/sdk - useVoiceRoom",
       "currentPath": "packages/alia-chat/src/hooks/useVoiceRoom.ts",
-      "summary": "POSTs /v1/voice/token with model:'alia-v1-voice' to join a LiveKit room.",
+      "summary": "POSTs /v1/voice/token with model:'kaana-v1-voice' to join a LiveKit room.",
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
       "dependsOn": [
         "v1-voice-token",
-        "model-id-alia-v1-voice"
+        "model-id-kaana-v1-voice"
       ],
       "removalGate": "Published package. Same gate as sdk-tts-consumer.",
       "evidence": "packages/alia-chat/src/hooks/useVoiceRoom.ts:325,332"
@@ -516,12 +516,12 @@
       "kind": "consumer",
       "name": "Codea VS Code extension - chat participant",
       "currentPath": "packages/alia-codea/src/chatParticipant.ts",
-      "summary": "Raw fetch to /v1/chat/completions; model defaults to 'alia-v1-codea' from VS Code settings.",
+      "summary": "Raw fetch to /v1/chat/completions; model defaults to 'kaana-v1-codea' from VS Code settings.",
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
       "dependsOn": [
         "v1-chat-completions-post",
-        "model-id-alia-v1-codea"
+        "model-id-kaana-v1-codea"
       ],
       "removalGate": "Marketplace-published; users run pinned old versions indefinitely. Wire changes need server-side back-compat, not a client release.",
       "evidence": "packages/alia-codea/src/chatParticipant.ts:177,30"
@@ -531,12 +531,12 @@
       "kind": "consumer",
       "name": "Codea VS Code extension - inline completions",
       "currentPath": "packages/alia-codea/src/inlineCompletionProvider.ts",
-      "summary": "Second raw fetch to /v1/chat/completions, model default 'alia-v1-codea'. Latency-sensitive path.",
+      "summary": "Second raw fetch to /v1/chat/completions, model default 'kaana-v1-codea'. Latency-sensitive path.",
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
       "dependsOn": [
         "v1-chat-completions-post",
-        "model-id-alia-v1-codea"
+        "model-id-kaana-v1-codea"
       ],
       "removalGate": "Same as codea-chat-participant-consumer.",
       "evidence": "packages/alia-codea/src/inlineCompletionProvider.ts:93,23"
@@ -562,12 +562,12 @@
       "kind": "consumer",
       "name": "@alia-codea/cli - streamChat (OpenAI SDK)",
       "currentPath": "packages/alia-codea-cli/src/utils/api.ts",
-      "summary": "new OpenAI({ baseURL: `${baseUrl}/v1` }), default base https://api.alia.onl, model default 'alia-v1-codea'. Consumes only OpenAI-standard delta.content and delta.tool_calls - it ignores every named alia.* SSE event.",
+      "summary": "new OpenAI({ baseURL: `${baseUrl}/v1` }), default base https://api.alia.onl, model default 'kaana-v1-codea'. Consumes only OpenAI-standard delta.content and delta.tool_calls - it ignores every named alia.* SSE event.",
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
       "dependsOn": [
         "v1-chat-completions-post",
-        "model-id-alia-v1-codea"
+        "model-id-kaana-v1-codea"
       ],
       "removalGate": "npm-published CLI. Because it ignores named events, it is the client most likely to break on a change to the DEFAULT data: frame, and least likely to notice event additions.",
       "evidence": "packages/alia-codea-cli/src/utils/api.ts:132-137,155-160; packages/alia-codea-cli/src/utils/config.ts:25"
@@ -577,14 +577,14 @@
       "kind": "consumer",
       "name": "Cowork Electron - ChatProvider (OpenAI SDK)",
       "currentPath": "packages/alia-cowork/src/main/chat.ts",
-      "summary": "new OpenAI({ baseURL: `${baseUrl}/v1` }) with model default 'alia-v1-cowork'. Reads a NON-STANDARD `reasoning` field off the streaming delta (typed locally as ReasoningDelta) - an undocumented wire extension distinct from the alia.reasoning SSE event. Also GETs /v1/me and /v1/models?category=coding and /memory.",
+      "summary": "new OpenAI({ baseURL: `${baseUrl}/v1` }) with model default 'kaana-v1-cowork'. Reads a NON-STANDARD `reasoning` field off the streaming delta (typed locally as ReasoningDelta) - an undocumented wire extension distinct from the alia.reasoning SSE event. Also GETs /v1/me and /v1/models?category=coding and /memory.",
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
       "dependsOn": [
         "v1-chat-completions-post",
         "v1-me",
         "v1-models-list",
-        "model-id-alia-v1-cowork"
+        "model-id-kaana-v1-cowork"
       ],
       "removalGate": "The delta.reasoning field is documented NOWHERE and is not in the SSE event contract. Confirm whether the server still emits it before assuming the contract is just the 8 named events.",
       "evidence": "packages/alia-cowork/src/main/chat.ts:149,20,30,1070,1087,1105"
@@ -609,7 +609,7 @@
       "kind": "consumer",
       "name": "integrations service - AliaApiClient (2 call sites)",
       "currentPath": "packages/integrations/src/shared/api-client.ts",
-      "summary": "Two separate fetches to `${this.baseURL}/v1/chat/completions` (streaming and non-streaming), each defaulting to model 'alia-lite'. Also GETs /v1/models and POSTs /v1/voice/transcribe. Serves Telegram, Discord, WhatsApp, browser and terminal channels.",
+      "summary": "Two separate fetches to `${this.baseURL}/v1/chat/completions` (streaming and non-streaming), each defaulting to model 'kaana-lite'. Also GETs /v1/models and POSTs /v1/voice/transcribe. Serves Telegram, Discord, WhatsApp, browser and terminal channels.",
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
       "dependsOn": [
@@ -625,14 +625,14 @@
       "kind": "consumer",
       "name": "Canvas - model list",
       "currentPath": "packages/alia-canvas/src/lib/models.ts",
-      "summary": "fetch(`${API_URL}/v1/models`) with a hardcoded fallback list whose first entry is alia-lite. Workflow nodes default to model 'alia-lite'.",
+      "summary": "fetch(`${API_URL}/v1/models`) with a hardcoded fallback list whose first entry is kaana-lite. Workflow nodes default to model 'kaana-lite'.",
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
       "dependsOn": [
         "v1-models-list",
-        "model-id-alia-lite"
+        "model-id-kaana-lite"
       ],
-      "removalGate": "Saved workflows persist the model id in node data, so retiring alia-lite invalidates stored user workflows, not just UI defaults.",
+      "removalGate": "Saved workflows persist the model id in node data, so retiring kaana-lite invalidates stored user workflows, not just UI defaults.",
       "evidence": "packages/alia-canvas/src/lib/models.ts:26,9; packages/alia-canvas/src/components/workflow/workflow-editor.tsx:43,72,79"
     },
     {
@@ -640,7 +640,7 @@
       "kind": "consumer",
       "name": "Expo app - model selector",
       "currentPath": "packages/app/components/model-selector.tsx",
-      "summary": "fetch(`${config.apiUrl}/v1/models?chat=true`) with a hardcoded offline fallback of alia-v1 and an entitlement allow-list default of ['alia-lite','alia-v1','alia-v1-audio'].",
+      "summary": "fetch(`${config.apiUrl}/v1/models?chat=true`) with a hardcoded offline fallback of kaana-v1 and an entitlement allow-list default of ['kaana-lite','kaana-v1','kaana-v1-audio'].",
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
       "dependsOn": [
@@ -654,7 +654,7 @@
       "kind": "consumer",
       "name": "Cowork renderer - Console page",
       "currentPath": "packages/alia-cowork/renderer/src/components/Console.tsx",
-      "summary": "fetch(\"https://api.alia.onl/v1/models\") with the PRODUCTION URL HARDCODED - no env override. Also prints a hardcoded 'Model: alia-v1-codea' although Cowork's actual default is alia-v1-cowork.",
+      "summary": "fetch(\"https://api.alia.onl/v1/models\") with the PRODUCTION URL HARDCODED - no env override. Also prints a hardcoded 'Model: kaana-v1-codea' although Cowork's actual default is kaana-v1-cowork.",
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
       "dependsOn": [
@@ -972,7 +972,7 @@
       "kind": "model-id-usage",
       "name": "ALIA_MODELS - the 13 canonical public model ids",
       "currentPath": "packages/api/src/internal/providers/lib/alia-models.ts",
-      "summary": "Single source of truth: alia-lite, alia-v1, alia-v1-codea, alia-v1-cowork, alia-v1-browser, alia-v1-vision, alia-v1-audio, alia-v1-multimodal, alia-v1-pro, alia-v1-thinking, alia-v1-pro-max, alia-v1-voice, alia-v1-voice-pro. The separate AliaTier union additionally names 'v1-tts' and 'v1-image', which have NO corresponding model id.",
+      "summary": "Single source of truth: kaana-lite, kaana-v1, kaana-v1-codea, kaana-v1-cowork, kaana-v1-browser, kaana-v1-vision, kaana-v1-audio, kaana-v1-multimodal, kaana-v1-pro, kaana-v1-thinking, kaana-v1-pro-max, kaana-v1-voice, kaana-v1-voice-pro. The separate AliaTier union additionally names 'v1-tts' and 'v1-image', which have NO corresponding model id.",
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
       "dependsOn": [],
@@ -982,9 +982,9 @@
     {
       "id": "phantom-model-ids-in-docs",
       "kind": "model-id-usage",
-      "name": "PHANTOM ids alia-v1-tts and alia-v1-image documented but not servable",
+      "name": "PHANTOM ids kaana-v1-tts and kaana-v1-image documented but not servable",
       "currentPath": "docs/model-abstraction.mdx",
-      "summary": "docs/model-abstraction.mdx:26-27 and docs/index.mdx:153 present alia-v1-tts and alia-v1-image as public model ids. Neither exists in ALIA_MODELS; a request for either gets 404 model_not_found from GET /v1/models/:modelId and falls back to the default in chat. Conversely both files' tables OMIT alia-v1-thinking, which IS real, is sold on paid plans (seed-plans.ts:35) and is the app's escalation target.",
+      "summary": "docs/model-abstraction.mdx:26-27 and docs/index.mdx:153 present kaana-v1-tts and kaana-v1-image as public model ids. Neither exists in ALIA_MODELS; a request for either gets 404 model_not_found from GET /v1/models/:modelId and falls back to the default in chat. Conversely both files' tables OMIT kaana-v1-thinking, which IS real, is sold on paid plans (seed-plans.ts:35) and is the app's escalation target.",
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
       "dependsOn": [
@@ -1012,13 +1012,13 @@
       "kind": "model-id-usage",
       "name": "Model ids baked into the Postgres schema default",
       "currentPath": "packages/api/src/db/schema/agents.ts",
-      "summary": "agents.allowedModels defaults to ['alia-v1','alia-v1-pro'] at the SQL level, so the two ids are frozen into drizzle/0013_exotic_domino.sql and 8 meta snapshots. Also oxy-service-events.ts:78 hardcodes allowedModels ['alia-v1','alia-v1-thinking'].",
+      "summary": "agents.allowedModels defaults to ['kaana-v1','kaana-v1-pro'] at the SQL level, so the two ids are frozen into drizzle/0013_exotic_domino.sql and 8 meta snapshots. Also oxy-service-events.ts:78 hardcodes allowedModels ['kaana-v1','kaana-v1-thinking'].",
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
       "dependsOn": [
         "alia-models-registry"
       ],
-      "removalGate": "Renaming or retiring alia-v1 / alia-v1-pro requires a data migration over existing agent rows, not just a code change. Migration history cannot be edited.",
+      "removalGate": "Renaming or retiring kaana-v1 / kaana-v1-pro requires a data migration over existing agent rows, not just a code change. Migration history cannot be edited.",
       "evidence": "packages/api/src/db/schema/agents.ts:129; packages/api/src/routes/oxy-service-events.ts:78; packages/api/drizzle/0013_exotic_domino.sql"
     },
     {
@@ -1026,20 +1026,20 @@
       "kind": "model-id-usage",
       "name": "CLI constructs and destructs model ids by string concatenation",
       "currentPath": "packages/alia-codea-cli/src/app.tsx",
-      "summary": "`/model pro` becomes `alia-v1-${args[0]}` (line 146) and the status bar renders model.replace('alia-v1-','') (line 256). The CLI therefore assumes the id namespace is permanently shaped 'alia-v1-<suffix>'.",
+      "summary": "`/model pro` becomes `kaana-v1-${args[0]}` (line 146) and the status bar renders model.replace('kaana-v1-','') (line 256). The CLI therefore assumes the id namespace is permanently shaped 'kaana-v1-<suffix>'.",
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
       "dependsOn": [
         "alia-models-registry",
         "codea-cli-consumer"
       ],
-      "removalGate": "Any new id not matching alia-v1-<x> (e.g. alia-lite, or a future alia-v2) is unreachable from the CLI's /model command and renders wrong in its status bar. Fix before adding ids outside the pattern.",
+      "removalGate": "Any new id not matching kaana-v1-<x> (e.g. kaana-lite, or a future alia-v2) is unreachable from the CLI's /model command and renders wrong in its status bar. Fix before adding ids outside the pattern.",
       "evidence": "packages/alia-codea-cli/src/app.tsx:146,256"
     },
     {
-      "id": "model-id-alia-lite",
+      "id": "model-id-kaana-lite",
       "kind": "model-id-usage",
-      "name": "alia-lite as a hardcoded default (5 packages)",
+      "name": "kaana-lite as a hardcoded default (5 packages)",
       "currentPath": "packages/integrations/src/shared/api-client.ts",
       "summary": "Default for every messaging channel (telegram adapter:212, discord adapter:248 + commands:122,156, chat-handler:108, api-client:207,269), for all Canvas workflow nodes, and in the app's entitlement fallback list.",
       "proposedOwner": "alia",
@@ -1047,13 +1047,13 @@
       "dependsOn": [
         "alia-models-registry"
       ],
-      "removalGate": "Retiring alia-lite silently breaks every bot channel AND invalidates the model field of saved Canvas workflows. Highest fan-out of any single id.",
+      "removalGate": "Retiring kaana-lite silently breaks every bot channel AND invalidates the model field of saved Canvas workflows. Highest fan-out of any single id.",
       "evidence": "packages/integrations/src/shared/api-client.ts:207,269; packages/alia-canvas/src/components/workflow/workflow-editor.tsx:43,72,79"
     },
     {
-      "id": "model-id-alia-v1-codea",
+      "id": "model-id-kaana-v1-codea",
       "kind": "model-id-usage",
-      "name": "alia-v1-codea as the Codea default (extension setting + CLI + webview)",
+      "name": "kaana-v1-codea as the Codea default (extension setting + CLI + webview)",
       "currentPath": "packages/alia-codea/package.json",
       "summary": "Declared as the default of a published VS Code SETTING (package.json:162), plus chatParticipant.ts:30, inlineCompletionProvider.ts:23, chatProvider.ts:592, CLI config.ts:25 and index.ts (3 CLI option defaults), and the webview model list.",
       "proposedOwner": "alia",
@@ -1065,11 +1065,11 @@
       "evidence": "packages/alia-codea/package.json:162; packages/alia-codea-cli/src/index.ts:49,62,77"
     },
     {
-      "id": "model-id-alia-v1-cowork",
+      "id": "model-id-kaana-v1-cowork",
       "kind": "model-id-usage",
-      "name": "alia-v1-cowork as the Cowork default (persisted in electron-store)",
+      "name": "kaana-v1-cowork as the Cowork default (persisted in electron-store)",
       "currentPath": "packages/alia-cowork/src/main/chat.ts",
-      "summary": "Set as an electron-store DEFAULT (chat.ts:30) and in the renderer model list. Console.tsx:124 nonetheless prints 'Model: alia-v1-codea', so the app displays an id it does not use.",
+      "summary": "Set as an electron-store DEFAULT (chat.ts:30) and in the renderer model list. Console.tsx:124 nonetheless prints 'Model: kaana-v1-codea', so the app displays an id it does not use.",
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
       "dependsOn": [
@@ -1079,9 +1079,9 @@
       "evidence": "packages/alia-cowork/src/main/chat.ts:30; packages/alia-cowork/renderer/src/components/Chat.tsx:116,162; packages/alia-cowork/renderer/src/components/Console.tsx:124"
     },
     {
-      "id": "model-id-alia-v1-voice",
+      "id": "model-id-kaana-v1-voice",
       "kind": "model-id-usage",
-      "name": "alia-v1-voice hardcoded in the PUBLISHED SDK",
+      "name": "kaana-v1-voice hardcoded in the PUBLISHED SDK",
       "currentPath": "packages/alia-chat/src/hooks/useTTS.ts",
       "summary": "Sent as model on both /v1/audio/speech (useTTS.ts:205) and /v1/voice/token (useVoiceRoom.ts:332). Not configurable by the SDK consumer.",
       "proposedOwner": "alia",
@@ -1125,10 +1125,10 @@
       "name": "gateway-client.ts - the local/remote inference seam",
       "currentPath": "packages/api/src/lib/gateway-client.ts",
       "summary": "Runs the in-process provider path unless BOTH SERVICE_SECRET and GATEWAY_API_URL are set. Every product route that touches inference (chat-completions, images, voice, audio, agents-avatar, models-stats, health, billing, analytics) imports through it.",
-      "proposedOwner": "relay",
-      "targetPath": "relay:the remote branch of this seam",
+      "proposedOwner": "kaana",
+      "targetPath": "kaana:the remote branch of this seam",
       "dependsOn": [],
-      "removalGate": "This is already the designed insertion point for a remote inference tier - a Relay migration should REPLACE the remote branch here, not add a second client. AGENTS.md explicitly forbids a second copy of the provider logic.",
+      "removalGate": "This is already the designed insertion point for a remote inference tier - a Kaana migration should REPLACE the remote branch here, not add a second client. AGENTS.md explicitly forbids a second copy of the provider logic.",
       "evidence": "packages/api/src/lib/gateway-client.ts:30-53; packages/api/src/routes/v1/chat-completions.ts:3"
     },
     {
@@ -1209,7 +1209,7 @@
       "kind": "doc",
       "name": "docs/onboarding.md (5 model-id matches)",
       "currentPath": "docs/onboarding.md",
-      "summary": "Architecture diagrams naming POST /v1/chat/completions (SSE) at :15 and :107, approvals over Socket.IO at :55, and a public model table at :163 listing 5 ids (correctly including alia-v1-thinking, unlike model-abstraction.mdx).",
+      "summary": "Architecture diagrams naming POST /v1/chat/completions (SSE) at :15 and :107, approvals over Socket.IO at :55, and a public model table at :163 listing 5 ids (correctly including kaana-v1-thinking, unlike model-abstraction.mdx).",
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
       "dependsOn": [
@@ -1307,7 +1307,7 @@
       "kind": "doc",
       "name": "Seed data (21 matches) and tests (39 matches) pinning model ids",
       "currentPath": "packages/api/src/lib/seed-plans.ts",
-      "summary": "seed-plans.ts (19 matches) defines which ids each PAID PLAN grants - alia-v1-pro, alia-v1-thinking, alia-v1-pro-max, alia-v1-voice-pro on Pro; seed-model-configs.ts (2). Tests pin ids in 11 files, heaviest in routes/v1/__tests__/chat-completions-timeout.test.ts (14).",
+      "summary": "seed-plans.ts (19 matches) defines which ids each PAID PLAN grants - kaana-v1-pro, kaana-v1-thinking, kaana-v1-pro-max, kaana-v1-voice-pro on Pro; seed-model-configs.ts (2). Tests pin ids in 11 files, heaviest in routes/v1/__tests__/chat-completions-timeout.test.ts (14).",
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
       "dependsOn": [

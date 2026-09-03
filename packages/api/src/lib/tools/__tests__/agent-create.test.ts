@@ -43,6 +43,9 @@ vi.mock('@oxyhq/core', () => ({
     serviceAuth() {
       return () => {};
     }
+    auth() {
+      return () => {};
+    }
     async createAccount(input: StoredAccount) {
       if (oxy.taken.has(input.username)) {
         throw Object.assign(new Error('username taken'), { status: 409 });

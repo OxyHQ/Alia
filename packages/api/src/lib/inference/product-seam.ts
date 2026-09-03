@@ -18,14 +18,12 @@
  * is exactly the drift the epic exists to prevent, and a mirror written
  * "temporarily" is the way one arrives.
  *
- * `@oxyhq/contracts` is a dependency of `packages/api` as of the inference
- * module's release, and the four parameters are bound in `kaana-client.ts` —
- * `KaanaInferencePort`, one type alias, at the implementation rather than here.
- * That is deliberate: binding them on the interface would make every product
- * module that names this port name the wire types too, and the port's value is
- * that a product module never has to. `__tests__/product-seam.test.ts` fails if
- * a parameter is replaced by a locally declared shape, and
- * `docs/migration/kaana-client-gap.md` records what binds each one.
+ * `@oxyhq/contracts` is a dependency of `packages/api`, but it is imported only
+ * at the hosted adapter in `kaana-language-model.ts`, where Alia translates its
+ * AI SDK request into the published Oxy inference contract. Keeping the
+ * contract out of this product seam prevents product modules from depending on
+ * wire types. `__tests__/product-seam.test.ts` fails if a type parameter is
+ * replaced by a locally declared wire shape.
  *
  * ## Deliberately NOT here
  *
@@ -34,10 +32,10 @@
  * - **Provider selection, health, keys and circuit breaking.** Kaana's, per
  *   ADR 0001. `reportModelUsage` has no counterpart on this seam because it has
  *   no counterpart in the target architecture at all — see the gap analysis.
- * - **Any wiring.** The only importer is the Kaana client that implements this
- *   port, and nothing in `packages/api` imports THAT — frozen by
- *   `__tests__/kaana-boundary.test.ts`. A half-wired seam is worse than an
- *   unwired one: it makes the cutover look done. Workstream 8 wires it.
+ * - **Hosted transport wiring.** `chat-core.ts` selects
+ *   `kaana-language-model.ts`, which uses the published `OxyInferenceClient` to
+ *   call Oxy. This file supplies only Alia-owned product vocabulary to that
+ *   adapter; it never owns an endpoint, credential or provider route.
  */
 
 /* -------------------------------------------------------------------------- */
@@ -147,7 +145,7 @@ export type AliaCallVisibility = 'user_turn' | 'derived' | 'background';
  * without deciding which. The Kaana client makes that translation; the product
  * never does.
  */
-export type AliaModelChoice =
+export type RoutingProfileChoice =
   | { readonly kind: 'product_default' }
   | { readonly kind: 'user_selected'; readonly productModelId: string }
   | { readonly kind: 'surface_pinned'; readonly productModelId: string };
@@ -228,7 +226,7 @@ export interface AliaInferenceContext {
   readonly surface: AliaInferenceSurface;
   readonly visibility: AliaCallVisibility;
   readonly caller: AliaInferenceCaller;
-  readonly model: AliaModelChoice;
+  readonly model: RoutingProfileChoice;
   /** The Alia conversation this call belongs to, when it belongs to one. */
   readonly conversationId: string | null;
   /** The caller's chosen fallback policy, or `null` for the product default. */

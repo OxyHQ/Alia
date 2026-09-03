@@ -1,5 +1,11 @@
 # Archive: what an operator did in Gateway Admin, and where it goes now
 
+> **Historical record only.** The screen inventory and the later “operator”
+> table record the state at the time this archive was written. They are not
+> current procedures. Provider credentials, routing and provider operations now
+> belong to Kaana/Oxy; Alia must never administer them or read/write its dormant
+> compatibility tables for hosted inference.
+
 `packages/alia-gateway-admin` was deleted by [#141](https://github.com/OxyHQ/Alia/pull/141).
 It was an eleven-screen Vite SPA that administered the provider stack, the plan catalogue and
 customer billing. This is the operator-facing record of it: per screen, the actions it offered
@@ -45,7 +51,7 @@ of who did what. Any replacement surface should treat that as a requirement it m
 [`ownership-matrix.json`](./ownership-matrix.json), which is the authority; the ids are given so
 the two can be diffed.
 
-### Provider operations — destination `internal-relay-ops`
+### Provider operations — destination `internal-kaana-ops`
 
 | Screen | What an operator did there | Matrix row |
 | --- | --- | --- |
@@ -71,25 +77,25 @@ the two can be diffed.
 | --- | --- | --- |
 | **Login** (`*`, unauthenticated) | An Oxy sign-in shell branded "Alia Providers / Admin Panel", shown to any unauthenticated or unauthorized visitor. Authentication belongs to `@oxyhq/services`; the shell had nothing to preserve. | `ga-screen-login` |
 
-## What an operator can do today
+## What an operator could do when this archive was written
 
-**Ten of the eleven screens have no replacement surface.** `internal-relay-ops` names a Relay
-operations surface that does not exist — the Relay data plane does not exist — and
-`keep-as-alia-product-setting` names Alia product settings that were never built. Both are open
-checkboxes on #139 workstream 9:
+At the time of this archive, **ten of the eleven screens had no replacement
+surface**. `internal-kaana-ops` named a future Kaana operations surface and
+`keep-as-alia-product-setting` named Alia product settings that had not been
+built. Both were open checkboxes on #139 workstream 9:
 
 - *"Move customer-facing application, credential, usage, billing, model and routing controls to
   Oxy Console."*
-- *"Move provider/deployment operational controls to an internal Relay operations surface if still
+- *"Move provider/deployment operational controls to an internal Kaana operations surface if still
   required."*
 
-Until those land, the operator paths are:
+The operator paths recorded at that time were:
 
 | Was | Is now |
 | --- | --- |
 | **API Keys** — create, rotate, revoke a provider credential | A SQL statement against `provider_keys`, run by someone with production database access. [`runbooks/credential-rotation.md`](../runbooks/credential-rotation.md) § *Provider API keys* is the procedure, and it says why: there is no admin API for that table, asserted by `packages/api/src/routes/__tests__/inference-boundary.test.ts:458-468`, which lists `createProviderKey` / `updateProviderKey` / `deleteProviderKey` as writers with zero runtime callers and fails if a route file ever calls one. |
 | **Models** — edit the routing catalogue | Nothing. `model_configs` and `alia_model_provider_mappings` are seeded by `packages/api/src/internal/providers/lib/seed-model-configs.ts`; the alias set itself is a frozen literal in `internal/providers/lib/alia-models.ts` and changing it fails gate 3 of `packages/api/src/__tests__/architectureGates.test.ts`. |
-| **Plans / Features / Credit Packages** — edit the product catalogue | Nothing, and this is a measured gap rather than an omission: `packages/api/src/lib/routing/__tests__/routing-config-audit.test.ts` records that plan model access is *"an UNAUDITED database row"* and that *"the plan seeder would re-assert the model list, but NOTHING RUNS IT"*. Earning #139 workstream 14's *"Allow the product team to select which Oxy/Relay models are available per plan/surface"* is what closes it. |
+| **Plans / Features / Credit Packages** — edit the product catalogue | Nothing, and this is a measured gap rather than an omission: `packages/api/src/lib/routing/__tests__/routing-config-audit.test.ts` records that plan model access is *"an UNAUDITED database row"* and that *"the plan seeder would re-assert the model list, but NOTHING RUNS IT"*. Earning #139 workstream 14's *"Allow the product team to select which Oxy/Kaana models are available per plan/surface"* is what closes it. |
 | **Dashboard / Monitoring / Logs / Usage / Billing** — read | Nothing UI-side. The data is still written: `provider_health`, `routing_logs`, `fallback_events`, `api_usage`, `cost_entries`, `chat_analytics`, `transactions`, `subscriptions`. Reading it is a database query. |
 
 ## Two things worth carrying into the replacement

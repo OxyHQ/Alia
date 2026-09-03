@@ -7,7 +7,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 vi.mock('node-cron', () => ({ default: { schedule: vi.fn(), validate: vi.fn(() => true) } }));
 vi.mock('ai', () => ({ generateText: vi.fn(), stepCountIs: vi.fn() }));
-vi.mock('../chat-core.js', () => ({ resolveModel: vi.fn(), getAIModel: vi.fn(), getDefaultAliaModel: vi.fn() }));
+vi.mock('../chat-core.js', () => ({ resolveModel: vi.fn(), getAIModel: vi.fn(), getDefaultRoutingProfile: vi.fn() }));
 vi.mock('../tools/index.js', () => ({
   getCurrentDateTool: {},
   webSearchTool: {},

@@ -17,7 +17,7 @@ vi.mock('../../lib/chat-core.js', () => ({
   resolveModel: vi.fn(),
   getAIModel: vi.fn(),
   reportModelUsage: vi.fn(),
-  getDefaultAliaModel: vi.fn(),
+  getDefaultRoutingProfile: vi.fn(),
 }));
 vi.mock('../../lib/channels/outbound.js', () => ({ sendChannelMessage: vi.fn() }));
 vi.mock('../../lib/prompt-loader.js', () => ({ loadPrompt: vi.fn() }));

@@ -30,6 +30,28 @@ one column, no foreign key, UNIQUE.
   is minted under their tree and they become its owner. The app does it in one
   tap: generate → `createAccount` → `POST /agents`.
 
+### Product-bound agents
+
+A product agent has two additional server-managed bindings:
+`owner_oxy_account_id`, the bot account's exact parent returned by Oxy, and
+`application_id`, the one verified Oxy application allowed to invoke it.
+Neither field is accepted by public `POST/PATCH /agents`; an internal bootstrap
+or reconciliation writes them from authoritative Oxy records. A null owner
+fails closed for Oxy tools, and `author_oxy_user_id` is never a fallback.
+
+Product ingress must use that product's Oxy service token plus
+`X-Oxy-User-Id`. Alia accepts the turn only after Oxy verifies the acting-as
+grant, the credential-derived application exactly matches `application_id`,
+and both effective scope sets include `inference:invoke`. Alia reuses that
+verified inbound token for `Alia -> Oxy -> Kaana`, so Oxy charges the product
+application's owner/cost centre. A human bearer, a mismatched app, a missing
+delegation or a known agent id alone all receive the same neutral refusal.
+
+A new or unreconciled agent inherits no user name, memory, Inbox/Oxy context,
+installed skill shelf or messaging/delegation hint in its prompt. Empty
+`capability_grants` denies; only explicit grants and explicitly linked skills
+can add agent context.
+
   **An agent has no picture.** It is drawn as a glyph tinted with its Oxy
   account's `User.color`, a Bloom preset key — so `AgentIdentity` carries
   `color` where it used to carry `avatar`, and there is no image-generation step
@@ -287,7 +309,7 @@ The former `POST /webhooks/oxy/:serviceId` route is retired and returns `410 Gon
 
 ## Model Abstraction
 
-The product surface exposes only the `alia-*` identifiers (`alia-lite`, `alia-v1` and so
+The product surface exposes only the `alia-*` identifiers (`kaana-lite`, `kaana-v1` and so
 on). Upstream routing detail is never returned to users. Several of those identifiers are
 routing policies rather than models, and the set is frozen — see
 [model abstraction](./model-abstraction.mdx).

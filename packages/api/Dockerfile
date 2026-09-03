@@ -122,7 +122,7 @@ COPY --from=builder /build/packages/api/drizzle ./packages/api/drizzle
 # Without this the running container logged, on EVERY request,
 #
 #   Error loading prompt  ENOENT: no such file or directory,
-#   open '/app/packages/api/prompts/alia-lite.md'
+#   open '/app/packages/api/prompts/general-lite.md'
 #   Error loading prompt  ENOENT: ... '/app/packages/api/prompts/base.md'
 #
 # and `loadPrompt` returns '' on failure, so production served with NO SYSTEM

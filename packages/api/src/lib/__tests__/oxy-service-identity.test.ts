@@ -209,8 +209,8 @@ async function loadHydration(
 ): Promise<typeof import('../oxy-user-hydration.js').hydrateOxyUsers> {
   vi.resetModules();
   vi.stubEnv('OXY_API_URL', edge.baseURL);
-  vi.stubEnv('ALIA_RELAY_CREDENTIAL_KEY', credential === 'configured' ? API_KEY : undefined);
-  vi.stubEnv('ALIA_RELAY_CREDENTIAL_SECRET', credential === 'configured' ? API_SECRET : undefined);
+  vi.stubEnv('OXY_SERVICE_API_KEY', credential === 'configured' ? API_KEY : undefined);
+  vi.stubEnv('OXY_SERVICE_API_SECRET', credential === 'configured' ? API_SECRET : undefined);
   const { hydrateOxyUsers } = await import('../oxy-user-hydration.js');
   return hydrateOxyUsers;
 }
@@ -241,7 +241,7 @@ describe('an Oxy account is hydrated as Alia, not as nobody', () => {
     // seeing only the second would go looking at Oxy: the deployment holds no
     // credential, and this particular batch resolved nobody.
     expect(logged.warn).toHaveBeenCalledWith(
-      { unset: ['ALIA_RELAY_CREDENTIAL_KEY', 'ALIA_RELAY_CREDENTIAL_SECRET'] },
+      { unset: ['OXY_SERVICE_API_KEY', 'OXY_SERVICE_API_SECRET'] },
       expect.stringContaining('no Oxy service credential'),
     );
     expect(logged.warn).toHaveBeenCalledWith(

@@ -152,7 +152,7 @@ export function Chat() {
    * The model this window sends with, or `undefined` for "let the main process
    * choose".
    *
-   * It was `useState("alia-v1-cowork")` beside a `models` list seeded from a
+   * It was `useState("kaana-v1-cowork")` beside a `models` list seeded from a
    * hardcoded fallback — and neither `models` nor `setCurrentModel` was ever
    * read, which TypeScript reported as TS6133 on this file before this change.
    * There is no model picker in this UI; the state was vestigial and the

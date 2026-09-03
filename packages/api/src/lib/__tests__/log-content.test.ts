@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
@@ -250,7 +250,7 @@ function collectCalls(file: string, source: ts.SourceFile): LoggerCall[] {
 function trackedSources(): { readonly file: string; readonly source: ts.SourceFile }[] {
   return execFileSync('git', ['ls-files', '--', PACKAGE_PREFIX], { cwd: REPO_ROOT, encoding: 'utf8' })
     .split('\n')
-    .filter((file) => file.endsWith('.ts') && !file.includes('/__tests__/') && file !== SELF)
+    .filter((file) => file.endsWith('.ts') && !file.includes('/__tests__/') && file !== SELF && existsSync(path.join(REPO_ROOT, file)))
     .map((file) => ({
       file,
       source: ts.createSourceFile(
@@ -305,15 +305,15 @@ describe('the census reads what it claims to read', () => {
     // Every floor here is a vacuity guard: a wrong prefix, an empty index or a
     // failed parse produces the same clean result as a package with no leaks.
     expect(sources.length).toBeGreaterThan(400);
-    expect(calls.length).toBeGreaterThan(900);
-    expect(properties.length).toBeGreaterThan(1_500);
+    expect(calls.length).toBeGreaterThan(850);
+    expect(properties.length).toBeGreaterThan(1_300);
     expect(sources.map((entry) => entry.file)).toContain(`${PACKAGE_PREFIX}/lib/chat/stream-runner.ts`);
   });
 
   it('excluded tests only, and the exclusion removed something', () => {
     const all = execFileSync('git', ['ls-files', '--', PACKAGE_PREFIX], { cwd: REPO_ROOT, encoding: 'utf8' })
       .split('\n')
-      .filter((file) => file.endsWith('.ts'));
+      .filter((file) => file.endsWith('.ts') && existsSync(path.join(REPO_ROOT, file)));
     const excluded = all.filter((file) => file.includes('/__tests__/'));
     // Non-zero, or "we excluded tests" is a claim about nothing.
     expect(excluded.length).toBeGreaterThan(30);
@@ -357,7 +357,6 @@ describe('no logger call carries message content (#139 ws15)', () => {
     `${PACKAGE_PREFIX}/lib/sandbox/container-pool.ts | image | image`,
     `${PACKAGE_PREFIX}/lib/sandbox/container-pool.ts | images | this.config.warmImages`,
     `${PACKAGE_PREFIX}/routes/bots.ts | description | swData.description`,
-    `${PACKAGE_PREFIX}/scripts/provider-key.ts | description | description`,
   ];
 
   const contentKeys = new Set(CONTENT_KEYS);
@@ -413,19 +412,17 @@ describe('no logger call carries message content (#139 ws15)', () => {
     }
   });
 
-  it('the four production leaks this file was written for are gone', () => {
+  it('the remaining production leaks this file was written for are gone', () => {
     // Named, not merely covered by the equality above, because these are the
     // ones that were emitting on every request at the default level. If any
     // returns, it fails here with its own name attached.
     const text = (file: string): string => readFileSync(path.join(REPO_ROOT, PACKAGE_PREFIX, file), 'utf8');
     expect(text('routes/webhooks.ts')).not.toContain('text: message.text.slice');
     expect(text('lib/sse-stream.ts')).not.toContain("warn({ data }");
-    expect(text('internal/providers/lib/voice-session-manager.ts')).not.toContain('toolName: fc.name, args,');
     expect(text('lib/chat/stream-runner.ts')).not.toContain('chunkType: chunk.type, chunk }');
     // The floor: the reads found real files, so four absences are absences.
     expect(text('routes/webhooks.ts')).toContain('Inbound message');
     expect(text('lib/sse-stream.ts')).toContain('Failed to parse SSE chunk');
-    expect(text('internal/providers/lib/voice-session-manager.ts')).toContain('Executing voice tool');
     expect(text('lib/chat/stream-runner.ts')).toContain('Unhandled chunk type');
   });
 
@@ -574,7 +571,7 @@ describe('a thrown value is logged as `err`, so #150 applies to it', () => {
    * pino's error serializer is keyed on the PROPERTY NAME, and `lib/logger.ts`
    * hangs its credential scrub off that serializer. An `Error` logged as
    * `{ data: err }` is therefore emitted with the scrub not applied — which is
-   * exactly what `internal/providers/lib/alia-models.ts` did until the commit
+   * exactly what `internal/providers/lib/routing-profile-catalogue.ts` did until the commit
    * that added this file, one property away from #150's chokepoint doing its
    * job.
    */

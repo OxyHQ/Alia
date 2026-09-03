@@ -6,8 +6,8 @@ import {
   createExecution,
 } from '../../db/automation/workflowRepository.js';
 import { authenticateToken } from '../../middleware/auth.js';
-import { resolveModel, getAIModel, getDefaultAliaModel } from '../../lib/chat-core.js';
-import { toRoutableAlias } from '../../lib/product-modes.js';
+import { resolveModel, getAIModel, getDefaultRoutingProfile } from '../../lib/chat-core.js';
+import { toRoutingProfile } from '../../lib/product-modes.js';
 import { getDb } from '../../db/index.js';
 import {
   findEntryByTitle,
@@ -16,8 +16,7 @@ import {
 } from '../../db/memory/userMemoryRepository.js';
 import { getIO } from '../../socket.js';
 import type { Request, Response } from 'express';
-import { callProviderAPI, getModelMappingsForTier } from '../../lib/gateway-client.js';
-import { extractImageUrl } from '../../internal/providers/lib/digitalocean-async.js';
+import { kaanaCapabilityUnavailable } from '../../lib/inference/hosted-capability-error.js';
 import { log } from '../../lib/logger.js';
 import { getSafeErrorMessage } from '../../lib/errors/sanitize.js';
 
@@ -236,17 +235,12 @@ async function executeNode(node: WorkflowNode, input: string, userId: string): P
 
     case 'aiText': {
       /**
-       * A node stores what `GET /catalogue` publishes, which is `profile:*`.
-       *
-       * `toRoutableAlias` turns it into the alias carrying the metadata the
-       * rest of this path needs, exactly as `lib/chat/request-context.ts` does
-       * at the chat boundary — a legacy `alia-*` saved into an older workflow
-       * passes through untouched and keeps resolving, and a node that names
-       * nothing runs on the product default, which is what the Automatic mode
-       * is. `null` is only ever a `profile:` id no preset defines.
+       * A node stores the canonical `kaana-*` profile published by
+       * `GET /catalogue`. Internal policy IDs and compatibility spellings are
+       * rejected rather than translated.
        */
-      const requested = node.data.model || getDefaultAliaModel();
-      const modelId = toRoutableAlias(requested);
+      const requested = node.data.model || getDefaultRoutingProfile();
+      const modelId = toRoutingProfile(requested);
       if (modelId === null) {
         throw new Error(`"${requested}" is not a routing profile. List them at GET /catalogue.`);
       }
@@ -265,34 +259,7 @@ async function executeNode(node: WorkflowNode, input: string, userId: string): P
     }
 
     case 'aiImage': {
-      const imagePrompt = node.data.prompt
-        ? node.data.prompt.replace(/\{\{input\}\}/g, input)
-        : input;
-      const imageMappings = await getModelMappingsForTier('v1-image');
-
-      for (const mapping of imageMappings) {
-        try {
-          const data = await callProviderAPI<any>({
-            provider: mapping.provider,
-            modelId: mapping.modelId,
-            endpoint: '/v1/images/generations',
-            body: {
-              model: mapping.modelId,
-              prompt: imagePrompt,
-              n: 1,
-              size: node.data.size || '1024x1024',
-            },
-            timeout: 30_000,
-            maxAttempts: 1,
-          });
-          const url = extractImageUrl(data);
-          if (url) return url;
-        } catch (err) {
-          log.general.warn({ err, provider: mapping.provider, model: mapping.modelId }, 'Image provider failed, trying next');
-          continue;
-        }
-      }
-      throw new Error('Image generation failed — all providers exhausted');
+      throw kaanaCapabilityUnavailable('image_generation');
     }
 
     case 'github': {

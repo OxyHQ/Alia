@@ -37,7 +37,6 @@ const STOPPER_FOR: Readonly<Record<string, string>> = {
   'containerPool.initialize': 'shutdownContainerPool',
   // Fire-and-forget work with no running resource behind it. Each of these
   // is one call that settles; there is nothing left to stop.
-  warmupGatewayClient: '',
   syncZeroEval: '',
   failOrphanedAudioJobs: '',
   reclaimOrphanedAgentSessions: '',
@@ -53,7 +52,6 @@ const traced = (name: string) => vi.fn(() => { order.push(name); return Promise.
 /** Records the call, in order, and returns nothing — for the synchronous starters. */
 const tracedSync = (name: string) => vi.fn(() => { order.push(name); });
 
-const warmupGatewayClient = traced('warmupGatewayClient');
 const syncZeroEval = traced('syncZeroEval');
 const startTriggerEngine = tracedSync('startTriggerEngine');
 const stopTriggerEngine = traced('stopTriggerEngine');
@@ -76,7 +74,6 @@ const reclaimOrphanedAgentSessions = vi.fn(() => { order.push('reclaimOrphanedAg
 const DB_HANDLE = Symbol('db') as unknown as ReturnType<typeof getDbSignature>;
 const getDb = vi.fn((): ReturnType<typeof getDbSignature> => DB_HANDLE);
 
-vi.mock('../gateway-client.js', () => ({ warmupGatewayClient }));
 vi.mock('../../scripts/sync-zeroeval.js', () => ({ syncZeroEval }));
 vi.mock('../trigger-engine.js', () => ({ startTriggerEngine, stopTriggerEngine }));
 vi.mock('../crowdsource/dispatcher.js', () => ({
@@ -119,7 +116,6 @@ describe('startBackgroundServices', () => {
      * ordering assertion below is what stops a service being added here and
      * quietly left out of the source.
      */
-    expect(warmupGatewayClient).toHaveBeenCalledTimes(1);
     expect(syncZeroEval).toHaveBeenCalledTimes(1);
     expect(startTriggerEngine).toHaveBeenCalledTimes(1);
     expect(dispatcherStart).toHaveBeenCalledTimes(1);
@@ -169,7 +165,6 @@ describe('startBackgroundServices', () => {
      * the pre-existing shape and not an accident of the doubles.
      */
     expect(order).toEqual([
-      'warmupGatewayClient',
       'syncZeroEval',
       'startTriggerEngine',
       'dispatcher.start',
@@ -198,12 +193,12 @@ describe('startBackgroundServices', () => {
     /*
      * The positive control for every "it starts" assertion above: they would all
      * pass equally on a version that started nothing after the first failure.
-     * `warmupGatewayClient` is first, and a gateway that is not configured is an
-     * ordinary state — it must not be able to take the queues down with it.
+     * `syncZeroEval` is first, and an unavailable catalogue is an ordinary
+     * state — it must not be able to take the queues down with it.
      */
-    warmupGatewayClient.mockImplementationOnce(() => {
-      order.push('warmupGatewayClient');
-      return Promise.reject(new Error('gateway unreachable'));
+    syncZeroEval.mockImplementationOnce(() => {
+      order.push('syncZeroEval');
+      return Promise.reject(new Error('catalogue unreachable'));
     });
 
     startBackgroundServices();
@@ -248,7 +243,7 @@ describe('stopBackgroundServices', () => {
     await settle();
     const started = [...order];
     // Vacuity floor: an empty `started` would make the loop below assert nothing.
-    expect(started.length).toBe(12);
+    expect(started.length).toBe(11);
 
     order.length = 0;
     await stopBackgroundServices();
@@ -291,7 +286,7 @@ describe('stopBackgroundServices', () => {
     );
     // Vacuity floor on the slice: an index that missed would make every pattern
     // below match nothing and the test pass over an empty string.
-    expect(startHalf).toContain('warmupGatewayClient');
+    expect(startHalf).toContain('syncZeroEval');
 
     const called = [...startHalf.matchAll(/([A-Za-z][A-Za-z0-9]*)\s*\(/g)]
       .map((match) => match[1])

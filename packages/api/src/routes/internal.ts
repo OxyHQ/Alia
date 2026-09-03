@@ -10,7 +10,7 @@
 
 import { Router } from 'express';
 import { generateText, stepCountIs } from 'ai';
-import { resolveModel, getAIModel, getDefaultAliaModel, reportModelUsage } from '../lib/chat-core.js';
+import { resolveModel, getAIModel, getDefaultRoutingProfile } from '../lib/chat-core.js';
 import {
 } from '../lib/tools/index.js';
 import { oxyServiceAuth, oxyClient } from '../middleware/auth.js';
@@ -18,7 +18,7 @@ import { ToolPipeline } from '../lib/tool-pipeline.js';
 import { buildIdentityGuard } from '../lib/identity-guard.js';
 import { userContextBlock } from '../lib/user-context.js';
 import { setPlanModelIds } from '../db/billing/planRepository.js';
-import { isAliaModel } from '../lib/gateway-client.js';
+import { isRoutingProfile } from '../lib/gateway-client.js';
 import type { User as OxyUser } from '@oxyhq/core';
 import { getDb } from '../db/index.js';
 import { findUserMemory, type UserMemoryProfile } from '../db/memory/userMemoryRepository.js';
@@ -118,7 +118,7 @@ router.post('/trigger', oxyServiceAuth, async (req, res) => {
     }
 
     // Resolve AI model
-    const resolved = await resolveModel(getDefaultAliaModel());
+    const resolved = await resolveModel(getDefaultRoutingProfile());
     if (!resolved) {
       res.status(503).json({
         error: 'No AI models available',
@@ -181,17 +181,6 @@ router.post('/trigger', oxyServiceAuth, async (req, res) => {
       completionTokens: result.usage.outputTokens || 0,
       totalTokens: result.usage.totalTokens || 0,
     } : null;
-
-    // Report model usage for provider analytics
-    if (resolved) {
-      await reportModelUsage(
-        resolved.keyConfig?.keyId,
-        resolved.provider,
-        resolved.modelId,
-        true,
-        responseTime
-      );
-    }
 
     // Record usage (no credits charged — platform cost)
     try {
@@ -310,7 +299,7 @@ router.put('/plans/:planId/models', oxyServiceAuth, async (req, res) => {
 
   const unknownIds: string[] = [];
   for (const id of modelIds) {
-    if (!(await isAliaModel(id))) unknownIds.push(id);
+    if (!(await isRoutingProfile(id))) unknownIds.push(id);
   }
   if (unknownIds.length > 0) {
     res.status(400).json({

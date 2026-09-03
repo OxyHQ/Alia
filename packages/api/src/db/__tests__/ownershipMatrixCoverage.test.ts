@@ -73,42 +73,16 @@ const GOVERNED_PREFIX = 'packages/api/src/internal/providers/';
  * the same commit, which is the point.
  */
 const NOT_APPLICABLE: Readonly<Record<string, string>> = {
-  'packages/api/src/internal/providers/lib/__tests__/fallback-engine-policy.test.ts':
-    'Test of fallback-engine.ts, which is mapped (row `fallback-engine`). Moves or dies with it.',
-  'packages/api/src/internal/providers/lib/__tests__/fallback-engine-preset.test.ts':
-    'Test of fallback-engine.ts, which is mapped (row `fallback-engine`). Moves or dies with it.',
-  'packages/api/src/internal/providers/lib/__tests__/fallback-engine-concrete-model.test.ts':
-    'Test of fallback-engine.ts, which is mapped (row `fallback-engine`), against the catalogue’s own classifier. Moves or dies with it.',
-  'packages/api/src/internal/providers/lib/__tests__/provider-health.test.ts':
-    'Test of provider-health.ts, which is mapped (row `provider-health`). Moves or dies with it.',
-  'packages/api/src/internal/providers/lib/__tests__/tts-providers.test.ts':
-    'Test of tts-providers.ts, which is mapped (row `tts-providers`). Moves or dies with it.',
   'packages/api/src/internal/providers/lib/__tests__/routing-capability-coverage.test.ts':
     'Test of generate-model-mappings.ts and model-capabilities-data.ts, both mapped (rows `tier-mappings-generated` and `model-capabilities-data`). Moves or dies with them.',
   'packages/api/src/internal/providers/lib/__tests__/model-publishers.test.ts':
     'Test of model-publishers.ts and the publisher column in generate-model-mappings.ts, both mapped (rows `tuple-model-publishers` and `tier-mappings-generated`). Moves or dies with them.',
-  'packages/api/src/internal/providers/lib/__tests__/credential-redaction.test.ts':
-    'Test of provider-error-body.ts, which is mapped (row `provider-error-body`), and of lib/logger.ts, which is not in this subtree. Moves or dies with them.',
-  'packages/api/src/internal/providers/lib/__tests__/no-credential.test.ts':
-    'Test of provider-api.ts, which is mapped (row `provider-api`), and of lib/errors/failover-error.ts, which is not in this subtree. Moves or dies with them.',
-  'packages/api/src/internal/providers/lib/__tests__/key-expiry.test.ts':
-    'Test of key-manager.ts, which is mapped (row `key-manager`). Moves or dies with it.',
-  'packages/api/src/internal/providers/lib/__tests__/seed-provider-admission.test.ts':
-    'Test of seed-model-configs.ts and provider-names.ts, both mapped (rows `dead-startup-seed` and `tuple-provider-names`). Moves or dies with them.',
   'packages/api/src/internal/providers/lib/__tests__/seed-model-configs.test.ts':
     'Fail-closed test of seed-model-configs.ts, which is mapped (row `dead-startup-seed`). Moves or dies with it.',
-  'packages/api/src/internal/providers/lib/__tests__/image-providers.test.ts':
-    'Test of image-providers.ts, which is mapped (row `image-providers`). Moves or dies with it.',
-  'packages/api/src/internal/providers/lib/__tests__/voice-session-credits.pgdb.test.ts':
-    'Test of voice-session-manager.ts, which is mapped (rows `voice-session-manager` and `behaviour-voice-realtime`). Asserts the CREDIT balance a failed session leaves behind, so it moves or dies with the manager exactly as the eleven above do.',
-  'packages/api/src/internal/providers/lib/__tests__/sound-effect-requests.test.ts':
-    'Test of provider-api.ts, which is mapped (row `provider-api`) — the ElevenLabs and fal request bodies one sound effect is translated into. Moves or dies with it.',
-  'packages/api/src/internal/providers/lib/__tests__/sound-effect-failover.test.ts':
-    'Test of generate-model-mappings.ts, which is mapped (row `tier-mappings-generated`), and of lib/synthesize-sound-effect.ts, which is not in this subtree. It lives here rather than beside its subject because reading the shipped `v1-sfx` chain from lib/__tests__/ would widen gate 1’s frozen importer list — which this change SHRINKS — the way credential-redaction.test.ts already avoids. Moves or dies with them.',
   'packages/api/src/internal/providers/lib/__tests__/credit-multipliers.test.ts':
-    'Test of alia-models.ts, which is mapped (row `alia-models`), and of lib/credits-manager.ts, which is not in this subtree (rows `concept-credit-multiplier` and `credits-manager-voice`). It freezes each alias’s `creditMultiplier` at its literal value, through the table AND through the billing read. It lives here rather than beside credits-manager because reading the shipped alias set from lib/__tests__/ would widen gate 1’s frozen importer list, the way sound-effect-failover.test.ts above already avoids. Moves or dies with the alias layer.',
+    'Test of routing-profile-catalogue.ts and the product credit multiplier that remains in Alia. It does not exercise provider credentials or provider egress.',
 };
-const NOT_APPLICABLE_COUNT = 17;
+const NOT_APPLICABLE_COUNT = 4;
 
 interface MatrixRow {
   readonly id: string;
@@ -199,7 +173,7 @@ interface MatrixRow {
  * than preference: the package's `ModelCapabilities` had ALREADY diverged from
  * the real one, missing `audioTags`, so it could not be promoted to canonical
  * without first being corrected and nothing would have said it needed
- * correcting. Its `AliaTier` was one of the copies whose plurality is what let
+ * correcting. Its `RoutingTier` was one of the copies whose plurality is what let
  * `v1-image` become a routing key neither tier CHECK admitted (#339).
  *
  * It carries a branch name for the reason the others do.
@@ -219,16 +193,26 @@ interface MatrixRow {
  *
  * It carries a branch name for the reason the others do.
  *
- * ## 49 -> 50: `migration-purge-ip-fields-unrunnable`
+ * ## 49 -> 101: Kaana provider-runtime retirement
+ *
+ * The cutover removed 52 further Alia-hosted provider paths: adapters,
+ * credential/key state, fallback and health services, voice/image/TTS runtime,
+ * the old model aliases and their repositories. Each row is annotated with
+ * `kaana-cutover-provider-runtime-retirement`, and its Alia reachability is
+ * `dead`. The replacement routing-profile catalogue and tier vocabulary have
+ * their own live Kaana-owned rows, so the matrix covers both sides instead of
+ * treating a rename as an exemption.
+ *
+ * ## 101 -> 102: `migration-purge-ip-fields-unrunnable`
  *
  * The source Mongo database had already been destroyed. The backup-only purge
  * script therefore stopped being a working safety net and was the sole reason
  * the Mongoose driver remained installed. The script and dependency leave in
  * one cut; the retained pre-drop archive is external data and is not deleted.
  */
-const REMOVED_ROW_COUNT = 50;
+const REMOVED_ROW_COUNT = 102;
 
-const OWNERS = new Set(['alia', 'oxy', 'relay', 'delete']);
+const OWNERS = new Set(['alia', 'oxy', 'kaana', 'delete']);
 const REACHABLE = new Set(['live', 'dead', 'unverified', 'loaded-not-invoked']);
 
 /**
@@ -267,9 +251,13 @@ function readMatrix(): MatrixRow[] {
 
 /** Every tracked file under the governed subtree, read off git rather than a hand list. */
 function governedFiles(): string[] {
-  return execFileSync('git', ['ls-files', GOVERNED_PREFIX], { cwd: REPO_ROOT, encoding: 'utf8' })
+  return execFileSync(
+    'git',
+    ['ls-files', '--cached', '--others', '--exclude-standard', GOVERNED_PREFIX],
+    { cwd: REPO_ROOT, encoding: 'utf8' },
+  )
     .split('\n')
-    .filter((f) => f !== '');
+    .filter((f) => f !== '' && existsSync(path.join(REPO_ROOT, f)));
 }
 
 const matrix = readMatrix();
@@ -295,11 +283,11 @@ describe('the ownership matrix still describes this repository', () => {
      * that is measuring a subtree that has already finished migrating.
      */
     expect(matrix.length).toBeGreaterThanOrEqual(300);
-    expect(governed.length).toBeGreaterThanOrEqual(40);
+    expect(governed.length).toBeGreaterThanOrEqual(10);
 
     // Positive control on the enumeration: a file known to be in that subtree.
     // Without it, a renamed directory reads as "everything is classified".
-    expect(governed).toContain('packages/api/src/internal/providers/lib/providers/openai.ts');
+    expect(governed).toContain('packages/api/src/internal/providers/lib/routing-profile-catalogue.ts');
   });
 
   it('every currentPath still exists, unless the row says which PR removed it', () => {

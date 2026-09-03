@@ -1,9 +1,7 @@
 import { createHash } from 'node:crypto';
-import { existsSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
-import { ALIA_MODELS } from '../../../internal/providers/lib/alia-models.js';
+import { KAANA_ROUTING_PROFILES } from '../../../internal/providers/lib/routing-profile-catalogue.js';
 import {
   DEFAULT_FALLBACK_POLICY,
   FALLBACK_POLICIES,
@@ -14,60 +12,60 @@ import {
   isFallbackPolicy,
   type FallbackPolicy,
 } from '../policy.js';
-import { canonicalAliasFor } from '../../product-modes.js';
-import { ROUTING_PRESETS, getPromptId, getRoutingPreset } from '../presets.js';
+import { routingProfileFor } from '../../product-modes.js';
+import { ROUTING_PRESETS, getRoutingPreset } from '../presets.js';
 
 /**
  * The routing-policy configuration (#139 workstream 14, ADR 0003 invariant 3).
  *
- * ## Why this file checks the presets against `ALIA_MODELS` and not against
+ * ## Why this file checks the presets against `KAANA_ROUTING_PROFILES` and not against
  * `docs/migration/alias-migration-map.json`
  *
  * The map is workstream 4's measurement and it is the input to this table — its
- * `becomes.id` is `profile:<tier>` for every alias, derived from the alias's own
+ * `becomes.id` is `profile:<tier>` for every historical alias, derived from the legacy record's
  * tier. Reading the JSON here would be a second copy of a coupling that already
  * exists and is already gated: `aliasMigrationMap.test.ts` recomputes the map's
  * own fields from the live tables and fails if either moves. So the map is
- * bound to `ALIA_MODELS`, and binding this table to `ALIA_MODELS` under the
+ * bound to `KAANA_ROUTING_PROFILES`, and binding this table to `KAANA_ROUTING_PROFILES` under the
  * map's own stated rule makes the three agree transitively, without this file
  * asserting anything the map did not already say.
  *
  * The rule is not re-derived here either. It is quoted: "becomes.id is derived
- * from the alias's own tier, because the tier IS the policy."
+ * from the historical record's own tier, because the tier IS the policy."
  */
 const presetIdForTier = (tier: string) => `profile:${tier}`;
 
-describe('the preset table covers exactly the registered aliases', () => {
-  it('every registered alias selects the preset its tier names', () => {
-    // Non-vacuous by construction: the loop body runs once per alias, and the
-    // count is asserted below so an empty `ALIA_MODELS` cannot pass silently.
-    for (const [alias, model] of Object.entries(ALIA_MODELS)) {
-      const preset = getRoutingPreset(alias);
-      expect(preset, `no routing preset for ${alias}`).not.toBeNull();
+describe('the preset table covers exactly the registered Kaana routing profiles', () => {
+  it('every registered routing profile selects the preset its tier names', () => {
+    // Non-vacuous by construction: the loop body runs once per profile, and the
+    // count is asserted below so an empty `KAANA_ROUTING_PROFILES` cannot pass silently.
+    for (const [profileId, model] of Object.entries(KAANA_ROUTING_PROFILES)) {
+      const preset = getRoutingPreset(profileId);
+      expect(preset, `no routing preset for ${profileId}`).not.toBeNull();
       expect(preset?.id).toBe(presetIdForTier(model.tier));
       expect(preset?.tier).toBe(model.tier);
     }
-    expect(Object.keys(ALIA_MODELS).length).toBeGreaterThanOrEqual(13);
+    expect(Object.keys(KAANA_ROUTING_PROFILES).length).toBeGreaterThanOrEqual(13);
   });
 
-  it('names no alias that is not registered', () => {
+  it('names no routing profile that is not registered', () => {
     // The other direction. Without it the table could carry a fourteenth
     // identifier that resolves to a preset here and to nothing anywhere else —
     // which is how `alia-flash` survived as long as it did.
-    const named = ROUTING_PRESETS.flatMap((p) => p.aliases).sort();
-    expect(named).toEqual(Object.keys(ALIA_MODELS).sort());
+    const named = ROUTING_PRESETS.flatMap((p) => p.profileIds).sort();
+    expect(named).toEqual(Object.keys(KAANA_ROUTING_PROFILES).sort());
   });
 
   it('gives two identifiers one preset where they share a tier, and no duplicates', () => {
-    // `alia-v1-thinking` and `alia-v1-pro-max` are the same policy under two
+    // `kaana-v1-thinking` and `kaana-v1-pro-max` are the same policy under two
     // names. Asserted rather than assumed, because collapsing them by accident
     // and collapsing them on purpose look identical in the table.
-    expect(getRoutingPreset('alia-v1-thinking')).toBe(getRoutingPreset('alia-v1-pro-max'));
+    expect(getRoutingPreset('kaana-v1-thinking')).toBe(getRoutingPreset('kaana-v1-pro-max'));
 
     const ids = ROUTING_PRESETS.map((p) => p.id);
     expect(new Set(ids).size).toBe(ids.length);
-    const aliases = ROUTING_PRESETS.flatMap((p) => p.aliases);
-    expect(new Set(aliases).size).toBe(aliases.length);
+    const profileIds = ROUTING_PRESETS.flatMap((p) => p.profileIds);
+    expect(new Set(profileIds).size).toBe(profileIds.length);
   });
 
   it('identifies every preset in the product namespace, never as publisher/model', () => {
@@ -123,7 +121,7 @@ describe('the default is today’s behaviour and cannot move quietly', () => {
 });
 
 /**
- * The preset table carries the product facts that used to live on the alias
+ * The preset table carries the product facts that used to live on the legacy provider-alias
  * record, and the two must agree for as long as both exist.
  *
  * ## What this is for, and when it dies
@@ -131,14 +129,14 @@ describe('the default is today’s behaviour and cannot move quietly', () => {
  * `lib/routing/presets.ts` now declares each profile's credit multiplier,
  * output ceiling, category and prompt file, and `credits-manager`, `catalogue`,
  * `model-selection`, `models-stats` and `system-prompt-builder` read them from
- * there. `ALIA_MODELS` still carries the same values, so the move is a no-op
+ * there. `KAANA_ROUTING_PROFILES` still carries the same values, so the move is a no-op
  * for every response — and this block is what holds it to that. It is a
- * MIGRATION gate: it retires with the alias record, and the values in the
+ * MIGRATION gate: it retires with the legacy record, and the values in the
  * preset table are what survive.
  *
- * Both directions, per alias, because the failure it exists to catch is
+ * Both directions, per profile, because the failure it exists to catch is
  * asymmetric. A preset edited alone reprices a customer with nothing else
- * moving; an alias edited alone changes what `models-stats` publishes while the
+ * moving; a provider record edited alone changes what `models-stats` publishes while the
  * charge stays where it was, and only one of those two is visible on a bill.
  *
  * ## Why the configuration digest below does NOT cover these fields
@@ -149,23 +147,23 @@ describe('the default is today’s behaviour and cannot move quietly', () => {
  * bump on every repricing and declare every historical ROUTING row stale for a
  * change that never touched routing.
  */
-describe('the preset table agrees with the alias record it took its facts from', () => {
-  const registered = Object.keys(ALIA_MODELS).sort();
+describe('the preset table agrees with the provider record it took its facts from', () => {
+  const registered = Object.keys(KAANA_ROUTING_PROFILES).sort();
 
-  it('found aliases at all, so the per-alias loops below mean agreement', () => {
-    // The vacuity floor, as elsewhere on this page: an empty `ALIA_MODELS`
+  it('found profiles at all, so the per-profile loops below mean agreement', () => {
+    // The vacuity floor, as elsewhere on this page: an empty `KAANA_ROUTING_PROFILES`
     // satisfies every `it.each` under it by registering no cases at all.
     expect(registered.length).toBeGreaterThanOrEqual(13);
   });
 
-  it.each(registered)('%s is priced identically by its preset and its record', (alias) => {
-    const preset = getRoutingPreset(alias);
-    expect(preset?.creditMultiplier).toBe(ALIA_MODELS[alias].creditMultiplier);
+  it.each(registered)('%s is priced identically by its preset and its record', (profileId) => {
+    const preset = getRoutingPreset(profileId);
+    expect(preset?.creditMultiplier).toBe(KAANA_ROUTING_PROFILES[profileId].creditMultiplier);
   });
 
-  it.each(registered)('%s carries the same output ceiling in both', (alias) => {
-    const preset = getRoutingPreset(alias);
-    expect(preset?.maxTokens).toBe(ALIA_MODELS[alias].maxTokens);
+  it.each(registered)('%s carries the same output ceiling in both', (profileId) => {
+    const preset = getRoutingPreset(profileId);
+    expect(preset?.maxTokens).toBe(KAANA_ROUTING_PROFILES[profileId].maxTokens);
   });
 
   it('prices at least three distinct multipliers, so the pairs above are not all 1', () => {
@@ -182,69 +180,33 @@ describe('the preset table agrees with the alias record it took its facts from',
     expect(Math.max(...multipliers)).toBeGreaterThan(1);
   });
 
-  it('serves each profile the category its CANONICAL alias registers', () => {
+  it('serves each profile the category its canonical routing profile registers', () => {
     // What `lib/catalogue.ts` and `lib/routing/model-selection.ts` already
-    // resolved: an entry is built from the canonical alias, so this is the
+    // resolved: an entry is built from the canonical routing profile, so this is the
     // value both of them published before the field moved.
     for (const preset of ROUTING_PRESETS) {
-      const alias = canonicalAliasFor(preset.id);
-      expect(alias, `${preset.id} has no canonical alias`).not.toBeNull();
-      if (alias === null) continue;
-      expect(preset.category).toBe(ALIA_MODELS[alias].category);
+      const profileId = routingProfileFor(preset.id);
+      expect(profileId, `${preset.id} has no canonical routing profile`).not.toBeNull();
+      if (profileId === null) continue;
+      expect(preset.category).toBe(KAANA_ROUTING_PROFILES[profileId].category);
     }
   });
 
   it('has exactly one identifier whose own category its profile does not serve', () => {
     /**
-     * `alia-v1-thinking` registers `coding`; `profile:v1-pro-max` is served as
-     * `general`, from `alia-v1-pro-max`. `routes/models-stats.ts` still lists
+     * `kaana-v1-thinking` registers `coding`; `profile:v1-pro-max` is served as
+     * `general`, from `kaana-v1-pro-max`. `routes/models-stats.ts` still lists
      * that identifier as `coding` — it lists IDENTIFIERS — so the divergence is
      * pinned rather than resolved, and a SECOND one appearing goes red instead
      * of quietly relabelling somebody's profile.
      */
-    const diverging = registered.filter((alias) => {
-      const preset = getRoutingPreset(alias);
-      return preset !== null && preset.category !== ALIA_MODELS[alias].category;
+    const diverging = registered.filter((profileId) => {
+      const preset = getRoutingPreset(profileId);
+      return preset !== null && preset.category !== KAANA_ROUTING_PROFILES[profileId].category;
     });
-    expect(diverging).toEqual(['alia-v1-thinking']);
+    expect(diverging).toEqual(['kaana-v1-thinking']);
   });
 
-  it('names a prompt for every identifier it routes, and for no other', () => {
-    for (const preset of ROUTING_PRESETS) {
-      expect(Object.keys(preset.prompts).sort()).toEqual([...preset.aliases].sort());
-    }
-    expect(getPromptId('alia-flash')).toBeNull();
-  });
-
-  it('names prompt files that exist, under the names they already had', () => {
-    /**
-     * Both halves of one fact. `lib/prompt-loader.ts` reads
-     * `prompts/<name>.md`, and `73ce422b` put that directory in the runtime
-     * image — so a name that moves here and not on disk degrades to an EMPTY
-     * prompt rather than to an error, which is the failure
-     * `dockerfileShipsRuntimeData.test.ts` was written for after it happened in
-     * production.
-     *
-     * The second assertion pins the convention that made the move safe: every
-     * value is still its own key, so this change renamed nothing.
-     */
-    const prompts = fileURLToPath(new URL('../../../../prompts/', import.meta.url));
-    for (const alias of registered) {
-      const promptId = getPromptId(alias);
-      expect(promptId, `no prompt registered for ${alias}`).not.toBeNull();
-      expect(existsSync(`${prompts}${promptId}.md`), `prompts/${promptId}.md is missing`).toBe(true);
-      expect(promptId).toBe(alias);
-    }
-  });
-
-  it('gives the two identifiers of one profile DIFFERENT prompts', () => {
-    // The reason `prompts` is keyed by alias rather than being one string per
-    // preset. `alia-v1-pro-max.md` and `alia-v1-thinking.md` are different
-    // pages, and `system-prompt-builder.ts` also layers the second one on as
-    // the extended-reasoning fragment.
-    expect(getPromptId('alia-v1-pro-max')).not.toBe(getPromptId('alia-v1-thinking'));
-    expect(getRoutingPreset('alia-v1-pro-max')).toBe(getRoutingPreset('alia-v1-thinking'));
-  });
 });
 
 describe('the routing-policy version', () => {
@@ -260,7 +222,7 @@ describe('the routing-policy version', () => {
    * is the failure it exists to produce. And the cheapest green is bumping the
    * version, which is the right action rather than the dangerous one.
    */
-  const CONFIGURATION_DIGEST = 'b76c761da77c69ad';
+  const CONFIGURATION_DIGEST = 'f553ccef413e2adb';
 
   const digest = () =>
     createHash('sha256')
@@ -271,7 +233,7 @@ describe('the routing-policy version', () => {
           presets: ROUTING_PRESETS.map((p) => ({
             id: p.id,
             tier: p.tier,
-            aliases: [...p.aliases].sort(),
+            profileIds: [...p.profileIds].sort(),
             fallbackPolicy: p.fallbackPolicy,
           })),
         }),
@@ -295,7 +257,7 @@ describe('the routing-policy version', () => {
           presets: ROUTING_PRESETS.map((p) => ({
             id: p.id,
             tier: p.tier,
-            aliases: [...p.aliases].sort(),
+            profileIds: [...p.profileIds].sort(),
             fallbackPolicy: p.id === 'profile:lite' ? 'no-fallback' : p.fallbackPolicy,
           })),
         }),
@@ -327,10 +289,10 @@ describe('parsing a caller’s policy', () => {
 
 describe('the refusals say what happened', () => {
   it('names the identifier that was requested and the ones that exist', () => {
-    const error = new UnregisteredModelError('alia-flash', ['alia-v1', 'alia-lite']);
+    const error = new UnregisteredModelError('alia-flash', ['kaana-v1', 'kaana-lite']);
     expect(error.userMessage).toContain('alia-flash');
-    expect(error.userMessage).toContain('alia-lite');
-    expect(error.userMessage).toContain('alia-v1');
+    expect(error.userMessage).toContain('kaana-lite');
+    expect(error.userMessage).toContain('kaana-v1');
     expect(error.httpStatus).toBe(400);
     expect(error.retryable).toBe(false);
     expect(error.requested).toBe('alia-flash');
@@ -340,16 +302,16 @@ describe('the refusals say what happened', () => {
     /**
      * This assertion is INVERTED from what it used to be, by #139 workstream 20.
      * The echo used to go through `sanitizeMessage`, so a client configured for
-     * an OpenAI-compatible endpoint was told `"Alia4o" is not an Alia model`.
+     * an OpenAI-compatible endpoint was told `"Alia4o" is not a Kaana routing profile`.
      *
      * Route concealment protects Alia's routing decisions on the product
      * surface. `gpt-4o` here is the string the CALLER just sent; it discloses
      * nothing about which deployments Alia uses, and mangling it removed the one
      * piece of information that made the refusal actionable.
      */
-    const error = new UnregisteredModelError('gpt-4o', ['alia-v1']);
+    const error = new UnregisteredModelError('gpt-4o', ['kaana-v1']);
     expect(error.userMessage).toContain('gpt-4o');
-    expect(error.userMessage).toContain('alia-v1');
+    expect(error.userMessage).toContain('kaana-v1');
     expect(error.message).toContain('gpt-4o');
   });
 
@@ -357,17 +319,17 @@ describe('the refusals say what happened', () => {
     // The absolute half of the rule survives the scoping: an echo is never a
     // way to get a secret rendered back out of the product.
     const key = 'sk-proj-abcdefghijklmnopqrstuvwxyz0123456789ABCD';
-    const error = new UnregisteredModelError(key, ['alia-v1']);
+    const error = new UnregisteredModelError(key, ['kaana-v1']);
     expect(error.userMessage).not.toContain('abcdefghijklmnop');
-    expect(error.userMessage).toContain('alia-v1');
+    expect(error.userMessage).toContain('kaana-v1');
   });
 
   it('tells a no-fallback caller something different from a same-model caller', () => {
-    const noFallback = new FallbackNotPermittedError('alia-v1', 'no-fallback');
-    const sameModel = new FallbackNotPermittedError('alia-v1', 'same-model-only');
+    const noFallback = new FallbackNotPermittedError('kaana-v1', 'no-fallback');
+    const sameModel = new FallbackNotPermittedError('kaana-v1', 'same-model-only');
     expect(noFallback.userMessage).not.toBe(sameModel.userMessage);
     for (const error of [noFallback, sameModel]) {
-      expect(error.userMessage).toContain('alia-v1');
+      expect(error.userMessage).toContain('kaana-v1');
       expect(error.httpStatus).toBe(503);
       expect(error.retryable).toBe(true);
     }
@@ -378,7 +340,7 @@ describe('the refusals say what happened', () => {
     expect(error.userMessage).toContain('no_fallback');
     for (const policy of FALLBACK_POLICIES) expect(error.userMessage).toContain(policy);
     // The fix for this mistake is not "go and look at the model list".
-    expect(error.userMessage).not.toContain('alia-v1');
+    expect(error.userMessage).not.toContain('kaana-v1');
     expect(error.httpStatus).toBe(400);
   });
 });

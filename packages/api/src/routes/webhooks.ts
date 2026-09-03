@@ -3,7 +3,7 @@ import crypto from 'crypto';
 import { verifySecret } from '@oxyhq/core/server';
 import { generateText, stepCountIs } from 'ai';
 import { getChannel } from '../lib/channels/registry.js';
-import { resolveModel, getAIModel, reportModelUsage, getDefaultAliaModel } from '../lib/chat-core.js';
+import { resolveModel, resolveOxyRoutingProfileId, getAIModel } from '../lib/chat-core.js';
 import { sendChannelMessage } from '../lib/channels/outbound.js';
 import { ToolPipeline } from '../lib/tool-pipeline.js';
 import { agentPromptName, attachAgentIdentity } from '../lib/agent-identity.js';
@@ -28,7 +28,7 @@ import { getOrCreateUserCredits } from '../lib/user-credits-helpers.js';
 import { reserveCredits, finalizeCredits, safeRefund, type CreditReservation, type CreditUsage } from '../lib/credits-manager.js';
 import type { ChannelId, ChannelInboundMessage } from '../lib/channels/types.js';
 import { log } from '../lib/logger.js';
-import { toRoutableAlias } from '../lib/product-modes.js';
+import { toRoutingProfile } from '../lib/product-modes.js';
 
 /**
  * How to answer on a channel with no prompt file of its own. It names nobody:
@@ -186,23 +186,33 @@ export async function processChannelMessage(
      * `packages/integrations`' `/model` command writes what `GET /catalogue`
      * publishes (#244), and this column is shared with that service — the same
      * `bot_users.preferred_model` row feeds both. Everything below wants the
-     * ALIAS: `resolveModel` looks it up in `ALIA_MODELS` and `finalizeCredits`
-     * bills on its `credit_multiplier`, and neither knows the profile
-     * vocabulary. This is the same translation `lib/chat/request-context.ts`
-     * does at the chat boundary, for the same reason.
-     *
-     * A legacy `alia-*` passes through untouched, and `null` — a `profile:` id
-     * no preset defines, so a tier retired after somebody selected it — falls
-     * back to the product default rather than leaving that person with a bot
-     * that answers nothing. The fallback is logged because it means a stored
-     * preference has gone stale.
+     * canonical Kaana profile: `resolveModel` and `finalizeCredits` consume the
+     * same identity. A null or unknown stored value fails closed and tells the
+     * person that the exact profile must be reconciled; this route never picks
+     * a product default, array position or similarly named profile for them.
      */
-    const preferred = botUser.preferredModel || getDefaultAliaModel();
-    const routable = toRoutableAlias(preferred);
+    const preferred = botUser.preferredModel;
+    if (preferred === null) {
+      await sendChannelMessage(
+        channelType,
+        message.chatId,
+        'No routing profile is configured for this chat.',
+        { replyToId: message.replyToId, threadId: message.threadId },
+      );
+      return;
+    }
+    const routable = toRoutingProfile(preferred);
     if (routable === null) {
       log.channels.warn({ preferred }, 'Stored bot model preference names no routing profile');
+      await sendChannelMessage(
+        channelType,
+        message.chatId,
+        'The configured routing profile is unavailable.',
+        { replyToId: message.replyToId, threadId: message.threadId },
+      );
+      return;
     }
-    const aliasModelId = routable ?? getDefaultAliaModel();
+    const routingProfileId = routable;
 
     // Reserve credits before processing
     await getOrCreateUserCredits(userId);
@@ -246,7 +256,7 @@ export async function processChannelMessage(
     messages.push({ role: 'user', content: message.text });
 
     // Resolve AI model
-    const resolved = await resolveModel(aliasModelId);
+    const resolved = await resolveModel(routingProfileId);
     if (!resolved) {
       await sendChannelMessage(channelType, message.chatId, 'Sorry, no AI models are available right now.', {
         replyToId: message.replyToId,
@@ -272,7 +282,6 @@ export async function processChannelMessage(
      * `processAgentBotMessage` below, which passes that agent's name.
      */
     const systemPrompt = `${buildIdentityGuard()}\n\n---\n\n${await getChannelSystemPrompt(channelType)}`;
-    const startTime = Date.now();
     const result = await generateText({
       model,
       system: systemPrompt,
@@ -284,7 +293,6 @@ export async function processChannelMessage(
       maxOutputTokens: 2048,
     });
 
-    const latencyMs = Date.now() - startTime;
     const fullResponse = result.text;
 
     // Finalize credits based on actual token usage
@@ -295,7 +303,7 @@ export async function processChannelMessage(
     };
 
     try {
-      await finalizeCredits(creditReservation, tokenUsage, aliasModelId);
+      await finalizeCredits(creditReservation, tokenUsage, routingProfileId);
       // Only once the charge returned. A finalize that threw leaves the
       // reservation unsettled, and therefore refunded by the `finally`.
       creditsSettled = true;
@@ -310,15 +318,6 @@ export async function processChannelMessage(
         threadId: message.threadId,
       });
     }
-
-    // Report model usage for health tracking
-    await reportModelUsage(
-      resolved.keyConfig.keyId,
-      resolved.provider,
-      resolved.modelId,
-      true,
-      latencyMs
-    );
 
     // Save conversation metadata + append messages
     if (fullResponse) {
@@ -437,12 +436,14 @@ export async function processAgentBotMessage(
     const found = bot.agentId ? await findAgentById(getDb(), bot.agentId) : null;
     const agent = found === null ? null : await attachAgentIdentity(found);
 
-    const aliasModelId = agent?.allowedModels[0] || getDefaultAliaModel();
-    const resolved = await resolveModel(aliasModelId);
-    if (!resolved) {
+    const resolved = agent === null || agent.routingProfileId === null
+      ? null
+      : await resolveOxyRoutingProfileId(agent.routingProfileId);
+    if (resolved === null) {
       await sendChannelMessage(channelType, message.chatId, 'Sorry, no AI models are available right now.', outboundOpts);
       return;
     }
+    const routingProfileId = resolved.routingProfileId;
     const model = getAIModel(resolved, 'agent_run');
 
     /**
@@ -486,7 +487,6 @@ export async function processAgentBotMessage(
       agent,
     });
 
-    const startTime = Date.now();
     const result = await generateText({
       model,
       system: systemPrompt,
@@ -497,7 +497,6 @@ export async function processAgentBotMessage(
       stopWhen: stepCountIs(5),
     });
 
-    const latencyMs = Date.now() - startTime;
     const fullResponse = result.text;
 
     const tokenUsage: CreditUsage = {
@@ -506,7 +505,7 @@ export async function processAgentBotMessage(
       totalTokens: (result.usage?.inputTokens || 0) + (result.usage?.outputTokens || 0),
     };
     try {
-      await finalizeCredits(creditReservation, tokenUsage, aliasModelId);
+      await finalizeCredits(creditReservation, tokenUsage, routingProfileId);
       creditsSettled = true;
     } catch (error: unknown) {
       log.webhook.error({ err: error, channelType }, 'Error finalizing agent-bot credits');
@@ -515,8 +514,6 @@ export async function processAgentBotMessage(
     if (fullResponse) {
       await sendChannelMessage(channelType, message.chatId, fullResponse, outboundOpts);
     }
-
-    await reportModelUsage(resolved.keyConfig.keyId, resolved.provider, resolved.modelId, true, latencyMs);
 
     if (fullResponse) {
       await upsertConversation(db, {

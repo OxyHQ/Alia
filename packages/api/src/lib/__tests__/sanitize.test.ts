@@ -35,7 +35,7 @@ import { fileURLToPath } from 'node:url';
 import { redactUnsafeDetail, sanitizeMessage, getSafeErrorMessage, formatErrorResponse } from '../errors/sanitize.js';
 import { AliaError, AliaErrorCode } from '../errors/error-codes.js';
 import { PROVIDER_NAMES } from '../../internal/providers/lib/provider-names.js';
-import { ALIA_MODELS, TIER_MODEL_MAPPINGS } from '../../internal/providers/lib/alia-models.js';
+import { KAANA_ROUTING_PROFILES, TIER_MODEL_MAPPINGS } from '../../internal/providers/lib/routing-profile-catalogue.js';
 
 const REPO_ROOT = path.resolve(fileURLToPath(new URL('../../../../../', import.meta.url)));
 
@@ -109,7 +109,7 @@ describe('sanitizeMessage conceals every upstream identifier the router can pick
 // ===========================================================================
 
 describe('sanitizeMessage leaves what the product must still be able to say', () => {
-  it.each(Object.keys(ALIA_MODELS))('leaves the Alia identifier %s untouched', (id) => {
+  it.each(Object.keys(KAANA_ROUTING_PROFILES))('leaves the Alia identifier %s untouched', (id) => {
     expect(sanitizeMessage(id)).toBe(id);
     expect(sanitizeMessage(`"${id}" is not available right now.`)).toBe(`"${id}" is not available right now.`);
   });

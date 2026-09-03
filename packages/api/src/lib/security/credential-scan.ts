@@ -78,13 +78,12 @@ interface CredentialPattern {
    */
   readonly control: string;
   /**
-   * The `provider_keys.provider` slug this credential belongs to, or `null` when
-   * Alia stores no key of that kind.
+   * The upstream vendor slug this credential belongs to, or `null` for a
+   * non-inference credential shape.
    *
    * This is what makes the agreement with the runtime redactor decidable. A
-   * credential for one of the nineteen providers the CHECK constraint admits
-   * (`drizzle/0003_closed_black_queen.sql`) can come back in an upstream error
-   * body, so `lib/agent/secret-scanner.ts` MUST know how to censor it. The
+   * The vendor classification keeps git-history disclosures attributable after
+   * the Alia provider-key table is retired. The
    * `null` entries — a HuggingFace token, an AWS key, a private key block —
    * cannot arrive that way and are scanned for because a developer can still
    * commit one; requiring the redactor to carry them would be requiring it to
@@ -261,9 +260,8 @@ export interface CredentialFinding {
   /**
    * The first eight characters and nothing else.
    *
-   * Enough for a human to recognise the vendor and to match the value against
-   * `provider_keys.key_prefix`, which `docs/runbooks/credential-rotation.md`
-   * stores in the same form.
+   * Enough for a human to recognise the vendor and correlate it with Kaana's
+   * credential metadata without printing a secret.
    */
   readonly prefix: string;
   /**
@@ -279,8 +277,7 @@ export interface CredentialFinding {
    * — the failure that matters — still fails.
    *
    * A digest of a credential is an exact-match oracle, and
-   * `docs/runbooks/credential-rotation.md` says so about
-   * `provider_keys.key_hash`. It is sound HERE and not there because of who can
+   * The digest is sound HERE because of who can
    * read it: this file sits in the same repository as the blob it points at, so
    * anyone who can read the digest can already `git grep` the value. The
    * database column is readable by people who cannot read the credential, which

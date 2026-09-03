@@ -397,7 +397,7 @@ export function useCatalogue() {
  * in `GET /catalogue/modes`, and it is the one product mode with no routing
  * profile behind it: its `routing.kind` is `default`. What "default" means is
  * measurable rather than a guess — `lib/chat/request-context.ts` resolves
- * `body.model || getDefaultAliaModel()`, so a request that carries NO `model`
+ * `body.model || getDefaultRoutingProfile()`, so a request that carries NO `model`
  * is exactly a request routed by the server's own default.
  *
  * So this identifier never leaves the device. It is what the store persists and
@@ -421,7 +421,7 @@ export interface ModelSelection {
    * `null` is {@link AUTOMATIC_SELECTION_ID} resolved, and it is a distinct
    * value rather than the default identifier because the two are not the same
    * request: the app's configured default is `profile:v1` and the server's is
-   * `alia-lite`. Substituting one for the other here would quietly send a
+   * `kaana-lite`. Substituting one for the other here would quietly send a
    * different model than the one the user asked the server to choose.
    */
   readonly effectiveId: string | null;

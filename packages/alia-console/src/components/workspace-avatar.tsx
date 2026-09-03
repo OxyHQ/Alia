@@ -1,7 +1,7 @@
-import type { JSX } from 'react'
 import { useAuth } from '@oxyhq/services'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import type { JSX } from 'react'
 import type { Workspace } from '@/hooks/use-workspace'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { cn } from '@/lib/utils'
 
 type AvatarUser = {
@@ -52,7 +52,7 @@ export function WorkspaceAvatar({
   }
 
   const imageUrl = workspace.icon ? resolveImageUrl(workspace.icon) : undefined
-  const letter = (workspace.name?.[0] || 'W').toUpperCase()
+  const letter = (workspace.name[0] || 'W').toUpperCase()
 
   return (
     <Avatar className={cn(sizeClass, className)}>

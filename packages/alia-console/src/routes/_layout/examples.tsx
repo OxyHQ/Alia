@@ -1,8 +1,8 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { useState } from 'react';
-import type { BundledLanguage } from 'shiki';
 import { HugeiconsIcon } from '@hugeicons/react';
 import { SourceCodeIcon } from '@hugeicons/core-free-icons';
+import type { BundledLanguage } from 'shiki';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   CodeBlock,

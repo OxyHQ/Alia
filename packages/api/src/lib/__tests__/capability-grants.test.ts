@@ -60,6 +60,7 @@ const asked = vi.hoisted(() => ({
   mcp: [] as (readonly string[] | undefined)[],
   integration: [] as (readonly string[] | undefined)[],
   oxy_service: [] as (readonly string[] | undefined)[],
+  oxy_context: [] as Array<{ requesterAccountId?: string; ownerAccountId?: string; actor?: unknown }>,
   agent: [] as (readonly string[] | undefined)[],
 }));
 
@@ -91,8 +92,9 @@ vi.mock('../tools/integrations.js', () => ({
   }),
 }));
 vi.mock('../tools/oxy-services.js', () => ({
-  buildOxyServiceTools: vi.fn(async (_userId: string, _context: unknown, ids?: readonly string[]) => {
+  buildOxyServiceTools: vi.fn(async (_userId: string, context: { requesterAccountId?: string; ownerAccountId?: string; actor?: unknown }, ids?: readonly string[]) => {
     asked.oxy_service.push(ids);
+    asked.oxy_context.push(context);
     // Oxy grants now live in Oxy, outside this Alia-owned vocabulary. This
     // suite proves local grants cannot widen them; oxy-services.test.ts covers
     // the central capability map and ticket path.
@@ -139,8 +141,14 @@ const { GRANTS_EVERYTHING, readCapabilityGrants } = await import('../../domain/c
 function agentWith(
   capabilityGrants: readonly string[],
   author = 'user-1',
-): Parameters<typeof ToolPipeline.forUser>[0]['agent'] {
-  return { capabilityGrants: [...capabilityGrants], author, _id: 'caller-agent' } as NonNullable<
+): NonNullable<Parameters<typeof ToolPipeline.forUser>[0]['agent']> {
+  return {
+    capabilityGrants: [...capabilityGrants],
+    author,
+    _id: 'caller-agent',
+    oxyAccountId: 'bot-account-1',
+    ownerOxyAccountId: author,
+  } as NonNullable<
     Parameters<typeof ToolPipeline.forUser>[0]['agent']
   >;
 }
@@ -218,6 +226,7 @@ beforeEach(() => {
   asked.mcp = [];
   asked.integration = [];
   asked.oxy_service = [];
+  asked.oxy_context = [];
   asked.agent = [];
 });
 
@@ -241,6 +250,23 @@ describe('an agent reaches exactly what it was granted', () => {
     expect(asked.mcp).toEqual([]);
     expect(asked.integration).toEqual([]);
     expect(asked.agent).toEqual([]);
+    expect(asked.oxy_context[0]).toMatchObject({
+      requesterAccountId: 'user-1',
+      ownerAccountId: 'user-1',
+      actor: { type: 'agent', accountId: 'bot-account-1' },
+    });
+  });
+
+  it('never substitutes the listing author for an unreconciled Oxy owner', async () => {
+    await namesFor([...EVERY_GRANT], {
+      agent: {
+        ...agentWith([...EVERY_GRANT], 'listing-author'),
+        ownerOxyAccountId: null,
+      },
+    });
+
+    expect(asked.oxy_service).toEqual([]);
+    expect(asked.oxy_context).toEqual([]);
   });
 
   it('gets ONLY the ungranted tools when its grant list is empty', async () => {

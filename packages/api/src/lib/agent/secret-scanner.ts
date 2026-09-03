@@ -54,17 +54,11 @@ const SECRET_PATTERNS: SecretPattern[] = [
   // ── Anthropic ──
   { type: 'anthropic_api_key', pattern: /\bsk-ant-[a-zA-Z0-9_-]{40,}\b/g, severity: 'critical', redact: prefixRedact(7) },
 
-  // ── The rest of the providers `provider_keys.provider` admits ──
+  // ── Additional provider credential formats ──
   //
-  // The check constraint (last widened by the migration that registered
-  // CheaperInference) admits twenty providers and the three above covered three
-  // of them, so the redactor missed
-  // the credential type that is actually loaded in production. Each entry here
-  // is a prefix its vendor documents; the providers whose keys are opaque
-  // strings with no prefix at all — Mistral, Cohere, Together, SambaNova,
-  // Hyperbolic, Novita, Cloudflare — cannot be matched by any pattern, and are
-  // covered instead by the exact-credential pass in
-  // `internal/providers/lib/provider-error-body.ts`.
+  // Historical vendor formats remain useful when scanning untrusted text from
+  // users, tools and integrations. Alia owns none of these provider credentials
+  // at runtime; the patterns are content-safety signatures, not configuration.
   { type: 'groq_api_key', pattern: /\bgsk_[a-zA-Z0-9]{20,}\b/g, severity: 'critical', redact: prefixRedact(4) },
   { type: 'xai_api_key', pattern: /\bxai-[a-zA-Z0-9]{20,}\b/g, severity: 'critical', redact: prefixRedact(4) },
   { type: 'openrouter_api_key', pattern: /\bsk-or-v1-[a-zA-Z0-9]{20,}\b/g, severity: 'critical', redact: prefixRedact(9) },

@@ -100,7 +100,7 @@ import { closePostgres, connectPostgres, getDb } from '../db/index.js';
 import { log } from '../lib/logger.js';
 import { seedCreditPackages } from '../internal/providers/lib/seed-credit-packages.js';
 import { seedFeatures, seedPlanFeatures } from '../internal/providers/lib/seed-features.js';
-import { seedAliaModels, seedModelConfigs } from '../internal/providers/lib/seed-model-configs.js';
+import { seedRoutingProfiles, seedModelConfigs } from '../internal/providers/lib/seed-model-configs.js';
 import { seedCompedAccounts } from '../lib/seed-comped-accounts.js';
 import { seedPlans } from '../lib/seed-plans.js';
 import { seedSkills } from '../lib/skills/seed.js';
@@ -119,12 +119,12 @@ const logger = log.seed;
  * an EMPTY database it would have failed with a foreign-key violation. It never
  * did, only because it never ran.
  *
- * `alia_model_provider_mappings` has the same shape against `alia_models` and
- * `model_configs`, which is why `seedModelConfigs` precedes `seedAliaModels`.
+ * `routing_profile_provider_mappings` has the same shape against `routing_profiles` and
+ * `model_configs`, which is why `seedModelConfigs` precedes `seedRoutingProfiles`.
  */
 const SEEDERS: readonly { readonly name: string; readonly run: () => Promise<unknown> }[] = [
   { name: 'model_configs', run: seedModelConfigs },
-  { name: 'alia_models', run: seedAliaModels },
+  { name: 'routing_profiles', run: seedRoutingProfiles },
   { name: 'features', run: seedFeatures },
   { name: 'plans', run: seedPlans },
   { name: 'plan_features', run: seedPlanFeatures },

@@ -9,6 +9,7 @@ import { getErrorMessage } from '../errors/index.js';
 import { FIXED_CAPABILITY_FAMILIES } from '../../domain/capability-grants.js';
 import { AGENT_COLORS, agentColorFor } from '../../domain/agent-color.js';
 import { accountCategoryChoices, isOfferedAccountCategory } from '../account-category.js';
+import { OXY_KAANA_ROUTING_PROFILE_IDS } from '../../config/oxy-inference-routing-profile-ids.js';
 
 /**
  * Factory tool for creating AI agents during conversation.
@@ -160,18 +161,19 @@ export const createAgentTool = (userId: string, accessToken: string | undefined)
 
       const agent = await createAgent(getDb(), {
         oxyAccountId: account.oxyAccountId,
+        // `createAgentBotAccount` omitted a parent, so Oxy created the bot
+        // directly under this caller's personal account. Store that authority
+        // explicitly; `author` remains listing metadata only.
+        ownerOxyAccountId: userId,
         tagline,
         description,
         authorOxyUserId: userId,
         category: category || 'Assistant',
+        routingProfileId: OXY_KAANA_ROUTING_PROFILE_IDS['kaana-v1'],
         tags: tags || [],
         capabilityGrants: capabilityGrants ?? [],
         isPublished: true,
         systemPrompt: finalSystemPrompt,
-        // Restated rather than left to the column default, because the source
-        // stated it: an agent built by this tool is pinned to these two whatever
-        // the default becomes.
-        allowedModels: ['alia-v1', 'alia-v1-pro'],
       });
 
       log.general.info(

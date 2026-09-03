@@ -498,6 +498,8 @@ describe('the agents an organization shares', () => {
     await db.insert(agents).values({
       id,
       oxyAccountId,
+      ownerOxyAccountId: 'oxy-project-orgauth-internal',
+      applicationId: `internal-app-${id}`,
       tagline: 'a tagline',
       description: 'a description',
       authorOxyUserId: OWNER,
@@ -547,6 +549,8 @@ describe('the agents an organization shares', () => {
       'name:oxy-bot-orgauth-second',
       'name:oxy-bot-orgauth-first',
     ]);
+    expect(served.every((agent) => !('applicationId' in agent))).toBe(true);
+    expect(served.every((agent) => !('ownerOxyAccountId' in agent))).toBe(true);
   });
 
   it('drops a share whose agent no longer exists, rather than serving a null', async () => {

@@ -27,11 +27,11 @@ Codea uses the same unified chat runtime as app and Cowork:
 - Streaming responses for immediate feedback
 
 🚀 **Multiple AI Models**
-- **Alia Lite** - Fast responses for quick questions (0.5x credits)
-- **Alia V1** - Balanced performance for everyday coding (1x credits)
-- **Alia V1 Codea** - Optimized specifically for code tasks (1.5x credits)
-- **Alia V1 Pro** - High-quality responses for complex problems (3x credits)
-- **Alia V1 Pro Max** - Best available model for critical tasks (5x credits)
+- **Kaana Lite** - Fast responses for quick questions (0.5x credits)
+- **Kaana V1** - Balanced performance for everyday coding (1x credits)
+- **Kaana V1 Codea** - Optimized specifically for code tasks (1.5x credits)
+- **Kaana V1 Pro** - High-quality responses for complex problems (3x credits)
+- **Kaana V1 Pro Max** - Best available model for critical tasks (5x credits)
 
 🎯 **Seamless Integration**
 - Works directly in VS Code sidebar
@@ -62,7 +62,7 @@ Press `Ctrl+Shift+A` (or `Cmd+Shift+A` on Mac) to open Codea Chat and start codi
 |---------|-------------|---------|
 | `codea.apiKey` | Your Alia API key (starts with `alia_sk_`) | - |
 | `codea.apiBaseUrl` | API base URL | `https://api.alia.onl` |
-| `codea.model` | Model to use for completions | `alia-v1-codea` |
+| `codea.model` | Model to use for completions | `kaana-v1-codea` |
 | `codea.maxTokens` | Maximum tokens in response | `4096` |
 | `codea.temperature` | Temperature for response generation (0-2) | `0.7` |
 | `codea.enableInlineCompletions` | Enable inline code completions | `true` |

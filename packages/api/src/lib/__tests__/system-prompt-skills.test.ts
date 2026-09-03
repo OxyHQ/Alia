@@ -26,7 +26,7 @@ const ACTIVE = '# ACTIVE SKILLS\n\n## Skill: PDF Processing (pdf-processing, v1)
 
 async function build(skills: { index: string; active: string } | null): Promise<string> {
   return SystemPromptBuilder.build({
-    aliasModelId: 'alia-v1',
+    routingProfileId: 'kaana-v1',
     isDirectUserSession: true,
     skills,
   });
@@ -88,7 +88,7 @@ describe('selected skills', () => {
 describe('API-key sessions', () => {
   it('receive the same skills a direct session would', async () => {
     const prompt = await SystemPromptBuilder.build({
-      aliasModelId: 'alia-v1',
+      routingProfileId: 'kaana-v1',
       isDirectUserSession: false,
       skills: { index: INDEX, active: ACTIVE },
     });

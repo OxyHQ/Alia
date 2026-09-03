@@ -26,6 +26,7 @@ export DEPLOY_TEST_METRICS_PARAMETER=/oxy/sampleapp/INTERNAL_METRICS_TOKEN
 export DEPLOY_TEST_TASK_EXIT_CODE=0
 export DEPLOY_TEST_EXPECT_TASK_SECRET_ARN=false
 export DEPLOY_TEST_EXPECT_TASK_ENV=false
+export DEPLOY_TEST_EXPECT_REMOVALS=false
 export DEPLOY_TEST_SERVICE_DESIRED_COUNT=1
 export DEPLOY_TEST_ROLLOUT_SCENARIO=healthy
 
@@ -123,6 +124,12 @@ aws() {
           "name": "deploy-test",
           "image": "example.invalid/deploy-test:old",
           "essential": true,
+          "environment": [
+            {"name": "RELAY_BASE_URL", "value": "https://retired.invalid"}
+          ],
+          "secrets": [
+            {"name": "ALIA_RELAY_CREDENTIAL_KEY", "valueFrom": "arn:aws:ssm:test:123456789012:parameter/oxy/sample-app/ALIA_RELAY_CREDENTIAL_KEY"}
+          ],
           "logConfiguration": {
             "logDriver": "awslogs",
             "options": {
@@ -229,6 +236,28 @@ aws() {
           printf 'task-env:value\n' >>"$DEPLOY_TEST_LOG"
         else
           printf 'task-env:value:MISMATCH\n' >>"$DEPLOY_TEST_LOG"
+        fi
+      fi
+      if [[ "$DEPLOY_TEST_EXPECT_REMOVALS" == "true" ]]; then
+        local previous_argument=""
+        local input_json=""
+        local argument
+        for argument in "$@"; do
+          if [[ "$previous_argument" == "--cli-input-json" ]]; then
+            input_json="${argument#file://}"
+            break
+          fi
+          previous_argument="$argument"
+        done
+        if jq -e '
+          .containerDefinitions[]
+          | select(.name == "deploy-test")
+          | ([.environment[]?.name] | index("RELAY_BASE_URL") == null)
+            and ([.secrets[]?.name] | index("ALIA_RELAY_CREDENTIAL_KEY") == null)
+        ' "$input_json" >/dev/null; then
+          printf 'retired-bindings:removed\n' >>"$DEPLOY_TEST_LOG"
+        else
+          printf 'retired-bindings:removed:MISMATCH\n' >>"$DEPLOY_TEST_LOG"
         fi
       fi
       printf '%s\n' "arn:aws:ecs:test:task-definition/deploy-test:2"
@@ -357,6 +386,7 @@ run_release() {
   export DEPLOY_TEST_TASK_EXIT_CODE
   export DEPLOY_TEST_EXPECT_TASK_SECRET_ARN
   export DEPLOY_TEST_EXPECT_TASK_ENV
+  export DEPLOY_TEST_EXPECT_REMOVALS
   export DEPLOY_TEST_SERVICE_DESIRED_COUNT
   export DEPLOY_TEST_ROLLOUT_SCENARIO
 
@@ -416,6 +446,7 @@ run_release() {
   # relaxation, and the resulting pass would be attributable to the wrong line.
   RELEASE_EXTRA_ENV=()
   DEPLOY_TEST_EXPECT_TASK_ENV=false
+  DEPLOY_TEST_EXPECT_REMOVALS=false
   return "$release_status"
 }
 
@@ -463,6 +494,22 @@ printf '%s\n' \
 diff -u \
   "$test_directory/explicit-task-secret/expected.log" \
   "$test_directory/explicit-task-secret/aws.log"
+
+DEPLOY_TEST_EXPECT_REMOVALS=true
+RELEASE_EXTRA_ENV=(
+  TASK_SECRET_REMOVALS_JSON='["ALIA_RELAY_CREDENTIAL_KEY"]'
+  TASK_CONFIGURATION_REMOVALS_JSON='["RELAY_BASE_URL"]'
+)
+run_release retired-task-bindings true false false
+printf '%s\n' \
+  retired-bindings:removed \
+  'service:arn:aws:ecs:test:task-definition/deploy-test:2:desired=1' \
+  smoke \
+  'run-task:reconcile' \
+  >"$test_directory/retired-task-bindings/expected.log"
+diff -u \
+  "$test_directory/retired-task-bindings/expected.log" \
+  "$test_directory/retired-task-bindings/aws.log"
 
 # TASK_ENV_OVERRIDES_JSON — the only way CI can introduce a NEW plain variable to
 # a service that already exists.

@@ -132,7 +132,7 @@ const AGENT = {
   status: 'active',
   price: 15,
   systemPrompt: 'p',
-  allowedModels: ['alia-v1'],
+  allowedModels: ['kaana-v1'],
   capabilityGrants: [],
   archetype: 'general',
   createdAt: new Date(),

@@ -62,8 +62,8 @@ router.post('/', (req: Request, res: Response, next: NextFunction) => {
     /**
      * Passed through UNRESOLVED, so the default is applied once, downstream.
      *
-     * This restated `|| 'alia-v1'` while `lib/chat/request-context.ts` applies
-     * `getDefaultAliaModel()`, which answers `alia-lite`. The two are a 2x
+     * This restated `|| 'kaana-v1'` while `lib/chat/request-context.ts` applies
+     * `getDefaultRoutingProfile()`, which answers `kaana-lite`. The two are a 2x
      * credit multiplier apart, so the identical "no model named" request was
      * billed at twice the rate for choosing this endpoint over
      * `/v1/chat/completions` — and this endpoint forwards INTO that one, so the

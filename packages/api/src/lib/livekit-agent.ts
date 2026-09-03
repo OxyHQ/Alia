@@ -23,13 +23,26 @@ import {
   TrackSource,
   TrackKind,
 } from '@livekit/rtc-node';
-import type { AgentDataMessage, LiveKitAgentBridgeRef } from '../internal/providers/lib/types-voice.js';
 import { log } from './logger.js';
+
+type AgentDataMessage =
+  | { type: 'agent.state'; state: 'listening' | 'thinking' | 'speaking'; speaker: 'primary' | 'cohost' }
+  | { type: 'transcript.delta'; delta: string; speaker: 'primary' | 'cohost' }
+  | { type: 'transcript.done'; transcript: string; speaker: 'primary' | 'cohost' }
+  | { type: 'transcript.user'; transcript: string }
+  | { type: 'cohost.enabled' }
+  | { type: 'cohost.disabled' }
+  | { type: 'cohost.turn_changed'; speaker: 'primary' | 'cohost' | 'user' }
+  | { type: 'cohost.round_complete'; turns: number }
+  | { type: 'tool.call'; toolName: string; callId: string; args?: unknown; speaker: 'primary' | 'cohost' }
+  | { type: 'tool.result'; callId: string; speaker: 'primary' | 'cohost' }
+  | { type: 'session.ended'; reason: string }
+  | { type: 'error'; code: string; message: string };
 
 const SAMPLE_RATE = 24000;
 const NUM_CHANNELS = 1;
 
-export class LiveKitAgentBridge implements LiveKitAgentBridgeRef {
+export class LiveKitAgentBridge {
   private room: Room;
   private audioSource: AudioSource | null = null;
   private audioTrack: LocalAudioTrack | null = null;

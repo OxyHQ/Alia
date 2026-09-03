@@ -5,7 +5,7 @@
  * ## Why this exists at all
  *
  * The Telegram and Discord bots read `GET /v1/models` and, when it came back
- * empty, printed `alia-lite` — a routing profile wearing a model's name, and
+ * empty, printed `kaana-lite` — a routing profile wearing a model's name, and
  * the identifier ADR 0002 froze. `docs/migration/compatibility-window.md`
  * records that `/v1/models` is CLOSED FOR ADVERTISEMENT and permanently serves
  * `{"object":"list","data":[]}`, so "when it came back empty" is now always:
@@ -55,9 +55,7 @@ export interface CatalogueEntry {
 }
 
 /** Which routing profile a request made in this mode goes through. */
-export type ProductModeRouting =
-  | { readonly kind: 'profile'; readonly profileId: string }
-  | { readonly kind: 'default' };
+export type ProductModeRouting = { readonly kind: 'profile'; readonly profileId: string };
 
 export interface ProductMode {
   /** `mode:*`. Never sent as a request `model` — nothing in the request path consumes one. */
@@ -125,16 +123,16 @@ export function parseCatalogue(payload: unknown): CatalogueEntry[] {
   return entries;
 }
 
-function parseRouting(value: unknown): ProductModeRouting {
+function parseRouting(value: unknown): ProductModeRouting | null {
   const raw = asObject(value);
-  if (raw === null) return { kind: 'default' };
+  if (raw === null) return null;
   if (raw.kind === 'profile') {
     const profileId = asText(raw.profile_id);
-    // A `profile` routing with no id is a shape break, not a default. Reading it
-    // as `default` would silently move the mode's meaning.
-    if (profileId !== null) return { kind: 'profile', profileId };
+    if (profileId !== null && profileId !== '' && profileId.trim() === profileId) {
+      return { kind: 'profile', profileId };
+    }
   }
-  return { kind: 'default' };
+  return null;
 }
 
 /** Turn a modes response into modes, or throw — same reasoning as {@link parseCatalogue}. */
@@ -146,16 +144,22 @@ export function parseModes(payload: unknown): ProductMode[] {
   const modes: ProductMode[] = [];
   for (const value of data) {
     const raw = asObject(value);
-    if (raw === null) continue;
-    if (raw.object !== 'product_mode') continue;
+    if (raw === null || raw.object !== 'product_mode') {
+      throw new Error('The product modes response could not be read.');
+    }
     const id = asText(raw.id);
     const label = asText(raw.label);
-    if (id === null || label === null) continue;
+    const routing = parseRouting(raw.routing);
+    if (
+      id === null || id === '' || id.trim() !== id || !id.startsWith('mode:')
+      || label === null || label === '' || label.trim() !== label
+      || routing === null
+    ) throw new Error('The product modes response could not be read.');
     modes.push({
       id,
       label,
       description: asText(raw.description) ?? '',
-      routing: parseRouting(raw.routing),
+      routing,
       deepResearch: raw.deep_research === true,
     });
   }
@@ -165,15 +169,25 @@ export function parseModes(payload: unknown): ProductMode[] {
   return modes;
 }
 
+const PRESENTATION_MODE_IDS: ReadonlySet<string> = new Set([
+  'mode:fast',
+  'mode:balanced',
+  'mode:maximum-quality',
+  'mode:coding',
+]);
+
 /** The product's word for a routing profile, or `null` when it has none. */
 export function modeForProfile(
   profileId: string,
   modes: readonly ProductMode[],
 ): ProductMode | null {
-  return (
-    modes.find((mode) => mode.routing.kind === 'profile' && mode.routing.profileId === profileId) ??
-    null
-  );
+  let match: ProductMode | null = null;
+  for (const mode of modes) {
+    if (!PRESENTATION_MODE_IDS.has(mode.id) || mode.routing.profileId !== profileId) continue;
+    if (match !== null) return null;
+    match = mode;
+  }
+  return match;
 }
 
 /**
@@ -230,18 +244,11 @@ export function offeredModes(
 }
 
 /**
- * The mode that expresses no preference, derived rather than named.
- *
- * A request that carries no `model` routes through `getDefaultAliaModel()`
- * (`packages/api/src/lib/chat/request-context.ts`), and the mode published for
- * exactly that path is the one whose routing is `default` and which does not
- * additionally set the deep-research flag. Deriving it from those two published
- * fields keeps the identifier `mode:automatic` out of this file: a client that
- * hardcodes an id is a client a rename cannot reach, which is the whole habit
- * this workstream is ending.
+ * The mode that expresses no preference, selected by its exact product ID.
+ * Profile identity is not inferred from default markers or response order.
  */
 function automaticMode(modes: readonly ProductMode[]): ProductMode | null {
-  return modes.find((mode) => mode.routing.kind === 'default' && !mode.deepResearch) ?? null;
+  return modes.find((mode) => mode.id === 'mode:automatic') ?? null;
 }
 
 /**
@@ -261,7 +268,7 @@ function automaticMode(modes: readonly ProductMode[]): ProductMode | null {
  *    removes, and substituting some other mode's label would claim a routing
  *    the request does not make. Deliberately NOT resolved through a
  *    `resolveSelection`-style replacement, which would report Fast for someone
- *    whose stored `alia-v1-pro-max` still routes to maximum quality.
+ *    whose stored `kaana-v1-pro-max` still routes to maximum quality.
  */
 export function labelForPreference(
   preferredModel: string | null | undefined,

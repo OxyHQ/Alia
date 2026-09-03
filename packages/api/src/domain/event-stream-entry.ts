@@ -12,7 +12,7 @@
  *
  * It was two identical fourteen-value literals in two files — this collection
  * and `AgentSession.eventStream`, which is the legacy embedded copy of the same
- * events. That is the `ALIA_TIERS` shape exactly: one vocabulary, two copies,
+ * events. That is the `ROUTING_TIERS` shape exactly: one vocabulary, two copies,
  * and therefore no single tuple for the Postgres CHECK to render from. Adding a
  * fifteenth type to one file and not the other would have gone unnoticed until
  * a write failed against whichever CHECK was rendered from the stale copy.

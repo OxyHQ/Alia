@@ -25,7 +25,7 @@ vi.mock('../../../lib/logger.js', () => {
   return { log: { agents: child, chat: child, general: child, v1: child, credits: child, providers: child } };
 });
 vi.mock('../../../lib/chat-core.js', () => ({
-  getAliaModel: vi.fn().mockResolvedValue({ creditMultiplier: 1 }),
+  getRoutingProfile: vi.fn().mockResolvedValue({ creditMultiplier: 1 }),
 }));
 vi.mock('../../../lib/agent/health.js', () => ({
   getAgentCapabilities: vi.fn(async () => ({ shell: true, browser: true })),
@@ -118,10 +118,12 @@ async function balanceOf(id: string): Promise<{ free: number; paid: number }> {
 async function seedAgent(): Promise<string> {
   const agent = await createAgent(db, {
     oxyAccountId: `oxy-bot-hire-${SUITE}-${seq++}`,
+    ownerOxyAccountId: SUITE,
     tagline: 'runs things',
     description: 'd',
     authorOxyUserId: SUITE,
     category: 'research',
+    routingProfileId: '01a06477-94f5-74f0-bc25-4c5c13b93ccd',
     price: 15,
     isPublished: true,
     /**

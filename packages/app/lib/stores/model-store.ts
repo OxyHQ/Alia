@@ -17,10 +17,10 @@ import type { EffortLevel } from '@/lib/hooks/use-catalogue';
  * ## Three axes, and they are not the same axis
  *
  * `baseModel` used to live beside `selectedModel` for one reason: the composer's
- * thinking toggle SWAPPED the selected model to `alia-v1-thinking` and needed
+ * thinking toggle SWAPPED the selected model to `kaana-v1-thinking` and needed
  * somewhere to remember what to swap back to. ADR 0002 calls that "a reasoning
  * setting wearing a model's name", and the routing table proves it —
- * `alia-v1-thinking` and `alia-v1-pro-max` are two aliases of ONE profile
+ * `kaana-v1-thinking` and `kaana-v1-pro-max` are two aliases of ONE profile
  * (`profile:v1-pro-max`, `lib/routing/presets.ts`), so the swap never changed
  * where a request routed.
  *
@@ -29,7 +29,7 @@ import type { EffortLevel } from '@/lib/hooks/use-catalogue';
  * separately: WHICH model answers ({@link ModelState.selectedModel}), HOW HARD
  * it thinks ({@link ModelState.reasoningEffort}), and WHAT IT MAY REACH FOR
  * ({@link ModelState.webSearch}). Collapsing any two of them into one list is
- * the mistake that produced `alia-v1-thinking` in the first place.
+ * the mistake that produced `kaana-v1-thinking` in the first place.
  */
 interface ModelState {
   selectedModel: string;
@@ -96,7 +96,7 @@ export function effortFor(
 }
 
 /** The alias whose whole meaning was "this profile, with reasoning on". */
-const LEGACY_THINKING_ALIAS = 'alia-v1-thinking';
+const LEGACY_THINKING_ALIAS = 'kaana-v1-thinking';
 
 export const useModelStore = create<ModelState>()(
   persist(
@@ -116,7 +116,7 @@ export const useModelStore = create<ModelState>()(
       /**
        * Split the one alias whose meaning was two things.
        *
-       * A device that stored `alia-v1-thinking` chose a profile AND a reasoning
+       * A device that stored `kaana-v1-thinking` chose a profile AND a reasoning
        * setting in a single identifier. Left alone, that user would keep getting
        * reasoning — the alias still resolves — while the new toggle read `off`,
        * which is the picker lying about the request it is about to send.
@@ -136,7 +136,7 @@ export const useModelStore = create<ModelState>()(
         /**
          * v0 → v1 split the one alias whose meaning was two things.
          *
-         * A device that stored `alia-v1-thinking` chose a profile AND a
+         * A device that stored `kaana-v1-thinking` chose a profile AND a
          * reasoning setting in a single identifier. Left alone, that user would
          * keep getting reasoning — the alias still resolves — while the toggle
          * read `off`, which is the picker lying about the request it is about

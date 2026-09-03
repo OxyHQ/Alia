@@ -12,7 +12,7 @@ import type { ChatMessage } from '../message-converter.js';
 export interface DeepResearchContext {
   res: Response;
   requestId: string;
-  aliasModelId: string;
+  routingProfileId: string;
   userId: string;
   conversationId?: string;
   messages: ChatMessage[];
@@ -28,7 +28,7 @@ export interface DeepResearchContext {
  * Returns true if handled (caller should return), false if skipped (e.g. empty query).
  */
 export async function handleDeepResearch(ctx: DeepResearchContext): Promise<boolean> {
-  const { res, requestId, aliasModelId, userId, conversationId, messages, autonomyRuntime, requestStartTime, globalTimer } = ctx;
+  const { res, requestId, routingProfileId, userId, conversationId, messages, autonomyRuntime, requestStartTime, globalTimer } = ctx;
   const { creditReservation } = ctx;
 
   const userQuery = messages.filter((m: ChatMessage) => m.role === 'user').pop()?.content || '';
@@ -60,7 +60,7 @@ export async function handleDeepResearch(ctx: DeepResearchContext): Promise<bool
     // Stream the final report as content deltas (OpenAI SSE format)
     const CHUNK_SIZE = 100;
     for (let i = 0; i < result.report.length; i += CHUNK_SIZE) {
-      writeContentChunk(res, requestId, aliasModelId, result.report.slice(i, i + CHUNK_SIZE));
+      writeContentChunk(res, requestId, routingProfileId, result.report.slice(i, i + CHUNK_SIZE));
     }
 
     // Send sources metadata as named event
@@ -73,7 +73,7 @@ export async function handleDeepResearch(ctx: DeepResearchContext): Promise<bool
     })}\n\n`);
 
     // Send final chunk with finish_reason
-    writeStopChunk(res, requestId, aliasModelId);
+    writeStopChunk(res, requestId, routingProfileId);
     res.write('data: [DONE]\n\n');
     res.end();
 

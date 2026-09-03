@@ -5,8 +5,8 @@
  * heading "Available Models", introduced by "Alia offers a range of models" —
  * which is the exact thing #139 forbids, since every one of those identifiers is
  * a routing profile over third-party models and none is a model Alia owns. Its
- * numbers were invented too: `alia-lite` was documented at 8K context and
- * `alia-v1-pro-max` at 200K, matching nothing in the routing table.
+ * numbers were invented too: `kaana-lite` was documented at 8K context and
+ * `kaana-v1-pro-max` at 200K, matching nothing in the routing table.
  *
  * It now reads `GET /catalogue`, so it says what the API says and cannot drift.
  * See `hooks/use-catalogue.ts`.
@@ -15,14 +15,14 @@
 import { Link, createFileRoute } from '@tanstack/react-router';
 import { HugeiconsIcon } from '@hugeicons/react';
 import { ArrowLeft01Icon, ArrowRight01Icon } from '@hugeicons/core-free-icons';
+import type {
+  CapabilityAvailability,
+  CatalogueEntry,
+  TokenBound,
+} from '@/hooks/use-catalogue';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import {
-  useCatalogue,
-  type CapabilityAvailability,
-  type CatalogueEntry,
-  type TokenBound,
-} from '@/hooks/use-catalogue';
+import { useCatalogue } from '@/hooks/use-catalogue';
 
 export const Route = createFileRoute('/_layout/documentation/models')({
   component: ModelsDocPage,

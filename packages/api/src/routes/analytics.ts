@@ -6,7 +6,7 @@ import {
   aggregateUsageByDay,
   aggregateUsageByModel,
 } from '../db/usage/chatAnalyticsRepository.js';
-import { getAliaModel } from '../lib/gateway-client.js';
+import { getRoutingProfile } from '../lib/gateway-client.js';
 import { log } from '../lib/logger.js';
 
 const router = Router();
@@ -48,23 +48,23 @@ router.get('/models', async (req: Request, res: Response) => {
     const raw = await aggregateUsageByModel(getDb(), req.user!.id, startOfWindow(req.query.days));
 
     /**
-     * An entry whose key does not resolve to an Alia model is DROPPED, never
+     * An entry whose key does not resolve to a Kaana routing profile is DROPPED, never
      * shown under the provider's own name — the model-abstraction rule. The
-     * repository groups by `coalesce(alia_model_id, model)` precisely so this
+     * repository groups by `coalesce(routing_profile_id, model)` precisely so this
      * resolves; grouping by the provider id alone would drop everything.
      */
     const models = (await Promise.all(raw.map(async (m) => {
-      // The null group first, explicitly: `alia_model_id` is nullable, so a row
-      // written without one groups under NULL and `getAliaModel` has nothing to
+      // The null group first, explicitly: `routing_profile_id` is nullable, so a row
+      // written without one groups under NULL and `getRoutingProfile` has nothing to
       // be asked. Dropping it here is the same rule as below, stated where the
       // type makes it reachable rather than left to a coercion.
       if (m._id === null) return null;
-      const aliaModel = await getAliaModel(m._id);
-      if (!aliaModel) return null;
+      const routingProfile = await getRoutingProfile(m._id);
+      if (!routingProfile) return null;
       return {
         ...m,
-        name: aliaModel.name,
-        emoji: aliaModel.emoji,
+        name: routingProfile.name,
+        emoji: routingProfile.emoji,
       };
     }))).filter(Boolean);
 

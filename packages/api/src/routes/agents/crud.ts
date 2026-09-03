@@ -6,6 +6,7 @@ import {
   createAgent,
   deleteAgent,
   findAgentById,
+  withoutInternalAgentBindings,
   withoutSystemPrompt,
   findAgentKnowledge,
   findAgentSkills,
@@ -48,6 +49,7 @@ import {
 } from '../../domain/agent.js';
 import { log } from '../../lib/logger.js';
 import { z } from 'zod';
+import { OXY_KAANA_ROUTING_PROFILE_IDS } from '../../config/oxy-inference-routing-profile-ids.js';
 import { formatCapabilityGrant, isCapabilityGrant } from '../../domain/capability-grants.js';
 import {
   listMcpServersForUser,
@@ -194,7 +196,12 @@ router.get('/', optionalAuth, async (req: Request, res: Response) => {
       offset: (pageNum - 1) * limitNum,
     });
 
-    res.json({ agents: await attachAgentIdentities(agents), total, page: pageNum, limit: limitNum });
+    res.json({
+      agents: await attachAgentIdentities(agents.map(withoutInternalAgentBindings)),
+      total,
+      page: pageNum,
+      limit: limitNum,
+    });
   } catch (error: unknown) {
     log.agents.error({ err: error }, 'Error listing agents');
     res.status(500).json({ error: 'Failed to list agents' });
@@ -243,7 +250,7 @@ router.get('/me', authenticateToken, async (req: Request, res: Response) => {
       agents: identified.map((agent) => {
         const thread = byAgent.get(agent._id);
         return {
-          ...agent,
+          ...withoutInternalAgentBindings(agent),
           // `null` rather than absent: an agent with no thread yet is the
           // ordinary case — you have just made it — and the client renders that
           // as its own line rather than as a gap.
@@ -430,7 +437,11 @@ router.get('/:id', optionalAuth, async (req: Request, res: Response) => {
     }
 
     const agent = await withChildLists(found);
-    res.json({ agent: await attachAgentIdentity(mayEdit ? agent : withoutSystemPrompt(agent)) });
+    res.json({
+      agent: await attachAgentIdentity(
+        withoutInternalAgentBindings(mayEdit ? agent : withoutSystemPrompt(agent)),
+      ),
+    });
   } catch (error: unknown) {
     log.agents.error({ err: error }, 'Error getting agent');
     res.status(500).json({ error: 'Failed to get agent' });
@@ -532,10 +543,12 @@ router.post('/', authenticateToken, async (req: Request, res: Response) => {
 
     const agent = await createAgent(getDb(), {
       oxyAccountId: data.oxyAccountId,
+      ownerOxyAccountId: verdict.ownerAccountId,
       tagline: data.tagline,
       description: data.description,
       authorOxyUserId: req.user.id,
       category: data.category,
+      routingProfileId: OXY_KAANA_ROUTING_PROFILE_IDS['kaana-v1'],
       tags: data.tags ?? [],
       price: data.price ?? null,
       capabilityGrants: data.capabilityGrants ?? [],
@@ -554,7 +567,9 @@ router.post('/', authenticateToken, async (req: Request, res: Response) => {
       ...(data.archetypeConfig !== undefined && { archetypeConfig: data.archetypeConfig }),
     });
 
-    res.status(201).json({ agent: await attachAgentIdentity(agent) });
+    res.status(201).json({
+      agent: await attachAgentIdentity(withoutInternalAgentBindings(agent)),
+    });
   } catch (error: unknown) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: 'Invalid input', details: error.errors });
@@ -588,7 +603,6 @@ const updateAgentSchema = z
     status: statusSchema.optional(),
     access: accessSchema.optional(),
     systemPrompt: z.string().optional(),
-    allowedModels: z.array(z.string()).optional(),
     scheduleInterval: z.number().int().optional(),
     archetype: archetypeSchema.optional(),
     archetypeConfig: z.unknown().optional(),
@@ -615,6 +629,19 @@ router.patch('/:id', authenticateToken, async (req: Request, res: Response) => {
       cache: false,
     });
     if (!loaded.ok) return answerRefusal(res, loaded.refusal);
+
+    if (
+      typeof loaded.agent.applicationId === 'string'
+      && (
+        data.systemPrompt !== undefined
+        || data.capabilityGrants !== undefined
+        || data.access !== undefined
+        || data.isPublished !== undefined
+        || data.status !== undefined
+      )
+    ) {
+      return res.status(400).json({ error: 'Product-agent policy is managed internally' });
+    }
 
     const { skills, knowledge, ...columns } = data;
     const agent = await updateAgent(getDb(), id, {
@@ -651,7 +678,7 @@ router.patch('/:id', authenticateToken, async (req: Request, res: Response) => {
       });
     }
 
-    res.json({ agent: hydrated });
+    res.json({ agent: withoutInternalAgentBindings(hydrated) });
   } catch (error: unknown) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: 'Invalid input', details: error.errors });
@@ -677,6 +704,10 @@ router.delete('/:id', authenticateToken, async (req: Request, res: Response) => 
       cache: false,
     });
     if (!loaded.ok) return answerRefusal(res, loaded.refusal);
+
+    if (typeof loaded.agent.applicationId === 'string') {
+      return res.status(400).json({ error: 'Product-agent policy is managed internally' });
+    }
 
     /**
      * The Oxy `bot` account SURVIVES the agent, and that is the deliberate

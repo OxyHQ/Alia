@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
@@ -12,15 +12,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  * Three properties, and each is checked where it can fail:
  *
  *  1. **Every configuration writer emits one.** Derived structurally, from what a
- *     function DOES to the five tables, not from what it is called. Six real
- *     mutations of these tables — `replaceProviderMappings`, `rotateProviderKey`
- *     and the four `recordKey*` functions — are named nothing like a writer, and
- *     a name-based census cannot see a writer that is not named like one. The
+ *     function DOES to the retained catalogue tables, not from what it is
+ *     called. `replaceProviderMappings` is named nothing like a writer, and a
+ *     name-based census cannot see a writer that is not named like one. The
  *     caller census in `routes/__tests__/inference-boundary.test.ts` was exactly
  *     that until #139 and so had never asked its question about any of the six;
  *     it now derives its set with this same predicate.
- *  2. **The record carries no credential and no content.** Enforced by an
- *     allow-list, and tested by feeding it a row that HAS a credential.
+ *  2. **The record carries no content.** Enforced by an allow-list.
  *  3. **The record names an actor.** A required parameter, asserted on every
  *     audited writer's signature — an audit log whose actor defaults to
  *     `system` is an audit log that says `system` for the change somebody needs
@@ -54,65 +52,27 @@ beforeEach(() => {
 describe('a configuration audit record (#139 ws15)', () => {
   it('carries actor, before, after and a timestamp', () => {
     recordConfigChange({
-      resource: 'alia_model',
+      resource: 'routing_profile',
       action: 'update',
-      target: 'alia-v1-pro',
+      target: 'kaana-v1-pro',
       actor: { kind: 'user', id: 'oxy-user-1' },
       // Through the projection, as a real caller does. Since `AuditedFields` is
       // branded, an object literal no longer compiles here — which is the point
       // of the brand, and makes this fixture the shape the writers produce.
-      before: auditedFields('alia_model', { isActive: true }),
-      after: auditedFields('alia_model', { isActive: false }),
+      before: auditedFields('routing_profile', { isActive: true }),
+      after: auditedFields('routing_profile', { isActive: false }),
     });
 
     expect(emitted).toHaveLength(1);
     const { payload } = emitted[0];
     expect(payload.event).toBe('config.change');
-    expect(payload.resource).toBe('alia_model');
+    expect(payload.resource).toBe('routing_profile');
     expect(payload.action).toBe('update');
-    expect(payload.target).toBe('alia-v1-pro');
+    expect(payload.target).toBe('kaana-v1-pro');
     expect(payload.actor).toEqual({ kind: 'user', id: 'oxy-user-1' });
     expect(payload.before).toEqual({ isActive: true });
     expect(payload.after).toEqual({ isActive: false });
     expect(String(payload.at)).toMatch(/^\d{4}-\d{2}-\d{2}T[\d:.]+Z$/);
-  });
-
-  it('cannot carry a provider credential, even handed a whole row', () => {
-    // The row a caller would most plausibly pass straight through. Two of its
-    // fields are the credential; one is the prefix, which is the only
-    // identifier `docs/runbooks/credential-rotation.md` treats as safe.
-    const row = {
-      id: 'pk_1',
-      name: 'primary',
-      provider: 'groq',
-      key: 'gsk_' + 'A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q7r8S9t0U1v2',
-      keyHash: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
-      keyPrefix: 'gsk_A1b2...',
-      isActive: true,
-    };
-    const projected = auditedFields('provider_key', row);
-
-    expect(projected).not.toBeNull();
-    expect(Object.keys(projected ?? {})).not.toContain('key');
-    expect(Object.keys(projected ?? {})).not.toContain('keyHash');
-    // The positive control: the projection is not simply empty. It kept the
-    // fields that make the record mean something.
-    expect(projected).toMatchObject({ name: 'primary', provider: 'groq', keyPrefix: 'gsk_A1b2...' });
-
-    // And nothing in the serialized record contains either value.
-    recordConfigChange({
-      resource: 'provider_key',
-      action: 'update',
-      target: row.id,
-      actor: { kind: 'user', id: 'oxy-user-1' },
-      before: projected,
-      after: projected,
-    });
-    const serialized = JSON.stringify(emitted[0]);
-    expect(serialized).not.toContain(row.key);
-    expect(serialized).not.toContain(row.keyHash);
-    // The control for THAT: the prefix, which is meant to be there, is.
-    expect(serialized).toContain(row.keyPrefix);
   });
 
   it('cannot carry prompt or response content', () => {
@@ -157,18 +117,18 @@ describe('a configuration audit record (#139 ws15)', () => {
 
     // Second, and the one that matters: a row that DOES carry content has it
     // dropped rather than passed through.
-    const projected = auditedFields('alia_model', {
-      aliasModelId: 'alia-v1',
+    const projected = auditedFields('routing_profile', {
+      routingProfileId: 'kaana-v1',
       isActive: true,
       systemPrompt: 'you are a helpful assistant',
       lastCompletion: 'hello there',
     });
-    expect(projected).toEqual({ aliasModelId: 'alia-v1', isActive: true });
+    expect(projected).toEqual({ routingProfileId: 'kaana-v1', isActive: true });
   });
 
   it('projects null to null, so a create and a delete need no special case', () => {
-    expect(auditedFields('alia_model', null)).toBeNull();
-    expect(auditedFields('alia_model', undefined)).toBeNull();
+    expect(auditedFields('routing_profile', null)).toBeNull();
+    expect(auditedFields('routing_profile', undefined)).toBeNull();
   });
 });
 
@@ -178,10 +138,9 @@ describe('a configuration audit record (#139 ws15)', () => {
 
 describe('every configuration writer emits a record (#139 ws15)', () => {
   const REPOSITORIES = [
-    'aliaModelRepository.ts',
+    'routingProfileRepository.ts',
     'externalModelRepository.ts',
     'modelConfigRepository.ts',
-    'providerKeyRepository.ts',
   ] as const;
 
   interface Writer {
@@ -193,18 +152,16 @@ describe('every configuration writer emits a record (#139 ws15)', () => {
   }
 
   /**
-   * The five tables a configuration change touches.
+   * The four tables a configuration change touches.
    *
    * The predicate below is `.insert(<one of these>)`, not a bare `.update(`:
-   * `crypto.createHash('sha256').update(key)` is a `.update(` too, and naming
-   * the tables is what tells a hash from a write. Shared with the last test in
+   * naming the tables is what distinguishes a configuration write. Shared with the last test in
    * this file, which asks the same question of every OTHER file.
    */
   const CONFIG_TABLES = [
-    'aliaModels',
-    'aliaModelProviderMappings',
+    'routingProfiles',
+    'routingProfileProviderMappings',
     'modelConfigs',
-    'providerKeys',
     'externalModels',
   ] as const;
 
@@ -216,9 +173,8 @@ describe('every configuration writer emits a record (#139 ws15)', () => {
    * Every top-level function in the four repositories that MUTATES.
    *
    * Found on the AST so a mention in a comment or a string is not one. That is
-   * the definition a name cannot dodge: `replaceProviderMappings` and
-   * `rotateProviderKey` are both here and neither matches a `create|update|…`
-   * prefix.
+   * the definition a name cannot dodge: `replaceProviderMappings` does not
+   * match a `create|update|…` prefix.
    */
   function writers(): Writer[] {
     const found: Writer[] = [];
@@ -246,27 +202,6 @@ describe('every configuration writer emits a record (#139 ws15)', () => {
   }
 
   /**
-   * The mutations that are automatic KEY HEALTH rather than configuration.
-   *
-   * A key cools down because an upstream said no; nobody configured anything, so
-   * an audit record of it is a metric wearing an audit record's clothes and
-   * `lib/observability/metrics.ts` is where that belongs. Exact, and with the
-   * count asserted, so a NEW writer cannot join this list by looking like one.
-   */
-  const HEALTH_ONLY: readonly string[] = [
-    'markKeyCreditExhausted',
-    // The exact counterpart of `markKeyCreditExhausted` above, and health for
-    // the same reason: a provider restoring a period's allowance is something
-    // that HAPPENED to the key, not something a person configured.
-    'renewExpiredKeyQuotas',
-    'recordKeyFailure',
-    'recordKeySpend',
-    'recordKeySuccess',
-    'recordKeyUsage',
-    'setKeyCooldown',
-  ];
-
-  /**
    * The one mutation that neither audits nor is health: it is module-private and
    * every caller audits the change it is part of.
    *
@@ -278,14 +213,9 @@ describe('every configuration writer emits a record (#139 ws15)', () => {
 
   it('found the mutations, including the ones a name-based census misses', () => {
     const found = writers();
-    // The floor: the AST scan read four real files and found real writers.
-    expect(found.length).toBeGreaterThanOrEqual(19);
-    for (const name of ['rotateProviderKey', 'replaceProviderMappings', 'recordKeyFailure']) {
-      expect(
-        found.map((w) => w.name),
-        `${name} is a mutation a prefix-based census cannot see`,
-      ).toContain(name);
-    }
+    // The floor: the AST scan read three real files and found real writers.
+    expect(found.length).toBeGreaterThanOrEqual(10);
+    expect(found.map((w) => w.name)).toContain('replaceProviderMappings');
   });
 
   it('every one is audited, health-only, or a private helper — exactly', () => {
@@ -295,10 +225,10 @@ describe('every configuration writer emits a record (#139 ws15)', () => {
 
     // Exact, both directions: an unaudited writer that is on neither list fails,
     // and a list entry for a writer that no longer exists fails too.
-    expect(rest).toEqual([...HEALTH_ONLY, ...PRIVATE_HELPERS].sort());
+    expect(rest).toEqual([...PRIVATE_HELPERS].sort());
     // The floor before that equality: something IS audited, so an empty scan
     // cannot satisfy it.
-    expect(audited.length).toBeGreaterThanOrEqual(13);
+    expect(audited.length).toBeGreaterThanOrEqual(9);
   });
 
   it('every audited writer takes an actor, and the private helper is not exported', () => {
@@ -388,7 +318,7 @@ describe('every configuration writer emits a record (#139 ws15)', () => {
     // repository, so "none is optional" is a measurement rather than an empty
     // loop. Asserted per file, because a scan that read three of four would
     // otherwise satisfy a total count.
-    expect(parameters.length).toBeGreaterThanOrEqual(13);
+    expect(parameters.length).toBeGreaterThanOrEqual(9);
     expect([...new Set(parameters.map((p) => p.file))].sort()).toEqual([...REPOSITORIES].sort());
   });
 
@@ -466,14 +396,6 @@ describe('every configuration writer emits a record (#139 ws15)', () => {
      * files and 1283 tests stayed green**, including this file and the
      * `API (Postgres)` suites.
      *
-     * `provider_key` escaped that particular leak, and only because
-     * `createProviderKey` reads back through `.returning(safeColumns)`, which
-     * already excludes `key` and `key_hash`. Its own comment says that second
-     * defence exists precisely "because one of them is a projection somebody
-     * could widen". `model_config` and `alia_model` audit off a bare
-     * `.returning()` and have no such second defence — which is why the check
-     * belongs here rather than being left to the projection alone.
-     *
      * ## Two defences, defeated by different edits
      *
      * `AuditedFields` is branded, so `after: view` no longer compiles. This
@@ -493,9 +415,9 @@ describe('every configuration writer emits a record (#139 ws15)', () => {
 
     // The floors. A scan finding nothing satisfies the loop above, and a scan
     // finding only `null`s would satisfy it while measuring no projection.
-    expect(argumentsFound.length).toBeGreaterThanOrEqual(26);
+    expect(argumentsFound.length).toBeGreaterThanOrEqual(18);
     expect(argumentsFound.filter((a) => a.from.startsWith('auditedFields(')).length)
-      .toBeGreaterThanOrEqual(18);
+      .toBeGreaterThanOrEqual(12);
     // Both shapes occur, so neither branch of the predicate is dead: the bulk
     // sync and the cooldown reset legitimately record no fields at all.
     expect(argumentsFound.filter((a) => a.from === 'null').length).toBeGreaterThanOrEqual(6);
@@ -526,7 +448,8 @@ describe('every configuration writer emits a record (#139 ws15)', () => {
           file.endsWith('.ts') &&
           !file.includes('/__tests__/') &&
           !file.startsWith('packages/api/src/db/providers/') &&
-          !file.startsWith('packages/api/src/db/schema/'),
+          !file.startsWith('packages/api/src/db/schema/') &&
+          existsSync(path.join(REPO_ROOT, file)),
       );
 
     const offenders: string[] = [];
@@ -541,7 +464,7 @@ describe('every configuration writer emits a record (#139 ws15)', () => {
     expect(offenders).toEqual([]);
 
     // The control: the predicate fires on a real one.
-    expect(/\.(?:insert|update|delete)\s*\(\s*providerKeys\b/.test('await db.update(providerKeys)')).toBe(
+    expect(/\.(?:insert|update|delete)\s*\(\s*modelConfigs\b/.test('await db.update(modelConfigs)')).toBe(
       true,
     );
   });

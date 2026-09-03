@@ -218,7 +218,7 @@ async function decomposeQuery(
   _userId: string,
 ): Promise<string[]> {
   try {
-    const resolved = await resolveModel('alia-lite');
+    const resolved = await resolveModel('kaana-lite');
     if (!resolved) throw new Error('No model available');
     const model = getAIModel(resolved, 'deep_research');
 
@@ -266,7 +266,7 @@ async function extractFindings(
   if (sources.length === 0) return 'No sources found.';
 
   try {
-    const resolved = await resolveModel('alia-lite');
+    const resolved = await resolveModel('kaana-lite');
     if (!resolved) throw new Error('No model available');
     const model = getAIModel(resolved, 'deep_research');
 
@@ -297,7 +297,7 @@ async function synthesize(
   _userId: string,
 ): Promise<string> {
   try {
-    const resolved = await resolveModel('alia-v1');
+    const resolved = await resolveModel('kaana-v1');
     if (!resolved) throw new Error('No model available');
     const model = getAIModel(resolved, 'deep_research');
 
@@ -332,7 +332,7 @@ async function identifyGaps(
   _userId: string,
 ): Promise<string[]> {
   try {
-    const resolved = await resolveModel('alia-lite');
+    const resolved = await resolveModel('kaana-lite');
     if (!resolved) throw new Error('No model available');
     const model = getAIModel(resolved, 'deep_research');
 

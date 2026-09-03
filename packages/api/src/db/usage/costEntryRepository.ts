@@ -33,7 +33,7 @@ import type { CreditFundingSource } from '../../domain/credit-funding.js';
 export interface CostEntryRow {
   readonly userId: string;
   readonly sessionId: string | null;
-  readonly aliasModelId: string;
+  readonly routingProfileId: string;
   readonly actualProvider: string;
   readonly actualModelId: string;
   readonly inputTokens: number;
@@ -50,7 +50,7 @@ export async function insertCostEntry(db: ApiDatabase, entry: CostEntryRow): Pro
   await db.insert(costEntries).values({
     userId: entry.userId,
     sessionId: entry.sessionId,
-    aliasModelId: entry.aliasModelId,
+    routingProfileId: entry.routingProfileId,
     actualProvider: entry.actualProvider,
     actualModelId: entry.actualModelId,
     inputTokens: entry.inputTokens,
@@ -98,7 +98,7 @@ export async function selectCostEntries(
     .select({
       userId: costEntries.userId,
       sessionId: costEntries.sessionId,
-      aliasModelId: costEntries.aliasModelId,
+      routingProfileId: costEntries.routingProfileId,
       actualProvider: costEntries.actualProvider,
       actualModelId: costEntries.actualModelId,
       inputTokens: costEntries.inputTokens,
@@ -156,7 +156,7 @@ export async function aggregateTopUsersByCost(
 }
 
 export interface ModelEfficiency {
-  readonly aliasModelId: string;
+  readonly routingProfileId: string;
   readonly avgCostPer1kTokens: number;
   readonly totalRequests: number;
   readonly totalCost: number;
@@ -176,13 +176,13 @@ export async function aggregateModelEfficiency(db: ApiDatabase): Promise<ModelEf
   )`;
   return db
     .select({
-      aliasModelId: costEntries.aliasModelId,
+      routingProfileId: costEntries.routingProfileId,
       avgCostPer1kTokens,
       totalRequests: sql<number>`count(*)::int`,
       totalCost: sql<number>`coalesce(sum(${costEntries.costUsd}), 0)`,
     })
     .from(costEntries)
-    .groupBy(costEntries.aliasModelId)
+    .groupBy(costEntries.routingProfileId)
     .orderBy(avgCostPer1kTokens);
 }
 
@@ -196,7 +196,7 @@ export async function selectRecentCostEntries(
     .select({
       userId: costEntries.userId,
       sessionId: costEntries.sessionId,
-      aliasModelId: costEntries.aliasModelId,
+      routingProfileId: costEntries.routingProfileId,
       actualProvider: costEntries.actualProvider,
       actualModelId: costEntries.actualModelId,
       inputTokens: costEntries.inputTokens,

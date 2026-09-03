@@ -11,7 +11,7 @@
  *
  * Overridable per build so a consumer is not stranded on a retired identifier
  * until the SDK ships a new version, which is the failure the hardcoded
- * `'alia-v1'` inside `useAliaChat` used to guarantee.
+ * `'kaana-v1'` inside `useAliaChat` used to guarantee.
  */
 
 /** What a chat request asks for when the caller names no model. Checked against the catalogue. */

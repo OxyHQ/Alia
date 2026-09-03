@@ -8,8 +8,8 @@
  * All pricing data comes from existing ModelMapping.costPer1MInput/costPer1MOutput.
  */
 
-import type { ModelMapping } from '../internal/providers/lib/alia-models';
-import { TIER_MODEL_MAPPINGS, getAliaModel } from '../internal/providers/lib/alia-models';
+import type { ModelMapping } from '../internal/providers/lib/routing-profile-catalogue';
+import { TIER_MODEL_MAPPINGS, getRoutingProfile } from '../internal/providers/lib/routing-profile-catalogue';
 
 export interface CostComparison {
   /** What the most expensive provider in this tier would have cost (USD) */
@@ -23,7 +23,7 @@ export interface CostComparison {
 /**
  * Calculate cost comparison for a completed chat request.
  *
- * @param aliasModelId - The Alia model ID used (e.g., "alia-v1")
+ * @param routingProfileId - The Kaana routing profile ID used (e.g., "kaana-v1")
  * @param actualProvider - The actual provider that served the request
  * @param actualModelId - The actual model ID used
  * @param promptTokens - Number of input tokens used
@@ -31,16 +31,16 @@ export interface CostComparison {
  * @returns Cost comparison or null if pricing data is unavailable
  */
 export function calculateCostComparison(
-  aliasModelId: string,
+  routingProfileId: string,
   actualProvider: string,
   actualModelId: string,
   promptTokens: number,
   completionTokens: number,
 ): CostComparison | null {
-  const aliaModel = getAliaModel(aliasModelId);
-  if (!aliaModel) return null;
+  const routingProfile = getRoutingProfile(routingProfileId);
+  if (!routingProfile) return null;
 
-  const mappings = TIER_MODEL_MAPPINGS[aliaModel.tier];
+  const mappings = TIER_MODEL_MAPPINGS[routingProfile.tier];
   if (!mappings || mappings.length === 0) return null;
 
   // Find the most expensive mapping in the tier (premium benchmark)

@@ -51,7 +51,7 @@
  */
 
 import { execFileSync } from 'node:child_process';
-import { readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import type { Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import path from 'node:path';
@@ -537,7 +537,7 @@ describe('the compatibility surface accepts no new credential (#139 ws6, ADR 000
 /**
  * Writing a row that says what an inference call COST ALIA at a provider.
  *
- * Four names, and the boundary between them and Alia's own billing is the
+ * Two names, and the boundary between them and Alia's own billing is the
  * distinction ADR 0005 draws: `user_credits`, `transactions` and `subscriptions`
  * are Alia charging its users, which stays; these four are Alia accounting for
  * what it owes upstream, which under ADR 0004 condition 3 moves to Kaana and the
@@ -545,15 +545,14 @@ describe('the compatibility surface accepts no new credential (#139 ws6, ADR 000
  *
  *  - `insertCostEntry` is the only statement that writes `cost_entries`, whose
  *    columns are `actual_provider`, `actual_model_id` and `cost_usd`;
- *  - `recordCost` is its only wrapper;
- *  - `markKeyCreditExhausted` and `setKeyCooldown` write the state of a PROVIDER
- *    ACCOUNT's credit and health on a key Alia pays for.
+ *  - `recordCost` is its only wrapper.
+ *
+ * Provider-account health and key spend no longer exist in this service: Kaana
+ * owns provider credentials and their operational state.
  */
 const PROVIDER_COST_WRITERS: readonly string[] = [
   'insertCostEntry',
   'recordCost',
-  'markKeyCreditExhausted',
-  'setKeyCooldown',
 ];
 
 /** Comment-stripped source, so a census cannot read this repository's prose. */
@@ -614,13 +613,13 @@ describe('the compatibility surface reintroduces no provider billing (#139 ws6, 
     }
   });
 
-  it('names four writers that exist, so the list cannot shrink or hold a typo', () => {
+  it('names the two remaining cost writers, so the list cannot shrink or hold a typo', () => {
     /**
      * The list's own exact-count assertion, and the reason it needs one: every
      * assertion below iterates it, so an emptied list makes them all pass, and a
      * misspelled entry is an emptied slot that still looks occupied.
      */
-    expect(PROVIDER_COST_WRITERS).toHaveLength(4);
+    expect(PROVIDER_COST_WRITERS).toHaveLength(2);
     expect(new Set(PROVIDER_COST_WRITERS).size).toBe(PROVIDER_COST_WRITERS.length);
 
     const shipped = shippedModules();
@@ -691,6 +690,7 @@ function shippedModules(): string[] {
   return execFileSync('git', ['ls-files', '--', 'packages/api/src'], { cwd: REPO_ROOT, encoding: 'utf8' })
     .split('\n')
     .filter((file) => file.endsWith('.ts') && !file.includes('/__tests__/') && !file.endsWith('.test.ts'))
+    .filter((file) => existsSync(path.join(REPO_ROOT, file)))
     .map((file) => path.relative(API_SRC, path.join(REPO_ROOT, file)))
     .sort();
 }
@@ -882,7 +882,7 @@ describe('an anonymous caller is refused on both chat surfaces (#139 ws6)', () =
   });
 
   it('refuses POST /alia/chat with no credential, exactly as /v1 always has', async () => {
-    const body = JSON.stringify({ model: 'alia-v1', messages: [{ role: 'user', content: 'hi' }] });
+    const body = JSON.stringify({ model: 'kaana-v1', messages: [{ role: 'user', content: 'hi' }] });
     const send = (route: string): Promise<Response> =>
       fetch(`${base}${route}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body });
 

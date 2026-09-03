@@ -148,8 +148,6 @@ const EXEMPT: Readonly<Record<string, string>> = {
     'Key is `createMapping`’s parameter, called 115 times in the same file with literal model ids. No request reaches it.',
   'packages/api/src/internal/providers/lib/model-capabilities-data.ts MODEL_PRICING[modelId]':
     'Same call site and the same 115 literal model ids as the line above.',
-  'packages/api/src/internal/providers/lib/provider-api.ts PROVIDER_BASES[provider]':
-    'Key is the `provider` column of a routing mapping row, seeded from a literal table. An inherited hit yields a non-string base URL and `fetch` rejects it.',
   'packages/api/src/lib/observability/metrics.ts labels[k]':
     '`k` comes from `Object.keys(labels)`, so it is an OWN key of the object being read, by construction rather than by check.',
   'packages/api/src/lib/sliding-window-limiter.ts RPM_LIMITS[tier]':
@@ -171,7 +169,7 @@ const EXEMPT: Readonly<Record<string, string>> = {
  * is a never-exercised first draft of the capability grants being designed on
  * top of that assembler.
  */
-const EXEMPT_COUNT = 7;
+const EXEMPT_COUNT = 6;
 
 describe('no lookup table answers an untrusted key from Object.prototype', () => {
   const reads = tableReads();
@@ -188,7 +186,7 @@ describe('no lookup table answers an untrusted key from Object.prototype', () =>
     // and not a constant. Matched on the file and the table rather than a
     // position, for the same reason the site key carries neither.
     expect(
-      reads.some((r) => r.guarded && r.site.includes('alia-models.ts ALIA_MODELS[modelId]')),
+      reads.some((r) => r.guarded && r.site.includes('routing-profile-catalogue.ts KAANA_ROUTING_PROFILES[modelId]')),
       'the census stopped seeing the model gate as guarded',
     ).toBe(true);
   });
@@ -239,59 +237,32 @@ describe('no lookup table answers an untrusted key from Object.prototype', () =>
 
 describe('every fixed accessor refuses an inherited name', () => {
   it('the model identity gate does not admit five names nobody registered', async () => {
-    const { isAliaModel, getAliaModel, getModelMappingsForTier, ALIA_MODELS } = await import(
-      '../internal/providers/lib/alia-models.js'
+    const { isRoutingProfile, getRoutingProfile, getModelMappingsForTier, KAANA_ROUTING_PROFILES } = await import(
+      '../internal/providers/lib/routing-profile-catalogue.js'
     );
 
     // The control first, so a gate that refuses EVERYTHING cannot pass this.
-    const real = Object.keys(ALIA_MODELS)[0];
+    const real = Object.keys(KAANA_ROUTING_PROFILES)[0];
     expect(real).toBeDefined();
-    expect(isAliaModel(real)).toBe(true);
-    expect(getAliaModel(real)).not.toBeNull();
+    expect(isRoutingProfile(real)).toBe(true);
+    expect(getRoutingProfile(real)).not.toBeNull();
 
     for (const name of INHERITED) {
-      // `isAliaModel` used `in`, which walks the prototype chain, and it is the
+      // `isRoutingProfile` used `in`, which walks the prototype chain, and it is the
       // gate `fallback-engine.ts` uses to decide whether to REFUSE an
       // unregistered identifier. Admitting one sent a request that can never
       // succeed down the resolution path, where it died as "no mappings for
       // tier" — a 503, indistinguishable from an infrastructure failure, which
       // is the exact outcome that refusal's own comment says must not happen.
-      expect(isAliaModel(name), `isAliaModel admitted ${name}`).toBe(false);
-      expect(getAliaModel(name), `getAliaModel resolved ${name}`).toBeNull();
+      expect(isRoutingProfile(name), `isRoutingProfile admitted ${name}`).toBe(false);
+      expect(getRoutingProfile(name), `getRoutingProfile resolved ${name}`).toBeNull();
       expect(getModelMappingsForTier(name as never), `tier mappings for ${name}`).toEqual([]);
     }
 
     // An ordinary unregistered identifier is refused the same way, so the five
     // above are not a special case bolted on beside a different behaviour.
-    expect(isAliaModel('not-a-model')).toBe(false);
-    expect(getAliaModel('not-a-model')).toBeNull();
-  });
-
-  it('a requested voice cannot be an inherited name', async () => {
-    const { resolveVoiceForProvider } = await import('../internal/providers/lib/tts-providers.js');
-    // The control: a real voice still resolves per provider.
-    expect(resolveVoiceForProvider('openai', 'alloy')).toBe('alloy');
-    const legitimateGoogle = resolveVoiceForProvider('google', 'alloy');
-    expect(typeof legitimateGoogle).toBe('string');
-
-    for (const name of INHERITED) {
-      // Every branch returns a `string`, which the `google` branch did not:
-      // it read `entry.gemini` off a function and returned `undefined` from a
-      // signature that promises `string`.
-      for (const provider of ['openai', 'openrouter', 'google', 'digitalocean']) {
-        const resolved = resolveVoiceForProvider(provider, name);
-        expect(typeof resolved, `${provider} + ${name}`).toBe('string');
-        expect(resolved, `${provider} echoed ${name}`).not.toBe(name);
-      }
-    }
-  });
-
-  it('a provider name that nobody implements is undefined, which is what the signature says', async () => {
-    const { getProvider, listProviders } = await import('../internal/providers/lib/providers/index.js');
-    const real = listProviders()[0];
-    expect(getProvider(real)).toBeDefined();
-    for (const name of INHERITED) expect(getProvider(name), name).toBeUndefined();
-    expect(getProvider('not-a-provider')).toBeUndefined();
+    expect(isRoutingProfile('not-a-model')).toBe(false);
+    expect(getRoutingProfile('not-a-model')).toBeNull();
   });
 
   it('a tool named after an inherited property does not throw when described', async () => {

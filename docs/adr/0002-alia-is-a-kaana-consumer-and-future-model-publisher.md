@@ -10,11 +10,11 @@ ADR 0001 assigns provider execution to Kaana. This ADR settles the two questions
 
 Both questions have a wrong answer that is currently easy to reach for.
 
-The first wrong answer is that Alia keeps a small set of adapters "for the cases Kaana does not cover yet". Alia owns a full provider stack today — adapters, mappings, key management, health and fallback under `packages/api/src/internal/providers/` — so retaining a subset is a one-line decision at any point during the migration, and each retained adapter carries its own credential and its own egress path.
+The first wrong answer is that Alia keeps a small set of adapters "for the cases Kaana does not cover yet". Before the cutover, Alia owned a full provider stack — adapters, mappings, key management, health and fallback under `packages/api/src/internal/providers/` — so retaining a subset was a one-line decision at any point during the migration, and each retained adapter carried its own credential and egress path. That hosted runtime is now retired; the remaining routing-profile catalogue is product compatibility data, not an execution path.
 
-The second wrong answer is that a future Alia model gets trained, evaluated and released inside this monorepo. Alia already presents thirteen `alia-*` identifiers as models (`packages/api/src/internal/providers/lib/alia-models.ts:63` through `:212`), serialized with `owned_by: 'alia'` at `packages/api/src/routes/v1/models.ts:24`, every one of which routes to a third-party model. The namespace question is therefore not hypothetical: the product has already used Alia-branded model identity for something that is not an Alia model.
+The second wrong answer is that a future Alia model gets trained, evaluated and released inside this monorepo. Alia previously presented thirteen `alia-*` identifiers as models, each routing to a third-party model. Those aliases are retired, but the namespace lesson remains: the product has already used Alia-branded model identity for something that was not an Alia model.
 
-Note the two notations are different things and must stay visually distinct. `alia-*` with a hyphen is the current alias set, which ADR 0003 reclassifies and the compatibility window sunsets. `alia/*` with a slash is the publisher namespace in the canonical `<publisher>/<model>` form, reserved here for real artifacts.
+Note the two notations are different things and must stay visually distinct. `alia-*` with a hyphen is the retired alias set, preserved only in migration history. `alia/*` with a slash is the publisher namespace in the canonical `<publisher>/<model>` form, reserved here for real artifacts.
 
 ## Decision
 
@@ -43,16 +43,16 @@ A reservation with no publication is the point. The namespace exists so that not
 
 Two corollaries follow directly:
 
-- **An upstream provider mapping may never register under `alia/*`.** That is precisely the mistake the current `alia-*` aliases embody, and repeating it under the canonical namespace would make it permanent.
+- **An upstream provider mapping may never register under `alia/*`.** That is precisely the mistake the retired `alia-*` aliases embodied, and repeating it under the canonical namespace would make it permanent.
 - **A system prompt, reasoning-effort setting or quality preset never gets its own `alia/*` identifier.** Where the underlying weights are identical, the difference is a runtime parameter or a routing profile, not a model.
 
 ## Consequences
 
-- Alia's provider stack becomes strictly transitional. Every module under `packages/api/src/internal/providers/` is on a path to extraction or deletion, and nothing new is added to it.
+- Alia's hosted provider stack is retired. The compatibility catalogue remaining under `packages/api/src/internal/providers/` contains no credential, adapter or provider egress path.
 - Alia loses the ability to add a provider unilaterally. Adding an upstream route becomes a Kaana change with a Kaana conformance test, which is slower and correct.
 - Kaana's contract becomes load-bearing for the product. Capability gaps in that contract — tools, structured output, vision, reasoning, prompt caching, modality support — surface as product gaps, so they are tracked as such rather than worked around locally.
 - The `alia/*` namespace stays empty until real work is done, so `alia/*` in a catalogue is a truthful signal rather than a brand decoration.
-- The current `alia-*` aliases become explicitly not-models. ADR 0003 defines what they are instead, and the compatibility window defines how they are retired.
+- The former `alia-*` aliases are retired; public routing-profile identity is `kaana-*`.
 - A future Alia model release is a pipeline event with review gates, not a deploy of this repository.
 
 ## Alternatives considered
@@ -67,8 +67,8 @@ Two corollaries follow directly:
 
 ## Enforcement
 
-- **No new `alia-*` alias.** A check failing when a new entry is added to `ALIA_MODELS` in `packages/api/src/internal/providers/lib/alia-models.ts` is *not yet enforced — tracked by #139 workstream 19*. Until it lands, the freeze is a code review rule: the alias set is closed, and a PR adding to it is rejected on this ADR.
+- **No new Alia-branded routing alias.** The Kaana-only runtime and catalogue gates reject reintroduction of the retired alias/provider runtime; public routing profiles use `kaana-*`.
 - **No mapping or preset under `alia/*`.** Validation refusing registration of an upstream provider mapping or prompt preset under the `alia/*` namespace is *not yet enforced — tracked by #139 workstream 19*.
 - **No `alia/*` entry in a production catalogue without a signed manifest.** This gate belongs to the release pipeline in `OxyHQ/AliaModels` and to the Kaana catalogue, not to this repository. It does not exist yet.
-- **No new direct provider import.** Shared with ADR 0001: *not yet enforced — tracked by #139 workstream 19*; enforced by code review in the meantime.
-- **Adapter removal gates.** Per provider, workstream 7 of #139 requires the Kaana adapter to pass conformance tests, Alia integration tests to pass through Kaana, traffic to be canaried, and provider secrets to be removed from Alia before the local adapter is deleted. These are review gates on the extraction PRs; no automated check enforces the ordering.
+- **No new direct provider import.** `kaana-only-runtime.test.ts` freezes the hosted runtime at the Kaana client boundary and rejects direct provider SDK construction/imports there.
+- **Provider-runtime retirement.** `hosted-provider-retirement.test.ts` freezes removal of the credential repository, key/fallback/health services, provider admin path and provider-shaped environment variables.

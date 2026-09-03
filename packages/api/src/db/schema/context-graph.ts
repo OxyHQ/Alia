@@ -211,7 +211,7 @@ export const contextSources = pgTable(
  *
  * By CONVENTIONS.md's test an element looks like a child row: it has an
  * `order`, a `required` toggle and a `source_key` that names a
- * `context_sources` row. Three identity signals, and the `alia_model_provider_mappings`
+ * `context_sources` row. Three identity signals, and the `routing_profile_provider_mappings`
  * shape almost exactly.
  *
  * It is `jsonb` because **nothing reads it.** The whole-package grep for

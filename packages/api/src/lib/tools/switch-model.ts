@@ -9,7 +9,7 @@
  *
  * The targets are `profile:*` ids — the same identifiers `GET /catalogue`
  * serves and the same ones a client sends as `model`. It used to offer five
- * `alia-*` names, two of which (`alia-v1-thinking` and `alia-v1-pro-max`) are
+ * `alia-*` names, two of which (`kaana-v1-thinking` and `kaana-v1-pro-max`) are
  * one profile differing only in the system prompt their id selects, so the AI
  * could "switch models" and change nothing but a prompt. One entry per policy
  * removes that move entirely.
@@ -27,8 +27,8 @@
 
 import { tool } from 'ai';
 import { z } from 'zod';
-import { getAliaModel } from '../gateway-client.js';
-import { OFFERED_PROFILES, canonicalAliasFor, isProfileOffered } from '../product-modes.js';
+import { getRoutingProfile } from '../gateway-client.js';
+import { OFFERED_PROFILES, isProfileOffered } from '../product-modes.js';
 import { log } from '../logger.js';
 
 /**
@@ -41,10 +41,7 @@ import { log } from '../logger.js';
 async function describeOfferedProfiles(): Promise<string> {
   const lines = await Promise.all(
     OFFERED_PROFILES.map(async (profileId) => {
-      const alias = canonicalAliasFor(profileId);
-      const model = alias === null
-        ? null
-        : await getAliaModel(alias).catch((err: unknown) => {
+      const model = await getRoutingProfile(profileId).catch((err: unknown) => {
             log.tools.warn({ err, profileId }, 'Catalogue unavailable while describing switchModel targets');
             return null;
           });
@@ -80,20 +77,19 @@ export async function createSwitchModelTool(onSwitch: (modelId: string, modelNam
         return { error: `"${model}" is not a routing profile this product offers. Available: ${offeredList}.` };
       }
 
-      const alias = canonicalAliasFor(model);
-      const aliaModel = alias === null ? null : await getAliaModel(alias);
-      if (!aliaModel) {
+      const routingProfile = await getRoutingProfile(model);
+      if (!routingProfile) {
         return { error: `"${model}" is unavailable right now. Available: ${offeredList}.` };
       }
 
-      log.tools.info({ profile: model, modelName: aliaModel.name, reason }, 'AI switched routing profile');
-      onSwitch(model, aliaModel.name);
+      log.tools.info({ profile: model, modelName: routingProfile.name, reason }, 'AI switched routing profile');
+      onSwitch(model, routingProfile.name);
 
       return {
         switched: true,
         model,
-        modelName: aliaModel.name,
-        message: `Switched to ${aliaModel.name}. Future messages in this conversation will use this profile.`,
+        modelName: routingProfile.name,
+        message: `Switched to ${routingProfile.name}. Future messages in this conversation will use this profile.`,
       };
     },
   });

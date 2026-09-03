@@ -10,7 +10,7 @@
  * timeout suite's module mocks keep intercepting the same seams.
  */
 import type { Request, Response } from 'express';
-import { resolveModel, getDefaultAliaModel, type RoutingOptions } from '../chat-core.js';
+import { resolveModel, getDefaultRoutingProfile, type RoutingOptions } from '../chat-core.js';
 import { resolveRequestedModel } from '../routing/model-selection.js';
 import type { RequestedModel } from '../routing/model-selection.js';
 import {
@@ -103,7 +103,7 @@ export interface ChatRequestContext {
   /**
    * Which personality file the turn speaks with.
    *
-   * The same as `aliasModelId` for everything Alia routes, because the prompt
+   * The same as `routingProfileId` for everything Alia routes, because the prompt
    * belongs to the ROUTING PROFILE and that is what the alias names. A model
    * served by the person's own device has no profile, and naming it here would
    * ask `prompts/local/<runtime>/<model>.md` of the filesystem — a file that
@@ -131,10 +131,17 @@ export interface ChatRequestContext {
   skills: SkillRuntime;
   entitlements: Entitlements | null;
   linkedAgent: HydratedAgent | null;
+  /**
+   * The verified inbound product service token for an application-bound agent.
+   * Undefined means the ordinary Alia credential lane. This is selected only
+   * after exact application and delegation checks, so `agentId` never chooses
+   * the billing principal.
+   */
+  inferenceServiceToken: string | undefined;
   /** Initial values for the handler's retry-mutable state. */
   creditReservation: CreditReservation | null;
   resolved: Awaited<ReturnType<typeof resolveModel>>;
-  aliasModelId: string;
+  routingProfileId: string;
   /**
    * The routing options this request resolved under. Carried on the context so
    * the provider loop's RE-resolve uses the same policy the first resolve did —
@@ -225,7 +232,15 @@ export async function buildChatRequestContext(
 
   // Determine if this is a direct user session (not API key)
   // API key requests should be neutral and not include creator's personal info
-  const isDirectUserSession = !!req.user && !req.apiKey;
+  // A delegated service request has a person in `req.user`, but its principal
+  // is still the verified application in `req.serviceApp`. Calling it a direct
+  // session would erase the application boundary and expose direct-only
+  // context/tools to a machine caller.
+  const isDirectUserSession = !!req.user && !req.apiKey && !req.serviceApp;
+  const isDelegatedServiceSession =
+    !!req.user?.id &&
+    !!req.serviceApp &&
+    req.serviceActingAs?.userId === req.user.id;
 
   /**
    * An agent id is an exact identity selector, never a hint.
@@ -238,7 +253,11 @@ export async function buildChatRequestContext(
    */
   let requestedAgentId: string | undefined;
   if (body.agentId !== undefined) {
-    if (typeof body.agentId !== 'string' || body.agentId.trim() === '') {
+    if (
+      typeof body.agentId !== 'string'
+      || body.agentId === ''
+      || body.agentId.trim() !== body.agentId
+    ) {
       res.status(400).json({
         error: {
           message: 'agentId must be a non-empty agent id.',
@@ -249,7 +268,7 @@ export async function buildChatRequestContext(
       });
       return null;
     }
-    if (!isDirectUserSession || !req.user?.id) {
+    if ((!isDirectUserSession && !isDelegatedServiceSession) || !req.user?.id) {
       res.status(404).json({
         error: {
           message: 'The selected agent is unavailable.',
@@ -409,7 +428,7 @@ export async function buildChatRequestContext(
     }
 
     localResolved = {
-      aliasModelId: String(body.model),
+      routingProfileId: String(body.model),
       provider: USER_RUNTIME_PROVIDER,
       /**
        * Who released the model is genuinely unknown: the person typed a tag
@@ -426,14 +445,13 @@ export async function buildChatRequestContext(
        * datacentre. `null` is the honest answer rather than an omission, and it
        * is what keeps `getAIModel` out of the Kaana branch entirely.
        */
-      kaanaReference: null,
+      oxyInferenceTarget: null,
       keyConfig: {
         provider: USER_RUNTIME_PROVIDER,
         modelId: localRuntime.model,
-        key: '',
         userRuntime: { userId: owner, runtimeId: localRuntime.runtimeId },
       },
-      aliaModel: {
+      routingProfile: {
         id: String(body.model),
         name: localRuntime.model,
         tier: 'local',
@@ -456,7 +474,7 @@ export async function buildChatRequestContext(
    * request flags take it straight back off:
    *
    *  - **`deepResearch`** runs `lib/research/research-engine.ts`, which resolves
-   *    `alia-lite` and `alia-v1` BY NAME (lines 221, 269, 300, 335) and calls
+   *    `kaana-lite` and `kaana-v1` BY NAME (lines 221, 269, 300, 335) and calls
    *    them several times per turn. `lib/chat-modes/deep-research-handler.ts`
    *    finalizes credits under `if (creditReservation)`, so with no reservation
    *    that work is charged to nobody.
@@ -476,7 +494,7 @@ export async function buildChatRequestContext(
     clearTimeout(globalTimer);
     const refusal = {
       message:
-        'Deep research and agent mode run on Alia\u2019s own models, so they are not available for a model running on your device. Pick an Alia model to use them.',
+        'Deep research and agent mode run on Alia\u2019s own models, so they are not available for a model running on your device. Pick a Kaana routing profile to use them.',
       type: 'invalid_request_error',
       param: deepResearch === true ? 'deepResearch' : 'agentMode',
       code: 'local_runtime_capability_unavailable',
@@ -491,8 +509,8 @@ export async function buildChatRequestContext(
 
   const requested: RequestedModel =
     localRuntime === null
-      ? await resolveRequestedModel(body.model || getDefaultAliaModel())
-      : { kind: 'alias', alias: String(body.model) };
+      ? await resolveRequestedModel(body.model || getDefaultRoutingProfile())
+      : { kind: 'routing-profile', routingProfile: String(body.model) };
   if (requested.kind === 'unknown-profile' || requested.kind === 'unknown-model') {
     /**
      * Two refusals, because they are two different mistakes.
@@ -530,12 +548,12 @@ export async function buildChatRequestContext(
     }
     return null;
   }
-  const requestedModel = requested.alias;
+  const requestedModel = requested.routingProfile;
   /**
    * The effort level, resolved here and nowhere else.
    *
    * It needs `requestedModel` because one of the three spellings IS a model
-   * identifier (`alia-v1-thinking`), which is why it sits below the resolution
+   * identifier (`kaana-v1-thinking`), which is why it sits below the resolution
    * rather than beside the other body fields.
    */
   const reasoningEffort = reasoningEffortOf({
@@ -644,6 +662,7 @@ export async function buildChatRequestContext(
           agentId: requestedAgentId,
           oxyUserId: req.user.id,
           accessToken: req.accessToken,
+          applicationId: req.serviceApp?.appId,
         }).catch((err: unknown) => {
           /**
            * A repository failure is not permission to substitute another
@@ -763,6 +782,40 @@ export async function buildChatRequestContext(
   const linkedAgent = turnAgent.kind === 'agent' ? turnAgent.agent : null;
 
   /**
+   * Product-agent inference is charged to the product application that entered
+   * this request. The same already-verified service token is forwarded to Oxy;
+   * Oxy therefore derives payer, application and credential from its claims.
+   * The delegated user remains attribution only. No request body field and no
+   * agent row can choose the payer.
+   */
+  let inferenceServiceToken: string | undefined;
+  if (linkedAgent?.applicationId != null) {
+    const exactApplication = req.serviceApp?.appId === linkedAgent.applicationId;
+    const exactDelegation =
+      req.user?.id !== undefined &&
+      req.serviceActingAs?.userId === req.user.id;
+    const hasInferenceScope =
+      req.serviceApp?.scopes.includes('inference:invoke') === true &&
+      req.serviceActingAs?.scopes.includes('inference:invoke') === true;
+    if (!exactApplication || !exactDelegation || !hasInferenceScope || !req.accessToken) {
+      clearTimeout(globalTimer);
+      const refusal = {
+        message: 'The selected agent is unavailable.',
+        type: 'invalid_request_error',
+        param: 'agentId',
+        code: 'agent_unavailable',
+      };
+      if (sse.sent) {
+        sse.writeError(refusal);
+      } else {
+        res.status(404).json({ error: refusal });
+      }
+      return null;
+    }
+    inferenceServiceToken = req.accessToken;
+  }
+
+  /**
    * Skills, after the batch rather than inside it: the candidate set includes
    * the skills linked to whichever agent this conversation runs, and that agent
    * is one of the things the batch resolves.
@@ -779,6 +832,9 @@ export async function buildChatRequestContext(
         conversationId,
         selectedNames: selectedSkillNames,
         agentSkillIds: linkedAgent ? (await findAgentSkills(getDb(), linkedAgent.id)).map((ref) => ref._id) : [],
+        // Linking a skill to an agent is the explicit grant. A person's other
+        // installed skills are not inherited by every agent they talk to.
+        includeUserInstalled: linkedAgent === null,
       }).catch((err) => {
         log.v1.warn({ err }, 'Skill runtime unavailable for this turn');
         return null;
@@ -834,14 +890,14 @@ export async function buildChatRequestContext(
     return null;
   }
 
-  const aliasModelId = resolved.aliasModelId;
+  const routingProfileId = resolved.routingProfileId;
   log.v1.info({ provider: resolved.provider, modelId: resolved.modelId }, 'Using provider');
 
   // Enforce plan-based model access (skip for API-key requests)
   // Uses entitlements prefetched in Promise.all above
   // No plan grants a person their own hardware, so there is nothing to check.
   if (req.user && !req.apiKey && entitlements && localRuntime === null) {
-    if (!entitlements.allowedModelIds.includes(aliasModelId)) {
+    if (!entitlements.allowedModelIds.includes(routingProfileId)) {
       if (creditReservation) await refundReservation(creditReservation);
       clearTimeout(globalTimer);
       const modelError = {
@@ -865,7 +921,7 @@ export async function buildChatRequestContext(
       userId: req.user.id,
       conversationId,
       messages,
-      model: aliasModelId,
+      model: routingProfileId,
       skillNames: selectedSkillNames ?? undefined,
       platform: req.apiKey ? 'telegram' as const : 'app' as const,
       metadata: {},
@@ -885,17 +941,18 @@ export async function buildChatRequestContext(
     includeUsage,
     isDirectUserSession,
     requestedModel,
-    promptModelId: localRuntime === null ? aliasModelId : getDefaultAliaModel(),
+    promptModelId: localRuntime === null ? routingProfileId : getDefaultRoutingProfile(),
     isLocalRuntime: localRuntime !== null,
     clientContext,
     userMemory,
     oxyUser,
-    skills: skills ?? { index: '', active: '', tools: {}, candidateIds: [], activated: () => [] },
+    skills: skills ?? { index: '', active: '', tools: {}, agentScoped: false, candidateIds: [], activated: () => [] },
     entitlements,
     linkedAgent,
+    inferenceServiceToken,
     creditReservation,
     resolved,
-    aliasModelId,
+    routingProfileId,
     routingOptions,
     autonomyRuntime,
     recalledMemories,

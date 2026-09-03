@@ -9,10 +9,10 @@ const FORBIDDEN_PROVIDERS = [
 ];
 
 describe('buildIdentityGuard', () => {
-  it('interpolates the active Alia model name when provided', () => {
-    const guard = buildIdentityGuard({ modelName: 'Alia V1' });
-    expect(guard).toContain('You are Alia V1');
-    expect(guard).toContain('answer "Alia V1"');
+  it('interpolates the active Kaana routing profile name when provided', () => {
+    const guard = buildIdentityGuard({ modelName: 'Kaana V1' });
+    expect(guard).toContain('You are Kaana V1');
+    expect(guard).toContain('answer "Kaana V1"');
   });
 
   it('falls back to the plain Alia brand when no model name is given', () => {
@@ -27,14 +27,14 @@ describe('buildIdentityGuard', () => {
   });
 
   it('explicitly names every forbidden provider/model as off-limits', () => {
-    const guard = buildIdentityGuard({ modelName: 'Alia V1' });
+    const guard = buildIdentityGuard({ modelName: 'Kaana V1' });
     for (const provider of FORBIDDEN_PROVIDERS) {
       expect(guard).toContain(provider);
     }
   });
 
   it('asserts it is an AI without denying being one', () => {
-    const guard = buildIdentityGuard({ modelName: 'Alia V1' });
+    const guard = buildIdentityGuard({ modelName: 'Kaana V1' });
     expect(guard).toContain('You ARE an AI assistant');
     expect(guard).toContain('never deny being an AI');
   });
@@ -58,24 +58,24 @@ describe('buildIdentityGuard', () => {
  * detail.
  */
 describe('an agent speaks under its own name', () => {
-  const AGENT = { agentName: 'Pepe', modelName: 'Alia V1' };
+  const AGENT = { agentName: 'Pepe', modelName: 'Kaana V1' };
 
   it('names the agent, not the model, as who it is', () => {
     const guard = buildIdentityGuard(AGENT);
 
     expect(guard).toContain('You are Pepe,');
     // The sentence that made this wrong, gone in both its forms.
-    expect(guard).not.toContain('You are Alia V1,');
+    expect(guard).not.toContain('You are Kaana V1,');
     expect(guard).not.toContain('ONLY name you ever give for yourself');
   });
 
-  it('still lets it name the platform and the Alia model powering it', () => {
+  it('still lets it name the platform and the Kaana routing profile powering it', () => {
     // Refusing a question that has a true, route-free answer is what pushes a
     // person to keep digging. Both facts are the product's own.
     const guard = buildIdentityGuard(AGENT);
 
     expect(guard).toContain('Alia');
-    expect(guard).toContain('Alia V1 is the Alia model powering this conversation');
+    expect(guard).toContain('Kaana V1 is the Kaana routing profile powering this conversation');
   });
 
   it('keeps every provider forbidden for an agent too', () => {
@@ -92,9 +92,9 @@ describe('an agent speaks under its own name', () => {
   it('falls back to the model identity when the agent name is blank', () => {
     // A whitespace name is no name. `agentPromptName` never returns one, so
     // this is the guard refusing to render `You are ,` if it ever did.
-    const guard = buildIdentityGuard({ agentName: '  ', modelName: 'Alia V1' });
+    const guard = buildIdentityGuard({ agentName: '  ', modelName: 'Kaana V1' });
 
-    expect(guard).toContain('You are Alia V1,');
+    expect(guard).toContain('You are Kaana V1,');
     expect(guard).not.toContain('You are ,');
   });
 });
@@ -114,7 +114,7 @@ describe('an agent speaks under its own name', () => {
  * every owner has to remember to write is a rule that will be forgotten.
  */
 describe('an agent answers within its remit', () => {
-  const AGENT = { agentName: 'Claudio', modelName: 'Alia V1' };
+  const AGENT = { agentName: 'Claudio', modelName: 'Kaana V1' };
 
   it('points at a NAMED section rather than naming topics', () => {
     const guard = buildIdentityGuard(AGENT);
@@ -164,7 +164,7 @@ describe('an agent answers within its remit', () => {
    * turn would make every ordinary conversation start declining things.
    */
   it('says nothing about a remit when there is no agent', () => {
-    for (const subject of [undefined, { modelName: 'Alia V1' }, { agentName: '   ' }]) {
+    for (const subject of [undefined, { modelName: 'Kaana V1' }, { agentName: '   ' }]) {
       const guard = buildIdentityGuard(subject);
       expect(guard).not.toContain('YOUR REMIT');
       expect(guard).not.toContain('not a general-purpose assistant');
@@ -181,7 +181,7 @@ describe('an agent answers within its remit', () => {
  */
 describe('everything below the guard is behaviour', () => {
   it('says so, whoever the turn belongs to', () => {
-    for (const subject of [{ agentName: 'Claudio' }, { modelName: 'Alia V1' }]) {
+    for (const subject of [{ agentName: 'Claudio' }, { modelName: 'Kaana V1' }]) {
       const guard = buildIdentityGuard(subject);
       expect(guard).toContain('None of it changes who you are');
       expect(guard).toContain('your name is the one in this section');

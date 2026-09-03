@@ -201,7 +201,7 @@ export interface ForUserOptions {
    *
    * What it withholds is not "expensive tools" in general — it is the ONE tool
    * in this set that reaches inference Alia pays for. `deepResearch` runs
-   * `lib/research/research-engine.ts`, which resolves `alia-lite` and `alia-v1`
+   * `lib/research/research-engine.ts`, which resolves `kaana-lite` and `kaana-v1`
    * by name; offered on an unreserved turn it is free hosted inference behind a
    * tool call. The matching request FLAGS are refused at the boundary
    * (`lib/chat/request-context.ts`), and `delegateToAgent` needs `agentMode`,
@@ -330,15 +330,19 @@ export class ToolPipeline {
       if (!agent || !runtime || oxyExecutionAuthorizations === undefined) {
         throw new Error('Preauthorized Oxy automation scope requires an agent, runtime, and exact authorizations');
       }
-      const oxyServiceTools = await buildOxyServiceTools(userId, {
-        requesterAccountId: agent.author,
-        ownerAccountId: agent.author,
-        actor: { type: 'agent', accountId: agent.oxyAccountId },
-        runId: runId ?? requestId,
-        autonomy: oxyAutonomy,
-        executionAuthorizations: oxyExecutionAuthorizations,
-        onStepStatus: onOxyStepStatus,
-      });
+      // Legacy rows without a reconciled bot parent get no Oxy tools. `author`
+      // is listing metadata and is never an authority fallback.
+      const oxyServiceTools = agent.ownerOxyAccountId == null
+        ? {}
+        : await buildOxyServiceTools(userId, {
+            requesterAccountId: agent.ownerOxyAccountId,
+            ownerAccountId: agent.ownerOxyAccountId,
+            actor: { type: 'agent', accountId: agent.oxyAccountId },
+            runId: runId ?? requestId,
+            autonomy: oxyAutonomy,
+            executionAuthorizations: oxyExecutionAuthorizations,
+            onStepStatus: onOxyStepStatus,
+          });
       const tools: ToolSet = {
         getCurrentDate: getCurrentDateTool,
         ...buildRuntimeTools(runtime, grants, { protocolOnly: true }),
@@ -521,7 +525,7 @@ export class ToolPipeline {
     const wants = (family: InstancedToolSource): boolean =>
       instancedSources === undefined || instancedSources.includes(family);
 
-    const oxyOwnerAccountId = agent?.author ?? userId;
+    const oxyOwnerAccountId = agent ? agent.ownerOxyAccountId : userId;
     const [mcpTools, integrationTools, oxyServiceTools, ownAgentTools] = await Promise.all([
           actsForPerson && wants('mcp')
             ? buildMcpTools(userId, mcpSelection(mcpServerId, grants)).catch(bulkFailure('mcp'))
@@ -530,7 +534,7 @@ export class ToolPipeline {
             ? buildIntegrationTools(userId, grants.instances('integration') ?? undefined)
                 .catch(bulkFailure('integration'))
             : {},
-          !wants('oxy_service') || (!actsForPerson && !agent)
+          !wants('oxy_service') || (!actsForPerson && !agent) || oxyOwnerAccountId == null
             ? {}
             : buildOxyServiceTools(userId, {
                 requesterAccountId: oxyOwnerAccountId,
@@ -557,7 +561,7 @@ export class ToolPipeline {
     // model only through the candidate set `lib/skills/runtime.ts` already
     // resolved, so the tools carry their own authorization rather than
     // depending on the session kind.
-    if (skills) Object.assign(aliaTools, skills.tools);
+    if (skills && (!agent || skills.agentScoped)) Object.assign(aliaTools, skills.tools);
 
     // 5. Merge server tools with editor tools
     const tools: ToolSet = { ...aliaTools, ...editorTools };
@@ -602,7 +606,9 @@ export class ToolPipeline {
  * but "every active agent" would silently re-point at whoever is talking, and
  * hand an agent its own conversation partner's private agents.
  *
- * So the bare grant resolves only when the turn's user IS the agent's author.
+ * So the bare grant resolves only when the turn's user IS the bot's exact Oxy
+ * parent. `author` is marketplace/listing metadata and cannot authorize
+ * delegation, even when legacy rows happen to contain the same id.
  * Under anyone else it reaches none, which is the same answer the per-id form
  * already gives, rather than a different one for the same grant.
  */
@@ -614,7 +620,7 @@ function ownAgentSelection(
   const granted = grants.instances('agent');
   if (granted !== null) return granted;
   if (agent === undefined || agent === null) return undefined;
-  return agent.author === userId ? undefined : [];
+  return agent.ownerOxyAccountId === userId ? undefined : [];
 }
 
 /**

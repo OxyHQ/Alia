@@ -12,7 +12,13 @@ Alia is a multi-surface context-agent platform focused on autonomous execution w
 
 A single chat runtime (`/alia/chat` and `/v1/chat/completions`) serves every surface. Each turn runs the autonomy loop `classify → recall → retrieve → act → learn`, draws from a per-user context graph, and is governed by an explicit risk policy (`R0`/`R1`/`R2`/`R3`) so writes are reversible, external impact requires approval, and destructive actions are blocked.
 
-Model access goes through thirteen `alia-*` identifiers. Upstream routing is never leaked to clients, product errors or customer-facing analytics. Several of those identifiers are routing policies rather than models, and the set is frozen — [model abstraction](./model-abstraction.mdx) says which is which, and [ADR 0003](./adr/0003-model-revision-deployment-provider-routing-profile.md) records the vocabulary that replaces them.
+Hosted inference follows `Alia -> Oxy -> Kaana`. Alia exposes canonical
+`kaana-*` product routing identifiers and modes. Oxy authenticates the caller
+and signs the exact ordered deployments; Kaana owns provider credentials,
+deployment execution, health and failover within that order. [Model
+abstraction](./model-abstraction.mdx) describes the boundary, and [ADR
+0003](./adr/0003-model-revision-deployment-provider-routing-profile.md) records
+the vocabulary behind it.
 
 ## Architecture
 
@@ -32,10 +38,12 @@ Model access goes through thirteen `alia-*` identifiers. Upstream routing is nev
               +----------------+          +-----------------+
               |                                             |
      +--------v---------+                       +-----------v-----------+
-     |   PostgreSQL     |                       |  Upstream model       |
-     |   (drizzle)      |                       |  endpoints, called    |
-     +--------+---------+                       |  in process           |
-              |                                 +-----------------------+
+     |   PostgreSQL     |                       |  Oxy inference edge   |
+     |   (drizzle)      |                       +-----------+-----------+
+     +--------+---------+                                   |
+                                                  +---------v---------+
+                                                  | Kaana data plane  |
+                                                  +-------------------+
      +--------v---------+
      |  Redis (Valkey)  |     Socket.IO (real-time events,
      |  rate limits,    |     approval requests, streaming)
@@ -43,7 +51,7 @@ Model access goes through thirteen `alia-*` identifiers. Upstream routing is nev
      +------------------+
 ```
 
-PostgreSQL is the only store. The last domains — conversations, messages, agents, organizations, containers, skills and the rest — are ported, and `packages/api` opens no MongoDB connection and registers no Mongoose model. Under [ADR 0001](./adr/0001-alia-oxy-kaana-responsibility-boundary.md) the in-process model calls move behind one typed client for Kaana, Oxy's own inference provider.
+PostgreSQL is Alia's product store. The last domains — conversations, messages, agents, organizations, containers, skills and the rest — are ported, and `packages/api` opens no MongoDB connection and registers no Mongoose model. Under [ADR 0001](./adr/0001-alia-oxy-kaana-responsibility-boundary.md), every hosted inference call crosses the published Oxy inference client and Oxy calls Kaana; only a user's explicitly connected local runtime stays outside that hop.
 
 | App | Stack | Purpose |
 | --- | --- | --- |
@@ -67,7 +75,7 @@ The monorepo uses Bun workspaces and Turbo. Bun is the only supported package ma
 bun install
 ```
 
-Copy `packages/api/.env.example` to `packages/api/.env` and fill it in. `DATABASE_URL` is the only database variable and the API refuses to boot without it. Alia declares no Mongo driver dependency. Provider-key custody is a separate Kaana cutover tracked by ADR 0001.
+Copy `packages/api/.env.example` to `packages/api/.env` and fill it in. `DATABASE_URL` is the only database variable and the API refuses to boot without it. Alia declares no Mongo driver dependency. Hosted provider credentials are not Alia environment variables or database rows; Kaana stores and uses them in its own PostgreSQL database. Alia authenticates to Oxy with its Oxy application service credential, and Oxy is the only hop that calls Kaana.
 
 ## Quick start
 
@@ -152,14 +160,16 @@ Approvals are real-time. The client receives `alia.approval_request` while the s
 
 ### Model abstraction
 
-The product surface exposes thirteen `alia-*` identifiers and nothing beneath them:
+The product exposes modes and canonical `kaana-*` routing profiles. Alia sends
+the selected profile or concrete model reference to Oxy without selecting an
+upstream deployment itself. Oxy resolves policy; Kaana owns provider credentials, health, routing,
+retry and fallback; provider names and endpoints do not appear on the product
+surface.
 
-- In the picker: `alia-lite`, `alia-v1`, `alia-v1-pro`, `alia-v1-thinking`, `alia-v1-pro-max`
-- Addressable but not in the picker: `alia-v1-codea`, `alia-v1-cowork`, `alia-v1-browser`, `alia-v1-vision`, `alia-v1-audio`, `alia-v1-multimodal`, `alia-v1-voice`, `alia-v1-voice-pro`
-
-Each identifier carries a tier, and each tier maps to a ranked list of upstream deployments (`ModelMapping` in `packages/api/src/internal/providers/lib/alia-models.ts`). The fallback engine walks that list in `priority` order, skipping any entry whose circuit breaker is open. Errors pass through `sanitizeMessage()` (`packages/api/src/lib/errors/sanitize.ts`) before reaching a user-facing surface: it redacts credentials, endpoints and the upstream error-code vocabulary on every surface, and conceals upstream operator names and model ids on the product surface only.
-
-Two of those identifiers share a tier, several are routing policies rather than models, and the whole set is frozen and inside a compatibility window. [Model abstraction](./model-abstraction.mdx) has the full table and the retirement gate.
+`packages/api/src/internal/providers` and the provider-labelled database tables
+remain only for historical data and credential migration. They are not on the
+hosted boot or chat path. [Model abstraction](./model-abstraction.mdx) documents
+the current boundary and the conditions for removing those retained records.
 
 ### Trigger engine
 
@@ -177,7 +187,7 @@ Legacy runs write a `trigger_executions` row with status, tool calls, token usag
 ## Deep dives
 
 - [Chat runtime and SSE events](./chat-runtime.mdx)
-- [AI providers and model abstraction](./model-abstraction.mdx)
+- [Kaana model abstraction](./model-abstraction.mdx)
 - [The `alia-*` layer: audit before removal](./alias-layer-audit.mdx)
 - [Multi-channel integrations and tools](./integrations.mdx)
 - [Skills: the Agent Skills format, and what an install authorises](./skills.mdx)

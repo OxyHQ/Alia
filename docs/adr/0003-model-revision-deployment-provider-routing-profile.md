@@ -8,8 +8,8 @@
 
 Alia currently has one word — "model" — for at least five different concepts, and the resulting confusion is visible in the code.
 
-- `alia-lite` is a routing policy. `packages/api/src/internal/providers/lib/generate-model-mappings.ts:36` maps that single identifier onto four distinct models from four different publishers, ranked by price and quality. Which one answers a given request depends on health and cost at that instant.
-- `alia-v1-codea` (`packages/api/src/internal/providers/lib/alia-models.ts:89`) and `alia-v1-thinking` (`:174`) encode a surface preset and a reasoning setting as model identities, even where the underlying weights are unchanged.
+- `kaana-lite` is a routing policy. `packages/api/src/internal/providers/lib/generate-model-mappings.ts:36` maps that single identifier onto four distinct models from four different publishers, ranked by price and quality. Which one answers a given request depends on health and cost at that instant.
+- `kaana-v1-codea` (`packages/api/src/internal/providers/lib/alia-models.ts:89`) and `kaana-v1-thinking` (`:174`) encode a surface preset and a reasoning setting as model identities, even where the underlying weights are unchanged.
 - Every one of the thirteen aliases is serialized with `object: 'model'` and `owned_by: 'alia'` (`packages/api/src/routes/v1/models.ts:24`), so a client cannot distinguish a policy from a model at all.
 - The provider that operates a deployment is already not always the model's publisher. `generate-model-mappings.ts:164` and `:175` route to deployments operated by one company for models published by another. The code has no vocabulary for that difference; it stores a single `provider` string.
 - The storage layer half-knows the distinction and half-does not: `chat_analytics` records both a provider model id and the Alia alias in separate columns (`packages/api/src/db/schema/usage.ts:111` and `:113`), but there is no column for a revision, and no concept of a deployment.

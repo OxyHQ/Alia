@@ -132,7 +132,7 @@ export const userMemories = pgTable(
  * `m.title.trim().toLowerCase() === normalized` at `user-memory.ts:60`, plus
  * the explicit collision refusal at `:174`. That IS the application's identity
  * rule, stated twice in one file, and the functional index makes it structural
- * rather than remembered. The `alia_model_provider_mappings` precedent.
+ * rather than remembered. The `routing_profile_provider_mappings` precedent.
  *
  * It is a real tightening and therefore a real backfill risk: two memories
  * differing only in case or surrounding whitespace collide, where Mongo held

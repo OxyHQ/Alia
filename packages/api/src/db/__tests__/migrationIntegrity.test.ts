@@ -85,6 +85,30 @@ describe('every migration declares the half of the rollout it belongs to', () =>
   });
 });
 
+describe('the agent routing-profile backfill is an explicit production mapping', () => {
+  it('maps only the reviewed agent PK and never derives identity from allowed_models', () => {
+    const source = readFileSync(
+      path.join(DRIZZLE, '0060_agent_routing_profile_identity.sql'),
+      'utf8',
+    );
+    const statements = source
+      .split('--> statement-breakpoint')
+      .map((statement) => statement
+        .split('\n')
+        .filter((line) => !line.startsWith('--'))
+        .join('\n')
+        .trim())
+      .filter((statement) => statement.startsWith('UPDATE '));
+
+    expect(statements).toEqual([
+      'UPDATE "agents"\n' +
+        'SET "routing_profile_id" = \'01a06477-94f5-74f0-bc25-4c5c13b93ccd\'\n' +
+        'WHERE "id" = \'01a03df0-2834-7309-80cb-cb1b1ce67dda\';',
+    ]);
+    expect(statements[0]).not.toContain('allowed_models');
+  });
+});
+
 describe('the journal is a strictly ordered, complete record', () => {
   it('ascends by `when`, which is the migration identity', () => {
     const entries = journal();
@@ -204,23 +228,33 @@ describe('the schema and the migrations agree', () => {
     ).toEqual([]);
   }, 120_000);
 
-  it('the probe can detect a migration that is missing', () => {
-    // The positive control, and the reason the assertion above means anything:
-    // with the newest migration taken out of the copy, drizzle-kit must want to
-    // write it again. Without this, "emitted nothing" and "the probe never ran"
-    // are the same observation — which they were, on the first version of this,
-    // where a mis-invoked drizzle-kit emitted nothing and exited 0.
+  it('the probe can detect snapshot drift without an interactive rename', () => {
+    // The positive control, and the reason the assertion above means anything.
+    // Removing the newest migration is not a deterministic probe: when it
+    // contains a table or column rename, drizzle-kit asks an interactive
+    // question and emits nothing under execFileSync. That false green is the
+    // exact outcome this control must distinguish from a clean schema.
+    //
+    // Instead, remove one unambiguous table from the newest snapshot copy.
+    // Drizzle must recreate it without a prompt. The real folder remains
+    // untouched and the change still exercises the same schema-vs-history
+    // comparison as the assertion above.
     const emitted = emittedBy((dir) => {
       const entries: JournalEntry[] = JSON.parse(
         readFileSync(path.join(dir, 'meta', '_journal.json'), 'utf8'),
       ).entries;
       const last = entries[entries.length - 1];
-      rmSync(path.join(dir, `${last.tag}.sql`));
-      rmSync(path.join(dir, 'meta', `${String(last.idx).padStart(4, '0')}_snapshot.json`));
-      writeFileSync(
-        path.join(dir, 'meta', '_journal.json'),
-        JSON.stringify({ version: '7', dialect: 'postgresql', entries: entries.slice(0, -1) }, null, 2),
+      const snapshotPath = path.join(
+        dir,
+        'meta',
+        `${String(last.idx).padStart(4, '0')}_snapshot.json`,
       );
+      const snapshot = JSON.parse(readFileSync(snapshotPath, 'utf8')) as {
+        tables: Record<string, unknown>;
+      };
+      expect(snapshot.tables['public.leases']).toBeDefined();
+      delete snapshot.tables['public.leases'];
+      writeFileSync(snapshotPath, JSON.stringify(snapshot, null, 2));
     });
 
     expect(emitted).toHaveLength(1);

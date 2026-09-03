@@ -71,6 +71,7 @@ import { conversations } from '../schema/chat';
 import { libraryFiles } from '../schema/library';
 import { skills } from '../schema/skills';
 import type { AgentAccess, AgentArchetype, AgentStatus } from '../../domain/agent';
+import type { OxyKaanaRoutingProfileId } from '../../config/oxy-inference-routing-profile-ids';
 
 type AgentRow = typeof agents.$inferSelect;
 
@@ -113,6 +114,10 @@ export interface AgentRecord {
    * record, so nothing here can disagree with Oxy.
    */
   oxyAccountId: string;
+  /** Exact bot parent from Oxy; null only on unreconciled legacy rows. */
+  ownerOxyAccountId: string | null;
+  /** Exact Oxy application allowed to invoke this product agent. */
+  applicationId: string | null;
   tagline: string;
   description: string;
   author: string;
@@ -138,7 +143,8 @@ export interface AgentRecord {
   access: AgentAccess;
   systemPrompt: string | null;
   preferredImage: string | null;
-  allowedModels: string[];
+  /** Exact Oxy routing-profile PK; null only on unreconciled legacy rows. */
+  routingProfileId: string | null;
   scheduleInterval: number | null;
   /** ABSENT on an agent that has never evolved. */
   soul?: AgentSoul;
@@ -203,6 +209,8 @@ export function toAgentRecord(row: AgentRow): AgentRecord {
     _id: row.id,
     id: row.id,
     oxyAccountId: row.oxyAccountId,
+    ownerOxyAccountId: row.ownerOxyAccountId,
+    applicationId: row.applicationId,
     tagline: row.tagline,
     description: row.description,
     author: row.authorOxyUserId,
@@ -221,7 +229,7 @@ export function toAgentRecord(row: AgentRow): AgentRecord {
     access: row.access as AgentAccess,
     systemPrompt: row.systemPrompt,
     preferredImage: row.preferredImage,
-    allowedModels: row.allowedModels,
+    routingProfileId: row.routingProfileId,
     scheduleInterval: row.scheduleInterval,
     soul: toSoul(row),
     archetype: row.archetype as AgentArchetype,
@@ -443,6 +451,18 @@ function catalogueFilter(query: AgentCatalogueQuery): SQL | undefined {
  */
 export function withoutSystemPrompt(record: AgentRecord): AgentRecord {
   return { ...record, systemPrompt: null };
+}
+
+/** Oxy product bindings are authorization facts and never public API fields. */
+export function withoutInternalAgentBindings<
+  T extends { applicationId: string | null; ownerOxyAccountId: string | null },
+>(record: T): Omit<T, 'applicationId' | 'ownerOxyAccountId'> {
+  const {
+    applicationId: _applicationId,
+    ownerOxyAccountId: _ownerOxyAccountId,
+    ...publicRecord
+  } = record;
+  return publicRecord;
 }
 
 /**
@@ -773,6 +793,10 @@ export async function replaceAgentKnowledge(
 export interface CreateAgentInput {
   /** The Oxy `bot` account the agent IS. Verified by the caller before it gets here. */
   oxyAccountId: string;
+  /** The bot's exact direct parent, resolved from Oxy rather than `author`. */
+  ownerOxyAccountId: string;
+  /** Restrict invocation to one credential-derived Oxy application id. */
+  applicationId?: string | null;
   tagline: string;
   description: string;
   authorOxyUserId: string;
@@ -784,8 +808,8 @@ export interface CreateAgentInput {
   isPublished?: boolean;
   access?: AgentAccess;
   systemPrompt?: string;
-  /** Omit to take the column default, which is what `POST /agents` does. */
-  allowedModels?: string[];
+  /** Exact reviewed Oxy routing-profile PK. No default or name translation. */
+  routingProfileId: OxyKaanaRoutingProfileId;
   archetype?: AgentArchetype;
   archetypeConfig?: unknown;
   skillIds?: string[];
@@ -811,6 +835,8 @@ export async function createAgent(
       .insert(agents)
       .values({
         oxyAccountId: input.oxyAccountId,
+        ownerOxyAccountId: input.ownerOxyAccountId,
+        applicationId: input.applicationId ?? null,
         tagline: input.tagline,
         description: input.description,
         authorOxyUserId: input.authorOxyUserId,
@@ -821,7 +847,7 @@ export async function createAgent(
         isPublished: input.isPublished ?? true,
         access: input.access ?? 'private',
         ...(input.systemPrompt !== undefined && { systemPrompt: input.systemPrompt }),
-        ...(input.allowedModels !== undefined && { allowedModels: input.allowedModels }),
+        routingProfileId: input.routingProfileId,
         ...(input.archetype !== undefined && { archetype: input.archetype }),
         ...(input.archetypeConfig !== undefined && { archetypeConfig: input.archetypeConfig }),
       })
@@ -852,12 +878,13 @@ export interface UpdateAgentInput {
   status?: AgentStatus;
   access?: AgentAccess;
   systemPrompt?: string;
-  allowedModels?: string[];
   scheduleInterval?: number;
   archetype?: AgentArchetype;
   archetypeConfig?: unknown;
   skillIds?: string[];
   libraryFileIds?: string[];
+  /** Binding only narrows which verified Oxy application may invoke the agent. */
+  applicationId?: string | null;
 }
 
 /**

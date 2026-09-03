@@ -8,14 +8,10 @@
  * `body.model` is ONE string carrying three different kinds of request, and
  * they are not comparable:
  *
- *  - a **product mode** — `profile:v1-pro`, what the picker sends;
+ *  - a **routing profile** — `kaana-v1-pro`, what the picker sends;
  *  - a **concrete model** — `<publisher>/<model>[@<revision>]`, ADR 0003's
  *    canonical reference, what a caller who wants exactly those weights sends;
- *  - a **legacy alias** — one of the thirteen `alia-*` identifiers, which come
- *    off every advertised surface but keep resolving, so an installed client
- *    goes on sending one for as long as it is installed.
- *
- * Storing the string and nothing else makes `alia-v1-pro` and `qwen/qwen3-32b`
+ * Storing the string and nothing else makes `kaana-v1-pro` and `qwen/qwen3-32b`
  * two rows of the same column and invites every later query to treat them as
  * two model choices. They are a product mode wearing a model's name and a model.
  * Reading them as the same thing IS the conflation this epic is removing, so the
@@ -24,34 +20,28 @@
  *
  * ## Reasoning is a parameter, not a model
  *
- * `alia-v1-thinking` and `alia-v1-pro-max` are one routing preset with two names
+ * `kaana-v1-thinking` and `kaana-v1-pro-max` are one routing preset with two names
  * (`lib/routing/presets.ts`: "Two identifiers, one policy"), and the difference
  * between them is a reasoning setting. So the reasoning request is lifted out
  * into {@link reasoningEffortOf} and recorded in its own column, from BOTH the
- * places a caller can express it — the `thinkingMode` flag and the alias — and
- * the alias's model half is then just the profile it selects. Without the lift,
+ * places a caller can express it — the `thinkingMode` flag and the dedicated
+ * routing profile. Without the lift,
  * "how many people asked for extended reasoning" is a question answerable only
  * by knowing which model identifiers secretly meant it.
  *
  * ## What this does NOT decide
  *
- * Nothing here routes. `translateAlias` and `resolveRoutingTarget` own what a
- * request becomes; this reads the same identifier a second time to say what it
+ * Nothing here routes. `resolveRoutingTarget` owns what a request becomes; this
+ * reads the same identifier a second time to say what it
  * WAS. An identifier neither recognises is `unregistered` rather than an error:
  * an analytics write must not be able to fail a request, and "the caller asked
  * for something we do not serve" is itself a fact worth counting.
  */
 
-import { modelReferenceSchema, routingProfileSlugSchema } from '@oxyhq/contracts';
+import { modelReferenceSchema } from '@oxyhq/contracts';
 
-import { ROUTING_PRESETS } from '../routing/presets.js';
 import { isEffortLevel, type EffortLevel } from '../reasoning-effort.js';
-import { translateAlias } from '../routing/alias-translation.js';
-
-/** The namespace marker Alia's flat id space uses for a product mode. */
-const PROFILE_ID_PREFIX = 'profile:';
-
-const KNOWN_PROFILE_IDS: ReadonlySet<string> = new Set(ROUTING_PRESETS.map((preset) => preset.id));
+import { isKaanaRoutingProfileId } from '../routing/kaana-profiles.js';
 
 /**
  * The three shapes a request can name, plus the answer for one that names none.
@@ -63,7 +53,6 @@ const KNOWN_PROFILE_IDS: ReadonlySet<string> = new Set(ROUTING_PRESETS.map((pres
 export type RequestedModelKind =
   | 'routing_profile'
   | 'model_reference'
-  | 'legacy_alias'
   | 'unregistered';
 
 export interface RequestedModelIdentity {
@@ -71,13 +60,8 @@ export interface RequestedModelIdentity {
   readonly id: string;
   readonly kind: RequestedModelKind;
   /**
-   * The product mode this request selects, `profile:<tier>`.
-   *
-   * Present for a product mode and for a legacy alias — which is the whole
-   * point: the two are the SAME choice expressed in two eras, and a query that
-   * groups on this column sees them together without having to know the
-   * migration map. Null for a concrete model reference, which selects no
-   * profile, and for an identifier nothing recognises.
+   * The canonical Kaana routing profile this request selects. Null for a
+   * concrete model reference and for an identifier nothing recognises.
    */
   readonly profileId: string | null;
 }
@@ -85,29 +69,12 @@ export interface RequestedModelIdentity {
 /**
  * Classify one requested identifier.
  *
- * Order matters and is not arbitrary: the alias table is consulted FIRST,
- * because `alia-v1-pro` is a well-formed routing-profile slug and a
- * grammar-first reading would classify all thirteen aliases as product modes
- * that Kaana has never heard of.
+ * The profile set is exact: a well-formed slug is not automatically a profile
+ * this product is allowed to request.
  */
 export function classifyRequestedModel(requested: string): RequestedModelIdentity {
-  const translation = translateAlias(requested);
-  if (translation.kind === 'translated') {
-    return { id: requested, kind: 'legacy_alias', profileId: translation.translation.profileId };
-  }
-  if (translation.kind === 'unregistered_alias') {
-    return { id: requested, kind: 'unregistered', profileId: null };
-  }
-
-  if (requested.startsWith(PROFILE_ID_PREFIX)) {
-    const slug = requested.slice(PROFILE_ID_PREFIX.length);
-    // Well-formed AND known. A slug this service does not serve is
-    // `unregistered`, so "a product mode was requested" cannot be satisfied by a
-    // caller inventing one.
-    const known = routingProfileSlugSchema.safeParse(slug).success && KNOWN_PROFILE_IDS.has(requested);
-    return known
-      ? { id: requested, kind: 'routing_profile', profileId: requested }
-      : { id: requested, kind: 'unregistered', profileId: null };
+  if (isKaanaRoutingProfileId(requested)) {
+    return { id: requested, kind: 'routing_profile', profileId: requested };
   }
 
   // The contract's own grammar, not a hand-written one: `<publisher>/<model>`
@@ -145,7 +112,7 @@ export function classifyRequestedModel(requested: string): RequestedModelIdentit
  *    ADR 0004 keeps that surface serving its existing request shape. This one
  *    function is the whole compatibility surface — nothing downstream carries a
  *    boolean;
- *  - `alia-v1-thinking`, which is the same parameter wearing a model's name.
+ *  - `kaana-v1-thinking`, which is the same parameter wearing a model's name.
  *
  * The two legacy spellings mean `medium`, and not a higher level: both meant
  * "reason" against a code path that sent NO budget at all, so mapping them to
@@ -161,18 +128,18 @@ export function reasoningEffortOf(input: {
   readonly requestedModel: string;
 }): ReasoningEffort | null {
   if (isEffortLevel(input.reasoningEffort)) return input.reasoningEffort;
-  if (input.thinkingMode === true) return LEGACY_REASONING_LEVEL;
-  return input.requestedModel === THINKING_ALIAS ? LEGACY_REASONING_LEVEL : null;
+  if (input.thinkingMode === true) return COMPAT_REASONING_LEVEL;
+  return input.requestedModel === THINKING_PROFILE ? COMPAT_REASONING_LEVEL : null;
 }
 
-/** What the two boolean-era spellings mean on the graded scale. */
-const LEGACY_REASONING_LEVEL: EffortLevel = 'medium';
+/** What boolean-era reasoning requests mean on the graded scale. */
+const COMPAT_REASONING_LEVEL: EffortLevel = 'medium';
 
 /**
- * The one alias whose identity IS a reasoning setting.
+ * The canonical Kaana profile whose product meaning includes reasoning.
  *
  * Asserted against `ROUTING_PRESETS` in `__tests__/requested-model.test.ts`
- * rather than trusted: it shares a preset with `alia-v1-pro-max`, and if that
+ * rather than trusted: it shares a preset with `kaana-v1-pro-max`, and if that
  * ever stops being true this constant is naming a model instead of a setting.
  */
-const THINKING_ALIAS = 'alia-v1-thinking';
+const THINKING_PROFILE = 'kaana-v1-thinking';

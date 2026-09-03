@@ -39,6 +39,10 @@ import { POST_PHASE_GREP_PATTERN } from '@oxyhq/db/migrate';
 
 const workflowPath = fileURLToPath(new URL('../../../../../.github/workflows/deploy-aws.yml', import.meta.url));
 const workflow = readFileSync(workflowPath, 'utf8');
+const integrationsWorkflow = readFileSync(
+  fileURLToPath(new URL('../../../../../.github/workflows/deploy-integrations.yml', import.meta.url)),
+  'utf8',
+);
 const resolver = readFileSync(
   fileURLToPath(new URL('../../../../../.github/scripts/resolve-ecr-platform-digest.sh', import.meta.url)),
   'utf8',
@@ -62,8 +66,8 @@ describe('deploy-aws.yml migration wiring', () => {
     expect(workflow).toContain("RUN_MIGRATIONS: 'true'");
   });
 
-  it('re-asserts both names of the API public origin on every task revision', () => {
-    const from = workflow.indexOf('      - name: Stage the Kaana edge configuration');
+  it('re-asserts both Alia origins and the Oxy inference origin on every task revision', () => {
+    const from = workflow.indexOf('      - name: Stage Oxy inference configuration');
     const to = workflow.indexOf('      # RUN_MIGRATIONS', from);
     const environmentStage = workflow.slice(from, to);
 
@@ -71,15 +75,68 @@ describe('deploy-aws.yml migration wiring', () => {
     expect(to).toBeGreaterThan(from);
     expect(environmentStage).toContain('API_BASE_URL: "https://api.alia.onl"');
     expect(environmentStage).toContain('ALIA_API_URL: "https://api.alia.onl"');
-    expect(environmentStage).toContain("jq -cs '.[0] * .[1] * .[2]'");
+    expect(environmentStage).toContain('OXY_API_URL: "https://api.oxy.so"');
+    expect(environmentStage).toContain("jq -cs '.[0] * .[1]'");
     // Required values merge last, so a future optional block cannot silently
     // override the canonical production origin.
     expect(environmentStage).toContain(
-      '<(echo "${INTEGRATIONS_ENV:-{\\}}") <(echo "$kaana_env") <(echo "$required_env")',
+      '<(echo "${INTEGRATIONS_ENV:-{\\}}") <(echo "$required_env")',
     );
     expect(workflow).toContain(
       'TASK_ENV_OVERRIDES_JSON: ${{ steps.kaana.outputs.env_overrides }}',
     );
+  });
+
+  it('wires integrations from exact SSM metadata and the Terraform Cloud Map name', () => {
+    const from = workflow.indexOf('      - name: Stage the integrations service wiring');
+    const to = workflow.indexOf('      - name: Stage Oxy inference configuration', from);
+    const stage = workflow.slice(from, to);
+
+    expect(from).toBeGreaterThanOrEqual(0);
+    expect(to).toBeGreaterThan(from);
+    expect(stage).toContain('aws ssm describe-parameters');
+    expect(stage).toContain("--query 'Parameters[0].[Name,Type]'");
+    expect(stage).toContain('actual_type" != "SecureString');
+    expect(stage).toContain('arn:aws:ssm:$AWS_REGION:237343248947:parameter/oxy/$APP/INTEGRATIONS_SECRET');
+    expect(stage).toContain('http://integrations.alia.internal.oxy.so:3005');
+    expect(stage).not.toContain('secrets.INTEGRATIONS_SECRET');
+    expect(stage).not.toContain('vars.INTEGRATIONS_URL');
+    expect(stage).not.toContain('get-parameter');
+    expect(stage).not.toContain('with-decryption');
+  });
+
+  it('does not let either deploy overwrite the SSM-owned integrations secret', () => {
+    for (const [name, source] of [
+      ['api', workflow],
+      ['integrations', integrationsWorkflow],
+    ] as const) {
+      expect(source, name).not.toContain('secrets.INTEGRATIONS_SECRET');
+      expect(source, name).not.toMatch(/put-parameter[^\n]*INTEGRATIONS_SECRET/);
+      expect(source, name).toContain('aws ssm describe-parameters');
+      expect(source, name).not.toContain('aws ssm get-parameter');
+      expect(source, name).not.toContain('--with-decryption');
+    }
+  });
+
+  it('binds the Oxy-provisioned application credential without copying a GitHub value', () => {
+    const from = workflow.indexOf('      - name: Stage Oxy inference configuration');
+    const to = workflow.indexOf('      # RUN_MIGRATIONS', from);
+    const stage = workflow.slice(from, to);
+
+    expect(from).toBeGreaterThanOrEqual(0);
+    expect(to).toBeGreaterThan(from);
+    expect(stage).toContain('for name in OXY_SERVICE_API_KEY OXY_SERVICE_API_SECRET');
+    expect(stage).toContain('aws ssm describe-parameters');
+    expect(stage).toContain("--query 'Parameters[0].[Name,Type]'");
+    expect(stage).toContain('actual_type" != "SecureString');
+    expect(stage).toContain('required Oxy-provisioned SecureString metadata is absent');
+    expect(stage).toContain('arn:aws:ssm:$AWS_REGION:237343248947:parameter/oxy/$APP/OXY_SERVICE_API_KEY');
+    expect(stage).toContain('arn:aws:ssm:$AWS_REGION:237343248947:parameter/oxy/$APP/OXY_SERVICE_API_SECRET');
+    expect(workflow).not.toContain('secrets.OXY_SERVICE_API_KEY');
+    expect(workflow).not.toContain('secrets.OXY_SERVICE_API_SECRET');
+    expect(workflow).not.toContain('sync_secret OXY_SERVICE_API_');
+    expect(stage).not.toContain('get-parameter');
+    expect(stage).not.toContain('with-decryption');
   });
 
   it('deploys the validated linux/arm64 child while retaining the provenance index', () => {
@@ -105,6 +162,15 @@ describe('deploy-aws.yml migration wiring', () => {
    */
   it('states the migration target rather than letting it default', () => {
     expect(workflow).toContain('MIGRATION_TARGET_DATABASE: ${{ env.APP }}');
+  });
+
+  it('runs the exact agent-routing readiness report before ECS is updated', () => {
+    const build = readFileSync(fileURLToPath(new URL('../../../build.ts', import.meta.url)), 'utf8');
+    expect(build).toContain("entryPoints: ['src/scripts/check-agent-routing-profile-readiness.ts']");
+    expect(build).toContain("outfile: 'dist/scripts/check-agent-routing-profile-readiness.js'");
+    expect(workflow).toContain(
+      `PRE_DEPLOY_TASK_COMMAND_JSON: '["node","packages/api/dist/scripts/check-agent-routing-profile-readiness.js","--target-database=alia"]'`,
+    );
   });
 
   it('greps for the post-phase marker with the pattern @oxyhq/db exports, not a copy', () => {
@@ -300,16 +366,26 @@ describe('deploy-aws.yml stall bounds', () => {
  * render carries `.secrets` FORWARD from the running revision, so every future
  * revision descends from one that carries them.
  */
-describe('the deploy stops injecting the static AWS credentials', () => {
+describe('the deploy removes retired credentials and runtime configuration', () => {
   const script = readFileSync(
     fileURLToPath(new URL('../../../../../.github/scripts/deploy-ecs-image.sh', import.meta.url)),
     'utf8',
   );
 
-  it('the workflow names both variables for removal', () => {
+  it('the workflow names every retired secret binding for removal', () => {
     const declared = /TASK_SECRET_REMOVALS_JSON:\s*'(\[.*?\])'/.exec(workflow);
     expect(declared, 'the workflow declares no removals').not.toBeNull();
-    expect(JSON.parse(declared![1]).sort()).toEqual(['AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY']);
+    const removalJson = declared?.[1];
+    if (removalJson === undefined) throw new Error('the workflow declares no removals');
+    expect((JSON.parse(removalJson) as string[]).sort()).toEqual([
+      'ALIA_KAANA_CREDENTIAL_KEY',
+      'ALIA_KAANA_CREDENTIAL_SECRET',
+      'ALIA_RELAY_CREDENTIAL_KEY',
+      'ALIA_RELAY_CREDENTIAL_SECRET',
+      'AWS_ACCESS_KEY_ID',
+      'AWS_SECRET_ACCESS_KEY',
+      'KAANA_EDGE_SIGNING_PRIVATE_KEY',
+    ]);
   });
 
   it('and the render actually filters on that list', () => {
@@ -323,6 +399,38 @@ describe('the deploy stops injecting the static AWS credentials', () => {
   it('refuses a variable that is both removed and replaced', () => {
     // A contradiction resolved silently is a contradiction nobody sees.
     expect(script).toContain('TASK_SECRET_REMOVALS_JSON and TASK_SECRET_OVERRIDES_JSON name the same variable');
+  });
+
+  it('names every retired plain task binding and wires its filter', () => {
+    const declared = /TASK_CONFIGURATION_REMOVALS_JSON:\s*'(\[.*?\])'/.exec(workflow);
+    expect(declared, 'the workflow declares no plain configuration removals').not.toBeNull();
+    const removalJson = declared?.[1];
+    if (removalJson === undefined) {
+      throw new Error('the workflow declares no plain configuration removals');
+    }
+    expect((JSON.parse(removalJson) as string[]).sort()).toEqual([
+      'ALIA_KAANA_ACCOUNT_ID',
+      'ALIA_KAANA_APPLICATION_ID',
+      'ALIA_KAANA_CLIENT_ENABLED',
+      'ALIA_KAANA_CREDENTIAL_ID',
+      'ALIA_KAANA_ENVIRONMENT',
+      'ALIA_KAANA_INFERENCE_SCOPES',
+      'ALIA_RELAY_ACCOUNT_ID',
+      'ALIA_RELAY_APPLICATION_ID',
+      'ALIA_RELAY_CREDENTIAL_ID',
+      'ALIA_RELAY_ENVIRONMENT',
+      'ALIA_RELAY_INFERENCE_SCOPES',
+      'KAANA_BASE_URL',
+      'KAANA_EDGE_KEY_ID',
+      'RELAY_BASE_URL',
+    ]);
+    expect(script).toContain(
+      '--argjson taskConfigurationRemovals "$TASK_CONFIGURATION_REMOVALS_JSON"',
+    );
+    expect(script).toMatch(/\$taskConfigurationRemovals \| index\(\$existingName\)\) == null/);
+    expect(script).toContain(
+      'TASK_CONFIGURATION_REMOVALS_JSON and TASK_ENV_OVERRIDES_JSON name the same variable',
+    );
   });
 
   it('and the code can survive their absence', () => {

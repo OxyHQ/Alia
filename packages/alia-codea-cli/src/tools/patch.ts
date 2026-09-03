@@ -134,7 +134,7 @@ export async function applyPatch(patchText: string, basePath: string): Promise<P
         throw new Error(`File not found: ${filePatch.filePath}`);
       }
 
-      let fileLines = content.split('\n');
+      const fileLines = content.split('\n');
 
       // Apply hunks in reverse order to preserve line numbers
       const sortedHunks = [...filePatch.hunks].sort((a, b) => b.oldStart - a.oldStart);

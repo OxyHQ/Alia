@@ -41,7 +41,7 @@ export interface ChatAnalyticsRecord {
   /** The reasoning parameter, kept out of the model identifier. */
   readonly reasoningEffort: string | null;
   /** The alias that served the turn. Required for the same reason. */
-  readonly aliaModelId: string;
+  readonly routingProfileId: string;
   readonly promptTokens: number;
   readonly completionTokens: number;
   readonly totalTokens: number;
@@ -67,7 +67,7 @@ export async function insertChatAnalytics(
     requestedModelKind: record.requestedModelKind,
     requestedProfileId: record.requestedProfileId,
     reasoningEffort: record.reasoningEffort,
-    aliaModelId: record.aliaModelId,
+    routingProfileId: record.routingProfileId,
     promptTokens: record.promptTokens,
     completionTokens: record.completionTokens,
     totalTokens: record.totalTokens,
@@ -118,7 +118,7 @@ export interface UsageByModel {
   /**
    * The Alia alias the group is named by.
    *
-   * `null` is reachable and typed rather than assumed away: `alia_model_id` is
+   * `null` is reachable and typed rather than assumed away: `routing_profile_id` is
    * nullable (see `db/schema/usage.ts` on why it is not narrowed), so a row
    * written without one groups under NULL. The route drops that group, which is
    * the same answer the old `coalesce` produced by a longer route.
@@ -130,18 +130,18 @@ export interface UsageByModel {
 }
 
 /**
- * One row per Alia model, busiest first.
+ * One row per Kaana routing profile, busiest first.
  *
- * Grouped by `alia_model_id` ALONE. It was `coalesce(alia_model_id, model)`,
+ * Grouped by `routing_profile_id` ALONE. It was `coalesce(routing_profile_id, model)`,
  * ported from the source's `$ifNull`, and the fallback arm is gone: `model`
  * holds a provider model id for rows from a 29-day window in early 2026 and a
  * second copy of the alias for every row since (see the table comment), so the
- * coalesce could only ever surface a key `getAliaModel()` refuses — the route
+ * coalesce could only ever surface a key `getRoutingProfile()` refuses — the route
  * drops it either way. A null alias is therefore dropped by the route rather
  * than shown under a provider's own name, which is the same answer with one
  * fewer way to be wrong.
  *
- * The caller resolves each key through `getAliaModel()`, which is keyed by the
+ * The caller resolves each key through `getRoutingProfile()`, which is keyed by the
  * ALIAS, and DROPS what will not resolve — which is why this groups by the
  * alias and not by `requested_model_id`: a caller may ask for any string, and
  * grouping by what they asked for would answer an empty list for a caller who
@@ -154,14 +154,14 @@ export async function aggregateUsageByModel(
 ): Promise<UsageByModel[]> {
   return db
     .select({
-      _id: chatAnalytics.aliaModelId,
+      _id: chatAnalytics.routingProfileId,
       count: rowCount,
       totalTokens: sumTokens,
       avgLatency,
     })
     .from(chatAnalytics)
     .where(ownedSince(oxyUserId, since))
-    .groupBy(chatAnalytics.aliaModelId)
+    .groupBy(chatAnalytics.routingProfileId)
     .orderBy(desc(rowCount));
 }
 

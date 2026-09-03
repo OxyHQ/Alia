@@ -43,6 +43,7 @@ vi.mock('@oxyhq/core', async () => {
         if (oxy.mode === 'unreachable') throw new Error('ECONNREFUSED api.oxy.so');
         return {
           accountId,
+          parentAccountId: 'owner-account-1',
           kind: 'bot',
           relationship: oxy.mode === 'grants' ? 'owner' : 'none',
           account: { id: accountId, kind: 'bot' },
@@ -57,7 +58,7 @@ vi.mock('@oxyhq/core', async () => {
 
 vi.mock('../../chat-core.js', () => ({
   resolveModel: (...args: unknown[]) => resolveModel(...args),
-  getDefaultAliaModel: () => 'alia-lite',
+  getDefaultRoutingProfile: () => 'kaana-lite',
 }));
 
 /**
@@ -69,12 +70,12 @@ vi.mock('../../chat-core.js', () => ({
  * prices say about them.
  */
 vi.mock('../../gateway-client.js', async () => {
-  const actual = await vi.importActual<typeof import('../../../internal/providers/lib/alia-models.js')>(
-    '../../../internal/providers/lib/alia-models.js',
+  const actual = await vi.importActual<typeof import('../../../internal/providers/lib/routing-profile-catalogue.js')>(
+    '../../../internal/providers/lib/routing-profile-catalogue.js',
   );
   return {
     getTierMappings: async () => actual.TIER_MODEL_MAPPINGS,
-    getAllAliaModels: async () => Object.values(actual.ALIA_MODELS),
+    getAllRoutingProfiles: async () => Object.values(actual.KAANA_ROUTING_PROFILES),
   };
 });
 
@@ -132,6 +133,12 @@ async function run(
     directUserId?: string;
     apiKey?: boolean;
     agentId?: unknown;
+    serviceApp?: {
+      appId: string;
+      scopes: string[];
+    };
+    delegatedScopes?: string[];
+    accessToken?: string;
     /** A streaming request: headers are already out, so a refusal is an SSE event. */
     sseSent?: boolean;
   } = {},
@@ -157,7 +164,21 @@ async function run(
     },
     ...(options.directUserId === undefined ? {} : { user: { id: options.directUserId } }),
     ...(options.apiKey ? { apiKey: { id: 'key-1' } } : {}),
-    accessToken: 'token-1',
+    ...(options.serviceApp === undefined
+      ? {}
+      : {
+          serviceApp: {
+            ...options.serviceApp,
+            appName: 'product',
+            credentialId: 'credential-1',
+            ownerAccountId: 'product-cost-centre',
+            environment: 'production',
+          },
+        }),
+    ...(options.delegatedScopes === undefined || options.directUserId === undefined
+      ? {}
+      : { serviceActingAs: { userId: options.directUserId, scopes: options.delegatedScopes } }),
+    accessToken: options.accessToken ?? 'token-1',
   };
   if (options.agentId !== undefined) {
     (req.body as Record<string, unknown>).agentId = options.agentId;
@@ -175,11 +196,11 @@ async function run(
 beforeEach(() => {
   vi.clearAllMocks();
   resolveModel.mockResolvedValue({
-    aliasModelId: 'alia-v1-pro',
+    routingProfileId: 'kaana-v1-pro',
     provider: 'an-operator',
     modelId: 'a-deployment',
     keyConfig: { provider: 'an-operator', key: 'secret', modelId: 'a-deployment' },
-    aliaModel: { name: 'x', creditMultiplier: 1 },
+    routingProfile: { name: 'x', creditMultiplier: 1 },
     isFallback: false,
   });
   findMcpServerForUser.mockResolvedValue(null);
@@ -316,7 +337,7 @@ describe('the turn resolves the agent it NAMED', () => {
 
 describe('agentId is an exact fail-closed selector', () => {
   it('rejects malformed ids before lookup or credit reservation', async () => {
-    for (const agentId of ['', '   ', 42, null]) {
+    for (const agentId of ['', '   ', ' agent-1', 'agent-1 ', 42, null]) {
       const { ctx, captured } = await run(undefined, { directUserId: 'user-1', agentId });
       expect(ctx).toBeNull();
       expect(captured.status).toBe(400);
@@ -336,6 +357,63 @@ describe('agentId is an exact fail-closed selector', () => {
     expect(captured.body?.error).toMatchObject({ code: 'agent_unavailable', param: 'agentId' });
     expect(findAgentById).not.toHaveBeenCalled();
     expect(reserveCredits).not.toHaveBeenCalled();
+  });
+
+  it('accepts an app-bound agent only through the exact delegated product credential', async () => {
+    findAgentById.mockResolvedValue({
+      ...privateAgent,
+      access: 'public',
+      applicationId: 'homiio-app-id',
+    });
+
+    const { ctx, captured } = await run(undefined, {
+      directUserId: 'user-1',
+      agentId: 'agent-2',
+      serviceApp: { appId: 'homiio-app-id', scopes: ['inference:invoke'] },
+      delegatedScopes: ['inference:invoke'],
+      accessToken: 'verified-homiio-service-token',
+    });
+
+    expect(captured.status).toBeNull();
+    expect(ctx?.linkedAgent?._id).toBe('agent-2');
+    expect(ctx?.inferenceServiceToken).toBe('verified-homiio-service-token');
+  });
+
+  it('does not let the agent id select Alia as payer when product inference scope is absent', async () => {
+    findAgentById.mockResolvedValue({
+      ...privateAgent,
+      access: 'public',
+      applicationId: 'homiio-app-id',
+    });
+
+    const { ctx, captured } = await run(undefined, {
+      directUserId: 'user-1',
+      agentId: 'agent-2',
+      serviceApp: { appId: 'homiio-app-id', scopes: ['user:read'] },
+      delegatedScopes: ['user:read'],
+      accessToken: 'verified-homiio-service-token',
+    });
+
+    expect(ctx).toBeNull();
+    expect(captured.status).toBe(404);
+    expect(captured.body?.error).toMatchObject({ code: 'agent_unavailable', param: 'agentId' });
+  });
+
+  it('does not let a human bearer invoke a public app-bound agent by known id', async () => {
+    findAgentById.mockResolvedValue({
+      ...privateAgent,
+      access: 'public',
+      applicationId: 'homiio-app-id',
+    });
+
+    const { ctx, captured } = await run(undefined, {
+      directUserId: 'user-1',
+      agentId: 'agent-2',
+    });
+
+    expect(ctx).toBeNull();
+    expect(captured.status).toBe(404);
+    expect(captured.body?.error).toMatchObject({ code: 'agent_unavailable', param: 'agentId' });
   });
 });
 
@@ -498,7 +576,7 @@ describe('a named model reaches the resolver as a pin, not as a tier', () => {
 
     // The alias is what everything downstream reads for price, plan and prompt.
     const [alias, , , options] = resolveModel.mock.calls[0];
-    expect(alias).toBe('alia-v1-pro');
+    expect(alias).toBe('kaana-v1-pro');
     // …and the identity travels separately, so the tier is not asked to encode
     // which of its models may answer.
     expect(options).toEqual({ pinnedModel: { publisher: 'anthropic', model: 'claude-sonnet-4.6' } });
@@ -511,25 +589,25 @@ describe('a named model reaches the resolver as a pin, not as a tier', () => {
     });
   });
 
-  it('does not pin anything when a PROFILE was named', async () => {
+  it('does not pin anything when a canonical Kaana profile was named', async () => {
     // The control. Without it, a `pinnedModel` set unconditionally — to the
     // tier's default, say — would satisfy every assertion above.
-    const { ctx } = await run('profile:v1');
+    const { ctx } = await run('kaana-v1');
     const [alias, , , options] = resolveModel.mock.calls[0];
-    expect(alias).toBe('alia-v1');
+    expect(alias).toBe('kaana-v1');
     expect(options).toEqual({});
     expect(ctx?.routingOptions).toEqual({});
   });
 
-  it('does not pin anything for a legacy alias, which still resolves', async () => {
-    const { ctx } = await run('alia-lite');
-    expect(resolveModel.mock.calls[0][0]).toBe('alia-lite');
+  it('does not pin anything for another canonical Kaana profile', async () => {
+    const { ctx } = await run('kaana-lite');
+    expect(resolveModel.mock.calls[0][0]).toBe('kaana-lite');
     expect(ctx?.routingOptions).toEqual({});
   });
 
   it('does not pin anything when the request names no model at all', async () => {
     const { ctx } = await run(undefined);
-    expect(resolveModel.mock.calls[0][0]).toBe('alia-lite');
+    expect(resolveModel.mock.calls[0][0]).toBe('kaana-lite');
     expect(ctx?.routingOptions).toEqual({});
   });
 

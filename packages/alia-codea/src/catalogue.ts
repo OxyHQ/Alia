@@ -2,7 +2,7 @@
  * The model catalogue, as the VS Code extension consumes it (`GET /catalogue`,
  * epic #139 workstream 5).
  *
- * Three providers each carried `config.get('model', 'alia-v1-codea')`, so a
+ * Three providers each carried `config.get('model', 'kaana-v1-codea')`, so a
  * retired identifier became a failed completion inside an extension version
  * already installed from the marketplace — the slowest possible thing to fix.
  * The `codea.model` setting still wins when a user sets one; what changed is
@@ -139,7 +139,7 @@ export function parseModes(payload: unknown): ProductMode[] {
  * catalogue's own.
  *
  * The picker used to label a routing profile with the display name of the alias
- * it came from — "Alia Lite", "Codea" — which are model names for things that
+ * it came from — "Kaana Lite", "Codea" — which are model names for things that
  * are not models. The catalogue's `displayName` stays as the fallback for a
  * profile no mode names, because inventing a mode for those would be the same
  * category error in the other direction.

@@ -87,27 +87,15 @@ jobs:
       # CLOUDFLARE_API_TOKEN, ADD_TO_PROJECT_TOKEN) ended up in this app's SSM
       # namespace.
       #
-      # The list is the secrets the `alia` task definition actually consumes.
-      # Adding a new one means adding it here, or it never reaches SSM.
+      # The list is the GitHub-owned secrets the `alia` task definition
+      # consumes. Oxy's ApplicationCredential is intentionally absent: Oxy
+      # provisions it from its database into SSM, and the inference stage below
+      # only validates and binds those existing parameters.
       - name: Sync GitHub secrets -> SSM (GitHub is the source of truth)
         env:
           APP_DATABASE_URL: ${{ secrets.DATABASE_URL }}
           APP_SERVICE_SECRET: ${{ secrets.SERVICE_SECRET }}
           APP_TOKEN_ENCRYPTION_KEY: ${{ secrets.TOKEN_ENCRYPTION_KEY }}
-          # Shared with the `alia-integrations` service, which reads the SAME
-          # parameter. That service sends nothing; the API sends this value as
-          # `X-Gateway-Secret` and integrations compares it with `verifySecret`.
-          # Two parameters holding "the same" secret is one rotation away from a
-          # 401 nobody can explain, so there is deliberately only one.
-          APP_INTEGRATIONS_SECRET: ${{ secrets.INTEGRATIONS_SECRET }}
-          # The Oxy ApplicationCredential Alia presents to mint a service token
-          # against the inference edge. NOT a provider credential: `alia` and
-          # `relay` are not provider slugs, so `namesProviderCredential` does not
-          # refuse these — the gate's predicate is about what a name IS, and
-          # these are an Oxy identity, not an upstream account. What does move is
-          # the frozen DEPLOYED_SECRETS census, deliberately, with its count.
-          APP_ALIA_RELAY_CREDENTIAL_KEY: ${{ secrets.ALIA_RELAY_CREDENTIAL_KEY }}
-          APP_ALIA_RELAY_CREDENTIAL_SECRET: ${{ secrets.ALIA_RELAY_CREDENTIAL_SECRET }}
           APP_VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY }}
           APP_VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
           SHARED_AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -129,10 +117,7 @@ jobs:
           sync_secret DATABASE_URL "$APP_DATABASE_URL" "/oxy/$APP/DATABASE_URL"
           sync_secret SERVICE_SECRET "$APP_SERVICE_SECRET" "/oxy/$APP/SERVICE_SECRET"
           sync_secret TOKEN_ENCRYPTION_KEY "$APP_TOKEN_ENCRYPTION_KEY" "/oxy/$APP/TOKEN_ENCRYPTION_KEY"
-          sync_secret INTEGRATIONS_SECRET "$APP_INTEGRATIONS_SECRET" "/oxy/$APP/INTEGRATIONS_SECRET"
           sync_secret VAPID_PUBLIC_KEY "$APP_VAPID_PUBLIC_KEY" "/oxy/$APP/VAPID_PUBLIC_KEY"
-          sync_secret ALIA_RELAY_CREDENTIAL_KEY "$APP_ALIA_RELAY_CREDENTIAL_KEY" "/oxy/$APP/ALIA_RELAY_CREDENTIAL_KEY"
-          sync_secret ALIA_RELAY_CREDENTIAL_SECRET "$APP_ALIA_RELAY_CREDENTIAL_SECRET" "/oxy/$APP/ALIA_RELAY_CREDENTIAL_SECRET"
           sync_secret VAPID_PRIVATE_KEY "$APP_VAPID_PRIVATE_KEY" "/oxy/$APP/VAPID_PRIVATE_KEY"
           sync_secret AWS_ACCESS_KEY_ID "$SHARED_AWS_ACCESS_KEY_ID" "/oxy/_shared/AWS_ACCESS_KEY_ID"
           sync_secret AWS_SECRET_ACCESS_KEY "$SHARED_AWS_SECRET_ACCESS_KEY" "/oxy/_shared/AWS_SECRET_ACCESS_KEY"
@@ -284,174 +269,75 @@ jobs:
       # added there lands in a revision nothing runs, with no error.
       # `docs/runbooks/integrations-service-rollout.md` has the long version.
       #
-      # BOTH overrides are conditional, and that is what makes this step safe to
-      # merge before anything is provisioned: with no `INTEGRATIONS_SECRET`
-      # secret and no `INTEGRATIONS_URL` variable, both are `{}` and this deploy
-      # is byte-identical to the ones before it.
-      #
-      # The secret's override MUST NOT be emitted when the parameter does not
-      # exist. A `secrets[]` binding naming an absent SSM parameter does not warn
-      # — it fails every task launch with `ResourceInitializationError: unable to
-      # pull secrets`, after a green deploy, which is the shape of failure this
-      # whole file is written against.
+      # SSM is the source of truth for the shared secret. This step reads only
+      # parameter metadata, never GetParameter, WithDecryption or the value. A
+      # missing/wrong-type parameter fails before a task definition is created.
+      # The private URL is the exact Cloud Map service and namespace declared in
+      # oxy-infra: integrations.alia.internal.oxy.so.
       - name: Stage the integrations service wiring
         id: integrations
-        env:
-          # Tested for presence only. Never echoed, never written, never
-          # interpolated into a command.
-          APP_INTEGRATIONS_SECRET: ${{ secrets.INTEGRATIONS_SECRET }}
-          # A repo VARIABLE, not a secret: it is a private DNS name, and the
-          # `Sync GitHub secrets -> SSM` discipline should not acquire an entry
-          # that is not a credential. Absent until an operator decides the
-          # integrations service is serving.
-          INTEGRATIONS_URL: ${{ vars.INTEGRATIONS_URL }}
         run: |
-          secret_overrides='{}'
-          env_overrides='{}'
-
-          have_secret=false
-          if [ -n "$APP_INTEGRATIONS_SECRET" ] && [ "$APP_INTEGRATIONS_SECRET" != "-" ]; then
-            have_secret=true
-          fi
-
-          # Refuse the half-armed combination rather than warn about it.
-          #
-          # A URL with no credential gives the API an endpoint it cannot
-          # authenticate to. `mcp.ts` needs both, so nothing would break — it
-          # would stay inert while looking configured, and the operator who set
-          # the variable would have no way to tell. The condition arises only when
-          # somebody deliberately sets the variable, and either fix is one action:
-          # create the secret, or delete the variable.
-          if [ -n "$INTEGRATIONS_URL" ] && [ "$have_secret" != "true" ]; then
-            echo "::error::INTEGRATIONS_URL is set but the INTEGRATIONS_SECRET repo secret is not. The API would hold an endpoint it cannot authenticate to. Create the secret, or unset the variable."
+          parameter_name="/oxy/$APP/INTEGRATIONS_SECRET"
+          metadata="$(aws ssm describe-parameters \
+            --parameter-filters "Key=Name,Option=Equals,Values=$parameter_name" \
+            --query 'Parameters[0].[Name,Type]' \
+            --output text)"
+          read -r actual_name actual_type <<<"$metadata"
+          if [ "$actual_name" != "$parameter_name" ] || [ "$actual_type" != "SecureString" ]; then
+            echo "::error::required SecureString metadata is absent for $parameter_name"
             exit 1
           fi
 
-          if [ "$have_secret" = "true" ]; then
-            secret_overrides="$(jq -cn \
-              --arg arn "arn:aws:ssm:$AWS_REGION:237343248947:parameter/oxy/$APP/INTEGRATIONS_SECRET" \
-              '{INTEGRATIONS_SECRET: $arn}')"
-            echo "INTEGRATIONS_SECRET will be bound from SSM"
-          else
-            echo "no INTEGRATIONS_SECRET repo secret; leaving the API's hosted-MCP path unwired"
-          fi
-
-          if [ -n "$INTEGRATIONS_URL" ]; then
-            # jq builds the JSON, so a value containing a quote cannot break the
-            # object deploy-ecs-image.sh validates. An empty value never reaches
-            # here, and that script refuses one anyway.
-            env_overrides="$(jq -cn --arg url "$INTEGRATIONS_URL" '{INTEGRATIONS_URL: $url}')"
-            echo "INTEGRATIONS_URL will be set on the task definition"
-          fi
+          secret_overrides="$(jq -cn \
+            --arg arn "arn:aws:ssm:$AWS_REGION:237343248947:parameter/oxy/$APP/INTEGRATIONS_SECRET" \
+            '{INTEGRATIONS_SECRET: $arn}')"
+          env_overrides="$(jq -cn \
+            --arg url "http://integrations.alia.internal.oxy.so:3005" \
+            '{INTEGRATIONS_URL: $url}')"
 
           printf 'secret_overrides=%s\n' "$secret_overrides" >>"$GITHUB_OUTPUT"
           printf 'env_overrides=%s\n' "$env_overrides" >>"$GITHUB_OUTPUT"
 
-      # Point this deployment at Kaana.
-      #
-      # Merged into the integrations step's outputs rather than replacing them:
-      # the two are unrelated wirings and either can be absent, so a step that
-      # overwrote the other's object would make the second one to run win
-      # silently.
-      #
-      # This is also the final composition point for the API's REQUIRED public
-      # origin. Terraform declares both names, but cannot deliver either to the
-      # existing service because its task definition is ignored. They are
-      # constants rather than repo variables: unlike INTEGRATIONS_URL they arm
-      # no feature, and every production revision must advertise the same public
-      # origin for callbacks, user-facing links and service-to-self requests.
-      #
-      # ## What each variable is
-      #
-      # `RELAY_BASE_URL` is checked against `KAANA_ALLOWED_ORIGINS` before a
-      # request leaves, so a typo is refused here rather than discovered by a
-      # request arriving somewhere unexpected. The host still says `relay` and
-      # the product is Kaana; renaming it is a DNS change plus an allow-list
-      # change on both sides, and it is not this deploy.
-      #
-      # There is no enable flag. Kaana is the inference provider, and a
-      # deployment that has been given an endpoint, a signing key and a
-      # principal has said everything there is to say. What is deliberately NOT
-      # set here is `ALIA_RELAY_CLIENT_ENABLED`: that declares the cutover DONE,
-      # which arms the boot refusal and installs the egress block that makes
-      # every direct provider host unreachable — correct the day the in-process
-      # tree is deleted, and an outage today, when Kaana serves text and Alia
-      # still serves speech, images and realtime voice itself.
-      #
-      # ## The attribution ids are REAL Oxy ids as of 2026-08-25
-      #
-      # They used to be placeholders — `app_alia`, `acc_alia_platform`,
-      # `cred_alia_edge_2026_08_24` — because Oxy issued none for
-      # Alia-as-a-caller. It does now: the `Alia` Application is registered and
-      # `internal`, it carries a `service` ApplicationCredential, and it is owned
-      # by its own project account. Each value below was read back out of the Oxy
-      # database, and the credential was exchanged once against
-      # `POST https://api.oxy.so/auth/service-token` — the token came back
-      # naming this `applicationId`, this `credentialId` and this
-      # `ownerAccountId`, so these three are not merely plausible, they are what
-      # Oxy itself puts in the token.
-      #
-      # Kaana still treats every Oxy id as an opaque string and never joins them
-      # against anything, so nothing here DEPENDS on their being real. What
-      # changes is that usage Kaana records is now attributable: it books to an
-      # account that exists in Oxy's ledger instead of one that does not.
-      #
-      # THE ACCOUNT ID IS THE ONE TO GET RIGHT. `acc_alia_platform` was replaced
-      # by the `alia-production-chat` PROJECT account, minted 2026-08-25, not by
-      # the platform owner `oxy` — the two are different accounts and the whole
-      # point of the project account is that Alia's spend gets its own line in
-      # the cost-centre report rather than being absorbed into the platform's.
-      #
-      # Before Alia consumes inference THROUGH OXY, that account's billing face
-      # has to be provisioned: `account_balances` was empty on 2026-08-25 — zero
-      # rows in the whole table. Nothing is spending today, so this is a
-      # precondition of the cutover and not a defect; it is restated where the
-      # cutover flag is defined (`lib/inference/kaana-cutover.ts`).
-      - name: Stage the Kaana edge configuration
+      # Wire Alia only to Oxy's published inference edge. The SDK exchanges the
+      # application credential for a service token; Oxy derives account,
+      # application, credential and authorised routes from that token. Alia
+      # carries no Kaana URL, edge-signing key or self-asserted principal IDs.
+      - name: Stage Oxy inference configuration
         id: kaana
         env:
           INTEGRATIONS_SECRETS: ${{ steps.integrations.outputs.secret_overrides }}
           INTEGRATIONS_ENV: ${{ steps.integrations.outputs.env_overrides }}
         run: |
+          # Oxy provisions this ApplicationCredential from its database and
+          # writes the two secret values to SSM. Alia may bind them but must not
+          # copy a second value from GitHub or read/decrypt them in CI.
+          for name in OXY_SERVICE_API_KEY OXY_SERVICE_API_SECRET; do
+            parameter_name="/oxy/$APP/$name"
+            metadata="$(aws ssm describe-parameters \
+              --parameter-filters "Key=Name,Option=Equals,Values=$parameter_name" \
+              --query 'Parameters[0].[Name,Type]' \
+              --output text)"
+            read -r actual_name actual_type <<<"$metadata"
+            if [ "$actual_name" != "$parameter_name" ] || [ "$actual_type" != "SecureString" ]; then
+              echo "::error::required Oxy-provisioned SecureString metadata is absent for $parameter_name"
+              exit 1
+            fi
+          done
+
           required_env="$(jq -cn '{
             API_BASE_URL: "https://api.alia.onl",
-            ALIA_API_URL: "https://api.alia.onl"
+            ALIA_API_URL: "https://api.alia.onl",
+            OXY_API_URL: "https://api.oxy.so"
           }')"
 
-          # The account id is written out, exactly as the integrations step above
-          # writes it. `$ACCOUNT_ID` is not set in this workflow, so it expanded
-          # to nothing and produced `arn:aws:ssm:us-west-2::parameter/…` — an ARN
-          # the script's validator refused, which is why it refused: a `secrets[]`
-          # binding naming a parameter that does not exist does not warn, it
-          # fails every task launch with `ResourceInitializationError` AFTER a
-          # green deploy. The gate turned that into a failed deploy instead.
-          # All three are written to SSM by the sync step ABOVE, in this same
-          # job, before this render — which is the ordering that makes binding
-          # them safe. A `secrets[]` entry naming a parameter that does not
-          # exist fails every task launch with `ResourceInitializationError`
-          # AFTER a green deploy, so the sync has to have run first. It also
-          # means an EMPTY GitHub secret is the hazard rather than a missing
-          # one: `sync_secret` skips an empty value with a warning, the
-          # parameter never appears, and this binding then points at nothing.
-          kaana_secrets="$(jq -cn \
-            --arg sign "arn:aws:ssm:$AWS_REGION:237343248947:parameter/oxy/$APP/KAANA_EDGE_SIGNING_PRIVATE_KEY" \
-            --arg key "arn:aws:ssm:$AWS_REGION:237343248947:parameter/oxy/$APP/ALIA_RELAY_CREDENTIAL_KEY" \
-            --arg secret "arn:aws:ssm:$AWS_REGION:237343248947:parameter/oxy/$APP/ALIA_RELAY_CREDENTIAL_SECRET" \
-            '{KAANA_EDGE_SIGNING_PRIVATE_KEY: $sign,
-              ALIA_RELAY_CREDENTIAL_KEY: $key,
-              ALIA_RELAY_CREDENTIAL_SECRET: $secret}')"
-          kaana_env="$(jq -cn '{
-            RELAY_BASE_URL: "https://relay.oxy.so",
-            KAANA_EDGE_KEY_ID: "alia-edge-2026-08-24",
-            ALIA_RELAY_ACCOUNT_ID: "01a0369b-1222-712f-8df6-f8ffeb78ccc2",
-            ALIA_RELAY_APPLICATION_ID: "6a2f851751b784a86fd0e934",
-            ALIA_RELAY_CREDENTIAL_ID: "01a0371d-509c-7d1f-9fa5-1fb7a6e03174",
-            ALIA_RELAY_ENVIRONMENT: "production",
-            ALIA_RELAY_INFERENCE_SCOPES: "inference:invoke"
-          }')"
+          oxy_inference_secrets="$(jq -cn \
+            --arg key "arn:aws:ssm:$AWS_REGION:237343248947:parameter/oxy/$APP/OXY_SERVICE_API_KEY" \
+            --arg secret "arn:aws:ssm:$AWS_REGION:237343248947:parameter/oxy/$APP/OXY_SERVICE_API_SECRET" \
+            '{OXY_SERVICE_API_KEY: $key,
+              OXY_SERVICE_API_SECRET: $secret}')"
 
-          merged_secrets="$(jq -cs '.[0] * .[1]' <(echo "${INTEGRATIONS_SECRETS:-{\}}") <(echo "$kaana_secrets"))"
-          merged_env="$(jq -cs '.[0] * .[1] * .[2]' <(echo "${INTEGRATIONS_ENV:-{\}}") <(echo "$kaana_env") <(echo "$required_env"))"
+          merged_secrets="$(jq -cs '.[0] * .[1]' <(echo "${INTEGRATIONS_SECRETS:-{\}}") <(echo "$oxy_inference_secrets"))"
+          merged_env="$(jq -cs '.[0] * .[1]' <(echo "${INTEGRATIONS_ENV:-{\}}") <(echo "$required_env"))"
 
           printf 'secret_overrides=%s\n' "$merged_secrets" >>"$GITHUB_OUTPUT"
           printf 'env_overrides=%s\n' "$merged_env" >>"$GITHUB_OUTPUT"
@@ -509,6 +395,7 @@ jobs:
           # separately-written paths for one fact is exactly how a `pre` and a
           # `post` phase end up migrating different packages.
           MIGRATION_ENTRYPOINT: packages/api/dist/db/migrate.js
+          PRE_DEPLOY_TASK_COMMAND_JSON: '["node","packages/api/dist/scripts/check-agent-routing-profile-readiness.js","--target-database=alia"]'
           POST_DEPLOY_TASK_COMMAND_JSON: ${{ steps.phases.outputs.post_command }}
           TASK_SECRET_OVERRIDES_JSON: ${{ steps.kaana.outputs.secret_overrides }}
           # Stop injecting a static IAM user's keys.
@@ -517,15 +404,18 @@ jobs:
           # injected these two, and the environment beats the task role in the
           # AWS credential chain — so the declared role had never been used.
           # Measured: the role's S3 policies are identical in actions and buckets
-          # to the user's, and it additionally carries
-          # `oxy-task-ssm-alia-provider-keys`, which the user lacks. The
-          # injection was costing a permission and gaining none, and it is why
-          # the provider-key one-shot could not read its own SSM parameter.
+          # to the user's. The injection was costing a permission and gaining
+          # none.
           #
           # Safe only because `lib/s3.ts` now omits the `credentials` key when
           # the environment carries no pair, instead of passing an EMPTY one that
           # the SDK signs with. That landed first, deliberately.
-          TASK_SECRET_REMOVALS_JSON: '["AWS_ACCESS_KEY_ID","AWS_SECRET_ACCESS_KEY"]'
+          TASK_SECRET_REMOVALS_JSON: '["AWS_ACCESS_KEY_ID","AWS_SECRET_ACCESS_KEY","KAANA_EDGE_SIGNING_PRIVATE_KEY","ALIA_RELAY_CREDENTIAL_KEY","ALIA_RELAY_CREDENTIAL_SECRET","ALIA_KAANA_CREDENTIAL_KEY","ALIA_KAANA_CREDENTIAL_SECRET"]'
+          # Remove every legacy plain Relay/direct-Kaana binding inherited from
+          # the live task definition. Keeping a removal here is harmless after
+          # the first clean revision and prevents a rollback descendant from
+          # silently reintroducing the obsolete contract.
+          TASK_CONFIGURATION_REMOVALS_JSON: '["RELAY_BASE_URL","ALIA_RELAY_APPLICATION_ID","ALIA_RELAY_ACCOUNT_ID","ALIA_RELAY_CREDENTIAL_ID","ALIA_RELAY_ENVIRONMENT","ALIA_RELAY_INFERENCE_SCOPES","KAANA_EDGE_KEY_ID","ALIA_KAANA_CLIENT_ENABLED","ALIA_KAANA_APPLICATION_ID","ALIA_KAANA_ACCOUNT_ID","ALIA_KAANA_CREDENTIAL_ID","ALIA_KAANA_ENVIRONMENT","ALIA_KAANA_INFERENCE_SCOPES","KAANA_BASE_URL"]'
           TASK_ENV_OVERRIDES_JSON: ${{ steps.kaana.outputs.env_overrides }}
         run: |
           STATUS=$(aws ecs describe-services --cluster "$CLUSTER" --services "$APP" --query 'services[0].status' --output text 2>/dev/null || echo NONE)

@@ -26,8 +26,8 @@
  * `listen` is reached, so the Postgres pool is connected by the time this runs.
  * Everything below either reads Postgres or is self-gating on its own
  * dependency: `REDIS_URL` for the two queues, a reachable sandbox host for the
- * container pool, `CROWDSOURCE_ENABLED` for the dispatcher, `GATEWAY_API_URL`
- * for the gateway warmup. None of them reads Mongo — `db/__tests__/
+ * container pool and `CROWDSOURCE_ENABLED` for the dispatcher. None of them
+ * reads Mongo — `db/__tests__/
  * bootWiring.test.ts` walks the import graph from `src/index.ts` and asserts
  * that, rather than leaving it as a claim in this comment.
  *
@@ -43,7 +43,6 @@ import { getDb } from '../db/index.js';
 import { failOrphanedAudioJobs } from '../db/notifications/audioJobRepository.js';
 import { syncZeroEval } from '../scripts/sync-zeroeval.js';
 import { moderationOutboxDispatcher } from './crowdsource/dispatcher.js';
-import { warmupGatewayClient } from './gateway-client.js';
 import { log } from './logger.js';
 import { reclaimOrphanedAgentSessions } from './agent/session-handoff.js';
 import { getContainerPool, shutdownContainerPool } from './sandbox/container-pool.js';
@@ -61,8 +60,6 @@ import { startTriggerEngine, stopTriggerEngine } from './trigger-engine.js';
  * start.
  */
 export function startBackgroundServices(): void {
-  // Warm up gateway client cache (non-blocking)
-  warmupGatewayClient().catch((err) => log.general.error({ err }, '[Gateway] Client warmup error'));
   // Sync external models in background (non-blocking)
   syncZeroEval().catch((err) => log.general.error({ err }, '[ZeroEval] Background sync error'));
   // Start trigger engine under leader election (non-blocking) — only the

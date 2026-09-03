@@ -70,4 +70,4 @@ Stored in local app settings:
 ## Notes
 
 - Cowork does not require provider-specific client logic.
-- Public responses expose only Alia model identifiers.
+- Public hosted selection exposes only Kaana routing-profile identifiers.

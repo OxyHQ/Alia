@@ -14,9 +14,7 @@
  *
  * Written as an explicit column list rather than as a `delete` on the way past:
  * a projection that SUBTRACTS is a projection that carries every column added
- * later, and the one column this must never emit is a credential. The
- * `provider_keys.key` rule, applied to a table that did not exist when it was
- * written.
+ * later, and the one column this must never emit is a credential.
  *
  * ## The pipeline's mutable document is a patch, and the local copy is the
  * caller's problem

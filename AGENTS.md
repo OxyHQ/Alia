@@ -1,15 +1,24 @@
 # Alia
 
-Plataforma de IA multi-proveedor. Agente: `alia`.
+Producto de IA sobre Oxy y Kaana. Agente: `alia`.
 
-**Kaana es el plano de inferencia que Alia debe consumir a través del edge de
-Oxy.** Su único origen firmado canónico es `https://kaana.ai`; no añadas un host
-Kaana bajo `oxy.so` ni un nombre nuevo de `Relay`. Alia conserva agentes,
-conversaciones, memoria, herramientas y aprobaciones.
+**Kaana es el plano de inferencia de Alia, pero Alia nunca lo llama ni lo firma
+directamente.** Alia usa `@oxyhq/core` (`OxyInferenceClient`) con una credencial
+de servicio: `Alia -> Oxy -> Kaana`. Oxy resuelve identidad y rutas autorizadas;
+Alia no aloja lógica ni credenciales de proveedor, claves de firma de Kaana o
+un transporte alternativo.
 
-No copies identificadores heredados `Relay` a código o documentación nuevos ni
-llames completado al corte sin la verificación coordinada de Oxy, Kaana e infra.
-El estado y la deuda existente se documentan en `README.md` y ADR 0001, no aquí.
+Los perfiles que Alia envía a Oxy usan exclusivamente los IDs opacos exactos
+revisados en `packages/api/src/config/oxy-inference-routing-profile-ids.ts`.
+Nunca selecciones uno por nombre, slug, primer resultado u orden de consulta.
+
+El antiguo nombre de trabajo `Relay` está retirado. El repositorio es
+`~/Oxy/Kaana` y su único origen firmado canónico es `https://kaana.ai`; no se
+admiten aliases de compatibilidad ni un host Kaana bajo `oxy.so`. No llames
+completado al corte de producción sin la verificación coordinada de Oxy, Kaana
+e infra. El estado y la deuda de despliegue se documentan en `README.md` y ADR
+0001, no aquí.
+
 `lib/mcp-relay.ts` es otro sistema — el transporte WebSocket de MCP — y no se
 renombra.
 

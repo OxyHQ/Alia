@@ -20,7 +20,7 @@
  *    'Change AI model' }` with `setMyCommands`, which is the `/` command menu
  *    Telegram shows every user of the bot, and which **persists on Telegram's
  *    servers until something calls `setMyCommands` again** (#249).
- *  - `alia-codea-cli` printed `Model: Alia Lite` — the display name of the
+ *  - `alia-codea-cli` printed `Model: Kaana Lite` — the display name of the
  *    alias a routing profile came from, under the word "model", which is both
  *    halves of the prohibition at once (this PR).
  *
