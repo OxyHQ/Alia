@@ -129,8 +129,20 @@ The second rule is what makes the first one durable. A single sanctioned bypass 
 
 ## Enforcement
 
-- **Product code must not import a provider adapter.** An architecture test asserting that no module outside the Kaana client boundary imports from `packages/api/src/internal/providers/**` is *not yet enforced — tracked by #139 workstream 19*. `packages/api/eslint.config.js` carries no `no-restricted-imports` boundary today.
-- **No provider hostname outside the Kaana client.** An egress test asserting the Alia service can reach Kaana and Oxy but not provider API hosts is *not yet enforced — tracked by #139 workstream 19*.
-- **No provider secret in a public serializer.** A test asserting that no provider secret or hash field is reachable from an admin or diagnostic response is *not yet enforced — tracked by #139 workstream 19*.
+- **The hosted provider runtime is absent.**
+  `lib/inference/__tests__/hosted-provider-retirement.test.ts` freezes the deleted
+  credential repository, provider runtime services and admin route; it also
+  requires the post-rollout migration to drop `provider_keys` without reading or
+  copying its contents.
+- **Provider-host egress is refused before a socket opens.** The boot guard arms
+  `provider-egress-policy.ts`; its suite exercises `fetch`, `http.request` and
+  `https.request`, while proving non-provider dependencies remain reachable.
+- **Provider-shaped configuration fails closed.** The same retirement suite
+  enumerates the forbidden environment names and proves diagnostics do not echo
+  their values. The deploy binds only the Oxy ApplicationCredential needed by
+  `OxyInferenceClient`; it does not sync a provider key or Kaana signing key.
 - **Code review rule.** Every PR against this epic names its workstream and lists the exact checkboxes it completes. A PR that moves code names the destination path and the removal gate. A PR that adds a provider dependency to product code is rejected on this ADR.
-- **Existing partial coverage.** `sanitizeMessage()` (`packages/api/src/lib/errors/sanitize.ts`) and its suite at `packages/api/src/lib/__tests__/sanitize.test.ts` already gate provider detail leaking through error strings. That check survives the migration but is scoped by ADR 0003 and workstream 4: it protects the Alia product surface, not the neutral platform surface.
+- **Product output remains sanitized.** `sanitizeMessage()`
+  (`packages/api/src/lib/errors/sanitize.ts`) and its suite gate provider detail
+  leaking through error strings. That check is scoped by ADR 0003: it protects
+  the Alia product surface, not Oxy's neutral platform surface.

@@ -54,9 +54,15 @@ WEB_URL=https://alia.onl
 API_BASE_URL=https://api.alia.onl
 ALIA_API_URL=https://api.alia.onl
 OXY_API_URL=https://api.oxy.so
+OXY_SERVICE_API_KEY=<oxy-application-key>
+OXY_SERVICE_API_SECRET=<oxy-application-secret>
 DATABASE_URL=<postgres-connection-string>
 SERVICE_SECRET=<32-byte hex>
 ```
+
+The `OXY_SERVICE_API_*` pair identifies Alia to Oxy; it is not an upstream
+provider credential. Provider keys are absent from this contract and remain
+only in Kaana's PostgreSQL/KMS custody.
 
 Terraform declares both public-origin names, while `deploy-aws.yml` re-asserts
 them through `TASK_ENV_OVERRIDES_JSON` on every runnable revision. The split is
@@ -218,7 +224,9 @@ healthy and still receives traffic. Moving the target group to `/health/ready` i
 
 1. `GET /health/ready` returns ready.
 2. A chat stream works on `POST /v1/chat/completions`.
-3. `GET /v1/models` lists the Alia identifiers.
+3. `GET /v1/models` returns the intentional empty OpenAI-compatible list, and
+   `GET /catalogue` lists only the reviewed Kaana product-routing profiles and
+   concrete model references.
 4. Automation create and manual run work via `/automations`; legacy `/triggers` rows are
    still reconciled by the same scheduler.
 5. `POST /webhooks/oxy` accepts a normalized event from an authorized Oxy service and
