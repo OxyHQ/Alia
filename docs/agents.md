@@ -258,15 +258,10 @@ its objective, actor selection, trigger, resources, exact actions, allowed data 
 limits, autonomy policy and `observe | execute` mode. Runs and their correlated policy
 and tool decisions are persisted in `automation_runs` and `automation_steps`.
 
-`/triggers` remains the transitional API for legacy routines. It supports:
-
-- `schedule`
-- `webhook`
-- `integration_event`
-- `agent_heartbeat`
-
-Legacy executions remain in `trigger_executions`. Both scheduled row types are reconciled
-by the same elected scheduler; there is no second automation runtime.
+Legacy rows and their `trigger_executions` remain queryable through `GET /triggers` for
+audit history. They are not scheduled or dispatched. Every former trigger write,
+manual-run, token-regeneration and webhook route returns `410 Gone`; active work is
+created and edited only through `/automations`.
 
 ## Oxy Event Autonomy
 

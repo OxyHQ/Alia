@@ -388,7 +388,7 @@
     "promptPlaceholder": "Describe what this automation should do...",
     "schedule": "Schedule",
     "daily": "Daily",
-    "interval": "Interval"
+    "hourly": "Hourly"
   },
   "skills": {
     "title": "Skills",

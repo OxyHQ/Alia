@@ -80,19 +80,10 @@ export const API_ROUTES = {
     install: (id: string) => `/skills/${id}/install`,
   },
 
-  // Trigger routes
-  triggers: {
-    list: '/triggers',
-    create: '/triggers',
-    update: (id: string) => `/triggers/${id}`,
-    delete: (id: string) => `/triggers/${id}`,
-    run: (id: string) => `/triggers/${id}/run`,
-  },
-
-  // Structured automations. Legacy trigger-backed rows identify their source,
-  // so the client can call the owning control plane throughout the migration.
+  // Structured automations are the only product control plane for proactive work.
   automations: {
     list: '/automations',
+    create: '/automations',
     runs: '/automations/runs',
     update: (id: string) => `/automations/${id}`,
     stop: (id: string) => `/automations/${id}`,

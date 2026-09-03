@@ -15,10 +15,11 @@ import { errorMessage as getErrorMessage } from '@/lib/errors/error-utils';
 import { ContentPanel } from '@oxyhq/bloom/content-panel';
 import { AutomationCard } from '@/components/automations/automation-card';
 import { latestRunsByAutomation, to24Hour } from '@/lib/automations/format';
-import type { AutomationDefinition, LegacyAutomationCreateInput } from '@/lib/automations/types';
+import { buildScheduledAutomationCreate } from '@/lib/automations/create';
+import type { AutomationDefinition, AutomationExecutionMode } from '@/lib/automations/types';
 import {
   useAutomationOverview,
-  useCreateLegacyAutomation,
+  useCreateAutomation,
   useRunAutomation,
   useSetAutomationEnabled,
   useStopAutomation,
@@ -110,8 +111,18 @@ export default function AutomationsScreen() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [name, setName] = useState('');
   const [prompt, setPrompt] = useState('');
-  const [scheduleType, setScheduleType] = useState<'daily' | 'interval'>('daily');
+  const [scheduleType, setScheduleType] = useState<'daily' | 'hourly'>('daily');
   const [time, setTime] = useState('06:00 PM');
+  const [timezone, setTimezone] = useState(
+    () => Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
+  );
+  const [selectedAgentId, setSelectedAgentId] = useState('');
+  const [executionMode, setExecutionMode] = useState<AutomationExecutionMode>('observe');
+  const [resourceAppId, setResourceAppId] = useState('');
+  const [effectiveAccountId, setEffectiveAccountId] = useState('');
+  const [resourceType, setResourceType] = useState('');
+  const [resourceId, setResourceId] = useState('');
+  const [tool, setTool] = useState('');
   const [selectedDays, setSelectedDays] = useState<string[]>([
     'monday',
     'tuesday',
@@ -124,7 +135,7 @@ export default function AutomationsScreen() {
 
   const overview = useAutomationOverview();
   const agents = useMyAgents();
-  const createAutomation = useCreateLegacyAutomation();
+  const createAutomation = useCreateAutomation();
   const setEnabled = useSetAutomationEnabled();
   const stopAutomation = useStopAutomation();
   const runAutomation = useRunAutomation();
@@ -149,12 +160,14 @@ export default function AutomationsScreen() {
   const handleCardPress = (description: string) => {
     setName('');
     setPrompt(description);
+    setSelectedAgentId((current) => current || agents.data?.[0]?._id || '');
     setDialogOpen(true);
   };
 
   const handleCreatePress = () => {
     setName('');
     setPrompt('');
+    setSelectedAgentId((current) => current || agents.data?.[0]?._id || '');
     setDialogOpen(true);
   };
 
@@ -164,33 +177,41 @@ export default function AutomationsScreen() {
       return;
     }
 
+    const scheduledTime = scheduleType === 'daily' ? to24Hour(time) : null;
+    if (scheduleType === 'daily' && !scheduledTime) {
+      toast.error('Enter a valid time, such as 06:00 PM or 18:00');
+      return;
+    }
+    const request = buildScheduledAutomationCreate({
+      objective: name,
+      instructions: prompt,
+      schedule: scheduleType === 'daily'
+        ? { type: 'daily', time: scheduledTime ?? '', days: selectedDays }
+        : { type: 'hourly' },
+      timezone,
+      agentId: selectedAgentId,
+      executionMode,
+      resource: {
+        appId: resourceAppId,
+        effectiveAccountId,
+        resourceType,
+        resourceId,
+      },
+      tool,
+    });
+    if (!request.ok) {
+      toast.error(request.error);
+      return;
+    }
+
     try {
-      let schedule: LegacyAutomationCreateInput['schedule'];
-      if (scheduleType === 'daily') {
-        const scheduledTime = to24Hour(time);
-        if (!scheduledTime) {
-          toast.error('Enter a valid time, such as 06:00 PM or 18:00');
-          return;
-        }
-        if (selectedDays.length === 0) {
-          toast.error('Select at least one day');
-          return;
-        }
-        schedule = { type: 'daily', time: scheduledTime, days: selectedDays };
-      } else {
-        schedule = { type: 'interval', intervalMinutes: 60 };
-      }
-      await createAutomation.mutateAsync({
-        name: name.trim(),
-        type: 'schedule',
-        action: {
-          prompt: prompt.trim(),
-          useTools: true,
-        },
-        schedule,
-      });
+      const created = await createAutomation.mutateAsync(request.value);
       setDialogOpen(false);
       toast.success('Automation created');
+      router.push({
+        pathname: '/(app)/automations/[id]',
+        params: { id: created.automation.id },
+      });
     } catch (error: unknown) {
       console.error('Failed to create automation:', error);
       toast.error(getErrorMessage(error, 'Failed to create automation'));
@@ -223,7 +244,7 @@ export default function AutomationsScreen() {
         );
       } else {
         toast.success(
-          automation.legacyTriggerId ? 'Automation stopped' : 'Automation stopped and access revoked',
+          'Automation stopped and access revoked',
         );
       }
     } catch (error: unknown) {
@@ -237,7 +258,7 @@ export default function AutomationsScreen() {
     setBusyId(automation.id);
     try {
       await runAutomation.mutateAsync(automation);
-      toast.success(automation.legacyTriggerId ? 'Automation completed' : 'Automation queued');
+      toast.success('Automation queued');
     } catch (error: unknown) {
       toast.error(getErrorMessage(error, 'Automation run failed'));
     } finally {
@@ -401,13 +422,116 @@ export default function AutomationsScreen() {
             </View>
 
             <View className="gap-3">
+              <Label>Responsible agent</Label>
+              {(agents.data ?? []).length > 0 ? (
+                <View className="flex-row flex-wrap gap-2">
+                  {(agents.data ?? []).map((agent) => {
+                    const selected = selectedAgentId === agent._id;
+                    return (
+                      <Pressable
+                        key={agent._id}
+                        accessibilityRole="radio"
+                        accessibilityState={{ checked: selected }}
+                        onPress={() => setSelectedAgentId(agent._id)}
+                        className={`rounded-lg border px-3 py-2 ${
+                          selected ? 'border-primary bg-primary/10' : 'border-border bg-background'
+                        }`}
+                      >
+                        <Text className={selected ? 'text-sm font-medium text-primary' : 'text-sm text-foreground'}>
+                          {agentNames.get(agent._id) ?? `Agent ${agent._id.slice(0, 8)}`}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              ) : (
+                <Text className="text-sm text-muted-foreground">
+                  Create an agent and delegate an exact app resource before adding an automation.
+                </Text>
+              )}
+            </View>
+
+            <View className="gap-3">
+              <Label>Execution</Label>
+              <ToggleGroup
+                type="single"
+                value={executionMode}
+                onValueChange={(value) => {
+                  if (value === 'observe' || value === 'execute') setExecutionMode(value);
+                }}
+                className="gap-0 self-start rounded-lg border border-border overflow-hidden"
+              >
+                <ToggleGroupItem
+                  value="observe"
+                  className="rounded-none border-0 px-3 py-1.5"
+                  activeClassName="bg-foreground"
+                  activeTextClassName="text-background"
+                >
+                  Observe
+                </ToggleGroupItem>
+                <ToggleGroupItem
+                  value="execute"
+                  className="rounded-none border-0 px-3 py-1.5"
+                  activeClassName="bg-foreground"
+                  activeTextClassName="text-background"
+                >
+                  Execute
+                </ToggleGroupItem>
+              </ToggleGroup>
+              <Text className="text-xs text-muted-foreground">
+                Execute provisions exact Oxy authority. Observe records decisions without effects.
+              </Text>
+            </View>
+
+            <View className="gap-3">
+              <Label>Exact Oxy action</Label>
+              <View className="flex-row flex-wrap gap-2">
+                <Input
+                  className="min-w-40 flex-1"
+                  value={resourceAppId}
+                  onChangeText={setResourceAppId}
+                  placeholder="App ID"
+                  accessibilityLabel="Action app ID"
+                />
+                <Input
+                  className="min-w-40 flex-1"
+                  value={effectiveAccountId}
+                  onChangeText={setEffectiveAccountId}
+                  placeholder="Effective account"
+                  accessibilityLabel="Action effective account"
+                />
+                <Input
+                  className="min-w-40 flex-1"
+                  value={resourceType}
+                  onChangeText={setResourceType}
+                  placeholder="Resource type"
+                  accessibilityLabel="Action resource type"
+                />
+                <Input
+                  className="min-w-40 flex-1"
+                  value={resourceId}
+                  onChangeText={setResourceId}
+                  placeholder="Resource ID"
+                  accessibilityLabel="Action resource ID"
+                />
+                <Input
+                  className="min-w-40 flex-1"
+                  value={tool}
+                  onChangeText={setTool}
+                  placeholder="Exact tool name"
+                  accessibilityLabel="Action tool name"
+                />
+              </View>
+            </View>
+
+            <View className="gap-3">
               <View className="flex-row items-center justify-between">
                 <Label>{t('automations.schedule')}</Label>
                 <ToggleGroup
                   type="single"
                   value={scheduleType}
                   onValueChange={(val) => {
-                    if (val === 'daily' || val === 'interval') setScheduleType(val);
+                    if (val === 'daily' || val === 'hourly') setScheduleType(val);
                   }}
                   className="gap-0 rounded-lg border border-border overflow-hidden"
                 >
@@ -420,12 +544,12 @@ export default function AutomationsScreen() {
                     {t('automations.daily')}
                   </ToggleGroupItem>
                   <ToggleGroupItem
-                    value="interval"
+                    value="hourly"
                     className="rounded-none border-0 px-3 py-1.5"
                     activeClassName="bg-foreground"
                     activeTextClassName="text-background"
                   >
-                    {t('automations.interval')}
+                    {t('automations.hourly')}
                   </ToggleGroupItem>
                 </ToggleGroup>
               </View>
@@ -486,6 +610,12 @@ export default function AutomationsScreen() {
                   </Text>
                 </View>
               )}
+              <Input
+                value={timezone}
+                onChangeText={setTimezone}
+                placeholder="Europe/Bucharest"
+                accessibilityLabel="Schedule timezone"
+              />
             </View>
           </View>
         </Dialog>

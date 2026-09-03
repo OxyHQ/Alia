@@ -50,6 +50,28 @@ export interface AutomationDefinitionInput {
   enabled: boolean;
 }
 
+export interface AutomationDefinitionUpdateInput {
+  id: string;
+  ownerAccountId: string;
+  expectedUpdatedAt: Date;
+  objective: string;
+  triggerKind: 'manual' | 'event' | 'schedule';
+  eventAppId?: string;
+  eventType?: string;
+  eventResource?: AutomationResourceRef;
+  scheduleCron?: string;
+  scheduleTimezone?: string;
+  actorMode: 'fixed' | 'automatic';
+  fixedAgentId?: string;
+  eligibleAgentIds: string[];
+  resources: AutomationResourceRef[];
+  dataFlow: AutomationDataFlow;
+  maximumAutonomy: 'read_only' | 'draft' | 'execute_on_request' | 'autonomous';
+  limits: AutomationLimit[];
+  enabled: boolean;
+  authorizations: readonly AutomationAuthorizationInput[];
+}
+
 function toAction(row: ActionRow) {
   return {
     id: row.id,
@@ -254,10 +276,17 @@ export async function setAutomationEnabled(
   id: string,
   ownerAccountId: string,
   enabled: boolean,
+  expectedUpdatedAt?: Date,
 ) {
+  const ownedDefinition = and(
+    eq(automationDefinitions.id, id),
+    eq(automationDefinitions.ownerAccountId, ownerAccountId),
+  );
   const [row] = await db.update(automationDefinitions)
     .set({ enabled })
-    .where(and(eq(automationDefinitions.id, id), eq(automationDefinitions.ownerAccountId, ownerAccountId)))
+    .where(expectedUpdatedAt
+      ? and(ownedDefinition, eq(automationDefinitions.updatedAt, expectedUpdatedAt))
+      : ownedDefinition)
     .returning();
   if (!row) return null;
   const [assignments, actions] = await Promise.all([
@@ -267,122 +296,53 @@ export async function setAutomationEnabled(
   return toDefinition(row, assignments.get(id) ?? [], actions.get(id) ?? []);
 }
 
-/** Keep the transitional trigger scheduler and the structured control plane in sync. */
-export async function upsertLegacyTriggerAutomation(input: {
-  db: ApiDatabase;
-  legacyTriggerId: string;
-  ownerAccountId: string;
-  objective: string;
-  triggerKind: 'event' | 'schedule';
-  eventAppId?: string;
-  eventType?: string;
-  scheduleCron?: string;
-  scheduleTimezone?: string;
-  fixedAgentId?: string;
-  inputs: Record<string, unknown>;
-  enabled: boolean;
-}) {
-  return input.db.transaction(async (transaction) => {
-    const [row] = await transaction.insert(automationDefinitions).values({
-      id: `legacy-trigger-${input.legacyTriggerId}`,
-      ownerAccountId: input.ownerAccountId,
+/**
+ * Replace the editable definition fields and actor assignment order together.
+ * Exact actions keep their ids so run history and Oxy authorization correlation
+ * remain stable. The timestamp predicate prevents a stale editor from silently
+ * overwriting a concurrent change.
+ */
+export async function updateAutomationDefinition(
+  db: ApiDatabase,
+  input: AutomationDefinitionUpdateInput,
+) {
+  return db.transaction(async (transaction) => {
+    const [row] = await transaction.update(automationDefinitions).set({
       objective: input.objective,
       triggerKind: input.triggerKind,
-      eventAppId: input.eventAppId,
-      eventType: input.eventType,
-      scheduleCron: input.scheduleCron,
-      scheduleTimezone: input.scheduleTimezone,
-      actorMode: input.fixedAgentId ? 'fixed' : 'automatic',
-      fixedAgentId: input.fixedAgentId,
-      executionMode: 'execute',
-      inputs: input.inputs,
-      resources: [],
-      dataFlow: { sources: [], destinations: [] },
-      maximumAutonomy: 'autonomous',
-      limits: [],
+      eventAppId: input.eventAppId ?? null,
+      eventType: input.eventType ?? null,
+      eventResource: input.eventResource ?? null,
+      scheduleCron: input.scheduleCron ?? null,
+      scheduleTimezone: input.scheduleTimezone ?? null,
+      actorMode: input.actorMode,
+      fixedAgentId: input.fixedAgentId ?? null,
+      resources: input.resources,
+      dataFlow: input.dataFlow,
+      maximumAutonomy: input.maximumAutonomy,
+      limits: input.limits,
       enabled: input.enabled,
-      legacyTriggerId: input.legacyTriggerId,
-    }).onConflictDoUpdate({
-      target: automationDefinitions.legacyTriggerId,
-      set: {
-        objective: input.objective,
-        triggerKind: input.triggerKind,
-        eventAppId: input.eventAppId ?? null,
-        eventType: input.eventType ?? null,
-        scheduleCron: input.scheduleCron ?? null,
-        scheduleTimezone: input.scheduleTimezone ?? null,
-        actorMode: input.fixedAgentId ? 'fixed' : 'automatic',
-        fixedAgentId: input.fixedAgentId ?? null,
-        executionMode: 'execute',
-        inputs: input.inputs,
-        enabled: input.enabled,
-      },
-    }).returning();
-    if (!row) throw new Error('Legacy automation upsert returned no row');
+    }).where(and(
+      eq(automationDefinitions.id, input.id),
+      eq(automationDefinitions.ownerAccountId, input.ownerAccountId),
+      eq(automationDefinitions.updatedAt, input.expectedUpdatedAt),
+    )).returning();
+    if (!row) return null;
+
+    const assigned = input.actorMode === 'fixed' && input.fixedAgentId
+      ? [input.fixedAgentId]
+      : input.eligibleAgentIds;
     await transaction.delete(automationActorAssignments)
       .where(eq(automationActorAssignments.automationId, row.id));
-    if (input.fixedAgentId) {
-      await transaction.insert(automationActorAssignments).values({
-        automationId: row.id,
-        agentId: input.fixedAgentId,
-        priority: 0,
-      });
+    if (assigned.length > 0) {
+      await transaction.insert(automationActorAssignments).values(
+        assigned.map((agentId, priority) => ({ automationId: row.id, agentId, priority })),
+      );
     }
-    return toDefinition(row, input.fixedAgentId ? [input.fixedAgentId] : [], []);
+    await replaceAutomationActionAuthorizations(transaction, row.id, input.authorizations);
+    const actions = await actionsFor(transaction, [row.id]);
+    return toDefinition(row, assigned, actions.get(row.id) ?? []);
   });
-}
-
-export async function disableLegacyTriggerAutomation(db: Executor, legacyTriggerId: string): Promise<void> {
-  await db.update(automationDefinitions).set({ enabled: false })
-    .where(eq(automationDefinitions.legacyTriggerId, legacyTriggerId));
-}
-
-export async function beginLegacyTriggerAutomationRun(input: {
-  db: Executor;
-  legacyTriggerId: string;
-  executionId: string;
-  requesterAccountId: string;
-  selectedAgentId?: string;
-  selectedActorAccountId: string;
-  manual: boolean;
-}): Promise<boolean> {
-  const [definition] = await input.db.select().from(automationDefinitions)
-    .where(eq(automationDefinitions.legacyTriggerId, input.legacyTriggerId)).limit(1);
-  if (!definition) return false;
-  const inserted = await input.db.insert(automationRuns).values({
-    id: input.executionId,
-    automationId: definition.id,
-    requesterAccountId: input.requesterAccountId,
-    selectedActorType: input.selectedAgentId ? 'agent' : 'alia',
-    selectedAgentId: input.selectedAgentId,
-    idempotencyKey: `${definition.id}:${input.executionId}`,
-    status: 'running',
-    policyDecision: {
-      allowed: true,
-      reason: input.manual ? 'direct_user_request' : 'structured_schedule',
-    },
-    startedAt: new Date(),
-  }).onConflictDoNothing({ target: automationRuns.idempotencyKey }).returning({ id: automationRuns.id });
-  if (inserted.length === 0) return false;
-  await input.db.insert(automationSteps).values({
-    runId: input.executionId,
-    position: 0,
-    actorType: input.selectedAgentId ? 'agent' : 'alia',
-    actorAccountId: input.selectedActorAccountId,
-    resource: {
-      appId: 'alia',
-      effectiveAccountId: input.requesterAccountId,
-      resourceType: 'automation',
-      resourceId: definition.id,
-    },
-    tool: 'trigger.run',
-    input: { legacyTriggerId: input.legacyTriggerId },
-    status: 'running',
-    policyDecision: { allowed: true, reason: input.manual ? 'direct_user_request' : 'structured_schedule' },
-    idempotencyKey: `${input.executionId}:trigger.run`,
-    startedAt: new Date(),
-  });
-  return true;
 }
 
 export async function listAutomationRuns(db: Executor, ownerAccountId: string, automationId?: string) {
@@ -630,6 +590,26 @@ export async function upsertAutomationActionAuthorizations(
   }
 }
 
+/**
+ * Retire every locally active reference before installing the freshly
+ * revalidated set. Remote ids are revoked by the caller before this transaction;
+ * keeping the old rows makes incomplete external cleanup observable.
+ */
+export async function replaceAutomationActionAuthorizations(
+  db: Executor,
+  automationId: string,
+  authorizations: readonly AutomationAuthorizationInput[],
+): Promise<void> {
+  const current = await listActiveAutomationAuthorizations(db, automationId);
+  if (current.length > 0) {
+    await markAutomationAuthorizationsRevoked(
+      db,
+      current.map((authorization) => authorization.oxyAuthorizationId),
+    );
+  }
+  await upsertAutomationActionAuthorizations(db, authorizations);
+}
+
 export async function listActiveAutomationAuthorizations(
   db: Executor,
   automationId: string,
@@ -714,10 +694,12 @@ export async function markAutomationActionStep(
   db: Executor,
   stepId: string,
   status: 'running' | 'succeeded' | 'failed',
+  auditEventId?: string,
 ): Promise<void> {
   const now = new Date();
   await db.update(automationSteps).set({
     status,
+    ...(auditEventId ? { auditEventId } : {}),
     ...(status === 'running' ? { startedAt: now } : { completedAt: now }),
   }).where(eq(automationSteps.id, stepId));
 }

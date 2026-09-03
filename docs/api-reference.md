@@ -95,22 +95,19 @@ earlier revisions of this page had both wrong:
 
 ### Triggers and structured automations
 
-`/triggers` remains the transitional API for legacy routines. `/automations` is the
-normalized control plane for explicit actors, resources, actions, data flow and autonomy.
-Both scheduled row types are reconciled by the same elected scheduler.
+`/automations` is the only control plane for new or active proactive work. It stores
+explicit actors, resources, actions, data flow and autonomy, and is the only source read
+by the elected scheduler. `/triggers` exposes historical legacy rows and executions only.
 
 | Route | Purpose |
 |---|---|
 | `GET /triggers` | List the caller's triggers |
-| `POST /triggers` | Create one. Required: `name`, `type` (`schedule \| webhook \| integration_event`), `action.prompt` |
-| `PATCH /triggers/:id` | Update |
-| `DELETE /triggers/:id` | Delete |
-| `POST /triggers/:id/run` | Manual run |
 | `GET /triggers/:id/executions` | Execution history |
-| `POST /triggers/webhook/:token` | Run a webhook trigger by token |
+| `POST/PATCH/DELETE /triggers/*` | Retired; returns `410 Gone` and points to `/automations` |
+| `POST /triggers/webhook/:token` | Retired; returns `410 Gone` without executing |
 | `GET /automations` | List structured definitions |
 | `POST /automations` | Create an observe/execute definition and receipt |
-| `PATCH /automations/:id` | Enable or stop a definition |
+| `PATCH /automations/:id` | Edit objective, trigger, actor assignment, resources, data flow, autonomy, limits, or enabled state; execution authority is revalidated |
 | `DELETE /automations/:id` | Stop and revoke its execution authorizations |
 | `POST /automations/:id/run` | Run a manual definition with an `Idempotency-Key` |
 | `GET /automations/runs` | List decision and execution history |

@@ -5,7 +5,7 @@ Expo app for web, iOS, and Android.
 ## Current Focus
 
 - Unified streaming chat client for the shared autonomy runtime.
-- Trigger management UI (backed by `/triggers`).
+- Structured automation receipts, editing, history, and revocation.
 - Agent activity + approval actions in real time.
 - Memory, settings, billing, and organization features.
 
@@ -35,9 +35,12 @@ All payloads include `eventVersion: 1`.
 - Approve/deny actions
 - Socket emission via `agent-approval-response`
 
-### Trigger UI
+### Automation UI
 
-Screen path remains `app/(app)/automations.tsx`, but the data source is now `/triggers` only.
+`app/(app)/automations.tsx` creates typed definitions through `POST /automations`.
+Each definition identifies its responsible agent, exact Oxy resource and tool,
+schedule, execution mode and autonomy policy. The detail screen is the editable
+receipt returned by that same control plane.
 
 ## Main Routes
 
@@ -45,7 +48,7 @@ Screen path remains `app/(app)/automations.tsx`, but the data source is now `/tr
 - `app/(app)/c/[id].tsx` - conversation view
 - `app/(app)/agents.tsx` - agent directory
 - `app/(app)/agents/[id].tsx` - agent detail/activity
-- `app/(app)/automations.tsx` - trigger list and controls
+- `app/(app)/automations.tsx` - structured automation list and controls
 - `app/(app)/notifications.tsx` - notification feed
 - `app/(app)/settings/*` - settings area
 
@@ -56,7 +59,7 @@ Screen path remains `app/(app)/automations.tsx`, but the data source is now `/tr
 bun run dev:app
 
 # from packages/app
-npm start
+bun run start
 ```
 
 Platform targets:
@@ -77,5 +80,5 @@ Expected production API:
 
 ## Notes
 
-- No `/automations` API calls remain in the app client.
+- The app has no legacy trigger API or `useTools` automation contract.
 - Public model selection uses Alia model IDs only.

@@ -1,8 +1,8 @@
 /**
- * Triggers and their runs, on Postgres.
+ * Retired trigger rows and their run history, on Postgres.
  *
- * `triggers` and `trigger_executions` move together: `executeTrigger` writes
- * both in one flow, and five files address a run by the trigger it belongs to.
+ * Production routes use the read side for historical UI and reports. Active
+ * creation, scheduling and execution belong to automation definitions.
  *
  * ## The NESTED shape is the wire contract, so it is reconstructed here
  *
@@ -18,21 +18,14 @@
  * column is absent, because Mongoose left an unset sub-document off the document
  * entirely and `'schedule' in trigger` is a test a client can make.
  *
- * `_id` is served from the Postgres `id`. `PATCH /triggers/:id`,
- * `DELETE /triggers/:id` and `POST /triggers/:id/run` all address a trigger by
- * the id the API handed out, so this is a versioned contract, not a compat
- * shim: it retires when no supported client reads `_id`.
+ * `_id` is served from the Postgres `id` because historical clients and report
+ * payloads received that shape. The write routes are retired and return 410.
  *
  * ## `$ne` matches NULL, and `<>` does not
  *
- * `executeTrigger`'s claim is `findOneAndUpdate({_id, lastStatus: {$ne:
- * 'running'}}, …)` — a compare-and-set that refuses to start a trigger already
- * running. A fresh trigger has NO `lastStatus`, and Mongo's `$ne` MATCHES a
- * missing field, so the claim succeeds. Translated to `last_status <>
- * 'running'` it would evaluate NULL, the row would not match, and EVERY first
- * run of EVERY trigger would report "already running" and do nothing. The
- * correct spelling is `IS DISTINCT FROM`, and it is pinned by a test that
- * claims a trigger whose `last_status` is NULL.
+ * The retained compare-and-set helpers preserve the original NULL semantics
+ * for migration verification: SQL `IS DISTINCT FROM` matches a fresh row whose
+ * `last_status` is NULL, unlike `<>`.
  */
 
 import { and, count, desc, eq, inArray, or, sql } from 'drizzle-orm';
@@ -239,11 +232,8 @@ export async function createTrigger(db: ApiDatabase, input: NewTrigger): Promise
 /**
  * A user's triggers, newest first.
  *
- * `enabledOnly` and `limit` exist because the AI tool in
- * `lib/tools/trigger-management.ts` lists differently from the route: it hides
- * disabled triggers unless asked and caps at 20, while `GET /triggers` returns
- * every one. Two call sites, one query, each predicate optional and OFF by
- * default so neither silently inherits the other's narrowing.
+ * `enabledOnly` and `limit` remain available to bounded maintenance callers;
+ * the historical HTTP read defaults to returning every owned row.
  */
 export async function listTriggers(
   db: ApiDatabase,
@@ -363,7 +353,7 @@ export async function setTriggerSchedule(
   await updateTrigger(db, id, { schedule });
 }
 
-/** Change only the prompt. Used by the daily-briefing refresh. */
+/** Change only the prompt in a retired row during migration maintenance. */
 export async function setTriggerActionPrompt(
   db: ApiDatabase,
   id: string,
@@ -571,7 +561,7 @@ export async function findAgentTriggerByType(
 }
 
 /**
- * A user's daily-briefing trigger.
+ * A user's historical daily-briefing trigger.
  *
  * The source matched `name: { $regex: /daily briefing|morning briefing/i }`.
  * Ported as a case-insensitive `LIKE` on either phrase rather than a regex
@@ -654,7 +644,7 @@ export async function createTriggerExecution(
   return row;
 }
 
-/** Close a run. The three `save()` sites in `executeTrigger` all land here. */
+/** Close a historical run during migration maintenance. */
 export async function completeTriggerExecution(
   db: ApiDatabase,
   id: string,

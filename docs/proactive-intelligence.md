@@ -1,12 +1,11 @@
 # Proactive Intelligence
 
-Last updated: 2026-09-02
+Last updated: 2026-09-03
 
 Alia proactive intelligence has one normalized control plane (`/automations`) and
-one scheduler (`trigger-engine.ts`) during the trigger migration. Automation
-definitions own actors, exact Oxy actions, data flow, limits and execution mode;
-the elected scheduler reconciles both normalized schedules and legacy trigger
-rows without duplicating cron processes.
+one elected scheduler (`trigger-engine.ts`). Automation definitions own actors,
+exact Oxy actions, data flow, limits and execution mode. Legacy trigger rows are
+read-only audit history and never enter the scheduler or dispatcher.
 
 ## Architecture
 
@@ -28,42 +27,36 @@ rows without duplicating cron processes.
 8. The run finishes only after every declared action step succeeds, then sends
    the configured result notification.
 
-## Trigger Engine
+## Automation Scheduler
 
 Source: `packages/api/src/lib/trigger-engine.ts`
 
-Supported trigger types:
+The scheduler registers enabled structured definitions whose trigger is a validated
+cron expression plus IANA timezone. A 30-second reconciliation loop reschedules edited
+definitions and stops removed or disabled ones. The stable leader lease prevents two
+tasks from scheduling the same definition during a rolling deployment.
 
-- `schedule` - cron/daily/interval.
-- `webhook` - token endpoint with optional HMAC/IP checks.
-- `integration_event` - matched by `service + event + filters`.
-- `agent_heartbeat` - periodic agent health/status checks.
-
-## Trigger Action Contract
+Creation and editing use the same structured contract:
 
 ```ts
 {
-  prompt: string;
-  agentId?: ObjectId;
-  roleId?: string;
-  useTools: boolean;
-  notify?: boolean;
-  channelId?: string;
+  objective: string;
+  trigger: { type: 'manual' | 'event' | 'schedule'; /* type-specific fields */ };
+  actorSelection: { mode: 'fixed'; agentId: string }
+    | { mode: 'automatic'; eligibleAgentIds: string[] };
+  executionMode: 'observe' | 'execute';
+  actions: Array<{ resource: ResourceRef; tool: string; input: object; limits: Limit[] }>;
+  resources: ResourceRef[];
+  dataFlow: { sources: ResourceRef[]; destinations: ResourceRef[] };
+  maximumAutonomy: 'read_only' | 'draft' | 'execute_on_request' | 'autonomous';
+  limits: Limit[];
+  enabled: boolean;
 }
 ```
 
 ## Execution Persistence
 
-Each run writes a `TriggerExecution` record with:
-
-- `status`: running/success/failed
-- input context (`event`, `payload`, `source`)
-- output summary
-- tool calls
-- token usage
-- duration
-
-Normalized runs also write `automation_runs` and ordered `automation_steps`.
+Each run writes `automation_runs` and ordered `automation_steps`.
 Each Oxy step carries its stable action id, fresh run/step correlation and
 policy decision. Agent sessions carry an explicit `(automationRunId, stage)`
 binding; a unique database index prevents duplicate sessions for one stage.
@@ -113,6 +106,7 @@ All chat clients consume the same named events with `eventVersion: 1`:
 
 ## Important
 
-Scheduled execution is trigger-engine-native. `/automations` owns normalized
-schedules while existing trigger rows remain supported during migration; both
-use the same leader lease, cron registry and reconciliation loop.
+Scheduled execution is definition-native: `/automations` owns schedules and
+`trigger-engine.ts` reads only its normalized repository. `GET /triggers` remains
+available for historical inspection; all trigger writes and execution endpoints
+return `410 Gone`.

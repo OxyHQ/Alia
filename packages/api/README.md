@@ -6,9 +6,9 @@ Express + TypeScript API for Alia autonomy runtime.
 
 - Single chat runtime for all surfaces (`/alia/chat` and `/v1/chat/completions`).
 - Autonomy loop with intent classification and context-graph recall.
-- Trigger engine (`/triggers`) for schedule, webhook, integration event, and agent heartbeat tasks.
 - Structured automation control plane (`/automations`) for explicit actors, resources,
   data flow, autonomy, observation and execution.
+- Read-only legacy trigger and execution history; its writes are retired.
 - Oxy service event ingestion with idempotency and autonomous session creation.
 - Governance by risk level (`R0` read, `R1` reversible write + rollback record, `R2` approval required, `R3` blocked).
 - Model abstraction on the product surface: only the `alia-*` identifiers are exposed.
@@ -29,7 +29,7 @@ Express + TypeScript API for Alia autonomy runtime.
 - `src/lib/autonomy/context-graph.ts` - Recall/learning engine.
 - `src/lib/agent/governance.ts` - Risk policy and rollback registration.
 - `src/lib/agent/action-approval.ts` - Approval request/decision lifecycle.
-- `src/lib/trigger-engine.ts` - Unified trigger scheduler/executor.
+- `src/lib/trigger-engine.ts` - Elected structured-automation scheduler.
 - `src/lib/automation-dispatcher.ts` - Deterministic structured automation coordinator.
 - `src/routes/oxy-service-events.ts` - Oxy event webhook + autonomous execution.
 
@@ -43,17 +43,14 @@ Express + TypeScript API for Alia autonomy runtime.
 - `GET /v1/models`
 - `GET /v1/models/:modelId`
 
-### Triggers
+### Retired Trigger History
 
 - `GET /triggers`
-- `POST /triggers`
 - `GET /triggers/:id`
-- `PATCH /triggers/:id`
-- `DELETE /triggers/:id`
-- `POST /triggers/:id/run`
 - `GET /triggers/:id/executions`
-- `POST /triggers/:id/regenerate-token`
-- `POST /triggers/webhook/:token`
+
+All former trigger writes, manual runs, token regeneration and webhook execution
+return `410 Gone` with `/automations` as the replacement.
 
 ### Oxy Event Ingestion
 

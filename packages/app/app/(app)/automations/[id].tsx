@@ -1,10 +1,12 @@
 import { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
-import { ArrowLeft, ChevronDown, ChevronUp } from 'lucide-react-native';
+import { ArrowLeft, ChevronDown, ChevronUp, Pencil } from 'lucide-react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ContentPanel } from '@oxyhq/bloom/content-panel';
+import { toast } from '@oxyhq/bloom/toast';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
+import { AutomationEditor } from '@/components/automations/automation-editor';
 import { AutomationPill, automationStatusTone } from '@/components/automations/automation-pill';
 import {
   actorLabel,
@@ -15,14 +17,16 @@ import {
   resourceLabel,
   triggerLabel,
 } from '@/lib/automations/format';
-import type { AutomationRun } from '@/lib/automations/types';
+import type { AutomationRun, AutomationUpdateInput } from '@/lib/automations/types';
 import {
   useAutomationOverview,
   useAutomationRuns,
   useAutomationRunSteps,
+  useUpdateAutomation,
 } from '@/lib/hooks/use-automations';
 import { useMyAgents } from '@/lib/hooks/use-my-agents';
 import { useColorScheme } from '@/lib/useColorScheme';
+import { errorMessage } from '@/lib/errors/error-utils';
 
 const RUN_PAGE_SIZE = 20;
 
@@ -141,6 +145,8 @@ export default function AutomationHistoryScreen() {
   const overview = useAutomationOverview();
   const runs = useAutomationRuns(id);
   const agents = useMyAgents();
+  const updateAutomation = useUpdateAutomation();
+  const [editorOpen, setEditorOpen] = useState(false);
   const [visibleRuns, setVisibleRuns] = useState(RUN_PAGE_SIZE);
   const automation = overview.data?.automations.find((candidate) => candidate.id === id);
   const agentNames = useMemo(() => new Map(
@@ -153,6 +159,10 @@ export default function AutomationHistoryScreen() {
     (agentId: string) => agentNames.get(agentId) ?? `Agent ${agentId.slice(0, 8)}`,
     [agentNames],
   );
+  const agentOptions = useMemo(() => (agents.data ?? []).map((agent) => ({
+    id: agent._id,
+    label: agent.name ?? agent.handle ?? `Agent ${agent._id.slice(0, 8)}`,
+  })), [agents.data]);
 
   if (overview.isLoading || runs.isLoading) {
     return (
@@ -190,6 +200,19 @@ export default function AutomationHistoryScreen() {
 
   const history = runs.data ?? [];
   const displayedRuns = history.slice(0, visibleRuns);
+  const saveUpdate = async (update: AutomationUpdateInput) => {
+    try {
+      const result = await updateAutomation.mutateAsync({ automationId: automation.id, update });
+      if (result.revocation?.failed) {
+        toast.error(`Saved, but ${result.revocation.failed} old authorizations could not be revoked`);
+      } else {
+        toast.success('Automation updated and authority revalidated');
+      }
+      setEditorOpen(false);
+    } catch (error: unknown) {
+      toast.error(errorMessage(error, 'Failed to update automation'));
+    }
+  };
 
   return (
     <ContentPanel surfaceClassName="bg-background">
@@ -219,6 +242,17 @@ export default function AutomationHistoryScreen() {
             <AutomationPill label={autonomyLabel(automation.maximumAutonomy)} />
             {automation.legacyTriggerId ? (
               <AutomationPill label="Legacy transition" tone="warning" />
+            ) : null}
+            {!automation.legacyTriggerId ? (
+              <Button
+                size="sm"
+                variant="outline"
+                onPress={() => setEditorOpen(true)}
+                className="ml-auto"
+              >
+                <Pencil size={14} color={colors.foreground} />
+                <Text>Edit</Text>
+              </Button>
             ) : null}
           </View>
           <Text className="text-sm text-muted-foreground" selectable>
@@ -269,6 +303,16 @@ export default function AutomationHistoryScreen() {
           ) : null}
         </View>
       </ScrollView>
+      {!automation.legacyTriggerId ? (
+        <AutomationEditor
+          automation={automation}
+          agents={agentOptions}
+          open={editorOpen}
+          saving={updateAutomation.isPending}
+          onClose={() => setEditorOpen(false)}
+          onSave={saveUpdate}
+        />
+      ) : null}
     </ContentPanel>
   );
 }

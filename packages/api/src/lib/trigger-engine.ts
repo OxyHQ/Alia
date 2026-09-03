@@ -1,127 +1,26 @@
-/**
- * Trigger Engine
- *
- * Unified execution engine for all trigger types (schedule, webhook, integration_event).
- * Handles scheduling via node-cron, webhook ingestion, and integration event processing.
- * Each trigger execution gets full AI capabilities including tools.
- */
+/** Elected cron scheduler for normalized automation definitions. */
 
-import crypto from 'crypto';
 import cron, { type ScheduledTask, type TaskContext } from 'node-cron';
-import { generateText, stepCountIs } from 'ai';
 import {
-  claimTriggerForRun,
-  completeTriggerExecution,
-  createTrigger,
-  createTriggerExecution,
-  findAgentHeartbeatTrigger,
-  findIntegrationEventTriggers,
-  findLastSuccessfulExecution,
-  findSchedulableTriggers,
-  findTriggerById,
-  findTriggerByWebhookToken,
-  listSchedulableTriggerVersions,
-  recordTriggerFailure,
-  recordTriggerSuccess,
-  setTriggerSchedule,
-  type TriggerRecord,
-  type TriggerSchedule,
-} from '../db/automation/triggerRepository.js';
-import { findAgentById, listAgentsWithHeartbeat } from '../db/agents/agentRepository.js';
-import {
-  agentPromptName,
-  attachAgentIdentities,
-  attachAgentIdentity,
-  type HydratedAgent,
-} from './agent-identity.js';
-import { readArchetypeConfig } from '../domain/agent.js';
-import { buildIdentityGuard } from './identity-guard.js';
-import { userContextBlock } from './user-context.js';
-import { ToolPipeline } from './tool-pipeline.js';
-import { resolveModel, getAIModel, getDefaultAliaModel } from './chat-core.js';
-import {
-} from './tools/index.js';
-import { getDb } from '../db/index.js';
-import { findUserMemory, type UserMemoryProfile } from '../db/memory/userMemoryRepository.js';
-import { oxyClient } from '../middleware/auth.js';
-import { log } from './logger.js';
-import { getErrorMessage } from './errors/index.js';
-import { sendNotification } from './notification-service.js';
-import type { NotificationChannel } from '../db/schema/notifications.js';
-import { agentRemitPrompt } from './agent/archetype-prompts.js';
-import { handleRoutingDecision } from './agent/routing-handler.js';
-import { startLeaderElection, type LeaderElectionHandle, type LeaderElectionOptions } from './leader-election.js';
-import type { User as OxyUser } from '@oxyhq/core';
-import {
-  beginLegacyTriggerAutomationRun,
   findAutomationDefinitionById,
   listSchedulableAutomationDefinitions,
   listSchedulableAutomationVersions,
-  markAutomationRunForSession,
   type AutomationDefinitionRecord,
 } from '../db/automation/automationDefinitionRepository.js';
+import { getDb } from '../db/index.js';
 import { dispatchStructuredAutomation } from './automation-dispatcher.js';
-
-// ── Scheduled task registry ────────────────────────────────────────
+import {
+  startLeaderElection,
+  type LeaderElectionHandle,
+  type LeaderElectionOptions,
+} from './leader-election.js';
+import { log } from './logger.js';
 
 const scheduledTasks = new Map<string, ScheduledTask>();
-const scheduledAutomationTasks = new Map<string, ScheduledTask>();
-// Tracks the updatedAt (epoch ms) of each currently scheduled trigger so the
-// reconcile loop can detect edits made by (and cron tasks removed on) instances
-// other than the leader — standalone Mongo has no change streams.
 const scheduledUpdatedAt = new Map<string, number>();
-const scheduledAutomationUpdatedAt = new Map<string, number>();
 const RECONCILE_INTERVAL_MS = 30_000;
 let reconcileTimer: ReturnType<typeof setInterval> | null = null;
 let electionHandle: LeaderElectionHandle | null = null;
-
-// ── Cron helpers ───────────────────────────────────────────────────
-
-function dayToCronNumber(day: string): number {
-  const dayMap: Record<string, number> = {
-    sunday: 0, monday: 1, tuesday: 2, wednesday: 3,
-    thursday: 4, friday: 5, saturday: 6,
-  };
-  // `day` comes from a user-authored trigger schedule. `dayMap['constructor']`
-  // is a function and `??` passes it through, so this returned a function from
-  // a `number` signature. Today the `.filter((d) => d >= 0)` at the call site
-  // discards it — a function compares false against 0 — so the cron string is
-  // unaffected; the fix is here anyway, because the next caller that does not
-  // filter inherits the bug rather than discovering it.
-  const normalized = day.toLowerCase();
-  return Object.hasOwn(dayMap, normalized) ? dayMap[normalized] : -1;
-}
-
-export function scheduleToCron(schedule: TriggerSchedule): string | null {
-  if (schedule.type === 'cron' && schedule.cron) {
-    return schedule.cron;
-  }
-
-  if (schedule.type === 'interval' && schedule.intervalMinutes) {
-    return `*/${schedule.intervalMinutes} * * * *`;
-  }
-
-  if (schedule.type === 'daily') {
-    const time = schedule.time || '09:00';
-    const [hours, minutes] = time.split(':').map(Number);
-    if (isNaN(hours) || isNaN(minutes)) return null;
-
-    const days = schedule.days || [];
-    if (days.length === 0 || days.length === 7) {
-      return `${minutes} ${hours} * * *`;
-    }
-
-    const cronDays = days
-      .map(dayToCronNumber)
-      .filter((d) => d >= 0)
-      .sort()
-      .join(',');
-
-    return cronDays ? `${minutes} ${hours} * * ${cronDays}` : `${minutes} ${hours} * * *`;
-  }
-
-  return null;
-}
 
 export function automationScheduleError(
   cronExpression: string,
@@ -136,350 +35,14 @@ export function automationScheduleError(
   }
 }
 
-// ── System prompt builder ──────────────────────────────────────────
-
-function buildTriggerSystemPrompt(
-  trigger: TriggerRecord,
-  oxyUser?: OxyUser | null,
-  memory?: UserMemoryProfile | null,
-  source?: string
-): string {
-  // Names nobody: `buildIdentityGuard` is prepended above this and owns that.
-  // This used to open with a name claim of its own — under a guard that, for a
-  // trigger bound to an agent, had just given the agent's.
-  const prompt = `You are processing a triggered task, unattended.
-
-## Trigger: "${trigger.name}"
-- Type: ${trigger.type}${source ? `\n- Source: ${source}` : ''}
-- Run count: ${trigger.triggerCount + 1}${trigger.lastTriggeredAt ? `\n- Last run: ${trigger.lastTriggeredAt.toISOString()}` : ''}
-
-## Guidelines
-- Be concise and actionable. Lead with the result.
-- Use the user's preferred language if known.
-- Use available tools when they help accomplish the task.
-- Respond with a brief summary of what you did.`;
-
-  // The user block is shared with `routes/internal.ts`, which had its own copy
-  // under the same name and a different signature. Only the task prompt above
-  // is this path's own.
-  return `${userContextBlock(oxyUser, memory)}${prompt}`;
-}
-
-// ── Core execution ─────────────────────────────────────────────────
-
-export interface TriggerExecutionContext {
-  source: string;
-  event?: string;
-  payload?: Record<string, any>;
-}
-
-export async function executeTrigger(
-  trigger: TriggerRecord,
-  context: TriggerExecutionContext
-): Promise<{ success: boolean; result?: string; executionId?: string }> {
-  const triggerId = trigger._id;
-  const userId = trigger.oxyUserId;
-  const startTime = Date.now();
-
-  log.triggers.info({ name: trigger.name, triggerId, source: context.source }, 'Executing trigger');
-
-  // Create execution record
-  const execution = await createTriggerExecution(getDb(), {
-    triggerId,
-    oxyUserId: userId,
-    triggerType: context.source === 'manual' ? 'manual' : trigger.type,
-    input: {
-      event: context.event,
-      payload: context.payload,
-      source: context.source,
-    },
-    startedAt: new Date(),
-  });
-
-  // Atomically mark the trigger as running. ONE conditional statement, as the
-  // source's `findOneAndUpdate` was one round trip — a read-then-write here
-  // would reopen the race this guard exists to close.
-  const updated = await claimTriggerForRun(getDb(), triggerId);
-  if (!updated) {
-    log.triggers.info({ name: trigger.name }, 'Trigger already running, skipping');
-    await completeTriggerExecution(getDb(), execution.id, {
-      status: 'failed',
-      result: 'Trigger already running',
-      completedAt: new Date(),
-      durationMs: Date.now() - startTime,
-    });
-    return { success: false, result: 'Trigger already running', executionId: execution.id };
-  }
-
-  try {
-    // Load user context + linked agent (if any)
-    const [memory, oxyUser, linkedAgent] = await Promise.all([
-      findUserMemory(getDb(), userId).then(m => m ?? null).catch(() => null),
-      oxyClient.getUserById(userId).catch(() => null) as Promise<OxyUser | null>,
-      trigger.action.agentId
-        ? findAgentById(getDb(), trigger.action.agentId)
-            .then(async agent => (agent === null ? null : attachAgentIdentity(agent)))
-            .catch(() => null)
-        : Promise.resolve<HydratedAgent | null>(null),
-    ]);
-    if (trigger.action.agentId && !linkedAgent) {
-      throw new Error('The automation\'s assigned agent is unavailable');
-    }
-    await beginLegacyTriggerAutomationRun({
-      db: getDb(),
-      legacyTriggerId: triggerId,
-      executionId: execution.id,
-      requesterAccountId: userId,
-      selectedAgentId: linkedAgent?._id,
-      selectedActorAccountId: linkedAgent?.oxyAccountId ?? userId,
-      manual: context.source === 'manual',
-    });
-
-    // Resolve AI model
-    const resolved = await resolveModel(getDefaultAliaModel());
-    if (!resolved) {
-      throw new Error('No AI models available');
-    }
-
-    const model = getAIModel(resolved, 'trigger');
-    const { tools } = await ToolPipeline.forUser({
-      userId,
-      isDirectSession: false,
-      // A trigger runs for the person who wrote it.
-      actsForPerson: true,
-      agentMode: false,
-      // The trigger's author decides whether it may use tools at all.
-      toolsEnabled: trigger.action.useTools === true,
-      webSearch: true,
-      isLocalRuntime: false,
-      agent: linkedAgent,
-      runId: execution.id,
-      oxyAutonomy: context.source === 'manual' ? 'execute_on_request' : 'autonomous',
-    });
-
-    /**
-     * The agent and the trigger are DIFFERENT facts, and both belong here.
-     *
-     * They used to be alternatives, and each branch threw the other away:
-     *
-     *  - `archetype !== 'general'` ran the agent's prompt ALONE, losing the
-     *    trigger's name, type, run count and delivery guidelines — and the user
-     *    context block with them, since `buildTriggerSystemPrompt` is what
-     *    carries it.
-     *  - `archetype === 'general'`, which is the DEFAULT and therefore the
-     *    common case, ran the trigger prompt alone, so an owner who wrote a
-     *    `systemPrompt` for their agent watched a trigger bound to that agent
-     *    ignore it entirely. Same defect the chat path had, one surface over.
-     *
-     * The agent's prompt says WHO is running; the trigger's says WHAT to do
-     * this time. Composed in that order, which is the order every other surface
-     * uses — `agentRemitPrompt` above the rest — so the guard's remit rule
-     * finds the section it names, and the task reads as a task rather than as a
-     * redefinition of the agent.
-     */
-    const triggerPrompt = buildTriggerSystemPrompt(trigger, oxyUser, memory, context.source);
-    let systemPrompt = linkedAgent
-      ? `${agentRemitPrompt(linkedAgent)}\n\n---\n\n${triggerPrompt}`
-      : triggerPrompt;
-
-    /**
-     * The identity guard, which this path did not have.
-     *
-     * `buildIdentityGuard`'s own docblock claimed "every system-prompt
-     * composition path" while covering three of five — and the two it missed
-     * were the two with the most autonomy, this one and the agent-bot webhook.
-     * A trigger runs unattended and can deliver its answer to Telegram, so it
-     * is the last place a route detail should be able to leak.
-     */
-    systemPrompt = `${buildIdentityGuard(
-      linkedAgent ? { agentName: agentPromptName(linkedAgent) } : {},
-    )}\n\n---\n\n${systemPrompt}`;
-
-    // Build user message
-    let userMessage = trigger.action.prompt;
-    if (context.payload) {
-      userMessage += `\n\n---\nTrigger payload:\n${JSON.stringify(context.payload, null, 2)}`;
-    }
-    if (context.event) {
-      userMessage += `\n\nEvent: ${context.event}`;
-    }
-
-    // Previous report comparison for status_update agents
-    if (
-      linkedAgent?.archetype === 'status_update' &&
-      readArchetypeConfig(linkedAgent.archetypeConfig).compareWithPrevious === true
-    ) {
-      const previousExecution = await findLastSuccessfulExecution(getDb(), triggerId);
-
-      if (previousExecution?.result) {
-        userMessage += `\n\n---\n## Previous Report (${previousExecution.completedAt?.toISOString() || 'unknown date'})\n\n${previousExecution.result.slice(0, 4000)}`;
-      }
-    }
-
-    // Execute AI
-    const result = await generateText({
-      model,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userMessage },
-      ],
-      tools,
-      temperature: 0.3,
-      maxRetries: 0,
-      stopWhen: stepCountIs(8),
-    });
-
-    const durationMs = Date.now() - startTime;
-    const resultText = result.text || 'No response generated';
-
-    // Extract tool calls
-    const toolCalls = result.steps?.flatMap((step: any) =>
-      (step.toolCalls || []).map((tc: any) => ({
-        tool: tc.toolName,
-        args: tc.args,
-      }))
-    ) || [];
-
-    // Extract token usage
-    const tokens = result.usage ? {
-      prompt: result.usage.inputTokens || 0,
-      completion: result.usage.outputTokens || 0,
-      total: result.usage.totalTokens || 0,
-    } : undefined;
-
-    // Update execution record
-    await completeTriggerExecution(getDb(), execution.id, {
-      status: 'success',
-      result: resultText,
-      toolCalls,
-      tokens,
-      durationMs,
-      completedAt: new Date(),
-    });
-    await markAutomationRunForSession(getDb(), execution.id, 'succeeded');
-
-    // Update trigger stats
-    await recordTriggerSuccess(getDb(), triggerId, {
-      lastTriggeredAt: new Date(),
-      lastResult: resultText.slice(0, 2000),
-    });
-
-    log.triggers.info({ name: trigger.name, triggerId, durationMs, toolCalls: toolCalls.length }, 'Trigger completed');
-
-    // Task router: process routing decision
-    if (linkedAgent?.archetype === 'task_router') {
-      try {
-        await handleRoutingDecision(linkedAgent, resultText, trigger);
-      } catch (routingErr) {
-        log.triggers.error({ err: routingErr, triggerId }, 'Failed to process routing decision');
-      }
-    }
-
-    // Deliver notification if enabled
-    if (trigger.action.notify) {
-      // Multi-channel delivery for status_update agents
-      const agentChannels =
-        linkedAgent?.archetype === 'status_update'
-          ? readArchetypeConfig(linkedAgent.archetypeConfig).deliveryChannels
-          : undefined;
-      const deliveryChannels: NotificationChannel[] | undefined =
-        agentChannels !== undefined && agentChannels.length > 0
-          ? ([...agentChannels, 'in_app'] as NotificationChannel[])
-          : trigger.action.channelId
-            ? [trigger.action.channelId as NotificationChannel, 'in_app']
-            : undefined;
-
-      sendNotification({
-        userId,
-        type: 'trigger_result',
-        title: trigger.name,
-        body: resultText.slice(0, 4000),
-        channels: deliveryChannels,
-        triggerId,
-        data: { executionId: execution.id },
-      }).catch((err) => {
-        log.triggers.error({ err, triggerId }, 'Failed to send trigger notification');
-      });
-    }
-
-    return { success: true, result: resultText, executionId: execution.id };
-  } catch (error: unknown) {
-    const durationMs = Date.now() - startTime;
-    const errMsg = getErrorMessage(error);
-    log.triggers.error({ err: error, name: trigger.name, triggerId }, 'Trigger execution failed');
-
-    await completeTriggerExecution(getDb(), execution.id, {
-      status: 'failed',
-      result: errMsg,
-      durationMs,
-      completedAt: new Date(),
-    });
-    await markAutomationRunForSession(getDb(), execution.id, 'failed');
-
-    await recordTriggerFailure(getDb(), triggerId, {
-      lastResult: errMsg,
-      lastTriggeredAt: new Date(),
-    });
-
-    return { success: false, result: errMsg, executionId: execution.id };
-  }
-}
-
-// ── Schedule management ────────────────────────────────────────────
-
-function unscheduleTrigger(triggerId: string): void {
-  const existing = scheduledTasks.get(triggerId);
-  if (existing) {
-    Promise.resolve(existing.stop()).catch((err) => log.triggers.error({ err, triggerId }, 'Failed to stop scheduled task'));
-    scheduledTasks.delete(triggerId);
-    scheduledUpdatedAt.delete(triggerId);
-  }
-}
-
-function scheduleTrigger(trigger: TriggerRecord): void {
-  const triggerId = trigger._id;
-
-  // Remove existing schedule before (re)scheduling in place
-  unscheduleTrigger(triggerId);
-
-  if (!trigger.enabled || (trigger.type !== 'schedule' && trigger.type !== 'agent_heartbeat') || !trigger.schedule) return;
-
-  const cronExpression = scheduleToCron(trigger.schedule);
-  if (!cronExpression) {
-    log.triggers.error({ name: trigger.name, triggerId }, 'Invalid schedule configuration');
-    return;
-  }
-
-  if (!cron.validate(cronExpression)) {
-    log.triggers.error({ cronExpression, name: trigger.name }, 'Invalid cron expression');
-    return;
-  }
-
-  const task = cron.schedule(cronExpression, async () => {
-    try {
-      const fresh = await findTriggerById(getDb(), triggerId);
-      if (!fresh || !fresh.enabled) return;
-      await executeTrigger(fresh, { source: 'cron' });
-    } catch (error) {
-      log.triggers.error({ err: error, triggerId }, 'Scheduled trigger cron task failed');
-    }
-  }, {
-    timezone: trigger.schedule.timezone,
-  });
-
-  scheduledTasks.set(triggerId, task);
-  scheduledUpdatedAt.set(triggerId, trigger.updatedAt.getTime());
-  log.triggers.info({ name: trigger.name, cronExpression, timezone: trigger.schedule.timezone }, 'Scheduled trigger');
-}
-
 function unscheduleAutomation(automationId: string): void {
-  const existing = scheduledAutomationTasks.get(automationId);
+  const existing = scheduledTasks.get(automationId);
   if (!existing) return;
-  Promise.resolve(existing.stop()).catch((error) => {
+  Promise.resolve(existing.stop()).catch((error: unknown) => {
     log.triggers.error({ err: error, automationId }, 'Failed to stop scheduled automation');
   });
-  scheduledAutomationTasks.delete(automationId);
-  scheduledAutomationUpdatedAt.delete(automationId);
+  scheduledTasks.delete(automationId);
+  scheduledUpdatedAt.delete(automationId);
 }
 
 function scheduleOccurrence(automationId: string, context: TaskContext) {
@@ -498,115 +61,70 @@ function scheduleAutomation(automation: AutomationDefinitionRecord): void {
   const cronExpression = automation.trigger.cron;
   const timezone = automation.trigger.timezone;
   if (!cronExpression || !timezone) {
-    log.triggers.error({ automationId }, 'Structured automation schedule is incomplete');
+    log.triggers.error({ automationId }, 'Automation schedule is incomplete');
     return;
   }
   const scheduleError = automationScheduleError(cronExpression, timezone);
   if (scheduleError) {
     log.triggers.error(
       { automationId, cronExpression, scheduleError },
-      'Invalid structured automation schedule',
+      'Automation schedule is invalid',
     );
     return;
   }
 
   try {
-    const task = cron.schedule(cronExpression, async (now) => {
+    const task = cron.schedule(cronExpression, async (context) => {
       try {
         const fresh = await findAutomationDefinitionById(getDb(), automationId);
         if (!fresh?.enabled || fresh.trigger.type !== 'schedule') return;
-        const occurrence = scheduleOccurrence(automationId, now);
-        await dispatchStructuredAutomation(fresh, { kind: 'schedule', ...occurrence });
+        await dispatchStructuredAutomation(fresh, {
+          kind: 'schedule',
+          ...scheduleOccurrence(automationId, context),
+        });
       } catch (error: unknown) {
-        log.triggers.error({ err: error, automationId }, 'Scheduled structured automation failed');
+        log.triggers.error({ err: error, automationId }, 'Scheduled automation failed');
       }
-    }, {
-      timezone,
-      noOverlap: true,
-    });
-    scheduledAutomationTasks.set(automationId, task);
-    scheduledAutomationUpdatedAt.set(automationId, automation.updatedAt.getTime());
-    log.triggers.info(
-      { automationId, cronExpression, timezone },
-      'Scheduled structured automation',
-    );
+    }, { timezone, noOverlap: true });
+    scheduledTasks.set(automationId, task);
+    scheduledUpdatedAt.set(automationId, automation.updatedAt.getTime());
+    log.triggers.info({ automationId, cronExpression, timezone }, 'Scheduled automation');
   } catch (error: unknown) {
-    log.triggers.error({ err: error, automationId }, 'Invalid structured automation timezone or schedule');
+    log.triggers.error({ err: error, automationId }, 'Could not schedule automation');
   }
 }
 
-// ── Webhook verification ───────────────────────────────────────────
-
-export function verifyWebhookSignature(
-  payload: string,
-  signature: string,
-  secret: string
-): boolean {
-  const expected = crypto
-    .createHmac('sha256', secret)
-    .update(payload)
-    .digest('hex');
-  return crypto.timingSafeEqual(
-    Buffer.from(signature),
-    Buffer.from(expected)
-  );
+async function reconcileScheduledAutomations(): Promise<void> {
+  try {
+    const rows = await listSchedulableAutomationVersions(getDb());
+    const seen = new Set<string>();
+    for (const row of rows) {
+      seen.add(row.id);
+      if (scheduledUpdatedAt.get(row.id) === row.updatedAt.getTime()) continue;
+      const automation = await findAutomationDefinitionById(getDb(), row.id);
+      if (automation) scheduleAutomation(automation);
+    }
+    for (const automationId of [...scheduledUpdatedAt.keys()]) {
+      if (!seen.has(automationId)) unscheduleAutomation(automationId);
+    }
+  } catch (error: unknown) {
+    log.triggers.error({ err: error }, 'Automation schedule reconciliation failed');
+  }
 }
-
-export function generateWebhookToken(): string {
-  return crypto.randomBytes(24).toString('hex');
-}
-
-// ── Integration event matching ─────────────────────────────────────
-
-export async function findTriggersForIntegrationEvent(
-  service: string,
-  event: string,
-  userId: string,
-  eventData?: Record<string, any>
-): Promise<TriggerRecord[]> {
-  const triggers = await findIntegrationEventTriggers(getDb(), userId, service, event);
-
-  // Apply filters
-  return triggers.filter((trigger) => {
-    const filters = trigger.integrationEvent?.filters;
-    if (!filters || Object.keys(filters).length === 0) return true;
-    if (!eventData) return true;
-
-    // Simple key-value filter matching
-    return Object.entries(filters).every(([key, value]) => {
-      const actual = eventData[key];
-      if (typeof value === 'string' && typeof actual === 'string') {
-        return actual.toLowerCase().includes(value.toLowerCase());
-      }
-      return actual === value;
-    });
-  });
-}
-
-// ── Public API ─────────────────────────────────────────────────────
 
 /**
- * Start the trigger engine under Postgres-lease leader election. The elected
- * instance runs the scheduler; every other instance stays idle so a scheduled
- * trigger fires exactly once across a cluster of ECS tasks. Idempotent.
+ * The lease name stays stable across the rolling cutover so old and new tasks
+ * cannot both lead while one deployment is draining.
  */
-export function startTriggerEngine(opts?: LeaderElectionOptions): LeaderElectionHandle {
+export function startTriggerEngine(options?: LeaderElectionOptions): LeaderElectionHandle {
   if (electionHandle) return electionHandle;
-  electionHandle = startLeaderElection(
-    'trigger-engine',
-    {
-      onElected: () => startTriggerScheduler(),
-      onDemoted: () => { stopAllScheduledTasks(); },
-    },
-    opts
-  );
+  electionHandle = startLeaderElection('trigger-engine', {
+    onElected: () => startTriggerScheduler(),
+    onDemoted: () => stopAllScheduledTasks(),
+  }, options);
   return electionHandle;
 }
 
-/**
- * Stop the trigger engine: releases the leadership lease (demoting this instance,
- * which stops all scheduled tasks) and clears the election handle. For shutdown.
- */
 export async function stopTriggerEngine(): Promise<void> {
   if (!electionHandle) return;
   const handle = electionHandle;
@@ -614,285 +132,50 @@ export async function stopTriggerEngine(): Promise<void> {
   await handle.stop();
 }
 
-/** Whether this instance currently holds the trigger-engine leadership lease. */
 export function isTriggerLeader(): boolean {
   return electionHandle?.isLeader() ?? false;
 }
 
-/**
- * Start the trigger scheduler. Loads all enabled schedule triggers and sets up cron jobs.
- * Also starts the agent heartbeat scheduler and the reconcile loop. Runs on the leader.
- */
 export async function startTriggerScheduler(): Promise<void> {
-  log.triggers.info('Starting trigger scheduler...');
-
+  log.triggers.info('Starting automation scheduler');
   try {
-    const [triggers, automations] = await Promise.all([
-      findSchedulableTriggers(getDb()),
-      listSchedulableAutomationDefinitions(getDb()),
-    ]);
-    log.triggers.info(
-      { triggerCount: triggers.length, automationCount: automations.length },
-      'Found enabled schedules',
-    );
-
-    for (const trigger of triggers) {
-      scheduleTrigger(trigger);
-    }
-    for (const automation of automations) {
-      scheduleAutomation(automation);
-    }
-
-    // Start agent heartbeat scheduler
-    await startAgentHeartbeatScheduler();
-
-    // Reconcile loop: pick up trigger edits/deletes served by follower instances
-    // (which no-op reloadTrigger) since standalone Mongo has no change streams.
+    const automations = await listSchedulableAutomationDefinitions(getDb());
+    log.triggers.info({ automationCount: automations.length }, 'Found enabled automation schedules');
+    for (const automation of automations) scheduleAutomation(automation);
     if (!reconcileTimer) {
-      reconcileTimer = setInterval(() => { void reconcileScheduledTriggers(); }, RECONCILE_INTERVAL_MS);
+      reconcileTimer = setInterval(
+        () => { void reconcileScheduledAutomations(); },
+        RECONCILE_INTERVAL_MS,
+      );
       reconcileTimer.unref?.();
     }
-
-    log.triggers.info('Trigger scheduler started');
-  } catch (error) {
-    log.triggers.error({ err: error }, 'Failed to start trigger scheduler');
+    log.triggers.info('Automation scheduler started');
+  } catch (error: unknown) {
+    log.triggers.error({ err: error }, 'Failed to start automation scheduler');
   }
 }
 
-/**
- * Stop every scheduled cron task, clear the registry, and stop the reconcile
- * loop. Called when this instance is demoted from leadership or on shutdown.
- */
 export function stopAllScheduledTasks(): void {
-  for (const [triggerId, task] of scheduledTasks) {
-    Promise.resolve(task.stop()).catch((err) => log.triggers.error({ err, triggerId }, 'Failed to stop scheduled task'));
-  }
-  scheduledTasks.clear();
-  scheduledUpdatedAt.clear();
-  for (const [automationId, task] of scheduledAutomationTasks) {
-    Promise.resolve(task.stop()).catch((error) => {
+  for (const [automationId, task] of scheduledTasks) {
+    Promise.resolve(task.stop()).catch((error: unknown) => {
       log.triggers.error({ err: error, automationId }, 'Failed to stop scheduled automation');
     });
   }
-  scheduledAutomationTasks.clear();
-  scheduledAutomationUpdatedAt.clear();
+  scheduledTasks.clear();
+  scheduledUpdatedAt.clear();
   if (reconcileTimer) {
     clearInterval(reconcileTimer);
     reconcileTimer = null;
   }
-  log.triggers.info('Stopped all scheduled tasks');
+  log.triggers.info('Stopped all scheduled automations');
 }
 
-/**
- * Diff the DB's enabled schedule/heartbeat triggers against the in-memory
- * registry: (re)schedule new or edited triggers, drop disappeared ones.
- */
-async function reconcileScheduledTriggers(): Promise<void> {
-  try {
-    const [rows, automationRows] = await Promise.all([
-      listSchedulableTriggerVersions(getDb()),
-      listSchedulableAutomationVersions(getDb()),
-    ]);
-
-    const seen = new Set<string>();
-    for (const row of rows) {
-      const triggerId = row.id;
-      seen.add(triggerId);
-      const updatedAtMs = row.updatedAt.getTime();
-      if (scheduledUpdatedAt.get(triggerId) === updatedAtMs) continue;
-
-      // New or changed since we last scheduled it — reschedule in place.
-      const full = await findTriggerById(getDb(), triggerId);
-      if (full) scheduleTrigger(full);
-    }
-
-    // Triggers that were scheduled but no longer match (deleted/disabled/retyped).
-    for (const triggerId of [...scheduledUpdatedAt.keys()]) {
-      if (!seen.has(triggerId)) unscheduleTrigger(triggerId);
-    }
-
-    const seenAutomations = new Set<string>();
-    for (const row of automationRows) {
-      seenAutomations.add(row.id);
-      const updatedAtMs = row.updatedAt.getTime();
-      if (scheduledAutomationUpdatedAt.get(row.id) === updatedAtMs) continue;
-      const full = await findAutomationDefinitionById(getDb(), row.id);
-      if (full) scheduleAutomation(full);
-    }
-    for (const automationId of [...scheduledAutomationUpdatedAt.keys()]) {
-      if (!seenAutomations.has(automationId)) unscheduleAutomation(automationId);
-    }
-  } catch (error) {
-    log.triggers.error({ err: error }, 'Trigger reconcile failed');
-  }
-}
-
-
-/**
- * Reload a single trigger's schedule (called on create/update/delete).
- * No-op on follower instances — only the leader owns the cron registry; edits
- * served by followers are picked up by the leader's reconcile loop.
- */
-export async function reloadTrigger(triggerId: string): Promise<void> {
-  if (!isTriggerLeader()) return;
-
-  const trigger = await findTriggerById(getDb(), triggerId);
-  if (trigger && (trigger.type === 'schedule' || trigger.type === 'agent_heartbeat')) {
-    scheduleTrigger(trigger);
-  } else {
-    // Trigger deleted, disabled, or type changed — stop its schedule
-    unscheduleTrigger(triggerId);
-  }
-}
-
-/** Reload one normalized schedule on the elected trigger-engine instance. */
 export async function reloadAutomationSchedule(automationId: string): Promise<void> {
   if (!isTriggerLeader()) return;
   const automation = await findAutomationDefinitionById(getDb(), automationId);
   if (automation?.enabled && automation.trigger.type === 'schedule') {
     scheduleAutomation(automation);
-  } else {
-    unscheduleAutomation(automationId);
+    return;
   }
-}
-
-/**
- * Process an incoming webhook request for a trigger.
- */
-export async function processWebhookTrigger(
-  token: string,
-  payload: Record<string, any>,
-  headers?: Record<string, string>
-): Promise<{ success: boolean; result?: string; triggerId?: string; executionId?: string }> {
-  const trigger = await findTriggerByWebhookToken(getDb(), token);
-
-  if (!trigger) {
-    return { success: false, result: 'Trigger not found or disabled' };
-  }
-
-  // Verify HMAC signature if secret is configured
-  if (trigger.webhook?.secret && headers) {
-    const signature = headers['x-trigger-signature'] || headers['x-webhook-signature'];
-    if (!signature) {
-      return { success: false, result: 'Missing webhook signature' };
-    }
-    const payloadStr = JSON.stringify(payload);
-    if (!verifyWebhookSignature(payloadStr, signature, trigger.webhook.secret)) {
-      return { success: false, result: 'Invalid webhook signature' };
-    }
-  }
-
-  // Check IP allowlist
-  if (trigger.webhook?.allowedIps?.length && headers) {
-    const clientIp = headers['x-forwarded-for']?.split(',')[0]?.trim() || headers['x-real-ip'];
-    if (clientIp && !trigger.webhook.allowedIps.includes(clientIp)) {
-      return { success: false, result: 'IP not allowed' };
-    }
-  }
-
-  const { success, result, executionId } = await executeTrigger(trigger, {
-    source: 'webhook',
-    payload,
-  });
-
-  return { success, result, triggerId: trigger._id.toString(), executionId };
-}
-
-/**
- * Process integration events by finding matching triggers and executing them.
- */
-export async function processIntegrationEvent(
-  service: string,
-  event: string,
-  userId: string,
-  eventData?: Record<string, any>
-): Promise<void> {
-  const triggers = await findTriggersForIntegrationEvent(service, event, userId, eventData);
-
-  if (triggers.length === 0) return;
-
-  log.triggers.info({ service, event, userId, count: triggers.length }, 'Processing integration event triggers');
-
-  // Execute all matching triggers in parallel
-  await Promise.allSettled(
-    triggers.map((trigger) =>
-      executeTrigger(trigger, {
-        source: service,
-        event: `${service}.${event}`,
-        payload: eventData,
-      })
-    )
-  );
-}
-
-// ── Agent Heartbeat System ───────────────────────────────────────
-
-const HEARTBEAT_PROMPT = `Quick status check. Review your responsibilities and recent activity. Report any:
-- Pending items that need the user's attention
-- Monitoring results that changed since last check
-- Upcoming scheduled tasks or deadlines
-
-Keep your response to 2-3 sentences. Say "All clear" if nothing needs attention.`;
-
-/**
- * Auto-create heartbeat triggers for agents that have a scheduleInterval.
- * Runs once at startup — syncs agent heartbeat triggers with their scheduleInterval.
- */
-async function startAgentHeartbeatScheduler(): Promise<void> {
-  try {
-    // Find all agents with a scheduleInterval set
-    const agents = await listAgentsWithHeartbeat(getDb());
-
-    if (agents.length === 0) {
-      log.triggers.info('No agents with heartbeat schedules found');
-      return;
-    }
-
-    log.triggers.info({ count: agents.length }, 'Syncing agent heartbeat triggers');
-
-    // ONE Oxy call for the whole batch, before the loop: a trigger is NAMED
-    // after its agent, and resolving each account inside the loop would be one
-    // round trip per agent on a boot-time sync.
-    for (const agent of await attachAgentIdentities(agents)) {
-      const agentName = agentPromptName(agent);
-      // Check if a heartbeat trigger already exists for this agent
-      const existing = await findAgentHeartbeatTrigger(getDb(), agent._id);
-
-      if (existing) {
-        // Ensure schedule matches agent's interval
-        const expectedCron = `*/${agent.scheduleInterval} * * * *`;
-        if (existing.schedule?.cron !== expectedCron) {
-          await setTriggerSchedule(getDb(), existing._id, { type: 'cron', cron: expectedCron });
-          scheduleTrigger({ ...existing, schedule: { type: 'cron', cron: expectedCron } });
-          log.triggers.info({ agentName, interval: agent.scheduleInterval }, 'Updated heartbeat schedule');
-        }
-        continue;
-      }
-
-      // Create a new heartbeat trigger for this agent
-      const trigger = await createTrigger(getDb(), {
-        oxyUserId: agent.author,
-        name: `${agentName} Heartbeat`,
-        description: `Periodic heartbeat check for ${agentName}`,
-        type: 'agent_heartbeat',
-        enabled: true,
-        action: {
-          prompt: HEARTBEAT_PROMPT,
-          agentId: agent._id,
-          useTools: false,
-          notify: true,
-        },
-        schedule: {
-          type: 'cron',
-          cron: `*/${agent.scheduleInterval} * * * *`,
-        },
-        triggerCount: 0,
-      });
-
-      scheduleTrigger(trigger);
-      log.triggers.info({ agentName, interval: agent.scheduleInterval }, 'Created heartbeat trigger');
-    }
-  } catch (error) {
-    log.triggers.error({ err: error }, 'Failed to sync agent heartbeat triggers');
-  }
+  unscheduleAutomation(automationId);
 }

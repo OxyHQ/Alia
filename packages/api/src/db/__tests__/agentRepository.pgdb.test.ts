@@ -18,6 +18,7 @@ import {
   listAgentCatalogue,
   listAgentsByAuthor,
   replaceAgentSkills,
+  searchActiveAgents,
   updateAgent,
 } from '../agents/agentRepository';
 
@@ -424,6 +425,22 @@ describe('counters and the catalogue', () => {
     const found = await listAgentCatalogue(db, { search: token, limit: 50, offset: 0 });
     expect(found.agents.map((a) => a._id)).not.toContain(created._id);
     expect(found.total).toBe(0);
+  });
+
+  it('orders equivalent coordinator candidates deterministically by id', async () => {
+    const token = `coord${Math.random().toString(36).slice(2, 8)}`;
+    const first = await createAgent(db, newAgentInput({
+      tagline: token,
+      isPublished: true,
+    }));
+    const second = await createAgent(db, newAgentInput({
+      tagline: token,
+      isPublished: true,
+    }));
+
+    const found = await searchActiveAgents(db, token, 10);
+
+    expect(found.map((agent) => agent.id)).toEqual([first._id, second._id].sort());
   });
 });
 
