@@ -135,7 +135,7 @@ const verification = await verifyResults(originalTask, executorResults);
 ```
 
 The verifier:
-- Runs on a cost-efficient model (alia-lite or alia-v1)
+- Runs on a cost-efficient model (kaana-lite or kaana-v1)
 - Evaluates four criteria:
   - Completeness: All aspects addressed?
   - Correctness: Results accurate and reasonable?
@@ -222,8 +222,8 @@ export interface VerificationResult {
 **Purpose:** Use a capable thinking model to break a complex task into executable pieces.
 
 **Model selection:**
-1. Tries `alia-v1-thinking` (preferred for planning)
-2. Falls back to `alia-v1-pro` or `alia-v1`
+1. Tries `kaana-v1-thinking` (preferred for planning)
+2. Falls back to `kaana-v1-pro` or `kaana-v1`
 3. Last resort: default model
 
 **System prompt rules:**

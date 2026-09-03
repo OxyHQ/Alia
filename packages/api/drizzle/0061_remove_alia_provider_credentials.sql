@@ -1,0 +1,11 @@
+-- oxy:deploy-phase=post
+--
+-- The new image reads `agents.routing_profile_id` exclusively. The previous
+-- ordered product-name array remains temporarily as non-authoritative
+-- reconciliation evidence until the readiness report is zero.
+--
+-- Provider credentials already belong to Kaana. This migration does not read,
+-- export or copy the former Alia table: it destroys the duplicate custody after
+-- rollout. No CASCADE is used; an unexpected dependent object must abort the
+-- migration instead of being removed silently.
+DROP TABLE "provider_keys";

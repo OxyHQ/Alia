@@ -127,8 +127,10 @@ Key groups:
 - Integrations and channels (`INTEGRATIONS_URL`, `INTEGRATIONS_SECRET`, channel secrets)
 - Optional sandbox runtime (`DOCKER_HOST_URL`, `DOCKER_HOST_SECRET`)
 
-Upstream model credentials are not environment variables — they live in the
-`provider_keys` table. Leave `GATEWAY_API_URL` unset; there is no gateway service.
+Upstream model credentials are not Alia configuration. Kaana owns them in its
+database; Alia must not receive them through environment variables, SSM or its own
+Postgres schema. User-supplied local-runtime bindings are a separate compute boundary
+and are never reused for hosted inference.
 
 ## Notes
 

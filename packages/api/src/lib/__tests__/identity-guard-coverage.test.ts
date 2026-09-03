@@ -6,7 +6,7 @@
  * `identity-guard.test.ts` has always asserted that the guard names an agent
  * correctly, and it has always passed. The bug was somewhere else entirely: the
  * layers BELOW the guard each carried an identity claim of their own —
- * `prompts/alia-v1.md` ("You are Alia, a sharp and personable AI assistant"),
+ * `prompts/general.md` ("You are Alia, a sharp and personable AI assistant"),
  * `prompts/base.md` ("Always identify as Alia … If pressed: 'I'm Alia'"), the
  * builder's own model-identity line, `prompt-loader.ts`'s catch fallback, and
  * the two hardcoded autonomous prompts. An agent called Claudio was therefore
@@ -67,7 +67,8 @@
  */
 
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
+import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
@@ -109,7 +110,7 @@ function promptBearingFiles(): string[] {
   return execFileSync('git', ['ls-files', 'src', 'prompts'], { cwd: packageRoot, encoding: 'utf8' })
     .split('\n')
     .filter(Boolean)
-    .filter((f) => !f.includes('__tests__') && !f.endsWith('.test.ts'));
+    .filter((f) => !f.includes('__tests__') && !f.endsWith('.test.ts') && existsSync(path.join(packageRoot, f)));
 }
 
 /**
@@ -182,7 +183,23 @@ describe('one owner for the assistant\'s name', () => {
     expect(files.length).toBeGreaterThan(200);
     expect(files).toContain(THE_OWNER);
     expect(files).toContain('prompts/base.md');
-    expect(files.filter((f) => f.startsWith('prompts/')).length).toBeGreaterThanOrEqual(14);
+    expect(files.filter((f) => f.startsWith('prompts/')).sort()).toEqual([
+      'prompts/alia-telegram.md',
+      'prompts/audio.md',
+      'prompts/base.md',
+      'prompts/browser.md',
+      'prompts/codea-pro.md',
+      'prompts/codea.md',
+      'prompts/cowork.md',
+      'prompts/extended-reasoning.md',
+      'prompts/general-lite.md',
+      'prompts/general.md',
+      'prompts/multimodal.md',
+      'prompts/pro-max.md',
+      'prompts/vision.md',
+      'prompts/voice-pro.md',
+      'prompts/voice.md',
+    ]);
     // And the AST half specifically: a walk that returned nothing would make
     // every TypeScript file trivially clean.
     expect(emittableChunks(THE_OWNER).length).toBeGreaterThan(5);
@@ -235,7 +252,7 @@ describe('one owner for the assistant\'s name', () => {
       ' * agent/runner.ts:120 —',
       ' * opening `You are ${name}.` — the identity guard prepended above this says',
       ' * identity-guard.ts:44 —',
-      ' * `prompts/alia-v1.md` ("You are Alia, a sharp and personable AI assistant"),',
+      ' * `prompts/general.md` ("You are Alia, a sharp and personable AI assistant"),',
       ' */',
       'export const nothing = 1;',
     ].join('\n');

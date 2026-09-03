@@ -65,7 +65,7 @@ vi.mock('../../db/memory/userMemoryRepository.js', () => ({
 vi.mock('../../db/usage/chatAnalyticsRepository.js', () => ({
   insertChatAnalytics: vi.fn(async (_db: unknown, row: Record<string, unknown>) => {
     H.rows.push(row);
-    H.timeline.push(`learn:analytics(${String(row.aliaModelId)},${String(row.totalTokens)})`);
+    H.timeline.push(`learn:analytics(${String(row.routingProfileId)},${String(row.totalTokens)})`);
   }),
 }));
 
@@ -100,13 +100,13 @@ vi.mock('ai', () => ({
 
 vi.mock('../chat-core.js', () => ({
   resolveModel: vi.fn(async () => ({
-    aliasModelId: 'alia-lite',
+    routingProfileId: 'kaana-lite',
     provider: 'zzprovider',
     modelId: 'zz-lite',
     keyConfig: { provider: 'zzprovider', key: 'k', modelId: 'zz-lite' },
   })),
   getAIModel: vi.fn(() => ({})),
-  getDefaultAliaModel: vi.fn(() => 'alia-lite'),
+  getDefaultRoutingProfile: vi.fn(() => 'kaana-lite'),
 }));
 
 // `chat-lifecycle.ts` pulls the whole post-turn surface in; only the two hook
@@ -120,7 +120,7 @@ vi.mock('../credits-manager.js', () => ({
   finalizeCredits: vi.fn(async () => ({ creditsCharged: 0, creditsRemaining: 0 })),
 }));
 vi.mock('../credit-anomaly.js', () => ({ detectCreditAnomaly: vi.fn(async () => null) }));
-vi.mock('../gateway-client.js', () => ({ getAliaModel: vi.fn(async () => null) }));
+vi.mock('../gateway-client.js', () => ({ getRoutingProfile: vi.fn(async () => null) }));
 vi.mock('../../middleware/api-key-rate-limit.js', () => ({ recordUsage: vi.fn(async () => undefined) }));
 vi.mock('../notification-service.js', () => ({ sendNotification: vi.fn(async () => undefined) }));
 vi.mock('../../db/chat/conversationRepository.js', () => ({
@@ -156,8 +156,8 @@ function lifecycleContext(overrides: Partial<LifecycleContext> = {}): LifecycleC
     userId: 'user-ws13',
     conversationId: 'conv-ws13',
     messages: MESSAGES,
-    aliasModelId: 'alia-v1',
-    requestedModel: 'alia-v1-pro',
+    routingProfileId: 'kaana-v1',
+    requestedModel: 'kaana-v1-pro',
     reasoningEffort: null,
     creditReservation: null,
     tokenUsage: { promptTokens: 40, completionTokens: 20, totalTokens: 60, systemPromptTokens: 10 },
@@ -197,7 +197,7 @@ describe('memory recall happens because a hook is registered, not because a file
       userId: 'user-ws13',
       conversationId: 'conv-ws13',
       messages: MESSAGES,
-      model: 'alia-v1',
+      model: 'kaana-v1',
       platform: 'app',
       metadata: {},
     });
@@ -219,7 +219,7 @@ describe('memory recall happens because a hook is registered, not because a file
     const result = await runBeforeChatHooks({
       userId: 'user-ws13',
       messages: MESSAGES,
-      model: 'alia-v1',
+      model: 'kaana-v1',
       platform: 'app',
       metadata: {},
     });
@@ -271,7 +271,7 @@ describe('the after-run entrypoint drives every learning path there is', () => {
     // hook is excluded here because it is SAMPLED (below), and a sampled event
     // in an exact-equality assertion is a flake.
     expect(H.timeline.filter((entry) => entry.startsWith('learn:')).sort()).toEqual([
-      'learn:analytics(alia-v1,60)',
+      'learn:analytics(kaana-v1,60)',
       'learn:autonomy(research,true)',
       'learn:writingStyle(mem-ws13)',
     ]);
@@ -291,7 +291,7 @@ describe('the after-run entrypoint drives every learning path there is', () => {
   describe('the analytics row carries the per-turn observations, from the entrypoint', () => {
     it('records the requested model separately from the alias that served it', async () => {
       runPostChatHooks(
-        lifecycleContext({ requestedModel: 'alia-v1-pro', aliasModelId: 'alia-lite' }),
+        lifecycleContext({ requestedModel: 'kaana-v1-pro', routingProfileId: 'kaana-lite' }),
         'answer',
         OBSERVED,
         null,
@@ -303,8 +303,8 @@ describe('the after-run entrypoint drives every learning path there is', () => {
       // The two are DIFFERENT values in this fixture on purpose: a hook that
       // wrote the alias into both fields would pass an assertion that only
       // checked they were present.
-      expect(row.requestedModelId).toBe('alia-v1-pro');
-      expect(row.aliaModelId).toBe('alia-lite');
+      expect(row.requestedModelId).toBe('kaana-v1-pro');
+      expect(row.routingProfileId).toBe('kaana-lite');
     });
 
     it('records time to first token, error class and cancellation', async () => {
@@ -374,7 +374,7 @@ describe('the after-run entrypoint drives every learning path there is', () => {
     expect(H.timeline).not.toContain('proactive:classify');
     // ...and the un-sampled hooks still ran, so the second half is a statement
     // about the gate rather than about the whole chain being skipped.
-    expect(H.timeline).toContain('learn:analytics(alia-v1,60)');
+    expect(H.timeline).toContain('learn:analytics(kaana-v1,60)');
 
     random.mockRestore();
   });
@@ -437,13 +437,13 @@ describe('the after-run entrypoint drives every learning path there is', () => {
     await runAfterChatHooks({
       userId: 'user-ws13',
       messages: MESSAGES,
-      model: 'alia-v1',
+      model: 'kaana-v1',
       platform: 'app',
       metadata: {},
       response: 'answer',
       tokenUsage: { promptTokens: 1, completionTokens: 1, totalTokens: 2 },
-      modelUsed: 'alia-v1',
-      requestedModel: 'alia-v1',
+      modelUsed: 'kaana-v1',
+      requestedModel: 'kaana-v1',
       reasoningEffort: null,
       latencyMs: 5,
       timeToFirstTokenMs: 5,

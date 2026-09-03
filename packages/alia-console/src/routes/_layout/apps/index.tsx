@@ -1,5 +1,4 @@
 import { Link, createFileRoute, useNavigate } from '@tanstack/react-router';
-import { getErrorMessage } from '@/lib/utils';
 import { useState } from 'react';
 import { HugeiconsIcon } from '@hugeicons/react';
 import {
@@ -11,6 +10,7 @@ import {
   Settings01Icon,
 } from '@hugeicons/core-free-icons';
 import { toast } from 'sonner';
+import { getErrorMessage } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {

@@ -2,7 +2,12 @@
 
 Welcome to Alia -- a multi-surface context-agent platform with autonomous execution and policy controls. This guide gets you productive on day 1.
 
-Read [the ADRs](./adr/README.md) early. Alia is mid-migration: a large epic ([#139](https://github.com/OxyHQ/Alia/issues/139)) is moving inference execution behind a separate data plane and developer identity and billing to Oxy. Its MongoDB-to-PostgreSQL half is finished for `packages/api`. The ADRs say where each responsibility is going, and this guide describes where things are **today**.
+Read [the ADRs](./adr/README.md) early. `packages/api` is PostgreSQL-only. Hosted
+inference follows one boundary: Alia calls Oxy with its service application
+credential and Oxy routes the request to Kaana, the only inference data plane.
+That service credential is not a provider key. Provider keys exist only as KMS
+ciphertext in Kaana's PostgreSQL database; Alia neither loads them nor calls
+model providers directly.
 
 ## Architecture Overview
 
@@ -22,10 +27,11 @@ Read [the ADRs](./adr/README.md) early. Alia is mid-migration: a large epic ([#1
               +---------------+         +----------------+
               |                                          |
      +--------v--------+                     +-----------v-----------+
-     |  PostgreSQL     |                      |  Upstream model       |
-     |  (drizzle)      |                      |  endpoints, called    |
-     +--------+--------+                      |  in process           |
-              |                               +-----------------------+
+     |  PostgreSQL     |                     | api.oxy.so            |
+     |  (drizzle)      |                     |        |              |
+     +--------+--------+                     |        v              |
+              |                              | Kaana (kaana.ai)     |
+                                             +-----------------------+
      +--------v--------+
      |  Redis (Valkey) |      Socket.IO (real-time events,
      |  rate limits,   |      approval requests, streaming)
@@ -65,7 +71,7 @@ Approvals are real-time via Socket.IO (`alia.approval_request` / `alia.approval_
 | Path | What it does | When you touch it |
 |------|-------------|-------------------|
 | `index.ts` | Express boot: Postgres connect, boot guards, route mounting, Socket.IO setup, background services | Adding a new top-level route |
-| `routes/v1/chat-completions.ts` | Main chat handler -- context, tools, provider loop, SSE | Changing chat behavior, adding tools |
+| `routes/v1/chat-completions.ts` | Main chat handler -- context, tools, hosted stream loop, SSE | Changing chat behavior, adding tools |
 | `lib/chat/request-context.ts` | Per-request context: credits, model, memory, entitlements | Changing what a turn loads |
 | `lib/chat/provider-loop.ts` | The streaming loop, conversation save, credit finalization | Streaming and persistence |
 | `lib/chat/stream-runner.ts` | Chunk handling, tool results, the named SSE writes | SSE event work |
@@ -78,7 +84,7 @@ Approvals are real-time via Socket.IO (`alia.approval_request` / `alia.approval_
 | `lib/tools/integrations.ts` | Third-party integration tools (WhatsApp, Telegram, etc.) | Integration work |
 | `lib/prompt-loader.ts` | Builds the system prompt from fragments | Changing AI behavior/instructions |
 | `lib/chat-core.ts` | `resolveModel()`, `getAIModel()` -- builds the AI SDK client | Model routing changes |
-| `lib/gateway-client.ts` | The seam in front of `internal/providers/`; runs the local path | Model abstraction |
+| `lib/gateway-client.ts` | Product catalogue and compatibility seam; hosted execution bypasses it for the Oxy inference boundary | Model abstraction |
 | `lib/errors/sanitize.ts` | Redacts credentials, endpoints and upstream error codes everywhere; conceals operator identity on the product surface | Error handling |
 | `lib/redis.ts` | Shared Redis/Valkey client | Caching, rate limiting |
 | `db/index.ts`, `db/schema/` | Postgres connection and the 80-table drizzle schema | Schema changes |
@@ -86,7 +92,7 @@ Approvals are real-time via Socket.IO (`alia.approval_request` / `alia.approval_
 | `middleware/auth.ts` | Token verification via OxyHQ, sets `req.user` | Auth changes |
 | `db/*/…Repository.ts` | One repository per domain — chat, agents, billing, automation, autonomy. `models/` holds no model any more; `models/__tests__/retiredModelFiles.ts` is the ledger of the 43 that were deleted | Reads and writes for a domain |
 | `domain/` | Closed value sets the drizzle CHECK constraints render from | Adding an enum value |
-| `internal/providers/` | Upstream routing, key selection, health, fallback (CORS-restricted) | Routing config |
+| `internal/providers/` | Dormant compatibility catalogue and historical migration code; it is not the hosted inference runtime and must not regain provider credentials | Product catalogue compatibility during the retirement window |
 
 ### App (`packages/app/`)
 
@@ -115,12 +121,13 @@ Frontend                            Backend
    POST /v1/chat/completions ──────> 3. Auth middleware sets req.user
    with SSE streaming                4. Workspace/org middleware
                                      5. autonomy beforeChat (classify, recall, retrieve)
-                                     6. In parallel: reserve credits, resolve the Alia
-                                        identifier to an upstream deployment, load user
-                                        memory, Oxy profile, skill, entitlements, agent
+                                     6. In parallel: reserve credits, resolve the product
+                                        routing profile, load user memory, Oxy profile,
+                                        skill, entitlements and agent
                                      7. Build tools: native + MCP + Oxy + integrations
                                      8. Build system prompt (fragments)
-                                     9. AI SDK streamText() inside the fallback loop
+                                     9. Stream once through OxyInferenceClient;
+                                        Oxy/Kaana own deployment routing and fallback
                                     10. Stream chunks back via SSE
 11. Frontend processes SSE  <──────
     chunks, renders messages
@@ -185,8 +192,8 @@ the ADRs landed.
 - **ALWAYS** use `sanitizeMessage()` from `lib/errors/sanitize.ts` for user-facing errors,
   and `redactUnsafeDetail()` from the same module where the text is the CALLER's own and
   concealing it would only make the message unactionable.
-- **ALWAYS** resolve display strings via `getAliaModel()`, never from the mapping table.
-- **DO NOT** add an `alia-*` identifier. The set is frozen under
+- **ALWAYS** resolve display strings via `getRoutingProfile()`, never from the mapping table.
+- **DO NOT** add an `alia-*` routing identifier. The retired namespace is frozen under
   [ADR 0002](./adr/0002-alia-is-a-kaana-consumer-and-future-model-publisher.md).
 
 It is a product and privacy boundary, not a global ban on the words. Engineering
@@ -196,9 +203,9 @@ the vocabulary.
 
 ### Key files
 
-- `internal/providers/lib/alia-models.ts` -- the thirteen identifiers and their tiers
-- `internal/providers/lib/generate-model-mappings.ts` -- the per-tier routing tables
-- `internal/providers/lib/fallback-engine.ts` -- how one is chosen per request
+- `internal/providers/lib/routing-profile-catalogue.ts` -- the product-facing Kaana routing profiles
+- `internal/providers/lib/generate-model-mappings.ts` -- compatibility inputs for the product catalogue
+- `lib/inference/oxy-inference.ts` -- the fail-closed published Oxy SDK boundary
 - `routes/v1/models.ts` -- the public catalogue
 - `lib/errors/sanitize.ts` -- the two sanitisation rules, and which surfaces each covers
 
@@ -258,7 +265,9 @@ each run creates and migrates its own throwaway database.
 
 Environment: copy `.env.example` to `.env` in `packages/api/` and fill it in.
 `DATABASE_URL` is the only database variable and the API refuses to boot without
-it. Provider-key custody is a separate Kaana cutover tracked by ADR 0001.
+it. Alia declares no Mongo driver dependency. Hosted provider credentials live
+exclusively in Kaana's PostgreSQL database; Alia reaches inference through Oxy
+with an Oxy application service credential and never receives a provider key.
 
 ---
 

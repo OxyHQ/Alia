@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
@@ -51,7 +51,7 @@ function trackedSources(): { file: string; text: string }[] {
     encoding: 'utf8',
   })
     .split('\n')
-    .filter((file) => file.endsWith('.ts'));
+    .filter((file) => file.endsWith('.ts') && existsSync(path.join(REPO_ROOT, file)));
 
   return listed.map((file) => ({
     file,

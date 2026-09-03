@@ -1,5 +1,9 @@
 # Memory Screen Redesign Implementation Plan
 
+> **Archived, completed-era plan.** Its MongoDB/Mongoose steps describe the
+> 2026-07-15 source tree and must not be reused as current instructions. Alia's
+> API runtime is PostgreSQL-only and has no Mongo driver, connection or fallback.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Restructure Alia's memory data model (`key/value/category` → `title/summary/type`) and redesign the memory settings screen around three grouped tables (You/Topics/People), add real auto-save/recall toggle settings, and add an import-from-other-AI-provider flow that reuses Alia's existing tool-calling infrastructure.
@@ -2277,7 +2281,7 @@ vi.mock('ai', async () => {
 vi.mock('../../lib/chat-core.js', () => ({
   resolveModel: vi.fn().mockResolvedValue({ keyConfig: {}, provider: 'test', modelId: 'test' }),
   getAIModel: vi.fn().mockReturnValue({}),
-  getDefaultAliaModel: vi.fn().mockReturnValue('alia-v1'),
+  getDefaultAliaModel: vi.fn().mockReturnValue('kaana-v1'),
 }));
 
 vi.mock('../../lib/tools/index.js', () => ({

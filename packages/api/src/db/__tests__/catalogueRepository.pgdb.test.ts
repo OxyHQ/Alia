@@ -187,9 +187,9 @@ describe('seedPlan', () => {
   it('still creates a plan a database does not have', async () => {
     // The other direction, so "never overwrites" cannot be satisfied by never
     // writing at all.
-    await seedPlan(db, aPlan('cat-seed-fresh', { modelIds: ['alia-lite'], name: 'Fresh' }), SEED);
+    await seedPlan(db, aPlan('cat-seed-fresh', { modelIds: ['kaana-lite'], name: 'Fresh' }), SEED);
     const row = await findPlanByPlanId(db, 'cat-seed-fresh');
-    expect(row?.modelIds).toEqual(['alia-lite']);
+    expect(row?.modelIds).toEqual(['kaana-lite']);
     expect(row?.name).toBe('Fresh');
   });
 });
@@ -198,11 +198,11 @@ describe('setPlanModelIds', () => {
   it('writes the model list and nothing else', async () => {
     await insertPlan(
       db,
-      aPlan('cat-set-models', { modelIds: ['alia-lite'], name: 'Go', monthlyPrice: 399, isFree: false }),
+      aPlan('cat-set-models', { modelIds: ['kaana-lite'], name: 'Go', monthlyPrice: 399, isFree: false }),
     );
 
-    const row = await setPlanModelIds(db, 'cat-set-models', ['alia-lite', 'alia-v1'], ACTOR);
-    expect(row?.modelIds).toEqual(['alia-lite', 'alia-v1']);
+    const row = await setPlanModelIds(db, 'cat-set-models', ['kaana-lite', 'kaana-v1'], ACTOR);
+    expect(row?.modelIds).toEqual(['kaana-lite', 'kaana-v1']);
 
     // The columns a caller must not be able to reach through this function.
     // There is no `updates` object to widen, so this is a signature property
@@ -216,14 +216,14 @@ describe('setPlanModelIds', () => {
   });
 
   it('answers null for a plan that does not exist, and writes nothing', async () => {
-    expect(await setPlanModelIds(db, 'cat-set-absent', ['alia-lite'], ACTOR)).toBeNull();
+    expect(await setPlanModelIds(db, 'cat-set-absent', ['kaana-lite'], ACTOR)).toBeNull();
     expect(await findPlanByPlanId(db, 'cat-set-absent')).toBeNull();
   });
 
   it('empties the list when that is what was asked for', async () => {
     // `[]` is a decision — "this plan grants no models" — and must not be
     // confused with "no change", which is the shape a truthy check produces.
-    await insertPlan(db, aPlan('cat-set-empty', { modelIds: ['alia-lite'] }));
+    await insertPlan(db, aPlan('cat-set-empty', { modelIds: ['kaana-lite'] }));
     const row = await setPlanModelIds(db, 'cat-set-empty', [], ACTOR);
     expect(row?.modelIds).toEqual([]);
   });

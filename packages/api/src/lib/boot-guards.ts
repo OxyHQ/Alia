@@ -43,7 +43,7 @@
 
 import { connectPostgres } from '../db/index.js';
 import { assertDirectProviderModeOrExit } from './inference/direct-provider-guard.js';
-import { kaanaBootConfigurationFailure } from './inference/kaana-boot-check.js';
+import { oxyInferenceBootConfigurationFailure } from './inference/oxy-inference-boot-check.js';
 import { installProviderEgressBlock } from './inference/provider-egress-policy.js';
 
 /** The exit code every refusal here uses. */
@@ -104,32 +104,20 @@ export function runBootGuards(deps: BootGuardDeps): void {
   }
   deps.reportInfo('Postgres connected');
 
-  /*
-   * #139 workstream 2. Half-configured has to be OFF rather than a service that
-   * accepts requests and then fails every model call. What it costs when
-   * `ALIA_RELAY_CLIENT_ENABLED` is not exactly `'true'` — which is everywhere
-   * today — is one read of that one variable; `kaanaBootConfigurationFailure`
-   * consults no Kaana configuration at all on that path, which
-   * `inference/__tests__/kaana-boot-check.test.ts` pins with a recording
-   * environment rather than by inspection.
-   */
-  const kaanaFailure = kaanaBootConfigurationFailure(env);
-  if (kaanaFailure !== null) {
-    deps.reportFatal('Kaana client configuration is invalid — refusing to start', {
-      failure: kaanaFailure,
+  // Kaana is mandatory: a partial configuration refuses before the listener.
+  const inferenceFailure = oxyInferenceBootConfigurationFailure(env);
+  if (inferenceFailure !== null) {
+    deps.reportFatal('Oxy inference client configuration is invalid — refusing to start', {
+      failure: inferenceFailure,
     });
     terminate();
     return;
   }
 
-  /*
-   * #139 workstream 8, and the other half of the same question: with the cutover
-   * flag set, the check above requires Kaana to be usable and this one requires
-   * nothing else to be. With the flag off it reads that one variable and returns.
-   */
+  // No gateway or provider credential may coexist with the Kaana-only runtime.
   assertDirectProviderModeOrExit(
     (failure) => {
-      deps.reportFatal('Direct provider mode is configured after the Kaana cutover — refusing to start', {
+      deps.reportFatal('Kaana is the only hosted inference route — refusing direct provider configuration', {
         failure,
       });
     },
@@ -138,12 +126,7 @@ export function runBootGuards(deps: BootGuardDeps): void {
   );
   if (terminated) return;
 
-  /*
-   * Armed before the socket opens, so no request can be served by a process that
-   * skipped it. With the cutover flag off this touches nothing at all and
-   * returns `null`, which `inference/__tests__/provider-egress-policy.test.ts`
-   * asserts by object identity rather than by behaviour.
-   */
+  // Armed before the socket opens so every request inherits the deny policy.
   if (installProviderEgressBlock(env) !== null) {
     deps.reportInfo('Provider egress policy armed — provider API hosts are unreachable from this process');
   }

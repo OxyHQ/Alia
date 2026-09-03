@@ -13,7 +13,7 @@ import { fundingSourceOf, type CreditFundingSource } from '../domain/credit-fund
 /**
  * Credits Manager
  * Centralized utility for managing AI credits based on token usage
- * Supports tier-based credit multipliers for different Alia models
+ * Supports tier-based credit multipliers for different Kaana routing profiles
  */
 
 export interface CreditUsage {
@@ -107,15 +107,14 @@ export const CREDITS_CONFIG = {
 /**
  * A charge that named a model nothing can price.
  *
- * A distinct type rather than a bare `Error` because one caller acts on it:
- * `internal/providers/lib/voice-session-manager.ts` refunds on it, and may only
- * do so because this error is raised before any balance moves — see
- * {@link getCreditMultiplier}. A generic failure carries no such guarantee, so
- * refunding on one would be the double-credit half of the same bug.
+ * A distinct type rather than a bare `Error` so callers and observability can
+ * distinguish an invalid routing profile from an accounting failure. It is
+ * raised before any balance moves — see {@link getCreditMultiplier} — and must
+ * remain separate from failures that can happen after a reservation.
  */
 export class UnpricedModelError extends Error {
-  constructor(readonly aliasModelId: string) {
-    super(`No credit multiplier is registered for model "${aliasModelId}"`);
+  constructor(readonly routingProfileId: string) {
+    super(`No credit multiplier is registered for model "${routingProfileId}"`);
     this.name = 'UnpricedModelError';
   }
 }
@@ -138,8 +137,8 @@ export class UnpricedModelError extends Error {
  * — so the two were indistinguishable and the second was silent. The registered
  * multipliers span 0.5 to 5, so an identifier that stopped resolving repriced
  * every request on it, in either direction, with nothing logged and no test
- * red: `alia-lite` at 1 is double what the customer agreed to, and
- * `alia-v1-pro-max` at 1 is a fifth of it. `credit-multipliers.test.ts` names
+ * red: `kaana-lite` at 1 is double what the customer agreed to, and
+ * `kaana-v1-pro-max` at 1 is a fifth of it. `credit-multipliers.test.ts` names
  * this exact hole, and until now could only pin the values it would have
  * hidden.
  *
@@ -163,13 +162,13 @@ export class UnpricedModelError extends Error {
  * `_adjustReservation` touches a row. So a throw leaves the reservation exactly
  * as it was found — never half-settled — and each caller's existing release
  * point gives it back: the chat path leaves `creditsSettled` false and
- * `routes/v1/chat-completions.ts` refunds, both webhook handlers refund in
- * their `finally`, and the voice session manager refunds on the type above.
+ * `routes/v1/chat-completions.ts` refunds, while both webhook handlers refund
+ * in their `finally` blocks.
  */
-export async function getCreditMultiplier(aliasModelId?: string): Promise<number> {
-  if (aliasModelId === undefined) return 1;
-  const preset = getRoutingPreset(aliasModelId);
-  if (preset === null) throw new UnpricedModelError(aliasModelId);
+export async function getCreditMultiplier(routingProfileId?: string): Promise<number> {
+  if (routingProfileId === undefined) return 1;
+  const preset = getRoutingPreset(routingProfileId);
+  if (preset === null) throw new UnpricedModelError(routingProfileId);
   return preset.creditMultiplier;
 }
 
@@ -179,12 +178,12 @@ export async function getCreditMultiplier(aliasModelId?: string): Promise<number
  * Minimum: MIN_CREDITS_PER_REQUEST
  *
  * @param totalTokens - Total tokens reported by the provider
- * @param aliasModelId - The Alia model being used
+ * @param routingProfileId - The Kaana routing profile being used
  * @param systemPromptTokens - Tokens from our system prompt (not charged to user)
  */
 export async function calculateCreditsFromTokens(
   totalTokens: number,
-  aliasModelId?: string,
+  routingProfileId?: string,
   systemPromptTokens?: number,
   reasoningTokens?: number
 ): Promise<number> {
@@ -213,7 +212,7 @@ export async function calculateCreditsFromTokens(
 
   log.credits.info({ totalTokens, systemTokens, reasoningTokens: reasoned, billableTokens }, 'Token breakdown');
 
-  const multiplier = await getCreditMultiplier(aliasModelId);
+  const multiplier = await getCreditMultiplier(routingProfileId);
   const calculatedCredits = Math.ceil((billableTokens / CREDITS_CONFIG.TOKENS_PER_CREDIT) * multiplier);
   return Math.max(calculatedCredits, CREDITS_CONFIG.MIN_CREDITS_PER_REQUEST);
 }
@@ -341,12 +340,12 @@ async function _adjustReservation(
 export async function finalizeCredits(
   reservation: CreditReservation,
   usage: CreditUsage,
-  aliasModelId?: string
+  routingProfileId?: string
 ): Promise<{ creditsCharged: number; creditsRemaining: number }> {
   try {
     const actualCreditsNeeded = await calculateCreditsFromTokens(
       usage.totalTokens,
-      aliasModelId,
+      routingProfileId,
       usage.systemPromptTokens,
       usage.reasoningTokens
     );
@@ -386,7 +385,7 @@ export async function finalizeCredits(
  * The obvious repair for the laundering above is to keep going through
  * `finalizeCredits` and pass `credits * TOKENS_PER_CREDIT` instead. That does
  * round-trip — `calculateCreditsFromTokens` returns
- * `ceil(credits * multiplier)` — but only while `aliasModelId` is omitted, so a
+ * `ceil(credits * multiplier)` — but only while `routingProfileId` is omitted, so a
  * caller adding one later silently multiplies its own price by that model's
  * credit multiplier. The identity holds by accident of an argument nobody
  * passed, which is the same shape as the bug it would be fixing.
@@ -514,20 +513,20 @@ export async function getUserCredits(userId: string): Promise<{ free: number; pa
  * Used for voice/realtime API calls that are billed per minute
  *
  * @param minutes - Total minutes of voice call
- * @param aliasModelId - The Alia model being used
+ * @param routingProfileId - The Kaana routing profile being used
  * @param costPerMinute - Provider's cost per minute (e.g., 0.05 for Grok)
  * @returns Credits to charge
  */
 export async function calculateCreditsFromMinutes(
   minutes: number,
-  aliasModelId: string,
+  routingProfileId: string,
   costPerMinute: number
 ): Promise<number> {
   if (minutes === 0) {
     return CREDITS_CONFIG.MIN_CREDITS_PER_REQUEST;
   }
 
-  const multiplier = await getCreditMultiplier(aliasModelId);
+  const multiplier = await getCreditMultiplier(routingProfileId);
 
   // Convert to credits: $1 = 1000 credits
   // Example: $0.05/min * 1000 = 50 credits/min
@@ -545,19 +544,19 @@ export async function calculateCreditsFromMinutes(
  *
  * @param userId - User ID
  * @param estimatedMinutes - Estimated call duration in minutes
- * @param aliasModelId - The Alia model being used
+ * @param routingProfileId - The Kaana routing profile being used
  * @param costPerMinute - Provider's cost per minute
  * @returns Credit reservation or null if insufficient
  */
 export async function reserveVoiceCredits(
   userId: string,
   estimatedMinutes: number = 1,
-  aliasModelId: string = 'alia-v1-voice',
+  routingProfileId: string = 'kaana-v1-voice',
   costPerMinute: number = 0.05
 ): Promise<CreditReservation | null> {
   const estimatedCredits = await calculateCreditsFromMinutes(
     estimatedMinutes,
-    aliasModelId,
+    routingProfileId,
     costPerMinute
   );
 
@@ -572,20 +571,20 @@ export async function reserveVoiceCredits(
  *
  * @param reservation - The initial credit reservation
  * @param actualMinutes - Actual call duration in minutes
- * @param aliasModelId - The Alia model used
+ * @param routingProfileId - The Kaana routing profile used
  * @param costPerMinute - Provider's cost per minute
  * @returns Credits charged and remaining
  */
 export async function finalizeVoiceCredits(
   reservation: CreditReservation,
   actualMinutes: number,
-  aliasModelId: string,
+  routingProfileId: string,
   costPerMinute: number
 ): Promise<{ creditsCharged: number; creditsRemaining: number }> {
   try {
     const actualCreditsNeeded = await calculateCreditsFromMinutes(
       actualMinutes,
-      aliasModelId,
+      routingProfileId,
       costPerMinute
     );
     log.credits.info({ duration: actualMinutes.toFixed(2), costPerMinute }, 'Voice call duration');

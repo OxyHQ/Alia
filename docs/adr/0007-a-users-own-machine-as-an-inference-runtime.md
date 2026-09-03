@@ -27,7 +27,7 @@ Everything above the provider hop is untouched. Persistence in particular needed
 
 ### This is a user runtime, and it is not a provider
 
-It holds no credential, has no key pool, no rate table, no health record, and no entry in `ALIA_MODELS`. It is never a fallback candidate and never resolves through `resolveModel`. The rule in `AGENTS.md` stands unamended: nothing here routes between operators, because there is only ever one destination and the person chose it.
+It holds no credential, has no key pool, no rate table, no health record, and no entry in the Kaana routing-profile catalogue. It is never a fallback candidate and never resolves through a hosted-provider selector. The rule in `AGENTS.md` stands unamended: nothing here routes between operators, because there is only ever one destination and the person chose it.
 
 The `AGENTS.md` model-identity rules apply unchanged. A local model is named truthfully in the picker and the operator surfaces; `local/<runtimeId>/<model>` is a reserved namespace, not a publisher claim, and the resolved `publisher` is recorded as `unknown` rather than guessed.
 
@@ -37,7 +37,7 @@ No inference of Alia's is spent, so no credit is reserved — not reserved-and-r
 
 That saving is only honest while the turn stays on the person's hardware, and two paths take it straight back off:
 
-- `deepResearch` runs `lib/research/research-engine.ts`, which resolves `alia-lite` and `alia-v1` **by name** and calls them several times per turn, while `deep-research-handler.ts` finalizes credits under `if (creditReservation)`;
+- `deepResearch` runs `lib/research/research-engine.ts`, which resolves `kaana-lite` and `kaana-v1` **by name** and calls them several times per turn, while `deep-research-handler.ts` finalizes credits under `if (creditReservation)`;
 - `agentMode` adds `delegateToAgent`, and `lib/tools/agent-delegate.ts` resolves a hosted model the same way.
 
 Both request flags are refused for a local turn (`local_runtime_capability_unavailable`), and the `deepResearch` **tool** is withheld from the tool set — a flag check cannot see a tool call. The web tools stay: they reach DuckDuckGo's free endpoint and cost nothing.
@@ -58,9 +58,9 @@ A run may only be answered by the user it was issued to, re-checked on every fra
 
 **The tab has to be alive.** Local models are unavailable to background agents, triggers, bots and scheduled runs, because those have no browser. Presence is checked before the SSE stream opens, so a closed tab greys the model out rather than killing a turn in flight.
 
-**Deep research and agent mode are unavailable on local models.** That is a real product limitation, and it is the price of the turn being free. A person who wants either picks an Alia model.
+**Deep research and agent mode are unavailable on local models.** That is a real product limitation, and it is the price of the turn being free. A person who wants either picks a Kaana routing profile.
 
-**One residual cost stays, deliberately, and is bounded.** Title generation calls `alia-lite` by name (`lib/conversation-saver.ts:192`) and a local turn therefore produces one hosted call Alia pays for. It is kept because a chat with no title in the sidebar is a worse product than a rounding error is a cost, and the bound is what makes that acceptable rather than a guess: `lib/chat-lifecycle.ts:145` returns early once the conversation has messages, so it is **once per conversation, not per turn**, capped at `maxOutputTokens: 30`, behind authentication and the per-user rate limit. Nothing useful can be generated inside that budget, which is why it is listed as a cost rather than closed as a hole. If it ever stops being once-per-conversation, this stops being true.
+**One residual cost stays, deliberately, and is bounded.** Title generation calls `kaana-lite` by name (`lib/conversation-saver.ts:192`) and a local turn therefore produces one hosted call Alia pays for. It is kept because a chat with no title in the sidebar is a worse product than a rounding error is a cost, and the bound is what makes that acceptable rather than a guess: `lib/chat-lifecycle.ts:145` returns early once the conversation has messages, so it is **once per conversation, not per turn**, capped at `maxOutputTokens: 30`, behind authentication and the per-user rate limit. Nothing useful can be generated inside that budget, which is why it is listed as a cost rather than closed as a hole. If it ever stops being once-per-conversation, this stops being true.
 
 **One new hostname is frozen into the egress allowlist.** `user-runtime.invalid` is a placeholder base a provider factory needs to build a URL from; RFC 2606 guarantees it never resolves, and the fetch is intercepted before anything is dialled. It is listed in `architectureGates.test.ts` rather than exempted, because a new host string in `chat-core.ts` is precisely the diff that should be read in review.
 

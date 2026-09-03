@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
@@ -21,10 +21,9 @@ import { describe, expect, it } from 'vitest';
  *  - **Something → Alia is the inbound hop, and is where verification lives.**
  *    `POST /internal/trigger` is the one route that accepts a service token, and
  *    it does so through `@oxyhq/core`'s `serviceAuth` — which verifies an
- *    HMAC-SHA256 signature plus issuer, audience and expiry before granting.
- *    Alia holds no `SERVICE_TOKEN_SECRET`, so today that middleware refuses
- *    every service token with 403; `routes/__tests__/inference-boundary.test.ts`
- *    pins that state and is the file to rewrite when the secret is provisioned.
+ *    Ed25519 signature from Oxy's public JWKS plus issuer, audience, lifetime,
+ *    token type and scopes before granting. Alia holds no private verification
+ *    secret; inability to resolve an exact public `kid` fails closed.
  *
  * So this file guards the inbound direction, which is the one that exists.
  *
@@ -110,7 +109,7 @@ function moduleRefs(absolute: string): string[] {
 function tracked(prefix: string): string[] {
   return execFileSync('git', ['ls-files', '--', prefix], { cwd: REPO_ROOT, encoding: 'utf8' })
     .split('\n')
-    .filter((file) => file.endsWith('.ts') && file !== SELF)
+    .filter((file) => file.endsWith('.ts') && file !== SELF && existsSync(path.join(REPO_ROOT, file)))
     .map((file) => path.join(REPO_ROOT, file));
 }
 
@@ -412,7 +411,7 @@ describe('inbound verification is @oxyhq/core, not a local implementation (#139 
       encoding: 'utf8',
     })
       .split('\n')
-      .filter((file) => file.endsWith('.ts') && !isTest(file));
+      .filter((file) => file.endsWith('.ts') && !isTest(file) && existsSync(path.join(REPO_ROOT, file)));
     expect(modules.length).toBeGreaterThanOrEqual(6);
 
     const FORBIDDEN_VERIFIERS = ['jwt.verify', 'verifyToken', 'createVerify', 'jwtVerify'];
@@ -431,11 +430,13 @@ describe('inbound verification is @oxyhq/core, not a local implementation (#139 
       ),
     ).toEqual(['jwt.verify']);
 
-    // The credential interface has exactly the two members a PRESENTER needs.
-    const client = readFileSync(path.join(kaanaDir, 'kaana-client.ts'), 'utf8');
-    const block = /export interface KaanaServiceCredential \{([\s\S]*?)\n\}/.exec(client)?.[1] ?? '';
-    expect(block).toContain('getServiceToken(): Promise<string>');
-    expect(block).toContain('invalidateServiceToken(): void');
-    expect(block).not.toMatch(/verify|decode|parse/i);
+    // The published SDK receives a presenter function backed by OxyServices;
+    // Alia neither verifies nor parses an outbound token.
+    const credential = readFileSync(
+      path.join(kaanaDir, 'oxy-inference-credential.ts'),
+      'utf8',
+    );
+    expect(credential).toContain('return () => oxy.getServiceToken()');
+    expect(credential).not.toMatch(/jwt\.verify|verifyToken|jwtVerify/);
   });
 });

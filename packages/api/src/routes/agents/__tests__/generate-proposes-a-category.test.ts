@@ -41,7 +41,7 @@ vi.mock('ai', () => ({
 vi.mock('../../../lib/chat-core.js', () => ({
   resolveModel: async () => ({ provider: 'p', modelId: 'm', keyConfig: { keyId: 'k' } }),
   getAIModel: () => ({}),
-  getDefaultAliaModel: () => 'alia-v1',
+  getDefaultRoutingProfile: () => 'kaana-v1',
 }));
 
 vi.mock('../../../middleware/auth.js', () => ({

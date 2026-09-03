@@ -78,6 +78,7 @@ import { sql } from 'drizzle-orm';
 import { createdAt, generatedId, timestamptz, updatedAt } from '@oxyhq/db';
 import { checkOneOf } from './columns';
 import { AGENT_ACCESS, AGENT_ARCHETYPES, AGENT_STATUSES } from '../../domain/agent.js';
+import { OXY_KAANA_ROUTING_PROFILE_ID_LIST } from '../../config/oxy-inference-routing-profile-ids.js';
 import { skills } from './skills';
 import { libraryFiles } from './library';
 
@@ -89,7 +90,7 @@ import { libraryFiles } from './library';
  * `auth_health_metrics.method` answer.
  *
  * `allowed_models` gets none either, for a sharper reason — the values are Alia
- * model names, and `ALIA_TIERS`/the model registry could render one. Mongoose
+ * model names, and `ROUTING_TIERS`/the model registry could render one. Mongoose
  * declared no enum, so a CHECK would be a NEW constraint on a column an
  * unvalidated write path has been filling for as long as the column has existed,
  * and it would fail in the routing path on the first agent pinned to a model
@@ -114,6 +115,22 @@ export const agents = pgTable(
      * and avatar are read from it; none of them is stored here.
      */
     oxyAccountId: text().notNull(),
+    /**
+     * The bot account's direct parent in Oxy's account graph.
+     *
+     * Nullable only for rows imported before this invariant existed. Runtime
+     * authority fails closed for those rows; it never substitutes the listing
+     * author. New writes resolve this value from Oxy when the bot is verified.
+     */
+    ownerOxyAccountId: text(),
+    /**
+     * An Oxy Application id allowed to invoke this product agent.
+     *
+     * NULL means this is an ordinary Alia agent governed by `access`. A value
+     * means only a verified service credential for that exact application may
+     * run it; the id is never accepted from a chat request.
+     */
+    applicationId: text(),
     tagline: text().notNull(),
     description: text().notNull(),
     /**
@@ -168,7 +185,10 @@ export const agents = pgTable(
       .default('private'),
     systemPrompt: text(),
     preferredImage: text(),
-    allowedModels: text().array().notNull().default(['alia-v1', 'alia-v1-pro']),
+    /** Exact Oxy routing-profile primary key. Null only on unreconciled legacy rows. */
+    routingProfileId: text(),
+    /** Legacy non-authoritative reconciliation evidence. Runtime routing never reads it. */
+    allowedModels: text().array().notNull().default(['kaana-v1', 'kaana-v1-pro']),
     scheduleInterval: integer(),
 
     /** `soul`, flattened. Absent as a group on an agent that has never evolved. */
@@ -190,6 +210,8 @@ export const agents = pgTable(
   },
   (t) => [
     uniqueIndex('agents_oxy_account_id_key').on(t.oxyAccountId),
+    index('agents_owner_oxy_account_id_idx').on(t.ownerOxyAccountId),
+    index('agents_application_id_idx').on(t.applicationId),
     index('agents_author_oxy_user_id_idx').on(t.authorOxyUserId),
     index('agents_category_idx').on(t.category),
     index('agents_archetype_idx').on(t.archetype),
@@ -203,6 +225,11 @@ export const agents = pgTable(
     checkOneOf('agents_status_check', t.status, AGENT_STATUSES),
     checkOneOf('agents_access_check', t.access, AGENT_ACCESS),
     checkOneOf('agents_archetype_check', t.archetype, AGENT_ARCHETYPES),
+    checkOneOf(
+      'agents_routing_profile_id_check',
+      t.routingProfileId,
+      OXY_KAANA_ROUTING_PROFILE_ID_LIST,
+    ),
     /**
      * Mongoose declares `min: 0, max: 5`. A domain invariant, not input shaping:
      * the value is an average of 1..5 review ratings, so anything outside it
@@ -220,7 +247,7 @@ export const agents = pgTable(
  * `routes/agents/crud.ts:166,193` `populate('skills', 'skillId title icon color')`,
  * which is a join. A `text[]` cannot carry a foreign key, so "does this agent's
  * skill still exist" would stay unanswerable in SQL — the same argument
- * `alia_model_provider_mappings` made.
+ * `routing_profile_provider_mappings` made.
  *
  * The CASCADE is a deliberate behaviour CHANGE, and the same one that table
  * chose: Mongo left a deleted skill's id in the array and `populate` silently

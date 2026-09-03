@@ -105,7 +105,7 @@ router.get('/me', async (req: Request, res: Response) => {
 router.post('/resolve-model', async (_req: Request, res: Response) => {
   res.status(410).json({
     error: 'Endpoint removed',
-    message: 'Use /v1/chat/completions with Alia model IDs. Direct model resolution is internal-only.',
+    message: 'Use /v1/chat/completions with Kaana routing profile IDs. Direct model resolution is internal-only.',
   });
 });
 

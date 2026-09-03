@@ -76,7 +76,17 @@ vi.mock('../../logger.js', () => {
 vi.mock('../../oxy-user-hydration.js', () => ({ hydrateOxyUsers: vi.fn(async () => new Map()) }));
 
 vi.mock('../../chat-core.js', () => ({
-  resolveModel: vi.fn(async (id: string) => ({ id, kaanaReference: '' })),
+  resolveModel: vi.fn(async (id: string) => ({
+    id,
+    oxyInferenceTarget: {
+      kind: 'routing_profile_id',
+      routingProfileId: '01a06477-94f5-74f0-bc25-4c5c13b93ccd',
+    },
+  })),
+  resolveOxyRoutingProfileId: vi.fn(async (routingProfileId: string) => ({
+    routingProfileId: 'kaana-lite',
+    oxyInferenceTarget: { kind: 'routing_profile_id', routingProfileId },
+  })),
   getAIModel: vi.fn(() => ({ modelId: 'test-model' })),
 }));
 
@@ -90,6 +100,7 @@ vi.mock('ai', async (importOriginal) => ({
 
 const { closePostgres, connectPostgres } = await import('../../../db/index.js');
 const { agents } = await import('../../../db/schema/agents.js');
+const { OXY_KAANA_ROUTING_PROFILE_IDS } = await import('../../../config/oxy-inference-routing-profile-ids.js');
 const { userCredits } = await import('../../../db/schema/billing.js');
 const { getOrCreateUserCredits } = await import('../../../db/billing/userCreditsRepository.js');
 const { clearAgentAccountVerdicts } = await import('../../agent-account.js');
@@ -137,7 +148,8 @@ async function seedAgent(input: {
     access: input.access ?? 'private',
     status: input.status ?? 'active',
     systemPrompt: 'You are the seeded agent.',
-    allowedModels: ['alia-lite'],
+    routingProfileId: OXY_KAANA_ROUTING_PROFILE_IDS['kaana-lite'],
+    allowedModels: ['kaana-lite'],
   });
   return { id, oxyAccountId };
 }
@@ -273,7 +285,7 @@ describe('a delegation that runs is paid for by the delegating account', () => {
   it('settles the nested turn against the caller', async () => {
     const caller = await account(100);
     const target = await seedAgent({ author: uniqueId('other'), access: 'public' });
-    // 1000 tokens, `TOKENS_PER_CREDIT` 1000, `alia-lite`'s multiplier 0.5 —
+    // 1000 tokens, `TOKENS_PER_CREDIT` 1000, `kaana-lite`'s multiplier 0.5 —
     // one credit, which is also the floor, so the assertion is the balance.
     answers('billed');
 

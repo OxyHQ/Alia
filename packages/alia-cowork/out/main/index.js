@@ -416,7 +416,7 @@ const store = new Store({
   defaults: {
     apiKey: "",
     apiBaseUrl: "https://api.alia.onl",
-    model: "alia-v1-codea"
+    model: "kaana-v1-codea"
   }
 });
 class ChatProvider {

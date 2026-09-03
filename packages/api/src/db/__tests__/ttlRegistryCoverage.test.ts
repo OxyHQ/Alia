@@ -284,6 +284,13 @@ const MONGO_MODEL_TO_TABLE: Readonly<Record<string, string>> = {
   ModerationEvent: 'moderation_events',
 };
 
+/**
+ * Historical TTL rules whose Alia tables are intentionally frozen for the
+ * first cutover release's rollback window. They remain represented in the
+ * schema but no longer owe Alia a sweeper, reader or writer.
+ */
+const DORMANT_ROLLBACK_TABLES = new Set(['ApiUsage', 'FallbackEvent']);
+
 /** Postgres tables that exist today, by SQL table name. */
 function portedTables(): Map<string, PgTable> {
   const tables = new Map<string, PgTable>();
@@ -327,7 +334,7 @@ describe('every TTL index Mongo enforced has a matching expiry-sweep target', ()
     expect(MONGO_TTLS.filter((t) => t.retiredBy.trim() === '')).toEqual([]);
   });
 
-  it('every declaration names a table that EXISTS', () => {
+  it('every non-retired declaration names a table that EXISTS', () => {
     /**
      * The way this record rots. A row props the count up and feeds the column
      * and retention checks below — but those find their target through
@@ -335,7 +342,7 @@ describe('every TTL index Mongo enforced has a matching expiry-sweep target', ()
      * table was never mapped, or was later dropped from the schema, keeps the
      * count at 13 while asserting about nothing at all.
      */
-    const orphaned = MONGO_TTLS.filter((t) => {
+    const orphaned = MONGO_TTLS.filter((t) => !DORMANT_ROLLBACK_TABLES.has(t.model)).filter((t) => {
       const table = MONGO_MODEL_TO_TABLE[t.model];
       return !table || !tables.has(table);
     }).map((t) => t.model);
@@ -355,7 +362,7 @@ describe('every TTL index Mongo enforced has a matching expiry-sweep target', ()
       EXPIRY_TARGETS.map((t) => [getTableName(t.table), t]),
     );
 
-    const missing = MONGO_TTLS.filter(
+    const missing = MONGO_TTLS.filter((ttl) => !DORMANT_ROLLBACK_TABLES.has(ttl.model)).filter(
       (ttl) => !byTable.has(MONGO_MODEL_TO_TABLE[ttl.model] ?? ''),
     ).map((ttl) => `${ttl.model} -> ${String(MONGO_MODEL_TO_TABLE[ttl.model])}`);
 

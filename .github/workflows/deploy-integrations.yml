@@ -88,9 +88,8 @@ jobs:
       # an exfiltration payload and GitHub holds every run for human approval,
       # and enumerating is least privilege.
       #
-      # These are exactly the secrets the `alia-integrations` task definition
-      # binds, MINUS the one whose only copy is SSM. There are three bindings and
-      # two lines here, and the gap is deliberate:
+      # The database URL and shared gateway secret are SSM-owned. This workflow
+      # syncs only the shared encryption key from GitHub:
       #
       #   DATABASE_URL         — NO LINE, ON PURPOSE. `/oxy/alia-integrations/
       #                          DATABASE_URL` is written once by hand when the
@@ -102,16 +101,14 @@ jobs:
       #                          connection string with it, silently.
       #                          `/oxy/alia/DATABASE_URL` is the same shape and
       #                          the reason CrowdSource was provisioned SSM-only.
-      #   INTEGRATIONS_SECRET  — shared with the API, which syncs the SAME
-      #                          parameter from the SAME repo secret. Written
-      #                          from both workflows so neither has to run first;
-      #                          one source means they cannot disagree.
+      #   INTEGRATIONS_SECRET  — NO LINE, ON PURPOSE. The API and this service
+      #                          bind the SAME existing SSM parameter. Neither
+      #                          workflow retrieves, decrypts or overwrites it.
       #   TOKEN_ENCRYPTION_KEY — likewise shared, and likewise the API's
       #                          parameter. See the deploy step for why the VALUE
       #                          must be the same on both services.
       - name: Sync GitHub secrets -> SSM (GitHub is the source of truth)
         env:
-          SHARED_INTEGRATIONS_SECRET: ${{ secrets.INTEGRATIONS_SECRET }}
           SHARED_TOKEN_ENCRYPTION_KEY: ${{ secrets.TOKEN_ENCRYPTION_KEY }}
         run: |
           sync_secret() {
@@ -127,8 +124,24 @@ jobs:
           # `/oxy/alia/`, not `/oxy/alia-integrations/`: both are the API's
           # parameters and this service reads them. A second copy under its own
           # prefix is one rotation away from a mismatch nobody can explain.
-          sync_secret INTEGRATIONS_SECRET "$SHARED_INTEGRATIONS_SECRET" "/oxy/alia/INTEGRATIONS_SECRET"
           sync_secret TOKEN_ENCRYPTION_KEY "$SHARED_TOKEN_ENCRYPTION_KEY" "/oxy/alia/TOKEN_ENCRYPTION_KEY"
+
+      - name: Verify SSM-owned runtime secret metadata
+        run: |
+          for parameter_name in \
+            /oxy/alia-integrations/DATABASE_URL \
+            /oxy/alia/INTEGRATIONS_SECRET
+          do
+            metadata="$(aws ssm describe-parameters \
+              --parameter-filters "Key=Name,Option=Equals,Values=$parameter_name" \
+              --query 'Parameters[0].[Name,Type]' \
+              --output text)"
+            read -r actual_name actual_type <<<"$metadata"
+            if [ "$actual_name" != "$parameter_name" ] || [ "$actual_type" != "SecureString" ]; then
+              echo "::error::required SecureString metadata is absent for $parameter_name"
+              exit 1
+            fi
+          done
 
       - name: Login to ECR
         uses: aws-actions/amazon-ecr-login@v2

@@ -38,7 +38,7 @@ import { readArchetypeConfig } from '../domain/agent.js';
 import { buildIdentityGuard } from './identity-guard.js';
 import { userContextBlock } from './user-context.js';
 import { ToolPipeline } from './tool-pipeline.js';
-import { resolveModel, getAIModel, getDefaultAliaModel } from './chat-core.js';
+import { resolveModel, getAIModel, getDefaultRoutingProfile } from './chat-core.js';
 import {
 } from './tools/index.js';
 import { getDb } from '../db/index.js';
@@ -236,7 +236,7 @@ export async function executeTrigger(
     });
 
     // Resolve AI model
-    const resolved = await resolveModel(getDefaultAliaModel());
+    const resolved = await resolveModel(getDefaultRoutingProfile());
     if (!resolved) {
       throw new Error('No AI models available');
     }

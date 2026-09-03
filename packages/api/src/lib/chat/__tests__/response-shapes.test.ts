@@ -5,7 +5,7 @@ describe('buildCompletionResponse', () => {
   it('builds a synthetic envelope with zeroed usage and alia_meta', () => {
     const body = buildCompletionResponse({
       requestId: 'chatcmpl-test',
-      model: 'alia-v1',
+      model: 'kaana-v1',
       content: 'Sorry, busy.',
       aliaMeta: { synthetic: true, retryable: true },
     });
@@ -13,7 +13,7 @@ describe('buildCompletionResponse', () => {
     expect(body).toMatchObject({
       id: 'chatcmpl-test',
       object: 'chat.completion',
-      model: 'alia-v1',
+      model: 'kaana-v1',
       system_fingerprint: 'fp_alia',
       service_tier: 'default',
       choices: [{
@@ -39,7 +39,7 @@ describe('buildCompletionResponse', () => {
   it('builds a full non-streaming envelope with usage, alia_usage, and tool_calls', () => {
     const body = buildCompletionResponse({
       requestId: 'chatcmpl-full',
-      model: 'alia-v1-pro',
+      model: 'kaana-v1-pro',
       content: 'done',
       finishReason: 'tool_calls',
       toolCalls: [{ id: 'call_1', type: 'function', function: { name: 'search', arguments: '{}' } }],
@@ -70,7 +70,7 @@ describe('buildCompletionResponse', () => {
   it('omits tool_calls for an empty array', () => {
     const body = buildCompletionResponse({
       requestId: 'chatcmpl-empty',
-      model: 'alia-v1',
+      model: 'kaana-v1',
       content: 'hi',
       toolCalls: [],
     });

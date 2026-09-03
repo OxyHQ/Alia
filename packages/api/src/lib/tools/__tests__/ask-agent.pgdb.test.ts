@@ -75,7 +75,17 @@ vi.mock('../../oxy-user-hydration.js', () => ({
 }));
 
 vi.mock('../../chat-core.js', () => ({
-  resolveModel: vi.fn(async (id: string) => ({ id, kaanaReference: '' })),
+  resolveModel: vi.fn(async (id: string) => ({
+    id,
+    oxyInferenceTarget: {
+      kind: 'routing_profile_id',
+      routingProfileId: '01a06477-94f5-74f0-bc25-4c5c13b93ccd',
+    },
+  })),
+  resolveOxyRoutingProfileId: vi.fn(async (routingProfileId: string) => ({
+    routingProfileId: 'kaana-lite',
+    oxyInferenceTarget: { kind: 'routing_profile_id', routingProfileId },
+  })),
   getAIModel: vi.fn(() => ({ modelId: 'test-model' })),
 }));
 
@@ -93,6 +103,7 @@ vi.mock('ai', async (importOriginal) => ({
 const { closePostgres, connectPostgres } = await import('../../../db/index.js');
 type ApiDatabase = Awaited<ReturnType<typeof connectPostgres>>;
 const { agents } = await import('../../../db/schema/agents.js');
+const { OXY_KAANA_ROUTING_PROFILE_IDS } = await import('../../../config/oxy-inference-routing-profile-ids.js');
 const { userCredits } = await import('../../../db/schema/billing.js');
 const { getOrCreateUserCredits } = await import('../../../db/billing/userCreditsRepository.js');
 const { buildAskAgentTool } = await import('../ask-agent.js');
@@ -149,7 +160,8 @@ async function seedAgent(input: {
     category: 'research',
     status: input.status ?? 'active',
     systemPrompt,
-    allowedModels: ['alia-lite'],
+    routingProfileId: OXY_KAANA_ROUTING_PROFILE_IDS['kaana-lite'],
+    allowedModels: ['kaana-lite'],
   });
   return { id, oxyAccountId, systemPrompt };
 }
@@ -385,7 +397,7 @@ describe('who pays for the nested turn', () => {
     const owner = await account(100);
     const target = await seedAgent({ author: owner });
     /**
-     * 6000 tokens, `TOKENS_PER_CREDIT` 1000, and the `alia-lite` preset's
+     * 6000 tokens, `TOKENS_PER_CREDIT` 1000, and the `kaana-lite` preset's
      * multiplier of 0.5 — three credits. The agent's OWN model decides the
      * price, which is why the row above pins `allowedModels`, and a number
      * bigger than the one-credit reservation is what makes the settlement

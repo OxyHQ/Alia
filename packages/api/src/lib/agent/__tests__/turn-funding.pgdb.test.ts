@@ -30,7 +30,7 @@ vi.mock('../../logger.js', () => {
   return { log: { credits: child, agents: child, general: child, chat: child, v1: child, providers: child } };
 });
 vi.mock('../../chat-core.js', () => ({
-  getAliaModel: vi.fn().mockResolvedValue({ creditMultiplier: 1 }),
+  getRoutingProfile: vi.fn().mockResolvedValue({ creditMultiplier: 1 }),
 }));
 
 import { closePostgres, connectPostgres, type ApiDatabase } from '../../../db/index.js';

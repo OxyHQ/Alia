@@ -5,9 +5,9 @@
  *
  * ## What counts as such a change, and what does not
  *
- * Six tables decide which model a request can name, which one it resolves to
- * and which credential serves it: `alia_models`, `alia_model_provider_mappings`,
- * `model_configs`, `provider_keys`, `external_models` and `plans`. A write to
+ * Five tables decide which model a request can name and which one it resolves
+ * to: `routing_profiles`, `routing_profile_provider_mappings`, `model_configs`,
+ * `external_models` and `plans`. A write to
  * any of them is a decision a PERSON made about the product, and it is what
  * this records.
  *
@@ -19,18 +19,10 @@
  * rather than inventing a second mechanism is the point; the alternative was a
  * parallel audit path for one column.
  *
- * Automatic key HEALTH is deliberately not here. `recordKeyFailure`,
- * `recordKeySuccess`, `recordKeyUsage`, `recordKeySpend`, `setKeyCooldown` and
- * `markKeyCreditExhausted` change routing too, but they change it because an
- * upstream said no — nobody configured anything, and an audit log of them is a
- * METRIC, which `lib/observability/metrics.ts` is where it belongs. The
- * distinction is asserted in `__tests__/config-audit.test.ts` rather than left
- * to the reader.
- *
  * ## Why a structured log line rather than a table
  *
- * `docs/migration/ownership.md` assigns `provider_keys`, `model_configs` and the
- * mappings **to Kaana**. An Alia-owned audit table for rows that are leaving is
+ * `docs/migration/ownership.md` assigns `model_configs` and the mappings **to
+ * Kaana**. An Alia-owned audit table for rows that are leaving is
  * a schema, a migration and an ownership entry for something with a known end
  * date, and it would have to be migrated or abandoned at the cutover. A
  * structured record on its own pino channel is machine-parseable, lands in the
@@ -45,22 +37,18 @@
  *    conversation or a completion; the payload is a per-resource FIELD
  *    ALLOW-LIST ({@link AUDITED_FIELDS}) applied to a row, so a field added
  *    upstream is absent from the record until somebody adds it here on purpose.
- * 2. **No credential material.** The allow-list is what makes that structural
- *    rather than careful: `provider_keys.key` and `key_hash` are not in it, so a
- *    caller passing a whole row cannot leak the credential even by accident.
- *    `key_prefix` IS in it, because the prefix is the only identifier
- *    `docs/runbooks/credential-rotation.md` considers safe to display and
- *    without it a record about a key names no key.
+ * 2. **No credential material.** The resources this module accepts contain no
+ *    hosted provider credential; those rows are no longer part of Alia's
+ *    schema.
  */
 
 import { createLogger } from '../logger.js';
 
 /** Which of the five configuration tables the record is about. */
 export type ConfigAuditResource =
-  | 'alia_model'
-  | 'alia_model_provider_mappings'
+  | 'routing_profile'
+  | 'routing_profile_provider_mappings'
   | 'model_config'
-  | 'provider_key'
   | 'external_model'
   | 'plan';
 
@@ -134,8 +122,8 @@ export interface ConfigAuditChange {
  * counter moving is not a configuration change.
  */
 export const AUDITED_FIELDS: Readonly<Record<ConfigAuditResource, readonly string[]>> = {
-  alia_model: [
-    'aliasModelId',
+  routing_profile: [
+    'routingProfileId',
     'displayName',
     'tier',
     'creditMultiplier',
@@ -146,7 +134,7 @@ export const AUDITED_FIELDS: Readonly<Record<ConfigAuditResource, readonly strin
     'deprecationDate',
     'replacementModelId',
   ],
-  alia_model_provider_mappings: ['provider', 'modelId', 'priority', 'qualityScore', 'isActive'],
+  routing_profile_provider_mappings: ['provider', 'modelId', 'priority', 'qualityScore', 'isActive'],
   model_config: [
     'provider',
     'modelId',
@@ -159,23 +147,6 @@ export const AUDITED_FIELDS: Readonly<Record<ConfigAuditResource, readonly strin
     'supportsVision',
     'inputCostPer1M',
     'outputCostPer1M',
-  ],
-  provider_key: [
-    // NOT `key` and NOT `keyHash`. The prefix is the only safe identifier, and
-    // a hash is an exact-match oracle — `docs/runbooks/credential-rotation.md`
-    // says so about this exact column.
-    'name',
-    'provider',
-    'keyPrefix',
-    'environment',
-    'tier',
-    'isPaid',
-    'isActive',
-    'isArchived',
-    'currentPriority',
-    'originalPriority',
-    'creditLimitUsd',
-    'rateLimitResetMs',
   ],
   external_model: ['slug', 'organization', 'isActive', 'contextWindow'],
   // Which models a plan grants, and whether the plan is live at all. Price and

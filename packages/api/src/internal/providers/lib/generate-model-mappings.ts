@@ -5,11 +5,11 @@
  * IMPORTANT: Only use REAL, currently available model IDs
  */
 
-import type { ModelMapping } from './alia-models';
+import type { ModelMapping } from './routing-profile-catalogue';
 // The tier keys of the table below, from the tuple the database's CHECK
 // constraints are rendered from — so a tier this table can serve is a tier a
 // `model_configs` row may name.
-import type { AliaTier } from './alia-tiers';
+import type { RoutingTier } from './routing-tiers';
 import type { ModelPublisher } from './model-publishers';
 import { getModelCapabilities, getModelPricing } from './model-capabilities-data';
 
@@ -41,7 +41,7 @@ export function createMapping(
 }
 
 // Generate all tier mappings - ONLY REAL MODEL IDS
-export const GENERATED_TIER_MAPPINGS: Record<AliaTier, ModelMapping[]> = {
+export const GENERATED_TIER_MAPPINGS: Record<RoutingTier, ModelMapping[]> = {
   'lite': [
     createMapping('google', 'google', 'gemini-2.5-flash', 'gemini-2.5-flash', 1, 75),
 // Groq decommissioned the whole llama-3.3 line: MEASURED 2026-08-23, its
@@ -179,9 +179,9 @@ export const GENERATED_TIER_MAPPINGS: Record<AliaTier, ModelMapping[]> = {
     // provider today; DigitalOcean ElevenLabs backs it up. (OpenRouter serves no
     // TTS endpoint — it 400s — so it is intentionally not in the chain.)
     // ElevenLabs DIRECT is first because its key is a free monthly quota, and
-    // `key-manager.ts` already prefers a free key over a paid one — ranking it
-    // here is the same preference expressed one level up, where the choice is
-    // between providers rather than between keys of one provider.
+    // The historical ordering preferred the no-cost route. These mappings are
+    // catalogue compatibility inputs only; Kaana owns live credential and
+    // provider selection.
     createMapping('elevenlabs', 'elevenlabs', 'eleven-multilingual-v2', 'eleven_multilingual_v2', 1, 96),
     createMapping('openai', 'openai', 'tts-1', 'tts-1', 2, 90),
     createMapping('openai', 'openai', 'tts-1-hd', 'tts-1-hd', 3, 95),
@@ -205,22 +205,18 @@ export const GENERATED_TIER_MAPPINGS: Record<AliaTier, ModelMapping[]> = {
    * inline as its ONLY route, so the chain was exhausted on the first attempt
    * and every sound cue in every episode was lost. MEASURED in production on
    * 2026-08-24 and again on 2026-08-25: three `no_credential` failures per
-   * episode, `provider_keys` holds no `digitalocean` row at all, and the
-   * episodes published without a single effect.
+   * episode and the episodes published without a single effect.
    *
-   * ElevenLabs leads for the same reason it leads `v1-tts` — its key is a free
-   * monthly quota and `key-manager.ts` prefers a free key. MEASURED 2026-08-25
+   * ElevenLabs led the historical ordering because its credential had a free
+   * monthly quota. MEASURED 2026-08-25
    * with that key: `POST /v1/sound-generation` answers 200 `audio/mpeg`, 81 kB
    * in 2.7 s for v2 and 48 kB in 1.7 s for v3.
    *
    * ## HOW DEEP THIS CHAIN ACTUALLY IS, which is not the same as how long it is
    *
-   * Three entries, TWO providers, and in production today exactly ONE of those
-   * providers can serve. `provider_keys` holds four rows — `elevenlabs`,
-   * `groq`, `openrouter`, `xai` — and none for `digitalocean`, so the fal entry
-   * is refused at `getBestKeyForModel` before a request leaves the process.
-   * Against the failure that matters most, the ElevenLabs key being exhausted
-   * or revoked, the effective depth is one and this chain buys nothing.
+   * Three entries and two providers were represented, but this compatibility
+   * list never establishes current availability. Kaana alone decides which
+   * authorized route can serve a request.
    *
    * That is worth stating rather than letting three lines imply resilience they
    * do not have. What each entry really covers:

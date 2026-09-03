@@ -111,7 +111,7 @@ export const SURFACES: readonly string[] = Object.keys(SURFACE_CAPABILITIES).sor
  * in the catalogue supports text, so a filter keyed on support would withhold
  * nothing from anybody.
  *
- * Declared here rather than imported from `internal/providers/lib/alia-models`,
+ * Declared here rather than imported from `internal/providers/lib/routing-profile-catalogue`,
  * because ADR 0001 keeps `lib/` out of that tree; the coverage is asserted in
  * both directions by the test, which holds the one allowlisted import.
  */

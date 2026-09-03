@@ -14,7 +14,7 @@
  */
 
 import { generateText } from 'ai';
-import { resolveModel, getAIModel, getDefaultAliaModel } from '../chat-core.js';
+import { resolveModel, getAIModel, getDefaultRoutingProfile } from '../chat-core.js';
 import { log } from '../logger.js';
 import { EventStream, type EventStreamEntry } from './event-stream.js';
 import { WorkspaceMemory } from './workspace-memory.js';
@@ -173,7 +173,7 @@ async function summarizeEntries(entries: EventStreamEntry[]): Promise<string> {
     .join('\n');
 
   try {
-    const resolved = await resolveModel('alia-lite') || await resolveModel(getDefaultAliaModel());
+    const resolved = await resolveModel('kaana-lite') || await resolveModel(getDefaultRoutingProfile());
     if (!resolved) {
       // Fallback: simple truncation
       return entries

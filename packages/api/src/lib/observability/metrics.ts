@@ -4,7 +4,6 @@
  * Collects key platform metrics:
  *   - Agent session duration, steps, token usage
  *   - Tool call latency and error rates
- *   - Provider error rates and latency
  *   - Context compaction events
  *   - MCP tool health
  *
@@ -163,11 +162,6 @@ registry.register('alia_tool_calls_total', 'Total tool calls', 'counter');
 registry.register('alia_tool_call_duration_seconds', 'Tool call duration', 'histogram', [0.1, 0.5, 1, 2, 5, 10, 30]);
 registry.register('alia_tool_errors_total', 'Total tool call errors', 'counter');
 
-// Provider metrics
-registry.register('alia_provider_requests_total', 'Total provider API requests', 'counter');
-registry.register('alia_provider_errors_total', 'Total provider errors', 'counter');
-registry.register('alia_provider_latency_seconds', 'Provider request latency', 'histogram', [0.5, 1, 2, 5, 10, 30]);
-
 // Context metrics
 registry.register('alia_context_compaction_total', 'Context compaction events', 'counter');
 registry.register('alia_context_tokens_saved', 'Tokens saved by compaction', 'gauge');
@@ -199,13 +193,6 @@ export function toolCallRecorded(toolName: string, durationSec: number, success:
   registry.inc('alia_tool_calls_total', labels);
   registry.observe('alia_tool_call_duration_seconds', labels, durationSec);
   if (!success) registry.inc('alia_tool_errors_total', labels);
-}
-
-export function providerRequestRecorded(provider: string, modelId: string, durationSec: number, success: boolean): void {
-  const labels = { provider, model: modelId };
-  registry.inc('alia_provider_requests_total', labels);
-  registry.observe('alia_provider_latency_seconds', labels, durationSec);
-  if (!success) registry.inc('alia_provider_errors_total', labels);
 }
 
 export function contextCompactionRecorded(tokensSaved: number): void {

@@ -34,18 +34,17 @@
  * It never inspects the credential beyond its prefix, so nothing here can log or
  * echo key material.
  *
- * ## Why no `Sunset` value is emitted, now that the ALIASES have one
+ * ## Why no `Sunset` value is emitted
  *
- * `ALIAS_SUNSET` was set on 2026-08-18 when the product owner closed section
- * (a)'s window. {@link CREDENTIAL_SUNSET} deliberately did NOT move with it, and
- * the two constants disagreeing is the correct state rather than an oversight:
- * they answer to different gates, and only (a)'s was decided.
+ * {@link CREDENTIAL_SUNSET} stays unset until the credential-specific exit gate
+ * is met. Credential retirement is independent from routing-profile naming:
+ * presenting an old key can lock a caller out, so it needs its own migration
+ * path and notification evidence.
  *
  * Three reasons, each of them a fact rather than a preference:
  *
- *  1. **The two deprecations fail differently.** An alias past its sunset still
- *     resolves, so a caller who ignores the notice keeps working. A credential
- *     past its sunset authenticates nothing, so the same caller is locked out.
+ *  1. **Credential retirement is a hard failure.** A credential past its sunset
+ *     authenticates nothing, so a caller who misses the notice is locked out.
  *  2. **Section (c)'s gate opens with "every key owner has been notified, with
  *     the notification recorded", and the channel for that notification is still
  *     an open question in the window document.** Zero owners have been notified.
@@ -62,7 +61,11 @@
 import type { NextFunction, Request, Response } from 'express';
 
 import { API_KEY_PREFIX } from '../lib/api-key-crypto.js';
-import { DOCS_URL, toHttpDate, toStructuredFieldDate } from './alias-deprecation.js';
+import {
+  DEPRECATION_DOCS_URL,
+  toHttpDate,
+  toStructuredFieldDate,
+} from './http-deprecation.js';
 
 /**
  * When the credentials were deprecated: the date ADR 0001 and ADR 0004 were
@@ -75,8 +78,8 @@ export const CREDENTIAL_DEPRECATION = new Date('2026-08-15T00:00:00.000Z');
  * The removal date, once section (c)'s gate sets one. `null` until then, and
  * `null` is why no `Sunset` header is emitted. Read the note above before
  * replacing it with a value — in particular, it is `null` for reasons of its
- * own and not merely because nobody has got round to it, so the alias sunset
- * moving is not an argument for moving this.
+ * own and not merely because nobody has got round to it. Routing-profile
+ * lifecycle decisions are not an argument for moving this.
  */
 export const CREDENTIAL_SUNSET: Date | null = null;
 
@@ -116,7 +119,7 @@ export function createCredentialDeprecationHeaders(
     }
     res.setHeader('Deprecation', toStructuredFieldDate(CREDENTIAL_DEPRECATION));
     if (sunset !== null) res.setHeader('Sunset', toHttpDate(sunset));
-    res.setHeader('Link', `<${DOCS_URL}>; rel="deprecation"`);
+    res.setHeader('Link', `<${DEPRECATION_DOCS_URL}>; rel="deprecation"`);
     next();
   };
 }
@@ -187,13 +190,13 @@ export const ISSUANCE_CLOSED_STATUS = 410;
 export function refuseIssuance(res: Response, subject: ClosedIssuance): void {
   res.setHeader('Deprecation', toStructuredFieldDate(CREDENTIAL_DEPRECATION));
   if (CREDENTIAL_SUNSET !== null) res.setHeader('Sunset', toHttpDate(CREDENTIAL_SUNSET));
-  res.setHeader('Link', `<${DOCS_URL}>; rel="deprecation"`);
+  res.setHeader('Link', `<${DEPRECATION_DOCS_URL}>; rel="deprecation"`);
 
   const body: IssuanceClosedBody = {
     error: 'issuance_closed',
     subject,
     message: MESSAGES[subject],
-    documentation: DOCS_URL,
+    documentation: DEPRECATION_DOCS_URL,
   };
   res.status(ISSUANCE_CLOSED_STATUS).json(body);
 }

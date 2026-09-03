@@ -22,7 +22,6 @@
     "@types/node": "^20.19.43",
     "@types/ws": "^8.18.1",
     "@whiskeysockets/baileys": "~6.7.23",
-    "ai": "^6.0.225",
     "axios": "^1.18.1",
     "discord.js": "^14.26.5",
     "dotenv": "^16.6.1",

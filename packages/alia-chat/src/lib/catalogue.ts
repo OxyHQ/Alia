@@ -3,7 +3,7 @@
  * workstream 5).
  *
  * Every surface used to hardcode an `alia-*` identifier as its default —
- * `useAliaChat` sent `alia-v1`, `useTTS` and `useVoiceRoom` sent `alia-v1-voice`
+ * `useAliaChat` sent `kaana-v1`, `useTTS` and `useVoiceRoom` sent `kaana-v1-voice`
  * — which meant a retired identifier became a 400 in a consumer's app with
  * nothing the consumer could do about it, since the string was baked into the
  * package they installed. This module is how the SDK asks the server what it

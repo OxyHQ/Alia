@@ -51,7 +51,7 @@ import {
 } from '../db/agents/skillRepository.js';
 import { SKILL_SOURCES, type SkillSource } from '../domain/skill.js';
 import { authenticateToken, optionalAuth } from '../middleware/auth.js';
-import { resolveModel, getAIModel, getDefaultAliaModel } from '../lib/chat-core.js';
+import { resolveModel, getAIModel, getDefaultRoutingProfile } from '../lib/chat-core.js';
 import { readS3Object } from '../lib/s3.js';
 import { log } from '../lib/logger.js';
 import { MAX_BUNDLE_BYTES, buildSkillBundle, SkillBundleError } from '../lib/skills/bundle.js';
@@ -356,7 +356,7 @@ router.post('/generate', authenticateToken, async (req: Request, res: Response) 
   let text: string | null = null;
 
   for (let attempt = 0; attempt < MAX_PROVIDER_RETRIES; attempt++) {
-    const resolved = await resolveModel(getDefaultAliaModel(), skipProviders);
+    const resolved = await resolveModel(getDefaultRoutingProfile(), skipProviders);
     if (!resolved) break;
     try {
       const result = await generateText({

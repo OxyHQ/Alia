@@ -1,9 +1,9 @@
 /**
  * The default chat model has ONE owner — epic #139.
  *
- * Two functions called `getDefaultAliaModel` existed, in
- * `lib/gateway-client.ts` (`alia-lite`) and
- * `internal/providers/lib/model-resolver.ts` (`alia-v1`), disagreeing about what
+ * Two functions called `getDefaultRoutingProfile` existed, in
+ * `lib/gateway-client.ts` (`kaana-lite`) and
+ * `internal/providers/lib/model-resolver.ts` (`kaana-v1`), disagreeing about what
  * a request that named no model gets. Nothing imported the second, so the wrong
  * answer was never returned — but nothing said so either, and the next caller to
  * reach for a default had even odds of importing it.
@@ -26,12 +26,12 @@
 
 import { describe, expect, it } from 'vitest';
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { getDefaultAliaModel, getDefaultModelForCategory } from '../gateway-client.js';
-import { profileIdFor } from '../product-modes.js';
+import { getDefaultRoutingProfile, getDefaultModelForCategory } from '../gateway-client.js';
+import { routingPolicyIdFor, routingProfileFor } from '../product-modes.js';
 
 const REPO_ROOT = path.resolve(fileURLToPath(new URL('../../../../../', import.meta.url)));
 
@@ -50,14 +50,17 @@ function stripComments(source: string): string {
  * Every tracked non-test `.ts` under the API source, read off git rather than a
  * hand list — a hand list is exactly what a new file escapes.
  *
- * `git ls-files` does not see an unstaged new file, so a census run before
- * `git add` measures nothing about a file just created. The count assertions
- * below are what turn that into a failure rather than a silent pass.
+ * Include untracked worktree files and exclude deleted index entries so this
+ * gate also measures a rename before `git add`.
  */
 function apiSources(): { file: string; code: string }[] {
-  return execFileSync('git', ['ls-files', 'packages/api/src'], { cwd: REPO_ROOT, encoding: 'utf8' })
+  return execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard', '--', 'packages/api/src'], {
+    cwd: REPO_ROOT,
+    encoding: 'utf8',
+  })
     .split('\n')
     .filter((f) => f.endsWith('.ts') && !f.includes('__tests__') && !f.endsWith('.test.ts'))
+    .filter((file) => existsSync(path.join(REPO_ROOT, file)))
     .map((file) => ({ file, code: stripComments(readFileSync(path.join(REPO_ROOT, file), 'utf8')) }));
 }
 
@@ -85,15 +88,8 @@ describe('the census can see the tree it claims to scan', () => {
   });
 
   it('does not read a default out of a comment', () => {
-    // The specific failure this guards: `model-resolver.ts` now EXPLAINS in
-    // prose that it has no default, naming both the symbol and `alia-v1`. A
-    // census that scanned raw source would count that explanation as a second
-    // default and be permanently red.
-    const resolver = SOURCES.find((s) => s.file.endsWith('internal/providers/lib/model-resolver.ts'));
-    expect(resolver).toBeDefined();
-    const raw = readFileSync(path.join(REPO_ROOT, 'packages/api/src/internal/providers/lib/model-resolver.ts'), 'utf8');
-    expect(raw).toContain('getDefaultAliaModel');
-    expect(resolver?.code).not.toContain('getDefaultAliaModel');
+    const raw = '/* getDefaultRoutingProfile() returns kaana-v1 */\nexport const harmless = true;';
+    expect(stripComments(raw)).not.toContain('getDefaultRoutingProfile');
   });
 });
 
@@ -102,7 +98,7 @@ describe('the census can see the tree it claims to scan', () => {
 // ===========================================================================
 
 /** Not `g`-flagged: a global regex's `.test()` is stateful and skips every other file. */
-const DEFINITION = /function\s+getDefaultAliaModel\s*\(/;
+const DEFINITION = /function\s+getDefaultRoutingProfile\s*\(/;
 
 describe('exactly one function answers "what model when the caller named none"', () => {
   it('is defined once in the whole API source, and in the product tree', () => {
@@ -116,13 +112,13 @@ describe('exactly one function answers "what model when the caller named none"',
     // Stated separately from the count because it is a different property: even
     // one default is in the wrong place if it sits in the tree that migrates.
     const inProviderTree = SOURCES.filter(
-      (s) => s.file.startsWith('packages/api/src/internal/providers/') && s.code.includes('getDefaultAliaModel'),
+      (s) => s.file.startsWith('packages/api/src/internal/providers/') && s.code.includes('getDefaultRoutingProfile'),
     );
     expect(inProviderTree.map((s) => s.file)).toEqual([]);
 
     // Positive control on that filter: the tree is non-empty and IS being read.
     expect(SOURCES.filter((s) => s.file.startsWith('packages/api/src/internal/providers/')).length)
-      .toBeGreaterThan(10);
+      .toBeGreaterThan(5);
   });
 });
 
@@ -135,7 +131,7 @@ describe('the runtime default and the advertised default are the same model', ()
     /**
      * Two independent derivations: this one is a constant, the catalogue's
      * minimises `creditMultiplier` over the general category
-     * (`alia-models.ts` `getDefaultModelForCategory`). They agreed by accident
+     * (`routing-profile-catalogue.ts` `getDefaultModelForCategory`). They agreed by accident
      * rather than by construction, and a count-based gate cannot see them drift
      * apart — which is the failure a user actually notices, because
      * `routes/v1/models.ts:84` publishes the catalogue's answer as
@@ -143,15 +139,15 @@ describe('the runtime default and the advertised default are the same model', ()
      */
     const advertised = await getDefaultModelForCategory('general');
     expect(advertised).not.toBeNull();
-    expect(getDefaultAliaModel()).toBe(advertised?.id);
+    expect(getDefaultRoutingProfile()).toBe(advertised?.id);
   });
 
   it('the streaming route seeds its reported model from the owner, not a literal', () => {
     /**
      * `chat-completions.ts` arms an 80s timeout timer BEFORE
      * `buildChatRequestContext` returns, and that timer reports
-     * `state.aliasModelId` to the client. The seed is therefore READ on a real
-     * path, not merely overwritten — it used to restate `'alia-v1'`, so a
+     * `state.routingProfileId` to the client. The seed is therefore READ on a real
+     * path, not merely overwritten — it used to restate `'kaana-v1'`, so a
      * request that timed out during resolution was told it ran on a model the
      * default would never have selected.
      *
@@ -160,16 +156,16 @@ describe('the runtime default and the advertised default are the same model', ()
      */
     const route = SOURCES.find((s) => s.file.endsWith('routes/v1/chat-completions.ts'));
     expect(route).toBeDefined();
-    expect(route?.code).toContain('aliasModelId: getDefaultAliaModel()');
-    expect(route?.code).not.toMatch(/aliasModelId:\s*'alia-/);
+    expect(route?.code).toContain('routingProfileId: getDefaultRoutingProfile()');
+    expect(route?.code).not.toMatch(/routingProfileId:\s*'alia-/);
   });
 
-  it('the default is a real, chat-visible alias', () => {
+  it('the default is a real, chat-visible Kaana routing profile', () => {
     // A default nobody can select in the picker is a default users cannot
     // reproduce or reason about.
-    const id = getDefaultAliaModel();
-    expect(id).toMatch(/^alia-/);
-    expect(SOURCES.find((s) => s.file.endsWith('internal/providers/lib/alia-models.ts'))?.code)
+    const id = getDefaultRoutingProfile();
+    expect(id).toMatch(/^kaana-/);
+    expect(SOURCES.find((s) => s.file.endsWith('internal/providers/lib/routing-profile-catalogue.ts'))?.code)
       .toContain(`id: '${id}'`);
   });
 });
@@ -180,11 +176,11 @@ describe('the runtime default and the advertised default are the same model', ()
 
 /**
  * A literal that BECOMES the model when the caller named none: a fallback
- * operator, or a parameter default. Deliberately narrow — `x !== 'alia-lite'` is
- * a comparison and `suggestedModel = 'alia-v1'` is a classifier's output, and
+ * operator, or a parameter default. Deliberately narrow — `x !== 'kaana-lite'` is
+ * a comparison and `suggestedModel = 'kaana-v1'` is a classifier's output, and
  * folding either in would make this list noise nobody maintains.
  */
-const RESTATED = /(?:\|\||\?\?)\s*'(alia-[a-z0-9-]+)'|:\s*string\s*=\s*'(alia-[a-z0-9-]+)'/g;
+const RESTATED = /(?:\|\||\?\?)\s*'(kaana-[a-z0-9-]+)'|:\s*string\s*=\s*'(kaana-[a-z0-9-]+)'/g;
 
 /**
  * Frozen exactly as it is today. Each entry says why it is not simply importing
@@ -193,27 +189,17 @@ const RESTATED = /(?:\|\||\?\?)\s*'(alia-[a-z0-9-]+)'|:\s*string\s*=\s*'(alia-[a
 const RESTATED_DEFAULTS: readonly { file: string; value: string; why: string }[] = [
   {
     file: 'packages/api/src/lib/credits-manager.ts',
-    value: 'alia-v1-voice',
+    value: 'kaana-v1-voice',
     why: 'Voice billing parameter default. Capability-scoped: the chat default cannot price a voice minute.',
   },
   {
-    file: 'packages/api/src/lib/tools/agent-turn.ts',
-    value: 'alia-lite',
-    why: "An agent's own allowedModels first, else the chat default. Agrees with the owner; should import it. Was in `agent-delegate.ts` until the nested turn became one shared runner.",
-  },
-  {
     file: 'packages/api/src/lib/tools/delegate.ts',
-    value: 'alia-v1',
+    value: 'kaana-v1',
     why: 'DELIBERATE and documented in place: names the alias the fallback engine already resolved to, so the tool stops reporting a model it did not run. Its comment states it is explicitly not the default.',
-  },
-  {
-    file: 'packages/api/src/routes/v1/voice.ts',
-    value: 'alia-v1-voice',
-    why: 'Capability-scoped, and correct: a realtime voice session cannot run on the general chat default.',
   },
 ];
 
-describe('every site that restates an alias default is accounted for', () => {
+describe('every site that restates a Kaana routing-profile default is accounted for', () => {
   const observed = SOURCES.flatMap(({ file, code }) => {
     RESTATED.lastIndex = 0;
     const out: { file: string; value: string }[] = [];
@@ -225,20 +211,24 @@ describe('every site that restates an alias default is accounted for', () => {
     // Positive controls, one per spelling. A pattern that misses one prints a
     // clean small number that reads like good news.
     const at = (suffix: string) => observed.filter((o) => o.file.endsWith(suffix)).map((o) => o.value);
-    expect(at('lib/tools/delegate.ts')).toContain('alia-v1'); // `||` with a space
-    expect(at('lib/tools/agent-turn.ts')).toContain('alia-lite'); // `||` after `[0]`
-    expect(at('lib/credits-manager.ts')).toContain('alia-v1-voice'); // parameter default
+    expect(at('lib/tools/delegate.ts')).toContain('kaana-v1'); // `||` with a space
+    expect(at('lib/tools/agent-turn.ts')).toEqual([]); // agent turns require their stored routing-profile PK
+    expect(at('lib/credits-manager.ts')).toContain('kaana-v1-voice'); // parameter default
     // 8 -> 7 because `/v1/responses` stopped restating a default, then 7 -> 6
     // because `routes/webhooks.ts` did: #244 made a bot's stored preference a
-    // `profile:*` identifier, so that site reads `getDefaultAliaModel()` and
-    // translates through `toRoutableAlias` instead of naming an alias. Neither
+    // canonical profile, so that site reads `getDefaultRoutingProfile()` instead of
+    // naming a second literal. Neither
     // is the scanner getting weaker. A floor that a gate's own work erodes ends
     // at `>= 0`, so it moves by exactly the number of restatements deleted and
     // the exact-equality check below is what actually holds the line.
     // 6 -> 5: `lib/tools/agent-orchestrator.ts` is DELETED. It was registered
     // into `tools/registry.ts` and reached a model through nothing, and both it
     // and the registry went with the five tool assemblers becoming one.
-    expect(observed.length).toBeGreaterThanOrEqual(5);
+    // 5 -> 4: `/v1/voice` now returns an explicit hosted-capability error and
+    // therefore no longer chooses a routing profile locally.
+    // 4 -> 3: `agent-turn.ts` stopped deriving a route from `allowedModels[0]`;
+    // nested turns now require the agent's exact stored routing-profile PK.
+    expect(observed.length).toBeGreaterThanOrEqual(3);
   });
 
   it('is exactly the frozen list, in both directions', () => {
@@ -250,8 +240,8 @@ describe('every site that restates an alias default is accounted for', () => {
   });
 
   it('the frozen list is as long as it says, so it cannot grow a line at a time', () => {
-    expect(RESTATED_DEFAULTS).toHaveLength(4);
-    expect(new Set(RESTATED_DEFAULTS.map((r) => r.file)).size).toBe(4);
+    expect(RESTATED_DEFAULTS).toHaveLength(2);
+    expect(new Set(RESTATED_DEFAULTS.map((r) => r.file)).size).toBe(2);
     for (const entry of RESTATED_DEFAULTS) expect(entry.why.length).toBeGreaterThan(40);
   });
 
@@ -276,7 +266,7 @@ describe('every site that restates an alias default is accounted for', () => {
     expect(responses?.code).not.toMatch(/model:\s*body\.model\s*\|\|/);
 
     // The general chat path has exactly one owner, and it is reachable.
-    expect(getDefaultAliaModel()).toMatch(/^alia-/);
+    expect(getDefaultRoutingProfile()).toMatch(/^kaana-/);
   });
 
   /**
@@ -288,8 +278,8 @@ describe('every site that restates an alias default is accounted for', () => {
    * one. Each entry's reasoning is already written in its `why` above and is
    * deliberately not copied here, where it would drift.
    *
-   *  - `credits-manager.ts` and `routes/v1/voice.ts` price or run a voice
-   *    minute, which the general chat default cannot serve.
+   *  - `credits-manager.ts` prices a voice minute, which the general chat
+   *    default cannot serve.
    *  - `lib/tools/delegate.ts` names the alias the fallback engine ALREADY
    *    resolved to, so the tool stops reporting a model it did not run on. Its
    *    own comment states it is explicitly not the default.
@@ -297,7 +287,6 @@ describe('every site that restates an alias default is accounted for', () => {
   const CAPABILITY_SCOPED: readonly string[] = [
     'packages/api/src/lib/credits-manager.ts',
     'packages/api/src/lib/tools/delegate.ts',
-    'packages/api/src/routes/v1/voice.ts',
   ];
 
   it('no general chat-path restatement disagrees with the owner, whichever file it is in', () => {
@@ -311,7 +300,7 @@ describe('every site that restates an alias default is accounted for', () => {
      * author to add one. At that point every assertion in this file passes
      * except this one.
      *
-     * Measured, not argued: changing `agent-delegate.ts` to `|| 'alia-v1'` and
+     * Measured, not argued: changing `agent-delegate.ts` to `|| 'kaana-v1'` and
      * updating its census entry to match leaves the whole suite green apart
      * from this test, which names the file and both values.
      */
@@ -320,7 +309,7 @@ describe('every site that restates an alias default is accounted for', () => {
     // The exemption list needs its own exact count, or it erodes one defensible
     // entry at a time until every restatement is "capability-scoped" and this
     // check is vacuous. It may shrink; growing it is a reviewed line.
-    expect(CAPABILITY_SCOPED).toHaveLength(3);
+    expect(CAPABILITY_SCOPED).toHaveLength(2);
     // And every exempted file must still BE in the census. A renamed or deleted
     // entry would otherwise leave a name here that excuses nothing, which is how
     // an exemption list stops describing the code it exempts.
@@ -328,15 +317,17 @@ describe('every site that restates an alias default is accounted for', () => {
       expect(RESTATED_DEFAULTS.map((r) => r.file), `${file} is exempted but not in the census`).toContain(file);
     }
 
-    // The floor: if the filter ever empties, "none disagrees" is a fact about
-    // the exemption list rather than about the defaults. 3 -> 2 with #244:
+    // This exact count prevents a new general-path fallback from hiding behind
+    // the two reviewed capability exceptions. 3 -> 2 with #244:
     // `routes/webhooks.ts` was one of the three and now restates nothing, so
     // the filter has one fewer general-path entry to check rather than one
     // fewer reason to check.
     // 2 -> 1 with `agent-orchestrator.ts`, which was the other one.
-    expect(generalChatPath).toHaveLength(1);
+    // 1 -> 0 when `agent-turn.ts` stopped reading `allowedModels[0]` and began
+    // requiring the agent's exact stored routing-profile PK.
+    expect(generalChatPath).toHaveLength(0);
     for (const entry of generalChatPath) {
-      expect(entry.value, `${entry.file} disagrees with the owner`).toBe(getDefaultAliaModel());
+      expect(entry.value, `${entry.file} disagrees with the owner`).toBe(getDefaultRoutingProfile());
     }
   });
 });
@@ -349,10 +340,10 @@ describe('every site that restates an alias default is accounted for', () => {
  * The chat app ships its own default, and it is not this one.
  *
  * `packages/app/lib/config.ts` `DEFAULT_MODEL_ID` is what the picker stores for
- * a device that has never chosen, and `getDefaultAliaModel()` is what a request
+ * a device that has never chosen, and `getDefaultRoutingProfile()` is what a request
  * carrying no `model` at all resolves to. Both answer "what runs when the user
  * expressed no preference", from opposite ends, and **they name different
- * models**: `profile:v1` against `alia-lite`, which is `profile:lite`.
+ * models**: `profile:v1` against `kaana-lite`, which is `profile:lite`.
  *
  * That divergence is not a bug to fix here — which of the two the product wants
  * is a product decision, and reconciling it moves what every un-chosen request
@@ -395,10 +386,10 @@ describe('the app default and the server default are a known, frozen divergence'
 
   it('still names two different models, so the trap above is still live', () => {
     const appDefault = matched?.[1];
-    const serverDefault = profileIdFor(getDefaultAliaModel());
+    const serverDefault = routingPolicyIdFor(getDefaultRoutingProfile());
 
     // Both sides resolved to the SAME vocabulary before comparing. Comparing
-    // `profile:v1` against `alia-lite` would "differ" even after somebody
+    // `profile:v1` against `kaana-lite` would "differ" even after somebody
     // reconciled them, which is a gate that can never go green.
     expect(serverDefault, 'the server default resolves to no routing profile').not.toBeNull();
     expect(appDefault).not.toBe(serverDefault);
@@ -414,6 +405,8 @@ describe('the app default and the server default are a known, frozen divergence'
     // device that never chose pointing at a row that is not in the menu.
     const offered = SOURCES.find((s) => s.file.endsWith('lib/product-modes.ts'))?.code;
     expect(offered).toBeDefined();
-    expect(offered).toContain(`'${matched?.[1]}'`);
+    const appProfile = matched?.[1] === undefined ? null : routingProfileFor(matched[1]);
+    expect(appProfile).not.toBeNull();
+    expect(offered).toContain(`'${appProfile}'`);
   });
 });

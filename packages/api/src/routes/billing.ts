@@ -20,7 +20,7 @@ import {
   isDuplicateTransaction,
   selectTransactionsForUser,
 } from '../db/billing/transactionRepository.js';
-import { getPlans, getCreditPackages, getFeatures, getPlanFeatures, getAllAliaModels, type PlanFeatureData } from '../lib/gateway-client.js';
+import { getPlans, getCreditPackages, getFeatures, getPlanFeatures, getAllRoutingProfiles, type PlanFeatureData } from '../lib/gateway-client.js';
 import { ensureStripePriceId } from '../lib/stripe-prices.js';
 import { getOrCreateUserCredits } from '../lib/user-credits-helpers.js';
 import { getUserEntitlements, invalidateEntitlementsCache } from '../lib/plan-access.js';
@@ -250,11 +250,11 @@ router.get('/plans', async (req: Request, res: Response) => {
       pfMap[pf.planId][pf.featureId] = pf;
     }
 
-    // Load all Alia models from providers API
+    // Load all Kaana routing profiles from providers API
     const modelMap: Record<string, { displayName: string; description?: string }> = {};
     try {
-      const aliaModels = await getAllAliaModels();
-      for (const m of aliaModels) {
+      const routingProfiles = await getAllRoutingProfiles();
+      for (const m of routingProfiles) {
         modelMap[m.id] = { displayName: m.name, description: m.description };
       }
     } catch { /* ignore */ }

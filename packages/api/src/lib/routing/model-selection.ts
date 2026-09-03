@@ -65,12 +65,12 @@
  * comes out the other side is `<publisher>/<model>` and nothing else.
  */
 
-import type { AliaModel, ModelMapping } from '../gateway-client.js';
-import { getAllAliaModels, getTierMappings } from '../gateway-client.js';
+import type { RoutingProfile, ModelMapping } from '../gateway-client.js';
+import { getAllRoutingProfiles, getTierMappings } from '../gateway-client.js';
 import {
-  canonicalAliasFor,
+  routingProfileFor,
   isProfileOffered,
-  toRoutableAlias,
+  toRoutingProfile,
   type RoutingProfileId,
 } from '../product-modes.js';
 import { ROUTING_PRESETS } from './presets.js';
@@ -111,8 +111,8 @@ export interface SelectableModel {
    * all read through it.
    */
   readonly profileId: RoutingProfileId;
-  /** The alias that carries the home profile's facts. Never advertised. */
-  readonly alias: string;
+  /** Canonical Kaana profile carrying the home policy's facts. */
+  readonly routingProfile: RoutingProfileId;
   readonly tier: string;
   readonly category: string;
   readonly creditMultiplier: number;
@@ -152,14 +152,12 @@ export interface ModelSelectionResult {
 /**
  * A profile's facts, from `presets.ts`.
  *
- * `alias` is still here and is still the alias that SERVES the profile: it is
- * what `lib/catalogue.ts` resolves entitlement against, because `plans.modelIds`
- * is keyed by alias. What it no longer is, is where the price and the category
- * come from.
+ * `routingProfile` is the canonical Kaana identity used for entitlements and
+ * downstream routing. Price and category remain policy facts from the preset.
  */
 interface ProfileFacts {
   readonly profileId: RoutingProfileId;
-  readonly alias: string;
+  readonly routingProfile: RoutingProfileId;
   readonly tier: string;
   readonly offered: boolean;
   readonly creditMultiplier: number;
@@ -211,9 +209,9 @@ function preferredHome(a: Admission, b: Admission): number {
  */
 export function classifyModels(
   tierMappings: Readonly<Record<string, readonly ModelMapping[]>>,
-  aliases: readonly AliaModel[],
+  registeredProfiles: readonly RoutingProfile[],
 ): ModelSelectionResult {
-  const servedAliases = new Set(aliases.map((alias) => alias.id));
+  const servedProfiles = new Set(registeredProfiles.map((profile) => profile.id));
   const admissions = new Map<string, Admission[]>();
   // Every identity the table carries, so a model admitted nowhere can still be
   // reported as withheld rather than silently vanishing.
@@ -221,24 +219,21 @@ export function classifyModels(
   const priced = new Set<string>();
 
   for (const preset of ROUTING_PRESETS) {
-    const aliasId = canonicalAliasFor(preset.id);
-    if (aliasId === null) continue;
-    // A preset whose alias the runtime catalogue does not know is a profile
-    // pointing at nothing; it prices nothing and admits nothing. An EXISTENCE
-    // check now, not a read: the profile's own facts come from the preset, and
-    // the only thing the runtime catalogue still decides is whether the alias
-    // this profile is served under is being served at all.
-    if (!servedAliases.has(aliasId)) continue;
+    const routingProfileId = routingProfileFor(preset.id);
+    if (routingProfileId === null) continue;
+    // A preset whose canonical profile the runtime catalogue does not know
+    // points at nothing; it prices nothing and admits nothing.
+    if (!servedProfiles.has(routingProfileId)) continue;
 
     const routes = Object.hasOwn(tierMappings, preset.tier) ? [...tierMappings[preset.tier]] : [];
     routes.sort((a, b) => a.priority - b.priority);
     if (routes.length === 0) continue;
 
     const profile: ProfileFacts = {
-      profileId: preset.id,
-      alias: aliasId,
+      profileId: routingProfileId,
+      routingProfile: routingProfileId,
       tier: preset.tier,
-      offered: isProfileOffered(preset.id),
+      offered: isProfileOffered(routingProfileId),
       creditMultiplier: preset.creditMultiplier,
       category: preset.category,
     };
@@ -288,7 +283,7 @@ export function classifyModels(
       identity,
       displayName: modelDisplayName(identity),
       profileId: home.profile.profileId,
-      alias: home.profile.alias,
+      routingProfile: home.profile.routingProfile,
       tier: home.profile.tier,
       category: home.profile.category,
       creditMultiplier: home.profile.creditMultiplier,
@@ -308,8 +303,8 @@ export function classifyModels(
 
 /** Classify against the live tables, through the seam ADR 0001 sanctions. */
 export async function loadModelSelection(): Promise<ModelSelectionResult> {
-  const [tierMappings, aliases] = await Promise.all([getTierMappings(), getAllAliaModels()]);
-  return classifyModels(tierMappings, aliases);
+  const [tierMappings, registeredProfiles] = await Promise.all([getTierMappings(), getAllRoutingProfiles()]);
+  return classifyModels(tierMappings, registeredProfiles);
 }
 
 /**
@@ -322,8 +317,8 @@ export async function loadModelSelection(): Promise<ModelSelectionResult> {
  * only reachable through a profile.
  */
 export type RequestedModel =
-  | { readonly kind: 'alias'; readonly alias: string }
-  | { readonly kind: 'model'; readonly alias: string; readonly identity: ModelIdentity }
+  | { readonly kind: 'routing-profile'; readonly routingProfile: string }
+  | { readonly kind: 'model'; readonly routingProfile: RoutingProfileId; readonly identity: ModelIdentity }
   | { readonly kind: 'unknown-profile'; readonly requested: string }
   | { readonly kind: 'unknown-model'; readonly requested: string };
 
@@ -332,29 +327,29 @@ export type RequestedModel =
  *
  * The three shapes a caller may send, in the order they are tested:
  *
- *  - **`profile:*`** — the vocabulary the catalogue publishes for a policy.
- *    Becomes the alias carrying that profile's facts, exactly as before.
+ *  - **`kaana-*`** — the canonical routing-profile vocabulary.
  *  - **`<publisher>/<model>`** — a model, and the new one. It becomes its HOME
- *    profile's alias plus the identity, so everything downstream keeps reading
- *    one alias for price, plan, prompt and tier, and only the fallback engine
+ *    home Kaana profile plus the identity, so everything downstream keeps reading
+ *    one profile for price, plan, prompt and tier, and only the fallback engine
  *    learns that the candidate set is narrowed to one model.
- *  - **anything else** — passes through untouched, which is what keeps the
- *    thirteen legacy aliases and every installed SDK copy working.
+ *  - **anything else** — refused as an unknown routing profile.
  *
  * A slashed identifier that names no selectable model is REFUSED rather than
  * passed through. Passing it through would reach a resolver whose refusal talks
- * about the alias list, which is the wrong list for a caller who just named a
+ * about the profile list, which is the wrong list for a caller who just named a
  * model.
  */
 export async function resolveRequestedModel(requested: string): Promise<RequestedModel> {
   const identity = parseModelIdentity(requested);
   if (identity === null) {
-    const alias = toRoutableAlias(requested);
-    return alias === null ? { kind: 'unknown-profile', requested } : { kind: 'alias', alias };
+    const routingProfile = toRoutingProfile(requested);
+    return routingProfile === null
+      ? { kind: 'unknown-profile', requested }
+      : { kind: 'routing-profile', routingProfile };
   }
 
   const { selectable } = await loadModelSelection();
   const found = selectable.find((model) => model.id === requested);
   if (found === undefined) return { kind: 'unknown-model', requested };
-  return { kind: 'model', alias: found.alias, identity: found.identity };
+  return { kind: 'model', routingProfile: found.routingProfile, identity: found.identity };
 }

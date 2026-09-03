@@ -1,7 +1,5 @@
 import crypto from 'crypto';
 import { Router, Request, Response } from 'express';
-import { getModelMappingsForTier } from '../../lib/gateway-client.js';
-import { getRoutingPreset } from '../../lib/routing/presets.js';
 import { refundReservation, safeRefund } from '../../lib/credits-manager.js';
 import { handleDeepResearch } from '../../lib/chat-modes/deep-research-handler.js';
 import { ToolPipeline } from '../../lib/tool-pipeline.js';
@@ -17,10 +15,9 @@ import { writeStopChunk, writeContentChunk, makeChunk } from '../../lib/streamin
 import { buildCompletionResponse } from '../../lib/chat/response-shapes.js';
 import { SSEWriter } from '../../lib/chat/sse-writer.js';
 import { buildChatRequestContext } from '../../lib/chat/request-context.js';
-import { ALIAS_SUNSET, aliasDeprecationEvent } from '../../middleware/alias-deprecation.js';
 import type { AgentMessage } from '../../lib/chat/stream-runner.js';
 import { runProviderLoop, type ChatLoopState } from '../../lib/chat/provider-loop.js';
-import { getDefaultAliaModel } from '../../lib/chat-core.js';
+import { getDefaultRoutingProfile } from '../../lib/chat-core.js';
 
 const router = Router();
 
@@ -37,14 +34,14 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
   // the outer catch, and the last-resort synthetic response.
   //
   // The seed value is READ, not merely overwritten: the global-timeout timer is
-  // armed below at :44 and reports `state.aliasModelId` back to the client,
-  // while `ctx.aliasModelId` only lands at :78. A request that times out during
-  // resolution therefore names this value. It used to restate `'alia-v1'`, so
+  // armed below at :44 and reports `state.routingProfileId` back to the client,
+  // while `ctx.routingProfileId` only lands at :78. A request that times out during
+  // resolution therefore names this value. It used to restate `'kaana-v1'`, so
   // that report named a model the request would not have run on — the default
-  // is `alia-lite`. It reads the owner now instead of restating a literal.
+  // is `kaana-lite`. It reads the owner now instead of restating a literal.
   const state: ChatLoopState = {
     resolved: null,
-    aliasModelId: getDefaultAliaModel(),
+    routingProfileId: getDefaultRoutingProfile(),
     creditReservation: null,
     creditsSettled: false,
     globalTimedOut: false,
@@ -59,14 +56,14 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
       // Return synthetic response instead of raw error
       res.json(buildCompletionResponse({
         requestId,
-        model: state.aliasModelId,
+        model: state.routingProfileId,
         content: "I'm sorry, the request took too long. Please try again.",
         aliaMeta: { synthetic: true, retryable: true },
       }));
     } else if (!res.writableEnded) {
       // Mid-stream timeout: send graceful finish
-      writeContentChunk(res, requestId, state.aliasModelId, '\n\nI encountered a brief interruption. Please send your message again.', { synthetic: true, retryable: true });
-      writeStopChunk(res, requestId, state.aliasModelId);
+      writeContentChunk(res, requestId, state.routingProfileId, '\n\nI encountered a brief interruption. Please send your message again.', { synthetic: true, retryable: true });
+      writeStopChunk(res, requestId, state.routingProfileId);
       res.write('data: [DONE]\n\n');
       res.end();
     }
@@ -81,33 +78,14 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
     const {
       body, messages, conversationId, reasoningEffort, agentMode, deepResearch, webSearch,
       mcpServerId,
-      includeUsage, isDirectUserSession, requestedModel, routingOptions, clientContext, promptModelId,
+      includeUsage, isDirectUserSession, requestedModel, clientContext, promptModelId,
       isLocalRuntime,
       userMemory, oxyUser, skills, linkedAgent,
     } = ctx;
     state.creditReservation = ctx.creditReservation;
     state.resolved = ctx.resolved;
-    state.aliasModelId = ctx.aliasModelId;
+    state.routingProfileId = ctx.routingProfileId;
     const { autonomyRuntime, recalledMemories } = ctx;
-
-    /**
-     * The compatibility window's stream signal for a deprecated alias
-     * (`docs/migration/compatibility-window.md` section (a), #139 workstream 4).
-     *
-     * Emitted here rather than inside the provider loop so it precedes every
-     * other frame and reaches the deep-research path below too — that branch
-     * returns without ever entering the loop. Streaming only, because there is
-     * no stream to put an event on otherwise; a non-streaming caller is served
-     * by the `Deprecation` and `Link` headers, which the app-wide middleware
-     * sets on every response either way.
-     */
-    if (body.stream === true) {
-      const deprecation = aliasDeprecationEvent(requestedModel, ALIAS_SUNSET);
-      if (deprecation !== null) {
-        sse.ensureHeaders();
-        res.write(`event: alia.deprecation\ndata: ${JSON.stringify(deprecation)}\n\n`);
-      }
-    }
 
     // The correlation record for this turn, before the first branch below can
     // take a request somewhere else. `kaana` is null because Alia serves this
@@ -124,7 +102,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
       const handled = await handleDeepResearch({
         res,
         requestId,
-        aliasModelId: state.aliasModelId,
+        routingProfileId: state.routingProfileId,
         userId: req.user.id,
         conversationId,
         messages,
@@ -227,9 +205,9 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
 
     // Build complete system message via SystemPromptBuilder
     const systemMessage = await SystemPromptBuilder.build({
-      // The personality's id, which is the alias for everything Alia routes and
-      // the product default for a model running on the caller's own machine.
-      aliasModelId: promptModelId,
+      // The product's routing-profile id, or the product default for a model
+      // running on the caller's own machine.
+      routingProfileId: promptModelId,
       clientContext,
       isDirectUserSession,
       userId: req.user?.id,
@@ -262,17 +240,14 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
     const convertedMessages = convertToAISDKMessages(rawMessages, toolNameMapping);
 
     // Wrap tools with truncation to cap large results (saves tokens)
-    const tier = getRoutingPreset(state.aliasModelId)?.tier;
-    const tierMappings = tier ? await getModelMappingsForTier(tier) : [];
-    const modelContextTokens = (tierMappings[0]?.capabilities?.maxContextTokens as number) || 128000;
-    const truncatedTools = wrapToolsWithTruncation(allTools, getToolResultBudget(modelContextTokens));
+    const truncatedTools = wrapToolsWithTruncation(allTools, getToolResultBudget(128_000));
     log.v1.info({ toolNames: Object.keys(truncatedTools), toolCount: Object.keys(truncatedTools).length }, 'Tools passed to model');
 
     // Record agent.start for observability
     recordEvent({
       type: 'agent.start',
       timestamp: requestStartTime,
-      modelId: state.aliasModelId,
+      modelId: state.routingProfileId,
       provider: state.resolved?.provider,
     });
 
@@ -304,10 +279,9 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
       agentMessages,
       systemPromptTokens,
       requestedModel,
-      routingOptions,
       autonomyRuntime,
       includeUsage,
-      tierMappingsLength: tierMappings.length,
+      inferenceServiceToken: ctx.inferenceServiceToken,
     });
 
     if (loopResult.status === 'completed') return; // Response fully sent
@@ -334,16 +308,16 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
       // Non-streaming: return standard JSON response
       res.json(buildCompletionResponse({
         requestId,
-        model: state.aliasModelId,
+        model: state.routingProfileId,
         content: syntheticMessage,
         aliaMeta: { synthetic: true, retryable: true },
       }));
     } else {
       // Streaming: send synthetic message as normal SSE chunks
       sse.ensureHeaders();
-      const syntheticChunk = { ...makeChunk(requestId, state.aliasModelId, [{ index: 0, delta: { content: syntheticMessage }, finish_reason: null }]), alia_meta: { synthetic: true, retryable: true } };
+      const syntheticChunk = { ...makeChunk(requestId, state.routingProfileId, [{ index: 0, delta: { content: syntheticMessage }, finish_reason: null }]), alia_meta: { synthetic: true, retryable: true } };
       res.write(`data: ${JSON.stringify(syntheticChunk)}\n\n`);
-      writeStopChunk(res, requestId, state.aliasModelId);
+      writeStopChunk(res, requestId, state.routingProfileId);
       res.write('data: [DONE]\n\n');
       res.end();
     }
@@ -369,8 +343,8 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
       res.status(aliaError.retryable ? 503 : 500).json(formatErrorResponse(aliaError));
     } else if (!res.writableEnded) {
       // Headers already sent (streaming started) — send graceful recovery message
-      writeContentChunk(res, requestId, state.aliasModelId, '\n\nI encountered a brief interruption. Please send your message again and I\'ll complete my response.', { synthetic: true, retryable: true });
-      writeStopChunk(res, requestId, state.aliasModelId);
+      writeContentChunk(res, requestId, state.routingProfileId, '\n\nI encountered a brief interruption. Please send your message again and I\'ll complete my response.', { synthetic: true, retryable: true });
+      writeStopChunk(res, requestId, state.routingProfileId);
       res.write('data: [DONE]\n\n');
       res.end();
     }

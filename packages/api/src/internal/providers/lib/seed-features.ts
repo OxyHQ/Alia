@@ -51,7 +51,7 @@ const FEATURES: FeatureSeed[] = [
   { featureId: 'batch-processing', label: 'Batch processing', description: 'Process multiple tasks simultaneously', category: 'Features', featureType: 'boolean', sortOrder: 18, isVisibleOnPricing: true },
   { featureId: 'language-enforcement', label: 'Language enforcement', description: 'Force responses in your preferred language', category: 'Features', featureType: 'boolean', sortOrder: 19, isVisibleOnPricing: true },
   { featureId: 'advanced-automations', label: 'Advanced automations', description: 'Complex multi-step scheduled workflows', category: 'Features', featureType: 'boolean', sortOrder: 20, isVisibleOnPricing: true },
-  { featureId: 'api-access', label: 'API access', description: 'Programmatic access to Alia models via REST API', category: 'Features', featureType: 'boolean', sortOrder: 21, isVisibleOnPricing: true },
+  { featureId: 'api-access', label: 'API access', description: 'Programmatic access to Kaana routing profiles via REST API', category: 'Features', featureType: 'boolean', sortOrder: 21, isVisibleOnPricing: true },
   { featureId: 'priority-support', label: 'Priority support', description: 'Faster response times from the Alia team', category: 'Features', featureType: 'boolean', sortOrder: 22, isVisibleOnPricing: true },
   { featureId: 'voice-mode', label: 'Voice conversations', description: 'Real-time voice conversations with Alia', category: 'Features', featureType: 'boolean', sortOrder: 23, isVisibleOnPricing: true },
   { featureId: 'agent-mode', label: 'Agent mode', description: 'Autonomous AI agents that browse and take actions', category: 'Features', featureType: 'boolean', sortOrder: 24, isVisibleOnPricing: true },

@@ -91,26 +91,7 @@ await esbuild.build({
   logLevel: 'info',
 });
 
-// The provider-credential one-shot. Same reason as the migrator and the seeder:
-// the command names a FILE PATH and the runtime stage carries no `src/`. Unlike
-// those two it is NOT wired into the deploy — a credential is not release-scoped
-// — so nothing would ever reveal a missing bundle except the operator issuing
-// the command during an incident.
-await esbuild.build({
-  entryPoints: ['src/scripts/provider-key.ts'],
-  bundle: true,
-  platform: 'node',
-  target: 'node20',
-  format: 'esm',
-  outfile: 'dist/scripts/provider-key.js',
-  plugins: [externalizeNodeModules],
-  sourcemap: false,
-  minify: false,
-  logLevel: 'info',
-});
-
-// The plan-model one-shot. Same shape and the same reason as the credential one
-// above: `plans.model_ids` has a seeder that will not touch an existing row and
+// The plan-model one-shot. `plans.model_ids` has a seeder that will not touch an existing row and
 // an audited writer with no runtime caller, so correcting a stale list needs a
 // command, and a command needs a bundle.
 await esbuild.build({
@@ -120,6 +101,21 @@ await esbuild.build({
   target: 'node20',
   format: 'esm',
   outfile: 'dist/scripts/plan-models.js',
+  plugins: [externalizeNodeModules],
+  sourcemap: false,
+  minify: false,
+  logLevel: 'info',
+});
+
+// Read-only rollout gate: list active agent IDs that lack a reviewed exact Oxy
+// routing-profile PK before ECS points at an image that refuses legacy arrays.
+await esbuild.build({
+  entryPoints: ['src/scripts/check-agent-routing-profile-readiness.ts'],
+  bundle: true,
+  platform: 'node',
+  target: 'node20',
+  format: 'esm',
+  outfile: 'dist/scripts/check-agent-routing-profile-readiness.js',
   plugins: [externalizeNodeModules],
   sourcemap: false,
   minify: false,

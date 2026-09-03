@@ -36,7 +36,7 @@ registerHook({
         requestedModelKind: requested.kind,
         requestedProfileId: requested.profileId,
         reasoningEffort: ctx.reasoningEffort,
-        aliaModelId: ctx.modelUsed,
+        routingProfileId: ctx.modelUsed,
         promptTokens: ctx.tokenUsage.promptTokens,
         completionTokens: ctx.tokenUsage.completionTokens,
         totalTokens: ctx.tokenUsage.totalTokens,

@@ -13,7 +13,7 @@ import { listRecentUserText } from '../../db/chat/messageRepository.js';
 
 /**
  * Refine the writing style profile using an LLM.
- * Uses the cheapest available model (alia-lite).
+ * Uses the cheapest available model (kaana-lite).
  */
 export async function refineStyleWithLLM(
   userId: string,
@@ -35,7 +35,7 @@ export async function refineStyleWithLLM(
     }
 
     // Resolve cheapest model
-    const resolved = await resolveModel('alia-lite');
+    const resolved = await resolveModel('kaana-lite');
     if (!resolved) {
       log.chat.warn('No model available for style refinement');
       return {};

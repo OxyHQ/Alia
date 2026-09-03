@@ -153,8 +153,8 @@ export const KNOWN_DISCLOSURES: readonly KnownDisclosure[] = [
  *
  * The ledger's fingerprint is `sha256(value)[0..12]`
  * ({@link import('./credential-scan.js')}), and every caller already holds the
- * FULL sha256 hex of the candidate — `provider_keys.key_hash` is exactly that —
- * so the comparison is a prefix of one hash against another and is exact rather
+ * FULL sha256 hex of the candidate, so the comparison is a prefix of one hash
+ * against another and is exact rather
  * than heuristic. Returns the matching ledger key, which names a pattern and a
  * digest and carries no credential, or `null`.
  *

@@ -6,7 +6,9 @@
 
 ## Context
 
-Alia is a product. It currently also behaves as a generic inference control plane, because product concerns and infrastructure concerns were built in the same monorepo and share the same database.
+At the time this decision was accepted, Alia also behaved as a generic inference
+control plane because product and infrastructure concerns shared the monorepo and
+database. The bullets below are the pre-cutover evidence, not current runtime state.
 
 The overlap is concrete, not theoretical:
 
@@ -21,13 +23,18 @@ A product that owns provider credentials, a public inference API, developer iden
 
 Epic #139 sets the target: Alia becomes a consumer of a shared inference platform. Identity, applications, credentials, usage, billing and the public developer experience are owned by Oxy. Provider execution moves behind a separate data plane, **Kaana**.
 
-**Kaana is the inference data plane Alia will consume through Oxy.** Its only canonical signed origin is `https://kaana.ai`; a Kaana host below `oxy.so` is not a compatibility origin. The Alia product remains Alia because agents, conversations, memory, tools and approvals are not provider execution. The ordinary word “relay” in `packages/api/src/lib/mcp-relay.ts` names the unrelated MCP WebSocket transport and is not Kaana.
+**Kaana is the inference data plane Alia consumes through Oxy.** Its only canonical signed origin is `https://kaana.ai`; a Kaana host below `oxy.so` is not a compatibility origin. Alia neither signs nor calls Kaana directly. The Alia product remains Alia because agents, conversations, memory, tools and approvals are not provider execution. The ordinary word “relay” in `packages/api/src/lib/mcp-relay.ts` names the unrelated MCP WebSocket transport and is not Kaana.
 
 ## Implementation status
 
-The database cut and the inference cut are separate. [PR #465](https://github.com/OxyHQ/Alia/pull/465) completed the PostgreSQL-only runtime: `@alia/api` opens no MongoDB connection and has no Mongo or Mongoose dependency. The inference cut is not complete in current `main`: provider adapters and plaintext `provider_keys` rows remain in Alia, and the dormant client/configuration still carries legacy `ALIA_RELAY_*`, `RELAY_BASE_URL`, `X-Oxy-Relay-*` and `oxy-relay-envelope:v1` identifiers. Those identifiers describe migration debt, not a supported second name or proof of production cutover.
+The database cut and the inference cut are separate. [PR #465](https://github.com/OxyHQ/Alia/pull/465) completed the PostgreSQL-only runtime: `@alia/api` opens no MongoDB connection and has no Mongo or Mongoose dependency. Before this change, provider adapters and plaintext `provider_keys` rows remained in Alia, and the dormant client/configuration still carried legacy `ALIA_RELAY_*`, `RELAY_BASE_URL`, `X-Oxy-Relay-*` and `oxy-relay-envelope:v1` identifiers. Those identifiers described migration debt, not a supported second name or proof of production cutover.
 
-Kaana has merged PostgreSQL/KMS custody for upstream credentials, including customer BYOK. Alia cannot claim that custody until the coordinated Alia/Oxy/infra route is merged, deployed, the direct provider path is removed, and live task definitions are proven to contain no provider key. Until then the current implementation remains the one described in the Context above.
+This change removes that direct hosted runtime and uses the published
+`OxyInferenceClient`, but source completion is not production completion. Kaana
+has merged PostgreSQL/KMS custody for upstream credentials, including customer
+BYOK; the coordinated Alia/Oxy/infra route must still be deployed and live task
+definitions proven to contain no provider key before the production cutover can
+be claimed.
 
 ## Decision
 
@@ -100,7 +107,10 @@ The second rule is what makes the first one durable. A single sanctioned bypass 
 ## Consequences
 
 - Alia gains an availability dependency on Kaana. Degradation behaviour becomes a product design question rather than an infrastructure accident, and it must be designed explicitly.
-- Provider credentials leave Alia's database and deployment environment. The `provider_keys` table and the provider environment variables become removable, which shrinks the blast radius of any Alia compromise.
+- Provider credentials have left Alia's runtime and deployment environment. The
+  post-rollout `0061_remove_alia_provider_credentials.sql` migration removes the
+  legacy `provider_keys` table without reading, exporting or copying its values.
+  Kaana remains the sole credential custodian.
 - The routing catalogue tables stop being written by Alia. They become migration inputs, not live state, and are dropped under the gates in workstream 10 of #139.
 - Alia's public generic inference surface stops being canonical. ADR 0004 records what happens to `api.alia.onl/v1/*`.
 - Alia's financial tables stop being the source of truth for money. ADR 0005 records the split between entitlements and the ledger.

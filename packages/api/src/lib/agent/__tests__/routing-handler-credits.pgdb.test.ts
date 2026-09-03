@@ -20,7 +20,7 @@ vi.mock('../../logger.js', () => {
   return { log: { agents: child, triggers: child, chat: child, general: child, v1: child, credits: child, providers: child } };
 });
 vi.mock('../../chat-core.js', () => ({
-  getAliaModel: vi.fn().mockResolvedValue({ creditMultiplier: 1 }),
+  getRoutingProfile: vi.fn().mockResolvedValue({ creditMultiplier: 1 }),
 }));
 vi.mock('../../task-queue.js', () => ({
   enqueueAgentSession: vi.fn(async () => ({ queued: true, jobId: 'job-1' })),
@@ -84,10 +84,12 @@ function hydrated(agent: AgentRecord): HydratedAgent {
 async function seedAgent(): Promise<AgentRecord> {
   return createAgent(db, {
     oxyAccountId: `oxy-bot-routing-${SUITE}-${seq++}`,
+    ownerOxyAccountId: SUITE,
     tagline: 'does the work',
     description: 'd',
     authorOxyUserId: SUITE,
     category: 'research',
+    routingProfileId: '01a06477-94f5-74f0-bc25-4c5c13b93ccd',
     price: 15,
     isPublished: true,
   });

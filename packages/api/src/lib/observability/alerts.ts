@@ -3,7 +3,6 @@
  *
  * Monitors for dangerous patterns:
  *   - Budget exhaustion (credits/tokens running low)
- *   - Provider failure cascades (multiple keys failing)
  *   - Infinite loops (agent repeating same action)
  *   - Session runaway (session running too long)
  */
@@ -103,20 +102,6 @@ export function checkInfiniteLoop(sessionId: string, toolName: string, args: Rec
   }
 
   return false;
-}
-
-/**
- * Check for provider failure cascade.
- */
-export function checkProviderCascade(failedKeyCount: number, totalKeyCount: number): void {
-  if (totalKeyCount === 0) return;
-  const failureRate = failedKeyCount / totalKeyCount;
-  if (failureRate > 0.5) {
-    emit('critical', 'provider_cascade', `${Math.round(failureRate * 100)}% of provider keys have failed (${failedKeyCount}/${totalKeyCount})`, {
-      failedKeyCount,
-      totalKeyCount,
-    });
-  }
 }
 
 /**

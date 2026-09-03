@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 /**
  * Which model the personality sample asks for.
  *
- * The hook sent the literal `alia-lite`. That is a de-advertised compatibility
+ * The hook sent the literal `kaana-lite`. That is a de-advertised compatibility
  * alias (ADR 0003): `GET /catalogue` does not list it and `GET /v1/models`
  * returns `[]`, so the one request in the app that named a model directly named
  * something the product no longer publishes — and named it in a place no
@@ -16,7 +16,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
  * two things a request test can check — a payload assertion passes happily
  * while the server 400s every call. It is the right one HERE because the
  * property under change is entirely client-side: which identifier this app
- * chooses to name. Nothing about the response can distinguish `alia-lite` from
+ * chooses to name. Nothing about the response can distinguish `kaana-lite` from
  * `profile:v1`; both resolve and both stream. So the fetch is counted as well
  * as read, because "no alias was sent" is also what sending nothing looks like.
  */

@@ -11,7 +11,7 @@
 
 import { generateObject } from 'ai';
 import { z } from 'zod';
-import { resolveModel, getAIModel, getDefaultAliaModel } from '../chat-core.js';
+import { resolveModel, getAIModel, getDefaultRoutingProfile } from '../chat-core.js';
 import { log } from '../logger.js';
 
 export interface VerificationResult {
@@ -44,7 +44,7 @@ export async function verifyResults(
   const minScore = opts?.minScore ?? 6;
 
   // Use a cheap model for verification (cost efficiency)
-  const verifierModels = ['alia-lite', 'alia-v1'];
+  const verifierModels = ['kaana-lite', 'kaana-v1'];
   let resolved: Awaited<ReturnType<typeof resolveModel>> | null = null;
 
   for (const modelId of verifierModels) {
@@ -53,7 +53,7 @@ export async function verifyResults(
   }
 
   if (!resolved) {
-    resolved = await resolveModel(getDefaultAliaModel());
+    resolved = await resolveModel(getDefaultRoutingProfile());
   }
 
   if (!resolved) {

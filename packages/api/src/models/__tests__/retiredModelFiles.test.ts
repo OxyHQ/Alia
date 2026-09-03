@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { RETIRED_MODEL_FILES } from './retiredModelFiles';
@@ -62,7 +62,7 @@ function modelFiles(): string[] {
     encoding: 'utf8',
   })
     .split('\n')
-    .filter(Boolean);
+    .filter((file) => Boolean(file) && existsSync(path.join(PACKAGE_ROOT, file)));
   return tracked.filter(
     (f) =>
       /\.ts$/.test(f) &&
@@ -174,7 +174,7 @@ function isCommentLine(line: string): boolean {
 function allSources(): string[] {
   return execFileSync('git', ['ls-files', 'src'], { cwd: PACKAGE_ROOT, encoding: 'utf8' })
     .split('\n')
-    .filter((f) => /\.ts$/.test(f));
+    .filter((f) => /\.ts$/.test(f) && existsSync(path.join(PACKAGE_ROOT, f)));
 }
 
 /**

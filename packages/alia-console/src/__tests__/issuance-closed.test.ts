@@ -40,8 +40,8 @@ import { describe, expect, it } from 'vitest';
 
 const SRC = fileURLToPath(new URL('../', import.meta.url));
 
-function shippedModules(): string[] {
-  const out: string[] = [];
+function shippedModules(): Array<string> {
+  const out: Array<string> = [];
   const walk = (dir: string): void => {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
       const full = join(dir, entry.name);
@@ -74,9 +74,9 @@ function shippedModules(): string[] {
  * planting exactly that button left all eight tests green. A guard that cannot
  * see the most natural way to write the thing it forbids is decoration.
  */
-function literalText(file: string, source: string): string[] {
+function literalText(file: string, source: string): Array<string> {
   const ast = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
-  const out: string[] = [];
+  const out: Array<string> = [];
   const visit = (node: ts.Node): void => {
     if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) {
       out.push(node.text);
@@ -99,9 +99,9 @@ interface Request {
   readonly path: string;
 }
 
-function requestsIn(file: string, source: string): Request[] {
+function requestsIn(file: string, source: string): Array<Request> {
   const ast = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
-  const out: Request[] = [];
+  const out: Array<Request> = [];
   const visit = (node: ts.Node): void => {
     if (
       ts.isCallExpression(node) &&
@@ -109,12 +109,10 @@ function requestsIn(file: string, source: string): Request[] {
       ['get', 'post', 'patch', 'put', 'delete'].includes(node.expression.name.text) &&
       node.arguments.length > 0
     ) {
-      const [target] = node.arguments;
-      if (target !== undefined) {
-        for (const literal of literalText(file, target.getText(ast))) {
-          if (literal.startsWith('/')) {
-            out.push({ file, method: node.expression.name.text, path: literal });
-          }
+      const target = node.arguments[0];
+      for (const literal of literalText(file, target.getText(ast))) {
+        if (literal.startsWith('/')) {
+          out.push({ file, method: node.expression.name.text, path: literal });
         }
       }
     }
@@ -204,7 +202,7 @@ describe('the console asks Alia to issue nothing', () => {
     const store = MODULES.find(({ file }) => relative(SRC, file) === 'hooks/use-developer.ts');
     expect(store).toBeDefined();
     const ast = ts.createSourceFile('use-developer.ts', store!.source, ts.ScriptTarget.Latest, true);
-    const exported: string[] = [];
+    const exported: Array<string> = [];
     ts.forEachChild(ast, (node) => {
       if (
         ts.isFunctionDeclaration(node) &&

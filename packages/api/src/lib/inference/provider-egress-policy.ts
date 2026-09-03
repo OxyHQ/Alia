@@ -18,11 +18,9 @@
  * So the policy names the hosts that must become unreachable, and the
  * completeness problem a deny list normally has is answered OUTSIDE the runtime:
  * `__tests__/provider-egress-policy.test.ts` derives the true provider host set
- * from `internal/providers/**`'s own source and fails if this list does not
- * cover it, and `__tests__/architectureGates.test.ts` gate 2 asserts this map
- * has an entry for every provider the catalogue's CHECK constraint accepts. A
- * provider added without a host fails there; an adapter pointed at a new host
- * fails here.
+ * from the retired provider sources and fails if this list does not cover it.
+ * A new hosted adapter would also be rejected by the focused inference
+ * boundary tests.
  *
  * ## Why the hostnames live in product code
  *
@@ -43,7 +41,6 @@ import http from 'node:http';
 import https from 'node:https';
 
 import { recordDirectProviderEgress } from '../observability/direct-provider-egress.js';
-import { isKaanaClientEnabled } from './kaana-cutover.js';
 
 /* -------------------------------------------------------------------------- */
 /*  The deny list                                                             */
@@ -53,10 +50,8 @@ import { isKaanaClientEnabled } from './kaana-cutover.js';
  * One upstream API hostname per registered provider.
  *
  * Keyed by the provider name the catalogue uses so the map can be held to
- * `PROVIDER_NAMES` — the tuple that renders the `provider` CHECK constraint on
- * `model_configs`, `alia_model_provider_mappings` and `provider_keys`. Gate 2
- * asserts that equality, which is the only way this list can notice a provider
- * it has never heard of.
+ * `PROVIDER_NAMES`, the catalogue tuple. This list is a deny policy for Alia,
+ * not a provider client registry: hosted provider traffic belongs to Kaana.
  *
  * These are API hosts, not the providers' registrable domains. `openai.com` and
  * `x.ai` would be defensible as domains; `googleapis.com` would not — Gmail and
@@ -107,13 +102,11 @@ function isProviderHost(host: string): boolean {
 /**
  * What the policy says about one destination.
  *
- *  - `unenforced` — the cutover has not happened. Every call is delegated
- *    untouched, which is the state of every deployment that exists today.
- *  - `allow` — after the cutover, and not a provider API host. Kaana, Oxy and
+ *  - `allow` — not a provider API host. Kaana, Oxy and
  *    every product dependency land here.
- *  - `refuse` — after the cutover, and a provider API host.
+ *  - `refuse` — a provider API host.
  */
-export type EgressDecision = 'unenforced' | 'allow' | 'refuse';
+export type EgressDecision = 'allow' | 'refuse';
 
 /**
  * The policy, as a pure function of a destination and an environment.
@@ -125,9 +118,8 @@ export type EgressDecision = 'unenforced' | 'allow' | 'refuse';
  */
 export function providerEgressDecision(
   host: string | null,
-  env: NodeJS.ProcessEnv = process.env,
+  _env: NodeJS.ProcessEnv = process.env,
 ): EgressDecision {
-  if (!isKaanaClientEnabled(env)) return 'unenforced';
   if (host === null || host === '') return 'allow';
   return isProviderHost(host) ? 'refuse' : 'allow';
 }
@@ -230,17 +222,11 @@ interface Installed {
 let installed: Installed | null = null;
 
 /**
- * Arm the policy on this process, or do nothing.
- *
- * Returns the undo, or `null` when the cutover flag is off — and `null` means
- * NOTHING WAS TOUCHED: `globalThis.fetch` and the two node modules are the same
- * objects they were, so a deployment before the cutover cannot be affected by
- * this module at all. That is the property `__tests__/provider-egress-policy.test.ts`
- * asserts by identity rather than by behaviour.
+ * Arm the policy on this process and return the exact undo operation.
  *
  * ## Five hooks, because there are five doors
  *
- * `fetch` is how every provider adapter and the AI SDK egress. `https.request`
+ * `fetch` is how an accidental provider adapter or SDK egresses. `https.request`
  * is how `ws` opens the two provider realtime sockets — it reads the function
  * off the module namespace at CALL time (`ws/lib/websocket.js`), so replacing it
  * here reaches a library that was imported long before. `https.get` is a
@@ -256,7 +242,6 @@ let installed: Installed | null = null;
 export function installProviderEgressBlock(
   env: NodeJS.ProcessEnv = process.env,
 ): (() => void) | null {
-  if (!isKaanaClientEnabled(env)) return null;
   if (installed !== null) return null;
 
   const originals: Installed = {
