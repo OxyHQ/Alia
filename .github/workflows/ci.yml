@@ -250,6 +250,9 @@ jobs:
       - name: Typecheck SDK
         run: bun run --filter @alia.onl/sdk typecheck
 
+      - name: Test SDK streaming contract
+        run: bun run --filter @alia.onl/sdk test
+
       # @alia.onl/sdk ships raw source, so anything the root entry can reach is
       # compiled into every text-chat consumer's bundle. Keeps livekit-client
       # behind the ./voice entry.
