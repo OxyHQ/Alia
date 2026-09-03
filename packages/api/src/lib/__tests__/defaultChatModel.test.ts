@@ -193,11 +193,6 @@ const RESTATED_DEFAULTS: readonly { file: string; value: string; why: string }[]
     why: 'Voice billing parameter default. Capability-scoped: the chat default cannot price a voice minute.',
   },
   {
-    file: 'packages/api/src/lib/tools/agent-turn.ts',
-    value: 'kaana-lite',
-    why: "An agent's own allowedModels first, else the chat default. Agrees with the owner; should import it. Was in `agent-delegate.ts` until the nested turn became one shared runner.",
-  },
-  {
     file: 'packages/api/src/lib/tools/delegate.ts',
     value: 'kaana-v1',
     why: 'DELIBERATE and documented in place: names the alias the fallback engine already resolved to, so the tool stops reporting a model it did not run. Its comment states it is explicitly not the default.',
@@ -217,7 +212,7 @@ describe('every site that restates a Kaana routing-profile default is accounted 
     // clean small number that reads like good news.
     const at = (suffix: string) => observed.filter((o) => o.file.endsWith(suffix)).map((o) => o.value);
     expect(at('lib/tools/delegate.ts')).toContain('kaana-v1'); // `||` with a space
-    expect(at('lib/tools/agent-turn.ts')).toContain('kaana-lite'); // `||` after `[0]`
+    expect(at('lib/tools/agent-turn.ts')).toEqual([]); // agent turns require their stored routing-profile PK
     expect(at('lib/credits-manager.ts')).toContain('kaana-v1-voice'); // parameter default
     // 8 -> 7 because `/v1/responses` stopped restating a default, then 7 -> 6
     // because `routes/webhooks.ts` did: #244 made a bot's stored preference a
@@ -231,7 +226,9 @@ describe('every site that restates a Kaana routing-profile default is accounted 
     // and the registry went with the five tool assemblers becoming one.
     // 5 -> 4: `/v1/voice` now returns an explicit hosted-capability error and
     // therefore no longer chooses a routing profile locally.
-    expect(observed.length).toBeGreaterThanOrEqual(4);
+    // 4 -> 3: `agent-turn.ts` stopped deriving a route from `allowedModels[0]`;
+    // nested turns now require the agent's exact stored routing-profile PK.
+    expect(observed.length).toBeGreaterThanOrEqual(3);
   });
 
   it('is exactly the frozen list, in both directions', () => {
@@ -243,8 +240,8 @@ describe('every site that restates a Kaana routing-profile default is accounted 
   });
 
   it('the frozen list is as long as it says, so it cannot grow a line at a time', () => {
-    expect(RESTATED_DEFAULTS).toHaveLength(3);
-    expect(new Set(RESTATED_DEFAULTS.map((r) => r.file)).size).toBe(3);
+    expect(RESTATED_DEFAULTS).toHaveLength(2);
+    expect(new Set(RESTATED_DEFAULTS.map((r) => r.file)).size).toBe(2);
     for (const entry of RESTATED_DEFAULTS) expect(entry.why.length).toBeGreaterThan(40);
   });
 
@@ -320,13 +317,15 @@ describe('every site that restates a Kaana routing-profile default is accounted 
       expect(RESTATED_DEFAULTS.map((r) => r.file), `${file} is exempted but not in the census`).toContain(file);
     }
 
-    // The floor: if the filter ever empties, "none disagrees" is a fact about
-    // the exemption list rather than about the defaults. 3 -> 2 with #244:
+    // This exact count prevents a new general-path fallback from hiding behind
+    // the two reviewed capability exceptions. 3 -> 2 with #244:
     // `routes/webhooks.ts` was one of the three and now restates nothing, so
     // the filter has one fewer general-path entry to check rather than one
     // fewer reason to check.
     // 2 -> 1 with `agent-orchestrator.ts`, which was the other one.
-    expect(generalChatPath).toHaveLength(1);
+    // 1 -> 0 when `agent-turn.ts` stopped reading `allowedModels[0]` and began
+    // requiring the agent's exact stored routing-profile PK.
+    expect(generalChatPath).toHaveLength(0);
     for (const entry of generalChatPath) {
       expect(entry.value, `${entry.file} disagrees with the owner`).toBe(getDefaultRoutingProfile());
     }
