@@ -40,6 +40,7 @@ vi.mock('../../lib/tool-pipeline.js', () => ({
 }));
 vi.mock('../../lib/agent-identity.js', () => ({
   attachAgentIdentity: vi.fn(async (agent: unknown) => agent),
+  agentPromptName: vi.fn(() => 'Agent'),
 }));
 vi.mock('../../lib/channels/outbound.js', () => ({ sendChannelMessage: vi.fn(async () => undefined) }));
 vi.mock('../../lib/prompt-loader.js', () => ({ loadPrompt: vi.fn(async () => 'be helpful') }));
@@ -53,6 +54,10 @@ vi.mock('../../lib/chat-core.js', () => ({
     modelId: 'stub-1',
     keyConfig: { keyId: 'key-1' },
   })),
+  resolveOxyRoutingProfileId: vi.fn(async (routingProfileId: string) => ({
+    routingProfileId: 'kaana-lite',
+    oxyInferenceTarget: { kind: 'routing_profile_id', routingProfileId },
+  })),
   getAIModel: vi.fn(() => ({})),
   reportModelUsage: vi.fn(async () => undefined),
   getDefaultRoutingProfile: vi.fn(() => 'kaana-lite'),
@@ -62,11 +67,13 @@ vi.mock('../../lib/chat-core.js', () => ({
 
 import { generateText } from 'ai';
 import { closePostgres, connectPostgres, type ApiDatabase } from '../../db/index.js';
+import { agents } from '../../db/schema/agents.js';
 import { userCredits } from '../../db/schema/billing.js';
 import { getOrCreateUserCredits } from '../../db/billing/userCreditsRepository.js';
-import { resolveModel } from '../../lib/chat-core.js';
+import { resolveModel, resolveOxyRoutingProfileId } from '../../lib/chat-core.js';
 import type { BotUserRow, InboundUserBotRow } from '../../db/integrations/botRepository.js';
 import type { ChannelInboundMessage } from '../../lib/channels/types.js';
+import { OXY_KAANA_ROUTING_PROFILE_IDS } from '../../config/oxy-inference-routing-profile-ids.js';
 import { processAgentBotMessage, processChannelMessage } from '../webhooks.js';
 
 let db: ApiDatabase;
@@ -124,14 +131,27 @@ function linkedBotUser(oxyUserId: string): BotUserRow {
     authTokenMode: null,
     // Set, so nothing has to write one to a row this fixture never inserted.
     conversationId: `${SUITE}-conv-${seq++}`,
-    preferredModel: null,
+    preferredModel: 'kaana-lite',
     metadata: {},
     createdAt: new Date(),
     updatedAt: new Date(),
   };
 }
 
-function userOwnedBot(ownerUserId: string): InboundUserBotRow {
+async function userOwnedBot(ownerUserId: string): Promise<InboundUserBotRow> {
+  const agentId = `${SUITE}-agent-${seq++}`;
+  await db.insert(agents).values({
+    id: agentId,
+    oxyAccountId: `${SUITE}-agent-account-${seq++}`,
+    tagline: 'a webhook fixture agent',
+    description: 'seeded for the webhook credit suite',
+    authorOxyUserId: ownerUserId,
+    category: 'general',
+    status: 'active',
+    systemPrompt: 'Be helpful.',
+    routingProfileId: OXY_KAANA_ROUTING_PROFILE_IDS['kaana-lite'],
+    allowedModels: ['kaana-lite'],
+  });
   return {
     _id: `${SUITE}-bot-${seq++}`,
     id: `${SUITE}-bot-${seq++}`,
@@ -142,7 +162,7 @@ function userOwnedBot(ownerUserId: string): InboundUserBotRow {
     avatarUrl: null,
     status: 'active',
     userId: ownerUserId,
-    agentId: null,
+    agentId,
     defaultModel: null,
     totalUsers: 0,
     totalMessages: 0,
@@ -197,16 +217,16 @@ describe('processAgentBotMessage — a user-registered bot', () => {
   it("charges the OWNER's turn when it answers", async () => {
     const ownerId = await account(100, 0);
 
-    await processAgentBotMessage(userOwnedBot(ownerId), linkedBotUser(ownerId), message, 'telegram');
+    await processAgentBotMessage(await userOwnedBot(ownerId), linkedBotUser(ownerId), message, 'telegram');
 
     expect(await balanceOf(ownerId)).toEqual({ free: 99, paid: 0 });
   });
 
   it("gives the OWNER's credit back when NO MODEL can be resolved", async () => {
     const ownerId = await account(100, 0);
-    vi.mocked(resolveModel).mockResolvedValueOnce(null);
+    vi.mocked(resolveOxyRoutingProfileId).mockResolvedValueOnce(null);
 
-    await processAgentBotMessage(userOwnedBot(ownerId), linkedBotUser(ownerId), message, 'telegram');
+    await processAgentBotMessage(await userOwnedBot(ownerId), linkedBotUser(ownerId), message, 'telegram');
 
     expect(await balanceOf(ownerId)).toEqual({ free: 100, paid: 0 });
   });
@@ -215,7 +235,7 @@ describe('processAgentBotMessage — a user-registered bot', () => {
     const ownerId = await account(100, 0);
     vi.mocked(generateText).mockRejectedValueOnce(new Error('every provider is down'));
 
-    await processAgentBotMessage(userOwnedBot(ownerId), linkedBotUser(ownerId), message, 'telegram');
+    await processAgentBotMessage(await userOwnedBot(ownerId), linkedBotUser(ownerId), message, 'telegram');
 
     expect(await balanceOf(ownerId)).toEqual({ free: 100, paid: 0 });
   });

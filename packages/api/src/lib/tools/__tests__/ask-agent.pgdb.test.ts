@@ -82,6 +82,10 @@ vi.mock('../../chat-core.js', () => ({
       routingProfileId: '01a06477-94f5-74f0-bc25-4c5c13b93ccd',
     },
   })),
+  resolveOxyRoutingProfileId: vi.fn(async (routingProfileId: string) => ({
+    routingProfileId: 'kaana-lite',
+    oxyInferenceTarget: { kind: 'routing_profile_id', routingProfileId },
+  })),
   getAIModel: vi.fn(() => ({ modelId: 'test-model' })),
 }));
 
@@ -99,6 +103,7 @@ vi.mock('ai', async (importOriginal) => ({
 const { closePostgres, connectPostgres } = await import('../../../db/index.js');
 type ApiDatabase = Awaited<ReturnType<typeof connectPostgres>>;
 const { agents } = await import('../../../db/schema/agents.js');
+const { OXY_KAANA_ROUTING_PROFILE_IDS } = await import('../../../config/oxy-inference-routing-profile-ids.js');
 const { userCredits } = await import('../../../db/schema/billing.js');
 const { getOrCreateUserCredits } = await import('../../../db/billing/userCreditsRepository.js');
 const { buildAskAgentTool } = await import('../ask-agent.js');
@@ -155,6 +160,7 @@ async function seedAgent(input: {
     category: 'research',
     status: input.status ?? 'active',
     systemPrompt,
+    routingProfileId: OXY_KAANA_ROUTING_PROFILE_IDS['kaana-lite'],
     allowedModels: ['kaana-lite'],
   });
   return { id, oxyAccountId, systemPrompt };

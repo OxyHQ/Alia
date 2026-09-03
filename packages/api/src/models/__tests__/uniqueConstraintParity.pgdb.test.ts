@@ -1304,7 +1304,7 @@ describe('the ratchet', () => {
       'UNIQUES_REMOVED_WITH_CAPABILITY excuses a previously ported uniqueness only ' +
         'when its whole owning capability deliberately leaves Alia. Audit every new ' +
         'entry and pin the new count rather than letting this become a gap bucket.',
-    ).toBe(0);
+    ).toBe(1);
   });
 
   /**
