@@ -3534,6 +3534,10 @@ const PRODUCT_RUNTIME_PATH = '/alia/chat';
 const GENERIC_PATH_CALLERS: Readonly<Record<string, string>> = {
   'packages/alia-chat/src/hooks/useAliaChat.ts':
     '@alia.onl/sdk ships raw source and is installed by apps on origins Alia does not enumerate. The product surface answers a preflight from an unlisted origin with no access-control-allow-origin, so this call would be blocked in every consumer browser. Moving it is a CORS decision on /alia/chat, taken with the SDK consumers enumerated.',
+  'packages/alia-chat/tests/hooks/useAliaChat.test.tsx':
+    'SDK contract coverage asserts the authenticated request reaches the compatibility handler and does not silently drift to a different route while keeping the same wire parser.',
+  'packages/alia-chat/tests/lib/chat-transport.test.ts':
+    'SDK transport coverage exercises preflight refresh and exactly one 401 replay against the compatibility handler, including the same body and caller-owned abort signal.',
   'packages/alia-console/src/routes/_layout/documentation/authentication.tsx':
     'Developer documentation. It shows external callers how to authenticate against the compatibility surface, so it names the path that surface serves.',
   'packages/alia-console/src/routes/_layout/documentation/chat-completions.tsx':
