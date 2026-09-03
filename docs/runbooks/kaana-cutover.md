@@ -32,11 +32,11 @@ new task definition. A value in SSM without a live task binding is not delivered
 
 Do not enable production traffic until all of these pass:
 
-1. The JWKS-capable `@oxyhq/core` from Oxy
-   [PR #1167](https://github.com/OxyHQ/oxy/pull/1167) is published, and Alia's
-   manifest plus frozen lock resolve that released version. The currently
-   locked `23.2.0` does not verify public-JWKS service tokens. Hosted paths call
-   `OxyInferenceClient`, never a bespoke transport.
+1. Alia's manifest and frozen lock resolve a published `@oxyhq/core` release
+   with the reviewed `OxyInferenceClient` and public-JWKS service-token support.
+   Hosted paths call that client, never a bespoke transport. The repository
+   build and inference-boundary tests are the source gate; a version cited by an
+   older rollout note is not evidence about the current lock.
 2. Alia sends only the reviewed opaque `routingProfileId`; Oxy authenticates
    the Alia service credential, validates that exact profile row and resolves it
    into a non-empty ordered route set before calling Kaana. There is no
@@ -60,16 +60,28 @@ Do not enable production traffic until all of these pass:
 
 ## Rollout
 
-1. Verify the Oxy inference edge and its live Oxy-to-Kaana route first.
-2. Inspect the candidate Alia task definition without printing secret values.
-3. Deploy one immutable revision containing the Oxy URL and both service
+1. Keep ambient Oxy `INFERENCE_KAANA_EXECUTION=disabled`. From Oxy `main`, run
+   the signed deployment readback against the exact live Oxy task-definition
+   ARN and immutable image digest. Record its exact `snapshotId`; this step
+   makes zero provider requests and zero Oxy ledger writes.
+2. Run the signed Oxy production canary with one exact `deploymentId` from that
+   projection and the same `snapshotId`. It makes the two explicitly confirmed
+   one-token provider requests while ambient execution remains disabled; it
+   must not select by provider/model name, row order or first match.
+3. Only after both runs pass, land and deploy the separate Oxy change that
+   enables `INFERENCE_KAANA_EXECUTION`, then verify the live readout and a real
+   attributed Oxy-to-Kaana request. The authoritative procedure is Oxy's
+   [`kaana-request-v2-cutover.md`](https://github.com/OxyHQ/oxy/blob/main/docs/runbooks/kaana-request-v2-cutover.md).
+4. Inspect the candidate Alia task definition without printing secret values.
+5. Deploy one immutable revision containing the Oxy URL and both service
    credential bindings. The boot guard fails closed; there is no provider
    fallback.
-4. Verify `runningCount == desiredCount`, `pendingCount == 0`, rollout state
+6. Verify `runningCount == desiredCount`, `pendingCount == 0`, rollout state
    `COMPLETED` and the exact task-definition revision.
-5. Run a concrete-model canary and a routing-profile canary through Oxy. The
-   latter must prove policy resolution without logging routes or credentials.
-6. Verify `/health` retains its `kaana` compatibility field and a real request
+7. Run a concrete-model canary and a routing-profile canary through Alia and
+   Oxy. The latter must prove policy resolution without logging routes or
+   credentials.
+8. Verify `/health` reports its canonical `kaana` field and a real request
    returns expected Oxy attribution and Kaana usage.
 
 ## Rollback
