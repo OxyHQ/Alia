@@ -112,10 +112,22 @@ describe('consumeAliaChatStream', () => {
   });
 
   it('rejects a JSON response even when its body looks like a completion', async () => {
-    const response = responseFrom([JSON.stringify({ choices: [{ message: { content: 'fake' } }] })], 'application/json');
+    let cancelled = false;
+    const response = new Response(
+      new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(encoder.encode(JSON.stringify({ choices: [{ message: { content: 'fake' } }] })));
+        },
+        cancel() {
+          cancelled = true;
+        },
+      }),
+      { headers: { 'content-type': 'application/json' } },
+    );
     await expect(consumeAliaChatStream(response, () => undefined)).rejects.toThrow(
       'Alia returned a non-streaming response.',
     );
+    expect(cancelled).toBe(true);
   });
 
   it.each([
