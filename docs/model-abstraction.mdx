@@ -90,11 +90,14 @@ API keys from its environment and cannot enable hosted inference with one.
 
 The routing catalogue and its foreign keys use `routing_profiles` and
 `routing_profile_id`; older names survive only inside immutable migration history.
-The first cutover release deliberately includes no destructive migration for
-Alia's legacy provider keys, health, usage and fallback tables. They remain
-dormant and unconsumed until a real Oxy -> Kaana canary is verified. A second,
-separately gated release removes them only after rollback to the former Alia
-provider runtime is forbidden.
+The post-rollout migration
+`packages/api/drizzle/0061_remove_alia_provider_credentials.sql` drops Alia's
+legacy `provider_keys` table without reading or copying its contents. Current
+source contains no hosted credential reader. Historical health, usage and
+fallback tables remain non-runtime migration evidence; their presence does not
+restore a direct-provider path. Applying the destructive migration in
+production still requires the exact deployed-migration readback in the
+[Kaana cutover runbook](./runbooks/kaana-cutover.md).
 
 Alia contains no hosted provider adapter tree or administrative provider-key script.
 Product inference cannot import or construct a direct provider client.
@@ -108,8 +111,9 @@ need to reconcile data.
 
 The runtime boundary is enforced by architecture tests that require the
 published Oxy SDK, reject retired signing/transport files and forbid provider
-or direct-Kaana configuration. The local user-runtime exception remains
-explicit and can never become a hosted fallback.
+or direct-Kaana configuration. The boot guard also refuses provider-host egress
+before a socket opens. The local user-runtime exception remains explicit and
+can never become a hosted fallback.
 
 See also:
 
