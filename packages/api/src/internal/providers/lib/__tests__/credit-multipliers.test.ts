@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { ALIA_MODELS } from '../alia-models.js';
+import { KAANA_ROUTING_PROFILES } from '../routing-profile-catalogue.js';
 import { UnpricedModelError, getCreditMultiplier } from '../../../../lib/credits-manager.js';
 
 /**
@@ -15,42 +15,42 @@ import { UnpricedModelError, getCreditMultiplier } from '../../../../lib/credits
  * `getCreditMultiplier` is the only thing that decides what a turn costs
  * relative to another, it spans 0.5 to 5, and it is read on every billed
  * request. Repricing it is a product decision; this file makes it one, by
- * turning an edit to `alia-models.ts` into a red test that names the alias and
+ * turning an edit to `routing-profile-catalogue.ts` into a red test that names the alias and
  * prints both numbers.
  *
  * Two properties matter more than the table itself:
  *
- *  - **The alias list is read from the RUNTIME `ALIA_MODELS`, not written
+ *  - **The alias list is read from the RUNTIME `KAANA_ROUTING_PROFILES`, not written
  *    here.** A test that only checks the aliases it happens to name cannot
  *    notice an ADDITION, and a new alias arriving with an unreviewed price is
  *    the same fault as an old one changing. The symmetry assertion below fails
  *    in both directions.
  *  - **The billing path is asserted, not only the table.** An identifier that
  *    stops resolving used to be repriced to 1× in silence — `credits-manager.ts`
- *    read `model?.creditMultiplier || 1` — which on `alia-lite` doubles what
- *    the customer pays and on `alia-v1-pro-max` is 80% of the revenue.
- *    Asserting `ALIA_MODELS` alone would pass through exactly that removal,
+ *    read `model?.creditMultiplier || 1` — which on `kaana-lite` doubles what
+ *    the customer pays and on `kaana-v1-pro-max` is 80% of the revenue.
+ *    Asserting `KAANA_ROUTING_PROFILES` alone would pass through exactly that removal,
  *    because the constant it reads would be gone with the alias.
  *    `getCreditMultiplier` now refuses instead, and the last two cases below
  *    are what hold it to that.
  */
 const PINNED_MULTIPLIERS: Readonly<Record<string, number>> = {
-  'alia-lite': 0.5,
-  'alia-v1': 1,
-  'alia-v1-audio': 1,
-  'alia-v1-browser': 1.5,
-  'alia-v1-codea': 1.5,
-  'alia-v1-cowork': 1.5,
-  'alia-v1-multimodal': 2,
-  'alia-v1-pro': 3,
-  'alia-v1-pro-max': 5,
-  'alia-v1-thinking': 5,
-  'alia-v1-vision': 1.5,
-  'alia-v1-voice': 2,
-  'alia-v1-voice-pro': 4,
+  'kaana-lite': 0.5,
+  'kaana-v1': 1,
+  'kaana-v1-audio': 1,
+  'kaana-v1-browser': 1.5,
+  'kaana-v1-codea': 1.5,
+  'kaana-v1-cowork': 1.5,
+  'kaana-v1-multimodal': 2,
+  'kaana-v1-pro': 3,
+  'kaana-v1-pro-max': 5,
+  'kaana-v1-thinking': 5,
+  'kaana-v1-vision': 1.5,
+  'kaana-v1-voice': 2,
+  'kaana-v1-voice-pro': 4,
 };
 
-const registeredAliases = Object.keys(ALIA_MODELS).sort();
+const registeredAliases = Object.keys(KAANA_ROUTING_PROFILES).sort();
 
 describe('every alias carries the price it was registered with', () => {
   it('pins exactly the aliases that exist, in both directions', () => {
@@ -69,7 +69,7 @@ describe('every alias carries the price it was registered with', () => {
   });
 
   it.each(registeredAliases)('%s is registered at its pinned multiplier', (alias) => {
-    expect(ALIA_MODELS[alias].creditMultiplier).toBe(PINNED_MULTIPLIERS[alias]);
+    expect(KAANA_ROUTING_PROFILES[alias].creditMultiplier).toBe(PINNED_MULTIPLIERS[alias]);
   });
 
   it.each(registeredAliases)('%s is BILLED at its pinned multiplier', async (alias) => {
@@ -84,7 +84,7 @@ describe('every alias carries the price it was registered with', () => {
      * 1 is what `|| 1` used to substitute when the lookup missed, so it is what
      * every alias above would silently have become the day one stopped
      * resolving — an outcome no assertion in this file could tell apart from
-     * `alia-v1` billing correctly. A refusal can be told apart, which is the
+     * `kaana-v1` billing correctly. A refusal can be told apart, which is the
      * whole change: the mispricing now has to be handled instead of happening.
      */
     await expect(getCreditMultiplier('alia-not-a-registered-model')).rejects.toThrow(UnpricedModelError);
@@ -96,7 +96,7 @@ describe('every alias carries the price it was registered with', () => {
   it('still prices an ABSENT identifier at 1, because that case is a decision', () => {
     /**
      * The other half of the same edit, and the reason the refusal above is not
-     * simply `if (!aliasModelId) throw`. Six handlers settle their own price in
+     * simply `if (!routingProfileId) throw`. Six handlers settle their own price in
      * tokens and pass no model at all — `routes/v1/images.ts`,
      * `routes/v1/audio.ts` twice, the transcribe path in `routes/v1/voice.ts`,
      * `lib/chat-modes/deep-research-handler.ts` and `lib/agent/runner.ts`. Every

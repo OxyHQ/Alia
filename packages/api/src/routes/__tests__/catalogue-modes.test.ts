@@ -77,28 +77,22 @@ describe('the modes surface serves the product table, in the product vocabulary'
     ]);
   });
 
-  it('publishes the routing discriminant rather than flattening it to a profile', () => {
-    // The two `default` modes pin no profile. Resolving them here to whichever
-    // profile the product default happens to be would publish a routing claim
-    // the product does not make, and would silently change meaning the day the
-    // default moves.
+  it('publishes one exact routing profile for every mode', () => {
     const byId = new Map((runModes().body?.data ?? []).map((entry) => [entry.id as string, entry]));
 
-    expect(byId.get('mode:automatic')?.routing).toEqual({ kind: 'default' });
-    expect(byId.get('mode:deep-research')?.routing).toEqual({ kind: 'default' });
+    expect(byId.get('mode:automatic')?.routing).toEqual({ kind: 'profile', profile_id: 'kaana-lite' });
+    expect(byId.get('mode:deep-research')?.routing).toEqual({ kind: 'profile', profile_id: 'kaana-lite' });
     expect(byId.get('mode:deep-research')?.deep_research).toBe(true);
 
-    const profiles = new Set(ROUTING_PRESETS.map((preset) => preset.id));
+    const profiles = new Set(ROUTING_PRESETS.flatMap((preset) => preset.profileIds));
     for (const mode of PRODUCT_MODES) {
-      if (mode.routing.kind !== 'profile') continue;
       const routing = byId.get(mode.id)?.routing as { kind: string; profile_id: string };
       expect(routing.kind).toBe('profile');
       expect(routing.profile_id).toBe(mode.routing.profile);
       // A profile id a client cannot resolve is worse than none.
       expect(profiles).toContain(routing.profile_id);
     }
-    // Floor: at least one entry took the branch above.
-    expect(PRODUCT_MODES.filter((m) => m.routing.kind === 'profile').length).toBeGreaterThanOrEqual(4);
+    expect(PRODUCT_MODES.every((m) => m.routing.kind === 'profile')).toBe(true);
   });
 
   it('says nothing about capability, price, entitlement or where a request goes', () => {

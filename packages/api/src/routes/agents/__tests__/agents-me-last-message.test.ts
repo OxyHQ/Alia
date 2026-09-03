@@ -66,6 +66,10 @@ vi.mock('../../../db/agents/agentRepository.js', () => ({
   setAgentCatalogueFlags: vi.fn(),
   incrementAgentUsage: vi.fn(),
   withoutSystemPrompt: <T,>(agent: T) => agent,
+  withoutInternalAgentBindings: <T extends Record<string, unknown>>(agent: T) => {
+    const { applicationId: _applicationId, ownerOxyAccountId: _owner, ...rest } = agent;
+    return rest;
+  },
 }));
 
 vi.mock('../../../db/chat/conversationRepository.js', () => ({
@@ -93,7 +97,7 @@ const AGENT_SHAPE = {
   access: 'private',
   status: 'active',
   systemPrompt: 'nobody else’s business',
-  allowedModels: ['alia-v1'],
+  allowedModels: ['kaana-v1'],
   capabilityGrants: [] as string[],
   archetype: 'general',
   createdAt: new Date(),

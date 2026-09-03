@@ -48,6 +48,12 @@ TASK_SECRET_OVERRIDES_JSON="${TASK_SECRET_OVERRIDES_JSON:-}"
 # reason: an override here is re-asserted on every deploy, so a rollback cannot
 # lose it.
 TASK_ENV_OVERRIDES_JSON="${TASK_ENV_OVERRIDES_JSON:-}"
+# Plain environment variables to DROP from the inherited task definition.
+#
+# ECS revisions are rendered from the running revision, so deleting a variable
+# in source or Terraform does not delete the carried-forward `.environment`
+# entry. This is the explicit retirement path for obsolete runtime contracts.
+TASK_CONFIGURATION_REMOVALS_JSON="${TASK_CONFIGURATION_REMOVALS_JSON:-}"
 # Secrets to DROP from the revision, by variable name.
 #
 # The render carries `.secrets` forward from the running task definition, and an
@@ -62,6 +68,7 @@ TASK_SECRET_REMOVALS_JSON="${TASK_SECRET_REMOVALS_JSON:-}"
 AWS_ACCOUNT_ID="${AWS_ACCOUNT_ID:-}"
 AWS_PARTITION="${AWS_PARTITION:-aws}"
 POST_DEPLOY_SMOKE_SCRIPT="${POST_DEPLOY_SMOKE_SCRIPT:-}"
+PRE_DEPLOY_TASK_COMMAND_JSON="${PRE_DEPLOY_TASK_COMMAND_JSON:-}"
 POST_DEPLOY_TASK_COMMAND_JSON="${POST_DEPLOY_TASK_COMMAND_JSON:-}"
 # Exit code a smoke script uses to say "this failed, and rolling back cannot fix
 # it" — a check that crosses a boundary this deploy does not own (a CDN in front
@@ -102,6 +109,15 @@ if [[ -n "$POST_DEPLOY_TASK_COMMAND_JSON" ]] &&
      all(.[]; type == "string" and length > 0)
    ' <<<"$POST_DEPLOY_TASK_COMMAND_JSON" >/dev/null; then
   echo "::error::POST_DEPLOY_TASK_COMMAND_JSON must be a non-empty JSON string array."
+  exit 1
+fi
+if [[ -n "$PRE_DEPLOY_TASK_COMMAND_JSON" ]] &&
+   ! jq -e '
+     type == "array" and
+     length > 0 and
+     all(.[]; type == "string" and length > 0)
+   ' <<<"$PRE_DEPLOY_TASK_COMMAND_JSON" >/dev/null; then
+  echo "::error::PRE_DEPLOY_TASK_COMMAND_JSON must be a non-empty JSON string array."
   exit 1
 fi
 if [[ -z "$TASK_SECRET_OVERRIDES_JSON" ]]; then
@@ -167,6 +183,24 @@ if ! jq -e '
   )
 ' <<<"$TASK_ENV_OVERRIDES_JSON" >/dev/null; then
   echo "::error::TASK_ENV_OVERRIDES_JSON must map environment variable names to non-empty string values."
+  exit 1
+fi
+if [[ -z "$TASK_CONFIGURATION_REMOVALS_JSON" ]]; then
+  TASK_CONFIGURATION_REMOVALS_JSON='[]'
+fi
+if ! jq -e '
+  type == "array" and
+  length <= 40 and
+  all(.[]; type == "string" and test("^[A-Z][A-Z0-9_]{0,127}$"))
+' <<<"$TASK_CONFIGURATION_REMOVALS_JSON" >/dev/null; then
+  echo "::error::TASK_CONFIGURATION_REMOVALS_JSON must be a JSON array of environment variable names."
+  exit 1
+fi
+if ! jq -e -n \
+  --argjson removals "$TASK_CONFIGURATION_REMOVALS_JSON" \
+  --argjson overrides "$TASK_ENV_OVERRIDES_JSON" \
+  '[$removals[] | select(. as $n | ($overrides | has($n)))] | length == 0' >/dev/null; then
+  echo "::error::TASK_CONFIGURATION_REMOVALS_JSON and TASK_ENV_OVERRIDES_JSON name the same variable."
   exit 1
 fi
 
@@ -521,6 +555,7 @@ jq \
   --argjson taskSecretOverrides "$task_secret_overrides" \
   --argjson taskSecretRemovals "$TASK_SECRET_REMOVALS_JSON" \
   --argjson taskEnvOverrides "$task_env_overrides" \
+  --argjson taskConfigurationRemovals "$TASK_CONFIGURATION_REMOVALS_JSON" \
   '
     del(
       .taskDefinitionArn,
@@ -574,6 +609,7 @@ jq \
                     select(
                       .name as $existingName
                       | ($taskEnvNames | index($existingName)) == null
+                        and ($taskConfigurationRemovals | index($existingName)) == null
                     )
                   ))
               + $taskEnvOverrides
@@ -589,7 +625,7 @@ new_task_definition="$(aws ecs register-task-definition \
   --output text)"
 
 one_shot_run_task_args=()
-if [[ "$RUN_MIGRATIONS" == "true" || -n "$POST_DEPLOY_TASK_COMMAND_JSON" ]]; then
+if [[ "$RUN_MIGRATIONS" == "true" || -n "$PRE_DEPLOY_TASK_COMMAND_JSON" || -n "$POST_DEPLOY_TASK_COMMAND_JSON" ]]; then
   network_configuration="$(jq -c '.services[0].networkConfiguration' <<<"$service_json")"
   if [[ -z "$network_configuration" || "$network_configuration" == "null" ]]; then
     echo "::error::ECS service $APP has no network configuration for the migration task."
@@ -637,6 +673,14 @@ if [[ "$RUN_MIGRATIONS" == "true" ]]; then
       --arg target "--target-database=$MIGRATION_TARGET_DATABASE" \
       --arg phase "--phase=$MIGRATION_PHASE" \
       '["node",$entrypoint,$target,$phase]')"; then
+    exit 1
+  fi
+fi
+
+# This runs on the newly registered image after its additive migration, but
+# before ECS is updated. A failure leaves the old service revision untouched.
+if [[ -n "$PRE_DEPLOY_TASK_COMMAND_JSON" ]]; then
+  if ! run_one_shot_command "Pre-deploy readiness" "$PRE_DEPLOY_TASK_COMMAND_JSON"; then
     exit 1
   fi
 fi

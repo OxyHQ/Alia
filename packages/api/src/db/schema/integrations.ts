@@ -192,7 +192,7 @@ export const connectedAccounts = pgTable(
  * `tools` and `resources` are `jsonb`: ordered capability listings read whole
  * when the server is dispatched to, with no cross-table reference and no
  * per-element toggle — the `fallback_events.attempts` shape rather than the
- * `alia_model_provider_mappings` one. `tools[].inputSchema` is a JSON Schema
+ * `routing_profile_provider_mappings` one. `tools[].inputSchema` is a JSON Schema
  * supplied by the server itself, which is a format this service does not own.
  *
  * `config_headers` and `config_env` hold user-supplied secrets; see the file

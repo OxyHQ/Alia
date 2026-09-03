@@ -6,16 +6,17 @@
       "domain": "provider-runtime",
       "kind": "module",
       "currentPath": "packages/api/src/internal/providers/lib/providers/anthropic.ts",
-      "reachable": "loaded-not-invoked",
-      "owner": "relay",
-      "targetPath": "relay:providers/anthropic.ts",
+      "reachable": "dead",
+      "owner": "kaana",
+      "targetPath": "kaana:providers/anthropic.ts",
       "dependsOn": [
         "adapter-registry",
         "dead-internal-providers-router"
       ],
       "removalGate": "The MODULE is loaded in production (lib/providers/index.ts is imported by the live voice-session-manager), but its proxy() has no caller at all: repo-wide `.proxy(` returned exactly one hit, internal/providers/routes/providers.ts:138, inside the unmounted router, and #141 deleted that router — repo-wide `.proxy(` is now zero. So no runtime gate — but deleting the file means editing the LIVE registry. Unreachable today (same as adapter-google). No runtime gate.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/internal/providers/lib/providers/anthropic.ts:11"
+      "evidence": "packages/api/src/internal/providers/lib/providers/anthropic.ts:11",
+      "removedIn": "kaana-cutover-provider-runtime-retirement"
     },
     {
       "id": "adapter-cerebras",
@@ -23,9 +24,9 @@
       "domain": "provider-runtime",
       "kind": "module",
       "currentPath": "packages/api/src/internal/providers/lib/providers/cerebras.ts",
-      "reachable": "loaded-not-invoked",
+      "reachable": "dead",
       "owner": "delete",
-      "targetPath": "delete — Relay reaches this provider through its own client, not through 40 lines of base URL",
+      "targetPath": "delete — Kaana reaches this provider through its own client, not through 40 lines of base URL",
       "dependsOn": [
         "adapter-registry",
         "chat-core-get-ai-model",
@@ -33,7 +34,8 @@
       ],
       "removalGate": "None beyond editing the registry. Its proxy() has no caller at all (repo-wide `.proxy(` returned exactly one hit, the unmounted internal/providers/routes/providers.ts:138, which #141 deleted; the count is now zero), and its only knowledge — base URL api.cerebras.ai/v1 plus a default model id — is already duplicated in live code: duplicated live at chat-core.ts:133. Deleting the FILE requires editing lib/providers/index.ts, which IS live (voice-session-manager reads it), so this is not a free removal even though nothing calls it.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/internal/providers/lib/providers/cerebras.ts; registry entry at lib/providers/index.ts:31-53; sole proxy() call site was internal/providers/routes/providers.ts:138 (unmounted), deleted in #141 — no call site remains"
+      "evidence": "packages/api/src/internal/providers/lib/providers/cerebras.ts; registry entry at lib/providers/index.ts:31-53; sole proxy() call site was internal/providers/routes/providers.ts:138 (unmounted), deleted in #141 — no call site remains",
+      "removedIn": "kaana-cutover-provider-runtime-retirement"
     },
     {
       "id": "adapter-cloudflare",
@@ -41,17 +43,18 @@
       "domain": "provider-runtime",
       "kind": "module",
       "currentPath": "packages/api/src/internal/providers/lib/providers/cloudflare.ts",
-      "reachable": "loaded-not-invoked",
-      "owner": "relay",
-      "targetPath": "relay:providers/cloudflare.ts",
+      "reachable": "dead",
+      "owner": "kaana",
+      "targetPath": "kaana:providers/cloudflare.ts",
       "dependsOn": [
         "adapter-registry",
         "chat-core-get-ai-model",
         "dead-internal-providers-router"
       ],
-      "removalGate": "The MODULE is loaded in production (lib/providers/index.ts is imported by the live voice-session-manager), but its proxy() has no caller at all: repo-wide `.proxy(` returned exactly one hit, internal/providers/routes/providers.ts:138, inside the unmounted router, and #141 deleted that router — repo-wide `.proxy(` is now zero. So no runtime gate — but deleting the file means editing the LIVE registry. Unreachable today, BUT the composite-credential convention is duplicated live at packages/api/src/lib/chat-core.ts:157. Relay must accept the same 'accountId:token' shape or provider_keys rows for cloudflare become unusable.",
+      "removalGate": "The MODULE is loaded in production (lib/providers/index.ts is imported by the live voice-session-manager), but its proxy() has no caller at all: repo-wide `.proxy(` returned exactly one hit, internal/providers/routes/providers.ts:138, inside the unmounted router, and #141 deleted that router — repo-wide `.proxy(` is now zero. So no runtime gate — but deleting the file means editing the LIVE registry. Unreachable today, BUT the composite-credential convention is duplicated live at packages/api/src/lib/chat-core.ts:157. Kaana must accept the same 'accountId:token' shape or provider_keys rows for cloudflare become unusable.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/internal/providers/lib/providers/cloudflare.ts:13-21; live duplicate packages/api/src/lib/chat-core.ts:156-162"
+      "evidence": "packages/api/src/internal/providers/lib/providers/cloudflare.ts:13-21; live duplicate packages/api/src/lib/chat-core.ts:156-162",
+      "removedIn": "kaana-cutover-provider-runtime-retirement"
     },
     {
       "id": "adapter-cohere",
@@ -59,9 +62,9 @@
       "domain": "provider-runtime",
       "kind": "module",
       "currentPath": "packages/api/src/internal/providers/lib/providers/cohere.ts",
-      "reachable": "loaded-not-invoked",
+      "reachable": "dead",
       "owner": "delete",
-      "targetPath": "delete — Relay reaches this provider through its own client, not through 40 lines of base URL",
+      "targetPath": "delete — Kaana reaches this provider through its own client, not through 40 lines of base URL",
       "dependsOn": [
         "adapter-registry",
         "chat-core-get-ai-model",
@@ -69,7 +72,8 @@
       ],
       "removalGate": "None beyond editing the registry. Its proxy() has no caller at all (repo-wide `.proxy(` returned exactly one hit, the unmounted internal/providers/routes/providers.ts:138, which #141 deleted; the count is now zero), and its only knowledge — base URL api.cohere.ai/compatibility/v1 plus a default model id — is already duplicated in live code: duplicated live at chat-core.ts:164. Deleting the FILE requires editing lib/providers/index.ts, which IS live (voice-session-manager reads it), so this is not a free removal even though nothing calls it.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/internal/providers/lib/providers/cohere.ts; registry entry at lib/providers/index.ts:31-53; sole proxy() call site was internal/providers/routes/providers.ts:138 (unmounted), deleted in #141 — no call site remains"
+      "evidence": "packages/api/src/internal/providers/lib/providers/cohere.ts; registry entry at lib/providers/index.ts:31-53; sole proxy() call site was internal/providers/routes/providers.ts:138 (unmounted), deleted in #141 — no call site remains",
+      "removedIn": "kaana-cutover-provider-runtime-retirement"
     },
     {
       "id": "adapter-deepseek",
@@ -77,9 +81,9 @@
       "domain": "provider-runtime",
       "kind": "module",
       "currentPath": "packages/api/src/internal/providers/lib/providers/deepseek.ts",
-      "reachable": "loaded-not-invoked",
+      "reachable": "dead",
       "owner": "delete",
-      "targetPath": "delete — Relay reaches this provider through its own client, not through 40 lines of base URL",
+      "targetPath": "delete — Kaana reaches this provider through its own client, not through 40 lines of base URL",
       "dependsOn": [
         "adapter-registry",
         "chat-core-get-ai-model",
@@ -87,7 +91,8 @@
       ],
       "removalGate": "None beyond editing the registry. Its proxy() has no caller at all (repo-wide `.proxy(` returned exactly one hit, the unmounted internal/providers/routes/providers.ts:138, which #141 deleted; the count is now zero), and its only knowledge — base URL api.deepseek.com plus a default model id — is already duplicated in live code: duplicated live at chat-core.ts:145. Deleting the FILE requires editing lib/providers/index.ts, which IS live (voice-session-manager reads it), so this is not a free removal even though nothing calls it.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/internal/providers/lib/providers/deepseek.ts; registry entry at lib/providers/index.ts:31-53; sole proxy() call site was internal/providers/routes/providers.ts:138 (unmounted), deleted in #141 — no call site remains"
+      "evidence": "packages/api/src/internal/providers/lib/providers/deepseek.ts; registry entry at lib/providers/index.ts:31-53; sole proxy() call site was internal/providers/routes/providers.ts:138 (unmounted), deleted in #141 — no call site remains",
+      "removedIn": "kaana-cutover-provider-runtime-retirement"
     },
     {
       "id": "adapter-digitalocean",
@@ -95,9 +100,9 @@
       "domain": "provider-runtime",
       "kind": "module",
       "currentPath": "packages/api/src/internal/providers/lib/providers/digitalocean.ts",
-      "reachable": "loaded-not-invoked",
+      "reachable": "dead",
       "owner": "delete",
-      "targetPath": "delete — Relay reaches this provider through its own client, not through 40 lines of base URL",
+      "targetPath": "delete — Kaana reaches this provider through its own client, not through 40 lines of base URL",
       "dependsOn": [
         "adapter-registry",
         "chat-core-get-ai-model",
@@ -105,7 +110,8 @@
       ],
       "removalGate": "None beyond editing the registry. Its proxy() has no caller at all (repo-wide `.proxy(` returned exactly one hit, the unmounted internal/providers/routes/providers.ts:138, which #141 deleted; the count is now zero), and its only knowledge — base URL inference.do-ai.run/v1 plus a default model id — is already duplicated in live code: duplicated live at chat-core.ts:192. Deleting the FILE requires editing lib/providers/index.ts, which IS live (voice-session-manager reads it), so this is not a free removal even though nothing calls it.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/internal/providers/lib/providers/digitalocean.ts; registry entry at lib/providers/index.ts:31-53; sole proxy() call site was internal/providers/routes/providers.ts:138 (unmounted), deleted in #141 — no call site remains"
+      "evidence": "packages/api/src/internal/providers/lib/providers/digitalocean.ts; registry entry at lib/providers/index.ts:31-53; sole proxy() call site was internal/providers/routes/providers.ts:138 (unmounted), deleted in #141 — no call site remains",
+      "removedIn": "kaana-cutover-provider-runtime-retirement"
     },
     {
       "id": "adapter-fireworks",
@@ -113,9 +119,9 @@
       "domain": "provider-runtime",
       "kind": "module",
       "currentPath": "packages/api/src/internal/providers/lib/providers/fireworks.ts",
-      "reachable": "loaded-not-invoked",
+      "reachable": "dead",
       "owner": "delete",
-      "targetPath": "delete — Relay reaches this provider through its own client, not through 40 lines of base URL",
+      "targetPath": "delete — Kaana reaches this provider through its own client, not through 40 lines of base URL",
       "dependsOn": [
         "adapter-registry",
         "chat-core-get-ai-model",
@@ -123,7 +129,8 @@
       ],
       "removalGate": "None beyond editing the registry. Its proxy() has no caller at all (repo-wide `.proxy(` returned exactly one hit, the unmounted internal/providers/routes/providers.ts:138, which #141 deleted; the count is now zero), and its only knowledge — base URL api.fireworks.ai/inference/v1 plus a default model id — is already duplicated in live code: duplicated live at chat-core.ts:172. Deleting the FILE requires editing lib/providers/index.ts, which IS live (voice-session-manager reads it), so this is not a free removal even though nothing calls it.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/internal/providers/lib/providers/fireworks.ts; registry entry at lib/providers/index.ts:31-53; sole proxy() call site was internal/providers/routes/providers.ts:138 (unmounted), deleted in #141 — no call site remains"
+      "evidence": "packages/api/src/internal/providers/lib/providers/fireworks.ts; registry entry at lib/providers/index.ts:31-53; sole proxy() call site was internal/providers/routes/providers.ts:138 (unmounted), deleted in #141 — no call site remains",
+      "removedIn": "kaana-cutover-provider-runtime-retirement"
     },
     {
       "id": "adapter-google",
@@ -131,16 +138,17 @@
       "domain": "provider-runtime",
       "kind": "module",
       "currentPath": "packages/api/src/internal/providers/lib/providers/google.ts",
-      "reachable": "loaded-not-invoked",
-      "owner": "relay",
-      "targetPath": "relay:providers/google.ts",
+      "reachable": "dead",
+      "owner": "kaana",
+      "targetPath": "kaana:providers/google.ts",
       "dependsOn": [
         "adapter-registry",
         "dead-internal-providers-router"
       ],
-      "removalGate": "The MODULE is loaded in production (lib/providers/index.ts is imported by the live voice-session-manager), but its proxy() has no caller at all: repo-wide `.proxy(` returned exactly one hit, internal/providers/routes/providers.ts:138, inside the unmounted router, and #141 deleted that router — repo-wide `.proxy(` is now zero. So no runtime gate — but deleting the file means editing the LIVE registry. UNREACHABLE TODAY: its proxy() had one caller, packages/api/src/internal/providers/routes/providers.ts:138, inside the unmounted router, which #141 deleted. Deletable from Alia with no runtime gate; port the translation to Relay only if Relay does not use the Vercel AI SDK.",
+      "removalGate": "The MODULE is loaded in production (lib/providers/index.ts is imported by the live voice-session-manager), but its proxy() has no caller at all: repo-wide `.proxy(` returned exactly one hit, internal/providers/routes/providers.ts:138, inside the unmounted router, and #141 deleted that router — repo-wide `.proxy(` is now zero. So no runtime gate — but deleting the file means editing the LIVE registry. UNREACHABLE TODAY: its proxy() had one caller, packages/api/src/internal/providers/routes/providers.ts:138, inside the unmounted router, which #141 deleted. Deletable from Alia with no runtime gate; port the translation to Kaana only if Kaana does not use the Vercel AI SDK.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/internal/providers/lib/providers/google.ts:22 (key in URL), :101-112, :116-234 (stream transform)"
+      "evidence": "packages/api/src/internal/providers/lib/providers/google.ts:22 (key in URL), :101-112, :116-234 (stream transform)",
+      "removedIn": "kaana-cutover-provider-runtime-retirement"
     },
     {
       "id": "adapter-grok-voice",
@@ -148,9 +156,9 @@
       "domain": "provider-runtime",
       "kind": "module",
       "currentPath": "packages/api/src/internal/providers/lib/providers/grok-voice.ts",
-      "reachable": "live",
-      "owner": "relay",
-      "targetPath": "relay:providers/xai-realtime.ts",
+      "reachable": "dead",
+      "owner": "kaana",
+      "targetPath": "kaana:providers/xai-realtime.ts",
       "dependsOn": [
         "adapter-registry",
         "env-grok-api-key",
@@ -159,7 +167,8 @@
       ],
       "removalGate": "LIVE PATH, same gate as adapter-openai-voice.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/internal/providers/lib/providers/grok-voice.ts:51-53 (tautological isEnabled), :71-151"
+      "evidence": "packages/api/src/internal/providers/lib/providers/grok-voice.ts:51-53 (tautological isEnabled), :71-151",
+      "removedIn": "kaana-cutover-provider-runtime-retirement"
     },
     {
       "id": "adapter-groq",
@@ -167,9 +176,9 @@
       "domain": "provider-runtime",
       "kind": "module",
       "currentPath": "packages/api/src/internal/providers/lib/providers/groq.ts",
-      "reachable": "loaded-not-invoked",
+      "reachable": "dead",
       "owner": "delete",
-      "targetPath": "delete — Relay reaches this provider through its own client, not through 40 lines of base URL",
+      "targetPath": "delete — Kaana reaches this provider through its own client, not through 40 lines of base URL",
       "dependsOn": [
         "adapter-registry",
         "chat-core-get-ai-model",
@@ -177,7 +186,8 @@
       ],
       "removalGate": "None beyond editing the registry. Its proxy() has no caller at all (repo-wide `.proxy(` returned exactly one hit, the unmounted internal/providers/routes/providers.ts:138, which #141 deleted; the count is now zero), and its only knowledge — base URL api.groq.com/openai/v1 plus a default model id — is already duplicated in live code: duplicated live at chat-core.ts:129. Deleting the FILE requires editing lib/providers/index.ts, which IS live (voice-session-manager reads it), so this is not a free removal even though nothing calls it.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/internal/providers/lib/providers/groq.ts; registry entry at lib/providers/index.ts:31-53; sole proxy() call site was internal/providers/routes/providers.ts:138 (unmounted), deleted in #141 — no call site remains"
+      "evidence": "packages/api/src/internal/providers/lib/providers/groq.ts; registry entry at lib/providers/index.ts:31-53; sole proxy() call site was internal/providers/routes/providers.ts:138 (unmounted), deleted in #141 — no call site remains",
+      "removedIn": "kaana-cutover-provider-runtime-retirement"
     },
     {
       "id": "adapter-hyperbolic",
@@ -185,9 +195,9 @@
       "domain": "provider-runtime",
       "kind": "module",
       "currentPath": "packages/api/src/internal/providers/lib/providers/hyperbolic.ts",
-      "reachable": "loaded-not-invoked",
+      "reachable": "dead",
       "owner": "delete",
-      "targetPath": "delete — Relay reaches this provider through its own client, not through 40 lines of base URL",
+      "targetPath": "delete — Kaana reaches this provider through its own client, not through 40 lines of base URL",
       "dependsOn": [
         "adapter-registry",
         "chat-core-get-ai-model",
@@ -195,7 +205,8 @@
       ],
       "removalGate": "None beyond editing the registry. Its proxy() has no caller at all (repo-wide `.proxy(` returned exactly one hit, the unmounted internal/providers/routes/providers.ts:138, which #141 deleted; the count is now zero), and its only knowledge — base URL api.hyperbolic.xyz/v1 plus a default model id — is already duplicated in live code: duplicated live at chat-core.ts:184. Deleting the FILE requires editing lib/providers/index.ts, which IS live (voice-session-manager reads it), so this is not a free removal even though nothing calls it.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/internal/providers/lib/providers/hyperbolic.ts; registry entry at lib/providers/index.ts:31-53; sole proxy() call site was internal/providers/routes/providers.ts:138 (unmounted), deleted in #141 — no call site remains"
+      "evidence": "packages/api/src/internal/providers/lib/providers/hyperbolic.ts; registry entry at lib/providers/index.ts:31-53; sole proxy() call site was internal/providers/routes/providers.ts:138 (unmounted), deleted in #141 — no call site remains",
+      "removedIn": "kaana-cutover-provider-runtime-retirement"
     },
     {
       "id": "adapter-live-egress-sites",
@@ -204,8 +215,8 @@
       "kind": "behaviour",
       "currentPath": "packages/api/src/lib/chat-core.ts",
       "reachable": "live",
-      "owner": "relay",
-      "targetPath": "relay:client (nothing in Alia opens a connection to a provider host)",
+      "owner": "kaana",
+      "targetPath": "kaana:client (nothing in Alia opens a connection to a provider host)",
       "dependsOn": [
         "adapter-registry",
         "chat-core-get-ai-model",
@@ -223,9 +234,9 @@
       "domain": "provider-runtime",
       "kind": "module",
       "currentPath": "packages/api/src/internal/providers/lib/providers/mistral.ts",
-      "reachable": "loaded-not-invoked",
+      "reachable": "dead",
       "owner": "delete",
-      "targetPath": "delete — Relay reaches this provider through its own client, not through 40 lines of base URL",
+      "targetPath": "delete — Kaana reaches this provider through its own client, not through 40 lines of base URL",
       "dependsOn": [
         "adapter-registry",
         "chat-core-get-ai-model",
@@ -233,7 +244,8 @@
       ],
       "removalGate": "None beyond editing the registry. Its proxy() has no caller at all (repo-wide `.proxy(` returned exactly one hit, the unmounted internal/providers/routes/providers.ts:138, which #141 deleted; the count is now zero), and its only knowledge — base URL api.mistral.ai/v1 plus a default model id — is already duplicated in live code: duplicated live at chat-core.ts:141. Deleting the FILE requires editing lib/providers/index.ts, which IS live (voice-session-manager reads it), so this is not a free removal even though nothing calls it.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/internal/providers/lib/providers/mistral.ts; registry entry at lib/providers/index.ts:31-53; sole proxy() call site was internal/providers/routes/providers.ts:138 (unmounted), deleted in #141 — no call site remains"
+      "evidence": "packages/api/src/internal/providers/lib/providers/mistral.ts; registry entry at lib/providers/index.ts:31-53; sole proxy() call site was internal/providers/routes/providers.ts:138 (unmounted), deleted in #141 — no call site remains",
+      "removedIn": "kaana-cutover-provider-runtime-retirement"
     },
     {
       "id": "adapter-novita",
@@ -241,9 +253,9 @@
       "domain": "provider-runtime",
       "kind": "module",
       "currentPath": "packages/api/src/internal/providers/lib/providers/novita.ts",
-      "reachable": "loaded-not-invoked",
+      "reachable": "dead",
       "owner": "delete",
-      "targetPath": "delete — Relay reaches this provider through its own client, not through 40 lines of base URL",
+      "targetPath": "delete — Kaana reaches this provider through its own client, not through 40 lines of base URL",
       "dependsOn": [
         "adapter-registry",
         "chat-core-get-ai-model",
@@ -251,7 +263,8 @@
       ],
       "removalGate": "None beyond editing the registry. Its proxy() has no caller at all (repo-wide `.proxy(` returned exactly one hit, the unmounted internal/providers/routes/providers.ts:138, which #141 deleted; the count is now zero), and its only knowledge — base URL api.novita.ai/v3/openai plus a default model id — is already duplicated in live code: duplicated live at chat-core.ts:188. Deleting the FILE requires editing lib/providers/index.ts, which IS live (voice-session-manager reads it), so this is not a free removal even though nothing calls it.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/internal/providers/lib/providers/novita.ts; registry entry at lib/providers/index.ts:31-53; sole proxy() call site was internal/providers/routes/providers.ts:138 (unmounted), deleted in #141 — no call site remains"
+      "evidence": "packages/api/src/internal/providers/lib/providers/novita.ts; registry entry at lib/providers/index.ts:31-53; sole proxy() call site was internal/providers/routes/providers.ts:138 (unmounted), deleted in #141 — no call site remains",
+      "removedIn": "kaana-cutover-provider-runtime-retirement"
     },
     {
       "id": "adapter-openai",
@@ -259,9 +272,9 @@
       "domain": "provider-runtime",
       "kind": "module",
       "currentPath": "packages/api/src/internal/providers/lib/providers/openai.ts",
-      "reachable": "loaded-not-invoked",
+      "reachable": "dead",
       "owner": "delete",
-      "targetPath": "delete — Relay reaches this provider through its own client, not through 40 lines of base URL",
+      "targetPath": "delete — Kaana reaches this provider through its own client, not through 40 lines of base URL",
       "dependsOn": [
         "adapter-registry",
         "chat-core-get-ai-model",
@@ -269,7 +282,8 @@
       ],
       "removalGate": "None beyond editing the registry. Its proxy() has no caller at all (repo-wide `.proxy(` returned exactly one hit, the unmounted internal/providers/routes/providers.ts:138, which #141 deleted; the count is now zero), and its only knowledge — base URL api.openai.com plus a default model id — is already duplicated in live code: the base URL and default id are duplicated live at chat-core.ts:121. Deleting the FILE requires editing lib/providers/index.ts, which IS live (voice-session-manager reads it), so this is not a free removal even though nothing calls it.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/internal/providers/lib/providers/openai.ts; registry entry at lib/providers/index.ts:31-53; sole proxy() call site was internal/providers/routes/providers.ts:138 (unmounted), deleted in #141 — no call site remains"
+      "evidence": "packages/api/src/internal/providers/lib/providers/openai.ts; registry entry at lib/providers/index.ts:31-53; sole proxy() call site was internal/providers/routes/providers.ts:138 (unmounted), deleted in #141 — no call site remains",
+      "removedIn": "kaana-cutover-provider-runtime-retirement"
     },
     {
       "id": "adapter-openai-voice",
@@ -277,17 +291,18 @@
       "domain": "provider-runtime",
       "kind": "module",
       "currentPath": "packages/api/src/internal/providers/lib/providers/openai-voice.ts",
-      "reachable": "live",
-      "owner": "relay",
-      "targetPath": "relay:providers/openai-realtime.ts",
+      "reachable": "dead",
+      "owner": "kaana",
+      "targetPath": "kaana:providers/openai-realtime.ts",
       "dependsOn": [
         "adapter-registry",
         "hostname-openai-realtime",
         "voice-session-manager"
       ],
-      "removalGate": "LIVE PATH. Gate: Relay terminates the realtime WebSocket and Alia's voice-session-manager bridges LiveKit audio to Relay instead of to a provider socket. Until then deleting this breaks POST /v1/voice/token.",
+      "removalGate": "LIVE PATH. Gate: Kaana terminates the realtime WebSocket and Alia's voice-session-manager bridges LiveKit audio to Kaana instead of to a provider socket. Until then deleting this breaks POST /v1/voice/token.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/internal/providers/lib/providers/openai-voice.ts:37-113; consumed at packages/api/src/internal/providers/lib/voice-session-manager.ts:229"
+      "evidence": "packages/api/src/internal/providers/lib/providers/openai-voice.ts:37-113; consumed at packages/api/src/internal/providers/lib/voice-session-manager.ts:229",
+      "removedIn": "kaana-cutover-provider-runtime-retirement"
     },
     {
       "id": "adapter-openrouter",
@@ -295,9 +310,9 @@
       "domain": "provider-runtime",
       "kind": "module",
       "currentPath": "packages/api/src/internal/providers/lib/providers/openrouter.ts",
-      "reachable": "loaded-not-invoked",
+      "reachable": "dead",
       "owner": "delete",
-      "targetPath": "delete — Relay reaches this provider through its own client, not through 40 lines of base URL",
+      "targetPath": "delete — Kaana reaches this provider through its own client, not through 40 lines of base URL",
       "dependsOn": [
         "adapter-registry",
         "chat-core-get-ai-model",
@@ -305,7 +320,8 @@
       ],
       "removalGate": "None beyond editing the registry. Its proxy() has no caller at all (repo-wide `.proxy(` returned exactly one hit, the unmounted internal/providers/routes/providers.ts:138, which #141 deleted; the count is now zero), and its only knowledge — base URL openrouter.ai/api/v1 plus a default model id — is already duplicated in live code: duplicated live at chat-core.ts:149; also sends an HTTP-Referer naming alia-ai.com. Deleting the FILE requires editing lib/providers/index.ts, which IS live (voice-session-manager reads it), so this is not a free removal even though nothing calls it.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/internal/providers/lib/providers/openrouter.ts; registry entry at lib/providers/index.ts:31-53; sole proxy() call site was internal/providers/routes/providers.ts:138 (unmounted), deleted in #141 — no call site remains"
+      "evidence": "packages/api/src/internal/providers/lib/providers/openrouter.ts; registry entry at lib/providers/index.ts:31-53; sole proxy() call site was internal/providers/routes/providers.ts:138 (unmounted), deleted in #141 — no call site remains",
+      "removedIn": "kaana-cutover-provider-runtime-retirement"
     },
     {
       "id": "adapter-perplexity",
@@ -313,9 +329,9 @@
       "domain": "provider-runtime",
       "kind": "module",
       "currentPath": "packages/api/src/internal/providers/lib/providers/perplexity.ts",
-      "reachable": "loaded-not-invoked",
+      "reachable": "dead",
       "owner": "delete",
-      "targetPath": "delete — Relay reaches this provider through its own client, not through 40 lines of base URL",
+      "targetPath": "delete — Kaana reaches this provider through its own client, not through 40 lines of base URL",
       "dependsOn": [
         "adapter-registry",
         "chat-core-get-ai-model",
@@ -323,7 +339,8 @@
       ],
       "removalGate": "None beyond editing the registry. Its proxy() has no caller at all (repo-wide `.proxy(` returned exactly one hit, the unmounted internal/providers/routes/providers.ts:138, which #141 deleted; the count is now zero), and its only knowledge — base URL api.perplexity.ai plus a default model id — is already duplicated in live code: duplicated live at chat-core.ts:176. Deleting the FILE requires editing lib/providers/index.ts, which IS live (voice-session-manager reads it), so this is not a free removal even though nothing calls it.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/internal/providers/lib/providers/perplexity.ts; registry entry at lib/providers/index.ts:31-53; sole proxy() call site was internal/providers/routes/providers.ts:138 (unmounted), deleted in #141 — no call site remains"
+      "evidence": "packages/api/src/internal/providers/lib/providers/perplexity.ts; registry entry at lib/providers/index.ts:31-53; sole proxy() call site was internal/providers/routes/providers.ts:138 (unmounted), deleted in #141 — no call site remains",
+      "removedIn": "kaana-cutover-provider-runtime-retirement"
     },
     {
       "id": "adapter-registry",
@@ -331,9 +348,9 @@
       "domain": "provider-runtime",
       "kind": "module",
       "currentPath": "packages/api/src/internal/providers/lib/providers/index.ts",
-      "reachable": "live",
-      "owner": "relay",
-      "targetPath": "relay:providers/registry.ts",
+      "reachable": "dead",
+      "owner": "kaana",
+      "targetPath": "kaana:providers/registry.ts",
       "dependsOn": [
         "adapter-grok-voice",
         "adapter-openai-voice",
@@ -341,7 +358,8 @@
       ],
       "removalGate": "voice-session-manager.ts:30 is the ONLY live importer. Removable once realtime voice no longer resolves a provider adapter in-process.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/internal/providers/lib/providers/index.ts:31-53; sole live importer packages/api/src/internal/providers/lib/voice-session-manager.ts:30"
+      "evidence": "packages/api/src/internal/providers/lib/providers/index.ts:31-53; sole live importer packages/api/src/internal/providers/lib/voice-session-manager.ts:30",
+      "removedIn": "kaana-cutover-provider-runtime-retirement"
     },
     {
       "id": "adapter-replicate",
@@ -349,16 +367,17 @@
       "domain": "provider-runtime",
       "kind": "module",
       "currentPath": "packages/api/src/internal/providers/lib/providers/replicate.ts",
-      "reachable": "loaded-not-invoked",
-      "owner": "relay",
-      "targetPath": "relay:providers/replicate.ts",
+      "reachable": "dead",
+      "owner": "kaana",
+      "targetPath": "kaana:providers/replicate.ts",
       "dependsOn": [
         "adapter-registry",
         "dead-internal-providers-router"
       ],
       "removalGate": "The MODULE is loaded in production (lib/providers/index.ts is imported by the live voice-session-manager), but its proxy() has no caller at all: repo-wide `.proxy(` returned exactly one hit, internal/providers/routes/providers.ts:138, inside the unmounted router, and #141 deleted that router — repo-wide `.proxy(` is now zero. So no runtime gate — but deleting the file means editing the LIVE registry. Unreachable today. No runtime gate.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/internal/providers/lib/providers/replicate.ts:101-135"
+      "evidence": "packages/api/src/internal/providers/lib/providers/replicate.ts:101-135",
+      "removedIn": "kaana-cutover-provider-runtime-retirement"
     },
     {
       "id": "adapter-sambanova",
@@ -366,9 +385,9 @@
       "domain": "provider-runtime",
       "kind": "module",
       "currentPath": "packages/api/src/internal/providers/lib/providers/sambanova.ts",
-      "reachable": "loaded-not-invoked",
+      "reachable": "dead",
       "owner": "delete",
-      "targetPath": "delete — Relay reaches this provider through its own client, not through 40 lines of base URL",
+      "targetPath": "delete — Kaana reaches this provider through its own client, not through 40 lines of base URL",
       "dependsOn": [
         "adapter-registry",
         "chat-core-get-ai-model",
@@ -376,7 +395,8 @@
       ],
       "removalGate": "None beyond editing the registry. Its proxy() has no caller at all (repo-wide `.proxy(` returned exactly one hit, the unmounted internal/providers/routes/providers.ts:138, which #141 deleted; the count is now zero), and its only knowledge — base URL api.sambanova.ai/v1 plus a default model id — is already duplicated in live code: duplicated live at chat-core.ts:180. Deleting the FILE requires editing lib/providers/index.ts, which IS live (voice-session-manager reads it), so this is not a free removal even though nothing calls it.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/internal/providers/lib/providers/sambanova.ts; registry entry at lib/providers/index.ts:31-53; sole proxy() call site was internal/providers/routes/providers.ts:138 (unmounted), deleted in #141 — no call site remains"
+      "evidence": "packages/api/src/internal/providers/lib/providers/sambanova.ts; registry entry at lib/providers/index.ts:31-53; sole proxy() call site was internal/providers/routes/providers.ts:138 (unmounted), deleted in #141 — no call site remains",
+      "removedIn": "kaana-cutover-provider-runtime-retirement"
     },
     {
       "id": "adapter-together",
@@ -384,9 +404,9 @@
       "domain": "provider-runtime",
       "kind": "module",
       "currentPath": "packages/api/src/internal/providers/lib/providers/together.ts",
-      "reachable": "loaded-not-invoked",
+      "reachable": "dead",
       "owner": "delete",
-      "targetPath": "delete — Relay reaches this provider through its own client, not through 40 lines of base URL",
+      "targetPath": "delete — Kaana reaches this provider through its own client, not through 40 lines of base URL",
       "dependsOn": [
         "adapter-registry",
         "chat-core-get-ai-model",
@@ -394,7 +414,8 @@
       ],
       "removalGate": "None beyond editing the registry. Its proxy() has no caller at all (repo-wide `.proxy(` returned exactly one hit, the unmounted internal/providers/routes/providers.ts:138, which #141 deleted; the count is now zero), and its only knowledge — base URL api.together.xyz/v1 plus a default model id — is already duplicated in live code: duplicated live at chat-core.ts:137. Deleting the FILE requires editing lib/providers/index.ts, which IS live (voice-session-manager reads it), so this is not a free removal even though nothing calls it.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/internal/providers/lib/providers/together.ts; registry entry at lib/providers/index.ts:31-53; sole proxy() call site was internal/providers/routes/providers.ts:138 (unmounted), deleted in #141 — no call site remains"
+      "evidence": "packages/api/src/internal/providers/lib/providers/together.ts; registry entry at lib/providers/index.ts:31-53; sole proxy() call site was internal/providers/routes/providers.ts:138 (unmounted), deleted in #141 — no call site remains",
+      "removedIn": "kaana-cutover-provider-runtime-retirement"
     },
     {
       "id": "adapter-xai",
@@ -402,9 +423,9 @@
       "domain": "provider-runtime",
       "kind": "module",
       "currentPath": "packages/api/src/internal/providers/lib/providers/xai.ts",
-      "reachable": "loaded-not-invoked",
+      "reachable": "dead",
       "owner": "delete",
-      "targetPath": "delete — Relay reaches this provider through its own client, not through 40 lines of base URL",
+      "targetPath": "delete — Kaana reaches this provider through its own client, not through 40 lines of base URL",
       "dependsOn": [
         "adapter-registry",
         "chat-core-get-ai-model",
@@ -412,7 +433,8 @@
       ],
       "removalGate": "None beyond editing the registry. Its proxy() has no caller at all (repo-wide `.proxy(` returned exactly one hit, the unmounted internal/providers/routes/providers.ts:138, which #141 deleted; the count is now zero), and its only knowledge — base URL api.x.ai/v1 plus a default model id — is already duplicated in live code: duplicated live at chat-core.ts:168; the xai entry also carries the LIVE grok-voice .voice half. Deleting the FILE requires editing lib/providers/index.ts, which IS live (voice-session-manager reads it), so this is not a free removal even though nothing calls it.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/internal/providers/lib/providers/xai.ts; registry entry at lib/providers/index.ts:31-53; sole proxy() call site was internal/providers/routes/providers.ts:138 (unmounted), deleted in #141 — no call site remains"
+      "evidence": "packages/api/src/internal/providers/lib/providers/xai.ts; registry entry at lib/providers/index.ts:31-53; sole proxy() call site was internal/providers/routes/providers.ts:138 (unmounted), deleted in #141 — no call site remains",
+      "removedIn": "kaana-cutover-provider-runtime-retirement"
     },
     {
       "id": "alia-chat-app-route-constant",
@@ -484,7 +506,7 @@
       "domain": "provider-runtime",
       "kind": "module",
       "currentPath": "packages/api/src/internal/providers/lib/alia-models.ts",
-      "reachable": "live",
+      "reachable": "dead",
       "owner": "alia",
       "targetPath": "keep",
       "dependsOn": [
@@ -497,9 +519,10 @@
         "table-model-configs",
         "tier-mappings-generated"
       ],
-      "removalGate": "STAYS IN ALIA — this is the branding layer that makes model abstraction possible and is the only thing that must NOT leak to Relay's vocabulary. What must move is TIER_MODEL_MAPPINGS (the provider routing table), not ALIA_MODELS.  || product-api inventory adds: Every id here is a public API value. It may only be retired behind the is_legacy flag that GET /v1/models already exposes, never by deletion.  || data-billing inventory adds: n/a for deletion — this is the thing the epic should be splitting. Its value is that the routing catalogue is already code, so the relay boundary can be drawn here without a data migration.",
+      "removalGate": "STAYS IN ALIA — this is the branding layer that makes model abstraction possible and is the only thing that must NOT leak to Kaana's vocabulary. What must move is TIER_MODEL_MAPPINGS (the provider routing table), not ALIA_MODELS.  || product-api inventory adds: Every id here is a public API value. It may only be retired behind the is_legacy flag that GET /v1/models already exposes, never by deletion.  || data-billing inventory adds: n/a for deletion — this is the thing the epic should be splitting. Its value is that the routing catalogue is already code, so the kaana boundary can be drawn here without a data migration.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/internal/providers/lib/alia-models.ts:61 (ALIA_MODELS), :248 (TIER_MODEL_MAPPINGS = GENERATED_TIER_MAPPINGS), :304-338 (getAvailableModels); packages/api/src/internal/providers/lib/alia-models.ts:9,61-224; packages/api/src/internal/providers/lib/alia-models.ts:248"
+      "evidence": "packages/api/src/internal/providers/lib/alia-models.ts:61 (ALIA_MODELS), :248 (TIER_MODEL_MAPPINGS = GENERATED_TIER_MAPPINGS), :304-338 (getAvailableModels); packages/api/src/internal/providers/lib/alia-models.ts:9,61-224; packages/api/src/internal/providers/lib/alia-models.ts:248",
+      "removedIn": "kaana-cutover-provider-runtime-retirement"
     },
     {
       "id": "app-analytics-models-route",
@@ -576,7 +599,7 @@
       "dependsOn": [
         "app-model-store"
       ],
-      "removalGate": "Keep the feature, but this map must become server-driven during the epic: it hard-codes both the alias graph AND the credit multipliers in a client, and it already omits two of the twelve defined aliases (alia-lite and alia-v1-audio have no entry — correct for alia-lite as the floor, unexamined for alia-v1-audio). Every alias change requires an app release to stay correct.",
+      "removalGate": "Keep the feature, but this map must become server-driven during the epic: it hard-codes both the alias graph AND the credit multipliers in a client, and it already omits two of the twelve defined aliases (kaana-lite and kaana-v1-audio have no entry — correct for kaana-lite as the floor, unexamined for kaana-v1-audio). Every alias change requires an app release to stay correct.",
       "provenance": "inventory-frontend-admin",
       "evidence": "packages/app/components/credit-warning-banner.tsx:24-35"
     },
@@ -679,14 +702,14 @@
       "kind": "behaviour",
       "currentPath": "packages/api/src/routes/v1/audio.ts",
       "reachable": "live",
-      "owner": "relay",
-      "targetPath": "relay:audio",
+      "owner": "kaana",
+      "targetPath": "kaana:audio",
       "dependsOn": [
         "digitalocean-async",
         "gwc-import-v1-audio",
         "provider-api"
       ],
-      "removalGate": "The 202-plus-poll shape exists because generation exceeds a proxy timeout. Relay must either keep the async contract or Alia must keep its own job table.",
+      "removalGate": "The 202-plus-poll shape exists because generation exceeds a proxy timeout. Kaana must either keep the async contract or Alia must keep its own job table.",
       "provenance": "re-derived",
       "evidence": "packages/api/src/routes/v1/audio.ts:166-223, :239-325, :336-370"
     },
@@ -697,15 +720,15 @@
       "kind": "behaviour",
       "currentPath": "packages/api/src/routes/v1/chat-completions.ts",
       "reachable": "live",
-      "owner": "relay",
-      "targetPath": "relay:chat (Alia keeps the global timeout + SSE contract)",
+      "owner": "kaana",
+      "targetPath": "kaana:chat (Alia keeps the global timeout + SSE contract)",
       "dependsOn": [
         "chat-core-get-ai-model",
         "chat-model-config-provider-branches",
         "gwc-import-chat-service",
         "gwc-import-v1-chat-completions"
       ],
-      "removalGate": "Relay must expose per-attempt failover semantics OR accept that Alia's 80s budget now covers a network hop it does not control. The 20s first-byte abort is the number most likely to be wrong after the hop is added.",
+      "removalGate": "Kaana must expose per-attempt failover semantics OR accept that Alia's 80s budget now covers a network hop it does not control. The 20s first-byte abort is the number most likely to be wrong after the hop is added.",
       "provenance": "re-derived",
       "evidence": "packages/api/src/routes/v1/chat-completions.ts:44, :47-63, :94; packages/api/src/lib/chat/model-config.ts:63, :116-124; packages/api/src/lib/chat/provider-loop.ts:120-137, :213, :375; packages/api/src/lib/chat/stream-runner.ts:328-333"
     },
@@ -716,13 +739,13 @@
       "kind": "behaviour",
       "currentPath": "packages/api/src/lib/memory/embeddings.ts",
       "reachable": "live",
-      "owner": "relay",
-      "targetPath": "relay:embeddings",
+      "owner": "kaana",
+      "targetPath": "kaana:embeddings",
       "dependsOn": [
         "gwc-import-embeddings",
         "provider-api"
       ],
-      "removalGate": "A hop to Relay without a timeout means a hung Relay hangs memory writes for as long as the socket stays open. Add a timeout as part of the move, and preserve 1536 dimensions.",
+      "removalGate": "A hop to Kaana without a timeout means a hung Kaana hangs memory writes for as long as the socket stays open. Add a timeout as part of the move, and preserve 1536 dimensions.",
       "provenance": "re-derived",
       "evidence": "packages/api/src/lib/memory/embeddings.ts:20-32 (no timeout/maxAttempts passed); default at packages/api/src/internal/providers/lib/provider-api.ts:103 (maxAttempts=3, timeout undefined)"
     },
@@ -733,14 +756,14 @@
       "kind": "behaviour",
       "currentPath": "packages/api/src/routes/v1/images.ts",
       "reachable": "live",
-      "owner": "relay",
-      "targetPath": "relay:images",
+      "owner": "kaana",
+      "targetPath": "kaana:images",
       "dependsOn": [
         "digitalocean-async",
         "provider-api",
         "tier-mappings-generated"
       ],
-      "removalGate": "All three copies must move together; agents-avatar additionally maps content_filter to a 400, which Relay must preserve as a distinguishable reason.",
+      "removalGate": "All three copies must move together; agents-avatar additionally maps content_filter to a 400, which Kaana must preserve as a distinguishable reason.",
       "provenance": "re-derived",
       "evidence": "packages/api/src/routes/v1/images.ts:21-23, :66-101, :103-107; packages/api/src/routes/agents-avatar.ts:137-170; packages/api/src/routes/canvas/execute.ts:256-280"
     },
@@ -751,14 +774,14 @@
       "kind": "behaviour",
       "currentPath": "packages/api/src/lib/chat/provider-loop.ts",
       "reachable": "live",
-      "owner": "relay",
-      "targetPath": "relay:routing",
+      "owner": "kaana",
+      "targetPath": "kaana:routing",
       "dependsOn": [
         "behaviour-chat-streaming",
         "fallback-engine",
         "key-manager"
       ],
-      "removalGate": "Relay must distinguish 'this credential is bad' from 'this provider is down', or a single bad key takes a whole provider out of rotation for the request.",
+      "removalGate": "Kaana must distinguish 'this credential is bad' from 'this provider is down', or a single bad key takes a whole provider out of rotation for the request.",
       "provenance": "re-derived",
       "evidence": "packages/api/src/lib/chat/provider-loop.ts:125-126, :139-148, :375"
     },
@@ -769,14 +792,14 @@
       "kind": "behaviour",
       "currentPath": "packages/api/src/routes/v1/voice.ts",
       "reachable": "live",
-      "owner": "relay",
-      "targetPath": "relay:transcription",
+      "owner": "kaana",
+      "targetPath": "kaana:transcription",
       "dependsOn": [
         "gateway-client",
         "gwc-import-v1-voice",
         "provider-api"
       ],
-      "removalGate": "The base64-to-FormData conversion lives in gateway-client.ts:355-366; Relay's contract must accept audio directly.",
+      "removalGate": "The base64-to-FormData conversion lives in gateway-client.ts:355-366; Kaana's contract must accept audio directly.",
       "provenance": "re-derived",
       "evidence": "packages/api/src/routes/v1/voice.ts:265, :304-347; packages/api/src/lib/gateway-client.ts:355-366"
     },
@@ -787,15 +810,15 @@
       "kind": "behaviour",
       "currentPath": "packages/api/src/lib/synthesize-speech.ts",
       "reachable": "live",
-      "owner": "relay",
-      "targetPath": "relay:tts",
+      "owner": "kaana",
+      "targetPath": "kaana:tts",
       "dependsOn": [
         "digitalocean-async",
         "gwc-import-synthesize-speech",
         "provider-api",
         "tts-providers"
       ],
-      "removalGate": "getProviderTimeout's fal-ai/ prefix test lives in gateway-client.ts:316-321 — a provider model-id string inside the facade. Relay must own that timing decision.",
+      "removalGate": "getProviderTimeout's fal-ai/ prefix test lives in gateway-client.ts:316-321 — a provider model-id string inside the facade. Kaana must own that timing decision.",
       "provenance": "re-derived",
       "evidence": "packages/api/src/routes/v1/audio.ts:36-38, :118-130; packages/api/src/lib/synthesize-speech.ts:45-60; packages/api/src/lib/gateway-client.ts:316-321"
     },
@@ -805,18 +828,19 @@
       "domain": "provider-runtime",
       "kind": "behaviour",
       "currentPath": "packages/api/src/internal/providers/lib/voice-session-manager.ts",
-      "reachable": "live",
-      "owner": "relay",
-      "targetPath": "relay:voice",
+      "reachable": "dead",
+      "owner": "kaana",
+      "targetPath": "kaana:voice",
       "dependsOn": [
         "adapter-grok-voice",
         "adapter-openai-voice",
         "env-livekit",
         "voice-session-manager"
       ],
-      "removalGate": "This is the only modality with NO fallback. If Relay adds a hop, the 10s connect budget and the 20s silence timer both need re-derivation, and 'provider_error' must not become 'relay_error' in a user-facing string.",
+      "removalGate": "This is the only modality with NO fallback. If Kaana adds a hop, the 10s connect budget and the 20s silence timer both need re-derivation, and 'provider_error' must not become 'kaana_error' in a user-facing string.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/internal/providers/lib/voice-session-manager.ts:99-104, :43, :229, :536-546; packages/api/src/internal/providers/lib/providers/openai-voice.ts:48, :52-55; packages/api/src/routes/v1/voice.ts:42-60 (entitlement + minutes cap)"
+      "evidence": "packages/api/src/internal/providers/lib/voice-session-manager.ts:99-104, :43, :229, :536-546; packages/api/src/internal/providers/lib/providers/openai-voice.ts:48, :52-55; packages/api/src/routes/v1/voice.ts:42-60 (entitlement + minutes cap)",
+      "removedIn": "kaana-cutover-provider-runtime-retirement"
     },
     {
       "id": "canvas-model-list",
@@ -842,10 +866,10 @@
       "owner": "alia",
       "targetPath": "keep-alia-product",
       "dependsOn": [
-        "model-id-alia-lite",
+        "model-id-kaana-lite",
         "v1-models-list"
       ],
-      "removalGate": "Saved workflows persist the model id in node data, so retiring alia-lite invalidates stored user workflows, not just UI defaults. The client no longer WRITES one (a new node stores no `model`) and no longer reads GET /v1/models (it reads GET /catalogue), but rows written before that change still hold the old id, so this stays open until those rows are counted and migrated.",
+      "removalGate": "Saved workflows persist the model id in node data, so retiring kaana-lite invalidates stored user workflows, not just UI defaults. The client no longer WRITES one (a new node stores no `model`) and no longer reads GET /v1/models (it reads GET /catalogue), but rows written before that change still hold the old id, so this stays open until those rows are counted and migrated.",
       "provenance": "inventory-product-api",
       "evidence": "packages/alia-canvas/src/lib/product-modes.ts; packages/alia-canvas/src/components/workflow/workflow-editor.tsx (no model field in either AI node default)"
     },
@@ -856,8 +880,8 @@
       "kind": "module",
       "currentPath": "packages/api/src/lib/chat-core.ts",
       "reachable": "live",
-      "owner": "relay",
-      "targetPath": "relay:client (Alia keeps a thin resolveModel that returns a Relay-backed LanguageModel)",
+      "owner": "kaana",
+      "targetPath": "kaana:client (Alia keeps a thin resolveModel that returns a Kaana-backed LanguageModel)",
       "dependsOn": [
         "gateway-client",
         "hostname-anthropic",
@@ -881,13 +905,13 @@
       "kind": "behaviour",
       "currentPath": "packages/api/src/lib/chat/model-config.ts",
       "reachable": "live",
-      "owner": "relay",
-      "targetPath": "relay:capabilities (thinking/reasoning as a capability flag)",
+      "owner": "kaana",
+      "targetPath": "kaana:capabilities (thinking/reasoning as a capability flag)",
       "dependsOn": [
         "behaviour-chat-streaming",
         "chat-core-get-ai-model"
       ],
-      "removalGate": "Relay must express 'thinking mode' and 'reasoning traces' as provider-agnostic options, otherwise thinking mode silently stops working when routing moves off anthropic/google.",
+      "removalGate": "Kaana must express 'thinking mode' and 'reasoning traces' as provider-agnostic options, otherwise thinking mode silently stops working when routing moves off anthropic/google.",
       "provenance": "re-derived",
       "evidence": "packages/api/src/lib/chat/model-config.ts:63 (maxRetries 0), :87-90 (anthropic), :95-99 (google), :116-124 (FIRST_BYTE_TIMEOUT_MS 20s)"
     },
@@ -904,7 +928,7 @@
         "alia-models",
         "codea-cli-consumer"
       ],
-      "removalGate": "Any new id not matching alia-v1-<x> (e.g. alia-lite, or a future alia-v2) is unreachable from the CLI's /model command and renders wrong in its status bar. Fix before adding ids outside the pattern.",
+      "removalGate": "Any new id not matching kaana-v1-<x> (e.g. kaana-lite, or a future alia-v2) is unreachable from the CLI's /model command and renders wrong in its status bar. Fix before adding ids outside the pattern.",
       "provenance": "inventory-product-api",
       "evidence": "packages/alia-codea-cli/src/app.tsx:146,256"
     },
@@ -918,7 +942,7 @@
       "owner": "alia",
       "targetPath": "keep-alia-product",
       "dependsOn": [
-        "model-id-alia-v1-codea",
+        "model-id-kaana-v1-codea",
         "v1-chat-completions-post"
       ],
       "removalGate": "Marketplace-published; users run pinned old versions indefinitely. Wire changes need server-side back-compat, not a client release.",
@@ -953,7 +977,7 @@
       "owner": "alia",
       "targetPath": "keep-alia-product",
       "dependsOn": [
-        "model-id-alia-v1-codea",
+        "model-id-kaana-v1-codea",
         "v1-chat-completions-post"
       ],
       "removalGate": "npm-published CLI. Because it ignores named events, it is the client most likely to break on a change to the DEFAULT data: frame, and least likely to notice event additions.",
@@ -1000,7 +1024,7 @@
       "owner": "alia",
       "targetPath": "keep-alia-product",
       "dependsOn": [
-        "model-id-alia-v1-codea",
+        "model-id-kaana-v1-codea",
         "v1-chat-completions-post"
       ],
       "removalGate": "Same as codea-chat-participant-consumer.",
@@ -1063,7 +1087,7 @@
       "owner": "alia",
       "targetPath": "keep-as-alia-product-setting",
       "dependsOn": [],
-      "removalGate": "Keep. Same shipped-binary inertia as the SDK: a VS Code extension in the marketplace keeps sending 'alia-v1-codea' until each user updates.",
+      "removalGate": "Keep. Same shipped-binary inertia as the SDK: a VS Code extension in the marketplace keeps sending 'kaana-v1-codea' until each user updates.",
       "provenance": "inventory-frontend-admin",
       "evidence": "packages/alia-codea/webview-ui/src/components/Chat.tsx:183-186,200"
     },
@@ -1109,7 +1133,7 @@
       "currentPath": "packages/api/src/lib/credits-manager.ts",
       "reachable": "live",
       "owner": "alia",
-      "targetPath": "alia — the credit is the product unit; relay bills Alia in dollars, Alia bills the user in credits",
+      "targetPath": "alia — the credit is the product unit; kaana bills Alia in dollars, Alia bills the user in credits",
       "dependsOn": [
         "table-alia-models",
         "table-user-credits"
@@ -1142,15 +1166,16 @@
       "domain": "data-billing",
       "kind": "behaviour",
       "currentPath": "packages/api/src/internal/providers/lib/key-manager.ts",
-      "reachable": "live",
-      "owner": "relay",
-      "targetPath": "relay",
+      "reachable": "dead",
+      "owner": "kaana",
+      "targetPath": "kaana",
       "dependsOn": [
         "table-provider-keys"
       ],
       "removalGate": "production row count audited. Note the seven writer files reach this through THREE same-named re-export layers (key-manager, gateway-client, chat.service) — a census of the repository's own function name finds one call site and misses six.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/db/schema/providers.ts:342"
+      "evidence": "packages/api/src/db/schema/providers.ts:342",
+      "removedIn": "kaana-cutover-provider-runtime-retirement"
     },
     {
       "id": "concept-referral-credits",
@@ -1421,7 +1446,7 @@
       "dependsOn": [
         "console-hook-models-stats"
       ],
-      "removalGate": "Keep the screen, but this is a real defect to fix during the epic: it duplicates the catalog rather than reading GET /models/stats like its sibling /models screen does, so it is already stale by eight aliases and will silently drift further as relay takes over the catalog.",
+      "removalGate": "Keep the screen, but this is a real defect to fix during the epic: it duplicates the catalog rather than reading GET /models/stats like its sibling /models screen does, so it is already stale by eight aliases and will silently drift further as kaana takes over the catalog.",
       "provenance": "inventory-frontend-admin",
       "evidence": "packages/alia-console/src/routes/_layout/documentation/models.tsx:13,23,33,43 vs the 12 aliases in packages/api/src/internal/providers/lib/alia-models.ts:62-212"
     },
@@ -1465,7 +1490,7 @@
       "dependsOn": [],
       "removalGate": "Keep — it documents the Alia public API. It does name the OpenAI SDK as a client library (:47,63,120), which is a wire-format compatibility claim about the CLIENT, not a statement about who serves inference. Judgment call flagged, not a violation.",
       "provenance": "inventory-frontend-admin",
-      "evidence": "packages/alia-console/src/routes/_layout/examples.tsx:37,55,71,83,96,146,176 (alia-v1); :47,63,120 (openai SDK)"
+      "evidence": "packages/alia-console/src/routes/_layout/examples.tsx:37,55,71,83,96,146,176 (kaana-v1); :47,63,120 (openai SDK)"
     },
     {
       "id": "console-screen-index-redirect",
@@ -1571,12 +1596,12 @@
       "currentPath": "packages/api/src/lib/cost-calculator.ts",
       "reachable": "dead",
       "owner": "alia",
-      "targetPath": "keep (source pricing from Relay)",
+      "targetPath": "keep (source pricing from Kaana)",
       "dependsOn": [
         "alia-models",
         "tier-mappings-generated"
       ],
-      "removalGate": "UNDECIDED — MEASURED DEAD: `cost-calculator.ts` has ZERO importers repo-wide (positive control: the same scan finds 2 importers of lib/sse-emitter.ts), so the \"what Alia's routing saved you\" feature does not ship today. Either it is built — and then it needs per-tier pricing from Relay, since it reads TIER_MODEL_MAPPINGS directly, bypassing gateway-client — or the file is deleted. Do not schedule a port of dead code.  || inventory gate, kept for the record: One of only three product files that reach into internal/providers WITHOUT going through gateway-client, so a facade-only migration misses it. Needs per-tier pricing from Relay or the feature dies.",
+      "removalGate": "UNDECIDED — MEASURED DEAD: `cost-calculator.ts` has ZERO importers repo-wide (positive control: the same scan finds 2 importers of lib/sse-emitter.ts), so the \"what Alia's routing saved you\" feature does not ship today. Either it is built — and then it needs per-tier pricing from Kaana, since it reads TIER_MODEL_MAPPINGS directly, bypassing gateway-client — or the file is deleted. Do not schedule a port of dead code.  || inventory gate, kept for the record: One of only three product files that reach into internal/providers WITHOUT going through gateway-client, so a facade-only migration misses it. Needs per-tier pricing from Kaana or the feature dies.",
       "provenance": "re-derived",
       "evidence": "packages/api/src/lib/cost-calculator.ts:11-12"
     },
@@ -1588,7 +1613,7 @@
       "currentPath": "packages/api/src/lib/cost-tracker.ts",
       "reachable": "live",
       "owner": "alia",
-      "targetPath": "keep (source pricing from Relay)",
+      "targetPath": "keep (source pricing from Kaana)",
       "dependsOn": [
         "model-capabilities-data"
       ],
@@ -1623,7 +1648,7 @@
       "owner": "alia",
       "targetPath": "keep-alia-product",
       "dependsOn": [
-        "model-id-alia-v1-cowork",
+        "model-id-kaana-v1-cowork",
         "v1-chat-completions-post",
         "v1-me",
         "v1-models-list"
@@ -1658,7 +1683,7 @@
       "owner": "alia",
       "targetPath": "keep-as-alia-product-setting",
       "dependsOn": [],
-      "removalGate": "Keep. Note tools.ts:454 pins alia-v1-browser with the inline comment 'Browser automation specialist model' — a capability-to-alias binding hard-coded in a desktop binary, which is the pattern most likely to break silently when relay owns capability routing.",
+      "removalGate": "Keep. Note tools.ts:454 pins kaana-v1-browser with the inline comment 'Browser automation specialist model' — a capability-to-alias binding hard-coded in a desktop binary, which is the pattern most likely to break silently when kaana owns capability routing.",
       "provenance": "inventory-frontend-admin",
       "evidence": "packages/alia-cowork/renderer/src/components/Chat.tsx:114-117,162; packages/alia-cowork/src/main/auth.ts:26; packages/alia-cowork/src/main/chat.ts:30; packages/alia-cowork/src/main/tools.ts:454"
     },
@@ -1676,7 +1701,7 @@
         "tier-mappings-generated",
         "voice-session-manager"
       ],
-      "removalGate": "STAYS IN ALIA (credits are Alia's), but costPerMinute comes from the ModelMapping, i.e. from the provider routing table. Relay must report a per-minute cost or voice billing silently reserves at zero.",
+      "removalGate": "STAYS IN ALIA (credits are Alia's), but costPerMinute comes from the ModelMapping, i.e. from the provider routing table. Kaana must report a per-minute cost or voice billing silently reserves at zero.",
       "provenance": "re-derived",
       "evidence": "packages/api/src/lib/credits-manager.ts:292, :319; packages/api/src/internal/providers/lib/voice-session-manager.ts:27-28, :160, :325, :332, :680, :797"
     },
@@ -1686,13 +1711,14 @@
       "domain": "data-billing",
       "kind": "module",
       "currentPath": "packages/api/src/db/providers/aliaModelRepository.ts",
-      "reachable": "live",
+      "reachable": "dead",
       "owner": "alia",
       "targetPath": "alia: product catalogue store",
       "dependsOn": [],
-      "removalGate": "Statements against alia_models and alia_model_provider_mappings. listAliaModels is the one live read outside the dead subtree (the isLegacy flag). The isLegacy read at internal/providers/lib/alia-models.ts:311 has an Alia-side home. The provider MAPPINGS half moves to Relay; the branded half stays.",
+      "removalGate": "Statements against alia_models and alia_model_provider_mappings. listAliaModels is the one live read outside the dead subtree (the isLegacy flag). The isLegacy read at internal/providers/lib/alia-models.ts:311 has an Alia-side home. The provider MAPPINGS half moves to Kaana; the branded half stays.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/db/providers/aliaModelRepository.ts"
+      "evidence": "packages/api/src/db/providers/aliaModelRepository.ts",
+      "removedIn": "kaana-cutover-provider-runtime-retirement"
     },
     {
       "id": "db-repo-external-model",
@@ -1715,8 +1741,8 @@
       "kind": "module",
       "currentPath": "packages/api/src/db/providers/modelConfigRepository.ts",
       "reachable": "live",
-      "owner": "relay",
-      "targetPath": "relay: upstream catalogue store",
+      "owner": "kaana",
+      "targetPath": "kaana: upstream catalogue store",
       "dependsOn": [],
       "removalGate": "Statements against model_configs. Moves with table-model-configs. Measured test-only today: no runtime-reachable file imports it.",
       "provenance": "re-derived",
@@ -1728,15 +1754,16 @@
       "domain": "data-billing",
       "kind": "module",
       "currentPath": "packages/api/src/db/providers/providerKeyRepository.ts",
-      "reachable": "live",
-      "owner": "relay",
-      "targetPath": "relay: credential store",
+      "reachable": "dead",
+      "owner": "kaana",
+      "targetPath": "kaana: credential store",
       "dependsOn": [
         "table-provider-keys"
       ],
       "removalGate": "Every statement against provider_keys, including the plaintext `key` column. Moves with table-provider-keys. Its loadActiveProviderKeys/findProviderKeyById both `select()` the whole row, so the plaintext key crosses this boundary on every read.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/db/providers/providerKeyRepository.ts"
+      "evidence": "packages/api/src/db/providers/providerKeyRepository.ts",
+      "removedIn": "kaana-cutover-provider-runtime-retirement"
     },
     {
       "id": "dead-auth-health-lib",
@@ -1909,8 +1936,8 @@
       "currentPath": "packages/api/src/internal/providers/routes/alia-models.ts",
       "removedIn": "#141",
       "reachable": "dead",
-      "owner": "relay",
-      "targetPath": "relay: catalogue admin",
+      "owner": "kaana",
+      "targetPath": "kaana: catalogue admin",
       "dependsOn": [
         "dead-internal-providers-router"
       ],
@@ -1977,8 +2004,8 @@
       "currentPath": "packages/api/src/internal/providers/routes/fallback-stats.ts",
       "removedIn": "#141",
       "reachable": "dead",
-      "owner": "relay",
-      "targetPath": "relay: routing telemetry",
+      "owner": "kaana",
+      "targetPath": "kaana: routing telemetry",
       "dependsOn": [
         "dead-internal-providers-router"
       ],
@@ -2011,8 +2038,8 @@
       "currentPath": "packages/api/src/internal/providers/routes/keys.ts",
       "removedIn": "#141",
       "reachable": "dead",
-      "owner": "relay",
-      "targetPath": "relay: provider credential admin",
+      "owner": "kaana",
+      "targetPath": "kaana: provider credential admin",
       "dependsOn": [
         "dead-internal-providers-router"
       ],
@@ -2028,8 +2055,8 @@
       "currentPath": "packages/api/src/internal/providers/routes/models.ts",
       "removedIn": "#141",
       "reachable": "dead",
-      "owner": "relay",
-      "targetPath": "relay: upstream catalogue admin",
+      "owner": "kaana",
+      "targetPath": "kaana: upstream catalogue admin",
       "dependsOn": [
         "dead-internal-providers-router"
       ],
@@ -2079,8 +2106,8 @@
       "currentPath": "packages/api/src/internal/providers/routes/usage.ts",
       "removedIn": "#141",
       "reachable": "dead",
-      "owner": "relay",
-      "targetPath": "relay: usage reporting",
+      "owner": "kaana",
+      "targetPath": "kaana: usage reporting",
       "dependsOn": [
         "dead-internal-providers-router"
       ],
@@ -2192,7 +2219,7 @@
         "env-database-url",
         "table-provider-keys"
       ],
-      "removalGate": "If Relay needs a shared secret from Alia, it must be ADDED here and to terraform in the same change — a render carries forward every secret it is not told to replace, so a half-added secret fails only at scale-up.",
+      "removalGate": "If Kaana needs a shared secret from Alia, it must be ADDED here and to terraform in the same change — a render carries forward every secret it is not told to replace, so a half-added secret fails only at scale-up.",
       "provenance": "inventory-provider-runtime",
       "evidence": ".github/workflows/deploy-aws.yml:66-76 (env block), :88-97 (sync_secret calls)"
     },
@@ -2202,16 +2229,17 @@
       "domain": "provider-runtime",
       "kind": "module",
       "currentPath": "packages/api/src/internal/providers/lib/digitalocean-async.ts",
-      "reachable": "live",
-      "owner": "relay",
-      "targetPath": "relay:providers/digitalocean-async.ts",
+      "reachable": "dead",
+      "owner": "kaana",
+      "targetPath": "kaana:providers/digitalocean-async.ts",
       "dependsOn": [
         "hostname-digitalocean",
         "provider-api"
       ],
-      "removalGate": "LIVE and its helpers leak OUT of internal/: extractImageUrl/extractAudioUrl are imported by 5 product files (routes/agents-avatar.ts:9, routes/canvas/execute.ts:19, routes/v1/audio.ts:18, routes/v1/images.ts:8, lib/show/show-pipeline.ts:23). Relay must return a normalised {url} so those 5 imports disappear.",
+      "removalGate": "LIVE and its helpers leak OUT of internal/: extractImageUrl/extractAudioUrl are imported by 5 product files (routes/agents-avatar.ts:9, routes/canvas/execute.ts:19, routes/v1/audio.ts:18, routes/v1/images.ts:8, lib/show/show-pipeline.ts:23). Kaana must return a normalised {url} so those 5 imports disappear.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/internal/providers/lib/digitalocean-async.ts:12-14, :66-148, :154-163; 5 product importers listed above"
+      "evidence": "packages/api/src/internal/providers/lib/digitalocean-async.ts:12-14, :66-148, :154-163; 5 product importers listed above",
+      "removedIn": "kaana-cutover-provider-runtime-retirement"
     },
     {
       "id": "doc-agents-and-proactive",
@@ -2467,12 +2495,12 @@
       "currentPath": "packages/api/src/lib/gateway-client.ts",
       "reachable": "live",
       "owner": "alia",
-      "targetPath": "keep (repoint at Relay)",
+      "targetPath": "keep (repoint at Kaana)",
       "dependsOn": [
         "gateway-admin-ai-tool",
         "gateway-client"
       ],
-      "removalGate": "Also read by lib/tools/gateway-admin.ts:7 and by the gateway-admin frontend. Setting it to Relay would silently re-enable that broken admin tool against Relay's URL — deal with the tool first.",
+      "removalGate": "Also read by lib/tools/gateway-admin.ts:7 and by the gateway-admin frontend. Setting it to Kaana would silently re-enable that broken admin tool against Kaana's URL — deal with the tool first.",
       "provenance": "re-derived",
       "evidence": "packages/api/src/lib/gateway-client.ts:30, :33; packages/api/src/lib/tools/gateway-admin.ts:7; packages/api/.env.example:80"
     },
@@ -2488,7 +2516,7 @@
       "dependsOn": [
         "adapter-grok-voice"
       ],
-      "removalGate": "None, and it is even more inert than it looks: its only read is `!!process.env.GROK_API_KEY || true` inside `grokVoiceProvider.isEnabled`, and `isEnabled` has ZERO call sites repo-wide — 24 definitions of the member across the adapter files, no invocation anywhere (positive control: the same scan finds all 24 definitions). So the read never executes. Remove it rather than carrying it into Relay config as if it mattered; and note the whole `Provider.isEnabled` member is dead with it.  || inventory gate, kept for the record: NONE — removing it changes no behaviour, which is exactly why it should go rather than be carried into Relay's config as if it mattered.",
+      "removalGate": "None, and it is even more inert than it looks: its only read is `!!process.env.GROK_API_KEY || true` inside `grokVoiceProvider.isEnabled`, and `isEnabled` has ZERO call sites repo-wide — 24 definitions of the member across the adapter files, no invocation anywhere (positive control: the same scan finds all 24 definitions). So the read never executes. Remove it rather than carrying it into Kaana config as if it mattered; and note the whole `Provider.isEnabled` member is dead with it.  || inventory gate, kept for the record: NONE — removing it changes no behaviour, which is exactly why it should go rather than be carried into Kaana's config as if it mattered.",
       "provenance": "re-derived",
       "evidence": "packages/api/src/internal/providers/lib/providers/grok-voice.ts:52 (only read repo-wide). The packages/api/.env.example entry this row also cited was removed by #139 workstream 8, after re-deriving the unreachability the removalGate asserts: 24 isEnabled definitions under packages/api/src, zero call sites repo-wide. The adapter's dead read is what remains, and it dies with the adapter."
     },
@@ -2504,7 +2532,7 @@
       "dependsOn": [
         "behaviour-voice-realtime"
       ],
-      "removalGate": "Stays with Alia unless Relay terminates LiveKit.",
+      "removalGate": "Stays with Alia unless Kaana terminates LiveKit.",
       "provenance": "re-derived",
       "evidence": "packages/api/src/lib/livekit-token.ts:22; .github/workflows/deploy-aws.yml:73-74, :92-93; packages/api/.env.example:103-106"
     },
@@ -2549,14 +2577,14 @@
       "kind": "module",
       "currentPath": "packages/api/src/lib/errors/failover-error.ts",
       "reachable": "live",
-      "owner": "relay",
-      "targetPath": "relay:errors (Relay returns a normalised reason)",
+      "owner": "kaana",
+      "targetPath": "kaana:errors (Kaana returns a normalised reason)",
       "dependsOn": [
         "fallback-engine",
         "provider-api",
         "sanitize-message"
       ],
-      "removalGate": "Alia must keep FailoverReason as its own vocabulary (credits, retry, UI messaging all key off it). What moves to Relay is the provider-shape PARSING, not the enum.",
+      "removalGate": "Alia must keep FailoverReason as its own vocabulary (credits, retry, UI messaging all key off it). What moves to Kaana is the provider-shape PARSING, not the enum.",
       "provenance": "re-derived",
       "evidence": "packages/api/src/lib/errors/failover-error.ts:130-192 (getProviderErrorData), :253-342 (classifyError), :265 (529 = Anthropic overloaded), :266-267 (400 deliberately omitted)"
     },
@@ -2566,9 +2594,9 @@
       "domain": "provider-runtime",
       "kind": "module",
       "currentPath": "packages/api/src/internal/providers/lib/fallback-engine.ts",
-      "reachable": "live",
-      "owner": "relay",
-      "targetPath": "relay:routing/fallback.ts",
+      "reachable": "dead",
+      "owner": "kaana",
+      "targetPath": "kaana:routing/fallback.ts",
       "dependsOn": [
         "alia-models",
         "key-manager",
@@ -2576,9 +2604,10 @@
         "provider-health",
         "table-fallback-events"
       ],
-      "removalGate": "Reachable only through model-resolver. Gate: Relay implements tier-ordered failover AND Alia stops needing per-attempt FallbackAttempt data for its own telemetry.",
+      "removalGate": "Reachable only through model-resolver. Gate: Kaana implements tier-ordered failover AND Alia stops needing per-attempt FallbackAttempt data for its own telemetry.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/internal/providers/lib/fallback-engine.ts:83-86 (NON_RETRYABLE_REASONS), :110 (candidatesUnderPolicy, the fallback-policy narrowing), :164 (UnregisteredModelError refusal), :185 (priority sort), :196 (MAX_KEYS_PER_PROVIDER), :209 (circuit check), :51 (fallbackEventRepository)"
+      "evidence": "packages/api/src/internal/providers/lib/fallback-engine.ts:83-86 (NON_RETRYABLE_REASONS), :110 (candidatesUnderPolicy, the fallback-policy narrowing), :164 (UnregisteredModelError refusal), :185 (priority sort), :196 (MAX_KEYS_PER_PROVIDER), :209 (circuit check), :51 (fallbackEventRepository)",
+      "removedIn": "kaana-cutover-provider-runtime-retirement"
     },
     {
       "id": "field-provider-keys-key",
@@ -2587,12 +2616,12 @@
       "kind": "column",
       "currentPath": "packages/api/src/db/schema/providers.ts",
       "reachable": "live",
-      "owner": "relay",
-      "targetPath": "relay secret store (SSM/secrets manager), never an application table",
+      "owner": "kaana",
+      "targetPath": "kaana secret store (SSM/secrets manager), never an application table",
       "dependsOn": [
         "table-provider-keys"
       ],
-      "removalGate": "production row count audited AND every value rotated upstream AND the six read sites above re-pointed at the relay. The schema comment states there is NO protected-column mechanism in this service — the comment and CONVENTIONS.md are the whole of the protection.",
+      "removalGate": "production row count audited AND every value rotated upstream AND the six read sites above re-pointed at the kaana. The schema comment states there is NO protected-column mechanism in this service — the comment and CONVENTIONS.md are the whole of the protection.",
       "provenance": "re-derived",
       "evidence": "packages/api/src/db/schema/providers.ts:315"
     },
@@ -2603,8 +2632,8 @@
       "kind": "column",
       "currentPath": "packages/api/src/db/schema/providers.ts",
       "reachable": "live",
-      "owner": "relay",
-      "targetPath": "relay",
+      "owner": "kaana",
+      "targetPath": "kaana",
       "dependsOn": [
         "table-provider-keys"
       ],
@@ -2664,8 +2693,8 @@
       "currentPath": "packages/alia-gateway-admin/src/components/models/FallbackChain.tsx",
       "removedIn": "#141",
       "reachable": "dead",
-      "owner": "relay",
-      "targetPath": "internal-relay-ops",
+      "owner": "kaana",
+      "targetPath": "internal-kaana-ops",
       "dependsOn": [
         "ga-screen-models"
       ],
@@ -2764,12 +2793,12 @@
       "currentPath": "packages/alia-gateway-admin/src/lib/websocket/client.ts",
       "removedIn": "#141",
       "reachable": "dead",
-      "owner": "relay",
-      "targetPath": "internal-relay-ops",
+      "owner": "kaana",
+      "targetPath": "internal-kaana-ops",
       "dependsOn": [
         "ga-api-client"
       ],
-      "removalGate": "MEASURED DEAD, which changes this gate: every endpoint this screen calls is unmounted — packages/api/src/index.ts mounts 46 routers and none serves /internal/gateway or /internal/providers, and internal/providers/index.ts is unreachable from all three build entrypoints. So the screen cannot perform the function its inventory gate assumed it still performs; the gate below is about the FUNCTION finding a home, not about this UI continuing to work. Relay's ops UI has its own live channel, or the dashboards drop to polling. Independent hazard to record now: this client puts the bearer token in the WebSocket URL QUERY STRING (client.ts:60), where it lands in proxy and server access logs. Do not port that pattern.",
+      "removalGate": "MEASURED DEAD, which changes this gate: every endpoint this screen calls is unmounted — packages/api/src/index.ts mounts 46 routers and none serves /internal/gateway or /internal/providers, and internal/providers/index.ts is unreachable from all three build entrypoints. So the screen cannot perform the function its inventory gate assumed it still performs; the gate below is about the FUNCTION finding a home, not about this UI continuing to work. Kaana's ops UI has its own live channel, or the dashboards drop to polling. Independent hazard to record now: this client puts the bearer token in the WebSocket URL QUERY STRING (client.ts:60), where it lands in proxy and server access logs. Do not port that pattern.",
       "provenance": "re-derived",
       "evidence": "packages/alia-gateway-admin/src/lib/websocket/client.ts:34-35 (URL derivation), :60 (`?token=` in the URL), packages/alia-gateway-admin/src/lib/websocket/hooks.ts:54-95"
     },
@@ -2815,13 +2844,13 @@
       "currentPath": "packages/alia-gateway-admin/src/pages/Dashboard.tsx",
       "removedIn": "#141",
       "reachable": "dead",
-      "owner": "relay",
-      "targetPath": "internal-relay-ops",
+      "owner": "kaana",
+      "targetPath": "internal-kaana-ops",
       "dependsOn": [
         "ga-api-client",
         "ga-realtime-client"
       ],
-      "removalGate": "MEASURED DEAD, which changes this gate: every endpoint this screen calls is unmounted — packages/api/src/index.ts mounts 46 routers and none serves /internal/gateway or /internal/providers, and internal/providers/index.ts is unreachable from all three build entrypoints. So the screen cannot perform the function its inventory gate assumed it still performs; the gate below is about the FUNCTION finding a home, not about this UI continuing to work. Relay has an equivalent provider-health and provider-spend dashboard. Everything on this screen is provider-segmented, so none of it can be surfaced to an Alia user or an Oxy customer without breaking model abstraction.",
+      "removalGate": "MEASURED DEAD, which changes this gate: every endpoint this screen calls is unmounted — packages/api/src/index.ts mounts 46 routers and none serves /internal/gateway or /internal/providers, and internal/providers/index.ts is unreachable from all three build entrypoints. So the screen cannot perform the function its inventory gate assumed it still performs; the gate below is about the FUNCTION finding a home, not about this UI continuing to work. Kaana has an equivalent provider-health and provider-spend dashboard. Everything on this screen is provider-segmented, so none of it can be surfaced to an Alia user or an Oxy customer without breaking model abstraction.",
       "provenance": "re-derived",
       "evidence": "packages/alia-gateway-admin/src/pages/Dashboard.tsx:770 (renders `{key.provider} -- {key.keyPrefix}`), :129,136,144 (getAllProviderHealth/listKeys/getDashboardStats), packages/alia-gateway-admin/src/lib/api/client.ts:515-549 (costsByProvider, spendByProvider, alerts.failingKeys[].keyPrefix, nearCreditLimitKeys[].keyPrefix)"
     },
@@ -2851,12 +2880,12 @@
       "currentPath": "packages/alia-gateway-admin/src/pages/Keys.tsx",
       "removedIn": "#141",
       "reachable": "dead",
-      "owner": "relay",
-      "targetPath": "internal-relay-ops",
+      "owner": "kaana",
+      "targetPath": "internal-kaana-ops",
       "dependsOn": [
         "ga-api-client"
       ],
-      "removalGate": "MEASURED DEAD, which changes this gate: every endpoint this screen calls is unmounted — packages/api/src/index.ts mounts 46 routers and none serves /internal/gateway or /internal/providers, and internal/providers/index.ts is unreachable from all three build entrypoints. So the screen cannot perform the function its inventory gate assumed it still performs; the gate below is about the FUNCTION finding a home, not about this UI continuing to work. The FUNCTION — rotating a live upstream provider credential — has a home (Relay, or a documented manual procedure). Today there is none: the screen is dead UI, so provider keys are rotated by hand against the provider_keys table. Say that out loud before deleting, because the inventory gate \"do not delete while it is the only way to rotate a key\" reads as if the capability exists.  || inventory gate, kept for the record: Relay owns provider credentials end to end (create/rotate/deactivate/reload) AND the /internal/gateway/v1/keys* endpoints this screen calls are retired. Do not delete this screen while it is the only way to rotate a live provider key.",
+      "removalGate": "MEASURED DEAD, which changes this gate: every endpoint this screen calls is unmounted — packages/api/src/index.ts mounts 46 routers and none serves /internal/gateway or /internal/providers, and internal/providers/index.ts is unreachable from all three build entrypoints. So the screen cannot perform the function its inventory gate assumed it still performs; the gate below is about the FUNCTION finding a home, not about this UI continuing to work. The FUNCTION — rotating a live upstream provider credential — has a home (Kaana, or a documented manual procedure). Today there is none: the screen is dead UI, so provider keys are rotated by hand against the provider_keys table. Say that out loud before deleting, because the inventory gate \"do not delete while it is the only way to rotate a key\" reads as if the capability exists.  || inventory gate, kept for the record: Kaana owns provider credentials end to end (create/rotate/deactivate/reload) AND the /internal/gateway/v1/keys* endpoints this screen calls are retired. Do not delete this screen while it is the only way to rotate a live provider key.",
       "provenance": "re-derived",
       "evidence": "packages/alia-gateway-admin/src/pages/Keys.tsx:346-348 (raw provider key <Input>), :630 (renders key.keyPrefix), :802 (keyPrefix in the rotate dialog), :178-179 (rotateKey mutation), :199 (reloadKeys)"
     },
@@ -2883,12 +2912,12 @@
       "currentPath": "packages/alia-gateway-admin/src/pages/Logs.tsx",
       "removedIn": "#141",
       "reachable": "dead",
-      "owner": "relay",
-      "targetPath": "internal-relay-ops",
+      "owner": "kaana",
+      "targetPath": "internal-kaana-ops",
       "dependsOn": [
         "ga-api-client"
       ],
-      "removalGate": "MEASURED DEAD, which changes this gate: every endpoint this screen calls is unmounted — packages/api/src/index.ts mounts 46 routers and none serves /internal/gateway or /internal/providers, and internal/providers/index.ts is unreachable from all three build entrypoints. So the screen cannot perform the function its inventory gate assumed it still performs; the gate below is about the FUNCTION finding a home, not about this UI continuing to work. Relay owns request logging and its operator UI. The provider filter facet is the abstraction-breaking part and must not be re-exposed on any Alia-branded surface.",
+      "removalGate": "MEASURED DEAD, which changes this gate: every endpoint this screen calls is unmounted — packages/api/src/index.ts mounts 46 routers and none serves /internal/gateway or /internal/providers, and internal/providers/index.ts is unreachable from all three build entrypoints. So the screen cannot perform the function its inventory gate assumed it still performs; the gate below is about the FUNCTION finding a home, not about this UI continuing to work. Kaana owns request logging and its operator UI. The provider filter facet is the abstraction-breaking part and must not be re-exposed on any Alia-branded surface.",
       "provenance": "re-derived",
       "evidence": "packages/alia-gateway-admin/src/pages/Logs.tsx:118,126,138 (getLogStats/getLogProviders/getLogs), packages/alia-gateway-admin/src/lib/api/client.ts:448-473"
     },
@@ -2900,16 +2929,16 @@
       "currentPath": "packages/alia-gateway-admin/src/pages/Models.tsx",
       "removedIn": "#141",
       "reachable": "dead",
-      "owner": "relay",
-      "targetPath": "internal-relay-ops",
+      "owner": "kaana",
+      "targetPath": "internal-kaana-ops",
       "dependsOn": [
         "ga-api-client",
         "ga-component-fallback-chain",
         "ga-types-providers"
       ],
-      "removalGate": "MEASURED DEAD, which changes this gate: every endpoint this screen calls is unmounted — packages/api/src/index.ts mounts 46 routers and none serves /internal/gateway or /internal/providers, and internal/providers/index.ts is unreachable from all three build entrypoints. So the screen cannot perform the function its inventory gate assumed it still performs; the gate below is about the FUNCTION finding a home, not about this UI continuing to work. Relay owns the alias-to-provider mapping table and its fallback ordering, with an equivalent editor. This is the single screen that most directly encodes 'Alia knows which provider serves which alias' — it is the heart of what the epic decouples, so it must move rather than be dropped.",
+      "removalGate": "MEASURED DEAD, which changes this gate: every endpoint this screen calls is unmounted — packages/api/src/index.ts mounts 46 routers and none serves /internal/gateway or /internal/providers, and internal/providers/index.ts is unreachable from all three build entrypoints. So the screen cannot perform the function its inventory gate assumed it still performs; the gate below is about the FUNCTION finding a home, not about this UI continuing to work. Kaana owns the alias-to-provider mapping table and its fallback ordering, with an equivalent editor. This is the single screen that most directly encodes 'Alia knows which provider serves which alias' — it is the heart of what the epic decouples, so it must move rather than be dropped.",
       "provenance": "re-derived",
-      "evidence": "packages/alia-gateway-admin/src/pages/Models.tsx:114,121 (listModels/listAliaModels), :134-186 (create/update/delete for both catalogs), :236 (providerMappings editor), :746 (alia-v1 placeholder), :375,864,1417 (gpt-4o placeholders)"
+      "evidence": "packages/alia-gateway-admin/src/pages/Models.tsx:114,121 (listModels/listAliaModels), :134-186 (create/update/delete for both catalogs), :236 (providerMappings editor), :746 (kaana-v1 placeholder), :375,864,1417 (gpt-4o placeholders)"
     },
     {
       "id": "ga-screen-monitoring",
@@ -2919,13 +2948,13 @@
       "currentPath": "packages/alia-gateway-admin/src/pages/Monitoring.tsx",
       "removedIn": "#141",
       "reachable": "dead",
-      "owner": "relay",
-      "targetPath": "internal-relay-ops",
+      "owner": "kaana",
+      "targetPath": "internal-kaana-ops",
       "dependsOn": [
         "ga-api-client",
         "ga-realtime-client"
       ],
-      "removalGate": "MEASURED DEAD, which changes this gate: every endpoint this screen calls is unmounted — packages/api/src/index.ts mounts 46 routers and none serves /internal/gateway or /internal/providers, and internal/providers/index.ts is unreachable from all three build entrypoints. So the screen cannot perform the function its inventory gate assumed it still performs; the gate below is about the FUNCTION finding a home, not about this UI continuing to work. Relay exposes provider health and circuit-breaker state to operators. Same abstraction constraint as the dashboard: provider-keyed throughout.",
+      "removalGate": "MEASURED DEAD, which changes this gate: every endpoint this screen calls is unmounted — packages/api/src/index.ts mounts 46 routers and none serves /internal/gateway or /internal/providers, and internal/providers/index.ts is unreachable from all three build entrypoints. So the screen cannot perform the function its inventory gate assumed it still performs; the gate below is about the FUNCTION finding a home, not about this UI continuing to work. Kaana exposes provider health and circuit-breaker state to operators. Same abstraction constraint as the dashboard: provider-keyed throughout.",
       "provenance": "re-derived",
       "evidence": "packages/alia-gateway-admin/src/pages/Monitoring.tsx:478,533 (renders key.keyPrefix), :59,66 (getAllProviderHealth/listKeys)"
     },
@@ -2942,7 +2971,7 @@
       "dependsOn": [
         "ga-api-client"
       ],
-      "removalGate": "MEASURED DEAD, which changes this gate: every endpoint this screen calls is unmounted — packages/api/src/index.ts mounts 46 routers and none serves /internal/gateway or /internal/providers, and internal/providers/index.ts is unreachable from all three build entrypoints. So the screen cannot perform the function its inventory gate assumed it still performs; the gate below is about the FUNCTION finding a home, not about this UI continuing to work. An Alia-owned plan editor exists elsewhere before this UI goes. This screen is NOT relay work — it is Alia commerce that happens to live in the wrong app. It does read listAliaModels to populate modelIds, so it needs an Alia-branded model list source after the split, never a provider-aware one.",
+      "removalGate": "MEASURED DEAD, which changes this gate: every endpoint this screen calls is unmounted — packages/api/src/index.ts mounts 46 routers and none serves /internal/gateway or /internal/providers, and internal/providers/index.ts is unreachable from all three build entrypoints. So the screen cannot perform the function its inventory gate assumed it still performs; the gate below is about the FUNCTION finding a home, not about this UI continuing to work. An Alia-owned plan editor exists elsewhere before this UI goes. This screen is NOT kaana work — it is Alia commerce that happens to live in the wrong app. It does read listAliaModels to populate modelIds, so it needs an Alia-branded model list source after the split, never a provider-aware one.",
       "provenance": "re-derived",
       "evidence": "packages/alia-gateway-admin/src/pages/Plans.tsx:139,146 (listPlans + listAliaModels), :157-177 (create/update/delete), packages/alia-gateway-admin/src/types/index.ts:128-151 (SubscriptionPlan.modelIds, stripeMonthlyPriceId)"
     },
@@ -2954,12 +2983,12 @@
       "currentPath": "packages/alia-gateway-admin/src/pages/Usage.tsx",
       "removedIn": "#141",
       "reachable": "dead",
-      "owner": "relay",
-      "targetPath": "internal-relay-ops",
+      "owner": "kaana",
+      "targetPath": "internal-kaana-ops",
       "dependsOn": [
         "ga-api-client"
       ],
-      "removalGate": "MEASURED DEAD, which changes this gate: every endpoint this screen calls is unmounted — packages/api/src/index.ts mounts 46 routers and none serves /internal/gateway or /internal/providers, and internal/providers/index.ts is unreachable from all three build entrypoints. So the screen cannot perform the function its inventory gate assumed it still performs; the gate below is about the FUNCTION finding a home, not about this UI continuing to work. Relay reports its own usage/cost. Distinguish carefully from ga-screen-billing and from console /usage: this one is upstream spend, those are customer-facing.",
+      "removalGate": "MEASURED DEAD, which changes this gate: every endpoint this screen calls is unmounted — packages/api/src/index.ts mounts 46 routers and none serves /internal/gateway or /internal/providers, and internal/providers/index.ts is unreachable from all three build entrypoints. So the screen cannot perform the function its inventory gate assumed it still performs; the gate below is about the FUNCTION finding a home, not about this UI continuing to work. Kaana reports its own usage/cost. Distinguish carefully from ga-screen-billing and from console /usage: this one is upstream spend, those are customer-facing.",
       "provenance": "re-derived",
       "evidence": "packages/alia-gateway-admin/src/pages/Usage.tsx:98,105 (getUsage/getUsageCosts)"
     },
@@ -3071,7 +3100,7 @@
       "currentPath": "packages/api/src/lib/gateway-client.ts",
       "reachable": "live",
       "owner": "alia",
-      "targetPath": "keep (repoint HTTP mode at Relay)",
+      "targetPath": "keep (repoint HTTP mode at Kaana)",
       "dependsOn": [
         "alia-models",
         "env-gateway-api-url",
@@ -3081,7 +3110,7 @@
         "provider-api",
         "provider-health"
       ],
-      "removalGate": "KEEP. Per AGENTS.md this seam is exactly what made deleting alia-gateway safe. Relay should replace the HTTP branch's target, not the module. But see hazard-do-app-yaml-gateway-url: production must never have GATEWAY_API_URL set to the dead gateway.  || product-api inventory adds: This is already the designed insertion point for a remote inference tier - a Relay migration should REPLACE the remote branch here, not add a second client. AGENTS.md explicitly forbids a second copy of the provider logic.",
+      "removalGate": "KEEP. Per AGENTS.md this seam is exactly what made deleting alia-gateway safe. Kaana should replace the HTTP branch's target, not the module. But see hazard-do-app-yaml-gateway-url: production must never have GATEWAY_API_URL set to the dead gateway.  || product-api inventory adds: This is already the designed insertion point for a remote inference tier - a Kaana migration should REPLACE the remote branch here, not add a second client. AGENTS.md explicitly forbids a second copy of the provider logic.",
       "provenance": "re-derived",
       "evidence": "packages/api/src/lib/gateway-client.ts:29-38 (mode detection), :59-73 (HMAC signing string), :288-311, :339-379, :430-696 (local fallbacks); packages/api/src/lib/gateway-client.ts:30-53; packages/api/src/routes/v1/chat-completions.ts:3"
     },
@@ -3098,7 +3127,7 @@
         "gateway-client",
         "key-manager"
       ],
-      "removalGate": "Relay must handle credit exhaustion internally; Alia's agent runner should see only a 'model unavailable' failure reason.",
+      "removalGate": "Kaana must handle credit exhaustion internally; Alia's agent runner should see only a 'model unavailable' failure reason.",
       "provenance": "re-derived",
       "evidence": "packages/api/src/lib/agent/runner.ts:20 (import), :704 (markKeyCreditExhausted), :527 and :712 (reportModelUsage via chat-core)"
     },
@@ -3110,15 +3139,15 @@
       "currentPath": "packages/api/src/routes/agents-avatar.ts",
       "removedIn": "feat/agent-color-no-avatar",
       "reachable": "dead",
-      "owner": "relay",
-      "targetPath": "relay:images",
+      "owner": "kaana",
+      "targetPath": "kaana:images",
       "dependsOn": [
         "behaviour-images",
         "digitalocean-async",
         "gateway-client",
         "provider-api"
       ],
-      "removalGate": "Relay must expose image generation with per-provider failover AND surface a distinguishable content_filter reason, or the 400 collapses into a 502.",
+      "removalGate": "Kaana must expose image generation with per-provider failover AND surface a distinguishable content_filter reason, or the 400 collapses into a 502.",
       "provenance": "re-derived",
       "evidence": "packages/api/src/routes/agents-avatar.ts:8-9, :137, :143-156, :166-168"
     },
@@ -3162,8 +3191,8 @@
       "kind": "route",
       "currentPath": "packages/api/src/routes/canvas/execute.ts",
       "reachable": "live",
-      "owner": "relay",
-      "targetPath": "relay:images",
+      "owner": "kaana",
+      "targetPath": "kaana:images",
       "dependsOn": [
         "behaviour-images",
         "digitalocean-async",
@@ -3187,7 +3216,7 @@
         "chat-core-get-ai-model",
         "gateway-client"
       ],
-      "removalGate": "This is the real chokepoint (32 non-test importers vs gateway-client's 21). Relay migration is a chat-core rewrite, not a gateway-client rewrite.",
+      "removalGate": "This is the real chokepoint (32 non-test importers vs gateway-client's 21). Kaana migration is a chat-core rewrite, not a gateway-client rewrite.",
       "provenance": "re-derived",
       "evidence": "packages/api/src/lib/chat-core.ts:13-31"
     },
@@ -3234,14 +3263,14 @@
       "kind": "module",
       "currentPath": "packages/api/src/lib/memory/embeddings.ts",
       "reachable": "live",
-      "owner": "relay",
-      "targetPath": "relay:embeddings",
+      "owner": "kaana",
+      "targetPath": "kaana:embeddings",
       "dependsOn": [
         "behaviour-embeddings",
         "gateway-client",
         "provider-api"
       ],
-      "removalGate": "Relay must expose an embeddings endpoint with the SAME 1536 dimensionality, or every stored memory embedding becomes incomparable.",
+      "removalGate": "Kaana must expose an embeddings endpoint with the SAME 1536 dimensionality, or every stored memory embedding becomes incomparable.",
       "provenance": "re-derived",
       "evidence": "packages/api/src/lib/memory/embeddings.ts:7, :10-11, :20-28"
     },
@@ -3285,17 +3314,18 @@
       "domain": "provider-runtime",
       "kind": "route",
       "currentPath": "packages/api/src/routes/models-stats.ts",
-      "reachable": "live",
+      "reachable": "dead",
       "owner": "alia",
-      "targetPath": "keep (source stats from Relay)",
+      "targetPath": "keep (source stats from Kaana)",
       "dependsOn": [
         "gateway-client",
         "provider-health",
         "tier-mappings-generated"
       ],
-      "removalGate": "Relay must expose per-tier aggregate health, or this endpoint has nothing to aggregate.",
+      "removalGate": "Kaana must expose per-tier aggregate health, or this endpoint has nothing to aggregate.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/routes/models-stats.ts:1-11, :42-43, :59, :129, :142, :156"
+      "evidence": "packages/api/src/routes/models-stats.ts:1-11, :42-43, :59, :129, :142, :156",
+      "removedIn": "kaana-cutover-provider-runtime-retirement"
     },
     {
       "id": "gwc-import-plan-access",
@@ -3353,15 +3383,15 @@
       "kind": "module",
       "currentPath": "packages/api/src/lib/synthesize-speech.ts",
       "reachable": "live",
-      "owner": "relay",
-      "targetPath": "relay:tts",
+      "owner": "kaana",
+      "targetPath": "kaana:tts",
       "dependsOn": [
         "behaviour-tts",
         "gateway-client",
         "provider-api",
         "tts-providers"
       ],
-      "removalGate": "Two callers (routes/v1/audio.ts:3, lib/show/show-pipeline.ts:362). Relay must return {audio, actualFormat} or S3 objects get the wrong extension and content type.",
+      "removalGate": "Two callers (routes/v1/audio.ts:3, lib/show/show-pipeline.ts:362). Kaana must return {audio, actualFormat} or S3 objects get the wrong extension and content type.",
       "provenance": "re-derived",
       "evidence": "packages/api/src/lib/synthesize-speech.ts:15-16, :38-72"
     },
@@ -3405,8 +3435,8 @@
       "kind": "route",
       "currentPath": "packages/api/src/routes/v1/audio.ts",
       "reachable": "live",
-      "owner": "relay",
-      "targetPath": "relay:audio",
+      "owner": "kaana",
+      "targetPath": "kaana:audio",
       "dependsOn": [
         "behaviour-audio-generation",
         "digitalocean-async",
@@ -3414,7 +3444,7 @@
         "gwc-import-synthesize-speech",
         "provider-api"
       ],
-      "removalGate": "Relay must offer a text-to-audio model reachable WITHOUT Alia naming a provider, and must tolerate a 170s call.",
+      "removalGate": "Kaana must offer a text-to-audio model reachable WITHOUT Alia naming a provider, and must tolerate a 170s call.",
       "provenance": "re-derived",
       "evidence": "packages/api/src/routes/v1/audio.ts:2, :36 (TTS_TIMEOUT_MS 55s), :241 (GEN_TIMEOUT_MS 180s), :249-262 (hardcoded provider+model, timeout 170s, maxAttempts 1)"
     },
@@ -3432,7 +3462,7 @@
         "chat-core-get-ai-model",
         "gateway-client"
       ],
-      "removalGate": "Needs a tier size (or a Relay-supplied retry budget) to keep MAX_PROVIDER_RETRIES meaningful.",
+      "removalGate": "Needs a tier size (or a Kaana-supplied retry budget) to keep MAX_PROVIDER_RETRIES meaningful.",
       "provenance": "re-derived",
       "evidence": "packages/api/src/routes/v1/chat-completions.ts:3, :44 (GLOBAL_TIMEOUT_MS 80s), :221-222, :344"
     },
@@ -3443,8 +3473,8 @@
       "kind": "route",
       "currentPath": "packages/api/src/routes/v1/images.ts",
       "reachable": "live",
-      "owner": "relay",
-      "targetPath": "relay:images",
+      "owner": "kaana",
+      "targetPath": "kaana:images",
       "dependsOn": [
         "behaviour-images",
         "digitalocean-async",
@@ -3462,8 +3492,8 @@
       "kind": "route",
       "currentPath": "packages/api/src/routes/v1/voice.ts",
       "reachable": "live",
-      "owner": "relay",
-      "targetPath": "relay:voice + relay:transcription",
+      "owner": "kaana",
+      "targetPath": "kaana:voice + kaana:transcription",
       "dependsOn": [
         "behaviour-transcription",
         "behaviour-voice-realtime",
@@ -3471,7 +3501,7 @@
         "provider-api",
         "voice-session-manager"
       ],
-      "removalGate": "Two distinct gates: transcription needs a Relay endpoint; realtime needs the voice-session-manager split.",
+      "removalGate": "Two distinct gates: transcription needs a Kaana endpoint; realtime needs the voice-session-manager split.",
       "provenance": "re-derived",
       "evidence": "packages/api/src/routes/v1/voice.ts:3-4, :8, :118, :265 (TRANSCRIBE_TIMEOUT_MS 55s), :304-329 (15s, 1 attempt), :347"
     },
@@ -3523,7 +3553,7 @@
         "provider-warmup",
         "script-sync-zeroeval"
       ],
-      "removalGate": "FIXED. `startBackgroundServices()` is called directly from the `server.listen` callback; the `connectDB()` retry loop it hung off is deleted along with `lib/db.ts`. The claim this row was raised against \u2014 'we warm the model cache at boot' \u2014 is now true, so a Relay design may assume a warmed cache.",
+      "removalGate": "FIXED. `startBackgroundServices()` is called directly from the `server.listen` callback; the `connectDB()` retry loop it hung off is deleted along with `lib/db.ts`. The claim this row was raised against — 'we warm the model cache at boot' — is now true, so a Kaana design may assume a warmed cache.",
       "provenance": "re-derived",
       "evidence": "packages/api/src/lib/background-services.ts (the nine starters, extracted so they can be asserted); packages/api/src/index.ts, `startBackgroundServices()` inside `server.listen`; packages/api/src/lib/__tests__/background-services.test.ts asserts which services start and in what order; packages/api/src/db/__tests__/bootWiring.test.ts walks the import graph from src/index.ts and asserts no Mongoose driver is reachable"
     },
@@ -3534,13 +3564,13 @@
       "kind": "behaviour",
       "currentPath": "packages/api/src/lib/chat-core.ts",
       "reachable": "live",
-      "owner": "relay",
-      "targetPath": "relay",
+      "owner": "kaana",
+      "targetPath": "kaana",
       "dependsOn": [
         "chat-core-get-ai-model",
         "table-provider-keys"
       ],
-      "removalGate": "Disappears for free once Relay holds the credentials — this is one of the strongest arguments for the epic, and worth stating in the PR.",
+      "removalGate": "Disappears for free once Kaana holds the credentials — this is one of the strongest arguments for the epic, and worth stating in the PR.",
       "provenance": "re-derived",
       "evidence": "packages/api/src/lib/chat-core.ts:86, :94"
     },
@@ -3566,16 +3596,17 @@
       "domain": "provider-runtime",
       "kind": "behaviour",
       "currentPath": "packages/api/src/internal/providers/lib/providers/anthropic.ts",
-      "reachable": "live",
-      "owner": "relay",
-      "targetPath": "relay",
+      "reachable": "dead",
+      "owner": "kaana",
+      "targetPath": "kaana",
       "dependsOn": [
         "chat-core-get-ai-model",
         "provider-warmup"
       ],
       "removalGate": "As hostname-openai.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/internal/providers/lib/providers/anthropic.ts:11; packages/api/src/lib/provider-warmup.ts:15"
+      "evidence": "packages/api/src/internal/providers/lib/providers/anthropic.ts:11; packages/api/src/lib/provider-warmup.ts:15",
+      "removedIn": "kaana-cutover-provider-runtime-retirement"
     },
     {
       "id": "hostname-cloudflare-ai",
@@ -3584,8 +3615,8 @@
       "kind": "behaviour",
       "currentPath": "packages/api/src/lib/chat-core.ts",
       "reachable": "live",
-      "owner": "relay",
-      "targetPath": "relay",
+      "owner": "kaana",
+      "targetPath": "kaana",
       "dependsOn": [
         "adapter-cloudflare",
         "chat-core-get-ai-model"
@@ -3600,9 +3631,9 @@
       "domain": "provider-runtime",
       "kind": "behaviour",
       "currentPath": "packages/api/src/internal/providers/lib/digitalocean-async.ts",
-      "reachable": "live",
-      "owner": "relay",
-      "targetPath": "relay",
+      "reachable": "dead",
+      "owner": "kaana",
+      "targetPath": "kaana",
       "dependsOn": [
         "chat-core-get-ai-model",
         "digitalocean-async",
@@ -3610,7 +3641,8 @@
       ],
       "removalGate": "LIVE for images, TTS and audio generation.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/internal/providers/lib/digitalocean-async.ts:12; packages/api/src/internal/providers/lib/provider-api.ts:36; packages/api/src/lib/chat-core.ts:192"
+      "evidence": "packages/api/src/internal/providers/lib/digitalocean-async.ts:12; packages/api/src/internal/providers/lib/provider-api.ts:36; packages/api/src/lib/chat-core.ts:192",
+      "removedIn": "kaana-cutover-provider-runtime-retirement"
     },
     {
       "id": "hostname-do-asset-urls",
@@ -3618,15 +3650,16 @@
       "domain": "provider-runtime",
       "kind": "behaviour",
       "currentPath": "packages/api/src/internal/providers/lib/digitalocean-async.ts",
-      "reachable": "live",
-      "owner": "relay",
-      "targetPath": "relay",
+      "reachable": "dead",
+      "owner": "kaana",
+      "targetPath": "kaana",
       "dependsOn": [
         "digitalocean-async"
       ],
-      "removalGate": "Egress rules cannot be written from a static host list while this exists. Relay should return bytes, not a URL Alia must fetch.",
+      "removalGate": "Egress rules cannot be written from a static host list while this exists. Kaana should return bytes, not a URL Alia must fetch.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/internal/providers/lib/digitalocean-async.ts:168-177; packages/api/src/routes/v1/audio.ts:286"
+      "evidence": "packages/api/src/internal/providers/lib/digitalocean-async.ts:168-177; packages/api/src/routes/v1/audio.ts:286",
+      "removedIn": "kaana-cutover-provider-runtime-retirement"
     },
     {
       "id": "hostname-google",
@@ -3634,9 +3667,9 @@
       "domain": "provider-runtime",
       "kind": "behaviour",
       "currentPath": "packages/api/src/internal/providers/lib/providers/google.ts",
-      "reachable": "live",
-      "owner": "relay",
-      "targetPath": "relay",
+      "reachable": "dead",
+      "owner": "kaana",
+      "targetPath": "kaana",
       "dependsOn": [
         "chat-core-get-ai-model",
         "provider-api",
@@ -3644,7 +3677,8 @@
       ],
       "removalGate": "As hostname-openai. Note the key-in-URL inconsistency when deciding what to port.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/internal/providers/lib/providers/google.ts:22 (key in query string); packages/api/src/internal/providers/lib/provider-api.ts:166-169 (header, with a comment explaining why)"
+      "evidence": "packages/api/src/internal/providers/lib/providers/google.ts:22 (key in query string); packages/api/src/internal/providers/lib/provider-api.ts:166-169 (header, with a comment explaining why)",
+      "removedIn": "kaana-cutover-provider-runtime-retirement"
     },
     {
       "id": "hostname-groq",
@@ -3653,8 +3687,8 @@
       "kind": "behaviour",
       "currentPath": "packages/api/src/lib/chat-core.ts",
       "reachable": "live",
-      "owner": "relay",
-      "targetPath": "relay",
+      "owner": "kaana",
+      "targetPath": "kaana",
       "dependsOn": [
         "chat-core-get-ai-model",
         "provider-api",
@@ -3670,9 +3704,9 @@
       "domain": "provider-runtime",
       "kind": "behaviour",
       "currentPath": "packages/api/src/internal/providers/lib/providers/openai.ts",
-      "reachable": "live",
-      "owner": "relay",
-      "targetPath": "relay",
+      "reachable": "dead",
+      "owner": "kaana",
+      "targetPath": "kaana",
       "dependsOn": [
         "chat-core-get-ai-model",
         "provider-api",
@@ -3680,7 +3714,8 @@
       ],
       "removalGate": "Egress from Alia's ECS tasks to this host should be zero before the epic is called done.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/internal/providers/lib/providers/openai.ts:10; packages/api/src/internal/providers/lib/provider-api.ts:33; packages/api/src/lib/provider-warmup.ts:14"
+      "evidence": "packages/api/src/internal/providers/lib/providers/openai.ts:10; packages/api/src/internal/providers/lib/provider-api.ts:33; packages/api/src/lib/provider-warmup.ts:14",
+      "removedIn": "kaana-cutover-provider-runtime-retirement"
     },
     {
       "id": "hostname-openai-compatible-others",
@@ -3689,8 +3724,8 @@
       "kind": "behaviour",
       "currentPath": "packages/api/src/lib/chat-core.ts",
       "reachable": "live",
-      "owner": "relay",
-      "targetPath": "relay",
+      "owner": "kaana",
+      "targetPath": "kaana",
       "dependsOn": [
         "chat-core-get-ai-model",
         "integrations-model-resolver",
@@ -3706,15 +3741,16 @@
       "domain": "provider-runtime",
       "kind": "behaviour",
       "currentPath": "packages/api/src/internal/providers/lib/providers/openai-voice.ts",
-      "reachable": "live",
-      "owner": "relay",
-      "targetPath": "relay",
+      "reachable": "dead",
+      "owner": "kaana",
+      "targetPath": "kaana",
       "dependsOn": [
         "adapter-openai-voice"
       ],
       "removalGate": "LIVE. Gated on the voice-session-manager split.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/internal/providers/lib/providers/openai-voice.ts:39"
+      "evidence": "packages/api/src/internal/providers/lib/providers/openai-voice.ts:39",
+      "removedIn": "kaana-cutover-provider-runtime-retirement"
     },
     {
       "id": "hostname-openrouter",
@@ -3723,8 +3759,8 @@
       "kind": "behaviour",
       "currentPath": "packages/api/src/lib/chat-core.ts",
       "reachable": "live",
-      "owner": "relay",
-      "targetPath": "relay",
+      "owner": "kaana",
+      "targetPath": "kaana",
       "dependsOn": [
         "chat-core-get-ai-model",
         "provider-api",
@@ -3740,16 +3776,17 @@
       "domain": "provider-runtime",
       "kind": "behaviour",
       "currentPath": "packages/api/src/internal/providers/lib/providers/grok-voice.ts",
-      "reachable": "live",
-      "owner": "relay",
-      "targetPath": "relay",
+      "reachable": "dead",
+      "owner": "kaana",
+      "targetPath": "kaana",
       "dependsOn": [
         "adapter-grok-voice",
         "chat-core-get-ai-model"
       ],
       "removalGate": "LIVE for voice.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/internal/providers/lib/providers/grok-voice.ts:73; packages/api/src/lib/chat-core.ts:168"
+      "evidence": "packages/api/src/internal/providers/lib/providers/grok-voice.ts:73; packages/api/src/lib/chat-core.ts:168",
+      "removedIn": "kaana-cutover-provider-runtime-retirement"
     },
     {
       "id": "hostname-zeroeval",
@@ -3773,16 +3810,17 @@
       "domain": "provider-runtime",
       "kind": "module",
       "currentPath": "packages/api/src/internal/providers/lib/image-providers.ts",
-      "reachable": "live",
-      "owner": "relay",
-      "targetPath": "relay:images/params.ts",
+      "reachable": "dead",
+      "owner": "kaana",
+      "targetPath": "kaana:images/params.ts",
       "dependsOn": [
         "gwc-import-v1-images",
         "behaviour-images"
       ],
-      "removalGate": "LIVE via packages/api/src/routes/v1/images.ts. Gate: Relay accepts one canonical image request and shapes it per provider, so Alia never needs to know which parameters a provider refuses. The sibling of tts-providers, and it goes the same way.",
+      "removalGate": "LIVE via packages/api/src/routes/v1/images.ts. Gate: Kaana accepts one canonical image request and shapes it per provider, so Alia never needs to know which parameters a provider refuses. The sibling of tts-providers, and it goes the same way.",
       "provenance": "declared",
-      "evidence": "packages/api/src/internal/providers/lib/image-providers.ts:54-56 (the omission table), :64-80 (imageRequestBody). Measured 2026-08-23 against a live xAI key: `size` -> 400, `quality` -> 422, both with an EMPTY response body; model+prompt+n+response_format -> 200."
+      "evidence": "packages/api/src/internal/providers/lib/image-providers.ts:54-56 (the omission table), :64-80 (imageRequestBody). Measured 2026-08-23 against a live xAI key: `size` -> 400, `quality` -> 422, both with an EMPTY response body; model+prompt+n+response_format -> 200.",
+      "removedIn": "kaana-cutover-provider-runtime-retirement"
     },
     {
       "id": "integrations-chat-consumer",
@@ -3844,16 +3882,17 @@
       "domain": "provider-runtime",
       "kind": "module",
       "currentPath": "packages/api/src/internal/providers/lib/key-manager.ts",
-      "reachable": "live",
-      "owner": "relay",
-      "targetPath": "relay:keys/manager.ts",
+      "reachable": "dead",
+      "owner": "kaana",
+      "targetPath": "kaana:keys/manager.ts",
       "dependsOn": [
         "table-api-usage",
         "table-provider-keys"
       ],
-      "removalGate": "Removable once Relay owns provider credentials. NOTE the export markKeyCreditExhausted is called from PRODUCT code (agent/runner.ts:704, services/chat.service.ts:286) via gateway-client, so those two call sites must be repointed or dropped first.",
+      "removalGate": "Removable once Kaana owns provider credentials. NOTE the export markKeyCreditExhausted is called from PRODUCT code (agent/runner.ts:704, services/chat.service.ts:286) via gateway-client, so those two call sites must be repointed or dropped first.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/internal/providers/lib/key-manager.ts:36-37 (KEY_CACHE_TTL 10000), :98 (getBestKeyForModel), :206-269 (failure/cooldown), :292 (markKeyCreditExhausted)"
+      "evidence": "packages/api/src/internal/providers/lib/key-manager.ts:36-37 (KEY_CACHE_TTL 10000), :98 (getBestKeyForModel), :206-269 (failure/cooldown), :292 (markKeyCreditExhausted)",
+      "removedIn": "kaana-cutover-provider-runtime-retirement"
     },
     {
       "id": "leak-canvas-provider-badge",
@@ -3884,7 +3923,7 @@
         "script-sync-zeroeval",
         "table-external-models"
       ],
-      "removalGate": "Unaffected by the Relay migration; listed so a provider-name sweep does not mistake it for a leak (or does so knowingly).",
+      "removalGate": "Unaffected by the Kaana migration; listed so a provider-name sweep does not mistake it for a leak (or does so knowingly).",
       "provenance": "re-derived",
       "evidence": "packages/api/src/routes/external-models.ts:16-40; mounted unauthenticated at packages/api/src/index.ts:240; packages/api/src/db/schema/providers.ts:415-425 (comment: 'NOT the routing catalogue')"
     },
@@ -3894,16 +3933,17 @@
       "domain": "provider-runtime",
       "kind": "behaviour",
       "currentPath": "packages/api/src/internal/providers/lib/provider-api.ts",
-      "reachable": "live",
-      "owner": "relay",
-      "targetPath": "relay:errors",
+      "reachable": "dead",
+      "owner": "kaana",
+      "targetPath": "kaana:errors",
       "dependsOn": [
         "provider-api",
         "sanitize-message"
       ],
-      "removalGate": "Any NEW caller of callProviderAPI that returns err.message or err.providerMessage directly leaks a provider name. Relay should never return a provider-named error to Alia.",
+      "removalGate": "Any NEW caller of callProviderAPI that returns err.message or err.providerMessage directly leaks a provider name. Kaana should never return a provider-named error to Alia.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/internal/providers/lib/provider-api.ts:305-308"
+      "evidence": "packages/api/src/internal/providers/lib/provider-api.ts:305-308",
+      "removedIn": "kaana-cutover-provider-runtime-retirement"
     },
     {
       "id": "leak-toAliaError-internal-message",
@@ -3968,8 +4008,8 @@
       "kind": "module",
       "currentPath": "packages/api/src/lib/message-converter.ts",
       "reachable": "live",
-      "owner": "relay",
-      "targetPath": "relay:tools/name-normalisation",
+      "owner": "kaana",
+      "targetPath": "kaana:tools/name-normalisation",
       "dependsOn": [
         "tool-converter-gemini-naming"
       ],
@@ -4138,15 +4178,31 @@
       "kind": "module",
       "currentPath": "packages/api/src/internal/providers/lib/model-capabilities-data.ts",
       "reachable": "live",
-      "owner": "relay",
-      "targetPath": "relay:catalogue/capabilities.ts",
+      "owner": "kaana",
+      "targetPath": "kaana:catalogue/capabilities.ts",
       "dependsOn": [],
-      "removalGate": "Two consumers: generate-model-mappings.ts (internal) and packages/api/src/lib/cost-tracker.ts:39 (getModelPricing, PRODUCT code). cost-tracker must get pricing from Relay or from its own Alia-side table before this can go.",
+      "removalGate": "Two consumers: generate-model-mappings.ts (internal) and packages/api/src/lib/cost-tracker.ts:39 (getModelPricing, PRODUCT code). cost-tracker must get pricing from Kaana or from its own Alia-side table before this can go.",
       "provenance": "re-derived",
       "evidence": "packages/api/src/internal/providers/lib/model-capabilities-data.ts:35 (MODEL_CAPABILITIES), :359 (MODEL_PRICING), :675-681; consumer packages/api/src/lib/cost-tracker.ts:39"
     },
     {
-      "id": "model-id-alia-lite",
+      "id": "model-id-in-db-schema",
+      "workstream": "4",
+      "domain": "product-api",
+      "kind": "behaviour",
+      "currentPath": "packages/api/src/db/schema/agents.ts",
+      "reachable": "live",
+      "owner": "alia",
+      "targetPath": "keep-alia-product",
+      "dependsOn": [
+        "alia-models"
+      ],
+      "removalGate": "Renaming or retiring kaana-v1 / kaana-v1-pro requires a data migration over existing agent rows, not just a code change. Migration history cannot be edited.",
+      "provenance": "re-derived",
+      "evidence": "packages/api/src/db/schema/agents.ts:129; packages/api/src/routes/oxy-service-events.ts:78; packages/api/drizzle/0013_exotic_domino.sql"
+    },
+    {
+      "id": "model-id-kaana-lite",
       "workstream": "4",
       "domain": "product-api",
       "kind": "behaviour",
@@ -4157,12 +4213,12 @@
       "dependsOn": [
         "alia-models"
       ],
-      "removalGate": "Retiring alia-lite silently breaks every bot channel AND invalidates the model field of saved Canvas workflows. Highest fan-out of any single id.",
+      "removalGate": "Retiring kaana-lite silently breaks every bot channel AND invalidates the model field of saved Canvas workflows. Highest fan-out of any single id.",
       "provenance": "inventory-product-api",
       "evidence": "packages/integrations/src/shared/api-client.ts:207,269; packages/alia-canvas/src/components/workflow/workflow-editor.tsx:43,72,79"
     },
     {
-      "id": "model-id-alia-v1-codea",
+      "id": "model-id-kaana-v1-codea",
       "workstream": "4",
       "domain": "product-api",
       "kind": "behaviour",
@@ -4178,7 +4234,7 @@
       "evidence": "packages/alia-codea/package.json:162; packages/alia-codea-cli/src/index.ts:49,62,77"
     },
     {
-      "id": "model-id-alia-v1-cowork",
+      "id": "model-id-kaana-v1-cowork",
       "workstream": "4",
       "domain": "product-api",
       "kind": "behaviour",
@@ -4194,7 +4250,7 @@
       "evidence": "packages/alia-cowork/src/main/chat.ts:30; packages/alia-cowork/renderer/src/components/Chat.tsx:116,162; packages/alia-cowork/renderer/src/components/Console.tsx:124"
     },
     {
-      "id": "model-id-alia-v1-voice",
+      "id": "model-id-kaana-v1-voice",
       "workstream": "4",
       "domain": "product-api",
       "kind": "behaviour",
@@ -4211,38 +4267,23 @@
       "evidence": "packages/alia-chat/src/hooks/useTTS.ts:205; packages/alia-chat/src/hooks/useVoiceRoom.ts:332"
     },
     {
-      "id": "model-id-in-db-schema",
-      "workstream": "4",
-      "domain": "product-api",
-      "kind": "behaviour",
-      "currentPath": "packages/api/src/db/schema/agents.ts",
-      "reachable": "live",
-      "owner": "alia",
-      "targetPath": "keep-alia-product",
-      "dependsOn": [
-        "alia-models"
-      ],
-      "removalGate": "Renaming or retiring alia-v1 / alia-v1-pro requires a data migration over existing agent rows, not just a code change. Migration history cannot be edited.",
-      "provenance": "re-derived",
-      "evidence": "packages/api/src/db/schema/agents.ts:129; packages/api/src/routes/oxy-service-events.ts:78; packages/api/drizzle/0013_exotic_domino.sql"
-    },
-    {
       "id": "model-resolver",
       "workstream": "7",
       "domain": "provider-runtime",
       "kind": "module",
       "currentPath": "packages/api/src/internal/providers/lib/model-resolver.ts",
-      "reachable": "live",
-      "owner": "relay",
-      "targetPath": "relay:routing/resolve.ts",
+      "reachable": "dead",
+      "owner": "kaana",
+      "targetPath": "kaana:routing/resolve.ts",
       "dependsOn": [
         "alia-models",
         "fallback-engine",
         "gateway-client"
       ],
-      "removalGate": "Three live importers: gateway-client.ts:309 (dynamic), voice-session-manager.ts:25, and the dead routes/providers.ts:9. Removable once Relay owns model->provider resolution AND Alia's voice manager stops resolving locally.",
+      "removalGate": "Three live importers: gateway-client.ts:309 (dynamic), voice-session-manager.ts:25, and the dead routes/providers.ts:9. Removable once Kaana owns model->provider resolution AND Alia's voice manager stops resolving locally.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/internal/providers/lib/model-resolver.ts:42-72; packages/api/src/lib/gateway-client.ts:309"
+      "evidence": "packages/api/src/internal/providers/lib/model-resolver.ts:42-72; packages/api/src/lib/gateway-client.ts:309",
+      "removedIn": "kaana-cutover-provider-runtime-retirement"
     },
     {
       "id": "observability-provider-metrics",
@@ -4257,7 +4298,7 @@
         "chat-core-get-ai-model",
         "key-manager"
       ],
-      "removalGate": "The provider LABEL becomes meaningless once Relay routes. The cascade alert reads key counts that will no longer exist. Both need redefining before provider_keys goes.",
+      "removalGate": "The provider LABEL becomes meaningless once Kaana routes. The cascade alert reads key counts that will no longer exist. Both need redefining before provider_keys goes.",
       "provenance": "re-derived",
       "evidence": "packages/api/src/lib/observability/metrics.ts:167-169, :204-208; packages/api/src/lib/observability/alerts.ts:99-105"
     },
@@ -4298,18 +4339,19 @@
       "domain": "provider-runtime",
       "kind": "module",
       "currentPath": "packages/api/src/internal/providers/lib/provider-api.ts",
-      "reachable": "live",
-      "owner": "relay",
-      "targetPath": "relay:call/non-streaming.ts",
+      "reachable": "dead",
+      "owner": "kaana",
+      "targetPath": "kaana:call/non-streaming.ts",
       "dependsOn": [
         "digitalocean-async",
         "failover-error-classifier",
         "key-manager",
         "tts-providers"
       ],
-      "removalGate": "LIVE. Reached from gateway-client.ts:353 (dynamic) and directly from lib/show/show-pipeline.ts:22. Gate: Relay exposes an equivalent multi-modal non-streaming call with key rotation, and all 8 callProviderAPI call sites are repointed.",
+      "removalGate": "LIVE. Reached from gateway-client.ts:353 (dynamic) and directly from lib/show/show-pipeline.ts:22. Gate: Kaana exposes an equivalent multi-modal non-streaming call with key rotation, and all 8 callProviderAPI call sites are repointed.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/internal/providers/lib/provider-api.ts:32-37 (PROVIDER_BASES, only 4 providers have a base URL), :102-103 (maxAttempts default 3), :112-291 (retry loop), :134 (DO branch), :163 (Gemini TTS branch)"
+      "evidence": "packages/api/src/internal/providers/lib/provider-api.ts:32-37 (PROVIDER_BASES, only 4 providers have a base URL), :102-103 (maxAttempts default 3), :112-291 (retry loop), :134 (DO branch), :163 (Gemini TTS branch)",
+      "removedIn": "kaana-cutover-provider-runtime-retirement"
     },
     {
       "id": "provider-api-base-url-gap",
@@ -4317,16 +4359,17 @@
       "domain": "provider-runtime",
       "kind": "behaviour",
       "currentPath": "packages/api/src/internal/providers/lib/provider-api.ts",
-      "reachable": "live",
-      "owner": "relay",
-      "targetPath": "relay:call/non-streaming.ts",
+      "reachable": "dead",
+      "owner": "kaana",
+      "targetPath": "kaana:call/non-streaming.ts",
       "dependsOn": [
         "provider-api",
         "tier-mappings-generated"
       ],
-      "removalGate": "N/A — this is a defect to carry across, not to delete. Relay must either cover all providers or reject the mapping at config time instead of at call time.",
+      "removalGate": "N/A — this is a defect to carry across, not to delete. Kaana must either cover all providers or reject the mapping at config time instead of at call time.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/internal/providers/lib/provider-api.ts:32-37 vs packages/api/src/internal/providers/lib/provider-names.ts:6-26 (19 names)"
+      "evidence": "packages/api/src/internal/providers/lib/provider-api.ts:32-37 vs packages/api/src/internal/providers/lib/provider-names.ts:6-26 (19 names)",
+      "removedIn": "kaana-cutover-provider-runtime-retirement"
     },
     {
       "id": "provider-error-body",
@@ -4334,16 +4377,17 @@
       "domain": "provider-runtime",
       "kind": "module",
       "currentPath": "packages/api/src/internal/providers/lib/provider-error-body.ts",
-      "reachable": "live",
-      "owner": "relay",
-      "targetPath": "relay:errors/upstream-body.ts",
+      "reachable": "dead",
+      "owner": "kaana",
+      "targetPath": "kaana:errors/upstream-body.ts",
       "dependsOn": [
         "leak-provider-api-error",
         "provider-api"
       ],
-      "removalGate": "Moves WITH the adapters, not before them: it is the only place in internal/providers that turns an upstream response into a string, and architectureGates gate 4 asserts that. Relay must redact at its own point of read — an upstream 401 quotes the credential it rejected, so a Relay that hands Alia a raw body reintroduces the leak on the other side of the boundary (#139 ws15).",
+      "removalGate": "Moves WITH the adapters, not before them: it is the only place in internal/providers that turns an upstream response into a string, and architectureGates gate 4 asserts that. Kaana must redact at its own point of read — an upstream 401 quotes the credential it rejected, so a Kaana that hands Alia a raw body reintroduces the leak on the other side of the boundary (#139 ws15).",
       "provenance": "measured",
-      "evidence": "packages/api/src/internal/providers/lib/provider-error-body.ts:76-121 (exact-credential pass at :76, pattern pass then bound at :99, the reader at :114); 23 call sites: 19 adapters under lib/providers/, digitalocean-async.ts:84,138, provider-api.ts:194,256"
+      "evidence": "packages/api/src/internal/providers/lib/provider-error-body.ts:76-121 (exact-credential pass at :76, pattern pass then bound at :99, the reader at :114); 23 call sites: 19 adapters under lib/providers/, digitalocean-async.ts:84,138, provider-api.ts:194,256",
+      "removedIn": "kaana-cutover-provider-runtime-retirement"
     },
     {
       "id": "provider-health",
@@ -4351,15 +4395,16 @@
       "domain": "provider-runtime",
       "kind": "module",
       "currentPath": "packages/api/src/internal/providers/lib/provider-health.ts",
-      "reachable": "live",
-      "owner": "relay",
-      "targetPath": "relay:health/circuit-breaker.ts",
+      "reachable": "dead",
+      "owner": "kaana",
+      "targetPath": "kaana:health/circuit-breaker.ts",
       "dependsOn": [
         "table-provider-health"
       ],
       "removalGate": "BLOCKS ON THE LOAD BALANCER: packages/api/src/routes/health.ts:79 and :144 call getAllProviderHealth(), and /health/ready returns 503 'no_healthy_providers' when zero providers are healthy. Land a replacement readiness probe IN PRODUCTION before removing this, or the removal is a rolling outage that reports success.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/internal/providers/lib/provider-health.ts:176-212 (isProviderAvailable), :298-323 (monitor, auto-started outside NODE_ENV=test), :57-58 (10s cache); readiness dependency packages/api/src/routes/health.ts:144-147"
+      "evidence": "packages/api/src/internal/providers/lib/provider-health.ts:176-212 (isProviderAvailable), :298-323 (monitor, auto-started outside NODE_ENV=test), :57-58 (10s cache); readiness dependency packages/api/src/routes/health.ts:144-147",
+      "removedIn": "kaana-cutover-provider-runtime-retirement"
     },
     {
       "id": "provider-warmup",
@@ -4367,7 +4412,7 @@
       "domain": "provider-runtime",
       "kind": "module",
       "currentPath": "packages/api/src/lib/provider-warmup.ts",
-      "reachable": "live",
+      "reachable": "dead",
       "owner": "delete",
       "targetPath": "delete",
       "dependsOn": [
@@ -4380,7 +4425,8 @@
       ],
       "removalGate": "Refiled from workstream 8 to 7 by the #139 status audit. It is not part of the dual-mode gateway: it opens direct TLS connections to seven provider hosts from Alia's own egress IP at boot, before a single request is served, so it is provider execution and retires with the rest of it. Delete the moment Alia stops making direct provider calls. Until then, filing it under workstream 8 is what made a reader filtering the matrix to workstream 7 see nineteen dead adapter files and no live egress.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/lib/provider-warmup.ts:13-23, :29-52; called at packages/api/src/index.ts:449 (outside startBackgroundServices)"
+      "evidence": "packages/api/src/lib/provider-warmup.ts:13-23, :29-52; called at packages/api/src/index.ts:449 (outside startBackgroundServices)",
+      "removedIn": "kaana-cutover-provider-runtime-retirement"
     },
     {
       "id": "providers-types",
@@ -4388,13 +4434,14 @@
       "domain": "provider-runtime",
       "kind": "module",
       "currentPath": "packages/api/src/internal/providers/lib/types.ts",
-      "reachable": "live",
-      "owner": "relay",
-      "targetPath": "relay:types.ts (split: folder types stay alia)",
+      "reachable": "dead",
+      "owner": "kaana",
+      "targetPath": "kaana:types.ts (split: folder types stay alia)",
       "dependsOn": [],
       "removalGate": "packages/api/src/routes/v1/voice.ts:16 imports OpenAITool type-only. NOTE the co-located FOLDER_COLORS/ChatFolder/ChatHistory exports at lines 71-103 have nothing to do with providers — grep them before deleting the file.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/internal/providers/lib/types.ts:14-28 (KeyConfig holds `key: string`), :58-67 (Provider), :71-103 (unrelated folder types); importer packages/api/src/routes/v1/voice.ts:16"
+      "evidence": "packages/api/src/internal/providers/lib/types.ts:14-28 (KeyConfig holds `key: string`), :58-67 (Provider), :71-103 (unrelated folder types); importer packages/api/src/routes/v1/voice.ts:16",
+      "removedIn": "kaana-cutover-provider-runtime-retirement"
     },
     {
       "id": "response-ext-alia-meta",
@@ -4455,6 +4502,23 @@
       "evidence": "packages/api/src/index.ts:260-298"
     },
     {
+      "id": "routing-profile-catalogue",
+      "workstream": "4",
+      "domain": "provider-runtime",
+      "kind": "module",
+      "currentPath": "packages/api/src/internal/providers/lib/routing-profile-catalogue.ts",
+      "reachable": "live",
+      "owner": "kaana",
+      "targetPath": "kaana: routing profile catalogue",
+      "dependsOn": [
+        "tier-mappings-generated",
+        "tuple-routing-tiers"
+      ],
+      "removalGate": "Alia may retain only the public routing-profile presentation required by product UX. Provider mappings, provider identities, egress policy, credentials and fallback belong to Kaana.",
+      "provenance": "kaana-cutover",
+      "evidence": "packages/api/src/internal/providers/lib/routing-profile-catalogue.ts; packages/api/src/lib/gateway-client.ts"
+    },
+    {
       "id": "sanitize-call-sites",
       "workstream": "4",
       "domain": "provider-runtime",
@@ -4466,7 +4530,7 @@
       "dependsOn": [
         "sanitize-message"
       ],
-      "removalGate": "Coverage must be re-audited after the Relay switch: Relay error strings are a NEW untrusted source, and none of these call sites knows that yet.",
+      "removalGate": "Coverage must be re-audited after the Kaana switch: Kaana error strings are a NEW untrusted source, and none of these call sites knows that yet.",
       "provenance": "re-derived",
       "evidence": "grep sanitizeMessage|redactUnsafeDetail|getSafeErrorMessage|formatErrorResponse across tracked .ts/.tsx, 18 files, comment lines excluded (#139 ws20; sanitizeError and sanitizeFull were deleted as dead)"
     },
@@ -4516,7 +4580,7 @@
       "dependsOn": [
         "chat-core-get-ai-model"
       ],
-      "removalGate": "Only removable if Relay replaces the tool-calling loop too. 40+ importers in packages/api; do NOT schedule it for deletion alongside the @ai-sdk/* packages.",
+      "removalGate": "Only removable if Kaana replaces the tool-calling loop too. 40+ importers in packages/api; do NOT schedule it for deletion alongside the @ai-sdk/* packages.",
       "provenance": "inventory-provider-runtime",
       "evidence": "packages/api/package.json"
     },
@@ -4543,8 +4607,8 @@
       "kind": "dependency",
       "currentPath": "packages/api/package.json",
       "reachable": "live",
-      "owner": "relay",
-      "targetPath": "relay",
+      "owner": "kaana",
+      "targetPath": "kaana",
       "dependsOn": [
         "chat-core-get-ai-model"
       ],
@@ -4559,8 +4623,8 @@
       "kind": "dependency",
       "currentPath": "packages/api/package.json",
       "reachable": "live",
-      "owner": "relay",
-      "targetPath": "relay",
+      "owner": "kaana",
+      "targetPath": "kaana",
       "dependsOn": [
         "chat-core-get-ai-model"
       ],
@@ -4575,12 +4639,12 @@
       "kind": "dependency",
       "currentPath": "packages/api/package.json",
       "reachable": "live",
-      "owner": "relay",
-      "targetPath": "relay",
+      "owner": "kaana",
+      "targetPath": "kaana",
       "dependsOn": [
         "chat-core-get-ai-model"
       ],
-      "removalGate": "Removable from packages/api once getAIModel returns a Relay-backed model.",
+      "removalGate": "Removable from packages/api once getAIModel returns a Kaana-backed model.",
       "provenance": "inventory-provider-runtime",
       "evidence": "packages/api/package.json; packages/api/src/lib/chat-core.ts:9 (sole importer in packages/api)"
     },
@@ -4594,7 +4658,7 @@
       "owner": "alia",
       "targetPath": "keep-as-alia-product-setting",
       "dependsOn": [],
-      "removalGate": "Keep, and treat these three literals as the highest-inertia alias references in the repo: they are compiled into external consumers' apps (the package ships as RAW SOURCE), so retiring alia-v1 or alia-v1-voice breaks installed SDK versions that no Alia deploy can fix. Any alias retirement plan must keep both ids resolvable indefinitely or ship a major SDK version first. Verified there is no model picker component in the SDK: all 49 files under packages/alia-chat/src were enumerated.",
+      "removalGate": "Keep, and treat these three literals as the highest-inertia alias references in the repo: they are compiled into external consumers' apps (the package ships as RAW SOURCE), so retiring kaana-v1 or kaana-v1-voice breaks installed SDK versions that no Alia deploy can fix. Any alias retirement plan must keep both ids resolvable indefinitely or ship a major SDK version first. Verified there is no model picker component in the SDK: all 49 files under packages/alia-chat/src were enumerated.",
       "provenance": "inventory-frontend-admin",
       "evidence": "packages/alia-chat/src/hooks/useAliaChat.ts:11,46; packages/alia-chat/src/components/AliaChatScreen.tsx:31; packages/alia-chat/src/components/AliaChatSheet.tsx:48; packages/alia-chat/src/hooks/useTTS.ts:205; packages/alia-chat/src/hooks/useVoiceRoom.ts:332"
     },
@@ -4655,7 +4719,7 @@
       "owner": "alia",
       "targetPath": "keep — voice TRANSPORT, not provider inference",
       "dependsOn": [],
-      "removalGate": "Stays with Alia unless Relay also terminates LiveKit.",
+      "removalGate": "Stays with Alia unless Kaana also terminates LiveKit.",
       "provenance": "inventory-provider-runtime",
       "evidence": "packages/api/package.json"
     },
@@ -4683,7 +4747,7 @@
       "owner": "alia",
       "targetPath": "keep — this is a CLIENT of Alia's own OpenAI-compatible API",
       "dependsOn": [],
-      "removalGate": "Do NOT delete in a provider sweep. It requires only that Alia keeps serving an OpenAI-compatible /v1 surface after the Relay switch.",
+      "removalGate": "Do NOT delete in a provider sweep. It requires only that Alia keeps serving an OpenAI-compatible /v1 surface after the Kaana switch.",
       "provenance": "inventory-provider-runtime",
       "evidence": "packages/alia-codea/package.json"
     },
@@ -4741,10 +4805,10 @@
       "owner": "alia",
       "targetPath": "keep-alia-product",
       "dependsOn": [
-        "model-id-alia-v1-voice",
+        "model-id-kaana-v1-voice",
         "v1-audio-speech"
       ],
-      "removalGate": "Retiring or renaming alia-v1-voice breaks a published package. Keep the id resolvable.",
+      "removalGate": "Retiring or renaming kaana-v1-voice breaks a published package. Keep the id resolvable.",
       "provenance": "inventory-product-api",
       "evidence": "packages/alia-chat/src/hooks/useTTS.ts:198,205"
     },
@@ -4758,7 +4822,7 @@
       "owner": "alia",
       "targetPath": "keep-alia-product",
       "dependsOn": [
-        "model-id-alia-v1-voice",
+        "model-id-kaana-v1-voice",
         "v1-voice-token"
       ],
       "removalGate": "Published package. Same gate as sdk-tts-consumer.",
@@ -4789,8 +4853,8 @@
       "kind": "module",
       "currentPath": "packages/api/src/lib/show/show-pipeline.ts",
       "reachable": "live",
-      "owner": "relay",
-      "targetPath": "relay:audio",
+      "owner": "kaana",
+      "targetPath": "kaana:audio",
       "dependsOn": [
         "digitalocean-async",
         "gwc-import-synthesize-speech",
@@ -5090,8 +5154,8 @@
       "kind": "table",
       "currentPath": "packages/api/src/db/schema/providers.ts",
       "reachable": "live",
-      "owner": "relay",
-      "targetPath": "relay: routing preference order",
+      "owner": "kaana",
+      "targetPath": "kaana: routing preference order",
       "dependsOn": [
         "table-alia-models",
         "table-model-configs"
@@ -5141,8 +5205,8 @@
       "kind": "table",
       "currentPath": "packages/api/src/db/schema/telemetry.ts",
       "reachable": "live",
-      "owner": "relay",
-      "targetPath": "relay:keys/usage",
+      "owner": "kaana",
+      "targetPath": "kaana:keys/usage",
       "dependsOn": [
         "key-manager",
         "table-provider-keys"
@@ -5159,7 +5223,7 @@
       "currentPath": "packages/api/src/db/schema/usage.ts",
       "reachable": "live",
       "owner": "alia",
-      "targetPath": "alia analytics, with the `provider` and `model` columns dropped or moved to relay — they are internal identity in a user-facing analytics table",
+      "targetPath": "alia analytics, with the `provider` and `model` columns dropped or moved to kaana — they are internal identity in a user-facing analytics table",
       "dependsOn": [
         "table-alia-models"
       ],
@@ -5174,8 +5238,8 @@
       "kind": "table",
       "currentPath": "packages/api/src/db/schema/usage.ts",
       "reachable": "live",
-      "owner": "relay",
-      "targetPath": "relay: what Alia paid upstream is the relay's ledger, and its columns are the exact thing the model-abstraction rule forbids Alia from exposing",
+      "owner": "kaana",
+      "targetPath": "kaana: what Alia paid upstream is the kaana's ledger, and its columns are the exact thing the model-abstraction rule forbids Alia from exposing",
       "dependsOn": [],
       "removalGate": "production row count audited — and expect ZERO. `recordCost` has NO caller anywhere in the repository (measured; lib/cost-tracker.ts:17-26 states it and the real-database suite seeds through recordCost itself precisely because a correct read of an empty table and a broken switch look identical). This is the cheapest table in the inventory to remove and the one whose emptiness most needs stating out loud.",
       "provenance": "re-derived",
@@ -5253,13 +5317,13 @@
       "kind": "table",
       "currentPath": "packages/api/src/db/schema/telemetry.ts",
       "reachable": "live",
-      "owner": "relay",
-      "targetPath": "relay:telemetry",
+      "owner": "kaana",
+      "targetPath": "kaana:telemetry",
       "dependsOn": [
         "dead-internal-providers-router",
         "fallback-engine"
       ],
-      "removalGate": "UNDECIDED — whether Alia wants routing telemetry at all once Relay routes. The table is WRITE-ONLY today: its only reader was the unmounted fallback-stats admin route (measured orphan), which #141 deleted, so it now has no reader at all. So it can be dropped with no reader to migrate, but that is a decision to take deliberately rather than by omission.  || inventory gate, kept for the record: Its only reader is unmounted, so it is write-only today. Decide explicitly whether Alia wants routing telemetry at all after the switch, rather than letting it vanish.",
+      "removalGate": "UNDECIDED — whether Alia wants routing telemetry at all once Kaana routes. The table is WRITE-ONLY today: its only reader was the unmounted fallback-stats admin route (measured orphan), which #141 deleted, so it now has no reader at all. So it can be dropped with no reader to migrate, but that is a decision to take deliberately rather than by omission.  || inventory gate, kept for the record: Its only reader is unmounted, so it is write-only today. Decide explicitly whether Alia wants routing telemetry at all after the switch, rather than letting it vanish.",
       "provenance": "re-derived",
       "evidence": "packages/api/src/db/schema/telemetry.ts:156; writer packages/api/src/internal/providers/lib/fallback-engine.ts:30; reader was packages/api/src/internal/providers/routes/fallback-stats.ts (unmounted), deleted in #141"
     },
@@ -5286,8 +5350,8 @@
       "kind": "table",
       "currentPath": "packages/api/src/db/schema/providers.ts",
       "reachable": "live",
-      "owner": "relay",
-      "targetPath": "relay:catalogue",
+      "owner": "kaana",
+      "targetPath": "kaana:catalogue",
       "dependsOn": [
         "alia-models",
         "table-provider-keys",
@@ -5341,8 +5405,8 @@
       "kind": "table",
       "currentPath": "packages/api/src/db/schema/telemetry.ts",
       "reachable": "live",
-      "owner": "relay",
-      "targetPath": "relay:health",
+      "owner": "kaana",
+      "targetPath": "kaana:health",
       "dependsOn": [
         "gwc-import-health",
         "provider-health"
@@ -5358,8 +5422,8 @@
       "kind": "table",
       "currentPath": "packages/api/src/db/schema/providers.ts",
       "reachable": "live",
-      "owner": "relay",
-      "targetPath": "relay:provider credential store",
+      "owner": "kaana",
+      "targetPath": "kaana:provider credential store",
       "dependsOn": [
         "env-database-url",
         "field-provider-keys-key",
@@ -5368,7 +5432,7 @@
         "table-api-usage",
         "tuple-provider-names"
       ],
-      "removalGate": "MOST DESTRUCTIVE ITEM IN THIS INVENTORY. Count the rows and export them before any drop — these are live third-party credentials that exist nowhere else in the repo or in SSM. Migration must reach Relay's store before the table is dropped, and rotation is the safer alternative to copying plaintext.  || data-billing inventory adds: production row count audited AND every stored credential ROTATED at the upstream provider before the row is deleted — a deleted row is not a revoked key. The only live writers today are the telemetry updates in key-manager.ts (success/failure/spend/cooldown); the CREATE path (routes/keys.ts) was unreachable because internal/providers/index.ts was unmounted, and #141 deleted both, so keys are inserted by hand and there is no longer any code path that creates one.",
+      "removalGate": "MOST DESTRUCTIVE ITEM IN THIS INVENTORY. Count the rows and export them before any drop — these are live third-party credentials that exist nowhere else in the repo or in SSM. Migration must reach Kaana's store before the table is dropped, and rotation is the safer alternative to copying plaintext.  || data-billing inventory adds: production row count audited AND every stored credential ROTATED at the upstream provider before the row is deleted — a deleted row is not a revoked key. The only live writers today are the telemetry updates in key-manager.ts (success/failure/spend/cooldown); the CREATE path (routes/keys.ts) was unreachable because internal/providers/index.ts was unmounted, and #141 deleted both, so keys are inserted by hand and there is no longer any code path that creates one.",
       "provenance": "re-derived",
       "evidence": "packages/api/src/db/schema/providers.ts:300-320 (key/keyHash/keyPrefix), :322-329 (rate limits), :404-411 (unique + rotation indexes); deploy secret list .github/workflows/deploy-aws.yml:66-76 contains NO provider key; packages/api/src/db/schema/providers.ts:300"
     },
@@ -5432,7 +5496,7 @@
       "currentPath": "packages/api/src/db/schema/usage.ts",
       "reachable": "live",
       "owner": "alia",
-      "targetPath": "alia: it is both the usage record and the entitlement meter (voice minutes per plan). cost_per_minute alone is relay-upstream-cost",
+      "targetPath": "alia: it is both the usage record and the entitlement meter (voice minutes per plan). cost_per_minute alone is kaana-upstream-cost",
       "dependsOn": [
         "concept-credit-reservation",
         "table-subscriptions"
@@ -5453,7 +5517,7 @@
       "dependsOn": [
         "table-provider-keys"
       ],
-      "removalGate": "UNDECIDED — what happens to the `provider` / `actual_provider` / `actual_model_id` columns after the switch. Either Relay reports the chosen route back and Alia keeps writing them, or they go permanently null and every query grouping on them returns nothing while still succeeding. Nobody has chosen, and the failure is silent in the permissive direction. Decide before workstream 7 lands, not after.  || inventory gate, kept for the record: After the switch these columns record which provider RELAY chose — either Relay must report it back, or the columns become permanently null and every query grouping on them silently returns nothing.",
+      "removalGate": "UNDECIDED — what happens to the `provider` / `actual_provider` / `actual_model_id` columns after the switch. Either Kaana reports the chosen route back and Alia keeps writing them, or they go permanently null and every query grouping on them returns nothing while still succeeding. Nobody has chosen, and the failure is silent in the permissive direction. Decide before workstream 7 lands, not after.  || inventory gate, kept for the record: After the switch these columns record which provider RELAY chose — either Kaana must report it back, or the columns become permanently null and every query grouping on them silently returns nothing.",
       "provenance": "re-derived",
       "evidence": "packages/api/src/db/schema/usage.ts:114 (chat_analytics.provider), :189 (voice_call_usage.provider); packages/api/src/lib/cost-tracker.ts:47-49"
     },
@@ -5464,12 +5528,12 @@
       "kind": "module",
       "currentPath": "packages/api/src/lib/chat/text-tool-fallback.ts",
       "reachable": "live",
-      "owner": "relay",
-      "targetPath": "relay:compat/text-tool-calls",
+      "owner": "kaana",
+      "targetPath": "kaana:compat/text-tool-calls",
       "dependsOn": [
         "behaviour-chat-streaming"
       ],
-      "removalGate": "Only removable once Relay guarantees native tool-calling for every routed model. Note it names a provider model in a comment, which the docs sweep must catch.",
+      "removalGate": "Only removable once Kaana guarantees native tool-calling for every routed model. Note it names a provider model in a comment, which the docs sweep must catch.",
       "provenance": "re-derived",
       "evidence": "packages/api/src/lib/chat/text-tool-fallback.ts:1-18; retry abort at packages/api/src/lib/chat/stream-runner.ts:329-333 (30s)"
     },
@@ -5480,13 +5544,13 @@
       "kind": "module",
       "currentPath": "packages/api/src/internal/providers/lib/generate-model-mappings.ts",
       "reachable": "live",
-      "owner": "relay",
-      "targetPath": "relay:catalogue/tier-mappings.ts",
+      "owner": "kaana",
+      "targetPath": "kaana:catalogue/tier-mappings.ts",
       "dependsOn": [
         "alia-models",
         "model-capabilities-data"
       ],
-      "removalGate": "Read by gateway-client's getModelMappingsForTier, which 8 product call sites use (images, TTS, transcription, avatars, canvas, chat-completions, voice, chat.service). Every one must resolve tiers through Relay first. NOTE: a live Postgres table `alia_model_provider_mappings` exists but the runtime reads the CODE table, not the table.",
+      "removalGate": "Read by gateway-client's getModelMappingsForTier, which 8 product call sites use (images, TTS, transcription, avatars, canvas, chat-completions, voice, chat.service). Every one must resolve tiers through Kaana first. NOTE: a live Postgres table `alia_model_provider_mappings` exists but the runtime reads the CODE table, not the table.",
       "provenance": "re-derived",
       "evidence": "packages/api/src/internal/providers/lib/generate-model-mappings.ts:34-... (GENERATED_TIER_MAPPINGS); packages/api/src/db/schema/providers.ts:228 (aliaModelProviderMappings, not read by the resolver)"
     },
@@ -5497,12 +5561,12 @@
       "kind": "module",
       "currentPath": "packages/api/src/lib/tool-converter.ts",
       "reachable": "live",
-      "owner": "relay",
-      "targetPath": "relay:tools/name-normalisation",
+      "owner": "kaana",
+      "targetPath": "kaana:tools/name-normalisation",
       "dependsOn": [
         "message-converter-gemini-mapping"
       ],
-      "removalGate": "The mapping is threaded through provider-loop -> stream-runner -> conversation save. Removing it requires Relay to accept arbitrary tool names and normalise internally.",
+      "removalGate": "The mapping is threaded through provider-loop -> stream-runner -> conversation save. Removing it requires Kaana to accept arbitrary tool names and normalise internally.",
       "provenance": "re-derived",
       "evidence": "packages/api/src/lib/tool-converter.ts:5, :25; packages/api/src/lib/message-converter.ts:9, :27, :77, :87"
     },
@@ -5512,16 +5576,17 @@
       "domain": "provider-runtime",
       "kind": "module",
       "currentPath": "packages/api/src/internal/providers/lib/tts-providers.ts",
-      "reachable": "live",
-      "owner": "relay",
-      "targetPath": "relay:tts/voices.ts",
+      "reachable": "dead",
+      "owner": "kaana",
+      "targetPath": "kaana:tts/voices.ts",
       "dependsOn": [
         "gwc-import-synthesize-speech",
         "provider-api"
       ],
-      "removalGate": "LIVE via packages/api/src/lib/synthesize-speech.ts:16 and provider-api.ts:15. Gate: Relay accepts a canonical voice name and returns audio plus its real container, so Alia never needs the per-provider table.",
+      "removalGate": "LIVE via packages/api/src/lib/synthesize-speech.ts:16 and provider-api.ts:15. Gate: Kaana accepts a canonical voice name and returns audio plus its real container, so Alia never needs the per-provider table.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/internal/providers/lib/tts-providers.ts:32-51 (voice table), :65-81 (resolveVoiceForProvider), :87-91 (ttsOutputFormat), :108-131 (pcmToWav)"
+      "evidence": "packages/api/src/internal/providers/lib/tts-providers.ts:32-51 (voice table), :65-81 (resolveVoiceForProvider), :87-91 (ttsOutputFormat), :108-131 (pcmToWav)",
+      "removedIn": "kaana-cutover-provider-runtime-retirement"
     },
     {
       "id": "tuple-alia-tiers",
@@ -5529,7 +5594,7 @@
       "domain": "data-billing",
       "kind": "column",
       "currentPath": "packages/api/src/internal/providers/lib/alia-tiers.ts",
-      "reachable": "live",
+      "reachable": "dead",
       "owner": "alia",
       "targetPath": "keep",
       "dependsOn": [
@@ -5538,7 +5603,8 @@
       ],
       "removalGate": "Feeds packages/api/src/db/schema/providers.ts:51. Alia-branded vocabulary; stays.  || data-billing inventory adds: Same as PROVIDER_NAMES: the tuple IS a database constraint.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/internal/providers/lib/alia-tiers.ts:17-33; consumer packages/api/src/db/schema/providers.ts:51; packages/api/src/db/schema/providers.ts:51"
+      "evidence": "packages/api/src/internal/providers/lib/alia-tiers.ts:17-33; consumer packages/api/src/db/schema/providers.ts:51; packages/api/src/db/schema/providers.ts:51",
+      "removedIn": "kaana-cutover-provider-runtime-retirement"
     },
     {
       "id": "tuple-api-key-usage-auth-types",
@@ -5580,8 +5646,8 @@
       "kind": "column",
       "currentPath": "packages/api/src/domain/model-config.ts",
       "reachable": "live",
-      "owner": "relay",
-      "targetPath": "relay",
+      "owner": "kaana",
+      "targetPath": "kaana",
       "dependsOn": [
         "table-model-configs"
       ],
@@ -5629,15 +5695,16 @@
       "domain": "data-billing",
       "kind": "column",
       "currentPath": "packages/api/src/domain/provider-key.ts",
-      "reachable": "live",
-      "owner": "relay",
-      "targetPath": "relay",
+      "reachable": "dead",
+      "owner": "kaana",
+      "targetPath": "kaana",
       "dependsOn": [
         "table-provider-keys"
       ],
       "removalGate": "The tuple IS a live database constraint — it renders the CHECK on its column — so moving or narrowing it is a MIGRATION, in the same PR as the code change. ",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/domain/provider-key.ts:11"
+      "evidence": "packages/api/src/domain/provider-key.ts:11",
+      "removedIn": "kaana-cutover-provider-runtime-retirement"
     },
     {
       "id": "tuple-provider-names",
@@ -5656,6 +5723,20 @@
       "removalGate": "DO NOT DELETE with the adapters. packages/api/src/lib/errors/sanitize.ts:8 builds its provider-name scrub list from this array — deleting it silently empties the scrubber and starts leaking provider names into user-facing errors. Also feeds checkOneOf constraints in packages/api/src/db/schema/providers.ts:51.  || data-billing inventory adds: Do NOT move without the CHECKs. lib/errors/sanitize.ts imports it to scrub provider names out of user-facing errors — deleting or narrowing this tuple weakens the model-abstraction guarantee at the same time as the schema.",
       "provenance": "re-derived",
       "evidence": "packages/api/src/internal/providers/lib/provider-names.ts:6-26; consumers packages/api/src/lib/errors/sanitize.ts:8 and packages/api/src/db/schema/providers.ts:52; packages/api/src/internal/providers/lib/provider-names.ts:6"
+    },
+    {
+      "id": "tuple-routing-tiers",
+      "workstream": "4",
+      "domain": "data-billing",
+      "kind": "tuple",
+      "currentPath": "packages/api/src/internal/providers/lib/routing-tiers.ts",
+      "reachable": "live",
+      "owner": "kaana",
+      "targetPath": "kaana: routing profile contract",
+      "dependsOn": [],
+      "removalGate": "The shared routing-profile tier vocabulary must come from the Kaana contract before this local compatibility copy is removed.",
+      "provenance": "kaana-cutover",
+      "evidence": "packages/api/src/internal/providers/lib/routing-tiers.ts; packages/api/src/db/schema/providers.ts"
     },
     {
       "id": "tuple-transaction-statuses",
@@ -5695,7 +5776,7 @@
       "domain": "provider-runtime",
       "kind": "module",
       "currentPath": "packages/api/src/internal/providers/lib/types-voice.ts",
-      "reachable": "live",
+      "reachable": "dead",
       "owner": "alia",
       "targetPath": "keep",
       "dependsOn": [
@@ -5703,7 +5784,8 @@
       ],
       "removalGate": "packages/api/src/lib/livekit-agent.ts:26 imports AgentDataMessage and LiveKitAgentBridgeRef type-only. Those two types are LiveKit-shaped, not provider-shaped, and should be relocated out of internal/providers rather than deleted.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/internal/providers/lib/types-voice.ts; type-only importer packages/api/src/lib/livekit-agent.ts:26"
+      "evidence": "packages/api/src/internal/providers/lib/types-voice.ts; type-only importer packages/api/src/lib/livekit-agent.ts:26",
+      "removedIn": "kaana-cutover-provider-runtime-retirement"
     },
     {
       "id": "v1-audio-generate",
@@ -5744,12 +5826,12 @@
       "kind": "route",
       "currentPath": "packages/api/src/routes/v1/audio.ts",
       "reachable": "live",
-      "owner": "relay",
-      "targetPath": "relay:tts (Alia keeps the /v1/audio/speech facade)",
+      "owner": "kaana",
+      "targetPath": "kaana:tts (Alia keeps the /v1/audio/speech facade)",
       "dependsOn": [
         "gateway-client"
       ],
-      "removalGate": "Consumed by the published SDK (useTTS.ts:198, sending model:'alia-v1-voice'). Path is frozen by the SDK's published major.",
+      "removalGate": "Consumed by the published SDK (useTTS.ts:198, sending model:'kaana-v1-voice'). Path is frozen by the SDK's published major.",
       "provenance": "re-derived",
       "evidence": "packages/api/src/routes/v1/audio.ts:35; packages/api/src/index.ts:294"
     },
@@ -5782,7 +5864,7 @@
         "alia-models",
         "sse-named-event-contract"
       ],
-      "removalGate": "Never removed. If inference moves to Relay, this endpoint stays as the Alia-facing facade - the OpenAI shape, the alia_* extensions and the named SSE events are the public contract and must be reproduced byte-compatibly on the far side. || CONTESTED: ADR 0004 (Accepted) decides the opposite for this surface - \"a bounded-window compatibility surface, then it sunsets\" - and rejects permanence by name. docs/adr/0006 records the conflict and resolves neither side; do not act on this gate until it is resolved.",
+      "removalGate": "Never removed. If inference moves to Kaana, this endpoint stays as the Alia-facing facade - the OpenAI shape, the alia_* extensions and the named SSE events are the public contract and must be reproduced byte-compatibly on the far side. || CONTESTED: ADR 0004 (Accepted) decides the opposite for this surface - \"a bounded-window compatibility surface, then it sunsets\" - and rejects permanence by name. docs/adr/0006 records the conflict and resolves neither side; do not act on this gate until it is resolved.",
       "provenance": "re-derived",
       "evidence": "packages/api/src/routes/v1.ts:127; packages/api/src/routes/v1/chat-completions.ts:29,334"
     },
@@ -5793,8 +5875,8 @@
       "kind": "route",
       "currentPath": "packages/api/src/routes/v1/images.ts",
       "reachable": "live",
-      "owner": "relay",
-      "targetPath": "relay:image-generation (Alia keeps the /v1/images/generations facade)",
+      "owner": "kaana",
+      "targetPath": "kaana:image-generation (Alia keeps the /v1/images/generations facade)",
       "dependsOn": [
         "gateway-client"
       ],
@@ -6013,7 +6095,7 @@
       "owner": "alia",
       "targetPath": "keep-alia-product",
       "dependsOn": [],
-      "removalGate": "Consumed by the published SDK (packages/alia-chat/src/hooks/useVoiceRoom.ts:325, which sends model:'alia-v1-voice'). Any change is a breaking SDK major.",
+      "removalGate": "Consumed by the published SDK (packages/alia-chat/src/hooks/useVoiceRoom.ts:325, which sends model:'kaana-v1-voice'). Any change is a breaking SDK major.",
       "provenance": "re-derived",
       "evidence": "packages/api/src/routes/v1/voice.ts:31"
     },
@@ -6024,8 +6106,8 @@
       "kind": "route",
       "currentPath": "packages/api/src/routes/v1/voice.ts",
       "reachable": "live",
-      "owner": "relay",
-      "targetPath": "relay:speech-to-text (Alia keeps the /v1/voice/transcribe facade)",
+      "owner": "kaana",
+      "targetPath": "kaana:speech-to-text (Alia keeps the /v1/voice/transcribe facade)",
       "dependsOn": [
         "gateway-client"
       ],
@@ -6039,9 +6121,9 @@
       "domain": "provider-runtime",
       "kind": "module",
       "currentPath": "packages/api/src/internal/providers/lib/voice-session-manager.ts",
-      "reachable": "live",
-      "owner": "relay",
-      "targetPath": "relay:voice/session-manager.ts (bridge stays alia)",
+      "reachable": "dead",
+      "owner": "kaana",
+      "targetPath": "kaana:voice/session-manager.ts (bridge stays alia)",
       "dependsOn": [
         "adapter-grok-voice",
         "adapter-openai-voice",
@@ -6050,9 +6132,10 @@
         "livekit-agent-bridge",
         "model-resolver"
       ],
-      "removalGate": "SPLIT REQUIRED: the LiveKit room lifecycle, credit reservation and tool execution are Alia product logic; only providerSocket handling belongs in Relay. Gate: Relay exposes a realtime session endpoint Alia can bridge to, and voice-session-manager stops importing providers/index.js and model-resolver.js.",
+      "removalGate": "SPLIT REQUIRED: the LiveKit room lifecycle, credit reservation and tool execution are Alia product logic; only providerSocket handling belongs in Kaana. Gate: Kaana exposes a realtime session endpoint Alia can bridge to, and voice-session-manager stops importing providers/index.js and model-resolver.js.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/internal/providers/lib/voice-session-manager.ts:25 (model-resolver), :30 (providers registry), :99-104 (MAX_SESSIONS_PER_USER=5, BILLING_INTERVAL_MS=60s, USER_SILENCE_TIMEOUT_MS=20s, COHOST_INACTIVITY_TIMEOUT_MS=30s), :229 (provider connect), :383-546 (socket handlers)"
+      "evidence": "packages/api/src/internal/providers/lib/voice-session-manager.ts:25 (model-resolver), :30 (providers registry), :99-104 (MAX_SESSIONS_PER_USER=5, BILLING_INTERVAL_MS=60s, USER_SILENCE_TIMEOUT_MS=20s, COHOST_INACTIVITY_TIMEOUT_MS=30s), :229 (provider connect), :383-546 (socket handlers)",
+      "removedIn": "kaana-cutover-provider-runtime-retirement"
     }
   ]
 }

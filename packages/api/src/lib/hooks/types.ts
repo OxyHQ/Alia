@@ -35,7 +35,7 @@ export interface AfterChatContext extends ChatHookContext {
    * How much reasoning the caller asked for, or null for the default.
    *
    * Computed where `thinkingMode` is in scope, because a caller can express the
-   * same intent through the flag or through `alia-v1-thinking` and the hook sees
+   * same intent through the flag or through `kaana-v1-thinking` and the hook sees
    * only the identifier.
    */
   reasoningEffort: string | null;

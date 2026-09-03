@@ -41,6 +41,7 @@ router.post('/:id/hire', authenticateToken, async (req: Request, res: Response) 
     if (!agent || (await canReachAgent(agent, {
       oxyUserId: req.user.id,
       accessToken: req.accessToken,
+      applicationId: req.serviceApp?.appId,
     })) !== 'reachable') {
       return res.status(404).json({ error: 'Agent not found' });
     }

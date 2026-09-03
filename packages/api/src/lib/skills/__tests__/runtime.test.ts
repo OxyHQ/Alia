@@ -126,6 +126,24 @@ describe('level one: the index', () => {
     expect(runtime.index).toContain('- agent-owned:');
     expect(vi.mocked(listSkillMetadataByIds)).toHaveBeenCalledWith(db, ['id-agent-owned']);
   });
+
+  it('gives an agent only explicitly linked skills, never the person\'s installed shelf', async () => {
+    vi.mocked(listInstalledSkillMetadata).mockResolvedValue([metadata('private-user-skill')] as never);
+    vi.mocked(listSkillMetadataByIds).mockResolvedValue([metadata('agent-owned')] as never);
+
+    const runtime = await buildSkillRuntime({
+      db,
+      oxyUserId: USER,
+      agentSkillIds: ['id-agent-owned'],
+      includeUserInstalled: false,
+    });
+
+    expect(vi.mocked(listInstalledSkillMetadata)).not.toHaveBeenCalled();
+    expect(runtime.agentScoped).toBe(true);
+    expect(runtime.index).toContain('- agent-owned:');
+    expect(runtime.index).not.toContain('private-user-skill');
+    expect(runtime.candidateIds).toEqual(['id-agent-owned']);
+  });
 });
 
 describe('level two: activation', () => {

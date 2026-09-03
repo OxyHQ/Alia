@@ -25,10 +25,9 @@
  */
 import type { Response } from 'express';
 import { streamText, type TextStreamPart, type ToolSet } from 'ai';
-import { reportModelUsage, type ResolvedModel } from '../chat-core.js';
+import type { ResolvedModel } from '../chat-core.js';
 import { log } from '../logger.js';
 import { recordEvent } from '../observability/index.js';
-import { classifyError, getRetryAfterHeader } from '../errors/index.js';
 import { writeTextChunk, writeStopChunk, writeContentChunk, makeChunk } from '../streaming-helpers.js';
 import type { SSEWriter } from './sse-writer.js';
 
@@ -114,7 +113,7 @@ export interface RunStreamParams<TOOLS extends ToolSet> {
   res: Response;
   sse: SSEWriter;
   requestId: string;
-  aliasModelId: string;
+  routingProfileId: string;
   resolved: ResolvedModel;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- AI SDK config is dynamically extended; strict SDK param types don't support this pattern
   baseConfig: any;
@@ -145,7 +144,7 @@ export interface RunStreamResult {
  */
 export async function runStream<TOOLS extends ToolSet>(params: RunStreamParams<TOOLS>): Promise<RunStreamResult> {
   const {
-    result, res, sse, requestId, aliasModelId, resolved, baseConfig,
+    result, res, sse, requestId, routingProfileId, resolved, baseConfig,
     convertedMessages, toolNameMapping, agentMessages, state, onFirstChunk,
   } = params;
 
@@ -197,7 +196,7 @@ export async function runStream<TOOLS extends ToolSet>(params: RunStreamParams<T
       for await (const retryChunk of retryResult.fullStream) {
         if (res.writableEnded) break;
         if (retryChunk.type === 'text-delta' && retryChunk.text) {
-          const filtered = writeTextChunk(res, requestId, aliasModelId, retryChunk.text);
+          const filtered = writeTextChunk(res, requestId, routingProfileId, retryChunk.text);
           if (filtered) {
             state.hasStreamedContent = true;
             hasStreamedText = true;
@@ -239,7 +238,7 @@ export async function runStream<TOOLS extends ToolSet>(params: RunStreamParams<T
       }
 
       // Filter out thinking tags and stream as OpenAI-compatible chunk
-      const filtered = writeTextChunk(res, requestId, aliasModelId, chunk.text);
+      const filtered = writeTextChunk(res, requestId, routingProfileId, chunk.text);
       if (filtered) {
         assistantResponse += filtered;
       }
@@ -263,7 +262,7 @@ export async function runStream<TOOLS extends ToolSet>(params: RunStreamParams<T
       // Log the tool call arguments being sent to the client
       log.v1.debug({ toolName: originalToolName, argsBytes: sizeForLog(chunk.input) }, 'Streaming tool call');
 
-      res.write(`data: ${JSON.stringify(makeChunk(requestId, aliasModelId, [{
+      res.write(`data: ${JSON.stringify(makeChunk(requestId, routingProfileId, [{
         index: 0,
         delta: { tool_calls: [{ index: 0, id: chunk.toolCallId, type: 'function', function: { name: originalToolName, arguments: JSON.stringify(chunk.input || {}) } }] },
         finish_reason: null,
@@ -351,7 +350,7 @@ export async function runStream<TOOLS extends ToolSet>(params: RunStreamParams<T
       // Send tool error as text content so the user sees what happened
       const errorMessage = (chunk as ExtendedChunk).error?.message || 'Tool execution failed';
       const toolErrorContent = `\n\nTool error (${originalToolName}): ${errorMessage}`;
-      writeContentChunk(res, requestId, aliasModelId, toolErrorContent);
+      writeContentChunk(res, requestId, routingProfileId, toolErrorContent);
       assistantResponse += toolErrorContent;
     } else if (chunk.type === 'start') {
       log.v1.debug('Stream started');
@@ -368,12 +367,6 @@ export async function runStream<TOOLS extends ToolSet>(params: RunStreamParams<T
     } else if (chunk.type === 'error') {
       log.v1.error({ err: (chunk as ExtendedChunk).error }, 'Error chunk received');
 
-      // Record failure for circuit breaker - classify error for accurate reporting
-      const streamErrorReason = classifyError((chunk as ExtendedChunk).error);
-      const streamRetryAfterSec = getRetryAfterHeader((chunk as ExtendedChunk).error);
-      const streamRetryAfterMs = streamRetryAfterSec ? streamRetryAfterSec * 1000 : undefined;
-      await reportModelUsage(resolved.keyConfig?.keyId, resolved.provider, resolved.modelId, false, 0, streamErrorReason, streamRetryAfterMs);
-
       const rawError = (chunk as ExtendedChunk).error;
 
       // If no content streamed yet, throw to trigger provider fallback
@@ -387,7 +380,7 @@ export async function runStream<TOOLS extends ToolSet>(params: RunStreamParams<T
         log.v1.info({ provider: resolved.provider, modelId: resolved.modelId }, 'Synthesis failed after tool results, retrying without tools');
         try {
           if (await synthesizeCompletedToolResults()) {
-            writeStopChunk(res, requestId, aliasModelId);
+            writeStopChunk(res, requestId, routingProfileId);
             break; // Exit main stream loop — synthesis retry succeeded
           }
         } catch (retryErr) {
@@ -432,7 +425,7 @@ export async function runStream<TOOLS extends ToolSet>(params: RunStreamParams<T
         }
       }
 
-      writeStopChunk(res, requestId, aliasModelId, finishReason);
+      writeStopChunk(res, requestId, routingProfileId, finishReason);
     } else {
       // The type, never the chunk: an unrecognised frame is the one case where
       // nothing here knows what the payload holds, and "unknown" is exactly

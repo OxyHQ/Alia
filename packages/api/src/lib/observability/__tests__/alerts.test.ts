@@ -2,10 +2,8 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import {
   checkInfiniteLoop,
-  checkProviderCascade,
   checkSessionRunaway,
   cleanupSessionAlerts,
-  getRecentAlerts,
   onAlert,
   type Alert,
 } from '../alerts.js';
@@ -44,21 +42,6 @@ beforeEach(() => {
 });
 
 describe('emit reaches a registered handler, not just the ring buffer', () => {
-  it('delivers a critical alert to the handler', () => {
-    checkProviderCascade(6, 10);
-
-    // The assertion the detached-logger bug failed. `recentAlerts` is written
-    // before the log call and the handlers after it, so this is the half that
-    // the throw ate.
-    expect(raised).toHaveLength(1);
-    expect(raised[0]?.level).toBe('critical');
-    expect(raised[0]?.type).toBe('provider_cascade');
-    expect(raised[0]?.metadata).toEqual({ failedKeyCount: 6, totalKeyCount: 10 });
-
-    // And the buffer still gets it, so the fix did not trade one for the other.
-    expect(getRecentAlerts().at(-1)?.type).toBe('provider_cascade');
-  });
-
   it('delivers a warning alert too, which is the other branch of the level check', () => {
     // Both arms, because the fix replaced one expression with an `if`/`else` and
     // a test of one arm says nothing about the other.
@@ -87,7 +70,6 @@ describe('emit reaches a registered handler, not just the ring buffer', () => {
   it('stays silent when the check does not fire', () => {
     // The discriminator. Without it every assertion above is equally satisfied
     // by a module that alerts on everything.
-    checkProviderCascade(1, 10);
     checkSessionRunaway('alerts-session-3', 1_000);
     checkInfiniteLoop('alerts-session-4', 'readFile', { path: 'a' });
     checkInfiniteLoop('alerts-session-4', 'readFile', { path: 'b' });
@@ -106,8 +88,8 @@ describe('emit reaches a registered handler, not just the ring buffer', () => {
     });
     onAlert((alert) => heard.push(alert.type));
 
-    checkProviderCascade(9, 10);
+    checkSessionRunaway('alerts-session-5', 900_000);
 
-    expect(heard).toEqual(['provider_cascade']);
+    expect(heard).toEqual(['session_runaway']);
   });
 });

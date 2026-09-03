@@ -84,6 +84,14 @@ export interface SkillRuntimeOptions {
   selectedNames?: string[] | null;
   /** Skill row ids linked to the agent this conversation runs, if any. */
   agentSkillIds?: string[];
+  /**
+   * Whether this turn may discover the person's installed skills.
+   *
+   * A linked agent gets only its explicitly linked skill rows. Without this
+   * switch the candidate set silently unioned every skill the person had ever
+   * installed into every agent turn, even when that agent had no grants.
+   */
+  includeUserInstalled?: boolean;
 }
 
 export interface SkillRuntime {
@@ -92,6 +100,8 @@ export interface SkillRuntime {
   /** Level two for an explicit selection. Prepended to the system prompt as instructions. */
   active: string;
   tools: ToolSet;
+  /** True only when every candidate came from the agent's explicit skill links. */
+  agentScoped: boolean;
   /** Everything the caller was entitled to this turn. */
   candidateIds: string[];
   /**
@@ -108,16 +118,25 @@ const EMPTY: SkillRuntime = {
   index: '',
   active: '',
   tools: {},
+  agentScoped: false,
   candidateIds: [],
   activated: () => [],
 };
 
 export async function buildSkillRuntime(opts: SkillRuntimeOptions): Promise<SkillRuntime> {
-  const { db, oxyUserId, selectedNames, agentSkillIds = [], conversationId, containerId } = opts;
-  if (selectedNames === null) return EMPTY;
+  const {
+    db,
+    oxyUserId,
+    selectedNames,
+    agentSkillIds = [],
+    conversationId,
+    containerId,
+    includeUserInstalled = true,
+  } = opts;
+  if (selectedNames === null) return { ...EMPTY, agentScoped: !includeUserInstalled };
 
   const [installed, linked] = await Promise.all([
-    listInstalledSkillMetadata(db, oxyUserId),
+    includeUserInstalled ? listInstalledSkillMetadata(db, oxyUserId) : Promise.resolve([]),
     listSkillMetadataByIds(db, agentSkillIds),
   ]);
 
@@ -125,7 +144,7 @@ export async function buildSkillRuntime(opts: SkillRuntimeOptions): Promise<Skil
   for (const entry of [...installed, ...linked]) {
     if (!candidates.has(entry.name)) candidates.set(entry.name, entry);
   }
-  if (candidates.size === 0) return EMPTY;
+  if (candidates.size === 0) return { ...EMPTY, agentScoped: !includeUserInstalled };
 
   const linkedIds = new Set(linked.map((entry) => entry.skillId));
   const activated = new Map<string, string>();
@@ -148,6 +167,7 @@ export async function buildSkillRuntime(opts: SkillRuntimeOptions): Promise<Skil
     index: renderIndex([...candidates.values()], new Set(active.map((entry) => entry.name))),
     active: renderActive(active),
     tools: buildSkillTools({ db, oxyUserId, candidates, linkedIds, activated, conversationId, containerId }),
+    agentScoped: !includeUserInstalled,
     candidateIds: [...candidates.values()].map((entry) => entry.skillId),
     activated: () => [...activated].map(([id, name]) => ({ id, name })),
   };

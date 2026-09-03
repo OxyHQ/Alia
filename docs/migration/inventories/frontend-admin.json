@@ -10,7 +10,7 @@
       "packages/app: screens enumerated from the expo-router file tree under packages/app/app/ (52 .tsx route files); model-bearing screens then narrowed by grep."
     ],
     "controls": [
-      "POSITIVE CONTROL (alia-* alias census): the same regex run against the known-present definition file packages/api/src/internal/providers/lib/alia-models.ts returned 27 hits and the repo-wide census independently surfaced all 12 alias definitions in that file (alia-lite, alia-v1, alia-v1-codea, -cowork, -browser, -vision, -audio, -multimodal, -pro, -thinking, -pro-max, -voice, -voice-pro). A blind census would have returned 0 there. Non-zero floor: 78 sites found inside the frontend/admin/SDK/CLI scope.",
+      "POSITIVE CONTROL (alia-* alias census): the same regex run against the known-present definition file packages/api/src/internal/providers/lib/alia-models.ts returned 27 hits and the repo-wide census independently surfaced all 12 alias definitions in that file (kaana-lite, kaana-v1, kaana-v1-codea, -cowork, -browser, -vision, -audio, -multimodal, -pro, -thinking, -pro-max, -voice, -voice-pro). A blind census would have returned 0 there. Non-zero floor: 78 sites found inside the frontend/admin/SDK/CLI scope.",
       "POSITIVE CONTROL (provider-name leak scan): the identical case-insensitive provider-name regex run against packages/api/src/internal/providers (a tree that MUST contain provider names) returned 322 hits, proving the pattern and the file-type filters can see provider names. The same scan over packages/app returned 5 hits and all 5 are the string 'OpenAI' inside code comments describing the OpenAI-COMPATIBLE wire format, never a provider identity in rendered output.",
       "POSITIVE CONTROL (secret-exposure scan): the keyPrefix/apiKey/rotate regex surfaced a known-present example \u2014 the raw-provider-key <Input> at packages/alia-gateway-admin/src/pages/Keys.tsx:346-348 \u2014 before any 'absent' claim was made about other packages.",
       "VACUITY CONTROL (app screens that returned zero model hits): packages/app/app/(app)/settings/usage.tsx, .../agents/create.tsx and .../(biglayout)/subscribe.tsx each returned 0 'model' hits. Verified NOT a broken measurement: each file exists (ls confirms 742/6094/9052 bytes), each returns non-zero hits for 'import' (5/13/14), and the same grep returns 75 on the known-positive packages/app/components/model-selector.tsx. Those three screens genuinely delegate all model rendering to child components."
@@ -67,12 +67,12 @@
       "currentPath": "packages/alia-gateway-admin/src/pages/Keys.tsx",
       "summary": "Full CRUD over upstream PROVIDER credentials: create with a raw pasted key, rotate, activate/deactivate, delete, hot-reload, plus per-key rate limits and credit caps.",
       "exposesProviderSecret": true,
-      "proposedOwner": "relay",
-      "targetPath": "internal-relay-ops",
+      "proposedOwner": "kaana",
+      "targetPath": "internal-kaana-ops",
       "dependsOn": [
         "ga-api-client"
       ],
-      "removalGate": "Relay owns provider credentials end to end (create/rotate/deactivate/reload) AND the /internal/gateway/v1/keys* endpoints this screen calls are retired. Do not delete this screen while it is the only way to rotate a live provider key.",
+      "removalGate": "Kaana owns provider credentials end to end (create/rotate/deactivate/reload) AND the /internal/gateway/v1/keys* endpoints this screen calls are retired. Do not delete this screen while it is the only way to rotate a live provider key.",
       "evidence": "packages/alia-gateway-admin/src/pages/Keys.tsx:346-348 (raw provider key <Input>), :630 (renders key.keyPrefix), :802 (keyPrefix in the rotate dialog), :178-179 (rotateKey mutation), :199 (reloadKeys)"
     },
     {
@@ -82,15 +82,15 @@
       "currentPath": "packages/alia-gateway-admin/src/pages/Models.tsx",
       "summary": "Largest screen (1506 lines). Two catalogs: provider model configs (provider + provider model id + pricing + capabilities) and Alia virtual models with ordered providerMappings \u2014 i.e. this is the alias-to-provider routing editor.",
       "exposesProviderSecret": false,
-      "proposedOwner": "relay",
-      "targetPath": "internal-relay-ops",
+      "proposedOwner": "kaana",
+      "targetPath": "internal-kaana-ops",
       "dependsOn": [
         "ga-api-client",
         "ga-types-providers",
         "ga-component-fallback-chain"
       ],
-      "removalGate": "Relay owns the alias-to-provider mapping table and its fallback ordering, with an equivalent editor. This is the single screen that most directly encodes 'Alia knows which provider serves which alias' \u2014 it is the heart of what the epic decouples, so it must move rather than be dropped.",
-      "evidence": "packages/alia-gateway-admin/src/pages/Models.tsx:114,121 (listModels/listAliaModels), :134-186 (create/update/delete for both catalogs), :236 (providerMappings editor), :746 (alia-v1 placeholder), :375,864,1417 (gpt-4o placeholders)"
+      "removalGate": "Kaana owns the alias-to-provider mapping table and its fallback ordering, with an equivalent editor. This is the single screen that most directly encodes 'Alia knows which provider serves which alias' \u2014 it is the heart of what the epic decouples, so it must move rather than be dropped.",
+      "evidence": "packages/alia-gateway-admin/src/pages/Models.tsx:114,121 (listModels/listAliaModels), :134-186 (create/update/delete for both catalogs), :236 (providerMappings editor), :746 (kaana-v1 placeholder), :375,864,1417 (gpt-4o placeholders)"
     },
     {
       "id": "ga-screen-dashboard",
@@ -99,13 +99,13 @@
       "currentPath": "packages/alia-gateway-admin/src/pages/Dashboard.tsx",
       "summary": "Provider-segmented operations overview: requests timeline, top models, spend by provider, avg latency per provider, credits overview, and an alerts panel for failing keys / open circuit breakers / near-credit-limit keys.",
       "exposesProviderSecret": true,
-      "proposedOwner": "relay",
-      "targetPath": "internal-relay-ops",
+      "proposedOwner": "kaana",
+      "targetPath": "internal-kaana-ops",
       "dependsOn": [
         "ga-api-client",
         "ga-realtime-client"
       ],
-      "removalGate": "Relay has an equivalent provider-health and provider-spend dashboard. Everything on this screen is provider-segmented, so none of it can be surfaced to an Alia user or an Oxy customer without breaking model abstraction.",
+      "removalGate": "Kaana has an equivalent provider-health and provider-spend dashboard. Everything on this screen is provider-segmented, so none of it can be surfaced to an Alia user or an Oxy customer without breaking model abstraction.",
       "evidence": "packages/alia-gateway-admin/src/pages/Dashboard.tsx:770 (renders `{key.provider} -- {key.keyPrefix}`), :129,136,144 (getAllProviderHealth/listKeys/getDashboardStats), packages/alia-gateway-admin/src/lib/api/client.ts:515-549 (costsByProvider, spendByProvider, alerts.failingKeys[].keyPrefix, nearCreditLimitKeys[].keyPrefix)"
     },
     {
@@ -115,13 +115,13 @@
       "currentPath": "packages/alia-gateway-admin/src/pages/Monitoring.tsx",
       "summary": "Live provider/model health: success rate, latency, consecutive failures and circuit-breaker state, with per-key drilldowns that print key prefixes.",
       "exposesProviderSecret": true,
-      "proposedOwner": "relay",
-      "targetPath": "internal-relay-ops",
+      "proposedOwner": "kaana",
+      "targetPath": "internal-kaana-ops",
       "dependsOn": [
         "ga-api-client",
         "ga-realtime-client"
       ],
-      "removalGate": "Relay exposes provider health and circuit-breaker state to operators. Same abstraction constraint as the dashboard: provider-keyed throughout.",
+      "removalGate": "Kaana exposes provider health and circuit-breaker state to operators. Same abstraction constraint as the dashboard: provider-keyed throughout.",
       "evidence": "packages/alia-gateway-admin/src/pages/Monitoring.tsx:478,533 (renders key.keyPrefix), :59,66 (getAllProviderHealth/listKeys)"
     },
     {
@@ -131,12 +131,12 @@
       "currentPath": "packages/alia-gateway-admin/src/pages/Logs.tsx",
       "summary": "Request log browser filtered by provider, model and status, with a provider facet list and aggregate stats over an hours window.",
       "exposesProviderSecret": false,
-      "proposedOwner": "relay",
-      "targetPath": "internal-relay-ops",
+      "proposedOwner": "kaana",
+      "targetPath": "internal-kaana-ops",
       "dependsOn": [
         "ga-api-client"
       ],
-      "removalGate": "Relay owns request logging and its operator UI. The provider filter facet is the abstraction-breaking part and must not be re-exposed on any Alia-branded surface.",
+      "removalGate": "Kaana owns request logging and its operator UI. The provider filter facet is the abstraction-breaking part and must not be re-exposed on any Alia-branded surface.",
       "evidence": "packages/alia-gateway-admin/src/pages/Logs.tsx:118,126,138 (getLogStats/getLogProviders/getLogs), packages/alia-gateway-admin/src/lib/api/client.ts:448-473"
     },
     {
@@ -146,12 +146,12 @@
       "currentPath": "packages/alia-gateway-admin/src/pages/Usage.tsx",
       "summary": "Aggregate usage and cost over a selectable period; the cost view is upstream provider COGS, not customer billing.",
       "exposesProviderSecret": false,
-      "proposedOwner": "relay",
-      "targetPath": "internal-relay-ops",
+      "proposedOwner": "kaana",
+      "targetPath": "internal-kaana-ops",
       "dependsOn": [
         "ga-api-client"
       ],
-      "removalGate": "Relay reports its own usage/cost. Distinguish carefully from ga-screen-billing and from console /usage: this one is upstream spend, those are customer-facing.",
+      "removalGate": "Kaana reports its own usage/cost. Distinguish carefully from ga-screen-billing and from console /usage: this one is upstream spend, those are customer-facing.",
       "evidence": "packages/alia-gateway-admin/src/pages/Usage.tsx:98,105 (getUsage/getUsageCosts)"
     },
     {
@@ -166,7 +166,7 @@
       "dependsOn": [
         "ga-api-client"
       ],
-      "removalGate": "An Alia-owned plan editor exists elsewhere before this UI goes. This screen is NOT relay work \u2014 it is Alia commerce that happens to live in the wrong app. It does read listAliaModels to populate modelIds, so it needs an Alia-branded model list source after the split, never a provider-aware one.",
+      "removalGate": "An Alia-owned plan editor exists elsewhere before this UI goes. This screen is NOT kaana work \u2014 it is Alia commerce that happens to live in the wrong app. It does read listAliaModels to populate modelIds, so it needs an Alia-branded model list source after the split, never a provider-aware one.",
       "evidence": "packages/alia-gateway-admin/src/pages/Plans.tsx:139,146 (listPlans + listAliaModels), :157-177 (create/update/delete), packages/alia-gateway-admin/src/types/index.ts:128-151 (SubscriptionPlan.modelIds, stripeMonthlyPriceId)"
     },
     {
@@ -235,8 +235,8 @@
       "currentPath": "packages/alia-gateway-admin/src/lib/api/client.ts",
       "summary": "563-line typed client for /internal/gateway/v1/* covering providers-health, keys (incl. create with raw key and rotate), models, alia-models, plans, credit-packages, billing, features, plan-features, usage, logs, dashboard-stats and key diagnostics.",
       "exposesProviderSecret": true,
-      "proposedOwner": "relay",
-      "targetPath": "internal-relay-ops",
+      "proposedOwner": "kaana",
+      "targetPath": "internal-kaana-ops",
       "dependsOn": [],
       "removalGate": "Every screen above has migrated. This file is the exact contract inventory of what /internal/gateway must still serve \u2014 read it before retiring any backend route, and treat createKey (:123-149) and rotateKey (:176-181) as the two calls that transmit a plaintext provider credential.",
       "evidence": "packages/alia-gateway-admin/src/lib/api/client.ts:6 (base URL), :123-149 (createKey sends `key`), :176-181 (rotateKey sends newKey), :484-509 (getKeyDiagnostics returns keyPrefix per key)"
@@ -248,12 +248,12 @@
       "currentPath": "packages/alia-gateway-admin/src/lib/websocket/client.ts",
       "summary": "Hand-rolled reconnecting WebSocket to <gateway>/ws with channel subscriptions for health, keys, models and alia-models; provider.tsx + hooks.ts wrap it in React.",
       "exposesProviderSecret": false,
-      "proposedOwner": "relay",
-      "targetPath": "internal-relay-ops",
+      "proposedOwner": "kaana",
+      "targetPath": "internal-kaana-ops",
       "dependsOn": [
         "ga-api-client"
       ],
-      "removalGate": "Relay's ops UI has its own live channel, or the dashboards drop to polling. Independent hazard to record now: this client puts the bearer token in the WebSocket URL QUERY STRING (client.ts:60), where it lands in proxy and server access logs. Do not port that pattern.",
+      "removalGate": "Kaana's ops UI has its own live channel, or the dashboards drop to polling. Independent hazard to record now: this client puts the bearer token in the WebSocket URL QUERY STRING (client.ts:60), where it lands in proxy and server access logs. Do not port that pattern.",
       "evidence": "packages/alia-gateway-admin/src/lib/websocket/client.ts:34-35 (URL derivation), :60 (`?token=` in the URL), packages/alia-gateway-admin/src/lib/websocket/hooks.ts:54-95"
     },
     {
@@ -263,8 +263,8 @@
       "currentPath": "packages/alia-gateway-admin/src/types/index.ts",
       "summary": "A 19-entry literal provider list (openai, anthropic, google, groq, mistral, deepseek, together, replicate, cerebras, cloudflare, openrouter, cohere, fireworks, perplexity, xai, sambanova, hyperbolic, novita, digitalocean) and a 12-entry ALIA_TIERS list, both maintained by hand in a frontend.",
       "exposesProviderSecret": false,
-      "proposedOwner": "relay",
-      "targetPath": "internal-relay-ops",
+      "proposedOwner": "kaana",
+      "targetPath": "internal-kaana-ops",
       "dependsOn": [],
       "removalGate": "Deleted with the package. This is the single largest concentration of provider identity in any Alia frontend and it exists ONLY here \u2014 no other frontend package carries a provider list. Its ALIA_TIERS copy also drifts from packages/shared-types/src/models.ts, which additionally declares v1-tts and v1-image; whichever survives must be the shared-types one.",
       "evidence": "packages/alia-gateway-admin/src/types/index.ts:244-264 (PROVIDERS), :268-281 (ALIA_TIERS); drift vs packages/shared-types/src/models.ts:17-31"
@@ -276,8 +276,8 @@
       "currentPath": "packages/alia-gateway-admin/src/components/models/FallbackChain.tsx",
       "summary": "Drag-and-drop editor (dnd-kit) for the ordered provider fallback chain behind an Alia alias; used only by the Models screen.",
       "exposesProviderSecret": false,
-      "proposedOwner": "relay",
-      "targetPath": "internal-relay-ops",
+      "proposedOwner": "kaana",
+      "targetPath": "internal-kaana-ops",
       "dependsOn": [
         "ga-screen-models"
       ],
@@ -434,7 +434,7 @@
       "kind": "screen",
       "name": "Console \u2014 Playground",
       "currentPath": "packages/alia-console/src/routes/_layout/playground.tsx",
-      "summary": "Interactive chat playground: model picker fed by GET /models/stats, temperature and max-tokens controls, streaming POST to /v1/chat/completions. Default model is the literal 'alia-lite'.",
+      "summary": "Interactive chat playground: model picker fed by GET /models/stats, temperature and max-tokens controls, streaming POST to /v1/chat/completions. Default model is the literal 'kaana-lite'.",
       "exposesProviderSecret": false,
       "proposedOwner": "alia",
       "targetPath": "keep-as-alia-product-setting",
@@ -586,13 +586,13 @@
       "kind": "screen",
       "name": "Console \u2014 Examples",
       "currentPath": "packages/alia-console/src/routes/_layout/examples.tsx",
-      "summary": "Static copy-paste code samples (Python/Node/curl/function-calling) all using model 'alia-v1' against api.alia.onl.",
+      "summary": "Static copy-paste code samples (Python/Node/curl/function-calling) all using model 'kaana-v1' against api.alia.onl.",
       "exposesProviderSecret": false,
       "proposedOwner": "alia",
       "targetPath": "keep-as-alia-product-setting",
       "dependsOn": [],
       "removalGate": "Keep \u2014 it documents the Alia public API. It does name the OpenAI SDK as a client library (:47,63,120), which is a wire-format compatibility claim about the CLIENT, not a statement about who serves inference. Judgment call flagged, not a violation.",
-      "evidence": "packages/alia-console/src/routes/_layout/examples.tsx:37,55,71,83,96,146,176 (alia-v1); :47,63,120 (openai SDK)"
+      "evidence": "packages/alia-console/src/routes/_layout/examples.tsx:37,55,71,83,96,146,176 (kaana-v1); :47,63,120 (openai SDK)"
     },
     {
       "id": "console-screen-docs-index",
@@ -612,7 +612,7 @@
       "kind": "screen",
       "name": "Console \u2014 Docs: Quick Start",
       "currentPath": "packages/alia-console/src/routes/_layout/documentation/quickstart.tsx",
-      "summary": "First-request walkthrough using model 'alia-v1'; installs the openai client package.",
+      "summary": "First-request walkthrough using model 'kaana-v1'; installs the openai client package.",
       "exposesProviderSecret": false,
       "proposedOwner": "alia",
       "targetPath": "keep-as-alia-product-setting",
@@ -625,7 +625,7 @@
       "kind": "screen",
       "name": "Console \u2014 Docs: Authentication",
       "currentPath": "packages/alia-console/src/routes/_layout/documentation/authentication.tsx",
-      "summary": "Bearer-token auth guide with a curl sample using model 'alia-v1'.",
+      "summary": "Bearer-token auth guide with a curl sample using model 'kaana-v1'.",
       "exposesProviderSecret": false,
       "proposedOwner": "alia",
       "targetPath": "keep-as-alia-product-setting",
@@ -638,7 +638,7 @@
       "kind": "screen",
       "name": "Console \u2014 Docs: Chat Completions",
       "currentPath": "packages/alia-console/src/routes/_layout/documentation/chat-completions.tsx",
-      "summary": "Endpoint reference; the model parameter is documented by example as 'alia-v1' / 'alia-v1-pro'.",
+      "summary": "Endpoint reference; the model parameter is documented by example as 'kaana-v1' / 'kaana-v1-pro'.",
       "exposesProviderSecret": false,
       "proposedOwner": "alia",
       "targetPath": "keep-as-alia-product-setting",
@@ -651,14 +651,14 @@
       "kind": "screen",
       "name": "Console \u2014 Docs: Models",
       "currentPath": "packages/alia-console/src/routes/_layout/documentation/models.tsx",
-      "summary": "HAND-MAINTAINED model catalog listing exactly four aliases (alia-lite, alia-v1, alia-v1-pro, alia-v1-pro-max) as literal objects in the page source, while the API defines twelve.",
+      "summary": "HAND-MAINTAINED model catalog listing exactly four aliases (kaana-lite, kaana-v1, kaana-v1-pro, kaana-v1-pro-max) as literal objects in the page source, while the API defines twelve.",
       "exposesProviderSecret": false,
       "proposedOwner": "alia",
       "targetPath": "keep-as-alia-product-setting",
       "dependsOn": [
         "console-hook-models-stats"
       ],
-      "removalGate": "Keep the screen, but this is a real defect to fix during the epic: it duplicates the catalog rather than reading GET /models/stats like its sibling /models screen does, so it is already stale by eight aliases and will silently drift further as relay takes over the catalog.",
+      "removalGate": "Keep the screen, but this is a real defect to fix during the epic: it duplicates the catalog rather than reading GET /models/stats like its sibling /models screen does, so it is already stale by eight aliases and will silently drift further as kaana takes over the catalog.",
       "evidence": "packages/alia-console/src/routes/_layout/documentation/models.tsx:13,23,33,43 vs the 12 aliases in packages/api/src/internal/providers/lib/alia-models.ts:62-212"
     },
     {
@@ -738,7 +738,7 @@
       "kind": "store",
       "name": "useModelStore (zustand, persisted)",
       "currentPath": "packages/app/lib/stores/model-store.ts",
-      "summary": "The only store slice holding model state: selectedModel and baseModel (last non-thinking model), both defaulting to the literal 'alia-v1', persisted to AsyncStorage under the key 'chat-storage'.",
+      "summary": "The only store slice holding model state: selectedModel and baseModel (last non-thinking model), both defaulting to the literal 'kaana-v1', persisted to AsyncStorage under the key 'chat-storage'.",
       "exposesProviderSecret": false,
       "proposedOwner": "alia",
       "targetPath": "keep-as-alia-product-setting",
@@ -758,7 +758,7 @@
       "dependsOn": [
         "app-model-store"
       ],
-      "removalGate": "Keep the feature, but this map must become server-driven during the epic: it hard-codes both the alias graph AND the credit multipliers in a client, and it already omits two of the twelve defined aliases (alia-lite and alia-v1-audio have no entry \u2014 correct for alia-lite as the floor, unexamined for alia-v1-audio). Every alias change requires an app release to stay correct.",
+      "removalGate": "Keep the feature, but this map must become server-driven during the epic: it hard-codes both the alias graph AND the credit multipliers in a client, and it already omits two of the twelve defined aliases (kaana-lite and kaana-v1-audio have no entry \u2014 correct for kaana-lite as the floor, unexamined for kaana-v1-audio). Every alias change requires an app release to stay correct.",
       "evidence": "packages/app/components/credit-warning-banner.tsx:24-35"
     },
     {
@@ -766,7 +766,7 @@
       "kind": "model-alias",
       "name": "FREE_ENTITLEMENTS placeholder",
       "currentPath": "packages/app/lib/hooks/use-billing.ts",
-      "summary": "React Query placeholderData hard-coding the free tier's allowed aliases as ['alia-lite','alia-v1','alia-v1-audio'], duplicated verbatim at model-selector.tsx:104 and matching FREE_MODEL_IDS in two API files.",
+      "summary": "React Query placeholderData hard-coding the free tier's allowed aliases as ['kaana-lite','kaana-v1','kaana-v1-audio'], duplicated verbatim at model-selector.tsx:104 and matching FREE_MODEL_IDS in two API files.",
       "exposesProviderSecret": false,
       "proposedOwner": "alia",
       "targetPath": "keep-as-alia-product-setting",
@@ -779,7 +779,7 @@
       "kind": "model-alias",
       "name": "Chat screen default model",
       "currentPath": "packages/app/app/(app)/c/[id]/index.tsx",
-      "summary": "useState('alia-v1') seeding the conversation screen's selected model.",
+      "summary": "useState('kaana-v1') seeding the conversation screen's selected model.",
       "exposesProviderSecret": false,
       "proposedOwner": "alia",
       "targetPath": "keep-as-alia-product-setting",
@@ -794,7 +794,7 @@
       "kind": "model-alias",
       "name": "Personality sample-phrase model",
       "currentPath": "packages/app/lib/hooks/use-personality-sample-phrase.ts",
-      "summary": "Client-side hook pinning model:'alia-lite' for generating a personality preview phrase.",
+      "summary": "Client-side hook pinning model:'kaana-lite' for generating a personality preview phrase.",
       "exposesProviderSecret": false,
       "proposedOwner": "alia",
       "targetPath": "keep-as-alia-product-setting",
@@ -835,12 +835,12 @@
       "kind": "model-alias",
       "name": "@alia.onl/sdk model defaults",
       "currentPath": "packages/alia-chat/src/hooks/useAliaChat.ts",
-      "summary": "The published SDK's model surface: a `model` prop defaulting to 'alia-v1' (documented on AliaChatScreen and AliaChatSheet) plus two voice paths pinned to 'alia-v1-voice'. No model PICKER ships in the SDK \u2014 the consumer passes an id.",
+      "summary": "The published SDK's model surface: a `model` prop defaulting to 'kaana-v1' (documented on AliaChatScreen and AliaChatSheet) plus two voice paths pinned to 'kaana-v1-voice'. No model PICKER ships in the SDK \u2014 the consumer passes an id.",
       "exposesProviderSecret": false,
       "proposedOwner": "alia",
       "targetPath": "keep-as-alia-product-setting",
       "dependsOn": [],
-      "removalGate": "Keep, and treat these three literals as the highest-inertia alias references in the repo: they are compiled into external consumers' apps (the package ships as RAW SOURCE), so retiring alia-v1 or alia-v1-voice breaks installed SDK versions that no Alia deploy can fix. Any alias retirement plan must keep both ids resolvable indefinitely or ship a major SDK version first. Verified there is no model picker component in the SDK: all 49 files under packages/alia-chat/src were enumerated.",
+      "removalGate": "Keep, and treat these three literals as the highest-inertia alias references in the repo: they are compiled into external consumers' apps (the package ships as RAW SOURCE), so retiring kaana-v1 or kaana-v1-voice breaks installed SDK versions that no Alia deploy can fix. Any alias retirement plan must keep both ids resolvable indefinitely or ship a major SDK version first. Verified there is no model picker component in the SDK: all 49 files under packages/alia-chat/src were enumerated.",
       "evidence": "packages/alia-chat/src/hooks/useAliaChat.ts:11,46; packages/alia-chat/src/components/AliaChatScreen.tsx:31; packages/alia-chat/src/components/AliaChatSheet.tsx:48; packages/alia-chat/src/hooks/useTTS.ts:205; packages/alia-chat/src/hooks/useVoiceRoom.ts:332"
     },
     {
@@ -848,12 +848,12 @@
       "kind": "component",
       "name": "Codea webview model picker",
       "currentPath": "packages/alia-codea/webview-ui/src/components/Chat.tsx",
-      "summary": "In-editor chat model dropdown. Fetches the catalog from the API but ships a one-entry defaultModels fallback and a hard-coded initial state, both 'alia-v1-codea'.",
+      "summary": "In-editor chat model dropdown. Fetches the catalog from the API but ships a one-entry defaultModels fallback and a hard-coded initial state, both 'kaana-v1-codea'.",
       "exposesProviderSecret": false,
       "proposedOwner": "alia",
       "targetPath": "keep-as-alia-product-setting",
       "dependsOn": [],
-      "removalGate": "Keep. Same shipped-binary inertia as the SDK: a VS Code extension in the marketplace keeps sending 'alia-v1-codea' until each user updates.",
+      "removalGate": "Keep. Same shipped-binary inertia as the SDK: a VS Code extension in the marketplace keeps sending 'kaana-v1-codea' until each user updates.",
       "evidence": "packages/alia-codea/webview-ui/src/components/Chat.tsx:183-186,200"
     },
     {
@@ -861,7 +861,7 @@
       "kind": "model-alias",
       "name": "Codea VS Code settings + providers",
       "currentPath": "packages/alia-codea/package.json",
-      "summary": "The codea.model contributed setting defaults to 'alia-v1-codea'; three extension entry points read it with the same literal as their fallback (chat participant, chat provider, inline completions).",
+      "summary": "The codea.model contributed setting defaults to 'kaana-v1-codea'; three extension entry points read it with the same literal as their fallback (chat participant, chat provider, inline completions).",
       "exposesProviderSecret": false,
       "proposedOwner": "alia",
       "targetPath": "keep-as-alia-product-setting",
@@ -876,7 +876,7 @@
       "kind": "model-alias",
       "name": "Codea CLI model defaults",
       "currentPath": "packages/alia-codea-cli/src/index.ts",
-      "summary": "Three commander --model options defaulting to 'alia-v1-codea', plus the config default and the sessions fallback. The TUI strips the 'alia-v1-' prefix for display.",
+      "summary": "Three commander --model options defaulting to 'kaana-v1-codea', plus the config default and the sessions fallback. The TUI strips the 'kaana-v1-' prefix for display.",
       "exposesProviderSecret": false,
       "proposedOwner": "alia",
       "targetPath": "keep-as-alia-product-setting",
@@ -889,12 +889,12 @@
       "kind": "component",
       "name": "Cowork model picker and defaults",
       "currentPath": "packages/alia-cowork/renderer/src/components/Chat.tsx",
-      "summary": "Electron renderer chat picker with a one-entry 'alia-v1-cowork' fallback and initial state; the main process pins the same alias in auth.ts and chat.ts, and the tool layer pins 'alia-v1-browser' for browser automation.",
+      "summary": "Electron renderer chat picker with a one-entry 'kaana-v1-cowork' fallback and initial state; the main process pins the same alias in auth.ts and chat.ts, and the tool layer pins 'kaana-v1-browser' for browser automation.",
       "exposesProviderSecret": false,
       "proposedOwner": "alia",
       "targetPath": "keep-as-alia-product-setting",
       "dependsOn": [],
-      "removalGate": "Keep. Note tools.ts:454 pins alia-v1-browser with the inline comment 'Browser automation specialist model' \u2014 a capability-to-alias binding hard-coded in a desktop binary, which is the pattern most likely to break silently when relay owns capability routing.",
+      "removalGate": "Keep. Note tools.ts:454 pins kaana-v1-browser with the inline comment 'Browser automation specialist model' \u2014 a capability-to-alias binding hard-coded in a desktop binary, which is the pattern most likely to break silently when kaana owns capability routing.",
       "evidence": "packages/alia-cowork/renderer/src/components/Chat.tsx:114-117,162; packages/alia-cowork/src/main/auth.ts:26; packages/alia-cowork/src/main/chat.ts:30; packages/alia-cowork/src/main/tools.ts:454"
     },
     {
@@ -902,7 +902,7 @@
       "kind": "component",
       "name": "Canvas model list and workflow node defaults",
       "currentPath": "packages/alia-canvas/src/lib/models.ts",
-      "summary": "fetchModels() reads GET /v1/models with a one-entry 'alia-lite' fallback; the workflow editor and node edit panel seed every AI node with 'alia-lite'. Also exports a deprecated static MODELS alias of the fallback.",
+      "summary": "fetchModels() reads GET /v1/models with a one-entry 'kaana-lite' fallback; the workflow editor and node edit panel seed every AI node with 'kaana-lite'. Also exports a deprecated static MODELS alias of the fallback.",
       "exposesProviderSecret": false,
       "proposedOwner": "alia",
       "targetPath": "keep-as-alia-product-setting",

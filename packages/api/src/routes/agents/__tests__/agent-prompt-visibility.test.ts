@@ -52,6 +52,7 @@ vi.mock('@oxyhq/core', async () => {
         if (state.account === null) throw new NotFound('no such account');
         return {
           accountId,
+          parentAccountId: 'oxy-owner',
           kind: state.account.kind,
           relationship: state.account.relationship,
           account: { id: accountId, kind: state.account.kind },
@@ -97,6 +98,7 @@ vi.mock('../../../db/agents/agentRepository.js', async () => {
     // The REAL omission, because that is the thing under test — a stub of it
     // would assert that the route calls something, not that the field is gone.
     withoutSystemPrompt: actual.withoutSystemPrompt,
+    withoutInternalAgentBindings: actual.withoutInternalAgentBindings,
     findAgentById: repository.findAgentById,
     findAgentByOxyAccountId: repository.findAgentByOxyAccountId,
     findHireableAgentByOxyAccountId: repository.findHireableAgentByOxyAccountId,
@@ -132,6 +134,8 @@ const AGENT_ROW = {
   _id: 'agent-1',
   id: 'agent-1',
   oxyAccountId: 'acct-bot',
+  ownerOxyAccountId: 'oxy-owner',
+  applicationId: null,
   tagline: 'keeps the roadmap honest',
   description: 'a description',
   author: 'oxy-owner',
@@ -141,7 +145,7 @@ const AGENT_ROW = {
   access: 'public',
   status: 'active',
   systemPrompt: PROMPT,
-  allowedModels: ['alia-v1'],
+  allowedModels: ['kaana-v1'],
   capabilityGrants: [],
   archetype: 'general',
   createdAt: new Date(),

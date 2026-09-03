@@ -18,14 +18,14 @@ export interface LifecycleContext {
   conversationId?: string;
   messages: ChatMessage[];
   /** The alias the provider loop settled on. */
-  aliasModelId: string;
+  routingProfileId: string;
   /** What the caller asked for, before resolution. */
   requestedModel: string;
   /**
    * The reasoning parameter, computed where `thinkingMode` is in scope.
    *
-   * Recorded beside the model choice rather than inside it: `alia-v1-thinking`
-   * and `alia-v1-pro-max` are one routing preset with two names, so a reasoning
+   * Recorded beside the model choice rather than inside it: `kaana-v1-thinking`
+   * and `kaana-v1-pro-max` are one routing preset with two names, so a reasoning
    * request buried in a model identifier is a request nothing can count.
    */
   reasoningEffort: string | null;
@@ -175,7 +175,7 @@ export async function finalizeChatCredits(
    */
   settlement: { creditsSettled: boolean },
 ): Promise<{ creditsCharged: number; creditsRemaining: number; creditWarning: CreditWarning | null }> {
-  const { creditReservation, tokenUsage, aliasModelId, userId } = ctx;
+  const { creditReservation, tokenUsage, routingProfileId, userId } = ctx;
   let creditsCharged = 0;
   let creditsRemaining = 0;
   let creditWarning: CreditWarning | null = null;
@@ -185,7 +185,7 @@ export async function finalizeChatCredits(
   }
 
   try {
-    const creditResult = await finalizeCredits(creditReservation, tokenUsage, aliasModelId);
+    const creditResult = await finalizeCredits(creditReservation, tokenUsage, routingProfileId);
     // Only once the charge returned. A finalize that threw leaves the
     // reservation unsettled, and therefore refunded rather than kept.
     settlement.creditsSettled = true;
@@ -209,7 +209,7 @@ export async function finalizeChatCredits(
         // charges through. Reading it off the catalogue instead let the warning
         // quote a multiplier the bill never used, once the preset became the
         // source of price.
-        creditWarning.currentModelMultiplier = getRoutingPreset(aliasModelId)?.creditMultiplier ?? 1;
+        creditWarning.currentModelMultiplier = getRoutingPreset(routingProfileId)?.creditMultiplier ?? 1;
       }
     } catch { /* non-critical anomaly check */ }
   }
@@ -237,19 +237,19 @@ export function runPostChatHooks(
   observation: TurnObservation,
   errorClass: string | null,
 ): void {
-  const { userId, messages, aliasModelId, requestedModel, reasoningEffort, tokenUsage, requestStartTime, skillNames, isApiKey, autonomyRuntime } = ctx;
+  const { userId, messages, routingProfileId, requestedModel, reasoningEffort, tokenUsage, requestStartTime, skillNames, isApiKey, autonomyRuntime } = ctx;
 
   runAfterChatHooks({
     userId,
     conversationId: ctx.conversationId,
     messages,
-    model: aliasModelId,
+    model: routingProfileId,
     skillNames,
     platform: isApiKey ? 'telegram' as const : 'app' as const,
-    metadata: { model: aliasModelId },
+    metadata: { model: routingProfileId },
     response: assistantResponse,
     tokenUsage,
-    modelUsed: aliasModelId,
+    modelUsed: routingProfileId,
     requestedModel,
     reasoningEffort,
     latencyMs: Date.now() - requestStartTime,

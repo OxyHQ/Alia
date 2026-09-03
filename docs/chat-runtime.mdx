@@ -1,71 +1,63 @@
 ---
 title: "Chat runtime"
-description: "The Alia product chat runtime: today's request path, the alia.* product stream events, and the Kaana boundary recorded in ADR 0001."
+description: "Alia's product runtime and its Kaana inference boundary."
 order: 1
 ---
 
 # Chat runtime
 
-`POST /alia/chat` and `POST /v1/chat/completions` are served by the same handler,
-`handleChatCompletions` in `packages/api/src/routes/v1/chat-completions.ts:29`.
-`packages/api/src/routes/chat.ts:8` dispatches `/alia/chat` straight to it, and both
-routers are mounted side by side at `packages/api/src/index.ts:227` and `:228`.
+`POST /alia/chat` and `POST /v1/chat/completions` enter the same Alia product
+runtime. Alia owns authentication, entitlements, conversations, memory, agents,
+tools, approvals, research, prompts and product stream events. Hosted inference
+is delegated to Kaana.
 
-Both are mounted with `authenticateTokenOrApiKey` plus the same per-key rate limit
-(`routes/chat.ts`, `packages/api/src/routes/v1.ts:59` and `:62`). `/alia/chat` carried
-`optionalAuth` until #139 workstream 6, which is when the two front doors stopped
-differing; every remaining difference between the surfaces is enumerated in
-`packages/api/src/routes/__tests__/v1-compatibility-surface.test.ts`.
+## Identity
 
-**Which surface each client calls.** The Expo app, the Codea chat participant and inline
-completions, and the integrations service post to `/alia/chat` — the product runtime, under
-ADR 0004. Three clients deliberately stay on `/v1/chat/completions` and each says why at
-the call site: `@alia.onl/sdk`, because it ships raw source into consumer apps on origins
-the product surface's CORS allowlist does not carry; the developer console's playground,
-because it is the interactive form of the documentation page beside it; and the
-OpenAI-protocol clients — the CLI, Cowork and the Codea webview — because the `openai`
-package derives `POST {baseURL}/chat/completions` itself. The whole census is frozen as
-gate 8 of `packages/api/src/__tests__/architectureGates.test.ts`.
+The request `model` field names either an exact Alia product routing identifier
+such as `kaana-v1`, or a concrete `<publisher>/<model>[@<revision>]` reference.
+The identifier is matched by exact string equality, never by display name,
+database order or a first-row fallback. Alia translates an accepted public
+profile through the reviewed closed map in
+`packages/api/src/config/oxy-inference-routing-profile-ids.ts` and sends Oxy its
+opaque routing-profile primary key as `routingProfileId`. Oxy validates that
+exact row before building the Kaana v2 envelope; Kaana never receives or looks
+up the product spelling. A routing profile is a policy choice, not an
+Alia-branded model and not a provider alias. Removed `alia-*` identifiers are
+unregistered; there is no translation or deprecation shim for them.
 
-## The Kaana boundary
+User-owned runtimes are a separate explicit path. Their user-supplied model and
+credential never join Kaana's hosted credential pool.
 
-[ADR 0001](./adr/0001-alia-oxy-kaana-responsibility-boundary.md) splits responsibility
-three ways. Alia owns the product runtime described on this page. Oxy owns accounts,
-applications, credentials, the ledger and the public generic inference API. A separate
-data plane — **Kaana**, Oxy's own inference provider — owns request normalization, routing, provider
-adapters, streaming, fallback, health, deployments and metering.
+## Hosted request path
 
-**Today Alia does not call Kaana. Kaana does not exist yet.** Provider calls happen
-in-process: `packages/api/src/lib/chat-core.ts:110` builds a Vercel AI SDK client directly,
-against credentials read from the `provider_keys` table
-(`packages/api/src/db/schema/providers.ts:300`). There is no gateway service —
-`packages/alia-gateway` was deleted — and `packages/api/src/lib/gateway-client.ts:32`
-takes its local in-process path unless both `SERVICE_SECRET` and `GATEWAY_API_URL` are
-set, which production does not do.
+1. Auth resolves the Oxy user or application credential.
+2. `buildChatRequestContext` validates the requested identity, entitlement,
+   product mode and capabilities, then reserves product credits.
+3. Alia assembles conversation context, memory, agent instructions and tools.
+4. The inference seam calls `@oxyhq/core`'s `OxyInferenceClient` with an exact
+   opaque `routingProfileId` or concrete model and Alia's service credential.
+5. Oxy authenticates that credential and resolves routing policy into ordered
+   `authorizedRoutes`, signs the final envelope, and sends it to Kaana.
+6. Kaana executes only those authorized deployments, streams contract events
+   and emits metered usage.
+7. Alia translates the result into its product stream, persists the turn and
+   finalizes product accounting.
 
-Under ADR 0001 that becomes one typed Kaana client at a single boundary, with two rules
-that are absolute once it lands: the Alia client never calls a provider directly, and the
-Alia backend never bypasses Kaana after cutover. Extraction is workstream 7 of #139;
-removing the dual-mode gateway seam is workstream 8.
-
-What does **not** move to Kaana: conversation lifecycle, context and memory recall, agent
-planning, tool execution and approvals, deep-research progress, triggers, notifications,
-title generation, the `alia.*` stream events below, and plan and entitlement checks. Kaana
-receives only the context a given inference request requires.
+Alia never constructs `authorizedRoutes`, signs an edge envelope or calls a
+Kaana URL. Those are Oxy-owned responsibilities. No provider, deployment,
+region or permissive fallback may be invented in Alia.
 
 ## Request shape
 
-The endpoint is OpenAI-compatible at the schema level and adds product-specific extras:
-
 ```json
 {
-  "model": "profile:v1",
+  "model": "<kaana-routing-profile-id>",
   "messages": [
     { "role": "user", "content": "Prepare my meeting with Sarah" }
   ],
   "stream": true,
   "conversationId": "conv_…",
-  "thinkingMode": true,
+  "reasoningEffort": "medium",
   "agentMode": "research",
   "deepResearch": true,
   "fallbackPolicy": "cross-model",
@@ -74,217 +66,33 @@ The endpoint is OpenAI-compatible at the schema level and adds product-specific 
 }
 ```
 
-`fallbackPolicy` is optional and decides whether the request may be answered from a
-different model when the selected one cannot be served — `cross-model`,
-`same-model-only` or `no-fallback`. Omitting it selects `cross-model`, which is what
-every client sends today. See
-[the model abstraction page](./model-abstraction.mdx#fallback-policy).
+The profile expresses intent. Oxy and Kaana own route authorization and
+execution; Alia never sees an upstream-provider key.
 
-Authentication on `/v1/*` accepts either:
+## Product stream events
 
-- `Authorization: Bearer <session-token>` — a user session issued by Oxy
-- `Authorization: Bearer alia_sk_<api-key>` — an Alia-issued developer credential
+Standard OpenAI-compatible chunks are emitted beside Alia product events. The
+`alia.*` namespace belongs to the product runtime, not to Kaana's generic
+inference contract. Active event families include plan previews, model/profile
+switches, reasoning, tool results, delegated-agent output, agent-session state,
+titles and research progress.
 
-The second is inside the compatibility window and is not extended; see
-[the developer portal page](./developers-portal.md).
+Approval requests/results use the authenticated Socket.IO agent-session room,
+not the HTTP SSE connection. Clients must not wait for them on the completion
+stream.
 
-## Pipeline
+## Persistence and failure
 
-What happens between request and first SSE chunk:
+Conversations and messages are stored through the Postgres repositories. Usage
+records persist the requested identity separately from the routing profile that
+served it. Provider/deployment detail remains internal to the Oxy/Kaana receipt
+and must not be exposed through Alia responses or errors.
 
-1. Auth middleware resolves the caller and sets `req.user`.
-2. `buildChatRequestContext()` (`packages/api/src/lib/chat/request-context.ts:80`)
-   validates `fallbackPolicy` (`:124`, before anything is reserved), runs the autonomy
-   `beforeChat` stage (`:152`) and then, in parallel (`:180`), reserves credits,
-   resolves the Alia identifier to an upstream deployment, loads the user's memory
-   profile, hydrates the Oxy profile, loads the skill, resolves entitlements and loads any
-   agent linked to the conversation. An identifier nothing registers is refused here with
-   a `400` rather than resolved (`:276`).
-3. Deep-research requests branch out to `handleDeepResearch()`
-   (`routes/v1/chat-completions.ts:83`) and stream `alia.research_progress` instead of the
-   ordinary loop.
-4. `ToolPipeline.forUser()` (`:101`) assembles the tool set: native tools, MCP servers
-   proxied through the integrations service, Oxy service connectors and channel
-   integrations.
-5. If the conversation is bound to an agent, an `AgentSession` is created and enqueued
-   (`:142` onward) and `alia.agent_session` is emitted.
-6. `SystemPromptBuilder.build()` (`:188`) assembles the system prompt from fragments.
-7. `runProviderLoop()` (`:243`, implemented in `lib/chat/provider-loop.ts:100`) calls the
-   AI SDK `streamText()` and writes chunks back as SSE.
-8. On completion the loop saves the conversation (`provider-loop.ts:269`), finalizes credit
-   usage (`:289`) and fires the `afterChat` hooks and the autonomy `learn` stage
-   non-blocking (`:317`).
+If Oxy or Kaana is unavailable, hosted inference fails visibly with the typed
+product error. Alia does not fall back to an in-process provider adapter.
 
-Conversations and messages are persisted to the `conversations` and `messages` tables
-(`packages/api/src/db/schema/chat.ts`) through `db/chat/conversationRepository.ts` and
-`db/chat/messageRepository.ts`, both called from `lib/conversation-saver.ts`.
+## Automation control plane
 
-If an upstream call fails, `resolveWithFallback()` retries against the next entry in the
-tier's ranked list. The client sees one contiguous stream and no event announcing the
-substitution — [ADR 0003](./adr/0003-model-revision-deployment-provider-routing-profile.md)
-invariant 3 makes that substitution an explicit caller-selected policy rather than the
-default, which is workstream 4 of #139.
-
-## SSE event contract
-
-`alia.*` events are **Alia product events**. They are not part of the Oxy generic
-inference contract, they are not implemented by Kaana, and no generic client should be
-written against them ([ADR 0004](./adr/0004-product-endpoints-versus-generic-inference-endpoints.md)).
-During the compatibility window they may continue to appear on `api.alia.onl/v1/*`
-responses, because that surface is the product runtime under an older name — which is a
-reason the window is bounded rather than a feature of it.
-
-Standard OpenAI-style `chat.completion.chunk` events are emitted alongside them. Every
-`alia.*` payload carries `eventVersion: 1` (`packages/api/src/lib/chat-events.ts:1`).
-
-### Emitted on the HTTP stream
-
-| Event | Emitted at | Payload fields |
-|---|---|---|
-| `alia.deprecation` | `routes/v1/chat-completions.ts:97` | `eventVersion`, `identifier`, `replacement`, `deprecatedAt`, `sunsetAt`, `documentation` |
-| `alia.plan_preview` | `lib/tool-pipeline.ts:125` | `eventVersion`, `planId`, `steps` |
-| `alia.suggest_new_conversation` | `lib/tools/suggest-new-conversation.ts` | `eventVersion`, `reason` |
-| `alia.model_switch` | `lib/tool-pipeline.ts:122` | `eventVersion`, `model`, `modelName` |
-| `alia.reasoning` | `lib/chat/stream-runner.ts:164`, `:182` | `eventVersion`, `content` |
-| `alia.tool_result` | `lib/chat/stream-runner.ts:234`, `lib/chat/text-tool-fallback.ts:67` | `eventVersion`, `tool_call_id`, `name`, `output` |
-| `alia.agent` | `lib/chat/stream-runner.ts:258` | `eventVersion`, `agentId`, `agentName`, `agentHandle`, `agentColor`, `content` |
-| `alia.agent_session` | `routes/v1/chat-completions.ts:164` | `eventVersion`, `sessionId`, `agentId`, `agentName` |
-| `alia.title` | `lib/chat/provider-loop.ts:276` | `eventVersion`, `title`, `conversationId` |
-| `alia.research_progress` | `lib/chat-modes/deep-research-handler.ts:47`, `:67` | `eventVersion`, `phase`, plus phase-specific fields |
-
-`alia.plan_preview` and `alia.model_switch` are emitted by **tools**, not by the runtime:
-`planPreview` and `switchModel` are given an emitter at `tool-pipeline.ts:120`, so both
-events appear only when the model calls the corresponding tool.
-
-Two examples, taken from the emitting code rather than from a schema:
-
-```json
-{
-  "eventVersion": 1,
-  "planId": "plan-chatcmpl-…",
-  "steps": ["Check calendar", "Check email", "Check notes"]
-}
-```
-
-```json
-{
-  "eventVersion": 1,
-  "tool_call_id": "call_…",
-  "name": "webSearch",
-  "output": {}
-}
-```
-
-### Not on the HTTP stream
-
-`alia.approval_request` and `alia.approval_result` are **Socket.IO** events, emitted to the
-`agent-session:<sessionId>` room (`packages/api/src/socket.ts:216` and `:231`). They are
-declared in the `AliaChatEventName` union (`lib/chat-events.ts:5`, `:6`) but no code writes
-them to a response stream. A client waiting for them on the SSE connection waits forever.
-
-`alia.approval_request` carries `requestId`, `agentId`, `toolName`, `args`, `description`,
-`severity` and `timeout`; `alia.approval_result` carries `requestId` and `decision`, one of
-`approved | denied | timeout`.
-
-### The deprecation event, and which path it covers
-
-`alia.deprecation` is named by
-[`docs/migration/compatibility-window.md`](./migration/compatibility-window.md) as the
-product stream signal for every deprecated path. As of #139 workstream 4 it is emitted for
-**path (a) only** — a streaming request naming one of the thirteen `alia-*` aliases — ahead
-of every other frame, so the deep-research branch carries it too. It is built by
-`aliasDeprecationEvent` in `middleware/alias-deprecation.ts`, beside the `Deprecation` and
-`Link` headers, which is the same notice for a caller that reads headers instead of the
-body.
-
-`replacement` is the routing profile the migration map publishes for that alias
-(`profile:*`), never a model identity, and it is read from `getRoutingPreset` rather than
-copied, so a routing change moves it.
-
-`sunsetAt` is `null` and stays `null` until a removal date is agreed: the compatibility
-window forbids a placeholder, because an announced date that then moves teaches callers to
-ignore the signal.
-
-Paths (b) — the `/v1/*` surface — and (c) — `alia_sk_*` credentials — still emit nothing.
-Those clocks belong to workstreams 6 and 11.
-
-## Conversations and messages
-
-- Conversations are scoped to `userId` and optionally `organizationId`.
-- Each turn produces a `Message` with role, content blocks, tool calls and reasoning.
-- `conversationId` is optional on the first turn — the runtime creates one and emits
-  `alia.title` after the first response.
-- Message ids are stable across reconnects so clients can dedupe on the wire.
-
-## Tools
-
-`ToolPipeline.forUser()` is the ONE assembler; there is no registry, and
-`lib/__tests__/one-assembler.test.ts` is what keeps a second one from landing. What a
-turn gets is decided by two things: the STRUCTURAL preconditions of its surface (does it
-hold a session, act for a person, have an SSE emitter, a device, a live container) and —
-when the turn names an agent — that agent's **capability grants**.
-
-The grants are one vocabulary, partitioned by tool family, declared in
-`domain/capability-grants.ts`. Nine families have tool names fixed in code:
-
-| Family | Tools |
-|---|---|
-| `web` | `webSearch`, `webScraper`, `browse`, `deepResearch` |
-| `browser` | `browser` (the live session) |
-| `shell` | `shell` |
-| `files` | `file_edit` |
-| `artifacts` | `canvas`, `generateFile` |
-| `memory` | `saveUserMemory`, `updateUserMemory`, `updateUserPreferences`, `updateUserContext` |
-| `messaging` | `sendTelegramMessage`, `sendWhatsAppMessage`, `getWhatsAppChats`, `getWhatsAppMessages` |
-| `automation` | `createTrigger`, `listTriggers`, `updateTrigger`, `deleteTrigger` |
-| `delegation` | `createAgent`, `searchAgents`, `delegateToAgent`, `delegate` |
-
-Four more are granted one row at a time, because nobody can enumerate their members in
-advance. Three build their tool names from the rows themselves — `mcp:<connectorId>`,
-`oxy_service:<serviceId>`, `integration:<serviceId>`: MCP connectors, Oxy service
-manifests and the OAuth integrations.
-
-The fourth is `agent:<agentId>`, the owner's OWN agents, and it contributes one tool
-(`askAgent`) whose SCHEMA is what the grant narrows: the ids it accepts are exactly the
-agents that turn may talk to, and the tool is not built at all when the selection resolves
-to none. It alone also accepts a BARE `agent` grant, meaning every one of the owner's
-agents whose `status` is `active`, re-resolved on every turn — argued in
-`EVERY_ROW_FAMILIES`, and safe in a way `mcp` is not because each of those rows carries its
-own capability grants.
-
-`askAgent` and `delegateToAgent` both run a NESTED TURN through
-`lib/tools/agent-turn.ts`: the named agent answers under its own prompt, with the tools its
-own grants allow, and the turn is reserved and settled against the account that funds the
-outer turn. A nested turn does not act for a person, so it never receives `askAgent`
-itself — which is what bounds the recursion at one hop, structurally rather than with a
-counter.
-
-`getCurrentDate`, `getDeviceInfo`, `switchModel`, `planPreview` and `plan` are governed
-by no grant — see `UNGRANTED_TOOLS` for the argument for each.
-
-**An agent gets nothing it was not granted.** That is the reverse of the three
-vocabularies it replaced (`capabilities`, `permissions`, `archetypeConfig.knowledgeSources`),
-where an unset value meant *allowed*. A turn with NO agent is not partitioned at all and
-reaches whatever its surface allows.
-
-Tool calls flow through `safeExecute()` so a failure surfaces as an `alia.tool_result`
-event rather than terminating the stream.
-
-## Removed endpoints
-
-These return `410 Gone` with no compatibility shim:
-
-- `POST /v1/resolve-model` (`packages/api/src/routes/v1.ts:109`)
-- `POST /v1/report-usage` (`packages/api/src/routes/v1.ts:120`)
-- `POST /codea/resolve-model` (`packages/api/src/routes/codea.ts:235`)
-- `POST /codea/report-usage` (`packages/api/src/routes/codea.ts:246`)
-
-`/automations` is the normalized structured control plane. `/triggers` remains available
-for legacy routines; both scheduled row types use the same elected scheduler.
-
-## Real-time channel
-
-Approvals, notifications and live updates run over Socket.IO at the same origin as the
-API. Clients connect, emit `subscribe-notifications` with the user id, and listen for
-`notification`, `alia.approval_request` and `alia.approval_result`. The same channel emits
-cache-invalidation events for conversation, trigger and notification lists.
+`/automations` is the normalized structured control plane. `/triggers` remains
+available for legacy routines; both scheduled row types use the same elected
+scheduler.

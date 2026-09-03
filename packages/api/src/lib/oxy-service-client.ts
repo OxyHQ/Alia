@@ -25,27 +25,23 @@
  * `configureServiceAuth` is instance state, and every method that has a
  * service-mode branch reads it. Arming it on the client that verifies inbound
  * user tokens would change what a dozen unrelated call sites send, as a side
- * effect of fixing identity hydration. `lib/inference/kaana-credential.ts`
- * refuses the same move for the same reason, and `lib/agent-account.ts` builds
- * its own per-caller client rather than mutating the shared one.
+ * effect of fixing identity hydration. The inference credential factory keeps
+ * its own client for the same reason, and `lib/agent-account.ts` builds its own
+ * per-caller client rather than mutating the shared one.
  *
  * ## The credential is Oxy's, not Kaana's
  *
- * `ALIA_RELAY_CREDENTIAL_KEY` / `_SECRET` are Alia's Oxy ApplicationCredential:
- * one record, one secret, seven scopes, of which `user:read` is the one read
- * here and `inference:*` are the ones `kaana-credential.ts` exchanges for. The
- * `RELAY` in the name is the working name Kaana shipped under (see ADR 0001) and is not a claim
- * about who may use it. Two modules therefore name the same two variables, which
+ * `OXY_SERVICE_API_KEY` / `_SECRET` are Alia's Oxy ApplicationCredential: one
+ * record, one secret and the scopes needed by this runtime. `user:read` is the
+ * one read here and `inference:*` are used by the inference client. Two modules
+ * therefore name the same two variables, which
  * is the same shape `OXY_API_URL` already has (`middleware/auth.ts`,
- * `lib/agent-account.ts`, `kaana-credential.ts`); gate 6 in
- * `__tests__/architectureGates.test.ts` records every file that reads each one.
+ * `lib/agent-account.ts`, `inference/oxy-inference-credential.ts`).
  *
- * Nothing is shared with `kaana-credential.ts` beyond those names, deliberately:
- * its factory builds a client per call over an environment it is HANDED, so a
- * deployment can hold more than one credential, and it throws when the
- * environment configures none. Both are wrong here — this is one process-wide
- * client over one environment, and an unconfigured deployment must degrade
- * rather than fail.
+ * Nothing is shared with the inference client beyond those names, deliberately:
+ * hosted inference is a required boot-time contract, while identity hydration
+ * is optional decoration. An unconfigured identity client must degrade rather
+ * than turn every non-inference development task into a crash.
  */
 
 import { OxyServices } from '@oxyhq/core';
@@ -89,13 +85,13 @@ function build(): OxyServices | null {
   // a credential that differs by one invisible character fails with a 401 that
   // names nothing.
   const baseURL = (process.env.OXY_API_URL ?? '').trim();
-  const apiKey = (process.env.ALIA_RELAY_CREDENTIAL_KEY ?? '').trim();
-  const apiSecret = (process.env.ALIA_RELAY_CREDENTIAL_SECRET ?? '').trim();
+  const apiKey = (process.env.OXY_SERVICE_API_KEY ?? '').trim();
+  const apiSecret = (process.env.OXY_SERVICE_API_SECRET ?? '').trim();
 
   const unset = Object.entries({
     OXY_API_URL: baseURL,
-    ALIA_RELAY_CREDENTIAL_KEY: apiKey,
-    ALIA_RELAY_CREDENTIAL_SECRET: apiSecret,
+    OXY_SERVICE_API_KEY: apiKey,
+    OXY_SERVICE_API_SECRET: apiSecret,
   })
     .filter(([, value]) => value === '')
     .map(([variable]) => variable);

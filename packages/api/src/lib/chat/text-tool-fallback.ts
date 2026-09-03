@@ -34,14 +34,14 @@ export interface TextToolFallbackParams {
   baseConfig: any;
   res: Response;
   requestId: string;
-  aliasModelId: string;
+  routingProfileId: string;
   resolved: Pick<ResolvedModel, 'provider' | 'modelId'>;
 }
 
 const TEXT_TOOL_CALL_RE = /<function\((\w+)\)>\s*<?\s*(\{[\s\S]*?\})\s*>?\s*<\/function>/g;
 
 export async function runTextToolFallback(params: TextToolFallbackParams): Promise<{ assistantResponse: string }> {
-  const { toolInvocations, tools, convertedMessages, baseConfig, res, requestId, aliasModelId, resolved } = params;
+  const { toolInvocations, tools, convertedMessages, baseConfig, res, requestId, routingProfileId, resolved } = params;
   let assistantResponse = params.assistantResponse;
 
   let textToolCallIdx = 0;
@@ -55,7 +55,7 @@ export async function runTextToolFallback(params: TextToolFallbackParams): Promi
     const toolCallId = `text-fallback-${Date.now()}-${textToolCallIdx++}-${toolName}`;
 
     // Emit tool-call event to client
-    res.write(`data: ${JSON.stringify(makeChunk(requestId, aliasModelId, [{
+    res.write(`data: ${JSON.stringify(makeChunk(requestId, routingProfileId, [{
       index: 0,
       delta: { tool_calls: [{ index: 0, id: toolCallId, type: 'function', function: { name: toolName, arguments: JSON.stringify(args) } }] },
       finish_reason: null,
@@ -84,7 +84,7 @@ export async function runTextToolFallback(params: TextToolFallbackParams): Promi
 
         for await (const followUpChunk of followUpResult.fullStream) {
           if (followUpChunk.type === 'text-delta' && followUpChunk.text) {
-            const followUpText = writeTextChunk(res, requestId, aliasModelId, followUpChunk.text);
+            const followUpText = writeTextChunk(res, requestId, routingProfileId, followUpChunk.text);
             if (followUpText) {
               assistantResponse = followUpText;
             }

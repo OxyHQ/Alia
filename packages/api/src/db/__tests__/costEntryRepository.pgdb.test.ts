@@ -63,7 +63,7 @@ const FREE_MODEL = 'ce-test-unpriced-model';
 
 async function seed(row: {
   userId: string;
-  aliasModelId: string;
+  routingProfileId: string;
   actualModelId?: string;
   actualProvider?: string;
   inputTokens: number;
@@ -77,7 +77,7 @@ async function seed(row: {
   await insertCostEntry(db, {
     userId: row.userId,
     sessionId: row.sessionId ?? null,
-    aliasModelId: row.aliasModelId,
+    routingProfileId: row.routingProfileId,
     actualProvider: row.actualProvider ?? 'ce-provider',
     actualModelId: row.actualModelId ?? PAID_MODEL,
     inputTokens: row.inputTokens,
@@ -95,7 +95,7 @@ describe('recordCost', () => {
     const userId = 'ce-record-roundtrip';
 
     // 1,000,000 input tokens at $20/1M = $20.00 exactly.
-    await recordCost(userId, 'alia-v1-pro', 'ce-provider', PAID_MODEL, 1_000_000, 0, 'paid_balance', false, 'sess-1');
+    await recordCost(userId, 'kaana-v1-pro', 'ce-provider', PAID_MODEL, 1_000_000, 0, 'paid_balance', false, 'sess-1');
 
     const summary = await getUserCostSummary(userId);
 
@@ -109,14 +109,14 @@ describe('recordCost', () => {
     expect(summary.totalRequests).toBe(1);
     expect(summary.totalSpent).toBe(20);
     expect(summary.totalTokens).toBe(1_000_000);
-    expect(summary.costByModel).toEqual({ 'alia-v1-pro': 20 });
-    expect(summary.tokensByModel).toEqual({ 'alia-v1-pro': 1_000_000 });
+    expect(summary.costByModel).toEqual({ 'kaana-v1-pro': 20 });
+    expect(summary.tokensByModel).toEqual({ 'kaana-v1-pro': 1_000_000 });
   });
 
   it('records a zero cost for a model the pricing table does not know, and counts it as free-tier saving', async () => {
     const userId = 'ce-record-free';
 
-    await recordCost(userId, 'alia-lite', 'ce-provider', FREE_MODEL, 1_000_000, 1_000_000, 'free_allowance');
+    await recordCost(userId, 'kaana-lite', 'ce-provider', FREE_MODEL, 1_000_000, 1_000_000, 'free_allowance');
 
     const summary = await getUserCostSummary(userId);
     expect(summary.totalSpent).toBe(0);
@@ -129,7 +129,7 @@ describe('recordCost', () => {
   it('re-prices a cache hit into cacheSavings without charging for it', async () => {
     const userId = 'ce-record-cached';
 
-    await recordCost(userId, 'alia-v1', 'ce-provider', PAID_MODEL, 1_000_000, 0, 'paid_balance', true);
+    await recordCost(userId, 'kaana-v1', 'ce-provider', PAID_MODEL, 1_000_000, 0, 'paid_balance', true);
 
     const summary = await getUserCostSummary(userId);
     // The row still carries its computed cost; `savedFromCache` is what makes
@@ -142,8 +142,8 @@ describe('recordCost', () => {
 describe('getUserCostSummary windowing', () => {
   it('counts only entries inside the window, and the window is what excludes them', async () => {
     const userId = 'ce-window';
-    await seed({ userId, aliasModelId: 'ce-window-model', inputTokens: 10, outputTokens: 0, costUsd: 1, timestamp: daysAgo(55) });
-    await seed({ userId, aliasModelId: 'ce-window-model', inputTokens: 10, outputTokens: 0, costUsd: 2, timestamp: daysAgo(45) });
+    await seed({ userId, routingProfileId: 'ce-window-model', inputTokens: 10, outputTokens: 0, costUsd: 1, timestamp: daysAgo(55) });
+    await seed({ userId, routingProfileId: 'ce-window-model', inputTokens: 10, outputTokens: 0, costUsd: 2, timestamp: daysAgo(45) });
 
     const inside = await getUserCostSummary(userId, daysAgo(60), daysAgo(50));
     expect(inside.totalRequests).toBe(1);
@@ -168,8 +168,8 @@ describe('aggregateTopUsersByCost', () => {
     // decodes as a STRING while drizzle types it `number` — so a missing cast
     // gives "1000" + "2000" = "10002000" here, and an indistinguishable "1000"
     // if only one row were seeded.
-    await seed({ userId, aliasModelId: 'ce-top-types-model', inputTokens: 1000, outputTokens: 0, costUsd: 1.5, timestamp: at() });
-    await seed({ userId, aliasModelId: 'ce-top-types-model', inputTokens: 2000, outputTokens: 0, costUsd: 2.5, timestamp: at() });
+    await seed({ userId, routingProfileId: 'ce-top-types-model', inputTokens: 1000, outputTokens: 0, costUsd: 1.5, timestamp: at() });
+    await seed({ userId, routingProfileId: 'ce-top-types-model', inputTokens: 2000, outputTokens: 0, costUsd: 2.5, timestamp: at() });
 
     const rows = await aggregateTopUsersByCost(db, { limit: 50, startDate: WINDOW_START(), endDate: WINDOW_END() });
     const mine = rows.find((r) => r.userId === userId);
@@ -186,9 +186,9 @@ describe('aggregateTopUsersByCost', () => {
   it('orders by spend descending and honours the limit', async () => {
     const window = { startDate: daysAgo(20), endDate: daysAgo(10) };
     const at15 = daysAgo(15);
-    await seed({ userId: 'ce-rank-small', aliasModelId: 'ce-rank-model', inputTokens: 1, outputTokens: 0, costUsd: 1, timestamp: at15 });
-    await seed({ userId: 'ce-rank-big', aliasModelId: 'ce-rank-model', inputTokens: 1, outputTokens: 0, costUsd: 100, timestamp: at15 });
-    await seed({ userId: 'ce-rank-mid', aliasModelId: 'ce-rank-model', inputTokens: 1, outputTokens: 0, costUsd: 50, timestamp: at15 });
+    await seed({ userId: 'ce-rank-small', routingProfileId: 'ce-rank-model', inputTokens: 1, outputTokens: 0, costUsd: 1, timestamp: at15 });
+    await seed({ userId: 'ce-rank-big', routingProfileId: 'ce-rank-model', inputTokens: 1, outputTokens: 0, costUsd: 100, timestamp: at15 });
+    await seed({ userId: 'ce-rank-mid', routingProfileId: 'ce-rank-model', inputTokens: 1, outputTokens: 0, costUsd: 50, timestamp: at15 });
 
     const all = await aggregateTopUsersByCost(db, { limit: 50, ...window });
     const ranked = all.filter((r) => r.userId.startsWith('ce-rank-')).map((r) => r.userId);
@@ -206,9 +206,9 @@ describe('countDistinctCostEntryUsers', () => {
   it('counts accounts, not rows', async () => {
     const window = { startDate: daysAgo(100), endDate: daysAgo(90) };
     const at95 = daysAgo(95);
-    await seed({ userId: 'ce-distinct-a', aliasModelId: 'ce-distinct-model', inputTokens: 1, outputTokens: 0, costUsd: 1, timestamp: at95 });
-    await seed({ userId: 'ce-distinct-a', aliasModelId: 'ce-distinct-model', inputTokens: 1, outputTokens: 0, costUsd: 1, timestamp: at95 });
-    await seed({ userId: 'ce-distinct-b', aliasModelId: 'ce-distinct-model', inputTokens: 1, outputTokens: 0, costUsd: 1, timestamp: at95 });
+    await seed({ userId: 'ce-distinct-a', routingProfileId: 'ce-distinct-model', inputTokens: 1, outputTokens: 0, costUsd: 1, timestamp: at95 });
+    await seed({ userId: 'ce-distinct-a', routingProfileId: 'ce-distinct-model', inputTokens: 1, outputTokens: 0, costUsd: 1, timestamp: at95 });
+    await seed({ userId: 'ce-distinct-b', routingProfileId: 'ce-distinct-model', inputTokens: 1, outputTokens: 0, costUsd: 1, timestamp: at95 });
 
     const users = await countDistinctCostEntryUsers(db, window);
     expect(typeof users).toBe('number');
@@ -221,9 +221,9 @@ describe('getGlobalCostStats', () => {
   it('splits spend by alias and by provider, and the provider split is the internal one', async () => {
     const window = { start: daysAgo(80), end: daysAgo(70) };
     const at75 = daysAgo(75);
-    await seed({ userId: 'ce-global-1', aliasModelId: 'ce-global-alias-a', actualProvider: 'ce-global-prov-x', inputTokens: 100, outputTokens: 0, costUsd: 3, timestamp: at75 });
-    await seed({ userId: 'ce-global-1', aliasModelId: 'ce-global-alias-b', actualProvider: 'ce-global-prov-x', inputTokens: 100, outputTokens: 0, costUsd: 4, timestamp: at75 });
-    await seed({ userId: 'ce-global-2', aliasModelId: 'ce-global-alias-a', actualProvider: 'ce-global-prov-y', inputTokens: 100, outputTokens: 0, costUsd: 5, timestamp: at75 });
+    await seed({ userId: 'ce-global-1', routingProfileId: 'ce-global-alias-a', actualProvider: 'ce-global-prov-x', inputTokens: 100, outputTokens: 0, costUsd: 3, timestamp: at75 });
+    await seed({ userId: 'ce-global-1', routingProfileId: 'ce-global-alias-b', actualProvider: 'ce-global-prov-x', inputTokens: 100, outputTokens: 0, costUsd: 4, timestamp: at75 });
+    await seed({ userId: 'ce-global-2', routingProfileId: 'ce-global-alias-a', actualProvider: 'ce-global-prov-y', inputTokens: 100, outputTokens: 0, costUsd: 5, timestamp: at75 });
 
     const stats = await getGlobalCostStats(window.start, window.end);
 
@@ -233,15 +233,15 @@ describe('getGlobalCostStats', () => {
     expect(stats.uniqueUsers).toBe(2);
     // Two different groupings of the SAME rows — a port that grouped by one and
     // labelled it the other would still total correctly.
-    expect(stats.costByAliasModel).toEqual({ 'ce-global-alias-a': 8, 'ce-global-alias-b': 4 });
+    expect(stats.costByRoutingProfile).toEqual({ 'ce-global-alias-a': 8, 'ce-global-alias-b': 4 });
     expect(stats.costByActualProvider).toEqual({ 'ce-global-prov-x': 7, 'ce-global-prov-y': 5 });
     expect(stats.avgCostPerRequest).toBe(4);
   });
 
   it('returns totals as numbers so a caller can do arithmetic on them', async () => {
     const window = { start: daysAgo(120), end: daysAgo(110) };
-    await seed({ userId: 'ce-global-types', aliasModelId: 'ce-global-types-model', inputTokens: 1500, outputTokens: 500, costUsd: 1, timestamp: daysAgo(115) });
-    await seed({ userId: 'ce-global-types', aliasModelId: 'ce-global-types-model', inputTokens: 1500, outputTokens: 500, costUsd: 1, timestamp: daysAgo(115) });
+    await seed({ userId: 'ce-global-types', routingProfileId: 'ce-global-types-model', inputTokens: 1500, outputTokens: 500, costUsd: 1, timestamp: daysAgo(115) });
+    await seed({ userId: 'ce-global-types', routingProfileId: 'ce-global-types-model', inputTokens: 1500, outputTokens: 500, costUsd: 1, timestamp: daysAgo(115) });
 
     const stats = await getGlobalCostStats(window.start, window.end);
     expect(typeof stats.totalTokens).toBe('number');
@@ -255,15 +255,15 @@ describe('aggregateModelEfficiency', () => {
   it('computes cost per 1000 tokens and orders cheapest first', async () => {
     const at = daysAgo(140);
     // $20 over 1,000,000 tokens = $0.02 per 1k.
-    await seed({ userId: 'ce-eff', aliasModelId: 'ce-eff-expensive', inputTokens: 1_000_000, outputTokens: 0, costUsd: 20, timestamp: at });
+    await seed({ userId: 'ce-eff', routingProfileId: 'ce-eff-expensive', inputTokens: 1_000_000, outputTokens: 0, costUsd: 20, timestamp: at });
     // $1 over 1,000,000 tokens = $0.001 per 1k.
-    await seed({ userId: 'ce-eff', aliasModelId: 'ce-eff-cheap', inputTokens: 1_000_000, outputTokens: 0, costUsd: 1, timestamp: at });
+    await seed({ userId: 'ce-eff', routingProfileId: 'ce-eff-cheap', inputTokens: 1_000_000, outputTokens: 0, costUsd: 1, timestamp: at });
 
     const rows = await aggregateModelEfficiency(db);
-    const mine = rows.filter((r) => r.aliasModelId.startsWith('ce-eff-'));
-    expect(mine.map((r) => r.aliasModelId)).toEqual(['ce-eff-cheap', 'ce-eff-expensive']);
+    const mine = rows.filter((r) => r.routingProfileId.startsWith('ce-eff-'));
+    expect(mine.map((r) => r.routingProfileId)).toEqual(['ce-eff-cheap', 'ce-eff-expensive']);
 
-    const expensive = mine.find((r) => r.aliasModelId === 'ce-eff-expensive');
+    const expensive = mine.find((r) => r.routingProfileId === 'ce-eff-expensive');
     expect(expensive?.avgCostPer1kTokens).toBeCloseTo(0.02, 10);
     expect(expensive?.totalCost).toBe(20);
     expect(typeof expensive?.totalRequests).toBe('number');
@@ -274,10 +274,10 @@ describe('aggregateModelEfficiency', () => {
     // The `nullif` guard, and the reason it is not decoration: without it this
     // statement raises `division_by_zero` and the whole call fails, taking the
     // priced models down with it.
-    await seed({ userId: 'ce-eff-zero-user', aliasModelId: 'ce-eff-zerotokens', inputTokens: 0, outputTokens: 0, costUsd: 0, timestamp: daysAgo(141) });
+    await seed({ userId: 'ce-eff-zero-user', routingProfileId: 'ce-eff-zerotokens', inputTokens: 0, outputTokens: 0, costUsd: 0, timestamp: daysAgo(141) });
 
     const rows = await aggregateModelEfficiency(db);
-    const zero = rows.find((r) => r.aliasModelId === 'ce-eff-zerotokens');
+    const zero = rows.find((r) => r.routingProfileId === 'ce-eff-zerotokens');
     expect(zero).toBeDefined();
     expect(zero?.avgCostPer1kTokens).toBe(0);
   });
@@ -287,15 +287,15 @@ describe('selectRecentCostEntries', () => {
   it('returns one account newest first, capped at the limit', async () => {
     const userId = 'ce-recent';
     for (let i = 1; i <= 12; i++) {
-      await seed({ userId, aliasModelId: `ce-recent-${String(i)}`, inputTokens: i, outputTokens: 0, costUsd: i, timestamp: daysAgo(200 + i) });
+      await seed({ userId, routingProfileId: `ce-recent-${String(i)}`, inputTokens: i, outputTokens: 0, costUsd: i, timestamp: daysAgo(200 + i) });
     }
-    await seed({ userId: 'ce-recent-other', aliasModelId: 'ce-recent-foreign', inputTokens: 1, outputTokens: 0, costUsd: 999, timestamp: daysAgo(200) });
+    await seed({ userId: 'ce-recent-other', routingProfileId: 'ce-recent-foreign', inputTokens: 1, outputTokens: 0, costUsd: 999, timestamp: daysAgo(200) });
 
     const rows = await selectRecentCostEntries(db, userId, 10);
     expect(rows).toHaveLength(10);
     // `daysAgo(201)` is the newest of the twelve; `daysAgo(212)` the oldest, and
     // the two the limit must drop are 211 and 212.
-    expect(rows.map((r) => r.aliasModelId)).toEqual([
+    expect(rows.map((r) => r.routingProfileId)).toEqual([
       'ce-recent-1', 'ce-recent-2', 'ce-recent-3', 'ce-recent-4', 'ce-recent-5',
       'ce-recent-6', 'ce-recent-7', 'ce-recent-8', 'ce-recent-9', 'ce-recent-10',
     ]);
@@ -304,7 +304,7 @@ describe('selectRecentCostEntries', () => {
 
   it('is exposed through getUserDashboardData under this module\'s own field spelling', async () => {
     const userId = 'ce-dashboard';
-    await seed({ userId, aliasModelId: 'ce-dashboard-model', inputTokens: 100, outputTokens: 0, costUsd: 7, timestamp: daysAgo(1) });
+    await seed({ userId, routingProfileId: 'ce-dashboard-model', inputTokens: 100, outputTokens: 0, costUsd: 7, timestamp: daysAgo(1) });
 
     const data = await getUserDashboardData(userId);
     expect(data.recentActivity).toHaveLength(1);

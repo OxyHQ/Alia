@@ -53,6 +53,10 @@ export interface Agent {
   _id: string;
   /** The Oxy `bot` account this agent IS. */
   oxyAccountId: string;
+  /** The bot's parent in Oxy's account graph; null until a legacy row is reconciled. */
+  ownerOxyAccountId: string | null;
+  /** Credential-derived Oxy application allowed to invoke this product agent. */
+  applicationId: string | null;
   name: string | null;
   handle: string | null;
   color: string | null;
@@ -120,7 +124,7 @@ export interface Agent {
  * shape a type is for.
  */
 export type AgentUpdate = Partial<
-  Omit<Agent, 'skills' | 'knowledge' | 'name' | 'handle' | 'avatar' | 'oxyAccountId' | '_id'>
+  Omit<Agent, 'skills' | 'knowledge' | 'name' | 'handle' | 'avatar' | 'oxyAccountId' | 'ownerOxyAccountId' | 'applicationId' | '_id'>
 > & {
   skills?: string[];
   knowledge?: string[];

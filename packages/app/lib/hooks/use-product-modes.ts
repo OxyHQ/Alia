@@ -5,7 +5,7 @@
  * ## What this is for
  *
  * The picker used to label a routing profile with the display name of the alias
- * it came from — "Alia V1 Pro Max", "Alia Lite". Those are model names for
+ * it came from — "Kaana V1 Pro Max", "Kaana Lite". Those are model names for
  * things that are not models, which is the habit ADR 0003 exists to end. A
  * product mode is where the product's own words live: Automatic, Fast,
  * Balanced, Maximum quality, Coding, Deep research.
@@ -23,14 +23,9 @@
  * `mode:fast` says "the profile `profile:lite` is what Fast means"; the picker
  * renders "Fast" and still sends `profile:lite`.
  *
- * ## Two modes name no profile, and they are not rendered as rows
- *
- * `Automatic` and `Deep research` both carry `routing.kind === 'default'`,
- * because neither changes routing. They are real product concepts and they are
- * deliberately NOT folded into the profile list: Automatic is the absence of a
- * choice, and Deep research is a pipeline flag (`deep_research`), not a tier.
- * Rendering either as a profile row would attach a routing claim the product
- * does not make — the exact thing this module exists to stop.
+ * Every mode carries one exact profile identity. Automatic and Deep research
+ * are found by their exact `mode:*` IDs when their own labels are needed; they
+ * are never inferred from array position or a `default` discriminant.
  */
 
 import { useQuery } from '@tanstack/react-query';
@@ -39,9 +34,7 @@ import { queryKeys } from './query-keys';
 import type { CatalogueEntry } from './use-catalogue';
 
 /** Which routing profile a request made in this mode goes through. */
-export type ProductModeRouting =
-  | { readonly kind: 'profile'; readonly profileId: string }
-  | { readonly kind: 'default' };
+export type ProductModeRouting = { readonly kind: 'profile'; readonly profileId: string };
 
 export interface ProductMode {
   /** `mode:*`. Never sent as a request `model` — see the note above. */
@@ -65,17 +58,16 @@ function asText(value: unknown): string | null {
   return typeof value === 'string' ? value : null;
 }
 
-function parseRouting(value: unknown): ProductModeRouting {
+function parseRouting(value: unknown): ProductModeRouting | null {
   const raw = asObject(value);
-  if (raw === null) return { kind: 'default' };
+  if (raw === null) return null;
   if (raw.kind === 'profile') {
     const profileId = asText(raw.profile_id);
-    // A `profile` routing with no id is a shape break, not a default. Reading it
-    // as `default` would silently move the mode's meaning, so the entry is
-    // dropped by the caller instead.
-    if (profileId !== null) return { kind: 'profile', profileId };
+    if (profileId !== null && profileId !== '' && profileId.trim() === profileId) {
+      return { kind: 'profile', profileId };
+    }
   }
-  return { kind: 'default' };
+  return null;
 }
 
 function parseMode(value: unknown): ProductMode | null {
@@ -85,13 +77,18 @@ function parseMode(value: unknown): ProductMode | null {
 
   const id = asText(raw.id);
   const label = asText(raw.label);
-  if (id === null || label === null) return null;
+  const routing = parseRouting(raw.routing);
+  if (
+    id === null || id === '' || id.trim() !== id || !id.startsWith('mode:')
+    || label === null || label === '' || label.trim() !== label
+    || routing === null
+  ) return null;
 
   return {
     id,
     label,
     description: asText(raw.description) ?? '',
-    routing: parseRouting(raw.routing),
+    routing,
     deepResearch: raw.deep_research === true,
   };
 }
@@ -112,10 +109,8 @@ export function parseModes(payload: unknown): ProductMode[] {
   const modes: ProductMode[] = [];
   for (const value of data) {
     const mode = parseMode(value);
-    if (mode !== null) modes.push(mode);
-  }
-  if (data.length > 0 && modes.length === 0) {
-    throw new Error('The product modes response could not be read.');
+    if (mode === null) throw new Error('The product modes response could not be read.');
+    modes.push(mode);
   }
   return modes;
 }
@@ -137,6 +132,13 @@ export function useProductModes() {
   });
 }
 
+const PRESENTATION_MODE_IDS: ReadonlySet<string> = new Set([
+  'mode:fast',
+  'mode:balanced',
+  'mode:maximum-quality',
+  'mode:coding',
+]);
+
 /**
  * The product's word for a routing profile, or `null` when it has none.
  *
@@ -150,10 +152,21 @@ export function modeForProfile(
   modes: readonly ProductMode[] | undefined,
 ): ProductMode | null {
   if (modes === undefined) return null;
-  return (
-    modes.find((mode) => mode.routing.kind === 'profile' && mode.routing.profileId === profileId) ??
-    null
-  );
+  let match: ProductMode | null = null;
+  for (const mode of modes) {
+    if (!PRESENTATION_MODE_IDS.has(mode.id) || mode.routing.profileId !== profileId) continue;
+    if (match !== null) return null;
+    match = mode;
+  }
+  return match;
+}
+
+/** Resolve a product concept by its exact committed identity. */
+export function modeById(
+  id: string,
+  modes: readonly ProductMode[] | undefined,
+): ProductMode | null {
+  return modes?.find((mode) => mode.id === id) ?? null;
 }
 
 /**
@@ -163,7 +176,7 @@ export function modeForProfile(
  * A routing profile that a product mode selects is shown as that mode —
  * "Fast", "Balanced", "Maximum quality", "Coding" — because those are the
  * product's words for the decision a person is actually making. The alias
- * display names this replaces ("Alia V1 Pro Max", "Alia Lite") were model names
+ * display names this replaces ("Kaana V1 Pro Max", "Kaana Lite") were model names
  * for things that are not models, which is the habit ADR 0003 ends.
  *
  * The catalogue's own `displayName` remains the fallback, and it is a real

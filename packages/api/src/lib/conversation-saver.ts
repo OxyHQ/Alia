@@ -187,7 +187,7 @@ export async function saveConversation(params: SaveConversationParams): Promise<
  * What the title call may SPEND, which is not how long a title is.
  *
  * Six words need about fifteen tokens, and this was `30` on that reasoning.
- * MEASURED against production on 2026-08-25 (UTC), on the deployment `alia-lite`
+ * MEASURED against production on 2026-08-25 (UTC), on the deployment `kaana-lite`
  * actually resolves to today: at a budget of 30 the answer came back
  * `finishReason: 'length'` having spent 28 of its 30 tokens on REASONING and
  * two on text, so `result.text` was the empty string. Every conversation went
@@ -222,16 +222,16 @@ const TITLE_OUTPUT_TOKEN_BUDGET = 512;
  * nothing at all — it simply receives no `alia.title` event.
  *
  * `resolveModel` is INSIDE the try. It throws for an unregistered identifier or
- * a policy that forbids fallback — neither reachable for `alia-lite` today,
+ * a policy that forbids fallback — neither reachable for `kaana-lite` today,
  * since it is registered and its preset is `cross-model` — and the throw would
  * otherwise leave this function entirely and land in the caller's catch, which
  * is the one place that cannot say what happened.
  */
 export async function generateTitle(userMessage: string): Promise<string | null> {
   try {
-    const resolved = await resolveModel('alia-lite');
+    const resolved = await resolveModel('kaana-lite');
     if (!resolved) {
-      log.chat.warn({ aliasModelId: 'alia-lite' }, 'Title generation skipped: no model available');
+      log.chat.warn({ routingProfileId: 'kaana-lite' }, 'Title generation skipped: no model available');
       return null;
     }
 

@@ -5,20 +5,20 @@
  * Each injection concern is a named method for clarity and testability.
  */
 
-import { getAliaModel } from './gateway-client.js';
+import { getRoutingProfile } from './gateway-client.js';
 import { buildIdentityGuard } from './identity-guard.js';
 import { getOxyServicePromptFragment, getOxyServiceContext } from './tools/oxy-services.js';
 import { agentRemitPrompt } from './agent/archetype-prompts.js';
 import { buildAutonomyPromptFragment, type AutonomyRuntimeContext } from './autonomy/runtime.js';
 import { buildSystemPrompt as loadBasePrompt, loadPrompt } from './prompt-loader.js';
-import { getPromptId } from './routing/presets.js';
+import { getProductPromptId } from './product-prompt-registry.js';
 import type { EffortLevel } from './reasoning-effort.js';
 
 /**
  * The extended-reasoning layer, selected by the effort LEVEL rather than by a
  * model id (#139 workstream 4).
  *
- * `alia-v1-thinking` and `alia-v1-pro-max` route to the same nine candidates at
+ * `kaana-v1-thinking` and `kaana-v1-pro-max` route to the same nine candidates at
  * the same price and differed only in which of these files their id loaded, so
  * the reasoning level was an identity when it should have been a setting. It is
  * a setting now, and any profile can carry it.
@@ -37,13 +37,13 @@ import type { EffortLevel } from './reasoning-effort.js';
  * that difference is made by the provider option rather than by three
  * variously-worded prompts.
  *
- * The file keeps its historical name because the retired alias still resolves
- * and still loads it directly by model id: one file, two ways in, no copy to
- * keep in step.
+ * The fragment has a product-semantic name, independent from the routing
+ * profile that may select it.
  */
-const EXTENDED_REASONING_PROMPT = 'alia-v1-thinking';
+const EXTENDED_REASONING_PROMPT = 'extended-reasoning';
 import { log } from './logger.js';
 import { agentPromptName, type HydratedAgent } from './agent-identity.js';
+import { readCapabilityGrants } from '../domain/capability-grants.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -61,8 +61,8 @@ export interface OxyUserProfile {
 }
 
 export interface SystemPromptOptions {
-  /** Resolved Alia model ID (e.g. "alia-v1") */
-  aliasModelId: string;
+  /** Canonical Kaana routing profile (for example, `kaana-v1`). */
+  routingProfileId: string;
   /** Client context string (UI language, etc.) */
   clientContext?: string;
   /** Whether this is a direct user session (not API key) */
@@ -89,14 +89,14 @@ export interface SystemPromptOptions {
    * person asked for are prepended, above the base prompt, where a skill can
    * shape how the turn is answered. Neither goes above the identity guard.
    */
-  skills?: { index: string; active: string } | null;
+  skills?: { index: string; active: string; agentScoped?: boolean } | null;
   /** Linked agent (for archetype prompt injection) */
   linkedAgent?: HydratedAgent | null;
   /** Whether agent mode is active */
   agentMode?: boolean;
   /**
    * How hard the request asked this turn to think — the runtime parameter that
-   * replaced `alia-v1-thinking` as a model identity. Any profile can carry it,
+   * replaced `kaana-v1-thinking` as a model identity. Any profile can carry it,
    * which is the whole point of it being a parameter.
    */
   reasoningEffort?: EffortLevel | null;
@@ -131,7 +131,7 @@ export class SystemPromptBuilder {
    */
   static async build(opts: SystemPromptOptions): Promise<string> {
     const {
-      aliasModelId,
+      routingProfileId,
       clientContext,
       isDirectUserSession,
       userId,
@@ -147,28 +147,48 @@ export class SystemPromptBuilder {
     } = opts;
 
     /**
-     * 1. Base prompt, named by the ROUTING PRESET rather than by the request.
+     * Prompt context and executable tools share one authority decision.
      *
-     * `loadPrompt` reads `prompts/<name>.md`, so passing `aliasModelId` straight
-     * through made the identifier its own filename — the coupling that keeps
-     * the thirteen `alia-*` names alive in a directory listing. The preset now
-     * says which file each of its identifiers serves
-     * (`lib/routing/presets.ts`), and it says the names that are already there:
-     * `73ce422b` put `prompts/` in the runtime image, so a rename here without
-     * the same rename in the image degrades to an empty prompt, silently.
+     * The tool pipeline has always read `capabilityGrants` deny-by-default,
+     * but this builder used to append the person's memories, profile, connected
+     * Inbox context and communication/delegation hints independently. That made
+     * an agent with no grants unable to CALL a memory tool while still reading
+     * the same memory in its system prompt. A capability boundary applies to
+     * information as well as effects, so every user-owned prompt fragment is
+     * gated from this same parsed set.
      *
-     * An identifier no preset covers keeps today's behaviour exactly — it is
+     * Ordinary Alia has no linked agent and remains unpartitioned.
+     */
+    const agentGrants = linkedAgent
+      ? readCapabilityGrants(linkedAgent.capabilityGrants ?? [])
+      : null;
+    const mayReadMemory = agentGrants === null || agentGrants.allows('memory');
+    const mayUseMessaging = agentGrants === null || agentGrants.allows('messaging');
+    const mayDelegate = agentGrants === null || agentGrants.allows('delegation');
+    const mayReadSkills = agentGrants === null || skills?.agentScoped === true;
+
+    /**
+     * 1. Base prompt, selected through the product prompt registry.
+     *
+     * `loadPrompt` reads `prompts/<name>.md`; the registry deliberately keeps
+     * that product-owned name independent from the canonical Kaana profile.
+     *
+     * An identifier the registry does not cover keeps today's behaviour — it is
      * passed through, `loadPrompt` finds no file, and the turn runs on
      * `base.md` alone.
      */
-    let systemMessage = await loadBasePrompt(getPromptId(aliasModelId) ?? aliasModelId, clientContext);
+    const productPromptId = getProductPromptId(routingProfileId);
+    let systemMessage = await loadBasePrompt(productPromptId ?? routingProfileId, clientContext);
 
     // 1b. Extended reasoning, when the request asked for it.
     //
-    // Skipped when the caller named the retired alias, because `loadBasePrompt`
-    // already loaded this exact file for that id — layering it twice would tell
-    // the model the same thing in two voices.
-    if (reasoningEffort != null && reasoningEffort !== 'instant' && aliasModelId !== EXTENDED_REASONING_PROMPT) {
+    // Do not layer it twice when the selected profile's primary product prompt
+    // is already the extended-reasoning fragment.
+    if (
+      reasoningEffort != null
+      && reasoningEffort !== 'instant'
+      && productPromptId !== EXTENDED_REASONING_PROMPT
+    ) {
       const reasoning = await loadPrompt(EXTENDED_REASONING_PROMPT);
       if (reasoning !== '') systemMessage += `\n\n---\n\n${reasoning}`;
     }
@@ -182,7 +202,7 @@ export class SystemPromptBuilder {
     }
 
     // 4. Recalled memories from hooks
-    if (recalledMemories?.length) {
+    if (mayReadMemory && recalledMemories?.length) {
       const memoryLines = recalledMemories.slice(0, 12).map((m) => `- ${m.title}: ${m.summary}`).join('\n');
       systemMessage += `\n\n## Recalled Memories\n${memoryLines}`;
     }
@@ -190,28 +210,34 @@ export class SystemPromptBuilder {
     /**
      * 5. The active model, READ rather than restated.
      *
-     * This layer used to append "You are currently using the **Alia V1**
-     * model. When asked what model you use, say you are using Alia V1" — which
+     * This layer used to append "You are currently using the **Kaana V1**
+     * model. When asked what model you use, say you are using Kaana V1" — which
      * the guard at the top already says, in both its branches. On an agent's
      * turn it was a second "You are …" sentence naming something other than the
      * agent, sitting below the one that named the agent. Two owners of one
      * fact; the guard is the owner, and this now only feeds it the name.
      */
-    const aliaModel = await getAliaModel(aliasModelId);
+    const routingProfile = await getRoutingProfile(routingProfileId);
 
     // 6. User-specific injections (direct sessions only)
     if (isDirectUserSession) {
       // User name
       const userName = oxyUser?.name?.full || oxyUser?.name?.first || oxyUser?.username;
-      if (userName) {
+      if (agentGrants === null && userName) {
         systemMessage += `\n\nThe user's name is ${userName}.`;
       }
 
       // Communication tools hint
-      systemMessage += '\n\nYou have `sendTelegramMessage` and WhatsApp tools (`getWhatsAppChats`, `getWhatsAppMessages`, `sendWhatsAppMessage`). Use them when the user asks. For WhatsApp, call getWhatsAppChats first to get chat JIDs.';
+      if (mayUseMessaging) {
+        systemMessage += '\n\nYou have `sendTelegramMessage` and WhatsApp tools (`getWhatsAppChats`, `getWhatsAppMessages`, `sendWhatsAppMessage`). Use them when the user asks. For WhatsApp, call getWhatsAppChats first to get chat JIDs.';
+      }
 
-      // Oxy service context (non-blocking)
-      if (userId && accessToken) {
+      // Oxy service context (non-blocking). Agent access to Oxy apps is decided
+      // by normalized DelegationGrant assignments in `buildOxyServiceTools`,
+      // not by the person's direct-session context. Until that resolver returns
+      // a prompt-safe projection, exposing the person's Inbox context here
+      // would be a second, ungoverned authorization path.
+      if (agentGrants === null && userId && accessToken) {
         try {
           const [oxyServicePrompt, oxyServiceCtx] = await Promise.all([
             getOxyServicePromptFragment(userId),
@@ -225,13 +251,13 @@ export class SystemPromptBuilder {
       }
 
       // Agent mode hint
-      if (agentMode) {
+      if (agentMode && mayDelegate) {
         systemMessage += '\n\nAGENT MODE: You have `searchAgents` and `delegateToAgent` tools. Search for specialist agents, delegate to the best match, and briefly explain why. If no agent fits, handle it yourself.';
       }
     }
 
     // 7. User memory (direct sessions only)
-    if (userMemory && isDirectUserSession) {
+    if (mayReadMemory && userMemory && isDirectUserSession) {
       systemMessage += '\n\n## User Information';
 
       if (userMemory.memories && userMemory.memories.length > 0) {
@@ -265,10 +291,10 @@ export class SystemPromptBuilder {
     // replaces. Authorization is an install owned by the caller's account, and a
     // developer key carries its owner's — so there is nothing here that leaks
     // one account's material into another's request.
-    if (skills?.index) {
+    if (mayReadSkills && skills?.index) {
       systemMessage += skills.index;
     }
-    if (skills?.active) {
+    if (mayReadSkills && skills?.active) {
       systemMessage = `${skills.active}\n\n---\n\n${systemMessage}`;
       log.general.info({ chars: skills.active.length }, 'Skills activated');
     }
@@ -306,7 +332,7 @@ export class SystemPromptBuilder {
     // ordinary turn says the model's and stays general-purpose.
     systemMessage = `${buildIdentityGuard({
       ...(linkedAgent ? { agentName: agentPromptName(linkedAgent) } : {}),
-      modelName: aliaModel?.name,
+      modelName: routingProfile?.name,
     })}\n\n---\n\n${systemMessage}`;
 
     return systemMessage;

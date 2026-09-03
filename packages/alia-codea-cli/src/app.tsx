@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { Box, Text, useApp, useInput } from 'ink';
+import { Box, useApp, useInput } from 'ink';
 import { Header } from './components/Header.js';
 import { MessageList, DisplayMessage } from './components/MessageList.js';
 import { InputBar } from './components/InputBar.js';
@@ -26,8 +26,8 @@ export function App({ options }: { options: AppOptions }) {
   /**
    * The chosen model and how to show it, in ONE piece of state.
    *
-   * They were two, and the display was derived by stripping an `alia-v1-`
-   * prefix off the identifier — which rendered `alia-lite` as `alia-lite` and
+   * They were two, and the display was derived by stripping an `kaana-v1-`
+   * prefix off the identifier — which rendered `kaana-lite` as `kaana-lite` and
    * only ever shortened one family. The catalogue supplies the real name, and
    * that arrives asynchronously, so keeping the pair together is what stops the
    * label describing a model the request no longer carries. Until the catalogue
@@ -42,7 +42,6 @@ export function App({ options }: { options: AppOptions }) {
     execution: ToolExecution;
     resolve: (approved: boolean) => void;
   } | null>(null);
-  const [ready, setReady] = useState(false);
   const [codebaseContext, setCodebaseContext] = useState('');
   const [instructions, setInstructions] = useState('');
 
@@ -59,7 +58,6 @@ export function App({ options }: { options: AppOptions }) {
     let cancelled = false;
     (async () => {
       let ctx = '';
-      let instr = '';
       if (options.context !== false) {
         ctx = await getCodebaseContext();
         if (ctx && !cancelled) {
@@ -69,7 +67,7 @@ export function App({ options }: { options: AppOptions }) {
           ]);
         }
       }
-      instr = await loadProjectInstructions();
+      const instr = await loadProjectInstructions();
       if (instr && !cancelled) {
         const count = instr.split('\n---\n').length;
         setDisplayMessages((prev) => [
@@ -80,7 +78,6 @@ export function App({ options }: { options: AppOptions }) {
       if (!cancelled) {
         setCodebaseContext(ctx);
         setInstructions(instr);
-        setReady(true);
       }
       /**
        * Resolve the header's label once the catalogue can be asked.
@@ -95,7 +92,7 @@ export function App({ options }: { options: AppOptions }) {
       if (!cancelled) setSelection((current) => (current.id === options.model ? { ...current, label } : current));
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [nextId, options.context, options.model]);
 
   // Handle Ctrl+C
   useInput((input, key) => {
@@ -172,7 +169,7 @@ export function App({ options }: { options: AppOptions }) {
           if (args[0]) {
             /**
              * The shorthand is matched against the CATALOGUE rather than
-             * expanded with a naming scheme. `alia-v1-${arg}` produced
+             * expanded with a naming scheme. `kaana-v1-${arg}` produced
              * identifiers that had never existed and sent them anyway; an
              * unknown shorthand now says so instead of guessing.
              */
@@ -200,7 +197,7 @@ export function App({ options }: { options: AppOptions }) {
                * The product's word for the profile, never the alias display
                * name it came from.
                *
-               * This printed `Model: Alia Lite` — an alias name under the word
+               * This printed `Model: Kaana Lite` — an alias name under the word
                * "model", which is #139's non-negotiable invariant broken in
                * both of the ways it names at once.
                */
@@ -309,7 +306,7 @@ export function App({ options }: { options: AppOptions }) {
     // Update context estimate
     const totalChars = messagesRef.current.reduce((acc, m) => acc + m.content.length, 0);
     setContextPercent(Math.max(5, 100 - Math.floor((totalChars / APPROX_MAX_CONTEXT_CHARS) * 100)));
-  }, [approvalMode, model, codebaseContext, instructions, nextId, addMessage, updateLastAssistant, finalizeAssistant, exit]);
+  }, [approvalMode, model, selection.label, codebaseContext, instructions, nextId, addMessage, updateLastAssistant, finalizeAssistant, exit]);
 
   const handleApprovalResolve = useCallback((approved: boolean) => {
     if (pendingApproval) {

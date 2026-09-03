@@ -16,7 +16,7 @@ function ApiAuthSetup({ children }: { children: React.ReactNode }) {
 
   // Set token getter synchronously during render to avoid race condition
   // where child effects (React Query) fire before this parent's useEffect
-  setTokenGetter(async () => oxyServices.getAccessToken());
+  setTokenGetter(() => Promise.resolve(oxyServices.getAccessToken()));
 
   // Set workspace getter — reads current workspace from localStorage
   setWorkspaceGetter(() => {

@@ -252,7 +252,7 @@ describe('agents', () => {
     expect(row?.grants).toEqual(['shell', 'mcp:conn-7']);
   });
 
-  it('defaults allowed_models to the two Alia names the model declares', async () => {
+  it('defaults allowed_models to the two Kaana product profile names the schema declares', async () => {
     await db.insert(agents).values(agentValues({ id: 'ag-models' }));
 
     const [row] = await db
@@ -260,7 +260,7 @@ describe('agents', () => {
       .from(agents)
       .where(eq(agents.id, 'ag-models'));
 
-    expect(row).toEqual({ allowedModels: ['alia-v1', 'alia-v1-pro'], tags: [] });
+    expect(row).toEqual({ allowedModels: ['kaana-v1', 'kaana-v1-pro'], tags: [] });
   });
 });
 
@@ -299,7 +299,7 @@ describe('agent_skills and agent_knowledge', () => {
 
   it('drops the link when the SKILL is deleted, which Mongo did not', async () => {
     /**
-     * A deliberate behaviour change, and the same one `alia_model_provider_mappings`
+     * A deliberate behaviour change, and the same one `routing_profile_provider_mappings`
      * made. Mongo left a deleted skill's id in `agent.skills` and `populate`
      * silently dropped it on read, so the agent's skill list shrank with nothing
      * recording why. A `text[]` of ids could not express this at all.

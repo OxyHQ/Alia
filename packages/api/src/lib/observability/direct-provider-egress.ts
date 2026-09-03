@@ -6,8 +6,8 @@
  *
  * `lib/inference/provider-egress-policy.ts` (#139 workstream 8) already holds
  * the process's five outbound doors — `fetch`, `http.request`, `http.get`,
- * `https.request`, `https.get` — and refuses a provider API host once the
- * cutover flag is on. A second interceptor on `globalThis.fetch` would give one
+ * `https.request`, `https.get` — and refuses every provider API host
+ * unconditionally. A second interceptor on `globalThis.fetch` would give one
  * process two host classifications free to disagree and an order-dependent
  * answer about which of them saw a call first, and it would still miss the two
  * provider realtime sockets, which `ws` opens through `https.request` and never
@@ -19,19 +19,12 @@
  *
  * ## What the numbers mean, and what they cannot mean
  *
- * After the cutover the policy REFUSES, so every attempt counted here is a
+ * The policy REFUSES, so every attempt counted here is a
  * connection that did not happen. That is the right signal for this checkbox —
  * the question is whether anything still tries — but it is not a
- * successful-connection metric and nobody should build one expecting it: after
- * the cutover, a successful direct-provider connection through one of the five
+ * successful-connection metric and nobody should build one expecting it: a
+ * successful direct-provider connection through one of the five
  * doors cannot occur.
- *
- * Before the cutover the policy is `unenforced` and touches nothing, so this
- * counter stays at zero. That is deliberate rather than a gap: today Alia
- * legitimately calls providers directly on every request, so a pre-cutover
- * counter would tick once per request and measure the architecture rather than a
- * defect. The checkbox asks about a POST-cutover attempt, and this is armed
- * exactly then.
  *
  * ## The blind spot, stated once
  *

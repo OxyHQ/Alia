@@ -17,19 +17,12 @@ import { redactSecrets } from './agent/secret-scanner.js';
  * The second chokepoint for credential material, and the only one that can see
  * an error this codebase did not build.
  *
- * `internal/providers/lib/provider-error-body.ts` scrubs every upstream body
- * Alia itself reads. It cannot scrub what the AI SDK throws: an `APICallError`
- * carries the raw upstream body on `responseBody`, plus `url`, `data` and
- * `responseHeaders`, and `lib/chat/provider-loop.ts:354` logs exactly that
- * object as `{ err }` on the live chat path. pino's default `err` serializer
- * copies every enumerable property of an error, so all of it is emitted.
- *
- * MEASURED against the installed pino 10.3.1 with this file's own config: with
- * the serializer below removed, a real `APICallError` driven through the real
- * AI SDK emits its `responseBody` in full, while `{ token }` at the top level
- * redacts correctly. That measurement is
- * `internal/providers/lib/__tests__/credential-redaction.test.ts`, and deleting
- * this serializer turns three of its assertions red — mutation-tested.
+ * Hosted inference now reaches Oxy through the published SDK, but arbitrary
+ * errors can still carry bodies, URLs, headers or nested data. The live chat
+ * path logs those errors as `{ err }`, and pino's default serializer copies
+ * enumerable error properties. Scrubbing the serialized value is therefore a
+ * necessary last boundary even though Alia no longer reads provider responses
+ * or holds provider credentials itself.
  *
  * `redact.paths` below cannot do this job: pino paths are literal property
  * paths, so they would have to name `providerMessage`, `responseBody` and every

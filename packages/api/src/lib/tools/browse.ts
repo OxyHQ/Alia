@@ -81,7 +81,7 @@ export const browseTool = tool({
           args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
         },
         model: {
-          modelName: 'openai/alia-lite',
+          modelName: 'openai/kaana-lite',
           apiKey: serviceSecret,
           baseURL: `${aliaApiUrl}/v1`,
         },

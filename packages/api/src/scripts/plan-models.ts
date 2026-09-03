@@ -20,8 +20,7 @@
  * symptom `Upgrade your plan to use this model.` on an account holding the most
  * expensive plan there is.
  *
- * The fix is not an admin API — `provider-key.ts` says the same thing about
- * credentials, for the same reason. It is a MECHANISM: an operator-issued
+ * The fix is not an admin API. It is a MECHANISM: an operator-issued
  * one-shot that re-asserts the list the code seeds, through the audited writer,
  * printing what it changed.
  *

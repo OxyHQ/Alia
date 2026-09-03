@@ -5,7 +5,7 @@ const mocks = vi.hoisted(() => ({
   getDb: vi.fn(() => ({ kind: 'test-db' })),
   info: vi.fn(),
   error: vi.fn(),
-  upsertAliaModel: vi.fn(),
+  upsertRoutingProfile: vi.fn(),
   upsertModelConfig: vi.fn(),
 }));
 
@@ -14,19 +14,19 @@ vi.mock('../../../../db/providers/modelConfigRepository.js', () => ({
   findModelConfig: mocks.findModelConfig,
   upsertModelConfig: mocks.upsertModelConfig,
 }));
-vi.mock('../../../../db/providers/aliaModelRepository.js', () => ({
-  upsertAliaModel: mocks.upsertAliaModel,
+vi.mock('../../../../db/providers/routingProfileRepository.js', () => ({
+  upsertRoutingProfile: mocks.upsertRoutingProfile,
 }));
 vi.mock('../../../../lib/logger.js', () => ({
   log: { seed: { info: mocks.info, error: mocks.error } },
 }));
 vi.mock('../provider-names.js', () => ({ PROVIDER_NAMES: ['openai'] }));
-vi.mock('../alia-models.js', () => ({
+vi.mock('../routing-profile-catalogue.js', () => ({
   TIER_MODEL_MAPPINGS: {
     v1: [{ provider: 'openai', modelId: 'test-model', priority: 1, qualityScore: 1 }],
   },
-  ALIA_MODELS: {
-    'alia/test': {
+  KAANA_ROUTING_PROFILES: {
+    'kaana-test': {
       name: 'Test model',
       tier: 'v1',
       description: 'Test-only catalogue entry',
@@ -35,7 +35,7 @@ vi.mock('../alia-models.js', () => ({
   },
 }));
 
-import { seedAliaModels, seedModelConfigs } from '../seed-model-configs.js';
+import { seedModelConfigs, seedRoutingProfiles } from '../seed-model-configs.js';
 
 describe('PostgreSQL catalogue seeds fail closed', () => {
   beforeEach(() => {
@@ -57,13 +57,13 @@ describe('PostgreSQL catalogue seeds fail closed', () => {
 
   it('propagates an Alia-model upsert failure instead of silently leaving a partial catalogue', async () => {
     const failure = new Error('alia_models transaction failed');
-    mocks.upsertAliaModel.mockRejectedValueOnce(failure);
+    mocks.upsertRoutingProfile.mockRejectedValueOnce(failure);
 
-    await expect(seedAliaModels()).rejects.toBe(failure);
+    await expect(seedRoutingProfiles()).rejects.toBe(failure);
 
     expect(mocks.error).toHaveBeenCalledWith(
-      { err: failure, modelId: 'alia/test' },
-      'Error seeding AliaModel',
+      { err: failure, modelId: 'kaana-test' },
+      'Error seeding RoutingProfile',
     );
   });
 });

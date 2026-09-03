@@ -20,15 +20,13 @@
  *     it, in the same deploy.
  *
  *  2. **What can it actually do?** From the capabilities carried by the
- *     candidate mappings the fallback engine walks, NOT from the alias's own
- *     `supportsTools` / `supportsVision` / `maxTokens` fields. Those three are
- *     read by nothing in the request path — `lib/chat/model-config.ts:82` takes
- *     `max_tokens` from the request body and every provider adapter defaults to
- *     `config?.maxTokens ?? 8192`; no code branches on `supportsVision` or
- *     `supportsTools` at all. They are declarations nothing enforces, and they
- *     are wrong in BOTH directions today: `alia-lite` declares `vision: false`
+ *     compatibility mappings, NOT from the profile's own `supportsTools` /
+ *     `supportsVision` / `maxTokens` fields. Those fields are not Kaana serving
+ *     evidence and no Alia request-path code may turn them into provider
+ *     selection. They are declarations nothing enforces, and they
+ *     are wrong in BOTH directions today: `kaana-lite` declares `vision: false`
  *     while four of its sixteen candidates support vision (a picker greying out
- *     a working feature), and `alia-v1-audio` declares `supportsTools: true`
+ *     a working feature), and `kaana-v1-audio` declares `supportsTools: true`
  *     while none of its three candidates support tools (a picker offering one
  *     that never works).
  *
@@ -45,7 +43,7 @@
  * is a bug, and reporting `never` for something merely unmeasured produces
  * exactly that. `reasoning` and `structured_output` are `unknown` for every
  * entry today because no capability record in this repository carries either —
- * `ModelCapabilities` (`internal/providers/lib/alia-models.ts:14`) has no field
+ * `ModelCapabilities` (`internal/providers/lib/routing-profile-catalogue.ts:14`) has no field
  * for them and neither does any inline mapping. Inventing a value for them is
  * the specific thing this module refuses to do.
  *
@@ -58,9 +56,7 @@
  */
 
 import {
-  getAllProviderHealth,
   getAvailableModels,
-  providersWithUsableCredentials,
   getTierMappings,
   getPlans,
   type ModelMapping,
@@ -69,7 +65,7 @@ import {
 import { classifyModels } from './routing/model-selection.js';
 import { getUserEntitlements } from './plan-access.js';
 import { PLAN_PRODUCTS, type PlanProduct } from '../domain/plan.js';
-import { canonicalAliasFor, isProfileOffered } from './product-modes.js';
+import { isProfileOffered } from './product-modes.js';
 import { ROUTING_PRESETS } from './routing/presets.js';
 import {
   admitEntry,
@@ -91,13 +87,12 @@ import { log } from './logger.js';
  * The fallback policy the capability figures below describe.
  *
  * Capability availability is computed over EVERY candidate mapping in the
- * profile's ranked list, and that set is exactly what
- * `internal/providers/lib/fallback-engine.ts` `candidatesUnderPolicy` returns
- * for `cross-model` — the branch that removes no candidate. Under
+ * profile's ranked compatibility list, and that set describes `cross-model` —
+ * the policy that removes no candidate. Under
  * `no-fallback` the engine walks `[sortedMappings[0]]` and under
  * `same-model-only` only the deployments of the top-ranked model, so the same
  * entry has genuinely different capability answers under those policies:
- * `alia-lite` reports `vision: 'sometimes'` here and would be deterministic
+ * `kaana-lite` reports `vision: 'sometimes'` here and would be deterministic
  * under `no-fallback`.
  *
  * Typed as {@link FallbackPolicy} rather than a string of its own, because two
@@ -108,8 +103,8 @@ import { log } from './logger.js';
  * this is `cross-model` AND that it still equals the default, so a flip cannot
  * be absorbed by editing this line — the derivation has to change with it.
  *
- * Per-policy figures would need `candidatesUnderPolicy` itself, which is not
- * exported and lives inside the provider tree. Reusing it means lifting it into
+ * Per-policy figures would need the former candidate-filtering logic. Reusing
+ * it means lifting it into
  * `lib/routing/` first; copying it here would be the second implementation this
  * comment exists to prevent.
  */
@@ -273,7 +268,7 @@ export interface RoutingProfileEntry extends CatalogueEntryCommon {
    * engine walks — which is the same derivation
    * `docs/migration/alias-migration-map.json` publishes as `becomes.id`.
    *
-   * Two entries may share one: `alia-v1-thinking` and `alia-v1-pro-max` carry
+   * Two entries may share one: `kaana-v1-thinking` and `kaana-v1-pro-max` carry
    * the same tier, so they are one policy under two identifiers. Showing that
    * plainly is the point.
    */
@@ -406,9 +401,11 @@ export function deriveProvenance(candidates: readonly Candidate[]): CataloguePro
   return { publishers: [...publishers].sort(), unattributedRoutes };
 }
 
-/** The alias-shaped facts an entry is built from, independent of where they came from. */
+/** Product and policy facts an entry is built from, independent of storage. */
 export interface CatalogueSource {
   readonly id: string;
+  /** Explicit at runtime boundaries; omitted only by classification fixtures. */
+  readonly kind?: 'routing_profile' | 'model';
   /**
    * The profile whose visibility decides this entry's.
    *
@@ -559,7 +556,7 @@ export function deriveCapabilities(candidates: readonly Candidate[]): CatalogueC
  * serving that one model six times reported "selects among 6 models" and a tier
  * serving nothing else would have been classified a routing profile — a policy
  * over one model, which is a contradiction the discriminator is supposed to
- * make impossible. `fallback-engine.ts` fixed the same comparison for
+ * make impossible. The retired resolver used the same comparison for
  * `same-model-only`; this is the catalogue's half of it.
  *
  * A route missing either half falls back to its deployment id, which
@@ -616,14 +613,14 @@ export function buildEntry(
   // The identity of the single model comes from the candidate itself, never
   // from the source: an entry cannot name a model its own routes do not carry,
   // because there is no other place for the name to come from.
-  if (distinctModels === 1) {
+  if (source.kind === 'model' || (source.kind === undefined && distinctModels === 1)) {
     const [only] = candidates;
     return { ...common, kind: 'model', publisher: only.publisher, model: only.model };
   }
   return {
     ...common,
     kind: 'routing_profile',
-    profileId: `profile:${source.tier}`,
+    profileId: source.offeredProfileId,
     selectsAmong: distinctModels,
   };
 }
@@ -725,35 +722,21 @@ export async function loadAllowedModelIds(userId: string | null): Promise<string
 }
 
 /**
- * What decides whether a route could serve a request right now.
- *
- * Two facts, read once for the whole catalogue rather than per route: which
- * providers hold a usable credential, and which routes have an open circuit.
+ * Kaana owns live provider credentials, health and route selection. Alia keeps
+ * this empty shape only so catalogue derivation has an explicit input boundary
+ * instead of consulting its historical provider tables.
  */
-export interface ServingConditions {
-  /** Provider names holding at least one usable credential. Empty means none. */
-  readonly credentialedProviders: ReadonlySet<string>;
-  /** `provider\u0000modelId` for every route whose circuit is currently open. */
-  readonly openCircuits: ReadonlySet<string>;
-}
+export type ServingConditions = Readonly<Record<never, never>>;
 
 /**
  * Can this route answer a request?
  *
- * The credential half is the one that was missing, and it is not a nuance:
- * measured against production on 2026-08-19, `provider_keys` held ZERO rows, so
- * every one of the 58 configured provider/model pairs was unservable — and the
- * catalogue reported all thirty models available, because the only thing it
- * consulted was a circuit breaker that nothing had ever tripped. A breaker
- * records what happened to traffic; it cannot record traffic that never left.
- *
- * The circuit half is unchanged and stays second: OPEN is the only state read
- * as unusable, matching the engine's own skip, because closed, half-open and
- * never-recorded are all states it will try.
+ * A route present in the Kaana-facing product catalogue is servable from
+ * Alia's point of view. Alia must not infer Kaana availability from historical
+ * local provider state.
  */
-export function isServable(route: ModelMapping, conditions: ServingConditions): boolean {
-  if (!conditions.credentialedProviders.has(route.provider)) return false;
-  return !conditions.openCircuits.has(routeKey(route.provider, route.modelId));
+export function isServable(_route: ModelMapping, _conditions: ServingConditions): boolean {
+  return true;
 }
 
 /**
@@ -777,74 +760,8 @@ function toCandidate(route: ModelMapping, conditions: ServingConditions): Candid
   };
 }
 
-/**
- * How a route is keyed in the health table: the operator's own coordinates.
- *
- * Two strings rather than a `ModelMapping`, because the health row and the
- * routing row are different types carrying the same pair — and a key built
- * twice is a key that can be built differently.
- */
-function routeKey(provider: string, modelId: string): string {
-  return `${provider}\u0000${modelId}`;
-}
-
-/**
- * Routes whose circuit breaker is currently OPEN.
- *
- * This is what makes a model entry's availability describe the model rather
- * than the profile it is served under. An alias reports available when ANY
- * route in its tier is healthy (`internal/providers/lib/alia-models.ts`), which
- * is the right answer for a policy that may take any of them and the wrong one
- * for a single model: it would call a model available because a different model
- * in the same tier is.
- *
- * Open is the only state read as unavailable, matching the engine's own skip —
- * closed, half-open and never-recorded are all states it will try. A route the
- * health table has never heard of is therefore not held against it, which is
- * correct on a cold start and is the same permissive direction
- * `getAllProviderHealth` already takes: it swallows its own read failures and
- * answers with an empty list, so an unreadable health table does not hide the
- * whole catalogue behind an infrastructure fault. The CREDENTIAL half is what
- * makes that safe — a route with no key is refused whatever the breaker says.
- */
-async function loadOpenCircuits(): Promise<ReadonlySet<string>> {
-  try {
-    const health = await getAllProviderHealth();
-    const open = new Set<string>();
-    for (const row of health) {
-      if (row.circuitState === 'open') open.add(routeKey(row.provider, row.modelId));
-    }
-    return open;
-  } catch (err: unknown) {
-    log.models.warn({ err }, 'Provider health unavailable; no route held against its breaker');
-    return new Set<string>();
-  }
-}
-
-/**
- * Both halves of "can this route answer", read once.
- *
- * ## A credential read that FAILS is not "no credentials"
- *
- * This is the one place the permissive direction would be wrong, and it is the
- * opposite of the health read above. An unreadable health table means "nothing
- * is known to be broken", which is a safe thing to assume. An unreadable
- * credential table would mean "no provider has a key", which would empty the
- * entire catalogue on a transient Postgres blip — a total product outage
- * manufactured out of one failed query.
- *
- * So a failure RETHROWS, and `buildCatalogue`'s caller turns it into the 500 it
- * already has for a catalogue it could not build. "We could not work out what
- * is available" and "nothing is available" are different answers and only one
- * of them is true, which is the same distinction `loadPlanGrants` draws when it
- * refuses to serve an unfiltered list.
- */
 async function loadServingConditions(): Promise<ServingConditions> {
-  const [credentialedProviders, openCircuits] = await Promise.all([
-    providersWithUsableCredentials(),
-    loadOpenCircuits(),
-  ]);
-  return { credentialedProviders, openCircuits };
+  return {};
 }
 
 export interface CatalogueOptions {
@@ -938,7 +855,7 @@ export async function buildCatalogue(options: CatalogueOptions): Promise<Catalog
   if (options.product !== undefined && plans === null) return { ok: false, unavailable: 'plans' };
   if (options.entitledOnly === true && allowedModelIds === null) return { ok: false, unavailable: 'entitlements' };
 
-  const byAlias = new Map(sources.map((source) => [source.id, source] as const));
+  const byProfile = new Map(sources.map((source) => [source.id, source] as const));
   const entries: CatalogueEntry[] = [];
   let declaredRoutes = 0;
   let attributedRoutes = 0;
@@ -947,76 +864,56 @@ export async function buildCatalogue(options: CatalogueOptions): Promise<Catalog
   /**
    * One entry per POLICY, keyed by the policy's own id.
    *
-   * It used to be one entry per alias, which served thirteen entries for twelve
-   * policies — `alia-v1-thinking` and `alia-v1-pro-max` are one profile under
-   * two names. Iterating the preset table instead makes the bijection
-   * structural: a profile appears once because it exists once.
-   *
-   * The alias has not stopped mattering, it has stopped being the IDENTITY —
-   * and, for price and category, the SOURCE. Those two come from the preset now
-   * (`lib/routing/presets.ts`), which is what lets the identifier be deleted
-   * without taking the entry's price with it. What still comes off the alias
-   * record is what nothing has moved yet: name, description, emoji and the
-   * `isLegacy` flag the admin tool writes.
-   *
-   * `entitlement` is still resolved against the ALIAS because `plans.modelIds`
-   * and the entitlement read model are both keyed by alias. Resolving it
-   * against the profile id would silently report every entry as granted by no
-   * plan.
+   * One entry per canonical Kaana profile. Two profiles may select the same
+   * policy; they remain distinct product choices and share the policy's
+   * candidate set, price and category.
    */
   for (const preset of ROUTING_PRESETS) {
-    const alias = canonicalAliasFor(preset.id);
-    if (alias === null) continue;
-    const source = byAlias.get(alias);
-    // An alias the runtime catalogue does not know is a preset pointing at
-    // nothing. Skipping keeps the response honest rather than inventing an
-    // entry with no price and no availability.
-    if (source === undefined) continue;
-
     const candidates: Candidate[] = (tierMappings[preset.tier] ?? []).map((route) =>
       toCandidate(route, conditions),
     );
-    // Counted over every candidate the catalogue looked at, including those on
-    // entries a filter then removed: the question this answers is "does Kaana
-    // carry this fact yet", which is a property of the data and not of the
-    // response. Counting only survivors would report zero on a request whose
-    // filters happened to remove every scoped route.
+    // Count candidate facts once per policy. Two canonical profiles may select
+    // one policy, but that does not create a second deployment.
     for (const candidate of candidates) {
       if (candidate.availabilityScope !== null) declaredRoutes += 1;
       if (candidate.attribution !== null) attributedRoutes += 1;
     }
 
-    const entitlement =
-      plans === null ? { state: 'unknown' as const } : resolveEntitlement(alias, plans, allowedModelIds);
-
-    if (entitlement.state === 'known') {
-      if (options.product !== undefined && !entitlement.products.includes(options.product)) continue;
-      if (options.entitledOnly === true && entitlement.entitled !== true) continue;
-    }
-
     if (options.surface !== undefined && !surfaceCanOffer(options.surface, preset.category)) {
-      surfaceWithheld += 1;
+      surfaceWithheld += preset.profileIds.filter((profileId) => byProfile.has(profileId)).length;
       continue;
     }
 
-    const entry = buildEntry(
-      {
-        ...source,
-        id: preset.id,
-        offeredProfileId: preset.id,
-        creditMultiplier: preset.creditMultiplier,
-        category: preset.category,
-      },
-      candidates,
-      entitlement,
-      options.audience,
-    );
-    // The scope refusal, applied rather than only annotated. Unlike `product`
-    // and `entitled` this is not a filter the caller asked for, so it is not
-    // conditional on an option: a route the caller's credential does not admit
-    // is not theirs to see whatever they asked for.
-    if (entry.availability.scope.state === 'withheld') continue;
-    entries.push(entry);
+    for (const routingProfile of preset.profileIds) {
+      const source = byProfile.get(routingProfile);
+      if (source === undefined) continue;
+
+      const entitlement =
+        plans === null
+          ? { state: 'unknown' as const }
+          : resolveEntitlement(routingProfile, plans, allowedModelIds);
+
+      if (entitlement.state === 'known') {
+        if (options.product !== undefined && !entitlement.products.includes(options.product)) continue;
+        if (options.entitledOnly === true && entitlement.entitled !== true) continue;
+      }
+
+      const entry = buildEntry(
+        {
+          ...source,
+          id: routingProfile,
+          kind: 'routing_profile',
+          offeredProfileId: routingProfile,
+          creditMultiplier: preset.creditMultiplier,
+          category: preset.category,
+        },
+        candidates,
+        entitlement,
+        options.audience,
+      );
+      if (entry.availability.scope.state === 'withheld') continue;
+      entries.push(entry);
+    }
   }
 
   /**
@@ -1033,12 +930,14 @@ export async function buildCatalogue(options: CatalogueOptions): Promise<Catalog
    * table twice the size of the one that exists.
    */
   for (const model of classifyModels(tierMappings, sources).selectable) {
-    const source = byAlias.get(model.alias);
+    const source = byProfile.get(model.routingProfile);
     if (source === undefined) continue;
 
     const candidates = model.deployments.map((route) => toCandidate(route, conditions));
     const entitlement =
-      plans === null ? { state: 'unknown' as const } : resolveEntitlement(model.alias, plans, allowedModelIds);
+      plans === null
+        ? { state: 'unknown' as const }
+        : resolveEntitlement(model.routingProfile, plans, allowedModelIds);
 
     if (entitlement.state === 'known') {
       if (options.product !== undefined && !entitlement.products.includes(options.product)) continue;
@@ -1053,6 +952,7 @@ export async function buildCatalogue(options: CatalogueOptions): Promise<Catalog
     const entry = buildEntry(
       {
         id: model.id,
+        kind: 'model',
         offeredProfileId: model.profileId,
         name: model.displayName,
         /**
@@ -1066,8 +966,7 @@ export async function buildCatalogue(options: CatalogueOptions): Promise<Catalog
         category: model.category,
         tier: model.tier,
         creditMultiplier: model.creditMultiplier,
-        // A model is not retired: `isLegacy` is a flag on an ALIAS, set by the
-        // admin tool to retire an identifier the product used to advertise.
+        // A concrete model reference is not a legacy routing identifier.
         isLegacy: false,
       },
       candidates,

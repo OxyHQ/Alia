@@ -11,12 +11,11 @@
  * no entry here. A hand-maintained list only ever falls as far behind as the
  * last time somebody remembered it.
  *
- * `packages/api` declares **14** TTL indexes in total. All FOURTEEN are now ported —
- * five in the platform-telemetry batches, `api_key_usage` with providers/billing,
- * three with orgs/dev, `trigger_executions` with automation, `notifications` plus `audio_jobs` with the notifications batch, and the two moderation tables — which were ported in batch 2 and whose entries were MISSING until the chat/memory batch found them. The rest belong to tables that do not exist in
- * Postgres yet, and the coverage test scopes itself to PORTED tables so it
- * tightens automatically as each batch lands rather than needing an allow-list
- * to be pruned.
+ * The active registry covers product/auth telemetry, developer API usage,
+ * automation, notifications, moderation, OAuth state and organization invites.
+ * Historical Mongo TTL models for Alia's former hosted-provider runtime are
+ * excluded while their Postgres tables remain frozen as rollback assets. The
+ * first cutover release must neither mutate nor destroy that snapshot.
  *
  * ## The one that cannot be copied, and what to do about it
  *
@@ -44,11 +43,8 @@
  *
  *  - `auth_health_metrics` are hourly counters; the health summary reads a
  *    rolling window far shorter than 7 days.
- *  - `api_usage` backs rate-limit accounting over hours, not days; 48h is
- *    already generous for the longest window any limiter asks about.
- *  - `fallback_events` and `routing_logs` are diagnostics. Their read paths
- *    filter by their own time range independently of the sweep, so a row the
- *    sweep has not reached yet is stale but never unsafe.
+ *  - `routing_logs` are product routing diagnostics. Their read paths filter by
+ *    their own time range independently of the sweep.
  */
 
 import type { ExpirySweepTarget } from '@oxyhq/db/expiry';
@@ -63,9 +59,7 @@ import {
 import { organizationInvites } from './schema/organizations';
 import {
   apiKeyUsage,
-  apiUsage,
   authHealthMetrics,
-  fallbackEvents,
   routingLogs,
 } from './schema/telemetry';
 
@@ -77,18 +71,6 @@ export const EXPIRY_TARGETS: readonly ExpirySweepTarget[] = [
     column: authHealthMetrics.createdAt,
     retentionSeconds: 7 * DAY,
     reason: 'Hourly auth counters; the health summary reads a far shorter window.',
-  },
-  {
-    table: apiUsage,
-    column: apiUsage.timestamp,
-    retentionSeconds: 2 * DAY,
-    reason: 'Per-key token accounting; no limiter asks about a window beyond hours.',
-  },
-  {
-    table: fallbackEvents,
-    column: fallbackEvents.timestamp,
-    retentionSeconds: 30 * DAY,
-    reason: 'Fallback diagnostics; readers filter by their own range.',
   },
   {
     table: routingLogs,

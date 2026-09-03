@@ -1,4 +1,3 @@
-import type { JSX } from 'react'
 import { HugeiconsIcon } from '@hugeicons/react'
 import {
   ArrowUp01Icon,
@@ -9,6 +8,7 @@ import {
 } from '@hugeicons/core-free-icons'
 import { useAuth } from '@oxyhq/services'
 import { Link } from '@tanstack/react-router'
+import type { JSX } from 'react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import {
   DropdownMenu,
@@ -41,8 +41,8 @@ export function NavUser(): JSX.Element | null {
 
   const getUserInitials = (): string =>
     (
-      user.name?.displayName?.[0] ||
-      user.username?.[0] ||
+      user.name.displayName?.[0] ||
+      user.username[0] ||
       user.email?.[0] ||
       'U'
     ).toUpperCase()
@@ -54,7 +54,7 @@ export function NavUser(): JSX.Element | null {
   }
 
   const getUserDisplayName = (): string =>
-    user.name?.displayName || user.username || 'User'
+    user.name.displayName || user.username || 'User'
 
   return (
     <SidebarMenu>

@@ -32,7 +32,7 @@ export type SSEEventType =
 export type DirectiveType = 'switch_model' | 'retry' | 'rate_limited';
 
 export interface SSEMetadata {
-  model: string;              // ONLY Alia model name!
+  model: string;              // ONLY Kaana routing profile name!
   requestId: string;
   cached: boolean;
   estimatedCost?: number;
@@ -278,7 +278,7 @@ export async function streamProviderResponseAsSSE(
   sseStream: SSEStream,
   providerStream: ReadableStream,
   metadata: {
-    aliasModelId: string;
+    routingProfileId: string;
     fromCache: boolean;
     estimatedCost: number;
   }
@@ -297,7 +297,7 @@ export async function streamProviderResponseAsSSE(
   try {
     // Send initial metadata
     sseStream.sendMetadata({
-      model: metadata.aliasModelId,  // ONLY Alia model!
+      model: metadata.routingProfileId,  // ONLY Kaana routing profile!
       requestId: `req_${Date.now()}`,
       cached: metadata.fromCache,
       estimatedCost: metadata.estimatedCost,
@@ -394,14 +394,14 @@ export async function streamCachedResponse(
   sseStream: SSEStream,
   cachedResponse: any,
   metadata: {
-    aliasModelId: string;
+    routingProfileId: string;
     tokensUsed: number;
     savedCost: number;
   }
 ): Promise<void> {
   // Send metadata
   sseStream.sendMetadata({
-    model: metadata.aliasModelId,
+    model: metadata.routingProfileId,
     requestId: `req_${Date.now()}`,
     cached: true,
     estimatedCost: 0,

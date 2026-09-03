@@ -81,7 +81,7 @@ describe('the identifier a person selects', () => {
   it('claims nothing that is not one', () => {
     // The negative half matters as much: a parser that accepted these would
     // route an ordinary Alia turn into a transport with no runtime behind it.
-    expect(parseUserRuntimeModel('alia-v1')).toBeNull();
+    expect(parseUserRuntimeModel('kaana-v1')).toBeNull();
     expect(parseUserRuntimeModel('openai/gpt-5')).toBeNull();
     expect(parseUserRuntimeModel('local/rt-1')).toBeNull();
     expect(parseUserRuntimeModel('local/rt-1/')).toBeNull();

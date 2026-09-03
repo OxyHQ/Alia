@@ -14,7 +14,7 @@ import { classifyError } from '../failover-error.js';
  * `classifyError` and fell through to `unknown`, whose branch in
  * `fallback-engine.ts` put the failing key in `skipKeyIds`. Groq holds ONE
  * credential, so the rest of the request found "No usable key" for groq — and
- * the LIVE `openai/gpt-oss-20b` mapping at priority 17 of `alia-lite` was never
+ * the LIVE `openai/gpt-oss-20b` mapping at priority 17 of `kaana-lite` was never
  * reached. The user-visible result was `{"error":"No AI models available"}` on
  * a deployment whose only provider credential was working perfectly.
  *

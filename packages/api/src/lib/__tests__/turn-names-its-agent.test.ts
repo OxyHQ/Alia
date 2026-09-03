@@ -33,7 +33,7 @@ vi.mock('../logger.js', () => {
   const child = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };
   return { log: { general: child, agents: child, chat: child, v1: child, providers: child } };
 });
-vi.mock('../gateway-client.js', () => ({ getAliaModel: vi.fn(async () => ({ name: 'Alia V1' })) }));
+vi.mock('../gateway-client.js', () => ({ getRoutingProfile: vi.fn(async () => ({ name: 'Kaana V1' })) }));
 vi.mock('../tools/oxy-services.js', () => ({
   getOxyServicePromptFragment: vi.fn(async () => ''),
   getOxyServiceContext: vi.fn(async () => ''),
@@ -86,7 +86,7 @@ function agent(overrides: Record<string, unknown> = {}) {
 }
 
 const BASE = {
-  aliasModelId: 'alia-v1',
+  routingProfileId: 'kaana-v1',
   isDirectUserSession: true,
   userId: 'user-1',
 } as const;
@@ -125,9 +125,9 @@ describe('naming an agent changes the turn', () => {
     const without = await build(null);
 
     expect(withAgent).toContain('You are Pepe,');
-    expect(without).toContain('You are Alia V1,');
+    expect(without).toContain('You are Kaana V1,');
     // The regression the guard rewrite fixed: an agent told to call itself Alia.
-    expect(withAgent).not.toContain('You are Alia V1,');
+    expect(withAgent).not.toContain('You are Kaana V1,');
   });
 
   it('keeps the provider secrecy on both, which is what stays scoped', async () => {

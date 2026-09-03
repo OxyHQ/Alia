@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
  * the question (#139 workstream 4, *"allow Alia product owners to configure
  * which actual models or routing profiles are visible"*).
  *
- * The decision moved out of `internal/providers/lib/alia-models.ts`, where it
+ * The decision moved out of `internal/providers/lib/routing-profile-catalogue.ts`, where it
  * was a `chatVisible` field on five alias definitions inside the provider
  * mapping table, and into `lib/product-modes.ts` `OFFERED_ALIASES`. Two
  * serializers read it — `GET /catalogue` annotates every entry with it, and
@@ -19,25 +19,25 @@ import { describe, expect, it, vi } from 'vitest';
  */
 
 vi.mock('../../lib/chat-core.js', async () => {
-  const { ALIA_MODELS } = await vi.importActual<typeof import('../../internal/providers/lib/alia-models.js')>(
-    '../../internal/providers/lib/alia-models.js',
+  const { KAANA_ROUTING_PROFILES } = await vi.importActual<typeof import('../../internal/providers/lib/routing-profile-catalogue.js')>(
+    '../../internal/providers/lib/routing-profile-catalogue.js',
   );
   return {
     getAvailableModels: async () =>
-      Object.values(ALIA_MODELS).map((m) => ({ ...m, isAvailable: true, isLegacy: false })),
-    getAliaModel: async (id: string) => ALIA_MODELS[id] ?? null,
+      Object.values(KAANA_ROUTING_PROFILES).map((m) => ({ ...m, isAvailable: true, isLegacy: false })),
+    getRoutingProfile: async (id: string) => KAANA_ROUTING_PROFILES[id] ?? null,
     getDefaultModelForCategory: async () => null,
   };
 });
 
 vi.mock('../../lib/gateway-client.js', async () => {
-  const actual = await vi.importActual<typeof import('../../internal/providers/lib/alia-models.js')>(
-    '../../internal/providers/lib/alia-models.js',
+  const actual = await vi.importActual<typeof import('../../internal/providers/lib/routing-profile-catalogue.js')>(
+    '../../internal/providers/lib/routing-profile-catalogue.js',
   );
 
   return {
     getAvailableModels: async () =>
-      Object.values(actual.ALIA_MODELS).map((m) => ({ ...m, isAvailable: true, isLegacy: false })),
+      Object.values(actual.KAANA_ROUTING_PROFILES).map((m) => ({ ...m, isAvailable: true, isLegacy: false })),
     getTierMappings: async () => actual.TIER_MODEL_MAPPINGS,
     getPlans: async () => [],
     // Every route servable, so the availability an entry reports is not what
@@ -71,16 +71,17 @@ vi.mock('../../lib/gateway-client.js', async () => {
  * "the offered set is right" and "the hidden set is right" are different
  * failures and a list of only the first cannot see the second.
  */
-const OFFERED = ['profile:lite', 'profile:v1', 'profile:v1-pro', 'profile:v1-pro-max'];
+const OFFERED = ['kaana-lite', 'kaana-v1', 'kaana-v1-pro', 'kaana-v1-pro-max'];
 const HIDDEN = [
-  'profile:v1-audio',
-  'profile:v1-browser',
-  'profile:v1-codea',
-  'profile:v1-cowork',
-  'profile:v1-multimodal',
-  'profile:v1-vision',
-  'profile:v1-voice',
-  'profile:v1-voice-pro',
+  'kaana-v1-audio',
+  'kaana-v1-browser',
+  'kaana-v1-codea',
+  'kaana-v1-cowork',
+  'kaana-v1-multimodal',
+  'kaana-v1-thinking',
+  'kaana-v1-vision',
+  'kaana-v1-voice',
+  'kaana-v1-voice-pro',
 ];
 
 interface Captured {
@@ -128,7 +129,9 @@ async function get(module: unknown, routePath: string, query: Record<string, str
 describe('the product advertises policies, and both surfaces agree', () => {
   it('covers every preset between them, so neither list can hide a change', async () => {
     const { ROUTING_PRESETS } = await import('../../lib/routing/presets.js');
-    expect([...OFFERED, ...HIDDEN].sort()).toEqual(ROUTING_PRESETS.map((p) => p.id).sort());
+    expect([...OFFERED, ...HIDDEN].sort()).toEqual(
+      ROUTING_PRESETS.flatMap((p) => p.profileIds).sort(),
+    );
   });
 
   it('serves GET /catalogue keyed by policy, and annotates the offer per entry', async () => {
@@ -158,10 +161,8 @@ describe('the product advertises policies, and both surfaces agree', () => {
     expect(profiles.filter((e) => e.id.includes('/'))).toEqual([]);
   });
 
-  it('names NO alia-* identifier anywhere in the catalogue response', async () => {
-    // The property #139 asks for, asserted on the bytes rather than on the
-    // table that produced them.
-    const { ALIA_MODELS } = await import('../../internal/providers/lib/alia-models.js');
+  it('publishes Kaana profiles and no retired alia-* spelling', async () => {
+    const { KAANA_ROUTING_PROFILES } = await import('../../internal/providers/lib/routing-profile-catalogue.js');
     const captured = await get(await import('../catalogue.js'), '/', {});
     const serialized = JSON.stringify(captured.body);
     const data = captured.body?.data ?? [];
@@ -170,9 +171,12 @@ describe('the product advertises policies, and both surfaces agree', () => {
     expect(data.filter((e) => e.object === 'routing_profile')).toHaveLength(OFFERED.length + HIDDEN.length);
     expect(data.filter((e) => e.object === 'model').length).toBeGreaterThan(0);
 
-    const registered = Object.keys(ALIA_MODELS);
+    const registered = Object.keys(KAANA_ROUTING_PROFILES);
     expect(registered).toHaveLength(13);
-    expect(registered.filter((alias) => serialized.includes(alias))).toEqual([]);
+    expect(registered.filter((profileId) => serialized.includes(profileId)).sort()).toEqual(
+      [...registered].sort(),
+    );
+    expect(serialized).not.toMatch(/alia-(?:lite|v1)/);
 
     // The scan's positive control: it CAN see one of these when present.
     expect(JSON.stringify({ planted: registered[0] })).toContain(registered[0]);

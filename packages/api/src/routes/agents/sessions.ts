@@ -3,7 +3,10 @@ import { authenticateToken } from '../../middleware/auth.js';
 import { cleanupSessionResources } from '../../lib/agent/session-resources.js';
 import { getJobStatus, cancelJob } from '../../lib/task-queue.js';
 import { getDb } from '../../db/index.js';
-import { updateAgent } from '../../db/agents/agentRepository.js';
+import {
+  updateAgent,
+  withoutInternalAgentBindings,
+} from '../../db/agents/agentRepository.js';
 import { loadAgentForActor, refusalMessage, refusalStatus } from '../../lib/agent-account.js';
 import { resolveAgentIdentities, type AgentIdentity } from '../../lib/agent-identity.js';
 import {
@@ -159,6 +162,9 @@ router.patch('/:id/status', authenticateToken, async (req: Request, res: Respons
       });
     }
     const agent = loaded.agent;
+    if (typeof agent.applicationId === 'string') {
+      return res.status(400).json({ error: 'Product-agent policy is managed internally' });
+    }
 
     /**
      * The OPERATOR's availability toggle, through the ordinary patch — not
@@ -182,7 +188,10 @@ router.patch('/:id/status', authenticateToken, async (req: Request, res: Respons
       }
     }
 
-    res.json({ agent: { ...agent, status }, cancelledSessions: status !== 'active' });
+    res.json({
+      agent: withoutInternalAgentBindings({ ...agent, status }),
+      cancelledSessions: status !== 'active',
+    });
   } catch (error: unknown) {
     log.agents.error({ err: error }, 'Error updating agent status');
     res.status(500).json({ error: 'Failed to update status' });

@@ -573,7 +573,8 @@ interface SupersededUnique {
   readonly model: string;
   readonly file: string;
   readonly retiredBy: string;
-  readonly table: string;
+  readonly wasTable: string;
+  readonly nowTable: string;
   readonly mongooseKey: readonly string[];
   readonly wasConstraint: string;
   readonly nowConstraint: string;
@@ -582,15 +583,57 @@ interface SupersededUnique {
 
 const UNIQUES_SUPERSEDED: readonly SupersededUnique[] = [
   {
+    model: 'AliaModel',
+    file: 'src/internal/providers/models/alia-model.ts',
+    retiredBy: '60f910dd',
+    wasTable: 'alia_models',
+    nowTable: 'routing_profiles',
+    mongooseKey: ['aliasModelId'],
+    wasConstraint: 'alia_models_alias_model_id_key',
+    nowConstraint: 'routing_profiles_routing_profile_id_key',
+    reason:
+      'Migration 0059 renamed the same catalogue table, identity column and unique index from the retired Alia alias vocabulary to a Kaana routing profile. The identity remains protected under its canonical name without rewriting the frozen record of what Mongoose declared.',
+  },
+  {
     model: 'Skill',
     file: 'src/models/skill.ts',
     retiredBy: 'S9 containers/skills',
-    table: 'skills',
+    wasTable: 'skills',
+    nowTable: 'skills',
     mongooseKey: ['skillId'],
     wasConstraint: 'skills_skill_id_key',
     nowConstraint: 'skills_owner_name_key',
     reason:
       "The Agent Skills rewrite replaced `skill_id` — a slug derived from a title — with the spec's `name`, and made it unique PER OWNER rather than globally: `coalesce(owner_oxy_user_id, '') + name`. That is deliberately weaker than what Mongoose enforced, and the weakening is the feature. Two accounts may each keep a skill called `writing-tests`, exactly as two people may each keep a file of that name; the shared catalogue, whose owner is null, still holds only one. A global unique would mean the first person to import a public skill takes its name away from everybody else.",
+  },
+];
+
+/**
+ * A PostgreSQL uniqueness that was ported faithfully and later left Alia with
+ * the whole capability that owned it.
+ *
+ * This is deliberately an overlay on the immutable historical lists above:
+ * removing a frozen row would erase the evidence that Mongoose required the
+ * constraint, while continuing to demand the constraint would resurrect state
+ * Alia no longer owns. Each row is asserted ABSENT and must point back to an
+ * actual historical requirement, so this cannot excuse an unrelated gap.
+ */
+interface UniqueRemovedWithCapability {
+  readonly model: string;
+  readonly table: string;
+  readonly constraint: string;
+  readonly removedBy: string;
+  readonly reason: string;
+}
+
+const UNIQUES_REMOVED_WITH_CAPABILITY: readonly UniqueRemovedWithCapability[] = [
+  {
+    model: 'ProviderKey',
+    table: 'provider_keys',
+    constraint: 'provider_keys_key_hash_key',
+    removedBy: '0061_remove_alia_provider_credentials',
+    reason:
+      'Kaana is the sole provider-credential custodian. The post-rollout migration drops the whole Alia table without reading or copying its secrets, so its exact-key uniqueness must leave with it.',
   },
 ];
 
@@ -887,12 +930,21 @@ describe('the walk itself found something', () => {
     // still a uniqueness this file asserts something about — omitting it would
     // make "it moved to another service" the one edit that shrinks the sum,
     // which is precisely the erosion this floor exists to catch.
+    const historical = [...UNIQUES_AT_FREEZE, ...UNIQUES_RETIRED_SINCE];
+    const historicalKeys = new Set(historical.map((r) => `${r.model}|${r.table}|${r.constraint}`));
+    // A supersession layered over an immutable historical row is the same
+    // uniqueness in a later state. Count only supersessions that are themselves
+    // the sole surviving record (Skill today), rather than double-counting the
+    // frozen AliaModel row.
+    const independentlyRecordedSupersessions = UNIQUES_SUPERSEDED.filter(
+      (r) => !historicalKeys.has(`${r.model}|${r.wasTable}|${r.wasConstraint}`),
+    ).length;
     const asserted =
       LIVE_REQUIREMENTS.length +
       UNIQUES_AT_FREEZE.length +
       UNIQUES_RETIRED_SINCE.length +
       UNIQUES_DEPARTED.length +
-      UNIQUES_SUPERSEDED.length;
+      independentlyRecordedSupersessions;
 
     expect(
       asserted,
@@ -991,7 +1043,13 @@ describe('every uniqueness Mongoose enforced exists in PostgreSQL', () => {
 
   it('has every constraint the RETIRED models required, on the named table', async () => {
     const present = new Set((await databaseUniques()).map((r) => `${r.table}.${r.name}`));
+    const superseded = new Set(UNIQUES_SUPERSEDED.map((r) => `${r.model}|${r.wasTable}|${r.wasConstraint}`));
+    const removedWithCapability = new Set(
+      UNIQUES_REMOVED_WITH_CAPABILITY.map((r) => `${r.model}|${r.table}|${r.constraint}`),
+    );
     const missing = [...UNIQUES_AT_FREEZE, ...UNIQUES_RETIRED_SINCE]
+      .filter((r) => !superseded.has(`${r.model}|${r.table}|${r.constraint}`))
+      .filter((r) => !removedWithCapability.has(`${r.model}|${r.table}|${r.constraint}`))
       .filter((r) => !present.has(`${r.table}.${r.constraint}`))
       .map((r) => `${r.model} -> ${r.table}.${r.constraint} (was ${r.file} @ ${r.retiredBy})`);
 
@@ -1005,8 +1063,8 @@ describe('every uniqueness Mongoose enforced exists in PostgreSQL', () => {
 
   it('has the replacement for every superseded constraint, on the named table', async () => {
     const present = new Set((await databaseUniques()).map((r) => `${r.table}.${r.name}`));
-    const missing = UNIQUES_SUPERSEDED.filter((r) => !present.has(`${r.table}.${r.nowConstraint}`)).map(
-      (r) => `${r.model} -> ${r.table}.${r.nowConstraint} (replaced ${r.wasConstraint})`,
+    const missing = UNIQUES_SUPERSEDED.filter((r) => !present.has(`${r.nowTable}.${r.nowConstraint}`)).map(
+      (r) => `${r.model} -> ${r.nowTable}.${r.nowConstraint} ` + `(replaced ${r.wasTable}.${r.wasConstraint})`,
     );
 
     expect(
@@ -1019,8 +1077,33 @@ describe('every uniqueness Mongoose enforced exists in PostgreSQL', () => {
 
     // And the one it replaced is really gone: a row here whose OLD constraint
     // still exists is a supersession that never happened.
-    const stillThere = UNIQUES_SUPERSEDED.filter((r) => present.has(`${r.table}.${r.wasConstraint}`));
+    const stillThere = UNIQUES_SUPERSEDED.filter((r) => present.has(`${r.wasTable}.${r.wasConstraint}`));
     expect(stillThere).toEqual([]);
+  });
+
+  it('keeps any uniquenesses removed in a later retirement absent and historically backed', async () => {
+    const present = new Set((await databaseUniques()).map((r) => `${r.table}.${r.name}`));
+    const historical = new Set(
+      [...UNIQUES_AT_FREEZE, ...UNIQUES_RETIRED_SINCE].map((r) => `${r.model}|${r.table}|${r.constraint}`),
+    );
+
+    const unbacked = UNIQUES_REMOVED_WITH_CAPABILITY.filter(
+      (r) => !historical.has(`${r.model}|${r.table}|${r.constraint}`),
+    ).map((r) => `${r.model} -> ${r.table}.${r.constraint}`);
+    expect(
+      unbacked,
+      `${unbacked.join('; ')} claims a later capability removal, but no immutable ` +
+        'historical row proves the uniqueness ever existed.',
+    ).toEqual([]);
+
+    const resurrected = UNIQUES_REMOVED_WITH_CAPABILITY.filter((r) => present.has(`${r.table}.${r.constraint}`)).map(
+      (r) => `${r.model} -> ${r.table}.${r.constraint} (${r.removedBy})`,
+    );
+    expect(
+      resurrected,
+      `${resurrected.join('; ')} returned after its whole capability left Alia. ` +
+        'Do not restore provider credential state to make the historical gate green.',
+    ).toEqual([]);
   });
 
   /**
@@ -1212,6 +1295,15 @@ describe('the ratchet', () => {
         'cheapest place to hide a real gap, so its size is asserted exactly rather ' +
         'than floored: a list that only ever grows is the gate switching itself off ' +
         'one defensible line at a time.',
+    ).toBe(1);
+  });
+
+  it('never lets the removed-with-capability list grow silently', () => {
+    expect(
+      UNIQUES_REMOVED_WITH_CAPABILITY.length,
+      'UNIQUES_REMOVED_WITH_CAPABILITY excuses a previously ported uniqueness only ' +
+        'when its whole owning capability deliberately leaves Alia. Audit every new ' +
+        'entry and pin the new count rather than letting this become a gap bucket.',
     ).toBe(1);
   });
 

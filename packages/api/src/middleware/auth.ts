@@ -6,6 +6,7 @@ import {
   createOxyAuthMiddleware,
   type OxyRequestUser,
   type OxyServiceAppContext,
+  type OxyServiceActingAsContext,
 } from '@oxyhq/core/server';
 import { recordApiKeyUsage } from '../db/telemetry/apiKeyUsageRepository.js';
 import { API_KEY_USAGE_METHODS } from '../domain/api-key-usage.js';
@@ -35,6 +36,8 @@ declare global {
         scopes: string[];
       };
       serviceApp?: OxyServiceAppContext;
+      /** Present only after Oxy verified the app's delegation grant for X-Oxy-User-Id. */
+      serviceActingAs?: OxyServiceActingAsContext;
       _usageRecorded?: boolean;
       workspace?: {
         id: string | null;
@@ -54,13 +57,11 @@ export const authenticateToken = createOxyAuthMiddleware(oxyClient, { auth: { de
  * Service-only auth — rejects anything that isn't a service token.
  * Use for internal-only endpoints (e.g., /internal/trigger).
  *
- * No `jwtSecret`, and Alia has none to give: `SERVICE_TOKEN_SECRET` exists in
- * neither this repository nor `deploy-aws.yml`. `@oxyhq/core` treats that as a
- * refusal rather than a licence — every service token gets 403
- * `SERVICE_TOKEN_NOT_CONFIGURED` — so this is fail-CLOSED and `/internal/trigger`
- * currently accepts nothing. Provisioning the secret in `oxy-infra` is what
- * turns it on, and `routes/__tests__/inference-boundary.test.ts` is the test
- * that has to be rewritten at that moment (epic #139 workstream 15).
+ * Alia deliberately supplies no private verification secret. The compatible
+ * `@oxyhq/core` release verifies Ed25519 service tokens against Oxy's public
+ * `/.well-known/jwks.json`, including issuer, audience, lifetime, type and
+ * scopes. The middleware fails closed when that endpoint or exact `kid` is not
+ * available. Never add `ACCESS_TOKEN_SECRET` or a private signing key here.
  */
 export const oxyServiceAuth = oxyClient.serviceAuth({ debug: true });
 
@@ -72,11 +73,8 @@ export const oxyServiceAuth = oxyClient.serviceAuth({ debug: true });
  * developer machine. Nothing in Alia reads the field today, which is exactly why
  * a wrong value could sit there: the first reader would inherit the lie.
  *
- * The same three-way mapping as `lib/inference/kaana-client.ts`'s
- * `resolveDeploymentEnvironment`, and deliberately NOT imported from it — that
- * module is the unwired Kaana client, and a middleware that imported it would
- * make the client reachable from the request path, which
- * `lib/inference/__tests__/kaana-boundary.test.ts` freezes against.
+ * Kept local because authentication must not import the hosted inference
+ * client or make outbound inference configuration part of the auth graph.
  */
 function deploymentEnvironment(): OxyServiceAppContext['environment'] {
   if (process.env.NODE_ENV === 'production') return 'production';
