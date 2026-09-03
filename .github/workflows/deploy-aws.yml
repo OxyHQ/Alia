@@ -269,19 +269,23 @@ jobs:
       # added there lands in a revision nothing runs, with no error.
       # `docs/runbooks/integrations-service-rollout.md` has the long version.
       #
-      # SSM is the source of truth for the shared secret. This step reads only
-      # parameter metadata, never GetParameter, WithDecryption or the value. A
-      # missing/wrong-type parameter fails before a task definition is created.
+      # SSM is the source of truth for the shared secret. GetParameter is
+      # resource-scoped to this exact ARN by IAM and explicitly leaves
+      # decryption disabled; the query returns only name and type. This is both
+      # narrower than account-wide DescribeParameters and keeps the value out of
+      # the runner output. A missing/wrong-type parameter fails before a task
+      # definition is created.
       # The private URL is the exact Cloud Map service and namespace declared in
       # oxy-infra: integrations.alia.internal.oxy.so.
       - name: Stage the integrations service wiring
         id: integrations
         run: |
           parameter_name="/oxy/$APP/INTEGRATIONS_SECRET"
-          metadata="$(aws ssm describe-parameters \
-            --parameter-filters "Key=Name,Option=Equals,Values=$parameter_name" \
-            --query 'Parameters[0].[Name,Type]' \
-            --output text)"
+          metadata="$(aws ssm get-parameter \
+            --name "$parameter_name" \
+            --no-with-decryption \
+            --query 'Parameter.[Name,Type]' \
+            --output text)" || metadata=''
           read -r actual_name actual_type <<<"$metadata"
           if [ "$actual_name" != "$parameter_name" ] || [ "$actual_type" != "SecureString" ]; then
             echo "::error::required SecureString metadata is absent for $parameter_name"
@@ -310,13 +314,15 @@ jobs:
         run: |
           # Oxy provisions this ApplicationCredential from its database and
           # writes the two secret values to SSM. Alia may bind them but must not
-          # copy a second value from GitHub or read/decrypt them in CI.
+          # copy a second value from GitHub or decrypt them in CI. GetParameter
+          # is exact-resource scoped; the query exposes only name and type.
           for name in OXY_SERVICE_API_KEY OXY_SERVICE_API_SECRET; do
             parameter_name="/oxy/$APP/$name"
-            metadata="$(aws ssm describe-parameters \
-              --parameter-filters "Key=Name,Option=Equals,Values=$parameter_name" \
-              --query 'Parameters[0].[Name,Type]' \
-              --output text)"
+            metadata="$(aws ssm get-parameter \
+              --name "$parameter_name" \
+              --no-with-decryption \
+              --query 'Parameter.[Name,Type]' \
+              --output text)" || metadata=''
             read -r actual_name actual_type <<<"$metadata"
             if [ "$actual_name" != "$parameter_name" ] || [ "$actual_type" != "SecureString" ]; then
               echo "::error::required Oxy-provisioned SecureString metadata is absent for $parameter_name"

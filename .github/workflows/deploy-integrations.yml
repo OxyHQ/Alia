@@ -132,10 +132,13 @@ jobs:
             /oxy/alia-integrations/DATABASE_URL \
             /oxy/alia/INTEGRATIONS_SECRET
           do
-            metadata="$(aws ssm describe-parameters \
-              --parameter-filters "Key=Name,Option=Equals,Values=$parameter_name" \
-              --query 'Parameters[0].[Name,Type]' \
-              --output text)"
+            # GetParameter is IAM-scoped to these exact two ARNs. Decryption is
+            # explicitly disabled and the query emits only name and type.
+            metadata="$(aws ssm get-parameter \
+              --name "$parameter_name" \
+              --no-with-decryption \
+              --query 'Parameter.[Name,Type]' \
+              --output text)" || metadata=''
             read -r actual_name actual_type <<<"$metadata"
             if [ "$actual_name" != "$parameter_name" ] || [ "$actual_type" != "SecureString" ]; then
               echo "::error::required SecureString metadata is absent for $parameter_name"
