@@ -448,7 +448,10 @@ export async function consumeAliaChatStream(
   onEvent: (event: AliaChatStreamEvent) => void,
   signal?: AbortSignal,
 ): Promise<AliaChatStreamResult> {
-  throwIfAborted(signal);
+  if (signal?.aborted) {
+    await response.body?.cancel().catch(() => undefined);
+    throw abortError();
+  }
   const mime = response.headers.get('content-type')?.split(';', 1)[0]?.trim().toLowerCase();
   if (mime !== 'text/event-stream') {
     await response.body?.cancel().catch(() => undefined);
