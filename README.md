@@ -79,6 +79,13 @@ Kaana owns provider credentials and execution state in its PostgreSQL database.
 Oxy resolves identity, policy and the exact ordered deployments; Kaana executes
 only that signed order and performs failover only within it.
 
+Alia is present only when the feature is an assistant or agent with conversation
+state, memory, tools, approvals or its own bot identity. A bounded product-owned
+operation such as translate, classify, summarize, rewrite or smart reply uses
+`app -> Oxy -> Kaana` and does not detour through Alia. Sindi and Clarity are the
+other case: they are private Alia product agents, so their path is
+`product -> Alia agent -> Oxy -> Kaana`.
+
 That is the source target, not a claim that production has already cut over.
 Kaana's PostgreSQL/KMS provider-credential custody is merged, but the coordinated
 Alia/Oxy/infra rollout and live task-definition gates must still prove that no
@@ -226,7 +233,7 @@ bun run web    # or ios, or android
 | [Onboarding](docs/onboarding.md) | **Start here if you are new** |
 | [Overview](docs/index.mdx) | What Alia is |
 | [Chat runtime](docs/chat-runtime.mdx) | The handler, the SSE events, the Kaana boundary |
-| [Model abstraction](docs/model-abstraction.mdx) | What the `alia-*` identifiers really are |
+| [Model abstraction](docs/model-abstraction.mdx) | Product profiles, concrete models and retired alias history |
 | [API reference](docs/api-reference.md) | The HTTP surface, by boundary |
 | [Architecture decisions](docs/adr/README.md) | The recorded decisions |
 | [Compatibility window](docs/migration/compatibility-window.md) | What sunsets, and on what gate |
@@ -258,7 +265,7 @@ each is easy to break by accident and none is caught by types:
    privacy boundary, not a global ban on the words.
 2. `trigger-engine.ts` is the only scheduler. Legacy triggers and structured automation
    schedules must both register through it; do not add a second scheduling loop.
-3. The `alia-*` identifier set is frozen. A pull request adding one is rejected on
+3. The retired Alia-owned alias set is frozen. A pull request adding one is rejected on
    [ADR 0002](docs/adr/0002-alia-is-a-kaana-consumer-and-future-model-publisher.md), and
    nothing may be published under the reserved `alia/*` namespace without the four
    conditions that ADR lists.

@@ -52,6 +52,26 @@ installed skill shelf or messaging/delegation hint in its prompt. Empty
 `capability_grants` denies; only explicit grants and explicitly linked skills
 can add agent context.
 
+#### Sindi and Clarity
+
+Sindi is Homiio's private Alia agent and Clarity's assistant is another private
+Alia agent. They are Oxy `bot` principals, not provider identities, and neither
+holds a provider credential. Their core cross-service bindings are:
+
+| Product agent | Owner project | Bot account | Alia agent | Bound Oxy application |
+|---|---|---|---|---|
+| Sindi | `6a50444ce8026582b949089d` | `01a0646a-078f-7974-9645-a5e8be237f47` | `01a0646a-078f-7514-9800-9f43ceed7df8` | `6a2f851751b784a86fd0e922` |
+| Clarity | `01a0646a-078f-7f53-848d-a0f82d9f7fa6` | `01a0646a-078f-7120-a993-a03c180c81b0` | `01a0646a-078f-7642-95ef-439952f4f3f9` | `01a0648b-8d73-70ad-8e67-1c07ddc5eb6e` |
+
+These are exact opaque primary keys. A bootstrap or runtime must compare them
+byte for byte; a name, handle, query order or first result is diagnostic data,
+never identity. Oxy owns the complete binding and credential manifest in its
+[`Alia inference guide`](https://github.com/OxyHQ/oxy/blob/main/docs/inference/alia.md)
+and
+[`native-agent bootstrap runbook`](https://github.com/OxyHQ/oxy/blob/main/docs/runbooks/native-product-agent-bootstrap.md).
+The table is a source contract, not proof that both repositories' rows or live
+service credentials have been provisioned and read back in production.
+
   **An agent has no picture.** It is drawn as a glyph tinted with its Oxy
   account's `User.color`, a Bloom preset key — so `AgentIdentity` carries
   `color` where it used to carry `avatar`, and there is no image-generation step
@@ -309,7 +329,8 @@ The former `POST /webhooks/oxy/:serviceId` route is retired and returns `410 Gon
 
 ## Model Abstraction
 
-The product surface exposes only the `alia-*` identifiers (`kaana-lite`, `kaana-v1` and so
-on). Upstream routing detail is never returned to users. Several of those identifiers are
-routing policies rather than models, and the set is frozen — see
+Product modes use Kaana product-routing identifiers (`kaana-lite`, `kaana-v1`
+and so on); concrete models use canonical
+`<publisher>/<model>[@revision]` references. Upstream routing detail is never
+returned to users. The product-routing set is frozen — see
 [model abstraction](./model-abstraction.mdx).
