@@ -43,6 +43,14 @@ jobs:
         with:
           bun-version: 1.3.5
 
+      - name: Cache bun install cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-cache-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          restore-keys: |
+            bun-cache-${{ runner.os }}-
+
       - name: Install the reviewed source tree
         run: bun install --frozen-lockfile
 

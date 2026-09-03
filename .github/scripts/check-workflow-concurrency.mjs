@@ -59,6 +59,11 @@ const EXPECTED = {
   // additionally the ONLY interlock on the migrator, which takes no lock of its
   // own and reads the ledger's high-water mark outside its transaction.
   'deploy-integrations.yml': 'serialised',
+  // The native-agent bootstrap writes the two reserved rows under one reviewed
+  // plan hash. Two operators applying different observed plans concurrently
+  // would invalidate both approvals, so the manual workflow is serialised and
+  // never cancelled mid-transaction.
+  'bootstrap-native-product-agents.yml': 'serialised',
   'add-to-roadmap.yml': 'keyed',
 };
 
