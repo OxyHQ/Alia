@@ -94,15 +94,16 @@ describe('deploy-aws.yml migration wiring', () => {
 
     expect(from).toBeGreaterThanOrEqual(0);
     expect(to).toBeGreaterThan(from);
-    expect(stage).toContain('aws ssm describe-parameters');
-    expect(stage).toContain("--query 'Parameters[0].[Name,Type]'");
+    expect(stage).toContain('aws ssm get-parameter');
+    expect(stage).toContain('--no-with-decryption');
+    expect(stage).toContain("--query 'Parameter.[Name,Type]'");
     expect(stage).toContain('actual_type" != "SecureString');
     expect(stage).toContain('arn:aws:ssm:$AWS_REGION:237343248947:parameter/oxy/$APP/INTEGRATIONS_SECRET');
     expect(stage).toContain('http://integrations.alia.internal.oxy.so:3005');
     expect(stage).not.toContain('secrets.INTEGRATIONS_SECRET');
     expect(stage).not.toContain('vars.INTEGRATIONS_URL');
-    expect(stage).not.toContain('get-parameter');
-    expect(stage).not.toContain('with-decryption');
+    expect(stage).not.toContain('--with-decryption');
+    expect(stage).not.toContain('describe-parameters');
   });
 
   it('does not let either deploy overwrite the SSM-owned integrations secret', () => {
@@ -112,9 +113,10 @@ describe('deploy-aws.yml migration wiring', () => {
     ] as const) {
       expect(source, name).not.toContain('secrets.INTEGRATIONS_SECRET');
       expect(source, name).not.toMatch(/put-parameter[^\n]*INTEGRATIONS_SECRET/);
-      expect(source, name).toContain('aws ssm describe-parameters');
-      expect(source, name).not.toContain('aws ssm get-parameter');
+      expect(source, name).toContain('aws ssm get-parameter');
+      expect(source, name).toContain('--no-with-decryption');
       expect(source, name).not.toContain('--with-decryption');
+      expect(source, name).not.toContain('aws ssm describe-parameters');
     }
   });
 
@@ -126,8 +128,9 @@ describe('deploy-aws.yml migration wiring', () => {
     expect(from).toBeGreaterThanOrEqual(0);
     expect(to).toBeGreaterThan(from);
     expect(stage).toContain('for name in OXY_SERVICE_API_KEY OXY_SERVICE_API_SECRET');
-    expect(stage).toContain('aws ssm describe-parameters');
-    expect(stage).toContain("--query 'Parameters[0].[Name,Type]'");
+    expect(stage).toContain('aws ssm get-parameter');
+    expect(stage).toContain('--no-with-decryption');
+    expect(stage).toContain("--query 'Parameter.[Name,Type]'");
     expect(stage).toContain('actual_type" != "SecureString');
     expect(stage).toContain('required Oxy-provisioned SecureString metadata is absent');
     expect(stage).toContain('arn:aws:ssm:$AWS_REGION:237343248947:parameter/oxy/$APP/OXY_SERVICE_API_KEY');
@@ -135,8 +138,8 @@ describe('deploy-aws.yml migration wiring', () => {
     expect(workflow).not.toContain('secrets.OXY_SERVICE_API_KEY');
     expect(workflow).not.toContain('secrets.OXY_SERVICE_API_SECRET');
     expect(workflow).not.toContain('sync_secret OXY_SERVICE_API_');
-    expect(stage).not.toContain('get-parameter');
-    expect(stage).not.toContain('with-decryption');
+    expect(stage).not.toContain('--with-decryption');
+    expect(stage).not.toContain('describe-parameters');
   });
 
   it('deploys the validated linux/arm64 child while retaining the provenance index', () => {
