@@ -210,7 +210,7 @@ interface MatrixRow {
  * the Mongoose driver remained installed. The script and dependency leave in
  * one cut; the retained pre-drop archive is external data and is not deleted.
  */
-const REMOVED_ROW_COUNT = 102;
+const REMOVED_ROW_COUNT = 107;
 
 const OWNERS = new Set(['alia', 'oxy', 'kaana', 'delete']);
 const REACHABLE = new Set(['live', 'dead', 'unverified', 'loaded-not-invoked']);

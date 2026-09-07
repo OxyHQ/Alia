@@ -26,8 +26,6 @@ interface WorkflowCanvasProps {
   onNodesChange: OnNodesChange<WorkflowNode>;
   onEdgesChange: (changes: EdgeChange[]) => void;
   onConnect: (connection: Connection) => void;
-  onNodesUpdate: (nodes: WorkflowNode[]) => void;
-  onEdgesUpdate: (edges: Edge[]) => void;
 }
 
 export function WorkflowCanvas({

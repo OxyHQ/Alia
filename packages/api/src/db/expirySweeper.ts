@@ -68,20 +68,36 @@ export async function runExpirySweep(): Promise<void> {
 }
 
 /**
- * Start the periodic sweep. Call from the leader-election `onElected` hook.
+ * Start the periodic sweep.
+ *
+ * `isLeader` is how the header's "it runs under the existing leader election,
+ * beside the trigger engine" is actually true. It was not: the call site in
+ * `index.ts` was unconditional, so with `desiredCount: N` every task ran the
+ * full `DELETE … WHERE ctid IN (…)` across every target every five minutes —
+ * N times the write load the module says it avoids, and N tasks contending on
+ * the same rows.
+ *
+ * The predicate is passed in rather than imported, because leadership is owned
+ * by `lib/trigger-engine.ts` and `db/` does not import `lib/`. It is consulted
+ * per TICK, not once at startup: leadership moves while the process runs, and a
+ * decision cached at boot would have a demoted instance sweeping forever and a
+ * newly elected one never starting.
  *
  * `unref()` so the interval cannot hold the event loop open — the convention
  * every module-level timer in this codebase follows, and what stops a test run
  * hanging on a scheduler nobody stopped.
  */
-export function startExpirySweeper(): void {
+export function startExpirySweeper(isLeader: () => boolean = () => true): void {
   if (timer) return;
   timer = setInterval(() => {
+    if (!isLeader()) return;
     void runExpirySweep();
   }, SWEEP_INTERVAL_MS);
   timer.unref?.();
-  // Not awaited: startup must not block on maintenance.
-  void runExpirySweep();
+  // Not awaited: startup must not block on maintenance. Gated like every other
+  // tick — at boot no instance has been elected yet, so this normally no-ops
+  // and the first real sweep is the first tick after the lease is taken.
+  if (isLeader()) void runExpirySweep();
 }
 
 export function stopExpirySweeper(): void {

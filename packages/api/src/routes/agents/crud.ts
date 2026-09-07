@@ -603,7 +603,19 @@ const updateAgentSchema = z
     status: statusSchema.optional(),
     access: accessSchema.optional(),
     systemPrompt: z.string().optional(),
-    scheduleInterval: z.number().int().optional(),
+    /**
+     * Minutes between heartbeat runs, bounded at both ends.
+     *
+     * It was an unbounded `z.number().int()` interpolated straight into the
+     * step of a cron minute field by `lib/trigger-engine.ts`. `0` and negatives
+     * produced an INVALID cron, which `scheduleTrigger` swallows — so the
+     * heartbeat silently never fired and the agent looked broken for no visible
+     * reason. And `1` scheduled a billed LLM turn every minute, for as long as
+     * the agent existed, with nothing in the API saying no. Five minutes is the
+     * floor the cron step can express usefully; one day is the ceiling, past
+     * which a minute-field step is not a schedule any more.
+     */
+    scheduleInterval: z.number().int().min(5).max(1440).optional(),
     archetype: archetypeSchema.optional(),
     archetypeConfig: z.unknown().optional(),
     skills: z.array(z.string()).optional(),

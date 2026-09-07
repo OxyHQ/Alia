@@ -8,6 +8,7 @@ import { closePostgres } from './db/index.js';
 import { runBootGuards } from './lib/boot-guards.js';
 import { createInternalCors } from './lib/cors-origins.js';
 import { startExpirySweeper, stopExpirySweeper } from './db/expirySweeper.js';
+import { isTriggerLeader } from './lib/trigger-engine.js';
 import { log } from './lib/logger.js';
 import { isAbortError, isFatalError, isTransientNetworkError } from './lib/error-classification.js';
 
@@ -380,8 +381,14 @@ server.listen(PORT, '0.0.0.0', () => {
    * had NO caller when it was written — the targets were registered and tested,
    * and nothing ever swept them, so every expiry in the Postgres schema was
    * inert.
+   *
+   * Gated on the trigger-engine lease, which is what `db/expirySweeper.ts` has
+   * always said it runs under ("beside the trigger engine") and what this call
+   * did not do: unconditional, it had every task sweeping every five minutes.
+   * The predicate is consulted per tick, so leadership changing mid-process
+   * moves the sweep with it.
    */
-  startExpirySweeper();
+  startExpirySweeper(isTriggerLeader);
 
   /**
    * The trigger engine, the moderation-outbox dispatcher, both queues and the

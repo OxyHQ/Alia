@@ -518,21 +518,48 @@ export async function listChildAgentSessions(
   );
 }
 
-/** The newest session of an agent in any of the given states. */
-export async function findLatestAgentSession(
+/**
+ * The newest session THIS user has with an agent, in any of the given states.
+ *
+ * The scoped twin of `findLatestAgentSession`, and the one an HTTP route
+ * should reach for. Agent sessions carry tool calls, tool results, file changes
+ * and screenshots, and a published agent is run by many people — so "the
+ * newest session of this agent" is, for a published agent, usually somebody
+ * else's. `oxy_user_id` is on the row; nothing but the caller has to remember
+ * to filter on it.
+ */
+export async function findLatestAgentSessionOwnedBy(
   db: Executor,
   agentId: string,
+  oxyUserId: string,
   statuses: readonly AgentSessionStatus[],
 ): Promise<{ _id: string } | null> {
   if (statuses.length === 0) return null;
   const [row] = await db
     .select({ _id: agentSessions.id })
     .from(agentSessions)
-    .where(and(eq(agentSessions.agentId, agentId), inArray(agentSessions.status, [...statuses])))
+    .where(
+      and(
+        eq(agentSessions.agentId, agentId),
+        eq(agentSessions.oxyUserId, oxyUserId),
+        inArray(agentSessions.status, [...statuses]),
+      ),
+    )
     .orderBy(desc(agentSessions.createdAt))
     .limit(1);
   return row ?? null;
 }
+
+/**
+ * There is deliberately no unscoped `findLatestAgentSession` here.
+ *
+ * There was one, and its only caller was `GET /agents/:id/activity` behind
+ * `optionalAuth` — which is how an unauthenticated request for a published
+ * agent came to return whoever had run it last. A function that answers "the
+ * newest session of this agent, across every user" reads as harmless and is
+ * one call site away from being a cross-tenant read, so it is gone rather than
+ * commented: what nobody can import, nobody can misuse.
+ */
 
 /** Every unfinished session of one agent — the ones a status change cancels. */
 export async function listUnfinishedAgentSessions(

@@ -37,9 +37,31 @@ router.get('/usage', authenticateToken, async (req, res) => {
     // `since.setDate(since.getDate() - days)` as a function — an Invalid Date,
     // handed to a database query.
     const days = Object.hasOwn(periodMap, period) ? periodMap[period] : 7;
-    const since = new Date();
-    since.setDate(since.getDate() - days);
-    since.setHours(0, 0, 0, 0);
+
+    /**
+     * The window is the last `days` days ENDING TODAY, and every date here is
+     * UTC.
+     *
+     * Two bugs lived in the four lines this replaces. The window ran
+     * `today − days … today − 1`: the loop emitted `days` keys starting at
+     * `since`, so today's bucket was fetched from the database and then thrown
+     * away, and the chart was permanently missing the current day — the one
+     * day a person looking at their usage most wants to see.
+     *
+     * And the keys were built from a LOCAL midnight (`setHours(0,0,0,0)`) but
+     * read back with `toISOString()`, while `creditSpendByDay` buckets with
+     * `to_char(… at time zone 'UTC', 'YYYY-MM-DD')`. On any host east of UTC
+     * the local midnight converts to the previous day in UTC, so every emitted
+     * key was one day behind every SQL bucket and the whole series read zero.
+     * `Date.UTC` keeps the two in the same calendar.
+     */
+    const today = new Date();
+    const startUtc = Date.UTC(
+      today.getUTCFullYear(),
+      today.getUTCMonth(),
+      today.getUTCDate() - (days - 1),
+    );
+    const since = new Date(startUtc);
 
     const usage = await creditSpendByDay(getDb(), req.user!.id, since);
 
@@ -47,9 +69,7 @@ router.get('/usage', authenticateToken, async (req, res) => {
     const result: { date: string; used: number }[] = [];
     const usageMap = new Map(usage.map((u) => [u._id, u.used]));
     for (let i = 0; i < days; i++) {
-      const d = new Date(since);
-      d.setDate(d.getDate() + i);
-      const key = d.toISOString().slice(0, 10);
+      const key = new Date(startUtc + i * 86_400_000).toISOString().slice(0, 10);
       result.push({ date: key, used: usageMap.get(key) ?? 0 });
     }
 

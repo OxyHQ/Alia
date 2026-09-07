@@ -9,7 +9,6 @@
  * - SSE-compatible error serialization
  */
 
-import type { SSEError } from '../sse-stream';
 
 // ============== FAILOVER REASON ==============
 
@@ -164,16 +163,8 @@ export function isAliaError(err: unknown): err is AliaError {
   return err instanceof AliaError;
 }
 
-// ============== SSE CONVERSION ==============
-
-/**
- * Convert an AliaError to the SSEError shape used by SSEStream.sendError().
- * This is the bridge between the typed error system and the SSE transport.
- */
-export function toSSEError(error: AliaError): SSEError {
-  return {
-    message: error.userMessage,
-    type: error.code,
-    code: error.code,
-  };
-}
+// There is no `toSSEError` here any more, and its removal is the deletion of a
+// closed cycle rather than of a feature: it returned the `SSEError` shape
+// declared by `lib/sse-stream.ts`, and the only thing that ever called it was
+// `lib/sse-stream.ts` itself — which nothing imported. The live streaming path
+// is `lib/chat/` plus `lib/streaming-helpers.ts`.
