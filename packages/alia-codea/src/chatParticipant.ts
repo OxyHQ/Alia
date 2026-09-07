@@ -175,6 +175,20 @@ export class AliaChatParticipant {
     const maxTokens = config.get('maxTokens', 4096);
     const temperature = config.get('temperature', 0.7);
 
+    /**
+     * Cancellation that actually cancels.
+     *
+     * `signal: token.isCancellationRequested ? AbortSignal.abort() : undefined`
+     * evaluates ONCE, when the request is built. In the normal case the token
+     * is not cancelled yet, so the signal was `undefined` and the stream could
+     * never be aborted: cancelling in the chat view stopped the UI and left the
+     * turn running — and billed — to completion. Created outside `makeRequest`
+     * so the 401 retry below shares it.
+     */
+    const controller = new AbortController();
+    if (token.isCancellationRequested) controller.abort();
+    const cancellation = token.onCancellationRequested(() => { controller.abort(); });
+
     const makeRequest = async (bearerToken: string) => {
       /**
        * `/alia/chat`, not `/v1/chat/completions`.
@@ -202,71 +216,76 @@ export class AliaChatParticipant {
           temperature,
           stream: true
         }),
-        signal: token.isCancellationRequested ? AbortSignal.abort() : undefined
+        signal: controller.signal
       });
     };
 
-    let response = await makeRequest(accessToken);
+    try {
+      let response = await makeRequest(accessToken);
 
-    // On 401, try refreshing the token and retry once
-    if (response.status === 401) {
-      const refreshed = await this.authProvider.refreshToken();
-      if (refreshed) {
-        const newToken = await this.authProvider.getAccessToken();
-        if (newToken && newToken !== accessToken) {
-          response = await makeRequest(newToken);
+      // On 401, try refreshing the token and retry once
+      if (response.status === 401) {
+        const refreshed = await this.authProvider.refreshToken();
+        if (refreshed) {
+          const newToken = await this.authProvider.getAccessToken();
+          if (newToken && newToken !== accessToken) {
+            response = await makeRequest(newToken);
+          }
         }
       }
-    }
 
-    if (!response.ok) {
-      throw new Error(`API error: ${response.status} ${response.statusText}`);
-    }
-
-    if (!response.body) {
-      throw new Error('No response body');
-    }
-
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
-
-    while (true) {
-      if (token.isCancellationRequested) {
-        reader.cancel();
-        break;
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status} ${response.statusText}`);
       }
 
-      const { done, value } = await reader.read();
-
-      if (done) {
-        break;
+      if (!response.body) {
+        throw new Error('No response body');
       }
 
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || '';
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
 
-      for (const line of lines) {
-        if (line.startsWith('data: ')) {
-          const data = line.slice(6);
+      while (true) {
+        if (token.isCancellationRequested) {
+          reader.cancel();
+          break;
+        }
 
-          if (data === '[DONE]') {
-            continue;
-          }
+        const { done, value } = await reader.read();
 
-          try {
-            const parsed = JSON.parse(data);
-            const content = parsed.choices?.[0]?.delta?.content;
+        if (done) {
+          break;
+        }
 
-            if (content) {
-              stream.markdown(content);
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6);
+
+            if (data === '[DONE]') {
+              continue;
             }
-          } catch (e) {
-            // Skip invalid JSON
+
+            try {
+              const parsed = JSON.parse(data);
+              const content = parsed.choices?.[0]?.delta?.content;
+
+              if (content) {
+                stream.markdown(content);
+              }
+            } catch (e) {
+              // Skip invalid JSON
+            }
           }
         }
       }
+    } finally {
+      // The listener is on VS Code's token, which outlives this request.
+      cancellation.dispose();
     }
   }
 }

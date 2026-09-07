@@ -362,6 +362,14 @@ jobs:
       - name: Test Codea CLI
         run: bun run --filter @alia-codea/cli test
 
+      # `@alia/docker-host` had no test script, no typecheck script and not one
+      # reference in this file — 984 lines that run arbitrary commands inside
+      # containers on behalf of an agent, checked by nothing. Its path
+      # normalisation and shell quoting have a suite now; the typecheck is
+      # picked up automatically by `typecheck-workspaces.ts`.
+      - name: Test Docker host
+        run: bun run --filter @alia/docker-host test
+
       # Three packages carry an `eslint.config.js` and a `lint` script that no
       # job ran, so the configuration was as good as absent. `@alia/api`'s lint
       # runs in `Lint & Test`; these are the rest of them.
