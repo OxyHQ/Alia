@@ -162,7 +162,11 @@ const MONGO_TTLS: readonly MongoTtl[] = [
     // `AuthHealthMetricSchema.index({ createdAt: 1 }, { expireAfterSeconds: 7 *
     // 24 * 60 * 60 })`, read off `src/lib/auth-health.ts:53` before the model —
     // which was declared INLINE in that module, beside the functions using it —
-    // was deleted.
+    // was deleted. That module is gone too now: it had no importer anywhere, so
+    // `auth_health_metrics` has no writer left. The TABLE and this row stay,
+    // because dropping a table is a migration and a separate decision; what
+    // this row records is the TTL the Mongo index used to enforce, which is
+    // still what the sweeper must apply if anything writes to it again.
     path: 'createdAt',
     expireAfterSeconds: 7 * 24 * 60 * 60,
     retiredBy: 'S2 providers + telemetry — auth_health_metrics',

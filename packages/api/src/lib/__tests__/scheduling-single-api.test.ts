@@ -133,14 +133,20 @@ describe('exactly one module can put work on a recurring schedule', () => {
 
 describe('the scheduling surfaces persist through one of the engine repositories', () => {
   /**
-   * The three places a user or an agent configures recurring work. Each is
-   * listed with what makes it a scheduling surface, so an entry cannot be added
-   * without saying why — and none of them may schedule anything itself.
+   * The places a user or an agent configures recurring work.
+   *
+   * `lib/daily-briefing.ts` was a third and is gone: it had no importer
+   * anywhere in the repository and was deleted with the other dead modules.
+   * Removing the entry is not a loosening — a surface that does not exist
+   * cannot schedule anything itself, which is what this list is here to
+   * forbid. Each is
+   * Each is listed with what makes it a scheduling surface, so an entry
+   * cannot be added without saying why — and none of them may schedule
+   * anything itself.
    */
   const SCHEDULING_SURFACES: readonly { file: string; why: string }[] = [
     { file: 'routes/triggers.ts', why: 'the trigger CRUD API' },
     { file: 'routes/agents/crud.ts', why: 'an agent archetype with a schedule' },
-    { file: 'lib/daily-briefing.ts', why: "a user's morning briefing" },
   ];
   const NORMALIZED_SURFACE = {
     file: 'routes/automations.ts',

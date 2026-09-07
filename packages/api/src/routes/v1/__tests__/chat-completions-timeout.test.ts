@@ -178,7 +178,6 @@ vi.mock('../../../lib/errors/index.js', () => ({
   AliaErrorCode: {},
   classifyError: vi.fn(() => 'unknown'),
   isAliaError: vi.fn(() => false),
-  toSSEError: vi.fn((e: any) => ({ code: e.code, message: e.userMessage })),
   isTimeoutError: vi.fn(() => false),
   getRetryAfterHeader: vi.fn(() => undefined),
 }));
