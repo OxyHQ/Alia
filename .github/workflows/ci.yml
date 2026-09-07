@@ -370,6 +370,15 @@ jobs:
       - name: Test Docker host
         run: bun run --filter @alia/docker-host test
 
+      # `alia-canvas` had a `tsc -b` and a wrangler dry-run between them and
+      # nothing else. Its first subject is `lib/product-modes.ts`, which decides
+      # what a person is offered and what identifier a node stores — the file
+      # whose own header records that the module it replaced showed a hardcoded
+      # alias name under a label reading "Model", for every node, for as long as
+      # the editor existed.
+      - name: Test Canvas
+        run: bun run --filter alia-canvas test
+
       # Three packages carry an `eslint.config.js` and a `lint` script that no
       # job ran, so the configuration was as good as absent. `@alia/api`'s lint
       # runs in `Lint & Test`; these are the rest of them.
