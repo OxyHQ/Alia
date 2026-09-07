@@ -2,19 +2,20 @@ import Dockerode from 'dockerode';
 import crypto from 'crypto';
 import { log } from '../index.js';
 import { errorStatusCode } from './errors.js';
+import {
+  WORKSPACE_ROOT,
+  normalizeWorkspacePath,
+  shellEscape,
+  shortId,
+} from './workspace-path.js';
 
 export const docker = new Dockerode({ socketPath: '/var/run/docker.sock' });
 
 const NETWORK_NAME = 'alia-containers';
-const WORKSPACE_ROOT = '/workspace';
 const MAX_BASE64_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 const MAX_BASE64_OUTPUT_CHARS = 15 * 1024 * 1024; // >10MB base64 payload
 const DEFAULT_EXEC_OUTPUT_CHARS = 50_000;
 const runtimeLastActivity = new Map<string, number>();
-
-function shortId(containerId: string): string {
-  return containerId.slice(0, 12);
-}
 
 export function touchContainerActivity(containerId: string): void {
   runtimeLastActivity.set(shortId(containerId), Date.now());
@@ -26,34 +27,6 @@ export function getContainerLastActivity(containerId: string): number | undefine
 
 export function forgetContainerActivity(containerId: string): void {
   runtimeLastActivity.delete(shortId(containerId));
-}
-
-function shellEscape(value: string): string {
-  return `'${value.replace(/'/g, `'\\''`)}'`;
-}
-
-function normalizeWorkspacePath(inputPath: string): string {
-  let normalized = inputPath.replace(/\\/g, '/').trim();
-  if (!normalized || normalized.includes('\0')) {
-    throw new Error('Invalid path');
-  }
-
-  if (normalized.startsWith('/')) normalized = normalized.slice(1);
-  if (normalized.startsWith('workspace/')) {
-    normalized = normalized.slice('workspace/'.length);
-  } else if (normalized === 'workspace') {
-    return WORKSPACE_ROOT;
-  }
-
-  const segments: string[] = [];
-  for (const segment of normalized.split('/')) {
-    if (!segment || segment === '.') continue;
-    if (segment === '..') throw new Error('Path traversal is not allowed');
-    segments.push(segment);
-  }
-
-  if (segments.length === 0) return WORKSPACE_ROOT;
-  return `${WORKSPACE_ROOT}/${segments.join('/')}`;
 }
 
 export interface SizePreset {

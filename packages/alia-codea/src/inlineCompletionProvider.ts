@@ -83,13 +83,42 @@ export class AliaInlineCompletionProvider implements vscode.InlineCompletionItem
       position
     ));
 
-    const suffix = document.getText(new vscode.Range(
-      position,
-      new vscode.Position(Math.min(document.lineCount - 1, position.line + 10), 0)
-    ));
+    /**
+     * The ten lines AFTER the cursor.
+     *
+     * The end position used to be `Math.min(document.lineCount - 1, position.line + 10)`
+     * at column 0 — which, within ten lines of the end of the file, clamps to a
+     * line at or BEFORE the cursor. `vscode.Range` silently swaps endpoints
+     * that are out of order, so `getText` returned the text before the cursor
+     * and handed it to the model under the header `CODE AFTER CURSOR`. Editing
+     * near the end of a file is the common case, and the completions were
+     * quietly worse there.
+     *
+     * `document.lineAt(...).range.end` rather than column 0 of the next line,
+     * so the last line of the file is included whole.
+     */
+    const lastLine = Math.min(document.lineCount - 1, position.line + 10);
+    const suffixEnd = document.lineAt(lastLine).range.end;
+    const suffix = suffixEnd.isAfter(position)
+      ? document.getText(new vscode.Range(position, suffixEnd))
+      : '';
 
     // Build the prompt
     const prompt = this.buildPrompt(document, prefix, suffix);
+
+    /**
+     * Cancellation that actually cancels.
+     *
+     * This was `signal: token.isCancellationRequested ? AbortSignal.abort() : undefined`,
+     * which evaluates ONCE, while the request is being built. In the normal
+     * case the token is not cancelled yet, so the signal was `undefined` and
+     * the request was never abortable at all — VS Code cancelled, and a
+     * 500-token completion ran to completion and was billed anyway. With the
+     * automatic-trigger guard commented out below, that is one per keystroke.
+     */
+    const controller = new AbortController();
+    if (token.isCancellationRequested) controller.abort();
+    const cancellation = token.onCancellationRequested(() => { controller.abort(); });
 
     try {
       // The product runtime — same reason as `chatParticipant.ts`.
@@ -117,7 +146,7 @@ export class AliaInlineCompletionProvider implements vscode.InlineCompletionItem
           temperature: 0.2,
           stream: false
         }),
-        signal: token.isCancellationRequested ? AbortSignal.abort() : undefined
+        signal: controller.signal
       });
 
       if (!response.ok) {
@@ -140,6 +169,9 @@ export class AliaInlineCompletionProvider implements vscode.InlineCompletionItem
         return null;
       }
       throw error;
+    } finally {
+      // The listener is on VS Code's token, which outlives this request.
+      cancellation.dispose();
     }
   }
 
