@@ -1627,6 +1627,7 @@
       "kind": "dependency",
       "domain": "product-api",
       "currentPath": "packages/alia-cowork/out/main/index.js",
+      "removedIn": "claude/tests-bugs-cleanup",
       "owner": "alia",
       "targetPath": "keep-alia-product (rebuild, or stop tracking the artefact)",
       "summary": "A COMMITTED build artefact carrying /v1/chat/completions. A source-only sweep of the endpoint misses it, and it is what a checked-out Cowork actually runs until rebuilt.",
