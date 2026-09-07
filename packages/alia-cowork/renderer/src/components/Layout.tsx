@@ -8,11 +8,9 @@ import {
   PinIcon,
   Pin02Icon,
   Settings01Icon,
-  Home01Icon,
   Message01Icon,
   FolderOpenIcon,
   CommandIcon,
-  InformationCircleIcon,
   CodeIcon,
   Globe02Icon,
 } from "@hugeicons/core-free-icons"

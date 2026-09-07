@@ -178,6 +178,17 @@ jobs:
       - name: Verify that gate can still fail
         run: node .github/scripts/test-check-dns-record-filters.mjs
 
+      # The Mongo runtime boundary is a documented invariant
+      # (docs/mongodb-runtime-boundary.md) enforced by a script that had never
+      # been observed doing anything but passing — and it had stopped looking
+      # over most of the tree. Its manifest pattern could not see either nested
+      # workspace, and its source pattern assumed every workspace keeps code in
+      # `src/`, which `packages/app` does not: 1,009 of 1,539 tracked files were
+      # scanned, the largest client in the repository among the missing 530.
+      # Here because this job installs nothing and needs no workspace.
+      - name: Verify the Mongo runtime gate can still fail
+        run: node .github/scripts/test-check-no-mongodb-runtime.mjs
+
       # Runs in the one job that installs nothing, so it reports before the jobs
       # it protects would fail. See the header comment: the cache is the only
       # thing stopping an unauthenticatable GitHub fetch on every install.
@@ -337,6 +348,28 @@ jobs:
       # a suite that no job ran, which is a suite that cannot fail.
       - name: Test Codea extension
         run: bun run --filter alia-codea test
+
+      # `alia-cowork` declares `"test": "vitest run"` and ships a real suite —
+      # `src/preload/__tests__/index.test.ts`, which caught ten no-op IPC
+      # unsubscribes — and no job has ever called it. Exactly the
+      # suite-that-cannot-fail this file records having fixed for
+      # `alia-console`, `alia-codea` and `@alia/app`; cowork was simply missed.
+      - name: Test Cowork
+        run: bun run --filter alia-cowork test
+
+      # `@alia-codea/cli` had no suite at all until this PR, and it is the
+      # package that applies model-authored patches to a working tree.
+      - name: Test Codea CLI
+        run: bun run --filter @alia-codea/cli test
+
+      # Three packages carry an `eslint.config.js` and a `lint` script that no
+      # job ran, so the configuration was as good as absent. `@alia/api`'s lint
+      # runs in `Lint & Test`; these are the rest of them.
+      - name: Lint the frontends
+        run: |
+          bun run --filter alia-console lint
+          bun run --filter alia-canvas lint
+          bun run --filter @alia-codea/cli lint
 
       # `@alia/app` has had a `test` script and, until now, no job calling it —
       # the same suite-that-cannot-fail as the two above. The effort selector is

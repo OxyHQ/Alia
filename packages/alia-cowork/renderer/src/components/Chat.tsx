@@ -6,13 +6,6 @@ import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
@@ -22,17 +15,10 @@ import {
   InputGroupAddon,
   InputGroupTextarea,
 } from "@/components/ui/input-group"
-import { Item, ItemContent, ItemDescription, ItemTitle } from "@/components/ui/item"
 import { cn } from "@/lib/utils"
 import { HugeiconsIcon } from "@hugeicons/react"
 import {
   ArrowUp02Icon,
-  ArrowDown01Icon,
-  Settings01Icon,
-  SparklesIcon,
-  CheckmarkCircle02Icon,
-  NoteIcon,
-  AlertCircleIcon,
   StopIcon,
   Attachment02Icon,
   Cancel01Icon,
@@ -69,14 +55,6 @@ interface ContextItem {
   content?: string
   language?: string
 }
-
-// Permission modes
-const permissionModes = [
-  { id: "ask", label: "Ask before edits", description: "Asks for approval before making changes", icon: SparklesIcon },
-  { id: "edit", label: "Edit automatically", description: "Makes changes without asking", icon: CheckmarkCircle02Icon },
-  { id: "plan", label: "Plan mode", description: "Plans changes before executing", icon: NoteIcon },
-  { id: "yolo", label: "Bypass permissions", description: "Full autonomous mode", icon: AlertCircleIcon },
-]
 
 // Greetings
 const greetings = [
@@ -121,6 +99,13 @@ function ThinkingIndicator({ isWorking = false }: { isWorking?: boolean }) {
     setIsTyping(true)
     setDisplayText("")
 
+    // The hold-then-advance timer is tracked so the cleanup can cancel it.
+    // Only the interval was cleared before, and this component unmounts the
+    // moment `isGenerating` goes false — which is normally mid-phrase, so the
+    // pending 1500 ms timeout went on to `setPhraseIndex` on an unmounted
+    // component every time a turn finished.
+    let advanceTimer: ReturnType<typeof setTimeout> | undefined
+
     const typeInterval = setInterval(() => {
       if (charIndex < phrase.length) {
         setDisplayText(phrase.slice(0, charIndex + 1))
@@ -128,11 +113,14 @@ function ThinkingIndicator({ isWorking = false }: { isWorking?: boolean }) {
       } else {
         clearInterval(typeInterval)
         setIsTyping(false)
-        setTimeout(() => setPhraseIndex((prev) => (prev + 1) % phrases.length), 1500)
+        advanceTimer = setTimeout(() => setPhraseIndex((prev) => (prev + 1) % phrases.length), 1500)
       }
     }, 40)
 
-    return () => clearInterval(typeInterval)
+    return () => {
+      clearInterval(typeInterval)
+      if (advanceTimer) clearTimeout(advanceTimer)
+    }
   }, [phraseIndex, phrases])
 
   return (
@@ -237,9 +225,34 @@ export function Chat() {
     })
 
     const unsubToolResult = window.api.onChatToolResult((data) => {
-      setToolExecutions((prev) =>
-        prev.map((t, i) => i === prev.length - 1 ? { ...t, status: data.success ? "success" : "error", result: data.result } : t)
-      )
+      setToolExecutions((prev) => {
+        /**
+         * The result lands on the row it BELONGS to.
+         *
+         * It used to land on `prev.length - 1` — the last row, whichever tool
+         * that was. `data` carries `tool`, and a turn routinely runs more than
+         * one: a second `preparing` row arriving before the first tool's result
+         * was enough to mark the wrong one done and attach the wrong output to
+         * it. The newest still-running row for THIS tool is the one waiting for
+         * this result; searching from the end keeps repeat calls of one tool in
+         * order.
+         */
+        // A reverse loop rather than `findLastIndex`, which needs an ES2023
+        // lib; this file compiles against ES2022 and the target is not worth
+        // moving for one search.
+        let target = -1
+        for (let i = prev.length - 1; i >= 0; i--) {
+          const row = prev[i]
+          if (row.tool === data.tool && (row.status === "running" || row.status === "preparing")) {
+            target = i
+            break
+          }
+        }
+        if (target === -1) return prev
+        return prev.map((t, i) =>
+          i === target ? { ...t, status: data.success ? "success" : "error", result: data.result } : t,
+        )
+      })
     })
 
     const unsubMode = window.api.onModeChanged((data) => {
@@ -309,7 +322,6 @@ export function Chat() {
     }
   }
 
-  const currentModeConfig = permissionModes.find((m) => m.id === currentMode)
   const greeting = React.useMemo(() => greetings[Math.floor(Math.random() * greetings.length)], [])
 
   return (
