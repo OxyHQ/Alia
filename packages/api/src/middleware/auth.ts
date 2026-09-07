@@ -252,10 +252,24 @@ export function authenticateTokenOrApiKey(
     return;
   }
 
-  // Internal service auth (e.g., browse tool calling Alia API as LLM)
+  // Internal service auth (e.g., browse tool calling Alia API as LLM).
+  //
+  // The length guard and the comparison are both on BYTES. The guard used to
+  // be on STRING length while the comparison was on buffers, so a token with
+  // the same character count but a multi-byte character in it reached
+  // `timingSafeEqual` with mismatched buffer lengths — which throws a
+  // `RangeError` from inside a synchronous middleware, answering 500 to what
+  // is simply a bad credential.
+  //
+  // Nothing may come between reading the secret and the compare: two suites
+  // assert that as a source census (`service-token-verification.test.ts`,
+  // `inference-boundary.test.ts`), which is why this note is here and not
+  // there.
   const serviceSecret = process.env.SERVICE_SECRET;
-  if (serviceSecret && token.length === serviceSecret.length &&
-      crypto.timingSafeEqual(Buffer.from(token), Buffer.from(serviceSecret))) {
+  const presented = Buffer.from(token, 'utf8');
+  const expected = serviceSecret ? Buffer.from(serviceSecret, 'utf8') : null;
+  if (expected && presented.length === expected.length &&
+      crypto.timingSafeEqual(presented, expected)) {
     req.userId = 'system';
     req.user = { id: 'system' };
     req.serviceApp = {

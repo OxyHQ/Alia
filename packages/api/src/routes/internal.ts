@@ -11,8 +11,6 @@
 import { Router } from 'express';
 import { generateText, stepCountIs } from 'ai';
 import { resolveModel, getAIModel, getDefaultRoutingProfile } from '../lib/chat-core.js';
-import {
-} from '../lib/tools/index.js';
 import { oxyServiceAuth, oxyClient } from '../middleware/auth.js';
 import { ToolPipeline } from '../lib/tool-pipeline.js';
 import { buildIdentityGuard } from '../lib/identity-guard.js';

@@ -7,7 +7,7 @@ import { findAgentById } from '../../db/agents/agentRepository.js';
 import {
   countAgentSessionsByDay,
   findAgentSessionOwnedBy,
-  findLatestAgentSession,
+  findLatestAgentSessionOwnedBy,
 } from '../../db/agents/agentSessionRepository.js';
 import {
   listSessionActivity,
@@ -31,8 +31,33 @@ router.get('/:id/activity', optionalAuth, async (req: Request, res: Response) =>
       return res.status(404).json({ error: 'Agent not found' });
     }
 
-    // Find the most recent running or completed session for this agent
-    const latestSession = await findLatestAgentSession(getDb(), agent._id, [
+    /**
+     * The most recent running or completed session THIS CALLER has with the
+     * agent.
+     *
+     * It used to be the most recent session of the agent, across every user,
+     * behind `optionalAuth` — so for a published agent, which many people run,
+     * an unauthenticated `GET /agents/<id>/activity` returned whoever ran it
+     * last: their tool calls, tool results, file changes and screenshots, by
+     * way of `getRecentActivity`.
+     *
+     * The socket serving the same data has always gated it
+     * (`socket.ts`, `subscribe-agent`: `account:act_as` on the bot account, or
+     * an owned session). This is the HTTP half of that rule, in the narrow
+     * form: your own sessions. An operator watching an agent's live work uses
+     * that room, or `/:id/sessions/:sessionId/activity` beside this route,
+     * which has always been `authenticateToken` + `findAgentSessionOwnedBy`.
+     *
+     * Anonymous callers get an empty buffer rather than a 401: the published
+     * agent profile is readable without signing in, and it has no activity of
+     * its own to show a visitor.
+     */
+    const viewerId = req.user?.id;
+    if (!viewerId) {
+      return res.json({ activity: [] });
+    }
+
+    const latestSession = await findLatestAgentSessionOwnedBy(getDb(), agent._id, viewerId, [
       'running',
       'completed',
     ]);

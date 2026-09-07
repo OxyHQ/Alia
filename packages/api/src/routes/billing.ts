@@ -729,10 +729,28 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
     if (credits <= 0) return;
 
     await getOrCreateUserCredits(metadata.userId);
-    await addCredits(getDb(), metadata.userId, credits, 'paid');
-    log.credits.info({ credits, userId: metadata.userId }, 'Added credits to user');
 
     try {
+      /**
+       * The transaction is written FIRST, as a lock, and only then are the
+       * credits added — the same ordering, for the same reason, as the
+       * subscription path below, whose comment calls it "the single most
+       * dangerous line in this port".
+       *
+       * This path had it the other way round: `addCredits` ran before the
+       * insert, so the unique index on `stripe_payment_intent_id` was checked
+       * only after the money had already moved. Stripe redelivers
+       * `checkout.session.completed` on any non-2xx or timeout — and this same
+       * handler can still throw further down — so every redelivery credited the
+       * customer the full amount again and then logged "Duplicate checkout
+       * event, skipping", which reads as if nothing had happened.
+       *
+       * `isDuplicateTransaction` tests the CONSTRAINT NAME
+       * (`transactions_stripe_payment_intent_id_key`) through the repository,
+       * never `err.code`: a drizzle error's SQLSTATE lives on `cause`, so a
+       * mechanically ported code test matches nothing and the redelivered
+       * webhook escapes past this skip.
+       */
       await insertTransaction(getDb(), {
         oxyUserId: metadata.userId,
         stripeCustomerId: session.customer as string,
@@ -744,11 +762,9 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
         status: 'completed',
         description: `Purchased ${credits.toLocaleString()} credits`,
       });
+      await addCredits(getDb(), metadata.userId, credits, 'paid');
+      log.credits.info({ credits, userId: metadata.userId }, 'Added credits to user');
     } catch (err: unknown) {
-      // `transactions_stripe_payment_intent_id_key`. By CONSTRAINT NAME through
-      // the repository, never `err.code`: a drizzle error's SQLSTATE lives on
-      // `cause`, so a mechanically ported code test matches nothing and the
-      // redelivered webhook escapes past this skip.
       if (isDuplicateTransaction(err)) {
         log.credits.warn({ paymentIntent: session.payment_intent }, 'Duplicate checkout event, skipping');
         return;

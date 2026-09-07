@@ -538,7 +538,12 @@ function scheduleAutomation(automation: AutomationDefinitionRecord): void {
 // ── Webhook verification ───────────────────────────────────────────
 
 export function verifyWebhookSignature(
-  payload: string,
+  /**
+   * The bytes the sender signed. A `Buffer` from `req.rawBody` is what callers
+   * should pass; `string` stays accepted for tests that write a payload out
+   * literally, where the two are the same thing.
+   */
+  payload: Buffer | string,
   signature: string,
   secret: string
 ): boolean {
@@ -546,10 +551,23 @@ export function verifyWebhookSignature(
     .createHmac('sha256', secret)
     .update(payload)
     .digest('hex');
-  return crypto.timingSafeEqual(
-    Buffer.from(signature),
-    Buffer.from(expected)
-  );
+  /**
+   * The length guard is not an optimisation. `timingSafeEqual` THROWS a
+   * `RangeError` on buffers of different lengths, and `signature` here is the
+   * `x-trigger-signature` header on the public, unauthenticated
+   * `POST /triggers/webhook/:token` — so any header that was not exactly 64
+   * hex characters produced a 500 from the route's catch instead of a 403.
+   * An attacker learned "wrong length" and "wrong signature" apart, and the
+   * error log filled with a caller's typo.
+   *
+   * Compared as BYTES on both sides. A guard on string length would still
+   * throw for a multi-byte header of the same character count — which is the
+   * defect the identical comparison in `middleware/auth.ts` had.
+   */
+  const presented = Buffer.from(signature, 'utf8');
+  const digest = Buffer.from(expected, 'utf8');
+  if (presented.length !== digest.length) return false;
+  return crypto.timingSafeEqual(presented, digest);
 }
 
 export function generateWebhookToken(): string {
@@ -762,7 +780,24 @@ export async function reloadAutomationSchedule(automationId: string): Promise<vo
 export async function processWebhookTrigger(
   token: string,
   payload: Record<string, any>,
-  headers?: Record<string, string>
+  headers?: Record<string, string>,
+  /**
+   * The bytes as they arrived, for the HMAC.
+   *
+   * The signature used to be computed over `JSON.stringify(payload)` — a
+   * RE-serialisation of what `express.json()` had already parsed. That is not
+   * the document the sender signed: whitespace, unicode escaping, number
+   * formatting and integer-like key ordering all survive the sender and not
+   * the round trip, so legitimately-signed webhooks were rejected as
+   * `Invalid webhook signature`, non-reproducibly, depending on whose
+   * serializer sent them.
+   *
+   * `index.ts` populates `req.rawBody` for every request precisely so a
+   * receiver can do this, and the CrowdSource receiver already insists on it
+   * through `assertRawBody`. Optional here only so the fallback below can name
+   * what it is doing.
+   */
+  rawBody?: Buffer,
 ): Promise<{ success: boolean; result?: string; triggerId?: string; executionId?: string }> {
   const trigger = await findTriggerByWebhookToken(getDb(), token);
 
@@ -776,8 +811,13 @@ export async function processWebhookTrigger(
     if (!signature) {
       return { success: false, result: 'Missing webhook signature' };
     }
-    const payloadStr = JSON.stringify(payload);
-    if (!verifyWebhookSignature(payloadStr, signature, trigger.webhook.secret)) {
+    // Sign what arrived, never a re-serialisation of it. Without the raw body
+    // there is nothing to verify AGAINST, so the answer is a refusal rather
+    // than a re-serialised guess that will reject honest senders at random.
+    if (!rawBody) {
+      return { success: false, result: 'Webhook signature cannot be verified without the raw body' };
+    }
+    if (!verifyWebhookSignature(rawBody, signature, trigger.webhook.secret)) {
       return { success: false, result: 'Invalid webhook signature' };
     }
   }
