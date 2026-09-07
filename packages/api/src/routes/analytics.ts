@@ -22,9 +22,17 @@ router.use(authenticateToken);
  * gone rather than ported.
  */
 function startOfWindow(days: unknown): Date {
-  const parsed = parseInt(days as string) || 30;
+  /**
+   * Bounded, because `parseInt(days) || 30` accepted anything a caller typed.
+   * `?days=-30` put the start of the window THIRTY DAYS IN THE FUTURE, so
+   * every query answered empty and looked like a user with no activity rather
+   * than like a bad request; `?days=100000` asked Postgres to scan the whole
+   * table. One year is well past any window the dashboards offer.
+   */
+  const parsed = parseInt(days as string);
+  const clamped = Number.isFinite(parsed) ? Math.min(365, Math.max(1, parsed)) : 30;
   const startDate = new Date();
-  startDate.setDate(startDate.getDate() - parsed);
+  startDate.setDate(startDate.getDate() - clamped);
   return startDate;
 }
 

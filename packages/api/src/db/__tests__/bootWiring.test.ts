@@ -140,7 +140,22 @@ describe('src/index.ts boot wiring', () => {
   it('starts the expiry sweeper', () => {
     // The 14 TTL indexes this service used to have are now rows that only this
     // loop deletes. Without the call they are never deleted at all.
-    expect(source).toContain('startExpirySweeper()');
+    expect(source).toContain('startExpirySweeper(');
+  });
+
+  it('starts the expiry sweeper UNDER the leader lease', () => {
+    /**
+     * `db/expirySweeper.ts` says the sweep "runs under the existing leader
+     * election, beside the trigger engine". The call here was unconditional, so
+     * with `desiredCount: N` every task ran the full delete across every target
+     * every five minutes — N times the write load the module claims to avoid,
+     * with N tasks contending on the same rows.
+     *
+     * Asserting the ARGUMENT rather than just the call, because
+     * `startExpirySweeper()` with no predicate defaults to "always leader" and
+     * would restore exactly the behaviour this exists to prevent.
+     */
+    expect(source).toContain('startExpirySweeper(isTriggerLeader)');
   });
 
   it('stops the expiry sweeper on shutdown', () => {

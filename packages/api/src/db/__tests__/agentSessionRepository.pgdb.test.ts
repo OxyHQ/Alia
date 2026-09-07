@@ -16,7 +16,7 @@ import {
   findAgentSessionContainerId,
   findAgentSessionOwnedBy,
   findAgentSessionStatus,
-  findLatestAgentSession,
+  findLatestAgentSessionOwnedBy,
   listActiveAgentSessions,
   listAgentSessionHistory,
   listAgentSessionsForAudit,
@@ -474,15 +474,46 @@ describe('the task listings', () => {
 });
 
 describe('the reads the runner and the routes make', () => {
-  it('finds the newest session of an agent in the named states', async () => {
+  it('finds the newest session THIS user has with an agent, in the named states', async () => {
     const agentId = await seedAgent();
     await seedSession(agentId, { status: 'failed' });
     const running = await seedSession(agentId, { status: 'running' });
 
-    expect(await findLatestAgentSession(db, agentId, ['running', 'completed'])).toEqual({
+    expect(await findLatestAgentSessionOwnedBy(db, agentId, OWNER, ['running', 'completed'])).toEqual({
       _id: running._id,
     });
-    expect(await findLatestAgentSession(db, agentId, [])).toBeNull();
+    expect(await findLatestAgentSessionOwnedBy(db, agentId, OWNER, [])).toBeNull();
+  });
+
+  /**
+   * The cross-tenant read this function replaced an unscoped one to prevent.
+   *
+   * `GET /agents/:id/activity` sat behind `optionalAuth` and asked for "the
+   * newest session of this agent" with no user in the question. A published
+   * agent is run by many people, so for a published agent that was reliably
+   * SOMEONE ELSE'S session — and `getRecentActivity` returns its tool calls,
+   * tool results, file changes and screenshots.
+   *
+   * Two users with a session on one agent is therefore the case worth a test
+   * of its own: each must see only their own, and the newest session overall
+   * belonging to the other user must not leak through.
+   */
+  it('never returns another user session, even when theirs is the newest', async () => {
+    const agentId = await seedAgent();
+    const mine = await seedSession(agentId, { status: 'running' });
+    // Seeded second, so it is the newest overall — which is exactly what the
+    // unscoped read used to hand to anybody who asked.
+    const theirs = await seedSession(agentId, { status: 'running', oxyUserId: OTHER });
+
+    expect(await findLatestAgentSessionOwnedBy(db, agentId, OWNER, ['running'])).toEqual({
+      _id: mine._id,
+    });
+    expect(await findLatestAgentSessionOwnedBy(db, agentId, OTHER, ['running'])).toEqual({
+      _id: theirs._id,
+    });
+    expect(
+      await findLatestAgentSessionOwnedBy(db, agentId, `stranger-${suffix()}`, ['running']),
+    ).toBeNull();
   });
 
   it('lists the unfinished sessions a status change cancels', async () => {

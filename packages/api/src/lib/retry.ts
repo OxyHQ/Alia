@@ -30,15 +30,25 @@ export async function withRetry<T>(
 ): Promise<T> {
   const { maxAttempts, minDelay, maxDelay, shouldRetry } = { ...DEFAULT_OPTIONS, ...opts };
 
+  /**
+   * At least one attempt, always.
+   *
+   * With `maxAttempts <= 0` the loop below never ran, so `fn` was never called
+   * and the function fell through to `throw lastError` — throwing `undefined`.
+   * A caller that computed its attempt count and got zero saw neither its
+   * operation happen nor an error it could read.
+   */
+  const attempts = Math.max(1, Math.floor(maxAttempts));
+
   let lastError: unknown;
 
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+  for (let attempt = 1; attempt <= attempts; attempt++) {
     try {
       return await fn();
     } catch (error: unknown) {
       lastError = error;
 
-      if (attempt >= maxAttempts || !shouldRetry(error)) {
+      if (attempt >= attempts || !shouldRetry(error)) {
         throw error;
       }
 
@@ -51,7 +61,7 @@ export async function withRetry<T>(
       const retryAfterSec = getRetryAfterHeader(error);
       const finalDelay = retryAfterSec ? Math.max(delay, retryAfterSec * 1000) : delay;
 
-      log.general.warn({ attempt, maxAttempts, delay: finalDelay, error: getErrorMessage(error) }, 'Retrying after transient failure');
+      log.general.warn({ attempt, maxAttempts: attempts, delay: finalDelay, error: getErrorMessage(error) }, 'Retrying after transient failure');
       await new Promise(resolve => setTimeout(resolve, finalDelay));
     }
   }

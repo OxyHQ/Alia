@@ -274,7 +274,11 @@ describe('every principal a request can acquire is mapped (#139 ws15)', () => {
     {
       file: 'packages/api/src/middleware/auth.ts',
       after: 'const serviceSecret = process.env.SERVICE_SECRET;',
-      guard: 'crypto.timingSafeEqual(Buffer.from(token), Buffer.from(serviceSecret))',
+      // Both sides are Buffers built once above. They used to be built inline
+      // as `Buffer.from(token)` / `Buffer.from(serviceSecret)` behind a guard
+      // on STRING length, which throws a `RangeError` for a multi-byte token of
+      // the same character count — a 500 where a 401 belongs.
+      guard: 'crypto.timingSafeEqual(presented, expected)',
       header: 'authorization',
     },
   ] as const;
