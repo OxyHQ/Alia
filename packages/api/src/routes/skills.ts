@@ -475,6 +475,20 @@ router.get('/:idOrName/files/*', optionalAuth, async (req: Request, res: Respons
     return fail(res, 500, 'Failed to read that file', 'skill_error');
   }
   res.type(object.contentType);
+  /**
+   * `.pipe()` does NOT forward the source's errors, so a readable with no
+   * `'error'` listener emits an unhandled `'error'` — which is an
+   * `uncaughtException`, which `index.ts` answers by exiting the process. One
+   * truncated S3 read took the API down for every user.
+   *
+   * Headers are already sent by the time a mid-flight failure can happen, so
+   * destroying the socket is the only honest end: a truncated body that closes
+   * cleanly reads as a complete file. Same shape as `routes/media.ts`.
+   */
+  object.body.on('error', (err: unknown) => {
+    log.skills.warn({ err, path, key: file.s3Key }, 'Skill file stream failed mid-flight');
+    res.destroy();
+  });
   object.body.pipe(res);
 });
 

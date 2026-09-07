@@ -157,21 +157,16 @@ function WorkflowEditorInner() {
     [nodes.length, setNodes]
   );
 
-  const handleNodesUpdate = useCallback(
-    (newNodes: WorkflowNode[]) => {
-      setNodes(newNodes);
-      setHasChanges(true);
-    },
-    [setNodes]
-  );
-
-  const handleEdgesUpdate = useCallback(
-    (newEdges: Edge[]) => {
-      setEdges(newEdges);
-      setHasChanges(true);
-    },
-    [setEdges]
-  );
+  /**
+   * There are no `handleNodesUpdate` / `handleEdgesUpdate` here any more.
+   *
+   * They were passed to `WorkflowCanvas` as required props that its own
+   * parameter list never destructured, so neither could ever be called — the
+   * canvas propagates changes through `onNodesChange` / `onEdgesChange`
+   * instead. Removing the props and the handlers together is what makes that
+   * readable: a required prop nobody uses looks like wiring, and reads as if
+   * edits were flowing through it.
+   */
 
   const handleNodeUpdate = useCallback(
     (nodeId: string, data: Partial<WorkflowNode["data"]>) => {
@@ -323,14 +318,17 @@ function WorkflowEditorInner() {
     setSelectedNode(null);
   };
 
-  const handleSelectTemplate = (templateNodes: WorkflowNode[], templateEdges: Edge[], name: string) => {
-    setWorkflowId(null);
-    setWorkflowName(name);
-    setNodes(templateNodes);
-    setEdges(templateEdges);
-    setHasChanges(true);
-    setSelectedNode(null);
-  };
+  /**
+   * `handleSelectTemplate` is gone with it, and `TemplatesDialog` with that.
+   *
+   * The dialog component exists in the tree and is imported by nothing; the
+   * toolbar declared an `onSelectTemplate` prop, received this handler, and
+   * never destructured it — so there was no control anywhere that could reach
+   * a template. The feature was plumbed and never wired up.
+   *
+   * Called out in the pull request rather than only here, because deleting an
+   * unfinished feature is a product decision and one revert away either way.
+   */
 
   const handleSelectHistoryRun = (output: string) => {
     setExecution({
@@ -372,7 +370,6 @@ function WorkflowEditorInner() {
         onNew={handleNew}
         onClear={handleClear}
         onOpenHistory={() => setShowHistoryDialog(true)}
-        onSelectTemplate={handleSelectTemplate}
         onAddNode={handleAddNode}
         onToggleOutput={() => setShowOutput(!showOutput)}
         isExecuting={isExecuting}
@@ -388,8 +385,6 @@ function WorkflowEditorInner() {
           onNodesChange={handleNodesChangeWrapper}
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
-          onNodesUpdate={handleNodesUpdate}
-          onEdgesUpdate={handleEdgesUpdate}
         />
 
         {selectedNode && !showOutput && (

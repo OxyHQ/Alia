@@ -69,6 +69,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { useCatalogue } from '@/hooks/use-catalogue';
 import config from '@/lib/config';
+import { createSseFrameReader } from '@/lib/sse-frame-reader';
 
 export const Route = createFileRoute('/_layout/playground')({
   component: PlaygroundPage,
@@ -187,33 +188,38 @@ function PlaygroundPage() {
       if (!reader) throw new Error('No response body');
 
       const decoder = new TextDecoder();
+      // Frame reassembly, because a chunk boundary falls wherever the network
+      // puts it. Reading `chunk.split('\n')` with no carry-over meant a frame
+      // split across two reads arrived as truncated JSON and was swallowed by
+      // the `catch` below — the token it carried just never appeared.
+      const sse = createSseFrameReader();
       let assistantContent = '';
 
       for (;;) {
         const { done, value } = await reader.read();
         if (done) break;
 
-        const chunk = decoder.decode(value);
-        const lines = chunk.split('\n');
+        // `{ stream: true }`: without it a multi-byte character split across
+        // two reads decodes to U+FFFD, which is how accents and emoji came out
+        // mangled at random.
+        const chunk = decoder.decode(value, { stream: true });
 
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const data = line.slice(6);
-            if (data === '[DONE]') continue;
+        for (const frame of sse.push(chunk)) {
+          const data = frame.data;
+          if (data === '[DONE]') continue;
 
-            try {
-              const parsed = JSON.parse(data);
-              const content = parsed.choices?.[0]?.delta?.content;
-              if (content) {
-                assistantContent += content;
-                setStreamingContent(assistantContent);
-              }
-              if (parsed.usage) {
-                setUsage(parsed.usage);
-              }
-            } catch {
-              // Skip invalid JSON
+          try {
+            const parsed = JSON.parse(data);
+            const content = parsed.choices?.[0]?.delta?.content;
+            if (content) {
+              assistantContent += content;
+              setStreamingContent(assistantContent);
             }
+            if (parsed.usage) {
+              setUsage(parsed.usage);
+            }
+          } catch {
+            // Skip invalid JSON
           }
         }
       }

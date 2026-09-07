@@ -297,7 +297,10 @@ router.post('/webhook/:token', async (req: Request, res: Response) => {
     const { success, result, triggerId, executionId } = await processWebhookTrigger(
       String(token),
       payload,
-      headers
+      headers,
+      // The bytes as they arrived. Signing `JSON.stringify(req.body)` instead
+      // verifies a re-serialisation the sender never produced.
+      req.rawBody,
     );
 
     if (!success && !triggerId) {

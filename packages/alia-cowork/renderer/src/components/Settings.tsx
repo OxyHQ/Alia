@@ -1,4 +1,3 @@
-import * as React from "react"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { Moon02Icon, Sun03Icon, ComputerIcon } from "@hugeicons/core-free-icons"
 import { useAuth } from "@/contexts/AuthContext"

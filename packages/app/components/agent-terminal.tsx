@@ -299,9 +299,32 @@ const TERMINAL_HTML = `
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5/css/xterm.css" />
-  <script src="https://cdn.jsdelivr.net/npm/xterm@5/lib/xterm.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.min.js"></script>
+  <!--
+    Pinned to an EXACT version, with Subresource Integrity.
+
+    This WebView is loaded with \`originWhitelist={["*"]}\`, and it was pointed
+    at \`xterm@5\` — a floating major — with no integrity hash: whatever the CDN
+    served under that range executed, and any future 5.x publish changed what
+    ran inside the terminal with no change here. \`5\` resolved to 5.3.0 when
+    these hashes were taken, so the pin is not a behaviour change; the browser
+    now refuses anything that does not match.
+
+    This is a mitigation and not the fix. The package already depends on
+    \`@xterm/xterm ^6\` and \`@xterm/addon-fit ^0.11\` — which is what the WEB
+    path uses — so the native terminal runs a different major of the library
+    from the web one, and neither works offline. Bundling the dependency the
+    package already declares is the real answer, and it needs a native run to
+    verify (the v6 UMD global differs), which is why it is not done here.
+  -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css"
+        integrity="sha384-LJcOxlx9IMbNXDqJ2axpfEQKkAYbFjJfhXexLfiRJhjDU81mzgkiQq8rkV0j6dVh"
+        crossorigin="anonymous" />
+  <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js"
+          integrity="sha384-xjfWUeCWdMtvpAb/SmM6lMzS6pQGcQa0loOl1d97j6Odw0vjK9nW3+dTb/bn/mwH"
+          crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.min.js"
+          integrity="sha384-XGqKrV8Jrukp1NITJbOEHwg01tNkuXr6uB6YEj69ebpYU3v7FvoGgEg23C1Gcehk"
+          crossorigin="anonymous"></script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body { width: 100%; height: 100%; background: #0d0d0d; overflow: hidden; }

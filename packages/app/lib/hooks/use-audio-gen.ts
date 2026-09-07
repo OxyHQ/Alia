@@ -62,16 +62,30 @@ export function useAudioGen() {
   const [error, setError] = useState<string | null>(null);
   const [activeMessageId, setActiveMessageId] = useState<string | null>(null);
   const playerRef = useRef<any>(null);
-  const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const abortRef = useRef(false);
   const socketRef = useRef<Socket | null>(null);
 
-  const clearPollTimer = useCallback(() => {
-    if (pollTimerRef.current) {
-      clearTimeout(pollTimerRef.current);
-      pollTimerRef.current = null;
-    }
-  }, []);
+  /**
+   * Which generation is current. Incremented by anything that supersedes work
+   * already in flight — `stop()`, a new `generateAudio`, unmount.
+   *
+   * This replaces a shared `abortRef` boolean and a shared `pollTimerRef`, and
+   * both were races rather than tidiness:
+   *
+   *  * `generateAudio` called `stop()` (setting `abortRef` true) and then
+   *    immediately set it back to `false`. The previous job's abort checker
+   *    runs on a 200 ms interval, so it read `false`, never rejected, kept its
+   *    socket listener, and when it eventually resolved the OLD invocation
+   *    carried on past `await waitForResult` and played its audio over the new
+   *    one.
+   *  * `pollTimerRef` was one handle for every concurrent wait. A second call
+   *    overwrote the first's handle; the first's cleanup then cleared the
+   *    SECOND's polling fallback, so if that job's socket event was missed it
+   *    hung until its three-minute deadline.
+   *
+   * A counter answers "is this still the current work?" for each invocation
+   * separately, which a single boolean and a single handle cannot.
+   */
+  const generationRef = useRef(0);
 
   const releasePlayer = useCallback(() => {
     try {
@@ -83,13 +97,12 @@ export function useAudioGen() {
   }, []);
 
   const stop = useCallback(() => {
-    abortRef.current = true;
-    clearPollTimer();
+    generationRef.current += 1;
     releasePlayer();
     setState('idle');
     setActiveMessageId(null);
     setError(null);
-  }, [releasePlayer, clearPollTimer]);
+  }, [releasePlayer]);
 
   // Manage shared socket connection for real-time job updates
   useEffect(() => {
@@ -97,10 +110,22 @@ export function useAudioGen() {
 
     const socket = getSharedSocket(config.apiUrl);
 
-    socket.on('connect', () => {
+    /**
+     * A NAMED handler, removed in the cleanup.
+     *
+     * The socket is shared and reference-counted, so it outlives this hook.
+     * Registering an anonymous `connect` listener and never `off`-ing it meant
+     * one more listener on the same socket for every mount of every component
+     * using this hook — they accumulate for the life of the process, and each
+     * one re-emits `subscribe-notifications` on every reconnect.
+     * `use-show-progress.ts` is the shape this follows: `off` the handler, then
+     * release the reference.
+     */
+    const onConnect = () => {
       // Server derives the room from the authenticated user; arg is ignored.
       socket.emit('subscribe-notifications');
-    });
+    };
+    socket.on('connect', onConnect);
     if (socket.connected) {
       socket.emit('subscribe-notifications');
     }
@@ -108,30 +133,37 @@ export function useAudioGen() {
     socketRef.current = socket;
 
     return () => {
+      socket.off('connect', onConnect);
       socketRef.current = null;
       releaseSharedSocket();
     };
   }, [isAuthenticated, userId]);
 
-  // Clean up timer and player on unmount
+  // Clean up player on unmount. Bumping the generation is what stops every
+  // in-flight wait: each one owns its own timer and drops it when it sees it
+  // has been superseded.
   useEffect(() => {
     return () => {
-      abortRef.current = true;
-      clearPollTimer();
+      generationRef.current += 1;
       try { playerRef.current?.remove(); } catch { /* player may already be released on unmount */ }
     };
-  }, [clearPollTimer]);
+  }, []);
 
   /**
    * Wait for job completion via Socket.IO push, with polling fallback.
    * Socket events arrive instantly; polling kicks in as a safety net.
    */
-  const waitForResult = useCallback(async (jobId: string): Promise<string> => {
+  const waitForResult = useCallback(async (jobId: string, generation: number): Promise<string> => {
     const deadline = Date.now() + MAX_POLL_DURATION_MS;
+    /** Superseded by a later generation — this invocation's work is stale. */
+    const isStale = () => generationRef.current !== generation;
 
     return new Promise<string>((resolve, reject) => {
       let settled = false;
       let abortChecker: ReturnType<typeof setInterval> | null = null;
+      // Local to THIS wait, so two concurrent waits cannot clear each other's
+      // polling fallback.
+      let pollTimer: ReturnType<typeof setTimeout> | null = null;
 
       const settle = (fn: () => void) => {
         if (settled) return;
@@ -141,7 +173,10 @@ export function useAudioGen() {
       };
 
       const cleanup = () => {
-        clearPollTimer();
+        if (pollTimer) {
+          clearTimeout(pollTimer);
+          pollTimer = null;
+        }
         if (abortChecker) {
           clearInterval(abortChecker);
           abortChecker = null;
@@ -167,7 +202,7 @@ export function useAudioGen() {
 
       // Polling fallback — in case socket is disconnected or event is missed
       const poll = async () => {
-        if (settled || abortRef.current) return;
+        if (settled || isStale()) return;
         if (Date.now() >= deadline) {
           settle(() => reject(new Error('Generation timed out')));
           return;
@@ -187,26 +222,26 @@ export function useAudioGen() {
           // Transient poll failure — continue
         }
 
-        if (!settled && !abortRef.current) {
-          pollTimerRef.current = setTimeout(poll, POLL_INTERVAL_MS);
+        if (!settled && !isStale()) {
+          pollTimer = setTimeout(poll, POLL_INTERVAL_MS);
         }
       };
 
       // Start first poll after a short delay (give socket a chance to deliver first)
-      pollTimerRef.current = setTimeout(poll, POLL_INTERVAL_MS);
+      pollTimer = setTimeout(poll, POLL_INTERVAL_MS);
 
-      // Check periodically if user cancelled
+      // Check periodically whether this work has been superseded
       abortChecker = setInterval(() => {
-        if (abortRef.current || settled) {
+        if (isStale() || settled) {
           clearInterval(abortChecker!);
           abortChecker = null;
-          if (abortRef.current) {
+          if (isStale()) {
             settle(() => reject(new Error('Cancelled')));
           }
         }
       }, 200);
     });
-  }, [clearPollTimer]);
+  }, []);
 
   const generateAudio = useCallback(async (
     messageId: string,
@@ -224,8 +259,13 @@ export function useAudioGen() {
       stop();
     }
 
+    // Claim a generation for THIS request. Anything already in flight is
+    // superseded by the increment and will drop its own work. Declared outside
+    // the `try` so the `catch` can tell a real failure from a superseded one.
+    const generation = generationRef.current + 1;
+    generationRef.current = generation;
+
     try {
-      abortRef.current = false;
       setActiveMessageId(messageId);
       setState('generating');
       setError(null);
@@ -241,9 +281,9 @@ export function useAudioGen() {
       const { jobId } = submitData;
 
       // Wait for completion via socket push + polling fallback
-      const audioUrl = await waitForResult(jobId);
+      const audioUrl = await waitForResult(jobId, generation);
 
-      if (abortRef.current) return;
+      if (generationRef.current !== generation) return;
 
       // Play the generated audio
       releasePlayer();
@@ -262,7 +302,8 @@ export function useAudioGen() {
       player.play();
       setState('playing');
     } catch (e: unknown) {
-      if (abortRef.current) return; // user cancelled — don't show error
+      // Superseded or cancelled — the newer request owns the UI now.
+      if (generationRef.current !== generation) return;
       console.error('[AudioGen] Error:', e);
       const msg = getErrorMessage(e, 'Failed to generate audio');
       setError(msg);

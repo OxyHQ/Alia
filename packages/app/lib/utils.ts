@@ -1,276 +1,66 @@
 import { clsx, type ClassValue } from "clsx";
 import { Platform } from "react-native";
 import { twMerge } from "tailwind-merge";
-import type { Message as DBMessage, Document } from "@/lib/db/schema";
 
-import type { ToolInvocation } from "@/lib/types/messages";
 import { createRandomUuid } from "@/lib/utils/random-uuid";
 
-export interface MessageAnnotation {
-  messageIdFromServer?: string;
-}
-
-export interface Message {
-  id: string;
-  role: "user" | "assistant" | "system";
-  content: string;
-  toolInvocations?: ToolInvocation[];
-  annotations?: MessageAnnotation[];
-}
-
-export interface CoreMessage {
-  role: string;
-  content: string | any[];
-}
-
-export interface CoreToolMessage extends CoreMessage {
-  role: "tool";
-  content: Array<{
-    type: "tool-result";
-    toolCallId: string;
-    result: any;
-  }>;
-}
-
-export interface CoreAssistantMessage extends CoreMessage {
-  role: "assistant";
-  content: string | Array<{
-    type: "text" | "tool-call";
-    text?: string;
-    toolCallId?: string;
-    toolName?: string;
-    args?: any;
-  }>;
-}
+/**
+ * The four helpers this app actually uses.
+ *
+ * ## What was removed, and why it was worse than dead weight
+ *
+ * This file carried ~230 further lines from the Vercel `ai-chatbot` template
+ * it was started from: `fetcher`, `getLocalStorage`, `convertToUIMessages`,
+ * `sanitizeResponseMessages`, `sanitizeUIMessages`, `getMostRecentUserMessage`,
+ * `getDocumentTimestampByIndex`, `getMessageIdFromAnnotations`,
+ * `isValidYoutubeUrl`, `isIOS` and `isNative`, none of them imported anywhere.
+ *
+ * The types went with them, and they are the reason this is not merely
+ * tidying. A `Message` interface lived here — a DIFFERENT `Message` from the
+ * one in `lib/hooks/use-conversations.ts` that the app actually passes around,
+ * with a different shape and the same name, one import away from being picked
+ * up by autocomplete in a file that meant the real one. `CoreMessage`,
+ * `CoreToolMessage`, `CoreAssistantMessage` and `MessageAnnotation` were the
+ * same story.
+ *
+ * They also kept `lib/db/schema.ts` alive: a Drizzle-shaped module for a
+ * database this app has never had, whose only importer was the type import at
+ * the top of this file. It is deleted with them.
+ */
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export function isValidYoutubeUrl(url: string) {
-  const youtubeRegex = /^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.be)\/.+$/;
-  return youtubeRegex.test(url);
-}
-
 export function isWeb() {
   return Platform.OS === "web";
 }
-export function isNative() {
-  return Platform.OS === "ios" || Platform.OS === "android";
-}
-export function isIOS() {
-  return Platform.OS === "ios";
-}
 
-interface ApplicationError extends Error {
-  info: string;
-  status: number;
-}
-
-export const fetcher = async (url: string) => {
-  const res = await fetch(url);
-
-  if (!res.ok) {
-    const error = new Error(
-      "An error occurred while fetching the data.",
-    ) as ApplicationError;
-
-    error.info = await res.json();
-    error.status = res.status;
-
-    throw error;
-  }
-
-  return res.json();
-};
-
-export function getLocalStorage(key: string) {
-  if (typeof window !== "undefined") {
-    return JSON.parse(localStorage.getItem(key) || "[]");
-  }
-  return [];
-}
-
+/**
+ * A UUID that works on every platform this app runs on.
+ *
+ * `createRandomUuid` is the seam: `crypto.randomUUID` is absent in the Hermes
+ * runtime and on insecure web origins, so the choice is made once there rather
+ * than at each call site.
+ */
 export function generateUUID(): string {
   return createRandomUuid();
 }
 
-function addToolMessageToChat({
-  toolMessage,
-  messages,
-}: {
-  toolMessage: CoreToolMessage;
-  messages: Array<Message>;
-}): Array<Message> {
-  return messages.map((message) => {
-    if (message.toolInvocations) {
-      return {
-        ...message,
-        toolInvocations: message.toolInvocations.map((toolInvocation) => {
-          const toolResult = toolMessage.content.find(
-            (tool) => tool.toolCallId === toolInvocation.toolCallId,
-          );
-
-          if (toolResult) {
-            return {
-              ...toolInvocation,
-              state: "result",
-              result: toolResult.result,
-            };
-          }
-
-          return toolInvocation;
-        }),
-      };
-    }
-
-    return message;
-  });
-}
-
-export function convertToUIMessages(
-  messages: Array<DBMessage>,
-): Array<Message> {
-  return messages.reduce((chatMessages: Array<Message>, message) => {
-    if (message.role === "tool") {
-      return addToolMessageToChat({
-        toolMessage: message as CoreToolMessage,
-        messages: chatMessages,
-      });
-    }
-
-    let textContent = "";
-    const toolInvocations: Array<ToolInvocation> = [];
-
-    if (typeof message.content === "string") {
-      textContent = message.content;
-    } else if (Array.isArray(message.content)) {
-      for (const content of message.content) {
-        if (content.type === "text") {
-          textContent += content.text;
-        } else if (content.type === "tool-call") {
-          toolInvocations.push({
-            state: "call",
-            toolCallId: content.toolCallId,
-            toolName: content.toolName,
-            args: content.args,
-          });
-        }
-      }
-    }
-
-    chatMessages.push({
-      id: message.id,
-      role: message.role as Message["role"],
-      content: textContent,
-      toolInvocations,
-    });
-
-    return chatMessages;
-  }, []);
-}
-
-export function sanitizeResponseMessages(
-  messages: Array<CoreToolMessage | CoreAssistantMessage>,
-): Array<CoreToolMessage | CoreAssistantMessage> {
-  const toolResultIds: Array<string> = [];
-
-  for (const message of messages) {
-    if (message.role === "tool") {
-      for (const content of message.content) {
-        if (content.type === "tool-result") {
-          toolResultIds.push(content.toolCallId);
-        }
-      }
-    }
-  }
-
-  const messagesBySanitizedContent = messages.map((message) => {
-    if (message.role !== "assistant") return message;
-
-    if (typeof message.content === "string") return message;
-
-    const sanitizedContent = message.content.filter((content) =>
-      content.type === "tool-call"
-        ? content.toolCallId !== undefined &&
-          toolResultIds.includes(content.toolCallId)
-        : content.type === "text"
-          ? (content.text?.length ?? 0) > 0
-          : true,
-    );
-
-    return {
-      ...message,
-      content: sanitizedContent,
-    };
-  });
-
-  return messagesBySanitizedContent.filter(
-    (message) => message.content.length > 0,
-  );
-}
-
-export function sanitizeUIMessages(messages: Array<Message>): Array<Message> {
-  const messagesBySanitizedToolInvocations = messages.map((message) => {
-    if (message.role !== "assistant") return message;
-
-    if (!message.toolInvocations) return message;
-
-    const toolResultIds: Array<string> = [];
-
-    for (const toolInvocation of message.toolInvocations) {
-      if (toolInvocation.state === "result") {
-        toolResultIds.push(toolInvocation.toolCallId);
-      }
-    }
-
-    const sanitizedToolInvocations = message.toolInvocations.filter(
-      (toolInvocation) =>
-        toolInvocation.state === "result" ||
-        toolResultIds.includes(toolInvocation.toolCallId),
-    );
-
-    return {
-      ...message,
-      toolInvocations: sanitizedToolInvocations,
-    };
-  });
-
-  return messagesBySanitizedToolInvocations.filter(
-    (message) =>
-      message.content.length > 0 ||
-      (message.toolInvocations && message.toolInvocations.length > 0),
-  );
-}
-
-export function getMostRecentUserMessage(messages: Array<CoreMessage>) {
-  const userMessages = messages.filter((message) => message.role === "user");
-  return userMessages.at(-1);
-}
-
 export function formatFileSize(bytes: number): string {
-  if (bytes === 0) return '0 B';
+  if (!Number.isFinite(bytes) || bytes <= 0) return '0 B';
   const k = 1024;
-  const sizes = ['B', 'KB', 'MB', 'GB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i];
-}
-
-export function getDocumentTimestampByIndex(
-  documents: Array<Document>,
-  index: number,
-) {
-  if (!documents) return new Date();
-  if (index > documents.length) return new Date();
-
-  return documents[index].createdAt;
-}
-
-export function getMessageIdFromAnnotations(message: Message) {
-  if (!message.annotations) return message.id;
-
-  const [annotation] = message.annotations;
-  if (!annotation) return message.id;
-
-  return annotation.messageIdFromServer ?? message.id;
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+  /**
+   * Clamped to the unit table.
+   *
+   * `Math.floor(Math.log(bytes) / Math.log(k))` is unbounded at both ends, and
+   * `sizes[i]` is `undefined` outside it — so a file of a terabyte or more read
+   * "1 undefined", and any size below one byte (a fractional value, which
+   * `attachment.size` can be) took `log` of a number below 1, giving `i = -1`
+   * and the same undefined unit. Negative and non-finite inputs went further:
+   * `Math.log` of them is `NaN`, and `sizes[NaN]` is undefined too.
+   */
+  const i = Math.min(sizes.length - 1, Math.max(0, Math.floor(Math.log(bytes) / Math.log(k))));
+  return `${String(Math.round((bytes / Math.pow(k, i)) * 100) / 100)} ${sizes[i]}`;
 }

@@ -6,6 +6,7 @@ import { closePostgres, connectPostgres } from './db';
 import type { AccountAdapter } from './accounts/types';
 import type { BotAdapter } from './bots/types';
 import { setWss, type SessionWebSocket } from './realtime/wss-global';
+import { authorizeUpgrade, maySubscribe } from './realtime/subscription-auth';
 import { createLogger } from './shared/logger';
 
 const logger = createLogger('Integrations');
@@ -197,12 +198,41 @@ async function main() {
 
   // WebSocket for real-time streaming (terminal output, browser screenshots)
   const wss = new WebSocketServer({ server, path: '/ws' });
-  wss.on('connection', (ws) => {
+  /**
+   * The upgrade carries the SAME credentials the HTTP routes require, and the
+   * subscription is bound to the user they identify.
+   *
+   * Before this, `/ws` had no secret check and no user check: it took the
+   * session id straight off the client's first frame, so a `subscribe` naming
+   * another user's `${oxyUserId}:${clientSessionId}` streamed that PTY's
+   * output back — the exact cross-user addressing `requireSessionOwner` says
+   * it prevents "even if the gateway secret leaks". The HTTP half was scoped
+   * and the WebSocket half was open.
+   *
+   * The rules live in `realtime/subscription-auth.ts` so they can be tested
+   * without racing a socket against a live server; this is the wiring.
+   */
+  wss.on('connection', (ws, request) => {
+    const verdict = authorizeUpgrade(request.headers, INTEGRATIONS_SECRET, verifySecret);
+    if (!verdict.ok) {
+      logger.debug('Rejected a WebSocket upgrade:', verdict.reason);
+      // 1008 is "policy violation" — the honest code, and it reaches the client
+      // as a close reason rather than as a connection that silently never
+      // receives anything.
+      ws.close(1008, verdict.reason);
+      return;
+    }
+
+    const ownerUserId = verdict.userId;
     ws.on('message', (data) => {
       try {
         const msg = JSON.parse(data.toString());
         // Handle subscribe/unsubscribe to session streams
         if (msg.type === 'subscribe') {
+          if (!maySubscribe(ownerUserId, msg.sessionId)) {
+            logger.debug('Refused a subscription outside the connection owner namespace');
+            return;
+          }
           (ws as SessionWebSocket).sessionId = msg.sessionId;
         }
       } catch (err) {

@@ -10,7 +10,6 @@ export {
   AliaError,
   AliaErrorCode,
   isAliaError,
-  toSSEError,
   type AliaErrorParams,
   type FailoverReason,
 } from './error-codes';

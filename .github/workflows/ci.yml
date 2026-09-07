@@ -178,6 +178,17 @@ jobs:
       - name: Verify that gate can still fail
         run: node .github/scripts/test-check-dns-record-filters.mjs
 
+      # The Mongo runtime boundary is a documented invariant
+      # (docs/mongodb-runtime-boundary.md) enforced by a script that had never
+      # been observed doing anything but passing — and it had stopped looking
+      # over most of the tree. Its manifest pattern could not see either nested
+      # workspace, and its source pattern assumed every workspace keeps code in
+      # `src/`, which `packages/app` does not: 1,009 of 1,539 tracked files were
+      # scanned, the largest client in the repository among the missing 530.
+      # Here because this job installs nothing and needs no workspace.
+      - name: Verify the Mongo runtime gate can still fail
+        run: node .github/scripts/test-check-no-mongodb-runtime.mjs
+
       # Runs in the one job that installs nothing, so it reports before the jobs
       # it protects would fail. See the header comment: the cache is the only
       # thing stopping an unauthenticatable GitHub fetch on every install.
@@ -322,21 +333,51 @@ jobs:
       - name: Test console
         run: bun run --filter alia-console test
 
-      # Nitro depends on unstorage, whose broad OPTIONAL peer set leaves a
-      # mongodb resolution in bun.lock even though Alia is PostgreSQL-only.
-      # Replacing Nitro is outside this cutover; build the actual server and
-      # prove the optional driver did not enter its runtime artefact.
-      - name: Prove the console runtime contains no Mongo driver
-        run: |
-          bun run --filter alia-console build
-          node scripts/check-no-mongodb-runtime.mjs
-
       # The VS Code extension parses `GET /catalogue` and `GET /catalogue/modes`
       # itself — it bundles with esbuild and cannot depend on an unpublished
       # workspace package, so the parsing is its own. It had a `test` script and
       # a suite that no job ran, which is a suite that cannot fail.
       - name: Test Codea extension
         run: bun run --filter alia-codea test
+
+      # `alia-cowork` declares `"test": "vitest run"` and ships a real suite —
+      # `src/preload/__tests__/index.test.ts`, which caught ten no-op IPC
+      # unsubscribes — and no job has ever called it. Exactly the
+      # suite-that-cannot-fail this file records having fixed for
+      # `alia-console`, `alia-codea` and `@alia/app`; cowork was simply missed.
+      - name: Test Cowork
+        run: bun run --filter alia-cowork test
+
+      # `@alia-codea/cli` had no suite at all until this PR, and it is the
+      # package that applies model-authored patches to a working tree.
+      - name: Test Codea CLI
+        run: bun run --filter @alia-codea/cli test
+
+      # `@alia/docker-host` had no test script, no typecheck script and not one
+      # reference in this file — 984 lines that run arbitrary commands inside
+      # containers on behalf of an agent, checked by nothing. Its path
+      # normalisation and shell quoting have a suite now; the typecheck is
+      # picked up automatically by `typecheck-workspaces.ts`.
+      - name: Test Docker host
+        run: bun run --filter @alia/docker-host test
+
+      # `alia-canvas` had a `tsc -b` and a wrangler dry-run between them and
+      # nothing else. Its first subject is `lib/product-modes.ts`, which decides
+      # what a person is offered and what identifier a node stores — the file
+      # whose own header records that the module it replaced showed a hardcoded
+      # alias name under a label reading "Model", for every node, for as long as
+      # the editor existed.
+      - name: Test Canvas
+        run: bun run --filter alia-canvas test
+
+      # Three packages carry an `eslint.config.js` and a `lint` script that no
+      # job ran, so the configuration was as good as absent. `@alia/api`'s lint
+      # runs in `Lint & Test`; these are the rest of them.
+      - name: Lint the frontends
+        run: |
+          bun run --filter alia-console lint
+          bun run --filter alia-canvas lint
+          bun run --filter @alia-codea/cli lint
 
       # `@alia/app` has had a `test` script and, until now, no job calling it —
       # the same suite-that-cannot-fail as the two above. The effort selector is
@@ -443,6 +484,32 @@ jobs:
       # `FREE_COLOR_NAMES` is one of the three lists it crosses.
       - name: Check an agent is offered no colour it cannot keep
         run: node scripts/check-agent-colour-vocabulary.mjs
+
+      # LAST in this job, and the position is the point.
+      #
+      # Nitro depends on unstorage, whose broad OPTIONAL peer set leaves a
+      # mongodb resolution in bun.lock even though Alia is PostgreSQL-only.
+      # Replacing Nitro is outside this cutover; build the actual server and
+      # prove the optional driver did not enter its runtime artefact.
+      #
+      # It used to sit third, and that made it a single point of failure for
+      # everything after it. `bun run --filter alia-console build` has been
+      # failing on `main` since the Bloom bump — `@vitejs/plugin-react@6` peers
+      # `vite ^8` while this workspace pins `npm:rolldown-vite@^7.3.1`, so bun
+      # installs a nested vite that does not export `./internal` — and a step
+      # that exits non-zero ends the job. So ELEVEN later checks stopped
+      # reporting: `Test Codea extension`, `Test app`, the route, static-asset,
+      # model-default, Dockerfile, picker-language, model-wording and
+      # agent-colour gates, the solution-style typechecks and the Canvas deploy
+      # dry-run. None of them were red. None of them ran.
+      #
+      # Moving it to the end hides nothing: the job still fails while the build
+      # is broken. It just stops one broken dependency from deciding whether
+      # everything else gets measured.
+      - name: Prove the console runtime contains no Mongo driver
+        run: |
+          bun run --filter alia-console build
+          node scripts/check-no-mongodb-runtime.mjs
 
   build-api:
     name: Build API
