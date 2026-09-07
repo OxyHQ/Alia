@@ -19,6 +19,7 @@ import i18n from '@/lib/i18n';
 import type { Conversation } from '@/lib/hooks/use-conversations';
 import { buildOutboundMessages } from '@/lib/chat-message-history';
 import { hasUsableStreamOutput, type StreamOutputEvidence } from '@/lib/chat/stream-outcome';
+import { createSseFrameReader } from '@/lib/chat/sse-frame-reader';
 
 import type { ToolInvocation } from '@/lib/types/messages';
 import { errorMessage as getErrorMessage, errorStatus, errorCode, errorName } from '../errors/error-utils';
@@ -375,7 +376,24 @@ export function useStreamingChat(apiUrl: string, conversationId?: string, reason
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
-      let buffer = '';
+      /**
+       * Frame reassembly lives in `lib/chat/sse-frame-reader.ts`.
+       *
+       * It used to be loose variables here, and that is how the bug happened:
+       * `buffer` was declared outside the read loop and survived a chunk
+       * boundary, but the current event name was declared INSIDE it and reset
+       * on every `reader.read()`. A frame is `event: X\ndata: {…}\n\n`, so any
+       * frame split between those two lines lost its name, fell through to the
+       * OpenAI-shaped branch below, found no `choices[0]`, and was dropped in
+       * silence — most often for the largest payloads, which are the ones that
+       * do not fit in one read: `alia.title`, `alia.tool_result`,
+       * `alia.plan_preview`, `alia.approval_request`, `alia.agent_session`.
+       *
+       * Two pieces of state that must both outlive a chunk are fields of one
+       * object now, and its test feeds a stream split at every byte offset —
+       * which is not something a test of this hook could do.
+       */
+      const sse = createSseFrameReader();
       let lastHapticAt = 0;
 
       while (true) {
@@ -393,491 +411,480 @@ export function useStreamingChat(apiUrl: string, conversationId?: string, reason
           break;
         }
 
-        // Decode chunk and add to buffer
+        // `{ stream: true }`: a multi-byte character split across two reads
+        // decodes to U+FFFD without it.
         const chunk = decoder.decode(value, { stream: true });
-        buffer += chunk;
 
-        // Process complete lines (supports named SSE events: event: X\ndata: Y)
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || ''; // Keep incomplete line in buffer
+        for (const frame of sse.push(chunk)) {
+          const data = frame.data;
+          const currentEventType = frame.event;
 
-        let currentEventType = '';
-        for (const line of lines) {
-          // Track named SSE event type
-          if (line.startsWith('event: ')) {
-            currentEventType = line.slice(7).trim();
-            continue;
-          }
+          // Skip [DONE] marker
+          if (data === '[DONE]') { continue; }
 
-          // Reset event type on empty line (SSE event boundary)
-          if (line === '') {
-            currentEventType = '';
-            continue;
-          }
+          try {
+            const parsed = JSON.parse(data);
 
-          if (line.startsWith('data: ')) {
-            const data = line.slice(6).trim();
-
-            // Skip [DONE] marker
-            if (data === '[DONE]') { currentEventType = ''; continue; }
-
-            try {
-              const parsed = JSON.parse(data);
-
-              // ── Named SSE events (Alia extensions) ──
-              if (currentEventType) {
-                switch (currentEventType) {
-                  case 'alia.reasoning': {
-                    const content = parsed.content;
-                    if (content) {
-                      pendingReasoningRef.current += content;
-                      scheduleFlush();
-                    }
-                    currentEventType = '';
-                    continue;
+            // ── Named SSE events (Alia extensions) ──
+            if (currentEventType) {
+              switch (currentEventType) {
+                case 'alia.reasoning': {
+                  const content = parsed.content;
+                  if (content) {
+                    pendingReasoningRef.current += content;
+                    scheduleFlush();
                   }
-                  case 'alia.tool_result': {
-                    const { tool_call_id, name, output } = parsed;
-                    if (tool_call_id) {
-                      setMessages((prev) => {
-                        const updated = [...prev];
-                        const lastMessage = updated[updated.length - 1];
-                        if (lastMessage?.role === 'assistant') {
-                          const invocations = [...(lastMessage.toolInvocations || [])];
-                          const idx = invocations.findIndex((t) => t.toolCallId === tool_call_id);
-                          if (idx >= 0) {
-                            invocations[idx] = { ...invocations[idx], state: 'result', result: output };
-                          } else {
-                            invocations.push({ toolCallId: tool_call_id, toolName: name || 'unknown', state: 'result', result: output });
-                          }
-                          updated[updated.length - 1] = { ...lastMessage, toolInvocations: invocations };
-                        }
-                        return updated;
-                      });
-                      // The assistant just rewrote the memory document, so any
-                      // screen showing it (settings/memory) is now out of date.
-                      if (name && MEMORY_WRITING_TOOLS.has(name)) {
-                        queryClient.invalidateQueries({ queryKey: USER_MEMORY_QUERY_KEY });
-                      }
-                      // Detect artifact-like results
-                      if (name === 'generateFile' && output && typeof output === 'object') {
-                        outputEvidence.durableArtifactCount += 1;
-                        const artifactType = output.language ? 'code' : 'markdown';
-                        useUIStore.getState().addCanvasArtifact({
-                          id: tool_call_id,
-                          type: artifactType,
-                          content: artifactType === 'code'
-                            ? { language: output.language, code: output.content }
-                            : { content: output.content },
-                          title: output.filename || output.title || 'Generated file',
-                          timestamp: Date.now(),
-                        });
-                        useUIStore.getState().setRightPanel('canvas');
-                      } else if (output?.artifact) {
-                        outputEvidence.durableArtifactCount += 1;
-                        const a = output.artifact;
-                        useUIStore.getState().addCanvasArtifact({
-                          id: tool_call_id,
-                          type: a.type || 'markdown',
-                          content: a.data || a.content || a,
-                          title: a.title || name || 'Artifact',
-                          timestamp: Date.now(),
-                        });
-                        useUIStore.getState().setRightPanel('canvas');
-                      }
-                    }
-                    currentEventType = '';
-                    continue;
-                  }
-                  case 'alia.agent': {
-                    const am = parsed;
-                    if (typeof am.content === 'string') {
-                      outputEvidence.agentOutputChars += am.content.length;
-                    }
+                  continue;
+                }
+                case 'alia.tool_result': {
+                  const { tool_call_id, name, output } = parsed;
+                  if (tool_call_id) {
                     setMessages((prev) => {
                       const updated = [...prev];
-                      const agentMsg: Message = {
-                        id: `agent-${Date.now()}-${am.agentId}`,
-                        role: 'assistant',
-                        content: am.content,
-                        agentInfo: {
-                          id: am.agentId,
-                          name: am.agentName,
-                          color: am.agentColor ?? null,
-                          handle: am.agentHandle,
+                      const lastMessage = updated[updated.length - 1];
+                      if (lastMessage?.role === 'assistant') {
+                        const invocations = [...(lastMessage.toolInvocations || [])];
+                        const idx = invocations.findIndex((t) => t.toolCallId === tool_call_id);
+                        if (idx >= 0) {
+                          invocations[idx] = { ...invocations[idx], state: 'result', result: output };
+                        } else {
+                          invocations.push({ toolCallId: tool_call_id, toolName: name || 'unknown', state: 'result', result: output });
+                        }
+                        updated[updated.length - 1] = { ...lastMessage, toolInvocations: invocations };
+                      }
+                      return updated;
+                    });
+                    // The assistant just rewrote the memory document, so any
+                    // screen showing it (settings/memory) is now out of date.
+                    if (name && MEMORY_WRITING_TOOLS.has(name)) {
+                      queryClient.invalidateQueries({ queryKey: USER_MEMORY_QUERY_KEY });
+                    }
+                    // Detect artifact-like results
+                    if (name === 'generateFile' && output && typeof output === 'object') {
+                      outputEvidence.durableArtifactCount += 1;
+                      const artifactType = output.language ? 'code' : 'markdown';
+                      useUIStore.getState().addCanvasArtifact({
+                        id: tool_call_id,
+                        type: artifactType,
+                        content: artifactType === 'code'
+                          ? { language: output.language, code: output.content }
+                          : { content: output.content },
+                        title: output.filename || output.title || 'Generated file',
+                        timestamp: Date.now(),
+                      });
+                      useUIStore.getState().setRightPanel('canvas');
+                    } else if (output?.artifact) {
+                      outputEvidence.durableArtifactCount += 1;
+                      const a = output.artifact;
+                      useUIStore.getState().addCanvasArtifact({
+                        id: tool_call_id,
+                        type: a.type || 'markdown',
+                        content: a.data || a.content || a,
+                        title: a.title || name || 'Artifact',
+                        timestamp: Date.now(),
+                      });
+                      useUIStore.getState().setRightPanel('canvas');
+                    }
+                  }
+                  continue;
+                }
+                case 'alia.agent': {
+                  const am = parsed;
+                  if (typeof am.content === 'string') {
+                    outputEvidence.agentOutputChars += am.content.length;
+                  }
+                  setMessages((prev) => {
+                    const updated = [...prev];
+                    const agentMsg: Message = {
+                      id: `agent-${Date.now()}-${am.agentId}`,
+                      role: 'assistant',
+                      content: am.content,
+                      agentInfo: {
+                        id: am.agentId,
+                        name: am.agentName,
+                        color: am.agentColor ?? null,
+                        handle: am.agentHandle,
+                      },
+                    };
+                    const lastIdx = updated.length - 1;
+                    updated.splice(lastIdx, 0, agentMsg);
+                    return updated;
+                  });
+                  continue;
+                }
+                case 'alia.title': {
+                  if (parsed.title && parsed.conversationId) {
+                    queryClient.setQueryData(
+                      queryKeys.conversations.detail(parsed.conversationId),
+                      (old: Conversation | undefined) => old ? { ...old, title: parsed.title } : old
+                    );
+                    queryClient.setQueriesData(
+                      { queryKey: queryKeys.conversations.all },
+                      (old: ConversationsInfinite | undefined) => {
+                        if (!old?.pages) return old;
+                        return {
+                          ...old,
+                          pages: old.pages.map((page) => ({
+                            ...page,
+                            conversations: page.conversations.map((c) =>
+                              c.id === parsed.conversationId ? { ...c, title: parsed.title } : c
+                            ),
+                          })),
+                        };
+                      }
+                    );
+                    setConversationTitle(parsed.title);
+                  }
+                  continue;
+                }
+                case 'alia.research_progress': {
+                  setMessages((prev) => {
+                    const updated = [...prev];
+                    const lastMessage = updated[updated.length - 1];
+                    if (lastMessage?.role === 'assistant') {
+                      updated[updated.length - 1] = {
+                        ...lastMessage,
+                        researchProgress: {
+                          phase: parsed.phase,
+                          message: parsed.message,
+                          subQuestions: parsed.subQuestions || lastMessage.researchProgress?.subQuestions,
+                          sourcesFound: parsed.sourcesFound,
+                          currentQuery: parsed.currentQuery,
+                          iteration: parsed.iteration,
                         },
                       };
-                      const lastIdx = updated.length - 1;
-                      updated.splice(lastIdx, 0, agentMsg);
-                      return updated;
-                    });
-                    currentEventType = '';
-                    continue;
-                  }
-                  case 'alia.title': {
-                    if (parsed.title && parsed.conversationId) {
-                      queryClient.setQueryData(
-                        queryKeys.conversations.detail(parsed.conversationId),
-                        (old: Conversation | undefined) => old ? { ...old, title: parsed.title } : old
-                      );
-                      queryClient.setQueriesData(
-                        { queryKey: queryKeys.conversations.all },
-                        (old: ConversationsInfinite | undefined) => {
-                          if (!old?.pages) return old;
-                          return {
-                            ...old,
-                            pages: old.pages.map((page) => ({
-                              ...page,
-                              conversations: page.conversations.map((c) =>
-                                c.id === parsed.conversationId ? { ...c, title: parsed.title } : c
-                              ),
-                            })),
-                          };
-                        }
-                      );
-                      setConversationTitle(parsed.title);
                     }
-                    currentEventType = '';
-                    continue;
-                  }
-                  case 'alia.research_progress': {
-                    setMessages((prev) => {
-                      const updated = [...prev];
-                      const lastMessage = updated[updated.length - 1];
-                      if (lastMessage?.role === 'assistant') {
-                        updated[updated.length - 1] = {
-                          ...lastMessage,
-                          researchProgress: {
-                            phase: parsed.phase,
-                            message: parsed.message,
-                            subQuestions: parsed.subQuestions || lastMessage.researchProgress?.subQuestions,
-                            sourcesFound: parsed.sourcesFound,
-                            currentQuery: parsed.currentQuery,
-                            iteration: parsed.iteration,
-                          },
-                        };
-                      }
-                      return updated;
-                    });
-                    currentEventType = '';
-                    continue;
-                  }
-                  case 'alia.plan_preview': {
-                    setMessages((prev) => {
-                      const updated = [...prev];
-                      const lastMessage = updated[updated.length - 1];
-                      if (lastMessage?.role === 'assistant') {
-                        updated[updated.length - 1] = {
-                          ...lastMessage,
-                          pendingPlan: {
-                            planId: parsed.planId,
-                            steps: parsed.steps || [],
-                            approved: false,
-                            rejected: false,
-                          },
-                        };
-                      }
-                      return updated;
-                    });
-                    currentEventType = '';
-                    continue;
-                  }
-                  case 'alia.approval_request': {
-                    setMessages((prev) => {
-                      const updated = [...prev];
-                      const lastMessage = updated[updated.length - 1];
-                      if (lastMessage?.role === 'assistant') {
-                        updated[updated.length - 1] = {
-                          ...lastMessage,
-                          pendingApproval: {
-                            requestId: parsed.requestId,
-                            toolName: parsed.toolName,
-                            description: parsed.description,
-                            severity: parsed.severity,
-                            timeout: parsed.timeout,
-                            args: parsed.args,
-                          },
-                        };
-                      }
-                      return updated;
-                    });
-                    currentEventType = '';
-                    continue;
-                  }
-                  case 'alia.approval_result': {
-                    setMessages((prev) => {
-                      const updated = [...prev];
-                      const lastMessage = updated[updated.length - 1];
-                      if (lastMessage?.role === 'assistant') {
-                        updated[updated.length - 1] = {
-                          ...lastMessage,
-                          pendingApprovalResult: {
-                            requestId: parsed.requestId,
-                            decision: parsed.decision,
-                          },
-                        };
-                      }
-                      return updated;
-                    });
-                    currentEventType = '';
-                    continue;
-                  }
-                  case 'alia.model_switch': {
-                    if (parsed.model) {
-                      useModelStore.getState().setSelectedModel(parsed.model);
-                    }
-                    currentEventType = '';
-                    continue;
-                  }
-                  case 'alia.suggest_new_conversation': {
-                    // A missing or blank reason degrades to an offer without
-                    // one rather than to an invented one: the sentence belongs
-                    // to the model, and a plausible substitute would be worse
-                    // than none.
-                    setSuggestedNewConversation(
-                      typeof parsed.reason === 'string' && parsed.reason.trim() !== ''
-                        ? parsed.reason.trim()
-                        : '',
-                    );
-                    currentEventType = '';
-                    continue;
-                  }
-                  case 'alia.agent_session': {
-                    if (parsed.sessionId) {
-                      const { useUIStore } = await import('@/lib/stores/ui-store');
-                      useUIStore.getState().openAgentPanel(parsed.sessionId, parsed.agentId || '');
-                    }
-                    currentEventType = '';
-                    continue;
-                  }
-                  default:
-                    // Unknown named event — skip
-                    currentEventType = '';
-                    continue;
-                }
-              }
-
-              // ── Standard OpenAI data events ──
-
-              // Handle structured error events sent via SSE
-              if (parsed.error) {
-                const err = parsed.error;
-                // Check for usage limit errors (rate limit, credits, model access)
-                if (errorCode(err) === 'MODEL_NOT_IN_PLAN' || errorCode(err) === 'INSUFFICIENT_CREDITS' || err.type === 'rate_limit_error') {
-                  throw new UsageLimitError({
-                    type: errorCode(err) === 'MODEL_NOT_IN_PLAN' ? 'model_access' : errorCode(err) === 'INSUFFICIENT_CREDITS' ? 'credits' : 'rate_limit',
-                    code: String(errorCode(err) ?? ''),
-                    message: getErrorMessage(err),
-                    retryable: false,
-                    suggestedAction: 'upgrade',
+                    return updated;
                   });
+                  continue;
                 }
-
-                // Generic SSE error — stop and report
-                const msg = getErrorMessage(err) || 'Something went wrong. Please try again.';
-                setError(new Error(msg));
-                setIsLoading(false);
-                if (abortControllerRef.current) {
-                  abortControllerRef.current.abort();
-                  abortControllerRef.current = null;
+                case 'alia.plan_preview': {
+                  setMessages((prev) => {
+                    const updated = [...prev];
+                    const lastMessage = updated[updated.length - 1];
+                    if (lastMessage?.role === 'assistant') {
+                      updated[updated.length - 1] = {
+                        ...lastMessage,
+                        pendingPlan: {
+                          planId: parsed.planId,
+                          steps: parsed.steps || [],
+                          approved: false,
+                          rejected: false,
+                        },
+                      };
+                    }
+                    return updated;
+                  });
+                  continue;
                 }
-                reader.cancel();
-                const outcome = settleError();
-                // A rolled-back send is announced by the caller, which knows the
-                // text went back to the composer; don't stack two toasts.
-                if (outcome === 'sent') toast.error(msg);
-                return outcome;
+                case 'alia.approval_request': {
+                  setMessages((prev) => {
+                    const updated = [...prev];
+                    const lastMessage = updated[updated.length - 1];
+                    if (lastMessage?.role === 'assistant') {
+                      updated[updated.length - 1] = {
+                        ...lastMessage,
+                        pendingApproval: {
+                          requestId: parsed.requestId,
+                          toolName: parsed.toolName,
+                          description: parsed.description,
+                          severity: parsed.severity,
+                          timeout: parsed.timeout,
+                          args: parsed.args,
+                        },
+                      };
+                    }
+                    return updated;
+                  });
+                  continue;
+                }
+                case 'alia.approval_result': {
+                  setMessages((prev) => {
+                    const updated = [...prev];
+                    const lastMessage = updated[updated.length - 1];
+                    if (lastMessage?.role === 'assistant') {
+                      updated[updated.length - 1] = {
+                        ...lastMessage,
+                        pendingApprovalResult: {
+                          requestId: parsed.requestId,
+                          decision: parsed.decision,
+                        },
+                      };
+                    }
+                    return updated;
+                  });
+                  continue;
+                }
+                case 'alia.model_switch': {
+                  if (parsed.model) {
+                    useModelStore.getState().setSelectedModel(parsed.model);
+                  }
+                  continue;
+                }
+                case 'alia.suggest_new_conversation': {
+                  // A missing or blank reason degrades to an offer without
+                  // one rather than to an invented one: the sentence belongs
+                  // to the model, and a plausible substitute would be worse
+                  // than none.
+                  setSuggestedNewConversation(
+                    typeof parsed.reason === 'string' && parsed.reason.trim() !== ''
+                      ? parsed.reason.trim()
+                      : '',
+                  );
+                  continue;
+                }
+                case 'alia.agent_session': {
+                  if (parsed.sessionId) {
+                    const { useUIStore } = await import('@/lib/stores/ui-store');
+                    useUIStore.getState().openAgentPanel(parsed.sessionId, parsed.agentId || '');
+                  }
+                  continue;
+                }
+                default:
+                  // Unknown named event — skip
+                  continue;
               }
+            }
 
-              // Handle OpenAI-compatible format
-              const choice = parsed.choices?.[0];
-              if (!choice) continue;
+            // ── Standard OpenAI data events ──
 
-              const delta = choice.delta;
-              if (!delta) continue;
-
-              // Handle reasoning/thinking content (batched for performance)
-              if (delta.reasoning) {
-                pendingReasoningRef.current += delta.reasoning;
-                scheduleFlush();
-              }
-
-              // Handle text content (batched for performance)
-              if (delta.content) {
-                if (parsed.alia_meta?.synthetic !== true) {
-                  outputEvidence.realOutputChars += delta.content.length;
-                }
-
-                // Subtle streaming haptic, throttled by time — per-character
-                // counting fired dozens of native bridge calls per second on
-                // fast streams.
-                const now = Date.now();
-                if (now - lastHapticAt >= 150) {
-                  lastHapticAt = now;
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-                }
-
-                pendingContentRef.current += delta.content;
-                scheduleFlush();
-              }
-
-              // Handle usage/credits info (comes at the end of stream)
-              // New format: alia_usage (separate from OpenAI usage), fallback to legacy usage
-              const aliaUsage = parsed.alia_usage || parsed.usage;
-              if (aliaUsage && aliaUsage.credits_remaining !== undefined) {
-                queryClient.setQueryData<CreditsInfo>(queryKeys.credits.info, (old) => {
-                  if (!old) return old;
-                  return { ...old, credits: aliaUsage.credits_remaining };
+            // Handle structured error events sent via SSE
+            if (parsed.error) {
+              const err = parsed.error;
+              // Check for usage limit errors (rate limit, credits, model access)
+              if (errorCode(err) === 'MODEL_NOT_IN_PLAN' || errorCode(err) === 'INSUFFICIENT_CREDITS' || err.type === 'rate_limit_error') {
+                throw new UsageLimitError({
+                  type: errorCode(err) === 'MODEL_NOT_IN_PLAN' ? 'model_access' : errorCode(err) === 'INSUFFICIENT_CREDITS' ? 'credits' : 'rate_limit',
+                  code: String(errorCode(err) ?? ''),
+                  message: getErrorMessage(err),
+                  retryable: false,
+                  suggestedAction: 'upgrade',
                 });
-                queryClient.invalidateQueries({ queryKey: queryKeys.credits.usage() });
-
-                // Proactive warning when spending anomaly detected
-                if (aliaUsage.credit_warning) {
-                  const w = aliaUsage.credit_warning;
-                  queryClient.setQueryData(queryKeys.credits.usageWarning, {
-                    level: w.level,
-                    daysRemaining: w.daysRemaining,
-                    todaySpend: w.todaySpend,
-                    avgDailySpend: w.avgDailySpend,
-                    currentModelMultiplier: w.currentModelMultiplier,
-                  });
-                }
               }
 
-              // Handle tool calls (OpenAI format: delta.tool_calls)
-              if (delta.tool_calls && Array.isArray(delta.tool_calls)) {
-                for (const tc of delta.tool_calls) {
-                  const toolCallId = tc.id;
-                  const toolName = tc.function?.name;
-                  if (!toolCallId || !toolName) continue;
-                  outputEvidence.toolInvocationCount += 1;
+              // Generic SSE error — stop and report
+              const msg = getErrorMessage(err) || 'Something went wrong. Please try again.';
+              setError(new Error(msg));
+              setIsLoading(false);
+              if (abortControllerRef.current) {
+                abortControllerRef.current.abort();
+                abortControllerRef.current = null;
+              }
+              reader.cancel();
+              const outcome = settleError();
+              // A rolled-back send is announced by the caller, which knows the
+              // text went back to the composer; don't stack two toasts.
+              if (outcome === 'sent') toast.error(msg);
+              return outcome;
+            }
 
-                  let args: Record<string, unknown> | undefined;
-                  if (tc.function?.arguments) {
-                    try {
-                      args = JSON.parse(tc.function.arguments);
-                    } catch {
-                      args = { _raw: tc.function.arguments };
-                    }
-                  }
+            // Handle OpenAI-compatible format
+            const choice = parsed.choices?.[0];
+            if (!choice) continue;
 
-                  setMessages((prev) => {
-                    const updated = [...prev];
-                    const lastMessage = updated[updated.length - 1];
-                    if (lastMessage?.role === 'assistant') {
-                      const invocations = [...(lastMessage.toolInvocations || [])];
-                      const idx = invocations.findIndex((t) => t.toolCallId === toolCallId);
-                      const invocation: ToolInvocation = { toolCallId, toolName, state: 'call', args };
+            const delta = choice.delta;
+            if (!delta) continue;
 
-                      if (idx >= 0) {
-                        invocations[idx] = invocation;
-                      } else {
-                        invocations.push(invocation);
-                      }
+            // Handle reasoning/thinking content (batched for performance)
+            if (delta.reasoning) {
+              pendingReasoningRef.current += delta.reasoning;
+              scheduleFlush();
+            }
 
-                      updated[updated.length - 1] = { ...lastMessage, toolInvocations: invocations };
-                    }
-                    return updated;
-                  });
-                }
+            // Handle text content (batched for performance)
+            if (delta.content) {
+              if (parsed.alia_meta?.synthetic !== true) {
+                outputEvidence.realOutputChars += delta.content.length;
               }
 
-              // Handle tool results (custom extension: delta.tool_result)
-              if (delta.tool_result) {
-                const { tool_call_id, name, output } = delta.tool_result;
-                if (tool_call_id) {
-                  setMessages((prev) => {
-                    const updated = [...prev];
-                    const lastMessage = updated[updated.length - 1];
-                    if (lastMessage?.role === 'assistant') {
-                      const invocations = [...(lastMessage.toolInvocations || [])];
-                      const idx = invocations.findIndex((t) => t.toolCallId === tool_call_id);
+              // Subtle streaming haptic, throttled by time — per-character
+              // counting fired dozens of native bridge calls per second on
+              // fast streams.
+              const now = Date.now();
+              if (now - lastHapticAt >= 150) {
+                lastHapticAt = now;
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+              }
 
-                      if (idx >= 0) {
-                        invocations[idx] = { ...invocations[idx], state: 'result', result: output };
-                      } else {
-                        invocations.push({ toolCallId: tool_call_id, toolName: name || 'unknown', state: 'result', result: output });
-                      }
+              pendingContentRef.current += delta.content;
+              scheduleFlush();
+            }
 
-                      updated[updated.length - 1] = { ...lastMessage, toolInvocations: invocations };
-                    }
-                    return updated;
-                  });
+            // Handle usage/credits info (comes at the end of stream)
+            // New format: alia_usage (separate from OpenAI usage), fallback to legacy usage
+            const aliaUsage = parsed.alia_usage || parsed.usage;
+            if (aliaUsage && aliaUsage.credits_remaining !== undefined) {
+              queryClient.setQueryData<CreditsInfo>(queryKeys.credits.info, (old) => {
+                if (!old) return old;
+                return { ...old, credits: aliaUsage.credits_remaining };
+              });
+              queryClient.invalidateQueries({ queryKey: queryKeys.credits.usage() });
 
-                  // Detect artifact-like results and push to canvas panel
-                  if (name === 'generateFile' && output && typeof output === 'object') {
-                    outputEvidence.durableArtifactCount += 1;
-                    const artifactType = output.language ? 'code' : 'markdown';
-                    useUIStore.getState().addCanvasArtifact({
-                      id: tool_call_id,
-                      type: artifactType,
-                      content: artifactType === 'code'
-                        ? { language: output.language, code: output.content }
-                        : { content: output.content },
-                      title: output.filename || output.title || 'Generated file',
-                      timestamp: Date.now(),
-                    });
-                    useUIStore.getState().setRightPanel('canvas');
-                  } else if (output?.artifact) {
-                    outputEvidence.durableArtifactCount += 1;
-                    const a = output.artifact;
-                    useUIStore.getState().addCanvasArtifact({
-                      id: tool_call_id,
-                      type: a.type || 'markdown',
-                      content: a.data || a.content || a,
-                      title: a.title || name || 'Artifact',
-                      timestamp: Date.now(),
-                    });
-                    useUIStore.getState().setRightPanel('canvas');
+              // Proactive warning when spending anomaly detected
+              if (aliaUsage.credit_warning) {
+                const w = aliaUsage.credit_warning;
+                queryClient.setQueryData(queryKeys.credits.usageWarning, {
+                  level: w.level,
+                  daysRemaining: w.daysRemaining,
+                  todaySpend: w.todaySpend,
+                  avgDailySpend: w.avgDailySpend,
+                  currentModelMultiplier: w.currentModelMultiplier,
+                });
+              }
+            }
+
+            // Handle tool calls (OpenAI format: delta.tool_calls)
+            if (delta.tool_calls && Array.isArray(delta.tool_calls)) {
+              for (const tc of delta.tool_calls) {
+                const toolCallId = tc.id;
+                const toolName = tc.function?.name;
+                if (!toolCallId || !toolName) continue;
+                outputEvidence.toolInvocationCount += 1;
+
+                let args: Record<string, unknown> | undefined;
+                if (tc.function?.arguments) {
+                  try {
+                    args = JSON.parse(tc.function.arguments);
+                  } catch {
+                    args = { _raw: tc.function.arguments };
                   }
                 }
-              }
 
-              // Handle agent delegation messages (agent mode)
-              if (delta.agent_message) {
-                const am = delta.agent_message;
-                if (typeof am.content === 'string') {
-                  outputEvidence.agentOutputChars += am.content.length;
-                }
                 setMessages((prev) => {
                   const updated = [...prev];
-                  const agentMsg: Message = {
-                    id: `agent-${Date.now()}-${am.agentId}`,
-                    role: 'assistant',
-                    content: am.content,
-                    agentInfo: {
-                      id: am.agentId,
-                      name: am.agentName,
-                      color: am.agentColor ?? null,
-                      handle: am.agentHandle,
-                    },
-                  };
-                  // Insert before the last message (Alia's in-progress response)
-                  const lastIdx = updated.length - 1;
-                  updated.splice(lastIdx, 0, agentMsg);
+                  const lastMessage = updated[updated.length - 1];
+                  if (lastMessage?.role === 'assistant') {
+                    const invocations = [...(lastMessage.toolInvocations || [])];
+                    const idx = invocations.findIndex((t) => t.toolCallId === toolCallId);
+                    const invocation: ToolInvocation = { toolCallId, toolName, state: 'call', args };
+
+                    if (idx >= 0) {
+                      invocations[idx] = invocation;
+                    } else {
+                      invocations.push(invocation);
+                    }
+
+                    updated[updated.length - 1] = { ...lastMessage, toolInvocations: invocations };
+                  }
                   return updated;
                 });
               }
+            }
 
-              // Handle error events from server
-              if (parsed.type === 'error') {
-                const errMsg = typeof parsed.error === 'string' ? parsed.error : (parsed.error?.message || JSON.stringify(parsed.error));
-                setError(new Error(errMsg));
-                setIsLoading(false);
+            // Handle tool results (custom extension: delta.tool_result)
+            if (delta.tool_result) {
+              const { tool_call_id, name, output } = delta.tool_result;
+              if (tool_call_id) {
+                setMessages((prev) => {
+                  const updated = [...prev];
+                  const lastMessage = updated[updated.length - 1];
+                  if (lastMessage?.role === 'assistant') {
+                    const invocations = [...(lastMessage.toolInvocations || [])];
+                    const idx = invocations.findIndex((t) => t.toolCallId === tool_call_id);
 
-                // Abort the stream
-                if (abortControllerRef.current) {
-                  abortControllerRef.current.abort();
-                  abortControllerRef.current = null;
+                    if (idx >= 0) {
+                      invocations[idx] = { ...invocations[idx], state: 'result', result: output };
+                    } else {
+                      invocations.push({ toolCallId: tool_call_id, toolName: name || 'unknown', state: 'result', result: output });
+                    }
+
+                    updated[updated.length - 1] = { ...lastMessage, toolInvocations: invocations };
+                  }
+                  return updated;
+                });
+
+                // Detect artifact-like results and push to canvas panel
+                if (name === 'generateFile' && output && typeof output === 'object') {
+                  outputEvidence.durableArtifactCount += 1;
+                  const artifactType = output.language ? 'code' : 'markdown';
+                  useUIStore.getState().addCanvasArtifact({
+                    id: tool_call_id,
+                    type: artifactType,
+                    content: artifactType === 'code'
+                      ? { language: output.language, code: output.content }
+                      : { content: output.content },
+                    title: output.filename || output.title || 'Generated file',
+                    timestamp: Date.now(),
+                  });
+                  useUIStore.getState().setRightPanel('canvas');
+                } else if (output?.artifact) {
+                  outputEvidence.durableArtifactCount += 1;
+                  const a = output.artifact;
+                  useUIStore.getState().addCanvasArtifact({
+                    id: tool_call_id,
+                    type: a.type || 'markdown',
+                    content: a.data || a.content || a,
+                    title: a.title || name || 'Artifact',
+                    timestamp: Date.now(),
+                  });
+                  useUIStore.getState().setRightPanel('canvas');
                 }
-
-                // Break out of the streaming loop
-                reader.cancel();
-                return settleError();
               }
-            } catch {
-              // Malformed SSE fragments are expected mid-stream; the next
-              // complete event supersedes them.
+            }
+
+            // Handle agent delegation messages (agent mode)
+            if (delta.agent_message) {
+              const am = delta.agent_message;
+              if (typeof am.content === 'string') {
+                outputEvidence.agentOutputChars += am.content.length;
+              }
+              setMessages((prev) => {
+                const updated = [...prev];
+                const agentMsg: Message = {
+                  id: `agent-${Date.now()}-${am.agentId}`,
+                  role: 'assistant',
+                  content: am.content,
+                  agentInfo: {
+                    id: am.agentId,
+                    name: am.agentName,
+                    color: am.agentColor ?? null,
+                    handle: am.agentHandle,
+                  },
+                };
+                // Insert before the last message (Alia's in-progress response)
+                const lastIdx = updated.length - 1;
+                updated.splice(lastIdx, 0, agentMsg);
+                return updated;
+              });
+            }
+
+            // Handle error events from server
+            if (parsed.type === 'error') {
+              const errMsg = typeof parsed.error === 'string' ? parsed.error : (parsed.error?.message || JSON.stringify(parsed.error));
+              setError(new Error(errMsg));
+              setIsLoading(false);
+
+              // Abort the stream
+              if (abortControllerRef.current) {
+                abortControllerRef.current.abort();
+                abortControllerRef.current = null;
+              }
+
+              // Break out of the streaming loop
+              reader.cancel();
+              return settleError();
+            }
+          } catch (frameError: unknown) {
+            /**
+             * Malformed SSE fragments are expected mid-stream; the next
+             * complete event supersedes them.
+             *
+             * A `UsageLimitError` is NOT one of those. It is thrown
+             * deliberately from the `parsed.error` branch above so the outer
+             * handler can show the upgrade dialog — and it was thrown from
+             * inside this same `try`, so this `catch` ate it. An in-stream
+             * `INSUFFICIENT_CREDITS`, `MODEL_NOT_IN_PLAN` or
+             * `rate_limit_error` therefore did nothing at all: the loop kept
+             * reading, the stream ended, and the user saw a reply that
+             * simply stopped with no error and no way to act on it. (The
+             * generic-error branch beside it escaped only because it uses
+             * `return` rather than `throw`.)
+             */
+            // `instanceof` AND the name, matching the outer handler: Hermes
+            // can break `instanceof` for Error subclasses, and a rethrow that
+            // misses is the same silent swallow this fixes.
+            if (frameError instanceof UsageLimitError || errorName(frameError) === 'UsageLimitError') {
+              throw frameError;
             }
           }
         }
