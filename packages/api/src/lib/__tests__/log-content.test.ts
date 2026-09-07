@@ -418,11 +418,14 @@ describe('no logger call carries message content (#139 ws15)', () => {
     // returns, it fails here with its own name attached.
     const text = (file: string): string => readFileSync(path.join(REPO_ROOT, PACKAGE_PREFIX, file), 'utf8');
     expect(text('routes/webhooks.ts')).not.toContain('text: message.text.slice');
-    expect(text('lib/sse-stream.ts')).not.toContain("warn({ data }");
     expect(text('lib/chat/stream-runner.ts')).not.toContain('chunkType: chunk.type, chunk }');
-    // The floor: the reads found real files, so four absences are absences.
+    // `lib/sse-stream.ts` was named here too, and is gone: it had no importer
+    // anywhere and was deleted with the other eight dead modules. The live
+    // streaming path is `lib/chat/` plus `lib/streaming-helpers.ts`, and
+    // `stream-runner.ts` below is the member of it this leak was found in.
+    //
+    // The floor: the reads found real files, so the absences are absences.
     expect(text('routes/webhooks.ts')).toContain('Inbound message');
-    expect(text('lib/sse-stream.ts')).toContain('Failed to parse SSE chunk');
     expect(text('lib/chat/stream-runner.ts')).toContain('Unhandled chunk type');
   });
 
