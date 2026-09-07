@@ -333,15 +333,6 @@ jobs:
       - name: Test console
         run: bun run --filter alia-console test
 
-      # Nitro depends on unstorage, whose broad OPTIONAL peer set leaves a
-      # mongodb resolution in bun.lock even though Alia is PostgreSQL-only.
-      # Replacing Nitro is outside this cutover; build the actual server and
-      # prove the optional driver did not enter its runtime artefact.
-      - name: Prove the console runtime contains no Mongo driver
-        run: |
-          bun run --filter alia-console build
-          node scripts/check-no-mongodb-runtime.mjs
-
       # The VS Code extension parses `GET /catalogue` and `GET /catalogue/modes`
       # itself — it bundles with esbuild and cannot depend on an unpublished
       # workspace package, so the parsing is its own. It had a `test` script and
@@ -493,6 +484,32 @@ jobs:
       # `FREE_COLOR_NAMES` is one of the three lists it crosses.
       - name: Check an agent is offered no colour it cannot keep
         run: node scripts/check-agent-colour-vocabulary.mjs
+
+      # LAST in this job, and the position is the point.
+      #
+      # Nitro depends on unstorage, whose broad OPTIONAL peer set leaves a
+      # mongodb resolution in bun.lock even though Alia is PostgreSQL-only.
+      # Replacing Nitro is outside this cutover; build the actual server and
+      # prove the optional driver did not enter its runtime artefact.
+      #
+      # It used to sit third, and that made it a single point of failure for
+      # everything after it. `bun run --filter alia-console build` has been
+      # failing on `main` since the Bloom bump — `@vitejs/plugin-react@6` peers
+      # `vite ^8` while this workspace pins `npm:rolldown-vite@^7.3.1`, so bun
+      # installs a nested vite that does not export `./internal` — and a step
+      # that exits non-zero ends the job. So ELEVEN later checks stopped
+      # reporting: `Test Codea extension`, `Test app`, the route, static-asset,
+      # model-default, Dockerfile, picker-language, model-wording and
+      # agent-colour gates, the solution-style typechecks and the Canvas deploy
+      # dry-run. None of them were red. None of them ran.
+      #
+      # Moving it to the end hides nothing: the job still fails while the build
+      # is broken. It just stops one broken dependency from deciding whether
+      # everything else gets measured.
+      - name: Prove the console runtime contains no Mongo driver
+        run: |
+          bun run --filter alia-console build
+          node scripts/check-no-mongodb-runtime.mjs
 
   build-api:
     name: Build API
