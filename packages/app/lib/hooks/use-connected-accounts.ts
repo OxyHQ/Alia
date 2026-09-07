@@ -32,18 +32,41 @@ export function useConnectedAccounts(platform?: string) {
   const [activeQRAccountId, setActiveQRAccountId] = useState<string | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  /**
+   * The most recently STARTED fetch. Only that one may write.
+   *
+   * There are five callers — the `platform` effect, the three-second poll, and
+   * `connect` / `disconnect` / `remove` / `updateSettings`, each of which
+   * refetches — so two requests are routinely in flight, and they resolved in
+   * arrival order with no guard at all. A poll issued before `disconnect()`
+   * could land after it and put the disconnected account back on screen, where
+   * it stayed until the next tick happened to land in the other order.
+   *
+   * A counter rather than an `AbortController`: aborting would also cancel a
+   * request whose RESULT is still wanted by nobody, but the cheap and correct
+   * property here is simply "the last request to start is the one that wins".
+   */
+  const requestSeq = useRef(0);
+
   const fetchAccounts = useCallback(async () => {
     if (!isAuthenticated) {
       setLoading(false);
       return;
     }
 
+    const seq = requestSeq.current + 1;
+    requestSeq.current = seq;
+    /** A newer fetch has started; this one's answer is stale. */
+    const superseded = () => requestSeq.current !== seq;
+
     try {
       const url = platform ? `/accounts/${platform}` : '/accounts';
       const response = await apiClient.get(url);
+      if (superseded()) return;
       setAccounts(response.data.accounts || []);
       setError(null);
     } catch (err: unknown) {
+      if (superseded()) return;
       if (errorStatus(err) === 404 || errorStatus(err) === 503) {
         setAccounts([]);
       } else {
@@ -51,7 +74,10 @@ export function useConnectedAccounts(platform?: string) {
         setAccounts([]);
       }
     } finally {
-      setLoading(false);
+      // `loading` describes the screen, not this request, so only the newest
+      // fetch may clear it — an older one finishing first would otherwise
+      // report "loaded" while the current request is still out.
+      if (!superseded()) setLoading(false);
     }
   }, [isAuthenticated, platform]);
 

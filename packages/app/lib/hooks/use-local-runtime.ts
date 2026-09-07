@@ -14,7 +14,7 @@
  *
  * The endpoint address never leaves this hook. What travels is bytes.
  */
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Platform } from 'react-native';
 import { io as socketIO, type Socket } from 'socket.io-client';
 import { useQuery } from '@tanstack/react-query';
@@ -151,6 +151,22 @@ export function useLocalRuntime() {
   const models = probe.data;
 
   const socketRef = useRef<Socket | null>(null);
+  /**
+   * Bumped every time the connection effect builds a socket.
+   *
+   * The announce effect below reads `socketRef.current`, which a ref cannot
+   * announce a change to. Its dependencies were `[models, runtimeId, label]`,
+   * and none of them moves when the SOCKET is replaced — so toggling consent
+   * off and on, or an auth flap, tore down socket A and built socket B while
+   * the announce effect did not re-run: React Query hands back the same
+   * `models` array reference, so nothing in that list changed. Socket B never
+   * received `subscribe-user-runtime` and never got a `connect` listener, and
+   * the device sat connected and invisible in the account's model picker until
+   * a probe happened to return a new array.
+   *
+   * A counter in state is what makes the socket's identity a dependency.
+   */
+  const [socketEpoch, setSocketEpoch] = useState(0);
   /** One controller per in-flight run, so an aborted turn stops the local server too. */
   const runsRef = useRef(new Map<string, AbortController>());
 
@@ -223,6 +239,7 @@ export function useLocalRuntime() {
       reconnectionDelayMax: 10000,
     });
     socketRef.current = socket;
+    setSocketEpoch((epoch) => epoch + 1);
 
     socket.on('user-runtime:request', serve);
     socket.on('user-runtime:abort', ({ runId }: { runId?: unknown }) => {
@@ -256,7 +273,7 @@ export function useLocalRuntime() {
     return () => {
       socket.off('connect', announce);
     };
-  }, [models, runtimeId, label]);
+  }, [models, runtimeId, label, socketEpoch]);
 
   useEffect(() => {
     if (models) setModels(models);
