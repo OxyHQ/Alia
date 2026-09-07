@@ -28,12 +28,28 @@ const TOOL_REGISTRY: Record<string, ToolDefinition> = {
   updateUserContext:     { label: 'Updating context',      category: 'memory' },
 };
 
+/**
+ * `Object.hasOwn`, not a bare index, in all three lookups below.
+ *
+ * Every key here comes off the wire — a tool name the server chose, a research
+ * phase the server chose — and these are plain object literals, so
+ * `REGISTRY['constructor']` is `Object.prototype`'s and not a miss.
+ * `getResearchActiveLabel('constructor')` returned that FUNCTION, which reaches
+ * a caption as `[object Function]`; the two tool lookups happened to survive
+ * only because `?.label` on a function is `undefined`, which is luck rather
+ * than a guard. The API states the same rule for its own lookups
+ * (`prototype-keyed-lookups.test.ts`).
+ */
+function lookup<T>(table: Record<string, T>, key: string): T | undefined {
+  return Object.hasOwn(table, key) ? table[key] : undefined;
+}
+
 export function getToolLabel(toolName: string): string {
-  return TOOL_REGISTRY[toolName]?.label || toolName;
+  return lookup(TOOL_REGISTRY, toolName)?.label || toolName;
 }
 
 export function getToolActiveLabel(toolName: string): string | undefined {
-  const label = TOOL_REGISTRY[toolName]?.label;
+  const label = lookup(TOOL_REGISTRY, toolName)?.label;
   if (!label) return undefined;
   return label + '...';
 }
@@ -49,7 +65,7 @@ const RESEARCH_ACTIVE_LABELS: Record<string, string> = {
 };
 
 export function getResearchActiveLabel(phase: string): string | undefined {
-  return RESEARCH_ACTIVE_LABELS[phase];
+  return lookup(RESEARCH_ACTIVE_LABELS, phase);
 }
 
 export { TOOL_REGISTRY };
