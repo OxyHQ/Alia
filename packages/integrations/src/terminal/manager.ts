@@ -80,33 +80,99 @@ export function writeToSession(sessionId: string, data: string): boolean {
   return true;
 }
 
+const COMMAND_TIMEOUT_MS = 30_000;
+
+/**
+ * One command at a time per session, so two callers cannot interleave.
+ *
+ * A PTY is a single stream. Two `runCommand` calls on one session used to
+ * write both commands into it and accumulate BOTH outputs into each other's
+ * buffer, so each caller got some mixture of the two. Chaining per session is
+ * the only correct answer short of one PTY per command.
+ */
+const queues = new Map<string, Promise<unknown>>();
+
+/**
+ * Marker text the terminal's own echo cannot forge.
+ *
+ * The PTY echoes input back before the shell has run anything, so the previous
+ * implementation resolved on its own echo of `echo "__CMD_DONE_…__"` and
+ * returned the echoed command line as the command's "output" — for every
+ * command, not as an edge case.
+ *
+ * Splitting the literal in the SOURCE is what fixes it: the shell concatenates
+ * `"__CMD" "_START_x__"` into a contiguous `__CMD_START_x__` when it prints,
+ * while the echoed line keeps the quotes between the halves. So a search for
+ * the contiguous form matches the shell's output and can never match the echo.
+ */
+export function markerPair(id: string): {
+  start: string;
+  end: string;
+  startEcho: string;
+  endEcho: string;
+} {
+  return {
+    start: `__CMD_START_${id}__`,
+    end: `__CMD_END_${id}__`,
+    startEcho: `echo "__CMD""_START_${id}__"`,
+    endEcho: `echo "__CMD""_END_${id}__"`,
+  };
+}
+
 export async function runCommand(sessionId: string, command: string): Promise<string> {
+  const previous = queues.get(sessionId) ?? Promise.resolve();
+  const run = previous.catch(() => undefined).then(() => runCommandNow(sessionId, command));
+  queues.set(sessionId, run);
+  try {
+    return await run;
+  } finally {
+    // Only clear the slot if nothing queued behind this call, or the next
+    // caller would lose its place in the chain.
+    if (queues.get(sessionId) === run) queues.delete(sessionId);
+  }
+}
+
+async function runCommandNow(sessionId: string, command: string): Promise<string> {
   const session = await createSession(sessionId);
 
   return new Promise((resolve) => {
     let output = '';
-    const marker = `__CMD_DONE_${Date.now()}__`;
+    const id = `${String(Date.now())}_${Math.random().toString(36).slice(2, 8)}`;
+    const { start, end, startEcho, endEcho } = markerPair(id);
+
+    let settled = false;
+    // Declared before the handler so the handler can clear it. Leaving it to
+    // fire regardless kept a 30-second timer alive for every command the
+    // service ever ran.
+    let timer: NodeJS.Timeout | undefined;
+
+    const finish = (value: string) => {
+      if (settled) return;
+      settled = true;
+      if (timer) clearTimeout(timer);
+      handler.dispose();
+      resolve(value);
+    };
 
     const handler = session.pty.onData((data: string) => {
       output += data;
-      if (output.includes(marker)) {
-        handler.dispose();
-        // Extract output between command and marker
-        const lines = output.split('\n');
-        const markerIdx = lines.findIndex((l) => l.includes(marker));
-        const cmdOutput = lines.slice(0, markerIdx).join('\n').trim();
-        resolve(cmdOutput);
-      }
+      const endIndex = output.indexOf(end);
+      if (endIndex === -1) return;
+
+      // Strictly between the two printed markers: everything before `start` is
+      // the terminal's echo of the input, and everything after `end` belongs to
+      // whatever runs next.
+      const startIndex = output.indexOf(start);
+      const body =
+        startIndex === -1 ? output.slice(0, endIndex) : output.slice(startIndex + start.length, endIndex);
+      finish(body.trim());
     });
 
-    // Send command with end marker
-    session.pty.write(`${command}\necho "${marker}"\n`);
+    session.pty.write(`${startEcho}\n${command}\n${endEcho}\n`);
 
-    // Safety timeout
-    setTimeout(() => {
-      handler.dispose();
-      resolve(output.slice(0, 10000));
-    }, 30000);
+    timer = setTimeout(() => {
+      finish(output.slice(0, 10000));
+    }, COMMAND_TIMEOUT_MS);
   });
 }
 
