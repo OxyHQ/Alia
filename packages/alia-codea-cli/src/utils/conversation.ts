@@ -97,7 +97,7 @@ export async function processConversation(opts: ConversationOptions): Promise<vo
         tool_calls: toolCalls,
       });
 
-      let hasExecutionFailure = false;
+      let hasAnySuccess = false;
       let hasAnyExecution = false;
 
       for (const tc of toolCalls) {
@@ -122,7 +122,6 @@ export async function processConversation(opts: ConversationOptions): Promise<vo
           });
           onEvent({ type: 'tool_done', execution });
           hasAnyExecution = true;
-          hasExecutionFailure = true;
           continue;
         }
 
@@ -160,8 +159,8 @@ export async function processConversation(opts: ConversationOptions): Promise<vo
         execution.success = result.success;
         hasAnyExecution = true;
 
-        if (!result.success) {
-          hasExecutionFailure = true;
+        if (result.success) {
+          hasAnySuccess = true;
         }
 
         messages.push({
@@ -173,9 +172,18 @@ export async function processConversation(opts: ConversationOptions): Promise<vo
         onEvent({ type: 'tool_done', execution });
       }
 
-      // Track consecutive all-fail rounds to prevent infinite loops
-      // Only count rounds where tools actually executed and all failed
-      if (hasAnyExecution && hasExecutionFailure) {
+      /**
+       * Track consecutive all-fail rounds to prevent infinite loops.
+       *
+       * The condition is "nothing succeeded", not "something failed". It used
+       * to be the latter, which is a different and much narrower loop: with
+       * `MAX_CONSECUTIVE_FAILURES = 2`, two rounds that each did real work but
+       * also contained one benign miss — a `read_file` on a path the model
+       * guessed, a `search_files` with no hits — hard-stopped the session with
+       * "Multiple consecutive tool failures". A round that got anything done
+       * is not a round that is looping.
+       */
+      if (hasAnyExecution && !hasAnySuccess) {
         consecutiveFailures++;
         if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
           onEvent({ type: 'error', message: 'Multiple consecutive tool failures. Stopping to prevent loop.' });
