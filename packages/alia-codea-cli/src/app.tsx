@@ -100,6 +100,16 @@ export function App({ options }: { options: AppOptions }) {
       if (isProcessing) {
         activeRef.current = false;
         setIsProcessing(false);
+        /**
+         * Settle the approval before dropping it. `requestApproval` hands
+         * `processConversation` a promise that ONLY this object's `resolve`
+         * can settle (`:242-243`), so clearing the state without calling it
+         * left that await pending for the lifetime of the process: the tool
+         * loop never reached `isActive()`, the session was never saved, and
+         * the abandoned chain kept mutating `messagesRef` behind the
+         * cancelled turn. Declining is the honest answer to Ctrl+C.
+         */
+        pendingApproval?.resolve(false);
         setPendingApproval(null);
         setDisplayMessages((prev) => [
           ...prev,

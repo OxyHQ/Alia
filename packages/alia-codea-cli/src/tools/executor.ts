@@ -2,7 +2,33 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import { exec, execFile } from 'child_process';
 import { promisify } from 'util';
-import { applyPatch } from './patch.js';
+import { applyPatch, resolveInside } from './patch.js';
+
+/**
+ * Every filesystem path in this file arrives from a language model, and in
+ * `auto-edit` / `full-auto` nothing asks a person before it is used. Resolving
+ * one with a bare `path.resolve(process.cwd(), p)` lets an absolute path win
+ * outright — `/etc/…` is not a traversal attempt that a `..` check would catch,
+ * it is simply an absolute path — so every tool below goes through the same
+ * containment helper the patch tool uses, and refuses rather than guessing.
+ */
+function insideCwd(filePath: string): string {
+  const resolved = resolveInside(process.cwd(), filePath);
+  if (resolved === null) {
+    throw new Error(`Refused: '${filePath}' is outside the working directory`);
+  }
+  return resolved;
+}
+
+/** The same containment for the tools whose argument is a directory, and whose
+ *  documented default is `.` — the working directory itself. */
+function insideCwdDir(dirPath: string): string {
+  const resolved = resolveInside(process.cwd(), dirPath, true);
+  if (resolved === null) {
+    throw new Error(`Refused: '${dirPath}' is outside the working directory`);
+  }
+  return resolved;
+}
 
 const execAsync = promisify(exec);
 const execFileAsync = promisify(execFile);
@@ -42,13 +68,13 @@ export async function executeTool(name: string, args: Record<string, unknown>): 
 }
 
 async function readFile(filePath: string): Promise<ToolResult> {
-  const absolutePath = path.resolve(process.cwd(), filePath);
+  const absolutePath = insideCwd(filePath);
   const content = await fs.readFile(absolutePath, 'utf-8');
   return { success: true, result: content };
 }
 
 async function writeFile(filePath: string, content: string): Promise<ToolResult> {
-  const absolutePath = path.resolve(process.cwd(), filePath);
+  const absolutePath = insideCwd(filePath);
 
   // Ensure directory exists
   await fs.mkdir(path.dirname(absolutePath), { recursive: true });
@@ -58,7 +84,7 @@ async function writeFile(filePath: string, content: string): Promise<ToolResult>
 }
 
 async function editFile(filePath: string, oldText: string, newText: string): Promise<ToolResult> {
-  const absolutePath = path.resolve(process.cwd(), filePath);
+  const absolutePath = insideCwd(filePath);
   const content = await fs.readFile(absolutePath, 'utf-8');
 
   // Try exact match first
@@ -68,22 +94,34 @@ async function editFile(filePath: string, oldText: string, newText: string): Pro
     return { success: true, result: `File edited: ${filePath}` };
   }
 
-  // Try whitespace-normalized match
+  /**
+   * Whitespace-normalized fallback match.
+   *
+   * Grown line by line and abandoned the moment the accumulated text stops
+   * being a prefix of the target. The previous shape built `lines.slice(i, j+1)
+   * .join('\n')` for EVERY pair of line numbers and normalized the whole block
+   * each time — quadratic in the line count with a string build inside, so a
+   * few-thousand-line file (routine in this CLI's own repository) stopped
+   * responding rather than answering "text not found".
+   */
   const normalizedOld = oldText.replace(/\s+/g, ' ').trim();
   const lines = content.split('\n');
+  const normalizedLines = lines.map((line) => line.replace(/\s+/g, ' ').trim());
   let matchStart = -1;
   let matchEnd = -1;
 
-  for (let i = 0; i < lines.length; i++) {
+  for (let i = 0; i < lines.length && matchStart < 0; i++) {
+    let accumulated = '';
     for (let j = i; j < lines.length; j++) {
-      const block = lines.slice(i, j + 1).join('\n');
-      if (block.replace(/\s+/g, ' ').trim() === normalizedOld) {
+      const piece = normalizedLines[j];
+      if (piece !== '') accumulated = accumulated === '' ? piece : `${accumulated} ${piece}`;
+      if (accumulated === normalizedOld) {
         matchStart = i;
         matchEnd = j;
         break;
       }
+      if (!normalizedOld.startsWith(accumulated)) break;
     }
-    if (matchStart >= 0) break;
   }
 
   if (matchStart >= 0) {
@@ -104,7 +142,7 @@ async function applyPatchTool(patchText: string): Promise<ToolResult> {
 }
 
 async function listFiles(dirPath: string = '.', recursive: boolean = false): Promise<ToolResult> {
-  const absolutePath = path.resolve(process.cwd(), dirPath);
+  const absolutePath = insideCwdDir(dirPath);
 
   if (recursive) {
     const files: string[] = [];
@@ -143,7 +181,7 @@ async function searchFiles(
   contextLines: number = 2,
   maxResults: number = 50
 ): Promise<ToolResult> {
-  const absolutePath = path.resolve(process.cwd(), dirPath);
+  const absolutePath = insideCwdDir(dirPath);
 
   // Try ripgrep first
   try {
@@ -281,7 +319,7 @@ async function searchFiles(
 }
 
 async function runCommand(command: string, cwd?: string): Promise<ToolResult> {
-  const workingDir = cwd ? path.resolve(process.cwd(), cwd) : process.cwd();
+  const workingDir = cwd ? insideCwdDir(cwd) : process.cwd();
 
   try {
     const { stdout, stderr } = await execAsync(command, {
