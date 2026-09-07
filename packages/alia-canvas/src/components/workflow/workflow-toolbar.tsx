@@ -22,8 +22,7 @@ import {
   Code2,
 } from "lucide-react";
 import { useTheme } from "next-themes";
-import type { WorkflowNodeType, WorkflowNode } from "@/lib/workflow-types";
-import type { Edge } from "@xyflow/react";
+import type { WorkflowNodeType } from "@/lib/workflow-types";
 
 interface WorkflowToolbarProps {
   workflowName: string;
@@ -34,7 +33,6 @@ interface WorkflowToolbarProps {
   onNew: () => void;
   onClear: () => void;
   onOpenHistory: () => void;
-  onSelectTemplate: (nodes: WorkflowNode[], edges: Edge[], name: string) => void;
   onAddNode: (nodeType: WorkflowNodeType) => void;
   onToggleOutput: () => void;
   isExecuting: boolean;
