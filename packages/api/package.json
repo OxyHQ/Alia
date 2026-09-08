@@ -31,7 +31,7 @@
     "@livekit/agents": "^1.5.2",
     "@livekit/rtc-node": "^0.13.31",
     "@mozilla/readability": "^0.6.0",
-    "@oxyhq/core": "^23.2.1",
+    "@oxyhq/core": "23.3.0",
     "@oxyhq/contracts": "^0.40.0",
     "@oxyhq/crowdsource": "0.3.0",
     "@oxyhq/crowdsource-contracts": "0.3.0",
