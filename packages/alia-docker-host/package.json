@@ -13,7 +13,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@oxyhq/core": "^23.2.1",
+    "@oxyhq/core": "23.3.0",
     "dockerode": "^4.0.12",
     "express": "^4.22.2",
     "helmet": "^8.3.0",
