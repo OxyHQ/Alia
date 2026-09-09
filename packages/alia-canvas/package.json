@@ -17,7 +17,7 @@
     "@expo/vector-icons": "^15.1.1",
     "@hugeicons/core-free-icons": "^4.2.2",
     "@hugeicons/react": "^1.1.9",
-    "@oxyhq/bloom": "^1.14.0",
+    "@oxyhq/bloom": "^1.14.3",
     "@oxyhq/core": "23.3.0",
     "@oxyhq/services": "31.0.0",
     "@tailwindcss/vite": "^4.3.2",
