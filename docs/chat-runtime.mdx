@@ -13,8 +13,7 @@ is delegated to Kaana.
 
 ## Identity
 
-The request `model` field names either an exact Alia product routing identifier
-such as `kaana-v1`, or a concrete `<publisher>/<model>[@<revision>]` reference.
+The request `model` field names an exact Alia product routing identifier.
 The identifier is matched by exact string equality, never by display name,
 database order or a first-row fallback. Alia translates an accepted public
 profile through the reviewed closed map in
@@ -35,7 +34,7 @@ credential never join Kaana's hosted credential pool.
    product mode and capabilities, then reserves product credits.
 3. Alia assembles conversation context, memory, agent instructions and tools.
 4. The inference seam calls `@oxyhq/core`'s `OxyInferenceClient` with an exact
-   opaque `routingProfileId` or concrete model and Alia's service credential.
+   opaque `routingProfileId` and Alia's service credential.
 5. Oxy authenticates that credential and resolves routing policy into ordered
    `authorizedRoutes`, signs the final envelope, and sends it to Kaana.
 6. Kaana executes only those authorized deployments, streams contract events

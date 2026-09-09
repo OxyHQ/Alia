@@ -348,8 +348,8 @@ export async function resolveRequestedModel(requested: string): Promise<Requeste
       : { kind: 'routing-profile', routingProfile };
   }
 
-  const { selectable } = await loadModelSelection();
-  const found = selectable.find((model) => model.id === requested);
-  if (found === undefined) return { kind: 'unknown-model', requested };
-  return { kind: 'model', routingProfile: found.routingProfile, identity: found.identity };
+  // Hosted Alia traffic is routed exclusively by an exact Oxy routing-profile
+  // ID. A concrete model pin bypasses that reviewed policy and can name a model
+  // for which Oxy has no authorised deployment, so it is never accepted here.
+  return { kind: 'unknown-model', requested };
 }

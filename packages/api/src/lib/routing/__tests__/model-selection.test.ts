@@ -472,12 +472,11 @@ describe('what a request’s model identifier resolves to', () => {
     return resolveRequestedModel(identifier);
   };
 
-  it('turns a model identifier into its canonical Kaana profile plus the identity', async () => {
-    const resolved = await resolve('deepseek/deepseek-chat');
-    expect(resolved.kind).toBe('model');
-    if (resolved.kind !== 'model') throw new Error('unreachable');
-    expect(resolved.identity).toEqual({ publisher: 'deepseek', model: 'deepseek-chat' });
-    expect(resolved.routingProfile.startsWith('kaana-')).toBe(true);
+  it('refuses a concrete model so hosted traffic cannot bypass its reviewed Oxy profile', async () => {
+    expect(await resolve('deepseek/deepseek-chat')).toEqual({
+      kind: 'unknown-model',
+      requested: 'deepseek/deepseek-chat',
+    });
   });
 
   it('refuses an internal policy id at the public boundary', async () => {

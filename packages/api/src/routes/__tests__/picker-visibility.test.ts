@@ -137,27 +137,16 @@ describe('the product advertises policies, and both surfaces agree', () => {
   it('serves GET /catalogue keyed by policy, and annotates the offer per entry', async () => {
     const captured = await get(await import('../catalogue.js'), '/', {});
     const data = captured.body?.data ?? [];
-    /**
-     * Scoped to the POLICY entries, because the catalogue now also serves
-     * individually selectable models and those are a different question with a
-     * different answer (`lib/routing/model-selection.ts`). The scoping is
-     * floored in both directions: exactly one entry per preset, and a non-empty
-     * set of the other kind — so a filter that happened to select everything,
-     * or nothing, cannot satisfy the lists below by accident.
-     */
+    // Alia publishes only product routing profiles. Concrete model selection
+    // belongs to the Oxy platform catalogue and must not enter hosted chat.
     const profiles = data.filter((e) => e.object === 'routing_profile');
     expect(profiles).toHaveLength(OFFERED.length + HIDDEN.length);
-    expect(data.filter((e) => e.object === 'model').length).toBeGreaterThan(0);
-    expect(new Set(data.map((e) => e.object))).toEqual(new Set(['routing_profile', 'model']));
+    expect(data.filter((e) => e.object === 'model')).toEqual([]);
+    expect(new Set(data.map((e) => e.object))).toEqual(new Set(['routing_profile']));
 
     expect(profiles.filter((e) => e.chat_visible).map((e) => e.id).sort()).toEqual([...OFFERED].sort());
     expect(profiles.filter((e) => !e.chat_visible).map((e) => e.id).sort()).toEqual([...HIDDEN].sort());
 
-    // A model is never a policy wearing a model's name and never the reverse:
-    // the two id namespaces do not overlap, which is what lets a client switch
-    // on `object` and a person read either list without decoding a prefix.
-    const models = data.filter((e) => e.object === 'model');
-    expect(models.filter((e) => e.id.startsWith('profile:'))).toEqual([]);
     expect(profiles.filter((e) => e.id.includes('/'))).toEqual([]);
   });
 
@@ -166,10 +155,8 @@ describe('the product advertises policies, and both surfaces agree', () => {
     const captured = await get(await import('../catalogue.js'), '/', {});
     const serialized = JSON.stringify(captured.body);
     const data = captured.body?.data ?? [];
-    // Two floors rather than one total, so neither kind of entry can vanish and
-    // leave this scan reporting a clean response it never looked at.
     expect(data.filter((e) => e.object === 'routing_profile')).toHaveLength(OFFERED.length + HIDDEN.length);
-    expect(data.filter((e) => e.object === 'model').length).toBeGreaterThan(0);
+    expect(data.filter((e) => e.object === 'model')).toEqual([]);
 
     const registered = Object.keys(KAANA_ROUTING_PROFILES);
     expect(registered).toHaveLength(13);
