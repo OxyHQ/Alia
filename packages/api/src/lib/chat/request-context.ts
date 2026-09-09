@@ -355,8 +355,8 @@ export async function buildChatRequestContext(
   /**
    * What this request routes on, resolved at the boundary and once.
    *
-   * Three shapes reach here and all three come out as an ALIAS, because the
-   * alias is what carries the metadata the rest of this path needs — the credit
+   * Hosted selections come out as a routing profile, because that profile
+   * carries the metadata the rest of this path needs — the credit
    * multiplier `credits-manager.ts` bills on, the entitlement id
    * `plan-access.ts` checks, the tier the fallback engine walks, and the system
    * prompt the id selects. Translating once, here, is what keeps every one of
@@ -364,11 +364,8 @@ export async function buildChatRequestContext(
    *
    *  - **`profile:*`**, the policy vocabulary `GET /catalogue` publishes,
    *    becomes the alias that serves that policy.
-   *  - **`<publisher>/<model>`**, the model vocabulary it now also publishes,
-   *    becomes the alias of the profile the model is SERVED UNDER, plus the
-   *    identity — which travels separately, on the routing options, because it
-   *    answers a different question: not which tier, but which of that tier's
-   *    models may answer.
+   *  - **`<publisher>/<model>`** is refused. Concrete model selection belongs
+   *    to Oxy; accepting it here would bypass Alia's reviewed profile ID.
    *  - **a legacy `alia-*` identifier** passes through untouched and keeps
    *    working, which is what nothing-advertises-them means in practice: every
    *    installed `@alia.onl/sdk` and `@alia-codea/cli` copy still resolves.
@@ -562,16 +559,12 @@ export async function buildChatRequestContext(
     requestedModel,
   });
   /**
-   * A named model narrows the candidate set to that model's deployments.
-   *
-   * It rides on the same options object the fallback policy does, so the
-   * provider loop's RE-resolve inherits it for free — a retry that quietly
-   * widened back to the profile would answer from a different model one attempt
-   * later, which is the substitution ADR 0003 invariant 2 forbids.
+   * Hosted Alia requests never pin a concrete model. The only per-request
+   * routing option left here is the fallback policy applied within the exact
+   * reviewed profile.
    */
   const routingOptions: RoutingOptions = {
     ...(requestedPolicy === undefined ? {} : { fallbackPolicy: requestedPolicy }),
-    ...(requested.kind === 'model' ? { pinnedModel: requested.identity } : {}),
   };
 
   // Extract client context from first system message if present (from editor/client)

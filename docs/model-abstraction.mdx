@@ -29,9 +29,8 @@ The public vocabulary deliberately separates three things:
   map translates it to an opaque Oxy profile primary key; Oxy validates that
   exact row before the Kaana v2 envelope. Neither Oxy nor Kaana looks up the
   product spelling.
-- A **model reference** uses canonical `<publisher>/<model>` form. An immutable
-  revision adds `@<revision>`. A concrete reference remains concrete through the
-  request path.
+- A concrete `<publisher>/<model>[@<revision>]` reference is platform catalogue
+  vocabulary, not a selectable Alia product route. Hosted chat rejects it.
 
 The canonical routing-profile set is defined in
 `packages/api/src/lib/routing/kaana-profiles.ts`. Product visibility belongs to
@@ -47,7 +46,7 @@ For hosted text inference:
 
 1. The request boundary validates the requested product mode or Kaana profile.
 2. `packages/api/src/lib/chat-core.ts` produces a credential-free resolution
-   carrying an explicit `routing_profile_id` or `model` target.
+   carrying an explicit `routing_profile_id` target.
 3. `getAIModel()` returns the Kaana AI SDK adapter.
 4. `@oxyhq/core`'s `OxyInferenceClient` authenticates to Oxy with Alia's
    short-lived service credential.
@@ -76,9 +75,9 @@ of that capability.
 
 ## Catalogue surfaces
 
-`GET /catalogue` is the product catalogue. It distinguishes product modes,
-routing profiles and concrete model references by type; clients do not infer
-meaning from identifier spelling.
+`GET /catalogue` is the product catalogue. It publishes product modes and
+routing profiles; concrete models remain an Oxy platform concern and are not
+selectable in Alia.
 
 `GET /v1/models` remains the bounded OpenAI-compatible surface documented by
 ADR 0004. It must not misrepresent a routing profile as a concrete model.
