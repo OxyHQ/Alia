@@ -46,6 +46,7 @@ import { useTranslation } from "@/lib/hooks/use-translation";
 import { MessageSources } from "@/components/message-sources";
 import { WeatherCard, type WeatherCardData } from "@/components/cards/weather-card";
 import { MarketCard, type MarketCardData } from "@/components/cards/market-card";
+import { FairCoinCard, type FairCoinCardData } from "@/components/cards/faircoin-card";
 import { NewConversationOffer } from "@/components/new-conversation-offer";
 import { daySeparators } from "@/lib/message-days";
 import { threadSeamIds, type ThreadMessage } from "@/lib/thread-history";
@@ -364,6 +365,9 @@ const MessageRow = React.memo(function MessageRow({
         }
         if (card?.type === 'market' && card.data) {
           return <MarketCard key={key} data={card.data as MarketCardData} />;
+        }
+        if (card?.type === 'faircoin' && card.data) {
+          return <FairCoinCard key={key} data={card.data as FairCoinCardData} />;
         }
 
         return (
