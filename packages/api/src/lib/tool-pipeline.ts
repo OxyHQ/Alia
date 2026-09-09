@@ -388,11 +388,9 @@ export class ToolPipeline {
       aliaTools.webSearch = webSearchTool;
       aliaTools.webScraper = webScraperTool;
       aliaTools.browse = browseTool;
-    }
-
-    // Weather rides the same grant as search: both are the assistant reaching
-    // the open internet on the reader's behalf.
-    if (webSearch && grants.allows('web')) {
+      // The card tools ride the same grant: each one is the assistant reaching
+      // the open internet on the reader's behalf, just at a named service
+      // rather than at whatever a search turns up.
       aliaTools.getWeather = getWeatherTool;
       aliaTools.getMarketQuote = getMarketQuoteTool;
       aliaTools.getFairCoin = getFairCoinTool;
