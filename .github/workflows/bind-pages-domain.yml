@@ -13,8 +13,8 @@
 # that on a push.
 #
 # WHAT IT FIXES, CONCRETELY: `canvas.alia.onl` already resolves — to
-# `alia-production-3kc6h.ondigitalocean.app`, the decommissioned DigitalOcean
-# app `.do/app.yaml` still declares. That host answers nothing (`http=000`), so
+# `alia-production-3kc6h.ondigitalocean.app`, a decommissioned DigitalOcean
+# deployment. That host answers nothing (`http=000`), so
 # Canvas is only reachable on the Pages default `alia-canvas.pages.dev`.
 # `console.alia.onl` is dead in exactly the same way and is the second caller
 # for this, which is why the hostname and project are inputs rather than baked

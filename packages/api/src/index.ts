@@ -78,10 +78,9 @@ initChannels();
 
 const app = express();
 // Local dev default only — ECS injects PORT explicitly (oxy-infra
-// terraform-uswest2/app-services-realtime.tf sets it to 3001) and DigitalOcean
-// App Platform injects it from http_port. 4150 is the main API's slot in Alia's
-// 4150-4159 block of the per-app port map, so several Oxy backends can run side
-// by side on one machine.
+// terraform-uswest2/app-services-realtime.tf sets it to 3001). 4150 is the main
+// API's slot in Alia's 4150-4159 block of the per-app port map, so several Oxy
+// backends can run side by side on one machine.
 const PORT = parseInt(process.env.PORT || '4150', 10);
 
 // Create HTTP server with optimized settings for streaming
