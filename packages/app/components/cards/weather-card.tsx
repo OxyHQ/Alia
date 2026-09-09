@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { View, Pressable, ScrollView } from "react-native";
-import Svg, { Path, Defs, LinearGradient, Stop } from "react-native-svg";
 import { Text } from "@/components/ui/text";
 import { useColorScheme } from "@/lib/useColorScheme";
 import { useTranslation } from "@/lib/hooks/use-translation";
 import { cn } from "@/lib/utils";
+import { AreaChart, areaGeometry } from "@/components/cards/area-chart";
+import { CardSurface } from "@/components/cards/card-surface";
 
 /**
  * The weather, drawn from the snapshot stored with the message.
@@ -47,43 +48,18 @@ const CONDITION_GLYPH: Record<string, string> = {
 
 const CHART_HEIGHT = 96;
 const CHART_WIDTH = 320;
+const CHART_PADDING = 6;
 
-/**
- * The day's temperature as an area.
- *
- * Hand-drawn as one `Path` rather than pulled from a charting library: the app
- * is universal and the web chart libraries the reference uses do not render on
- * native at all. `react-native-svg` is already a dependency.
- */
+/** The day's temperature as an area. No axis: the day strip below says the scale. */
 function HourlyChart({ points, unit, tint }: { points: number[]; unit: Unit; tint: string }) {
-  if (points.length < 2) return null;
+  const geometry = areaGeometry(points.map((c) => toUnit(c, unit)), {
+    width: CHART_WIDTH,
+    height: CHART_HEIGHT,
+    padding: CHART_PADDING,
+  });
+  if (!geometry) return null;
 
-  const values = points.map((c) => toUnit(c, unit));
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  // A flat day would divide by zero and collapse the curve onto one edge.
-  const span = max - min || 1;
-  const step = CHART_WIDTH / (values.length - 1);
-
-  const coords = values.map((v, i) => ({
-    x: i * step,
-    y: CHART_HEIGHT - ((v - min) / span) * (CHART_HEIGHT - 12) - 6,
-  }));
-  const line = coords.map((p, i) => `${i === 0 ? "M" : "L"}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
-  const area = `${line} L${CHART_WIDTH},${CHART_HEIGHT} L0,${CHART_HEIGHT} Z`;
-
-  return (
-    <Svg width="100%" height={CHART_HEIGHT} viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`}>
-      <Defs>
-        <LinearGradient id="weatherFill" x1="0" y1="0" x2="0" y2="1">
-          <Stop offset="0" stopColor={tint} stopOpacity="0.35" />
-          <Stop offset="1" stopColor={tint} stopOpacity="0" />
-        </LinearGradient>
-      </Defs>
-      <Path d={area} fill="url(#weatherFill)" />
-      <Path d={line} stroke={tint} strokeWidth={2} fill="none" />
-    </Svg>
-  );
+  return <AreaChart geometry={geometry} tint={tint} width={CHART_WIDTH} height={CHART_HEIGHT} />;
 }
 
 export function WeatherCard({ data }: { data: WeatherCardData }) {
@@ -98,7 +74,7 @@ export function WeatherCard({ data }: { data: WeatherCardData }) {
     : data.hourly;
 
   return (
-    <View className="mt-3 w-full overflow-hidden rounded-2xl border border-border bg-card p-4">
+    <CardSurface>
       <View className="flex-row items-start justify-between">
         <View className="flex-1">
           <Text className="text-sm text-muted-foreground">{data.place}</Text>
@@ -155,6 +131,6 @@ export function WeatherCard({ data }: { data: WeatherCardData }) {
           </Pressable>
         ))}
       </ScrollView>
-    </View>
+    </CardSurface>
   );
 }

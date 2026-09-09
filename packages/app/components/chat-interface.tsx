@@ -45,6 +45,7 @@ import apiClient from "@/lib/api/client";
 import { useTranslation } from "@/lib/hooks/use-translation";
 import { MessageSources } from "@/components/message-sources";
 import { WeatherCard, type WeatherCardData } from "@/components/cards/weather-card";
+import { MarketCard, type MarketCardData } from "@/components/cards/market-card";
 import { NewConversationOffer } from "@/components/new-conversation-offer";
 import { daySeparators } from "@/lib/message-days";
 import { threadSeamIds, type ThreadMessage } from "@/lib/thread-history";
@@ -360,6 +361,9 @@ const MessageRow = React.memo(function MessageRow({
         const card = isDone ? (t.result as { card?: { type?: string; data?: unknown } } | undefined)?.card : undefined;
         if (card?.type === 'weather' && card.data) {
           return <WeatherCard key={key} data={card.data as WeatherCardData} />;
+        }
+        if (card?.type === 'market' && card.data) {
+          return <MarketCard key={key} data={card.data as MarketCardData} />;
         }
 
         return (

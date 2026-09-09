@@ -1082,5 +1082,40 @@
       "snow-showers": "Chubascos de nieve",
       "thunderstorm": "Tormenta"
     }
+  },
+  "market": {
+    "noPrice": "Sin cotización disponible",
+    "noChart": "No hay histórico suficiente para dibujar este rango",
+    "open": "Apertura",
+    "dayHigh": "Máximo del día",
+    "dayLow": "Mínimo del día",
+    "volume": "Volumen (24 h)",
+    "marketCap": "Capitalización",
+    "range": {
+      "1D": "1D",
+      "5D": "5D",
+      "1M": "1M",
+      "6M": "6M",
+      "YTD": "YTD",
+      "1Y": "1A",
+      "5Y": "5A",
+      "MAX": "MAX"
+    },
+    "since": {
+      "1D": "último día",
+      "5D": "últimos 5 días",
+      "1M": "último mes",
+      "6M": "últimos 6 meses",
+      "YTD": "en lo que va de año",
+      "1Y": "último año",
+      "5Y": "últimos 5 años",
+      "MAX": "desde el inicio"
+    },
+    "scale": {
+      "thousand": "%{value} mil",
+      "million": "%{value} M",
+      "billion": "%{value} mil M",
+      "trillion": "%{value} B"
+    }
   }
 }
