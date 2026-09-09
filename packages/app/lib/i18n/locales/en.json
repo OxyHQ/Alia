@@ -1153,5 +1153,41 @@
       "billion": "%{value}B",
       "trillion": "%{value}T"
     }
+  },
+  "faircoin": {
+    "name": "FairCoin",
+    "symbol": "FAIR",
+    "noPrice": "No price",
+    "noPriceHint": "The pool had no indexed price at the time of the answer.",
+    "indexed": "Indexed price",
+    "source": "From %{source}",
+    "updated": "Updated %{time}",
+    "unavailable": "No history for %{ranges}",
+    "volume": "24h volume",
+    "liquidity": "Liquidity",
+    "marketCap": "Market cap",
+    "noHistory": "The explorer did not answer for this period.",
+    "noSamples": "No samples for this period yet.",
+    "noChart": "Only one sample so far — not enough to draw a line.",
+    "range": {
+      "24h": "24h",
+      "7d": "7D",
+      "30d": "30D",
+      "1y": "1Y",
+      "all": "All"
+    },
+    "since": {
+      "24h": "since yesterday",
+      "7d": "over 7 days",
+      "30d": "over 30 days",
+      "1y": "over the year",
+      "all": "all time"
+    },
+    "scale": {
+      "thousand": "K",
+      "million": "M",
+      "billion": "B",
+      "trillion": "T"
+    }
   }
 }

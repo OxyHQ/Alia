@@ -1117,5 +1117,41 @@
       "billion": "%{value} mil M",
       "trillion": "%{value} B"
     }
+  },
+  "faircoin": {
+    "name": "FairCoin",
+    "symbol": "FAIR",
+    "noPrice": "Sin cotización",
+    "noPriceHint": "El pool no tenía precio indexado en el momento de la respuesta.",
+    "indexed": "Precio indexado",
+    "source": "De %{source}",
+    "updated": "Actualizado %{time}",
+    "unavailable": "Sin histórico para %{ranges}",
+    "volume": "Volumen 24 h",
+    "liquidity": "Liquidez",
+    "marketCap": "Capitalización",
+    "noHistory": "El explorador no respondió para este periodo.",
+    "noSamples": "Todavía no hay muestras de este periodo.",
+    "noChart": "Sólo hay una muestra — no bastan para trazar una línea.",
+    "range": {
+      "24h": "24 h",
+      "7d": "7 D",
+      "30d": "30 D",
+      "1y": "1 A",
+      "all": "Todo"
+    },
+    "since": {
+      "24h": "desde ayer",
+      "7d": "en 7 días",
+      "30d": "en 30 días",
+      "1y": "en el año",
+      "all": "histórico"
+    },
+    "scale": {
+      "thousand": " mil",
+      "million": " M",
+      "billion": " mil M",
+      "trillion": " B"
+    }
   }
 }
