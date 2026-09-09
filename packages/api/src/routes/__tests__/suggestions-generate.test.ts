@@ -1,4 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { OxyInferenceError } from '@oxyhq/core';
 
 /**
  * `POST /suggestions/generate`, and the failure it was answering 500 with.
@@ -139,13 +140,6 @@ const H = vi.hoisted(() => ({
   kaanaThrows: null as Error | null,
   /** The request the route handed Kaana, for asserting what was ASKED. */
   kaanaRequest: null as Record<string, unknown> | null,
-  /** What the fallback model answers, and how it says it finished. */
-  modelText: '',
-  modelFinish: 'stop' as string,
-  /** The options `generateObject` handed the fallback model. */
-  modelCall: null as Record<string, unknown> | null,
-  /** Whether a model can be resolved at all. */
-  resolves: true,
 }));
 
 vi.mock('../../db/index.js', () => ({ getDb: vi.fn(() => ({})) }));
@@ -185,39 +179,6 @@ vi.mock('../../lib/inference/kaana-text.js', () => ({
     if (H.kaanaThrows !== null) throw H.kaanaThrows;
     return H.kaanaAnswer;
   }),
-}));
-
-/**
- * The fallback model is a real `LanguageModelV3`, not a mocked `generateObject`.
- *
- * Mocking the SDK call would mock the parse, the validation and the error this
- * suite is about, leaving assertions that only measure the mock. This answers
- * with text the way a provider does and lets the SDK do everything it does in
- * production.
- */
-vi.mock('../../lib/chat-core.js', () => ({
-  resolveModel: vi.fn(async () => (H.resolves ? { provider: 'groq', keyConfig: { provider: 'groq' } } : null)),
-  getAIModel: vi.fn(() => ({
-    specificationVersion: 'v3',
-    provider: 'kaana',
-    modelId: 'test',
-    supportedUrls: {},
-    async doGenerate(call: Record<string, unknown>) {
-      H.modelCall = call;
-      return {
-        content: H.modelText === '' ? [] : [{ type: 'text', text: H.modelText }],
-        finishReason: { unified: H.modelFinish, raw: H.modelFinish },
-        usage: {
-          inputTokens: { total: 100, noCache: undefined, cacheRead: undefined, cacheWrite: undefined },
-          outputTokens: { total: 900, text: undefined, reasoning: undefined },
-        },
-        warnings: [],
-      };
-    },
-    async doStream() {
-      throw new Error('the suggestion route does not stream');
-    },
-  })),
 }));
 
 import { log } from '../../lib/logger.js';
@@ -268,10 +229,6 @@ beforeEach(() => {
   H.kaanaAnswer = null;
   H.kaanaThrows = null;
   H.kaanaRequest = null;
-  H.modelText = '';
-  H.modelFinish = 'stop';
-  H.modelCall = null;
-  H.resolves = true;
 });
 
 describe('the answer the model is asked for', () => {
@@ -298,28 +255,18 @@ describe('the answer the model is asked for', () => {
     expect(JSON.stringify(format?.schema)).toContain('suggestions');
   });
 
-  it('asks the fallback for the same schema', async () => {
-    // `generateObject` is the only AI SDK call that carries a response format,
-    // which is why the fallback uses it rather than `generateText`.
-    H.kaanaAnswer = null;
-    H.modelText = COMPLETE_ANSWER;
+  it('sends the reviewed lite routing-profile primary key', async () => {
+    H.kaanaAnswer = COMPLETE_ANSWER;
     await generate();
 
-    const format = H.modelCall?.responseFormat as { type: string; schema?: Record<string, unknown> };
-    expect(format?.type).toBe('json');
-    expect(JSON.stringify(format?.schema)).toContain('suggestions');
+    expect(H.kaanaRequest?.routingProfileId).toBe('01a06477-94f5-74f0-bc25-4a1ff59d6945');
   });
 
-  it('spends one deadline on every call rather than a fresh clock on each', async () => {
-    // The client waits sixty seconds. Four independent thirty-second clocks add
-    // up to a hundred and twenty, so the last two attempts were billed to
-    // answer a client that had already gone.
-    H.kaanaAnswer = null;
-    H.modelText = COMPLETE_ANSWER;
+  it('holds the single Oxy call to one deadline', async () => {
+    H.kaanaAnswer = COMPLETE_ANSWER;
     await generate();
 
     expect(H.kaanaRequest?.signal).toBeInstanceOf(AbortSignal);
-    expect(H.modelCall?.abortSignal).toBe(H.kaanaRequest?.signal);
   });
 
   it('tells Kaana the same budget it holds the signal to', async () => {
@@ -365,14 +312,6 @@ describe('a complete answer', () => {
     });
   });
 
-  it('becomes suggestions through the fallback too', async () => {
-    H.kaanaAnswer = null;
-    H.modelText = COMPLETE_ANSWER;
-    const res = await generate();
-
-    expect(res.statusCode).toBe(200);
-    expect(res.body).toMatchObject({ generated: 8 });
-  });
 });
 
 describe('an answer that was cut off', () => {
@@ -380,7 +319,7 @@ describe('an answer that was cut off', () => {
     H.kaanaAnswer = TRUNCATED_ANSWER;
     const res = await generate();
 
-    expect(res.statusCode).toBe(500);
+    expect(res.statusCode).toBe(502);
     expect(vi.mocked(createSuggestion)).not.toHaveBeenCalled();
     expect(vi.mocked(log.general.error)).toHaveBeenCalledWith(
       { responseChars: 3022 },
@@ -400,56 +339,43 @@ describe('an answer that was cut off', () => {
     expect(loggedText()).not.toContain('Quick Idea Brainstorm');
   });
 
-  it('says which fault it was, on the fallback path', async () => {
-    // `length` is the fact nobody had: it says the answer was cut off at the
-    // output budget rather than malformed, which is the difference between
-    // raising a ceiling and rewriting a prompt.
+  it('reports an empty upstream answer as a gateway failure', async () => {
     H.kaanaAnswer = null;
-    H.modelText = TRUNCATED_ANSWER;
-    H.modelFinish = 'length';
     const res = await generate();
 
-    expect(res.statusCode).toBe(500);
-    expect(vi.mocked(log.general.error)).toHaveBeenCalledWith(
-      expect.objectContaining({ finishReason: 'length', responseChars: 3022 }),
-      'Failed to parse AI-generated suggestions',
-    );
-    expect(loggedText()).not.toContain('Quick Idea Brainstorm');
+    expect(res.statusCode).toBe(502);
+    expect(res.body).toEqual({ error: 'Suggestion generation returned no result' });
   });
 
   it('is not reported as missing capacity', async () => {
-    // 503 says "come back later"; a model that answered with something unusable
-    // will answer the same way on the retry that advice invites.
-    H.kaanaAnswer = null;
-    H.modelText = TRUNCATED_ANSWER;
-    H.modelFinish = 'length';
+    H.kaanaAnswer = TRUNCATED_ANSWER;
     const res = await generate();
 
-    expect(res.body).toEqual({ error: 'Failed to generate suggestions' });
+    expect(res.body).toEqual({ error: 'Suggestion generation returned an invalid result' });
   });
 });
 
-describe('when nothing can answer', () => {
-  it('reports missing capacity rather than a parse failure', async () => {
-    H.kaanaAnswer = null;
-    H.resolves = false;
+describe('when Oxy cannot route the request', () => {
+  it('preserves the refusal as a retryable service response', async () => {
+    H.kaanaThrows = new OxyInferenceError({
+      code: 'no_route_available',
+      message: 'No route is currently available.',
+      retryable: false,
+      requestId: 'request-1',
+      status: 503,
+      param: 'routingProfileId',
+    });
     const res = await generate();
 
     expect(res.statusCode).toBe(503);
-    expect(res.body).toEqual({ error: 'No AI models available' });
-  });
-
-  it('falls back when Kaana refuses the call, and logs the refusal under err', async () => {
-    // A `KaanaInferenceError` carries a code and a request id and no content,
-    // so this is the one failure whose thrown value belongs in the line.
-    H.kaanaThrows = new Error('Kaana inference failed: cancelled');
-    H.modelText = COMPLETE_ANSWER;
-    const res = await generate();
-
-    expect(res.statusCode).toBe(200);
+    expect(res.body).toEqual({
+      error: 'Suggestion generation is temporarily unavailable',
+      code: 'no_route_available',
+      requestId: 'request-1',
+    });
     expect(vi.mocked(log.general.warn)).toHaveBeenCalledWith(
-      { err: H.kaanaThrows },
-      'Kaana did not serve the suggestion prompt, falling back',
+      { code: 'no_route_available', requestId: 'request-1', retryable: false },
+      'Oxy inference refused suggestion generation',
     );
   });
 });

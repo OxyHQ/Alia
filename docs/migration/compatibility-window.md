@@ -7,6 +7,14 @@
 
 **Applies to:** epic #139, workstream 0. Referenced by ADR 0002, ADR 0003 and ADR 0004.
 
+> **Historical compatibility decision, superseded for alias path (a).** The
+> clean Kaana identity cut removed the `alia-*` resolver, deprecation middleware
+> and provider runtime. Current requests using those aliases are refused as
+> unregistered; `GET /v1/models` remains empty and `/catalogue` publishes the
+> supported `kaana-*` product profiles. Statements below that aliases “still
+> resolve” describe the bounded window before that cut and are not current
+> operating behaviour. Paths (b) and (c) remain governed by their own sections.
+
 Three things survive the migration to Oxy and Kaana for a bounded period, because removing them the day the new path lands would break callers who have not been given a way to move:
 
 - **(a)** the `alia-*` model aliases;

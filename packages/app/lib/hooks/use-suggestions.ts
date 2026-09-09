@@ -1,5 +1,4 @@
-import { useEffect, useRef } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation } from '@tanstack/react-query';
 import { useAuth } from '@oxyhq/services';
 import apiClient from '../api/client';
 import { API_ROUTES } from '../api/routes';
@@ -71,47 +70,4 @@ export function useSearchSuggestions(query: string) {
     gcTime: 1000 * 60 * 10,
     retry: 0,
   });
-}
-
-/**
- * AI-generate personalized suggestions
- */
-export function useGenerateSuggestions() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (params?: { count?: number; types?: string[] }) => {
-      const res = await apiClient.post(API_ROUTES.suggestions.generate, params || {}, { timeout: 60000 });
-      return res.data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.suggestions.welcome });
-      queryClient.invalidateQueries({ queryKey: queryKeys.suggestions.me });
-    },
-  });
-}
-
-/**
- * Auto-generate personalized suggestions once per app session.
- * Call from the app layout so it fires as soon as auth is ready.
- */
-const SESSION_GENERATION_DELAY_MS = 10_000;
-
-export function useSessionSuggestionGeneration() {
-  const { isAuthenticated } = useAuth();
-  const { mutate } = useGenerateSuggestions();
-  const mutateRef = useRef(mutate);
-  mutateRef.current = mutate;
-  const hasGenerated = useRef(false);
-
-  useEffect(() => {
-    if (!isAuthenticated || hasGenerated.current) return;
-    // Defer the expensive AI generation off the boot critical path: it competes
-    // with first-paint queries for network and backend capacity, and its result
-    // (a refreshed suggestion pool) is only consumed on later visits anyway.
-    const timer = setTimeout(() => {
-      hasGenerated.current = true;
-      mutateRef.current({ count: 8, types: ['welcome', 'autocomplete'] });
-    }, SESSION_GENERATION_DELAY_MS);
-    return () => clearTimeout(timer);
-  }, [isAuthenticated]);
 }

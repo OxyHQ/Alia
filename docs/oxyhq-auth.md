@@ -1,6 +1,6 @@
 # OxyHQ Authentication & Packages Guide (Alia)
 
-> **Model:** device-first, **zero-cookie**. There is **one** frontend SDK — `@oxyhq/services` (`OxyProvider` + `useAuth`/`useOxy`) — for **web AND native**. The old web-only `@oxyhq/auth` / `WebOxyProvider` package and cross-domain SSO/FedCM were removed ecosystem-wide (2026-07). The canonical, always-current reference lives in the OxyHQServices repo: `docs/architecture/oxy-auth-platform.md`, `docs/SESSION-ARCHITECTURE.md`, `docs/auth/device-session.md`.
+> **Model:** device-first, **zero-cookie**. There is **one** frontend SDK — `@oxyhq/services` (`OxyProvider` + `useAuth`/`useOxy`) — for **web AND native**. The old web-only `@oxyhq/auth` / `WebOxyProvider` package and cross-domain SSO/FedCM were removed ecosystem-wide (2026-07). The canonical reference lives in the Oxy repo at `docs/engineering/auth-and-identity.md` and `docs/auth/index.md`.
 
 ## Which package?
 
@@ -24,7 +24,7 @@ import { OxyProvider, useAuth } from '@oxyhq/services';
 
 function App() {
   return (
-    <OxyProvider baseURL="https://api.alia.onl" clientId={import.meta.env.VITE_OXY_CLIENT_ID}>
+    <OxyProvider baseURL="https://api.oxy.so" clientId={import.meta.env.VITE_OXY_CLIENT_ID}>
       <Routes />
     </OxyProvider>
   );
@@ -53,10 +53,12 @@ app.use('/api/protected', createOxyAuthMiddleware(oxy));
 ```bash
 # Web (Vite)
 VITE_OXY_CLIENT_ID=oxy_dk_...
+VITE_OXY_API_URL=https://api.oxy.so
 VITE_API_URL=https://api.alia.onl
 
 # Native (Expo)
 EXPO_PUBLIC_OXY_CLIENT_ID=oxy_dk_...
+EXPO_PUBLIC_OXY_API_URL=https://api.oxy.so
 ```
 
 ## Don't
@@ -68,4 +70,6 @@ EXPO_PUBLIC_OXY_CLIENT_ID=oxy_dk_...
 ## Troubleshooting
 
 - **"useAuth/useOxy must be used within OxyProvider"** — the hook is called outside the `<OxyProvider>` tree; hoist the provider to the app root.
+- **`/users/me` and `/session/device/*` return 401 together** — the persisted device pair did not mint a valid access token. Treat the user as signed out and let `OxyProvider` present the user-initiated sign-in flow; do not retry protected product requests or build an app-local refresh loop.
+- **A preceding 429** — inspect the exact URL and `Retry-After`; a rate-limited unrelated asset request does not prove the device session failed. The browser console line without its URL is insufficient for correlation.
 - **Web build fails resolving `react-native-*` / `codegenNativeComponent`** — the Vite app is missing `vite-plugin-react-native-web` or the `react-native-screens` shim; mirror `packages/alia-console`. (Next.js/Turbopack cannot bundle the RN graph — Alia web apps are Vite.)

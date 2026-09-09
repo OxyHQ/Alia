@@ -116,3 +116,18 @@ All chat clients consume the same named events with `eventVersion: 1`:
 Scheduled execution is trigger-engine-native. `/automations` owns normalized
 schedules while existing trigger rows remain supported during migration; both
 use the same leader lease, cron registry and reconciliation loop.
+
+## Prompt suggestions are not an automation
+
+Welcome cards come from the seeded `suggestions` catalogue. `POST
+/suggestions/welcome` ranks that pool using the current user's memory when one
+is available; opening an authenticated app session does not start inference or
+write new suggestions.
+
+`POST /suggestions/generate` remains an explicit authenticated operation for
+creating personal suggestions. It makes one request through Oxy using the
+reviewed `kaana-lite` routing-profile primary key. Oxy and Kaana own route
+selection and retry, so Alia does not loop over providers or repeat an identical
+profile request. An Oxy routing refusal is `503` with its safe request ID; an
+empty or schema-invalid model answer is `502`. Neither is presented as an
+internal Alia `500`.

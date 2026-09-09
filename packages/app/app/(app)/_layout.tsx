@@ -16,7 +16,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CommandPalette } from '@/components/command-palette';
 import { KeyboardShortcutsDialog } from '@/components/keyboard-shortcuts-dialog';
 import i18n from '@/lib/i18n';
-import { useWelcomeSuggestions, useSessionSuggestionGeneration } from '@/lib/hooks/use-suggestions';
+import { useWelcomeSuggestions } from '@/lib/hooks/use-suggestions';
 import { useNotificationSetup } from '@/lib/hooks/use-notification-setup';
 import { useLocalRuntime } from '@/lib/hooks/use-local-runtime';
 import { asViewStyle } from '@/lib/types/webStyles';
@@ -42,7 +42,6 @@ export default function AppLayout() {
 
   // Prefetch welcome suggestions so they're ready before any chat screen mounts
   useWelcomeSuggestions();
-  useSessionSuggestionGeneration();
 
   // Push notification registration, tap handling, and real-time subscription
   useNotificationSetup();

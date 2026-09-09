@@ -266,9 +266,10 @@ OpenAI-shaped model list to name.
 Read [`GET /catalogue`](#catalogue-and-analytics) for the routing profiles and the models,
 and `GET /catalogue/modes` for the product modes a person picks between.
 
-**Requests are unaffected.** The aliases still resolve; they are advertised by nothing.
-Every installed `@alia.onl/sdk` and `@alia-codea/cli` copy keeps working.
-`docs/migration/compatibility-window.md` records that closure, its date and its evidence.
+**The aliases are removed.** A request using `alia-*` is refused as an
+unregistered identity; callers must use a published `kaana-*` product profile
+or a concrete model reference. `docs/migration/compatibility-window.md` retains
+the historical window and its evidence, not the current request contract.
 
 `GET /v1/models/:modelId` answers `410` for a retired alias, naming the routing profile it
 became, and `404` for anything else — a bare 404 for an identifier that worked last week is
