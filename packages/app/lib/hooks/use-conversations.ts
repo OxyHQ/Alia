@@ -109,6 +109,29 @@ interface ConversationsInfiniteData {
 
 const CONVERSATIONS_STORAGE_KEY = "alia-conversations";
 
+/** A stable signal for a URL whose server-side conversation no longer exists. */
+export class ConversationNotFoundError extends Error {
+  constructor(readonly conversationId: string) {
+    super('Conversation not found');
+    this.name = 'ConversationNotFoundError';
+  }
+}
+
+async function removeStoredConversation(id: string): Promise<void> {
+  const stored = await AsyncStorage.getItem(CONVERSATIONS_STORAGE_KEY);
+  if (!stored) return;
+
+  try {
+    const conversations: Conversation[] = JSON.parse(stored);
+    const remaining = conversations.filter((conversation) => conversation.id !== id);
+    if (remaining.length !== conversations.length) {
+      await AsyncStorage.setItem(CONVERSATIONS_STORAGE_KEY, JSON.stringify(remaining));
+    }
+  } catch {
+    // A malformed offline cache cannot make a valid server response invalid.
+  }
+}
+
 // Message content is either a plain string or a parts array; previews (titles,
 // lastMessage) need the flattened text either way.
 function messageText(message: Message | undefined): string {
@@ -206,8 +229,17 @@ async function fetchConversation(id: string): Promise<Conversation> {
       messages: normalizeConversationMessages(data.messages || []),
     };
   } catch (error: unknown) {
-    // If unauthorized or not found on server, fall back to local storage
-    if (errorStatus(error) === 401 || errorStatus(error) === 404) {
+    const status = errorStatus(error);
+    // A server-side 404 is authoritative for an authenticated request. Keeping
+    // an older offline copy here resurrects a deleted conversation and makes
+    // every later read and write hit the same missing id again.
+    if (status === 404) {
+      await removeStoredConversation(id);
+      throw new ConversationNotFoundError(id);
+    }
+
+    // An unavailable authenticated session can still read its offline copy.
+    if (status === 401) {
       const stored = await AsyncStorage.getItem(CONVERSATIONS_STORAGE_KEY);
       if (stored) {
         const parsed: Conversation[] = JSON.parse(stored);
@@ -222,7 +254,7 @@ async function fetchConversation(id: string): Promise<Conversation> {
         }
       }
     }
-    throw new Error('Conversation not found');
+    throw error;
   }
 }
 
