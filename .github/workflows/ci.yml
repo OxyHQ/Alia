@@ -137,7 +137,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Verify deployment transaction safeguards
         run: |
@@ -222,7 +222,7 @@ jobs:
       # reason. `scanGitHistory` REFUSES a shallow clone rather than returning an
       # empty list, so removing this line turns the job red instead of turning
       # the check off.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -284,7 +284,7 @@ jobs:
     timeout-minutes: 20
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: oven-sh/setup-bun@v2
         with:
@@ -521,7 +521,7 @@ jobs:
     needs: lint-and-test
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: oven-sh/setup-bun@v2
         with:
@@ -576,7 +576,7 @@ jobs:
           --health-retries 10
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: oven-sh/setup-bun@v2
         with:
@@ -640,7 +640,7 @@ jobs:
           --health-retries 10
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: oven-sh/setup-bun@v2
         with:
