@@ -90,6 +90,10 @@ and must not be exposed through Alia responses or errors.
 
 If Oxy or Kaana is unavailable, hosted inference fails visibly with the typed
 product error. Alia does not fall back to an in-process provider adapter.
+Background derivations follow the same rule: they make one Oxy request and do
+not retry an identical profile locally. An Oxy routing refusal is a `503`, an
+empty or invalid upstream result is a `502`, and a safe Oxy request ID is kept
+for correlation without exposing provider or deployment details.
 
 ## Automation control plane
 

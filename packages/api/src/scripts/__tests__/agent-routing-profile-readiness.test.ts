@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { OXY_KAANA_ROUTING_PROFILE_IDS } from '../../config/oxy-inference-routing-profile-ids.js';
-import { agentRoutingReadinessReport } from '../check-agent-routing-profile-readiness.js';
+import {
+  agentRoutingReadinessReport,
+  oxyRoutingReadinessReport,
+} from '../check-agent-routing-profile-readiness.js';
 
 describe('agent routing-profile rollout readiness', () => {
   it('is ready only when every active row carries a reviewed exact Oxy PK', () => {
@@ -55,6 +58,25 @@ describe('agent routing-profile rollout readiness', () => {
         legacyAllowedModels: ['alia-v1', 'alia-v1-pro'],
         reason: 'missing',
       }],
+    });
+  });
+});
+
+describe('live Oxy routing-profile readiness', () => {
+  it('requires every reviewed primary key to be visible to Alia', () => {
+    expect(oxyRoutingReadinessReport(Object.values(OXY_KAANA_ROUTING_PROFILE_IDS))).toEqual({
+      ready: true,
+      missingCount: 0,
+      missing: [],
+    });
+  });
+
+  it('reports the exact missing key instead of accepting matching slugs', () => {
+    const ids = Object.values(OXY_KAANA_ROUTING_PROFILE_IDS).slice(1);
+    expect(oxyRoutingReadinessReport(['kaana-lite', ...ids])).toEqual({
+      ready: false,
+      missingCount: 1,
+      missing: [OXY_KAANA_ROUTING_PROFILE_IDS['kaana-lite']],
     });
   });
 });

@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
-import { generateObject, NoObjectGeneratedError, zodSchema } from 'ai';
+import { zodSchema } from 'ai';
+import { OxyInferenceError } from '@oxyhq/core';
 import { z } from 'zod';
 import { OXY_KAANA_ROUTING_PROFILE_IDS } from '../config/oxy-inference-routing-profile-ids.js';
 import { getDb } from '../db/index.js';
@@ -18,7 +19,6 @@ import {
 } from '../db/notifications/suggestionRepository.js';
 import type { SuggestionSearchHit } from '../db/notifications/suggestionRepository.js';
 import { authenticateToken, optionalAuth } from '../middleware/auth.js';
-import { resolveModel, getAIModel } from '../lib/chat-core.js';
 import { getUserLanguage } from '../lib/memory/user-memory-service.js';
 import { log } from '../lib/logger.js';
 import { generateTextViaKaana } from '../lib/inference/kaana-text.js';
@@ -76,15 +76,11 @@ const MAX_GENERATED_SUGGESTIONS = 10;
 const SUGGESTION_OUTPUT_TOKENS = 4096;
 
 /**
- * How long the whole request may take, across every model call it makes.
+ * How long the inference request may take.
  *
- * ONE deadline rather than one clock per call. The previous shape gave Kaana
- * thirty seconds and each of three fallback attempts thirty more, which is a
- * hundred and twenty seconds of work for a client (`use-suggestions.ts`) that
- * waits sixty — so the last two attempts were billed to answer nobody. It also
- * cancelled work that was going to succeed: the same measurement above took
- * 27.5–38.5 seconds wall-clock, so six of eight successful generations would
- * have been aborted at thirty.
+ * Oxy and Kaana own deployment selection and retry. This route has one clock
+ * around one inference request; retrying the same Oxy routing-profile ID here
+ * cannot discover another route and only multiplies cost and log noise.
  *
  * Fifty-five leaves the client's sixty with room for the inserts and the
  * response. A call that cannot start inside it is not started.
@@ -98,12 +94,7 @@ const router = Router();
 const cache = new Map<string, { data: any; expiresAt: number }>();
 const CACHE_MAX_SIZE = 500;
 /**
- * The instruction both inference paths send.
- *
- * One function rather than one literal per call site: while Kaana and the
- * in-process provider tree both exist, two copies of this prompt would drift,
- * and the drift would show as two surfaces answering differently for a reason
- * invisible in a diff.
+ * The instruction sent through Alia's single Oxy inference boundary.
  */
 function suggestionPrompt(input: {
   count: number;
@@ -325,6 +316,7 @@ router.post('/generate', authenticateToken, async (req: Request, res: Response) 
     if (!req.user?.id) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
+    const userId = req.user.id;
 
     // Both inputs reach the prompt, so both are bounded here rather than
     // trusted. `count` decides how much answer the output budget has to hold,
@@ -337,7 +329,7 @@ router.post('/generate', authenticateToken, async (req: Request, res: Response) 
     const types = asked.length > 0 ? asked : SUGGESTION_TYPES;
 
     // Fetch user context for personalization
-    const memory = await findUserMemory(getDb(), req.user.id);
+    const memory = await findUserMemory(getDb(), userId);
 
     const language = memory?.preferences.language || 'en-US';
     const interests = memory?.preferences.interests ?? [];
@@ -345,40 +337,6 @@ router.post('/generate', authenticateToken, async (req: Request, res: Response) 
     const occupation = memory?.context.occupation || '';
     const location = memory?.context.location || '';
 
-    // Provider fallback retry loop
-    const MAX_PROVIDER_RETRIES = 3;
-    const skipProviders = new Set<string>();
-    /**
-     * The validated suggestions, once either path has produced them.
-     *
-     * One variable for two producers, because they now agree on a shape: both
-     * are asked for {@link aiSuggestionListSchema} and neither hands this
-     * handler anything it still has to parse. `null` means nobody has answered
-     * yet.
-     */
-    let generated: AiSuggestion[] | null = null;
-    /**
-     * Kaana's answer, when Kaana served this call. Kept apart rather than
-     * folded in: this one is still TEXT that has to be parsed, and the parse
-     * failing is a different event from Kaana failing to answer — which is the
-     * distinction the logs did not carry when this route was returning 500.
-     */
-    let kaanaText: string | null = null;
-    /**
-     * Whether a model answered and the answer could not be used.
-     *
-     * Separate from "no model answered", because the two are different things
-     * to tell a caller and only one of them is worth retrying.
-     */
-    let unusableAnswer = false;
-
-    /**
-     * The deadline, shared by every model call this request makes.
-     *
-     * Created once, before the first of them, so the abort is against the
-     * REQUEST's remaining time rather than each call's own fresh thirty
-     * seconds. See {@link SUGGESTION_BUDGET_MS}.
-     */
     const deadline = AbortSignal.timeout(SUGGESTION_BUDGET_MS);
 
     // Build compact user profile string (only non-empty fields)
@@ -392,8 +350,7 @@ router.post('/generate', authenticateToken, async (req: Request, res: Response) 
 
     const prompt = suggestionPrompt({ count, profileParts, language, types });
 
-    // Kaana first: it is the inference provider, and the loop below is what it
-    // replaces. A failure here is not fatal while both paths exist.
+    let kaanaText: string | null;
     try {
       kaanaText = await generateTextViaKaana({
         routingProfileId: OXY_KAANA_ROUTING_PROFILE_IDS['kaana-lite'],
@@ -405,11 +362,11 @@ router.post('/generate', authenticateToken, async (req: Request, res: Response) 
         surface: 'authoring',
         maxOutputTokens: SUGGESTION_OUTPUT_TOKENS,
         temperature: 0.8,
-        oxyUserId: req.user?.id ?? null,
+        oxyUserId: userId,
         /**
-         * The same schema the fallback asks for, converted once from the same
-         * Zod object the answer is validated against — so the shape asked for
-         * and the shape required cannot disagree. `await` because the SDK types
+         * Converted from the same Zod object the answer is validated against,
+         * so the shape asked for and the shape required cannot disagree.
+         * `await` because the SDK types
          * the conversion as possibly asynchronous; the cast because a JSON
          * Schema IS the JSON object the contract's field is typed as.
          */
@@ -422,32 +379,37 @@ router.post('/generate', authenticateToken, async (req: Request, res: Response) 
         budgetMs: SUGGESTION_BUDGET_MS,
         signal: deadline,
       });
-    } catch (err: unknown) {
-      log.general.warn({ err }, 'Kaana did not serve the suggestion prompt, falling back');
+    } catch (error: unknown) {
+      if (error instanceof OxyInferenceError) {
+        log.general.warn(
+          { code: error.code, requestId: error.requestId, retryable: error.retryable },
+          'Oxy inference refused suggestion generation',
+        );
+        return res.status(503).json({
+          error: 'Suggestion generation is temporarily unavailable',
+          code: error.code,
+          requestId: error.requestId,
+        });
+      }
+      throw error;
     }
 
-    if (kaanaText !== null) {
-      /**
-       * The whole answer, parsed as JSON — not a bracket-to-bracket slice of
-       * it.
-       *
-       * What was here matched from the first `[` to the last `]` and parsed
-       * that. On a truncated answer, which is what the model was actually
-       * returning, the last `]` closes an item's `tags` array, so the slice is
-       * a valid-looking prefix of a list and `JSON.parse` fails on it — the
-       * regex found something every time and it was never the answer.
-       */
-      let answer: unknown = null;
-      try {
-        answer = JSON.parse(kaanaText);
-      } catch {
-        // Left as null so the schema below rejects it, rather than reporting a
-        // syntax failure and a shape failure through two different paths.
-        answer = null;
-      }
+    if (kaanaText === null) {
+      log.general.error('Oxy inference returned no text for suggestion generation');
+      return res.status(502).json({ error: 'Suggestion generation returned no result' });
+    }
 
-      const parsed = aiSuggestionListSchema.safeParse(answer);
-      if (!parsed.success) {
+    /** Parse the whole object. A partial bracket slice can turn truncation into
+     * valid-looking JSON and hide the real upstream failure. */
+    let answer: unknown = null;
+    try {
+      answer = JSON.parse(kaanaText);
+    } catch {
+      answer = null;
+    }
+
+    const parsed = aiSuggestionListSchema.safeParse(answer);
+    if (!parsed.success) {
         /**
          * The thrown value is deliberately NOT logged.
          *
@@ -462,93 +424,13 @@ router.post('/generate', authenticateToken, async (req: Request, res: Response) 
          * answer for eight suggestions is around 3,400 characters, so a shorter
          * one that will not parse is an answer that was cut off.
          */
-        log.general.error(
-          { responseChars: kaanaText.length },
-          'Failed to parse AI-generated suggestions',
-        );
-        return res.status(500).json({ error: 'Failed to generate suggestions' });
-      }
-      generated = parsed.data.suggestions;
+      log.general.error(
+        { responseChars: kaanaText.length },
+        'Failed to parse AI-generated suggestions',
+      );
+      return res.status(502).json({ error: 'Suggestion generation returned an invalid result' });
     }
-
-    for (let attempt = 0; generated === null && attempt < MAX_PROVIDER_RETRIES; attempt++) {
-      const resolved = await resolveModel('kaana-lite', skipProviders);
-      if (!resolved) {
-        if (attempt === 0) {
-          return res.status(503).json({ error: 'No AI models available' });
-        }
-        break;
-      }
-
-      try {
-        const model = getAIModel(resolved, 'background');
-        /**
-         * `generateObject`, as the planner and the verifier already ask for a
-         * shape.
-         *
-         * It is the only call that sends the schema to the model at all — the
-         * AI SDK carries a response format on this function and on no other —
-         * and it parses and validates what comes back, so this handler never
-         * holds an answer it still has to interpret.
-         */
-        const result = await generateObject({
-          model,
-          schema: aiSuggestionListSchema,
-          abortSignal: deadline,
-          prompt,
-          maxOutputTokens: SUGGESTION_OUTPUT_TOKENS,
-          temperature: 0.8,
-          // The loop rotates providers itself, and every attempt spends the one
-          // deadline above. An SDK-level retry would spend it twice on the same
-          // provider before the rotation got a turn.
-          maxRetries: 0,
-        });
-        generated = result.object.suggestions;
-        break;
-      } catch (providerError: unknown) {
-        if (NoObjectGeneratedError.isInstance(providerError)) {
-          /**
-           * An unusable answer ends this attempt and nothing else.
-           *
-           * Deliberately not rethrown, even on the last attempt: the handler's
-           * outer catch logs the thrown value under `err`, and this error
-           * carries the model's whole answer on `text` — rethrowing it would
-           * put the output into the logs by the back door, which is the leak
-           * the branch below exists to avoid.
-           */
-          unusableAnswer = true;
-          // Logged as what it is, and without the error object — `text` on it
-          // is the model's whole answer, which pino's serializer would copy
-          // into the line. `finishReason` is the fact that was missing while
-          // this route was failing: `length` says the answer was cut off at the
-          // output budget rather than malformed.
-          log.general.error(
-            {
-              finishReason: providerError.finishReason ?? null,
-              responseChars: providerError.text?.length ?? 0,
-              provider: resolved.provider,
-              attempt,
-            },
-            'Failed to parse AI-generated suggestions',
-          );
-        } else {
-          log.general.error({ err: providerError, provider: resolved.provider, attempt }, 'Provider failed for suggestion generation');
-          if (attempt >= MAX_PROVIDER_RETRIES - 1) throw providerError;
-        }
-        skipProviders.add(resolved.provider);
-      }
-    }
-
-    if (generated === null) {
-      // Two different answers, because the caller can act on one of them. No
-      // model at all is a service that is down and worth retrying; a model that
-      // answered with something unusable is not, and reporting it as capacity
-      // would send a client into a retry loop against a model that will say the
-      // same thing again.
-      return unusableAnswer
-        ? res.status(500).json({ error: 'Failed to generate suggestions' })
-        : res.status(503).json({ error: 'No AI models available' });
-    }
+    const generated: AiSuggestion[] = parsed.data.suggestions;
 
     // Create suggestion documents
     const created = [];
@@ -578,7 +460,7 @@ router.post('/generate', authenticateToken, async (req: Request, res: Response) 
           language: item.language || language,
           isBuiltIn: false,
           isAiGenerated: true,
-          oxyUserId: req.user!.id,
+          oxyUserId: userId,
         });
         created.push(suggestion);
       } catch (err: unknown) {

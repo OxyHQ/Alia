@@ -235,7 +235,9 @@ export function useConversation(id: string) {
     queryFn: () => fetchConversation(id),
     enabled: isAuthenticated && !!id,
     staleTime: 1000 * 60 * 5, // 5 minutes
-    retry: 1,
+    // A missing conversation is deterministic. Retrying only repeats the same
+    // 404 and makes one stale local link look like an API outage in the console.
+    retry: false,
   });
 }
 
