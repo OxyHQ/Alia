@@ -78,6 +78,9 @@ import {
   createPlanPreviewTool,
   createSuggestNewConversationTool,
 } from './tools/index.js';
+import { getWeatherTool } from './tools/weather.js';
+import { getMarketQuoteTool } from './tools/market.js';
+import { getFairCoinTool } from './tools/faircoin.js';
 import { buildMcpTools } from './tools/mcp.js';
 import { buildAskAgentTool } from './tools/ask-agent.js';
 import { buildIntegrationTools } from './tools/integrations.js';
@@ -385,6 +388,12 @@ export class ToolPipeline {
       aliaTools.webSearch = webSearchTool;
       aliaTools.webScraper = webScraperTool;
       aliaTools.browse = browseTool;
+      // The card tools ride the same grant: each one is the assistant reaching
+      // the open internet on the reader's behalf, just at a named service
+      // rather than at whatever a search turns up.
+      aliaTools.getWeather = getWeatherTool;
+      aliaTools.getMarketQuote = getMarketQuoteTool;
+      aliaTools.getFairCoin = getFairCoinTool;
     }
 
     // A device can only be described when the surface knows one.

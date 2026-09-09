@@ -337,7 +337,16 @@
     "newConversationOffer": "Start a new conversation?",
     "newConversationAccept": "Start a new one",
     "newConversationDismiss": "Not now",
-    "sendFailed": "Couldn't send that message. It's back in the box — try again."
+    "sendFailed": "Couldn't send that message. It's back in the box — try again.",
+    "regenerate": "Regenerate",
+    "readAloud": "Read Aloud",
+    "generateAudio": "Generate Audio",
+    "copy": "Copy",
+    "like": "Like",
+    "dislike": "Dislike",
+    "edit": "Edit",
+    "sources": "Sources",
+    "sourcesCount": "%{count} sources"
   },
   "credits": {
     "title": "Credits",
@@ -1093,6 +1102,56 @@
       "medium": "Medium",
       "high": "High",
       "max": "Extra High"
+    }
+  },
+  "weather": {
+    "toggleUnit": "Switch temperature unit",
+    "condition": {
+      "clear": "Clear",
+      "partly-cloudy": "Partly cloudy",
+      "cloudy": "Cloudy",
+      "fog": "Fog",
+      "drizzle": "Drizzle",
+      "rain": "Rain",
+      "showers": "Showers",
+      "snow": "Snow",
+      "snow-showers": "Snow showers",
+      "thunderstorm": "Thunderstorm"
+    }
+  },
+  "market": {
+    "noPrice": "No quote available",
+    "noChart": "Not enough history to chart this range",
+    "open": "Open",
+    "dayHigh": "Day high",
+    "dayLow": "Day low",
+    "volume": "Volume (24h)",
+    "marketCap": "Market cap",
+    "range": {
+      "1D": "1D",
+      "5D": "5D",
+      "1M": "1M",
+      "6M": "6M",
+      "YTD": "YTD",
+      "1Y": "1Y",
+      "5Y": "5Y",
+      "MAX": "MAX"
+    },
+    "since": {
+      "1D": "past day",
+      "5D": "past 5 days",
+      "1M": "past month",
+      "6M": "past 6 months",
+      "YTD": "year to date",
+      "1Y": "past year",
+      "5Y": "past 5 years",
+      "MAX": "all time"
+    },
+    "scale": {
+      "thousand": "%{value}K",
+      "million": "%{value}M",
+      "billion": "%{value}B",
+      "trillion": "%{value}T"
     }
   }
 }

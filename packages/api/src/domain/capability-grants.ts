@@ -137,7 +137,18 @@ export type CapabilityFamily = (typeof CAPABILITY_FAMILIES)[number];
  * hands the content back for rendering, which is what `canvas` does too.
  */
 export const FIXED_FAMILY_TOOLS: Readonly<Record<FixedCapabilityFamily, readonly string[]>> = {
-  web: ['webSearch', 'webScraper', 'browse', 'deepResearch'],
+  web: [
+    'webSearch',
+    'webScraper',
+    'browse',
+    'deepResearch',
+    // The card tools read the open web at a named service rather than at
+    // whatever a search turns up. Denying `web` has to deny them too, or the
+    // grant would stop the search and leave the forecast and the quote.
+    'getWeather',
+    'getMarketQuote',
+    'getFairCoin',
+  ],
   browser: ['browser'],
   shell: ['shell'],
   files: ['file_edit'],
