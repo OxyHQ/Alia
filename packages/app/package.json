@@ -28,7 +28,7 @@
     "@livekit/react-native-expo-plugin": "^1.0.2",
     "@livekit/react-native-webrtc": "^144.1.1",
     "@oxyhq/bloom": "^1.14.3",
-    "@oxyhq/core": "23.3.1",
+    "@oxyhq/core": "23.3.2",
     "@oxyhq/contracts": "^0.40.0",
     "@oxyhq/expo-splash": "^0.2.0",
     "@oxyhq/services": "31.0.1",
