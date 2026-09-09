@@ -70,12 +70,15 @@ export function ModelSelector({
     (entry) =>
       entry.kind === "routing_profile" &&
       !entry.legacy &&
-      entry.id !== automaticMode?.routing.profileId,
+      entry.id !== automaticMode?.routing.profileId &&
+      modeForProfile(entry.id, modes) !== null,
   );
   const models = offered.filter(
     (entry) => entry.kind === "model" && !entry.legacy,
   );
-  const legacy = offered.filter((entry) => entry.legacy);
+  const legacy = offered.filter(
+    (entry) => entry.kind === "model" && entry.legacy,
+  );
 
   const selectEntry = (entry: CatalogueEntry) => {
     if (entry.entitled === false) {
