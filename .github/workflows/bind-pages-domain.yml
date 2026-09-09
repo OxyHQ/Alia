@@ -100,7 +100,7 @@ jobs:
       # The DNS work lives in a script now, shared with the cutover workflow, so
       # this needs the tree. It is checked out from the ref this run was
       # dispatched against, which is the same ref whose YAML is executing.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: What the world looks like before
         run: |
