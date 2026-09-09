@@ -51,6 +51,7 @@ vi.mock('@/lib/hooks/use-streaming-chat', () => ({
 
 vi.mock('expo-router', () => ({ useRouter: () => ({ push: vi.fn(), replace: vi.fn() }) }));
 vi.mock('@/lib/hooks/use-conversations', () => ({
+  ConversationNotFoundError: class ConversationNotFoundError extends Error {},
   useConversation: () => ({ data: undefined, isLoading: false, isFetching: false }),
   useCreateConversation: () => ({ mutateAsync: vi.fn() }),
   useDeleteConversation: () => ({ mutateAsync: vi.fn() }),
