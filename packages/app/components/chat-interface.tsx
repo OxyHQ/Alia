@@ -1,6 +1,5 @@
-import { View, Pressable, StyleSheet, Platform, type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent } from "react-native";
+import { View, Pressable, Platform, type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent } from "react-native";
 import { toast } from "@oxyhq/bloom/toast";
-import { BlurView } from "expo-blur";
 import { KeyboardAwareScrollView } from "@/lib/keyboard";
 import { Image } from "expo-image";
 import { CustomMarkdown } from "@/components/ui/markdown";
@@ -10,10 +9,11 @@ import React, { useEffect, useState, useCallback, useRef, useMemo } from "react"
 import type { ScrollView as GHScrollView } from "react-native-gesture-handler";
 import { processMessage } from "@/lib/message-processor";
 import { cn } from "@/lib/utils";
+import { THREAD_COLUMN } from "@/lib/chat-layout";
 import { ThinkingIndicator, IdentityMark, type IdentityMarkState } from '@alia.onl/sdk';
 import { useColorScheme } from "@/lib/useColorScheme";
 import { agentTint } from "@/lib/agents/agent-color";
-import { Copy, ThumbsUp, ThumbsDown, Pencil, Check, Volume2, Square, Music } from "lucide-react-native";
+import { Copy, ThumbsUp, ThumbsDown, Pencil, Check, Volume2, Square, Music, RotateCcw } from "lucide-react-native";
 import * as DropdownMenu from "@/components/ui/dropdown-menu";
 import { useTTS } from "@/lib/hooks/use-tts";
 import { useAudioGen } from "@/lib/hooks/use-audio-gen";
@@ -48,6 +48,16 @@ import { daySeparators } from "@/lib/message-days";
 import { threadSeamIds, type ThreadMessage } from "@/lib/thread-history";
 
 const isWeb = Platform.OS === "web";
+
+// The action bar reveals on hover where a hover EXISTS, and is simply always
+// present where it does not — on touch these actions were reachable only
+// through a long-press menu, which nothing on screen advertises.
+const ACTION_BAR = isWeb
+  ? "flex-row gap-1 opacity-0 transition-opacity group-hover:opacity-100"
+  : "flex-row gap-1";
+const ACTION_BTN = isWeb
+  ? "p-1.5 rounded-lg hover:bg-muted active:bg-muted"
+  : "p-2.5 rounded-lg active:bg-muted";
 
 type MessagePart = {
   type: string;
@@ -94,6 +104,7 @@ type ChatInterfaceProps = {
   isLoading?: boolean;
   conversationLoading?: boolean;
   onStartEdit?: (messageId: string, content: string) => void;
+  onRegenerate?: (messageId: string) => void;
   onCopyMessage?: (content: string) => void;
   bottomPadding?: number;
   isVoiceActive?: boolean;
@@ -274,6 +285,7 @@ type MessageRowProps = {
   audioGenRowState: string;
   openThoughtPanel: (messageId: string) => void;
   onStartEdit?: (messageId: string, content: string) => void;
+  onRegenerate?: (messageId: string) => void;
   onApprovePlan?: (planId: string) => void;
   onRejectPlan?: (planId: string) => void;
 };
@@ -284,9 +296,10 @@ const MessageRow = React.memo(function MessageRow({
   ttsState, chatId, voiceAgentState,
   handleMarkLayout, onRowLayout, handleCopyMessage, handleVote, readAloud,
   generateAudio, audioGenRowState,
-  openThoughtPanel, onStartEdit, onApprovePlan, onRejectPlan,
+  openThoughtPanel, onStartEdit, onRegenerate, onApprovePlan, onRejectPlan,
 }: MessageRowProps) {
   const { colors } = useColorScheme();
+  const { t: rowT } = useTranslation();
   const messageText = getMessageText(m);
   const messageImages = getMessageImages(m);
 
@@ -415,12 +428,11 @@ const MessageRow = React.memo(function MessageRow({
                   <CustomMarkdown content={messageText} />
                 )}
               </View>
-              {/* Action Buttons for Assistant Messages — web hover only */}
-              {isWeb && (
-              <View className="flex-row gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+              {/* Action Buttons for Assistant Messages */}
+              <View className={ACTION_BAR}>
                 <Pressable
                   key="read-aloud"
-                  className="p-1.5 rounded-lg hover:bg-muted active:bg-muted"
+                  className={ACTION_BTN}
                   onPress={() => readAloud(m.id, messageText, chatId?.id, m.audioUrl)}
                 >
                   {ttsState === 'playing' || ttsState === 'paused' ? (
@@ -431,7 +443,7 @@ const MessageRow = React.memo(function MessageRow({
                 </Pressable>
                 <Pressable
                   key="generate-audio"
-                  className="p-1.5 rounded-lg hover:bg-muted active:bg-muted"
+                  className={ACTION_BTN}
                   onPress={() => generateAudio(m.id, messageText, chatId?.id)}
                 >
                   {audioGenRowState === 'playing' ? (
@@ -442,7 +454,7 @@ const MessageRow = React.memo(function MessageRow({
                 </Pressable>
                 <Pressable
                   key="copy"
-                  className="p-1.5 rounded-lg hover:bg-muted active:bg-muted"
+                  className={ACTION_BTN}
                   onPress={() => handleCopyMessage(m.id, messageText)}
                 >
                   {isCopied ? (
@@ -451,14 +463,18 @@ const MessageRow = React.memo(function MessageRow({
                     <Copy size={14} className="text-muted-foreground" />
                   )}
                 </Pressable>
-                <Pressable key="thumbs-up" className="p-1.5 rounded-lg hover:bg-muted active:bg-muted" onPress={() => handleVote(m.id, 'up', chatId?.id)}>
+                {onRegenerate === undefined || m.isStreaming ? null : (
+                  <Pressable key="regenerate" className={ACTION_BTN} onPress={() => onRegenerate(m.id)}>
+                    <RotateCcw size={14} className="text-muted-foreground" />
+                  </Pressable>
+                )}
+                <Pressable key="thumbs-up" className={ACTION_BTN} onPress={() => handleVote(m.id, 'up', chatId?.id)}>
                   <ThumbsUp size={14} className={myVote === 'up' ? "text-primary" : "text-muted-foreground"} />
                 </Pressable>
-                <Pressable key="thumbs-down" className="p-1.5 rounded-lg hover:bg-muted active:bg-muted" onPress={() => handleVote(m.id, 'down', chatId?.id)}>
+                <Pressable key="thumbs-down" className={ACTION_BTN} onPress={() => handleVote(m.id, 'down', chatId?.id)}>
                   <ThumbsDown size={14} className={myVote === 'down' ? "text-primary" : "text-muted-foreground"} />
                 </Pressable>
               </View>
-              )}
             </View>
             </Pressable>
             </DropdownMenu.Trigger>
@@ -466,23 +482,29 @@ const MessageRow = React.memo(function MessageRow({
             <DropdownMenu.Content>
               <DropdownMenu.Item key="read-aloud" onSelect={() => readAloud(m.id, messageText, chatId?.id, m.audioUrl)}>
                 <DropdownMenu.ItemIcon ios={{ name: "speaker.wave.2" }} />
-                <DropdownMenu.ItemTitle>Read Aloud</DropdownMenu.ItemTitle>
+                <DropdownMenu.ItemTitle>{rowT('chat.readAloud')}</DropdownMenu.ItemTitle>
               </DropdownMenu.Item>
               <DropdownMenu.Item key="generate-audio" onSelect={() => generateAudio(m.id, messageText, chatId?.id)}>
                 <DropdownMenu.ItemIcon ios={{ name: "music.note" }} />
-                <DropdownMenu.ItemTitle>Generate Audio</DropdownMenu.ItemTitle>
+                <DropdownMenu.ItemTitle>{rowT('chat.generateAudio')}</DropdownMenu.ItemTitle>
               </DropdownMenu.Item>
               <DropdownMenu.Item key="copy" onSelect={() => handleCopyMessage(m.id, messageText)}>
                 <DropdownMenu.ItemIcon ios={{ name: "doc.on.doc" }} />
-                <DropdownMenu.ItemTitle>Copy</DropdownMenu.ItemTitle>
+                <DropdownMenu.ItemTitle>{rowT('chat.copy')}</DropdownMenu.ItemTitle>
               </DropdownMenu.Item>
+              {onRegenerate === undefined ? null : (
+                <DropdownMenu.Item key="regenerate" onSelect={() => onRegenerate(m.id)}>
+                  <DropdownMenu.ItemIcon ios={{ name: "arrow.clockwise" }} />
+                  <DropdownMenu.ItemTitle>{rowT('chat.regenerate')}</DropdownMenu.ItemTitle>
+                </DropdownMenu.Item>
+              )}
               <DropdownMenu.Item key="thumbs-up" onSelect={() => handleVote(m.id, 'up', chatId?.id)}>
                 <DropdownMenu.ItemIcon ios={{ name: "hand.thumbsup" }} />
-                <DropdownMenu.ItemTitle>Like</DropdownMenu.ItemTitle>
+                <DropdownMenu.ItemTitle>{rowT('chat.like')}</DropdownMenu.ItemTitle>
               </DropdownMenu.Item>
               <DropdownMenu.Item key="thumbs-down" onSelect={() => handleVote(m.id, 'down', chatId?.id)}>
                 <DropdownMenu.ItemIcon ios={{ name: "hand.thumbsdown" }} />
-                <DropdownMenu.ItemTitle>Dislike</DropdownMenu.ItemTitle>
+                <DropdownMenu.ItemTitle>{rowT('chat.dislike')}</DropdownMenu.ItemTitle>
               </DropdownMenu.Item>
             </DropdownMenu.Content>
             )}
@@ -493,8 +515,7 @@ const MessageRow = React.memo(function MessageRow({
             <DropdownMenu.Trigger asChild>
             <Pressable className="group">
             <View className="flex-col items-end gap-0.5">
-                <View className="max-w-[70%] rounded-[22px] overflow-hidden border border-border">
-                  <BlurView intensity={60} tint="default" style={StyleSheet.absoluteFill} />
+                <View className="max-w-[70%] rounded-[22px] overflow-hidden bg-muted">
                   <View className="px-4 py-2.5">
                     {/* Inline images from multi-part content */}
                     {messageImages.length > 0 && (
@@ -515,12 +536,11 @@ const MessageRow = React.memo(function MessageRow({
                     </Text>
                   </View>
                 </View>
-              {/* Action Buttons for User Messages — web hover only */}
-              {isWeb && (
-                <View className="flex-row gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+              {/* Action Buttons for User Messages */}
+                <View className={ACTION_BAR}>
                   <Pressable
                     key="copy"
-                    className="p-1.5 rounded-lg hover:bg-muted active:bg-muted"
+                    className={ACTION_BTN}
                     onPress={() => handleCopyMessage(m.id, messageText)}
                   >
                     {isCopied ? (
@@ -537,14 +557,13 @@ const MessageRow = React.memo(function MessageRow({
                   {onStartEdit === undefined ? null : (
                     <Pressable
                       key="edit"
-                      className="p-1.5 rounded-lg hover:bg-muted active:bg-muted"
+                      className={ACTION_BTN}
                       onPress={() => onStartEdit(m.id, messageText)}
                     >
                       <Pencil size={14} className="text-muted-foreground" />
                     </Pressable>
                   )}
                 </View>
-              )}
             </View>
             </Pressable>
             </DropdownMenu.Trigger>
@@ -552,12 +571,12 @@ const MessageRow = React.memo(function MessageRow({
             <DropdownMenu.Content>
               <DropdownMenu.Item key="copy" onSelect={() => handleCopyMessage(m.id, messageText)}>
                 <DropdownMenu.ItemIcon ios={{ name: "doc.on.doc" }} />
-                <DropdownMenu.ItemTitle>Copy</DropdownMenu.ItemTitle>
+                <DropdownMenu.ItemTitle>{rowT('chat.copy')}</DropdownMenu.ItemTitle>
               </DropdownMenu.Item>
               {onStartEdit === undefined ? null : (
                 <DropdownMenu.Item key="edit" onSelect={() => onStartEdit(m.id, messageText)}>
                   <DropdownMenu.ItemIcon ios={{ name: "pencil" }} />
-                  <DropdownMenu.ItemTitle>Edit</DropdownMenu.ItemTitle>
+                  <DropdownMenu.ItemTitle>{rowT('chat.edit')}</DropdownMenu.ItemTitle>
                 </DropdownMenu.Item>
               )}
             </DropdownMenu.Content>
@@ -597,7 +616,7 @@ const MessageRow = React.memo(function MessageRow({
 
 const imageThumbStyle = { width: 120, height: 120 };
 
-export const ChatInterface = React.memo(function ChatInterface({ messages, scrollViewRef, isLoading, conversationLoading, onStartEdit, onCopyMessage, bottomPadding = 160, isVoiceActive = false, voiceAgentState, onScroll, onContentSizeChange, agentActivity, agentSessionId, onApprovePlan, onRejectPlan, suggestedNewConversation, onAcceptNewConversation, onDismissNewConversation, historyMessages, isLoadingHistory = false, onHistoryHeight, activeConversationId, focusCursor }: ChatInterfaceProps) {
+export const ChatInterface = React.memo(function ChatInterface({ messages, scrollViewRef, isLoading, conversationLoading, onStartEdit, onRegenerate, onCopyMessage, bottomPadding = 160, isVoiceActive = false, voiceAgentState, onScroll, onContentSizeChange, agentActivity, agentSessionId, onApprovePlan, onRejectPlan, suggestedNewConversation, onAcceptNewConversation, onDismissNewConversation, historyMessages, isLoadingHistory = false, onHistoryHeight, activeConversationId, focusCursor }: ChatInterfaceProps) {
     const { t, locale } = useTranslation();
     const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
     const [votedMessages, setVotedMessages] = useState<Record<string, 'up' | 'down'>>({});
@@ -776,7 +795,7 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
     }, [t]);
 
     const containerClassName = cn(
-      "max-w-3xl mx-auto w-full",
+      THREAD_COLUMN,
       filteredMessages.length === 0 && "flex-1 justify-center"
     );
 
@@ -864,6 +883,7 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
             audioGenRowState={audioGenActiveMessageId === m.id ? audioGenState : 'idle'}
             openThoughtPanel={openThoughtPanel}
             onStartEdit={fromHistory ? undefined : onStartEdit}
+            onRegenerate={fromHistory ? undefined : onRegenerate}
             onApprovePlan={onApprovePlan}
             onRejectPlan={onRejectPlan}
           />

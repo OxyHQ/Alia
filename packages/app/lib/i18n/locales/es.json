@@ -311,7 +311,14 @@
     "newConversationOffer": "¿Empezar una conversación nueva?",
     "newConversationAccept": "Empezar una nueva",
     "newConversationDismiss": "Ahora no",
-    "sendFailed": "No se pudo enviar el mensaje. Lo tienes de vuelta en el cuadro de texto, inténtalo otra vez."
+    "sendFailed": "No se pudo enviar el mensaje. Lo tienes de vuelta en el cuadro de texto, inténtalo otra vez.",
+    "regenerate": "Volver a generar",
+    "readAloud": "Leer en voz alta",
+    "generateAudio": "Generar audio",
+    "copy": "Copiar",
+    "like": "Me gusta",
+    "dislike": "No me gusta",
+    "edit": "Editar"
   },
   "credits": {
     "title": "Créditos",

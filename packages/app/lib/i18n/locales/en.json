@@ -337,7 +337,14 @@
     "newConversationOffer": "Start a new conversation?",
     "newConversationAccept": "Start a new one",
     "newConversationDismiss": "Not now",
-    "sendFailed": "Couldn't send that message. It's back in the box — try again."
+    "sendFailed": "Couldn't send that message. It's back in the box — try again.",
+    "regenerate": "Regenerate",
+    "readAloud": "Read Aloud",
+    "generateAudio": "Generate Audio",
+    "copy": "Copy",
+    "like": "Like",
+    "dislike": "Dislike",
+    "edit": "Edit"
   },
   "credits": {
     "title": "Credits",

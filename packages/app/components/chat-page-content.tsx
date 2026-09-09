@@ -19,6 +19,7 @@ import type { Attachment } from "@/components/ui/prompt-input/context";
 import { ScrollButton } from "@/components/ui/scroll-button";
 import { ChatInterface } from "@/components/chat-interface";
 import { useScrollToBottom } from "@/lib/hooks/use-scroll-to-bottom";
+import { THREAD_COLUMN } from "@/lib/chat-layout";
 import { ChatHeader } from "@/components/chat-header";
 import { useAuth } from "@oxyhq/services";
 import type { Message } from "@/types/chat";
@@ -99,6 +100,7 @@ interface ChatPageContentProps {
   isLoading: boolean;
   onSubmit: (value: string, attachments?: Attachment[], options?: SendOptions) => Promise<boolean>;
   onEditMessage: (messageId: string, newContent: string, options?: SendOptions) => Promise<boolean>;
+  onRegenerateMessage: (assistantMessageId: string, options?: SendOptions) => Promise<boolean>;
   onStop?: () => void;
   onClear?: () => void;
   selectedModel: string;
@@ -161,6 +163,7 @@ export const ChatPageContent = ({
   isLoading,
   onSubmit,
   onEditMessage,
+  onRegenerateMessage,
   onStop,
   onClear,
   selectedModel,
@@ -329,6 +332,15 @@ export const ChatPageContent = ({
     setEditingMessageId(messageId);
     setInputValue(content);
   }, []);
+
+  const handleRegenerate = useCallback((assistantMessageId: string) => {
+    // Replay the prompt with whatever the composer is set to NOW — regenerating
+    // after switching connector or skills should honour the new selection.
+    void onRegenerateMessage(assistantMessageId, {
+      mcpServerId: selectedConnectorId,
+      skillNames: selectedSkills,
+    });
+  }, [onRegenerateMessage, selectedConnectorId, selectedSkills]);
 
   const handleCancelEdit = useCallback(() => {
     setEditingMessageId(null);
@@ -568,6 +580,7 @@ export const ChatPageContent = ({
           isLoading={isLoading}
           conversationLoading={conversationLoading}
           onStartEdit={handleStartEdit}
+          onRegenerate={handleRegenerate}
           bottomPadding={bottomBarHeight}
           isVoiceActive={isVoiceActive}
           voiceAgentState={voice?.agentState}
@@ -638,7 +651,7 @@ export const ChatPageContent = ({
             <CreditWarningBanner selectedModel={selectedModel} onSwitchModel={onModelChange} />
 
             {disabled && (
-              <View className="mx-auto w-full max-w-[40rem] lg:max-w-3xl px-4 pb-1">
+              <View className={`${THREAD_COLUMN} px-4 pb-1`}>
                 <View className="flex-row items-center gap-2 rounded-lg bg-destructive/10 px-3 py-2">
                   <AlertTriangle size={14} className="text-destructive" />
                   <Text className="text-xs text-destructive flex-1">
@@ -649,7 +662,7 @@ export const ChatPageContent = ({
             )}
 
             <View className="px-4 py-3">
-              <View className="mx-auto w-full max-w-[40rem] lg:max-w-3xl relative">
+              <View className={`${THREAD_COLUMN} relative`}>
                   {messages.length > 0 && (
                     <View style={{ position: "absolute", top: -48, right: 0, zIndex: -1 }}>
                       <ScrollButton
