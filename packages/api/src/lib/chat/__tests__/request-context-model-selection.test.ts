@@ -569,24 +569,13 @@ describe('one MCP connector can be selected for one direct-user turn', () => {
   });
 });
 
-describe('a named model reaches the resolver as a pin, not as a tier', () => {
-  it('routes on the profile’s alias and pins the identity beside it', async () => {
-    const { ctx } = await run('anthropic/claude-sonnet-4.6');
-    expect(ctx).not.toBeNull();
-
-    // The alias is what everything downstream reads for price, plan and prompt.
-    const [alias, , , options] = resolveModel.mock.calls[0];
-    expect(alias).toBe('kaana-v1-pro');
-    // …and the identity travels separately, so the tier is not asked to encode
-    // which of its models may answer.
-    expect(options).toEqual({ pinnedModel: { publisher: 'anthropic', model: 'claude-sonnet-4.6' } });
-
-    // Carried on the context too, because the provider loop RE-resolves on a
-    // retry: a retry that dropped the pin would answer from a different model
-    // one attempt later.
-    expect(ctx?.routingOptions).toEqual({
-      pinnedModel: { publisher: 'anthropic', model: 'claude-sonnet-4.6' },
-    });
+describe('hosted chat routes only through reviewed Oxy profiles', () => {
+  it('refuses a concrete model before model resolution or credit reservation', async () => {
+    const { ctx, captured } = await run('anthropic/claude-sonnet-4.6');
+    expect(ctx).toBeNull();
+    expect(captured.status).toBe(400);
+    expect(captured.body?.error?.code).toBe('unknown_model');
+    expect(resolveModel).not.toHaveBeenCalled();
   });
 
   it('does not pin anything when a canonical Kaana profile was named', async () => {
@@ -611,9 +600,7 @@ describe('a named model reaches the resolver as a pin, not as a tier', () => {
     expect(ctx?.routingOptions).toEqual({});
   });
 
-  it('keeps an explicit fallback policy beside the pin', async () => {
-    // Both travel on one options object, and neither may erase the other: the
-    // caller's policy is their decision and the pin is the model they named.
+  it('does not let a fallback policy make a concrete model valid', async () => {
     const captured: Captured = { status: null, body: null };
     const res = {
       status(code: number) {
@@ -639,10 +626,10 @@ describe('a named model reaches the resolver as a pin, not as a tier', () => {
       timer as never,
     );
     clearTimeout(timer);
-    expect(ctx?.routingOptions).toEqual({
-      fallbackPolicy: 'no-fallback',
-      pinnedModel: { publisher: 'deepseek', model: 'deepseek-chat' },
-    });
+    expect(ctx).toBeNull();
+    expect(captured.status).toBe(400);
+    expect(captured.body?.error?.code).toBe('unknown_model');
+    expect(resolveModel).not.toHaveBeenCalled();
   });
 });
 

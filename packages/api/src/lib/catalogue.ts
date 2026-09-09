@@ -62,7 +62,6 @@ import {
   type ModelMapping,
   type PlanData,
 } from './gateway-client.js';
-import { classifyModels } from './routing/model-selection.js';
 import { getUserEntitlements } from './plan-access.js';
 import { PLAN_PRODUCTS, type PlanProduct } from '../domain/plan.js';
 import { isProfileOffered } from './product-modes.js';
@@ -914,67 +913,6 @@ export async function buildCatalogue(options: CatalogueOptions): Promise<Catalog
       if (entry.availability.scope.state === 'withheld') continue;
       entries.push(entry);
     }
-  }
-
-  /**
-   * One entry per individually selectable MODEL, beside the profiles.
-   *
-   * The product offers both, and they are different choices: a profile is
-   * "answer this well and I do not mind how", a model is "answer this with
-   * THIS model". `lib/routing/model-selection.ts` decides which models may be
-   * named one at a time — the price-band question — and this loop only serves
-   * what it decided.
-   *
-   * No route is counted again here. A model's deployments are the same rows the
-   * profile loop already walked, so counting them twice would report a routing
-   * table twice the size of the one that exists.
-   */
-  for (const model of classifyModels(tierMappings, sources).selectable) {
-    const source = byProfile.get(model.routingProfile);
-    if (source === undefined) continue;
-
-    const candidates = model.deployments.map((route) => toCandidate(route, conditions));
-    const entitlement =
-      plans === null
-        ? { state: 'unknown' as const }
-        : resolveEntitlement(model.routingProfile, plans, allowedModelIds);
-
-    if (entitlement.state === 'known') {
-      if (options.product !== undefined && !entitlement.products.includes(options.product)) continue;
-      if (options.entitledOnly === true && entitlement.entitled !== true) continue;
-    }
-
-    if (options.surface !== undefined && !surfaceCanOffer(options.surface, model.category)) {
-      surfaceWithheld += 1;
-      continue;
-    }
-
-    const entry = buildEntry(
-      {
-        id: model.id,
-        kind: 'model',
-        offeredProfileId: model.profileId,
-        name: model.displayName,
-        /**
-         * A model gets no description, and that is deliberate rather than
-         * missing data. The only description available is the PROFILE's — "the
-         * everyday default: quick enough, capable enough" — which describes a
-         * policy, not this model, and putting it under a model's name would be
-         * a claim about the model that nobody made.
-         */
-        description: '',
-        category: model.category,
-        tier: model.tier,
-        creditMultiplier: model.creditMultiplier,
-        // A concrete model reference is not a legacy routing identifier.
-        isLegacy: false,
-      },
-      candidates,
-      entitlement,
-      options.audience,
-    );
-    if (entry.availability.scope.state === 'withheld') continue;
-    entries.push(entry);
   }
 
   entries.sort((a, b) => a.pricing.creditMultiplier - b.pricing.creditMultiplier || a.id.localeCompare(b.id));
