@@ -435,6 +435,20 @@
       "when": 1788418584250,
       "tag": "0061_remove_alia_provider_credentials",
       "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "7",
+      "when": 1788955237029,
+      "tag": "0062_clean_routing_vocabulary",
+      "breakpoints": true
+    },
+    {
+      "idx": 63,
+      "version": "7",
+      "when": 1788956388025,
+      "tag": "0063_remove_routing_compatibility",
+      "breakpoints": true
     }
   ]
 }

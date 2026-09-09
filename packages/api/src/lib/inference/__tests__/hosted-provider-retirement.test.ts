@@ -61,7 +61,7 @@ describe('Alia hosted provider runtime retirement', () => {
     const journal = JSON.parse(
       readFileSync(path.join(REPO_ROOT, 'packages/api/drizzle/meta/_journal.json'), 'utf8'),
     ) as { entries: Array<{ tag: string }> };
-    expect(journal.entries.at(-1)?.tag).toBe('0061_remove_alia_provider_credentials');
+    expect(journal.entries.map((entry) => entry.tag)).toContain('0061_remove_alia_provider_credentials');
 
     const schema = [
       readFileSync(path.join(API_SRC, 'db/schema/providers.ts'), 'utf8'),

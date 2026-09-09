@@ -407,7 +407,7 @@ export class BrowserSession {
       },
       ...(serviceSecret ? {
         model: {
-          modelName: 'openai/kaana-lite',
+          modelName: 'openai/route:instant',
           apiKey: serviceSecret,
           baseURL: `${aliaApiUrl}/v1`,
         },

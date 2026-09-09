@@ -30,13 +30,13 @@ describe('product prompt registry', () => {
   });
 
   it('keeps pro-max and extended reasoning as different product instructions', () => {
-    expect(getProductPromptId('kaana-v1-pro-max')).toBe('pro-max');
-    expect(getProductPromptId('kaana-v1-thinking')).toBe('extended-reasoning');
+    expect(getProductPromptId('route:pro')).toBe('pro-max');
+    expect(getProductPromptId('route:thinking')).toBe('extended-reasoning');
   });
 
   it('does not invent a prompt for another identifier', () => {
-    expect(getProductPromptId('alia-v1')).toBeNull();
-    expect(getProductPromptId('profile:v1')).toBeNull();
+    expect(getProductPromptId('retired-routing-alias')).toBeNull();
+    expect(getProductPromptId('profile:auto')).toBeNull();
     expect(getProductPromptId('openai/gpt-4o')).toBeNull();
   });
 });

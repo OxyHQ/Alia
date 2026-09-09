@@ -45,7 +45,7 @@ import type { CreditFundingSource } from '../domain/credit-funding.js';
 export interface CostEntry {
   userId: string;
   sessionId?: string;
-  routingProfileId: string;      // User sees this (e.g., "kaana-v1-pro")
+  routingProfileId: string;      // User sees this (e.g., "route:pro-standard")
   actualProvider: string;    // Internal only
   actualModelId: string;     // Internal only
   inputTokens: number;
@@ -384,11 +384,11 @@ export async function getCostOptimizationRecommendations(userId: string): Promis
   const recommendations: string[] = [];
 
   // Check if using expensive models unnecessarily
-  const proUsage = (summary.costByModel['kaana-v1-pro'] || 0) + (summary.costByModel['kaana-v1-pro-max'] || 0);
+  const proUsage = (summary.costByModel['route:pro-standard'] || 0) + (summary.costByModel['route:pro'] || 0);
   const totalCost = summary.totalSpent;
 
   if (proUsage > totalCost * 0.5 && summary.totalRequests > 20) {
-    recommendations.push('💡 You\'re using Pro models frequently. Consider using standard Kaana V1 for simpler tasks to save costs.');
+    recommendations.push('💡 You\'re using Pro models frequently. Consider using standard Auto for simpler tasks to save costs.');
   }
 
   // Check cache usage

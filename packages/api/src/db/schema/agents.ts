@@ -188,7 +188,7 @@ export const agents = pgTable(
     /** Exact Oxy routing-profile primary key. Null only on unreconciled legacy rows. */
     routingProfileId: text(),
     /** Legacy non-authoritative reconciliation evidence. Runtime routing never reads it. */
-    allowedModels: text().array().notNull().default(['kaana-v1', 'kaana-v1-pro']),
+    allowedModels: text().array().notNull().default(['route:auto', 'route:pro-standard']),
     scheduleInterval: integer(),
 
     /** `soul`, flattened. Absent as a group on an agent that has never evolved. */

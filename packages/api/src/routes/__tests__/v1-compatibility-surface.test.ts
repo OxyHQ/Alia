@@ -882,7 +882,7 @@ describe('an anonymous caller is refused on both chat surfaces (#139 ws6)', () =
   });
 
   it('refuses POST /alia/chat with no credential, exactly as /v1 always has', async () => {
-    const body = JSON.stringify({ model: 'kaana-v1', messages: [{ role: 'user', content: 'hi' }] });
+    const body = JSON.stringify({ model: 'route:auto', messages: [{ role: 'user', content: 'hi' }] });
     const send = (route: string): Promise<Response> =>
       fetch(`${base}${route}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body });
 

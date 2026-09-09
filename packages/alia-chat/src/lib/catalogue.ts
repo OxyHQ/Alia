@@ -3,7 +3,7 @@
  * workstream 5).
  *
  * Every surface used to hardcode an `alia-*` identifier as its default —
- * `useAliaChat` sent `kaana-v1`, `useTTS` and `useVoiceRoom` sent `kaana-v1-voice`
+ * `useAliaChat` sent `route:auto`, `useTTS` and `useVoiceRoom` sent `route:voice`
  * — which meant a retired identifier became a 400 in a consumer's app with
  * nothing the consumer could do about it, since the string was baked into the
  * package they installed. This module is how the SDK asks the server what it
@@ -200,6 +200,7 @@ export async function resolveModelId(
   accessToken?: string,
   preferredId?: string,
 ): Promise<string> {
+  if (requestedId.startsWith('mode:')) return requestedId;
   try {
     const entries = await fetchCatalogue(apiUrl, accessToken);
     return resolveSelection(requestedId, entries, preferredId).effectiveId;

@@ -106,7 +106,7 @@ const res = await fetch('https://api.alia.onl/v1/chat/completions', {
     Authorization: 'Bearer alia_sk_…',
   },
   body: JSON.stringify({
-    model: 'profile:v1',
+    model: 'profile:auto',
     messages: [{ role: 'user', content: 'Prepare my meeting with Sarah' }],
     stream: true,
   }),

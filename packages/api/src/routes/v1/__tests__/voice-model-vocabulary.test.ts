@@ -7,13 +7,13 @@ import {
 
 describe('voice uses canonical Kaana routing profiles', () => {
   it('registers both voice profiles as routing profiles', () => {
-    expect(isKaanaRoutingProfileId('kaana-v1-voice')).toBe(true);
-    expect(isKaanaRoutingProfileId('kaana-v1-voice-pro')).toBe(true);
+    expect(isKaanaRoutingProfileId('route:voice')).toBe(true);
+    expect(isKaanaRoutingProfileId('route:voice-pro')).toBe(true);
   });
 
   it('does not accept the removed compatibility vocabularies', () => {
-    expect(isKaanaRoutingProfileId('alia-v1-voice')).toBe(false);
-    expect(isKaanaRoutingProfileId('profile:v1-voice')).toBe(false);
+    expect(isKaanaRoutingProfileId('legacy-routing-alias')).toBe(false);
+    expect(isKaanaRoutingProfileId('profile:voice')).toBe(false);
   });
 
   it('keeps the profile registry non-vacuous and unique', () => {

@@ -7,19 +7,19 @@
  * product surfaces request.
  */
 export const KAANA_ROUTING_PROFILE_IDS = [
-  'kaana-lite',
-  'kaana-v1',
-  'kaana-v1-codea',
-  'kaana-v1-cowork',
-  'kaana-v1-browser',
-  'kaana-v1-vision',
-  'kaana-v1-audio',
-  'kaana-v1-multimodal',
-  'kaana-v1-pro',
-  'kaana-v1-thinking',
-  'kaana-v1-pro-max',
-  'kaana-v1-voice',
-  'kaana-v1-voice-pro',
+  'route:instant',
+  'route:auto',
+  'route:code',
+  'route:cowork',
+  'route:research',
+  'route:vision',
+  'route:audio',
+  'route:multimodal',
+  'route:pro-standard',
+  'route:thinking',
+  'route:pro',
+  'route:voice',
+  'route:voice-pro',
 ] as const;
 
 export type KaanaRoutingProfileId = (typeof KAANA_ROUTING_PROFILE_IDS)[number];

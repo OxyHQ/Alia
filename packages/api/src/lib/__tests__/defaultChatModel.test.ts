@@ -2,8 +2,8 @@
  * The default chat model has ONE owner — epic #139.
  *
  * Two functions called `getDefaultRoutingProfile` existed, in
- * `lib/gateway-client.ts` (`kaana-lite`) and
- * `internal/providers/lib/model-resolver.ts` (`kaana-v1`), disagreeing about what
+ * `lib/gateway-client.ts` (`route:instant`) and
+ * `internal/providers/lib/model-resolver.ts` (`route:auto`), disagreeing about what
  * a request that named no model gets. Nothing imported the second, so the wrong
  * answer was never returned — but nothing said so either, and the next caller to
  * reach for a default had even odds of importing it.
@@ -31,7 +31,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { getDefaultRoutingProfile, getDefaultModelForCategory } from '../gateway-client.js';
-import { routingPolicyIdFor, routingProfileFor } from '../product-modes.js';
+import { getProductMode, routingPolicyIdFor } from '../product-modes.js';
 
 const REPO_ROOT = path.resolve(fileURLToPath(new URL('../../../../../', import.meta.url)));
 
@@ -88,7 +88,7 @@ describe('the census can see the tree it claims to scan', () => {
   });
 
   it('does not read a default out of a comment', () => {
-    const raw = '/* getDefaultRoutingProfile() returns kaana-v1 */\nexport const harmless = true;';
+    const raw = '/* getDefaultRoutingProfile() returns route:auto */\nexport const harmless = true;';
     expect(stripComments(raw)).not.toContain('getDefaultRoutingProfile');
   });
 });
@@ -147,7 +147,7 @@ describe('the runtime default and the advertised default are the same model', ()
      * `chat-completions.ts` arms an 80s timeout timer BEFORE
      * `buildChatRequestContext` returns, and that timer reports
      * `state.routingProfileId` to the client. The seed is therefore READ on a real
-     * path, not merely overwritten — it used to restate `'kaana-v1'`, so a
+     * path, not merely overwritten — it used to restate `'route:auto'`, so a
      * request that timed out during resolution was told it ran on a model the
      * default would never have selected.
      *
@@ -164,7 +164,7 @@ describe('the runtime default and the advertised default are the same model', ()
     // A default nobody can select in the picker is a default users cannot
     // reproduce or reason about.
     const id = getDefaultRoutingProfile();
-    expect(id).toMatch(/^kaana-/);
+    expect(id).toMatch(/^route:/);
     expect(SOURCES.find((s) => s.file.endsWith('internal/providers/lib/routing-profile-catalogue.ts'))?.code)
       .toContain(`id: '${id}'`);
   });
@@ -176,11 +176,11 @@ describe('the runtime default and the advertised default are the same model', ()
 
 /**
  * A literal that BECOMES the model when the caller named none: a fallback
- * operator, or a parameter default. Deliberately narrow — `x !== 'kaana-lite'` is
- * a comparison and `suggestedModel = 'kaana-v1'` is a classifier's output, and
+ * operator, or a parameter default. Deliberately narrow — `x !== 'route:instant'` is
+ * a comparison and `suggestedModel = 'route:auto'` is a classifier's output, and
  * folding either in would make this list noise nobody maintains.
  */
-const RESTATED = /(?:\|\||\?\?)\s*'(kaana-[a-z0-9-]+)'|:\s*string\s*=\s*'(kaana-[a-z0-9-]+)'/g;
+const RESTATED = /(?:\|\||\?\?)\s*'(route:[a-z0-9-]+)'|:\s*string\s*=\s*'(route:[a-z0-9-]+)'/g;
 
 /**
  * Frozen exactly as it is today. Each entry says why it is not simply importing
@@ -189,12 +189,12 @@ const RESTATED = /(?:\|\||\?\?)\s*'(kaana-[a-z0-9-]+)'|:\s*string\s*=\s*'(kaana-
 const RESTATED_DEFAULTS: readonly { file: string; value: string; why: string }[] = [
   {
     file: 'packages/api/src/lib/credits-manager.ts',
-    value: 'kaana-v1-voice',
+    value: 'route:voice',
     why: 'Voice billing parameter default. Capability-scoped: the chat default cannot price a voice minute.',
   },
   {
     file: 'packages/api/src/lib/tools/delegate.ts',
-    value: 'kaana-v1',
+    value: 'route:auto',
     why: 'DELIBERATE and documented in place: names the alias the fallback engine already resolved to, so the tool stops reporting a model it did not run. Its comment states it is explicitly not the default.',
   },
 ];
@@ -211,9 +211,9 @@ describe('every site that restates a Kaana routing-profile default is accounted 
     // Positive controls, one per spelling. A pattern that misses one prints a
     // clean small number that reads like good news.
     const at = (suffix: string) => observed.filter((o) => o.file.endsWith(suffix)).map((o) => o.value);
-    expect(at('lib/tools/delegate.ts')).toContain('kaana-v1'); // `||` with a space
+    expect(at('lib/tools/delegate.ts')).toContain('route:auto'); // `||` with a space
     expect(at('lib/tools/agent-turn.ts')).toEqual([]); // agent turns require their stored routing-profile PK
-    expect(at('lib/credits-manager.ts')).toContain('kaana-v1-voice'); // parameter default
+    expect(at('lib/credits-manager.ts')).toContain('route:voice'); // parameter default
     // 8 -> 7 because `/v1/responses` stopped restating a default, then 7 -> 6
     // because `routes/webhooks.ts` did: #244 made a bot's stored preference a
     // canonical profile, so that site reads `getDefaultRoutingProfile()` instead of
@@ -266,7 +266,7 @@ describe('every site that restates a Kaana routing-profile default is accounted 
     expect(responses?.code).not.toMatch(/model:\s*body\.model\s*\|\|/);
 
     // The general chat path has exactly one owner, and it is reachable.
-    expect(getDefaultRoutingProfile()).toMatch(/^kaana-/);
+    expect(getDefaultRoutingProfile()).toMatch(/^route:/);
   });
 
   /**
@@ -300,7 +300,7 @@ describe('every site that restates a Kaana routing-profile default is accounted 
      * author to add one. At that point every assertion in this file passes
      * except this one.
      *
-     * Measured, not argued: changing `agent-delegate.ts` to `|| 'kaana-v1'` and
+     * Measured, not argued: changing `agent-delegate.ts` to `|| 'route:auto'` and
      * updating its census entry to match leaves the whole suite green apart
      * from this test, which names the file and both values.
      */
@@ -343,7 +343,7 @@ describe('every site that restates a Kaana routing-profile default is accounted 
  * a device that has never chosen, and `getDefaultRoutingProfile()` is what a request
  * carrying no `model` at all resolves to. Both answer "what runs when the user
  * expressed no preference", from opposite ends, and **they name different
- * models**: `profile:v1` against `kaana-lite`, which is `profile:lite`.
+ * models**: `profile:auto` against `route:instant`, which is `profile:instant`.
  *
  * That divergence is not a bug to fix here — which of the two the product wants
  * is a product decision, and reconciling it moves what every un-chosen request
@@ -364,8 +364,8 @@ describe('every site that restates a Kaana routing-profile default is accounted 
  */
 const APP_CONFIG = 'packages/app/lib/config.ts';
 
-/** The literal fallback, not the env override: `?? 'profile:v1'`. */
-const APP_DEFAULT = /DEFAULT_MODEL_ID\s*=\s*process\.env\.[A-Z_]+\s*\?\?\s*'([^']+)'/;
+/** The literal fallback, not the env override: `?? 'profile:auto'`. */
+const APP_DEFAULT = /DEFAULT_MODEL_ID\s*=\s*'([^']+)'/;
 
 describe('the app default and the server default are a known, frozen divergence', () => {
   const source = readFileSync(path.join(REPO_ROOT, APP_CONFIG), 'utf8');
@@ -374,14 +374,14 @@ describe('the app default and the server default are a known, frozen divergence'
   it('reads the app constant it claims to read', () => {
     /**
      * The control this gate cannot do without. "They differ" is satisfied by
-     * `undefined !== 'profile:lite'`, so a renamed constant, a moved file or a
+     * `undefined !== 'profile:instant'`, so a renamed constant, a moved file or a
      * changed spelling would make the divergence assertion below pass while
      * measuring nothing at all — the exact shape of a check that stops working
      * and keeps reporting good news.
      */
     expect(matched, `${APP_CONFIG} no longer declares DEFAULT_MODEL_ID in the expected shape`)
       .not.toBeNull();
-    expect(matched?.[1]).toMatch(/^profile:/);
+    expect(matched?.[1]).toMatch(/^mode:/);
   });
 
   it('still names two different models, so the trap above is still live', () => {
@@ -389,15 +389,15 @@ describe('the app default and the server default are a known, frozen divergence'
     const serverDefault = routingPolicyIdFor(getDefaultRoutingProfile());
 
     // Both sides resolved to the SAME vocabulary before comparing. Comparing
-    // `profile:v1` against `kaana-lite` would "differ" even after somebody
+    // `profile:auto` against `route:instant` would "differ" even after somebody
     // reconciled them, which is a gate that can never go green.
     expect(serverDefault, 'the server default resolves to no routing profile').not.toBeNull();
     expect(appDefault).not.toBe(serverDefault);
 
     // Frozen values, so a change on EITHER side lands here rather than
     // silently redefining what an un-chosen request runs on.
-    expect(appDefault).toBe('profile:v1');
-    expect(serverDefault).toBe('profile:lite');
+    expect(appDefault).toBe('mode:auto');
+    expect(serverDefault).toBe('profile:instant');
   });
 
   it('the app default is a profile the product actually offers', () => {
@@ -405,8 +405,8 @@ describe('the app default and the server default are a known, frozen divergence'
     // device that never chose pointing at a row that is not in the menu.
     const offered = SOURCES.find((s) => s.file.endsWith('lib/product-modes.ts'))?.code;
     expect(offered).toBeDefined();
-    const appProfile = matched?.[1] === undefined ? null : routingProfileFor(matched[1]);
-    expect(appProfile).not.toBeNull();
-    expect(offered).toContain(`'${appProfile}'`);
+    const appMode = matched?.[1] === undefined ? null : getProductMode(matched[1]);
+    expect(appMode).not.toBeNull();
+    expect(offered).toContain(`'${appMode?.routing.profile}'`);
   });
 });

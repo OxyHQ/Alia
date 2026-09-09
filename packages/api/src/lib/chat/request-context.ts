@@ -10,7 +10,11 @@
  * timeout suite's module mocks keep intercepting the same seams.
  */
 import type { Request, Response } from 'express';
-import { resolveModel, getDefaultRoutingProfile, type RoutingOptions } from '../chat-core.js';
+import {
+  resolveModel,
+  getDefaultRoutingProfile,
+  type RoutingOptions,
+} from '../chat-core.js';
 import { resolveRequestedModel } from '../routing/model-selection.js';
 import type { RequestedModel } from '../routing/model-selection.js';
 import {
@@ -37,9 +41,16 @@ import {
  */
 import { redactUnsafeDetail } from '../errors/sanitize.js';
 import { getDb } from '../../db/index.js';
-import { findUserMemory, type UserMemoryProfile } from '../../db/memory/userMemoryRepository.js';
+import {
+  findUserMemory,
+  type UserMemoryProfile,
+} from '../../db/memory/userMemoryRepository.js';
 import { getOrCreateUserCredits } from '../user-credits-helpers.js';
-import { reserveCredits, refundReservation, type CreditReservation } from '../credits-manager.js';
+import {
+  reserveCredits,
+  refundReservation,
+  type CreditReservation,
+} from '../credits-manager.js';
 import { getUserEntitlements, type Entitlements } from '../plan-access.js';
 import type { OxyUserProfile } from '../system-prompt-builder.js';
 import { oxyClient } from '../../middleware/auth.js';
@@ -47,15 +58,23 @@ import { findAgentSkills } from '../../db/agents/agentRepository.js';
 import { buildSkillRuntime, type SkillRuntime } from '../skills/runtime.js';
 import { runBeforeChatHooks } from '../hooks/index.js';
 import { log } from '../logger.js';
-import { loadTurnAgent, refusalMessage, refusalStatus } from '../agent-account.js';
+import {
+  loadTurnAgent,
+  refusalMessage,
+  refusalStatus,
+} from '../agent-account.js';
 import type { HydratedAgent } from '../agent-identity.js';
 import { findMcpServerForUser } from '../../db/integrations/mcpServerRepository.js';
-import { runAutonomyBeforeChat, type AutonomyRuntimeContext } from '../autonomy/runtime.js';
+import {
+  runAutonomyBeforeChat,
+  type AutonomyRuntimeContext,
+} from '../autonomy/runtime.js';
 import type { ChatMessage } from '../message-converter.js';
 import type { OpenAITool } from '../tool-converter.js';
 import type { SSEWriter } from './sse-writer.js';
 import { reasoningEffortOf } from '../observability/requested-model.js';
 import type { EffortLevel } from '../reasoning-effort.js';
+import { getProductMode } from '../product-modes.js';
 
 export interface ChatRequestContext {
   body: Record<string, unknown> & {
@@ -169,7 +188,7 @@ export async function buildChatRequestContext(
         type: 'invalid_request_error',
         param: null,
         code: 'invalid_request_body',
-      }
+      },
     });
     return null;
   }
@@ -180,11 +199,12 @@ export async function buildChatRequestContext(
   if (!messages || !Array.isArray(messages) || messages.length === 0) {
     res.status(400).json({
       error: {
-        message: 'Request body must include a "messages" array with at least one message.',
+        message:
+          'Request body must include a "messages" array with at least one message.',
         type: 'invalid_request_error',
         param: 'messages',
         code: 'invalid_messages',
-      }
+      },
     });
     return null;
   }
@@ -197,7 +217,10 @@ export async function buildChatRequestContext(
    * reservation. Absent means `DEFAULT_FALLBACK_POLICY`, which is what every
    * client sends today and is the behaviour they already have.
    */
-  if (body.fallbackPolicy !== undefined && !isFallbackPolicy(body.fallbackPolicy)) {
+  if (
+    body.fallbackPolicy !== undefined &&
+    !isFallbackPolicy(body.fallbackPolicy)
+  ) {
     const policyError = new UnknownFallbackPolicyError(body.fallbackPolicy);
     res.status(policyError.httpStatus).json({
       error: {
@@ -205,22 +228,38 @@ export async function buildChatRequestContext(
         type: 'invalid_request_error',
         param: 'fallbackPolicy',
         code: policyError.code,
-      }
+      },
     });
     return null;
   }
-  const requestedPolicy = isFallbackPolicy(body.fallbackPolicy) ? body.fallbackPolicy : undefined;
+  const requestedPolicy = isFallbackPolicy(body.fallbackPolicy)
+    ? body.fallbackPolicy
+    : undefined;
 
   // Extract optional parameters for Alia internal features
   const conversationId = body.conversationId as string | undefined;
   const agentMode = (body.agentMode as boolean | undefined) ?? false;
-  const deepResearch = body.deepResearch as boolean | undefined;
+  const selectedProductMode = getProductMode(body.model);
+  const deepResearch =
+    selectedProductMode === null
+      ? (body.deepResearch as boolean | undefined)
+      : selectedProductMode.deepResearch;
   // Absent means ON, which is what every request did before the switch existed.
   const webSearch = body.webSearch !== false;
-  const streamOptions = body.stream_options as { include_usage?: boolean } | undefined;
+  const streamOptions = body.stream_options as
+    { include_usage?: boolean } | undefined;
   const includeUsage = streamOptions?.include_usage === true;
 
-  log.v1.info({ messageCount: messages.length, conversationId, agentMode, deepResearch, webSearch }, 'Processing messages');
+  log.v1.info(
+    {
+      messageCount: messages.length,
+      conversationId,
+      agentMode,
+      deepResearch,
+      webSearch,
+    },
+    'Processing messages',
+  );
 
   let autonomyRuntime: AutonomyRuntimeContext | null = null;
   if (req.user?.id) {
@@ -254,9 +293,9 @@ export async function buildChatRequestContext(
   let requestedAgentId: string | undefined;
   if (body.agentId !== undefined) {
     if (
-      typeof body.agentId !== 'string'
-      || body.agentId === ''
-      || body.agentId.trim() !== body.agentId
+      typeof body.agentId !== 'string' ||
+      body.agentId === '' ||
+      body.agentId.trim() !== body.agentId
     ) {
       res.status(400).json({
         error: {
@@ -297,7 +336,10 @@ export async function buildChatRequestContext(
   let selectedSkillNames: string[] | null | undefined;
   if (body.skillIds === undefined || body.skillIds === null) {
     selectedSkillNames = body.skillIds as null | undefined;
-  } else if (!Array.isArray(body.skillIds) || body.skillIds.some((name: unknown) => typeof name !== 'string')) {
+  } else if (
+    !Array.isArray(body.skillIds) ||
+    body.skillIds.some((name: unknown) => typeof name !== 'string')
+  ) {
     res.status(400).json({
       error: {
         message: 'skillIds must be an array of skill names, or null.',
@@ -308,13 +350,18 @@ export async function buildChatRequestContext(
     });
     return null;
   } else {
-    selectedSkillNames = (body.skillIds as string[]).map((name) => name.trim()).filter((name) => name !== '');
+    selectedSkillNames = (body.skillIds as string[])
+      .map((name) => name.trim())
+      .filter((name) => name !== '');
   }
 
   let mcpServerId: string | null | undefined;
   if (body.mcpServerId === undefined || body.mcpServerId === null) {
     mcpServerId = body.mcpServerId;
-  } else if (typeof body.mcpServerId !== 'string' || body.mcpServerId.trim() === '') {
+  } else if (
+    typeof body.mcpServerId !== 'string' ||
+    body.mcpServerId.trim() === ''
+  ) {
     res.status(400).json({
       error: {
         message: 'mcpServerId must be a connector id or null.',
@@ -335,8 +382,13 @@ export async function buildChatRequestContext(
     });
     return null;
   } else {
-    const selectedServer = await findMcpServerForUser(getDb(), body.mcpServerId, req.user.id);
-    const runnable = selectedServer?.enabled === true &&
+    const selectedServer = await findMcpServerForUser(
+      getDb(),
+      body.mcpServerId,
+      req.user.id,
+    );
+    const runnable =
+      selectedServer?.enabled === true &&
       selectedServer.status === 'running' &&
       selectedServer.runtime === 'server';
     if (!runnable) {
@@ -362,17 +414,14 @@ export async function buildChatRequestContext(
    * prompt the id selects. Translating once, here, is what keeps every one of
    * those from learning a second vocabulary:
    *
-   *  - **`profile:*`**, the policy vocabulary `GET /catalogue` publishes,
-   *    becomes the alias that serves that policy.
+   *  - **`mode:*`**, the product vocabulary `GET /catalogue/modes` publishes,
+   *    becomes its exact reviewed `route:*` profile.
+   *  - **`route:*`** is accepted for internal callers that already hold an
+   *    authorized routing profile.
    *  - **`<publisher>/<model>`** is refused. Concrete model selection belongs
    *    to Oxy; accepting it here would bypass Alia's reviewed profile ID.
-   *  - **a legacy `alia-*` identifier** passes through untouched and keeps
-   *    working, which is what nothing-advertises-them means in practice: every
-   *    installed `@alia.onl/sdk` and `@alia-codea/cli` copy still resolves.
-   *
-   * Both refusals happen HERE rather than downstream, because the resolver's
-   * own refusal talks about the alias list and that is the wrong list for a
-   * caller who named either a profile or a model.
+   * Unknown and concrete-model selections are refused here, before downstream
+   * inference code can mistake either for an authorized route.
    */
   /**
    * A model served by the caller's OWN machine short-circuits the resolver.
@@ -384,7 +433,9 @@ export async function buildChatRequestContext(
    * plan that grants someone their own hardware, and nothing to bill for using
    * it. See `lib/inference/user-runtime-bridge.ts`.
    */
-  const localRuntime: UserRuntimeSelection | null = parseUserRuntimeModel(body.model);
+  const localRuntime: UserRuntimeSelection | null = parseUserRuntimeModel(
+    body.model,
+  );
   /**
    * The resolution a local turn uses in place of `resolveModel`.
    *
@@ -471,7 +522,7 @@ export async function buildChatRequestContext(
    * request flags take it straight back off:
    *
    *  - **`deepResearch`** runs `lib/research/research-engine.ts`, which resolves
-   *    `kaana-lite` and `kaana-v1` BY NAME (lines 221, 269, 300, 335) and calls
+   *    `route:instant` and `route:auto` BY NAME (lines 221, 269, 300, 335) and calls
    *    them several times per turn. `lib/chat-modes/deep-research-handler.ts`
    *    finalizes credits under `if (creditReservation)`, so with no reservation
    *    that work is charged to nobody.
@@ -506,9 +557,16 @@ export async function buildChatRequestContext(
 
   const requested: RequestedModel =
     localRuntime === null
-      ? await resolveRequestedModel(body.model || getDefaultRoutingProfile())
+      ? await resolveRequestedModel(
+          selectedProductMode?.routing.profile ??
+            body.model ??
+            getDefaultRoutingProfile(),
+        )
       : { kind: 'routing-profile', routingProfile: String(body.model) };
-  if (requested.kind === 'unknown-profile' || requested.kind === 'unknown-model') {
+  if (
+    requested.kind === 'unknown-profile' ||
+    requested.kind === 'unknown-model'
+  ) {
     /**
      * Two refusals, because they are two different mistakes.
      *
@@ -550,7 +608,7 @@ export async function buildChatRequestContext(
    * The effort level, resolved here and nowhere else.
    *
    * It needs `requestedModel` because one of the three spellings IS a model
-   * identifier (`kaana-v1-thinking`), which is why it sits below the resolution
+   * identifier (`route:thinking`), which is why it sits below the resolution
    * rather than beside the other body fields.
    */
   const reasoningEffort = reasoningEffortOf({
@@ -564,7 +622,9 @@ export async function buildChatRequestContext(
    * reviewed profile.
    */
   const routingOptions: RoutingOptions = {
-    ...(requestedPolicy === undefined ? {} : { fallbackPolicy: requestedPolicy }),
+    ...(requestedPolicy === undefined
+      ? {}
+      : { fallbackPolicy: requestedPolicy }),
   };
 
   // Extract client context from first system message if present (from editor/client)
@@ -584,7 +644,14 @@ export async function buildChatRequestContext(
   // Run independent operations concurrently to reduce time-to-first-token
   const preStreamStart = Date.now();
 
-  const [creditResult, resolvedResult, userMemory, oxyUser, entitlements, turnAgent] = await Promise.all([
+  const [
+    creditResult,
+    resolvedResult,
+    userMemory,
+    oxyUser,
+    entitlements,
+    turnAgent,
+  ] = await Promise.all([
     // Credits: sequential pair (getOrCreate → reserve), parallel with everything else
     // Skip for internal service requests (no credits charged)
     /**
@@ -594,13 +661,14 @@ export async function buildChatRequestContext(
      * reserved credit.
      */
     (req.user && !req.serviceApp && localRuntime === null) ? (async () => {
-      await getOrCreateUserCredits(req.user!.id);
-      const reservation = await reserveCredits(req.user!.id);
-      return { reservation, error: false as const };
-    })().catch((error) => {
-      log.v1.error({ err: error }, 'Error reserving credits');
-      return { reservation: null, error: true as const };
-    }) : Promise.resolve({ reservation: null, error: false as const }),
+          await getOrCreateUserCredits(req.user!.id);
+          const reservation = await reserveCredits(req.user!.id);
+          return { reservation, error: false as const };
+        })().catch((error) => {
+          log.v1.error({ err: error }, 'Error reserving credits');
+          return { reservation: null, error: true as const };
+        })
+      : Promise.resolve({ reservation: null, error: false as const }),
 
     /**
      * Model resolution (includes key loading, rate limit checks, circuit
@@ -613,28 +681,38 @@ export async function buildChatRequestContext(
      */
     localResolved !== null
       ? Promise.resolve(localResolved)
-      : resolveModel(requestedModel, undefined, undefined, routingOptions).catch((err: unknown) => {
+      : resolveModel(
+          requestedModel,
+          undefined,
+          undefined,
+          routingOptions,
+        ).catch((err: unknown) => {
           log.v1.error({ err }, 'Error resolving model');
-          if (err instanceof UnregisteredModelError || err instanceof FallbackNotPermittedError) return err;
+          if (
+            err instanceof UnregisteredModelError ||
+            err instanceof FallbackNotPermittedError
+          )
+            return err;
           return null;
         }),
 
     // User memory
     req.user
-      ? findUserMemory(getDb(), req.user.id).then(m => m ?? null).catch(() => null)
+      ? findUserMemory(getDb(), req.user.id)
+          .then((m) => m ?? null)
+          .catch(() => null)
       : Promise.resolve(null),
 
     // User profile from Oxy (HTTP call - add 5s timeout to prevent hanging)
     isDirectUserSession
       ? Promise.race<OxyUserProfile | null>([
           oxyClient.getUserById(req.user!.id),
-          new Promise<null>(resolve => setTimeout(() => resolve(null), 5000)),
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), 5000)),
         ]).catch(() => null)
       : Promise.resolve<OxyUserProfile | null>(null),
 
     // User entitlements (plan-based model access) — parallelized to avoid sequential delay
-    (req.user && !req.apiKey)
-      ? getUserEntitlements(req.user.id).catch(() => null)
+    (req.user && !req.apiKey) ? getUserEntitlements(req.user.id).catch(() => null)
       : Promise.resolve(null),
 
     /**
@@ -650,7 +728,7 @@ export async function buildChatRequestContext(
      * the system prompt, the tool set and the escalation branch all name the
      * same agent, and three lookups of one id are three chances to disagree.
      */
-    (requestedAgentId !== undefined && req.user)
+    requestedAgentId !== undefined && req.user
       ? loadTurnAgent(getDb(), {
           agentId: requestedAgentId,
           oxyUserId: req.user.id,
@@ -663,13 +741,19 @@ export async function buildChatRequestContext(
            * unavailable identity lookup; the important invariant here is that
            * an explicit selector can never become `kind: 'none'`.
            */
-          log.v1.warn({ err, agentId: requestedAgentId }, 'Could not resolve the turn agent');
+          log.v1.warn(
+            { err, agentId: requestedAgentId },
+            'Could not resolve the turn agent',
+          );
           return { kind: 'resolution_unavailable' } as const;
         })
       : Promise.resolve({ kind: 'none' } as const),
   ]);
 
-  log.v1.info({ durationMs: Date.now() - preStreamStart }, 'Pre-stream setup complete');
+  log.v1.info(
+    { durationMs: Date.now() - preStreamStart },
+    'Pre-stream setup complete',
+  );
 
   // Validate credit reservation
   // Only return 402 if reserveCredits explicitly returned null (insufficient credits),
@@ -682,10 +766,17 @@ export async function buildChatRequestContext(
    * every local turn 402s before reaching a model, and the person is told to
    * buy credits for running a model on their own hardware.
    */
-  if (req.user && !req.serviceApp && !creditReservation && !creditResult.error && localRuntime === null) {
+  if (
+    req.user &&
+    !req.serviceApp &&
+    !creditReservation &&
+    !creditResult.error &&
+    localRuntime === null
+  ) {
     clearTimeout(globalTimer);
     const creditError = {
-      message: "You've run out of credits. Add more or upgrade your plan to continue.",
+      message:
+        "You've run out of credits. Add more or upgrade your plan to continue.",
       type: 'invalid_request_error',
       param: null,
       code: 'INSUFFICIENT_CREDITS',
@@ -727,7 +818,9 @@ export async function buildChatRequestContext(
     if (sse.sent) {
       sse.writeError(refusal);
     } else {
-      res.status(refusalStatus('identity_unavailable')).json({ error: refusal });
+      res
+        .status(refusalStatus('identity_unavailable'))
+        .json({ error: refusal });
     }
     return null;
   }
@@ -783,14 +876,19 @@ export async function buildChatRequestContext(
    */
   let inferenceServiceToken: string | undefined;
   if (linkedAgent?.applicationId != null) {
-    const exactApplication = req.serviceApp?.appId === linkedAgent.applicationId;
+    const exactApplication =
+      req.serviceApp?.appId === linkedAgent.applicationId;
     const exactDelegation =
-      req.user?.id !== undefined &&
-      req.serviceActingAs?.userId === req.user.id;
+      req.user?.id !== undefined && req.serviceActingAs?.userId === req.user.id;
     const hasInferenceScope =
       req.serviceApp?.scopes.includes('inference:invoke') === true &&
       req.serviceActingAs?.scopes.includes('inference:invoke') === true;
-    if (!exactApplication || !exactDelegation || !hasInferenceScope || !req.accessToken) {
+    if (
+      !exactApplication ||
+      !exactDelegation ||
+      !hasInferenceScope ||
+      !req.accessToken
+    ) {
       clearTimeout(globalTimer);
       const refusal = {
         message: 'The selected agent is unavailable.',
@@ -824,7 +922,11 @@ export async function buildChatRequestContext(
         oxyUserId: req.user.id,
         conversationId,
         selectedNames: selectedSkillNames,
-        agentSkillIds: linkedAgent ? (await findAgentSkills(getDb(), linkedAgent.id)).map((ref) => ref._id) : [],
+        agentSkillIds: linkedAgent
+          ? (await findAgentSkills(getDb(), linkedAgent.id)).map(
+              (ref) => ref._id,
+            )
+          : [],
         // Linking a skill to an agent is the explicit grant. A person's other
         // installed skills are not inherited by every agent they talk to.
         includeUserInstalled: linkedAgent === null,
@@ -848,12 +950,18 @@ export async function buildChatRequestContext(
    * parameter after credits were held. The 503 path deliberately keeps its
    * existing behaviour.
    */
-  if (resolvedResult instanceof UnregisteredModelError || resolvedResult instanceof FallbackNotPermittedError) {
+  if (
+    resolvedResult instanceof UnregisteredModelError ||
+    resolvedResult instanceof FallbackNotPermittedError
+  ) {
     if (creditReservation) await refundReservation(creditReservation);
     clearTimeout(globalTimer);
     const refusal = {
       message: resolvedResult.userMessage,
-      type: resolvedResult.httpStatus >= 500 ? 'server_error' : 'invalid_request_error',
+      type:
+        resolvedResult.httpStatus >= 500
+          ? 'server_error'
+          : 'invalid_request_error',
       param: 'model',
       code: resolvedResult.code,
     };
@@ -884,7 +992,10 @@ export async function buildChatRequestContext(
   }
 
   const routingProfileId = resolved.routingProfileId;
-  log.v1.info({ provider: resolved.provider, modelId: resolved.modelId }, 'Using provider');
+  log.v1.info(
+    { provider: resolved.provider, modelId: resolved.modelId },
+    'Using provider',
+  );
 
   // Enforce plan-based model access (skip for API-key requests)
   // Uses entitlements prefetched in Promise.all above
@@ -916,10 +1027,11 @@ export async function buildChatRequestContext(
       messages,
       model: routingProfileId,
       skillNames: selectedSkillNames ?? undefined,
-      platform: req.apiKey ? 'telegram' as const : 'app' as const,
+      platform: req.apiKey ? ('telegram' as const) : ('app' as const),
       metadata: {},
     }).catch(() => null);
-    recalledMemories = hookResult?.metadata?.recalledMemories as Array<{ title: string; summary: string }> | undefined;
+    recalledMemories = hookResult?.metadata?.recalledMemories as
+      Array<{ title: string; summary: string }> | undefined;
   }
 
   return {
@@ -934,12 +1046,20 @@ export async function buildChatRequestContext(
     includeUsage,
     isDirectUserSession,
     requestedModel,
-    promptModelId: localRuntime === null ? routingProfileId : getDefaultRoutingProfile(),
+    promptModelId:
+      localRuntime === null ? routingProfileId : getDefaultRoutingProfile(),
     isLocalRuntime: localRuntime !== null,
     clientContext,
     userMemory,
     oxyUser,
-    skills: skills ?? { index: '', active: '', tools: {}, agentScoped: false, candidateIds: [], activated: () => [] },
+    skills: skills ?? {
+      index: '',
+      active: '',
+      tools: {},
+      agentScoped: false,
+      candidateIds: [],
+      activated: () => [],
+    },
     entitlements,
     linkedAgent,
     inferenceServiceToken,

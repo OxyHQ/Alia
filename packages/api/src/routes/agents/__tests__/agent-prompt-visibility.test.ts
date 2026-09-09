@@ -145,7 +145,7 @@ const AGENT_ROW = {
   access: 'public',
   status: 'active',
   systemPrompt: PROMPT,
-  allowedModels: ['kaana-v1'],
+  allowedModels: ['route:auto'],
   capabilityGrants: [],
   archetype: 'general',
   createdAt: new Date(),

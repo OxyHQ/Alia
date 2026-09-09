@@ -131,14 +131,14 @@ Removing them from resolution too would brick the product today. Three costs, ea
    `lib/routing/alias-translation.ts:133` translates an alias to a contract `RoutingTarget` for the
    *Kaana* wire and returns `not_an_alias` for anything else — and its only consumer,
    `lib/inference/kaana-request.ts`, is the client that is frozen out of the product graph. So a
-   caller sending `profile:v1-pro` today reaches nothing.
+   caller sending `profile:pro-standard` today reaches nothing.
 3. **The alias is what bills the request.** `lib/credits-manager.ts:52` reads
    `model?.creditMultiplier || 1` off the alias entry. Remove the alias and every request bills at
    1× regardless of tier.
 
 And two consumers this repository cannot migrate by editing itself: **`@alia.onl/sdk` (latest
 published `5.1.0`, 2026-08-02)** ships as raw source, so consumers compile the aliases into their own
-bundles; **`@alia-codea/cli` (latest published `2.0.1`)** hardcodes `kaana-v1-codea`. *(**Measured**
+bundles; **`@alia-codea/cli` (latest published `2.0.1`)** hardcodes `route:code`. *(**Measured**
 from npm: a handoff said `6.0.0` and `2.0.2`; neither exists — the SDK's published versions end at
 `5.1.0` and the CLI's at `2.0.1`.)* An installed copy keeps sending the old identifier until its
 owner upgrades, which is exactly what "keeps resolving unadvertised" protects.
@@ -151,13 +151,13 @@ that major stops working, and no repository change reaches them.
 ## D3. "Extended thinking" is a runtime parameter
 
 **Decided: a selectable runtime parameter, ChatGPT-style — not a seventh product mode and not a
-model.** `packages/api/prompts/kaana-v1-thinking.md` becomes what the parameter selects.
+model.** `packages/api/prompts/route:thinking.md` becomes what the parameter selects.
 
-This is ADR 0002's own rule applied to the sharpest case in the catalogue: `kaana-v1-thinking` and
-`kaana-v1-pro-max` share the tier `v1-pro-max`, so they are two names for one policy — a reasoning
+This is ADR 0002's own rule applied to the sharpest case in the catalogue: `route:thinking` and
+`route:pro` share the tier `v1-pro-max`, so they are two names for one policy — a reasoning
 setting wearing a model's name. `PRODUCT_MODES` (`lib/product-modes.ts:111`) has exactly six entries
-— `mode:automatic`, `mode:fast`, `mode:balanced`, `mode:maximum-quality`, `mode:coding`,
-`mode:deep-research` — and adding a seventh for a prompt would re-commit the error the epic exists to
+— `mode:auto`, `mode:instant`, `mode:thinking`, `mode:pro`, `mode:code`,
+`mode:research` — and adding a seventh for a prompt would re-commit the error the epic exists to
 correct.
 
 **Irreversible:** nothing, while the aliases still resolve.
@@ -191,10 +191,10 @@ the one runtime; the split is workstream 6's to build, not a thing to protect.
 
 `POST /v1/chat/completions` and `POST /v1/responses` defaulted differently, so an identical
 model-less request was billed at a **2× different credit multiplier depending only on which endpoint
-it hit** — `kaana-lite` has multiplier 0.5, `kaana-v1` has 1.
+it hit** — `route:instant` has multiplier 0.5, `route:auto` has 1.
 
 The decision was that both resolve to the single owner, `getDefaultAliaModel()`, which answers
-`'kaana-lite'`.
+`'route:instant'`.
 
 **Implemented, and the shape is worth recording, because it is not the one this section originally
 described.** The obvious fix — make `responses.ts` restate `getDefaultAliaModel()` too — would have
@@ -208,7 +208,7 @@ divergence lost its `routes/v1/responses.ts` entry in the same change, and now a
 the source — that the file contains `model: body.model,` and matches no `model: body.model ||` at
 all.
 
-**Rationale for resolving toward `kaana-lite`:** the alternative — making both default to `kaana-v1` —
+**Rationale for resolving toward `route:instant`:** the alternative — making both default to `route:auto` —
 doubles the bill on the main path used by the app and every SDK consumer. Production is at
 `desiredCount: 0` and `api.alia.onl` returns 503, so nothing regresses live either way, which is what
 makes this a cheap moment to fix it.

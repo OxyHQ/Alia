@@ -28,6 +28,7 @@ import {
   useCatalogue,
   type EffortLevel,
 } from "@/lib/hooks/use-catalogue";
+import { useProductModes } from "@/lib/hooks/use-product-modes";
 import { effortFor, useModelStore } from "@/lib/stores/model-store";
 import { cn } from "@/lib/utils";
 
@@ -135,10 +136,12 @@ function clampX(x: number, width: number): number {
 export function EffortSelector({ selectedModel }: { selectedModel: string }) {
   const { t } = useTranslation();
   const { data: entries } = useCatalogue();
+  const { data: modes } = useProductModes();
   const isLargeScreen = useIsLargeScreen();
   const storedEffort = useModelStore((state) => state.reasoningEffort);
   const setReasoningEffort = useModelStore((state) => state.setReasoningEffort);
-  const supported = resolveSelection(selectedModel, entries).entry?.capabilities.reasoningLevels ?? [];
+  const supported =
+    resolveSelection(selectedModel, entries, undefined, modes).entry?.capabilities.reasoningLevels ?? [];
   const active = effortFor(storedEffort, supported);
   const triggerLabel = active === null ? t("effort.select") : t(EFFORT_LABEL_KEY[active]);
 

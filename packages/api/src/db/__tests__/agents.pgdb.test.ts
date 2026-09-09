@@ -260,7 +260,7 @@ describe('agents', () => {
       .from(agents)
       .where(eq(agents.id, 'ag-models'));
 
-    expect(row).toEqual({ allowedModels: ['kaana-v1', 'kaana-v1-pro'], tags: [] });
+    expect(row).toEqual({ allowedModels: ['route:auto', 'route:pro-standard'], tags: [] });
   });
 });
 

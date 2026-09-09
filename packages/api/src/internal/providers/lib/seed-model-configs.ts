@@ -174,7 +174,7 @@ export async function seedModelConfigs(): Promise<{ seeded: number; skipped: num
 /**
  * Seed `routing_profiles` from KAANA_ROUTING_PROFILES and TIER_MODEL_MAPPINGS.
  *
- * Writes the alia-* identifiers (kaana-v1, kaana-lite and the rest) with their
+ * Writes the alia-* identifiers (route:auto, route:instant and the rest) with their
  * mappings linked to `model_configs` rows. Must run AFTER seedModelConfigs() so
  * those rows exist.
  */

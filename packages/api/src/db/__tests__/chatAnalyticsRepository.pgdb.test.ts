@@ -81,10 +81,10 @@ describe('insertChatAnalytics', () => {
     await insertChatAnalytics(db, {
       oxyUserId,
       conversationId: 'ca-conv-1',
-      routingProfileId: 'kaana-v1-pro',
-      requestedModelId: 'kaana-v1-thinking',
+      routingProfileId: 'route:pro-standard',
+      requestedModelId: 'route:thinking',
       requestedModelKind: 'routing_profile',
-      requestedProfileId: 'kaana-v1-thinking',
+      requestedProfileId: 'route:thinking',
       reasoningEffort: 'extended',
       promptTokens: 11,
       completionTokens: 22,
@@ -113,7 +113,7 @@ describe('insertChatAnalytics', () => {
      * replaced could only ever record one of them.
      */
     expect(row.conversationId).toBe('ca-conv-1');
-    expect(row.routingProfileId).toBe('kaana-v1-pro');
+    expect(row.routingProfileId).toBe('route:pro-standard');
     expect(row.skillNames).toEqual(['ca-skill-1', 'ca-skill-2']);
     expect(row.platform).toBe('web');
     expect(row.promptTokens).toBe(11);
@@ -123,12 +123,12 @@ describe('insertChatAnalytics', () => {
      * resolved profile in this fixture, so a column that silently mirrored the other one
      * fails here rather than passing on a row where they happen to agree.
      */
-    expect(row.requestedModelId).toBe('kaana-v1-thinking');
+    expect(row.requestedModelId).toBe('route:thinking');
     // The SHAPE and the profile beside the string, so a later query does not
-    // have to read `kaana-v1-thinking` as a model choice — and the reasoning
+    // have to read `route:thinking` as a model choice — and the reasoning
     // request is in its own column rather than buried in that identifier.
     expect(row.requestedModelKind).toBe('routing_profile');
-    expect(row.requestedProfileId).toBe('kaana-v1-thinking');
+    expect(row.requestedProfileId).toBe('route:thinking');
     expect(row.reasoningEffort).toBe('extended');
     expect(row.timeToFirstTokenMs).toBe(55);
     expect(row.errorClass).toBe('RATE_LIMITED');
@@ -147,15 +147,15 @@ describe('insertChatAnalytics', () => {
   it('refuses a row that cannot say what was asked for, or what kind of thing it was', async () => {
     const missingRequested = db
       .insert(chatAnalytics)
-      .values({ oxyUserId: 'ca-null-requested', routingProfileId: 'kaana-v1', requestedModelKind: 'routing_profile' } as never);
+      .values({ oxyUserId: 'ca-null-requested', routingProfileId: 'route:auto', requestedModelKind: 'routing_profile' } as never);
     await expect(missingRequested).rejects.toThrow(/requested_model_id/);
 
     // The kind is NOT NULL for the same reason the identifier is: a row that
-    // records `kaana-v1-pro` without saying it is a routing profile is a row every
+    // records `route:pro-standard` without saying it is a routing profile is a row every
     // later query is free to read as a model choice.
     const missingKind = db
       .insert(chatAnalytics)
-      .values({ oxyUserId: 'ca-null-kind', routingProfileId: 'kaana-v1', requestedModelId: 'kaana-v1' } as never);
+      .values({ oxyUserId: 'ca-null-kind', routingProfileId: 'route:auto', requestedModelId: 'route:auto' } as never);
     await expect(missingKind).rejects.toThrow(/requested_model_kind/);
 
     // The positive control: the same insert with both present succeeds, so the
@@ -164,8 +164,8 @@ describe('insertChatAnalytics', () => {
       .insert(chatAnalytics)
       .values({
         oxyUserId: 'ca-null-control',
-        routingProfileId: 'kaana-v1',
-        requestedModelId: 'kaana-v1',
+        routingProfileId: 'route:auto',
+        requestedModelId: 'route:auto',
         requestedModelKind: 'routing_profile',
       });
     const rows = await db
@@ -209,10 +209,10 @@ describe('insertChatAnalytics', () => {
     const oxyUserId = 'ca-retained-columns';
     await insertChatAnalytics(db, {
       oxyUserId,
-      routingProfileId: 'kaana-v1',
-      requestedModelId: 'kaana-v1',
+      routingProfileId: 'route:auto',
+      requestedModelId: 'route:auto',
       requestedModelKind: 'routing_profile',
-      requestedProfileId: 'kaana-v1',
+      requestedProfileId: 'route:auto',
       reasoningEffort: null,
       promptTokens: 0,
       completionTokens: 0,
@@ -239,11 +239,11 @@ describe('insertChatAnalytics', () => {
     // The other half of "replace the provider/model fields": the columns exist
     // and no aggregate selects them, so nothing they hold can reach a response.
     const oxyUserId = 'ca-read-path';
-    await seed({ oxyUserId, routingProfileId: 'kaana-v1', totalTokens: 3 });
+    await seed({ oxyUserId, routingProfileId: 'route:auto', totalTokens: 3 });
 
     const [byModel] = await aggregateUsageByModel(db, oxyUserId, SINCE());
     expect(Object.keys(byModel ?? {}).sort()).toEqual(['_id', 'avgLatency', 'count', 'totalTokens']);
-    expect(byModel?._id).toBe('kaana-v1');
+    expect(byModel?._id).toBe('route:auto');
   });
 
   it('accepts every AliaErrorCode, because the column has no CHECK', async () => {
@@ -257,10 +257,10 @@ describe('insertChatAnalytics', () => {
     for (const code of codes) {
       await insertChatAnalytics(db, {
         oxyUserId,
-        routingProfileId: 'kaana-v1',
-        requestedModelId: 'kaana-v1',
+        routingProfileId: 'route:auto',
+        requestedModelId: 'route:auto',
         requestedModelKind: 'routing_profile',
-        requestedProfileId: 'kaana-v1',
+        requestedProfileId: 'route:auto',
         reasoningEffort: null,
         promptTokens: 0,
         completionTokens: 0,
@@ -284,8 +284,8 @@ describe('insertChatAnalytics', () => {
 describe('aggregateUsageByModel', () => {
   it('groups under the resolved Kaana routing profile, not the provider model id', async () => {
     const oxyUserId = 'ca-profile-grouping';
-    await seed({ oxyUserId, routingProfileId: 'kaana-v1-pro', requestedModelId: 'kaana-v1-pro', totalTokens: 10 });
-    await seed({ oxyUserId, routingProfileId: 'kaana-v1-pro', requestedModelId: 'kaana-v1', totalTokens: 20 });
+    await seed({ oxyUserId, routingProfileId: 'route:pro-standard', requestedModelId: 'route:pro-standard', totalTokens: 10 });
+    await seed({ oxyUserId, routingProfileId: 'route:pro-standard', requestedModelId: 'route:auto', totalTokens: 20 });
 
     const rows = await aggregateUsageByModel(db, oxyUserId, SINCE());
 
@@ -298,26 +298,26 @@ describe('aggregateUsageByModel', () => {
      * something unregistered would see their usage vanish from the answer.
      */
     expect(rows).toHaveLength(1);
-    expect(rows[0]?._id).toBe('kaana-v1-pro');
+    expect(rows[0]?._id).toBe('route:pro-standard');
     expect(rows[0]?.count).toBe(2);
     expect(rows[0]?.totalTokens).toBe(30);
   });
 
   it('orders busiest first and returns NUMBERS for every aggregate', async () => {
     const oxyUserId = 'ca-model-order';
-    await seed({ oxyUserId, routingProfileId: 'kaana-v1', totalTokens: 100, latencyMs: 200 });
-    await seed({ oxyUserId, routingProfileId: 'kaana-v1', totalTokens: 300, latencyMs: 400 });
-    await seed({ oxyUserId, routingProfileId: 'kaana-lite', totalTokens: 1, latencyMs: 10 });
+    await seed({ oxyUserId, routingProfileId: 'route:auto', totalTokens: 100, latencyMs: 200 });
+    await seed({ oxyUserId, routingProfileId: 'route:auto', totalTokens: 300, latencyMs: 400 });
+    await seed({ oxyUserId, routingProfileId: 'route:instant', totalTokens: 1, latencyMs: 10 });
 
     const rows = await aggregateUsageByModel(db, oxyUserId, SINCE());
-    expect(rows.map((r) => r._id)).toEqual(['kaana-v1', 'kaana-lite']);
+    expect(rows.map((r) => r._id)).toEqual(['route:auto', 'route:instant']);
 
     const busy = rows[0];
     /**
      * Three separate decodings, three separate ways to get a string:
      * `count(*)` and `sum(integer)` are `bigint`, and **`avg(integer)` is
      * `numeric`** — the one that does not look like the others. Two rows are
-     * seeded for `kaana-v1` precisely so a concatenation is visible: without
+     * seeded for `route:auto` precisely so a concatenation is visible: without
      * the casts `totalTokens` comes back `"100300"` and `avgLatency` `"300.00"`.
      */
     expect(typeof busy?.count).toBe('number');

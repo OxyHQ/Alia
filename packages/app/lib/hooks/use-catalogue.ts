@@ -393,7 +393,7 @@ export function useCatalogue() {
 /**
  * "Let Alia decide" — the absence of a choice, stored as one.
  *
- * The product publishes this as `mode:automatic` ("Alia picks how to answer.")
+ * The product publishes this as `mode:auto` ("Alia picks how to answer.")
  * in `GET /catalogue/modes`, and it is the one product mode with no routing
  * profile behind it: its `routing.kind` is `default`. What "default" means is
  * measurable rather than a guess — `lib/chat/request-context.ts` resolves
@@ -410,7 +410,7 @@ export function useCatalogue() {
  * It cannot collide with a real identifier: the catalogue's are `profile:*` and
  * the frozen compatibility aliases are `alia-*`.
  */
-export const AUTOMATIC_SELECTION_ID = 'automatic';
+export const AUTOMATIC_SELECTION_ID = 'mode:auto';
 
 export interface ModelSelection {
   /** What the user chose, which is what the picker keeps showing as chosen. */
@@ -420,8 +420,8 @@ export interface ModelSelection {
    *
    * `null` is {@link AUTOMATIC_SELECTION_ID} resolved, and it is a distinct
    * value rather than the default identifier because the two are not the same
-   * request: the app's configured default is `profile:v1` and the server's is
-   * `kaana-lite`. Substituting one for the other here would quietly send a
+   * request: the app's configured default is `profile:auto` and the server's is
+   * `route:instant`. Substituting one for the other here would quietly send a
    * different model than the one the user asked the server to choose.
    */
   readonly effectiveId: string | null;
@@ -458,6 +458,7 @@ export function resolveSelection(
   requestedId: string,
   entries: readonly CatalogueEntry[] | undefined,
   localModelIds?: readonly string[],
+  modes?: readonly { id: string; routing: { profileId: string } }[],
 ): ModelSelection {
   /**
    * A model running on one of the person's own devices, which the catalogue
@@ -478,8 +479,12 @@ export function resolveSelection(
   // automatic is a choice about who decides, not a choice of entry, so it is
   // valid whether or not the catalogue ever loads. Falling through would send
   // the literal identifier on a cold start and answer `unknown_routing_profile`.
-  if (requestedId === AUTOMATIC_SELECTION_ID) {
-    return { requestedId, effectiveId: null, entry: null, source: 'requested' };
+  if (requestedId.startsWith('mode:')) {
+    const mode = modes?.find((candidate) => candidate.id === requestedId);
+    const entry = mode === undefined
+      ? null
+      : entries?.find((candidate) => candidate.id === mode.routing.profileId) ?? null;
+    return { requestedId, effectiveId: requestedId, entry, source: 'requested' };
   }
 
   if (entries === undefined) {

@@ -49,7 +49,7 @@ const entry = (over: Record<string, unknown> = {}) => ({
 
 const mode = (over: Record<string, unknown> = {}) => ({
   object: 'product_mode',
-  id: 'mode:balanced',
+  id: 'mode:thinking',
   label: 'Balanced',
   description: 'a sensible default',
   routing: { kind: 'profile', profile_id: 'profile:balanced' },
@@ -108,7 +108,7 @@ describe('parseCatalogue', () => {
 describe('parseModes', () => {
   it('reads a mode and its routing', () => {
     const [parsed] = parseModes(catalogueBody([mode()]));
-    expect(parsed.id).toBe('mode:balanced');
+    expect(parsed.id).toBe('mode:thinking');
     expect(parsed.routing).toEqual({ kind: 'profile', profileId: 'profile:balanced' });
   });
 
@@ -152,7 +152,7 @@ describe('offeredModes', () => {
   // sentinel id rather than its profile.
   const modes = [
     mode({
-      id: 'mode:automatic',
+      id: 'mode:auto',
       label: 'Automatic',
       description: 'let Alia choose',
       routing: { kind: 'profile', profile_id: 'profile:balanced' },

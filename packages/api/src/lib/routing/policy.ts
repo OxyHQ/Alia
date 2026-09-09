@@ -86,7 +86,7 @@ export function isFallbackPolicy(value: unknown): value is FallbackPolicy {
  * A model identifier nobody registered reached a resolver.
  *
  * Before strict refusal, the legacy resolver answered such a request from
- * `kaana-v1` and reported the requested name back to the caller. That is ADR
+ * `route:auto` and reported the requested name back to the caller. That is ADR
  * 0003 invariant 2 failing in the plainest way, and it is the one behaviour on
  * this page that is NOT preserved: an identifier nobody registered was never a
  * working request, so there is nothing to preserve.

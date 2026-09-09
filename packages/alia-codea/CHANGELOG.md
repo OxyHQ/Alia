@@ -11,11 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Initial release of Codea by Alia extension
 - AI-powered chat interface in VS Code sidebar
 - Support for multiple Alia AI models:
-  - Kaana Lite (0.5x credits)
-  - Kaana V1 (1x credits)
-  - Kaana V1 Codea (1.5x credits)
-  - Kaana V1 Pro (3x credits)
-  - Kaana V1 Pro Max (5x credits)
+  - Instant (0.5x credits)
+  - Auto (1x credits)
+  - Code (1.5x credits)
+  - Pro Standard (3x credits)
+  - Pro (5x credits)
 - Inline code completions with AI-powered suggestions
 - Native chat participant integration (`@codea` in VS Code chat)
 - Streaming responses for real-time feedback

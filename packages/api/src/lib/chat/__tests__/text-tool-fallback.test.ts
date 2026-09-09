@@ -58,7 +58,7 @@ function runFallback({ assistantResponse, toolInvocations, execute, toolName = '
     baseConfig: {},
     res: res as never,
     requestId: 'chatcmpl-test',
-    routingProfileId: 'kaana-v1',
+    routingProfileId: 'route:auto',
     resolved: { provider: 'openai', modelId: 'gpt-4o' },
   });
 }

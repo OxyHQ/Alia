@@ -94,8 +94,8 @@ describe('provider mappings are a child table, which is what makes them checkabl
   beforeAll(async () => {
     await db.insert(routingProfiles).values({
       id: 'am-1',
-      routingProfileId: 'kaana-v1',
-      displayName: 'Kaana V1',
+      routingProfileId: 'route:auto',
+      displayName: 'Auto',
       tier: 'v1',
     });
     await db.insert(modelConfigs).values(modelConfigValues({ id: 'mc-mapped', modelId: 'model-mapped' }));

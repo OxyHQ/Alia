@@ -56,7 +56,7 @@ describe('classifyRequestedModel', () => {
   });
 
   it('reads removed Alia provider aliases as unregistered', () => {
-    for (const removed of ['alia-lite', 'alia-v1', 'alia-v1-pro', 'alia-v1-voice']) {
+    for (const removed of ['retired-route-a', 'retired-route-b', 'retired-route-c', 'retired-route-d']) {
       expect(classifyRequestedModel(removed), removed).toEqual({
         id: removed,
         kind: 'unregistered',
@@ -86,7 +86,7 @@ describe('classifyRequestedModel', () => {
   it('never returns a profile id for a kind that has no profile', () => {
     // The invariant across the whole set, stated once: a null `kind` pairing
     // would let a query group model references under a product mode.
-    for (const requested of ['qwen/qwen3-32b', 'alia-v1', 'gpt-4o']) {
+    for (const requested of ['qwen/qwen3-32b', 'retired-routing-alias', 'gpt-4o']) {
       expect(classifyRequestedModel(requested).profileId, requested).toBeNull();
     }
   });
@@ -97,42 +97,42 @@ describe('reasoningEffortOf', () => {
     // Not a higher level: the boolean meant "reason" against a path that sent
     // NO budget at all, so the smallest is the only reading that cannot raise
     // an existing caller's bill without them asking for it.
-    expect(reasoningEffortOf({ thinkingMode: true, requestedModel: 'kaana-v1' })).toBe('medium');
+    expect(reasoningEffortOf({ thinkingMode: true, requestedModel: 'route:auto' })).toBe('medium');
   });
 
   it('reads the canonical profile whose product meaning includes reasoning', () => {
-    expect(reasoningEffortOf({ requestedModel: 'kaana-v1-thinking' })).toBe('medium');
+    expect(reasoningEffortOf({ requestedModel: 'route:thinking' })).toBe('medium');
   });
 
   it('reads an explicit level, and prefers it over the legacy spellings', () => {
-    expect(reasoningEffortOf({ reasoningEffort: 'max', requestedModel: 'kaana-v1' })).toBe('max');
-    expect(reasoningEffortOf({ reasoningEffort: 'instant', requestedModel: 'kaana-v1-thinking' })).toBe('instant');
-    expect(reasoningEffortOf({ reasoningEffort: 'high', thinkingMode: true, requestedModel: 'kaana-v1' })).toBe('high');
+    expect(reasoningEffortOf({ reasoningEffort: 'max', requestedModel: 'route:auto' })).toBe('max');
+    expect(reasoningEffortOf({ reasoningEffort: 'instant', requestedModel: 'route:thinking' })).toBe('instant');
+    expect(reasoningEffortOf({ reasoningEffort: 'high', thinkingMode: true, requestedModel: 'route:auto' })).toBe('high');
   });
 
   it('refuses a level it does not offer, rather than passing it through', () => {
     // The request body is untrusted. A string that reached `providerOptions`
     // unchecked would be a caller choosing a provider parameter directly.
-    expect(reasoningEffortOf({ reasoningEffort: 'ludicrous', requestedModel: 'kaana-v1' })).toBeNull();
-    expect(reasoningEffortOf({ reasoningEffort: 'extended', requestedModel: 'kaana-v1' })).toBeNull();
-    expect(reasoningEffortOf({ reasoningEffort: 7, requestedModel: 'kaana-v1' })).toBeNull();
-    expect(reasoningEffortOf({ reasoningEffort: '__proto__', requestedModel: 'kaana-v1' })).toBeNull();
+    expect(reasoningEffortOf({ reasoningEffort: 'ludicrous', requestedModel: 'route:auto' })).toBeNull();
+    expect(reasoningEffortOf({ reasoningEffort: 'extended', requestedModel: 'route:auto' })).toBeNull();
+    expect(reasoningEffortOf({ reasoningEffort: 7, requestedModel: 'route:auto' })).toBeNull();
+    expect(reasoningEffortOf({ reasoningEffort: '__proto__', requestedModel: 'route:auto' })).toBeNull();
   });
 
   it('that routing profile really is a second name for another preset, not a model', () => {
     // What makes the line above correct rather than a guess. If
-    // `kaana-v1-thinking` ever stops sharing a preset with `kaana-v1-pro-max` it
+    // `route:thinking` ever stops sharing a preset with `route:pro` it
     // has become a model, and lifting its reasoning out would be wrong.
-    const preset = ROUTING_PRESETS.find((entry) => entry.profileIds.includes('kaana-v1-thinking'));
-    expect(preset?.profileIds).toEqual(['kaana-v1-pro-max', 'kaana-v1-thinking']);
+    const preset = ROUTING_PRESETS.find((entry) => entry.profileIds.includes('route:thinking'));
+    expect(preset?.profileIds).toEqual(['route:pro', 'route:thinking']);
   });
 
   it('is null for an ordinary request', () => {
     // The discriminator. Without it, every assertion above is also satisfied by
     // a function that returns a level unconditionally.
-    expect(reasoningEffortOf({ requestedModel: 'kaana-v1' })).toBeNull();
-    expect(reasoningEffortOf({ thinkingMode: false, requestedModel: 'kaana-v1-pro' })).toBeNull();
-    expect(reasoningEffortOf({ requestedModel: 'profile:v1-pro-max' })).toBeNull();
+    expect(reasoningEffortOf({ requestedModel: 'route:auto' })).toBeNull();
+    expect(reasoningEffortOf({ thinkingMode: false, requestedModel: 'route:pro-standard' })).toBeNull();
+    expect(reasoningEffortOf({ requestedModel: 'profile:pro' })).toBeNull();
   });
 
   it('the effort vocabulary is exactly four levels, and a UI may not offer more', () => {

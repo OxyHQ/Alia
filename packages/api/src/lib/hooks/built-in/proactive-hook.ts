@@ -6,7 +6,7 @@
  * - A monitoring trigger for things that change over time (prices, availability)
  * - A routine for recurring needs ("every week I have to...")
  *
- * Uses a lightweight model (kaana-lite) to classify, then creates a Suggestion
+ * Uses a lightweight model (route:instant) to classify, then creates a Suggestion
  * that appears in the user's next session.
  */
 

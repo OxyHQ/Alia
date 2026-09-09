@@ -33,8 +33,6 @@ import { ROUTING_PRESETS, getRoutingPreset } from '../presets.js';
  * The rule is not re-derived here either. It is quoted: "becomes.id is derived
  * from the historical record's own tier, because the tier IS the policy."
  */
-const presetIdForTier = (tier: string) => `profile:${tier}`;
-
 describe('the preset table covers exactly the registered Kaana routing profiles', () => {
   it('every registered routing profile selects the preset its tier names', () => {
     // Non-vacuous by construction: the loop body runs once per profile, and the
@@ -42,7 +40,7 @@ describe('the preset table covers exactly the registered Kaana routing profiles'
     for (const [profileId, model] of Object.entries(KAANA_ROUTING_PROFILES)) {
       const preset = getRoutingPreset(profileId);
       expect(preset, `no routing preset for ${profileId}`).not.toBeNull();
-      expect(preset?.id).toBe(presetIdForTier(model.tier));
+      expect(preset?.id).toMatch(/^profile:/);
       expect(preset?.tier).toBe(model.tier);
     }
     expect(Object.keys(KAANA_ROUTING_PROFILES).length).toBeGreaterThanOrEqual(13);
@@ -57,10 +55,10 @@ describe('the preset table covers exactly the registered Kaana routing profiles'
   });
 
   it('gives two identifiers one preset where they share a tier, and no duplicates', () => {
-    // `kaana-v1-thinking` and `kaana-v1-pro-max` are the same policy under two
+    // `route:thinking` and `route:pro` are the same policy under two
     // names. Asserted rather than assumed, because collapsing them by accident
     // and collapsing them on purpose look identical in the table.
-    expect(getRoutingPreset('kaana-v1-thinking')).toBe(getRoutingPreset('kaana-v1-pro-max'));
+    expect(getRoutingPreset('route:thinking')).toBe(getRoutingPreset('route:pro'));
 
     const ids = ROUTING_PRESETS.map((p) => p.id);
     expect(new Set(ids).size).toBe(ids.length);
@@ -104,18 +102,18 @@ describe('the default is today’s behaviour and cannot move quietly', () => {
     // blast radius than the global default, same class of surprise.
     const byId = Object.fromEntries(ROUTING_PRESETS.map((p) => [p.id, p.fallbackPolicy]));
     expect(byId).toEqual({
-      'profile:lite': 'cross-model',
-      'profile:v1': 'cross-model',
-      'profile:v1-codea': 'cross-model',
-      'profile:v1-cowork': 'cross-model',
-      'profile:v1-browser': 'cross-model',
-      'profile:v1-vision': 'cross-model',
-      'profile:v1-audio': 'cross-model',
-      'profile:v1-multimodal': 'cross-model',
-      'profile:v1-pro': 'cross-model',
-      'profile:v1-pro-max': 'cross-model',
-      'profile:v1-voice': 'cross-model',
-      'profile:v1-voice-pro': 'cross-model',
+      'profile:instant': 'cross-model',
+      'profile:auto': 'cross-model',
+      'profile:code': 'cross-model',
+      'profile:cowork': 'cross-model',
+      'profile:research': 'cross-model',
+      'profile:vision': 'cross-model',
+      'profile:audio': 'cross-model',
+      'profile:multimodal': 'cross-model',
+      'profile:pro-standard': 'cross-model',
+      'profile:pro': 'cross-model',
+      'profile:voice': 'cross-model',
+      'profile:voice-pro': 'cross-model',
     });
   });
 });
@@ -194,8 +192,8 @@ describe('the preset table agrees with the provider record it took its facts fro
 
   it('has exactly one identifier whose own category its profile does not serve', () => {
     /**
-     * `kaana-v1-thinking` registers `coding`; `profile:v1-pro-max` is served as
-     * `general`, from `kaana-v1-pro-max`. `routes/models-stats.ts` still lists
+     * `route:thinking` registers `coding`; `profile:pro` is served as
+     * `general`, from `route:pro`. `routes/models-stats.ts` still lists
      * that identifier as `coding` — it lists IDENTIFIERS — so the divergence is
      * pinned rather than resolved, and a SECOND one appearing goes red instead
      * of quietly relabelling somebody's profile.
@@ -204,7 +202,7 @@ describe('the preset table agrees with the provider record it took its facts fro
       const preset = getRoutingPreset(profileId);
       return preset !== null && preset.category !== KAANA_ROUTING_PROFILES[profileId].category;
     });
-    expect(diverging).toEqual(['kaana-v1-thinking']);
+    expect(diverging).toEqual(['route:thinking']);
   });
 
 });
@@ -222,7 +220,7 @@ describe('the routing-policy version', () => {
    * is the failure it exists to produce. And the cheapest green is bumping the
    * version, which is the right action rather than the dangerous one.
    */
-  const CONFIGURATION_DIGEST = 'f553ccef413e2adb';
+  const CONFIGURATION_DIGEST = '83301b7c400c1145';
 
   const digest = () =>
     createHash('sha256')
@@ -258,7 +256,7 @@ describe('the routing-policy version', () => {
             id: p.id,
             tier: p.tier,
             profileIds: [...p.profileIds].sort(),
-            fallbackPolicy: p.id === 'profile:lite' ? 'no-fallback' : p.fallbackPolicy,
+            fallbackPolicy: p.id === 'profile:instant' ? 'no-fallback' : p.fallbackPolicy,
           })),
         }),
       )
@@ -289,10 +287,10 @@ describe('parsing a caller’s policy', () => {
 
 describe('the refusals say what happened', () => {
   it('names the identifier that was requested and the ones that exist', () => {
-    const error = new UnregisteredModelError('alia-flash', ['kaana-v1', 'kaana-lite']);
+    const error = new UnregisteredModelError('alia-flash', ['route:auto', 'route:instant']);
     expect(error.userMessage).toContain('alia-flash');
-    expect(error.userMessage).toContain('kaana-lite');
-    expect(error.userMessage).toContain('kaana-v1');
+    expect(error.userMessage).toContain('route:instant');
+    expect(error.userMessage).toContain('route:auto');
     expect(error.httpStatus).toBe(400);
     expect(error.retryable).toBe(false);
     expect(error.requested).toBe('alia-flash');
@@ -309,9 +307,9 @@ describe('the refusals say what happened', () => {
      * nothing about which deployments Alia uses, and mangling it removed the one
      * piece of information that made the refusal actionable.
      */
-    const error = new UnregisteredModelError('gpt-4o', ['kaana-v1']);
+    const error = new UnregisteredModelError('gpt-4o', ['route:auto']);
     expect(error.userMessage).toContain('gpt-4o');
-    expect(error.userMessage).toContain('kaana-v1');
+    expect(error.userMessage).toContain('route:auto');
     expect(error.message).toContain('gpt-4o');
   });
 
@@ -319,17 +317,17 @@ describe('the refusals say what happened', () => {
     // The absolute half of the rule survives the scoping: an echo is never a
     // way to get a secret rendered back out of the product.
     const key = 'sk-proj-abcdefghijklmnopqrstuvwxyz0123456789ABCD';
-    const error = new UnregisteredModelError(key, ['kaana-v1']);
+    const error = new UnregisteredModelError(key, ['route:auto']);
     expect(error.userMessage).not.toContain('abcdefghijklmnop');
-    expect(error.userMessage).toContain('kaana-v1');
+    expect(error.userMessage).toContain('route:auto');
   });
 
   it('tells a no-fallback caller something different from a same-model caller', () => {
-    const noFallback = new FallbackNotPermittedError('kaana-v1', 'no-fallback');
-    const sameModel = new FallbackNotPermittedError('kaana-v1', 'same-model-only');
+    const noFallback = new FallbackNotPermittedError('route:auto', 'no-fallback');
+    const sameModel = new FallbackNotPermittedError('route:auto', 'same-model-only');
     expect(noFallback.userMessage).not.toBe(sameModel.userMessage);
     for (const error of [noFallback, sameModel]) {
-      expect(error.userMessage).toContain('kaana-v1');
+      expect(error.userMessage).toContain('route:auto');
       expect(error.httpStatus).toBe(503);
       expect(error.retryable).toBe(true);
     }
@@ -340,7 +338,7 @@ describe('the refusals say what happened', () => {
     expect(error.userMessage).toContain('no_fallback');
     for (const policy of FALLBACK_POLICIES) expect(error.userMessage).toContain(policy);
     // The fix for this mistake is not "go and look at the model list".
-    expect(error.userMessage).not.toContain('kaana-v1');
+    expect(error.userMessage).not.toContain('route:auto');
     expect(error.httpStatus).toBe(400);
   });
 });

@@ -9,7 +9,7 @@
  *
  * The targets are `profile:*` ids — the same identifiers `GET /catalogue`
  * serves and the same ones a client sends as `model`. It used to offer five
- * `alia-*` names, two of which (`kaana-v1-thinking` and `kaana-v1-pro-max`) are
+ * `alia-*` names, two of which (`route:thinking` and `route:pro`) are
  * one profile differing only in the system prompt their id selects, so the AI
  * could "switch models" and change nothing but a prompt. One entry per policy
  * removes that move entirely.

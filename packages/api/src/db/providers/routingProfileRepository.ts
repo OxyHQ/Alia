@@ -488,7 +488,7 @@ export function modelConfigKey(provider: string, modelId: string): string {
  * column does not exist, so the faithful version does not compile. The intent is
  * documented on `plans.modelIds` in `db/schema/billing.ts` ("the
  * `routing_profiles.routing_profile_id`s this plan includes") and confirmed by
- * `seed-plans.ts`, which fills the field with `kaana-v1-pro` and friends. This
+ * `seed-plans.ts`, which fills the field with `route:pro-standard` and friends. This
  * asks about `routingProfileId`.
  *
  * BEHAVIOUR CHANGE, flagged: plans carrying valid alias ids will now be accepted

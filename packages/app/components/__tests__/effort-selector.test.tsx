@@ -14,8 +14,12 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("react-native", async () => {
   const ReactModule = await import("react");
-  const host = (name: string) =>
-    ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
+  const host =
+    (name: string) =>
+    ({
+      children,
+      ...props
+    }: React.PropsWithChildren<Record<string, unknown>>) =>
       ReactModule.createElement(name, props, children);
 
   return {
@@ -36,8 +40,12 @@ vi.mock("lucide-react-native", async () => {
 
 vi.mock("@/components/ui/dropdown-menu", async () => {
   const ReactModule = await import("react");
-  const host = (name: string) =>
-    ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
+  const host =
+    (name: string) =>
+    ({
+      children,
+      ...props
+    }: React.PropsWithChildren<Record<string, unknown>>) =>
       ReactModule.createElement(name, props, children);
 
   return {
@@ -52,7 +60,10 @@ vi.mock("@/components/ui/dropdown-menu", async () => {
 vi.mock("@/components/ui/text", async () => {
   const ReactModule = await import("react");
   return {
-    Text: ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
+    Text: ({
+      children,
+      ...props
+    }: React.PropsWithChildren<Record<string, unknown>>) =>
       ReactModule.createElement("Text", props, children),
   };
 });
@@ -87,6 +98,10 @@ vi.mock("@/lib/hooks/use-catalogue", () => ({
   },
 }));
 
+vi.mock("@/lib/hooks/use-product-modes", () => ({
+  useProductModes: () => ({ data: [] }),
+}));
+
 vi.mock("@/lib/stores/model-store", () => ({
   effortFor: (stored: string | null, supported: readonly string[]) =>
     stored !== null && supported.includes(stored) ? stored : null,
@@ -104,7 +119,10 @@ vi.mock("@/lib/utils", () => ({
 vi.mock("@oxyhq/bloom/bottom-sheet", async () => {
   const ReactModule = await import("react");
   return {
-    BottomSheet: ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
+    BottomSheet: ({
+      children,
+      ...props
+    }: React.PropsWithChildren<Record<string, unknown>>) =>
       ReactModule.createElement("BottomSheet", props, children),
   };
 });
@@ -166,7 +184,10 @@ vi.mock("react-native-gesture-handler", async () => {
       Race: (...gestures: GestureBuilder[]) => ({ kind: "race", gestures }),
       Tap: () => gesture("tap"),
     },
-    GestureDetector: ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
+    GestureDetector: ({
+      children,
+      ...props
+    }: React.PropsWithChildren<Record<string, unknown>>) =>
       ReactModule.createElement("GestureDetector", props, children),
   };
 });
@@ -174,7 +195,10 @@ vi.mock("react-native-gesture-handler", async () => {
 vi.mock("react-native-reanimated", async () => {
   const ReactModule = await import("react");
   const Animated = {
-    View: ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
+    View: ({
+      children,
+      ...props
+    }: React.PropsWithChildren<Record<string, unknown>>) =>
       ReactModule.createElement("AnimatedView", props, children),
   };
 
@@ -183,8 +207,13 @@ vi.mock("react-native-reanimated", async () => {
     runOnJS: <T extends (...args: never[]) => unknown>(callback: T) => callback,
     useAnimatedReaction: () => undefined,
     useAnimatedStyle: (factory: () => Record<string, unknown>) => factory(),
-    useDerivedValue: <T,>(factory: () => T) => ({ get value() { return factory(); } }),
-    useSharedValue: <T,>(initial: T) => ReactModule.useRef({ value: initial }).current,
+    useDerivedValue: <T,>(factory: () => T) => ({
+      get value() {
+        return factory();
+      },
+    }),
+    useSharedValue: <T,>(initial: T) =>
+      ReactModule.useRef({ value: initial }).current,
     withSpring: <T,>(value: T) => value,
   };
 });
@@ -200,7 +229,8 @@ function renderSelector() {
   act(() => {
     nextRenderer = create(<EffortSelector selectedModel="test/model" />);
   });
-  if (nextRenderer === undefined) throw new Error("EffortSelector did not render");
+  if (nextRenderer === undefined)
+    throw new Error("EffortSelector did not render");
   renderer = nextRenderer;
   return nextRenderer.root;
 }
@@ -210,7 +240,9 @@ const hosts = (root: ReturnType<typeof renderSelector>, name: string) =>
 
 function openNativeSheet() {
   const root = renderSelector();
-  const trigger = hosts(root, "Pressable").find((node) => node.props.accessibilityRole === "button");
+  const trigger = hosts(root, "Pressable").find(
+    (node) => node.props.accessibilityRole === "button",
+  );
   expect(trigger).toBeDefined();
   act(() => trigger?.props.onPress());
   return root;
@@ -262,7 +294,9 @@ describe("EffortSelector", () => {
     expect(hosts(root, "DropdownRoot")).toHaveLength(0);
     expect(hosts(root, "BottomSheet")).toHaveLength(1);
 
-    const slider = root.find((node) => node.props.accessibilityRole === "adjustable");
+    const slider = root.find(
+      (node) => node.props.accessibilityRole === "adjustable",
+    );
     expect(slider.props.accessibilityValue).toEqual({
       min: 0,
       max: 3,
@@ -271,9 +305,20 @@ describe("EffortSelector", () => {
     });
     expect(slider.props.accessibilityState).toEqual({ disabled: false });
 
-    act(() => slider.props.onAccessibilityAction({ nativeEvent: { actionName: "increment" } }));
-    act(() => slider.props.onAccessibilityAction({ nativeEvent: { actionName: "decrement" } }));
-    expect(mocks.setReasoningEffort.mock.calls).toEqual([["high"], ["instant"]]);
+    act(() =>
+      slider.props.onAccessibilityAction({
+        nativeEvent: { actionName: "increment" },
+      }),
+    );
+    act(() =>
+      slider.props.onAccessibilityAction({
+        nativeEvent: { actionName: "decrement" },
+      }),
+    );
+    expect(mocks.setReasoningEffort.mock.calls).toEqual([
+      ["high"],
+      ["instant"],
+    ]);
     expect(mocks.haptics).toHaveBeenCalledTimes(2);
   });
 
@@ -281,10 +326,16 @@ describe("EffortSelector", () => {
     mocks.platform.OS = "ios";
     mocks.offered = [];
     const root = openNativeSheet();
-    const slider = root.find((node) => node.props.accessibilityRole === "adjustable");
+    const slider = root.find(
+      (node) => node.props.accessibilityRole === "adjustable",
+    );
 
     expect(slider.props.accessibilityState).toEqual({ disabled: true });
-    act(() => slider.props.onAccessibilityAction({ nativeEvent: { actionName: "increment" } }));
+    act(() =>
+      slider.props.onAccessibilityAction({
+        nativeEvent: { actionName: "increment" },
+      }),
+    );
     expect(mocks.setReasoningEffort).not.toHaveBeenCalled();
     expect(mocks.haptics).not.toHaveBeenCalled();
   });
@@ -293,14 +344,18 @@ describe("EffortSelector", () => {
     mocks.platform.OS = "android";
     mocks.offered = ["instant", "high"];
     const root = openNativeSheet();
-    const slider = root.find((node) => node.props.accessibilityRole === "adjustable");
+    const slider = root.find(
+      (node) => node.props.accessibilityRole === "adjustable",
+    );
     const [detector] = hosts(root, "GestureDetector");
     expect(detector).toBeDefined();
     const race = detector.props.gesture as { gestures: GestureBuilder[] };
     const pan = race.gestures.find((candidate) => candidate.kind === "pan");
     expect(pan).toBeDefined();
 
-    act(() => slider.props.onLayout({ nativeEvent: { layout: { width: 300 } } }));
+    act(() =>
+      slider.props.onLayout({ nativeEvent: { layout: { width: 300 } } }),
+    );
     act(() => {
       pan?.handlers.onBegin({});
       // Position 1 is equidistant from offered positions 0 and 2: snap down.
@@ -312,7 +367,10 @@ describe("EffortSelector", () => {
       pan?.handlers.onFinalize({});
     });
 
-    expect(mocks.setReasoningEffort.mock.calls).toEqual([["instant"], ["high"]]);
+    expect(mocks.setReasoningEffort.mock.calls).toEqual([
+      ["instant"],
+      ["high"],
+    ]);
     expect(mocks.haptics).toHaveBeenCalledTimes(2);
   });
 });

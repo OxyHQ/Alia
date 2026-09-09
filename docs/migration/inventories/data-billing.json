@@ -61,7 +61,7 @@
       "kind": "table",
       "name": "alia_models",
       "currentPath": "packages/api/src/db/schema/providers.ts",
-      "summary": "A virtual Alia-branded model (kaana-v1, kaana-lite) with its tier, credit multiplier, free-tier flag and aggregated capabilities.",
+      "summary": "A virtual Alia-branded model (route:auto, route:instant) with its tier, credit multiplier, free-tier flag and aggregated capabilities.",
       "billingClass": "alia-product-entitlement",
       "proposedOwner": "alia",
       "targetPath": "alia: product catalogue (the Alia-branded name is the product)",

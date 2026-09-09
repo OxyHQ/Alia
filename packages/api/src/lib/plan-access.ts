@@ -58,7 +58,7 @@ import { findActiveSubscriptions, type SubscriptionRow } from '../db/billing/sub
 import { getPlans, getPlanFeatures, type PlanFeatureData } from './gateway-client.js';
 import { TTLCache } from './ttl-cache.js';
 
-const FREE_MODEL_IDS = ['kaana-lite', 'kaana-v1', 'kaana-v1-audio'];
+const FREE_MODEL_IDS = ['route:instant', 'route:auto', 'route:audio'];
 
 export interface Entitlements {
   allowedModelIds: string[];

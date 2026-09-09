@@ -270,7 +270,7 @@ export async function getDefaultModelForCategory(category: string): Promise<Rout
  * every site still holding its own.
  */
 export function getDefaultRoutingProfile(): string {
-  return 'kaana-lite';
+  return 'route:instant';
 }
 
 // ============== TIER MAPPINGS ==============

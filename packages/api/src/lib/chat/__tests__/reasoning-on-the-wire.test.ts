@@ -34,17 +34,17 @@ vi.mock('../../inference/oxy-inference.js', () => {
 
 function resolved(): ResolvedModel {
   return {
-    routingProfileId: 'kaana-v1-thinking',
+    routingProfileId: 'route:thinking',
     provider: 'kaana',
     publisher: 'kaana',
-    model: 'kaana-v1-thinking',
-    modelId: 'kaana-v1-thinking',
-    keyConfig: { provider: 'kaana', modelId: 'kaana-v1-thinking' },
+    model: 'route:thinking',
+    modelId: 'route:thinking',
+    keyConfig: { provider: 'kaana', modelId: 'route:thinking' },
     oxyInferenceTarget: {
       kind: 'routing_profile_id',
       routingProfileId: '01a06477-94f5-74f0-bc25-628b5f45d802',
     },
-    routingProfile: { id: 'kaana-v1-thinking' },
+    routingProfile: { id: 'route:thinking' },
     isFallback: false,
   } as ResolvedModel;
 }

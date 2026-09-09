@@ -44,7 +44,7 @@ export async function verifyResults(
   const minScore = opts?.minScore ?? 6;
 
   // Use a cheap model for verification (cost efficiency)
-  const verifierModels = ['kaana-lite', 'kaana-v1'];
+  const verifierModels = ['route:instant', 'route:auto'];
   let resolved: Awaited<ReturnType<typeof resolveModel>> | null = null;
 
   for (const modelId of verifierModels) {

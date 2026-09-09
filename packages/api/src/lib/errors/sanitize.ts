@@ -17,7 +17,7 @@
  *
  * **Rule 2 — scoped, product surfaces only.** Which upstream operator and which
  * upstream model answered a request is route detail Alia's *product* chooses not
- * to show: a customer bought "kaana-v1", not a seat on a named operator, and the
+ * to show: a customer bought "route:auto", not a seat on a named operator, and the
  * routing table is commercially sensitive. {@link sanitizeMessage} is this
  * rule's expression. It is a product decision, best-effort by construction, and
  * **not a security control** — the same conclusion `lib/inference/kaana-error.ts`

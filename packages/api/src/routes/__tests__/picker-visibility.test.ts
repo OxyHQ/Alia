@@ -71,17 +71,22 @@ vi.mock('../../lib/gateway-client.js', async () => {
  * "the offered set is right" and "the hidden set is right" are different
  * failures and a list of only the first cannot see the second.
  */
-const OFFERED = ['kaana-lite', 'kaana-v1', 'kaana-v1-pro', 'kaana-v1-pro-max'];
+const OFFERED = [
+  'route:auto',
+  'route:code',
+  'route:instant',
+  'route:pro',
+  'route:research',
+  'route:thinking',
+];
 const HIDDEN = [
-  'kaana-v1-audio',
-  'kaana-v1-browser',
-  'kaana-v1-codea',
-  'kaana-v1-cowork',
-  'kaana-v1-multimodal',
-  'kaana-v1-thinking',
-  'kaana-v1-vision',
-  'kaana-v1-voice',
-  'kaana-v1-voice-pro',
+  'route:audio',
+  'route:cowork',
+  'route:multimodal',
+  'route:pro-standard',
+  'route:vision',
+  'route:voice',
+  'route:voice-pro',
 ];
 
 interface Captured {

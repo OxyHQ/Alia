@@ -57,11 +57,11 @@ const V3_USAGE = {
 };
 
 const RESOLVED = {
-  routingProfileId: 'kaana-v1',
+  routingProfileId: 'route:auto',
   provider: UPSTREAM_PROVIDER,
   modelId: UPSTREAM_MODEL_ID,
   keyConfig: { provider: UPSTREAM_PROVIDER, key: 'secret', modelId: UPSTREAM_MODEL_ID, keyId: 'key-ws13' },
-  routingProfile: { name: 'Kaana V1', creditMultiplier: 1 },
+  routingProfile: { name: 'Auto', creditMultiplier: 1 },
   isFallback: false,
   fallbackIndex: 0,
 };
@@ -84,7 +84,7 @@ vi.mock('../../../lib/chat-core.js', () => ({
     },
   })),
   reportModelUsage: vi.fn(async () => undefined),
-  getDefaultRoutingProfile: vi.fn(() => 'kaana-v1'),
+  getDefaultRoutingProfile: vi.fn(() => 'route:auto'),
 }));
 
 /**
@@ -151,7 +151,7 @@ vi.mock('../../../lib/tools/web-search.js', () => ({
 }));
 
 vi.mock('../../../lib/gateway-client.js', () => ({
-  getRoutingProfile: vi.fn(async (id: string) => ({ id, name: 'Kaana V1', tier: 'v1', creditMultiplier: 1 })),
+  getRoutingProfile: vi.fn(async (id: string) => ({ id, name: 'Auto', tier: 'v1', creditMultiplier: 1 })),
   getModelMappingsForTier: vi.fn(async () => [
     { provider: UPSTREAM_PROVIDER, modelId: UPSTREAM_MODEL_ID, capabilities: { maxContextTokens: 128000 } },
   ]),
@@ -290,7 +290,7 @@ function apiKeyReq() {
     off: () => undefined,
     body: {
       messages: [{ role: 'user', content: 'search the web for alia' }],
-      model: 'kaana-v1',
+      model: 'route:auto',
       stream: true,
     } as Record<string, unknown>,
   };
@@ -347,7 +347,7 @@ describe('a hosted inference failure is never retried around Kaana', () => {
 
     // No provider identity in the bytes, on this path as on every other.
     // Positive control on the scan: the alias IS there.
-    expect(bytes).toContain('kaana-v1');
+    expect(bytes).toContain('route:auto');
     expect(bytes).not.toContain(UPSTREAM_PROVIDER);
   });
 

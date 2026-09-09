@@ -95,15 +95,15 @@ describe('the serving chokepoint refuses it, not just the validator', () => {
   });
 
   it('translates a registered product profile to its exact reviewed Oxy ID', async () => {
-    const outcome = await resolveModel('kaana-v1');
+    const outcome = await resolveModel('route:auto');
     expect(outcome?.oxyInferenceTarget).toEqual({
       kind: 'routing_profile_id',
       routingProfileId: '01a06477-94f5-74f0-bc25-4c5c13b93ccd',
     });
-    expect(outcome?.modelId).toBe('kaana-v1');
+    expect(outcome?.modelId).toBe('route:auto');
   });
 
   it('refuses a local profile with no reviewed Oxy ID instead of falling back', async () => {
-    await expect(resolveModel('kaana-v1-vision')).rejects.toBeInstanceOf(UnregisteredModelError);
+    await expect(resolveModel('route:vision')).rejects.toBeInstanceOf(UnregisteredModelError);
   });
 });

@@ -194,7 +194,7 @@ vi.mock('ai', async () => {
 vi.mock('../../lib/chat-core.js', () => ({
   resolveModel: vi.fn().mockResolvedValue({ keyConfig: {}, provider: 'test', modelId: 'test' }),
   getAIModel: vi.fn().mockReturnValue({}),
-  getDefaultRoutingProfile: vi.fn().mockReturnValue('kaana-v1'),
+  getDefaultRoutingProfile: vi.fn().mockReturnValue('route:auto'),
 }));
 
 vi.mock('../../lib/tools/index.js', () => ({
@@ -261,12 +261,12 @@ describe('POST /memory/import/from-text', () => {
 
     mockResolveModel.mockResolvedValueOnce({
       provider: 'kaana',
-      modelId: 'kaana-v1',
+      modelId: 'route:auto',
       oxyInferenceTarget: {
         kind: 'routing_profile_id',
         routingProfileId: '01a06477-94f5-74f0-bc25-4c5c13b93ccd',
       },
-      keyConfig: { provider: 'kaana', modelId: 'kaana-v1' },
+      keyConfig: { provider: 'kaana', modelId: 'route:auto' },
     });
 
     mockGenerateText.mockRejectedValueOnce(

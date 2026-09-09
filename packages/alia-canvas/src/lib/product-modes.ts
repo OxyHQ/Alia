@@ -4,7 +4,7 @@
  *
  * ## What this replaces, and why it was a live defect rather than a latent one
  *
- * `src/lib/models.ts` hardcoded `{ id: "kaana-lite", name: "Kaana Lite" }` and the
+ * `src/lib/models.ts` hardcoded `{ id: "route:instant", name: "Instant" }` and the
  * edit panel rendered it under the label "Model". Its `fetchModels()` read
  * `GET /v1/models` — but nothing ever called it: the panel imported the static
  * `MODELS` export. So the alias name was not a fallback that fired during an
@@ -174,10 +174,11 @@ export function parseModes(payload: unknown): ProductMode[] {
 }
 
 const PRESENTATION_MODE_IDS: ReadonlySet<string> = new Set([
-  'mode:fast',
-  'mode:balanced',
-  'mode:maximum-quality',
-  'mode:coding',
+  'mode:instant',
+  'mode:thinking',
+  'mode:pro',
+  'mode:research',
+  'mode:code',
 ]);
 
 /**
@@ -214,7 +215,7 @@ export function offeredModes(
   entries: readonly CatalogueEntry[],
   modes: readonly ProductMode[],
 ): OfferedMode[] {
-  const automatic = modes.find((mode) => mode.id === 'mode:automatic');
+  const automatic = modes.find((mode) => mode.id === 'mode:auto');
   const rows = entries
     .filter((entry) => entry.chatVisible)
     .map((entry) => ({ id: entry.id, ...presentation(entry, modes) }));

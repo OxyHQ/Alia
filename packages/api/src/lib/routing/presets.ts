@@ -14,8 +14,8 @@
  * than concrete model references. Each selects a local `profile:<tier>` policy
  * preset; the internal policy ID is never a wire identifier.
  *
- * Twelve presets cover thirteen canonical Kaana profiles: `kaana-v1-thinking` and
- * `kaana-v1-pro-max` carry the same tier, so they are two names for one policy —
+ * Twelve presets cover thirteen canonical Kaana profiles: `route:thinking` and
+ * `route:pro` carry the same tier, so they are two names for one policy —
  * the case ADR 0002 describes as a reasoning setting wearing a model's name.
  *
  * ## What a preset controls TODAY, and what it will delegate
@@ -115,8 +115,8 @@ export interface RoutingPreset {
    * models homed under it.
    *
    * One value for the profile, which is what both readers already resolved: an
-   * entry is built from the primary Kaana profile, so `profile:v1-pro-max` has always
-   * been served as `general`. Its other identifier, `kaana-v1-thinking`,
+   * entry is built from the primary Kaana profile, so `profile:pro` has always
+   * been served as `general`. Its other identifier, `route:thinking`,
    * registers `coding` on its own record. That divergence is pinned in `routing-policy.test.ts`
    * rather than resolved here: it is one identifier's presentation, and this
    * change is not the place to alter what an operator sees.
@@ -135,9 +135,9 @@ export interface RoutingPreset {
  */
 export const ROUTING_PRESETS: readonly RoutingPreset[] = [
   {
-    id: 'profile:lite',
-    primaryProfileId: 'kaana-lite',
-    profileIds: ['kaana-lite'],
+    id: 'profile:instant',
+    primaryProfileId: 'route:instant',
+    profileIds: ['route:instant'],
     tier: 'lite',
     fallbackPolicy: DEFAULT_FALLBACK_POLICY,
     creditMultiplier: 0.5,
@@ -145,9 +145,9 @@ export const ROUTING_PRESETS: readonly RoutingPreset[] = [
     category: 'general',
   },
   {
-    id: 'profile:v1',
-    primaryProfileId: 'kaana-v1',
-    profileIds: ['kaana-v1'],
+    id: 'profile:auto',
+    primaryProfileId: 'route:auto',
+    profileIds: ['route:auto'],
     tier: 'v1',
     fallbackPolicy: DEFAULT_FALLBACK_POLICY,
     creditMultiplier: 1,
@@ -155,9 +155,9 @@ export const ROUTING_PRESETS: readonly RoutingPreset[] = [
     category: 'general',
   },
   {
-    id: 'profile:v1-codea',
-    primaryProfileId: 'kaana-v1-codea',
-    profileIds: ['kaana-v1-codea'],
+    id: 'profile:code',
+    primaryProfileId: 'route:code',
+    profileIds: ['route:code'],
     tier: 'v1-codea',
     fallbackPolicy: DEFAULT_FALLBACK_POLICY,
     creditMultiplier: 1.5,
@@ -165,9 +165,9 @@ export const ROUTING_PRESETS: readonly RoutingPreset[] = [
     category: 'coding',
   },
   {
-    id: 'profile:v1-cowork',
-    primaryProfileId: 'kaana-v1-cowork',
-    profileIds: ['kaana-v1-cowork'],
+    id: 'profile:cowork',
+    primaryProfileId: 'route:cowork',
+    profileIds: ['route:cowork'],
     tier: 'v1-cowork',
     fallbackPolicy: DEFAULT_FALLBACK_POLICY,
     creditMultiplier: 1.5,
@@ -175,9 +175,9 @@ export const ROUTING_PRESETS: readonly RoutingPreset[] = [
     category: 'coding',
   },
   {
-    id: 'profile:v1-browser',
-    primaryProfileId: 'kaana-v1-browser',
-    profileIds: ['kaana-v1-browser'],
+    id: 'profile:research',
+    primaryProfileId: 'route:research',
+    profileIds: ['route:research'],
     tier: 'v1-browser',
     fallbackPolicy: DEFAULT_FALLBACK_POLICY,
     creditMultiplier: 1.5,
@@ -185,9 +185,9 @@ export const ROUTING_PRESETS: readonly RoutingPreset[] = [
     category: 'coding',
   },
   {
-    id: 'profile:v1-vision',
-    primaryProfileId: 'kaana-v1-vision',
-    profileIds: ['kaana-v1-vision'],
+    id: 'profile:vision',
+    primaryProfileId: 'route:vision',
+    profileIds: ['route:vision'],
     tier: 'v1-vision',
     fallbackPolicy: DEFAULT_FALLBACK_POLICY,
     creditMultiplier: 1.5,
@@ -195,9 +195,9 @@ export const ROUTING_PRESETS: readonly RoutingPreset[] = [
     category: 'vision',
   },
   {
-    id: 'profile:v1-audio',
-    primaryProfileId: 'kaana-v1-audio',
-    profileIds: ['kaana-v1-audio'],
+    id: 'profile:audio',
+    primaryProfileId: 'route:audio',
+    profileIds: ['route:audio'],
     tier: 'v1-audio',
     fallbackPolicy: DEFAULT_FALLBACK_POLICY,
     creditMultiplier: 1.0,
@@ -205,9 +205,9 @@ export const ROUTING_PRESETS: readonly RoutingPreset[] = [
     category: 'audio',
   },
   {
-    id: 'profile:v1-multimodal',
-    primaryProfileId: 'kaana-v1-multimodal',
-    profileIds: ['kaana-v1-multimodal'],
+    id: 'profile:multimodal',
+    primaryProfileId: 'route:multimodal',
+    profileIds: ['route:multimodal'],
     tier: 'v1-multimodal',
     fallbackPolicy: DEFAULT_FALLBACK_POLICY,
     creditMultiplier: 2.0,
@@ -215,9 +215,9 @@ export const ROUTING_PRESETS: readonly RoutingPreset[] = [
     category: 'multimodal',
   },
   {
-    id: 'profile:v1-pro',
-    primaryProfileId: 'kaana-v1-pro',
-    profileIds: ['kaana-v1-pro'],
+    id: 'profile:pro-standard',
+    primaryProfileId: 'route:pro-standard',
+    profileIds: ['route:pro-standard'],
     tier: 'v1-pro',
     fallbackPolicy: DEFAULT_FALLBACK_POLICY,
     creditMultiplier: 3,
@@ -225,22 +225,22 @@ export const ROUTING_PRESETS: readonly RoutingPreset[] = [
     category: 'coding',
   },
   {
-    id: 'profile:v1-pro-max',
-    primaryProfileId: 'kaana-v1-pro-max',
+    id: 'profile:pro',
+    primaryProfileId: 'route:pro',
     // Two identifiers, one policy. Both are live and a caller may hold either.
-    profileIds: ['kaana-v1-pro-max', 'kaana-v1-thinking'],
+    profileIds: ['route:pro', 'route:thinking'],
     tier: 'v1-pro-max',
     fallbackPolicy: DEFAULT_FALLBACK_POLICY,
     creditMultiplier: 5,
     maxTokens: 128000,
     // The canonical identifier's, which is what every profile reader already
-    // resolved. `kaana-v1-thinking` registers `coding`; see `category` above.
+    // resolved. `route:thinking` registers `coding`; see `category` above.
     category: 'general',
   },
   {
-    id: 'profile:v1-voice',
-    primaryProfileId: 'kaana-v1-voice',
-    profileIds: ['kaana-v1-voice'],
+    id: 'profile:voice',
+    primaryProfileId: 'route:voice',
+    profileIds: ['route:voice'],
     tier: 'v1-voice',
     fallbackPolicy: DEFAULT_FALLBACK_POLICY,
     creditMultiplier: 2.0,
@@ -248,9 +248,9 @@ export const ROUTING_PRESETS: readonly RoutingPreset[] = [
     category: 'voice',
   },
   {
-    id: 'profile:v1-voice-pro',
-    primaryProfileId: 'kaana-v1-voice-pro',
-    profileIds: ['kaana-v1-voice-pro'],
+    id: 'profile:voice-pro',
+    primaryProfileId: 'route:voice-pro',
+    profileIds: ['route:voice-pro'],
     tier: 'v1-voice-pro',
     fallbackPolicy: DEFAULT_FALLBACK_POLICY,
     creditMultiplier: 4.0,

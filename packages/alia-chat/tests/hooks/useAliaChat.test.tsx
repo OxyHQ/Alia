@@ -37,8 +37,8 @@ interface MockSession {
 function successfulResponse(content = 'Hola'): Response {
   const escaped = JSON.stringify(content);
   return new Response(
-    `data: {"id":"c1","object":"chat.completion.chunk","created":1,"model":"profile:v1","choices":[{"index":0,"delta":{"content":${escaped}},"finish_reason":null}]}\n\n` +
-      'data: {"id":"c1","object":"chat.completion.chunk","created":1,"model":"profile:v1","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}\n\n' +
+    `data: {"id":"c1","object":"chat.completion.chunk","created":1,"model":"profile:auto","choices":[{"index":0,"delta":{"content":${escaped}},"finish_reason":null}]}\n\n` +
+      'data: {"id":"c1","object":"chat.completion.chunk","created":1,"model":"profile:auto","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}\n\n' +
       'data: [DONE]\n\n',
     { headers: { 'content-type': 'text/event-stream' } },
   );
@@ -69,7 +69,7 @@ function current(): UseAliaChatReturn {
 let hookOptions: Parameters<typeof useAliaChat>[0];
 
 function Harness(): null {
-  latest = useAliaChat({ apiUrl: 'https://api.alia.onl', model: 'profile:v1', ...hookOptions });
+  latest = useAliaChat({ apiUrl: 'https://api.alia.onl', model: 'profile:auto', ...hookOptions });
   return null;
 }
 
@@ -272,7 +272,7 @@ describe('useAliaChat request lifecycle', () => {
 
   it('turns a terminal stream with no answer into a visible failure', async () => {
     const empty = new Response(
-      'data: {"id":"c1","object":"chat.completion.chunk","created":1,"model":"profile:v1","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}\n\n' +
+      'data: {"id":"c1","object":"chat.completion.chunk","created":1,"model":"profile:auto","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}\n\n' +
         'data: [DONE]\n\n',
       { headers: { 'content-type': 'text/event-stream' } },
     );

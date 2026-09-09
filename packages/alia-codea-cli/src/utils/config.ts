@@ -37,7 +37,7 @@ export const config = new Conf<ConfigSchema>({
   projectName: 'alia-codea-cli',
   defaults: {
     apiBaseUrl: 'https://api.alia.onl',
-    defaultModel: 'kaana-v1-codea',
+    defaultModel: 'mode:code',
     sessions: [],
     currentSessionId: null,
   },

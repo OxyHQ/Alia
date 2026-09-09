@@ -10,7 +10,7 @@ import { reasoningEffortOf } from '../observability/requested-model.js';
  * Extended reasoning is a REQUEST PARAMETER, not a model identity
  * (#139 workstream 4).
  *
- * `kaana-v1-thinking` and `kaana-v1-pro-max` route to the same nine candidates at
+ * `route:thinking` and `route:pro` route to the same nine candidates at
  * the same credit multiplier. The only thing that differed was which prompt
  * file their model id loaded — so "extended thinking" was sold as a model when
  * it is a setting. The epic says it plainly: *"use runtime parameters/presets
@@ -68,23 +68,23 @@ describe('the fixture is a real prompt with something to look for', () => {
 
 describe('any profile can carry extended reasoning', () => {
   it('adds the layer when the request asks for it', async () => {
-    const withReasoning = await build('kaana-v1-pro-max', true);
+    const withReasoning = await build('route:pro', true);
     expect(withReasoning).toContain(REASONING_MARKER);
   });
 
   it('leaves it out when the request does not', async () => {
     // Both the explicit `false` and the absent case, because a parameter that
     // is always on is not a parameter.
-    expect(await build('kaana-v1-pro-max', false)).not.toContain(REASONING_MARKER);
-    expect(await build('kaana-v1-pro-max', undefined)).not.toContain(REASONING_MARKER);
+    expect(await build('route:pro', false)).not.toContain(REASONING_MARKER);
+    expect(await build('route:pro', undefined)).not.toContain(REASONING_MARKER);
   });
 
   it('works on any canonical profile', async () => {
     // The point of it being a parameter: extended reasoning is no longer
     // reachable only through one tier's identity.
-    const lite = await build('kaana-lite', true);
+    const lite = await build('route:instant', true);
     expect(lite).toContain(REASONING_MARKER);
-    expect(await build('kaana-lite', false)).not.toContain(REASONING_MARKER);
+    expect(await build('route:instant', false)).not.toContain(REASONING_MARKER);
   });
 });
 
@@ -92,13 +92,13 @@ describe('the retired alias keeps its behaviour and gains no duplicate', () => {
   it('still loads the reasoning prompt when named directly', async () => {
     // It still resolves, so a caller still holding it is unaffected — that is
     // what "advertised nowhere" means, as opposed to removed.
-    expect(await build('kaana-v1-thinking', undefined)).toContain(REASONING_MARKER);
+    expect(await build('route:thinking', undefined)).toContain(REASONING_MARKER);
   });
 
   it('does not say it twice when the parameter is also set', async () => {
     // `loadBasePrompt` already loaded this exact file for that id. Layering it
     // again would tell the model the same thing in two voices.
-    const both = await build('kaana-v1-thinking', true);
+    const both = await build('route:thinking', true);
     const occurrences = both.split(REASONING_MARKER).length - 1;
     expect(occurrences).toBe(1);
   });
@@ -108,8 +108,8 @@ describe('the retired alias keeps its behaviour and gains no duplicate', () => {
     // whole distinguishing content is reachable from the profile it shares plus
     // the parameter. Compared on the reasoning layer, since the two entries
     // legitimately differ in their own identity blurb.
-    const viaAlias = await build('kaana-v1-thinking', undefined);
-    const viaParameter = await build('kaana-v1-pro-max', true);
+    const viaAlias = await build('route:thinking', undefined);
+    const viaParameter = await build('route:pro', true);
     for (const line of REASONING_PROMPT.split('\n').filter((l) => l.trim().length > 20)) {
       expect(viaAlias, line).toContain(line.trim());
       expect(viaParameter, line).toContain(line.trim());

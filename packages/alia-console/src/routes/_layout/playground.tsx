@@ -104,7 +104,7 @@ function PlaygroundPage() {
    * Settings state.
    *
    * `null` means "nothing chosen yet", and the selection is DERIVED from it
-   * below rather than seeded by an effect — a hardcoded `'kaana-lite'` seed is
+   * below rather than seeded by an effect — a hardcoded `'route:instant'` seed is
    * both a client baking in an identifier (`scripts/check-model-defaults.mjs`)
    * and, since #139 workstream 4, an identifier the catalogue does not
    * advertise.

@@ -261,12 +261,12 @@ describe('the entitlement read model publishes the Oxy contract shape (#139 ws12
 
 describe('entitlements are derived from live subscriptions (#139 ws6)', () => {
   it('gives an account with no subscription the free floor, not an empty list', () => {
-    // Asserted as an exact set. A floor that merely "contains kaana-lite" would
+    // Asserted as an exact set. A floor that merely "contains route:instant" would
     // survive the models being widened to everything, which is the other
     // direction of the same mistake.
     expect(H.plans).toEqual([]);
     return getUserEntitlements(account()).then((entitlements) => {
-      expect([...entitlements.allowedModelIds].sort()).toEqual(['kaana-lite', 'kaana-v1', 'kaana-v1-audio']);
+      expect([...entitlements.allowedModelIds].sort()).toEqual(['route:audio', 'route:auto', 'route:instant']);
       expect(entitlements.planId).toBe('free');
       expect(entitlements.features).toEqual({});
     });
@@ -274,27 +274,27 @@ describe('entitlements are derived from live subscriptions (#139 ws6)', () => {
 
   it('adds a paid plan on top of the floor rather than replacing it', async () => {
     // The additive shape is load-bearing: a paid plan lists only what it ADDS,
-    // so a replacement would silently strip `kaana-lite` from every paying
+    // so a replacement would silently strip `route:instant` from every paying
     // customer — the cheapest model, and the one titling uses.
     H.subscriptions = [subscription('pro')];
     H.plans = [
-      { planId: 'pro', modelIds: ['kaana-v1-pro', 'kaana-v1-thinking'] },
-      { planId: 'go', modelIds: ['kaana-v1-codea'] },
+      { planId: 'pro', modelIds: ['route:pro-standard', 'route:thinking'] },
+      { planId: 'go', modelIds: ['route:code'] },
     ];
 
     const entitlements = await getUserEntitlements(account());
 
     expect([...entitlements.allowedModelIds].sort()).toEqual([
-      'kaana-lite',
-      'kaana-v1',
-      'kaana-v1-audio',
-      'kaana-v1-pro',
-      'kaana-v1-thinking',
+      'route:audio',
+      'route:auto',
+      'route:instant',
+      'route:pro-standard',
+      'route:thinking',
     ]);
     expect(entitlements.planId).toBe('pro');
     // The control: a plan the account does NOT hold contributed nothing, so the
     // list above is a filter and not "every plan in the catalogue".
-    expect(entitlements.allowedModelIds).not.toContain('kaana-v1-codea');
+    expect(entitlements.allowedModelIds).not.toContain('route:code');
   });
 
   it('reads only the statuses Stripe calls live', () => {
@@ -356,7 +356,7 @@ describe('the entitlement cache is cleared by the writes that invalidate it (#13
   it('serves a repeat read from cache and re-reads after an invalidation', async () => {
     const userId = account();
     H.subscriptions = [subscription('go')];
-    H.plans = [{ planId: 'go', modelIds: ['kaana-v1-codea'] }];
+    H.plans = [{ planId: 'go', modelIds: ['route:code'] }];
 
     await getUserEntitlements(userId);
     await getUserEntitlements(userId);
@@ -367,12 +367,12 @@ describe('the entitlement cache is cleared by the writes that invalidate it (#13
     // The account upgrades. Without the invalidation the next line still
     // answers the old allow-list, which is what a customer sees as "I paid and
     // it still says upgrade your plan".
-    H.plans = [{ planId: 'go', modelIds: ['kaana-v1-codea', 'kaana-v1-pro'] }];
+    H.plans = [{ planId: 'go', modelIds: ['route:code', 'route:pro-standard'] }];
     invalidateEntitlementsCache(userId);
     const after = await getUserEntitlements(userId);
 
     expect(H.subscriptionReads).toBe(2);
-    expect(after.allowedModelIds).toContain('kaana-v1-pro');
+    expect(after.allowedModelIds).toContain('route:pro-standard');
   });
 
   it('invalidates one account and leaves the rest cached', async () => {

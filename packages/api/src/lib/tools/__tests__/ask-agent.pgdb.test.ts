@@ -83,7 +83,7 @@ vi.mock('../../chat-core.js', () => ({
     },
   })),
   resolveOxyRoutingProfileId: vi.fn(async (routingProfileId: string) => ({
-    routingProfileId: 'kaana-lite',
+    routingProfileId: 'route:instant',
     oxyInferenceTarget: { kind: 'routing_profile_id', routingProfileId },
   })),
   getAIModel: vi.fn(() => ({ modelId: 'test-model' })),
@@ -160,8 +160,8 @@ async function seedAgent(input: {
     category: 'research',
     status: input.status ?? 'active',
     systemPrompt,
-    routingProfileId: OXY_KAANA_ROUTING_PROFILE_IDS['kaana-lite'],
-    allowedModels: ['kaana-lite'],
+    routingProfileId: OXY_KAANA_ROUTING_PROFILE_IDS['route:instant'],
+    allowedModels: ['route:instant'],
   });
   return { id, oxyAccountId, systemPrompt };
 }
@@ -397,7 +397,7 @@ describe('who pays for the nested turn', () => {
     const owner = await account(100);
     const target = await seedAgent({ author: owner });
     /**
-     * 6000 tokens, `TOKENS_PER_CREDIT` 1000, and the `kaana-lite` preset's
+     * 6000 tokens, `TOKENS_PER_CREDIT` 1000, and the `route:instant` preset's
      * multiplier of 0.5 — three credits. The agent's OWN model decides the
      * price, which is why the row above pins `allowedModels`, and a number
      * bigger than the one-credit reservation is what makes the settlement

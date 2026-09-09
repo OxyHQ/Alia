@@ -55,12 +55,12 @@ vi.mock('../../lib/chat-core.js', () => ({
     keyConfig: { keyId: 'key-1' },
   })),
   resolveOxyRoutingProfileId: vi.fn(async (routingProfileId: string) => ({
-    routingProfileId: 'kaana-lite',
+    routingProfileId: 'route:instant',
     oxyInferenceTarget: { kind: 'routing_profile_id', routingProfileId },
   })),
   getAIModel: vi.fn(() => ({})),
   reportModelUsage: vi.fn(async () => undefined),
-  getDefaultRoutingProfile: vi.fn(() => 'kaana-lite'),
+  getDefaultRoutingProfile: vi.fn(() => 'route:instant'),
   // `credits-manager` reads the credit multiplier from this same module.
   getRoutingProfile: vi.fn(async () => ({ creditMultiplier: 1 })),
 }));
@@ -131,7 +131,7 @@ function linkedBotUser(oxyUserId: string): BotUserRow {
     authTokenMode: null,
     // Set, so nothing has to write one to a row this fixture never inserted.
     conversationId: `${SUITE}-conv-${seq++}`,
-    preferredModel: 'kaana-lite',
+    preferredModel: 'route:instant',
     metadata: {},
     createdAt: new Date(),
     updatedAt: new Date(),
@@ -149,8 +149,8 @@ async function userOwnedBot(ownerUserId: string): Promise<InboundUserBotRow> {
     category: 'general',
     status: 'active',
     systemPrompt: 'Be helpful.',
-    routingProfileId: OXY_KAANA_ROUTING_PROFILE_IDS['kaana-lite'],
-    allowedModels: ['kaana-lite'],
+    routingProfileId: OXY_KAANA_ROUTING_PROFILE_IDS['route:instant'],
+    allowedModels: ['route:instant'],
   });
   return {
     _id: `${SUITE}-bot-${seq++}`,

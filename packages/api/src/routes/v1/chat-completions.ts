@@ -36,9 +36,9 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
   // The seed value is READ, not merely overwritten: the global-timeout timer is
   // armed below at :44 and reports `state.routingProfileId` back to the client,
   // while `ctx.routingProfileId` only lands at :78. A request that times out during
-  // resolution therefore names this value. It used to restate `'kaana-v1'`, so
+  // resolution therefore names this value. It used to restate `'route:auto'`, so
   // that report named a model the request would not have run on — the default
-  // is `kaana-lite`. It reads the owner now instead of restating a literal.
+  // is `route:instant`. It reads the owner now instead of restating a literal.
   const state: ChatLoopState = {
     resolved: null,
     routingProfileId: getDefaultRoutingProfile(),

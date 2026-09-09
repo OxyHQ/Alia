@@ -18,7 +18,7 @@ import type { EffortLevel } from './reasoning-effort.js';
  * The extended-reasoning layer, selected by the effort LEVEL rather than by a
  * model id (#139 workstream 4).
  *
- * `kaana-v1-thinking` and `kaana-v1-pro-max` route to the same nine candidates at
+ * `route:thinking` and `route:pro` route to the same nine candidates at
  * the same price and differed only in which of these files their id loaded, so
  * the reasoning level was an identity when it should have been a setting. It is
  * a setting now, and any profile can carry it.
@@ -61,7 +61,7 @@ export interface OxyUserProfile {
 }
 
 export interface SystemPromptOptions {
-  /** Canonical Kaana routing profile (for example, `kaana-v1`). */
+  /** Canonical Kaana routing profile (for example, `route:auto`). */
   routingProfileId: string;
   /** Client context string (UI language, etc.) */
   clientContext?: string;
@@ -96,7 +96,7 @@ export interface SystemPromptOptions {
   agentMode?: boolean;
   /**
    * How hard the request asked this turn to think — the runtime parameter that
-   * replaced `kaana-v1-thinking` as a model identity. Any profile can carry it,
+   * replaced `route:thinking` as a model identity. Any profile can carry it,
    * which is the whole point of it being a parameter.
    */
   reasoningEffort?: EffortLevel | null;
@@ -210,8 +210,8 @@ export class SystemPromptBuilder {
     /**
      * 5. The active model, READ rather than restated.
      *
-     * This layer used to append "You are currently using the **Kaana V1**
-     * model. When asked what model you use, say you are using Kaana V1" — which
+     * This layer used to append "You are currently using the **Auto**
+     * model. When asked what model you use, say you are using Auto" — which
      * the guard at the top already says, in both its branches. On an agent's
      * turn it was a second "You are …" sentence naming something other than the
      * agent, sitting below the one that named the agent. Two owners of one

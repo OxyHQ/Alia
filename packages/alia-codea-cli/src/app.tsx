@@ -26,8 +26,8 @@ export function App({ options }: { options: AppOptions }) {
   /**
    * The chosen model and how to show it, in ONE piece of state.
    *
-   * They were two, and the display was derived by stripping an `kaana-v1-`
-   * prefix off the identifier — which rendered `kaana-lite` as `kaana-lite` and
+   * They were two, and the display was derived by stripping an `route:auto-`
+   * prefix off the identifier — which rendered `route:instant` as `route:instant` and
    * only ever shortened one family. The catalogue supplies the real name, and
    * that arrives asynchronously, so keeping the pair together is what stops the
    * label describing a model the request no longer carries. Until the catalogue
@@ -179,7 +179,7 @@ export function App({ options }: { options: AppOptions }) {
           if (args[0]) {
             /**
              * The shorthand is matched against the CATALOGUE rather than
-             * expanded with a naming scheme. `kaana-v1-${arg}` produced
+             * expanded with a naming scheme. `route:auto-${arg}` produced
              * identifiers that had never existed and sent them anyway; an
              * unknown shorthand now says so instead of guessing.
              */
@@ -207,7 +207,7 @@ export function App({ options }: { options: AppOptions }) {
                * The product's word for the profile, never the alias display
                * name it came from.
                *
-               * This printed `Model: Kaana Lite` — an alias name under the word
+               * This printed `Model: Instant` — an alias name under the word
                * "model", which is #139's non-negotiable invariant broken in
                * both of the ways it names at once.
                */

@@ -36,7 +36,7 @@ import { describe, expect, it } from 'vitest';
  * 2. **No sample presents an `alia-*` identifier as a model Alia owns.** All
  *    thirteen are routing profiles; `GET /v1/models` now lists nothing, and ADR
  *    0003 invariant 1 forbids serializing a profile as a model. A request sample
- *    that says `"model": "kaana-v1"` teaches a caller a vocabulary no surface
+ *    that says `"model": "route:auto"` teaches a caller a vocabulary no surface
  *    advertises.
  *
  * ## Scope, and the two things deliberately NOT censused
@@ -156,26 +156,26 @@ const sentences = (text: string): string[] =>
 /* -------------------------------------------------------------------------- */
 
 /**
- * The thirteen, longest first so `kaana-v1-pro-max` is never reported as
- * `kaana-v1-pro`. Written out rather than imported from
+ * The thirteen, longest first so `route:pro` is never reported as
+ * `route:pro-standard`. Written out rather than imported from
  * `internal/providers/lib/routing-profile-catalogue.ts` because this census reads DOCUMENTS,
  * and gate 3 already holds that module to exactly this set — importing it would
  * make one census's floor depend on the other's subject.
  */
 const ALIASES: readonly string[] = [
-  'kaana-lite',
-  'kaana-v1',
-  'kaana-v1-audio',
-  'kaana-v1-browser',
-  'kaana-v1-codea',
-  'kaana-v1-cowork',
-  'kaana-v1-multimodal',
-  'kaana-v1-pro',
-  'kaana-v1-pro-max',
-  'kaana-v1-thinking',
-  'kaana-v1-vision',
-  'kaana-v1-voice',
-  'kaana-v1-voice-pro',
+  'route:instant',
+  'route:auto',
+  'route:audio',
+  'route:research',
+  'route:code',
+  'route:cowork',
+  'route:multimodal',
+  'route:pro-standard',
+  'route:pro',
+  'route:thinking',
+  'route:vision',
+  'route:voice',
+  'route:voice-pro',
 ];
 
 const aliasPattern = (): RegExp =>
@@ -202,24 +202,21 @@ const presentsAliasAsRoutingProfile = (text: string): boolean =>
 /* -------------------------------------------------------------------------- */
 
 /**
- * Fenced code blocks that legitimately contain an alias, and why.
+ * Fenced code blocks that legitimately contain a retired identifier, and why.
  *
  * Two, exactly, and the count is asserted. A list of exemptions with no count
  * erodes one plausible line at a time until the gate is vacuous, and this is the
  * list somebody reaches for when the census goes red.
  */
 const ALIAS_IN_FENCE_EXEMPTIONS: Readonly<Record<string, string>> = {
+  'docs/api-reference.md':
+    'Documents the exact routing binding returned inside each product-mode object. ' +
+    'The selectable identity in that same response is mode:*, while route:* remains ' +
+    'read-only implementation metadata and is never presented as a model.',
   'docs/superpowers/plans/2026-07-15-memory-screen-redesign.md':
     'A dated plan archive. Its code blocks record what was proposed on 2026-07-15, ' +
     'including a test double returning the then-current default. Editing an archive ' +
     'to match today makes it stop being a record.',
-  'packages/alia-codea-cli/README.md':
-    'Documents the CLI default that `src/utils/config.ts` actually ships ' +
-    "(`defaultModel: 'kaana-v1-codea'`), and that default is SANCTIONED: " +
-    '`scripts/check-model-defaults.mjs` lists the file in `PREFERENCE_MODULES` at an ' +
-    'exact count of one, because a per-user preference a person can change is not a ' +
-    'hardcoded shipped default. Rewriting the sample would make the README describe ' +
-    'behaviour the CLI does not have.',
 };
 
 /* -------------------------------------------------------------------------- */
@@ -454,7 +451,7 @@ describe('the census reads what it claims to read', () => {
   });
 
   it('separates fenced code from prose', () => {
-    // The distinction the alias census turns on: a fenced `"model": "kaana-v1"`
+    // The distinction the alias census turns on: a fenced `"model": "route:auto"`
     // is a sample teaching a caller, and the same string in prose is a document
     // explaining a migration.
     const fenced = MARKDOWN.filter((line) => line.fenced).length;
@@ -561,7 +558,7 @@ describe('no sample asserts the retired global rule (#139 ws20)', () => {
 /* -------------------------------------------------------------------------- */
 
 describe('no sample presents an alia-* identifier as a model (#139 ws20)', () => {
-  it('names no alias in a fenced code block, outside the two exemptions', () => {
+  it('names no alias in a fenced code block, outside the documented exemptions', () => {
     const offenders = [
       ...new Set(
         MARKDOWN.filter((line) => line.fenced && namesAlias(line.text)).map((line) => line.file),
@@ -612,10 +609,10 @@ describe('no sample presents an alia-* identifier as a model (#139 ws20)', () =>
     // Positive control, in the same currency: the real sentences that were in
     // the tree, including the JSX heading a StringLiteral-only census misses.
     const planted = [
-      'Alia offers a range of models: kaana-lite, kaana-v1, kaana-v1-pro.',
-      '- Model IDs: Alia IDs only (`kaana-v1-codea`, `kaana-v1-pro`, etc.)',
-      '{ "id": "kaana-v1", "object": "model", "owned_by": "alia" }',
-      'Available Models: kaana-v1-pro',
+      'Alia offers a range of models: route:instant, route:auto, route:pro-standard.',
+      '- Model IDs: Alia IDs only (`route:code`, `route:pro-standard`, etc.)',
+      '{ "id": "route:auto", "object": "model", "owned_by": "alia" }',
+      'Available Models: route:pro-standard',
     ];
     for (const claim of planted) {
       expect(presentsAliasAsRoutingProfile(claim), `inert on: ${claim}`).toBe(true);
@@ -627,11 +624,11 @@ describe('no sample presents an alia-* identifier as a model (#139 ws20)', () =>
     // that cannot name what is migrating is a document that cannot be written.
     const permitted = [
       'The thirteen `alia-*` identifiers are routing profiles over third-party models.',
-      '`kaana-v1-pro` becomes `profile:v1-pro`, per docs/migration/alias-migration-map.json.',
-      'A caller holding `kaana-v1` keeps working; the alias still resolves.',
+      '`route:pro-standard` becomes `profile:pro-standard`, per docs/migration/alias-migration-map.json.',
+      'A caller holding `route:auto` keeps working; the alias still resolves.',
       'Alia publishes no models.',
-      'Alia owns no models; `kaana-v1` is a routing profile.',
-      '"model": "profile:v1"',
+      'Alia owns no models; `route:auto` is a routing profile.',
+      '"model": "profile:auto"',
     ];
     for (const line of permitted) {
       expect(presentsAliasAsRoutingProfile(line), `false positive on: ${line}`).toBe(false);
@@ -652,7 +649,7 @@ describe('no sample presents an alia-* identifier as a model (#139 ws20)', () =>
     // A floor with a positive control rather than a count alone: a corpus that
     // parsed to nothing reports the same clean zero as a corpus with no aliases.
     expect(TRANSLATIONS.some((entry) => entry.value.length > 0)).toBe(true);
-    expect(namesAlias('Switch to kaana-v1-pro')).toBe(true);
+    expect(namesAlias('Switch to route:pro-standard')).toBe(true);
     expect(namesAlias('Switch to a faster mode')).toBe(false);
   });
 });
@@ -699,7 +696,7 @@ describe('every screenshot a document embeds exists (#139 ws20)', () => {
   });
 
   it('no image asset is named after a retired alias', () => {
-    // A screenshot called `kaana-v1-picker.png` is a stale asset whose name
+    // A screenshot called `route:auto-picker.png` is a stale asset whose name
     // survives every edit to the document that embeds it.
     expect(IMAGE_ASSETS.filter((asset) => namesAlias(asset))).toEqual([]);
     // The floor: the asset glob found the real tree.

@@ -49,7 +49,7 @@ export async function loadPrompt(promptName: string): Promise<string> {
 
 /**
  * Build a complete system prompt by combining base prompt with model-specific prompt
- * @param modelId - The Kaana routing profile ID (e.g., 'kaana-v1-codea')
+ * @param modelId - The Kaana routing profile ID (e.g., 'route:code')
  * @param clientContext - Optional additional context from the client application
  */
 export async function buildSystemPrompt(

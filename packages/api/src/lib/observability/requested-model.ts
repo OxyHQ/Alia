@@ -8,10 +8,10 @@
  * `body.model` is ONE string carrying three different kinds of request, and
  * they are not comparable:
  *
- *  - a **routing profile** — `kaana-v1-pro`, what the picker sends;
+ *  - a **routing profile** — `route:pro-standard`, what the picker sends;
  *  - a **concrete model** — `<publisher>/<model>[@<revision>]`, ADR 0003's
  *    canonical reference, what a caller who wants exactly those weights sends;
- * Storing the string and nothing else makes `kaana-v1-pro` and `qwen/qwen3-32b`
+ * Storing the string and nothing else makes `route:pro-standard` and `qwen/qwen3-32b`
  * two rows of the same column and invites every later query to treat them as
  * two model choices. They are a product mode wearing a model's name and a model.
  * Reading them as the same thing IS the conflation this epic is removing, so the
@@ -20,7 +20,7 @@
  *
  * ## Reasoning is a parameter, not a model
  *
- * `kaana-v1-thinking` and `kaana-v1-pro-max` are one routing preset with two names
+ * `route:thinking` and `route:pro` are one routing preset with two names
  * (`lib/routing/presets.ts`: "Two identifiers, one policy"), and the difference
  * between them is a reasoning setting. So the reasoning request is lifted out
  * into {@link reasoningEffortOf} and recorded in its own column, from BOTH the
@@ -112,7 +112,7 @@ export function classifyRequestedModel(requested: string): RequestedModelIdentit
  *    ADR 0004 keeps that surface serving its existing request shape. This one
  *    function is the whole compatibility surface — nothing downstream carries a
  *    boolean;
- *  - `kaana-v1-thinking`, which is the same parameter wearing a model's name.
+ *  - `route:thinking`, which is the same parameter wearing a model's name.
  *
  * The two legacy spellings mean `medium`, and not a higher level: both meant
  * "reason" against a code path that sent NO budget at all, so mapping them to
@@ -139,7 +139,7 @@ const COMPAT_REASONING_LEVEL: EffortLevel = 'medium';
  * The canonical Kaana profile whose product meaning includes reasoning.
  *
  * Asserted against `ROUTING_PRESETS` in `__tests__/requested-model.test.ts`
- * rather than trusted: it shares a preset with `kaana-v1-pro-max`, and if that
+ * rather than trusted: it shares a preset with `route:pro`, and if that
  * ever stops being true this constant is naming a model instead of a setting.
  */
-const THINKING_PROFILE = 'kaana-v1-thinking';
+const THINKING_PROFILE = 'route:thinking';

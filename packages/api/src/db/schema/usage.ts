@@ -54,7 +54,7 @@ export const costEntries = pgTable(
      * The real provider and model behind the Kaana routing profile. This is
      * INTERNAL: it must never reach a user-facing response, an error message or
      * a public API surface — the whole point of the alias is that a caller sees
-     * `kaana-v1`, not whoever served it.
+     * `route:auto`, not whoever served it.
      */
     actualProvider: text().notNull(),
     actualModelId: text().notNull(),
@@ -198,7 +198,7 @@ export const chatAnalytics = pgTable(
      * legacy `alia-*` alias, or something nothing serves.
      *
      * One string carries all four, and they are not comparable — recording the
-     * identifier alone makes `kaana-v1-pro` and `qwen/qwen3-32b` two rows of one
+     * identifier alone makes `route:pro-standard` and `qwen/qwen3-32b` two rows of one
      * column and invites every later query to read them as two model choices.
      * `lib/observability/requested-model.ts` owns the classification and its
      * doc comment owns the reasoning. No CHECK, for the same reason
@@ -218,7 +218,7 @@ export const chatAnalytics = pgTable(
      * How much reasoning the caller asked for, or null for the default.
      *
      * Its own column because reasoning is a PARAMETER and not a model:
-     * `kaana-v1-thinking` and `kaana-v1-pro-max` are one routing preset with two
+     * `route:thinking` and `route:pro` are one routing preset with two
      * names, so recording the alias as a model choice would bury the reasoning
      * request inside a model identifier — exactly the conflation this epic is
      * removing. Populated from the `thinkingMode` flag and from that alias

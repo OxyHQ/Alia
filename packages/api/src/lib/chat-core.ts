@@ -64,7 +64,7 @@ export interface ResolvedModel {
 /**
  * Resolve an Alia product profile to Kaana.
  *
- * @param routingProfileId - Alia's product profile ID (e.g., "kaana-v1", "kaana-lite")
+ * @param routingProfileId - Alia's product profile ID (e.g., "route:auto", "route:instant")
  * @param options - Per-request routing options, including an optional model pin
  * @returns A credential-free Kaana resolution
  * @throws UnregisteredModelError when `routingProfileId` names no registered model

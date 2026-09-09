@@ -58,7 +58,7 @@ vi.mock('@oxyhq/core', async () => {
 
 vi.mock('../../chat-core.js', () => ({
   resolveModel: (...args: unknown[]) => resolveModel(...args),
-  getDefaultRoutingProfile: () => 'kaana-lite',
+  getDefaultRoutingProfile: () => 'route:instant',
 }));
 
 /**
@@ -196,7 +196,7 @@ async function run(
 beforeEach(() => {
   vi.clearAllMocks();
   resolveModel.mockResolvedValue({
-    routingProfileId: 'kaana-v1-pro',
+    routingProfileId: 'route:pro-standard',
     provider: 'an-operator',
     modelId: 'a-deployment',
     keyConfig: { provider: 'an-operator', key: 'secret', modelId: 'a-deployment' },
@@ -570,6 +570,17 @@ describe('one MCP connector can be selected for one direct-user turn', () => {
 });
 
 describe('hosted chat routes only through reviewed Oxy profiles', () => {
+  it('resolves product modes by exact id before routing', async () => {
+    const auto = await run('mode:auto');
+    expect(resolveModel.mock.calls[0][0]).toBe('route:auto');
+    expect(auto.ctx?.deepResearch).toBe(false);
+
+    resolveModel.mockClear();
+    const research = await run('mode:research');
+    expect(resolveModel.mock.calls[0][0]).toBe('route:research');
+    expect(research.ctx?.deepResearch).toBe(true);
+  });
+
   it('refuses a concrete model before model resolution or credit reservation', async () => {
     const { ctx, captured } = await run('anthropic/claude-sonnet-4.6');
     expect(ctx).toBeNull();
@@ -581,22 +592,22 @@ describe('hosted chat routes only through reviewed Oxy profiles', () => {
   it('does not pin anything when a canonical Kaana profile was named', async () => {
     // The control. Without it, a `pinnedModel` set unconditionally — to the
     // tier's default, say — would satisfy every assertion above.
-    const { ctx } = await run('kaana-v1');
+    const { ctx } = await run('route:auto');
     const [alias, , , options] = resolveModel.mock.calls[0];
-    expect(alias).toBe('kaana-v1');
+    expect(alias).toBe('route:auto');
     expect(options).toEqual({});
     expect(ctx?.routingOptions).toEqual({});
   });
 
   it('does not pin anything for another canonical Kaana profile', async () => {
-    const { ctx } = await run('kaana-lite');
-    expect(resolveModel.mock.calls[0][0]).toBe('kaana-lite');
+    const { ctx } = await run('route:instant');
+    expect(resolveModel.mock.calls[0][0]).toBe('route:instant');
     expect(ctx?.routingOptions).toEqual({});
   });
 
   it('does not pin anything when the request names no model at all', async () => {
     const { ctx } = await run(undefined);
-    expect(resolveModel.mock.calls[0][0]).toBe('kaana-lite');
+    expect(resolveModel.mock.calls[0][0]).toBe('route:instant');
     expect(ctx?.routingOptions).toEqual({});
   });
 

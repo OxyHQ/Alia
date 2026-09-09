@@ -90,7 +90,7 @@ function AuthenticationPage() {
             code={`curl https://api.alia.onl/v1/chat/completions \\
   -H "Authorization: Bearer alia_sk_your_api_key_here" \\
   -H "Content-Type: application/json" \\
-  -d '{"model": "profile:v1", "messages": [{"role": "user", "content": "Hello"}]}'`}
+  -d '{"model": "profile:auto", "messages": [{"role": "user", "content": "Hello"}]}'`}
           />
         </div>
       </div>

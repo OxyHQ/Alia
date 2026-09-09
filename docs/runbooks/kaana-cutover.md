@@ -60,17 +60,15 @@ Do not enable production traffic until all of these pass:
 
 ## Rollout
 
-1. Keep ambient Oxy `INFERENCE_KAANA_EXECUTION=disabled`. From Oxy `main`, run
-   the signed deployment readback against the exact live Oxy task-definition
-   ARN and immutable image digest. Record its exact `snapshotId`; this step
-   makes zero provider requests and zero Oxy ledger writes.
-2. Run the signed Oxy production canary with one exact `deploymentId` from that
-   projection and the same `snapshotId`. It makes the two explicitly confirmed
-   one-token provider requests while ambient execution remains disabled; it
-   must not select by provider/model name, row order or first match.
-3. Only after both runs pass, land and deploy the separate Oxy change that
-   enables `INFERENCE_KAANA_EXECUTION`, then verify the live readout and a real
-   attributed Oxy-to-Kaana request. The authoritative procedure is Oxy's
+1. From Oxy `main`, run the signed deployment readback against the exact live
+   Oxy task-definition ARN and immutable image digest. Record its exact
+   `snapshotId`; this step makes zero provider requests and zero ledger writes.
+2. Run the signed Oxy production canary with one exact `deploymentId` from
+   that projection and the same `snapshotId`. It must not select by
+   provider/model name, row order or first match.
+3. Verify the live readout and a real attributed Oxy-to-Kaana request. Hosted
+   execution is the normal Oxy path and has no feature-flag environment
+   variable. The authoritative procedure is Oxy's
    [`kaana-request-v2-cutover.md`](https://github.com/OxyHQ/oxy/blob/main/docs/runbooks/kaana-request-v2-cutover.md).
 4. Inspect the candidate Alia task definition without printing secret values.
 5. Deploy one immutable revision containing the Oxy URL and both service

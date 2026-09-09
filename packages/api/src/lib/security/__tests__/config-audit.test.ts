@@ -54,7 +54,7 @@ describe('a configuration audit record (#139 ws15)', () => {
     recordConfigChange({
       resource: 'routing_profile',
       action: 'update',
-      target: 'kaana-v1-pro',
+      target: 'route:pro-standard',
       actor: { kind: 'user', id: 'oxy-user-1' },
       // Through the projection, as a real caller does. Since `AuditedFields` is
       // branded, an object literal no longer compiles here — which is the point
@@ -68,7 +68,7 @@ describe('a configuration audit record (#139 ws15)', () => {
     expect(payload.event).toBe('config.change');
     expect(payload.resource).toBe('routing_profile');
     expect(payload.action).toBe('update');
-    expect(payload.target).toBe('kaana-v1-pro');
+    expect(payload.target).toBe('route:pro-standard');
     expect(payload.actor).toEqual({ kind: 'user', id: 'oxy-user-1' });
     expect(payload.before).toEqual({ isActive: true });
     expect(payload.after).toEqual({ isActive: false });
@@ -118,12 +118,12 @@ describe('a configuration audit record (#139 ws15)', () => {
     // Second, and the one that matters: a row that DOES carry content has it
     // dropped rather than passed through.
     const projected = auditedFields('routing_profile', {
-      routingProfileId: 'kaana-v1',
+      routingProfileId: 'route:auto',
       isActive: true,
       systemPrompt: 'you are a helpful assistant',
       lastCompletion: 'hello there',
     });
-    expect(projected).toEqual({ routingProfileId: 'kaana-v1', isActive: true });
+    expect(projected).toEqual({ routingProfileId: 'route:auto', isActive: true });
   });
 
   it('projects null to null, so a create and a delete need no special case', () => {

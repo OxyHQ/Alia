@@ -75,9 +75,9 @@ export function usePersonalitySamplePhrase() {
               /**
                * The same identifier the composer sends when nobody has chosen
                * one — a `profile:*` routing profile, overridable per build by
-               * `EXPO_PUBLIC_ALIA_DEFAULT_MODEL`.
+               * the shared product default.
                *
-               * This was the literal `kaana-lite`, the last live `alia-*` id
+               * This was the literal `route:instant`, the last live `alia-*` id
                * anywhere in the app's request paths. Those identifiers are
                * de-advertised (ADR 0003): `GET /catalogue` does not list them
                * and `GET /v1/models` returns `[]`, so a request naming one asks

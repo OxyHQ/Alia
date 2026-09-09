@@ -52,7 +52,7 @@ Minimal request:
 
 ```json
 {
-  "model": "profile:v1",
+  "model": "profile:auto",
   "messages": [{ "role": "user", "content": "Prepare my meeting with Sarah" }],
   "stream": true
 }
@@ -323,20 +323,26 @@ no revision, no model card, and never `object: 'model'`.
 {
   "object": "list",
   "data": [
-    { "id": "mode:automatic", "object": "product_mode", "label": "Automatic",
+    { "id": "mode:auto", "object": "product_mode", "label": "Auto",
       "description": "Alia picks how to answer.",
-      "routing": { "kind": "default" }, "deep_research": false },
-    { "id": "mode:balanced", "object": "product_mode", "label": "Balanced",
-      "description": "The everyday default: quick enough, capable enough.",
-      "routing": { "kind": "profile", "profile_id": "profile:v1" }, "deep_research": false }
+      "routing": { "kind": "profile", "profile_id": "route:auto" }, "deep_research": false },
+    { "id": "mode:instant", "object": "product_mode", "label": "Instant",
+      "routing": { "kind": "profile", "profile_id": "route:instant" }, "deep_research": false },
+    { "id": "mode:thinking", "object": "product_mode", "label": "Thinking",
+      "routing": { "kind": "profile", "profile_id": "route:thinking" }, "deep_research": false },
+    { "id": "mode:pro", "object": "product_mode", "label": "Pro",
+      "routing": { "kind": "profile", "profile_id": "route:pro" }, "deep_research": false },
+    { "id": "mode:research", "object": "product_mode", "label": "Research",
+      "routing": { "kind": "profile", "profile_id": "route:research" }, "deep_research": true },
+    { "id": "mode:code", "object": "product_mode", "label": "Code",
+      "routing": { "kind": "profile", "profile_id": "route:code" }, "deep_research": false }
   ]
 }
 ```
 
-`routing.kind` is `profile` when the mode pins one, and `default` when it pins none —
-`Automatic` and `Deep research` both change nothing about routing today, and publishing a
-`profile_id` for them would be a routing claim the product does not make. Unauthenticated
-and unfiltered: a mode is the same for everybody, and what a given caller may use is
+`routing.kind` is always `profile`: every mode pins one reviewed route explicitly.
+No response order, display name or environment variable participates in routing.
+Unauthenticated and unfiltered: a mode is the same for everybody, and what a given caller may use is
 entitlement, annotated per entry on `GET /catalogue`.
 
 ---
@@ -370,7 +376,7 @@ answering `410`, so an unauthenticated caller gets a `401` rather than the `410`
 - The concealment half is a product decision and best-effort by construction: it matches
   identifiers — a proper noun, or a `/ . - _ =` joined token — and leaves ordinary prose
   alone. It is not a security control, and nothing should be designed as if it were.
-- A value the CALLER sent is echoed back readable. `"gpt-4o" is not a Kaana routing profile or model reference`
+- A value the CALLER sent is echoed back readable. `"gpt-4o" is not an available product mode or model reference`
   discloses nothing about Alia's routing, so it takes `redactUnsafeDetail()` — the
   absolute half alone.
 - Product responses carry Kaana routing-profile or canonical model identifiers only. See

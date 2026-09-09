@@ -5,8 +5,8 @@
  *
  * Epic #139 workstream 5, `Update Codea, Cowork, CLI and SDK pickers
  * consistently.` The clients used to bake an alias into the shipped artefact —
- * `kaana-v1-codea` in the VS Code extension and the CLI, `kaana-v1-cowork` in the
- * Electron main process, `kaana-v1` and `kaana-v1-voice` in the published SDK — so
+ * `route:code` in the VS Code extension and the CLI, `route:cowork` in the
+ * Electron main process, `route:auto` and `route:voice` in the published SDK — so
  * a retired identifier became a 400 inside somebody else's installed build, with
  * nothing they could do about it. Every one of those now asks
  * `GET /catalogue` and resolves through the same fallback
@@ -74,8 +74,8 @@ const ROOT = resolve(import.meta.dirname, '..');
  * The three trees added by #244 — canvas, the Codea webview and integrations —
  * were each a live defect rather than a latent one, because `GET /v1/models`
  * has served an empty list since #178: canvas rendered a hardcoded
- * `Kaana Lite`, the webview a hardcoded `kaana-v1-codea`, and the Telegram and
- * Discord bots printed `Model: kaana-lite` to every user. This script was green
+ * `Instant`, the webview a hardcoded `route:code`, and the Telegram and
+ * Discord bots printed `Model: route:instant` to every user. This script was green
  * throughout, reporting `245 files walked`, because none of the three was in
  * this list.
  */
@@ -161,7 +161,7 @@ const PREFERENCE_MODULES = new Map([
  * unable to reach an installed client. Anchored, so `alia-codea-cli` (a package
  * name) is not mistaken for one.
  */
-const IDENTIFIER = /^(?:profile:[a-z0-9][a-z0-9-]*|(?:alia|kaana)-(?:v\d[a-z0-9-]*|lite))$/;
+const IDENTIFIER = /^(?:(?:mode|profile|route):[a-z0-9][a-z0-9-]*)$/;
 
 export function sourceFiles(dir) {
   const out = [];
@@ -314,12 +314,12 @@ function main() {
   // Positive control: the detector fires on the shape it looks for, and ignores
   // a comment. A detector broken by a parser upgrade reports the same clean zero
   // as a correct one, and only this tells them apart.
-  const control = identifiersIn('control.tsx', "const m = 'kaana-v1-codea';\n// 'kaana-lite'\n");
-  if (control.length !== 1 || control[0].text !== 'kaana-v1-codea') {
+  const control = identifiersIn('control.tsx', "const m = 'route:code';\n// 'route:instant'\n");
+  if (control.length !== 1 || control[0].text !== 'route:code') {
     console.error('check-model-defaults: the detector does not detect. Refusing to report a pass.');
     process.exit(1);
   }
-  if (identifiersIn('control.tsx', "<Button>kaana-v1</Button>").length !== 1) {
+  if (identifiersIn('control.tsx', "<Button>route:auto</Button>").length !== 1) {
     console.error('check-model-defaults: the detector cannot see a JSX label.');
     process.exit(1);
   }
@@ -340,7 +340,9 @@ function main() {
       sampleHits += 1;
       continue;
     }
-    for (const { text, line } of found) offences.push(`${rel}:${line} hardcodes ${text}`);
+    for (const { text, line } of found) {
+      if (!text.startsWith('mode:')) offences.push(`${rel}:${line} hardcodes ${text}`);
+    }
   }
 
   // A sample surface that has stopped naming an identifier is an exemption to

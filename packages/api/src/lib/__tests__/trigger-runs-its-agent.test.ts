@@ -48,7 +48,7 @@ vi.mock('ai', () => ({
 vi.mock('../chat-core.js', () => ({
   resolveModel: vi.fn(async () => ({ id: 'm' })),
   getAIModel: vi.fn(() => ({})),
-  getDefaultRoutingProfile: vi.fn(() => 'kaana-v1'),
+  getDefaultRoutingProfile: vi.fn(() => 'route:auto'),
 }));
 vi.mock('../tools/index.js', () => ({}));
 vi.mock('../tool-pipeline.js', () => ({

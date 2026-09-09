@@ -37,7 +37,7 @@ import {
  * `chat-core` used to be stubbed here, because the credit multiplier came from
  * the model catalogue over HTTP. It does not any more: `getCreditMultiplier`
  * reads `lib/routing/presets.ts`, a static table, so the multiplier in these
- * assertions is the REAL price of the profile named — `kaana-v1-voice` bills at
+ * assertions is the REAL price of the profile named — `route:voice` bills at
  * 2×, and the voice figures below are that 2× rather than the stub's 1×.
  * Nothing in the billing path fetches anything now, which is why the stub is
  * gone rather than repointed.
@@ -110,22 +110,22 @@ describe('calculateCreditsFromTokens', () => {
 
 describe('calculateCreditsFromMinutes', () => {
   it('returns minimum credits for 0 minutes', async () => {
-    expect(await calculateCreditsFromMinutes(0, 'kaana-v1-voice', 0.05)).toBe(
+    expect(await calculateCreditsFromMinutes(0, 'route:voice', 0.05)).toBe(
       CREDITS_CONFIG.MIN_CREDITS_PER_REQUEST,
     );
   });
 
   it('calculates credits from minutes, at the profile’s own multiplier', async () => {
-    // 2 min * $0.05/min * 1000 = 100 base credits, x2 for `profile:v1-voice`.
-    expect(await calculateCreditsFromMinutes(2, 'kaana-v1-voice', 0.05)).toBe(200);
+    // 2 min * $0.05/min * 1000 = 100 base credits, x2 for `profile:voice`.
+    expect(await calculateCreditsFromMinutes(2, 'route:voice', 0.05)).toBe(200);
     // The multiplier is doing the work, not the arithmetic: the same call on a
     // 1x profile is the base figure. Without this pair, a table that lost every
     // multiplier would still pass the line above.
-    expect(await calculateCreditsFromMinutes(2, 'kaana-v1', 0.05)).toBe(100);
+    expect(await calculateCreditsFromMinutes(2, 'route:auto', 0.05)).toBe(100);
   });
 
   it('rounds up partial credits', async () => {
-    expect(await calculateCreditsFromMinutes(0.5, 'kaana-v1-voice', 0.05)).toBe(50);
+    expect(await calculateCreditsFromMinutes(0.5, 'route:voice', 0.05)).toBe(50);
   });
 });
 
@@ -318,7 +318,7 @@ describe('finalizeCredits', () => {
     await finalizeCredits(
       { userId: priced, creditsReserved: 5, initialFreeCredits: 40, initialPaidCredits: 60, grantKind: 'free_allowance' },
       { promptTokens: 1000, completionTokens: 1000, totalTokens: 2000 },
-      'kaana-v1',
+      'route:auto',
     );
     expect(await balanceOf(priced)).toEqual({ free: 43, paid: 60 });
   });
@@ -339,13 +339,13 @@ describe('finalizeCredits', () => {
 describe('finalizeVoiceCredits', () => {
   it('refunds the excess when the call was shorter than reserved', async () => {
     // reserved 100; actual 0.5 min * $0.05/min * 1000 = 25 base, x2 for
-    // `profile:v1-voice` = 50 → refund 50.
+    // `profile:voice` = 50 → refund 50.
     const id = await account('cm-voice-refund', 400, 500);
 
     const result = await finalizeVoiceCredits(
       { userId: id, creditsReserved: 100, initialFreeCredits: 500, initialPaidCredits: 500, grantKind: 'free_allowance' },
       0.5,
-      'kaana-v1-voice',
+      'route:voice',
       0.05,
     );
 

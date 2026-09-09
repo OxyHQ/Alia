@@ -14,8 +14,8 @@ function createJwt(expiresAt: number): string {
 
 function successfulStream(): Response {
   const body = [
-    'data: {"id":"c1","object":"chat.completion.chunk","created":1,"model":"profile:v1","choices":[{"index":0,"delta":{"content":"Hola"},"finish_reason":null}]}\n\n',
-    'data: {"id":"c1","object":"chat.completion.chunk","created":1,"model":"profile:v1","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}\n\n',
+    'data: {"id":"c1","object":"chat.completion.chunk","created":1,"model":"profile:auto","choices":[{"index":0,"delta":{"content":"Hola"},"finish_reason":null}]}\n\n',
+    'data: {"id":"c1","object":"chat.completion.chunk","created":1,"model":"profile:auto","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}\n\n',
     'data: [DONE]\n\n',
   ].join('');
   return new Response(body, { headers: { 'content-type': 'text/event-stream' } });
@@ -49,7 +49,7 @@ describe('streamAliaChat authentication boundary', () => {
 
     await streamAliaChat(
       linked.client,
-      { url: '/v1/chat/completions', model: 'profile:v1', messages: [{ role: 'user', content: 'Hola' }] },
+      { url: '/v1/chat/completions', model: 'profile:auto', messages: [{ role: 'user', content: 'Hola' }] },
       new AbortController().signal,
       () => undefined,
     );
@@ -78,7 +78,7 @@ describe('streamAliaChat authentication boundary', () => {
 
     await streamAliaChat(
       linked.client,
-      { url: '/v1/chat/completions', model: 'profile:v1', messages: [{ role: 'user', content: 'Hola' }] },
+      { url: '/v1/chat/completions', model: 'profile:auto', messages: [{ role: 'user', content: 'Hola' }] },
       controller.signal,
       () => undefined,
     );
@@ -110,7 +110,7 @@ describe('streamAliaChat authentication boundary', () => {
     await expect(
       streamAliaChat(
         linked.client,
-        { url: '/v1/chat/completions', model: 'profile:v1', messages: [{ role: 'user', content: 'Hola' }] },
+        { url: '/v1/chat/completions', model: 'profile:auto', messages: [{ role: 'user', content: 'Hola' }] },
         new AbortController().signal,
         () => undefined,
       ),

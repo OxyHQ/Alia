@@ -329,7 +329,7 @@ The former `POST /webhooks/oxy/:serviceId` route is retired and returns `410 Gon
 
 ## Model Abstraction
 
-Product modes use Kaana product-routing identifiers (`kaana-lite`, `kaana-v1`
+Product modes use Kaana product-routing identifiers (`route:instant`, `route:auto`
 and so on); concrete models use canonical
 `<publisher>/<model>[@revision]` references. Upstream routing detail is never
 returned to users. The product-routing set is frozen — see

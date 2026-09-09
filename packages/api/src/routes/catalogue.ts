@@ -245,8 +245,8 @@ function serializeMode(mode: ProductMode): Record<string, unknown> {
 /**
  * GET /catalogue/modes
  *
- * The product modes a person picks between — Automatic, Fast, Balanced, Maximum
- * quality, Coding and Deep research. Product configuration, not models: nothing
+ * The product modes a person picks between — Auto, Instant, Thinking, Pro,
+ * Research and Code. Product configuration, not models: nothing
  * here has a publisher, a revision or a model card, and none of it is
  * serialized `object: 'model'`.
  *

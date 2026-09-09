@@ -19,7 +19,7 @@ const {
   mockResolveModel: vi.fn(),
   mockGetAIModel: vi.fn(() => 'mock-ai-model'),
   mockReportModelUsage: vi.fn().mockResolvedValue(undefined),
-  mockGetDefaultRoutingProfile: vi.fn(() => 'kaana-v1'),
+  mockGetDefaultRoutingProfile: vi.fn(() => 'route:auto'),
   mockReserveCredits: vi.fn(),
   mockFinalizeCredits: vi.fn().mockResolvedValue({ creditsCharged: 1, creditsRemaining: 99 }),
   mockGetOrCreateUserCredits: vi.fn().mockResolvedValue({}),
@@ -45,7 +45,7 @@ vi.mock('../../../lib/chat-core.js', () => ({
   getDefaultRoutingProfile: () => mockGetDefaultRoutingProfile(),
   reportModelUsage: (...args: any[]) => mockReportModelUsage(...args),
   isRoutingProfile: vi.fn(() => true),
-  getRoutingProfile: vi.fn(() => ({ name: 'Kaana V1', creditMultiplier: 1 })),
+  getRoutingProfile: vi.fn(() => ({ name: 'Auto', creditMultiplier: 1 })),
   getAllRoutingProfiles: vi.fn(() => []),
   getRoutingProfilesByCategory: vi.fn(() => []),
   getDefaultModelForCategory: vi.fn(() => null),
@@ -54,7 +54,7 @@ vi.mock('../../../lib/chat-core.js', () => ({
 }));
 
 vi.mock('../../../internal/providers/lib/routing-profile-catalogue.js', () => ({
-  getRoutingProfile: vi.fn(() => ({ name: 'Kaana V1', creditMultiplier: 1 })),
+  getRoutingProfile: vi.fn(() => ({ name: 'Auto', creditMultiplier: 1 })),
   isRoutingProfile: vi.fn(() => true),
   getAllRoutingProfiles: vi.fn(() => []),
   getRoutingProfilesByCategory: vi.fn(() => []),
@@ -183,7 +183,7 @@ vi.mock('../../../lib/errors/index.js', () => ({
 }));
 
 vi.mock('../../../lib/gateway-client.js', () => ({
-  getRoutingProfile: vi.fn(() => ({ name: 'Kaana V1', creditMultiplier: 1 })),
+  getRoutingProfile: vi.fn(() => ({ name: 'Auto', creditMultiplier: 1 })),
   getModelMappingsForTier: vi.fn(() => []),
 }));
 
@@ -197,7 +197,7 @@ vi.mock('../../../lib/plan-access.js', () => ({
   getUserEntitlements: vi.fn().mockResolvedValue({
     tier: 'free',
     features: {},
-    allowedModelIds: ['kaana-v1', 'kaana-lite', 'kaana-v1-pro', 'kaana-v1-thinking'],
+    allowedModelIds: ['route:auto', 'route:instant', 'route:pro-standard', 'route:thinking'],
   }),
 }));
 
@@ -255,11 +255,11 @@ import { FallbackNotPermittedError, UnregisteredModelError } from '../../../lib/
 // ── Test constants ─────────────────────────────────────────────────────────
 
 const VALID_RESOLVED_MODEL = {
-  routingProfileId: 'kaana-v1',
+  routingProfileId: 'route:auto',
   provider: 'openai',
   modelId: 'gpt-4o',
   keyConfig: { provider: 'openai', key: 'sk-test', modelId: 'gpt-4o', keyId: 'key-1' },
-  routingProfile: { name: 'Kaana V1', creditMultiplier: 1 },
+  routingProfile: { name: 'Auto', creditMultiplier: 1 },
   isFallback: false,
   fallbackIndex: 0,
 };
@@ -299,7 +299,7 @@ function createMockReq(overrides: Record<string, any> = {}) {
     apiKey: undefined,
     body: {
       messages: [{ role: 'user', content: 'Hello' }],
-      model: 'kaana-v1',
+      model: 'route:auto',
       stream: true,
     },
     headers: {},
@@ -424,7 +424,7 @@ describe('504 timeout fixes - /v1/chat/completions', () => {
   });
 
   it('sends early SSE headers + keep-alive before provider call (streaming)', async () => {
-    const req = createMockReq({ body: { messages: [{ role: 'user', content: 'Hi' }], model: 'kaana-v1', stream: true } });
+    const req = createMockReq({ body: { messages: [{ role: 'user', content: 'Hi' }], model: 'route:auto', stream: true } });
     const res = createMockRes();
 
     await handler(req, res, vi.fn());
@@ -451,7 +451,7 @@ describe('504 timeout fixes - /v1/chat/completions', () => {
 
   it('does NOT send early SSE headers for non-streaming requests', async () => {
     const req = createMockReq({
-      body: { messages: [{ role: 'user', content: 'Hi' }], model: 'kaana-v1', stream: false },
+      body: { messages: [{ role: 'user', content: 'Hi' }], model: 'route:auto', stream: false },
     });
     const res = createMockRes();
 
@@ -474,7 +474,7 @@ describe('504 timeout fixes - /v1/chat/completions', () => {
     mockReserveCredits.mockResolvedValue(null);
 
     const req = createMockReq({
-      body: { messages: [{ role: 'user', content: 'Hello' }], model: 'kaana-v1', stream: false },
+      body: { messages: [{ role: 'user', content: 'Hello' }], model: 'route:auto', stream: false },
     });
     const res = createMockRes();
 
@@ -500,7 +500,7 @@ describe('504 timeout fixes - /v1/chat/completions', () => {
     mockResolveModel.mockResolvedValue(null);
 
     const req = createMockReq({
-      body: { messages: [{ role: 'user', content: 'Hello' }], model: 'kaana-v1', stream: false },
+      body: { messages: [{ role: 'user', content: 'Hello' }], model: 'route:auto', stream: false },
     });
     const res = createMockRes();
 
@@ -550,7 +550,7 @@ describe('504 timeout fixes - /v1/chat/completions', () => {
     mockResolveModel.mockRejectedValue(new Error('Key manager DB error'));
 
     const req = createMockReq({
-      body: { messages: [{ role: 'user', content: 'Hello' }], model: 'kaana-v1', stream: false },
+      body: { messages: [{ role: 'user', content: 'Hello' }], model: 'route:auto', stream: false },
     });
     const res = createMockRes();
 
@@ -589,7 +589,7 @@ describe('504 timeout fixes - /v1/chat/completions', () => {
       };
     });
 
-    const req = createMockReq({ body: { messages: [{ role: 'user', content: 'Hi' }], model: 'kaana-v1', stream: true } });
+    const req = createMockReq({ body: { messages: [{ role: 'user', content: 'Hi' }], model: 'route:auto', stream: true } });
     const res = createMockRes();
 
     await handler(req, res, vi.fn());
@@ -614,7 +614,7 @@ describe('504 timeout fixes - /v1/chat/completions', () => {
   });
 
   it('does not re-set SSE headers on subsequent chunks when earlySSE is active', async () => {
-    const req = createMockReq({ body: { messages: [{ role: 'user', content: 'Hi' }], model: 'kaana-v1', stream: true } });
+    const req = createMockReq({ body: { messages: [{ role: 'user', content: 'Hi' }], model: 'route:auto', stream: true } });
     const res = createMockRes();
 
     await handler(req, res, vi.fn());
@@ -685,7 +685,7 @@ describe('a turn that produced nothing costs nothing - /v1/chat/completions', ()
     }));
 
     await handler(
-      createMockReq({ body: { messages: [{ role: 'user', content: 'Hi' }], model: 'kaana-v1', stream: true } }),
+      createMockReq({ body: { messages: [{ role: 'user', content: 'Hi' }], model: 'route:auto', stream: true } }),
       createMockRes(),
       vi.fn(),
     );
@@ -700,7 +700,7 @@ describe('a turn that produced nothing costs nothing - /v1/chat/completions', ()
     mockStreamText.mockReturnValue(createMockStream([{ type: 'finish', finishReason: 'stop' }]));
 
     await handler(
-      createMockReq({ body: { messages: [{ role: 'user', content: 'Hi' }], model: 'kaana-v1', stream: true } }),
+      createMockReq({ body: { messages: [{ role: 'user', content: 'Hi' }], model: 'route:auto', stream: true } }),
       createMockRes(),
       vi.fn(),
     );
@@ -724,7 +724,7 @@ describe('a turn that produced nothing costs nothing - /v1/chat/completions', ()
 
     const res = createMockRes();
     const pending = handler(
-      createMockReq({ body: { messages: [{ role: 'user', content: 'Hi' }], model: 'kaana-v1', stream: true } }),
+      createMockReq({ body: { messages: [{ role: 'user', content: 'Hi' }], model: 'route:auto', stream: true } }),
       res,
       vi.fn(),
     );
@@ -768,7 +768,7 @@ describe('routing policy refusals - /v1/chat/completions', () => {
   });
 
   it('answers an unregistered model with 400 and the product message, not 503', async () => {
-    mockResolveModel.mockRejectedValue(new UnregisteredModelError('alia-flash', ['kaana-v1', 'kaana-lite']));
+    mockResolveModel.mockRejectedValue(new UnregisteredModelError('alia-flash', ['route:auto', 'route:instant']));
 
     const req = createMockReq({
       body: { messages: [{ role: 'user', content: 'Hello' }], model: 'alia-flash', stream: false },
@@ -789,7 +789,7 @@ describe('routing policy refusals - /v1/chat/completions', () => {
   });
 
   it('refuses a removed alias before reserving credits', async () => {
-    mockResolveModel.mockRejectedValue(new UnregisteredModelError('alia-flash', ['kaana-v1']));
+    mockResolveModel.mockRejectedValue(new UnregisteredModelError('alia-flash', ['route:auto']));
 
     await handler(
       createMockReq({ body: { messages: [{ role: 'user', content: 'Hi' }], model: 'alia-flash', stream: false } }),
@@ -802,12 +802,12 @@ describe('routing policy refusals - /v1/chat/completions', () => {
   });
 
   it('answers an unavailable model under a restrictive policy with the policy message', async () => {
-    mockResolveModel.mockRejectedValue(new FallbackNotPermittedError('kaana-v1', 'no-fallback'));
+    mockResolveModel.mockRejectedValue(new FallbackNotPermittedError('route:auto', 'no-fallback'));
 
     const req = createMockReq({
       body: {
         messages: [{ role: 'user', content: 'Hello' }],
-        model: 'kaana-v1',
+        model: 'route:auto',
         fallbackPolicy: 'no-fallback',
         stream: false,
       },
@@ -818,7 +818,7 @@ describe('routing policy refusals - /v1/chat/completions', () => {
 
     expect(res.status).toHaveBeenCalledWith(503);
     const [payload] = res.json.mock.calls[0];
-    expect(payload.error.message).toContain('kaana-v1');
+    expect(payload.error.message).toContain('route:auto');
     // Distinguishable from the generic shortage, which is the whole point.
     expect(payload.error.message).not.toBe('No models available. Please try again.');
   });
@@ -827,7 +827,7 @@ describe('routing policy refusals - /v1/chat/completions', () => {
     const req = createMockReq({
       body: {
         messages: [{ role: 'user', content: 'Hello' }],
-        model: 'kaana-v1',
+        model: 'route:auto',
         fallbackPolicy: 'same-model-only',
         stream: false,
       },
@@ -835,7 +835,7 @@ describe('routing policy refusals - /v1/chat/completions', () => {
 
     await handler(req, createMockRes(), vi.fn());
 
-    expect(mockResolveModel).toHaveBeenCalledWith('kaana-v1', undefined, undefined, {
+    expect(mockResolveModel).toHaveBeenCalledWith('route:auto', undefined, undefined, {
       fallbackPolicy: 'same-model-only',
     });
   });
@@ -845,12 +845,12 @@ describe('routing policy refusals - /v1/chat/completions', () => {
     // `fallbackPolicy` must not become an explicit one here — the engine's own
     // default is the single place that decision lives.
     const req = createMockReq({
-      body: { messages: [{ role: 'user', content: 'Hello' }], model: 'kaana-v1', stream: false },
+      body: { messages: [{ role: 'user', content: 'Hello' }], model: 'route:auto', stream: false },
     });
 
     await handler(req, createMockRes(), vi.fn());
 
-    expect(mockResolveModel).toHaveBeenCalledWith('kaana-v1', undefined, undefined, {});
+    expect(mockResolveModel).toHaveBeenCalledWith('route:auto', undefined, undefined, {});
   });
 
   it('resolves Kaana once with the caller policy and never retries in Alia', async () => {
@@ -871,7 +871,7 @@ describe('routing policy refusals - /v1/chat/completions', () => {
     const req = createMockReq({
       body: {
         messages: [{ role: 'user', content: 'Hi' }],
-        model: 'kaana-v1',
+        model: 'route:auto',
         fallbackPolicy: 'no-fallback',
         stream: true,
       },
@@ -887,7 +887,7 @@ describe('routing policy refusals - /v1/chat/completions', () => {
     const req = createMockReq({
       body: {
         messages: [{ role: 'user', content: 'Hello' }],
-        model: 'kaana-v1',
+        model: 'route:auto',
         fallbackPolicy: 'no_fallback',
         stream: false,
       },
