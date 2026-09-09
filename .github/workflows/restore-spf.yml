@@ -85,7 +85,7 @@ jobs:
             https://api.cloudflare.com/client/v4/user/tokens/verify | jq -r '.success')
           [ "$ok" = "true" ] || { echo "::error::token rejected"; exit 1; }
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # What the internet says right now, before anything is written. The DMARC
       # record is printed because it is the corroboration for `-all`: a domain

@@ -86,7 +86,7 @@ jobs:
             https://api.cloudflare.com/client/v4/user/tokens/verify | jq -r '.success')
           [ "$ok" = "true" ] || { echo "::error::token rejected"; exit 1; }
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Everything this is about to destroy, enumerated and gated, before the
       # first irreversible call. A cutover that goes wrong then has the prior
