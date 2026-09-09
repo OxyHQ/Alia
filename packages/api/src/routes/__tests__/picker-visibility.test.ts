@@ -24,7 +24,7 @@ vi.mock('../../lib/chat-core.js', async () => {
   );
   return {
     getAvailableModels: async () =>
-      Object.values(KAANA_ROUTING_PROFILES).map((m) => ({ ...m, isAvailable: true, isLegacy: false })),
+      Object.values(KAANA_ROUTING_PROFILES).map((m) => ({ ...m, isAvailable: true })),
     getRoutingProfile: async (id: string) => KAANA_ROUTING_PROFILES[id] ?? null,
     getDefaultModelForCategory: async () => null,
   };
@@ -37,7 +37,7 @@ vi.mock('../../lib/gateway-client.js', async () => {
 
   return {
     getAvailableModels: async () =>
-      Object.values(actual.KAANA_ROUTING_PROFILES).map((m) => ({ ...m, isAvailable: true, isLegacy: false })),
+      Object.values(actual.KAANA_ROUTING_PROFILES).map((m) => ({ ...m, isAvailable: true })),
     getTierMappings: async () => actual.TIER_MODEL_MAPPINGS,
     getPlans: async () => [],
     // Every route servable, so the availability an entry reports is not what

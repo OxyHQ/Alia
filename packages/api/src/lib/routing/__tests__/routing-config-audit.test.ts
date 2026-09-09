@@ -25,7 +25,7 @@ import { describe, expect, it } from 'vitest';
  *  1. **The routing presets.** `ROUTING_PRESETS` is a `const` array. No
  *     repository, no table, no route.
  *  2. **The alias set.** `KAANA_ROUTING_PROFILES` is a `const` record. The `routing_profiles`
- *     table contributes one display flag (`isLegacy`) and nothing a request
+ *     table contributes no display flag and nothing a request
  *     routes on.
  *  3. **Which models a plan grants.** `plans.modelIds` IS a database column, and
  *     it is the input to `lib/plan-access.ts`, which is the gate that decides

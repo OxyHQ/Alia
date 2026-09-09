@@ -219,7 +219,6 @@ interface CatalogueEntryCommon {
   readonly capabilities: CatalogueCapabilities;
   readonly availability: {
     readonly status: 'available' | 'unavailable';
-    readonly legacy: boolean;
     /**
      * Which of the entry's routes the caller's own credential admits
      * (#139 workstream 17). `unscoped` on every entry today, because no route
@@ -436,7 +435,6 @@ export interface CatalogueSource {
    * CANDIDATES, exactly as capabilities and provenance are, and a source that
    * cannot state it cannot get it wrong.
    */
-  readonly isLegacy: boolean;
 }
 
 /**
@@ -595,7 +593,6 @@ export function buildEntry(
       // fallback engine needs to answer — and zero candidates is honestly
       // unavailable rather than inheriting whatever the alias claimed.
       status: candidates.some((candidate) => candidate.servable) ? 'available' : 'unavailable',
-      legacy: source.isLegacy,
       scope: admitEntry(candidates.map((c) => c.availabilityScope), audience),
     },
     attribution: requiredAttributions(candidates.map((c) => c.attribution)),

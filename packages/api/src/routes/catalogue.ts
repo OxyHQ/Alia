@@ -181,7 +181,6 @@ function serializeEntry(entry: CatalogueEntry): Record<string, unknown> {
     },
     availability: {
       status: entry.availability.status,
-      legacy: entry.availability.legacy,
       scope: wireScope(entry.availability.scope),
     },
     attribution: entry.attribution.map(wireAttribution),

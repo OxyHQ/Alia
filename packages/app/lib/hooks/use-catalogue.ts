@@ -101,7 +101,6 @@ interface CatalogueEntryCommon {
    * not an outage, and reading it as one would empty the menu on a bad parse.
    */
   readonly unavailable: boolean;
-  readonly legacy: boolean;
   /** Name of the cheapest plan that grants this entry, or `null` when free or unknown. */
   readonly requiredPlan: string | null;
   /**
@@ -319,7 +318,6 @@ function parseEntry(value: unknown): CatalogueEntry | null {
       maxOutput: asTokenBound(capabilities.max_output),
     },
     unavailable: availability.status === 'unavailable',
-    legacy: availability.legacy === true,
     requiredPlan: entitlement?.state === 'known' ? asText(entitlement.required_plan) : null,
     provenance: asProvenance(raw.provenance),
     // Anything that is not literally `true` or `false` is unknown. A server

@@ -63,7 +63,6 @@ function source(overrides: Partial<CatalogueSource> = {}): CatalogueSource {
     tier: 'test-tier',
     emoji: '🧪',
     creditMultiplier: 1,
-    isLegacy: false,
     ...overrides,
   };
 }

@@ -188,7 +188,6 @@ export const routingProfiles = pgTable(
 
     isActive: boolean().notNull().default(true),
     isDeprecated: boolean().notNull().default(false),
-    isLegacy: boolean().notNull().default(false),
     deprecationDate: timestamptz(),
     replacementModelId: text(),
 
