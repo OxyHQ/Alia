@@ -80,6 +80,7 @@ import {
 } from './tools/index.js';
 import { getWeatherTool } from './tools/weather.js';
 import { getMarketQuoteTool } from './tools/market.js';
+import { getFairCoinTool } from './tools/faircoin.js';
 import { buildMcpTools } from './tools/mcp.js';
 import { buildAskAgentTool } from './tools/ask-agent.js';
 import { buildIntegrationTools } from './tools/integrations.js';
@@ -394,6 +395,7 @@ export class ToolPipeline {
     if (webSearch && grants.allows('web')) {
       aliaTools.getWeather = getWeatherTool;
       aliaTools.getMarketQuote = getMarketQuoteTool;
+      aliaTools.getFairCoin = getFairCoinTool;
     }
 
     // A device can only be described when the surface knows one.
