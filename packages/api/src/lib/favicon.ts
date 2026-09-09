@@ -56,10 +56,9 @@
  * fresh outbound request on every render, forever.
  */
 
-import { lookup } from 'node:dns/promises';
-import net from 'node:net';
 
 import { log } from './logger.js';
+import { classifyHost, normaliseHostname, publicFetch, type HostVerdict } from './public-host.js';
 
 /** The paths a site's icon is conventionally served from, tried in order. */
 const WELL_KNOWN_PATHS = ['/favicon.ico', '/apple-touch-icon.png'];
@@ -87,60 +86,6 @@ const REFUSED_TTL_MS = 60 * 60 * 1000;
 const MAX_CONCURRENT_FETCHES = 8;
 
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
-
-/**
- * Names that must never leave the network, whatever DNS says about them. The
- * address check below is the real guard; this refuses the obvious ones without
- * spending a lookup, and covers the split-horizon case where an internal
- * resolver answers for a name a public one does not.
- */
-const RESERVED_SUFFIXES = [
-  'localhost',
-  'local',
-  'localdomain',
-  'internal',
-  'intranet',
-  'lan',
-  'home',
-  'corp',
-  'private',
-  'arpa',
-  'alt',
-  'onion',
-  'test',
-  'example',
-  'invalid',
-];
-
-/**
- * Every address range that is not public unicast: loopback, the private and
- * carrier-grade ranges, link-local — which is where the cloud metadata service
- * answers — and the multicast and reserved space.
- *
- * `net.BlockList` rather than arithmetic on octets: it parses addresses with
- * Node's own parser and checks an IPv4-mapped IPv6 address (`::ffff:127.0.0.1`,
- * a routine bypass for hand-written checks) against the IPv4 rules.
- */
-const BLOCKED_ADDRESSES = new net.BlockList();
-BLOCKED_ADDRESSES.addSubnet('0.0.0.0', 8, 'ipv4');
-BLOCKED_ADDRESSES.addSubnet('10.0.0.0', 8, 'ipv4');
-BLOCKED_ADDRESSES.addSubnet('100.64.0.0', 10, 'ipv4');
-BLOCKED_ADDRESSES.addSubnet('127.0.0.0', 8, 'ipv4');
-BLOCKED_ADDRESSES.addSubnet('169.254.0.0', 16, 'ipv4');
-BLOCKED_ADDRESSES.addSubnet('172.16.0.0', 12, 'ipv4');
-BLOCKED_ADDRESSES.addSubnet('192.0.0.0', 24, 'ipv4');
-BLOCKED_ADDRESSES.addSubnet('192.168.0.0', 16, 'ipv4');
-BLOCKED_ADDRESSES.addSubnet('198.18.0.0', 15, 'ipv4');
-BLOCKED_ADDRESSES.addSubnet('224.0.0.0', 4, 'ipv4');
-BLOCKED_ADDRESSES.addSubnet('240.0.0.0', 4, 'ipv4');
-BLOCKED_ADDRESSES.addAddress('::', 'ipv6');
-BLOCKED_ADDRESSES.addAddress('::1', 'ipv6');
-BLOCKED_ADDRESSES.addSubnet('64:ff9b::', 96, 'ipv6');
-BLOCKED_ADDRESSES.addSubnet('100::', 64, 'ipv6');
-BLOCKED_ADDRESSES.addSubnet('2002::', 16, 'ipv6');
-BLOCKED_ADDRESSES.addSubnet('fc00::', 7, 'ipv6');
-BLOCKED_ADDRESSES.addSubnet('fe80::', 10, 'ipv6');
-BLOCKED_ADDRESSES.addSubnet('ff00::', 8, 'ipv6');
 
 /**
  * The content types served back, and what they are served AS. A favicon comes
@@ -183,7 +128,6 @@ const inFlight = new Map<string, Promise<FaviconResult>>();
 let outstandingFetches = 0;
 
 /** What DNS said about one hostname, within one resolution. */
-type HostVerdict = 'ok' | 'refused' | 'unresolvable';
 
 /**
  * The icon for one domain: from the cache, from a request already in flight for
@@ -231,33 +175,6 @@ export async function getFavicon(domain: string): Promise<FaviconResult> {
  * the DNS actually uses, and so that anything carrying a port, a path or
  * credentials is reduced to its host before it is judged.
  */
-function normaliseHostname(raw: string): string | null {
-  let parsed: URL;
-  try {
-    parsed = new URL(`https://${raw.trim()}`);
-  } catch {
-    return null;
-  }
-
-  const host = parsed.hostname.toLowerCase().replace(/\.$/, '');
-  if (host.length === 0 || host.length > 253) return null;
-
-  const labels = host.split('.');
-  // At least two labels, each a legal DNS label. An IPv6 literal keeps its
-  // brackets and colons here, so the character class refuses it.
-  if (labels.length < 2) return null;
-  if (!labels.every((label) => /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(label))) return null;
-
-  // A registry TLD is alphabetic, which is also what refuses every IPv4
-  // literal — `127.0.0.1` ends in `1` — without a separate case for them.
-  const tld = labels[labels.length - 1];
-  if (!/^[a-z]{2,}$/.test(tld) && !tld.startsWith('xn--')) return null;
-
-  if (RESERVED_SUFFIXES.some((suffix) => host === suffix || host.endsWith(`.${suffix}`))) return null;
-
-  return host;
-}
-
 async function resolveFavicon(host: string): Promise<FaviconResult> {
   const controller = new AbortController();
   const deadline = setTimeout(
@@ -304,7 +221,10 @@ async function fetchIcon(
 
     let response: Response;
     try {
-      response = await fetch(target, {
+      // undici's fetch through `publicOnlyAgent`, so the address judged by
+      // `classifyHost` is the address connected to. The global fetch resolves
+      // the name again after the check, which is the rebinding window.
+      response = await publicFetch(target, {
         // Manual, so a redirect to a private address is judged rather than
         // followed by the runtime before this code ever sees it.
         redirect: 'manual',
@@ -417,34 +337,6 @@ async function hostVerdict(hostname: string, verdicts: Map<string, HostVerdict>)
   const verdict = await classifyHost(hostname);
   verdicts.set(hostname, verdict);
   return verdict;
-}
-
-async function classifyHost(hostname: string): Promise<HostVerdict> {
-  // A redirect target gets the same name check as the domain that was asked
-  // for; without this, `https://public.example/` → `http://localhost/` is a
-  // request to loopback made by a host that resolved publicly.
-  if (normaliseHostname(hostname) === null) return 'refused';
-
-  let addresses: Array<{ address: string; family: number }>;
-  try {
-    addresses = await lookup(hostname, { all: true, verbatim: true });
-  } catch (err: unknown) {
-    log.general.debug({ err, hostname }, 'Favicon host did not resolve');
-    return 'unresolvable';
-  }
-
-  if (addresses.length === 0) return 'unresolvable';
-
-  // Every address, not the first: a name that answers with one public address
-  // and one loopback address is a name that reaches loopback.
-  for (const { address, family } of addresses) {
-    if (BLOCKED_ADDRESSES.check(address, family === 6 ? 'ipv6' : 'ipv4')) {
-      log.general.warn({ hostname, address }, 'Refused a favicon domain resolving to a non-public address');
-      return 'refused';
-    }
-  }
-
-  return 'ok';
 }
 
 function readCache(host: string): FaviconResult | null {
