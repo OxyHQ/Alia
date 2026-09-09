@@ -1,9 +1,9 @@
-import { useState, useMemo } from "react";
+import { useMemo } from "react";
 import { View, Pressable, ScrollView, Platform } from "react-native";
 import * as WebBrowser from "expo-web-browser";
 import { Text } from "@/components/ui/text";
 import { Brain, CheckCircle2, X, Globe, ChevronRight } from "lucide-react-native";
-import { useUIStore } from "@/lib/stores/ui-store";
+import { useUIStore, type ThoughtTab } from "@/lib/stores/ui-store";
 import { useTheme, type ThemeColors } from "@oxyhq/bloom/theme";
 import { useTranslation } from "@/lib/hooks/use-translation";
 import { extractSources, buildSteps, buildAuditTimeline, type Source, type ThoughtStep, type AuditEntry } from "@/lib/thought-utils";
@@ -18,11 +18,11 @@ import Animated, {
 } from "react-native-reanimated";
 import { useEffect } from "react";
 
-type Tab = "steps" | "sources" | "activity";
 
-function TabToggle({ value, onChange }: { value: Tab; onChange: (t: Tab) => void }) {
+
+function TabToggle({ value, onChange }: { value: ThoughtTab; onChange: (t: ThoughtTab) => void }) {
   const { t } = useTranslation();
-  const tabs: { key: Tab; label: string }[] = [
+  const tabs: { key: ThoughtTab; label: string }[] = [
     { key: "steps", label: t("thought.steps") },
     { key: "sources", label: t("thought.sources") },
     { key: "activity", label: "Activity" },
@@ -291,7 +291,8 @@ function ActivityTab({ entries }: { entries: AuditEntry[] }) {
 
 export function ThoughtPanel() {
   const { t } = useTranslation();
-  const [activeTab, setActiveTab] = useState<Tab>("steps");
+  const activeTab = useUIStore((s) => s.thoughtTab);
+  const setActiveTab = useUIStore((s) => s.setThoughtTab);
   const setRightPanel = useUIStore((s) => s.setRightPanel);
   const thoughtMessageId = useUIStore((s) => s.thoughtMessageId);
   const thoughtMessages = useUIStore((s) => s.thoughtMessages);

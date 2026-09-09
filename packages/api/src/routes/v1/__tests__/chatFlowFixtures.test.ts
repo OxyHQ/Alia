@@ -1290,7 +1290,8 @@ describe('fixture: Codea flow — API key, non-streaming, no client tools', () =
     // is served, because the plan gate is skipped for API keys.
     expect(H.timeline).toContain('model:doGenerate');
     expect(toolNamesSeenByModel().sort()).toEqual([
-      'browse', 'canvas', 'generateFile', 'getCurrentDate', 'webScraper', 'webSearch',
+      'browse', 'canvas', 'generateFile', 'getCurrentDate', 'getFairCoin',
+      'getMarketQuote', 'getWeather', 'webScraper', 'webSearch',
     ]);
   });
 });

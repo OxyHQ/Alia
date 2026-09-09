@@ -93,6 +93,7 @@ const ChatPage = () => {
     sendMessage,
     createNewConversation,
     editMessage,
+    regenerateMessage,
     clearConversation,
   } = useChatConversation({ reasoningEffort, selectedModel: selection.effectiveId ?? undefined });
 
@@ -125,6 +126,7 @@ const ChatPage = () => {
             isLoading={isLoading}
             onSubmit={handleSubmit}
             onEditMessage={editMessage}
+            onRegenerateMessage={regenerateMessage}
             onClear={clearConversation}
             selectedModel={selectedModel}
             onModelChange={setSelectedModel}

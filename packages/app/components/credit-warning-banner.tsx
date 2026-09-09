@@ -5,6 +5,7 @@ import { Text } from '@/components/ui/text';
 import { useRouter } from 'expo-router';
 import { useCredits } from '@/lib/hooks/use-credits';
 import { queryKeys } from '@/lib/hooks/query-keys';
+import { THREAD_COLUMN } from '@/lib/chat-layout';
 import React, { useState } from 'react';
 import { useTranslation } from '@/lib/hooks/use-translation';
 import { useCatalogue, type CatalogueEntry } from '@/lib/hooks/use-catalogue';
@@ -85,7 +86,7 @@ export const CreditWarningBanner = React.memo(function CreditWarningBanner({ sel
   const isLowCredits = !lowCreditsDismissed && creditsInfo && creditsInfo.credits < 50 && creditsInfo.credits > 0;
   if (!usageWarning && isLowCredits) {
     return (
-      <View className="mx-auto w-full max-w-3xl px-4 pb-1">
+      <View className={`${THREAD_COLUMN} px-4 pb-1`}>
         <View className="flex-row items-center gap-2 rounded-lg px-3 py-2 bg-yellow-500/10">
           <AlertTriangle size={14} className="text-yellow-600" />
           <Text className="text-xs flex-1 text-yellow-700 dark:text-yellow-400">
@@ -139,7 +140,7 @@ export const CreditWarningBanner = React.memo(function CreditWarningBanner({ sel
     : t('usageLimit.switchToModelAlt', { model: altName });
 
   return (
-    <View className="mx-auto w-full max-w-3xl px-4 pb-1">
+    <View className={`${THREAD_COLUMN} px-4 pb-1`}>
       <View className={`flex-row items-center gap-2 rounded-lg px-3 py-2 ${isCritical ? 'bg-destructive/10' : 'bg-yellow-500/10'}`}>
         <Zap size={14} className={isCritical ? 'text-destructive' : 'text-yellow-600'} />
         <Text className={`text-xs flex-1 ${isCritical ? 'text-destructive' : 'text-yellow-700 dark:text-yellow-400'}`}>

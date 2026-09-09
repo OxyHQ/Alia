@@ -2,6 +2,7 @@ import { useState } from "react";
 import { View, Pressable, ScrollView } from "react-native";
 import { X, Search } from "lucide-react-native";
 import { Text } from "@/components/ui/text";
+import { THREAD_COLUMN } from "@/lib/chat-layout";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useTranslation } from "@/lib/hooks/use-translation";
@@ -53,7 +54,7 @@ export const ThreadSearch = ({ handle, onJump, onClose }: ThreadSearchProps) => 
 
   return (
     <View className="absolute inset-x-0 top-0 z-20 overflow-hidden border-b border-border bg-background px-4 pb-3 pt-4">
-      <View className="mx-auto w-full max-w-3xl">
+      <View className={THREAD_COLUMN}>
         <View className="flex-row items-center gap-2">
           <View className="flex-1 flex-row items-center gap-2 rounded-xl border border-input bg-background px-3">
             <Search size={16} className="text-muted-foreground" />

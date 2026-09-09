@@ -12,6 +12,7 @@ import type { ScrollView as GHScrollView } from "react-native-gesture-handler";
 import type { EffortLevel } from '@/lib/hooks/use-catalogue';
 import { toast } from "@oxyhq/bloom/toast";
 import i18n from "@/lib/i18n";
+import { getTextFromContent } from "@alia.onl/sdk/content";
 
 interface UseChatConversationOptions {
   conversationId?: string;
@@ -280,6 +281,25 @@ export function useChatConversation({ conversationId, reasoningEffort, selectedM
     return outcome !== 'failed';
   }, [setMessages, append, messages, conversationId]);
 
+  const regenerateMessage = useCallback(async (
+    assistantMessageId: string,
+    options?: SendOptions,
+  ): Promise<boolean> => {
+    // Regenerating IS re-sending the prompt that produced this answer. Walk back
+    // to the user turn before it and replay that — editMessage already truncates
+    // the history and re-appends, so there is no second path to keep in step.
+    const idx = messages.findIndex(msg => msg.id === assistantMessageId);
+    if (idx < 0) return false;
+    for (let i = idx - 1; i >= 0; i--) {
+      const candidate = messages[i];
+      if (candidate.role !== 'user') continue;
+      const text = getTextFromContent(candidate.content);
+      if (!text) return false;
+      return editMessage(candidate.id, text, options);
+    }
+    return false;
+  }, [messages, editMessage]);
+
   const stopGeneration = useCallback(() => {
     stop();
   }, [stop]);
@@ -305,6 +325,7 @@ export function useChatConversation({ conversationId, reasoningEffort, selectedM
     sendMessage,
     createNewConversation,
     editMessage,
+    regenerateMessage,
     stopGeneration,
     clearConversation,
     clearError,

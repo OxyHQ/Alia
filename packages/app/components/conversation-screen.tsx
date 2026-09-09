@@ -100,6 +100,7 @@ export const ConversationScreen = ({
     scrollViewRef,
     sendMessage,
     editMessage,
+    regenerateMessage,
     stopGeneration,
     clearConversation,
     clearError,
@@ -247,6 +248,7 @@ export const ConversationScreen = ({
           conversationLoading={conversationLoading}
           onSubmit={handleSubmit}
           onEditMessage={editMessage}
+          onRegenerateMessage={regenerateMessage}
           onStop={stopGeneration}
           onClear={clearConversation}
           selectedModel={selectedModel}
