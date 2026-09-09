@@ -174,6 +174,10 @@ describe('deploy-aws.yml migration wiring', () => {
     expect(workflow).toContain(
       `PRE_DEPLOY_TASK_COMMAND_JSON: '["node","packages/api/dist/scripts/check-agent-routing-profile-readiness.js","--target-database=alia"]'`,
     );
+    expect(readFileSync(
+      fileURLToPath(new URL('../../scripts/check-agent-routing-profile-readiness.ts', import.meta.url)),
+      'utf8',
+    )).toContain('client.listRoutingProfiles');
   });
 
   it('greps for the post-phase marker with the pattern @oxyhq/db exports, not a copy', () => {

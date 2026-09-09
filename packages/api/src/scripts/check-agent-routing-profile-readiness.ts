@@ -5,6 +5,7 @@ import { OXY_KAANA_ROUTING_PROFILE_ID_LIST } from '../config/oxy-inference-routi
 import { assertTargetDatabase } from '../db/assertTargetDatabase.js';
 import { closePostgres, connectPostgres, getDb } from '../db/index.js';
 import { agents } from '../db/schema/agents.js';
+import { getOxyInferenceClient } from '../lib/inference/oxy-inference.js';
 
 const REVIEWED = new Set<string>(OXY_KAANA_ROUTING_PROFILE_ID_LIST);
 
@@ -27,6 +28,14 @@ export function agentRoutingReadinessReport(rows: readonly AgentRoutingReadiness
   return { ready: unresolved.length === 0, unresolvedCount: unresolved.length, unresolved };
 }
 
+/** Compare against what the authenticated Alia application can actually see in
+ * Oxy. Source constants alone cannot prove that the reviewed bootstrap ran. */
+export function oxyRoutingReadinessReport(routingProfileIds: readonly string[]) {
+  const visible = new Set(routingProfileIds);
+  const missing = OXY_KAANA_ROUTING_PROFILE_ID_LIST.filter((id) => !visible.has(id));
+  return { ready: missing.length === 0, missingCount: missing.length, missing };
+}
+
 async function main(): Promise<void> {
   const expectedDatabase = readTargetDatabase(process.argv.slice(2));
   if (!connectPostgres(process.env.DATABASE_URL)) throw new Error('DATABASE_URL is required');
@@ -39,7 +48,12 @@ async function main(): Promise<void> {
     })
     .from(agents)
     .where(eq(agents.status, 'active'));
-  const report = agentRoutingReadinessReport(rows);
+  const agentsReport = agentRoutingReadinessReport(rows);
+  const client = getOxyInferenceClient();
+  if (client === null) throw new Error('Oxy inference client is not configured');
+  const profiles = await client.listRoutingProfiles({ signal: AbortSignal.timeout(10_000) });
+  const oxyReport = oxyRoutingReadinessReport(profiles.map((profile) => profile.routingProfileId));
+  const report = { ready: agentsReport.ready && oxyReport.ready, agents: agentsReport, oxy: oxyReport };
   process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
   if (!report.ready) process.exitCode = 1;
 }
