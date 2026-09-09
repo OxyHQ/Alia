@@ -5,6 +5,9 @@ import type { Message } from '@/lib/hooks/use-conversations';
 
 type RightPanel = 'credits' | 'thought' | 'canvas' | 'agent' | null;
 
+/** The panel's tabs. The store owns them because it owns which one opens. */
+export type ThoughtTab = 'steps' | 'sources' | 'activity';
+
 export interface CanvasArtifact {
   id: string;
   type: 'code' | 'markdown' | 'table' | 'chart' | 'image';
@@ -18,6 +21,12 @@ interface UIState {
   sidebarOpen: boolean;
   rightPanel: RightPanel;
   thoughtMessageId: string | null;
+  /**
+   * Which tab the panel opens on. A caller that already knows what the reader
+   * asked for — the Sources row under an answer — says so, instead of landing
+   * them on Steps to go hunting.
+   */
+  thoughtTab: ThoughtTab;
   thoughtMessages: Message[];
   shortcutsDialogOpen: boolean;
   canvasArtifacts: CanvasArtifact[];
@@ -34,7 +43,8 @@ interface UIState {
   setSidebarOpen: (open: boolean) => void;
   setRightPanel: (panel: RightPanel) => void;
   toggleRightPanel: (panel: RightPanel) => void;
-  openThoughtPanel: (messageId: string) => void;
+  openThoughtPanel: (messageId: string, tab?: ThoughtTab) => void;
+  setThoughtTab: (tab: ThoughtTab) => void;
   setThoughtMessages: (messages: Message[]) => void;
   openAgentPanel: (sessionId: string, agentId: string) => void;
   setShortcutsDialogOpen: (open: boolean) => void;
@@ -49,6 +59,7 @@ export const useUIStore = create<UIState>()(
   sidebarOpen: true,
   rightPanel: null,
   thoughtMessageId: null,
+  thoughtTab: "steps",
   thoughtMessages: [],
   shortcutsDialogOpen: false,
   canvasArtifacts: [],
@@ -70,8 +81,10 @@ export const useUIStore = create<UIState>()(
       ...(state.rightPanel === panel && { thoughtMessageId: null }),
     })),
 
-  openThoughtPanel: (messageId) =>
-    set({ rightPanel: 'thought', thoughtMessageId: messageId }),
+  openThoughtPanel: (messageId, tab = 'steps') =>
+    set({ rightPanel: 'thought', thoughtMessageId: messageId, thoughtTab: tab }),
+
+  setThoughtTab: (tab) => set({ thoughtTab: tab }),
 
   setThoughtMessages: (messages) =>
     set({ thoughtMessages: messages }),

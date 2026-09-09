@@ -318,7 +318,9 @@
     "copy": "Copiar",
     "like": "Me gusta",
     "dislike": "No me gusta",
-    "edit": "Editar"
+    "edit": "Editar",
+    "sources": "Fuentes",
+    "sourcesCount": "%{count} fuentes"
   },
   "credits": {
     "title": "Créditos",

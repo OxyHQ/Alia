@@ -31,7 +31,7 @@ import * as Clipboard from "expo-clipboard";
 import { Reasoning, ReasoningTrigger } from "@/components/ui/reasoning";
 import { useTheme } from "@oxyhq/bloom/theme";
 import { getToolLabel, getToolActiveLabel, getResearchActiveLabel, getTextFromContent, getImagesFromContent } from '@alia.onl/sdk';
-import { useUIStore } from "@/lib/stores/ui-store";
+import { useUIStore, type ThoughtTab } from "@/lib/stores/ui-store";
 import { useStore, type ChatIdState } from "@/lib/stores/global-store";
 import type { ToolInvocation } from "@/lib/types/messages";
 import type { Message as ConversationMessage } from "@/lib/hooks/use-conversations";
@@ -43,6 +43,7 @@ import type { AgentActivityState } from "@/lib/hooks/use-agent-activity";
 import { Skeleton } from "@/components/ui/skeleton";
 import apiClient from "@/lib/api/client";
 import { useTranslation } from "@/lib/hooks/use-translation";
+import { MessageSources } from "@/components/message-sources";
 import { NewConversationOffer } from "@/components/new-conversation-offer";
 import { daySeparators } from "@/lib/message-days";
 import { threadSeamIds, type ThreadMessage } from "@/lib/thread-history";
@@ -283,7 +284,7 @@ type MessageRowProps = {
   // Per-row audio-gen state: 'idle' unless this row is the active one (same
   // rationale as ttsState above).
   audioGenRowState: string;
-  openThoughtPanel: (messageId: string) => void;
+  openThoughtPanel: (messageId: string, tab?: ThoughtTab) => void;
   onStartEdit?: (messageId: string, content: string) => void;
   onRegenerate?: (messageId: string) => void;
   onApprovePlan?: (planId: string) => void;
@@ -428,6 +429,12 @@ const MessageRow = React.memo(function MessageRow({
                   <CustomMarkdown content={messageText} />
                 )}
               </View>
+              {m.isStreaming ? null : (
+                <MessageSources
+                  toolInvocations={m.toolInvocations}
+                  onPress={() => openThoughtPanel(m.id, 'sources')}
+                />
+              )}
               {/* Action Buttons for Assistant Messages */}
               <View className={ACTION_BAR}>
                 <Pressable

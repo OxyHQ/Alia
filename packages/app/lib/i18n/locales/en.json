@@ -344,7 +344,9 @@
     "copy": "Copy",
     "like": "Like",
     "dislike": "Dislike",
-    "edit": "Edit"
+    "edit": "Edit",
+    "sources": "Sources",
+    "sourcesCount": "%{count} sources"
   },
   "credits": {
     "title": "Credits",
