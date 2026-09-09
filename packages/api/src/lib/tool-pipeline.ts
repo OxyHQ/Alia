@@ -78,6 +78,7 @@ import {
   createPlanPreviewTool,
   createSuggestNewConversationTool,
 } from './tools/index.js';
+import { getWeatherTool } from './tools/weather.js';
 import { buildMcpTools } from './tools/mcp.js';
 import { buildAskAgentTool } from './tools/ask-agent.js';
 import { buildIntegrationTools } from './tools/integrations.js';
@@ -385,6 +386,12 @@ export class ToolPipeline {
       aliaTools.webSearch = webSearchTool;
       aliaTools.webScraper = webScraperTool;
       aliaTools.browse = browseTool;
+    }
+
+    // Weather rides the same grant as search: both are the assistant reaching
+    // the open internet on the reader's behalf.
+    if (webSearch && grants.allows('web')) {
+      aliaTools.getWeather = getWeatherTool;
     }
 
     // A device can only be described when the surface knows one.

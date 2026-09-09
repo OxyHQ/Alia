@@ -1067,5 +1067,20 @@
       "high": "Alto",
       "max": "Muy alto"
     }
+  },
+  "weather": {
+    "toggleUnit": "Cambiar unidad de temperatura",
+    "condition": {
+      "clear": "Despejado",
+      "partly-cloudy": "Parcialmente nublado",
+      "cloudy": "Nublado",
+      "fog": "Niebla",
+      "drizzle": "Llovizna",
+      "rain": "Lluvia",
+      "showers": "Chubascos",
+      "snow": "Nieve",
+      "snow-showers": "Chubascos de nieve",
+      "thunderstorm": "Tormenta"
+    }
   }
 }

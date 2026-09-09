@@ -1103,5 +1103,20 @@
       "high": "High",
       "max": "Extra High"
     }
+  },
+  "weather": {
+    "toggleUnit": "Switch temperature unit",
+    "condition": {
+      "clear": "Clear",
+      "partly-cloudy": "Partly cloudy",
+      "cloudy": "Cloudy",
+      "fog": "Fog",
+      "drizzle": "Drizzle",
+      "rain": "Rain",
+      "showers": "Showers",
+      "snow": "Snow",
+      "snow-showers": "Snow showers",
+      "thunderstorm": "Thunderstorm"
+    }
   }
 }
