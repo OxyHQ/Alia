@@ -18,6 +18,7 @@ import { UsageLimitDialog } from "@/components/usage-limit-dialog";
 import { UsageLimitError } from "@/lib/errors/usage-limit-error";
 import { useModelStore } from "@/lib/stores/model-store";
 import { resolveSelection, useCatalogue } from "@/lib/hooks/use-catalogue";
+import { useProductModes } from "@/lib/hooks/use-product-modes";
 import { useVoiceMode } from "@/lib/hooks/use-voice-mode";
 import { useVoiceSoundEffects } from "@/lib/hooks/use-sound-effects";
 import { ContentPanel } from "@oxyhq/bloom/content-panel";
@@ -80,13 +81,14 @@ export const ConversationScreen = ({
   const [conversationModel, setConversationModel] = useState<string | null>(null);
   const selectedModel = conversationModel ?? globalModel;
   const { data: catalogue } = useCatalogue();
-  const selection = resolveSelection(selectedModel, catalogue);
+  const { data: modes } = useProductModes();
+  const selection = resolveSelection(selectedModel, catalogue, undefined, modes);
   /**
    * A request flag, read from the store rather than inferred from the model.
    *
    * It used to be `selection.effectiveId === THINKING_MODEL_ID`, which made
    * extended reasoning a property of WHICH model was chosen. The routing table
-   * shows that was never true: `kaana-v1-thinking` and `kaana-v1-pro-max` are two
+   * shows that was never true: `route:thinking` and `route:pro` are two
    * aliases of one profile, so the "thinking model" and the "maximum quality
    * model" routed identically and differed only by the prompt this flag selects.
    */

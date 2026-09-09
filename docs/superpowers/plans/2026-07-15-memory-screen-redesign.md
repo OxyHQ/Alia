@@ -2281,7 +2281,7 @@ vi.mock('ai', async () => {
 vi.mock('../../lib/chat-core.js', () => ({
   resolveModel: vi.fn().mockResolvedValue({ keyConfig: {}, provider: 'test', modelId: 'test' }),
   getAIModel: vi.fn().mockReturnValue({}),
-  getDefaultAliaModel: vi.fn().mockReturnValue('kaana-v1'),
+  getDefaultAliaModel: vi.fn().mockReturnValue('route:auto'),
 }));
 
 vi.mock('../../lib/tools/index.js', () => ({

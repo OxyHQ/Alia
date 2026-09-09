@@ -353,7 +353,7 @@ router.post('/generate', authenticateToken, async (req: Request, res: Response) 
     let kaanaText: string | null;
     try {
       kaanaText = await generateTextViaKaana({
-        routingProfileId: OXY_KAANA_ROUTING_PROFILE_IDS['kaana-lite'],
+        routingProfileId: OXY_KAANA_ROUTING_PROFILE_IDS['route:instant'],
         prompt,
         // `authoring`: the surface vocabulary names what the work IS, and
         // writing prompt suggestions is authoring. There is no `suggestions`

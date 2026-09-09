@@ -27,27 +27,27 @@ import { UnpricedModelError, getCreditMultiplier } from '../../../../lib/credits
  *    in both directions.
  *  - **The billing path is asserted, not only the table.** An identifier that
  *    stops resolving used to be repriced to 1× in silence — `credits-manager.ts`
- *    read `model?.creditMultiplier || 1` — which on `kaana-lite` doubles what
- *    the customer pays and on `kaana-v1-pro-max` is 80% of the revenue.
+ *    read `model?.creditMultiplier || 1` — which on `route:instant` doubles what
+ *    the customer pays and on `route:pro` is 80% of the revenue.
  *    Asserting `KAANA_ROUTING_PROFILES` alone would pass through exactly that removal,
  *    because the constant it reads would be gone with the alias.
  *    `getCreditMultiplier` now refuses instead, and the last two cases below
  *    are what hold it to that.
  */
 const PINNED_MULTIPLIERS: Readonly<Record<string, number>> = {
-  'kaana-lite': 0.5,
-  'kaana-v1': 1,
-  'kaana-v1-audio': 1,
-  'kaana-v1-browser': 1.5,
-  'kaana-v1-codea': 1.5,
-  'kaana-v1-cowork': 1.5,
-  'kaana-v1-multimodal': 2,
-  'kaana-v1-pro': 3,
-  'kaana-v1-pro-max': 5,
-  'kaana-v1-thinking': 5,
-  'kaana-v1-vision': 1.5,
-  'kaana-v1-voice': 2,
-  'kaana-v1-voice-pro': 4,
+  'route:instant': 0.5,
+  'route:auto': 1,
+  'route:audio': 1,
+  'route:research': 1.5,
+  'route:code': 1.5,
+  'route:cowork': 1.5,
+  'route:multimodal': 2,
+  'route:pro-standard': 3,
+  'route:pro': 5,
+  'route:thinking': 5,
+  'route:vision': 1.5,
+  'route:voice': 2,
+  'route:voice-pro': 4,
 };
 
 const registeredAliases = Object.keys(KAANA_ROUTING_PROFILES).sort();
@@ -84,7 +84,7 @@ describe('every alias carries the price it was registered with', () => {
      * 1 is what `|| 1` used to substitute when the lookup missed, so it is what
      * every alias above would silently have become the day one stopped
      * resolving — an outcome no assertion in this file could tell apart from
-     * `kaana-v1` billing correctly. A refusal can be told apart, which is the
+     * `route:auto` billing correctly. A refusal can be told apart, which is the
      * whole change: the mispricing now has to be handled instead of happening.
      */
     await expect(getCreditMultiplier('alia-not-a-registered-model')).rejects.toThrow(UnpricedModelError);

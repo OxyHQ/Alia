@@ -11,12 +11,11 @@
  *
  * Overridable per build so a consumer is not stranded on a retired identifier
  * until the SDK ships a new version, which is the failure the hardcoded
- * `'kaana-v1'` inside `useAliaChat` used to guarantee.
+ * `'route:auto'` inside `useAliaChat` used to guarantee.
  */
 
 /** What a chat request asks for when the caller names no model. Checked against the catalogue. */
-export const PREFERRED_CHAT_MODEL_ID =
-  process.env.EXPO_PUBLIC_ALIA_DEFAULT_MODEL ?? 'profile:v1';
+export const PREFERRED_CHAT_MODEL_ID = 'mode:auto';
 
 /**
  * What speech synthesis and the voice session ask for.
@@ -34,5 +33,4 @@ export const PREFERRED_CHAT_MODEL_ID =
  * Resolving it properly needs a catalogue that describes voice capability as a
  * first-class filter; that is workstream 5's business, not a thing to fake here.
  */
-export const PREFERRED_VOICE_MODEL_ID =
-  process.env.EXPO_PUBLIC_ALIA_VOICE_MODEL ?? 'profile:v1-voice';
+export const PREFERRED_VOICE_MODEL_ID = 'route:voice';

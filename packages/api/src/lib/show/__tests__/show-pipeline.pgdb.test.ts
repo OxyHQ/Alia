@@ -46,7 +46,7 @@ let synthesisWorks = true;
 vi.mock('../../chat-core.js', () => ({
   resolveModel: vi.fn(async () => ({ provider: 'stub', modelId: 'stub-model' })),
   getAIModel: vi.fn(() => ({ id: 'stub-model' })),
-  getDefaultRoutingProfile: vi.fn(() => 'kaana-v1'),
+  getDefaultRoutingProfile: vi.fn(() => 'route:auto'),
   getRoutingProfile: vi.fn(async () => ({ creditMultiplier: 1 })),
 }));
 

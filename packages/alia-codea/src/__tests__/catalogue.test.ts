@@ -14,15 +14,15 @@ const CATALOGUE = {
   object: 'list',
   data: [
     {
-      id: 'profile:lite',
-      display_name: 'Kaana Lite',
+      id: 'profile:instant',
+      display_name: 'Instant',
       description: 'Fast responses for simple tasks',
       chat_visible: true,
       object: 'routing_profile',
       availability: { status: 'available' },
     },
     {
-      id: 'profile:v1-pro',
+      id: 'profile:pro-standard',
       display_name: 'Codea Pro',
       description: 'Advanced coding assistance',
       chat_visible: true,
@@ -30,7 +30,7 @@ const CATALOGUE = {
       availability: { status: 'available' },
     },
     {
-      id: 'profile:v1-codea',
+      id: 'profile:code',
       display_name: 'Codea',
       description: 'Coding assistant',
       chat_visible: false,
@@ -44,7 +44,7 @@ const MODES = {
   object: 'list',
   data: [
     {
-      id: 'mode:automatic',
+      id: 'mode:auto',
       object: 'product_mode',
       label: 'Automatic',
       description: 'Alia picks how to answer.',
@@ -52,19 +52,19 @@ const MODES = {
       deep_research: false,
     },
     {
-      id: 'mode:fast',
+      id: 'mode:instant',
       object: 'product_mode',
       label: 'Fast',
       description: 'Quick answers to straightforward questions.',
-      routing: { kind: 'profile', profile_id: 'profile:lite' },
+      routing: { kind: 'profile', profile_id: 'profile:instant' },
       deep_research: false,
     },
     {
-      id: 'mode:coding',
+      id: 'mode:code',
       object: 'product_mode',
       label: 'Coding',
       description: 'Tuned for reading, writing and changing code.',
-      routing: { kind: 'profile', profile_id: 'profile:v1-codea' },
+      routing: { kind: 'profile', profile_id: 'profile:code' },
       deep_research: false,
     },
   ],
@@ -77,7 +77,7 @@ describe('parseModes', () => {
   it('reads the modes and their routing', () => {
     expect(modes.map((mode) => mode.label)).toEqual(['Automatic', 'Fast', 'Coding']);
     expect(modes[0].routing).toEqual({ kind: 'default' });
-    expect(modes[1].routing).toEqual({ kind: 'profile', profileId: 'profile:lite' });
+    expect(modes[1].routing).toEqual({ kind: 'profile', profileId: 'profile:instant' });
   });
 
   it('throws rather than reading an unreadable response as "no modes"', () => {
@@ -93,13 +93,13 @@ describe('parseModes', () => {
     // Not silently `{kind:'default'}` with the mode's meaning moved — the mode
     // parses, but it now names no profile, so it labels nothing.
     expect(parsed[0].routing).toEqual({ kind: 'default' });
-    expect(presentation(entries[0], parsed).label).toBe('Kaana Lite');
+    expect(presentation(entries[0], parsed).label).toBe('Instant');
   });
 });
 
 describe('presentation', () => {
   it("uses the product's word for a profile a mode selects", () => {
-    expect(entries[0].displayName).toBe('Kaana Lite');
+    expect(entries[0].displayName).toBe('Instant');
     expect(presentation(entries[0], modes).label).toBe('Fast');
   });
 
@@ -112,30 +112,30 @@ describe('offeredModes', () => {
   it("offers only the chat-visible entries, in the product's words", () => {
     expect(offeredModes(entries, modes)).toEqual([
       {
-        id: 'profile:lite',
+        id: 'profile:instant',
         label: 'Fast',
         description: 'Quick answers to straightforward questions.',
       },
-      { id: 'profile:v1-pro', label: 'Codea Pro', description: 'Advanced coding assistance' },
+      { id: 'profile:pro-standard', label: 'Codea Pro', description: 'Advanced coding assistance' },
     ]);
   });
 });
 
 describe('resolveSelection', () => {
   it('leaves a choice the catalogue offers alone', () => {
-    expect(resolveSelection('profile:lite', entries).effectiveId).toBe('profile:lite');
+    expect(resolveSelection('profile:instant', entries).effectiveId).toBe('profile:instant');
   });
 
   it('replaces a choice the catalogue does not offer', () => {
-    // `profile:v1-codea` is in the catalogue but not chat-visible, so the
+    // `profile:code` is in the catalogue but not chat-visible, so the
     // preference is checked rather than trusted — the property the extension's
     // `config.ts` docstring states.
-    const selection = resolveSelection('kaana-v1-codea', entries, 'profile:v1-codea');
+    const selection = resolveSelection('route:code', entries, 'profile:code');
     expect(selection.source).toBe('replaced');
-    expect(selection.effectiveId).toBe('profile:lite');
+    expect(selection.effectiveId).toBe('profile:instant');
   });
 
   it('leaves the choice alone when there is no catalogue at all', () => {
-    expect(resolveSelection('profile:lite', undefined).source).toBe('requested');
+    expect(resolveSelection('profile:instant', undefined).source).toBe('requested');
   });
 });

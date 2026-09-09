@@ -54,7 +54,7 @@ describe('Kaana AI SDK adapter through Oxy', () => {
         kind: 'routing_profile_id',
         routingProfileId: '01a06477-94f5-74f0-bc25-628b5f45d802',
       },
-      modelId: 'kaana-v1-thinking',
+      modelId: 'route:thinking',
       surface: 'chat',
       oxyUserId: 'user-id',
     });
@@ -94,7 +94,7 @@ describe('Kaana AI SDK adapter through Oxy', () => {
         kind: 'routing_profile_id',
         routingProfileId: '01a06477-94f5-74f0-bc25-4c5c13b93ccd',
       },
-      modelId: 'kaana-v1',
+      modelId: 'route:auto',
       surface: 'chat',
     });
     const parts = await drain((await model.doStream({ prompt } as never)).stream);

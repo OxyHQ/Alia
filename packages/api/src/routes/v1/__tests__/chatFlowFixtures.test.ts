@@ -194,7 +194,7 @@ vi.mock('../../../lib/chat-core.js', () => ({
   reportModelUsage: vi.fn(async (_keyId: unknown, _provider: unknown, _modelId: unknown, success: boolean) => {
     H.timeline.push(`provider:reportUsage:${success ? 'ok' : 'fail'}`);
   }),
-  getDefaultRoutingProfile: vi.fn(() => 'kaana-v1'),
+  getDefaultRoutingProfile: vi.fn(() => 'route:auto'),
 }));
 
 /**
@@ -221,7 +221,7 @@ vi.mock('../../../lib/inference/user-runtime-bridge.js', async () => {
 });
 
 vi.mock('../../../lib/gateway-client.js', () => ({
-  getRoutingProfile: vi.fn(async (id: string) => ({ id, name: 'Kaana V1', tier: 'v1', creditMultiplier: 1 })),
+  getRoutingProfile: vi.fn(async (id: string) => ({ id, name: 'Auto', tier: 'v1', creditMultiplier: 1 })),
   getModelMappingsForTier: vi.fn(async () => [{ provider: H.UPSTREAM_PROVIDER, modelId: H.UPSTREAM_MODEL_ID, capabilities: { maxContextTokens: 128000 } }]),
 }));
 
@@ -531,11 +531,11 @@ const callTool = (id: string, toolName: string, input: string) => [
 ];
 
 const RESOLVED = {
-  routingProfileId: 'kaana-v1',
+  routingProfileId: 'route:auto',
   provider: UPSTREAM_PROVIDER,
   modelId: UPSTREAM_MODEL_ID,
   keyConfig: { provider: UPSTREAM_PROVIDER, key: 'secret-not-for-clients', modelId: UPSTREAM_MODEL_ID, keyId: 'key-ws13' },
-  routingProfile: { name: 'Kaana V1', creditMultiplier: 1 },
+  routingProfile: { name: 'Auto', creditMultiplier: 1 },
   isFallback: false,
   fallbackIndex: 0,
 };
@@ -545,7 +545,7 @@ const RESERVATION = { userId: 'user-ws13', creditsReserved: 1, initialFreeCredit
 const ENTITLEMENTS = {
   tier: 'free',
   features: {},
-  allowedModelIds: ['kaana-v1', 'kaana-lite', 'kaana-v1-codea', 'kaana-v1-cowork'],
+  allowedModelIds: ['route:auto', 'route:instant', 'route:code', 'route:cowork'],
 };
 
 /**
@@ -674,7 +674,7 @@ describe('fixture: an explicit agent id is fail-closed at the streaming route', 
     accessToken: 'bearer-user-ws13',
     body: {
       messages: [{ role: 'user', content: 'answer as the selected agent' }],
-      model: 'kaana-v1',
+      model: 'route:auto',
       stream: true,
       agentId,
     },
@@ -756,7 +756,7 @@ describe('fixture: app chat flow — streaming, direct user session, one server 
     const req = recordingReq({
       body: {
         messages: [{ role: 'user', content: 'what day is it' }],
-        model: 'kaana-v1',
+        model: 'route:auto',
         stream: true,
         conversationId: 'conv-ws13',
         stream_options: { include_usage: true },
@@ -807,7 +807,7 @@ describe('fixture: app chat flow — streaming, direct user session, one server 
   });
 
   it('recall reaches the model call, not merely precedes it', async () => {
-    const body = { messages: [{ role: 'user', content: 'what day is it' }], model: 'kaana-v1', stream: true, conversationId: 'conv-ws13' };
+    const body = { messages: [{ role: 'user', content: 'what day is it' }], model: 'route:auto', stream: true, conversationId: 'conv-ws13' };
     await run(recordingReq({ body: { ...body } }), recordingRes());
 
     // Ordering alone is a weak claim: a recall that ran first and was then
@@ -833,7 +833,7 @@ describe('fixture: app chat flow — streaming, direct user session, one server 
 
   it('executes the tool for real between the call frame and the result frame', async () => {
     const req = recordingReq({
-      body: { messages: [{ role: 'user', content: 'what day is it' }], model: 'kaana-v1', stream: true, conversationId: 'conv-ws13' },
+      body: { messages: [{ role: 'user', content: 'what day is it' }], model: 'route:auto', stream: true, conversationId: 'conv-ws13' },
     });
     const res = recordingRes();
     const before = Date.now();
@@ -866,7 +866,7 @@ describe('fixture: app chat flow — streaming, direct user session, one server 
     const req = recordingReq({
       body: {
         messages: [{ role: 'user', content: 'what day is it' }],
-        model: 'kaana-v1',
+        model: 'route:auto',
         stream: true,
         conversationId: 'conv-ws13',
         stream_options: { include_usage: true },
@@ -889,7 +889,7 @@ describe('fixture: app chat flow — streaming, direct user session, one server 
       .map((frame) => JSON.parse(frame.slice(6).trim()) as { object?: string; model?: string });
     expect(dataFrames.length).toBeGreaterThan(0);
     expect(new Set(dataFrames.map((frame) => frame.object))).toEqual(new Set(['chat.completion.chunk']));
-    expect(new Set(dataFrames.map((frame) => frame.model))).toEqual(new Set(['kaana-v1']));
+    expect(new Set(dataFrames.map((frame) => frame.model))).toEqual(new Set(['route:auto']));
 
     // And the same invariant over the WHOLE byte stream, named events included.
     // This is the successful path deliberately: on the all-providers-exhausted
@@ -898,14 +898,14 @@ describe('fixture: app chat flow — streaming, direct user session, one server 
     // mutating exactly that line and watching it survive. The place a provider
     // identity can actually escape is a request that resolved.
     const bytes = res.raw.join('');
-    expect(bytes).toContain('kaana-v1');
+    expect(bytes).toContain('route:auto');
     expect(bytes).not.toContain(UPSTREAM_PROVIDER);
     expect(bytes).not.toContain(UPSTREAM_MODEL_ID);
   });
 
   it('does not emit an approval request over SSE — approvals are a socket surface', async () => {
     const req = recordingReq({
-      body: { messages: [{ role: 'user', content: 'what day is it' }], model: 'kaana-v1', stream: true, conversationId: 'conv-ws13' },
+      body: { messages: [{ role: 'user', content: 'what day is it' }], model: 'route:auto', stream: true, conversationId: 'conv-ws13' },
     });
     const res = recordingRes();
     await run(req, res);
@@ -933,7 +933,7 @@ describe('fixture: app chat flow — streaming, direct user session, one server 
     const req = recordingReq({
       body: {
         messages: [{ role: 'user', content: 'what day is it' }],
-        model: 'kaana-v1',
+        model: 'route:auto',
         stream: true,
         conversationId: 'conv-ws13',
       },
@@ -972,7 +972,7 @@ describe('fixture: app chat flow — streaming, direct user session, one server 
     await run(recordingReq({
       body: {
         messages: [{ role: 'user', content: 'what is the weather in Barcelona?' }],
-        model: 'kaana-v1',
+        model: 'route:auto',
         stream: true,
         conversationId: 'conv-weather',
       },
@@ -999,7 +999,7 @@ describe('fixture: app chat flow — streaming, direct user session, one server 
     await run(recordingReq({
       body: {
         messages: [{ role: 'user', content: 'what is the weather in Barcelona?' }],
-        model: 'kaana-v1',
+        model: 'route:auto',
         stream: true,
         conversationId: 'conv-weather-empty',
       },
@@ -1027,7 +1027,7 @@ describe('fixture: what a failure surfaces to the user', () => {
     H.state.streamTurns = [[streamStart, { type: 'error', error: new Error('upstream exploded') }]];
 
     const req = recordingReq({
-      body: { messages: [{ role: 'user', content: 'summarise this file' }], model: 'kaana-v1', stream: true },
+      body: { messages: [{ role: 'user', content: 'summarise this file' }], model: 'route:auto', stream: true },
     });
     const res = recordingRes();
     await run(req, res);
@@ -1048,7 +1048,7 @@ describe('fixture: what a failure surfaces to the user', () => {
     // stream rather than an empty string.
     expect(bytes).not.toContain(UPSTREAM_PROVIDER);
     expect(bytes).not.toContain(UPSTREAM_MODEL_ID);
-    expect(bytes).toContain('kaana-v1');
+    expect(bytes).toContain('route:auto');
   });
 
   /**
@@ -1066,7 +1066,7 @@ describe('fixture: what a failure surfaces to the user', () => {
 
     await run(
       recordingReq({
-        body: { messages: [{ role: 'user', content: 'summarise this file' }], model: 'kaana-v1', stream: true },
+        body: { messages: [{ role: 'user', content: 'summarise this file' }], model: 'route:auto', stream: true },
       }),
       recordingRes(),
     );
@@ -1077,7 +1077,7 @@ describe('fixture: what a failure surfaces to the user', () => {
     // The response is empty because nothing usable reached the caller, which is
     // also what the autonomy learner reads to score the run.
     expect(recorded.response).toBe('');
-    expect(recorded.requestedModel).toBe('kaana-v1');
+    expect(recorded.requestedModel).toBe('route:auto');
     expect(recorded.cancelled).toBe(false);
   });
 
@@ -1087,7 +1087,7 @@ describe('fixture: what a failure surfaces to the user', () => {
     H.state.streamTurns = [[streamStart, ...say('t1', 'Here you go.'), finish('stop')]];
 
     await run(
-      recordingReq({ body: { messages: [{ role: 'user', content: 'hello' }], model: 'kaana-v1', stream: true } }),
+      recordingReq({ body: { messages: [{ role: 'user', content: 'hello' }], model: 'route:auto', stream: true } }),
       recordingRes(),
     );
 
@@ -1109,21 +1109,21 @@ describe('fixture: what a failure surfaces to the user', () => {
     H.state.streamTurns = [[streamStart, { type: 'error', error: new Error('upstream exploded') }]];
 
     const spanish = recordingRes();
-    await run(recordingReq({ body: { messages: [{ role: 'user', content: 'hola, ¿qué tal?' }], model: 'kaana-v1', stream: true } }), spanish);
+    await run(recordingReq({ body: { messages: [{ role: 'user', content: 'hola, ¿qué tal?' }], model: 'route:auto', stream: true } }), spanish);
     expect(spanish.raw.join('')).toContain('todos los modelos están ocupados');
 
     H.timeline.length = 0;
     H.state.resolveAnswers = [RESOLVED, null];
     H.state.streamTurns = [[streamStart, { type: 'error', error: new Error('upstream exploded') }]];
     const english = recordingRes();
-    await run(recordingReq({ body: { messages: [{ role: 'user', content: 'how are you' }], model: 'kaana-v1', stream: true } }), english);
+    await run(recordingReq({ body: { messages: [{ role: 'user', content: 'how are you' }], model: 'route:auto', stream: true } }), english);
     expect(english.raw.join('')).toContain('all models are currently busy');
   });
 
   it('refuses before the model call when credits are exhausted', async () => {
     H.state.reservation = null;
     const res = recordingRes();
-    await run(recordingReq({ body: { messages: [{ role: 'user', content: 'hi' }], model: 'kaana-v1', stream: false } }), res);
+    await run(recordingReq({ body: { messages: [{ role: 'user', content: 'hi' }], model: 'route:auto', stream: false } }), res);
 
     expect(H.timeline).toEqual(['credits:reserve', 'http:status(402)', 'http:json']);
     expect(res.jsonBody).toEqual({
@@ -1144,7 +1144,7 @@ describe('fixture: what a failure surfaces to the user', () => {
     // property rather than a surprise.
     H.state.reservation = null;
     const res = recordingRes();
-    await run(recordingReq({ body: { messages: [{ role: 'user', content: 'hi' }], model: 'kaana-v1', stream: true } }), res);
+    await run(recordingReq({ body: { messages: [{ role: 'user', content: 'hi' }], model: 'route:auto', stream: true } }), res);
 
     expect(H.timeline).toEqual([
       'sse:comment(keep-alive)',
@@ -1156,9 +1156,9 @@ describe('fixture: what a failure surfaces to the user', () => {
   });
 
   it('refuses a model the plan does not allow, and refunds', async () => {
-    H.state.entitlements = { tier: 'free', features: {}, allowedModelIds: ['kaana-lite'] };
+    H.state.entitlements = { tier: 'free', features: {}, allowedModelIds: ['route:instant'] };
     const res = recordingRes();
-    await run(recordingReq({ body: { messages: [{ role: 'user', content: 'hi' }], model: 'kaana-v1', stream: false } }), res);
+    await run(recordingReq({ body: { messages: [{ role: 'user', content: 'hi' }], model: 'route:auto', stream: false } }), res);
 
     expect(H.timeline).toEqual(['credits:reserve', 'credits:refund', 'http:status(403)', 'http:json']);
     expect(res.jsonBody).toEqual({
@@ -1184,7 +1184,7 @@ describe('fixture: Codea flow — API key, non-streaming, no client tools', () =
     recordingReq({ apiKey: { id: 'key-ws13' }, user: { id: 'user-ws13' }, body });
 
   beforeEach(() => {
-    H.state.resolveAnswers = [{ ...RESOLVED, routingProfileId: 'kaana-v1-codea' }];
+    H.state.resolveAnswers = [{ ...RESOLVED, routingProfileId: 'route:code' }];
     H.state.generateContent = [{ type: 'text', text: 'const total = items.length;' }];
   });
 
@@ -1196,7 +1196,7 @@ describe('fixture: Codea flow — API key, non-streaming, no client tools', () =
           { role: 'system', content: 'You are an expert code completion assistant.' },
           { role: 'user', content: 'complete this' },
         ],
-        model: 'kaana-v1-codea',
+        model: 'route:code',
         max_tokens: 500,
         temperature: 0.2,
         stream: false,
@@ -1225,7 +1225,7 @@ describe('fixture: Codea flow — API key, non-streaming, no client tools', () =
       alia_usage?: Record<string, unknown>;
     };
     expect(body.object).toBe('chat.completion');
-    expect(body.model).toBe('kaana-v1-codea');
+    expect(body.model).toBe('route:code');
     expect(body.choices?.[0].message?.content).toBe('const total = items.length;');
     // The Alia extension the app reads with a fallback to the standard block; a
     // rename degrades credit reporting silently rather than erroring
@@ -1240,7 +1240,7 @@ describe('fixture: Codea flow — API key, non-streaming, no client tools', () =
   });
 
   it('carries the synthetic marker Codea branches on when every provider fails', async () => {
-    H.state.resolveAnswers = [{ ...RESOLVED, routingProfileId: 'kaana-v1-codea' }, null];
+    H.state.resolveAnswers = [{ ...RESOLVED, routingProfileId: 'route:code' }, null];
     const boom = new Error('upstream exploded');
     H.state.generateContent = [];
     const { getAIModel } = await import('../../../lib/chat-core.js');
@@ -1259,7 +1259,7 @@ describe('fixture: Codea flow — API key, non-streaming, no client tools', () =
     } as never);
 
     const res = recordingRes();
-    await run(codeaReq({ messages: [{ role: 'user', content: 'complete this' }], model: 'kaana-v1-codea', stream: false }), res);
+    await run(codeaReq({ messages: [{ role: 'user', content: 'complete this' }], model: 'route:code', stream: false }), res);
 
     const body = res.jsonBody as { alia_meta?: Record<string, unknown>; choices?: Array<{ message?: { content?: string } }> };
     expect(body.alia_meta).toEqual({ synthetic: true, retryable: true });
@@ -1284,7 +1284,7 @@ describe('fixture: Codea flow — API key, non-streaming, no client tools', () =
     // an editor client gets it like everyone else.
     H.state.entitlements = { tier: 'free', features: {}, allowedModelIds: [] };
     const res = recordingRes();
-    await run(codeaReq({ messages: [{ role: 'user', content: 'complete this' }], model: 'kaana-v1-codea', stream: false }), res);
+    await run(codeaReq({ messages: [{ role: 'user', content: 'complete this' }], model: 'route:code', stream: false }), res);
 
     // An empty allow-list would have refused an app request; the editor request
     // is served, because the plan gate is skipped for API keys.
@@ -1301,7 +1301,7 @@ describe('fixture: Codea flow — API key, non-streaming, no client tools', () =
 
 /**
  * `packages/alia-cowork/src/main/chat.ts` drives an `openai` client at
- * `${baseUrl}/v1` with `stream: true`, `model: 'kaana-v1-cowork'` and its own
+ * `${baseUrl}/v1` with `stream: true`, `model: 'route:cowork'` and its own
  * filesystem tools, then executes the returned tool calls locally.
  *
  * The property that matters most for this flow is the NAME ROUND TRIP: Alia
@@ -1315,13 +1315,13 @@ describe('fixture: Cowork flow — API key, streaming, client-supplied editor to
 
   const COWORK_BODY = {
     messages: [{ role: 'user', content: 'read the readme' }],
-    model: 'kaana-v1-cowork',
+    model: 'route:cowork',
     stream: true,
     tools: EDITOR_TOOLS,
   };
 
   beforeEach(() => {
-    H.state.resolveAnswers = [{ ...RESOLVED, routingProfileId: 'kaana-v1-cowork' }];
+    H.state.resolveAnswers = [{ ...RESOLVED, routingProfileId: 'route:cowork' }];
     H.state.streamTurns = [
       [streamStart, ...callTool('call-fs', 'workspace_write_file', '{"path":"README.md"}'), finish('tool-calls')],
       [streamStart, ...say('t1', 'The readme describes the project.'), finish('stop')],
@@ -1448,7 +1448,7 @@ describe('fixture: deep research flow — phase events, report deltas, sources',
     recordingReq({
       body: {
         messages: [{ role: 'user', content: 'compare the two approaches' }],
-        model: 'kaana-v1',
+        model: 'route:auto',
         stream: true,
         deepResearch: true,
         conversationId: 'conv-research',
@@ -1595,7 +1595,7 @@ describe('fixture: deep research flow — phase events, report deltas, sources',
     // identity reaches the bytes. Positive control: the alias does.
     expect(bytes).not.toContain(UPSTREAM_PROVIDER);
     expect(bytes).not.toContain(UPSTREAM_MODEL_ID);
-    expect(bytes).toContain('kaana-v1');
+    expect(bytes).toContain('route:auto');
   });
 });
 
@@ -1741,7 +1741,7 @@ describe('fixture: a turn served by the user own device', () => {
     const res = recordingRes();
     await run(
       recordingReq({
-        body: { messages: [{ role: 'user', content: 'hola' }], model: 'kaana-v1', stream: true },
+        body: { messages: [{ role: 'user', content: 'hola' }], model: 'route:auto', stream: true },
       }),
       res,
     );

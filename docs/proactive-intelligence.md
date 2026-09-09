@@ -126,7 +126,7 @@ write new suggestions.
 
 `POST /suggestions/generate` remains an explicit authenticated operation for
 creating personal suggestions. It makes one request through Oxy using the
-reviewed `kaana-lite` routing-profile primary key. Oxy and Kaana own route
+reviewed `route:instant` routing-profile primary key. Oxy and Kaana own route
 selection and retry, so Alia does not loop over providers or repeat an identical
 profile request. An Oxy routing refusal is `503` with its safe request ID; an
 empty or schema-invalid model answer is `502`. Neither is presented as an

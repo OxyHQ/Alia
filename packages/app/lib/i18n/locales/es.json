@@ -814,7 +814,7 @@
     "catalogueUnavailable": "No se pudieron cargar los modelos",
     "noModels": "No hay modelos disponibles",
     "automatic": {
-      "label": "Automático",
+      "label": "Auto",
       "description": "Alia elige cómo responder."
     },
     "categories": {

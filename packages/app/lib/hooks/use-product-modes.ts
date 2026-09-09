@@ -5,39 +5,35 @@
  * ## What this is for
  *
  * The picker used to label a routing profile with the display name of the alias
- * it came from — "Kaana V1 Pro Max", "Kaana Lite". Those are model names for
+ * it came from — "Pro", "Instant". Those are model names for
  * things that are not models, which is the habit ADR 0003 exists to end. A
- * product mode is where the product's own words live: Automatic, Fast,
- * Balanced, Maximum quality, Coding, Deep research.
+ * product mode is where the product's own words live: Auto, Instant, Thinking,
+ * Pro, Research and Code.
  *
- * ## A mode is a LABEL for a profile, not a selectable identifier
+ * ## A mode is the selectable product contract
  *
- * This is the distinction that decides the whole design, and it is measured
- * rather than assumed: `lib/chat/request-context.ts` accepts a `profile:*` id
- * or a legacy `alia-*` id and refuses anything else with `unknown_routing_profile`.
- * Nothing in the request path consumes a `mode:*` id — `PRODUCT_MODES` is
- * published by `routes/catalogue.ts` and read by nobody else. So a picker that
- * sent `mode:fast` would 400.
+ * The picker sends the exact `mode:*` identity. The API resolves that identity
+ * to its explicitly bound `route:*` profile at the request boundary. Routes
+ * remain inference implementation details rather than product choices.
  *
- * The modes therefore supply WORDS for the profiles the picker already offers.
- * `mode:fast` says "the profile `profile:lite` is what Fast means"; the picker
- * renders "Fast" and still sends `profile:lite`.
- *
- * Every mode carries one exact profile identity. Automatic and Deep research
+ * Every mode carries one exact profile identity. Auto and Research
  * are found by their exact `mode:*` IDs when their own labels are needed; they
  * are never inferred from array position or a `default` discriminant.
  */
 
-import { useQuery } from '@tanstack/react-query';
-import apiClient from '../api/client';
-import { queryKeys } from './query-keys';
-import type { CatalogueEntry } from './use-catalogue';
+import { useQuery } from "@tanstack/react-query";
+import apiClient from "../api/client";
+import { queryKeys } from "./query-keys";
+import type { CatalogueEntry } from "./use-catalogue";
 
 /** Which routing profile a request made in this mode goes through. */
-export type ProductModeRouting = { readonly kind: 'profile'; readonly profileId: string };
+export type ProductModeRouting = {
+  readonly kind: "profile";
+  readonly profileId: string;
+};
 
 export interface ProductMode {
-  /** `mode:*`. Never sent as a request `model` — see the note above. */
+  /** Exact `mode:*` identity sent as the request's product selection. */
   readonly id: string;
   readonly label: string;
   readonly description: string;
@@ -49,22 +45,26 @@ export interface ProductMode {
 type JsonObject = Record<string, unknown>;
 
 function asObject(value: unknown): JsonObject | null {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
+  return typeof value === "object" && value !== null && !Array.isArray(value)
     ? (value as JsonObject)
     : null;
 }
 
 function asText(value: unknown): string | null {
-  return typeof value === 'string' ? value : null;
+  return typeof value === "string" ? value : null;
 }
 
 function parseRouting(value: unknown): ProductModeRouting | null {
   const raw = asObject(value);
   if (raw === null) return null;
-  if (raw.kind === 'profile') {
+  if (raw.kind === "profile") {
     const profileId = asText(raw.profile_id);
-    if (profileId !== null && profileId !== '' && profileId.trim() === profileId) {
-      return { kind: 'profile', profileId };
+    if (
+      profileId !== null &&
+      profileId !== "" &&
+      profileId.trim() === profileId
+    ) {
+      return { kind: "profile", profileId };
     }
   }
   return null;
@@ -73,21 +73,27 @@ function parseRouting(value: unknown): ProductModeRouting | null {
 function parseMode(value: unknown): ProductMode | null {
   const raw = asObject(value);
   if (raw === null) return null;
-  if (raw.object !== 'product_mode') return null;
+  if (raw.object !== "product_mode") return null;
 
   const id = asText(raw.id);
   const label = asText(raw.label);
   const routing = parseRouting(raw.routing);
   if (
-    id === null || id === '' || id.trim() !== id || !id.startsWith('mode:')
-    || label === null || label === '' || label.trim() !== label
-    || routing === null
-  ) return null;
+    id === null ||
+    id === "" ||
+    id.trim() !== id ||
+    !id.startsWith("mode:") ||
+    label === null ||
+    label === "" ||
+    label.trim() !== label ||
+    routing === null
+  )
+    return null;
 
   return {
     id,
     label,
-    description: asText(raw.description) ?? '',
+    description: asText(raw.description) ?? "",
     routing,
     deepResearch: raw.deep_research === true,
   };
@@ -104,12 +110,14 @@ function parseMode(value: unknown): ProductMode | null {
 export function parseModes(payload: unknown): ProductMode[] {
   const body = asObject(payload);
   const data = body === null ? null : body.data;
-  if (!Array.isArray(data)) throw new Error('The product modes response could not be read.');
+  if (!Array.isArray(data))
+    throw new Error("The product modes response could not be read.");
 
   const modes: ProductMode[] = [];
   for (const value of data) {
     const mode = parseMode(value);
-    if (mode === null) throw new Error('The product modes response could not be read.');
+    if (mode === null)
+      throw new Error("The product modes response could not be read.");
     modes.push(mode);
   }
   return modes;
@@ -126,24 +134,26 @@ export function parseModes(payload: unknown): ProductMode[] {
 export function useProductModes() {
   return useQuery<ProductMode[]>({
     queryKey: queryKeys.catalogue.modes(),
-    queryFn: async () => parseModes((await apiClient.get('/catalogue/modes')).data),
+    queryFn: async () =>
+      parseModes((await apiClient.get("/catalogue/modes")).data),
     staleTime: 1000 * 60 * 60,
     retry: 2,
   });
 }
 
 const PRESENTATION_MODE_IDS: ReadonlySet<string> = new Set([
-  'mode:fast',
-  'mode:balanced',
-  'mode:maximum-quality',
-  'mode:coding',
+  "mode:instant",
+  "mode:thinking",
+  "mode:pro",
+  "mode:research",
+  "mode:code",
 ]);
 
 /**
  * The product's word for a routing profile, or `null` when it has none.
  *
  * `null` rather than a fallback, so the caller decides what an unnamed profile
- * looks like. Substituting the profile id here would put `profile:v1-vision` in
+ * looks like. Substituting the profile id here would put `profile:vision` in
  * front of a person as though it were a product name, which is the same
  * category error as the alias display names this replaces.
  */
@@ -154,7 +164,11 @@ export function modeForProfile(
   if (modes === undefined) return null;
   let match: ProductMode | null = null;
   for (const mode of modes) {
-    if (!PRESENTATION_MODE_IDS.has(mode.id) || mode.routing.profileId !== profileId) continue;
+    if (
+      !PRESENTATION_MODE_IDS.has(mode.id) ||
+      mode.routing.profileId !== profileId
+    )
+      continue;
     if (match !== null) return null;
     match = mode;
   }
@@ -174,13 +188,13 @@ export function modeById(
  * catalogue's own.
  *
  * A routing profile that a product mode selects is shown as that mode —
- * "Fast", "Balanced", "Maximum quality", "Coding" — because those are the
+ * "Instant", "Thinking", "Pro", "Research", "Code" — because those are the
  * product's words for the decision a person is actually making. The alias
- * display names this replaces ("Kaana V1 Pro Max", "Kaana Lite") were model names
+ * display names this replaces ("Pro", "Instant") were model names
  * for things that are not models, which is the habit ADR 0003 ends.
  *
  * The catalogue's own `displayName` remains the fallback, and it is a real
- * fallback rather than a formality: `profile:v1-vision` and the other
+ * fallback rather than a formality: `profile:vision` and the other
  * capability profiles have no mode, and inventing one for them would be the
  * same invention in the other direction.
  */
@@ -188,7 +202,9 @@ export function presentation(
   entry: CatalogueEntry,
   modes: readonly ProductMode[] | undefined,
 ): { label: string; description: string } {
-  const mode = entry.kind === 'routing_profile' ? modeForProfile(entry.id, modes) : null;
-  if (mode === null) return { label: entry.displayName, description: entry.description };
+  const mode =
+    entry.kind === "routing_profile" ? modeForProfile(entry.id, modes) : null;
+  if (mode === null)
+    return { label: entry.displayName, description: entry.description };
   return { label: mode.label, description: mode.description };
 }

@@ -68,7 +68,7 @@ export async function generatePlan(
   const maxSubtasks = context?.maxSubtasks ?? 10;
 
   // Use the best available model for planning
-  const plannerModels = ['kaana-v1-thinking', 'kaana-v1-pro', 'kaana-v1'];
+  const plannerModels = ['route:thinking', 'route:pro-standard', 'route:auto'];
   let resolved: Awaited<ReturnType<typeof resolveModel>> | null = null;
 
   for (const modelId of plannerModels) {

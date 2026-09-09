@@ -850,7 +850,7 @@
     "catalogueUnavailable": "Models could not be loaded",
     "noModels": "No models available",
     "automatic": {
-      "label": "Automatic",
+      "label": "Auto",
       "description": "Alia picks how to answer."
     },
     "categories": {

@@ -28,17 +28,10 @@ const ENV = {
  * The selection a user starts with, and the one a selection the catalogue no
  * longer offers falls back to.
  *
- * Configuration rather than a literal in the store, because epic #139
- * workstream 5 asks for a default the product controls. `GET /catalogue`
- * carries no default of its own — it orders entries by price and says
- * explicitly that position is not a recommendation — so a build-time value is
- * the mechanism available, overridden per build by
- * `EXPO_PUBLIC_ALIA_DEFAULT_MODEL`.
- *
- * It is never trusted: `resolveSelection` checks it against the catalogue and
- * falls through to the first entry actually offered.
+ * Product configuration, not deployment configuration: every build starts in
+ * Auto and the server owns what Auto routes to.
  */
-export const DEFAULT_MODEL_ID = process.env.EXPO_PUBLIC_ALIA_DEFAULT_MODEL ?? 'profile:v1';
+export const DEFAULT_MODEL_ID = 'mode:auto';
 
 /**
  * Where Syra lives — `syra.fm` is Oxy's podcast product, and the place a

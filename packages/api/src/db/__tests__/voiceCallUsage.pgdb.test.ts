@@ -36,7 +36,7 @@ const insertCall = (
     (id, session_id, oxy_user_id, routing_profile_id, provider, provider_model,
      start_time, end_time, duration_minutes, cohost_duration_minutes, cost_per_minute)
   values
-    (${id}, ${sessionId}, ${oxyUserId}, 'kaana-v1', 'a-provider', 'a-model',
+    (${id}, ${sessionId}, ${oxyUserId}, 'route:auto', 'a-provider', 'a-model',
      now() - interval '10 minutes', now(), ${durationMinutes}, ${cohostDurationMinutes}, 0.05)
 `);
 

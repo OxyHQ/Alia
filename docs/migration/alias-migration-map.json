@@ -8,7 +8,7 @@
     "distinctModels and distinctProviders are counted over TIER_MODEL_MAPPINGS for the alias's tier and are not hand-typed: aliasMigrationMap.test.ts recomputes both from the live tables and fails if either moves. Change the routing and this file must change with it.",
     "becomes.id is derived from the alias's own tier, because the tier IS the policy: TIER_MODEL_MAPPINGS[tier] is the ranked candidate list the fallback engine walks. It is written in the product's own namespace with a profile: prefix, never in <publisher>/<model> form, per ADR 0003's routing-profile identity rule. The product-facing NAMES of these profiles belong to workstream 5, which owns the catalogue's type split; nothing here settles what the picker calls them.",
     "PUBLISHER IS NOT RECORDED, and that is a finding rather than an omission. ADR 0003 makes the publisher the first segment of a model identity, but the mapping table stores a bare provider model id with no publisher segment (`gemini-2.5-flash`, `claude-sonnet-4-20250514`, `accounts/fireworks/models/deepseek-v3`), so publisher is not recoverable from this repository's data without attributing each id by hand. Attribution belongs to Kaana's catalogue, which is where model identity moves.",
-    "TWO ALIASES SHARE ONE POLICY. kaana-v1-thinking and kaana-v1-pro-max both carry tier v1-pro-max, so they are the same routing profile under two identifiers \u2014 the case ADR 0002 describes as a reasoning setting wearing a model's name. They are recorded separately because both are live identifiers a caller may hold, and both translate to the same replacement.",
+    "TWO ALIASES SHARE ONE POLICY. route:thinking and route:pro both carry tier v1-pro-max, so they are the same routing profile under two identifiers \u2014 the case ADR 0002 describes as a reasoning setting wearing a model's name. They are recorded separately because both are live identifiers a caller may hold, and both translate to the same replacement.",
     "TWO TIERS HAVE NO ALIAS. v1-tts and v1-image exist in TIER_MODEL_MAPPINGS and no alias points at them; they are reached through the audio and image routes, not by naming a model. They are out of scope here because this file maps ALIASES, and nothing translates to them.",
     "This file does not change what any alias resolves to. It describes.",
     "sunsetAt is the removal date the product owner set on 2026-08-18, closing section (a) of the compatibility window after its usage gate was found unsatisfiable (production parked at desired count 0, no database credential outside it). It is NOT a placeholder: it is a decision with an owner, recorded in compatibility-window.md and epic-139-decisions.md D1. The value is the close of the first full calendar month after the announcement, because RFC 8594 section 3 requires the timestamp to be in the future and defines a past one as 'unavailable at any time', which would be false while every alias still resolves. It is asserted equal to ALIAS_SUNSET in packages/api/src/middleware/alias-deprecation.ts by aliasMigrationMap.test.ts, so the map and the header cannot disagree."
@@ -22,10 +22,10 @@
   "sunsetAt": "2026-10-01T00:00:00.000Z",
   "aliases": [
     {
-      "alias": "kaana-lite",
+      "alias": "route:instant",
       "becomes": {
         "kind": "routing-profile",
-        "id": "profile:lite"
+        "id": "profile:instant"
       },
       "tier": "lite",
       "distinctModels": 16,
@@ -33,10 +33,10 @@
       "evidence": "alia-models.ts:62-74 gives tier 'lite'; generate-model-mappings.ts ranks 15 distinct models across 13 providers. Recounted 2026-08-23 after Groq's llama-3.3-70b-versatile row was repointed at openai/gpt-oss-20b: Groq no longer serves any llama-3.3 id (404 model_not_found, measured), and gpt-oss-20b was already in this tier as a priority-17 stopgap, so the two rows collapsed into one and the tier lost the versatile id. Provider count is unchanged because Groq keeps a route."
     },
     {
-      "alias": "kaana-v1",
+      "alias": "route:auto",
       "becomes": {
         "kind": "routing-profile",
-        "id": "profile:v1"
+        "id": "profile:auto"
       },
       "tier": "v1",
       "distinctModels": 17,
@@ -44,10 +44,10 @@
       "evidence": "alia-models.ts:75-87 gives tier 'v1'; generate-model-mappings.ts:54-72 ranks 17 distinct models across 14 providers."
     },
     {
-      "alias": "kaana-v1-audio",
+      "alias": "route:audio",
       "becomes": {
         "kind": "routing-profile",
-        "id": "profile:v1-audio"
+        "id": "profile:audio"
       },
       "tier": "v1-audio",
       "distinctModels": 3,
@@ -55,10 +55,10 @@
       "evidence": "alia-models.ts:136-147 gives tier 'v1-audio'; generate-model-mappings.ts:127-131 ranks 3 distinct models across 2 providers. The narrowest case on this page: all three are transcription models, but whisper-large-v3, whisper-large-v3-turbo and whisper-1 are three DIFFERENT models, so selecting between them is cross-model substitution and not a deployment choice."
     },
     {
-      "alias": "kaana-v1-browser",
+      "alias": "route:research",
       "becomes": {
         "kind": "routing-profile",
-        "id": "profile:v1-browser"
+        "id": "profile:research"
       },
       "tier": "v1-browser",
       "distinctModels": 12,
@@ -66,10 +66,10 @@
       "evidence": "alia-models.ts:112-123 gives tier 'v1-browser'; generate-model-mappings.ts:102-116 ranks 13 distinct models across 12 providers."
     },
     {
-      "alias": "kaana-v1-codea",
+      "alias": "route:code",
       "becomes": {
         "kind": "routing-profile",
-        "id": "profile:v1-codea"
+        "id": "profile:code"
       },
       "tier": "v1-codea",
       "distinctModels": 14,
@@ -77,10 +77,10 @@
       "evidence": "alia-models.ts:88-99 gives tier 'v1-codea'; generate-model-mappings.ts:73-88 ranks 14 distinct models across 12 providers."
     },
     {
-      "alias": "kaana-v1-cowork",
+      "alias": "route:cowork",
       "becomes": {
         "kind": "routing-profile",
-        "id": "profile:v1-cowork"
+        "id": "profile:cowork"
       },
       "tier": "v1-cowork",
       "distinctModels": 10,
@@ -88,10 +88,10 @@
       "evidence": "alia-models.ts:100-111 gives tier 'v1-cowork'; generate-model-mappings.ts:89-101 ranks 11 distinct models across 11 providers."
     },
     {
-      "alias": "kaana-v1-multimodal",
+      "alias": "route:multimodal",
       "becomes": {
         "kind": "routing-profile",
-        "id": "profile:v1-multimodal"
+        "id": "profile:multimodal"
       },
       "tier": "v1-multimodal",
       "distinctModels": 7,
@@ -99,10 +99,10 @@
       "evidence": "alia-models.ts:148-159 gives tier 'v1-multimodal'; generate-model-mappings.ts:148-155 ranks 6 distinct models across 4 providers."
     },
     {
-      "alias": "kaana-v1-pro",
+      "alias": "route:pro-standard",
       "becomes": {
         "kind": "routing-profile",
-        "id": "profile:v1-pro"
+        "id": "profile:pro-standard"
       },
       "tier": "v1-pro",
       "distinctModels": 11,
@@ -110,32 +110,32 @@
       "evidence": "alia-models.ts:160-172 gives tier 'v1-pro'; generate-model-mappings.ts:156-167 ranks 10 distinct models across 8 providers."
     },
     {
-      "alias": "kaana-v1-pro-max",
+      "alias": "route:pro",
       "becomes": {
         "kind": "routing-profile",
-        "id": "profile:v1-pro-max"
+        "id": "profile:pro"
       },
       "tier": "v1-pro-max",
       "distinctModels": 10,
       "distinctProviders": 8,
-      "evidence": "alia-models.ts:186-198 gives tier 'v1-pro-max'; generate-model-mappings.ts:168-178 ranks 9 distinct models across 7 providers. Shares its policy with kaana-v1-thinking."
+      "evidence": "alia-models.ts:186-198 gives tier 'v1-pro-max'; generate-model-mappings.ts:168-178 ranks 9 distinct models across 7 providers. Shares its policy with route:thinking."
     },
     {
-      "alias": "kaana-v1-thinking",
+      "alias": "route:thinking",
       "becomes": {
         "kind": "routing-profile",
-        "id": "profile:v1-pro-max"
+        "id": "profile:pro"
       },
       "tier": "v1-pro-max",
       "distinctModels": 10,
       "distinctProviders": 8,
-      "evidence": "alia-models.ts:173-185 gives tier 'v1-pro-max' \u2014 the SAME tier as kaana-v1-pro-max, so the same 9 models at generate-model-mappings.ts:168-178. The two identifiers differ only in name, description, emoji and category; they select nothing differently."
+      "evidence": "alia-models.ts:173-185 gives tier 'v1-pro-max' \u2014 the SAME tier as route:pro, so the same 9 models at generate-model-mappings.ts:168-178. The two identifiers differ only in name, description, emoji and category; they select nothing differently."
     },
     {
-      "alias": "kaana-v1-vision",
+      "alias": "route:vision",
       "becomes": {
         "kind": "routing-profile",
-        "id": "profile:v1-vision"
+        "id": "profile:vision"
       },
       "tier": "v1-vision",
       "distinctModels": 9,
@@ -143,10 +143,10 @@
       "evidence": "alia-models.ts:124-135 gives tier 'v1-vision'; generate-model-mappings.ts:117-126 ranks 8 distinct models across 7 providers."
     },
     {
-      "alias": "kaana-v1-voice",
+      "alias": "route:voice",
       "becomes": {
         "kind": "routing-profile",
-        "id": "profile:v1-voice"
+        "id": "profile:voice"
       },
       "tier": "v1-voice",
       "distinctModels": 2,
@@ -154,15 +154,15 @@
       "evidence": "alia-models.ts:199-210 gives tier 'v1-voice'; generate-model-mappings.ts:179-228 ranks 2 distinct realtime models across 2 providers."
     },
     {
-      "alias": "kaana-v1-voice-pro",
+      "alias": "route:voice-pro",
       "becomes": {
         "kind": "routing-profile",
-        "id": "profile:v1-voice-pro"
+        "id": "profile:voice-pro"
       },
       "tier": "v1-voice-pro",
       "distinctModels": 2,
       "distinctProviders": 2,
-      "evidence": "alia-models.ts:211-222 gives tier 'v1-voice-pro'; generate-model-mappings.ts:229-278 ranks the SAME 2 models as v1-voice with the priorities reversed. A different ranking is a different policy, so this is a separate profile rather than a second name for profile:v1-voice."
+      "evidence": "alia-models.ts:211-222 gives tier 'v1-voice-pro'; generate-model-mappings.ts:229-278 ranks the SAME 2 models as v1-voice with the priorities reversed. A different ranking is a different policy, so this is a separate profile rather than a second name for profile:voice."
     }
   ]
 }

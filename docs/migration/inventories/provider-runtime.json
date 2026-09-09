@@ -1671,7 +1671,7 @@
       "kind": "dependency",
       "name": "openai npm package in alia-codea, alia-codea-cli, alia-cowork",
       "currentPath": "packages/alia-codea/package.json, packages/alia-codea-cli/package.json, packages/alia-cowork/package.json",
-      "summary": "NOT provider dependencies: these are CLIENTS of Alia's own OpenAI-compatible API (alia-cowork defaults apiBaseUrl to https://api.alia.onl, model 'kaana-v1-cowork'). Version drift: ^6.46.0 in codea/codea-cli, ^4.104.0 in cowork.",
+      "summary": "NOT provider dependencies: these are CLIENTS of Alia's own OpenAI-compatible API (alia-cowork defaults apiBaseUrl to https://api.alia.onl, model 'route:cowork'). Version drift: ^6.46.0 in codea/codea-cli, ^4.104.0 in cowork.",
       "proposedOwner": "alia",
       "targetPath": "keep",
       "dependsOn": [],

@@ -137,8 +137,8 @@ export class UnpricedModelError extends Error {
  * — so the two were indistinguishable and the second was silent. The registered
  * multipliers span 0.5 to 5, so an identifier that stopped resolving repriced
  * every request on it, in either direction, with nothing logged and no test
- * red: `kaana-lite` at 1 is double what the customer agreed to, and
- * `kaana-v1-pro-max` at 1 is a fifth of it. `credit-multipliers.test.ts` names
+ * red: `route:instant` at 1 is double what the customer agreed to, and
+ * `route:pro` at 1 is a fifth of it. `credit-multipliers.test.ts` names
  * this exact hole, and until now could only pin the values it would have
  * hidden.
  *
@@ -551,7 +551,7 @@ export async function calculateCreditsFromMinutes(
 export async function reserveVoiceCredits(
   userId: string,
   estimatedMinutes: number = 1,
-  routingProfileId: string = 'kaana-v1-voice',
+  routingProfileId: string = 'route:voice',
   costPerMinute: number = 0.05
 ): Promise<CreditReservation | null> {
   const estimatedCredits = await calculateCreditsFromMinutes(

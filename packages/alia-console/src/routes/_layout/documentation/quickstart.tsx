@@ -125,7 +125,7 @@ function QuickStartPage() {
   -H "Authorization: Bearer $ALIA_API_KEY" \\
   -H "Content-Type: application/json" \\
   -d '{
-    "model": "profile:v1",
+    "model": "profile:auto",
     "messages": [
       {"role": "user", "content": "Hello!"}
     ]
@@ -160,7 +160,7 @@ function QuickStartPage() {
   "id": "chatcmpl-abc123",
   "object": "chat.completion",
   "created": 1234567890,
-  "model": "profile:v1",
+  "model": "profile:auto",
   "choices": [{
     "index": 0,
     "message": {

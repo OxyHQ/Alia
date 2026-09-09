@@ -95,7 +95,7 @@ describe('recordCost', () => {
     const userId = 'ce-record-roundtrip';
 
     // 1,000,000 input tokens at $20/1M = $20.00 exactly.
-    await recordCost(userId, 'kaana-v1-pro', 'ce-provider', PAID_MODEL, 1_000_000, 0, 'paid_balance', false, 'sess-1');
+    await recordCost(userId, 'route:pro-standard', 'ce-provider', PAID_MODEL, 1_000_000, 0, 'paid_balance', false, 'sess-1');
 
     const summary = await getUserCostSummary(userId);
 
@@ -109,14 +109,14 @@ describe('recordCost', () => {
     expect(summary.totalRequests).toBe(1);
     expect(summary.totalSpent).toBe(20);
     expect(summary.totalTokens).toBe(1_000_000);
-    expect(summary.costByModel).toEqual({ 'kaana-v1-pro': 20 });
-    expect(summary.tokensByModel).toEqual({ 'kaana-v1-pro': 1_000_000 });
+    expect(summary.costByModel).toEqual({ 'route:pro-standard': 20 });
+    expect(summary.tokensByModel).toEqual({ 'route:pro-standard': 1_000_000 });
   });
 
   it('records a zero cost for a model the pricing table does not know, and counts it as free-tier saving', async () => {
     const userId = 'ce-record-free';
 
-    await recordCost(userId, 'kaana-lite', 'ce-provider', FREE_MODEL, 1_000_000, 1_000_000, 'free_allowance');
+    await recordCost(userId, 'route:instant', 'ce-provider', FREE_MODEL, 1_000_000, 1_000_000, 'free_allowance');
 
     const summary = await getUserCostSummary(userId);
     expect(summary.totalSpent).toBe(0);
@@ -129,7 +129,7 @@ describe('recordCost', () => {
   it('re-prices a cache hit into cacheSavings without charging for it', async () => {
     const userId = 'ce-record-cached';
 
-    await recordCost(userId, 'kaana-v1', 'ce-provider', PAID_MODEL, 1_000_000, 0, 'paid_balance', true);
+    await recordCost(userId, 'route:auto', 'ce-provider', PAID_MODEL, 1_000_000, 0, 'paid_balance', true);
 
     const summary = await getUserCostSummary(userId);
     // The row still carries its computed cost; `savedFromCache` is what makes

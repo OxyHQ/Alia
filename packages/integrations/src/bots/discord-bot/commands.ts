@@ -15,7 +15,7 @@ export function initCommands(client: APIClient) {
 /**
  * The modes on offer, written out for a person.
  *
- * Labels only, never identifiers: `profile:lite` is the vocabulary the request
+ * Labels only, never identifiers: `profile:instant` is the vocabulary the request
  * travels in, not a thing to put in front of somebody. {@link resolveModeChoice}
  * is what turns what they type back into one.
  */
@@ -43,7 +43,7 @@ export type ModeChoice =
 /**
  * Match what somebody typed against the offered modes, by LABEL.
  *
- * A person types "Fast", not `profile:lite`, and matching on the label is what
+ * A person types "Fast", not `profile:instant`, and matching on the label is what
  * makes the product's own words the interface. An unmatched value is refused
  * with the list rather than saved: the previous behaviour stored the raw string
  * unchecked, so a typo became a preference that every later request carried.

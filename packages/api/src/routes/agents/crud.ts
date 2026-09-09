@@ -548,7 +548,7 @@ router.post('/', authenticateToken, async (req: Request, res: Response) => {
       description: data.description,
       authorOxyUserId: req.user.id,
       category: data.category,
-      routingProfileId: OXY_KAANA_ROUTING_PROFILE_IDS['kaana-v1'],
+      routingProfileId: OXY_KAANA_ROUTING_PROFILE_IDS['route:auto'],
       tags: data.tags ?? [],
       price: data.price ?? null,
       capabilityGrants: data.capabilityGrants ?? [],

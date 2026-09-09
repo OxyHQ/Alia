@@ -159,7 +159,7 @@
         },
         "codea.model": {
           "type": "string",
-          "default": "kaana-v1-codea",
+          "default": "mode:code",
           "description": "Routing profile to use for completions. Listed by GET /catalogue.",
           "order": 3
         },

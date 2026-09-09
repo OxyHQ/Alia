@@ -164,7 +164,7 @@ outbound requests to provider hosts on every boot.
 | WS9: "`packages/alia-gateway-admin/**` administers the current Alia-specific gateway" | The gateway service was deleted in `bfb2bc18`. The admin outlived it. |
 | WS8: "Delete `GATEWAY_API_ENABLED` dual-mode behavior" | Accurate, with a nuance: it is not an environment variable but a derived constant, `!!(SERVICE_SECRET && GATEWAY_API_URL)` (`lib/gateway-client.ts:32`), guarding seven `if` branches. |
 | "Alia owns plans, credits, subscriptions… that overlap the Oxy boundary" | True, and the ADMIN side of plans/features/credit packages lives in the dead gateway admin. Retiring it without an Alia-side editor freezes entitlements at whatever the database holds. |
-| WS4: `kaana-lite` … are "public model IDs backed by hidden third-party models" | True. Also two documented ids, `kaana-v1-tts` and `kaana-v1-image`, are NOT servable, and the real `kaana-v1-thinking` is missing from two of the three published tables. |
+| WS4: `route:instant` … are "public model IDs backed by hidden third-party models" | True. Also two documented ids, `route:auto-tts` and `route:auto-image`, are NOT servable, and the real `route:thinking` is missing from two of the three published tables. |
 
 ---
 
@@ -477,10 +477,10 @@ with health metrics and no provider column, driven entirely by `GET /models/stat
 DTO having no `provider` field is a load-bearing invariant that nothing currently enforces.
 
 **The app, SDK, Codea, Cowork and Canvas all stay** — and they are where alias retirement
-actually hurts. `kaana-v1` and `kaana-v1-voice` are compiled into a published npm package
-that ships as raw source; `kaana-v1-codea` is the default of a VS Code SETTING that
-persists in users' `settings.json` after an update; `kaana-v1-cowork` is an electron-store
-default on disk; `kaana-lite` is pinned in saved Canvas workflow node data; and
+actually hurts. `route:auto` and `route:voice` are compiled into a published npm package
+that ships as raw source; `route:code` is the default of a VS Code SETTING that
+persists in users' `settings.json` after an update; `route:cowork` is an electron-store
+default on disk; `route:instant` is pinned in saved Canvas workflow node data; and
 `packages/app`'s model store persists the selected id to AsyncStorage with no validation
 against the catalogue. **No alias may be retired by deletion — only behind the
 `is_legacy` flag `GET /v1/models` already exposes.**

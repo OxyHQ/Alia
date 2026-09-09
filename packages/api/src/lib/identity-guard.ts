@@ -21,7 +21,7 @@
  *    handle, and telling a person who they are talking to is the product
  *    working.
  *  - Ordinary Alia answers with the Kaana routing profile name, because that is genuinely
- *    what it is: `kaana-v1` is a routing policy, not a rebadge of one model.
+ *    what it is: `route:auto` is a routing policy, not a rebadge of one model.
  *  - NEITHER may name the provider, the foundation model, or the company that
  *    trained it.
  *
@@ -63,7 +63,7 @@ export interface IdentitySubject {
    */
   agentName?: string | null;
   /**
-   * Active Kaana routing profile display name (e.g. "Kaana V1"). Falls back to the plain
+   * Active Kaana routing profile display name (e.g. "Auto"). Falls back to the plain
    * "Alia" brand when the active model is unknown.
    */
   modelName?: string | null;

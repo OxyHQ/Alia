@@ -2,7 +2,7 @@
  * Kaana routing-profile catalogue
  *
  * This module defines the Kaana routing profile tiers and their mappings to real provider models.
- * Users see only Kaana routing profiles (kaana-lite, kaana-v1, etc.) while internally
+ * Users see only Kaana routing profiles (route:instant, route:auto, etc.) while internally
  * requests are routed to appropriate provider models.
  */
 
@@ -114,9 +114,9 @@ export interface ModelMapping {
  * Kaana routing profile definitions
  */
 export const KAANA_ROUTING_PROFILES: Record<string, RoutingProfile> = {
-  'kaana-lite': {
-    id: 'kaana-lite',
-    name: 'Kaana Lite',
+  'route:instant': {
+    id: 'route:instant',
+    name: 'Instant',
     tier: 'lite',
     description: 'Fast responses for simple tasks',
     creditMultiplier: 0.5,
@@ -126,9 +126,9 @@ export const KAANA_ROUTING_PROFILES: Record<string, RoutingProfile> = {
     category: 'general',
     emoji: '⚡',
   },
-  'kaana-v1': {
-    id: 'kaana-v1',
-    name: 'Kaana V1',
+  'route:auto': {
+    id: 'route:auto',
+    name: 'Auto',
     tier: 'v1',
     description: 'Balanced performance for everyday tasks',
     creditMultiplier: 1,
@@ -138,9 +138,9 @@ export const KAANA_ROUTING_PROFILES: Record<string, RoutingProfile> = {
     category: 'general',
     emoji: '🎯',
   },
-  'kaana-v1-codea': {
-    id: 'kaana-v1-codea',
-    name: 'Codea',
+  'route:code': {
+    id: 'route:code',
+    name: 'Code',
     tier: 'v1-codea',
     description: 'Fast coding assistant',
     creditMultiplier: 1.5,
@@ -150,9 +150,9 @@ export const KAANA_ROUTING_PROFILES: Record<string, RoutingProfile> = {
     category: 'coding',
     emoji: '💻',
   },
-  'kaana-v1-cowork': {
-    id: 'kaana-v1-cowork',
-    name: 'Kaana V1 Cowork',
+  'route:cowork': {
+    id: 'route:cowork',
+    name: 'Cowork',
     tier: 'v1-cowork',
     description: 'Desktop automation assistant with tool support',
     creditMultiplier: 1.5,
@@ -162,9 +162,9 @@ export const KAANA_ROUTING_PROFILES: Record<string, RoutingProfile> = {
     category: 'coding',
     emoji: '🖥️',
   },
-  'kaana-v1-browser': {
-    id: 'kaana-v1-browser',
-    name: 'Kaana V1 Browser',
+  'route:research': {
+    id: 'route:research',
+    name: 'Research',
     tier: 'v1-browser',
     description: 'Browser automation specialist for web interactions',
     creditMultiplier: 1.5,
@@ -174,9 +174,9 @@ export const KAANA_ROUTING_PROFILES: Record<string, RoutingProfile> = {
     category: 'coding',
     emoji: '🌐',
   },
-  'kaana-v1-vision': {
-    id: 'kaana-v1-vision',
-    name: 'Kaana V1 Vision',
+  'route:vision': {
+    id: 'route:vision',
+    name: 'Vision',
     tier: 'v1-vision',
     description: 'Specialized for image analysis, vision, and visual reasoning',
     creditMultiplier: 1.5,
@@ -186,9 +186,9 @@ export const KAANA_ROUTING_PROFILES: Record<string, RoutingProfile> = {
     category: 'vision',
     emoji: '👁️',
   },
-  'kaana-v1-audio': {
-    id: 'kaana-v1-audio',
-    name: 'Kaana V1 Audio',
+  'route:audio': {
+    id: 'route:audio',
+    name: 'Audio',
     tier: 'v1-audio',
     description: 'Specialized for audio transcription, speech-to-text, and audio analysis',
     creditMultiplier: 1.0,
@@ -198,9 +198,9 @@ export const KAANA_ROUTING_PROFILES: Record<string, RoutingProfile> = {
     category: 'audio',
     emoji: '🎤',
   },
-  'kaana-v1-multimodal': {
-    id: 'kaana-v1-multimodal',
-    name: 'Kaana V1 Multimodal',
+  'route:multimodal': {
+    id: 'route:multimodal',
+    name: 'Multimodal',
     tier: 'v1-multimodal',
     description: 'Handles text, images, audio, and video in a single conversation',
     creditMultiplier: 2.0,
@@ -210,9 +210,9 @@ export const KAANA_ROUTING_PROFILES: Record<string, RoutingProfile> = {
     category: 'multimodal',
     emoji: '🎨',
   },
-  'kaana-v1-pro': {
-    id: 'kaana-v1-pro',
-    name: 'Codea Pro',
+  'route:pro-standard': {
+    id: 'route:pro-standard',
+    name: 'Pro Standard',
     tier: 'v1-pro',
     description: 'Advanced reasoning for complex tasks',
     creditMultiplier: 3,
@@ -222,9 +222,9 @@ export const KAANA_ROUTING_PROFILES: Record<string, RoutingProfile> = {
     category: 'coding',
     emoji: '⭐',
   },
-  'kaana-v1-thinking': {
-    id: 'kaana-v1-thinking',
-    name: 'Kaana V1 Thinking',
+  'route:thinking': {
+    id: 'route:thinking',
+    name: 'Thinking',
     tier: 'v1-pro-max',
     description: 'Extended thinking for complex problems',
     creditMultiplier: 5,
@@ -234,9 +234,9 @@ export const KAANA_ROUTING_PROFILES: Record<string, RoutingProfile> = {
     category: 'coding',
     emoji: '🧠',
   },
-  'kaana-v1-pro-max': {
-    id: 'kaana-v1-pro-max',
-    name: 'Kaana V1 Pro Max',
+  'route:pro': {
+    id: 'route:pro',
+    name: 'Pro',
     tier: 'v1-pro-max',
     description: 'Best available models for demanding tasks',
     creditMultiplier: 5,
@@ -246,9 +246,9 @@ export const KAANA_ROUTING_PROFILES: Record<string, RoutingProfile> = {
     category: 'general',
     emoji: '🚀',
   },
-  'kaana-v1-voice': {
-    id: 'kaana-v1-voice',
-    name: 'Kaana V1 Voice',
+  'route:voice': {
+    id: 'route:voice',
+    name: 'Voice',
     tier: 'v1-voice',
     description: 'Real-time voice conversations with low latency',
     creditMultiplier: 2.0,
@@ -258,9 +258,9 @@ export const KAANA_ROUTING_PROFILES: Record<string, RoutingProfile> = {
     category: 'voice',
     emoji: '🗣️',
   },
-  'kaana-v1-voice-pro': {
-    id: 'kaana-v1-voice-pro',
-    name: 'Kaana V1 Voice Pro',
+  'route:voice-pro': {
+    id: 'route:voice-pro',
+    name: 'Voice Pro',
     tier: 'v1-voice-pro',
     description: 'Premium voice with extended context and advanced features',
     creditMultiplier: 4.0,

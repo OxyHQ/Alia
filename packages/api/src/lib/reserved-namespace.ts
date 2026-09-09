@@ -19,7 +19,7 @@
  * `alia/<model>` — a SLASH — is the reserved publisher namespace. Refused here.
  *
  * `alia-<name>` — a HYPHEN — is the frozen thirteen-alias set. Untouched by
- * this module: `kaana-lite` and friends have no slash, so no call below can
+ * this module: `route:instant` and friends have no slash, so no call below can
  * reject one. That is asserted, not assumed, in the test beside this file.
  *
  * ## Where this is enforced
