@@ -56,8 +56,6 @@
  * fresh outbound request on every render, forever.
  */
 
-import { lookup } from 'node:dns/promises';
-import net from 'node:net';
 
 import { log } from './logger.js';
 import { classifyHost, normaliseHostname, publicFetch, type HostVerdict } from './public-host.js';
