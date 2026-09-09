@@ -58,7 +58,7 @@ export const browseTool = tool({
         return { action, error: 'url is required for read action' };
       }
       if (url) {
-        const check = validateUrl(url);
+        const check = await validateUrl(url);
         if (!check.valid) return { action, error: `URL blocked: ${check.reason}` };
       }
 

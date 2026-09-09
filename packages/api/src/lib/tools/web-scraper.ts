@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { JSDOM } from 'jsdom';
 import { Readability } from '@mozilla/readability';
 import { validateUrl } from './sandbox.js';
+import { publicFetch } from '../public-host.js';
 import { withRetry } from '../retry.js';
 import { log } from '../logger.js';
 import { getErrorMessage, getStatusCode } from '../errors/index.js';
@@ -237,7 +238,7 @@ export const webScraperTool = tool({
     ),
   }),
   execute: async ({ url, extractLinks }) => {
-    const urlCheck = validateUrl(url);
+    const urlCheck = await validateUrl(url);
     if (!urlCheck.valid) {
       return { error: `URL blocked: ${urlCheck.reason}` };
     }
@@ -264,7 +265,12 @@ export const webScraperTool = tool({
       // Fetch with retry (3 attempts, exponential backoff)
       const html = await withRetry(
         async () => {
-          const response = await fetch(url, {
+          // undici's fetch, not the global one, so the connection resolves
+          // through `publicOnlyAgent`. `validateUrl` above already judged the
+          // name, but the global fetch would resolve it a SECOND time and could
+          // connect somewhere else; the agent does the judging inside the
+          // lookup the connection itself uses, which is what closes that.
+          const response = await publicFetch(url, {
             headers: {
               'User-Agent': 'Mozilla/5.0 (compatible; AliaBot/1.0)',
               'Accept': 'text/html,application/xhtml+xml',
