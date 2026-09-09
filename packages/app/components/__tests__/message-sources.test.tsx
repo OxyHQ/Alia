@@ -29,6 +29,17 @@ vi.mock('react-native', async () => {
   };
 });
 
+/**
+ * `expo-image` reaches `expo-modules-core`, which needs the Expo runtime only a
+ * device build has. The favicon itself is the subject of
+ * `message-sources-favicon.test.tsx`; here the host element only has to exist,
+ * so that the marks these tests count are counted with it present.
+ */
+vi.mock('expo-image', async () => {
+  const ReactModule = await import('react');
+  return { Image: (props: Record<string, unknown>) => ReactModule.createElement('Image', props) };
+});
+
 vi.mock('lucide-react-native', async () => {
   const ReactModule = await import('react');
   const h = (name: string) => ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>

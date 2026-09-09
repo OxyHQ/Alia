@@ -1,12 +1,51 @@
+import { useState } from "react";
 import { View, Pressable } from "react-native";
+import { Image } from "expo-image";
 import { Globe } from "lucide-react-native";
 import { Text } from "@/components/ui/text";
 import { useTranslation } from "@/lib/hooks/use-translation";
+import config from "@/lib/config";
 import { extractSources } from "@/lib/thought-utils";
 import type { ToolInvocation } from "@/lib/types/messages";
 
 /** How many domain marks the stack shows before it stops adding them. */
 const STACK_LIMIT = 3;
+
+/**
+ * One source's mark: the site's own icon, on the globe it falls back to.
+ *
+ * The icon comes from Alia's API, never from a public favicon service. A
+ * service would receive one request per source straight from the reader's
+ * browser — which publication, which reader, which minute — and that adds up to
+ * the reading habits of everyone using Alia, held by a company with no part in
+ * this. `packages/api/src/lib/favicon.ts` fetches it server-side instead, and
+ * says what that costs.
+ *
+ * The globe is rendered underneath rather than after a failure, so the two
+ * states that are not "loaded" — still fetching, and no icon at all — look the
+ * same and neither is a gap in the row. Most sources will not have an icon
+ * within the first frame, and a mark that appears late is a row that moves
+ * under the reader.
+ */
+function SourceMark({ domain }: { domain: string }) {
+  const [status, setStatus] = useState<"pending" | "loaded" | "failed">("pending");
+
+  return (
+    <View className="-ms-1.5 h-5 w-5 items-center justify-center overflow-hidden rounded-full border-2 border-background bg-muted first:me-0">
+      {status === "loaded" ? null : <Globe size={10} className="text-muted-foreground" />}
+      {status === "failed" ? null : (
+        <Image
+          source={{ uri: `${config.apiUrl}/favicons/${encodeURIComponent(domain)}` }}
+          className="absolute h-full w-full"
+          contentFit="contain"
+          accessible={false}
+          onLoad={() => setStatus("loaded")}
+          onError={() => setStatus("failed")}
+        />
+      )}
+    </View>
+  );
+}
 
 /**
  * The row of sources under an answer that used the web.
@@ -43,12 +82,7 @@ export function MessageSources({
       {/* Reversed so the first source sits on top of the overlap, as read. */}
       <View className="flex-row-reverse">
         {[...stacked].reverse().map((source) => (
-          <View
-            key={source.url}
-            className="-ms-1.5 h-5 w-5 items-center justify-center rounded-full border-2 border-background bg-muted first:me-0"
-          >
-            <Globe size={10} className="text-muted-foreground" />
-          </View>
+          <SourceMark key={source.url} domain={source.domain} />
         ))}
       </View>
       <Text className="text-[13px] font-medium text-muted-foreground">
