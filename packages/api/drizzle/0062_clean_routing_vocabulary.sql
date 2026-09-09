@@ -36,41 +36,68 @@ INSERT INTO "_routing_name_cut" ("old_id", "new_id") VALUES
   (concat('alia', '-v1-voice'), 'route:voice'),
   (concat('alia', '-v1-voice-pro'), 'route:voice-pro');--> statement-breakpoint
 
--- A new task may seed the clean row before this post-deploy migration runs.
--- Merge that overlap by stable database PK, keeping one child mapping per
--- provider model and preserving accumulated counters.
-UPDATE "routing_profiles" AS target
-SET "total_requests" = target."total_requests" + source."total_requests",
-    "total_tokens" = target."total_tokens" + source."total_tokens"
-FROM "routing_profiles" AS source
-JOIN "_routing_name_cut" AS names ON names."old_id" = source."routing_profile_id"
-WHERE target."routing_profile_id" = names."new_id"
-  AND target."id" <> source."id";--> statement-breakpoint
+-- There can be a clean row seeded by the new image, or several historical
+-- rows which all converge on the same clean id. Pick exactly one database row
+-- per destination before changing any business key; otherwise two historical
+-- rows can collide on the routing_profile_id UNIQUE constraint.
+CREATE TEMP TABLE "_routing_winner" (
+  "new_id" text PRIMARY KEY,
+  "winner_id" text NOT NULL
+) ON COMMIT DROP;--> statement-breakpoint
+
+INSERT INTO "_routing_winner" ("new_id", "winner_id")
+SELECT names."new_id",
+       COALESCE(
+         (array_agg(clean."id" ORDER BY clean."id") FILTER (WHERE clean."id" IS NOT NULL))[1],
+         (array_agg(source."id" ORDER BY source."id") FILTER (WHERE source."id" IS NOT NULL))[1]
+       )
+FROM (SELECT DISTINCT "new_id" FROM "_routing_name_cut") AS names
+LEFT JOIN "routing_profiles" AS clean ON clean."routing_profile_id" = names."new_id"
+LEFT JOIN "_routing_name_cut" AS aliases ON aliases."new_id" = names."new_id"
+LEFT JOIN "routing_profiles" AS source ON source."routing_profile_id" = aliases."old_id"
+GROUP BY names."new_id"
+HAVING COUNT(clean."id") + COUNT(source."id") > 0;--> statement-breakpoint
+
+-- Preserve accumulated counters from every row which will be removed.
+UPDATE "routing_profiles" AS winner
+SET "total_requests" = winner."total_requests" + totals."total_requests",
+    "total_tokens" = winner."total_tokens" + totals."total_tokens"
+FROM "_routing_winner" AS chosen
+JOIN LATERAL (
+  SELECT COALESCE(SUM(source."total_requests"), 0) AS "total_requests",
+         COALESCE(SUM(source."total_tokens"), 0) AS "total_tokens"
+  FROM "_routing_name_cut" AS names
+  JOIN "routing_profiles" AS source ON source."routing_profile_id" = names."old_id"
+  WHERE names."new_id" = chosen."new_id" AND source."id" <> chosen."winner_id"
+) AS totals ON true
+WHERE winner."id" = chosen."winner_id";--> statement-breakpoint
 
 DELETE FROM "routing_profile_provider_mappings" AS old_mapping
-USING "routing_profiles" AS source, "routing_profiles" AS target, "_routing_name_cut" AS names
+USING "routing_profiles" AS source, "_routing_winner" AS chosen, "_routing_name_cut" AS names
 WHERE source."routing_profile_id" = names."old_id"
-  AND target."routing_profile_id" = names."new_id"
+  AND chosen."new_id" = names."new_id"
+  AND source."id" <> chosen."winner_id"
   AND old_mapping."routing_profile_id" = source."id"
   AND EXISTS (
     SELECT 1
     FROM "routing_profile_provider_mappings" AS current_mapping
-    WHERE current_mapping."routing_profile_id" = target."id"
+    WHERE current_mapping."routing_profile_id" = chosen."winner_id"
       AND current_mapping."model_config_id" = old_mapping."model_config_id"
   );--> statement-breakpoint
 
 UPDATE "routing_profile_provider_mappings" AS mapping
-SET "routing_profile_id" = target."id"
-FROM "routing_profiles" AS source, "routing_profiles" AS target, "_routing_name_cut" AS names
+SET "routing_profile_id" = chosen."winner_id"
+FROM "routing_profiles" AS source, "_routing_winner" AS chosen, "_routing_name_cut" AS names
 WHERE source."routing_profile_id" = names."old_id"
-  AND target."routing_profile_id" = names."new_id"
+  AND chosen."new_id" = names."new_id"
+  AND source."id" <> chosen."winner_id"
   AND mapping."routing_profile_id" = source."id";--> statement-breakpoint
 
 DELETE FROM "routing_profiles" AS source
-USING "routing_profiles" AS target, "_routing_name_cut" AS names
+USING "_routing_winner" AS chosen, "_routing_name_cut" AS names
 WHERE source."routing_profile_id" = names."old_id"
-  AND target."routing_profile_id" = names."new_id"
-  AND source."id" <> target."id";--> statement-breakpoint
+  AND chosen."new_id" = names."new_id"
+  AND source."id" <> chosen."winner_id";--> statement-breakpoint
 
 UPDATE "routing_profiles" AS p
 SET "routing_profile_id" = m."new_id",
