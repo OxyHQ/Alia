@@ -139,7 +139,7 @@ describe('presentation', () => {
   it("uses the product's word for a profile a mode selects", () => {
     const lite = entries.find((entry) => entry.id === 'route:instant');
     expect(lite?.displayName).toBe('Instant');
-    expect(presentation(lite ?? entries[0], modes).label).toBe('Fast');
+    expect(presentation(lite ?? entries[0], modes).label).toBe('Instant');
   });
 
   it("falls back to the catalogue's own name for a profile no mode selects", () => {
@@ -173,7 +173,7 @@ describe('offeredModes', () => {
   it('never puts an alias display name in front of a person', () => {
     // The negative control the whole change exists for: `Instant` and
     // `Auto` are in the payload above and must not reach a label.
-    expect(offered.map((mode) => mode.label)).toEqual(['Fast', 'Balanced', 'Codea Pro']);
+    expect(offered.map((mode) => mode.label)).toEqual(['Instant', 'Balanced', 'Codea Pro']);
   });
 });
 
@@ -190,7 +190,7 @@ describe('labelForPreference', () => {
   });
 
   it("uses the product's word for a stored profile", () => {
-    expect(labelForPreference('route:instant', entries, modes)).toBe('Fast');
+    expect(labelForPreference('route:instant', entries, modes)).toBe('Instant');
   });
 
   it('reports no word for a legacy identifier rather than inventing one', () => {
