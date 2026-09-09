@@ -79,6 +79,7 @@ import {
   createSuggestNewConversationTool,
 } from './tools/index.js';
 import { getWeatherTool } from './tools/weather.js';
+import { getMarketQuoteTool } from './tools/market.js';
 import { buildMcpTools } from './tools/mcp.js';
 import { buildAskAgentTool } from './tools/ask-agent.js';
 import { buildIntegrationTools } from './tools/integrations.js';
@@ -392,6 +393,7 @@ export class ToolPipeline {
     // the open internet on the reader's behalf.
     if (webSearch && grants.allows('web')) {
       aliaTools.getWeather = getWeatherTool;
+      aliaTools.getMarketQuote = getMarketQuoteTool;
     }
 
     // A device can only be described when the surface knows one.
