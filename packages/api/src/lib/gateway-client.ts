@@ -125,7 +125,6 @@ export interface RoutingOptions {
 
 export interface RoutingProfileWithAvailability extends RoutingProfile {
   isAvailable: boolean;
-  isLegacy: boolean;
 }
 
 // No `RoutingTier` here. It was `= string`, imported by nothing and constraining
@@ -203,19 +202,14 @@ export async function getAllRoutingProfiles(): Promise<RoutingProfile[]> {
 /**
  * Get all product profiles without consulting Alia provider health.
  *
- * Kaana owns live availability. The legacy bit remains Alia product metadata
- * and is read from the retained catalogue table until its migration completes.
+ * Kaana owns live availability. Alia adds no database overlay to the signed
+ * routing-profile catalogue.
  */
 export async function getAvailableModels(): Promise<RoutingProfileWithAvailability[]> {
   const models = await getAllRoutingProfiles();
-  const legacy = new Map<string, boolean>();
-  const { getDb } = await import('../db/index.js');
-  const { listRoutingProfiles } = await import('../db/providers/routingProfileRepository.js');
-  for (const row of await listRoutingProfiles(getDb())) legacy.set(row.routingProfileId, row.isLegacy);
   return models.map((model) => ({
     ...model,
     isAvailable: true,
-    isLegacy: legacy.get(model.id) ?? false,
   }));
 }
 

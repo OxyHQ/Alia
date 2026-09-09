@@ -70,7 +70,6 @@ export interface RoutingProfileView {
   providerMappings: ProviderMappingInput[];
   isActive: boolean;
   isDeprecated: boolean;
-  isLegacy: boolean;
   deprecationDate: Date | null;
   replacementModelId: string | null;
   totalRequests: number;
@@ -109,7 +108,6 @@ function toView(row: RoutingProfileRow, mappings: ProviderMappingRow[]): Routing
     })),
     isActive: row.isActive,
     isDeprecated: row.isDeprecated,
-    isLegacy: row.isLegacy,
     deprecationDate: row.deprecationDate,
     replacementModelId: row.replacementModelId,
     totalRequests: row.totalRequests,
@@ -192,7 +190,6 @@ export interface RoutingProfileInput {
   aggregatedCapabilities?: Partial<AggregatedCapabilities>;
   isActive?: boolean;
   isDeprecated?: boolean;
-  isLegacy?: boolean;
   deprecationDate?: Date | null;
   replacementModelId?: string | null;
   notes?: string | null;
@@ -217,7 +214,6 @@ function toColumns(input: RoutingProfileInput): Partial<typeof routingProfiles.$
   put('aggregatedCapabilitiesThinking', input.aggregatedCapabilities?.thinking);
   put('isActive', input.isActive);
   put('isDeprecated', input.isDeprecated);
-  put('isLegacy', input.isLegacy);
   put('deprecationDate', input.deprecationDate);
   put('replacementModelId', input.replacementModelId);
   put('notes', input.notes);

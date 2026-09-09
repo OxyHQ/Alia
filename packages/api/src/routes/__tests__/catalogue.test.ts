@@ -28,7 +28,6 @@ interface FixtureModel {
   category: string;
   emoji?: string;
   isAvailable: boolean;
-  isLegacy: boolean;
 }
 
 interface FixtureLicense {
@@ -216,7 +215,6 @@ function model(overrides: Partial<FixtureModel> = {}): FixtureModel {
     category: 'general',
     emoji: '⚡',
     isAvailable: true,
-    isLegacy: false,
     ...overrides,
   };
 }

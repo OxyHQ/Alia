@@ -130,7 +130,6 @@ export const AUDITED_FIELDS: Readonly<Record<ConfigAuditResource, readonly strin
     'isFreeTier',
     'isActive',
     'isDeprecated',
-    'isLegacy',
     'deprecationDate',
     'replacementModelId',
   ],
