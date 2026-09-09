@@ -290,7 +290,7 @@ describe('routing_profiles and their provider mappings', () => {
     // The negative control: the hyphenated alias form is one character away and
     // must still register. Without this, a guard refusing every identifier
     // would pass everything above and take the catalogue down.
-    const hyphenated = nextId('kaana-v1-not-reserved');
+    const hyphenated = nextId('route:auto-not-reserved');
     const ok = await createRoutingProfile(db, { routingProfileId: hyphenated, displayName: 'T', tier: 'v1' }, mappings, ACTOR);
     expect(ok.routingProfileId).toBe(hyphenated);
   });

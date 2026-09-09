@@ -5,19 +5,19 @@ import {
 
 /** Product-owned prompt names, deliberately independent of inference IDs. */
 export const PRODUCT_PROMPT_BY_KAANA_PROFILE = {
-  'kaana-lite': 'general-lite',
-  'kaana-v1': 'general',
-  'kaana-v1-codea': 'codea',
-  'kaana-v1-cowork': 'cowork',
-  'kaana-v1-browser': 'browser',
-  'kaana-v1-vision': 'vision',
-  'kaana-v1-audio': 'audio',
-  'kaana-v1-multimodal': 'multimodal',
-  'kaana-v1-pro': 'codea-pro',
-  'kaana-v1-thinking': 'extended-reasoning',
-  'kaana-v1-pro-max': 'pro-max',
-  'kaana-v1-voice': 'voice',
-  'kaana-v1-voice-pro': 'voice-pro',
+  'route:instant': 'general-lite',
+  'route:auto': 'general',
+  'route:code': 'codea',
+  'route:cowork': 'cowork',
+  'route:research': 'browser',
+  'route:vision': 'vision',
+  'route:audio': 'audio',
+  'route:multimodal': 'multimodal',
+  'route:pro-standard': 'codea-pro',
+  'route:thinking': 'extended-reasoning',
+  'route:pro': 'pro-max',
+  'route:voice': 'voice',
+  'route:voice-pro': 'voice-pro',
 } as const satisfies Record<KaanaRoutingProfileId, string>;
 
 export type ProductPromptId = (typeof PRODUCT_PROMPT_BY_KAANA_PROFILE)[KaanaRoutingProfileId];

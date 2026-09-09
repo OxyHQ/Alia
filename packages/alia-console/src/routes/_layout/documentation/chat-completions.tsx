@@ -106,7 +106,7 @@ function ChatCompletionsPage() {
         <h2 className="text-lg font-semibold text-foreground mb-4">Request Body</h2>
         <div>
           <ParamRow name="model" type="string" required>
-            ID of the model to use (e.g., "profile:v1", "profile:v1-pro")
+            ID of the model to use (e.g., "profile:auto", "profile:pro-standard")
           </ParamRow>
           <ParamRow name="messages" type="array" required>
             A list of messages comprising the conversation so far
@@ -157,7 +157,7 @@ function ChatCompletionsPage() {
   -H "Authorization: Bearer $ALIA_API_KEY" \\
   -H "Content-Type: application/json" \\
   -d '{
-    "model": "profile:v1",
+    "model": "profile:auto",
     "messages": [
       {
         "role": "system",
@@ -183,7 +183,7 @@ function ChatCompletionsPage() {
   "id": "chatcmpl-abc123def456",
   "object": "chat.completion",
   "created": 1234567890,
-  "model": "profile:v1",
+  "model": "profile:auto",
   "choices": [
     {
       "index": 0,
@@ -216,7 +216,7 @@ function ChatCompletionsPage() {
   -H "Authorization: Bearer $ALIA_API_KEY" \\
   -H "Content-Type: application/json" \\
   -d '{
-    "model": "profile:v1",
+    "model": "profile:auto",
     "messages": [{"role": "user", "content": "Tell me a story"}],
     "stream": true
   }'`}

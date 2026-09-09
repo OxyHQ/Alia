@@ -205,8 +205,8 @@ afterAll(async () => {
 
 function model(overrides: Partial<FixtureModel> = {}): FixtureModel {
   return {
-    id: 'kaana-lite',
-    name: 'Kaana Lite',
+    id: 'route:instant',
+    name: 'Instant',
     tier: 'lite',
     description: 'Fast responses',
     creditMultiplier: 0.5,
@@ -263,7 +263,7 @@ function plan(overrides: Partial<FixturePlan> = {}): FixturePlan {
     product: 'alia',
     monthlyPrice: 0,
     isFree: true,
-    modelIds: ['kaana-lite'],
+    modelIds: ['route:instant'],
     isActive: true,
     ...overrides,
   };
@@ -277,8 +277,8 @@ async function get(path: string): Promise<{ status: number; body: CatalogueBody 
 beforeEach(() => {
   state.models = [
     model(),
-    model({ id: 'kaana-v1-codea', name: 'Codea', tier: 'v1-codea', category: 'coding', creditMultiplier: 1.5 }),
-    model({ id: 'kaana-v1-pro', name: 'Codea Pro', tier: 'v1-pro', creditMultiplier: 3 }),
+    model({ id: 'route:code', name: 'Codea', tier: 'v1-codea', category: 'coding', creditMultiplier: 1.5 }),
+    model({ id: 'route:pro-standard', name: 'Codea Pro', tier: 'v1-pro', creditMultiplier: 3 }),
   ];
   state.mappings = {
     lite: [mapping('one'), mapping('two', { vision: true })],
@@ -287,12 +287,12 @@ beforeEach(() => {
   };
   state.plans = [
     plan(),
-    plan({ planId: 'go', name: 'Go', monthlyPrice: 399, isFree: false, modelIds: ['kaana-lite', 'kaana-v1-codea'] }),
-    plan({ planId: 'codea-pro', name: 'Codea Pro', product: 'codea', monthlyPrice: 999, isFree: false, modelIds: ['kaana-v1-codea', 'kaana-v1-pro'] }),
+    plan({ planId: 'go', name: 'Go', monthlyPrice: 399, isFree: false, modelIds: ['route:instant', 'route:code'] }),
+    plan({ planId: 'codea-pro', name: 'Codea Pro', product: 'codea', monthlyPrice: 999, isFree: false, modelIds: ['route:code', 'route:pro-standard'] }),
   ];
   state.plansThrow = false;
   state.entitlementsThrow = false;
-  state.allowedModelIds = ['kaana-lite'];
+  state.allowedModelIds = ['route:instant'];
   state.userId = null;
   state.apiKeyId = null;
   state.serviceAppId = null;
@@ -336,9 +336,9 @@ describe('Kaana owns live availability', () => {
     // The positive half. Without it, every assertion below is satisfied by a
     // catalogue that calls everything unavailable.
     expect(availability(body)).toEqual({
-      'kaana-lite': 'available',
-      'kaana-v1-codea': 'available',
-      'kaana-v1-pro': 'available',
+      'route:instant': 'available',
+      'route:code': 'available',
+      'route:pro-standard': 'available',
     });
   });
 
@@ -347,9 +347,9 @@ describe('Kaana owns live availability', () => {
     const { status, body } = await get('/catalogue');
     expect(status).toBe(200);
     expect(availability(body)).toEqual({
-      'kaana-lite': 'available',
-      'kaana-v1-codea': 'available',
-      'kaana-v1-pro': 'available',
+      'route:instant': 'available',
+      'route:code': 'available',
+      'route:pro-standard': 'available',
     });
   });
 
@@ -362,25 +362,25 @@ describe('Kaana owns live availability', () => {
     state.credentialed = ['other'];
 
     expect(availability((await get('/catalogue')).body)).toEqual({
-      'kaana-lite': 'available',
-      'kaana-v1-codea': 'available',
-      'kaana-v1-pro': 'available',
+      'route:instant': 'available',
+      'route:code': 'available',
+      'route:pro-standard': 'available',
     });
 
     state.credentialed = ['acme'];
     expect(availability((await get('/catalogue')).body)).toEqual({
-      'kaana-lite': 'available',
-      'kaana-v1-codea': 'available',
-      'kaana-v1-pro': 'available',
+      'route:instant': 'available',
+      'route:code': 'available',
+      'route:pro-standard': 'available',
     });
   });
 
   it('historical Alia circuit rows cannot withdraw Kaana profiles', async () => {
     state.health = [{ provider: 'acme', modelId: 'three', circuitState: 'open' }];
-    expect(availability((await get('/catalogue')).body)['kaana-v1-codea']).toBe('available');
+    expect(availability((await get('/catalogue')).body)['route:code']).toBe('available');
 
     state.health = [{ provider: 'acme', modelId: 'three', circuitState: 'closed' }];
-    expect(availability((await get('/catalogue')).body)['kaana-v1-codea']).toBe('available');
+    expect(availability((await get('/catalogue')).body)['route:code']).toBe('available');
   });
 
   it('does not hold a breaker nothing has recorded against a route', async () => {
@@ -388,14 +388,14 @@ describe('Kaana owns live availability', () => {
     // never-called route has none — and reading that as broken would empty the
     // catalogue of everything new.
     state.health = [];
-    expect(availability((await get('/catalogue')).body)['kaana-v1-codea']).toBe('available');
+    expect(availability((await get('/catalogue')).body)['route:code']).toBe('available');
   });
 
   it('never reads the local credential table', async () => {
     state.credentialsThrow = true;
     const { status, body } = await get('/catalogue');
     expect(status).toBe(200);
-    expect(availability(body)['kaana-lite']).toBe('available');
+    expect(availability(body)['route:instant']).toBe('available');
   });
 });
 
@@ -406,22 +406,22 @@ describe('the catalogue preserves canonical routing-profile identity', () => {
     expect(body.object).toBe('list');
 
     const byId = new Map((body.data ?? []).map((e) => [String(e.id), e]));
-    expect([...byId.keys()].sort()).toEqual(['kaana-lite', 'kaana-v1-codea', 'kaana-v1-pro']);
+    expect([...byId.keys()].sort()).toEqual(['route:code', 'route:instant', 'route:pro-standard']);
 
     // Two candidates: a policy over two models.
-    expect(byId.get('kaana-lite')?.object).toBe('routing_profile');
-    expect(byId.get('kaana-lite')?.profile_id).toBe('kaana-lite');
-    expect(byId.get('kaana-lite')?.selects_among).toBe(2);
+    expect(byId.get('route:instant')?.object).toBe('routing_profile');
+    expect(byId.get('route:instant')?.profile_id).toBe('route:instant');
+    expect(byId.get('route:instant')?.selects_among).toBe(2);
 
     // Fan-out may change without changing the identity a client selected.
-    expect(byId.get('kaana-v1-codea')?.object).toBe('routing_profile');
-    expect(byId.get('kaana-v1-codea')?.profile_id).toBe('kaana-v1-codea');
-    expect(byId.get('kaana-v1-codea')?.selects_among).toBe(1);
+    expect(byId.get('route:code')?.object).toBe('routing_profile');
+    expect(byId.get('route:code')?.profile_id).toBe('route:code');
+    expect(byId.get('route:code')?.selects_among).toBe(1);
   });
 
   it('reports capability availability per entry, with unknown distinct from never', async () => {
     const { body } = await get('/catalogue');
-    const lite = (body.data ?? []).find((e) => e.id === 'kaana-lite');
+    const lite = (body.data ?? []).find((e) => e.id === 'route:instant');
     expect(lite?.capabilities).toEqual({
       // One of two candidates has vision, so neither `true` nor `false` is the
       // honest answer. The fixture alias declares `supportsVision: false`, which
@@ -452,7 +452,7 @@ describe('entitlement comes from the plan catalogue, and says so when it cannot'
     const { body } = await get('/catalogue');
     expect(body.entitlements_known).toBe(true);
     const byId = new Map((body.data ?? []).map((e) => [String(e.id), e]));
-    expect(byId.get('kaana-lite')?.entitlement).toEqual({
+    expect(byId.get('route:instant')?.entitlement).toEqual({
       state: 'known',
       access: 'free',
       required_plan: null,
@@ -460,7 +460,7 @@ describe('entitlement comes from the plan catalogue, and says so when it cannot'
       products: ['alia'],
       entitled: null,
     });
-    expect(byId.get('kaana-v1-pro')?.entitlement).toMatchObject({
+    expect(byId.get('route:pro-standard')?.entitlement).toMatchObject({
       access: 'plan',
       required_plan: 'Codea Pro',
       products: ['codea'],
@@ -471,8 +471,8 @@ describe('entitlement comes from the plan catalogue, and says so when it cannot'
     state.userId = 'user-1';
     const { body } = await get('/catalogue');
     const byId = new Map((body.data ?? []).map((e) => [String(e.id), e]));
-    expect((byId.get('kaana-lite')?.entitlement as { entitled?: unknown }).entitled).toBe(true);
-    expect((byId.get('kaana-v1-pro')?.entitlement as { entitled?: unknown }).entitled).toBe(false);
+    expect((byId.get('route:instant')?.entitlement as { entitled?: unknown }).entitled).toBe(true);
+    expect((byId.get('route:pro-standard')?.entitlement as { entitled?: unknown }).entitled).toBe(false);
     // Not entitled is not hidden: a picker needs the locked entry to explain the
     // upgrade. Filtering is opt-in, below.
     expect(body.data).toHaveLength(3);
@@ -492,7 +492,7 @@ describe('a filter that cannot be evaluated refuses instead of answering', () =>
   it('filters by Alia product policy', async () => {
     const { status, body } = await get('/catalogue?product=codea');
     expect(status).toBe(200);
-    expect((body.data ?? []).map((e) => e.id).sort()).toEqual(['kaana-v1-codea', 'kaana-v1-pro']);
+    expect((body.data ?? []).map((e) => e.id).sort()).toEqual(['route:code', 'route:pro-standard']);
   });
 
   it('rejects a product outside the plan vocabulary', async () => {
@@ -505,7 +505,7 @@ describe('a filter that cannot be evaluated refuses instead of answering', () =>
     state.userId = 'user-1';
     const { status, body } = await get('/catalogue?entitled=true');
     expect(status).toBe(200);
-    expect((body.data ?? []).map((e) => e.id)).toEqual(['kaana-lite']);
+    expect((body.data ?? []).map((e) => e.id)).toEqual(['route:instant']);
   });
 
   it('refuses to filter by entitlement without a caller, rather than inventing a free tier', async () => {
@@ -597,7 +597,7 @@ describe('a route whose availability scope does not admit the caller is withheld
     };
     const classified = await get('/catalogue');
     expect(classified.body.filters?.availability_scope).toEqual({ declared_routes: 1 });
-    const lite = (classified.body.data ?? []).find((e) => e.id === 'kaana-lite');
+    const lite = (classified.body.data ?? []).find((e) => e.id === 'route:instant');
     expect(lite?.availability).toMatchObject({ scope: { state: 'admitted', values: ['public_payg'] } });
   });
 
@@ -613,7 +613,7 @@ describe('a route whose availability scope does not admit the caller is withheld
     };
     const { body } = await get('/catalogue');
     // Two entries really were withheld, so the absence below is a decision.
-    expect((body.data ?? []).map((e) => e.id)).toEqual(['kaana-v1-pro']);
+    expect((body.data ?? []).map((e) => e.id)).toEqual(['route:pro-standard']);
     expect(body.filters?.availability_scope).toEqual({ declared_routes: 2 });
     expect(Object.keys(body.filters?.availability_scope ?? {})).toEqual(['declared_routes']);
   });
@@ -649,12 +649,12 @@ describe('a route whose availability scope does not admit the caller is withheld
       'v1-pro': [mapping('four', {}, { availabilityScope: 'internal_alia' }), mapping('five', {}, { availabilityScope: 'internal_alia' })],
     };
     const { body } = await get('/catalogue');
-    expect((body.data ?? []).map((e) => e.id)).toEqual(['kaana-lite', 'kaana-v1-codea']);
+    expect((body.data ?? []).map((e) => e.id)).toEqual(['route:instant', 'route:code']);
     const byId = new Map((body.data ?? []).map((e) => [String(e.id), e]));
-    expect(byId.get('kaana-lite')?.availability).toMatchObject({
+    expect(byId.get('route:instant')?.availability).toMatchObject({
       scope: { state: 'admitted', values: ['public_payg'] },
     });
-    expect(byId.get('kaana-v1-codea')?.availability).toMatchObject({
+    expect(byId.get('route:code')?.availability).toMatchObject({
       scope: { state: 'admitted', values: ['oxy_hosted'] },
     });
   });
@@ -674,7 +674,7 @@ describe('a route whose availability scope does not admit the caller is withheld
 
     const anonymous = await get('/catalogue');
     expect(anonymous.status).toBe(200);
-    expect((anonymous.body.data ?? []).map((e) => e.id)).toEqual(['kaana-v1-codea', 'kaana-v1-pro']);
+    expect((anonymous.body.data ?? []).map((e) => e.id)).toEqual(['route:code', 'route:pro-standard']);
     expect(anonymous.body.filters?.availability_scope).toEqual({ declared_routes: 2 });
 
     // The positive control. Without it, a filter that withheld EVERY entry —
@@ -682,8 +682,8 @@ describe('a route whose availability scope does not admit the caller is withheld
     // read exactly like the refusal above.
     state.serviceAppId = 'alia-internal';
     const internal = await get('/catalogue');
-    expect((internal.body.data ?? []).map((e) => e.id)).toContain('kaana-lite');
-    const lite = (internal.body.data ?? []).find((e) => e.id === 'kaana-lite');
+    expect((internal.body.data ?? []).map((e) => e.id)).toContain('route:instant');
+    const lite = (internal.body.data ?? []).find((e) => e.id === 'route:instant');
     expect(lite?.availability).toMatchObject({ scope: { state: 'admitted', values: ['internal_alia'] } });
   });
 
@@ -700,12 +700,12 @@ describe('a route whose availability scope does not admit the caller is withheld
 
     state.userId = 'user-1';
     const session = await get('/catalogue');
-    expect((session.body.data ?? []).map((e) => e.id)).not.toContain('kaana-lite');
+    expect((session.body.data ?? []).map((e) => e.id)).not.toContain('route:instant');
 
     state.userId = null;
     state.apiKeyId = 'key-1';
     const developer = await get('/catalogue');
-    expect((developer.body.data ?? []).map((e) => e.id)).not.toContain('kaana-lite');
+    expect((developer.body.data ?? []).map((e) => e.id)).not.toContain('route:instant');
     expect(developer.body.filters?.availability_scope).toEqual({ declared_routes: 1 });
   });
 
@@ -724,7 +724,7 @@ describe('a route whose availability scope does not admit the caller is withheld
     const { body } = await get('/catalogue');
     // Even the most privileged audience: the missing fact is commercial, not a
     // question of credential strength.
-    expect((body.data ?? []).map((e) => e.id)).toEqual(['kaana-v1-pro']);
+    expect((body.data ?? []).map((e) => e.id)).toEqual(['route:pro-standard']);
     expect(body.filters?.availability_scope).toEqual({ declared_routes: 2 });
   });
 
@@ -738,7 +738,7 @@ describe('a route whose availability scope does not admit the caller is withheld
       'v1-pro': [mapping('four'), mapping('five'), mapping('six')],
     };
     const { body } = await get('/catalogue');
-    const lite = (body.data ?? []).find((e) => e.id === 'kaana-lite');
+    const lite = (body.data ?? []).find((e) => e.id === 'route:instant');
     expect(lite).toBeDefined();
     expect(lite?.availability).toMatchObject({ scope: { state: 'admitted', values: [] } });
     expect(body.filters?.availability_scope).toEqual({ declared_routes: 1 });
@@ -755,16 +755,16 @@ describe('the catalogue is filtered by what the calling surface can be offered',
     // offered for what it is.
     state.models = [
       model(),
-      model({ id: 'kaana-v1-voice', name: 'Voice', tier: 'v1-voice', category: 'voice', creditMultiplier: 2 }),
+      model({ id: 'route:voice', name: 'Voice', tier: 'v1-voice', category: 'voice', creditMultiplier: 2 }),
     ];
     state.mappings = { lite: [mapping('one'), mapping('two')], 'v1-voice': [mapping('seven', { audio: true })] };
-    state.plans = [plan({ modelIds: ['kaana-lite', 'kaana-v1-voice'] })];
+    state.plans = [plan({ modelIds: ['route:instant', 'route:voice'] })];
   });
 
   it('does not hand an audio entry to a surface that carries no audio', async () => {
     const terminal = await get('/catalogue?surface=terminal');
     expect(terminal.status).toBe(200);
-    expect((terminal.body.data ?? []).map((e) => e.id)).toEqual(['kaana-lite']);
+    expect((terminal.body.data ?? []).map((e) => e.id)).toEqual(['route:instant']);
     expect(terminal.body.filters?.platform_capability).toEqual({
       surface: 'terminal',
       withheld_entries: 1,
@@ -773,13 +773,13 @@ describe('the catalogue is filtered by what the calling surface can be offered',
     // The positive control: a surface that DOES carry audio receives it, so the
     // empty answer above is the filter working rather than the entry missing.
     const chat = await get('/catalogue?surface=chat');
-    expect((chat.body.data ?? []).map((e) => e.id)).toEqual(['kaana-lite', 'kaana-v1-voice']);
+    expect((chat.body.data ?? []).map((e) => e.id)).toEqual(['route:instant', 'route:voice']);
     expect(chat.body.filters?.platform_capability).toEqual({ surface: 'chat', withheld_entries: 0 });
   });
 
   it('applies no filter when no surface is declared, and says which was declared', async () => {
     const { body } = await get('/catalogue');
-    expect((body.data ?? []).map((e) => e.id)).toEqual(['kaana-lite', 'kaana-v1-voice']);
+    expect((body.data ?? []).map((e) => e.id)).toEqual(['route:instant', 'route:voice']);
     expect(body.filters?.platform_capability).toEqual({ surface: null, withheld_entries: 0 });
   });
 
@@ -824,7 +824,7 @@ describe('attribution an open-weight licence requires survives to the response',
 
     const { body } = await get('/catalogue');
     expect(body.filters?.attributed_routes).toBe(1);
-    const lite = (body.data ?? []).find((e) => e.id === 'kaana-lite');
+    const lite = (body.data ?? []).find((e) => e.id === 'route:instant');
     expect(lite?.attribution).toEqual([
       {
         attributed_model: 'fixturelabs/fixture-70b',
@@ -867,7 +867,7 @@ describe('attribution an open-weight licence requires survives to the response',
     };
 
     const { body } = await get('/catalogue');
-    const lite = (body.data ?? []).find((e) => e.id === 'kaana-lite');
+    const lite = (body.data ?? []).find((e) => e.id === 'route:instant');
     expect(lite?.attribution).toEqual([]);
     expect(JSON.stringify(body)).not.toContain('unattributed-8b');
     // The route still carried a record, which is what the count reports — so a
@@ -892,7 +892,7 @@ describe('attribution an open-weight licence requires survives to the response',
     };
 
     const { body } = await get('/catalogue');
-    const lite = (body.data ?? []).find((e) => e.id === 'kaana-lite');
+    const lite = (body.data ?? []).find((e) => e.id === 'route:instant');
     const attributed = (lite?.attribution as { attributed_model: string }[]).map((a) => a.attributed_model);
     // Three routes, three licence records, two distinct obligations.
     expect(body.filters?.attributed_routes).toBe(3);

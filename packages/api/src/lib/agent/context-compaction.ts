@@ -173,7 +173,7 @@ async function summarizeEntries(entries: EventStreamEntry[]): Promise<string> {
     .join('\n');
 
   try {
-    const resolved = await resolveModel('kaana-lite') || await resolveModel(getDefaultRoutingProfile());
+    const resolved = await resolveModel('route:instant') || await resolveModel(getDefaultRoutingProfile());
     if (!resolved) {
       // Fallback: simple truncation
       return entries

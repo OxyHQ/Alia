@@ -24,9 +24,9 @@
  *     `supportsVision` / `maxTokens` fields. Those fields are not Kaana serving
  *     evidence and no Alia request-path code may turn them into provider
  *     selection. They are declarations nothing enforces, and they
- *     are wrong in BOTH directions today: `kaana-lite` declares `vision: false`
+ *     are wrong in BOTH directions today: `route:instant` declares `vision: false`
  *     while four of its sixteen candidates support vision (a picker greying out
- *     a working feature), and `kaana-v1-audio` declares `supportsTools: true`
+ *     a working feature), and `route:audio` declares `supportsTools: true`
  *     while none of its three candidates support tools (a picker offering one
  *     that never works).
  *
@@ -91,7 +91,7 @@ import { log } from './logger.js';
  * `no-fallback` the engine walks `[sortedMappings[0]]` and under
  * `same-model-only` only the deployments of the top-ranked model, so the same
  * entry has genuinely different capability answers under those policies:
- * `kaana-lite` reports `vision: 'sometimes'` here and would be deterministic
+ * `route:instant` reports `vision: 'sometimes'` here and would be deterministic
  * under `no-fallback`.
  *
  * Typed as {@link FallbackPolicy} rather than a string of its own, because two
@@ -239,7 +239,7 @@ interface CatalogueEntryCommon {
   /**
    * Whose models this entry can answer from.
    *
-   * A routing profile fans out across organisations — `profile:lite` reaches
+   * A routing profile fans out across organisations — `profile:instant` reaches
    * Google's, Meta's, DeepSeek's, OpenAI's, xAI's, Mistral's and Cohere's work
    * — so "who is answering me" has a set as its honest answer, not a name. A
    * concrete model reference has a set of one.
@@ -267,7 +267,7 @@ export interface RoutingProfileEntry extends CatalogueEntryCommon {
    * engine walks — which is the same derivation
    * `docs/migration/alias-migration-map.json` publishes as `becomes.id`.
    *
-   * Two entries may share one: `kaana-v1-thinking` and `kaana-v1-pro-max` carry
+   * Two entries may share one: `route:thinking` and `route:pro` carry
    * the same tier, so they are one policy under two identifiers. Showing that
    * plainly is the point.
    */

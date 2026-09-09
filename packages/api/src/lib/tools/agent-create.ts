@@ -169,7 +169,7 @@ export const createAgentTool = (userId: string, accessToken: string | undefined)
         description,
         authorOxyUserId: userId,
         category: category || 'Assistant',
-        routingProfileId: OXY_KAANA_ROUTING_PROFILE_IDS['kaana-v1'],
+        routingProfileId: OXY_KAANA_ROUTING_PROFILE_IDS['route:auto'],
         tags: tags || [],
         capabilityGrants: capabilityGrants ?? [],
         isPublished: true,

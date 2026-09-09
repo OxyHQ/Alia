@@ -98,10 +98,10 @@ function profileRecord(id: string, tier: string, creditMultiplier: number): Rout
   };
 }
 
-const LITE = profileRecord('kaana-lite', 'lite', 0.5);
-const V1 = profileRecord('kaana-v1', 'v1', 1);
-const V1_PRO = profileRecord('kaana-v1-pro', 'v1-pro', 3);
-const CODEA = profileRecord('kaana-v1-codea', 'v1-codea', 1.5);
+const LITE = profileRecord('route:instant', 'lite', 0.5);
+const V1 = profileRecord('route:auto', 'v1', 1);
+const V1_PRO = profileRecord('route:pro-standard', 'v1-pro', 3);
+const CODEA = profileRecord('route:code', 'v1-codea', 1.5);
 
 const idsOf = (models: readonly { id: string }[]): string[] => models.map((m) => m.id).sort();
 
@@ -248,10 +248,7 @@ describe('the price band admits a model, or says why not', () => {
 });
 
 describe('a model is served under exactly one profile, chosen the same way every time', () => {
-  it('prefers a profile the product OFFERS over a cheaper one it does not', () => {
-    // `kaana-v1-codea` is cheaper (1.5) and hidden; `kaana-v1-pro` is
-    // dearer (3) and offered. Homing under the hidden one would leave a model
-    // the product can perfectly well serve out of every picker.
+  it('prefers the cheaper of two profiles the product offers', () => {
     const { selectable } = classifyModels(
       {
         'v1-codea': [route({ priority: 1, model: 'shared' })],
@@ -260,9 +257,9 @@ describe('a model is served under exactly one profile, chosen the same way every
       [CODEA, V1_PRO],
     );
     expect(selectable).toHaveLength(1);
-    expect(selectable[0].profileId).toBe('kaana-v1-pro');
-    expect(selectable[0].routingProfile).toBe('kaana-v1-pro');
-    expect(selectable[0].creditMultiplier).toBe(3);
+    expect(selectable[0].profileId).toBe('route:code');
+    expect(selectable[0].routingProfile).toBe('route:code');
+    expect(selectable[0].creditMultiplier).toBe(1.5);
     expect(selectable[0].chatVisible).toBe(true);
     expect(OFFERED_PROFILES).toContain(selectable[0].profileId);
   });
@@ -276,11 +273,11 @@ describe('a model is served under exactly one profile, chosen the same way every
       [LITE, V1],
     );
     expect(selectable).toHaveLength(1);
-    expect(selectable[0].profileId).toBe('kaana-lite');
+    expect(selectable[0].profileId).toBe('route:instant');
     expect(selectable[0].creditMultiplier).toBe(0.5);
   });
 
-  it('hides a model no offered profile can price, without withholding it', () => {
+  it('surfaces a model when its profile is offered', () => {
     // It is selectable — a caller may name it — but the chat picker does not
     // surface it, because the profile carrying its price is not one the product
     // sells. Those are two different facts and the entry carries both.
@@ -290,8 +287,8 @@ describe('a model is served under exactly one profile, chosen the same way every
     );
     expect(withheld).toEqual([]);
     expect(selectable).toHaveLength(1);
-    expect(selectable[0].chatVisible).toBe(false);
-    expect(OFFERED_PROFILES).not.toContain(selectable[0].profileId);
+    expect(selectable[0].chatVisible).toBe(true);
+    expect(OFFERED_PROFILES).toContain(selectable[0].profileId);
   });
 
   it('skips a preset whose routing profile the runtime catalogue does not know', () => {
@@ -310,8 +307,8 @@ describe('an identity is two authored halves, joined and split the same way', ()
   });
 
   it('refuses a shape that is not an identity, rather than half-parsing it', () => {
-    expect(parseModelIdentity('kaana-lite')).toBeNull();
-    expect(parseModelIdentity('profile:v1')).toBeNull();
+    expect(parseModelIdentity('route:instant')).toBeNull();
+    expect(parseModelIdentity('profile:auto')).toBeNull();
     expect(parseModelIdentity('/model')).toBeNull();
     expect(parseModelIdentity('publisher/')).toBeNull();
   });
@@ -480,13 +477,13 @@ describe('what a request’s model identifier resolves to', () => {
   });
 
   it('refuses an internal policy id at the public boundary', async () => {
-    expect(await resolve('profile:v1')).toEqual({ kind: 'unknown-profile', requested: 'profile:v1' });
+    expect(await resolve('profile:auto')).toEqual({ kind: 'unknown-profile', requested: 'profile:auto' });
   });
 
   it('accepts a canonical Kaana routing profile without translation', async () => {
-    expect(await resolve('kaana-lite')).toEqual({
+    expect(await resolve('route:instant')).toEqual({
       kind: 'routing-profile',
-      routingProfile: 'kaana-lite',
+      routingProfile: 'route:instant',
     });
   });
 

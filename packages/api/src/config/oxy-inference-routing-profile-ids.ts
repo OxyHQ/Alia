@@ -9,14 +9,14 @@ import type { KaanaRoutingProfileId } from '../lib/routing/kaana-profiles.js';
  * `OxyHQServices/packages/api/src/config/kaanaInitialCatalogue.ts`.
  */
 export const OXY_KAANA_ROUTING_PROFILE_IDS = {
-  'kaana-lite': '01a06477-94f5-74f0-bc25-4a1ff59d6945',
-  'kaana-v1': '01a06477-94f5-74f0-bc25-4c5c13b93ccd',
-  'kaana-v1-codea': '01a06477-94f5-74f0-bc25-52437e0c724d',
-  'kaana-v1-cowork': '01a06477-94f5-74f0-bc25-55ea2ebdb2b6',
-  'kaana-v1-browser': '01a06477-94f5-74f0-bc25-5a78baecbef6',
-  'kaana-v1-pro': '01a06477-94f5-74f0-bc25-5d796b49b616',
-  'kaana-v1-thinking': '01a06477-94f5-74f0-bc25-628b5f45d802',
-  'kaana-v1-pro-max': '01a06477-94f5-74f0-bc25-658eeb277737',
+  'route:instant': '01a06477-94f5-74f0-bc25-4a1ff59d6945',
+  'route:auto': '01a06477-94f5-74f0-bc25-4c5c13b93ccd',
+  'route:code': '01a06477-94f5-74f0-bc25-52437e0c724d',
+  'route:cowork': '01a06477-94f5-74f0-bc25-55ea2ebdb2b6',
+  'route:research': '01a06477-94f5-74f0-bc25-5a78baecbef6',
+  'route:pro-standard': '01a06477-94f5-74f0-bc25-5d796b49b616',
+  'route:thinking': '01a06477-94f5-74f0-bc25-628b5f45d802',
+  'route:pro': '01a06477-94f5-74f0-bc25-658eeb277737',
 } as const satisfies Partial<Record<KaanaRoutingProfileId, string>>;
 
 export type OxyKaanaProductProfileId = keyof typeof OXY_KAANA_ROUTING_PROFILE_IDS;

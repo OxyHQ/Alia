@@ -18,7 +18,10 @@ import {
 } from 'drizzle-orm/pg-core';
 import { createdAt, generatedId, timestamptz, updatedAt } from '@oxyhq/db';
 import { checkOneOf } from './columns';
-import { API_KEY_USAGE_AUTH_TYPES, API_KEY_USAGE_METHODS } from '../../domain/api-key-usage.js';
+import {
+  API_KEY_USAGE_AUTH_TYPES,
+  API_KEY_USAGE_METHODS,
+} from '../../domain/api-key-usage.js';
 
 /** Dormant rollback state; no hosted inference runtime reads or writes it. */
 export const CIRCUIT_STATES = ['closed', 'open', 'half-open'] as const;
@@ -50,7 +53,11 @@ export const providerHealth = pgTable(
   },
   (t) => [
     uniqueIndex('provider_health_provider_model_key').on(t.provider, t.modelId),
-    checkOneOf('provider_health_circuit_state_check', t.circuitState, CIRCUIT_STATES),
+    checkOneOf(
+      'provider_health_circuit_state_check',
+      t.circuitState,
+      CIRCUIT_STATES,
+    ),
   ],
 );
 
@@ -110,13 +117,13 @@ export const apiUsage = pgTable(
   ],
 );
 
-/** Dormant rollback diagnostics; no hosted inference runtime reads or writes it. */
+/** Dormant inference diagnostics; no hosted inference runtime reads or writes it. */
 export const fallbackEvents = pgTable(
   'fallback_events',
   {
     id: generatedId(),
     timestamp: timestamptz().notNull(),
-    aliasModel: text().notNull(),
+    routingProfile: text().notNull(),
     attempts: jsonb().notNull().default([]),
     finalProvider: text(),
     finalModel: text(),
@@ -128,8 +135,14 @@ export const fallbackEvents = pgTable(
   },
   (t) => [
     index('fallback_events_timestamp_idx').on(t.timestamp),
-    index('fallback_events_alias_timestamp_idx').on(t.aliasModel, t.timestamp.desc()),
-    index('fallback_events_success_timestamp_idx').on(t.success, t.timestamp.desc()),
+    index('fallback_events_routing_profile_timestamp_idx').on(
+      t.routingProfile,
+      t.timestamp.desc(),
+    ),
+    index('fallback_events_success_timestamp_idx').on(
+      t.success,
+      t.timestamp.desc(),
+    ),
   ],
 );
 
@@ -145,7 +158,12 @@ export const fallbackEvents = pgTable(
  * routed nowhere is a real state.
  */
 export const ROUTING_TARGET_TYPES = ['agent', 'team', 'user'] as const;
-export const ROUTING_STATUSES = ['routed', 'acknowledged', 'escalated', 'resolved'] as const;
+export const ROUTING_STATUSES = [
+  'routed',
+  'acknowledged',
+  'escalated',
+  'resolved',
+] as const;
 export type RoutingTargetType = (typeof ROUTING_TARGET_TYPES)[number];
 export type RoutingStatus = (typeof ROUTING_STATUSES)[number];
 
@@ -173,9 +191,16 @@ export const routingLogs = pgTable(
   },
   (t) => [
     index('routing_logs_created_at_idx').on(t.createdAt),
-    index('routing_logs_agent_created_at_idx').on(t.agentId, t.createdAt.desc()),
+    index('routing_logs_agent_created_at_idx').on(
+      t.agentId,
+      t.createdAt.desc(),
+    ),
     index('routing_logs_oxy_user_id_idx').on(t.oxyUserId),
-    checkOneOf('routing_logs_routed_to_type_check', t.routedToType, ROUTING_TARGET_TYPES),
+    checkOneOf(
+      'routing_logs_routed_to_type_check',
+      t.routedToType,
+      ROUTING_TARGET_TYPES,
+    ),
     checkOneOf('routing_logs_status_check', t.status, ROUTING_STATUSES),
   ],
 );
@@ -219,13 +244,17 @@ export const apiKeyUsage = pgTable(
     oxyUserId: text().notNull(),
     /** Null for a session-authenticated or internal call. */
     appId: text(),
-    authType: text({ enum: API_KEY_USAGE_AUTH_TYPES as unknown as [string, ...string[]] })
+    authType: text({
+      enum: API_KEY_USAGE_AUTH_TYPES as unknown as [string, ...string[]],
+    })
       .notNull()
       .default('api_key'),
     /** The internal service that made the call, when `auth_type` is `internal`. */
     serviceApp: text(),
     endpoint: text().notNull(),
-    method: text({ enum: API_KEY_USAGE_METHODS as unknown as [string, ...string[]] }).notNull(),
+    method: text({
+      enum: API_KEY_USAGE_METHODS as unknown as [string, ...string[]],
+    }).notNull(),
     statusCode: integer().notNull(),
     tokensUsed: integer().notNull().default(0),
     creditsUsed: integer().notNull().default(0),
@@ -234,8 +263,14 @@ export const apiKeyUsage = pgTable(
     timestamp: timestamptz().notNull(),
   },
   (t) => [
-    index('api_key_usage_api_key_timestamp_idx').on(t.apiKeyId, t.timestamp.desc()),
-    index('api_key_usage_oxy_user_timestamp_idx').on(t.oxyUserId, t.timestamp.desc()),
+    index('api_key_usage_api_key_timestamp_idx').on(
+      t.apiKeyId,
+      t.timestamp.desc(),
+    ),
+    index('api_key_usage_oxy_user_timestamp_idx').on(
+      t.oxyUserId,
+      t.timestamp.desc(),
+    ),
     index('api_key_usage_oxy_user_auth_type_timestamp_idx').on(
       t.oxyUserId,
       t.authType,
@@ -244,7 +279,11 @@ export const apiKeyUsage = pgTable(
     index('api_key_usage_app_timestamp_idx').on(t.appId, t.timestamp.desc()),
     // The expiry sweep's predicate column. Indexed because the sweep scans it.
     index('api_key_usage_timestamp_idx').on(t.timestamp),
-    checkOneOf('api_key_usage_auth_type_check', t.authType, API_KEY_USAGE_AUTH_TYPES),
+    checkOneOf(
+      'api_key_usage_auth_type_check',
+      t.authType,
+      API_KEY_USAGE_AUTH_TYPES,
+    ),
     checkOneOf('api_key_usage_method_check', t.method, API_KEY_USAGE_METHODS),
   ],
 );

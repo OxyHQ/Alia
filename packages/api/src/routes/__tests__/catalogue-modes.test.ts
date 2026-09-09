@@ -80,9 +80,9 @@ describe('the modes surface serves the product table, in the product vocabulary'
   it('publishes one exact routing profile for every mode', () => {
     const byId = new Map((runModes().body?.data ?? []).map((entry) => [entry.id as string, entry]));
 
-    expect(byId.get('mode:automatic')?.routing).toEqual({ kind: 'profile', profile_id: 'kaana-lite' });
-    expect(byId.get('mode:deep-research')?.routing).toEqual({ kind: 'profile', profile_id: 'kaana-lite' });
-    expect(byId.get('mode:deep-research')?.deep_research).toBe(true);
+    expect(byId.get('mode:auto')?.routing).toEqual({ kind: 'profile', profile_id: 'route:auto' });
+    expect(byId.get('mode:research')?.routing).toEqual({ kind: 'profile', profile_id: 'route:research' });
+    expect(byId.get('mode:research')?.deep_research).toBe(true);
 
     const profiles = new Set(ROUTING_PRESETS.flatMap((preset) => preset.profileIds));
     for (const mode of PRODUCT_MODES) {

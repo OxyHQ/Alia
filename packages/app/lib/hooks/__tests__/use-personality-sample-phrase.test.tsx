@@ -5,19 +5,19 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 /**
  * Which model the personality sample asks for.
  *
- * The hook sent the literal `kaana-lite`. That is a de-advertised compatibility
+ * The hook sent the literal `route:instant`. That is a de-advertised compatibility
  * alias (ADR 0003): `GET /catalogue` does not list it and `GET /v1/models`
  * returns `[]`, so the one request in the app that named a model directly named
  * something the product no longer publishes — and named it in a place no
  * configuration could reach, so an operator repointing
- * `EXPO_PUBLIC_ALIA_DEFAULT_MODEL` repointed every request except this one.
+ * The shared product default once repointed every request except this one.
  *
  * The assertion is on the OUTGOING body, which is normally the weaker of the
  * two things a request test can check — a payload assertion passes happily
  * while the server 400s every call. It is the right one HERE because the
  * property under change is entirely client-side: which identifier this app
- * chooses to name. Nothing about the response can distinguish `kaana-lite` from
- * `profile:v1`; both resolve and both stream. So the fetch is counted as well
+ * chooses to name. Nothing about the response can distinguish `route:instant` from
+ * `profile:auto`; both resolve and both stream. So the fetch is counted as well
  * as read, because "no alias was sent" is also what sending nothing looks like.
  */
 
@@ -106,9 +106,9 @@ describe('the personality sample names a model', () => {
   it("asks for the app's configured default, not a hardcoded identifier", async () => {
     await requestOneSample();
 
-    // Compared against the exported constant rather than against `'profile:v1'`:
+    // Compared against the exported constant rather than against `'profile:auto'`:
     // the point is that this request follows the app's default wherever it is
-    // pointed, including through `EXPO_PUBLIC_ALIA_DEFAULT_MODEL`. Asserting the
+    // pointed. Asserting the
     // literal would go green on a second hardcoded copy that merely happened to
     // agree today.
     expect(fetchCalls[0].body.model).toBe(DEFAULT_MODEL_ID);
@@ -124,6 +124,6 @@ describe('the personality sample names a model', () => {
      * profile, which is the vocabulary the catalogue actually publishes.
      */
     expect(String(fetchCalls[0].body.model).startsWith('alia-')).toBe(false);
-    expect(String(fetchCalls[0].body.model).startsWith('profile:')).toBe(true);
+    expect(String(fetchCalls[0].body.model).startsWith('mode:')).toBe(true);
   });
 });

@@ -44,12 +44,12 @@ function pinned(id: string): string {
 describe('the mode table is what #139 asks for, and nothing may pass for a model', () => {
   it('names the six modes the epic names, and only those', () => {
     expect(PRODUCT_MODES.map((m) => m.label)).toEqual([
-      'Automatic',
-      'Fast',
-      'Balanced',
-      'Maximum quality',
-      'Coding',
-      'Deep research',
+      'Auto',
+      'Instant',
+      'Thinking',
+      'Pro',
+      'Code',
+      'Research',
     ]);
   });
 
@@ -81,10 +81,10 @@ describe('the mode table is what #139 asks for, and nothing may pass for a model
 
 describe('general-purpose modes pin exact profile identities', () => {
   it('does not derive routing from price, order or a first row', () => {
-    expect(pinned('mode:automatic')).toBe('kaana-lite');
-    expect(pinned('mode:fast')).toBe('kaana-lite');
-    expect(pinned('mode:balanced')).toBe('kaana-v1');
-    expect(pinned('mode:maximum-quality')).toBe('kaana-v1-pro-max');
+    expect(pinned('mode:auto')).toBe('route:auto');
+    expect(pinned('mode:instant')).toBe('route:instant');
+    expect(pinned('mode:thinking')).toBe('route:thinking');
+    expect(pinned('mode:pro')).toBe('route:pro');
   });
 });
 
@@ -96,9 +96,9 @@ describe('Coding is read off the coding product, not chosen', () => {
      * Two moves have happened here, each recorded when it happened rather than
      * discovered later. #139 workstream 5 first moved the extension's default
      * out of its three providers into one preference module. It then moved the
-     * VOCABULARY: the surfaces now name `kaana-v1-codea`, the id
-     * `GET /catalogue` publishes and `lib/chat/request-context.ts` accepts,
-     * instead of the `kaana-v1-codea` routing profile that #178 stopped advertising.
+     * VOCABULARY: the surfaces now name `mode:code`, the product id
+     * `GET /catalogue/modes` publishes and `lib/chat/request-context.ts` accepts,
+     * instead of exposing its `route:code` routing profile.
      *
      * The FACT asserted is unchanged — every Codea surface defaults to one
      * identifier, and it is the coding profile. Only its spelling moved, so the
@@ -115,9 +115,8 @@ describe('Coding is read off the coding product, not chosen', () => {
       repoFile('packages/alia-codea-cli/src/utils/config.ts'),
       repoFile('packages/alia-codea/src/config.ts'),
     ];
-    const presets = new Set<string>(ROUTING_PRESETS.flatMap((preset) => preset.profileIds));
     const namedIn = (source: string): string[] =>
-      [...source.matchAll(/kaana-[a-z0-9-]+/g)].map((m) => m[0]).filter((id) => presets.has(id));
+      [...source.matchAll(/mode:[a-z0-9-]+/g)].map((m) => m[0]);
 
     // Positive control: the scan can see an identifier in these files at all. A
     // renamed file would otherwise report "no default found" as agreement.
@@ -125,29 +124,29 @@ describe('Coding is read off the coding product, not chosen', () => {
 
     const named = new Set(defaults.flatMap(namedIn));
     // One identifier across all three, or "the default" is not a single fact.
-    expect([...named]).toEqual(['kaana-v1-codea']);
-    expect(pinned('mode:coding')).toBe('kaana-v1-codea');
+    expect([...named]).toEqual(['mode:code']);
+    expect(pinned('mode:code')).toBe('route:code');
   });
 
   it('is a coding-category profile, which the general-purpose three are not', () => {
-    expect(KAANA_ROUTING_PROFILES['kaana-v1-codea'].category).toBe('coding');
-    expect(pinned('mode:coding')).not.toBe(pinned('mode:balanced'));
+    expect(KAANA_ROUTING_PROFILES['route:code'].category).toBe('coding');
+    expect(pinned('mode:code')).not.toBe(pinned('mode:thinking'));
   });
 });
 
-describe('Automatic and Deep research have no implicit routing default', () => {
-  it('pins both to the exact current product identity', () => {
-    expect(pinned('mode:automatic')).toBe('kaana-lite');
-    expect(pinned('mode:deep-research')).toBe('kaana-lite');
+describe('Auto and Research have explicit routing', () => {
+  it('pins both to their exact reviewed route', () => {
+    expect(pinned('mode:auto')).toBe('route:auto');
+    expect(pinned('mode:research')).toBe('route:research');
   });
 
-  it('Deep research differs from Automatic in exactly the request flag it sets', () => {
+  it('Research activates the research pipeline', () => {
     const handler = repoFile('packages/api/src/lib/chat-modes/deep-research-handler.ts');
     expect(handler).toContain('routingProfileId: string');
-    expect(handler).not.toMatch(/'kaana-v1[a-z-]*'/);
+    expect(handler).not.toMatch(/'route:auto[a-z-]*'/);
 
-    expect(PRODUCT_MODES.filter((m) => m.deepResearch).map((m) => m.id)).toEqual(['mode:deep-research']);
-    expect(mode('mode:deep-research').routing).toEqual(mode('mode:automatic').routing);
+    expect(PRODUCT_MODES.filter((m) => m.deepResearch).map((m) => m.id)).toEqual(['mode:research']);
+    expect(mode('mode:research').routing).not.toEqual(mode('mode:auto').routing);
 
     // And the flag is the one the route reads, not a name invented here.
     expect(repoFile('packages/api/src/lib/chat/request-context.ts')).toContain('body.deepResearch');
@@ -167,7 +166,7 @@ describe('the product advertises policies, and no `alia-*` identifier anywhere',
     // is the invariant behind that, stated so it fails on the shape rather than
     // on a count: a retired identifier re-entering the offered set is red no matter which
     // one it is, and no matter how many.
-    const leaked = OFFERED_PROFILES.filter((id) => !id.startsWith('kaana-'));
+    const leaked = OFFERED_PROFILES.filter((id) => !id.startsWith('route:'));
     expect(leaked).toEqual([]);
 
     const registered = Object.keys(KAANA_ROUTING_PROFILES);
@@ -186,9 +185,9 @@ describe('the product advertises policies, and no `alia-*` identifier anywhere',
     // The negative control: a predicate answering `true` for everything would
     // satisfy the first case and nothing else. The internal policy spelling is
     // not a public routing profile and must not be advertised.
-    expect(isProfileOffered('kaana-v1')).toBe(true);
-    expect(isProfileOffered('kaana-v1-thinking')).toBe(false);
-    expect(isProfileOffered('profile:v1-codea')).toBe(false);
+    expect(isProfileOffered('route:auto')).toBe(true);
+    expect(isProfileOffered('route:thinking')).toBe(true);
+    expect(isProfileOffered('profile:code')).toBe(false);
     expect(isProfileOffered('')).toBe(false);
     expect(isProfileOffered('profile:nonsense')).toBe(false);
   });
@@ -206,21 +205,21 @@ describe('a policy is served by its canonical Kaana routing profile', () => {
   });
 
   it('picks the twin the general-purpose ordering picks, on the one contested policy', () => {
-    // `profile:v1-pro-max` is the only preset with two routing profiles. The naming rule
+    // `profile:pro` is the only preset with two routing profiles. The naming rule
     // and the category rule reach the same answer from independent directions,
     // which is what makes it a derivation rather than a coin toss.
     const contested = ROUTING_PRESETS.filter((preset) => preset.profileIds.length > 1);
     expect(contested).toHaveLength(1);
-    expect(routingProfileFor(contested[0].id)).toBe('kaana-v1-pro-max');
-    expect(KAANA_ROUTING_PROFILES['kaana-v1-pro-max'].category).toBe('general');
-    expect(KAANA_ROUTING_PROFILES['kaana-v1-thinking'].category).toBe('coding');
+    expect(routingProfileFor(contested[0].id)).toBe('route:pro');
+    expect(KAANA_ROUTING_PROFILES['route:pro'].category).toBe('general');
+    expect(KAANA_ROUTING_PROFILES['route:thinking'].category).toBe('coding');
   });
 
   it('accepts canonical Kaana profiles and translates no compatibility spelling', () => {
-    expect(toRoutingProfile('kaana-v1-thinking')).toBe('kaana-v1-thinking');
-    expect(toRoutingProfile('kaana-lite')).toBe('kaana-lite');
-    expect(toRoutingProfile('profile:v1')).toBeNull();
-    expect(toRoutingProfile('alia-v1')).toBeNull();
+    expect(toRoutingProfile('route:thinking')).toBe('route:thinking');
+    expect(toRoutingProfile('route:instant')).toBe('route:instant');
+    expect(toRoutingProfile('profile:auto')).toBeNull();
+    expect(toRoutingProfile('retired-routing-alias')).toBeNull();
     expect(toRoutingProfile('gpt-4o')).toBeNull();
   });
 

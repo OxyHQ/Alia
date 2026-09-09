@@ -447,6 +447,9 @@ jobs:
       - name: Check no client hardcodes a model default
         run: node scripts/check-model-defaults.mjs
 
+      - name: Check retired routing names cannot return
+        run: node scripts/check-routing-vocabulary.mjs
+
       # The image build is the only thing that reads the Dockerfile, and CI does
       # not build the image — `Build API` runs `bun build`. So a COPY naming a
       # deleted workspace leaves every gate green and kills the deploy, which is

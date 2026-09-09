@@ -58,9 +58,9 @@ interface PlanSeed {
 
 // ─── modelIds (cumulative) ─────────────────────────────────────────
 
-const FREE_MODEL_IDS = ['kaana-lite', 'kaana-v1', 'kaana-v1-audio'];
-const GO_MODEL_IDS = [...FREE_MODEL_IDS, 'kaana-v1-codea', 'kaana-v1-vision', 'kaana-v1-browser', 'kaana-v1-cowork', 'kaana-v1-multimodal', 'kaana-v1-voice'];
-const PRO_MODEL_IDS = [...GO_MODEL_IDS, 'kaana-v1-pro', 'kaana-v1-thinking', 'kaana-v1-pro-max', 'kaana-v1-voice-pro'];
+const FREE_MODEL_IDS = ['route:instant', 'route:auto', 'route:audio'];
+const GO_MODEL_IDS = [...FREE_MODEL_IDS, 'route:code', 'route:vision', 'route:research', 'route:cowork', 'route:multimodal', 'route:voice'];
+const PRO_MODEL_IDS = [...GO_MODEL_IDS, 'route:pro-standard', 'route:thinking', 'route:pro', 'route:voice-pro'];
 
 // ─── Seed data ─────────────────────────────────────────────────────
 
@@ -180,7 +180,7 @@ const SEED_PLANS: PlanSeed[] = [
     isFeatured: false,
     sortOrder: 0,
     isFree: false,
-    modelIds: ['kaana-v1-codea', 'kaana-v1-pro', 'kaana-v1-thinking'],
+    modelIds: ['route:code', 'route:pro-standard', 'route:thinking'],
   },
   {
     planId: 'codea-max',
@@ -196,7 +196,7 @@ const SEED_PLANS: PlanSeed[] = [
     isFeatured: true,
     sortOrder: 1,
     isFree: false,
-    modelIds: ['kaana-v1-codea', 'kaana-v1-pro', 'kaana-v1-thinking'],
+    modelIds: ['route:code', 'route:pro-standard', 'route:thinking'],
   },
 ];
 

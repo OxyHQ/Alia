@@ -14,6 +14,7 @@ import { WelcomeIntro } from "@/components/welcome-intro";
 import { useStore } from "@/lib/stores/global-store";
 import { useModelStore } from "@/lib/stores/model-store";
 import { resolveSelection, useCatalogue } from "@/lib/hooks/use-catalogue";
+import { useProductModes } from "@/lib/hooks/use-product-modes";
 import { useChatConversation } from "@/lib/hooks/use-chat-conversation";
 import { useCreateConversation } from "@/lib/hooks/use-conversations";
 import { ChatPageContent } from "@/components/chat-page-content";
@@ -47,7 +48,8 @@ const ChatPage = () => {
    */
   const reasoningEffort = useModelStore((s) => s.reasoningEffort);
   const { data: catalogue } = useCatalogue();
-  const selection = resolveSelection(selectedModel, catalogue);
+  const { data: modes } = useProductModes();
+  const selection = resolveSelection(selectedModel, catalogue, undefined, modes);
 
   const ghostMode = useStore((state) => state.ghostMode);
 

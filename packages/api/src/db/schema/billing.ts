@@ -95,7 +95,7 @@ export const plans = pgTable(
     sortOrder: integer().notNull().default(0),
     /**
      * The `routing_profiles.routing_profile_id`s this plan includes — Kaana routing profile
-     * ids like `kaana-v1-pro`, never a provider model id.
+     * ids like `route:pro-standard`, never a provider model id.
      *
      * Deliberately NOT a foreign key: it is a plan's advertised contents, and a
      * model being retired from the catalogue must not cascade into deleting or

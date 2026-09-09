@@ -12,7 +12,7 @@
  * `model_configs.provider` and `routing_profile_provider_mappings.provider`
  * hold historical provider slugs.
  * They are the same class of value as `cost_entries.actual_provider`: a caller
- * asks for `kaana-v1` and must never learn who served it. Nothing selected from
+ * asks for `route:auto` and must never learn who served it. Nothing selected from
  * these columns may reach a user-facing response, an error message or a public
  * API surface.
  *
@@ -150,7 +150,7 @@ export const modelConfigs = pgTable(
 );
 
 /**
- * A virtual Kaana routing profile — `kaana-v1`, `kaana-lite` — and the tier it belongs to.
+ * A virtual Kaana routing profile — `route:auto`, `route:instant` — and the tier it belongs to.
  *
  * `aggregated_capabilities_*` are columns for the same reason
  * `model_configs.capabilities_*` are. `features` stays a `text[]`: a small
@@ -164,7 +164,7 @@ export const routingProfiles = pgTable(
   {
     id: generatedId(),
     /**
-     * `kaana-v1`, `kaana-lite`. Mongoose declared `lowercase: true`, which is a
+     * `route:auto`, `route:instant`. Mongoose declared `lowercase: true`, which is a
      * SETTER rather than a validator: it normalises on `save()` and does not run
      * on `updateOne`. No CHECK asserts the case here, because one would fail on
      * any row a non-validating write path already stored differently — the

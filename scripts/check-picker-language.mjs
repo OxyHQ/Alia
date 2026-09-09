@@ -27,16 +27,16 @@
  * these files, and a census over source must exclude comments.
  */
 
-import { readFileSync } from 'node:fs';
-import { relative, resolve } from 'node:path';
-import ts from 'typescript';
+import { readFileSync } from "node:fs";
+import { relative, resolve } from "node:path";
+import ts from "typescript";
 
-const ROOT = resolve(import.meta.dirname, '..');
+const ROOT = resolve(import.meta.dirname, "..");
 
 /** Components that render a catalogue entry to a person. */
 const RENDERERS = [
-  'packages/app/components/model-selector.tsx',
-  'packages/app/components/credit-warning-banner.tsx',
+  "packages/app/components/model-selector.tsx",
+  "packages/app/components/credit-warning-banner.tsx",
 ];
 
 /**
@@ -48,8 +48,8 @@ const RENDERERS = [
  * exists to prevent — the credit banner had exactly that copy for one commit,
  * and this census is what found it.
  */
-const DECIDER_MODULE = 'packages/app/lib/hooks/use-product-modes.ts';
-const DECIDER = 'presentation';
+const DECIDER_MODULE = "packages/app/lib/hooks/use-product-modes.ts";
+const DECIDER = "presentation";
 
 /**
  * Every `<something>.displayName` property access in a source, with the
@@ -75,14 +75,17 @@ export function displayNameReads(file, source) {
    */
   const isFunctionInitializer = (node) =>
     node.initializer !== undefined &&
-    (ts.isArrowFunction(node.initializer) || ts.isFunctionExpression(node.initializer));
+    (ts.isArrowFunction(node.initializer) ||
+      ts.isFunctionExpression(node.initializer));
 
   const enclosing = (node) => {
     let current = node.parent;
     while (current !== undefined) {
-      if (ts.isFunctionDeclaration(current) && current.name !== undefined) return current.name.text;
+      if (ts.isFunctionDeclaration(current) && current.name !== undefined)
+        return current.name.text;
       if (
-        (ts.isVariableDeclaration(current) || ts.isPropertyAssignment(current)) &&
+        (ts.isVariableDeclaration(current) ||
+          ts.isPropertyAssignment(current)) &&
         ts.isIdentifier(current.name) &&
         isFunctionInitializer(current)
       ) {
@@ -90,11 +93,14 @@ export function displayNameReads(file, source) {
       }
       current = current.parent;
     }
-    return '<top level>';
+    return "<top level>";
   };
 
   const visit = (node) => {
-    if (ts.isPropertyAccessExpression(node) && node.name.text === 'displayName') {
+    if (
+      ts.isPropertyAccessExpression(node) &&
+      node.name.text === "displayName"
+    ) {
       const { line } = ast.getLineAndCharacterOfPosition(node.getStart(ast));
       found.push({ owner: enclosing(node), line: line + 1 });
     }
@@ -109,15 +115,22 @@ function main() {
   // it to the enclosing function, and ignores a comment. A detector broken by a
   // parser upgrade reports the same clean zero as a correct one.
   const control = displayNameReads(
-    'control.tsx',
-    'function renderRow(e) { return e.displayName; }\n// e.displayName\n',
+    "control.tsx",
+    "function renderRow(e) { return e.displayName; }\n// e.displayName\n",
   );
-  if (control.length !== 1 || control[0].owner !== 'renderRow') {
-    console.error('check-picker-language: the detector does not detect. Refusing to report a pass.');
+  if (control.length !== 1 || control[0].owner !== "renderRow") {
+    console.error(
+      "check-picker-language: the detector does not detect. Refusing to report a pass.",
+    );
     process.exit(1);
   }
-  if (displayNameReads('control.tsx', '// x.displayName\nconst a = 1;\n').length !== 0) {
-    console.error('check-picker-language: the detector reads comments. Refusing to report a pass.');
+  if (
+    displayNameReads("control.tsx", "// x.displayName\nconst a = 1;\n")
+      .length !== 0
+  ) {
+    console.error(
+      "check-picker-language: the detector reads comments. Refusing to report a pass.",
+    );
     process.exit(1);
   }
 
@@ -125,17 +138,19 @@ function main() {
   let scanned = 0;
 
   for (const rel of RENDERERS) {
-    const source = readFileSync(resolve(ROOT, rel), 'utf8');
+    const source = readFileSync(resolve(ROOT, rel), "utf8");
     scanned += 1;
     for (const { owner, line } of displayNameReads(rel, source)) {
-      offences.push(`${rel}:${line} reads entry.displayName inside \`${owner}\``);
+      offences.push(
+        `${rel}:${line} reads entry.displayName inside \`${owner}\``,
+      );
     }
   }
 
   // The decider's own module, where exactly one read is REQUIRED.
   const deciderReads = displayNameReads(
     DECIDER_MODULE,
-    readFileSync(resolve(ROOT, DECIDER_MODULE), 'utf8'),
+    readFileSync(resolve(ROOT, DECIDER_MODULE), "utf8"),
   ).filter((read) => read.owner === DECIDER).length;
 
   // Vacuity floor. A renamed file, an empty read or a walk that visited nothing
@@ -143,19 +158,23 @@ function main() {
   // apart. `presentation` MUST read `displayName`, because that fallback is the
   // whole reason an unnamed profile still renders.
   if (scanned !== RENDERERS.length) {
-    console.error(`check-picker-language: scanned ${scanned} of ${RENDERERS.length} files.`);
+    console.error(
+      `check-picker-language: scanned ${scanned} of ${RENDERERS.length} files.`,
+    );
     process.exit(1);
   }
   if (deciderReads === 0) {
     console.error(
       `check-picker-language: \`${DECIDER}\` reads no displayName, so the fallback is gone ` +
-        'and this census is measuring nothing. Refusing to report a pass.',
+        "and this census is measuring nothing. Refusing to report a pass.",
     );
     process.exit(1);
   }
 
   if (offences.length > 0) {
-    console.error('check-picker-language: a component names an entry without asking the product.\n');
+    console.error(
+      "check-picker-language: a component names an entry without asking the product.\n",
+    );
     for (const offence of offences) console.error(`  ${offence}`);
     console.error(
       `\nRoute it through \`${DECIDER}\`, which resolves the product mode for a routing profile\n` +

@@ -272,7 +272,7 @@ describe('capability availability is measured, not declared', () => {
   });
 
   it('reports sometimes when only some do', () => {
-    // The state a boolean has to lie about. `kaana-lite` is this case on the live
+    // The state a boolean has to lie about. `route:instant` is this case on the live
     // table: four of sixteen candidates support vision while the alias declares
     // `supportsVision: false`.
     expect(deriveCapabilities([candidate('a', caps({ vision: true })), candidate('b', caps({ vision: false }))]).vision)
@@ -492,12 +492,12 @@ describe('the catalogue carries no deprecation signal, because it serves nothing
     //
     // Routing profiles are canonical identities, so the catalogue does not
     // attach a deprecation signal to them.
-    const entry = buildEntry(source({ id: 'profile:lite' }), [candidate('a', caps())], KNOWN, PUBLIC);
+    const entry = buildEntry(source({ id: 'profile:instant' }), [candidate('a', caps())], KNOWN, PUBLIC);
     expect(entry).not.toHaveProperty('deprecation');
 
     // The control: the entry is real and fully built, so "no property" is a
     // fact about the shape and not about an empty object.
-    expect(entry.id).toBe('profile:lite');
+    expect(entry.id).toBe('profile:instant');
     expect(entry.capabilities).toBeDefined();
     expect(entry.entitlement).toEqual(KNOWN);
   });

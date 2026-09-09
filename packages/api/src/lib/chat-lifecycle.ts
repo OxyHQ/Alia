@@ -24,8 +24,8 @@ export interface LifecycleContext {
   /**
    * The reasoning parameter, computed where `thinkingMode` is in scope.
    *
-   * Recorded beside the model choice rather than inside it: `kaana-v1-thinking`
-   * and `kaana-v1-pro-max` are one routing preset with two names, so a reasoning
+   * Recorded beside the model choice rather than inside it: `route:thinking`
+   * and `route:pro` are one routing preset with two names, so a reasoning
    * request buried in a model identifier is a request nothing can count.
    */
   reasoningEffort: string | null;

@@ -599,7 +599,7 @@
       "dependsOn": [
         "app-model-store"
       ],
-      "removalGate": "Keep the feature, but this map must become server-driven during the epic: it hard-codes both the alias graph AND the credit multipliers in a client, and it already omits two of the twelve defined aliases (kaana-lite and kaana-v1-audio have no entry — correct for kaana-lite as the floor, unexamined for kaana-v1-audio). Every alias change requires an app release to stay correct.",
+      "removalGate": "Keep the feature, but this map must become server-driven during the epic: it hard-codes both the alias graph AND the credit multipliers in a client, and it already omits two of the twelve defined aliases (route:instant and route:audio have no entry — correct for route:instant as the floor, unexamined for route:audio). Every alias change requires an app release to stay correct.",
       "provenance": "inventory-frontend-admin",
       "evidence": "packages/app/components/credit-warning-banner.tsx:24-35"
     },
@@ -866,10 +866,10 @@
       "owner": "alia",
       "targetPath": "keep-alia-product",
       "dependsOn": [
-        "model-id-kaana-lite",
+        "model-id-route:instant",
         "v1-models-list"
       ],
-      "removalGate": "Saved workflows persist the model id in node data, so retiring kaana-lite invalidates stored user workflows, not just UI defaults. The client no longer WRITES one (a new node stores no `model`) and no longer reads GET /v1/models (it reads GET /catalogue), but rows written before that change still hold the old id, so this stays open until those rows are counted and migrated.",
+      "removalGate": "Saved workflows persist the model id in node data, so retiring route:instant invalidates stored user workflows, not just UI defaults. The client no longer WRITES one (a new node stores no `model`) and no longer reads GET /v1/models (it reads GET /catalogue), but rows written before that change still hold the old id, so this stays open until those rows are counted and migrated.",
       "provenance": "inventory-product-api",
       "evidence": "packages/alia-canvas/src/lib/product-modes.ts; packages/alia-canvas/src/components/workflow/workflow-editor.tsx (no model field in either AI node default)"
     },
@@ -928,7 +928,7 @@
         "alia-models",
         "codea-cli-consumer"
       ],
-      "removalGate": "Any new id not matching kaana-v1-<x> (e.g. kaana-lite, or a future alia-v2) is unreachable from the CLI's /model command and renders wrong in its status bar. Fix before adding ids outside the pattern.",
+      "removalGate": "Any new id not matching route:auto-<x> (e.g. route:instant, or a future alia-v2) is unreachable from the CLI's /model command and renders wrong in its status bar. Fix before adding ids outside the pattern.",
       "provenance": "inventory-product-api",
       "evidence": "packages/alia-codea-cli/src/app.tsx:146,256"
     },
@@ -942,7 +942,7 @@
       "owner": "alia",
       "targetPath": "keep-alia-product",
       "dependsOn": [
-        "model-id-kaana-v1-codea",
+        "model-id-route:code",
         "v1-chat-completions-post"
       ],
       "removalGate": "Marketplace-published; users run pinned old versions indefinitely. Wire changes need server-side back-compat, not a client release.",
@@ -977,7 +977,7 @@
       "owner": "alia",
       "targetPath": "keep-alia-product",
       "dependsOn": [
-        "model-id-kaana-v1-codea",
+        "model-id-route:code",
         "v1-chat-completions-post"
       ],
       "removalGate": "npm-published CLI. Because it ignores named events, it is the client most likely to break on a change to the DEFAULT data: frame, and least likely to notice event additions.",
@@ -1024,7 +1024,7 @@
       "owner": "alia",
       "targetPath": "keep-alia-product",
       "dependsOn": [
-        "model-id-kaana-v1-codea",
+        "model-id-route:code",
         "v1-chat-completions-post"
       ],
       "removalGate": "Same as codea-chat-participant-consumer.",
@@ -1087,7 +1087,7 @@
       "owner": "alia",
       "targetPath": "keep-as-alia-product-setting",
       "dependsOn": [],
-      "removalGate": "Keep. Same shipped-binary inertia as the SDK: a VS Code extension in the marketplace keeps sending 'kaana-v1-codea' until each user updates.",
+      "removalGate": "Keep. Same shipped-binary inertia as the SDK: a VS Code extension in the marketplace keeps sending 'route:code' until each user updates.",
       "provenance": "inventory-frontend-admin",
       "evidence": "packages/alia-codea/webview-ui/src/components/Chat.tsx:183-186,200"
     },
@@ -1490,7 +1490,7 @@
       "dependsOn": [],
       "removalGate": "Keep — it documents the Alia public API. It does name the OpenAI SDK as a client library (:47,63,120), which is a wire-format compatibility claim about the CLIENT, not a statement about who serves inference. Judgment call flagged, not a violation.",
       "provenance": "inventory-frontend-admin",
-      "evidence": "packages/alia-console/src/routes/_layout/examples.tsx:37,55,71,83,96,146,176 (kaana-v1); :47,63,120 (openai SDK)"
+      "evidence": "packages/alia-console/src/routes/_layout/examples.tsx:37,55,71,83,96,146,176 (route:auto); :47,63,120 (openai SDK)"
     },
     {
       "id": "console-screen-index-redirect",
@@ -1650,7 +1650,7 @@
       "owner": "alia",
       "targetPath": "keep-alia-product",
       "dependsOn": [
-        "model-id-kaana-v1-cowork",
+        "model-id-route:cowork",
         "v1-chat-completions-post",
         "v1-me",
         "v1-models-list"
@@ -1685,7 +1685,7 @@
       "owner": "alia",
       "targetPath": "keep-as-alia-product-setting",
       "dependsOn": [],
-      "removalGate": "Keep. Note tools.ts:454 pins kaana-v1-browser with the inline comment 'Browser automation specialist model' — a capability-to-alias binding hard-coded in a desktop binary, which is the pattern most likely to break silently when kaana owns capability routing.",
+      "removalGate": "Keep. Note tools.ts:454 pins route:research with the inline comment 'Browser automation specialist model' — a capability-to-alias binding hard-coded in a desktop binary, which is the pattern most likely to break silently when kaana owns capability routing.",
       "provenance": "inventory-frontend-admin",
       "evidence": "packages/alia-cowork/renderer/src/components/Chat.tsx:114-117,162; packages/alia-cowork/src/main/auth.ts:26; packages/alia-cowork/src/main/chat.ts:30; packages/alia-cowork/src/main/tools.ts:454"
     },
@@ -2942,7 +2942,7 @@
       ],
       "removalGate": "MEASURED DEAD, which changes this gate: every endpoint this screen calls is unmounted — packages/api/src/index.ts mounts 46 routers and none serves /internal/gateway or /internal/providers, and internal/providers/index.ts is unreachable from all three build entrypoints. So the screen cannot perform the function its inventory gate assumed it still performs; the gate below is about the FUNCTION finding a home, not about this UI continuing to work. Kaana owns the alias-to-provider mapping table and its fallback ordering, with an equivalent editor. This is the single screen that most directly encodes 'Alia knows which provider serves which alias' — it is the heart of what the epic decouples, so it must move rather than be dropped.",
       "provenance": "re-derived",
-      "evidence": "packages/alia-gateway-admin/src/pages/Models.tsx:114,121 (listModels/listAliaModels), :134-186 (create/update/delete for both catalogs), :236 (providerMappings editor), :746 (kaana-v1 placeholder), :375,864,1417 (gpt-4o placeholders)"
+      "evidence": "packages/alia-gateway-admin/src/pages/Models.tsx:114,121 (listModels/listAliaModels), :134-186 (create/update/delete for both catalogs), :236 (providerMappings editor), :746 (route:auto placeholder), :375,864,1417 (gpt-4o placeholders)"
     },
     {
       "id": "ga-screen-monitoring",
@@ -4202,28 +4202,12 @@
       "dependsOn": [
         "alia-models"
       ],
-      "removalGate": "Renaming or retiring kaana-v1 / kaana-v1-pro requires a data migration over existing agent rows, not just a code change. Migration history cannot be edited.",
+      "removalGate": "Renaming or retiring route:auto / route:pro-standard requires a data migration over existing agent rows, not just a code change. Migration history cannot be edited.",
       "provenance": "re-derived",
       "evidence": "packages/api/src/db/schema/agents.ts:129; packages/api/src/routes/oxy-service-events.ts:78; packages/api/drizzle/0013_exotic_domino.sql"
     },
     {
-      "id": "model-id-kaana-lite",
-      "workstream": "4",
-      "domain": "product-api",
-      "kind": "behaviour",
-      "currentPath": "packages/integrations/src/shared/api-client.ts",
-      "reachable": "live",
-      "owner": "alia",
-      "targetPath": "keep-alia-product",
-      "dependsOn": [
-        "alia-models"
-      ],
-      "removalGate": "Retiring kaana-lite silently breaks every bot channel AND invalidates the model field of saved Canvas workflows. Highest fan-out of any single id.",
-      "provenance": "inventory-product-api",
-      "evidence": "packages/integrations/src/shared/api-client.ts:207,269; packages/alia-canvas/src/components/workflow/workflow-editor.tsx:43,72,79"
-    },
-    {
-      "id": "model-id-kaana-v1-codea",
+      "id": "model-id-route:code",
       "workstream": "4",
       "domain": "product-api",
       "kind": "behaviour",
@@ -4239,7 +4223,7 @@
       "evidence": "packages/alia-codea/package.json:162; packages/alia-codea-cli/src/index.ts:49,62,77"
     },
     {
-      "id": "model-id-kaana-v1-cowork",
+      "id": "model-id-route:cowork",
       "workstream": "4",
       "domain": "product-api",
       "kind": "behaviour",
@@ -4255,7 +4239,23 @@
       "evidence": "packages/alia-cowork/src/main/chat.ts:30; packages/alia-cowork/renderer/src/components/Chat.tsx:116,162; packages/alia-cowork/renderer/src/components/Console.tsx:124"
     },
     {
-      "id": "model-id-kaana-v1-voice",
+      "id": "model-id-route:instant",
+      "workstream": "4",
+      "domain": "product-api",
+      "kind": "behaviour",
+      "currentPath": "packages/integrations/src/shared/api-client.ts",
+      "reachable": "live",
+      "owner": "alia",
+      "targetPath": "keep-alia-product",
+      "dependsOn": [
+        "alia-models"
+      ],
+      "removalGate": "Retiring route:instant silently breaks every bot channel AND invalidates the model field of saved Canvas workflows. Highest fan-out of any single id.",
+      "provenance": "inventory-product-api",
+      "evidence": "packages/integrations/src/shared/api-client.ts:207,269; packages/alia-canvas/src/components/workflow/workflow-editor.tsx:43,72,79"
+    },
+    {
+      "id": "model-id-route:voice",
       "workstream": "4",
       "domain": "product-api",
       "kind": "behaviour",
@@ -4663,7 +4663,7 @@
       "owner": "alia",
       "targetPath": "keep-as-alia-product-setting",
       "dependsOn": [],
-      "removalGate": "Keep, and treat these three literals as the highest-inertia alias references in the repo: they are compiled into external consumers' apps (the package ships as RAW SOURCE), so retiring kaana-v1 or kaana-v1-voice breaks installed SDK versions that no Alia deploy can fix. Any alias retirement plan must keep both ids resolvable indefinitely or ship a major SDK version first. Verified there is no model picker component in the SDK: all 49 files under packages/alia-chat/src were enumerated.",
+      "removalGate": "Keep, and treat these three literals as the highest-inertia alias references in the repo: they are compiled into external consumers' apps (the package ships as RAW SOURCE), so retiring route:auto or route:voice breaks installed SDK versions that no Alia deploy can fix. Any alias retirement plan must keep both ids resolvable indefinitely or ship a major SDK version first. Verified there is no model picker component in the SDK: all 49 files under packages/alia-chat/src were enumerated.",
       "provenance": "inventory-frontend-admin",
       "evidence": "packages/alia-chat/src/hooks/useAliaChat.ts:11,46; packages/alia-chat/src/components/AliaChatScreen.tsx:31; packages/alia-chat/src/components/AliaChatSheet.tsx:48; packages/alia-chat/src/hooks/useTTS.ts:205; packages/alia-chat/src/hooks/useVoiceRoom.ts:332"
     },
@@ -4810,10 +4810,10 @@
       "owner": "alia",
       "targetPath": "keep-alia-product",
       "dependsOn": [
-        "model-id-kaana-v1-voice",
+        "model-id-route:voice",
         "v1-audio-speech"
       ],
-      "removalGate": "Retiring or renaming kaana-v1-voice breaks a published package. Keep the id resolvable.",
+      "removalGate": "Retiring or renaming route:voice breaks a published package. Keep the id resolvable.",
       "provenance": "inventory-product-api",
       "evidence": "packages/alia-chat/src/hooks/useTTS.ts:198,205"
     },
@@ -4827,7 +4827,7 @@
       "owner": "alia",
       "targetPath": "keep-alia-product",
       "dependsOn": [
-        "model-id-kaana-v1-voice",
+        "model-id-route:voice",
         "v1-voice-token"
       ],
       "removalGate": "Published package. Same gate as sdk-tts-consumer.",
@@ -5836,7 +5836,7 @@
       "dependsOn": [
         "gateway-client"
       ],
-      "removalGate": "Consumed by the published SDK (useTTS.ts:198, sending model:'kaana-v1-voice'). Path is frozen by the SDK's published major.",
+      "removalGate": "Consumed by the published SDK (useTTS.ts:198, sending model:'route:voice'). Path is frozen by the SDK's published major.",
       "provenance": "re-derived",
       "evidence": "packages/api/src/routes/v1/audio.ts:35; packages/api/src/index.ts:294"
     },
@@ -6100,7 +6100,7 @@
       "owner": "alia",
       "targetPath": "keep-alia-product",
       "dependsOn": [],
-      "removalGate": "Consumed by the published SDK (packages/alia-chat/src/hooks/useVoiceRoom.ts:325, which sends model:'kaana-v1-voice'). Any change is a breaking SDK major.",
+      "removalGate": "Consumed by the published SDK (packages/alia-chat/src/hooks/useVoiceRoom.ts:325, which sends model:'route:voice'). Any change is a breaking SDK major.",
       "provenance": "re-derived",
       "evidence": "packages/api/src/routes/v1/voice.ts:31"
     },

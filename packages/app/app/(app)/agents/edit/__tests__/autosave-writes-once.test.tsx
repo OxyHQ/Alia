@@ -319,7 +319,7 @@ function agentFixture(overrides: Record<string, unknown> = {}): Record<string, u
     status: 'active',
     access: 'private',
     systemPrompt: 'you are helpful',
-    allowedModels: ['kaana-v1'],
+    allowedModels: ['route:auto'],
     archetype: 'general',
     archetypeConfig: null,
     createdAt: '2026-08-01T00:00:00.000Z',

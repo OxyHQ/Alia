@@ -17,7 +17,7 @@ import { EFFORT_LEVELS, type EffortLevel } from '../reasoning-effort.js';
  *  - **Applied** — `lib/system-prompt-builder.ts` puts the extended-reasoning
  *    prompt into the system message, either as an explicit layer above
  *    `instant` or because `loadBasePrompt` loaded that file for a caller who
- *    named `kaana-v1-thinking` directly.
+ *    named `route:thinking` directly.
  *  - **Recorded** — `lib/observability/requested-model.ts` `reasoningEffortOf`
  *    writes `chat_analytics.reasoning_effort`, reading the level, the legacy
  *    boolean, OR the alias.
@@ -47,7 +47,7 @@ const REPO_ROOT = path.resolve(fileURLToPath(new URL('../../../../../', import.m
 const REASONING_MARKER = 'extended reasoning capabilities';
 
 /** The canonical profile whose product meaning includes reasoning. */
-const THINKING_PROFILE = 'kaana-v1-thinking';
+const THINKING_PROFILE = 'route:thinking';
 
 interface Ask {
   readonly reasoningEffort?: unknown;
@@ -83,16 +83,16 @@ const CASES: ReadonlyArray<{
   readonly expectedLevel: EffortLevel | null;
   readonly expectedPrompt: boolean;
 }> = [
-  { label: 'a level on a profile-translated identifier', requestedModel: 'kaana-v1-pro-max', ask: { reasoningEffort: 'high' }, expectedLevel: 'high', expectedPrompt: true },
-  { label: 'a level on an unrelated tier', requestedModel: 'kaana-lite', ask: { reasoningEffort: 'max' }, expectedLevel: 'max', expectedPrompt: true },
-  { label: 'the cheapest level records, but layers no prompt', requestedModel: 'kaana-v1-pro-max', ask: { reasoningEffort: 'instant' }, expectedLevel: 'instant', expectedPrompt: false },
-  { label: 'a level that is not one of the four is not a level', requestedModel: 'kaana-v1', ask: { reasoningEffort: 'ludicrous' }, expectedLevel: null, expectedPrompt: false },
-  { label: 'the legacy boolean means the smallest budget', requestedModel: 'kaana-v1-pro-max', ask: { thinkingMode: true }, expectedLevel: 'medium', expectedPrompt: true },
-  { label: 'an explicit level beats the legacy boolean', requestedModel: 'kaana-v1', ask: { reasoningEffort: 'max', thinkingMode: true }, expectedLevel: 'max', expectedPrompt: true },
+  { label: 'a level on a profile-translated identifier', requestedModel: 'route:pro', ask: { reasoningEffort: 'high' }, expectedLevel: 'high', expectedPrompt: true },
+  { label: 'a level on an unrelated tier', requestedModel: 'route:instant', ask: { reasoningEffort: 'max' }, expectedLevel: 'max', expectedPrompt: true },
+  { label: 'the cheapest level records, but layers no prompt', requestedModel: 'route:pro', ask: { reasoningEffort: 'instant' }, expectedLevel: 'instant', expectedPrompt: false },
+  { label: 'a level that is not one of the four is not a level', requestedModel: 'route:auto', ask: { reasoningEffort: 'ludicrous' }, expectedLevel: null, expectedPrompt: false },
+  { label: 'the legacy boolean means the smallest budget', requestedModel: 'route:pro', ask: { thinkingMode: true }, expectedLevel: 'medium', expectedPrompt: true },
+  { label: 'an explicit level beats the legacy boolean', requestedModel: 'route:auto', ask: { reasoningEffort: 'max', thinkingMode: true }, expectedLevel: 'max', expectedPrompt: true },
   { label: 'the reasoning profile alone', requestedModel: THINKING_PROFILE, ask: {}, expectedLevel: 'medium', expectedPrompt: true },
   { label: 'the reasoning profile with the boolean explicitly false', requestedModel: THINKING_PROFILE, ask: { thinkingMode: false }, expectedLevel: 'medium', expectedPrompt: true },
-  { label: 'neither', requestedModel: 'kaana-v1-pro-max', ask: {}, expectedLevel: null, expectedPrompt: false },
-  { label: 'the boolean explicitly false', requestedModel: 'kaana-v1', ask: { thinkingMode: false }, expectedLevel: null, expectedPrompt: false },
+  { label: 'neither', requestedModel: 'route:pro', ask: {}, expectedLevel: null, expectedPrompt: false },
+  { label: 'the boolean explicitly false', requestedModel: 'route:auto', ask: { thinkingMode: false }, expectedLevel: null, expectedPrompt: false },
 ];
 
 describe('the fixture can tell the two answers apart', () => {

@@ -157,7 +157,7 @@ const AGENT_ROW = {
   allowHiring: false,
   systemPrompt: null,
   preferredImage: null,
-  allowedModels: ['kaana-v1'],
+  allowedModels: ['route:auto'],
   scheduleInterval: null,
   archetype: 'general',
   archetypeConfig: null,

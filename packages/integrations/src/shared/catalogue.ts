@@ -5,7 +5,7 @@
  * ## Why this exists at all
  *
  * The Telegram and Discord bots read `GET /v1/models` and, when it came back
- * empty, printed `kaana-lite` — a routing profile wearing a model's name, and
+ * empty, printed `route:instant` — a routing profile wearing a model's name, and
  * the identifier ADR 0002 froze. `docs/migration/compatibility-window.md`
  * records that `/v1/models` is CLOSED FOR ADVERTISEMENT and permanently serves
  * `{"object":"list","data":[]}`, so "when it came back empty" is now always:
@@ -170,10 +170,11 @@ export function parseModes(payload: unknown): ProductMode[] {
 }
 
 const PRESENTATION_MODE_IDS: ReadonlySet<string> = new Set([
-  'mode:fast',
-  'mode:balanced',
-  'mode:maximum-quality',
-  'mode:coding',
+  'mode:instant',
+  'mode:thinking',
+  'mode:pro',
+  'mode:research',
+  'mode:code',
 ]);
 
 /** The product's word for a routing profile, or `null` when it has none. */
@@ -195,7 +196,7 @@ export function modeForProfile(
  * catalogue's own.
  *
  * The fallback is a real fallback rather than a formality — the capability
- * profiles (`profile:v1-vision` and the rest) have no mode, and inventing one
+ * profiles (`profile:vision` and the rest) have no mode, and inventing one
  * for them would be the same category error as the alias display names this
  * replaces, in the other direction.
  */
@@ -248,7 +249,7 @@ export function offeredModes(
  * Profile identity is not inferred from default markers or response order.
  */
 function automaticMode(modes: readonly ProductMode[]): ProductMode | null {
-  return modes.find((mode) => mode.id === 'mode:automatic') ?? null;
+  return modes.find((mode) => mode.id === 'mode:auto') ?? null;
 }
 
 /**
@@ -268,7 +269,7 @@ function automaticMode(modes: readonly ProductMode[]): ProductMode | null {
  *    removes, and substituting some other mode's label would claim a routing
  *    the request does not make. Deliberately NOT resolved through a
  *    `resolveSelection`-style replacement, which would report Fast for someone
- *    whose stored `kaana-v1-pro-max` still routes to maximum quality.
+ *    whose stored `route:pro` still routes to maximum quality.
  */
 export function labelForPreference(
   preferredModel: string | null | undefined,
