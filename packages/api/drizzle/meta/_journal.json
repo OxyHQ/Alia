@@ -449,6 +449,13 @@
       "when": 1788956388025,
       "tag": "0063_remove_routing_compatibility",
       "breakpoints": true
+    },
+    {
+      "idx": 64,
+      "version": "7",
+      "when": 1788958552575,
+      "tag": "0064_remove_legacy_routing_flag",
+      "breakpoints": true
     }
   ]
 }
