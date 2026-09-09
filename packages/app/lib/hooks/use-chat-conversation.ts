@@ -4,7 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/hooks/query-keys";
 import { useStore, type Attachment } from "@/lib/stores/global-store";
 import { useStreamingChat, type SendOptions } from "@/lib/hooks/use-streaming-chat";
-import { useConversation, useCreateConversation, useDeleteConversation } from "@/lib/hooks/use-conversations";
+import { ConversationNotFoundError, useConversation, useCreateConversation, useDeleteConversation } from "@/lib/hooks/use-conversations";
 import { generateAPIUrl } from "@/lib/generate-api-url";
 import { API_ROUTES } from "@/lib/api/routes";
 import { buildMessageContent } from "@/lib/attachment-utils";
@@ -30,9 +30,25 @@ export function useChatConversation({ conversationId, reasoningEffort, selectedM
   const wasLoadingRef = useRef(false);
 
   const pendingInitialMessage = useStore((state) => state.pendingInitialMessage);
-  const { data: conversation, isLoading: conversationQueryLoading, isFetching: conversationFetching } = useConversation(conversationId || "");
+  const {
+    data: conversation,
+    error: conversationQueryError,
+    isLoading: conversationQueryLoading,
+    isFetching: conversationFetching,
+  } = useConversation(conversationId || "");
   const createConversationMutation = useCreateConversation();
   const { mutateAsync: deleteConversation } = useDeleteConversation();
+
+  // A missing row is not a transient loading failure and the URL cannot become
+  // useful by staying open. Remove its cached detail/list state and return to a
+  // valid composer; the query itself has retries disabled, so this happens once.
+  useEffect(() => {
+    if (!(conversationQueryError instanceof ConversationNotFoundError)) return;
+    queryClient.removeQueries({ queryKey: queryKeys.conversations.detail(conversationQueryError.conversationId) });
+    queryClient.invalidateQueries({ queryKey: queryKeys.conversations.all });
+    useStore.getState().setChatId(null);
+    router.replace("/(app)");
+  }, [conversationQueryError, queryClient, router]);
 
   /**
    * The product runtime, not the compatibility surface.
