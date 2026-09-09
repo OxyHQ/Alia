@@ -118,7 +118,7 @@ initMcpRelay(server);
 app.use('/v1', cors({
   origin: '*',
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin', 'X-Service-Name', 'X-Timestamp', 'X-Signature', 'X-Session-Id', 'X-Device-Info'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin', 'X-Service-Name', 'X-Timestamp', 'X-Signature', 'X-Session-Id', 'X-Device-Info', 'X-Oxy-Edge-Region', 'X-Oxy-Activity-Id'],
   // A deprecation header a browser client cannot read is not a signal. Without
   // this, `Deprecation`, `Sunset` and `Link` are stripped from every
   // cross-origin response before the SDK ever sees them.
