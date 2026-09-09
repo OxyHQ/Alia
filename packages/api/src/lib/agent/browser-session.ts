@@ -193,7 +193,7 @@ export class BrowserSession {
   private async goto(url: string): Promise<string> {
     if (!url) return 'Error: url is required for goto action';
 
-    const check = validateUrl(url);
+    const check = await validateUrl(url);
     if (!check.valid) return `Error: URL blocked — ${check.reason}`;
 
     this.currentUrl = url;
