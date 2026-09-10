@@ -1262,7 +1262,14 @@ describe('fixture: Codea flow — API key, non-streaming, no client tools', () =
     await run(codeaReq({ messages: [{ role: 'user', content: 'complete this' }], model: 'route:code', stream: false }), res);
 
     const body = res.jsonBody as { alia_meta?: Record<string, unknown>; choices?: Array<{ message?: { content?: string } }> };
-    expect(body.alia_meta).toEqual({ synthetic: true, retryable: true });
+    expect(body.alia_meta).toMatchObject({
+      synthetic: true,
+      retryable: true,
+      error: {
+        code: 'PROVIDER_UNAVAILABLE',
+        reference: expect.stringMatching(/^chatcmpl-/),
+      },
+    });
     expect(body.choices?.[0].message?.content).toContain('all models are currently busy');
     expect(JSON.stringify(body)).not.toContain(UPSTREAM_PROVIDER);
   });

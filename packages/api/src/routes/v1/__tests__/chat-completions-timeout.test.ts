@@ -604,7 +604,17 @@ describe('504 timeout fixes - /v1/chat/completions', () => {
 
     // The stand-in message must be flagged: the app treats a turn whose only
     // content is synthetic as a failed send and hands the text back to the composer.
-    expect(syntheticChunks(res)).toHaveLength(1);
+    const [synthetic] = syntheticChunks(res);
+    expect(synthetic).toBeDefined();
+    expect(synthetic.alia_meta).toEqual({
+      synthetic: true,
+      retryable: true,
+      error: {
+        code: 'INTERNAL_ERROR',
+        reference: expect.stringMatching(/^chatcmpl-/),
+        retryAfter: 10,
+      },
+    });
 
     // res.end was called
     expect(res.end).toHaveBeenCalled();
