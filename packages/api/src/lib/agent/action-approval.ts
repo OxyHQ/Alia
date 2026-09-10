@@ -7,7 +7,12 @@
  */
 
 import crypto from 'crypto';
+import { eq } from 'drizzle-orm';
 import { emitApprovalRequest, emitApprovalResult } from '../../socket.js';
+import { getDb } from '../../db/index.js';
+import { agentSessions } from '../../db/schema/agent-sessions.js';
+import { agentApprovalRequests } from '../../db/schema/agent-runtime.js';
+import { createAgentApprovalRequest, findAgentApproval } from '../../db/agents/agentRuntimeRepository.js';
 import { log } from '../logger.js';
 import type { ThreatResult } from './threat-detector.js';
 
@@ -18,6 +23,7 @@ interface PendingApproval {
   patternKey: string;
   resolve: (decision: ApprovalDecision) => void;
   timer: ReturnType<typeof setTimeout>;
+  poll?: ReturnType<typeof setInterval>;
 }
 
 /** In-memory map of pending approval requests: requestId → resolver */
@@ -48,6 +54,35 @@ export async function requestApproval(opts: {
 
   const requestId = crypto.randomUUID();
   const description = threat.threats.map((t) => t.pattern.description).join('; ');
+  const expiresAt = new Date(Date.now() + timeout);
+  let durable = false;
+
+  try {
+    const [session] = await getDb().select({
+      threadId: agentSessions.threadId,
+      oxyUserId: agentSessions.oxyUserId,
+    }).from(agentSessions).where(eq(agentSessions.id, sessionId)).limit(1);
+    if (session?.threadId) {
+      await createAgentApprovalRequest(getDb(), {
+        id: requestId,
+        turnId: sessionId,
+        threadId: session.threadId,
+        oxyUserId: session.oxyUserId,
+        agentId,
+        toolName,
+        riskLevel: threat.maxSeverity === 'critical' ? 'R2' : 'R1',
+        actionHash: crypto.createHash('sha256').update(JSON.stringify({ patternKey, args })).digest('hex'),
+        summary: description || `${toolName} requires approval`,
+        details: sanitizeArgsForDisplay(args),
+        expiresAt,
+      });
+      durable = true;
+    }
+  } catch (error) {
+    // Legacy sessions and isolated tests retain the real-time path. A durable
+    // thread never silently loses its prompt: the failure is visible in logs.
+    log.agents.warn({ err: error, requestId, sessionId }, 'Could not persist approval request');
+  }
 
   emitApprovalRequest(sessionId, {
     eventVersion: 1,
@@ -61,8 +96,28 @@ export async function requestApproval(opts: {
   });
 
   return new Promise<ApprovalDecision>((resolve) => {
+    const poll = durable ? setInterval(() => {
+      void findAgentApproval(getDb(), requestId).then((row) => {
+        if (!row || row.status === 'pending') return;
+        const pending = pendingApprovals.get(requestId);
+        if (!pending) return;
+        clearTimeout(pending.timer);
+        pendingApprovals.delete(requestId);
+        const decision: ApprovalDecision = row.status === 'approved' ? 'approved'
+          : row.status === 'expired' ? 'timeout' : 'denied';
+        emitApprovalResult(sessionId, { eventVersion: 1, requestId, decision });
+        pending.resolve(decision);
+      }).catch((error) => log.agents.warn({ err: error, requestId }, 'Approval poll failed'));
+    }, 500) : undefined;
+    poll?.unref?.();
     const timer = setTimeout(() => {
       pendingApprovals.delete(requestId);
+      if (poll) clearInterval(poll);
+      if (durable) {
+        void getDb().update(agentApprovalRequests).set({ status: 'expired', updatedAt: new Date() })
+          .where(eq(agentApprovalRequests.id, requestId))
+          .catch((error) => log.agents.warn({ err: error, requestId }, 'Approval expiry persistence failed'));
+      }
       emitApprovalResult(sessionId, {
         eventVersion: 1,
         requestId,
@@ -77,6 +132,7 @@ export async function requestApproval(opts: {
       patternKey,
       resolve,
       timer,
+      ...(poll && { poll }),
     });
   });
 }
@@ -101,6 +157,7 @@ export function resolveApprovalDecision(data: {
   if (!pending) return false;
 
   clearTimeout(pending.timer);
+  if (pending.poll) clearInterval(pending.poll);
   pendingApprovals.delete(data.requestId);
 
   if (data.approved && data.alwaysAllow) {
@@ -135,6 +192,7 @@ export function cancelPendingApprovals(sessionId: string): void {
   for (const [requestId, pending] of pendingApprovals.entries()) {
     if (pending.sessionId !== sessionId) continue;
     clearTimeout(pending.timer);
+    if (pending.poll) clearInterval(pending.poll);
     pendingApprovals.delete(requestId);
     pending.resolve('denied');
   }

@@ -72,6 +72,7 @@ export interface Agent {
   reviewCount: number;
   usageCount: number;
   hireCount: number;
+  maxConcurrentThreads: number;
   price: number | null;
   /**
    * What this agent may reach: `family` or `family:instanceId` strings.

@@ -5,7 +5,7 @@ import { FlashList } from "@shopify/flash-list";
 import { Search } from "@oxy.so/bloom/search";
 import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react-native";
+import { Plus, Users } from "lucide-react-native";
 import { useAgentCatalogue } from "@/lib/hooks/use-agents";
 import { AgentCard } from "@/components/agent-card";
 import { useRouter } from "expo-router";
@@ -37,13 +37,14 @@ export default function AgentsScreen() {
     router.push(`/(app)/agents/${agentId}`);
   }, [router]);
 
-  const handleHire = useCallback((_agentId: string) => {
-    toast.info(t("agents.hireComingSoon"));
-  }, [t]);
+  const handleHire = useCallback((agentId: string) => {
+    router.push(`/(app)/agents/${agentId}`);
+  }, [router]);
 
   const handleCreateAgent = useCallback(() => {
     router.push("/(app)/agents/create");
   }, [router]);
+  const handleTeams = useCallback(() => router.push('/(app)/agents/teams'), [router]);
 
   const categories = useMemo(() => {
     const cats = new Set(agents.map((a) => a.category));
@@ -96,19 +97,20 @@ export default function AgentsScreen() {
         <Text className="text-2xl font-bold text-foreground">
           {t("agents.title")}
         </Text>
-        <Button
-          onPress={handleCreateAgent}
-          size="icon"
-          className="rounded-full h-8 w-8"
-        >
-          <Plus size={16} className="text-primary-foreground" />
-        </Button>
+        <View className="flex-row gap-2">
+          <Button onPress={handleTeams} size="icon" variant="outline" className="rounded-full h-8 w-8">
+            <Users size={16} className="text-foreground" />
+          </Button>
+          <Button onPress={handleCreateAgent} size="icon" className="rounded-full h-8 w-8">
+            <Plus size={16} className="text-primary-foreground" />
+          </Button>
+        </View>
       </View>
       <Text className="text-[13px] text-muted-foreground mt-0.5">
         {t("agents.subtitle")}
       </Text>
     </View>
-  ), [t, handleCreateAgent]);
+  ), [t, handleCreateAgent, handleTeams]);
 
   const searchBar = (
     <View className="px-5 pt-3 pb-2">

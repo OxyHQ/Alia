@@ -15,7 +15,7 @@
  *
  * The events that carry the most bytes are the ones most likely to be split, so
  * this was not rare and not uniform: `alia.title`, `alia.tool_result`,
- * `alia.plan_preview`, `alia.approval_request`, `alia.agent_session` and the
+ * `alia.plan_preview`, `alia.approval_request`, `alia.agent_turn` and the
  * artifact events are precisely the large ones. A title that sometimes does not
  * arrive, a canvas that sometimes does not open.
  *
