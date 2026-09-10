@@ -1,17 +1,39 @@
 /**
- * Chat Provider using OpenAI SDK
- * Streams responses using OpenAI SDK directly to Alia API
+ * Chat Provider — Alia's product runtime, driven from the Electron main process.
+ *
+ * Streams `POST /alia/chat` through `./alia-chat` and runs the tools the model
+ * asks for on this machine. The renderer is a display: it receives
+ * `chat:start`, `chat:thinking`, `chat:stream`, `chat:tool`, `chat:toolResult`,
+ * `chat:modeChanged`, `chat:error` and `chat:end`, and holds no credential.
+ *
+ * ## One loop, not two
+ *
+ * This file used to be two copies of the same ~300-line turn — `handleMessage`
+ * for the first request and `continueWithToolResults` for every request after a
+ * tool round — with the tool dispatch `switch` written out in both. They had
+ * already drifted: the continuation caught its own errors and never told the
+ * renderer, so a failure after a tool call ended the turn with no message. A
+ * turn is one loop now: stream, collect tool calls, run them, repeat until the
+ * model answers in text or the round budget is spent.
  */
 
 import { BrowserWindow } from 'electron'
-import OpenAI from 'openai'
-import { ToolExecutor } from './tools'
+import type OpenAI from 'openai'
 import Store from 'electron-store'
+import { ToolExecutor } from './tools'
 import { errorMessage, errorName, errorStack } from './errors'
 import { createLogger } from './logger'
 import { PREFERRED_CHAT_MODEL_ID } from './config'
 import { resolveModelId } from './catalogue'
-import { currentAccessToken } from './auth'
+import { currentAccessToken, refreshAccessToken } from './auth'
+import {
+  AliaChatError,
+  completedToolCalls,
+  mergeToolCallDeltas,
+  streamAliaChat,
+  type AliaStreamEvent,
+  type StreamedToolCall
+} from './alia-chat'
 
 /** A file/folder context item attached to a chat message from the renderer. */
 interface ContextItem {
@@ -20,10 +42,6 @@ interface ContextItem {
   content?: string
   language?: string
 }
-
-/** OpenAI streaming delta may carry a non-standard `reasoning` field on the Alia gateway. */
-type ReasoningDelta = OpenAI.Chat.ChatCompletionChunk.Choice.Delta & { reasoning?: string }
-type FunctionToolCall = Extract<OpenAI.Chat.ChatCompletionMessageToolCall, { type: 'function' }>
 
 const logger = createLogger('ChatProvider')
 
@@ -35,6 +53,294 @@ const store = new Store({
   }
 })
 
+/**
+ * How many tool rounds one user message may take before the model is told to
+ * answer with what it has. The server bounds its own steps the same way
+ * (`stopWhen: stepCountIs(5)` in `lib/chat/model-config.ts`).
+ */
+const MAX_TOOL_ROUNDS = 5
+
+/**
+ * The tools this process executes, in the OpenAI function shape the server
+ * accepts as `body.tools` and hands back by ORIGINAL name on the `tool_calls`
+ * frame (`packages/api/src/lib/tool-converter.ts`). Alia does not run these —
+ * its server-side executor for a client tool is an echo — so the names here and
+ * the `switch` in {@link ChatProvider.executeTool} are the whole contract.
+ */
+const COWORK_TOOLS: OpenAI.Chat.ChatCompletionTool[] = [
+  {
+    type: 'function',
+    function: {
+      name: 'read_file',
+      description: 'Read the contents of a file from the filesystem',
+      parameters: {
+        type: 'object',
+        properties: {
+          path: { type: 'string', description: 'Absolute or relative path to the file' },
+          start_line: { type: 'number', description: 'Optional starting line (1-indexed)' },
+          end_line: { type: 'number', description: 'Optional ending line (1-indexed)' }
+        },
+        required: ['path']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'write_file',
+      description: 'Create or overwrite a file with content',
+      parameters: {
+        type: 'object',
+        properties: {
+          path: { type: 'string', description: 'Path to the file' },
+          content: { type: 'string', description: 'Content to write' }
+        },
+        required: ['path', 'content']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'edit_file',
+      description: 'Replace specific text in a file',
+      parameters: {
+        type: 'object',
+        properties: {
+          path: { type: 'string', description: 'Path to the file' },
+          old_text: { type: 'string', description: 'Text to find and replace' },
+          new_text: { type: 'string', description: 'Replacement text' }
+        },
+        required: ['path', 'old_text', 'new_text']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'list_files',
+      description: 'List files inside a folder the user explicitly selected for this Cowork session.',
+      parameters: {
+        type: 'object',
+        properties: {
+          path: { type: 'string', description: 'Directory path inside a user-selected root' },
+          recursive: { type: 'boolean', description: 'List recursively' }
+        }
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'search_files',
+      description: 'Search for text patterns in files',
+      parameters: {
+        type: 'object',
+        properties: {
+          pattern: { type: 'string', description: 'Search pattern' },
+          path: { type: 'string', description: 'Directory to search in' }
+        },
+        required: ['pattern']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'run_command',
+      description: 'Execute a shell command',
+      parameters: {
+        type: 'object',
+        properties: {
+          command: { type: 'string', description: 'Shell command to execute' },
+          cwd: { type: 'string', description: 'Working directory' }
+        },
+        required: ['command']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'open_application',
+      description: 'Open an application or file with the default program',
+      parameters: {
+        type: 'object',
+        properties: {
+          application_name: { type: 'string', description: 'Application name or file path to open' }
+        },
+        required: ['application_name']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'open_url',
+      description:
+        'DEPRECATED: Open a URL in external system browser. DO NOT USE THIS - use browser_action instead for all web navigation. Only use this if user explicitly asks to open in external browser.',
+      parameters: {
+        type: 'object',
+        properties: {
+          url: { type: 'string', description: 'URL to open in external browser' }
+        },
+        required: ['url']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'clipboard_read',
+      description: 'Read the current clipboard content',
+      parameters: { type: 'object', properties: {} }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'clipboard_write',
+      description: 'Write text to the clipboard',
+      parameters: {
+        type: 'object',
+        properties: {
+          text: { type: 'string', description: 'Text to copy to clipboard' }
+        },
+        required: ['text']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_system_info',
+      description: 'Get system information (OS, CPU, memory, etc.)',
+      parameters: { type: 'object', properties: {} }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'screenshot',
+      description: 'Take a screenshot of the screen and optionally save to a file path',
+      parameters: {
+        type: 'object',
+        properties: {
+          path: {
+            type: 'string',
+            description:
+              'Optional file path to save the screenshot (e.g., ~/Desktop/screenshot.png, C:\\Users\\username\\Desktop\\screenshot.png)'
+          }
+        }
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'set_mode',
+      description: 'Change the assistant operating mode',
+      parameters: {
+        type: 'object',
+        properties: {
+          mode: {
+            type: 'string',
+            enum: ['ask', 'edit', 'plan', 'yolo'],
+            description: 'The mode to switch to'
+          }
+        },
+        required: ['mode']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'list_installed_applications',
+      description:
+        'List all installed applications on the system. Use this to find the correct name/path for apps before trying to open them.',
+      parameters: { type: 'object', properties: {} }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'browser_action',
+      description:
+        'PRIMARY TOOL FOR WEB NAVIGATION: Navigate to websites, interact with pages, extract data using AI-powered browser automation. Automatically switches to browser tab with live preview. Use this for ALL web browsing tasks (opening URLs, searching, filling forms, clicking, extracting data, etc).',
+      parameters: {
+        type: 'object',
+        properties: {
+          url: { type: 'string', description: 'URL to navigate to' },
+          action: {
+            type: 'string',
+            description:
+              'Natural language description of the action to perform (e.g., "click on login button", "fill the search box with AI", "scroll down to the footer")'
+          },
+          extract: {
+            type: 'string',
+            description:
+              'Natural language description of data to extract from the page (e.g., "the price of the first product", "all article titles", "the contact email")'
+          }
+        }
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'close_browser',
+      description: 'Close the browser tab and return to chat',
+      parameters: { type: 'object', properties: {} }
+    }
+  }
+]
+
+/** What one streamed request produced, after the stream closed. */
+interface StreamOutcome {
+  text: string
+  toolCalls: StreamedToolCall[]
+  /** The server sent a stand-in instead of (or after) an answer. */
+  synthetic: { retryable: boolean } | null
+}
+
+interface TurnRequest {
+  baseUrl: string
+  model: string
+  tools: OpenAI.Chat.ChatCompletionTool[] | undefined
+}
+
+/**
+ * Build the user message the renderer's context items describe.
+ *
+ * Folders are mentioned by path for the tools to explore; files are inlined as
+ * fenced blocks; an image makes the message multipart so the image travels as
+ * an `image_url` part rather than as text.
+ */
+function buildUserMessage(content: string, context: ContextItem[] | undefined): OpenAI.Chat.ChatCompletionUserMessageParam {
+  const folders = context?.filter((item) => item.type === 'folder') ?? []
+  const files = context?.filter((item) => item.type === 'file') ?? []
+  const images = files.filter((item) => item.language === 'image')
+
+  let text = content
+  if (folders.length > 0) {
+    text += '\n\n**Attached Folders** (use list_files and read_file tools to explore):'
+    for (const folder of folders) text += `\n- ${folder.path}`
+  }
+  for (const item of files) {
+    if (item.language === 'image') continue
+    text += `\n\n**File: ${item.path}**\n\`\`\`${item.language || ''}\n${item.content}\n\`\`\``
+  }
+
+  if (images.length === 0) return { role: 'user', content: text }
+
+  const parts: OpenAI.Chat.ChatCompletionContentPart[] = [{ type: 'text', text }]
+  for (const image of images) {
+    parts.push({ type: 'image_url', image_url: { url: image.content ?? '' } })
+  }
+  return { role: 'user', content: parts }
+}
+
 export class ChatProvider {
   private window: BrowserWindow
   private toolExecutor: ToolExecutor
@@ -43,6 +349,8 @@ export class ChatProvider {
   private currentMode = 'ask'
   private abortController?: AbortController
   private browserUsedInCurrentTurn = false
+  /** Whether any real answer text reached the renderer this turn. */
+  private streamedTextThisTurn = false
 
   constructor(window: BrowserWindow, toolExecutor: ToolExecutor) {
     this.window = window
@@ -61,659 +369,44 @@ export class ChatProvider {
   ): Promise<void> {
     if (this.isProcessing) return
 
-    const apiKey = currentAccessToken()
-    const baseUrl = store.get('apiBaseUrl') as string
-    /**
-     * Resolved once, here, and then carried through the whole conversation
-     * including the tool-result continuations. Resolving deeper would re-resolve
-     * per continuation and could change model mid-conversation.
-     */
-    const requestedModel = model || (store.get('model') as string)
-    const selectedModel = await resolveModelId(
-      store.get('apiBaseUrl') as string,
-      requestedModel,
-      currentAccessToken() ?? '',
-    )
-    const enableTools = store.get('enableTools') as boolean
-
-    if (!apiKey) {
-      this.send('chat:error', { message: 'Please set your API key in settings' })
+    if (currentAccessToken() === null) {
+      this.send('chat:error', { message: 'Sign in to Alia to start a conversation.' })
       return
     }
+
+    const baseUrl = store.get('apiBaseUrl') as string
+    /**
+     * Resolved once, here, and then carried through every tool-round
+     * continuation of this message. Resolving per request could change the
+     * model mid-conversation if the catalogue shifted underneath it.
+     */
+    const requestedModel = model || (store.get('model') as string)
+    const selectedModel = await resolveModelId(baseUrl, requestedModel, currentAccessToken() ?? undefined)
+    const enableTools = store.get('enableTools') as boolean
 
     this.currentMode = mode
     this.isProcessing = true
     this.browserUsedInCurrentTurn = false
+    this.streamedTextThisTurn = false
 
-    // Build user message with context
-    // Separate folders from files
-    const folders = context?.filter((item) => item.type === 'folder') || []
-    const files = context?.filter((item) => item.type === 'file') || []
-    const hasImages = files.some((item) => item.language === 'image')
-
-    if (hasImages) {
-      // Multimodal format for images
-      const textPart: OpenAI.Chat.ChatCompletionContentPartText = { type: 'text', text: content }
-      const contentParts: OpenAI.Chat.ChatCompletionContentPart[] = [textPart]
-
-      // Add folder references (just mention the path)
-      if (folders.length > 0) {
-        textPart.text += '\n\n**Attached Folders** (use list_files and read_file tools to explore):'
-        for (const folder of folders) {
-          textPart.text += `\n- ${folder.path}`
-        }
-      }
-
-      // Add files
-      for (const item of files) {
-        if (item.language === 'image') {
-          contentParts.push({
-            type: 'image_url',
-            image_url: { url: item.content ?? '' }
-          })
-        } else {
-          textPart.text += `\n\n**File: ${item.path}**\n\`\`\`${item.language || ''}\n${item.content}\n\`\`\``
-        }
-      }
-
-      this.messages.push({ role: 'user', content: contentParts })
-    } else if (context && context.length > 0) {
-      // Text-only format
-      let enhancedContent = content
-
-      // Add folder references
-      if (folders.length > 0) {
-        enhancedContent += '\n\n**Attached Folders** (use list_files and read_file tools to explore):'
-        for (const folder of folders) {
-          enhancedContent += `\n- ${folder.path}`
-        }
-      }
-
-      // Add files
-      for (const item of files) {
-        enhancedContent += `\n\n**File: ${item.path}**\n\`\`\`${item.language || ''}\n${item.content}\n\`\`\``
-      }
-
-      this.messages.push({ role: 'user', content: enhancedContent })
-    } else {
-      // No context
-      this.messages.push({ role: 'user', content })
-    }
-
-    // Add system message if this is the first message
+    this.messages.push(buildUserMessage(content, context))
     if (this.messages.length === 1) {
-      const systemMessage = await this.buildSystemMessage()
-      this.messages.unshift({ role: 'system', content: systemMessage })
+      this.messages.unshift({ role: 'system', content: this.buildSystemMessage() })
     }
 
     this.send('chat:start', {})
+    this.abortController = new AbortController()
+
+    logger.debug('===== NEW MESSAGE =====')
+    logger.debug('Mode:', mode)
+    logger.debug('Model:', selectedModel)
+    logger.debug('Base URL:', baseUrl)
+    logger.debug('Tools enabled:', enableTools)
+    logger.debug('Message count:', this.messages.length)
 
     try {
-      logger.debug('===== NEW MESSAGE =====')
-      logger.debug('Mode:', mode)
-      logger.debug('Model:', selectedModel)
-      logger.debug('Base URL:', baseUrl)
-      logger.debug('Tools enabled:', enableTools)
-      logger.debug('Message count:', this.messages.length)
-
-      /**
-       * OpenAI-protocol caller: the `openai` package derives
-       * `POST {baseURL}/chat/completions` itself, so this client chose the
-       * PROTOCOL and the protocol names the path. It stays on the compatibility
-       * surface deliberately while the clients that write their own URL moved to
-       * `POST /alia/chat` — epic #139 workstream 6, recorded with the rest in
-       * gate 7 of `packages/api/src/__tests__/architectureGates.test.ts`.
-       */
-      const openai = new OpenAI({
-        apiKey,
-        baseURL: `${baseUrl}/v1`,
-        dangerouslyAllowBrowser: false // We're in Node/Electron
-      })
-
-      // Create abort controller
-      this.abortController = new AbortController()
-
-      // Define tools if enabled
-      const tools: OpenAI.Chat.ChatCompletionTool[] | undefined = enableTools
-        ? [
-            {
-              type: 'function',
-              function: {
-                name: 'read_file',
-                description: 'Read the contents of a file from the filesystem',
-                parameters: {
-                  type: 'object',
-                  properties: {
-                    path: {
-                      type: 'string',
-                      description: 'Absolute or relative path to the file'
-                    },
-                    start_line: {
-                      type: 'number',
-                      description: 'Optional starting line (1-indexed)'
-                    },
-                    end_line: {
-                      type: 'number',
-                      description: 'Optional ending line (1-indexed)'
-                    }
-                  },
-                  required: ['path']
-                }
-              }
-            },
-            {
-              type: 'function',
-              function: {
-                name: 'write_file',
-                description: 'Create or overwrite a file with content',
-                parameters: {
-                  type: 'object',
-                  properties: {
-                    path: { type: 'string', description: 'Path to the file' },
-                    content: { type: 'string', description: 'Content to write' }
-                  },
-                  required: ['path', 'content']
-                }
-              }
-            },
-            {
-              type: 'function',
-              function: {
-                name: 'edit_file',
-                description: 'Replace specific text in a file',
-                parameters: {
-                  type: 'object',
-                  properties: {
-                    path: { type: 'string', description: 'Path to the file' },
-                    old_text: { type: 'string', description: 'Text to find and replace' },
-                    new_text: { type: 'string', description: 'Replacement text' }
-                  },
-                  required: ['path', 'old_text', 'new_text']
-                }
-              }
-            },
-            {
-              type: 'function',
-              function: {
-                name: 'list_files',
-                description: 'List files inside a folder the user explicitly selected for this Cowork session.',
-                parameters: {
-                  type: 'object',
-                  properties: {
-                    path: { type: 'string', description: 'Directory path inside a user-selected root' },
-                    recursive: {
-                      type: 'boolean',
-                      description: 'List recursively'
-                    }
-                  }
-                }
-              }
-            },
-            {
-              type: 'function',
-              function: {
-                name: 'search_files',
-                description: 'Search for text patterns in files',
-                parameters: {
-                  type: 'object',
-                  properties: {
-                    pattern: { type: 'string', description: 'Search pattern' },
-                    path: { type: 'string', description: 'Directory to search in' }
-                  },
-                  required: ['pattern']
-                }
-              }
-            },
-            {
-              type: 'function',
-              function: {
-                name: 'run_command',
-                description: 'Execute a shell command',
-                parameters: {
-                  type: 'object',
-                  properties: {
-                    command: { type: 'string', description: 'Shell command to execute' },
-                    cwd: { type: 'string', description: 'Working directory' }
-                  },
-                  required: ['command']
-                }
-              }
-            },
-            {
-              type: 'function',
-              function: {
-                name: 'open_application',
-                description: 'Open an application or file with the default program',
-                parameters: {
-                  type: 'object',
-                  properties: {
-                    application_name: {
-                      type: 'string',
-                      description: 'Application name or file path to open'
-                    }
-                  },
-                  required: ['application_name']
-                }
-              }
-            },
-            {
-              type: 'function',
-              function: {
-                name: 'open_url',
-                description: 'DEPRECATED: Open a URL in external system browser. DO NOT USE THIS - use browser_action instead for all web navigation. Only use this if user explicitly asks to open in external browser.',
-                parameters: {
-                  type: 'object',
-                  properties: {
-                    url: { type: 'string', description: 'URL to open in external browser' }
-                  },
-                  required: ['url']
-                }
-              }
-            },
-            {
-              type: 'function',
-              function: {
-                name: 'clipboard_read',
-                description: 'Read the current clipboard content',
-                parameters: { type: 'object', properties: {} }
-              }
-            },
-            {
-              type: 'function',
-              function: {
-                name: 'clipboard_write',
-                description: 'Write text to the clipboard',
-                parameters: {
-                  type: 'object',
-                  properties: {
-                    text: { type: 'string', description: 'Text to copy to clipboard' }
-                  },
-                  required: ['text']
-                }
-              }
-            },
-            {
-              type: 'function',
-              function: {
-                name: 'get_system_info',
-                description: 'Get system information (OS, CPU, memory, etc.)',
-                parameters: { type: 'object', properties: {} }
-              }
-            },
-            {
-              type: 'function',
-              function: {
-                name: 'screenshot',
-                description: 'Take a screenshot of the screen and optionally save to a file path',
-                parameters: {
-                  type: 'object',
-                  properties: {
-                    path: {
-                      type: 'string',
-                      description: 'Optional file path to save the screenshot (e.g., ~/Desktop/screenshot.png, C:\\Users\\username\\Desktop\\screenshot.png)'
-                    }
-                  }
-                }
-              }
-            },
-            {
-              type: 'function',
-              function: {
-                name: 'set_mode',
-                description: 'Change the assistant operating mode',
-                parameters: {
-                  type: 'object',
-                  properties: {
-                    mode: {
-                      type: 'string',
-                      enum: ['ask', 'edit', 'plan', 'yolo'],
-                      description: 'The mode to switch to'
-                    }
-                  },
-                  required: ['mode']
-                }
-              }
-            },
-            {
-              type: 'function',
-              function: {
-                name: 'list_installed_applications',
-                description: 'List all installed applications on the system. Use this to find the correct name/path for apps before trying to open them.',
-                parameters: {
-                  type: 'object',
-                  properties: {}
-                }
-              }
-            },
-            {
-              type: 'function',
-              function: {
-                name: 'browser_action',
-                description: 'PRIMARY TOOL FOR WEB NAVIGATION: Navigate to websites, interact with pages, extract data using AI-powered browser automation. Automatically switches to browser tab with live preview. Use this for ALL web browsing tasks (opening URLs, searching, filling forms, clicking, extracting data, etc).',
-                parameters: {
-                  type: 'object',
-                  properties: {
-                    url: {
-                      type: 'string',
-                      description: 'URL to navigate to'
-                    },
-                    action: {
-                      type: 'string',
-                      description: 'Natural language description of the action to perform (e.g., "click on login button", "fill the search box with AI", "scroll down to the footer")'
-                    },
-                    extract: {
-                      type: 'string',
-                      description: 'Natural language description of data to extract from the page (e.g., "the price of the first product", "all article titles", "the contact email")'
-                    }
-                  }
-                }
-              }
-            },
-            {
-              type: 'function',
-              function: {
-                name: 'close_browser',
-                description: 'Close the browser tab and return to chat',
-                parameters: {
-                  type: 'object',
-                  properties: {}
-                }
-              }
-            }
-          ]
-        : undefined
-
-      // Stream with OpenAI SDK
-      logger.debug('Creating stream...')
-      const stream = await openai.chat.completions.create(
-        {
-          model: selectedModel,
-          messages: this.messages,
-          tools,
-          stream: true,
-          temperature: 0.7,
-          max_tokens: 4096
-        },
-        {
-          signal: this.abortController.signal
-        }
-      )
-
-      logger.debug('Stream created, processing chunks...')
-      let assistantMessage = ''
-      let toolCalls: FunctionToolCall[] = []
-      let chunkCount = 0
-
-      // Process stream chunks
-      for await (const chunk of stream) {
-        chunkCount++
-        logger.debug(`Chunk ${chunkCount}:`, JSON.stringify(chunk, null, 2))
-        const delta = chunk.choices?.[0]?.delta
-
-        if (!delta) {
-          logger.debug('Chunk has no delta, skipping')
-          continue
-        }
-
-        // Handle reasoning (chain-of-thought)
-        if ((delta as ReasoningDelta).reasoning) {
-          logger.debug('Reasoning chunk:', (delta as ReasoningDelta).reasoning)
-          this.send('chat:thinking', { content: (delta as ReasoningDelta).reasoning })
-        }
-
-        // Handle content
-        if (delta.content) {
-          logger.debug('Content chunk:', delta.content)
-          assistantMessage += delta.content
-          this.send('chat:stream', { content: delta.content })
-        }
-
-        // Handle tool calls
-        if (delta.tool_calls) {
-          logger.debug('Tool call delta:', JSON.stringify(delta.tool_calls, null, 2))
-          for (const toolCall of delta.tool_calls) {
-            const index = toolCall.index ?? toolCalls.length
-            logger.debug(`Processing tool call at index ${index}`)
-
-            if (!toolCalls[index]) {
-              logger.debug(`Creating new tool call at index ${index}`)
-              toolCalls[index] = {
-                id: toolCall.id || '',
-                type: 'function',
-                function: { name: toolCall.function?.name || '', arguments: '' }
-              }
-            }
-
-            if (toolCall.function?.name) {
-              logger.debug(`Setting tool name: ${toolCall.function.name}`)
-              toolCalls[index].function.name = toolCall.function.name
-            }
-
-            if (toolCall.function?.arguments) {
-              logger.debug(`Appending arguments: ${toolCall.function.arguments}`)
-              toolCalls[index].function.arguments += toolCall.function.arguments
-            }
-
-            if (toolCall.id) {
-              logger.debug(`Setting tool call ID: ${toolCall.id}`)
-              toolCalls[index].id = toolCall.id
-            }
-
-            logger.debug(`Current tool call state at index ${index}:`, JSON.stringify(toolCalls[index], null, 2))
-          }
-        }
-
-        // Handle finish reason
-        if (chunk.choices?.[0]?.finish_reason) {
-          logger.debug('Stream finished:', chunk.choices[0]?.finish_reason)
-        }
-      }
-
-      logger.debug('Stream processing complete')
-      logger.debug('Total chunks processed:', chunkCount)
-      logger.debug('Assistant message length:', assistantMessage.length)
-      logger.debug('Raw tool calls array:', JSON.stringify(toolCalls, null, 2))
-
-      // Filter out undefined and incomplete tool calls before processing
-      const validToolCalls = toolCalls.filter(tc => tc && tc.id && tc.function && tc.function.name)
-      logger.debug('Valid tool calls after filtering:', validToolCalls.length)
-      logger.debug('Valid tool calls:', JSON.stringify(validToolCalls, null, 2))
-
-      // Add assistant message to history (with tool calls if any)
-      if (assistantMessage || validToolCalls.length > 0) {
-        const assistantMsg: OpenAI.Chat.ChatCompletionAssistantMessageParam = {
-          role: 'assistant',
-          content: assistantMessage || null
-        }
-        if (validToolCalls.length > 0) {
-          assistantMsg.tool_calls = validToolCalls
-        }
-        this.messages.push(assistantMsg)
-      }
-
-      // Execute tools if there are tool calls
-      if (validToolCalls.length > 0) {
-        logger.debug('===== EXECUTING TOOLS =====')
-        logger.debug('Number of tools to execute:', validToolCalls.length)
-
-        for (const toolCall of validToolCalls) {
-          logger.debug('Processing tool call:', JSON.stringify(toolCall, null, 2))
-
-          if (!toolCall || !toolCall.function) {
-            logger.error('Invalid tool call:', toolCall)
-            continue
-          }
-
-          const toolName = toolCall.function.name
-          if (!toolName) {
-            logger.error('Tool call missing name:', toolCall)
-            continue
-          }
-
-          logger.debug(`Executing tool: ${toolName}`)
-          logger.debug(`Tool call ID: ${toolCall.id}`)
-          logger.debug(`Raw arguments: ${toolCall.function.arguments}`)
-
-          let args: Record<string, unknown> = {}
-          try {
-            args = JSON.parse(toolCall.function.arguments || '{}')
-            logger.debug('Parsed arguments:', JSON.stringify(args, null, 2))
-          } catch (e) {
-            logger.error('Failed to parse tool arguments:', toolCall.function.arguments, e)
-            continue
-          }
-
-          // Handle set_mode specially
-          if (toolName === 'set_mode') {
-            logger.debug(`Setting mode to: ${args.mode}`)
-            this.currentMode = String(args.mode ?? this.currentMode)
-            this.send('chat:modeChanged', { mode: this.currentMode })
-          }
-
-          this.send('chat:tool', {
-            tool: toolName,
-            args,
-            status: 'running'
-          })
-
-          try {
-            logger.debug(`Calling tool executor for: ${toolName}`)
-            // Execute tool locally
-            let result: string
-            switch (toolName) {
-              case 'read_file':
-                logger.debug('Executing read_file')
-                result = await this.toolExecutor.readFile(args as { path: string; start_line?: number; end_line?: number })
-                break
-              case 'write_file':
-                logger.debug('Executing write_file')
-                result = await this.toolExecutor.writeFile(args as { path: string; content: string })
-                break
-              case 'edit_file':
-                logger.debug('Executing edit_file')
-                result = await this.toolExecutor.editFile(args as { path: string; old_text: string; new_text: string })
-                break
-              case 'list_files':
-                logger.debug('Executing list_files')
-                result = await this.toolExecutor.listFiles(args as { path?: string; recursive?: boolean })
-                break
-              case 'search_files':
-                logger.debug('Executing search_files')
-                result = await this.toolExecutor.searchFiles(args as { pattern: string; path?: string })
-                break
-              case 'run_command':
-                logger.debug('Executing run_command')
-                result = await this.toolExecutor.runCommand(args as { command: string; cwd?: string })
-                break
-              case 'open_application':
-                logger.debug('Executing open_application')
-                result = await this.toolExecutor.openApplication(args as { application_name: string })
-                break
-              case 'open_url':
-                logger.debug('Executing open_url')
-                result = await this.toolExecutor.openUrl(args as { url: string })
-                break
-              case 'clipboard_read':
-                logger.debug('Executing clipboard_read')
-                result = this.toolExecutor.clipboardRead()
-                break
-              case 'clipboard_write':
-                logger.debug('Executing clipboard_write')
-                result = this.toolExecutor.clipboardWrite(args as { text: string })
-                break
-              case 'get_system_info':
-                logger.debug('Executing get_system_info')
-                result = this.toolExecutor.getSystemInfo()
-                break
-              case 'screenshot':
-                logger.debug('Executing screenshot')
-                result = await this.toolExecutor.screenshot()
-                break
-              case 'set_mode':
-                logger.debug('Executing set_mode')
-                result = `Mode changed to ${args.mode}`
-                break
-              case 'list_installed_applications':
-                logger.debug('Executing list_installed_applications')
-                result = await this.toolExecutor.listInstalledApplications()
-                break
-              case 'browser_action':
-                logger.debug('Executing browser_action')
-                this.browserUsedInCurrentTurn = true
-                result = await this.toolExecutor.browserAction(args)
-                break
-              case 'close_browser':
-                logger.debug('Executing close_browser')
-                result = await this.toolExecutor.closeBrowser()
-                break
-              default:
-                logger.error(`Unknown tool: ${toolName}`)
-                result = `Unknown tool: ${toolName}`
-            }
-
-            logger.debug(`Tool ${toolName} executed successfully`)
-            logger.debug(`Result length: ${String(result || '').length}`)
-            logger.debug(`Result preview: ${String(result || '').slice(0, 200)}`)
-
-            // Add tool result to messages
-            // Append reminder to tool result to prevent redundant calls
-            let toolResult = result
-            if (result.includes('already open') || result.includes('DO NOT call')) {
-              logger.debug('Adding reminder to tool result to prevent redundant tool calls')
-              toolResult += '\n\n[SYSTEM REMINDER: The action is complete. Do NOT call the same tool again. Move to the next task or provide your final response.]'
-            }
-
-            this.messages.push({
-              role: 'tool',
-              tool_call_id: toolCall.id,
-              content: toolResult
-            })
-            logger.debug(`Added tool result to messages (total: ${this.messages.length})`)
-
-            this.send('chat:toolResult', {
-              tool: toolName,
-              success: true,
-              result: String(toolResult || '').slice(0, 500)
-            })
-          } catch (error: unknown) {
-            const errorMsg = errorMessage(error)
-            logger.error(`Tool ${toolName} execution failed:`, errorMsg)
-            logger.error('Error stack:', errorStack(error))
-
-            this.messages.push({
-              role: 'tool',
-              tool_call_id: toolCall.id,
-              content: `Error: ${errorMsg}`
-            })
-
-            this.send('chat:toolResult', {
-              tool: toolName,
-              success: false,
-              result: errorMsg
-            })
-          }
-        }
-
-        logger.debug('All tools executed, continuing with tool results...')
-        logger.debug('Current message history:', JSON.stringify(this.messages.map(m => ({ role: m.role, hasContent: !!m.content })), null, 2))
-
-        // Continue conversation with tool results - recursively call handleMessage
-        // but without adding a new user message
-        await this.continueWithToolResults(openai, selectedModel, tools)
-      }
-
-      logger.debug('Chat session complete')
+      await this.runTurn({ baseUrl, model: selectedModel, tools: enableTools ? COWORK_TOOLS : undefined })
       this.send('chat:end', {})
-
-      // Auto-close browser if it was used in this turn
-      if (this.browserUsedInCurrentTurn) {
-        logger.debug('Browser was used, auto-closing and returning to chat...')
-        try {
-          await this.toolExecutor.closeBrowser()
-        } catch (error) {
-          logger.error('Error auto-closing browser:', error)
-        }
-      }
     } catch (error: unknown) {
       if (errorName(error) === 'AbortError') {
         logger.debug('Stream aborted by user')
@@ -723,10 +416,24 @@ export class ChatProvider {
         logger.error('Error name:', errorName(error))
         logger.error('Error message:', errorMessage(error))
         logger.error('Error stack:', errorStack(error))
-        logger.error('Full error:', JSON.stringify(error, null, 2))
+        /**
+         * `chat:error` discards whatever the renderer was still streaming, so
+         * an answer that was interrupted part-way is committed first — the
+         * renderer commits on `chat:end` — and the error lands under it. That
+         * is what the app does with a synthetic tail after real output.
+         */
+        if (this.streamedTextThisTurn) this.send('chat:end', {})
         this.send('chat:error', { message: this.formatErrorMessage(error) })
       }
     } finally {
+      if (this.browserUsedInCurrentTurn) {
+        logger.debug('Browser was used, auto-closing and returning to chat...')
+        try {
+          await this.toolExecutor.closeBrowser()
+        } catch (error) {
+          logger.error('Error auto-closing browser:', error)
+        }
+      }
       logger.debug('===== SESSION END =====')
       logger.debug('Final message count:', this.messages.length)
       this.isProcessing = false
@@ -735,303 +442,231 @@ export class ChatProvider {
     }
   }
 
-  private async continueWithToolResults(
-    openai: OpenAI,
-    model: string,
-    tools: OpenAI.Chat.ChatCompletionTool[] | undefined,
-    iterationCount: number = 0
-  ): Promise<void> {
-    // Prevent infinite loops
-    const MAX_ITERATIONS = 5
-    if (iterationCount >= MAX_ITERATIONS) {
-      logger.warn(`Max iterations (${MAX_ITERATIONS}) reached, forcing final response`)
-      // Force final response without more tool calls
-      const stream = await openai.chat.completions.create(
-        {
-          model,
-          messages: this.messages,
-          tool_choice: 'none', // Force response without tools
-          stream: true,
-          temperature: 0.7,
-          max_tokens: 4096
-        },
-        {
-          signal: this.abortController?.signal
-        }
-      )
+  /**
+   * One user message, to completion: stream, run tools, stream again.
+   *
+   * The final round is sent with `tool_choice: 'none'` so a model that would
+   * keep calling tools is made to answer instead of being cut off silently.
+   */
+  private async runTurn(request: TurnRequest): Promise<void> {
+    for (let round = 0; ; round++) {
+      const lastRound = round >= MAX_TOOL_ROUNDS
+      if (lastRound) logger.warn(`Max tool rounds (${MAX_TOOL_ROUNDS}) reached, forcing final response`)
 
-      let finalMessage = ''
-      for await (const chunk of stream) {
-        const delta = chunk.choices?.[0]?.delta
-        if (delta?.content) {
-          finalMessage += delta.content
-          this.send('chat:stream', { content: delta.content })
-        }
-      }
+      const outcome = await this.streamOnce(request, lastRound)
 
-      if (finalMessage) {
-        this.messages.push({
+      if (outcome.text || outcome.toolCalls.length > 0) {
+        const assistant: OpenAI.Chat.ChatCompletionAssistantMessageParam = {
           role: 'assistant',
-          content: finalMessage
-        })
-      }
-      return
-    }
-
-    logger.debug('===== CONTINUING WITH TOOL RESULTS =====')
-    logger.debug('Iteration:', iterationCount + 1)
-    logger.debug('Current message count:', this.messages.length)
-    logger.debug('Last 3 messages:', JSON.stringify(this.messages.slice(-3).map(m => ({
-      role: m.role,
-      contentLength: typeof m.content === 'string' ? m.content.length : 0,
-      hasToolCalls: !!(m as OpenAI.Chat.ChatCompletionAssistantMessageParam).tool_calls
-    })), null, 2))
-
-    try {
-      // Stream continuation with tool results
-      logger.debug('Creating continuation stream...')
-
-      // After first iteration, prefer not calling more tools unless absolutely necessary
-      const streamConfig: OpenAI.Chat.ChatCompletionCreateParamsStreaming = {
-        model,
-        messages: this.messages,
-        tools,
-        stream: true,
-        temperature: 0.7,
-        max_tokens: 4096
+          content: outcome.text || null
+        }
+        if (outcome.toolCalls.length > 0) assistant.tool_calls = outcome.toolCalls
+        this.messages.push(assistant)
       }
 
-      // After iteration 1, discourage more tool calls
-      if (iterationCount >= 1) {
-        streamConfig.tool_choice = 'auto' // Let model decide, but with penalty
-        logger.debug('Iteration >= 1, model should prefer responding')
+      if (outcome.synthetic !== null) {
+        // The stand-in was never shown and is never remembered: the history
+        // holds whatever real output preceded it, and the person is told.
+        throw new AliaChatError(
+          outcome.synthetic.retryable
+            ? 'Alia could not finish that answer. Please send your message again.'
+            : 'Alia could not answer that request.',
+          { retryable: outcome.synthetic.retryable }
+        )
       }
 
-      const stream = await openai.chat.completions.create(
-        streamConfig,
-        {
-          signal: this.abortController?.signal
-        }
-      ) as unknown as AsyncIterable<OpenAI.Chat.Completions.ChatCompletionChunk>
+      if (outcome.toolCalls.length === 0 || lastRound) return
 
-      logger.debug('Continuation stream created, processing chunks...')
-      let assistantMessage = ''
-      let toolCalls: FunctionToolCall[] = []
-      let contChunkCount = 0
-
-      // Process stream chunks
-      for await (const chunk of stream) {
-        contChunkCount++
-        logger.debug(`Continuation chunk ${contChunkCount}:`, JSON.stringify(chunk, null, 2))
-
-        const delta = chunk.choices?.[0]?.delta
-
-        if (!delta) {
-          logger.debug('Continuation chunk has no delta, skipping')
-          continue
-        }
-
-        // Handle reasoning
-        if ((delta as ReasoningDelta).reasoning) {
-          logger.debug('Continuation reasoning chunk:', (delta as ReasoningDelta).reasoning)
-          this.send('chat:thinking', { content: (delta as ReasoningDelta).reasoning })
-        }
-
-        // Handle content
-        if (delta.content) {
-          logger.debug('Continuation content chunk:', delta.content)
-          assistantMessage += delta.content
-          this.send('chat:stream', { content: delta.content })
-        }
-
-        // Handle tool calls
-        if (delta.tool_calls) {
-          for (const toolCall of delta.tool_calls) {
-            const index = toolCall.index ?? toolCalls.length
-            if (!toolCalls[index]) {
-              toolCalls[index] = {
-                id: toolCall.id || '',
-                type: 'function',
-                function: { name: toolCall.function?.name || '', arguments: '' }
-              }
-            }
-
-            if (toolCall.function?.name) {
-              toolCalls[index].function.name = toolCall.function.name
-            }
-
-            if (toolCall.function?.arguments) {
-              toolCalls[index].function.arguments += toolCall.function.arguments
-            }
-
-            if (toolCall.id) {
-              toolCalls[index].id = toolCall.id
-            }
-          }
-        }
-      }
-
-      // Filter out undefined and incomplete tool calls before processing
-      const validToolCalls = toolCalls.filter(tc => tc && tc.id && tc.function && tc.function.name)
-
-      // Add assistant message
-      if (assistantMessage || validToolCalls.length > 0) {
-        const assistantMsg: OpenAI.Chat.ChatCompletionAssistantMessageParam = {
-          role: 'assistant',
-          content: assistantMessage || null
-        }
-        if (validToolCalls.length > 0) {
-          assistantMsg.tool_calls = validToolCalls
-        }
-        this.messages.push(assistantMsg)
-      }
-
-      // Execute more tools if needed (recursive)
-      if (validToolCalls.length > 0) {
-        for (const toolCall of validToolCalls) {
-          if (!toolCall || !toolCall.function) {
-            logger.error('Invalid tool call in continuation:', toolCall)
-            continue
-          }
-
-          const toolName = toolCall.function.name
-          if (!toolName) {
-            logger.error('Tool call missing name in continuation:', toolCall)
-            continue
-          }
-
-          let args: Record<string, unknown> = {}
-          try {
-            args = JSON.parse(toolCall.function.arguments || '{}')
-          } catch (e) {
-            logger.error('Failed to parse tool arguments in continuation:', toolCall.function.arguments, e)
-            continue
-          }
-
-          if (toolName === 'set_mode') {
-            this.currentMode = String(args.mode ?? this.currentMode)
-            this.send('chat:modeChanged', { mode: this.currentMode })
-          }
-
-          this.send('chat:tool', {
-            tool: toolName,
-            args,
-            status: 'running'
-          })
-
-          try {
-            let result: string
-            switch (toolName) {
-              case 'read_file':
-                result = await this.toolExecutor.readFile(args as { path: string; start_line?: number; end_line?: number })
-                break
-              case 'write_file':
-                result = await this.toolExecutor.writeFile(args as { path: string; content: string })
-                break
-              case 'edit_file':
-                result = await this.toolExecutor.editFile(args as { path: string; old_text: string; new_text: string })
-                break
-              case 'list_files':
-                result = await this.toolExecutor.listFiles(args as { path?: string; recursive?: boolean })
-                break
-              case 'search_files':
-                result = await this.toolExecutor.searchFiles(args as { pattern: string; path?: string })
-                break
-              case 'run_command':
-                result = await this.toolExecutor.runCommand(args as { command: string; cwd?: string })
-                break
-              case 'open_application':
-                result = await this.toolExecutor.openApplication(args as { application_name: string })
-                break
-              case 'open_url':
-                result = await this.toolExecutor.openUrl(args as { url: string })
-                break
-              case 'clipboard_read':
-                result = this.toolExecutor.clipboardRead()
-                break
-              case 'clipboard_write':
-                result = this.toolExecutor.clipboardWrite(args as { text: string })
-                break
-              case 'get_system_info':
-                result = this.toolExecutor.getSystemInfo()
-                break
-              case 'screenshot':
-                result = await this.toolExecutor.screenshot()
-                break
-              case 'set_mode':
-                result = `Mode changed to ${args.mode}`
-                break
-              case 'list_installed_applications':
-                result = await this.toolExecutor.listInstalledApplications()
-                break
-              case 'browser_action':
-                this.browserUsedInCurrentTurn = true
-                result = await this.toolExecutor.browserAction(args)
-                break
-              case 'close_browser':
-                result = await this.toolExecutor.closeBrowser()
-                break
-              default:
-                result = `Unknown tool: ${toolName}`
-            }
-
-            // Append reminder to tool result to prevent redundant calls
-            let toolResult = result
-            if (result.includes('already open') || result.includes('DO NOT call')) {
-              logger.debug('Adding reminder to tool result in continuation to prevent redundant tool calls')
-              toolResult += '\n\n[SYSTEM REMINDER: The action is complete. Do NOT call the same tool again. Move to the next task or provide your final response.]'
-            }
-
-            this.messages.push({
-              role: 'tool',
-              tool_call_id: toolCall.id,
-              content: toolResult
-            })
-
-            this.send('chat:toolResult', {
-              tool: toolName,
-              success: true,
-              result: String(toolResult || '').slice(0, 500)
-            })
-          } catch (error: unknown) {
-            const errorMsg = errorMessage(error)
-            this.messages.push({
-              role: 'tool',
-              tool_call_id: toolCall.id,
-              content: `Error: ${errorMsg}`
-            })
-
-            this.send('chat:toolResult', {
-              tool: toolName,
-              success: false,
-              result: errorMsg
-            })
-          }
-        }
-
-        logger.debug('More tools to execute, continuing recursively...')
-        // Continue recursively with incremented iteration count
-        await this.continueWithToolResults(openai, model, tools, iterationCount + 1)
-      } else {
-        logger.debug('No more tools to execute, continuation complete')
-      }
-    } catch (error: unknown) {
-      if (errorName(error) !== 'AbortError') {
-        logger.error('===== CONTINUATION ERROR =====')
-        logger.error('Error name:', errorName(error))
-        logger.error('Error message:', errorMessage(error))
-        logger.error('Error stack:', errorStack(error))
-        logger.error('Full error:', JSON.stringify(error, null, 2))
-      } else {
-        logger.debug('Continuation aborted by user')
+      logger.debug('===== EXECUTING TOOLS =====')
+      logger.debug('Number of tools to execute:', outcome.toolCalls.length)
+      for (const toolCall of outcome.toolCalls) {
+        await this.runToolCall(toolCall)
       }
     }
   }
 
-  private async buildSystemMessage(): Promise<string> {
-    // Minimal client context - let backend handle all instructions
-    // Backend will add language rules, tool usage instructions, user memory, etc.
+  /**
+   * Stream one request and fold what it produced.
+   *
+   * A 401 is retried once on a freshly minted token. The scheduler in
+   * `./auth` normally rotates the token before it expires; this is the path
+   * for a laptop that slept through the rotation.
+   */
+  private async streamOnce(request: TurnRequest, finalRound: boolean): Promise<StreamOutcome> {
+    const body = {
+      model: request.model,
+      messages: this.messages,
+      tools: finalRound ? undefined : request.tools,
+      ...(finalRound && request.tools !== undefined ? { tool_choice: 'none' as const } : {}),
+      temperature: 0.7,
+      max_tokens: 4096
+    }
 
+    const attempt = (accessToken: string) =>
+      streamAliaChat({ baseUrl: request.baseUrl, accessToken, body, signal: this.abortController?.signal })
+
+    const token = currentAccessToken()
+    if (token === null) throw new AliaChatError('Sign in to Alia to start a conversation.', { status: 401 })
+
+    try {
+      return await this.consume(attempt(token))
+    } catch (error: unknown) {
+      if (!(error instanceof AliaChatError) || error.status !== 401) throw error
+      const fresh = await refreshAccessToken()
+      if (fresh === null || fresh === token) throw error
+      logger.debug('Retrying after re-minting the session token')
+      return await this.consume(attempt(fresh))
+    }
+  }
+
+  /** Forward a stream to the renderer and collect what the history needs. */
+  private async consume(stream: AsyncIterable<AliaStreamEvent>): Promise<StreamOutcome> {
+    let text = ''
+    const toolCalls: StreamedToolCall[] = []
+    let synthetic: StreamOutcome['synthetic'] = null
+    let chunkCount = 0
+
+    for await (const event of stream) {
+      chunkCount++
+      switch (event.type) {
+        case 'content':
+          text += event.text
+          this.streamedTextThisTurn = true
+          this.send('chat:stream', { content: event.text })
+          break
+        case 'reasoning':
+          this.send('chat:thinking', { content: event.text })
+          break
+        case 'tool_calls':
+          mergeToolCallDeltas(toolCalls, event.deltas)
+          break
+        case 'synthetic':
+          logger.warn('Server sent a synthetic stand-in:', event.text)
+          synthetic = { retryable: event.retryable }
+          break
+        case 'tool_result':
+          // For this process's own tools the output is the server's echo of the
+          // arguments; the real result is produced by `runToolCall`.
+          logger.debug(`Server tool result for ${event.name}`)
+          break
+        case 'finish':
+          logger.debug('Stream finished:', event.reason)
+          break
+        case 'event':
+          logger.debug('Product event:', event.name)
+          break
+      }
+    }
+
+    logger.debug('Stream processing complete')
+    logger.debug('Total events processed:', chunkCount)
+    logger.debug('Assistant message length:', text.length)
+
+    return { text, toolCalls: completedToolCalls(toolCalls), synthetic }
+  }
+
+  /** Execute one tool call locally and append its result to the history. */
+  private async runToolCall(toolCall: StreamedToolCall): Promise<void> {
+    const toolName = toolCall.function.name
+    logger.debug(`Executing tool: ${toolName}`)
+    logger.debug(`Tool call ID: ${toolCall.id}`)
+    logger.debug(`Raw arguments: ${toolCall.function.arguments}`)
+
+    let args: Record<string, unknown> = {}
+    try {
+      args = JSON.parse(toolCall.function.arguments || '{}')
+    } catch (e) {
+      logger.error('Failed to parse tool arguments:', toolCall.function.arguments, e)
+      // The model is told rather than left waiting for a result that never
+      // comes: a `tool_calls` entry with no matching `tool` message is a
+      // request the server refuses.
+      this.messages.push({
+        role: 'tool',
+        tool_call_id: toolCall.id,
+        content: 'Error: Malformed tool arguments. Please retry with valid JSON.'
+      })
+      this.send('chat:toolResult', { tool: toolName, success: false, result: 'Malformed tool arguments' })
+      return
+    }
+
+    if (toolName === 'set_mode') {
+      logger.debug(`Setting mode to: ${args.mode}`)
+      this.currentMode = String(args.mode ?? this.currentMode)
+      this.send('chat:modeChanged', { mode: this.currentMode })
+    }
+
+    this.send('chat:tool', { tool: toolName, args, status: 'running' })
+
+    try {
+      let result = await this.executeTool(toolName, args)
+      logger.debug(`Tool ${toolName} executed successfully`)
+      logger.debug(`Result length: ${result.length}`)
+
+      // A tool that reports "already open" is one the model tends to call
+      // again; the reminder is what stops the loop.
+      if (result.includes('already open') || result.includes('DO NOT call')) {
+        result +=
+          '\n\n[SYSTEM REMINDER: The action is complete. Do NOT call the same tool again. Move to the next task or provide your final response.]'
+      }
+
+      this.messages.push({ role: 'tool', tool_call_id: toolCall.id, content: result })
+      this.send('chat:toolResult', { tool: toolName, success: true, result: result.slice(0, 500) })
+    } catch (error: unknown) {
+      const errorMsg = errorMessage(error)
+      logger.error(`Tool ${toolName} execution failed:`, errorMsg)
+      logger.error('Error stack:', errorStack(error))
+      this.messages.push({ role: 'tool', tool_call_id: toolCall.id, content: `Error: ${errorMsg}` })
+      this.send('chat:toolResult', { tool: toolName, success: false, result: errorMsg })
+    }
+  }
+
+  /** Dispatch by the name the server handed back — the ORIGINAL name. */
+  private async executeTool(toolName: string, args: Record<string, unknown>): Promise<string> {
+    switch (toolName) {
+      case 'read_file':
+        return this.toolExecutor.readFile(args as { path: string; start_line?: number; end_line?: number })
+      case 'write_file':
+        return this.toolExecutor.writeFile(args as { path: string; content: string })
+      case 'edit_file':
+        return this.toolExecutor.editFile(args as { path: string; old_text: string; new_text: string })
+      case 'list_files':
+        return this.toolExecutor.listFiles(args as { path?: string; recursive?: boolean })
+      case 'search_files':
+        return this.toolExecutor.searchFiles(args as { pattern: string; path?: string })
+      case 'run_command':
+        return this.toolExecutor.runCommand(args as { command: string; cwd?: string })
+      case 'open_application':
+        return this.toolExecutor.openApplication(args as { application_name: string })
+      case 'open_url':
+        return this.toolExecutor.openUrl(args as { url: string })
+      case 'clipboard_read':
+        return this.toolExecutor.clipboardRead()
+      case 'clipboard_write':
+        return this.toolExecutor.clipboardWrite(args as { text: string })
+      case 'get_system_info':
+        return this.toolExecutor.getSystemInfo()
+      case 'screenshot':
+        return this.toolExecutor.screenshot()
+      case 'set_mode':
+        return `Mode changed to ${args.mode}`
+      case 'list_installed_applications':
+        return this.toolExecutor.listInstalledApplications()
+      case 'browser_action':
+        this.browserUsedInCurrentTurn = true
+        return this.toolExecutor.browserAction(args)
+      case 'close_browser':
+        return this.toolExecutor.closeBrowser()
+      default:
+        logger.error(`Unknown tool: ${toolName}`)
+        return `Unknown tool: ${toolName}`
+    }
+  }
+
+  private buildSystemMessage(): string {
+    // Minimal client context. The server replaces this system message with its
+    // own complete prompt and folds this text in as client context
+    // (`lib/chat/request-context.ts`), so language rules, tool instructions
+    // and memory are its business.
     const platform = process.platform === 'darwin' ? 'macOS' : process.platform === 'win32' ? 'Windows' : 'Linux'
 
     let systemMessage = `Client: Alia Cowork Desktop (${platform})`
@@ -1062,34 +697,54 @@ export class ChatProvider {
     this.send('chat:cleared', {})
   }
 
+  /**
+   * What the renderer shows for a failure.
+   *
+   * A structured refusal carries its own message and, where the server sent
+   * one, a code — `MODEL_NOT_IN_PLAN` reads "Upgrade your plan to use this
+   * model." exactly as the server wrote it. The status branches are for the
+   * refusals whose server message is not written for a person.
+   */
   private formatErrorMessage(error: unknown): string {
-    const message = errorMessage(error, 'An error occurred')
-
-    if (message.includes('402') || message.toLowerCase().includes('insufficient credits')) {
-      return 'Insufficient credits. Please add more credits at alia.onl'
-    } else if (message.includes('401') || message.toLowerCase().includes('unauthorized')) {
-      return 'Invalid API key. Please check your settings.'
-    } else if (message.includes('429') || message.toLowerCase().includes('rate limit')) {
-      return 'Rate limit exceeded. Please wait a moment and try again.'
-    } else if (message.includes('500')) {
-      return 'Server error. Please try again later.'
-    } else if (message.includes('503')) {
-      return 'Service unavailable. Please try again later.'
+    if (error instanceof AliaChatError) {
+      switch (error.status) {
+        case 401:
+          return 'Your Alia session has expired. Sign out and sign in again.'
+        case 402:
+          return 'Insufficient credits. Please add more credits at alia.onl'
+        case 429:
+          return 'Rate limit exceeded. Please wait a moment and try again.'
+        case 500:
+          return 'Server error. Please try again later.'
+        case 502:
+        case 503:
+        case 504:
+          return 'Service unavailable. Please try again later.'
+        default:
+          return error.message
+      }
     }
 
+    const message = errorMessage(error, 'An error occurred')
+    if (message.toLowerCase().includes('insufficient credits')) {
+      return 'Insufficient credits. Please add more credits at alia.onl'
+    }
+    if (message.toLowerCase().includes('rate limit')) {
+      return 'Rate limit exceeded. Please wait a moment and try again.'
+    }
     return message
   }
 
   async getUserInfo(): Promise<unknown> {
-    const apiKey = currentAccessToken()
+    const accessToken = currentAccessToken()
     const baseUrl = store.get('apiBaseUrl') as string
 
-    if (!apiKey) return null
+    if (!accessToken) return null
 
     try {
       const response = await fetch(`${baseUrl}/v1/me`, {
         method: 'GET',
-        headers: { Authorization: `Bearer ${apiKey}` }
+        headers: { Authorization: `Bearer ${accessToken}` }
       })
 
       if (!response.ok) return null
@@ -1101,15 +756,15 @@ export class ChatProvider {
   }
 
   async getUserMemory(): Promise<unknown> {
-    const apiKey = currentAccessToken()
+    const accessToken = currentAccessToken()
     const baseUrl = store.get('apiBaseUrl') as string
 
-    if (!apiKey) return null
+    if (!accessToken) return null
 
     try {
       const response = await fetch(`${baseUrl}/memory`, {
         method: 'GET',
-        headers: { Authorization: `Bearer ${apiKey}` }
+        headers: { Authorization: `Bearer ${accessToken}` }
       })
 
       if (!response.ok) return null

@@ -575,9 +575,9 @@
     {
       "id": "cowork-chat-consumer",
       "kind": "consumer",
-      "name": "Cowork Electron - ChatProvider (OpenAI SDK)",
+      "name": "Cowork Electron - chat.ts (fetch POST /alia/chat)",
       "currentPath": "packages/alia-cowork/src/main/chat.ts",
-      "summary": "new OpenAI({ baseURL: `${baseUrl}/v1` }) with model default 'route:cowork'. Reads a NON-STANDARD `reasoning` field off the streaming delta (typed locally as ReasoningDelta) - an undocumented wire extension distinct from the alia.reasoning SSE event. Also GETs /v1/me and /v1/models?category=coding and /memory.",
+      "summary": "fetch `POST ${baseUrl}/alia/chat` through `src/main/alia-chat.ts` (SSE frame reader ported from the app) with model default 'route:cowork'. Reads the named events (`alia.reasoning` -> chat:thinking) and `alia_meta.synthetic` (a busy stand-in is an error, never an answer); 401 re-mints the Oxy device session once. The former non-standard `delta.reasoning` read is gone. Also GETs /v1/me and /v1/models?category=coding and /memory.",
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
       "dependsOn": [
@@ -586,8 +586,8 @@
         "v1-models-list",
         "model-id-route:cowork"
       ],
-      "removalGate": "The delta.reasoning field is documented NOWHERE and is not in the SSE event contract. Confirm whether the server still emits it before assuming the contract is just the 8 named events.",
-      "evidence": "packages/alia-cowork/src/main/chat.ts:149,20,30,1070,1087,1105"
+      "removalGate": "None: this is Alia's own surface on Alia's permanent product API (ADR 0010). The wire it reads is the named-event contract in packages/api/src/lib/chat-events.ts, pinned by src/main/__tests__/alia-chat.test.ts.",
+      "evidence": "packages/alia-cowork/src/main/alia-chat.ts; packages/alia-cowork/src/main/chat.ts; packages/alia-cowork/src/main/config.ts:39"
     },
     {
       "id": "console-playground-consumer",

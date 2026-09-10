@@ -42,9 +42,12 @@ export type ProductModeRouting =
 /**
  * A product mode — the words the picker shows.
  *
- * A mode is a LABEL for a profile, never a selectable identifier: nothing in
- * the request path consumes a `mode:*` id, so a webview that sent one would get
- * a 400. `packages/app/lib/hooks/use-product-modes.ts` states that at length.
+ * A mode is a LABEL for a profile here: the picker sends the `route:*` id of
+ * the entry a mode names, and uses the mode's words for it. The request path
+ * does accept a bare `mode:*` id too — `getProductMode(body.model)` in
+ * `lib/chat/request-context.ts` is what makes `PREFERRED_MODEL_ID`
+ * (`mode:code`) work when no catalogue could be read, and why `resolveModelId`
+ * below passes one through untouched.
  */
 export interface ProductMode {
   readonly id: string;
