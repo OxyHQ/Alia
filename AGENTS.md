@@ -1,54 +1,48 @@
 # Alia
 
-Producto de IA sobre Oxy y Kaana. Agente: `alia`.
+El asistente de Oxy («el ChatGPT de Oxy»). Monorepo de bun workspaces: API
+(`packages/api`, Express + PostgreSQL), app (`packages/app`, Expo), Codea
+(`alia-codea`, `alia-codea-cli`), Cowork (`alia-cowork`), SDK (`alia-chat`).
+Antes de tocar un área lee su doc: `docs/index.mdx` es el índice, `docs/adr/`
+las decisiones vinculantes. Aquí solo van reglas que rompen en silencio.
 
-**Kaana es el plano de inferencia de Alia, pero Alia nunca lo llama ni lo firma
-directamente.** Alia usa `@oxy.so/core` (`OxyInferenceClient`) con una credencial
-de servicio: `Alia -> Oxy -> Kaana`. Oxy resuelve identidad y rutas autorizadas;
-Alia no aloja lógica ni credenciales de proveedor, claves de firma de Kaana o
-un transporte alternativo.
+## Comandos
 
-Tres papeles, ninguno subconjunto de otro (ADR 0010): **Kaana** es la API de
-inferencia (solo modelos; las credenciales de proveedor viven ahí); **Oxy** es la
-plataforma y Oxy Console (cuentas, aplicaciones, TODAS las claves de API — de
-Alia, Kaana y Mention — y facturación); **Alia** es el asistente, con su propia
-API de producto **permanente** (`api.alia.onl/v1/*` y `/alia/chat`). La llaman
-tres grupos, todos autorizados por Oxy: las superficies propias de Alia — app,
-Codea (extensión y CLI) y Cowork, que son productos de Alia, no externos —,
-otras apps del ecosistema Oxy, y terceros vía `@alia.onl/sdk`. Alia no emite
-claves: `alia_sk_*` está congelado y se
-retira; una clave para la API de Alia se emite en Oxy Console, y el camino que
-la valida en Alia aún no existe — no lo documentes como si existiera.
+```bash
+bun install
+bun run --filter @alia/api typecheck && bun run --filter @alia/api lint && bun run --filter @alia/api test
+bun run --filter @alia/app typecheck && bun run --filter @alia/app test
+bun run --filter @alia.onl/sdk typecheck && bun run --filter @alia.onl/sdk test
+bun run --filter @alia/api test:pg     # suite con Postgres real; necesita TEST_DATABASE_URL
+```
 
-Los perfiles que Alia envía a Oxy usan exclusivamente los IDs opacos exactos
-revisados en `packages/api/src/config/oxy-inference-routing-profile-ids.ts`.
-Nunca selecciones uno por nombre, slug, primer resultado u orden de consulta.
+Nunca `bun test` a pelo: los paquetes usan vitest. `bun.lock` va en el mismo
+commit que el `package.json` que lo cambia.
 
-El antiguo nombre de trabajo `Relay` está retirado. El repositorio es
-`~/Oxy/Kaana` y su único origen firmado canónico es `https://kaana.ai`; no se
-admiten aliases de compatibilidad ni un host Kaana bajo `oxy.so`. No llames
-completado al corte de producción sin la verificación coordinada de Oxy, Kaana
-e infra. El estado y la deuda de despliegue se documentan en `README.md` y ADR
-0001, no aquí.
+## Reglas
 
-`lib/mcp-relay.ts` es otro sistema — el transporte WebSocket de MCP — y no se
-renombra.
-
-Los **shows** son series de podcast publicadas en **Syra** (`syra.fm`), no audio
-guardado en Alia. El worker que las produce no lleva credencial de usuario y Syra
-solo acepta el JWT de una persona, así que la ruta acuña un **ticket de ingesta
-de un solo uso** y el worker lo canjea: no lo sustituyas por un token de
-servicio — esa delegación está cerrada en todo Oxy hasta que aterrice ADR 0012.
-
-Pedir un episodio **no pregunta nada**: el brief de la serie y los temas ya
-usados deciden de qué va, y el guion terminado le pone nombre.
-`show_episodes.topic` es una línea por episodio y se manda ENTERO — la ventana
-de recaps sola es justo lo que hace que un show se repita en el episodio nueve.
-`title` y `topic` son OVERRIDES opcionales, no defaults rivales, y por eso las
-dos columnas admiten NULL: guardar un placeholder haría indistinguible «lo
-nombró su dueño» de «todavía no tiene nombre». Detalle en `docs/shows.mdx`.
-
-**Antes de tocar nada, lee `docs/`.** Ahí está lo que este fichero no cuenta:
-arquitectura, decisiones (`docs/adr/`), despliegue y migraciones. Las normas de
-ingeniería comunes se cargan solas desde `~/AGENTS.md` y `~/Oxy/AGENTS.md`; las
-versiones están en `package.json`, nunca aquí.
+- **Tres papeles (ADR 0010):** Kaana = API de inferencia (solo modelos; las
+  credenciales de proveedor viven allí). Oxy = plataforma + Oxy Console (TODAS
+  las claves de API: Alia, Kaana, Mention). Alia = asistente con API de producto
+  **permanente** (`/alia/chat` y `/v1/*`, un solo handler) que usan sus propias
+  superficies (app, Codea, Cowork, CLI), otras apps Oxy y terceros vía SDK.
+- **Alia nunca llama ni firma a Kaana:** `Alia -> Oxy -> Kaana` con
+  `OxyInferenceClient` de `@oxy.so/core`. Sin credenciales de proveedor, sin
+  transporte alternativo — `docs/adr/0001-*.md`.
+- **Alia no emite claves.** `alia_sk_*` está congelado y se retira; la clave de
+  Oxy Console para la API de Alia aún no se valida aquí — no lo documentes como
+  si existiera — `docs/developers-portal.md`.
+- **Perfiles de routing solo por ID opaco exacto** de
+  `packages/api/src/config/oxy-inference-routing-profile-ids.ts`; nunca por
+  nombre, slug u orden — `docs/model-abstraction.mdx`.
+- **Nombres de operador/modelo upstream nunca en la superficie de producto**
+  (respuestas, errores, UI, analítica); sí en catálogo, licencias y auditoría —
+  `README.md` § producto.
+- `Relay` es un nombre retirado; el único origen de Kaana es `https://kaana.ai`.
+  `lib/mcp-relay.ts` es el transporte WebSocket de MCP y no se renombra.
+- **Shows** (podcasts en Syra): la ruta acuña un ticket de ingesta de un solo
+  uso y el worker lo canjea; jamás un token de servicio. `title`/`topic` son
+  overrides opcionales y por eso admiten NULL; `topic` se envía entero —
+  `docs/shows.mdx`.
+- Agentes, tareas, memoria: `docs/agents.md`. Chat/SSE: `docs/chat-runtime.mdx`.
+  Despliegue: `docs/deployment.md`. Migración: `docs/migration/`.
