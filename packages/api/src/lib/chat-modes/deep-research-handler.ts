@@ -8,6 +8,7 @@ import { runAutonomyAfterChat, type AutonomyRuntimeContext } from '../autonomy/r
 import { sanitizeMessage } from '../errors/index.js';
 import { log } from '../logger.js';
 import type { ChatMessage } from '../message-converter.js';
+import type { ToolInvocation } from '../../domain/conversation.js';
 
 export interface DeepResearchContext {
   res: Response;
@@ -63,10 +64,18 @@ export async function handleDeepResearch(ctx: DeepResearchContext): Promise<bool
       writeContentChunk(res, requestId, routingProfileId, result.report.slice(i, i + CHUNK_SIZE));
     }
 
-    // Send sources metadata as named event
+    // Send sources metadata as named event.
+    //
+    // A partial result is `failed` here, not `complete`: the SDK's card labels
+    // the phase, and "Research complete" over a note that says the write-up
+    // failed is the contradiction #541 is about. The payload carries only the
+    // keys the published SDK parser already accepts — it rejects unknown ones
+    // for the whole stream — so the status travels as the phase and the
+    // message, and structurally in the persisted tool invocation below.
     res.write(`event: alia.research_progress\ndata: ${JSON.stringify({
       eventVersion: 1,
-      phase: 'complete',
+      phase: result.status === 'complete' ? 'complete' : 'failed',
+      ...(result.status === 'complete' ? {} : { message: 'Research finished searching, but the final write-up failed' }),
       sources: result.sources,
       totalSearches: result.totalSearches,
       subQuestions: result.subQuestions,
@@ -77,13 +86,35 @@ export async function handleDeepResearch(ctx: DeepResearchContext): Promise<bool
     res.write('data: [DONE]\n\n');
     res.end();
 
-    // Save conversation and generate title
+    // Save conversation and generate title.
+    //
+    // The sources are persisted as a finished `deepResearch` tool invocation
+    // on the assistant message: `toolInvocations` is the jsonb the app already
+    // reads sources back out of after a reload (`lib/thought-utils.ts`), so the
+    // research answer gets the same Sources row and panel as a search answer,
+    // and keeps them a month later. The shape is the one the tool-mode path
+    // returns (`lib/tools/deep-research.ts`), minus the report, which is the
+    // message itself.
     if (conversationId && userId) {
+      const researchInvocation: ToolInvocation = {
+        toolCallId: `research-${requestId}`,
+        toolName: 'deepResearch',
+        state: 'result',
+        args: { query: queryText },
+        result: {
+          status: result.status,
+          sources: result.sources,
+          subQuestions: result.subQuestions,
+          totalSearches: result.totalSearches,
+          findingsSummary: result.findingsSummary,
+        },
+      };
       saveConversation({
         userId,
         conversationId,
         messages,
         assistantResponse: result.report,
+        toolInvocations: [researchInvocation],
       }).catch(err => log.v1.warn({ err }, 'Failed to save research conversation'));
 
       const firstUserMsg = typeof messages[0]?.content === 'string' ? messages[0].content : '';

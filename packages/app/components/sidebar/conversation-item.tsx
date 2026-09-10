@@ -54,6 +54,8 @@ export const ConversationItem = React.memo<ConversationItemProps>(({
     onPrefetch?.(conversation.id);
   }, [onPrefetch, conversation.id]);
 
+  const title = conversation.title || "New conversation";
+
   return (
     <View
       className={cn(
@@ -66,6 +68,12 @@ export const ConversationItem = React.memo<ConversationItemProps>(({
         onPress={() => onSelect(conversation.id)}
         onPressIn={handlePrefetch}
         onHoverIn={handlePrefetch}
+        // The row is a button NAMED by its title — which is what it already
+        // shows, so no translation is needed for it — and `selected` is how the
+        // open conversation is told apart from the rest without a second label.
+        accessibilityRole="button"
+        accessibilityLabel={title}
+        accessibilityState={{ selected: isActive }}
         className={cn(
           "flex-1 h-9 flex-row items-center gap-2 pl-2.5 pr-1 rounded-xl",
           !isActive && "active:bg-muted/50"
@@ -78,7 +86,7 @@ export const ConversationItem = React.memo<ConversationItemProps>(({
           )}
           numberOfLines={1}
         >
-          {conversation.title || "New conversation"}
+          {title}
         </Text>
         {isStreaming && (
           <ActivityIndicator size={16} color={colors.mutedForeground} />

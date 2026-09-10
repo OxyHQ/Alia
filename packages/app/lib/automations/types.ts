@@ -28,6 +28,16 @@ export type AutomationActorSelection =
 
 export interface AutomationDefinition {
   id: string;
+  /**
+   * The name the person typed when creating it, or null.
+   *
+   * Legacy-trigger automations require a name at creation and the index used
+   * to drop it, so lists and history showed the prompt as the heading and two
+   * automations with the same prompt were indistinguishable (#534). The API
+   * joins it back from the trigger; structured definitions have no name of
+   * their own and carry null. Render with `automationTitle`, never `name!`.
+   */
+  name: string | null;
   objective: string;
   trigger: AutomationTrigger;
   actorSelection: AutomationActorSelection;

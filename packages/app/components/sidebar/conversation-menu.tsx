@@ -8,6 +8,7 @@ import type { Conversation } from "@/lib/hooks/use-conversations";
 import type { Project } from "@/lib/stores/projects-store";
 import type { Folder } from "@/lib/stores/folders-store";
 import type { StopPropagationEvent } from '@/lib/types/events';
+import { useTranslation } from "@/lib/hooks/use-translation";
 
 interface ConversationMenuProps {
   conversation: Conversation;
@@ -40,6 +41,7 @@ export const ConversationMenu = React.memo<ConversationMenuProps>(({
 }) => {
   const [isOpen, setIsOpen] = React.useState(false);
   const { colors } = useColorScheme();
+  const { t } = useTranslation();
 
   return (
     <DropdownMenu.Root onOpenChange={setIsOpen}>
@@ -61,7 +63,15 @@ export const ConversationMenu = React.memo<ConversationMenuProps>(({
               )}
             </View>
           )}
-          <Pressable className={`h-6 w-6 items-center justify-center rounded-lg active:bg-muted/70 ${isOpen ? "opacity-100" : "web:opacity-0 web:group-hover:opacity-100"}`}>
+          {/* Hidden until hover on web, but never hidden from a keyboard: it is
+              a real button, so `focus-visible` reveals it the moment Tab lands
+              on it, and the name says what it opens. */}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t('chat.conversationOptions')}
+            accessibilityState={{ expanded: isOpen }}
+            className={`h-6 w-6 items-center justify-center rounded-lg active:bg-muted/70 ${isOpen ? "opacity-100" : "web:opacity-0 web:group-hover:opacity-100 web:focus-visible:opacity-100"}`}
+          >
             <DotsHorizontalIcon size={14} color={colors.mutedForeground} />
           </Pressable>
         </View>

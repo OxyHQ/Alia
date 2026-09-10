@@ -93,6 +93,9 @@ export function useChatConversation({ conversationId, reasoningEffort, selectedM
     rejectPlan,
     suggestedNewConversation,
     dismissSuggestedNewConversation,
+    failedTurn,
+    retryFailedTurn: retry,
+    clearFailedTurn,
   } = useStreamingChat(generateAPIUrl(API_ROUTES.chat.alia), conversationId, reasoningEffort, selectedModel, agentId);
 
   // Expose streaming state globally so sidebar can show a spinner
@@ -208,7 +211,9 @@ export function useChatConversation({ conversationId, reasoningEffort, selectedM
 
     // Nothing was persisted server-side (a turn without an assistant response is
     // never saved), so returning the composer to its pre-send state is the whole
-    // rollback.
+    // rollback. Only the usage-limit errors end here now; every other failure
+    // is `errored` — the turn stays in the thread with its error and a retry,
+    // and the composer stays clear because the text is already on screen.
     if (outcome === 'failed') {
       useStore.getState().setAttachments(attachments ?? []);
       useStore.getState().setComposerDraft({
@@ -320,9 +325,23 @@ export function useChatConversation({ conversationId, reasoningEffort, selectedM
     stop();
   }, [stop]);
 
+  /**
+   * Send the failed turn again. Guarded on `isLoading` like `sendMessage`:
+   * the card is gone the moment a send starts, but a double tap can land
+   * before that render.
+   */
+  const retryFailedTurn = useCallback(async (): Promise<boolean> => {
+    if (isLoading) return false;
+    useStore.getState().setBottomChatHeightHandler(true);
+    const outcome = await retry();
+    return outcome !== 'failed';
+  }, [isLoading, retry]);
+
   const clearConversation = useCallback(() => {
     setMessages([]);
-  }, [setMessages]);
+    // The message the error hung under is gone with the rest.
+    clearFailedTurn();
+  }, [setMessages, clearFailedTurn]);
 
   // True while loading conversation messages (initial fetch or seeded→full upgrade)
   const conversationLoading = conversationQueryLoading ||
@@ -350,5 +369,7 @@ export function useChatConversation({ conversationId, reasoningEffort, selectedM
     rejectPlan,
     suggestedNewConversation,
     dismissSuggestedNewConversation,
+    failedTurn,
+    retryFailedTurn,
   };
 }

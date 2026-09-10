@@ -23,6 +23,9 @@ const PHASE_LABELS: Record<string, string> = {
   follow_up: 'Follow-up research',
   finalizing: 'Polishing report',
   complete: 'Research complete',
+  // The engine finished searching but could not write the final answer; the
+  // message carries what was found, and this label keeps the card honest.
+  failed: 'Research incomplete',
 };
 
 const PHASE_ORDER = ['decomposing', 'searching', 'synthesizing', 'follow_up', 'finalizing', 'complete'];

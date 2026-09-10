@@ -35,11 +35,18 @@ export function createDeepResearchTool(userId: string) {
           onProgress: () => {}, // Progress streaming handled at route level
         });
 
+        // The same shape the research-mode handler persists as a
+        // `deepResearch` invocation (`lib/chat-modes/deep-research-handler.ts`),
+        // plus the report, which there is the message itself. `status` is
+        // `'partial'` when the write-up failed and `report` is the note that
+        // says so — the model reading this result must not present it as done.
         return {
+          status: result.status,
           report: result.report,
           sources: result.sources,
           subQuestions: result.subQuestions,
           totalSearches: result.totalSearches,
+          findingsSummary: result.findingsSummary,
         };
       } catch (err: unknown) {
         log.tools.error({ err, queryLength: query.length }, 'Deep research tool failed');
