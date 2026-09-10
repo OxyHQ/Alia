@@ -732,7 +732,7 @@ fi
 # such write. The rule that defers it has no subject here.
 #
 # Deferring it anyway is what caused the incident this block was rewritten for.
-# @oxyhq/db records migration progress as a high-water mark and cannot skip a
+# @oxy.so/db records migration progress as a high-water mark and cannot skip a
 # hole (see planMigrationRun in its migrate/phases), so the NEXT release's `pre`
 # run is BLOCKED behind the unapplied `post` one and that deploy fails at its
 # migration step — before ever reaching the post-deploy task that was supposed

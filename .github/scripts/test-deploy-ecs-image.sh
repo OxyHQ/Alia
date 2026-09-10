@@ -610,7 +610,7 @@ diff -u \
 #
 # Two packages in this repository ship a migrator — `packages/api` against the
 # `alia` database and `packages/integrations` against `alia_integrations` — and
-# they cannot share one, because @oxyhq/db fixes the ledger at
+# they cannot share one, because @oxy.so/db fixes the ledger at
 # `drizzle.__drizzle_migrations` with no namespacing and applies on a high-water
 # mark. This pair is what stops the path being re-hardcoded: `migration-command`
 # pins the default and this pins the override, so a change that ignores
@@ -668,7 +668,7 @@ fi
 #     launches and succeeds at desired=0 by exactly that mechanism. Real. Run.
 #
 # Excluding the one-shot deadlocked alia for four consecutive merges: it is the
-# `post` migration phase, @oxyhq/db's ledger is a high-water mark, and the next
+# `post` migration phase, @oxy.so/db's ledger is a high-water mark, and the next
 # release's `pre` run is refused behind an unapplied `post` one -- so the deploy
 # that was supposed to "catch up later" fails at its migration step instead.
 run_release zero-desired-count true true false 0 false 0

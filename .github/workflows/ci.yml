@@ -480,7 +480,7 @@ jobs:
         run: node scripts/check-user-visible-model-wording.mjs
 
       # An agent's colour vocabulary is declared twice — the generator's and the
-      # editor's — because the API must not depend on `@oxyhq/bloom` and the app
+      # editor's — because the API must not depend on `@oxy.so/bloom` and the app
       # does not depend on the API. Nothing held the two together, and the
       # picker shipped offering all 61 Bloom free presets when Oxy's
       # `users_color_check` stores 11: fifty-two swatches that 400 on save, each
