@@ -1,8 +1,14 @@
 # 6. The destination of `api.alia.onl/v1/*` is recorded twice, differently
 
-**Status:** Proposed
+**Status:** Superseded by ADR 0010
 
 **Date:** 2026-08-19
+
+> **Resolution, 2026-09-10.** The repository owner answered: `api.alia.onl/v1/*` is
+> Alia's permanent product API and the credentials to call it come from Oxy Console —
+> [ADR 0010](./0010-alia-keeps-a-product-api-credentials-come-from-oxy-console.md), which
+> amends ADR 0004 §3 and replaces the `CONTESTED` notes this record describes. The body
+> below is unchanged, as the record of the question and of what each answer would cost.
 
 ## Context
 

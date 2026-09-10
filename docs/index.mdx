@@ -12,6 +12,22 @@ Alia is a multi-surface context-agent platform focused on autonomous execution w
 
 A single chat runtime (`/alia/chat` and `/v1/chat/completions`) serves every surface. Each turn runs the autonomy loop `classify → recall → retrieve → act → learn`, draws from a per-user context graph, and is governed by an explicit risk policy (`R0`/`R1`/`R2`/`R3`) so writes are reversible, external impact requires approval, and destructive actions are blocked.
 
+Alia is one of three things, and the three are not nested
+([ADR 0010](./adr/0010-alia-keeps-a-product-api-credentials-come-from-oxy-console.md)):
+
+- **Kaana** — the inference API. Models only; provider credentials live there.
+- **Oxy** — the platform and Oxy Console. Accounts, applications, **all** API keys for
+  Alia, Kaana and Mention, billing.
+- **Alia** — the assistant, with its own **permanent product API** (`api.alia.onl/v1/*`
+  and `/alia/chat`, plus the product routes beside them). Three groups call it, all
+  authorized by Oxy: Alia's own surfaces — the app, Codea (extension and CLI) and Cowork,
+  on `/alia/chat` with the user's Oxy session; other applications in the Oxy ecosystem;
+  and third parties through `@alia.onl/sdk`. It accepts an OpenAI-compatible request
+  shape and streams `alia.*` product events; it does not sunset.
+
+For raw model access use Kaana through Oxy (`api.oxy.so/v1`); for the assistant use
+Alia's API. Either way the key is issued in Oxy Console — Alia issues none.
+
 Hosted inference follows `Alia -> Oxy -> Kaana`. Alia exposes canonical
 `kaana-*` product routing identifiers and modes. Oxy authenticates the caller
 and signs the exact ordered deployments; Kaana owns provider credentials,
@@ -103,7 +119,7 @@ const res = await fetch('https://api.alia.onl/v1/chat/completions', {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json',
-    Authorization: 'Bearer alia_sk_…',
+    Authorization: 'Bearer <oxy-session-token>',
   },
   body: JSON.stringify({
     model: 'profile:auto',
@@ -114,7 +130,7 @@ const res = await fetch('https://api.alia.onl/v1/chat/completions', {
 // SSE stream — see "Chat runtime" for the event contract.
 ```
 
-`alia_sk_*` credentials authenticate `api.alia.onl/v1/*` inside a bounded compatibility window. New integrations register in Oxy Console and call `api.oxy.so/v1` — see [developer access](./developers-portal.md).
+The bearer is an Oxy credential: a user session or service token today (`packages/api/src/middleware/auth.ts`), an application key from Oxy Console once that path is built. Existing `alia_sk_*` keys still authenticate and are being retired — see [developer access](./developers-portal.md).
 
 ## Core concepts
 
