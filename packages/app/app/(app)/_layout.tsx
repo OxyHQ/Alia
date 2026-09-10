@@ -12,6 +12,7 @@ import { useUIStore } from '@/lib/stores/ui-store';
 import { useCallback, useEffect, type ReactElement } from 'react';
 import { useColorScheme } from '@/lib/useColorScheme';
 import { useTheme } from '@oxy.so/bloom/theme';
+import { useOxy } from '@oxy.so/services';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CommandPalette } from '@/components/command-palette';
 import { KeyboardShortcutsDialog } from '@/components/keyboard-shortcuts-dialog';
@@ -88,13 +89,18 @@ export default function AppLayout() {
    */
   useLocalRuntime();
 
-  // Load projects, folders, favorites, and pinned on mount
+  // Load projects, folders, favorites, and pinned for the signed-in account,
+  // and again whenever it changes. Each store namespaces its storage by this
+  // id and discards a load that resolves after the id moved on, so switching
+  // profiles never shows one account's collections under another (#547).
+  const { user } = useOxy();
+  const userId = user?.id ?? null;
   useEffect(() => {
-    loadProjects();
-    loadFolders();
-    loadFavorites();
-    loadPinned();
-  }, [loadProjects, loadFolders, loadFavorites, loadPinned]);
+    loadProjects(userId);
+    loadFolders(userId);
+    loadFavorites(userId);
+    loadPinned(userId);
+  }, [userId, loadProjects, loadFolders, loadFavorites, loadPinned]);
 
   const renderDrawerContent = useCallback(() => <DrawerSidebar />, []);
 

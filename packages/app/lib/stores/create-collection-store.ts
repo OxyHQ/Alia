@@ -1,4 +1,4 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { AccountScopedKey } from "./account-scope";
 
 /**
  * Base interface for items managed by a collection store.
@@ -31,16 +31,24 @@ export function getRandomIcon(icons: string[]): string {
  * Helper for AsyncStorage-backed collection CRUD operations.
  * Extracts the duplicated load/save/create-item pattern
  * shared by folders-store and projects-store.
+ *
+ * The key is account-scoped: the store binds `storage` to the signed-in user
+ * before loading, and `load`/`save` read and write that account's namespace
+ * only (or nothing at all while signed out). See `AccountScopedKey`.
  */
 export class CollectionPersister<T extends CollectionItem> {
+  readonly storage: AccountScopedKey;
+
   constructor(
-    private storageKey: string,
+    storageKey: string,
     private idPrefix: string,
     private icons: string[],
-  ) {}
+  ) {
+    this.storage = new AccountScopedKey(storageKey);
+  }
 
   async load(): Promise<T[]> {
-    const data = await AsyncStorage.getItem(this.storageKey);
+    const data = await this.storage.getItem();
     if (!data) return [];
     return JSON.parse(data).map((item: any) => ({
       ...item,
@@ -50,7 +58,7 @@ export class CollectionPersister<T extends CollectionItem> {
   }
 
   async save(items: T[]): Promise<void> {
-    await AsyncStorage.setItem(this.storageKey, JSON.stringify(items));
+    await this.storage.setItem(JSON.stringify(items));
   }
 
   newItem(name: string, extra?: Partial<T>): T {
