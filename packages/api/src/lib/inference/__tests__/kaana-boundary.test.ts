@@ -29,7 +29,7 @@ describe('Alia to Oxy to Kaana boundary', () => {
 
   it('uses the published OxyInferenceClient', () => {
     const source = read('packages/api/src/lib/inference/oxy-inference.ts');
-    expect(source).toContain("import { OxyInferenceClient } from '@oxyhq/core'");
+    expect(source).toContain("import { OxyInferenceClient } from '@oxy.so/core'");
     expect(source).toContain('new OxyInferenceClient');
   });
 

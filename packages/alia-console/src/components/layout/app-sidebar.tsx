@@ -11,7 +11,7 @@ import {
   Settings01Icon,
   SourceCodeIcon,
 } from '@hugeicons/core-free-icons';
-import { useAuth } from '@oxyhq/services';
+import { useAuth } from '@oxy.so/services';
 import { NavMain } from './nav-main';
 import { NavApps } from './nav-apps';
 import { NavUser } from './nav-user';

@@ -1,7 +1,7 @@
 /**
  * A throwaway, fully-migrated Postgres database per suite run.
  *
- * `@oxyhq/db/testing` owns the create/drop mechanics, including the generated
+ * `@oxy.so/db/testing` owns the create/drop mechanics, including the generated
  * name (`oxydb_test_<16 hex>`) and the pattern `dropTestDatabase` refuses to
  * drop outside of — which is what stops a stray connection string turning
  * teardown into `DROP DATABASE alia`.
@@ -27,7 +27,7 @@
 
 import { spawn } from 'node:child_process';
 import { join } from 'node:path';
-import { createTestDatabase, dropTestDatabase } from '@oxyhq/db/testing';
+import { createTestDatabase, dropTestDatabase } from '@oxy.so/db/testing';
 
 const PACKAGE_ROOT = join(__dirname, '..', '..');
 const MIGRATE_SCRIPT = join(PACKAGE_ROOT, 'src', 'db', 'migrate.ts');

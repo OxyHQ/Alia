@@ -4,7 +4,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // webhooks.ts pulls in the full LLM/credits/channel pipeline. We only exercise
 // the two pure helpers, so every heavy dependency is stubbed to keep the import
 // side-effect-free (matching the mocking style of the other route tests).
-vi.mock('@oxyhq/core/server', () => ({ verifySecret: vi.fn() }));
+vi.mock('@oxy.so/core/server', () => ({ verifySecret: vi.fn() }));
 vi.mock('ai', () => ({ generateText: vi.fn(), stepCountIs: vi.fn() }));
 vi.mock('../../lib/channels/registry.js', () => ({ getChannel: vi.fn() }));
 // The ONE assembler stands in for what `buildChatTools` used to: this file

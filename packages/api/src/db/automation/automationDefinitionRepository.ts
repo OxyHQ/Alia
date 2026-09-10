@@ -1,5 +1,5 @@
 import { and, asc, desc, eq, gt, inArray, isNotNull, isNull } from 'drizzle-orm';
-import { uuidv7 } from '@oxyhq/db';
+import { uuidv7 } from '@oxy.so/db';
 import type { ApiDatabase, Executor } from '../index';
 import {
   automationActionAuthorizations,

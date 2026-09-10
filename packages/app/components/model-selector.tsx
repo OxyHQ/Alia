@@ -1,7 +1,7 @@
 import { ChevronDown } from "lucide-react-native";
 import { Pressable } from "react-native";
 import { useRouter } from "expo-router";
-import { toast } from "@oxyhq/bloom/toast";
+import { toast } from "@oxy.so/bloom/toast";
 import * as DropdownMenu from "@/components/ui/dropdown-menu";
 import { Text } from "@/components/ui/text";
 import { useTranslation } from "@/lib/hooks/use-translation";

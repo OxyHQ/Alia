@@ -101,7 +101,7 @@ CREATE INDEX "skills_owner_oxy_user_id_idx" ON "skills" USING btree ("owner_oxy_
 -- Backfill
 -- ---------------------------------------------------------------------------
 --
--- Ids are uuid v7 in this schema — `@oxyhq/db`'s `generatedId` generates them in
+-- Ids are uuid v7 in this schema — `@oxy.so/db`'s `generatedId` generates them in
 -- the application because Postgres 17 has no `uuidv7()`. A backfill has no
 -- application to ask, and `gen_random_uuid()` would write v4s that
 -- `isLiveEntityId` rejects at API boundaries, so the shape is composed here:

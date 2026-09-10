@@ -8,7 +8,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { io as socketIO, type Socket } from 'socket.io-client';
-import { useOxy } from '@oxyhq/services';
+import { useOxy } from '@oxy.so/services';
 import apiClient, { getSocketToken } from '@/lib/api/client';
 import config from '@/lib/config';
 import { errorMessage as getErrorMessage } from '../errors/error-utils';

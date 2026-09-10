@@ -1,5 +1,5 @@
 import * as ImagePicker from 'expo-image-picker';
-import { toast } from '@oxyhq/bloom/toast';
+import { toast } from '@oxy.so/bloom/toast';
 
 export type ImagePickerAsset = {
   uri: string;

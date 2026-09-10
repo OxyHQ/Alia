@@ -2,7 +2,7 @@
 
 import { sql } from 'drizzle-orm';
 import { boolean, check, index, integer, jsonb, pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
-import { createdAt, generatedId, timestamptz, updatedAt } from '@oxyhq/db';
+import { createdAt, generatedId, timestamptz, updatedAt } from '@oxy.so/db';
 import { checkOneOf } from './columns';
 
 export const AUTOMATION_TRIGGER_KINDS = ['manual', 'event', 'schedule'] as const;

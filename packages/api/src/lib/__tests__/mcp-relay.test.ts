@@ -26,7 +26,7 @@ vi.mock('../../db/developers/developerRepository.js', () => ({
  * validated perfectly and never called the validator would pass the direct
  * test.
  *
- * Nothing here stubs `@oxyhq/core`. The SDK's own `authSocket()` runs, and the
+ * Nothing here stubs `@oxy.so/core`. The SDK's own `authSocket()` runs, and the
  * only thing replaced is `globalThis.fetch`, so what the assertions below
  * measure is the SDK's real session semantics rather than a mock's.
  *

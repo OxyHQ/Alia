@@ -3,7 +3,7 @@ import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { useState, useEffect, useCallback } from "react";
-import { useOxy } from "@oxyhq/services";
+import { useOxy } from "@oxy.so/services";
 import { generateAPIUrl } from "@/lib/generate-api-url";
 import {
   ShieldAlert,
@@ -18,11 +18,11 @@ import { useUserData } from "@/lib/hooks/use-user-data";
 import { useUserDataStore } from "@/lib/stores/user-data-store";
 import * as DropdownMenu from "@/components/ui/dropdown-menu";
 import { useTranslation } from "@/lib/hooks/use-translation";
-import { toast } from "@oxyhq/bloom/toast";
+import { toast } from "@oxy.so/bloom/toast";
 import apiClient from "@/lib/api/client";
 import { API_ROUTES } from "@/lib/api/routes";
-import { useTheme } from "@oxyhq/bloom/theme";
-import { SettingsListGroup, SettingsListItem } from "@oxyhq/bloom/settings-list";
+import { useTheme } from "@oxy.so/bloom/theme";
+import { SettingsListGroup, SettingsListItem } from "@oxy.so/bloom/settings-list";
 
 interface ThreatEntry {
   id: string;

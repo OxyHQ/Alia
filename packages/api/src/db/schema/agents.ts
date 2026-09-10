@@ -75,7 +75,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import { check } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
-import { createdAt, generatedId, timestamptz, updatedAt } from '@oxyhq/db';
+import { createdAt, generatedId, timestamptz, updatedAt } from '@oxy.so/db';
 import { checkOneOf } from './columns';
 import { AGENT_ACCESS, AGENT_ARCHETYPES, AGENT_STATUSES } from '../../domain/agent.js';
 import { OXY_KAANA_ROUTING_PROFILE_ID_LIST } from '../../config/oxy-inference-routing-profile-ids.js';

@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import type { ConfigContext, ExpoConfig } from 'expo/config';
-import { oxySplashScreenPlugin } from '@oxyhq/expo-splash/config';
+import { oxySplashScreenPlugin } from '@oxy.so/expo-splash/config';
 
 /**
  * Keep push credentials out of the repository while preserving local native
@@ -25,7 +25,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       image: './assets/icon-512-maskable.png',
       imageWidth: 212,
     }),
-    '@oxyhq/expo-splash',
+    '@oxy.so/expo-splash',
   ];
   const routerIndex = plugins.findIndex((plugin) =>
     plugin === 'expo-router' || (Array.isArray(plugin) && plugin[0] === 'expo-router')

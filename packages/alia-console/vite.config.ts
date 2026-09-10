@@ -12,7 +12,7 @@ import reactNativeWeb from 'vite-plugin-react-native-web'
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const emptyModule = resolve(__dirname, './src/empty-module.js')
 
-// The console bundles the `@oxyhq/services` React Native graph on web via
+// The console bundles the `@oxy.so/services` React Native graph on web via
 // rolldown-vite (`"vite": "npm:rolldown-vite@^7"`) + the maintained
 // `vite-plugin-react-native-web` plugin (aliases react-native→react-native-web,
 // applies `.web.*` extension priority, strips Flow, keeps expo-modules-core's
@@ -68,9 +68,9 @@ const config = defineConfig(({ mode }) => ({
     // must be transformed by Vite for the SPA-shell prerender instead of being
     // required raw from node_modules (Node cannot load react-native source).
     noExternal: [
-      '@oxyhq/services',
-      '@oxyhq/bloom',
-      '@oxyhq/core',
+      '@oxy.so/services',
+      '@oxy.so/bloom',
+      '@oxy.so/core',
       'react-native',
       'react-native-web',
       /^react-native-/,

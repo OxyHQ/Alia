@@ -1,7 +1,7 @@
 import { View } from "react-native";
 import { useLocalSearchParams } from "expo-router";
-import { BloomColorScope } from "@oxyhq/bloom/theme";
-import { ContentPanel } from "@oxyhq/bloom/content-panel";
+import { BloomColorScope } from "@oxy.so/bloom/theme";
+import { ContentPanel } from "@oxy.so/bloom/content-panel";
 import { Text } from "@/components/ui/text";
 import { ConversationScreen } from "@/components/conversation-screen";
 import { agentColorPreset } from "@/lib/agents/agent-color";

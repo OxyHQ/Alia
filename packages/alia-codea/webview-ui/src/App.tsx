@@ -1,4 +1,4 @@
-import { BloomThemeProvider } from "@oxyhq/bloom/theme"
+import { BloomThemeProvider } from "@oxy.so/bloom/theme"
 import { Chat } from "@/components/Chat"
 import { useVscodeThemeMode } from "@/lib/use-vscode-theme"
 

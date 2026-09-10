@@ -127,7 +127,7 @@ describe('the Postgres schema does not depend on the Mongoose models', () => {
 
   it('finds imports at all, so an empty result means absence rather than a broken pattern', () => {
     // A positive control on the SCANNER: `db/schema` demonstrably imports things
-    // (drizzle, @oxyhq/db). If this is empty the pattern is broken and every
+    // (drizzle, @oxy.so/db). If this is empty the pattern is broken and every
     // assertion below passes while measuring nothing.
     const seen = schemaFiles.flatMap((f) => specifiersOf(f.text));
     expect(seen.length).toBeGreaterThanOrEqual(30);

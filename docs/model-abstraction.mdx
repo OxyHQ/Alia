@@ -48,7 +48,7 @@ For hosted text inference:
 2. `packages/api/src/lib/chat-core.ts` produces a credential-free resolution
    carrying an explicit `routing_profile_id` target.
 3. `getAIModel()` returns the Kaana AI SDK adapter.
-4. `@oxyhq/core`'s `OxyInferenceClient` authenticates to Oxy with Alia's
+4. `@oxy.so/core`'s `OxyInferenceClient` authenticates to Oxy with Alia's
    short-lived service credential.
 5. Oxy resolves identity and authorised routing policy, then signs and forwards
    the request to Kaana. Kaana owns every provider-side execution decision.

@@ -27,7 +27,7 @@
  * unbounded catch-up loop is how a backlog becomes an outage.
  */
 
-import { sweepAllExpiredRows } from '@oxyhq/db/expiry';
+import { sweepAllExpiredRows } from '@oxy.so/db/expiry';
 import { log } from '../lib/logger.js';
 import { getDb } from './index';
 import { EXPIRY_TARGETS } from './expiryTargets';

@@ -18,7 +18,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Platform } from 'react-native';
 import { io as socketIO, type Socket } from 'socket.io-client';
 import { useQuery } from '@tanstack/react-query';
-import { useOxy } from '@oxyhq/services';
+import { useOxy } from '@oxy.so/services';
 import config from '@/lib/config';
 import { getSocketToken } from '@/lib/api/client';
 import { useLocalRuntimeStore } from '@/lib/stores/local-runtime-store';

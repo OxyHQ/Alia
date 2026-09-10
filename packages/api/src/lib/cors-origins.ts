@@ -1,4 +1,4 @@
-import { createOxyCors } from '@oxyhq/core/server';
+import { createOxyCors } from '@oxy.so/core/server';
 import type { RequestHandler } from 'express';
 
 import { log } from './logger.js';

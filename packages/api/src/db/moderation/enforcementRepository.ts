@@ -33,7 +33,7 @@
  */
 
 import { and, desc, eq, sql } from 'drizzle-orm';
-import { uuidv7 } from '@oxyhq/db';
+import { uuidv7 } from '@oxy.so/db';
 import { getDb } from '../index';
 import { moderationEnforcements, MODERATION_ENFORCEMENT_MODES } from '../schema/moderation';
 import type { ModerationEnforcementAction } from '../../domain/moderation-enforcement.js';

@@ -1,5 +1,5 @@
 import * as DocumentPicker from 'expo-document-picker';
-import { toast } from '@oxyhq/bloom/toast';
+import { toast } from '@oxy.so/bloom/toast';
 
 export type DocumentPickerResult = {
   uri: string;

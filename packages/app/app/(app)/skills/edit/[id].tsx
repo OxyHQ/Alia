@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { ArrowLeft, Trash2 } from 'lucide-react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { toast } from "@oxyhq/bloom/toast";
+import { toast } from "@oxy.so/bloom/toast";
 import { useTranslation } from '@/lib/hooks/use-translation';
 import {
   useCreateSkillVersion,

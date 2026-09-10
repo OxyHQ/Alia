@@ -107,7 +107,7 @@ describe('storing a vector', () => {
     const second = await readRow(user, 'Tea');
 
     /**
-     * What this pins is that `@oxyhq/db`'s `$onUpdate` fires for an
+     * What this pins is that `@oxy.so/db`'s `$onUpdate` fires for an
      * `onConflictDoUpdate`, not only for `db.update()` — which is why the
      * repository does not name `updatedAt` in its `set` at all. Non-obvious
      * enough to be worth a regression test: replacing the upsert with a raw

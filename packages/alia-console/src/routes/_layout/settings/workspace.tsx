@@ -8,7 +8,7 @@ import {
   Delete02Icon,
   ImageUpload01Icon,
 } from '@hugeicons/core-free-icons'
-import { useAuth } from '@oxyhq/services'
+import { useAuth } from '@oxy.so/services'
 import { toast } from 'sonner'
 import type { WorkspaceMember, WorkspaceRole } from '@/hooks/use-workspace'
 import { Button } from '@/components/ui/button'

@@ -4,7 +4,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import Head from 'expo-router/head';
 import { AuthContainer } from '@/components/auth/auth-container';
 import { AuthLogo } from '@/components/auth/auth-logo';
-import { useAuth, useOxy } from '@oxyhq/services';
+import { useAuth, useOxy } from '@oxy.so/services';
 import apiClient, { getSocketToken } from '@/lib/api/client';
 import config from '@/lib/config';
 import { Button } from '@/components/ui/button';
@@ -15,7 +15,7 @@ import { io as socketIO } from 'socket.io-client';
 import { useTranslation } from '@/lib/hooks/use-translation';
 import { useColorScheme } from '@/lib/useColorScheme';
 import { errorMessage as getErrorMessage } from '@/lib/errors/error-utils';
-import { ContentPanel } from "@oxyhq/bloom/content-panel";
+import { ContentPanel } from "@oxy.so/bloom/content-panel";
 
 type AppType = string;
 type Status = 'loading' | 'authorize' | 'authorizing' | 'success' | 'error' | 'needLogin';

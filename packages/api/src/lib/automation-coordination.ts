@@ -1,6 +1,6 @@
 /** Deterministic, content-free actor planning for structured automations. */
 
-import type { ResourceRef } from '@oxyhq/contracts';
+import type { ResourceRef } from '@oxy.so/contracts';
 import type { AgentRecord } from '../db/agents/agentRepository.js';
 import { log } from './logger.js';
 import { getOxyAgentCapabilityMap } from './tools/oxy-services.js';

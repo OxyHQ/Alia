@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { getTableName } from 'drizzle-orm';
 import type { PgTable } from 'drizzle-orm/pg-core';
-import type { ExpirySweepTarget } from '@oxyhq/db/expiry';
-import { sqlColumnName } from '@oxyhq/db';
+import type { ExpirySweepTarget } from '@oxy.so/db/expiry';
+import { sqlColumnName } from '@oxy.so/db';
 import { EXPIRY_TARGETS } from '../expiryTargets';
 import * as schema from '../schema';
 

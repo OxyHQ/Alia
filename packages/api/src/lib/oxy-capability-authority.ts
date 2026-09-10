@@ -6,7 +6,7 @@
  * rechecks the live user, account, grant, catalog and coordinator authority.
  */
 
-import type { ActorRef, AutonomyLevel, ResourceRef } from '@oxyhq/contracts';
+import type { ActorRef, AutonomyLevel, ResourceRef } from '@oxy.so/contracts';
 import { z } from 'zod';
 import { oxyServiceClient } from './oxy-service-client.js';
 import { TTLCache } from './ttl-cache.js';

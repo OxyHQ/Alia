@@ -1,8 +1,8 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { View } from "react-native";
 import { Image } from "expo-image";
-import { Popover, PopoverContent, PopoverTrigger } from "@oxyhq/bloom/popover";
-import { useAuth } from "@oxyhq/services";
+import { Popover, PopoverContent, PopoverTrigger } from "@oxy.so/bloom/popover";
+import { useAuth } from "@oxy.so/services";
 import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
 import { useTranslation } from "@/lib/hooks/use-translation";

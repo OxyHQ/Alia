@@ -1,5 +1,5 @@
 import { pathToFileURL } from 'node:url';
-import { readTargetDatabase } from '@oxyhq/db/migrate';
+import { readTargetDatabase } from '@oxy.so/db/migrate';
 import { eq } from 'drizzle-orm';
 import { OXY_KAANA_ROUTING_PROFILE_ID_LIST } from '../config/oxy-inference-routing-profile-ids.js';
 import { assertTargetDatabase } from '../db/assertTargetDatabase.js';

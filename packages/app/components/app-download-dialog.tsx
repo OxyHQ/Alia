@@ -3,7 +3,7 @@ import { View } from "react-native";
 import QRCode from "react-native-qrcode-svg";
 import { Text } from "@/components/ui/text";
 import { GetAppIcon } from "@/components/ui/get-app-icon";
-import { Dialog } from "@oxyhq/bloom/dialog";
+import { Dialog } from "@oxy.so/bloom/dialog";
 import { useColorScheme } from "@/lib/useColorScheme";
 
 const DOWNLOAD_URL = "https://alia.onl/download";

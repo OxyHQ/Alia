@@ -37,7 +37,7 @@ vi.mock('../../lib/crowdsource/event-store.js', () => ({
   }),
 }));
 
-import { caseDecidedEventFixture, signWebhookDelivery } from '@oxyhq/crowdsource-testing';
+import { caseDecidedEventFixture, signWebhookDelivery } from '@oxy.so/crowdsource-testing';
 import { resetCrowdSourceConfig } from '../../lib/crowdsource/config.js';
 import { assertRawBody, createCrowdSourceWebhookRoutes } from '../crowdsource-webhook.js';
 

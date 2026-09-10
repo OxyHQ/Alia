@@ -39,11 +39,11 @@ vi.mock('@/lib/api/client', () => ({
   },
 }));
 
-vi.mock('@oxyhq/bloom/toast', () => ({
+vi.mock('@oxy.so/bloom/toast', () => ({
   toast: { success: toastSuccess, error: toastError },
 }));
 
-vi.mock('@oxyhq/bloom/surfaces', () => ({ confirm: confirmSurface }));
+vi.mock('@oxy.so/bloom/surfaces', () => ({ confirm: confirmSurface }));
 
 vi.mock('expo-router', () => ({
   useLocalSearchParams: () => ({ id: 'series-abc' }),
@@ -161,7 +161,7 @@ vi.mock('@/components/ui/skeleton', async () => {
   return { Skeleton: () => ReactModule.createElement('Skeleton') };
 });
 
-vi.mock('@oxyhq/bloom/content-panel', async () => {
+vi.mock('@oxy.so/bloom/content-panel', async () => {
   const ReactModule = await import('react');
   return {
     ContentPanel: ({ children }: React.PropsWithChildren) =>
@@ -169,7 +169,7 @@ vi.mock('@oxyhq/bloom/content-panel', async () => {
   };
 });
 
-vi.mock('@oxyhq/bloom/theme', () => ({ withAlpha: (color: string) => color }));
+vi.mock('@oxy.so/bloom/theme', () => ({ withAlpha: (color: string) => color }));
 
 vi.mock('@/components/show/show-artwork', async () => {
   const ReactModule = await import('react');

@@ -7,10 +7,10 @@ import { AuthInput } from '@/components/auth/auth-input';
 import { AuthButton } from '@/components/auth/auth-button';
 import { AuthError } from '@/components/auth/auth-error';
 import apiClient from '@/lib/api/client';
-import { toast } from '@oxyhq/bloom/toast';
+import { toast } from '@oxy.so/bloom/toast';
 import { useTranslation } from '@/lib/hooks/use-translation';
 import { errorMessage as getErrorMessage } from '@/lib/errors/error-utils';
-import { ContentPanel } from "@oxyhq/bloom/content-panel";
+import { ContentPanel } from "@oxy.so/bloom/content-panel";
 
 export default function ForgotPasswordScreen() {
   const { t } = useTranslation();

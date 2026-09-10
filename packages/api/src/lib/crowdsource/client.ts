@@ -1,4 +1,4 @@
-import { CrowdSource } from '@oxyhq/crowdsource';
+import { CrowdSource } from '@oxy.so/crowdsource';
 import { crowdSourceConfig } from './config.js';
 import { log } from '../logger.js';
 

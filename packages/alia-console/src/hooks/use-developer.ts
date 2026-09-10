@@ -26,7 +26,7 @@
  */
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useAuth } from '@oxyhq/services';
+import { useAuth } from '@oxy.so/services';
 import { useCurrentWorkspaceId } from './use-workspace';
 import apiClient from '@/lib/api/client';
 

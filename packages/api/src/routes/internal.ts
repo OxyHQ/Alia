@@ -17,7 +17,7 @@ import { buildIdentityGuard } from '../lib/identity-guard.js';
 import { userContextBlock } from '../lib/user-context.js';
 import { setPlanModelIds } from '../db/billing/planRepository.js';
 import { isRoutingProfile } from '../lib/gateway-client.js';
-import type { User as OxyUser } from '@oxyhq/core';
+import type { User as OxyUser } from '@oxy.so/core';
 import { getDb } from '../db/index.js';
 import { findUserMemory, type UserMemoryProfile } from '../db/memory/userMemoryRepository.js';
 import { recordUsage } from '../middleware/api-key-rate-limit.js';
@@ -263,7 +263,7 @@ router.post('/trigger', oxyServiceAuth, async (req, res) => {
  * service credential and nothing else. Alia has no admin role of its own and
  * inventing one here would be the mass-assignment hazard in a different place.
  * A finer gate belongs in the contract's own vocabulary
- * (`inference:routing:write`, `@oxyhq/contracts` `INFERENCE_SCOPES`) and is not
+ * (`inference:routing:write`, `@oxy.so/contracts` `INFERENCE_SCOPES`) and is not
  * applied yet, because the credential that reaches this router today carries
  * the scope `internal` and nothing else; requiring a scope no reachable
  * credential holds would be a refusal wearing a feature's name.

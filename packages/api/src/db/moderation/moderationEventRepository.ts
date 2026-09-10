@@ -18,7 +18,7 @@
  *
  * ## The claim is deliberately OUTSIDE the inbound transaction
  *
- * `@oxyhq/crowdsource-express` claims before running the handler, and
+ * `@oxy.so/crowdsource-express` claims before running the handler, and
  * `inbound-service.ts` opens its own transaction inside that handler. Do not tidy
  * the claim inward: claiming BEFORE the handler runs is what stops a concurrent
  * redelivery running it at the same time, and releasing on a throw is what keeps

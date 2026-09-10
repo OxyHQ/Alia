@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { ToolCallOptions } from '@ai-sdk/provider-utils';
-import { SELECTABLE_ACCOUNT_CATEGORY_IDS } from '@oxyhq/contracts';
+import { SELECTABLE_ACCOUNT_CATEGORY_IDS } from '@oxy.so/contracts';
 import type { AgentColor } from '../../../domain/agent-color.js';
 
 /**
@@ -31,7 +31,7 @@ const oxy = vi.hoisted(() => ({
   taken: new Set<string>(),
 }));
 
-vi.mock('@oxyhq/core', () => ({
+vi.mock('@oxy.so/core', () => ({
   canSwitchIntoAccount: () => true,
   OxyServices: class {
     setTokens() {}

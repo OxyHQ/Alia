@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
-import { useOxy } from '@oxyhq/services';
+import { useOxy } from '@oxy.so/services';
 import apiClient from '../api/client';
 import { API_ROUTES } from '../api/routes';
 import { queryKeys } from './query-keys';

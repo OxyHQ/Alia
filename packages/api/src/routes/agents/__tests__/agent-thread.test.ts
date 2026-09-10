@@ -7,7 +7,7 @@
  * this route rather than `/:id/activity` with the id read as the word `thread`.
  *
  * Only OXY is replaced. `lib/agent-account.ts` runs for real — including
- * `resolveAccountDelegationAccess` from `@oxyhq/core`, imported through `importActual` —
+ * `resolveAccountDelegationAccess` from `@oxy.so/core`, imported through `importActual` —
  * so what these assert is the SHIPPED act-as rule, not a fixture's opinion of
  * it. The repository is a spy: what matters here is which pair it was asked
  * for, and `db/__tests__/agentThread.pgdb.test.ts` covers what it then does.
@@ -52,8 +52,8 @@ class Unreachable extends Error {
   status = 503;
 }
 
-vi.mock('@oxyhq/core', async () => {
-  const actual = await vi.importActual<typeof import('@oxyhq/core')>('@oxyhq/core');
+vi.mock('@oxy.so/core', async () => {
+  const actual = await vi.importActual<typeof import('@oxy.so/core')>('@oxy.so/core');
   return {
     ...actual,
     OxyServices: class {

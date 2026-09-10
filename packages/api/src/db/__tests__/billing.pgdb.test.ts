@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { eq, sql } from 'drizzle-orm';
-import { constraintNameOf, isCheckViolation, isForeignKeyViolation, isUniqueViolation } from '@oxyhq/db';
+import { constraintNameOf, isCheckViolation, isForeignKeyViolation, isUniqueViolation } from '@oxy.so/db';
 import { closePostgres, connectPostgres, type ApiDatabase } from '../index';
 import { creditPackages, features, planFeatures, plans, subscriptions, transactions, userCredits } from '../schema/billing';
 
@@ -12,7 +12,7 @@ import { creditPackages, features, planFeatures, plans, subscriptions, transacti
  * cascade, a CHECK, and how the driver decodes `bigint`. A mock accepts every
  * statement, including the ones the server rejects outright.
  *
- * Driver errors go through `@oxyhq/db`'s predicates and the constraint is NAMED
+ * Driver errors go through `@oxy.so/db`'s predicates and the constraint is NAMED
  * — `isUniqueViolation` alone cannot tell the index under test from any other
  * index on the table.
  */

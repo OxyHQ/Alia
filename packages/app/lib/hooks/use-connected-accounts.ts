@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useOxy } from '@oxyhq/services';
+import { useOxy } from '@oxy.so/services';
 import apiClient from '@/lib/api/client';
 import { errorStatus } from '../errors/error-utils';
 

@@ -37,7 +37,7 @@
 
 import { Router, type Request, type Response } from 'express';
 import { z } from 'zod';
-import { uuidv7 } from '@oxyhq/db';
+import { uuidv7 } from '@oxy.so/db';
 import { authenticateToken } from '../middleware/auth.js';
 import { getDb } from '../db/index.js';
 import {

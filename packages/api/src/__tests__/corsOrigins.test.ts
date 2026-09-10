@@ -4,7 +4,7 @@ import type { Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { createOxyCors } from '@oxyhq/core/server';
+import { createOxyCors } from '@oxy.so/core/server';
 import { DEV_ORIGINS, PRODUCTION_ORIGINS, createInternalCors } from '../lib/cors-origins.js';
 
 /**
@@ -14,7 +14,7 @@ import { DEV_ORIGINS, PRODUCTION_ORIGINS, createInternalCors } from '../lib/cors
  * A gate over the allowlist alone would pass with a correct list and a broken
  * matcher, so this measures the middleware `index.ts` mounts, built by the
  * function `index.ts` calls, against the same origins that were probed on
- * production. `vitest.config.ts` aliases `@oxyhq/core/server` to a mock; that
+ * production. `vitest.config.ts` aliases `@oxy.so/core/server` to a mock; that
  * mock re-exports the REAL `createOxyCors` precisely so this file cannot end up
  * measuring a stub of the rule it is here to check.
  */

@@ -14,7 +14,7 @@
  * surface; this helper stays intentionally narrow for one-shot derivations.
  */
 
-import type { ResponseFormat } from '@oxyhq/contracts';
+import type { ResponseFormat } from '@oxy.so/contracts';
 
 import type { OxyKaanaRoutingProfileId } from '../../config/oxy-inference-routing-profile-ids.js';
 import { getOxyInferenceClient } from './oxy-inference.js';

@@ -1,6 +1,6 @@
 /** Durable Oxy authority lifecycle for normalized automation actions. */
 
-import type { AutonomyLevel, ResourceRef } from '@oxyhq/contracts';
+import type { AutonomyLevel, ResourceRef } from '@oxy.so/contracts';
 import {
   createOxyExecutionAuthorization,
   revokeOxyExecutionAuthorization,

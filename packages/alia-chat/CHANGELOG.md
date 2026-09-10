@@ -1,5 +1,14 @@
 # @alia.onl/sdk
 
+## 7.2.8
+
+### One Oxy runtime and a native-only notifications boundary
+
+The Alia app now consumes the canonical `@oxy.so/*` packages throughout, so
+the provider and SDK hooks resolve the same Services context. Its notification
+setup also loads `expo-notifications` only after confirming a native platform;
+web no longer evaluates Expo's unsupported device push-token listener.
+
 ## 7.2.7
 
 ### Compatible Oxy 1.0 peers

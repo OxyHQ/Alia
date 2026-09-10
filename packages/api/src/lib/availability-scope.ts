@@ -2,7 +2,7 @@
  * Who a route may be served to — epic #139 workstream 17.
  *
  * The Oxy catalogue puts an availability scope on a DEPLOYMENT, not on a model:
- * `@oxyhq/contracts` `modelDeploymentSchema` carries `availabilityScope` beside
+ * `@oxy.so/contracts` `modelDeploymentSchema` carries `availabilityScope` beside
  * `provider`, `regions` and `commercialPermission`, and its own comment states
  * the rule this module exists to apply — *availability inside Alia never
  * implies permission to resell the same provider/model publicly.*
@@ -39,14 +39,14 @@
  */
 
 import type { Request } from 'express';
-import { availabilityScopeSchema, type AvailabilityScope } from '@oxyhq/contracts';
+import { availabilityScopeSchema, type AvailabilityScope } from '@oxy.so/contracts';
 
 export type { AvailabilityScope };
 
 /**
  * Every scope the contract defines, read off the schema rather than retyped.
  *
- * A sixth scope published by `@oxyhq/contracts` therefore appears here without
+ * A sixth scope published by `@oxy.so/contracts` therefore appears here without
  * an edit, and {@link admitsAudience}'s exhaustive switch stops compiling until
  * somebody decides who it admits — which is the correct place for that decision
  * to be forced, because the alternative is a new scope silently inheriting the

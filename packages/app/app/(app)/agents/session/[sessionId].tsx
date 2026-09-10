@@ -35,7 +35,7 @@ import { useRouter, useLocalSearchParams } from "expo-router";
 import { useColorScheme } from "@/lib/useColorScheme";
 import { cn } from "@/lib/utils";
 import apiClient from "@/lib/api/client";
-import { ContentPanel } from "@oxyhq/bloom/content-panel";
+import { ContentPanel } from "@oxy.so/bloom/content-panel";
 
 interface EventEntry {
   _id: string;

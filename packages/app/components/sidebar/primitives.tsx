@@ -1,6 +1,6 @@
 import React from "react";
 import { View, Pressable, Platform } from "react-native";
-import { Portal } from "@oxyhq/bloom/portal";
+import { Portal } from "@oxy.so/bloom/portal";
 import { useNavigation } from "expo-router";
 import type { DrawerNavigationProp } from "expo-router/drawer";
 import { Text } from "@/components/ui/text";

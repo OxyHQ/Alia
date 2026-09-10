@@ -11,10 +11,10 @@ import { useSubscription, useCreditPackages, useCreateCheckout } from "@/lib/hoo
 import { useRouter, type Href } from "expo-router";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { useTranslation } from "@/lib/hooks/use-translation";
-import { toast } from "@oxyhq/bloom/toast";
+import { toast } from "@oxy.so/bloom/toast";
 import { errorMessage as getErrorMessage } from '../lib/errors/error-utils';
 import { useColorScheme } from "@/lib/useColorScheme";
-import { withAlpha } from "@oxyhq/bloom/theme";
+import { withAlpha } from "@oxy.so/bloom/theme";
 
 /**
  * The balance ring: how much of the spendable total is still there.

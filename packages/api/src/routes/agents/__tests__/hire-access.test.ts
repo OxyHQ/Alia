@@ -35,8 +35,8 @@ class NotFound extends Error {
   status = 404;
 }
 
-vi.mock('@oxyhq/core', async () => {
-  const actual = await vi.importActual<typeof import('@oxyhq/core')>('@oxyhq/core');
+vi.mock('@oxy.so/core', async () => {
+  const actual = await vi.importActual<typeof import('@oxy.so/core')>('@oxy.so/core');
   return {
     ...actual,
     OxyServices: class {

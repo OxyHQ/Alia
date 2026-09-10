@@ -209,7 +209,7 @@ describe('src/index.ts boot wiring', () => {
 
   it('no longer runs the retired Mongo data-migration ledger', () => {
     // `lib/migrations/` is deleted; a reintroduced call would be a second
-    // migration ledger beside `@oxyhq/db`'s, asserting history that never
+    // migration ledger beside `@oxy.so/db`'s, asserting history that never
     // happened. See CONVENTIONS.md, "Two migration ledgers must not both survive".
     expect(source).not.toContain('runPendingMigrations');
   });

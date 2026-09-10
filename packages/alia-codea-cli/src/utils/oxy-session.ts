@@ -1,6 +1,6 @@
 /**
  * The CLI's Oxy session — device-first, zero-cookie, and owned by
- * `@oxyhq/core` rather than by this package.
+ * `@oxy.so/core` rather than by this package.
  *
  * ## What this replaces
  *
@@ -12,15 +12,15 @@
  * non-canonical, it no longer works.
  *
  * None of it is ported. The ecosystem rule is that session handling lives
- * entirely in `@oxyhq/core` / `@oxyhq/services`, and everything above is the
+ * entirely in `@oxy.so/core` / `@oxy.so/services`, and everything above is the
  * platform-agnostic half that core already owns.
  *
  * ## The seam this uses, and why a CLI is allowed to
  *
- * `@oxyhq/core` splits session handling into a platform-agnostic core and one
+ * `@oxy.so/core` splits session handling into a platform-agnostic core and one
  * injected storage adapter. `createNativeAuthStateStore(storage)` takes any
  * async `getItem/setItem/removeItem` — its own doc comment says the factory is
- * injected "so `@oxyhq/core` never imports `expo-secure-store`" — so a Node CLI
+ * injected "so `@oxy.so/core` never imports `expo-secure-store`" — so a Node CLI
  * supplies a file-backed one and gets the whole cold boot, re-mint and rotation
  * subsystem unchanged. Measured before writing this: `runSessionColdBoot`,
  * `installAuthRefreshHandler`, `startTokenRefreshScheduler` and
@@ -48,7 +48,7 @@ import {
   runSessionColdBoot,
   startTokenRefreshScheduler,
   type AuthStateStore,
-} from '@oxyhq/core';
+} from '@oxy.so/core';
 
 import { config } from './config.js';
 

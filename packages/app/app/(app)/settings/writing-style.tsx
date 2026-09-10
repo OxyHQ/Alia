@@ -4,9 +4,9 @@ import { View, ScrollView, Pressable } from 'react-native';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Dialog } from '@oxyhq/bloom/dialog';
-import { confirm } from '@oxyhq/bloom/surfaces';
-import { useOxy } from '@oxyhq/services';
+import { Dialog } from '@oxy.so/bloom/dialog';
+import { confirm } from '@oxy.so/bloom/surfaces';
+import { useOxy } from '@oxy.so/services';
 import { generateAPIUrl } from '@/lib/generate-api-url';
 import {
   PenTool,
@@ -22,7 +22,7 @@ import {
 } from 'lucide-react-native';
 import { useTranslation } from '@/lib/hooks/use-translation';
 import { cn } from '@/lib/utils';
-import { toast } from '@oxyhq/bloom/toast';
+import { toast } from '@oxy.so/bloom/toast';
 import { useColorScheme } from '@/lib/useColorScheme';
 import { SettingsHeader } from '@/components/settings/settings-header';
 

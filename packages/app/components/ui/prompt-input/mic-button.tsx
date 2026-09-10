@@ -3,8 +3,8 @@ import { Pressable, ActivityIndicator } from "react-native";
 import { MicOff } from "lucide-react-native";
 import { cn } from "@/lib/utils";
 import { useColorScheme } from "@/lib/useColorScheme";
-import { useTheme } from "@oxyhq/bloom/theme";
-import { toast } from "@oxyhq/bloom/toast";
+import { useTheme } from "@oxy.so/bloom/theme";
+import { toast } from "@oxy.so/bloom/toast";
 import { usePromptInput } from "./context";
 import { ComposerGlyph } from "./composer-glyph";
 

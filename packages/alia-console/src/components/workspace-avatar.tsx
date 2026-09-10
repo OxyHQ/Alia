@@ -1,4 +1,4 @@
-import { useAuth } from '@oxyhq/services'
+import { useAuth } from '@oxy.so/services'
 import type { JSX } from 'react'
 import type { Workspace } from '@/hooks/use-workspace'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'

@@ -1,6 +1,6 @@
 import { View, ScrollView } from "react-native";
 import { Redirect, useRouter } from "expo-router";
-import { SettingsListGroup, SettingsListItem } from "@oxyhq/bloom/settings-list";
+import { SettingsListGroup, SettingsListItem } from "@oxy.so/bloom/settings-list";
 import { useTranslation } from "@/lib/hooks/use-translation";
 import { SettingsHeader } from "@/components/settings/settings-header";
 import { useColorScheme } from "@/lib/useColorScheme";

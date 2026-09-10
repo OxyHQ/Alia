@@ -63,7 +63,7 @@ function header(headers: Headers, name: string): string | undefined {
  * Decide whether an upgrade request may become a socket.
  *
  * `verifySecret` is injected rather than imported so this module stays free of
- * `@oxyhq/core/server`, which `index.ts` loads dynamically — and so a test can
+ * `@oxy.so/core/server`, which `index.ts` loads dynamically — and so a test can
  * assert that a WRONG secret is refused without knowing how the comparison is
  * implemented.
  */

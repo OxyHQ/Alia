@@ -46,7 +46,7 @@
  * dropped here rather than trusted.
  */
 
-import type { ModelLicense } from '@oxyhq/contracts';
+import type { ModelLicense } from '@oxy.so/contracts';
 
 /**
  * One attribution a caller must display, exactly as the licence record states

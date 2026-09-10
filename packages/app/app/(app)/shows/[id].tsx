@@ -25,10 +25,10 @@ import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Plus, Trash2, ChevronLeft, ExternalLink, Lock, Link2, Globe, Pencil } from 'lucide-react-native';
-import { toast } from '@oxyhq/bloom/toast';
-import { confirm } from '@oxyhq/bloom/surfaces';
-import { ContentPanel } from '@oxyhq/bloom/content-panel';
-import { withAlpha } from '@oxyhq/bloom/theme';
+import { toast } from '@oxy.so/bloom/toast';
+import { confirm } from '@oxy.so/bloom/surfaces';
+import { ContentPanel } from '@oxy.so/bloom/content-panel';
+import { withAlpha } from '@oxy.so/bloom/theme';
 import {
   useShowStore,
   useSeriesEpisodes,

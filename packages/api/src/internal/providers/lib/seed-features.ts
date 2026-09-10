@@ -7,7 +7,7 @@
  * PlanFeature mappings are always overwritten from code (source of truth).
  */
 
-import { isUniqueViolation } from '@oxyhq/db';
+import { isUniqueViolation } from '@oxy.so/db';
 import { getDb } from '../../../db/index.js';
 import { seedFeature } from '../../../db/billing/featureRepository.js';
 import { seedPlanFeatures as insertSeedPlanFeatures } from '../../../db/billing/planFeatureRepository.js';

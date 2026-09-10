@@ -1,5 +1,5 @@
 import { View, Pressable, Platform, type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent } from "react-native";
-import { toast } from "@oxyhq/bloom/toast";
+import { toast } from "@oxy.so/bloom/toast";
 import { KeyboardAwareScrollView } from "@/lib/keyboard";
 import { Image } from "expo-image";
 import { CustomMarkdown } from "@/components/ui/markdown";
@@ -29,7 +29,7 @@ import Animated, {
 } from "react-native-reanimated";
 import * as Clipboard from "expo-clipboard";
 import { Reasoning, ReasoningTrigger } from "@/components/ui/reasoning";
-import { useTheme } from "@oxyhq/bloom/theme";
+import { useTheme } from "@oxy.so/bloom/theme";
 import { getToolLabel, getToolActiveLabel, getResearchActiveLabel, getTextFromContent, getImagesFromContent } from '@alia.onl/sdk';
 import { useUIStore, type ThoughtTab } from "@/lib/stores/ui-store";
 import { useStore, type ChatIdState } from "@/lib/stores/global-store";

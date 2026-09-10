@@ -29,7 +29,7 @@
  * `callerMembership`, which is the server's OWN resolution of what this caller
  * holds — direct or inherited through the tree. So existence, kind and
  * `account:act_as` cost one round trip, not three, and both standing and act-as
- * are read through `resolveAccountDelegationAccess` from `@oxyhq/core` rather
+ * are read through `resolveAccountDelegationAccess` from `@oxy.so/core` rather
  * than by testing permission strings here. Human account switching deliberately
  * excludes bots; service delegation deliberately includes them.
  *
@@ -61,8 +61,8 @@
  * its own client. One is built per cache MISS, not per request.
  */
 
-import { OxyServices, resolveAccountDelegationAccess } from '@oxyhq/core';
-import type { AccountCategoryId } from '@oxyhq/contracts';
+import { OxyServices, resolveAccountDelegationAccess } from '@oxy.so/core';
+import type { AccountCategoryId } from '@oxy.so/contracts';
 import type { Executor } from '../db/index.js';
 import { findAgentById, type AgentRecord } from '../db/agents/agentRepository.js';
 import {

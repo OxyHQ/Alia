@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { ArrowLeft, Check, Download, ExternalLink, FileText, Pencil, Play, Trash2 } from 'lucide-react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { useOxy } from '@oxyhq/services';
+import { useOxy } from '@oxy.so/services';
 import { useTranslation } from '@/lib/hooks/use-translation';
 import {
   useInstallSkill,
@@ -17,7 +17,7 @@ import {
 import { SectionLabel } from '@/components/detail/section-label';
 import { CustomMarkdown } from '@/components/ui/markdown';
 import { SkillCover } from '@/components/ui/skill-cover';
-import { ContentPanel } from '@oxyhq/bloom/content-panel';
+import { ContentPanel } from '@oxy.so/bloom/content-panel';
 
 /**
  * One skill, in full.

@@ -7,11 +7,10 @@
 
 import { useEffect, useRef } from 'react';
 import { Platform } from 'react-native';
-import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
 import { useRouter } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
-import { useOxy } from '@oxyhq/services';
+import { useOxy } from '@oxy.so/services';
 import apiClient from '@/lib/api/client';
 import { acquireNotificationsSocket } from '@/lib/api/notifications-socket';
 
@@ -29,6 +28,7 @@ export function useNotificationSetup() {
   // ── Foreground notification display (once, native only) ────────
   useEffect(() => {
     if (Platform.OS === 'web') return;
+    const Notifications = require('expo-notifications') as typeof import('expo-notifications');
     Notifications.setNotificationHandler({
       handleNotification: async () => ({
         shouldShowBanner: true,
@@ -41,7 +41,9 @@ export function useNotificationSetup() {
 
   // ── Push token registration ────────────────────────────────────
   useEffect(() => {
-    if (!isAuthenticated || !user?.id || Platform.OS === 'web') return;
+    if (Platform.OS === 'web') return;
+    const Notifications = require('expo-notifications') as typeof import('expo-notifications');
+    if (!isAuthenticated || !user?.id) return;
 
     let cancelled = false;
 
@@ -90,6 +92,7 @@ export function useNotificationSetup() {
   // ── Notification tap handler (deep-link to conversation) ───────
   useEffect(() => {
     if (Platform.OS === 'web') return;
+    const Notifications = require('expo-notifications') as typeof import('expo-notifications');
 
     const subscription = Notifications.addNotificationResponseReceivedListener(
       (response) => {

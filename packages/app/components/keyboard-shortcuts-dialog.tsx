@@ -1,6 +1,6 @@
 import * as React from "react";
 import { Platform, View } from "react-native";
-import { Dialog } from "@oxyhq/bloom/dialog";
+import { Dialog } from "@oxy.so/bloom/dialog";
 import { Text } from "@/components/ui/text";
 import { Kbd, KbdGroup } from "@/components/ui/kbd";
 import { useTranslation } from "@/lib/hooks/use-translation";

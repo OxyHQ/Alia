@@ -18,7 +18,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
 vi.mock('react-native', () => ({ Platform: { OS: 'ios' } }));
 
-vi.mock('@oxyhq/services', () => ({
+vi.mock('@oxy.so/services', () => ({
   useOxy: () => ({ oxyServices: { getAccessToken: () => 'oxy-access-token' } }),
 }));
 

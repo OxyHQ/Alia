@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { sql } from 'drizzle-orm';
-import { constraintNameOf } from '@oxyhq/db';
-import { sweepAllExpiredRows } from '@oxyhq/db/expiry';
+import { constraintNameOf } from '@oxy.so/db';
+import { sweepAllExpiredRows } from '@oxy.so/db/expiry';
 import { closePostgres, connectPostgres, type ApiDatabase } from '../index';
 import { EXPIRY_TARGETS } from '../expiryTargets';
 import { authHealthMetrics, routingLogs } from '../schema/telemetry';
@@ -16,7 +16,7 @@ import { leases } from '../schema/leases';
  * outright — and CHECK constraints, unique indexes and `ON CONFLICT` are exactly
  * what a port gets wrong. None of them has a mocked counterpart.
  *
- * Driver errors are asserted through `@oxyhq/db`'s helpers, never a message
+ * Driver errors are asserted through `@oxy.so/db`'s helpers, never a message
  * regex: drizzle wraps the failure, so `code` and `constraint_name` live on
  * `cause` and the wrapper's own message is only `Failed query: …`. The
  * CONSTRAINT is named too — `isUniqueViolation` alone cannot tell the index

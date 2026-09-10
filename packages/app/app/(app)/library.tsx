@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { View, ScrollView, Pressable, RefreshControl } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
-import { Search } from '@oxyhq/bloom/search';
+import { Search } from '@oxy.so/bloom/search';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import { Plus } from 'lucide-react-native';
@@ -11,10 +11,10 @@ import { useImagePicker } from '@/lib/hooks/use-image-picker';
 import { useDocumentPicker } from '@/lib/hooks/use-document-picker';
 import { FileCard } from '@/components/file-card';
 import { cn } from '@/lib/utils';
-import { toast } from '@oxyhq/bloom/toast';
+import { toast } from '@oxy.so/bloom/toast';
 import { useTranslation } from '@/lib/hooks/use-translation';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ContentPanel } from "@oxyhq/bloom/content-panel";
+import { ContentPanel } from "@oxy.so/bloom/content-panel";
 
 export default function LibraryScreen() {
   const files = useLibraryStore((state) => state.files);

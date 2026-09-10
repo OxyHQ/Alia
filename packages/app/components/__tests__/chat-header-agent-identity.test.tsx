@@ -112,11 +112,11 @@ vi.mock('@/lib/useColorScheme', () => ({
  * Bloom's OWN `parseRgb` and `APP_COLOR_PRESETS` here — which is what makes the
  * assertions below about a painted colour rather than a value passed along.
  */
-vi.mock('@oxyhq/bloom/theme', async () => {
+vi.mock('@oxy.so/bloom/theme', async () => {
   const { createRequire } = await import('node:module');
   const { pathToFileURL } = await import('node:url');
   const require = createRequire(import.meta.url);
-  const entry = pathToFileURL(require.resolve('@oxyhq/bloom'));
+  const entry = pathToFileURL(require.resolve('@oxy.so/bloom'));
   const from = (module: string) => require(new URL(`theme/${module}.js`, entry).pathname);
   return { ...from('color-utils'), ...from('color-presets') };
 });
@@ -157,8 +157,8 @@ vi.mock('@/components/ui/dropdown-menu', async () => {
   };
 });
 
-vi.mock('@oxyhq/bloom/toast', () => ({ toast: { info: () => {} } }));
-vi.mock('@oxyhq/bloom/surfaces', () => ({ confirm: async () => false }));
+vi.mock('@oxy.so/bloom/toast', () => ({ toast: { info: () => {} } }));
+vi.mock('@oxy.so/bloom/surfaces', () => ({ confirm: async () => false }));
 vi.mock('@/lib/hooks/use-translation', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));

@@ -4,10 +4,10 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import "nativewind/theme";
-@import "@oxyhq/bloom/design-tokens/theme.css";
+@import "@oxy.so/bloom/design-tokens/theme.css";
 
-@source "../../../node_modules/@oxyhq/services/lib/**/*.{js,jsx}";
-@source "../../../node_modules/@oxyhq/bloom/lib/**/*.{js,jsx}";
+@source "../../../node_modules/@oxy.so/services/lib/**/*.{js,jsx}";
+@source "../../../node_modules/@oxy.so/bloom/lib/**/*.{js,jsx}";
 
 @custom-variant dark (&:is(.dark *));
 

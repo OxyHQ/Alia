@@ -18,7 +18,7 @@ import {
   isCheckViolation,
   isForeignKeyViolation,
   isUniqueViolation,
-} from '@oxyhq/db';
+} from '@oxy.so/db';
 import { closePostgres, connectPostgres, type IntegrationsDatabase } from '../index';
 import {
   mcpConnectorAuths,
@@ -33,7 +33,7 @@ let db: IntegrationsDatabase;
 /**
  * Run `operation` and return the error it threw.
  *
- * Assertions below go through `@oxyhq/db`'s driver-error helpers rather than
+ * Assertions below go through `@oxy.so/db`'s driver-error helpers rather than
  * matching the message, because **drizzle wraps the driver failure in its own
  * error**: `code` and `constraint_name` live on `cause`, and the wrapper's
  * message is only `Failed query: …`. A regex against that message passes or

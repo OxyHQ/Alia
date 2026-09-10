@@ -1,4 +1,4 @@
-import { CONTRACT_LIMITS } from '@oxyhq/crowdsource-contracts';
+import { CONTRACT_LIMITS } from '@oxy.so/crowdsource-contracts';
 import { getDb } from '../../../db/index.js';
 import { findAgentById } from '../../../db/agents/agentRepository.js';
 import { attachAgentIdentity } from '../../agent-identity.js';

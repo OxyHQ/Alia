@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ArrowLeft, Download } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
-import { toast } from "@oxyhq/bloom/toast";
+import { toast } from "@oxy.so/bloom/toast";
 import { useTranslation } from '@/lib/hooks/use-translation';
 import { useImportSkill } from '@/lib/hooks/use-skills';
 

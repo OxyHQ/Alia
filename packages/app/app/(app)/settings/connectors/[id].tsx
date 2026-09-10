@@ -19,14 +19,14 @@ import {
   ExternalLink,
 } from "lucide-react-native";
 import { ActionKeyIcon } from "@/components/ui/action-key-icon";
-import { confirm } from "@oxyhq/bloom/surfaces";
-import { withAlpha } from "@oxyhq/bloom/theme";
+import { confirm } from "@oxy.so/bloom/surfaces";
+import { withAlpha } from "@oxy.so/bloom/theme";
 import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
-import { Dialog } from "@oxyhq/bloom/dialog";
+import { Dialog } from "@oxy.so/bloom/dialog";
 import { SettingsHeader } from "@/components/settings/settings-header";
 import { useMcpServers } from "@/lib/hooks/use-mcp-servers";
-import { toast } from "@oxyhq/bloom/toast";
+import { toast } from "@oxy.so/bloom/toast";
 import { useColorScheme } from "@/lib/useColorScheme";
 import { useTranslation } from "@/lib/hooks/use-translation";
 

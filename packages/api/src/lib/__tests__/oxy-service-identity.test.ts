@@ -12,7 +12,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest
  * account through `hydrateOxyUsers` -> `POST /users/by-ids` — and that endpoint
  * is a state-changing method behind oxy-api's CSRF middleware, which admits a
  * write only when it carries a bearer. `middleware/auth.ts`'s shared client
- * carries none, so the call was refused, `@oxyhq/core` swallowed the failed
+ * carries none, so the call was refused, `@oxy.so/core` swallowed the failed
  * chunk and returned `[]`, and every nullable identity field on the wire went
  * null. Measured against `https://api.oxy.so` on 2026-08-25, through the real
  * SDK rather than through curl:
@@ -25,7 +25,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest
  * ## Why the edge below is a socket and not a mock
  *
  * The subject is which BEARER leaves this process and whether Oxy accepts it,
- * so the thing that must be real is `@oxyhq/core`: the service-mode branch in
+ * so the thing that must be real is `@oxy.so/core`: the service-mode branch in
  * `getUsersByIds`, the `/auth/service-token` exchange, the per-credential token
  * cache, and the `GET /csrf-token` preflight it makes for a bearer-less POST. A
  * fake SDK would assert that the fake behaves as its author remembers the SDK
@@ -82,7 +82,7 @@ const shared = vi.hoisted(() => ({ baseURL: '' }));
  * by the last case in this file.
  */
 vi.mock('../../middleware/auth.js', async () => {
-  const { OxyServices } = await import('@oxyhq/core');
+  const { OxyServices } = await import('@oxy.so/core');
   return { oxyClient: new OxyServices({ baseURL: shared.baseURL }) };
 });
 
@@ -302,7 +302,7 @@ describe('an Oxy account is hydrated as Alia, not as nobody', () => {
     await hydrate([ADA.id]);
     await hydrate([UNKNOWN]);
 
-    // One client for the process, and `@oxyhq/core` caches the token on it. A
+    // One client for the process, and `@oxy.so/core` caches the token on it. A
     // client built per call would be correct and would cost an extra round trip
     // every time — invisible in every other assertion here, which is why it gets
     // its own.

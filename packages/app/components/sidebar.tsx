@@ -45,7 +45,7 @@ import { cn } from "@/lib/utils";
 import { useTranslation } from "@/lib/hooks/use-translation";
 import { useStore } from "@/lib/stores/global-store";
 import { useRouter, usePathname } from "expo-router";
-import { useOxy, useAuth, ProfileButton } from "@oxyhq/services";
+import { useOxy, useAuth, ProfileButton } from "@oxy.so/services";
 import { useProjectsStore } from "@/lib/stores/projects-store";
 import { useFoldersStore } from "@/lib/stores/folders-store";
 import { useFavoritesStore } from "@/lib/stores/favorites-store";

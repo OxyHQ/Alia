@@ -135,7 +135,7 @@ merged on 2026-08-18, and Kaana is running. **When the Oxy inference control pla
 measured here**; only that it is live now. What follows was measured read-only on 2026-08-19:
 AWS `describe-services` / `describe-task-definition` / `s3 cp` under profile `oxy` in `us-west-2`,
 unauthenticated HTTPS probes, `gh api` reads of `OxyHQ/oxy` and `OxyHQ/Kaana` on `main`, the
-published `@oxyhq/contracts@0.29.0` tarball, and the `OxyHQ/Kaana` working tree. **No mutating call
+published `@oxy.so/contracts@0.29.0` tarball, and the `OxyHQ/Kaana` working tree. **No mutating call
 of any kind, and no credential value appears in this file or the JSON.**
 
 **Canonical-host correction (2026-09-02):** Kaana's only production hostname is now
@@ -728,9 +728,9 @@ stop being true. Re-run the command; do not cite this section.
 Recorded here because each contradicts something written down elsewhere in this repository, and a
 stale blocker costs more than an open one.
 
-**1. `@oxyhq/contracts` now ships the inference module, and Alia already depends on it.**
+**1. `@oxy.so/contracts` now ships the inference module, and Alia already depends on it.**
 [`kaana-client-gap.md`](./kaana-client-gap.md) §0 recorded (2026-08-16, against `0.26.0`) that the
-inference module was unpublished and that *"Alia adds no `@oxyhq/contracts` dependency in this
+inference module was unpublished and that *"Alia adds no `@oxy.so/contracts` dependency in this
 workstream"*. Both halves have changed. `packages/api/package.json:34` depends on `^0.27.0`; the
 installed `0.27.0` ships twelve inference modules under `dist/types/inference/`; and **eleven Alia
 modules import them** — the five under `lib/inference/` (`kaana-client.ts:64`, `kaana-request.ts:35`,
@@ -749,7 +749,7 @@ The `^0.27.0` range does **not** reach them. Bumping it is the first move on L46
 `ACTIONABLE_NOW` on that basis.
 
 **3. `availabilityScopeSchema` already carries exactly the five scopes workstream 17 names.**
-`node_modules/@oxyhq/contracts/dist/cjs/inference/catalogue.js:144` defines them as
+`node_modules/@oxy.so/contracts/dist/cjs/inference/catalogue.js:144` defines them as
 `internal_alia`, `public_payg`, `enterprise`, `byok_only`, `oxy_hosted` — installed today, at
 `0.27.0`, imported by nothing in Alia. L604 is `ACTIONABLE_NOW` for the type and the refusal; only
 the DATA (which route carries which scope) waits on Kaana.

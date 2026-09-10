@@ -37,7 +37,7 @@
 /**
  * What a surface can carry, in both directions.
  *
- * Three rather than the five modalities `@oxyhq/contracts`
+ * Three rather than the five modalities `@oxy.so/contracts`
  * `inferenceModalitySchema` defines: `video` and `embedding` are not offered by
  * any Alia surface, and a vocabulary carrying values no entry can require and
  * no surface can hold would make the coverage assertions below vacuous.

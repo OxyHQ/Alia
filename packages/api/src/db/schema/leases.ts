@@ -10,7 +10,7 @@
  */
 
 import { pgTable, text } from 'drizzle-orm/pg-core';
-import { createdAt, timestamptz, updatedAt } from '@oxyhq/db';
+import { createdAt, timestamptz, updatedAt } from '@oxy.so/db';
 
 /**
  * One row per named lease. The lease NAME is the primary key, exactly as `_id`

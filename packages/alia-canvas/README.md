@@ -30,6 +30,6 @@ bun run preview
 - [React](https://react.dev) — UI library
 - [TypeScript](https://www.typescriptlang.org) — type-safe JavaScript
 - [@xyflow/react](https://reactflow.dev) — node-based canvas
-- [@oxyhq/services](https://www.npmjs.com/package/@oxyhq/services) — device-first Oxy auth + SDK
-- [@oxyhq/bloom](https://www.npmjs.com/package/@oxyhq/bloom) — shared UI theming
+- [@oxy.so/services](https://www.npmjs.com/package/@oxy.so/services) — device-first Oxy auth + SDK
+- [@oxy.so/bloom](https://www.npmjs.com/package/@oxy.so/bloom) — shared UI theming
 - [Tailwind CSS v4](https://tailwindcss.com) + [shadcn/ui](https://ui.shadcn.com)

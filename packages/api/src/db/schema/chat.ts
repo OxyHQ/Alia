@@ -15,7 +15,7 @@
 
 import { boolean, index, integer, jsonb, pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
-import { createdAt, generatedId, updatedAt } from '@oxyhq/db';
+import { createdAt, generatedId, updatedAt } from '@oxy.so/db';
 import type { CanvasComponent } from '../../domain/canvas-session.js';
 import { CONVERSATION_SOURCES, MESSAGE_ROLES, MESSAGE_VOTES } from '../../domain/conversation.js';
 import { checkOneOf } from './columns';

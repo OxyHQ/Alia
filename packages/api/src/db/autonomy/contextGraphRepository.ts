@@ -40,7 +40,7 @@
  */
 
 import { and, eq, getTableName, inArray, sql, type Column, type Table } from 'drizzle-orm';
-import { sqlColumnName } from '@oxyhq/db';
+import { sqlColumnName } from '@oxy.so/db';
 import type { ContextEdgeType } from '../../domain/context-edge.js';
 import type { ContextNodeType } from '../../domain/context-node.js';
 import type { ContextSourceKind } from '../../domain/context-source.js';

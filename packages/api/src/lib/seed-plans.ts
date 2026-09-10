@@ -17,7 +17,7 @@
  *
  * ## Why it lives in `lib/` and not under `internal/providers/`
  *
- * It never belonged there. It imports `@oxyhq/db`, `db/index.ts`,
+ * It never belonged there. It imports `@oxy.so/db`, `db/index.ts`,
  * `db/billing/planRepository.ts` and this package's logger — nothing from the
  * provider tree at all — so it was a billing seeder filed inside the subtree
  * ADR 0001 is emptying. Moving it is what lets `src/index.ts` call it at boot
@@ -26,7 +26,7 @@
  * `seed-suggestions.ts` and `seed-bots.ts`, which is where the boot seeders are.
  */
 
-import { isUniqueViolation } from '@oxyhq/db';
+import { isUniqueViolation } from '@oxy.so/db';
 import { getDb } from '../db/index.js';
 import { seedPlan } from '../db/billing/planRepository.js';
 import type { ConfigAuditActor } from './security/config-audit.js';

@@ -1,6 +1,6 @@
 import express from 'express';
 import crypto from 'crypto';
-import { verifySecret } from '@oxyhq/core/server';
+import { verifySecret } from '@oxy.so/core/server';
 import { generateText, stepCountIs } from 'ai';
 import { getChannel } from '../lib/channels/registry.js';
 import { resolveModel, resolveOxyRoutingProfileId, getAIModel } from '../lib/chat-core.js';

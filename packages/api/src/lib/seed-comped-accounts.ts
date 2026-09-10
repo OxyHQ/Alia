@@ -20,7 +20,7 @@
  *
  * The first version of this ran on the request path and keyed on
  * `req.user.username`. It was INERT in production, and the reason is worth
- * keeping: `@oxyhq/core`'s `oxy.auth()` sets `req.user = { id: userId }` and
+ * keeping: `@oxy.so/core`'s `oxy.auth()` sets `req.user = { id: userId }` and
  * loads the profile only under `loadUser: true`, which this API does not pass.
  * There is no username on a request to key on, so the account has to be resolved
  * through Oxy — and once a network call is involved, the request path is the
@@ -83,7 +83,7 @@
  * the daily floor stays exactly what every other account gets.
  */
 
-import { OxyServices } from '@oxyhq/core';
+import { OxyServices } from '@oxy.so/core';
 
 import { getDb, type ApiDatabase } from '../db/index.js';
 import {

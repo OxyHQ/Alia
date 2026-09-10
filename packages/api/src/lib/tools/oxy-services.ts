@@ -16,7 +16,7 @@ import {
   type AutonomyLevel,
   type CatalogTool,
   type ResourceRef,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 import { tool, type ToolSet } from 'ai';
 import { z, type ZodTypeAny } from 'zod';
 import { jsonSchemaToZod } from './mcp-schema.js';

@@ -8,7 +8,7 @@ import { useActiveTasks, useTaskHistory, type TaskSession } from '@/lib/hooks/us
 import { useAgentActivity } from '@/lib/hooks/use-agent-activity';
 import { TaskCard } from '@/components/tasks/task-card';
 import { useRouter } from 'expo-router';
-import { ContentPanel } from "@oxyhq/bloom/content-panel";
+import { ContentPanel } from "@oxy.so/bloom/content-panel";
 
 type Tab = 'active' | 'history';
 

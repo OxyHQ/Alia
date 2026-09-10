@@ -549,7 +549,7 @@ export interface ShowPreferencesInput {
  * Store this account's defaults, creating the row if it is the first time.
  *
  * `updatedAt` is deliberately absent from the `set`. It looks like it has to be
- * there, because the column's default applies on INSERT only — but `@oxyhq/db`'s
+ * there, because the column's default applies on INSERT only — but `@oxy.so/db`'s
  * `updatedAt()` carries `$onUpdate` and drizzle applies that to an
  * `onConflictDoUpdate` set as well as to `db.update()`, measured in
  * `memoryEmbeddingRepository.ts` by compiling both forms. Writing it anyway

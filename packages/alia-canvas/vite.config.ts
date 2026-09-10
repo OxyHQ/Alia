@@ -7,15 +7,15 @@ import reactNativeWeb from "vite-plugin-react-native-web"
 const emptyModule = path.resolve(__dirname, "./src/empty-module.js")
 
 // Canvas runs on rolldown-vite (`"vite": "npm:rolldown-vite@^7"`) so the
-// `@oxyhq/services` React Native graph bundles through the maintained
+// `@oxy.so/services` React Native graph bundles through the maintained
 // `vite-plugin-react-native-web` plugin instead of hand-rolled interop: it
 // aliases react-native→react-native-web, applies `.web.*` platform extension
 // priority in dev AND build, treats RN packages' JSX-in-.js via rolldown
 // moduleTypes, strips Flow types, keeps expo-modules-core's side-effectful web
 // polyfill (`globalThis.expo`) from being tree-shaken, and defines the RN
-// globals. This is what lets Vite bundle `@oxyhq/services`/`@oxyhq/bloom` where
+// globals. This is what lets Vite bundle `@oxy.so/services`/`@oxy.so/bloom` where
 // Next.js/Turbopack cannot (it eagerly resolves the guarded expo-router require
-// in `@oxyhq/bloom/theme` and pulls in react-native-screens/codegen).
+// in `@oxy.so/bloom/theme` and pulls in react-native-screens/codegen).
 export default defineConfig(({ mode }) => ({
   plugins: [reactNativeWeb(), react(), tailwindcss()],
   resolve: {

@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { eq, sql } from 'drizzle-orm';
-import { sweepAllExpiredRows } from '@oxyhq/db/expiry';
+import { sweepAllExpiredRows } from '@oxy.so/db/expiry';
 import { closePostgres, connectPostgres, type ApiDatabase } from '../index';
 import { EXPIRY_TARGETS } from '../expiryTargets';
 import { audioJobs } from '../schema/notifications';

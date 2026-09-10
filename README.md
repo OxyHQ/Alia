@@ -166,7 +166,7 @@ workspace entry. Everything lives under `packages/`.
 | [`packages/alia-chat`](packages/alia-chat/) | `@alia.onl/sdk` | React chat UI, voice, streaming |
 
 Identity comes from the Oxy platform rather than from a login system here:
-[`@oxyhq/services`](https://github.com/OxyHQ/oxy) and `@oxyhq/core`, with `@oxyhq/bloom`
+[`@oxy.so/services`](https://github.com/OxyHQ/oxy) and `@oxy.so/core`, with `@oxy.so/bloom`
 for shared UI. See [`docs/oxyhq-auth.md`](docs/oxyhq-auth.md).
 
 </td>

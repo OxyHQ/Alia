@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { constraintNameOf, isUniqueViolation } from '@oxyhq/db';
+import { constraintNameOf, isUniqueViolation } from '@oxy.so/db';
 import { closePostgres, connectPostgres, type ApiDatabase } from '../index';
 import {
   insertVoiceCallUsage,
@@ -120,7 +120,7 @@ describe('the two writes of one session', () => {
     /**
      * The asymmetry is deliberate — the interim write is a plain insert — and
      * `session_id`'s unique index is what makes it safe. Caught by CONSTRAINT
-     * NAME through `@oxyhq/db`, never `error.code`: a drizzle error's SQLSTATE
+     * NAME through `@oxy.so/db`, never `error.code`: a drizzle error's SQLSTATE
      * lives on `cause`, so a `err.code === '23505'` test matches nothing and the
      * branch collapses silently.
      */

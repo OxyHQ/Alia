@@ -39,7 +39,7 @@
  */
 
 import { and, asc, eq, isNull, lte, or, sql } from 'drizzle-orm';
-import { isUniqueViolation } from '@oxyhq/db';
+import { isUniqueViolation } from '@oxy.so/db';
 import type { ApiDatabase, Executor } from '../index';
 import { getDb } from '../index';
 import { reports } from '../schema/moderation';

@@ -1,12 +1,12 @@
 /**
  * The Oxy service-token exchange — epic #139 workstream 2, *"Configure
- * short-lived Oxy service-token exchange through `@oxyhq/core`."*
+ * short-lived Oxy service-token exchange through `@oxy.so/core`."*
  *
  * ## What this module is
  *
  * The adapter between an Oxy ApplicationCredential in the environment and the
  * published {@link OxyInferenceCredential} accepted by
- * {@link import('@oxyhq/core').OxyInferenceClient}. The credential is presented
+ * {@link import('@oxy.so/core').OxyInferenceClient}. The credential is presented
  * only to Oxy; Oxy resolves the authenticated application identity and is the
  * only component that calls Kaana.
  *
@@ -18,7 +18,7 @@
  * NAMES without putting a token exchange on the boot path.
  *
  * **It implements no caching, no refresh and no expiry arithmetic.** All three
- * live in `@oxyhq/core` (`getServiceToken` / `invalidateServiceToken`), which
+ * live in `@oxy.so/core` (`getServiceToken` / `invalidateServiceToken`), which
  * caches per `(apiKey, apiSecret)` pair, refreshes 60 seconds BEFORE the token
  * expires, deduplicates concurrent callers onto one in-flight request, and
  * verifies the secret in constant time on every cache hit. Re-implementing any
@@ -42,7 +42,7 @@
  * purpose is also what the SDK's per-credential cache is designed for.
  */
 
-import { OxyServices, type OxyInferenceCredential } from '@oxyhq/core';
+import { OxyServices, type OxyInferenceCredential } from '@oxy.so/core';
 
 /**
  * The ApplicationCredential this deployment presents to mint service tokens.

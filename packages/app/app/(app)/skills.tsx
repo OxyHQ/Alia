@@ -15,7 +15,7 @@ import {
 } from '@/lib/hooks/use-skills';
 import { SkillCover } from '@/components/ui/skill-cover';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ContentPanel } from '@oxyhq/bloom/content-panel';
+import { ContentPanel } from '@oxy.so/bloom/content-panel';
 
 /**
  * The Skills catalogue.

@@ -16,7 +16,7 @@ Redesign Alia's memory settings screen (`packages/app/app/(app)/settings/memory.
 - **Auto-save already exists**: `saveUserMemoryTool` (`packages/api/src/lib/tools/user-memory.ts:14`) is a real AI SDK tool, unconditionally registered in 6 places (`chat.service.ts:240`, `agent/tools.ts:67`, `tools/index.ts:129`, `trigger-engine.ts:108`, `routes/internal.ts:182`, `voice-session-manager.ts:66-67`), description says "Use ALWAYS when user shares...". No setting gates it today.
 - **Recall already exists**: `memory-recall-hook.ts` calls `recallRelevantMemories()` before the LLM call to inject existing memories into context. No setting gates it today.
 - **Hover-reveal convention**: `group` + `web:opacity-0 web:group-hover:opacity-100` already used in `sidebar.tsx:631,658` and `folder-section.tsx:72,99` — reuse this for row actions, don't invent a new pattern.
-- **No RN table component exists** in `packages/app` or installed `@oxyhq/bloom`. `@oxyhq/bloom`'s `SettingsList` exists but is unused anywhere in `packages/app` — not a fit here (single-row style, not columnar). Build one new NativeWind component.
+- **No RN table component exists** in `packages/app` or installed `@oxy.so/bloom`. `@oxy.so/bloom`'s `SettingsList` exists but is unused anywhere in `packages/app` — not a fit here (single-row style, not columnar). Build one new NativeWind component.
 
 ## Data model changes (clean cut, no compat shim)
 

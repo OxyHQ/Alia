@@ -13,7 +13,7 @@ import {
  *
  * The seam's whole value is a negative property: it describes Alia's
  * conversation-level concerns and describes NO wire payload, because those come
- * from `@oxyhq/contracts` and a second copy of them is the drift the epic exists
+ * from `@oxy.so/contracts` and a second copy of them is the drift the epic exists
  * to prevent. A negative property needs a gate, or the first person in a hurry
  * writes `interface InferenceMessage { … }` "temporarily" and nothing objects.
  *
@@ -156,11 +156,11 @@ describe('the extractors recognise every form they claim to handle', () => {
   }
 
   it('does NOT read a commented-out import', () => {
-    // The inflation hazard: this file's own prose names `@oxyhq/contracts`, and
+    // The inflation hazard: this file's own prose names `@oxy.so/contracts`, and
     // the seam's doc comment names it too. Comments are trivia to the parser and
     // never appear as a StringLiteral, which is why this is an AST walk and not
     // a grep — `grep` is line-based and would count both.
-    expect(moduleRefs(parse(`// import { A } from '@oxyhq/contracts';\nconst x = 1;`))).toEqual([]);
+    expect(moduleRefs(parse(`// import { A } from '@oxy.so/contracts';\nconst x = 1;`))).toEqual([]);
   });
 
   it('finds an exported declaration of each kind, and skips unexported ones', () => {
@@ -213,7 +213,7 @@ describe('the extractors recognise every form they claim to handle', () => {
  * catches instead.
  *
  * This is the ONE list the wiring PR edits: it gains a type-only
- * `@oxyhq/contracts` import when the inference module publishes.
+ * `@oxy.so/contracts` import when the inference module publishes.
  */
 const FROZEN_MODULE_REFS: readonly string[] = [];
 

@@ -2,7 +2,7 @@ import React from "react";
 import { formatRelativeTime } from '@/lib/utils/relative-time';
 import { View, Pressable } from "react-native";
 import { Text } from "@/components/ui/text";
-import { SettingsListGroup, SettingsListItem } from "@oxyhq/bloom/settings-list";
+import { SettingsListGroup, SettingsListItem } from "@oxy.so/bloom/settings-list";
 import { Trash2 } from "lucide-react-native";
 
 interface MemoryRow {

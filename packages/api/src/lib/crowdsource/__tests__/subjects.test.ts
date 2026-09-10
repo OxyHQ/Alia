@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { ResourceSchema } from '@oxyhq/crowdsource-contracts';
+import { ResourceSchema } from '@oxy.so/crowdsource-contracts';
 
 vi.mock('../../../db/index.js', () => ({ getDb: vi.fn(() => ({})) }));
 vi.mock('../../../db/agents/agentRepository.js', () => ({ findAgentById: vi.fn() }));

@@ -20,7 +20,7 @@
 
 import { boolean, check, index, integer, jsonb, pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
-import { createdAt, timestamptz, updatedAt } from '@oxyhq/db';
+import { createdAt, timestamptz, updatedAt } from '@oxy.so/db';
 import { checkArrayWithin, checkOneOf } from './columns';
 import { MODERATION_ENFORCEMENT_ACTIONS } from '../../domain/moderation-enforcement.js';
 import { MODERATION_LOCAL_STATUSES, ReportCategory, ReportStatus, ReportedType } from '../../domain/report.js';

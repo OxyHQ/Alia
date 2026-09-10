@@ -18,7 +18,7 @@ import { KeyboardAvoidingView } from "@/lib/keyboard";
 import { Maximize2, Minimize2 } from "lucide-react-native";
 import { cn } from "@/lib/utils";
 import { asViewStyle } from "@/lib/types/webStyles";
-import { Portal } from "@oxyhq/bloom/portal";
+import { Portal } from "@oxy.so/bloom/portal";
 import { PromptInputContext, type Attachment } from "./context";
 import { PromptInputTextarea } from "./textarea";
 import { PromptInputActions } from "./actions";

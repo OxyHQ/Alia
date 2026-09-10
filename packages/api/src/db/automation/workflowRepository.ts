@@ -15,7 +15,7 @@
  * `updatedAt: new Date()` in the route's update document — which was NOT
  * redundant, because a `pre('save')` hook never fires on `findOneAndUpdate`.
  *
- * `@oxyhq/db`'s `updatedAt()` carries `$onUpdate`, so drizzle writes the column
+ * `@oxy.so/db`'s `updatedAt()` carries `$onUpdate`, so drizzle writes the column
  * on every `db.update()` and on an `onConflictDoUpdate` set. Two hand-maintained
  * authorities collapse into one structural one, expressed where the column is
  * declared.

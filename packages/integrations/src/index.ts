@@ -125,7 +125,7 @@ async function main() {
     });
   });
 
-  const { verifySecret } = await import('@oxyhq/core/server');
+  const { verifySecret } = await import('@oxy.so/core/server');
 
   // Auth middleware
   const requireSecret = (req: express.Request, res: express.Response, next: express.NextFunction): void => {

@@ -124,7 +124,7 @@ COPY --from=builder /build/packages/integrations/dist ./packages/integrations/di
 # reached from here, and `db:migrate` is a `bun` script run against a developer's
 # own checkout.
 #
-# It fails loudly rather than silently — @oxyhq/db's `readJournal` throws naming
+# It fails loudly rather than silently — @oxy.so/db's `readJournal` throws naming
 # the missing path — but it fails at the one-shot migration task, i.e. after a
 # full ARM64 build, on the step whose whole job is to run before the rollout.
 #

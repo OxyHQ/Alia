@@ -7,7 +7,7 @@
  * owns no Kaana signing key, principal envelope or direct Kaana URL.
  */
 
-import { OxyInferenceClient } from '@oxyhq/core';
+import { OxyInferenceClient } from '@oxy.so/core';
 
 import {
   createOxyInferenceCredential,

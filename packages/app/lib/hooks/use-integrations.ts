@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useOxy } from '@oxyhq/services';
+import { useOxy } from '@oxy.so/services';
 import apiClient from '@/lib/api/client';
 
 export interface IntegrationEntry {

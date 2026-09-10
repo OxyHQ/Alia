@@ -34,7 +34,7 @@ import {
   USERNAME_MAX_LENGTH,
   isValidUsername,
   stripDisallowedUsernameCharacters,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 import type { Executor } from '../db/index.js';
 import {
   findAgentByOxyAccountId,
@@ -234,7 +234,7 @@ const BOT_USERNAME_SUFFIX = 'bot';
  *
  * ## This lives here TEMPORARILY
  *
- * `@oxyhq/contracts` owns the rule — `usernameSchema` and the length live
+ * `@oxy.so/contracts` owns the rule — `usernameSchema` and the length live
  * there — but it does NOT publish this function yet. Measured against the
  * registry: `0.34.0`, today's `latest`, exports `usernameSchema`,
  * `isValidUsername`, `stripDisallowedUsernameCharacters` and the three length
@@ -275,7 +275,7 @@ export function applyBotUsernameSuffix(candidate: string): string {
  *
  * ## It SHAPES a candidate and lets the schema judge it
  *
- * `@oxyhq/contracts` owns the username rules — one Zod schema, replacing the
+ * `@oxy.so/contracts` owns the username rules — one Zod schema, replacing the
  * seven copies that used to disagree. This was the eighth, and it re-encoded a
  * SUBSET, which is the worst of both: it knew about empty slugs and leading
  * digits, and it did not know about the minimum length, so "Al" proposed `al`

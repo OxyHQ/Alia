@@ -39,7 +39,7 @@ import {
   text,
   uniqueIndex,
 } from 'drizzle-orm/pg-core';
-import { createdAt, generatedId, timestamptz, updatedAt } from '@oxyhq/db';
+import { createdAt, generatedId, timestamptz, updatedAt } from '@oxy.so/db';
 import { checkOneOf } from './columns';
 import { CONTAINER_SIZES, CONTAINER_STATUSES } from '../../domain/container.js';
 import { EVENT_STREAM_ENTRY_TYPES } from '../../domain/event-stream-entry.js';

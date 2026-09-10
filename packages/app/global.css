@@ -2,14 +2,14 @@
 @import "tailwindcss/preflight.css" layer(base);
 @import "tailwindcss/utilities.css";
 @import "nativewind/theme";
-@import "@oxyhq/bloom/design-tokens/theme.css";
+@import "@oxy.so/bloom/design-tokens/theme.css";
 
 @source "./app/**/*.{js,jsx,ts,tsx}";
 @source "./components/**/*.{js,jsx,ts,tsx}";
 @source "./lib/**/*.{js,jsx,ts,tsx}";
 @source "./hooks/**/*.{js,jsx,ts,tsx}";
-@source "../../node_modules/@oxyhq/services/lib/**/*.{js,jsx}";
-@source "../../node_modules/@oxyhq/bloom/lib/**/*.{js,jsx}";
+@source "../../node_modules/@oxy.so/services/lib/**/*.{js,jsx}";
+@source "../../node_modules/@oxy.so/bloom/lib/**/*.{js,jsx}";
 @source "../alia-chat/src/**/*.{ts,tsx}";
 
 /* NativeWind's theme.css ships an UNLAYERED `:root { @media ios { --font-sans: System } }`,

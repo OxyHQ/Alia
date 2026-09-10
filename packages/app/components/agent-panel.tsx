@@ -24,7 +24,7 @@ import {
   Eye,
 } from "lucide-react-native";
 import { useUIStore } from "@/lib/stores/ui-store";
-import { useTheme, type ThemeColors } from "@oxyhq/bloom/theme";
+import { useTheme, type ThemeColors } from "@oxy.so/bloom/theme";
 import { capabilityIconForTool } from "@/lib/constants/capability-families";
 import {
   useAgentActivity,

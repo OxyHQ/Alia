@@ -42,7 +42,7 @@ vi.mock('../../db/integrations/mcpOAuthStateRepository.js', () => ({
 // and would fail these unit tests for the wrong reason.
 vi.mock('../../db/index.js', () => ({ getDb: () => ({}) }));
 
-vi.mock('@oxyhq/core/server', () => ({
+vi.mock('@oxy.so/core/server', () => ({
   createOxyAuthMiddleware: vi.fn(() => (_req: any, _res: any, next: any) => next()),
   createOptionalOxyAuth: vi.fn(() => (_req: any, _res: any, next: any) => next()),
 }));

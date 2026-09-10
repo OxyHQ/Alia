@@ -115,7 +115,7 @@ Do not include any text outside the JSON object.`,
      * Oxy's category for the bot ACCOUNT, which is a different question from
      * Alia's `category` below and answered in a different language.
      *
-     * This one is a closed taxonomy owned by `@oxyhq/contracts` and lives on
+     * This one is a closed taxonomy owned by `@oxy.so/contracts` and lives on
      * the account, where the account graph and every profile surface outside
      * Alia can read it. Alia's own `category` is free text that feeds the
      * catalogue's `ilike` search and is rendered nowhere. Neither can stand in

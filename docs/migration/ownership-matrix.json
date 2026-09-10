@@ -4155,7 +4155,7 @@
       "owner": "alia",
       "targetPath": "n/a",
       "dependsOn": [],
-      "removalGate": "n/a. Named here because every removal in this inventory lands through it, and because @oxyhq/db's migrator takes NO lock — the interlock is the deploy workflow's concurrency group.",
+      "removalGate": "n/a. Named here because every removal in this inventory lands through it, and because @oxy.so/db's migrator takes NO lock — the interlock is the deploy workflow's concurrency group.",
       "provenance": "re-derived",
       "evidence": "packages/api/src/db/migrate.ts:1"
     },

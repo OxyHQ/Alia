@@ -1,6 +1,6 @@
 /** Shared policy, actor selection and queueing for normalized automations. */
 
-import { uuidv7 } from '@oxyhq/db';
+import { uuidv7 } from '@oxy.so/db';
 import type { AutomationDefinitionRecord } from '../db/automation/automationDefinitionRepository.js';
 import {
   claimAutomationRunPlan,

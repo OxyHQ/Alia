@@ -47,7 +47,7 @@
  *    their own time range independently of the sweep.
  */
 
-import type { ExpirySweepTarget } from '@oxyhq/db/expiry';
+import type { ExpirySweepTarget } from '@oxy.so/db/expiry';
 import { triggerExecutions } from './schema/automation';
 import { moderationEvents, moderationOutboxes } from './schema/moderation';
 import { audioJobs, notifications } from './schema/notifications';

@@ -20,7 +20,7 @@ import { mkdtemp, readdir, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { extname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { findImplicitWholeRowReads } from '@oxyhq/db/assert';
+import { findImplicitWholeRowReads } from '@oxy.so/db/assert';
 import { PROTECTED_COLUMNS } from '../protectedColumns';
 
 const PACKAGE_ROOT = join(__dirname, '..', '..', '..');

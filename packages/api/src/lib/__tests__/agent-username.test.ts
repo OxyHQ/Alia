@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { USERNAME_MAX_LENGTH, USERNAME_MIN_LENGTH, isValidUsername } from '@oxyhq/contracts';
+import { USERNAME_MAX_LENGTH, USERNAME_MIN_LENGTH, isValidUsername } from '@oxy.so/contracts';
 
 import {
   applyBotUsernameSuffix,
@@ -18,7 +18,7 @@ import {
  * are fine, so "1984" was handed a random fallback for a name Oxy would have
  * taken.
  *
- * Every expectation below is checked against `@oxyhq/contracts` itself rather
+ * Every expectation below is checked against `@oxy.so/contracts` itself rather
  * than against constants restated here. A test that hard-coded "3" would keep
  * passing the day the schema moved, which is the failure this whole change
  * exists to end.
@@ -112,7 +112,7 @@ describe('the username an agent is offered', () => {
  * because a proposal is not a handle. This file holds the rule those doors
  * apply, and the cases where appending blindly would be wrong.
  *
- * Checked against `@oxyhq/contracts` for everything except the label itself,
+ * Checked against `@oxy.so/contracts` for everything except the label itself,
  * which the installed version does not publish yet. When it does, this function
  * is replaced by its `applyBotUsernameSuffix` and these cases carry over: they
  * describe the rule, not Alia's stand-in for it.

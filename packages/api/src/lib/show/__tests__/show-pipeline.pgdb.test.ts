@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { uuidv7 } from '@oxyhq/db';
+import { uuidv7 } from '@oxy.so/db';
 import { closePostgres, connectPostgres, type ApiDatabase } from '../../../db/index';
 import { userCredits } from '../../../db/schema/billing';
 import { showEpisodes, showSeries } from '../../../db/schema/shows';

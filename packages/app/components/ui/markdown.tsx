@@ -1,7 +1,7 @@
 import React, { useMemo } from "react";
 import { Platform, View } from "react-native";
 import { AliaMarkdown } from '@alia.onl/sdk';
-import { fontFamilies } from "@oxyhq/bloom/fonts";
+import { fontFamilies } from "@oxy.so/bloom/fonts";
 import { useColorScheme } from "@/lib/useColorScheme";
 
 import {

@@ -38,7 +38,7 @@
  * for something we do not serve" is itself a fact worth counting.
  */
 
-import { modelReferenceSchema } from '@oxyhq/contracts';
+import { modelReferenceSchema } from '@oxy.so/contracts';
 
 import { isEffortLevel, type EffortLevel } from '../reasoning-effort.js';
 import { isKaanaRoutingProfileId } from '../routing/kaana-profiles.js';

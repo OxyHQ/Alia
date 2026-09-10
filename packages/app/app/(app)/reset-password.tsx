@@ -1,17 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { useAuth } from '@oxyhq/services';
+import { useAuth } from '@oxy.so/services';
 import { AuthContainer } from '@/components/auth/auth-container';
 import { AuthLogo } from '@/components/auth/auth-logo';
 import { AuthInput } from '@/components/auth/auth-input';
 import { AuthButton } from '@/components/auth/auth-button';
 import { AuthError } from '@/components/auth/auth-error';
 import apiClient from '@/lib/api/client';
-import { toast } from '@oxyhq/bloom/toast';
+import { toast } from '@oxy.so/bloom/toast';
 import { useTranslation } from '@/lib/hooks/use-translation';
 import { errorMessage as getErrorMessage } from '@/lib/errors/error-utils';
-import { ContentPanel } from "@oxyhq/bloom/content-panel";
+import { ContentPanel } from "@oxy.so/bloom/content-panel";
 
 export default function ResetPasswordScreen() {
   const { t } = useTranslation();

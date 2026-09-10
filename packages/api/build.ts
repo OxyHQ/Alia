@@ -1,19 +1,19 @@
 import * as esbuild from 'esbuild';
 import { cp } from 'fs/promises';
 
-// Keep every node_modules dependency external, @oxyhq/* included.
+// Keep every node_modules dependency external, @oxy.so/* included.
 //
-// @oxyhq/* used to be exempted and bundled, on the rationale that its ESM
+// @oxy.so/* used to be exempted and bundled, on the rationale that its ESM
 // builds omitted the .js extension on relative imports (which Node's ESM loader
-// requires). Re-measured 2026-07-31 against @oxyhq/core 13.0.0 — the only
-// @oxyhq/* dependency this package declares: 225 of 225 executable relative
+// requires). Re-measured 2026-07-31 against @oxy.so/core 13.0.0 — the only
+// @oxy.so/* dependency this package declares: 225 of 225 executable relative
 // specifiers in dist/esm (99 files, incl. dist/esm/server) carry an extension,
-// 0 are extensionless. Node imports '@oxyhq/core', '@oxyhq/core/server' and its
-// transitive '@oxyhq/protocol' as ESM without complaint. The rationale is
+// 0 are extensionless. Node imports '@oxy.so/core', '@oxy.so/core/server' and its
+// transitive '@oxy.so/protocol' as ESM without complaint. The rationale is
 // obsolete.
 //
 // The exemption was also actively dangerous. @oxyhq packages published as
-// CommonJS (every @oxyhq/crowdsource* package today) get each internal
+// CommonJS (every @oxy.so/crowdsource* package today) get each internal
 // require() rewritten into an esbuild shim when inlined into this ESM bundle,
 // which throws the moment it runs:
 //   Error: Dynamic require of "zod" is not supported
@@ -23,10 +23,10 @@ import { cp } from 'fs/promises';
 // to Node; the runtime image ships the hoisted node_modules for the
 // externalized bundle to resolve against (see Dockerfile).
 //
-// What would invalidate this: an @oxyhq/* package entering this package's
+// What would invalidate this: an @oxy.so/* package entering this package's
 // dependency graph whose ESM build DOES use extensionless relative imports.
 // That is not hypothetical and the property is per-package, not ecosystem-wide
-// — @oxyhq/bloom 0.67.0 measured 81 of 81 extensionless in lib/ on the same
+// — @oxy.so/bloom 0.67.0 measured 81 of 81 extensionless in lib/ on the same
 // date. This package does not depend on it; if that ever changes, re-measure
 // the ESM dist of the packages package.json actually declares rather than
 // trusting the numbers above to still hold.

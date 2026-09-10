@@ -35,7 +35,7 @@ vi.mock('expo-linear-gradient', async () => {
   };
 });
 
-vi.mock('@oxyhq/bloom/theme', () => ({ withAlpha: (color: string) => color }));
+vi.mock('@oxy.so/bloom/theme', () => ({ withAlpha: (color: string) => color }));
 vi.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
 }));

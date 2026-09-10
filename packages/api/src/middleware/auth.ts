@@ -1,13 +1,13 @@
 import crypto from 'crypto';
 import { Request, Response, NextFunction } from 'express';
-import { OxyServices } from '@oxyhq/core';
+import { OxyServices } from '@oxy.so/core';
 import {
   createOptionalOxyAuth,
   createOxyAuthMiddleware,
   type OxyRequestUser,
   type OxyServiceAppContext,
   type OxyServiceActingAsContext,
-} from '@oxyhq/core/server';
+} from '@oxy.so/core/server';
 import { recordApiKeyUsage } from '../db/telemetry/apiKeyUsageRepository.js';
 import { API_KEY_USAGE_METHODS } from '../domain/api-key-usage.js';
 import { log } from '../lib/logger.js';
@@ -48,7 +48,7 @@ declare global {
 }
 
 /**
- * Oxy authentication middleware (official @oxyhq/core/server)
+ * Oxy authentication middleware (official @oxy.so/core/server)
  * Validates JWT tokens (including service tokens) and sets req.userId, req.user, req.accessToken
  */
 export const authenticateToken = createOxyAuthMiddleware(oxyClient, { auth: { debug: true } });
@@ -58,7 +58,7 @@ export const authenticateToken = createOxyAuthMiddleware(oxyClient, { auth: { de
  * Use for internal-only endpoints (e.g., /internal/trigger).
  *
  * Alia deliberately supplies no private verification secret. The compatible
- * `@oxyhq/core` release verifies Ed25519 service tokens against Oxy's public
+ * `@oxy.so/core` release verifies Ed25519 service tokens against Oxy's public
  * `/.well-known/jwks.json`, including issuer, audience, lifetime, type and
  * scopes. The middleware fails closed when that endpoint or exact `kid` is not
  * available. Never add `ACCESS_TOKEN_SECRET` or a private signing key here.
@@ -107,7 +107,7 @@ export function optionalAuth(
     return next();
   }
 
-  // Uses @oxyhq/core/server optional auth — attaches user if valid, continues if not.
+  // Uses @oxy.so/core/server optional auth — attaches user if valid, continues if not.
   oxyOptionalAuth(req, res, next);
 }
 

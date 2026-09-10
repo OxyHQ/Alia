@@ -33,7 +33,7 @@ credential never join Kaana's hosted credential pool.
 2. `buildChatRequestContext` validates the requested identity, entitlement,
    product mode and capabilities, then reserves product credits.
 3. Alia assembles conversation context, memory, agent instructions and tools.
-4. The inference seam calls `@oxyhq/core`'s `OxyInferenceClient` with an exact
+4. The inference seam calls `@oxy.so/core`'s `OxyInferenceClient` with an exact
    opaque `routingProfileId` and Alia's service credential.
 5. Oxy authenticates that credential and resolves routing policy into ordered
    `authorizedRoutes`, signs the final envelope, and sends it to Kaana.

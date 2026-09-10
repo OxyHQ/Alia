@@ -12,7 +12,7 @@ workstream 3, *"Introduce a typed Kaana client boundary"*.
 For every capability that workstream lists under **Client responsibilities** and
 **Resilience**, this document states three things: what the Oxy↔Kaana contract
 defines for it, what Alia's live path does today, and the exact edit that bridges
-them. The goal is that the work after `@oxyhq/contracts` publishes its inference
+them. The goal is that the work after `@oxy.so/contracts` publishes its inference
 module is mechanical rather than exploratory.
 
 **Measured 2026-08-16.** Alia paths are `packages/api/src/…` on
@@ -29,7 +29,7 @@ never `domain/model-config.ts`.
 
 ## 0. The blocker, and what it costs
 
-`@oxyhq/contracts@0.26.0` is the latest published version and it does **not**
+`@oxy.so/contracts@0.26.0` is the latest published version and it does **not**
 contain the inference module — it was cut before that work merged.
 
 Measured from the published tarball, each count paired with a positive control so
@@ -44,7 +44,7 @@ that a zero means absence rather than a scan that read nothing:
 version that is already published — so a republish is a version bump plus a
 publish, not a publish alone.
 
-**Therefore Alia adds no `@oxyhq/contracts` dependency in this workstream.**
+**Therefore Alia adds no `@oxy.so/contracts` dependency in this workstream.**
 Adding it today would resolve to a package whose inference module does not exist,
 and every type below would silently become an import error or, worse, an `any`.
 
@@ -158,13 +158,13 @@ an HMAC over `timestamp + service + method + path + sha256(body)`
 **Edit.** Delete `generateAuthHeaders`, `apiGet`, `apiPost`, `apiPatch` and the
 mode detection (`gateway-client.ts:30-132`) as one unit — the HMAC mode is the
 "static cross-service secret" workstream 2 removes. The replacement obtains a
-short-lived service token through `@oxyhq/core` and lets the Oxy edge resolve
+short-lived service token through `@oxy.so/core` and lets the Oxy edge resolve
 `AuthenticatedPrincipal`; Alia never constructs one, because it cannot: the
 brands in `identifiers.ts:38,50` mean the only way to obtain an `OxyAccountId` is
 to parse one through the schema.
 
 **Since 2026-08-17 (#139 ws2).** The replacement half of that edit exists:
-`lib/inference/kaana-credential.ts` configures `@oxyhq/core` with the
+`lib/inference/kaana-credential.ts` configures `@oxy.so/core` with the
 ApplicationCredential in `OXY_SERVICE_API_KEY` / `OXY_SERVICE_API_SECRET`
 and returns it typed as `RelayClientConfig['credential']`, so the token the
 client presents is minted, cached and refreshed by the SDK — measured against a
@@ -748,7 +748,7 @@ written. None is answerable from either repository today.
 
 ## 8. Reopening conditions
 
-- **§0 expires** the moment a version above `0.26.0` of `@oxyhq/contracts`
+- **§0 expires** the moment a version above `0.26.0` of `@oxy.so/contracts`
   publishes with `dist/types/index.d.ts` naming `inferenceRequestSchema`. Re-run
   the two measurements in §0 with their positive controls before acting on this
   document.

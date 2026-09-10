@@ -24,7 +24,7 @@
  * migrations as `join(__dirname, '..', '..', 'drizzle')`. Nothing had noticed
  * because nothing had ever run this migrator from a container.
  *
- * The two-databases check is the one whose absence is hardest to see. `@oxyhq/db`
+ * The two-databases check is the one whose absence is hardest to see. `@oxy.so/db`
  * fixes the ledger at `drizzle.__drizzle_migrations` with no per-service
  * namespacing and applies a migration only when its journal `when` is strictly
  * newer than the newest recorded one, so two packages migrating into one
@@ -34,10 +34,10 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-// `@oxyhq/db/migrate`, not the root entry — the root export map does not
+// `@oxy.so/db/migrate`, not the root entry — the root export map does not
 // re-export the migrate subpath, so importing it from there yields `undefined`
 // and every substring assertion against it would compare against nothing.
-import { POST_PHASE_GREP_PATTERN } from '@oxyhq/db/migrate';
+import { POST_PHASE_GREP_PATTERN } from '@oxy.so/db/migrate';
 
 // `__dirname`, not `import.meta.url`: this package's tsconfig is
 // `module: commonjs`, so `import.meta` is a TS1343 under its own `type-check`.
@@ -91,7 +91,7 @@ describe('deploy-integrations.yml', () => {
     expect(workflow).toContain('MIGRATION_ENTRYPOINT: packages/integrations/dist/db/migrate.js');
   });
 
-  it('greps for the post-phase marker with the pattern @oxyhq/db exports, not a copy', () => {
+  it('greps for the post-phase marker with the pattern @oxy.so/db exports, not a copy', () => {
     expect(POST_PHASE_GREP_PATTERN).toBe('^-- oxy:deploy-phase=post$');
     expect(workflow).toContain(POST_PHASE_GREP_PATTERN);
   });
@@ -136,7 +136,7 @@ describe('the two migrators do not share a database', () => {
    * The invariant, stated as a difference between the two workflows rather than
    * as either literal name, because what matters is that they cannot collide.
    *
-   * Sharing one database is not a performance question. `@oxyhq/db`'s ledger
+   * Sharing one database is not a performance question. `@oxy.so/db`'s ledger
    * lives at a fixed `drizzle.__drizzle_migrations` with no per-service
    * namespacing, and `pendingEntries` is a high-water filter on the journal's
    * `when` timestamp, not a set difference. Whichever package migrated most
@@ -196,7 +196,7 @@ describe('packages/integrations/Dockerfile', () => {
    * the fact to describe a fix: `src/db/migrate.ts` resolves
    * `join(__dirname, '..', '..', 'drizzle')`, which from `dist/db/` is
    * `/app/packages/integrations/drizzle`, and the image had no such path. It
-   * fails loudly — @oxyhq/db's `readJournal` throws naming the missing file —
+   * fails loudly — @oxy.so/db's `readJournal` throws naming the missing file —
    * but only at the one-shot migration task, after a full ARM64 build, on the
    * step whose entire job is to run before the rollout that needs it.
    */

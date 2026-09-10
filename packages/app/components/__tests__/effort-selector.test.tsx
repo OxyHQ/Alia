@@ -116,7 +116,7 @@ vi.mock("@/lib/utils", () => ({
   cn: (...parts: unknown[]) => parts.filter(Boolean).join(" "),
 }));
 
-vi.mock("@oxyhq/bloom/bottom-sheet", async () => {
+vi.mock("@oxy.so/bloom/bottom-sheet", async () => {
   const ReactModule = await import("react");
   return {
     BottomSheet: ({
@@ -127,7 +127,7 @@ vi.mock("@oxyhq/bloom/bottom-sheet", async () => {
   };
 });
 
-vi.mock("@oxyhq/bloom/hooks", () => ({
+vi.mock("@oxy.so/bloom/hooks", () => ({
   useHaptics: () => mocks.haptics,
 }));
 

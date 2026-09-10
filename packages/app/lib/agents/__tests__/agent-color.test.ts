@@ -7,16 +7,16 @@ import { describe, expect, it, vi } from 'vitest';
  * so they are loaded from there: what runs here is Bloom's own table and Bloom's
  * own `parseRgb`, which is the entire point of asserting against them.
  */
-vi.mock('@oxyhq/bloom/theme', async () => {
+vi.mock('@oxy.so/bloom/theme', async () => {
   const { createRequire } = await import('node:module');
   const { pathToFileURL } = await import('node:url');
   const require = createRequire(import.meta.url);
-  const entry = pathToFileURL(require.resolve('@oxyhq/bloom'));
+  const entry = pathToFileURL(require.resolve('@oxy.so/bloom'));
   const from = (module: string) => require(new URL(`theme/${module}.js`, entry).pathname);
   return { ...from('color-utils'), ...from('color-presets') };
 });
 
-import { APP_COLOR_PRESETS } from '@oxyhq/bloom/theme';
+import { APP_COLOR_PRESETS } from '@oxy.so/bloom/theme';
 
 import { AGENT_SWATCHES } from '@/lib/constants/agent-colors';
 import { agentColorPreset, agentTint } from '../agent-color';

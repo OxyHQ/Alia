@@ -2,7 +2,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
 import { ArrowLeft, ChevronDown, ChevronUp } from 'lucide-react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ContentPanel } from '@oxyhq/bloom/content-panel';
+import { ContentPanel } from '@oxy.so/bloom/content-panel';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import { AutomationPill, automationStatusTone } from '@/components/automations/automation-pill';

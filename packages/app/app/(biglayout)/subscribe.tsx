@@ -13,11 +13,11 @@ import {
   type SubscriptionPlan,
 } from '@/lib/hooks/use-billing';
 import { useQueryClient } from '@tanstack/react-query';
-import { useAuth } from '@oxyhq/services';
-import { toast } from '@oxyhq/bloom/toast';
+import { useAuth } from '@oxy.so/services';
+import { toast } from '@oxy.so/bloom/toast';
 import { useTranslation } from '@/lib/hooks/use-translation';
 import { queryKeys } from '@/lib/hooks/query-keys';
-import { confirm } from '@oxyhq/bloom/surfaces';
+import { confirm } from '@oxy.so/bloom/surfaces';
 import {
   type BillingPeriod,
   type PricingTier,

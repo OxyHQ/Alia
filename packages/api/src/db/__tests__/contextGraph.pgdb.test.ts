@@ -5,7 +5,7 @@ import {
   isCheckViolation,
   isForeignKeyViolation,
   isUniqueViolation,
-} from '@oxyhq/db';
+} from '@oxy.so/db';
 import { closePostgres, connectPostgres, type ApiDatabase } from '../index';
 import { contextEdges, contextNodes, contextSources } from '../schema/context-graph';
 import { CONTEXT_EDGE_TYPES } from '../../domain/context-edge.js';

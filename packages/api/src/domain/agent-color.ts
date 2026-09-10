@@ -11,7 +11,7 @@
  * The vocabulary is Bloom's. `User.color` holds a Bloom preset KEY — `"blue"`,
  * `"lagoon"`, `"bronze-neon"` — not a hex, and Bloom's `FREE_COLOR_NAMES` is
  * the list of the sixty-one a person may pick without a subscription.
- * `@oxyhq/bloom` is a React Native package and is not, and should not become, a
+ * `@oxy.so/bloom` is a React Native package and is not, and should not become, a
  * dependency of this service, so the names below are a curated SUBSET restated
  * rather than imported.
  *
@@ -56,7 +56,7 @@
  *
  * `packages/app/lib/constants/agent-colors.ts` is the other half — what the
  * agent editor OFFERS. It has to be a separate declaration, because this
- * service must not depend on `@oxyhq/bloom` and the app cannot import this
+ * service must not depend on `@oxy.so/bloom` and the app cannot import this
  * service; and two declarations of one vocabulary is precisely how the picker
  * came to offer fifty-two colours that could not be saved.
  *

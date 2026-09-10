@@ -52,7 +52,7 @@ const SYRA_API_URL = process.env.SYRA_API_URL?.trim() || 'https://api.syra.fm';
  *
  * `req.accessToken`, which the AUTH MIDDLEWARE sets — not a second parse of the
  * `Authorization` header. `authenticateToken` is
- * `createOxyAuthMiddleware(oxyClient, …)` from `@oxyhq/core`, and that assigns
+ * `createOxyAuthMiddleware(oxyClient, …)` from `@oxy.so/core`, and that assigns
  * `req.userId`, `req.accessToken` and `req.user` together on the
  * session-validated path (`mixins/OxyServices.utility.ts:745-748`, present in
  * both the cjs and esm dist that actually run). Every route in this router sits

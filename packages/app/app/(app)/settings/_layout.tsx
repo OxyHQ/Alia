@@ -1,6 +1,6 @@
 import { View } from "react-native";
 import { Stack } from "expo-router";
-import { ContentPanel } from "@oxyhq/bloom/content-panel";
+import { ContentPanel } from "@oxy.so/bloom/content-panel";
 import { SettingsSidebar } from "@/components/settings/settings-sidebar";
 import { asViewStyle } from "@/lib/types/webStyles";
 
