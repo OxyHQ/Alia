@@ -80,6 +80,24 @@ Approval requests/results use the authenticated Socket.IO agent-session room,
 not the HTTP SSE connection. Clients must not wait for them on the completion
 stream.
 
+## Browser origins and `@alia.onl/sdk`
+
+The two mounts differ in who a browser may be. `/alia/chat` takes Alia's
+exact-origin CORS allowlist (`packages/api/src/lib/cors-origins.ts`, mounted
+in `packages/api/src/index.ts` for every path that is not `/v1`), so a
+preflight from an origin Alia does not enumerate gets no
+`access-control-allow-origin`; `/v1/*` answers `*`. A request with no `Origin`
+header — a server, a native app — is subject to neither. The policy is pinned
+by `packages/api/src/middleware/__tests__/chat-origin-policy.test.ts`.
+
+That is why `@alia.onl/sdk`, a product client that switches on the `alia.*`
+events above, still sends its turns to `/v1/chat/completions`: it ships raw
+source and compiles into apps on their own origins. An external product uses
+it through its own backend today — `useAliaChat({ apiUrl })` at that backend,
+which calls `POST /alia/chat` server-to-server with the user's Oxy token
+forwarded and relays the SSE body unchanged (`packages/alia-chat/README.md`).
+Issue #244 records the other two shapes and what blocks each.
+
 ## Persistence and failure
 
 Conversations and messages are stored through the Postgres repositories. Usage

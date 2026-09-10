@@ -347,6 +347,14 @@ them.
 > [ADR 0006](../adr/0006-the-destination-of-api-alia-onl-v1-is-recorded-twice.md) states
 > both positions with their costs and deliberately resolves neither. Do not act on either
 > claim until it is resolved.
+>
+> It is an OPEN OWNER DECISION, and something now waits on it:
+> [#244](https://github.com/OxyHQ/Alia/issues/244) — `@alia.onl/sdk` is a product
+> client whose consumers can only reach this surface, because `/alia/chat` answers CORS
+> for Alia's origins alone — is cosmetic if `/v1` is permanent and a hard blocker for
+> every SDK consumer if it sunsets. Until the owner decides, the SDK's supported path is
+> the consumer-backend relay recorded in `compatibility-window.md` § (b), and the
+> `sdk-chat-consumer` row says the same.
 
 **What is deleted.** The four 410 tombstones, once access logs show a billing period with
 no hits — the 410 body is itself the public deprecation notice, so removing it turns a
