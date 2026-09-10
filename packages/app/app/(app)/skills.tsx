@@ -15,6 +15,7 @@ import {
 } from '@/lib/hooks/use-skills';
 import { SkillCover } from '@/components/ui/skill-cover';
 import { Skeleton } from '@/components/ui/skeleton';
+import { DrawerToggle } from '@/components/ui/drawer-toggle';
 import { ContentPanel } from '@oxy.so/bloom/content-panel';
 
 /**
@@ -139,7 +140,11 @@ export default function SkillsScreen() {
       >
         <View className="px-5 pt-6 pb-4">
           <View className="flex-row items-center justify-between">
-            <Text className="text-2xl font-bold text-foreground">{t('skills.title')}</Text>
+            {/* The drawer opener sits first, as on every top-level page (#532). */}
+            <View className="flex-row items-center gap-2">
+              <DrawerToggle />
+              <Text className="text-2xl font-bold text-foreground">{t('skills.title')}</Text>
+            </View>
             <View className="flex-row gap-2">
               <Button
                 size="icon"

@@ -3,6 +3,7 @@ import { useOxy } from '@oxy.so/services';
 import apiClient from '../api/client';
 import { API_ROUTES } from '../api/routes';
 import { queryKeys } from './query-keys';
+import { errorStatus } from '../errors/error-utils';
 import type { Agent, AgentCreate, AgentUpdate } from '../types/agents';
 
 /**
@@ -69,15 +70,44 @@ export function useAgentCatalogue(params?: AgentCatalogueParams) {
   });
 }
 
-/** One agent, whole. `undefined` id is a screen that has not resolved its route yet. */
+/**
+ * One agent, whole. `undefined` id is a screen that has not resolved its route yet.
+ *
+ * ## Not before the session can sign the request
+ *
+ * `GET /agents/:id` is `optionalAuth`, and an unpublished draft is served only
+ * to a caller the route can verify — to anyone else it is a 404, on purpose.
+ * On a full page load this query used to go out the moment the route resolved
+ * its id, which is BEFORE the Oxy session has minted its bearer: the request
+ * left without an `Authorization` header, the route correctly answered 404 for
+ * the person's own draft, and the editor sat on "Loading…" for as long as the
+ * tab stayed open (#530). `GET /agents/me`, gated on the session, listed the
+ * same agent a moment later.
+ *
+ * `isPrivateApiPending` is the SDK's own name for that gap: true until auth is
+ * resolved and, for a signed-in session, until the token is actually in hand.
+ * It is deliberately NOT `isAuthenticated` — that is `user !== null`, which the
+ * persisted store restores before the bearer exists, so it is the very flag
+ * that let the race through; and a signed-out reader of a PUBLISHED agent is a
+ * legitimate caller of this route, whom an `isAuthenticated` gate would leave
+ * loading forever. When the flag clears the query enables itself and fetches,
+ * which is the whole recovery: nothing else has to notice.
+ *
+ * A 404 is not retried. The route answers it deliberately — the agent is gone,
+ * or not this person's to see — and three more tries with the same credential
+ * would only stretch the loading state the screen is trying to leave.
+ */
 export function useAgent(id: string | undefined) {
+  const { isPrivateApiPending } = useOxy();
+
   return useQuery({
     queryKey: queryKeys.agents.detail(id ?? ''),
     queryFn: async (): Promise<Agent> => {
       const response = await apiClient.get<{ agent: Agent }>(API_ROUTES.agents.get(id ?? ''));
       return response.data.agent;
     },
-    enabled: typeof id === 'string' && id.length > 0,
+    enabled: typeof id === 'string' && id.length > 0 && !isPrivateApiPending,
+    retry: (failureCount, error) => errorStatus(error) !== 404 && failureCount < 3,
   });
 }
 

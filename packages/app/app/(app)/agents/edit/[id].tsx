@@ -155,19 +155,67 @@ interface IdentityDraft {
 export default function EditAgentScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { t } = useTranslation();
-  const { data: agent, isPending } = useAgent(id);
+  const router = useRouter();
+  const { data: agent, isError, error, refetch } = useAgent(id);
 
-  if (isPending || agent === undefined) {
+  // Keyed on the agent, so opening a DIFFERENT one starts a different draft
+  // and opening the same one again never restarts this one.
+  if (agent !== undefined) {
+    return <AgentEditor key={agent._id} agent={agent} />;
+  }
+
+  /**
+   * A query that FAILED is not one that is loading.
+   *
+   * This screen used to render "Loading…" for `isPending || agent === undefined`,
+   * and an errored query satisfies the second half forever — `isPending` is
+   * false and `data` stays `undefined` — so a 404 was indistinguishable from a
+   * fetch in flight and the screen never left it (#530). The two answers the
+   * route gives are told apart here: a 404 is the route's deliberate "not
+   * yours, or not there", which no retry changes, so the way out is the list;
+   * anything else is transient and gets a Retry that runs the same query.
+   */
+  if (isError) {
+    const notFound = errorStatus(error) === 404;
     return (
-      <View className="flex-1 bg-background items-center justify-center">
-        <Text className="text-muted-foreground">{t("common.loading")}</Text>
+      <View className="flex-1 bg-background items-center justify-center px-6 gap-3">
+        <Text className="text-base font-medium text-foreground text-center">
+          {notFound ? t("agents.notFound") : t("agents.loadFailed")}
+        </Text>
+        <Text className="text-sm text-muted-foreground text-center">
+          {notFound ? t("agents.notFoundDetail") : getErrorMessage(error, t("agents.loadFailed"))}
+        </Text>
+        {notFound ? (
+          <Button
+            variant="outline"
+            accessibilityRole="button"
+            accessibilityLabel={t("agents.backToAgents")}
+            onPress={() => router.replace("/(app)/agents")}
+          >
+            <Text className="text-foreground">{t("agents.backToAgents")}</Text>
+          </Button>
+        ) : (
+          <Button
+            variant="outline"
+            accessibilityRole="button"
+            accessibilityLabel={t("agents.retry")}
+            onPress={() => void refetch()}
+          >
+            <Text className="text-foreground">{t("agents.retry")}</Text>
+          </Button>
+        )}
       </View>
     );
   }
 
-  // Keyed on the agent, so opening a DIFFERENT one starts a different draft
-  // and opening the same one again never restarts this one.
-  return <AgentEditor key={agent._id} agent={agent} />;
+  // Either the session is still minting its token — the query is disabled
+  // until it has — or the fetch is in flight. Both are a wait, and the same one
+  // to the person looking at it.
+  return (
+    <View className="flex-1 bg-background items-center justify-center">
+      <Text className="text-muted-foreground">{t("common.loading")}</Text>
+    </View>
+  );
 }
 
 function AgentEditor({ agent }: { agent: Agent }) {

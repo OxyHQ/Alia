@@ -300,6 +300,7 @@
     "subtitle": "Upload and manage your files, documents, and resources for use with Alia",
     "empty": "No items yet",
     "searchPlaceholder": "Search files...",
+    "addFiles": "Add files",
     "addImages": "Add Images",
     "uploadFiles": "Upload Files",
     "documents": "Documents",
@@ -348,7 +349,13 @@
     "dislike": "Dislike",
     "edit": "Edit",
     "sources": "Sources",
-    "sourcesCount": "%{count} sources"
+    "sourcesCount": "%{count} sources",
+    "conversationOptions": "Conversation options",
+    "turnFailed": "Alia couldn't answer right now.",
+    "turnInterrupted": "Alia was interrupted before finishing.",
+    "turnFailedRetryHint": "Try again.",
+    "retry": "Retry",
+    "exportFailed": "Couldn't export this conversation."
   },
   "credits": {
     "title": "Credits",
@@ -399,7 +406,29 @@
     "promptPlaceholder": "Describe what this automation should do...",
     "schedule": "Schedule",
     "daily": "Daily",
-    "interval": "Interval"
+    "interval": "Interval",
+    "intervalMinutes": "Minutes between runs",
+    "intervalInvalid": "Enter a whole number of minutes, at least 1.",
+    "runsEveryHour": "Runs every hour.",
+    "runsEveryMinutes": "Runs every {{minutes}} minutes.",
+    "created": "Automation created",
+    "createdDescription": "It now shows in Tasks with your other work.",
+    "viewTasks": "View tasks"
+  },
+  "tasks": {
+    "title": "Tasks",
+    "active": "Active",
+    "history": "History",
+    "activeCount": "{{count}} active",
+    "filterAll": "All",
+    "filterTasks": "Tasks",
+    "filterAutomations": "Automations",
+    "emptyActive": "No active tasks or automations",
+    "emptyActiveHint": "Hire an agent from the Agents page to start a task, or create an automation from the Automations page. Both run in the background and you can track them here.",
+    "emptyHistory": "No finished tasks or stopped automations yet",
+    "loadError": "Could not load your tasks and automations.",
+    "retry": "Retry",
+    "loadMore": "Load more"
   },
   "skills": {
     "title": "Skills",
@@ -576,18 +605,18 @@
     "failedToReset": "Failed to reset password. Please try again."
   },
   "chatHeader": {
-    "shareConversation": "Share conversation",
     "export": "Export",
     "settings": "Settings",
-    "help": "Help",
     "clearConversation": "Clear conversation",
     "clearConfirmTitle": "Clear Conversation",
     "clearConfirmDescription": "Are you sure you want to clear this conversation? This action cannot be undone.",
     "clear": "Clear",
-    "exportComingSoon": "Export conversation functionality coming soon!",
-    "shareComingSoon": "Share conversation functionality coming soon!",
     "settingsComingSoon": "Settings functionality coming soon!",
-    "helpComingSoon": "Help functionality coming soon!"
+    "openMenu": "Open menu",
+    "temporaryChat": "Temporary chat",
+    "searchConversations": "Search conversations",
+    "searchThread": "Search this thread",
+    "moreOptions": "More options"
   },
   "welcome": {
     "greetingNamed": "Hi {{name}}, what's on your mind?",
@@ -624,6 +653,10 @@
     "about": "About",
     "noAgents": "No agents found",
     "notFound": "Agent not found",
+    "notFoundDetail": "This agent could not be found. It may have been deleted, or it belongs to another account.",
+    "backToAgents": "Back to agents",
+    "loadFailed": "This agent could not be loaded",
+    "retry": "Retry",
     "statusActive": "Active",
     "statusIdle": "Idle",
     "statusOffline": "Offline",
