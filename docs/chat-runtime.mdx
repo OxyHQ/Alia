@@ -96,7 +96,16 @@ source and compiles into apps on their own origins. An external product uses
 it through its own backend today — `useAliaChat({ apiUrl })` at that backend,
 which calls `POST /alia/chat` server-to-server with the user's Oxy token
 forwarded and relays the SSE body unchanged (`packages/alia-chat/README.md`).
-Issue #244 records the other two shapes and what blocks each.
+
+Neither mount is going away. Under
+[ADR 0010](./adr/0010-alia-keeps-a-product-api-credentials-come-from-oxy-console.md)
+`/v1/*` is Alia's permanent product API, so the SDK's consumers are not sitting
+on a surface with a removal gate. What the relay is waiting on is the origin
+registry: a third-party application's browser origins are registered on its
+application in Oxy Console (OxyHQ/oxy#972), and once that exists the
+per-application list replaces the `/v1` wildcard on both mounts — by changing
+the pinned test on purpose, not by widening `lib/cors-origins.ts`. Issue #244
+closed on that decision.
 
 ## Persistence and failure
 

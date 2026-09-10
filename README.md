@@ -62,15 +62,28 @@ rather than an investigation.
 
 `/alia/chat` and `/v1/chat/completions` are served by the **same handler**
 (`handleChatCompletions`), so the app, Codea and Cowork cannot drift apart in behaviour.
-Both are registered in [`packages/api/src/index.ts`](packages/api/src/index.ts), with
-different auth: `optionalAuth` on the first, session-or-API-key plus a per-key rate limit
-on the second.
+Both are registered in [`packages/api/src/index.ts`](packages/api/src/index.ts) with the
+same auth (`authenticateTokenOrApiKey` plus a per-key rate limit); they differ in CORS —
+`/v1` answers any origin, `/alia/chat` only Alia's own.
 
-`/alia/chat` is the Alia **product** runtime. The OpenAI-shaped `/v1` routes
-(`chat/completions`, `models`, `responses`, `images`, `audio`, `voice`, `shows`) are a
-**bounded compatibility surface** that sunsets under
-[ADR 0004](docs/adr/0004-product-endpoints-versus-generic-inference-endpoints.md); new
-generic integrations go to Oxy Console and `api.oxy.so/v1`.
+Three roles, none a subset of another
+([ADR 0010](docs/adr/0010-alia-keeps-a-product-api-credentials-come-from-oxy-console.md)):
+
+- **Kaana** is the inference API — models only. Provider credentials live there.
+- **Oxy** is the platform and Oxy Console — accounts, applications, **all** API keys for
+  Alia, Kaana and Mention, billing.
+- **Alia** is the assistant, with its own **permanent product API**: `api.alia.onl/v1/*`
+  and `/alia/chat` (`chat/completions`, `models`, `responses`, `images`, `audio`, `voice`)
+  plus `/conversations`, `/shows`, `/skills`, `/agents` and `/catalogue`. Three groups
+  call it, all authorized by Oxy: Alia's own surfaces (the app, Codea — extension and CLI —
+  and Cowork, on `/alia/chat` with the user's Oxy session), other applications in the Oxy
+  ecosystem, and third parties through `@alia.onl/sdk`. It accepts an OpenAI-compatible
+  request shape and streams `alia.*` product events. It does not sunset.
+
+For raw model access use Kaana through Oxy (`api.oxy.so/v1`); for the assistant use
+Alia's API. In both cases the key comes from Oxy Console — Alia issues none. Today Alia's
+API authenticates an Oxy user session or service token and, deprecated, an existing
+`alia_sk_*` key; the Oxy Console application-key path is not built yet (ADR 0010 § 2).
 
 Hosted inference follows `Alia -> Oxy -> Kaana` through the published
 `OxyInferenceClient`. Alia stores no upstream provider credential, constructs no

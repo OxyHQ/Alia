@@ -76,14 +76,16 @@ clients go — but the two mounts answer browsers differently:
 `/alia/chat` takes Alia's exact-origin allowlist (`packages/api/src/lib/cors-origins.ts`);
 `/v1` is public CORS. Because this package compiles into *your* app on *your*
 origin, defaulting the hook to `/alia/chat` would fail every consumer's
-preflight on web. So it stays on `/v1/chat/completions`, which Alia keeps
-serving for a bounded compatibility window
-([ADR 0004](https://github.com/OxyHQ/Alia/blob/main/docs/adr/0004-product-endpoints-versus-generic-inference-endpoints.md),
-[`docs/migration/compatibility-window.md`](https://github.com/OxyHQ/Alia/blob/main/docs/migration/compatibility-window.md)).
-Whether that window closes, and when, is an open decision recorded in
-[#244](https://github.com/OxyHQ/Alia/issues/244); a change of default would be a
-semver-major of this package, and it would reach only consumers who upgrade
-**and** rebuild.
+preflight on web. So it stays on `/v1/chat/completions`, which is Alia's
+**permanent product API** — it does not sunset
+([ADR 0010](https://github.com/OxyHQ/Alia/blob/main/docs/adr/0010-alia-keeps-a-product-api-credentials-come-from-oxy-console.md)).
+Generic model access is a different product, Kaana through Oxy; this package
+is written against Alia's, and the credential a consumer presents is an Oxy
+one — the signed-in user's session today. A change of default to `/alia/chat`
+would be a semver-major of this package, would reach only consumers who upgrade
+**and** rebuild, and is not needed to escape a sunset; it is taken only if the
+per-application origin policy below makes it worthwhile
+([#244](https://github.com/OxyHQ/Alia/issues/244), closed on that decision).
 
 Native apps are not subject to CORS at all — React Native sends no `Origin`
 header — so the table above is about web builds and the backend path below.

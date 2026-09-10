@@ -2,18 +2,22 @@
 
 Base URL: `https://api.alia.onl`
 
-This page is organised around the boundary
-[ADR 0004](./adr/0004-product-endpoints-versus-generic-inference-endpoints.md) draws, not
-around HTTP shape, because the same handler serves two audiences and the difference is
-what a reader needs first:
+This is the HTTP surface of **Alia's product API** — permanent under
+[ADR 0010](./adr/0010-alia-keeps-a-product-api-credentials-come-from-oxy-console.md),
+which amends the sunset [ADR 0004](./adr/0004-product-endpoints-versus-generic-inference-endpoints.md)
+§3 had attached to `/v1/*`. It is not a generic inference API: for raw model access use
+Kaana through Oxy (`api.oxy.so/v1`); for the assistant — conversations, memory, agents,
+tools, research and the `alia.*` stream events — use this one. Keys for either come from
+Oxy Console. The page is organised by mount, because one handler sits behind two:
 
 - **[The Alia product runtime](#the-alia-product-runtime)** — everything the app, Codea,
   Cowork and the CLI call. Alia owns it and keeps owning it. `@alia.onl/sdk` is written
   against it too, but its transport still enters through `/v1/chat/completions`, for the
   CORS reason under [Chat](#chat).
-- **[The bounded compatibility surface](#the-bounded-compatibility-surface-v1)** —
-  `api.alia.onl/v1/*`. Presented as a generic OpenAI-compatible API, inside a compatibility
-  window, then removed. New generic integrations go to Oxy Console and `api.oxy.so/v1`.
+- **[The `/v1/*` mount](#the-bounded-compatibility-surface-v1)** — `api.alia.onl/v1/*`,
+  the OpenAI-shaped entry to the same runtime, with public CORS. The section below still
+  carries ADR 0004's window text and is read with ADR 0010's amendment: the routes are
+  frozen at their current list, not removed.
 - **[Already removed](#already-removed-410-gone)** — four endpoints returning `410 Gone`.
 
 Routes are mounted in `packages/api/src/index.ts:221` through `:257`.
@@ -24,6 +28,7 @@ Routes are mounted in `packages/api/src/index.ts:221` through `:257`.
 |---|---|
 | `Authorization: Bearer <session-token>` | Everywhere. Issued by Oxy, verified by `packages/api/src/middleware/auth.ts` |
 | `Authorization: Bearer alia_sk_<key>` | `/v1/*` and `/codea/*` only. Inside the compatibility window — see [developer access](./developers-portal.md) |
+| Oxy Console application key (`oxy_sk_*`) | **Not yet.** It is not a JWT, so `oxy.auth()` in `@oxy.so/core` refuses it `401 INVALID_TOKEN_FORMAT`; the lane is built in the Oxy API first (OxyHQ/oxy#972), then `@oxy.so/core/server`, then adopted here — ADR 0010 § 2 |
 | Oxy service token | `POST /internal/trigger` only, via `oxyServiceAuth` |
 | `x-channel-bot-secret` + `x-oxy-user-id` | Registered channel bots. Validated by `authenticateChannelBotSecret` (`packages/api/src/middleware/auth.ts`), which `authenticateTokenOrApiKey` dispatches to — so it works on `/alia/chat` as well as `/v1/*`. `routes/v1.ts:35` holds a second, pre-auth copy that matches against `listChannels()` rather than `getConfiguredChannels()` |
 
@@ -220,13 +225,15 @@ Two mounts are in the product runtime today and are Oxy's under the ADRs:
 
 ---
 
-## The bounded compatibility surface (`/v1/*`)
+## The product API under its OpenAI-compatible shape (`/v1/*`)
 
-ADR 0004 records the decision: `api.alia.onl/v1/*` remains available for a **bounded**
-window, authenticating through Oxy, issuing no new Alia credentials, settling no provider
-billing in Alia — and then sunsets. Of the three options in workstream 6 of #139 (redirect
-or proxy, bounded compatibility endpoint, immediate removal) this is the middle one, with
-the sunset attached.
+[ADR 0010](./adr/0010-alia-keeps-a-product-api-credentials-come-from-oxy-console.md)
+records the decision: `api.alia.onl/v1/*` is Alia's **permanent** product API under an
+OpenAI-compatible request shape — the same handler as `/alia/chat` — authenticating
+through Oxy, issuing no Alia credentials of its own and settling no provider billing in
+Alia. It does not sunset; what retires, on its own gate, is the `alia_sk_*` credential
+path. ADR 0004 §3, which read this surface as a bounded compatibility window, is amended
+by ADR 0010.
 
 Routes mounted in `packages/api/src/routes/v1.ts`:
 

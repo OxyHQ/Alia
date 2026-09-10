@@ -3,7 +3,10 @@
 **Status:** Accepted
 
 **Date:** 2026-08-15. **Amended 2026-08-18** — path (a) has a removal date; see
-*The alias removal date* below.
+*The alias removal date* below. **Amended 2026-09-10** — path (b) is no longer a
+compatibility path: `api.alia.onl/v1/*` is Alia's permanent product API under
+[ADR 0010](../adr/0010-alia-keeps-a-product-api-credentials-come-from-oxy-console.md);
+see section (b) below.
 
 **Applies to:** epic #139, workstream 0. Referenced by ADR 0002, ADR 0003 and ADR 0004.
 
@@ -15,13 +18,13 @@
 > resolve” describe the bounded window before that cut and are not current
 > operating behaviour. Paths (b) and (c) remain governed by their own sections.
 
-Three things survive the migration to Oxy and Kaana for a bounded period, because removing them the day the new path lands would break callers who have not been given a way to move:
+Three things were placed under a bounded window by the migration to Oxy and Kaana, because removing them the day the new path lands would break callers who have not been given a way to move:
 
 - **(a)** the `alia-*` model aliases;
-- **(b)** the `api.alia.onl/v1/*` HTTP surface;
+- **(b)** the `api.alia.onl/v1/*` HTTP surface — **withdrawn from the window on 2026-09-10**: it is Alia's permanent product API (ADR 0010), and section (b) below is the record of that rather than a gate;
 - **(c)** the `alia_sk_*` developer credentials.
 
-This document defines, for each: what still works, what deprecation signal is emitted, what measurable gate must be satisfied before removal, and who owns the clock.
+This document defines, for (a) and (c): what still works, what deprecation signal is emitted, what measurable gate must be satisfied before removal, and who owns the clock.
 
 ## Two binding rules
 
@@ -75,16 +78,16 @@ The stream event exists for path (a) as of workstream 4 as well: built by `alias
 
 The headers exist for path (c) as of workstream 11: `packages/api/src/middleware/credential-deprecation.ts`, mounted app-wide beside the alias signal, emitted on any response to a request that PRESENTS an `alia_sk_*` credential, and emitted again by `refuseIssuance` on every closed creation path. Presentation rather than successful authentication, because the middleware runs ahead of auth and a caller whose key has lapsed is exactly the caller who needs the notice. **`Sunset` is implemented and still withheld**, and since 2026-08-18 that is a disagreement with path (a) rather than agreement with it — deliberately, for the reasons in section (c) below. Both modules serialize through the same two functions and point at the same document, so the two signals cannot disagree about the FORMAT of a date or about the link; they can and now do carry different dates, because they answer to different gates.
 
-**Path (b) emits nothing, and path (c) has no stream event.** Emitting them is a prerequisite for starting those clocks, not an optional extra — a window that runs without a signal is a window that surprises its callers at the end.
+**Path (b) emits nothing, and since ADR 0010 that is correct rather than pending: the surface is not deprecated.** **Path (c) has no stream event.** Emitting one is a prerequisite for starting that clock, not an optional extra — a window that runs without a signal is a window that surprises its callers at the end.
 
 ### The alias removal date
 
-**Path (a) has a removal date: `2026-10-01T00:00:00Z`. Paths (b) and (c) have none.**
+**Path (a) has a removal date: `2026-10-01T00:00:00Z`. Path (c) has none. Path (b) will never have one.**
 
 | | decided by | on | recorded in |
 | --- | --- | --- | --- |
 | **(a)** the thirteen `alia-*` aliases | the product owner of Alia | 2026-08-18 | `ALIAS_SUNSET` (`packages/api/src/middleware/alias-deprecation.ts`), `alias-migration-map.json` `sunsetAt`, [`epic-139-decisions.md`](./epic-139-decisions.md) D1 |
-| **(b)** `api.alia.onl/v1/*` | — | — | no signal is emitted at all, so no clock has started |
+| **(b)** `api.alia.onl/v1/*` | the repository owner: **permanent, not deprecated** | 2026-09-10 | [ADR 0010](../adr/0010-alia-keeps-a-product-api-credentials-come-from-oxy-console.md); no signal is emitted and none will be |
 | **(c)** `alia_sk_*` credentials | — | — | `CREDENTIAL_SUNSET` is `null`; see section (c) |
 
 **Why a date exists for (a) when its gate is not satisfied.** It is not satisfiable. The gate is a production usage measurement, and production is parked at desired count 0 with no database credential reachable from outside it; the enumeration alternative fails on two published packages this repository cannot edit. Under the rule two sections above, an unsatisfiable gate is escalated and re-decided rather than left open, and the product owner re-decided it. That is the condition this document set for a date to be a decision instead of a placeholder, and it is met.
@@ -128,30 +131,20 @@ Stored selections deserve their own attention: a per-conversation or per-agent m
 
 ---
 
-## (b) `api.alia.onl/v1/*`
+## (b) `api.alia.onl/v1/*` — resolved: permanent, not a compatibility path
 
-The routes mounted at `packages/api/src/index.ts` — `/v1/chat/completions`, `/v1/responses`, `/v1/models`, `/v1/voice`, `/v1/audio` and `/v1/images` (`packages/api/src/routes/v1.ts`). ADR 0004 decides this surface remains as a bounded compatibility surface that authenticates through Oxy, does not reintroduce Alia-owned API keys, does not reintroduce provider billing in Alia, and then sunsets.
+The routes mounted at `packages/api/src/index.ts:249` — `/v1/chat/completions`, `/v1/responses`, `/v1/models`, `/v1/voice`, `/v1/audio` and `/v1/images` (`packages/api/src/routes/v1.ts`), fifteen routes frozen by name in `packages/api/src/routes/__tests__/v1-compatibility-surface.test.ts`.
 
-**`/v1/shows` has LEFT this window, in #327.** It was listed here with an open question against it — whether it belonged at all, given that it was `optionalAuth` and was not obviously generic inference. The workstream 1 inventory had already answered: all five rows in `docs/migration/inventories/product-api.json` carry `"proposedOwner": "alia"` and `"targetPath": "keep-alia-product"`. They are now mounted at `/shows`, beside `/conversations`, `/skills`, `/agents` and `/library`, and this surface is fifteen routes rather than twenty.
+**Until 2026-09-10 this section carried a removal gate.** ADR 0004 §3 had decided the surface *"remains as a bounded compatibility surface that authenticates through Oxy, does not reintroduce Alia-owned API keys, does not reintroduce provider billing in Alia, and then sunsets"*, and this section specified a per-route gate over `api_key_usage`, a `Deprecation`/`Sunset`/`Link` signal, an `alia.deprecation` stream event, and a clock owned by workstream 6. None of the signal was ever built — *"Path (b) emits nothing"* above was true throughout — and the gate was never measured. ADR 0006 recorded that four derived notes said the opposite.
 
-Their per-route removal gate is satisfied rather than waived. Each of the five rows records its gate as a line in `packages/app/lib/stores/show-store.ts`, and that file was rewritten against the new surface in the same change — the only consumer moved with the route. Nothing external is affected: the routes returned one account's own generated audio and could not be reached without an Oxy session. `packages/api/src/routes/__tests__/v1-compatibility-surface.test.ts` holds the measurement and now freezes fifteen.
+**The repository owner resolved it on 2026-09-10** — [ADR 0010](../adr/0010-alia-keeps-a-product-api-credentials-come-from-oxy-console.md): `api.alia.onl/v1/*`, and `/alia/chat` with it, is **Alia's permanent product API**, called by Alia's own surfaces (the app, Codea, Cowork and the CLI, on `/alia/chat`), by other applications in the Oxy ecosystem and by third parties through `@alia.onl/sdk` — all authorized by Oxy. It is not generic inference under another name; generic inference is Kaana, through Oxy, at `api.oxy.so/v1`. What holds now:
 
-**What still works during the window.** Requests to these routes continue to be served, with their existing request and response shapes, for callers authenticated through Oxy. Product SSE events may still appear on this surface, because it is the old product runtime under an old name — which is a reason the window is bounded rather than a feature of it.
+- **No signal, no gate, no clock.** Nothing in this document deprecates a `/v1` route, and nothing will. The gate text above is withdrawn, not merely unsatisfied; `410 Gone` remains the shape of a route that is *deliberately* removed by a later product decision (`POST /v1/resolve-model` and `POST /v1/report-usage` already answer that way, `packages/api/src/routes/v1.ts`), but no route is scheduled for it.
+- **ADR 0004's other three conditions are permanent properties.** The surface authenticates through Oxy, issues no new `alia_sk_*` (path (c) below is unchanged and still sunsets), and settles no provider billing in Alia (ADR 0005).
+- **The route list stays frozen.** Adding a route to `/v1` is a deliberate edit of the list in `v1-compatibility-surface.test.ts`, not a consequence of permanence; ADR 0010 does not decide where new product routes are mounted.
+- **Credentials for it come from Oxy Console.** ADR 0010 § 2 states precisely which credentials Alia accepts today — Oxy user session and service tokens, and existing `alia_sk_*` keys, deprecated — and that an Oxy Console application key (`oxy_sk_*`) is **not yet accepted** by `packages/api/src/middleware/auth.ts` or by `@oxy.so/core` 1.0.1. That path is built in Oxy first (OxyHQ/oxy#972), then in `@oxy.so/core/server`, then adopted here.
 
-**What does not.** The surface gains no new capability, no new route and no new model. It is not the place a new feature ships. Generic inference development happens on `api.oxy.so/v1`.
-
-**Deprecation signal.** `Deprecation` and `Sunset` headers on every response from every route on this surface, with a `Link` to the migration documentation, plus `alia.deprecation` on streaming responses.
-
-**Removal gate.** Per route, both of:
-
-1. A measurement over `api_key_usage` filtered to that `endpoint`, across a window shorter than the 90-day retention and covering at least one full monthly billing cycle, showing zero external requests — where external means `auth_type` is not `internal` and the caller is not a first-party Alia surface; with a positive control showing non-zero traffic on a route known to be live over the same window. **Or** an enumeration showing every known consumer has migrated.
-2. A replacement exists and is documented: either the equivalent `api.oxy.so/v1` route is live, or the route's capability is explicitly recorded as not carried forward.
-
-Route-by-route is deliberate. These routes have different consumers and will empty at different times, and gating the whole surface on its least-migrated route means the rest survives for no reason.
-
-**Who owns the clock.** The owner of workstream 6 of #139 (product versus generic API split), recorded on the epic.
-
-**On removal**, a route returns `410 Gone` with a message naming the replacement. This repository already uses that pattern for removed endpoints (`POST /v1/resolve-model` and `POST /v1/report-usage`, `packages/api/src/routes/v1.ts`); compatibility removals end the same way rather than by deleting the route and returning a bare `404`.
+**`/v1/shows` left this surface in #327**, before the resolution, and the record stands as a fact about the routes rather than about the window: all five rows in `docs/migration/inventories/product-api.json` carry `"proposedOwner": "alia"` and `"targetPath": "keep-alia-product"`, they are mounted at `/shows` beside `/conversations`, `/skills`, `/agents` and `/library`, and `packages/app/lib/stores/show-store.ts` — the only consumer — was rewritten against the new mount in the same change. Twenty routes became fifteen, which `v1-compatibility-surface.test.ts` freezes.
 
 ### `@alia.onl/sdk` on this surface — the answer to #244
 
@@ -159,11 +152,11 @@ Route-by-route is deliberate. These routes have different consumers and will emp
 
 [#244](https://github.com/OxyHQ/Alia/issues/244) lays out three shapes, and this document records where each stands:
 
-- **(a) A CORS policy on `/alia/chat` for registered consumer origins — not Alia's to build.** It needs an origin registry, and the only per-consumer registry Alia ever had, `developer_apps`, is closed under (c) below. The registry that can carry consumer origins is Oxy Applications, so this shape is blocked on `OxyHQ/oxy#972`.
-- **(b) The SDK default moves to `/alia/chat` in a semver-major — an adoption window, not a switch.** A raw-source package changes endpoint only for consumers who upgrade **and** rebuild, exactly as recorded for the aliases under (a) above. `/v1/chat/completions` must keep serving installed copies afterwards, so the route's removal gate is bounded by SDK adoption, not by the policy landing.
+- **(a) A CORS policy on `/alia/chat` for registered consumer origins — not Alia's to build.** It needs an origin registry, and the only per-consumer registry Alia ever had, `developer_apps`, is closed under (c) below. The registry that carries consumer origins is the application's record in Oxy Console, so this shape is blocked on `OxyHQ/oxy#972`. ADR 0010 § 3 fixes what happens when it lands: the per-application origin list replaces the `/v1` wildcard on both mounts, by changing `chat-origin-policy.test.ts` on purpose and never by widening `lib/cors-origins.ts`.
+- **(b) The SDK default moves to `/alia/chat` in a semver-major — an adoption window, not a switch.** A raw-source package changes endpoint only for consumers who upgrade **and** rebuild, exactly as recorded for the aliases under (a) above. `/v1/chat/completions` keeps serving installed copies afterwards — permanently, under ADR 0010 — so this shape is no longer needed to escape a sunset and is taken only if the per-application origin policy makes it worthwhile.
 - **(c) The consumer-backend path — supported today, no registry, nothing from Oxy.** `useAliaChat({ apiUrl })` points the SDK at the consumer's own backend; that backend calls `POST /alia/chat` server-to-server, where there is no `Origin` header and the route answers on its credential alone, forwards the user's Oxy session token the SDK already attached, and streams the SSE body back unchanged. **Its cost is an extra hop** — one more process in the path of every stream — which some consumers will not accept, so it is documented as the path that works rather than chosen as the only one. `packages/alia-chat/README.md` carries the relay.
 
-**And the contradiction this sits on, named rather than papered over.** This section says the surface is bounded and sunsets, per ADR 0004. `docs/migration/ownership.md` § *Product API* and `ownership-matrix.json#v1-chat-completions-post.removalGate` (*"Never removed"*) say all of `/v1` is permanent. ADR 0006 states both positions and resolves neither. Which one holds is an **owner decision that has not been taken**; until it is, #244 reads as cosmetic under one answer and as a hard blocker for every SDK consumer under the other, and neither this document nor the matrix may be edited to pretend they agree.
+**The contradiction this sat on is resolved.** Until 2026-09-10 this section said the surface was bounded and sunsets, per ADR 0004, while `docs/migration/ownership.md` § *Product API* and `ownership-matrix.json#v1-chat-completions-post.removalGate` said all of `/v1` was permanent, and ADR 0006 held both without deciding. ADR 0010 decides for permanence: the notes were right, ADR 0004 §3 is amended, and #244 reads as the cosmetic case — the SDK's consumers are on a permanent surface, and what they wait on is oxy#972's origin registry, not a reprieve.
 
 ---
 
@@ -171,7 +164,7 @@ Route-by-route is deliberate. These routes have different consumers and will emp
 
 Alia-issued API keys, prefix at `packages/api/src/lib/api-key-crypto.ts:21`, stored in `developer_api_keys` (`packages/api/src/db/schema/developers.ts:80`) under `developer_apps` (`:37`), managed through `packages/api/src/routes/developer.ts`. Under ADR 0001 and ADR 0004, developer identity and credentials belong to Oxy.
 
-**What still works during the window.** Existing active keys continue to authenticate against the compatibility surface described in (b), with their existing scopes and rate limits. Owners can list, inspect, rename, re-scope, re-limit and revoke their existing keys, because taking away revocation during a migration would be a security regression.
+**What still works during the window.** Existing active keys continue to authenticate against Alia's product API — the `/v1/*` routes of section (b), permanent since ADR 0010 — with their existing scopes and rate limits. Owners can list, inspect, rename, re-scope, re-limit and revoke their existing keys, because taking away revocation during a migration would be a security regression.
 
 Not *rotate*, and this document said otherwise until workstream 11 measured it: no rotation endpoint has ever existed on `/developer`, whose `PATCH` covers name, scopes, active flag and rate limits and nothing else. The only path that ever replaced a key's secret was `POST /auth/token`, which did it as a side effect of desktop re-authorization and is now closed. Rotation is not restored, because minting a replacement secret is issuance under another name; an owner who needs a new credential obtains an Oxy one.
 
@@ -202,6 +195,6 @@ Each clock owner reports on #139 at the close of each monthly billing cycle for 
 ## Open questions
 
 - **Named individual owners.** This document assigns each clock to a workstream owner. The individual assignees are not recorded on #139 yet — except path (a)'s removal date, which the product owner decided directly on 2026-08-18. *Owner: the #139 epic owner.*
-- **Whether `Deprecation` and `Sunset` are emitted per-route or per-surface for (b).** Per-route measurement is decided above; whether the headers are also per-route or blanket across `/v1/*` affects how a caller reading only headers perceives the timeline. *Owner: workstream 6 owner.*
+- ~~**Whether `Deprecation` and `Sunset` are emitted per-route or per-surface for (b).**~~ Moot since 2026-09-10: (b) is not deprecated (ADR 0010).
 - **The notification channel for (c).** Whether key-owner notification goes through Alia notifications, Oxy account email, or both. *Owner: workstream 11 owner.*
-- **Whether (b) is permanent or sunsets.** This document and ADR 0004 say it sunsets; `ownership.md` § *Product API* and the matrix's `v1-chat-completions-post` gate say *"Never removed"*. ADR 0006 records the conflict without settling it, and #244 (the `@alia.onl/sdk` consumer question, § (b) above) is blocked on the answer. *Owner: the product owner, on #139.*
+- ~~**Whether (b) is permanent or sunsets.**~~ **Decided 2026-09-10 by the repository owner: permanent.** [ADR 0010](../adr/0010-alia-keeps-a-product-api-credentials-come-from-oxy-console.md) amends ADR 0004 §3 and supersedes ADR 0006; #244 closes on it, with the SDK's per-application origin policy waiting on `OxyHQ/oxy#972`.

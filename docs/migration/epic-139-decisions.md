@@ -240,6 +240,17 @@ open forever, which costs two rows of permanent noise in every progress count.
 *(a) dominates.* The only cost is an edit to the issue body, and leaving them makes the epic
 un-completable by construction. This audit does not edit the body.
 
+**Amended 2026-09-10 — the parent decision changed, and this section is now stale in the
+other direction.** The repository owner decided that `api.alia.onl/v1/*` is Alia's
+**permanent product API**, with every credential issued in Oxy Console:
+[ADR 0010](../adr/0010-alia-keeps-a-product-api-credentials-come-from-oxy-console.md),
+amending ADR 0004 §3 and superseding ADR 0006. So the ticked line 318 (*"remains a
+product-specific compatibility endpoint for a bounded period"*) no longer describes the
+outcome either, and the honest edit to the epic body is now: strike these two rows **and**
+replace line 318 with a fourth option, *"is Alia's permanent product API; credentials move
+to Oxy Console"*. Line 315 (*"Move generic inference access to `api.oxy.so/v1` backed by
+Kaana"*) survives unchanged. Still not edited here.
+
 ## O2. Which historical model ids to preserve
 
 > `Preserve historical IDs only where required for old analytics/receipts.` (workstream 10)
