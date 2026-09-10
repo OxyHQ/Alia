@@ -1,5 +1,23 @@
 # @alia.onl/sdk
 
+## Unreleased
+
+### The consumer-backend path is documented
+
+Documentation only; no code, wire or default changed, and no version is cut for
+it.
+
+The package now has a README. It says which endpoint `useAliaChat` calls and
+why it is `/v1/chat/completions` rather than `/alia/chat`: this package ships
+raw source and compiles into apps on origins Alia does not enumerate, and
+`/alia/chat` answers CORS preflights only for Alia's own origins. It then
+documents the path that works from any origin today — `useAliaChat({ apiUrl })`
+pointed at the consumer's own backend, which calls `POST /alia/chat`
+server-to-server, forwards the user's Oxy token, and streams the SSE body back
+unchanged — with a minimal relay. The `apiUrl` option's JSDoc says the same in
+short. Issue #244 records the two other shapes and why neither is available
+yet.
+
 ## 7.2.8
 
 ### One Oxy runtime and a native-only notifications boundary

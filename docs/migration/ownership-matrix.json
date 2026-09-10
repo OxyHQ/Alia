@@ -4680,11 +4680,12 @@
       "targetPath": "keep-alia-product",
       "dependsOn": [
         "sse-legacy-tool-call-in-data",
-        "v1-chat-completions-post"
+        "v1-chat-completions-post",
+        "alia-chat-post"
       ],
-      "removalGate": "HIGHEST external blast radius: this is on npm, so its consumers are outside the repo entirely. Any wire change is a semver-major of @alia.onl/sdk and strands every unmigrated installer.",
+      "removalGate": "HIGHEST external blast radius: this is on npm, so its consumers are outside the repo entirely. Any wire change is a semver-major of @alia.onl/sdk and strands every unmigrated installer. || #244, as of 2026-09-10: the SDK is a PRODUCT client (it parses alia.reasoning, alia.tool_result, alia.research_progress, alia.plan_preview) that still defaults to /v1/chat/completions, because /alia/chat answers CORS preflights only for the exact origins in packages/api/src/lib/cors-origins.ts while /v1 answers '*' (pinned by packages/api/src/middleware/__tests__/chat-origin-policy.test.ts) and the raw-source package compiles into consumer apps on origins Alia does not enumerate. The CURRENT supported path for an external consumer is (c) the consumer-backend relay: useAliaChat({ apiUrl }) at the consumer's own backend, which calls POST /alia/chat server-to-server (no Origin header), forwards the user's Oxy token and streams the SSE body back unchanged - documented in packages/alia-chat/README.md, at the cost of one extra hop; hence the new dependsOn alia-chat-post. (a) a CORS policy for registered consumer origins is NOT Alia's to build and is blocked on OxyHQ/oxy#972 (the origin registry is Oxy Applications). (b) moving the default to /alia/chat in a semver-major is an ADOPTION WINDOW, not a switch: it reaches only consumers who upgrade AND rebuild, so /v1/chat/completions must keep serving installed copies afterwards and that route's gate is bounded by SDK adoption, not by the policy landing. All of it sits on the CONTESTED gate of v1-chat-completions-post (permanent per this matrix, sunsets per ADR 0004; ADR 0006 resolves neither) - an open owner decision this row does not take.",
       "provenance": "inventory-product-api",
-      "evidence": "packages/alia-chat/src/hooks/useAliaChat.ts:217,46,282-352"
+      "evidence": "packages/alia-chat/src/hooks/useAliaChat.ts:10,29,110-122,312,380; packages/api/src/index.ts:117,139-143; packages/api/src/lib/cors-origins.ts:53-58,87-92"
     },
     {
       "id": "sdk-integrations-ai-sdk",

@@ -8,7 +8,9 @@ around HTTP shape, because the same handler serves two audiences and the differe
 what a reader needs first:
 
 - **[The Alia product runtime](#the-alia-product-runtime)** — everything the app, Codea,
-  Cowork, the CLI and the SDK call. Alia owns it and keeps owning it.
+  Cowork and the CLI call. Alia owns it and keeps owning it. `@alia.onl/sdk` is written
+  against it too, but its transport still enters through `/v1/chat/completions`, for the
+  CORS reason under [Chat](#chat).
 - **[The bounded compatibility surface](#the-bounded-compatibility-surface-v1)** —
   `api.alia.onl/v1/*`. Presented as a generic OpenAI-compatible API, inside a compatibility
   window, then removed. New generic integrations go to Oxy Console and `api.oxy.so/v1`.
@@ -62,6 +64,21 @@ Product extras: `conversationId`, `thinkingMode`, `agentMode`, `deepResearch`, `
 `stream_options.include_usage`.
 
 **`GET /alia/chat`** returns a service status object, not a completion.
+
+**Browser origins.** `/alia/chat` takes the internal CORS policy — the exact-origin
+allowlist in `packages/api/src/lib/cors-origins.ts` plus `WEB_URL`, mounted in
+`packages/api/src/index.ts` for every path that is not `/v1` — so a preflight from
+`https://alia.onl` or `https://console.alia.onl` is answered with that origin and
+credentials, one from a loopback dev origin the same, and one from any other origin gets
+no `access-control-allow-origin` at all. `/v1/*` answers `*` instead. A request with no
+`Origin` header — a server, a native app, `curl` — is never subject to either. The policy
+is pinned by `packages/api/src/middleware/__tests__/chat-origin-policy.test.ts`, and it is
+why `@alia.onl/sdk`, a product client that compiles into apps on origins Alia does not
+enumerate, still defaults to `/v1/chat/completions`. **An external product using the SDK
+goes through its own backend**: `useAliaChat({ apiUrl })` at the consumer's backend, which
+calls `POST /alia/chat` server-to-server with the user's Oxy token forwarded and streams
+the SSE body back unchanged — `packages/alia-chat/README.md` has the relay, and #244 the
+two other shapes and why neither is available yet.
 
 The SSE contract, with each event's emitting line and exact payload fields, is in
 [the chat runtime page](./chat-runtime.mdx). Two corrections worth carrying here, because
