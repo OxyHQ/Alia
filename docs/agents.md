@@ -107,7 +107,50 @@ service credentials have been provisioned and read back in production.
   independently paginated result sets breaks `limit`/`offset` the same way —
   ask for ten, receive two, with no way to ask for the rest.
 
-## Talking to one is a thread — a VIEW over many conversations
+## Talking to one is a durable execution thread
+
+ADR 0009 supersedes the pair-view model below. `agent_threads` is now the
+durable identity: a person may open several independent threads with the same
+agent, while each thread still contains bounded conversation stretches. Every
+linked-agent message creates one `AgentTurnCoordinator` turn whose tools,
+events and result belong to the visible conversation; it never launches a
+second paid session beside the answer.
+
+- `POST /agents/:id/threads` opens an independent thread and its first bounded
+  conversation stretch.
+- `GET /agents/:id/threads` lists that person's threads for the agent.
+- `GET|PATCH /agents/threads/:threadId` reads or changes title, lifecycle,
+  approval mode and execution target.
+- `POST /agents/threads/:threadId/goals` starts explicitly priced work and
+  requires `Idempotency-Key`.
+- A thread stores only an opaque reviewed Oxy routing-profile ID. Tools remain
+  deny-by-default and sandbox resources are lazy.
+- PostgreSQL serializes admission by agent before a queued or running session
+  is created, enforcing `max_concurrent_threads` across API replicas.
+- R2 approvals are durable rows. Socket.IO carries prompts and immediate
+  decisions, while the executing replica observes PostgreSQL as the authority.
+- A completed run moves its goal to `candidate`; `POST
+  /agents/threads/:threadId/goals/:goalId/verify` requires evidence for every
+  criterion before the goal becomes `completed`.
+
+## Teams and Cowork devices
+
+Teams are owned resources under `/agents/teams`. A team has exactly one
+coordinator, ordered reachable agent members and named channels. Import and
+export use the strict `alia.team` v1 Markdown/YAML package; member keys are
+exact Alia agent IDs, never names or fuzzy search results.
+
+Cowork installations register under `/agents/cowork/devices` with the person's
+Oxy bearer and send a heartbeat every 30 seconds. Threads may select `cowork`
+only with an online device owned by the same person. The desktop executor still
+limits filesystem and shell operations to roots explicitly chosen for the
+session; registration does not grant access to the home directory.
+
+### Legacy pair-view behavior during backfill
+
+The following describes the historical pair-view API retained for reading and
+associating old conversations during migration. It is not the identity model
+for new threads.
 
 `/a/:username` shows one continuous history with an agent. Underneath, **each
 stretch of it is an ordinary Alia conversation** carrying the same `agent_id`,

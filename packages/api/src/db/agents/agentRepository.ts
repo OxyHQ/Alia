@@ -127,6 +127,7 @@ export interface AgentRecord {
   reviewCount: number;
   usageCount: number;
   hireCount: number;
+  maxConcurrentThreads: number;
   price: number | null;
   /**
    * What this agent may reach, as stored: `family` or `family:instanceId`.
@@ -220,6 +221,7 @@ export function toAgentRecord(row: AgentRow): AgentRecord {
     reviewCount: row.reviewCount,
     usageCount: row.usageCount,
     hireCount: row.hireCount,
+    maxConcurrentThreads: row.maxConcurrentThreads,
     price: row.price,
     capabilityGrants: row.capabilityGrants,
     isFeatured: row.isFeatured,

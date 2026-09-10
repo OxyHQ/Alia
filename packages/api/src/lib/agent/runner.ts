@@ -799,6 +799,16 @@ export async function runAgentSession(sessionId: string): Promise<void> {
       } else if (finalStatus === 'cancelled') {
         await markAutomationRunForSession(getDb(), sessionId, 'cancelled');
       }
+      if (session.goalId) {
+        const { recordAgentGoalRun } = await import('../../db/agents/agentRuntimeRepository.js');
+        await recordAgentGoalRun(getDb(), {
+          goalId: session.goalId,
+          oxyUserId: userId,
+          status: finalStatus === 'completed' ? 'candidate' : finalStatus === 'cancelled' ? 'cancelled' : 'blocked',
+          turnsUsed: totalSteps,
+          tokensUsed: totalTokens,
+        });
+      }
     } catch (saveErr: unknown) {
       log.agents.warn({ saveErr, sessionId }, 'Failed to save session on completion');
     }
@@ -844,6 +854,16 @@ export async function runAgentSession(sessionId: string): Promise<void> {
         stats: { completedAt: new Date() },
       });
       await markAutomationRunForSession(getDb(), sessionId, 'failed');
+      if (session.goalId) {
+        const { recordAgentGoalRun } = await import('../../db/agents/agentRuntimeRepository.js');
+        await recordAgentGoalRun(getDb(), {
+          goalId: session.goalId,
+          oxyUserId: userId,
+          status: 'blocked',
+          turnsUsed: totalSteps,
+          tokensUsed: totalTokens,
+        });
+      }
     } catch (saveErr: unknown) {
       log.agents.error({ saveErr, sessionId }, 'Failed to save session in outer catch');
     }

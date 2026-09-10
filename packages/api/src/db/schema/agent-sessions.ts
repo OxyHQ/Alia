@@ -135,6 +135,11 @@ export const agentSessions = pgTable(
     agentId: text().notNull(),
     /** An Oxy account. No foreign key: Oxy owns identity. */
     oxyUserId: text().notNull(),
+    /** Durable product thread and bounded conversation stretch for this turn. */
+    threadId: text(),
+    conversationId: text(),
+    goalId: text(),
+    generation: integer().notNull().default(1),
     /** A delegating parent session. Self-referencing, optional. */
     parentSessionId: text(),
     /** The structured automation run this session executes, if any. */

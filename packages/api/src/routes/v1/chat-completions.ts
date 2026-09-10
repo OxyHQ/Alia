@@ -18,6 +18,7 @@ import { buildChatRequestContext } from '../../lib/chat/request-context.js';
 import type { AgentMessage } from '../../lib/chat/stream-runner.js';
 import { runProviderLoop, type ChatLoopState } from '../../lib/chat/provider-loop.js';
 import { getDefaultRoutingProfile } from '../../lib/chat-core.js';
+import { AgentTurnCoordinator, type CoordinatedAgentTurn } from '../../lib/agent/agent-turn-coordinator.js';
 
 const router = Router();
 
@@ -29,6 +30,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
   const requestStartTime = Date.now();
   const requestId = `chatcmpl-${crypto.randomUUID()}`;
   const sse = new SSEWriter(res);
+  let coordinatedTurn: CoordinatedAgentTurn | null = null;
 
   // Retry-mutable state shared with the provider loop, the global-timeout timer,
   // the outer catch, and the last-resort synthetic response.
@@ -86,6 +88,9 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
     state.resolved = ctx.resolved;
     state.routingProfileId = ctx.routingProfileId;
     const { autonomyRuntime, recalledMemories } = ctx;
+    // A linked agent is always on its agent runtime. There is no client mode
+    // switch and, critically, no second paid session launched beside this turn.
+    const agentRuntimeEnabled = linkedAgent != null;
 
     // The correlation record for this turn, before the first branch below can
     // take a request somewhere else. `kaana` is null because Alia serves this
@@ -115,6 +120,35 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
       if (handled) return;
     }
 
+    if (agentRuntimeEnabled && linkedAgent && req.user?.id && isDirectUserSession) {
+      const lastUserMessage = [...messages].reverse().find((message) => message.role === 'user');
+      const task = typeof lastUserMessage?.content === 'string'
+        ? lastUserMessage.content
+        : Array.isArray(lastUserMessage?.content)
+          ? lastUserMessage.content
+              .filter((part): part is { type: 'text'; text: string } => Boolean(
+                part && typeof part === 'object' && part.type === 'text' && typeof part.text === 'string',
+              ))
+              .map((part) => part.text)
+              .join('\n')
+          : 'Continue the agent thread';
+      coordinatedTurn = await AgentTurnCoordinator.begin({
+        agent: linkedAgent,
+        oxyUserId: req.user.id,
+        conversationId,
+        task,
+      });
+      if (body.stream) {
+        sse.ensureHeaders();
+        res.write(`event: alia.agent_turn\ndata: ${JSON.stringify({
+          eventVersion: 1,
+          turnId: coordinatedTurn.id,
+          agentId: linkedAgent._id,
+          conversationId: conversationId ?? null,
+        })}\n\n`);
+      }
+    }
+
     // Assemble all tools via the unified pipeline
     const sseEmitter = createResponseSSEEmitter(res, sse.ensureHeaders);
     const { tools: allTools, toolNameMapping } = await ToolPipeline.forUser({
@@ -123,7 +157,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
       isDirectSession: isDirectUserSession,
       // A session acts for the person holding it; an API key does not.
       actsForPerson: isDirectUserSession,
-      agentMode,
+      agentMode: agentRuntimeEnabled,
       requestId,
       editorToolDefinitions: body.tools,
       sseEmitter,
@@ -133,70 +167,10 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
       toolsEnabled: true,
       agent: linkedAgent,
       skills,
+      runtime: coordinatedTurn?.runtime,
     });
 
-    // Agent mode: full agent escalation for linked conversations
     const agentMessages: AgentMessage[] = [];
-    /**
-     * The agent this turn NAMED, already resolved and authorised by
-     * `request-context`. It used to be looked up again here through a thread id
-     * that could not match, so this branch never ran once — every line below is
-     * reached for the first time by this change, including the credit
-     * reservation the handoff owns.
-     */
-    if (agentMode && isDirectUserSession && linkedAgent && req.user?.id) {
-      try {
-        const { startAgentSession } = await import('../../lib/agent/session-handoff.js');
-        const { agentPromptName } = await import('../../lib/agent-identity.js');
-
-        const linkedAgentName = agentPromptName(linkedAgent);
-        // Get the user's latest message as the task
-        const lastUserMsg = [...messages].reverse().find(m => m.role === 'user');
-        const taskText = typeof lastUserMsg?.content === 'string'
-          ? lastUserMsg.content
-          : Array.isArray(lastUserMsg?.content)
-            ? lastUserMsg.content.filter((p: any) => p.type === 'text').map((p: any) => p.text).join(' ')
-            : 'Execute task';
-
-        /**
-         * A SECOND reservation, on top of the turn's own, and the `finally` at
-         * the bottom of this handler cannot see it — it releases
-         * `state.creditReservation` and nothing else.
-         *
-         * So this branch reserved the agent's price and answered a failure of
-         * the session write or the enqueue with the `catch` below: a
-         * `log.warn`, while the price stayed debited. `startAgentSession` owns
-         * the undo, which is the only way a reservation this handler does not
-         * know about can be released.
-         */
-        const handoff = await startAgentSession({
-          agent: linkedAgent,
-          userId: req.user.id,
-          task: taskText.slice(0, 2000),
-          // The person named this agent on the request, so the escalation is
-          // them choosing it.
-          origin: 'hire',
-        });
-
-        if (handoff.ok) {
-          // Emit agent session event via SSE so frontend can subscribe
-          if (body.stream) {
-            res.write(`event: alia.agent_session\ndata: ${JSON.stringify({
-              eventVersion: 1,
-              sessionId: handoff.sessionId,
-              agentId: linkedAgent._id,
-              agentName: linkedAgentName,
-            })}\n\n`);
-          }
-
-          log.v1.info({ sessionId: handoff.sessionId, agentId: linkedAgent._id }, 'Agent session created from chat');
-        } else {
-          log.v1.warn({ agentId: linkedAgent._id, reason: handoff.reason }, 'Could not escalate this turn to its linked agent');
-        }
-      } catch (agentErr) {
-        log.v1.warn({ err: agentErr }, 'Failed to check/create agent session from chat');
-      }
-    }
 
     // Log tool schemas for debugging
     if (Array.isArray(body.tools) && body.tools.length > 0) {
@@ -217,7 +191,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
       recalledMemories,
       skills,
       linkedAgent,
-      agentMode,
+      agentMode: agentRuntimeEnabled,
       autonomyRuntime,
       reasoningEffort,
     });
@@ -284,7 +258,10 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
       inferenceServiceToken: ctx.inferenceServiceToken,
     });
 
-    if (loopResult.status === 'completed') return; // Response fully sent
+    if (loopResult.status === 'completed') {
+      await coordinatedTurn?.complete();
+      return;
+    }
 
     // ── LAST-RESORT SYNTHETIC RESPONSE ──
     // All providers exhausted or time budget exceeded — respond with a friendly
@@ -321,11 +298,19 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
       res.write('data: [DONE]\n\n');
       res.end();
     }
+    await coordinatedTurn?.fail(new Error('All inference attempts were exhausted'));
     return; // Handled — do not fall to outer catch
 
   } catch (e: unknown) {
     clearTimeout(globalTimer);
     log.v1.error({ err: e }, 'Request error');
+    if (coordinatedTurn) {
+      try {
+        await coordinatedTurn.fail(e);
+      } catch (settleError) {
+        log.v1.warn({ err: settleError, turnId: coordinatedTurn.id }, 'Failed to settle agent turn');
+      }
+    }
 
     // Record agent.end for observability (error path)
     recordEvent({

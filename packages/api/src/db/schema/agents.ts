@@ -146,6 +146,8 @@ export const agents = pgTable(
     reviewCount: integer().notNull().default(0),
     usageCount: integer().notNull().default(0),
     hireCount: integer().notNull().default(0),
+    /** Independent threads this agent may execute concurrently. */
+    maxConcurrentThreads: integer().notNull().default(3),
     /** CREDITS to hire, not money. NULL means the caller's default applies. */
     price: integer(),
     /**
@@ -236,6 +238,7 @@ export const agents = pgTable(
      * means a non-validating write path produced it.
      */
     check('agents_rating_range_check', sql`${t.rating} >= 0 and ${t.rating} <= 5`),
+    check('agents_max_concurrent_threads_check', sql`${t.maxConcurrentThreads} between 1 and 10`),
   ],
 );
 
