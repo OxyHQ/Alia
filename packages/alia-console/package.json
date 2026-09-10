@@ -20,7 +20,7 @@
     "@hugeicons/react": "^1.1.9",
     "@oxy.so/bloom": "^1.0.0",
     "@oxy.so/core": "^1.0.1",
-    "@oxy.so/services": "^1.0.1",
+    "@oxy.so/services": "^1.0.2",
     "@tailwindcss/vite": "^4.3.2",
     "@tanstack/devtools-vite": "^0.8.1",
     "@tanstack/react-devtools": "^0.10.8",
