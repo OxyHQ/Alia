@@ -64,6 +64,7 @@ export interface AutomationDefinitionUpdateInput {
   actorMode: 'fixed' | 'automatic';
   fixedAgentId?: string;
   eligibleAgentIds: string[];
+  inputs: Record<string, unknown>;
   resources: AutomationResourceRef[];
   dataFlow: AutomationDataFlow;
   maximumAutonomy: 'read_only' | 'draft' | 'execute_on_request' | 'autonomous';
@@ -317,6 +318,7 @@ export async function updateAutomationDefinition(
       scheduleTimezone: input.scheduleTimezone ?? null,
       actorMode: input.actorMode,
       fixedAgentId: input.fixedAgentId ?? null,
+      inputs: input.inputs,
       resources: input.resources,
       dataFlow: input.dataFlow,
       maximumAutonomy: input.maximumAutonomy,

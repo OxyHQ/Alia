@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
-import { ArrowLeft, ChevronDown, ChevronUp, Pencil } from 'lucide-react-native';
+import { ArrowLeft, Pencil } from 'lucide-react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ContentPanel } from '@oxy.so/bloom/content-panel';
 import { toast } from '@oxy.so/bloom/toast';
@@ -11,20 +11,10 @@ import { AutomationPill, automationStatusTone } from '@/components/automations/a
 import {
   actorLabel,
   automationTitle,
-  autonomyLabel,
-  decisionReason,
-  humanizeIdentifier,
-  policyReason,
-  resourceLabel,
   triggerLabel,
 } from '@/lib/automations/format';
 import type { AutomationRun, AutomationUpdateInput } from '@/lib/automations/types';
-import {
-  useAutomationOverview,
-  useAutomationRuns,
-  useAutomationRunSteps,
-  useUpdateAutomation,
-} from '@/lib/hooks/use-automations';
+import { useAutomationOverview, useAutomationRuns, useUpdateAutomation } from '@/lib/hooks/use-automations';
 import { useMyAgents } from '@/lib/hooks/use-my-agents';
 import { useColorScheme } from '@/lib/useColorScheme';
 import { errorMessage } from '@/lib/errors/error-utils';
@@ -44,11 +34,6 @@ function RunCard({
   run: AutomationRun;
   agentName: (agentId: string) => string;
 }) {
-  const { colors } = useColorScheme();
-  const [expanded, setExpanded] = useState(false);
-  const steps = useAutomationRunSteps(run.id, expanded);
-  const reason = policyReason(run);
-
   return (
     <View className="rounded-2xl border border-border bg-surface p-4 gap-3">
       <View className="flex-row items-start justify-between gap-3">
@@ -60,81 +45,8 @@ function RunCard({
             {run.selectedAgentId ? agentName(run.selectedAgentId) : 'Alia'}
           </Text>
         </View>
-        <AutomationPill
-          label={humanizeIdentifier(run.status)}
-          tone={automationStatusTone(run.status)}
-        />
+        <AutomationPill label={run.status} tone={automationStatusTone(run.status)} />
       </View>
-
-      {reason ? (
-        <Text className="text-xs text-muted-foreground" selectable>
-          Policy: {reason}
-        </Text>
-      ) : null}
-
-      <Pressable
-        accessibilityRole="button"
-        accessibilityState={{ expanded }}
-        onPress={() => setExpanded((current) => !current)}
-        className="flex-row items-center self-start rounded-lg py-1.5 active:opacity-60"
-      >
-        <Text className="mr-1 text-xs font-medium text-primary">
-          {expanded ? 'Hide steps' : 'View steps'}
-        </Text>
-        {expanded ? (
-          <ChevronUp size={14} color={colors.primary} />
-        ) : (
-          <ChevronDown size={14} color={colors.primary} />
-        )}
-      </Pressable>
-
-      {expanded ? (
-        steps.isLoading ? (
-          <ActivityIndicator size="small" color={colors.mutedForeground} />
-        ) : steps.isError ? (
-          <View className="items-start gap-2">
-            <Text className="text-xs text-destructive" selectable>Could not load run steps.</Text>
-            <Button size="sm" variant="outline" onPress={() => void steps.refetch()}>Retry</Button>
-          </View>
-        ) : steps.data && steps.data.length > 0 ? (
-          <View className="gap-2">
-            {steps.data.map((step) => {
-              const stepReason = decisionReason(step.policyDecision);
-              const actor = step.actorType === 'agent' && step.agentId
-                ? agentName(step.agentId)
-                : 'Alia';
-              return (
-                <View key={step.id} className="rounded-xl bg-muted p-3 gap-1.5">
-                  <View className="flex-row items-start justify-between gap-2">
-                    <Text className="flex-1 text-xs font-medium text-foreground" selectable>
-                      {step.position + 1}. {step.tool}
-                    </Text>
-                    <AutomationPill
-                      label={humanizeIdentifier(step.status)}
-                      tone={automationStatusTone(step.status)}
-                    />
-                  </View>
-                  <Text className="text-xs text-muted-foreground" selectable>
-                    {resourceLabel(step.resource)} · {actor}
-                  </Text>
-                  {stepReason ? (
-                    <Text className="text-xs text-muted-foreground" selectable>
-                      Policy: {stepReason}
-                    </Text>
-                  ) : null}
-                  {step.auditEventId ? (
-                    <Text className="text-[11px] text-muted-foreground" selectable>
-                      Audit: {step.auditEventId}
-                    </Text>
-                  ) : null}
-                </View>
-              );
-            })}
-          </View>
-        ) : (
-          <Text className="text-xs text-muted-foreground" selectable>No recorded steps.</Text>
-        )
-      ) : null}
     </View>
   );
 }
@@ -241,7 +153,6 @@ export default function AutomationHistoryScreen() {
               label={automation.enabled ? 'Active' : 'Stopped'}
               tone={automation.enabled ? 'positive' : 'neutral'}
             />
-            <AutomationPill label={autonomyLabel(automation.maximumAutonomy)} />
             {automation.legacyTriggerId ? (
               <AutomationPill label="Legacy transition" tone="warning" />
             ) : null}
@@ -272,20 +183,11 @@ export default function AutomationHistoryScreen() {
               Boolean(automation.legacyTriggerId),
             )}
           </Text>
-          {automation.resources.map((resource) => (
-            <Text
-              key={`${resource.appId}:${resource.effectiveAccountId}:${resource.resourceType}:${resource.resourceId}`}
-              className="text-xs text-muted-foreground"
-              selectable
-            >
-              Resource: {resourceLabel(resource)}
+          {automation.actions.length > 0 ? (
+            <Text className="text-xs text-muted-foreground" selectable>
+              Uses approved connected apps
             </Text>
-          ))}
-          {automation.actions.map((action) => (
-            <Text key={action.id} className="text-xs text-muted-foreground" selectable>
-              Action: {resourceLabel(action.resource)} · {action.tool}
-            </Text>
-          ))}
+          ) : null}
         </View>
 
         <View className="gap-3">
@@ -312,6 +214,7 @@ export default function AutomationHistoryScreen() {
       </ScrollView>
       {!automation.legacyTriggerId ? (
         <AutomationEditor
+          key={`${automation.updatedAt}:${editorOpen}`}
           automation={automation}
           agents={agentOptions}
           open={editorOpen}

@@ -1,6 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Pressable, ScrollView, Switch, View } from 'react-native';
-import { Plus, Trash2 } from 'lucide-react-native';
 import { Dialog } from '@oxy.so/bloom/dialog';
 import { toast } from '@oxy.so/bloom/toast';
 import { Button } from '@/components/ui/button';
@@ -11,16 +10,9 @@ import { Textarea } from '@/components/ui/textarea';
 import {
   buildAutomationUpdate,
   createAutomationEditDraft,
-  type AutomationEditDraft,
 } from '@/lib/automations/edit';
-import type {
-  AutomationAutonomy,
-  AutomationDefinition,
-  AutomationResource,
-  AutomationUpdateInput,
-  AutomationUpdateTrigger,
-} from '@/lib/automations/types';
-import { useColorScheme } from '@/lib/useColorScheme';
+import { cronLabel } from '@/lib/automations/format';
+import type { AutomationDefinition, AutomationUpdateInput } from '@/lib/automations/types';
 
 interface AgentOption {
   id: string;
@@ -36,194 +28,36 @@ interface AutomationEditorProps {
   onSave: (update: AutomationUpdateInput) => Promise<void>;
 }
 
-type ResourceField = keyof AutomationResource;
+const DAYS = [
+  { label: 'S', value: 0 },
+  { label: 'M', value: 1 },
+  { label: 'T', value: 2 },
+  { label: 'W', value: 3 },
+  { label: 'T', value: 4 },
+  { label: 'F', value: 5 },
+  { label: 'S', value: 6 },
+] as const;
 
-const AUTONOMY_OPTIONS: Array<{ value: AutomationAutonomy; label: string }> = [
-  { value: 'read_only', label: 'Read only' },
-  { value: 'draft', label: 'Draft' },
-  { value: 'execute_on_request', label: 'On request' },
-  { value: 'autonomous', label: 'Autonomous' },
-];
-
-const RESOURCE_FIELDS: Array<{ key: ResourceField; label: string }> = [
-  { key: 'appId', label: 'App ID' },
-  { key: 'effectiveAccountId', label: 'Effective account' },
-  { key: 'resourceType', label: 'Resource type' },
-  { key: 'resourceId', label: 'Resource ID' },
-];
-
-function emptyResource(): AutomationResource {
-  return { appId: '', effectiveAccountId: '', resourceType: '', resourceId: '' };
-}
-
-function triggerForType(
-  type: AutomationUpdateTrigger['type'],
-  current: AutomationUpdateTrigger,
-): AutomationUpdateTrigger {
-  if (type === current.type) return current;
-  if (type === 'manual') return { type: 'manual' };
-  if (type === 'event') return { type: 'event', appId: '', eventType: '' };
-  return { type: 'schedule', cron: '0 9 * * 1', timezone: 'UTC' };
-}
-
-function ChoiceRow<T extends string>({
-  value,
-  options,
-  onChange,
-}: {
-  value: T;
-  options: Array<{ value: T; label: string }>;
-  onChange: (value: T) => void;
-}) {
-  return (
-    <View className="flex-row flex-wrap gap-2">
-      {options.map((option) => {
-        const selected = option.value === value;
-        return (
-          <Pressable
-            key={option.value}
-            accessibilityRole="radio"
-            accessibilityState={{ checked: selected }}
-            onPress={() => onChange(option.value)}
-            className={`rounded-lg border px-3 py-2 ${
-              selected ? 'border-primary bg-primary/10' : 'border-border bg-background'
-            }`}
-          >
-            <Text className={selected ? 'text-sm font-medium text-primary' : 'text-sm text-foreground'}>
-              {option.label}
-            </Text>
-          </Pressable>
-        );
-      })}
-    </View>
-  );
-}
-
-function ResourceList({
-  label,
-  resources,
-  onChange,
-}: {
-  label: string;
-  resources: AutomationResource[];
-  onChange: (resources: AutomationResource[]) => void;
-}) {
-  const { colors } = useColorScheme();
-  const updateField = (index: number, field: ResourceField, value: string) => {
-    onChange(resources.map((resource, resourceIndex) => (
-      resourceIndex === index ? { ...resource, [field]: value } : resource
-    )));
+function parseSchedule(cron: string): { time: string; days: number[] } {
+  const [minute = '0', hour = '9', , , dayField = '*'] = cron.trim().split(/\s+/);
+  const validTime = /^\d{1,2}$/.test(hour) && /^\d{1,2}$/.test(minute);
+  const days = dayField === '*'
+    ? DAYS.map((day) => day.value)
+    : dayField.split(',').map(Number).filter((day) => day >= 0 && day <= 6);
+  return {
+    time: validTime ? `${hour.padStart(2, '0')}:${minute.padStart(2, '0')}` : '09:00',
+    days: days.length > 0 ? [...new Set(days)] : [1],
   };
-
-  return (
-    <View className="gap-3">
-      <View className="flex-row items-center justify-between">
-        <Label>{label}</Label>
-        <Button
-          size="sm"
-          variant="outline"
-          onPress={() => onChange([...resources, emptyResource()])}
-        >
-          <Plus size={14} color={colors.foreground} />
-          <Text>Add</Text>
-        </Button>
-      </View>
-      {resources.length === 0 ? (
-        <Text className="text-xs text-muted-foreground">None declared.</Text>
-      ) : resources.map((resource, index) => (
-        <View key={`${label}-${index}`} className="rounded-xl border border-border p-3 gap-2">
-          <View className="flex-row items-center justify-between">
-            <Text className="text-xs font-medium text-muted-foreground">Resource {index + 1}</Text>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={`Remove ${label} resource ${index + 1}`}
-              onPress={() => onChange(resources.filter((_entry, entryIndex) => entryIndex !== index))}
-              className="rounded-lg p-2 active:bg-destructive/10"
-            >
-              <Trash2 size={14} color={colors.error} />
-            </Pressable>
-          </View>
-          <View className="flex-row flex-wrap gap-2">
-            {RESOURCE_FIELDS.map((field) => (
-              <Input
-                key={field.key}
-                className="min-w-40 flex-1"
-                value={resource[field.key]}
-                onChangeText={(value) => updateField(index, field.key, value)}
-                placeholder={field.label}
-                accessibilityLabel={`${label} ${index + 1} ${field.label}`}
-              />
-            ))}
-          </View>
-        </View>
-      ))}
-    </View>
-  );
 }
 
-function AgentSelector({
-  draft,
-  agents,
-  onChange,
-}: {
-  draft: AutomationEditDraft;
-  agents: AgentOption[];
-  onChange: (actorSelection: AutomationEditDraft['actorSelection']) => void;
-}) {
-  const selectedIds = draft.actorSelection.mode === 'fixed'
-    ? [draft.actorSelection.agentId]
-    : draft.actorSelection.eligibleAgentIds;
-  const labels = new Map(agents.map((agent) => [agent.id, agent.label]));
-  const options = [...new Set([...agents.map((agent) => agent.id), ...selectedIds])]
-    .filter(Boolean)
-    .map((id) => ({ id, label: labels.get(id) ?? `Agent ${id.slice(0, 8)}` }));
-
-  return (
-    <View className="gap-3">
-      <Label>Actors</Label>
-      <ChoiceRow
-        value={draft.actorSelection.mode}
-        options={[
-          { value: 'fixed', label: 'Fixed agent' },
-          { value: 'automatic', label: 'Automatic selection' },
-        ]}
-        onChange={(mode) => onChange(mode === 'fixed'
-          ? { mode, agentId: selectedIds[0] ?? '' }
-          : { mode, eligibleAgentIds: selectedIds.filter(Boolean) })}
-      />
-      <View className="flex-row flex-wrap gap-2">
-        {options.map((agent) => {
-          const selected = selectedIds.includes(agent.id);
-          return (
-            <Pressable
-              key={agent.id}
-              accessibilityRole={draft.actorSelection.mode === 'fixed' ? 'radio' : 'checkbox'}
-              accessibilityState={{ checked: selected }}
-              onPress={() => {
-                if (draft.actorSelection.mode === 'fixed') {
-                  onChange({ mode: 'fixed', agentId: agent.id });
-                  return;
-                }
-                onChange({
-                  mode: 'automatic',
-                  eligibleAgentIds: selected
-                    ? draft.actorSelection.eligibleAgentIds.filter((id) => id !== agent.id)
-                    : [...draft.actorSelection.eligibleAgentIds, agent.id],
-                });
-              }}
-              className={`rounded-lg border px-3 py-2 ${
-                selected ? 'border-primary bg-primary/10' : 'border-border bg-background'
-              }`}
-            >
-              <Text className={selected ? 'text-sm font-medium text-primary' : 'text-sm text-foreground'}>
-                {agent.label}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </View>
-    </View>
-  );
+function scheduleCron(time: string, days: readonly number[]): string | null {
+  const match = /^(\d{1,2}):(\d{2})$/.exec(time.trim());
+  if (!match) return null;
+  const hour = Number(match[1]);
+  const minute = Number(match[2]);
+  if (hour > 23 || minute > 59 || days.length === 0) return null;
+  const dayField = days.length === 7 ? '*' : [...days].sort((a, b) => a - b).join(',');
+  return `${minute} ${hour} * * ${dayField}`;
 }
 
 export function AutomationEditor({
@@ -234,15 +68,55 @@ export function AutomationEditor({
   onClose,
   onSave,
 }: AutomationEditorProps) {
-  const { colors } = useColorScheme();
-  const [draft, setDraft] = useState(() => createAutomationEditDraft(automation));
+  const initial = createAutomationEditDraft(automation);
+  const initialSchedule = automation.trigger.type === 'schedule'
+    ? parseSchedule(automation.trigger.cron ?? '')
+    : { time: '09:00', days: [1] };
+  const [title, setTitle] = useState(initial.objective);
+  const [instructions, setInstructions] = useState(initial.instructions);
+  const [time, setTime] = useState(initialSchedule.time);
+  const [days, setDays] = useState<number[]>(initialSchedule.days);
+  const [timezone, setTimezone] = useState(
+    automation.trigger.type === 'schedule'
+      ? automation.trigger.timezone ?? 'UTC'
+      : 'UTC',
+  );
+  const [agentId, setAgentId] = useState(
+    automation.actorSelection.mode === 'fixed' ? automation.actorSelection.agentId ?? '' : '',
+  );
+  const [enabled, setEnabled] = useState(automation.enabled);
+  const [confirmClose, setConfirmClose] = useState(false);
 
-  useEffect(() => {
-    if (open) setDraft(createAutomationEditDraft(automation));
-  }, [automation, open]);
+  const changed = title !== initial.objective
+    || instructions !== initial.instructions
+    || time !== initialSchedule.time
+    || timezone !== (automation.trigger.type === 'schedule' ? automation.trigger.timezone ?? 'UTC' : 'UTC')
+    || days.join(',') !== initialSchedule.days.join(',')
+    || enabled !== automation.enabled
+    || agentId !== (automation.actorSelection.mode === 'fixed' ? automation.actorSelection.agentId ?? '' : '');
+
+  const close = () => {
+    if (changed) {
+      setConfirmClose(true);
+      return;
+    }
+    onClose();
+  };
 
   const save = async () => {
-    const result = buildAutomationUpdate(draft);
+    const cron = scheduleCron(time, days);
+    if (!cron) {
+      toast.error('Choose a valid time and at least one day');
+      return;
+    }
+    const result = buildAutomationUpdate({
+      ...initial,
+      objective: title,
+      instructions,
+      trigger: { type: 'schedule', cron, timezone },
+      actorSelection: { mode: 'fixed', agentId },
+      enabled,
+    });
     if (!result.ok) {
       toast.error(result.error);
       return;
@@ -250,256 +124,135 @@ export function AutomationEditor({
     await onSave(result.value);
   };
 
-  const eventResource = draft.trigger.type === 'event' ? draft.trigger.resource : undefined;
-
   return (
-    <Dialog
-      open={open}
-      onClose={onClose}
-      placement={{ base: 'bottom', md: 'center' }}
-      title="Edit automation"
-      actions={[
-        { label: 'Cancel', color: 'cancel' },
-        {
-          label: saving ? 'Saving…' : 'Save changes',
-          onPress: save,
-          disabled: saving,
-          shouldCloseOnPress: false,
-        },
-      ]}
-    >
-      <ScrollView className="max-h-[70vh]" contentContainerClassName="gap-5 pb-2">
-        <View className="gap-2">
-          <Label>Objective</Label>
-          <Textarea
-            value={draft.objective}
-            onChangeText={(objective) => setDraft((current) => ({ ...current, objective }))}
-            accessibilityLabel="Automation objective"
-          />
-        </View>
+    <>
+      <Dialog
+        open={open}
+        onClose={close}
+        placement={{ base: 'bottom', md: 'right' }}
+        title="Edit task"
+        actions={[
+          { label: 'Cancel', onPress: close, shouldCloseOnPress: false, color: 'cancel' },
+          {
+            label: saving ? 'Saving…' : 'Save',
+            onPress: save,
+            disabled: saving || !changed,
+            shouldCloseOnPress: false,
+          },
+        ]}
+      >
+        <ScrollView className="max-h-[80vh]" contentContainerClassName="gap-5 pb-3">
+          <View className="flex-row items-center justify-between rounded-2xl bg-muted px-4 py-3">
+            <View className="flex-1">
+              <Text className="text-sm font-medium text-foreground">Status</Text>
+              <Text className="mt-0.5 text-xs text-muted-foreground">
+                {enabled ? 'Scheduled' : 'Paused · Next run: Not scheduled'}
+              </Text>
+            </View>
+            <Switch value={enabled} onValueChange={setEnabled} accessibilityLabel="Task active" />
+          </View>
 
-        <View className="gap-3">
-          <Label>Trigger</Label>
-          <ChoiceRow
-            value={draft.trigger.type}
-            options={[
-              { value: 'manual', label: 'Manual' },
-              { value: 'event', label: 'Event' },
-              { value: 'schedule', label: 'Schedule' },
-            ]}
-            onChange={(type) => setDraft((current) => ({
-              ...current,
-              trigger: triggerForType(type, current.trigger),
-            }))}
-          />
-          {draft.trigger.type === 'schedule' ? (
-            <View className="gap-2">
-              <Input
-                value={draft.trigger.cron}
-                onChangeText={(cron) => setDraft((current) => ({
-                  ...current,
-                  trigger: current.trigger.type === 'schedule'
-                    ? { ...current.trigger, cron }
-                    : current.trigger,
-                }))}
-                placeholder="0 9 * * 1"
-                accessibilityLabel="Schedule cron"
-              />
-              <Input
-                value={draft.trigger.timezone}
-                onChangeText={(timezone) => setDraft((current) => ({
-                  ...current,
-                  trigger: current.trigger.type === 'schedule'
-                    ? { ...current.trigger, timezone }
-                    : current.trigger,
-                }))}
-                placeholder="Europe/Madrid"
-                accessibilityLabel="Schedule timezone"
-              />
+          <View className="gap-2">
+            <Label>Title</Label>
+            <Input value={title} onChangeText={setTitle} accessibilityLabel="Task title" />
+          </View>
+
+          <View className="gap-2">
+            <Label>Instructions</Label>
+            <Textarea
+              value={instructions}
+              onChangeText={setInstructions}
+              accessibilityLabel="Task instructions"
+              className="min-h-28"
+            />
+          </View>
+
+          <View className="gap-3 rounded-2xl border border-border p-4">
+            <View>
+              <Text className="text-sm font-medium text-foreground">Repeat</Text>
+              <Text className="mt-1 text-xs text-muted-foreground">
+                {automation.trigger.type === 'schedule'
+                  ? cronLabel(scheduleCron(time, days) ?? automation.trigger.cron ?? '')
+                  : 'Weekly'}
+              </Text>
+            </View>
+            <View className="flex-row gap-2">
+              {DAYS.map((day, index) => {
+                const selected = days.includes(day.value);
+                return (
+                  <Pressable
+                    key={`${day.value}-${index}`}
+                    accessibilityRole="checkbox"
+                    accessibilityLabel={`Day ${day.value}`}
+                    accessibilityState={{ checked: selected }}
+                    onPress={() => setDays((current) => selected
+                      ? current.filter((value) => value !== day.value)
+                      : [...current, day.value])}
+                    className={`h-9 w-9 items-center justify-center rounded-full ${
+                      selected ? 'bg-foreground' : 'bg-muted'
+                    }`}
+                  >
+                    <Text className={selected ? 'text-xs font-medium text-background' : 'text-xs text-foreground'}>
+                      {day.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+            <View className="flex-row gap-2">
+              <View className="flex-1 gap-2">
+                <Label>Time</Label>
+                <Input value={time} onChangeText={setTime} placeholder="09:00" accessibilityLabel="Task time" />
+              </View>
+              <View className="flex-[2] gap-2">
+                <Label>Timezone</Label>
+                <Input value={timezone} onChangeText={setTimezone} accessibilityLabel="Task timezone" />
+              </View>
+            </View>
+          </View>
+
+          <View className="gap-2">
+            <Label>Responsible agent</Label>
+            <View className="flex-row flex-wrap gap-2">
+              {agents.map((agent) => (
+                <Pressable
+                  key={agent.id}
+                  accessibilityRole="radio"
+                  accessibilityState={{ checked: agent.id === agentId }}
+                  onPress={() => setAgentId(agent.id)}
+                  className={`rounded-xl border px-3 py-2 ${
+                    agent.id === agentId ? 'border-foreground bg-muted' : 'border-border'
+                  }`}
+                >
+                  <Text className="text-sm text-foreground">{agent.label}</Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+
+          {automation.actions.length > 0 ? (
+            <View className="rounded-2xl bg-muted px-4 py-3">
+              <Text className="text-sm font-medium text-foreground">Connected work</Text>
+              <Text className="mt-1 text-xs leading-5 text-muted-foreground">
+                This task can use the connections you approved. Exact identifiers and authority
+                remain protected by Oxy and are not editable here.
+              </Text>
             </View>
           ) : null}
-          {draft.trigger.type === 'event' ? (
-            <View className="gap-3">
-              <View className="flex-row flex-wrap gap-2">
-                <Input
-                  className="min-w-40 flex-1"
-                  value={draft.trigger.appId}
-                  onChangeText={(appId) => setDraft((current) => ({
-                    ...current,
-                    trigger: current.trigger.type === 'event'
-                      ? { ...current.trigger, appId }
-                      : current.trigger,
-                  }))}
-                  placeholder="App ID"
-                  accessibilityLabel="Event app ID"
-                />
-                <Input
-                  className="min-w-40 flex-1"
-                  value={draft.trigger.eventType}
-                  onChangeText={(eventType) => setDraft((current) => ({
-                    ...current,
-                    trigger: current.trigger.type === 'event'
-                      ? { ...current.trigger, eventType }
-                      : current.trigger,
-                  }))}
-                  placeholder="Event type"
-                  accessibilityLabel="Event type"
-                />
-              </View>
-              <View className="flex-row items-center justify-between">
-                <Text className="text-sm text-foreground">Scope to one event resource</Text>
-                <Switch
-                  value={Boolean(eventResource)}
-                  onValueChange={(enabled) => setDraft((current) => ({
-                    ...current,
-                    trigger: current.trigger.type === 'event'
-                      ? {
-                          ...current.trigger,
-                          ...(enabled
-                            ? { resource: current.trigger.resource ?? emptyResource() }
-                            : { resource: undefined }),
-                        }
-                      : current.trigger,
-                  }))}
-                />
-              </View>
-              {eventResource ? (
-                <ResourceList
-                  label="Event resource"
-                  resources={[eventResource]}
-                  onChange={(resources) => setDraft((current) => ({
-                    ...current,
-                    trigger: current.trigger.type === 'event'
-                      ? { ...current.trigger, resource: resources[0] }
-                      : current.trigger,
-                  }))}
-                />
-              ) : null}
-            </View>
-          ) : null}
-        </View>
+        </ScrollView>
+      </Dialog>
 
-        <AgentSelector
-          draft={draft}
-          agents={agents}
-          onChange={(actorSelection) => setDraft((current) => ({ ...current, actorSelection }))}
-        />
-
-        <View className="gap-3">
-          <Label>Maximum autonomy</Label>
-          <ChoiceRow
-            value={draft.maximumAutonomy}
-            options={AUTONOMY_OPTIONS}
-            onChange={(maximumAutonomy) => setDraft((current) => ({
-              ...current,
-              maximumAutonomy,
-            }))}
-          />
-        </View>
-
-        <ResourceList
-          label="Declared resources"
-          resources={draft.resources}
-          onChange={(resources) => setDraft((current) => ({ ...current, resources }))}
-        />
-        <ResourceList
-          label="Data sources"
-          resources={draft.dataFlow.sources}
-          onChange={(sources) => setDraft((current) => ({
-            ...current,
-            dataFlow: { ...current.dataFlow, sources },
-          }))}
-        />
-        <ResourceList
-          label="Data destinations"
-          resources={draft.dataFlow.destinations}
-          onChange={(destinations) => setDraft((current) => ({
-            ...current,
-            dataFlow: { ...current.dataFlow, destinations },
-          }))}
-        />
-
-        <View className="gap-3">
-          <View className="flex-row items-center justify-between">
-            <Label>Limits</Label>
-            <Button
-              size="sm"
-              variant="outline"
-              onPress={() => setDraft((current) => ({
-                ...current,
-                limits: [...current.limits, { key: '', value: '' }],
-              }))}
-            >
-              <Plus size={14} color={colors.foreground} />
-              <Text>Add</Text>
-            </Button>
-          </View>
-          {draft.limits.map((limit, index) => (
-            <View key={`limit-${index}`} className="flex-row items-center gap-2">
-              <Input
-                className="min-w-32 flex-1"
-                value={limit.key}
-                onChangeText={(key) => setDraft((current) => ({
-                  ...current,
-                  limits: current.limits.map((entry, entryIndex) => (
-                    entryIndex === index ? { ...entry, key } : entry
-                  )),
-                }))}
-                placeholder="Limit key"
-                accessibilityLabel={`Limit ${index + 1} key`}
-              />
-              <Input
-                className="min-w-32 flex-1"
-                value={limit.value}
-                onChangeText={(value) => setDraft((current) => ({
-                  ...current,
-                  limits: current.limits.map((entry, entryIndex) => (
-                    entryIndex === index ? { ...entry, value } : entry
-                  )),
-                }))}
-                placeholder="Value or JSON list"
-                accessibilityLabel={`Limit ${index + 1} value`}
-              />
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={`Remove limit ${index + 1}`}
-                onPress={() => setDraft((current) => ({
-                  ...current,
-                  limits: current.limits.filter((_entry, entryIndex) => entryIndex !== index),
-                }))}
-                className="rounded-lg p-2 active:bg-destructive/10"
-              >
-                <Trash2 size={14} color={colors.error} />
-              </Pressable>
-            </View>
-          ))}
-        </View>
-
-        <View className="rounded-xl border border-border p-3 gap-2">
-          <Text className="text-sm font-medium text-foreground">Exact actions</Text>
-          <Text className="text-xs text-muted-foreground">
-            Action tools and targets stay fixed so existing run history remains correlated.
-          </Text>
-          {automation.actions.map((action) => (
-            <Text key={action.id} className="text-xs text-muted-foreground" selectable>
-              {action.resource.appId} · {action.resource.resourceType}:{action.resource.resourceId} · {action.tool}
-            </Text>
-          ))}
-        </View>
-
-        <View className="flex-row items-center justify-between rounded-xl border border-border p-3">
-          <View className="flex-1 pr-4">
-            <Text className="text-sm font-medium text-foreground">Enabled</Text>
-            <Text className="text-xs text-muted-foreground">
-              Saving an executable automation revalidates its exact Oxy authority.
-            </Text>
-          </View>
-          <Switch
-            value={draft.enabled}
-            onValueChange={(enabled) => setDraft((current) => ({ ...current, enabled }))}
-          />
-        </View>
-      </ScrollView>
-    </Dialog>
+      <Dialog
+        open={confirmClose}
+        onClose={() => setConfirmClose(false)}
+        placement={{ base: 'center' }}
+        title="Discard changes?"
+        description="Your unsaved task changes will be lost."
+        actions={[
+          { label: 'Keep editing', color: 'cancel' },
+          { label: 'Discard changes', color: 'destructive', onPress: onClose },
+        ]}
+      />
+    </>
   );
 }

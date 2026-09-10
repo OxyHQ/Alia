@@ -1,15 +1,13 @@
 import { ActivityIndicator, Pressable, View } from 'react-native';
-import { Clock, Play, ShieldCheck, Square, Users } from 'lucide-react-native';
+import { Clock, Play, Square, Users } from 'lucide-react-native';
 import { Switch } from '@/components/ui/switch';
 import { Text } from '@/components/ui/text';
 import {
   actorLabel,
   automationTitle,
-  autonomyLabel,
   canRunNow,
   humanizeIdentifier,
   policyReason,
-  resourceLabel,
   triggerLabel,
 } from '@/lib/automations/format';
 import type { AutomationDefinition, AutomationRun } from '@/lib/automations/types';
@@ -59,17 +57,6 @@ export function AutomationCard({
   const hasName = Boolean(automation.name?.trim());
   const lifecycle = lifecycleLabel(automationLifecycle(automation, latestRun));
   const lastReason = policyReason(latestRun);
-  const actionSummary = automation.actions.length > 0
-    ? automation.actions.map((action) => (
-      `${resourceLabel(action.resource)} · ${action.tool}`
-    )).join(' → ')
-    : automation.legacyTriggerId
-      ? 'Legacy prompt execution'
-      : automation.resources.length > 0
-        ? automation.resources.map((resource) => (
-          resourceLabel(resource)
-        )).join(' → ')
-        : 'No effectful actions configured';
 
   return (
     <View
@@ -94,8 +81,6 @@ export function AutomationCard({
               <AutomationPill label="Automation" />
             ) : (
               <>
-                <AutomationPill label={automation.executionMode === 'observe' ? 'Observe' : 'Execute'} />
-                <AutomationPill label={autonomyLabel(automation.maximumAutonomy)} />
                 {automation.legacyTriggerId ? (
                   <AutomationPill label="Legacy transition" tone="warning" />
                 ) : null}
@@ -126,10 +111,6 @@ export function AutomationCard({
               <Text className="flex-1 text-xs text-muted-foreground" selectable>
                 {actorLabel(automation.actorSelection, agentName, Boolean(automation.legacyTriggerId))}
               </Text>
-            </View>
-            <View className="flex-row items-start gap-2">
-              <ShieldCheck size={14} color={colors.mutedForeground} />
-              <Text className="flex-1 text-xs text-muted-foreground" selectable>{actionSummary}</Text>
             </View>
           </>
         )}
