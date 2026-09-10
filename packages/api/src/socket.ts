@@ -294,12 +294,23 @@ export function initSocket(server: http.Server) {
       if (!userId) return;
 
       const { getPendingApprovalSession, resolveApprovalDecision } = await import('./lib/agent/action-approval.js');
+      const { decideAgentApproval, findPendingApproval } = await import('./db/agents/agentRuntimeRepository.js');
+      const { getDb } = await import('./db/index.js');
 
       // The pending approval is bound to a sessionId at creation time. Reject if
       // the claimed session does not match the request, or the user does not own it.
-      const boundSessionId = getPendingApprovalSession(data.requestId);
+      const durable = await findPendingApproval(getDb(), userId, data.requestId);
+      const boundSessionId = getPendingApprovalSession(data.requestId) ?? durable?.turnId ?? null;
       if (!boundSessionId || boundSessionId !== data.sessionId) return;
       if (!(await ownsAgentSession(userId, data.sessionId))) return;
+
+      if (durable) {
+        await decideAgentApproval(getDb(), {
+          approvalId: data.requestId,
+          oxyUserId: userId,
+          approved: !!data.approved,
+        });
+      }
 
       // Resolve pending approval in-memory and broadcast the decision.
       resolveApprovalDecision({

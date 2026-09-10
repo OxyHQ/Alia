@@ -63,6 +63,7 @@ import { autonomyFlags } from '../autonomy/flags.js';
 import { getDb } from '../../db/index.js';
 import { updateAgentSession, type AgentSessionRecord } from '../../db/agents/agentSessionRepository.js';
 import type { EventStream } from './event-stream.js';
+import { RepeatDetector, repeatedToolCallKey } from './repeat-detector.js';
 
 export interface AgentRuntimeContext {
   session: AgentSessionRecord;
@@ -328,6 +329,17 @@ export async function applyRuntimePolicy(
 ): Promise<ToolSet> {
   const { session, eventStream } = ctx;
   const userId = session.oxyUserId;
+  const repeatDetector = new RepeatDetector();
+
+  const stableArgs = (value: unknown): string => {
+    if (Array.isArray(value)) return `[${value.map(stableArgs).join(',')}]`;
+    if (value && typeof value === 'object') {
+      return `{${Object.entries(value as Record<string, unknown>)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([key, item]) => `${JSON.stringify(key)}:${stableArgs(item)}`).join(',')}}`;
+    }
+    return JSON.stringify(value);
+  };
 
   /**
    * An MCP tool that throws answers the model instead of failing the step.
@@ -366,6 +378,17 @@ export async function applyRuntimePolicy(
     action.execute = async (input, options) => {
       const inputArgs: Record<string, unknown> =
         input && typeof input === 'object' ? (input as Record<string, unknown>) : {};
+      const repeatKey = repeatedToolCallKey(name, stableArgs(inputArgs));
+      if (repeatKey) {
+        const repeated = repeatDetector.record(session._id, repeatKey);
+        if (repeated.warning) {
+          eventStream?.append('system_message', `REPEATED TOOL WARNING: ${name} called ${repeated.count} times with identical arguments.`);
+        }
+        if (repeated.stop) {
+          eventStream?.append('error', `REPEATED TOOL STOP: ${name} called ${repeated.count} times with identical arguments.`);
+          return `Error: Repeated identical tool call stopped after ${repeated.count} attempts. Inspect the previous result and choose a different action.`;
+        }
+      }
       const risk = classifyActionRisk(name, inputArgs);
 
       if (risk.riskLevel === 'R3') {

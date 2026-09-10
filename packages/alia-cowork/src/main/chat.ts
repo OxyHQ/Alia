@@ -23,6 +23,7 @@ interface ContextItem {
 
 /** OpenAI streaming delta may carry a non-standard `reasoning` field on the Alia gateway. */
 type ReasoningDelta = OpenAI.Chat.ChatCompletionChunk.Choice.Delta & { reasoning?: string }
+type FunctionToolCall = Extract<OpenAI.Chat.ChatCompletionMessageToolCall, { type: 'function' }>
 
 const logger = createLogger('ChatProvider')
 
@@ -235,11 +236,11 @@ export class ChatProvider {
               type: 'function',
               function: {
                 name: 'list_files',
-                description: 'List files and directories in a path. If no path provided, lists home directory.',
+                description: 'List files inside a folder the user explicitly selected for this Cowork session.',
                 parameters: {
                   type: 'object',
                   properties: {
-                    path: { type: 'string', description: 'Directory path (default: home directory)' },
+                    path: { type: 'string', description: 'Directory path inside a user-selected root' },
                     recursive: {
                       type: 'boolean',
                       description: 'List recursively'
@@ -440,7 +441,7 @@ export class ChatProvider {
 
       logger.debug('Stream created, processing chunks...')
       let assistantMessage = ''
-      let toolCalls: OpenAI.Chat.ChatCompletionMessageFunctionToolCall[] = []
+      let toolCalls: FunctionToolCall[] = []
       let chunkCount = 0
 
       // Process stream chunks
@@ -815,7 +816,7 @@ export class ChatProvider {
 
       logger.debug('Continuation stream created, processing chunks...')
       let assistantMessage = ''
-      let toolCalls: OpenAI.Chat.ChatCompletionMessageFunctionToolCall[] = []
+      let toolCalls: FunctionToolCall[] = []
       let contChunkCount = 0
 
       // Process stream chunks

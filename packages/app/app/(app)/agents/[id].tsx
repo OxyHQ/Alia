@@ -30,6 +30,7 @@ import { PillList } from "@/components/detail/pill-list";
 import { ActivityGrid } from "@/components/detail/activity-grid";
 import { AgentTerminal } from "@/components/agent-terminal";
 import apiClient from "@/lib/api/client";
+import { API_ROUTES } from "@/lib/api/routes";
 import { useColorScheme } from "@/lib/useColorScheme";
 import { agentTint } from "@/lib/agents/agent-color";
 import { cn } from "@/lib/utils";
@@ -38,6 +39,7 @@ import { CAPABILITY_FAMILIES } from "@/lib/constants/capability-families";
 import { errorMessage as getErrorMessage, errorStatus, errorResponseData } from "@/lib/errors/error-utils";
 import { agentDisplayName, agentHandle } from "@/lib/agents/identity";
 import { ContentPanel } from "@oxy.so/bloom/content-panel";
+import { useAgentThreads } from "@/lib/hooks/use-agent-threads";
 
 const STATUS_COLORS: Record<string, string> = {
   active: "bg-green-500",
@@ -275,6 +277,7 @@ export default function AgentDetailScreen() {
    * elsewhere. The query IS the state; a write updates it where it lives.
    */
   const { data: agent, isPending: loading } = useAgent(id);
+  const { data: agentThreads = [] } = useAgentThreads(id);
   const setAgent = useCallback(
     (next: Agent) => queryClient.setQueryData(queryKeys.agents.detail(next._id), next),
     [queryClient],
@@ -379,14 +382,26 @@ export default function AgentDetailScreen() {
    * has no address without one. Saying so is better than navigating to `/@`,
    * which would sit on a loading screen that never resolves.
    */
-  const handleChat = useCallback(() => {
+  const handleChat = useCallback(async () => {
     if (!agent) return;
     const handle = agentHandle(agent);
     if (handle === "") {
       toast.error(t("agents.chatUnavailable"));
       return;
     }
-    router.push({ pathname: "/(app)/[username]", params: { username: `@${handle}` } });
+    try {
+      const response = await apiClient.post(API_ROUTES.agents.threads(agent._id), {
+        title: `Chat with ${agentDisplayName(agent)}`,
+        executionTarget: 'sandbox',
+        approvalMode: 'ask',
+      });
+      router.push({
+        pathname: "/(app)/[username]",
+        params: { username: `@${handle}`, threadId: String(response.data.thread.id) },
+      });
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, t("agents.threadCreateFailed")));
+    }
   }, [agent, router, t]);
 
   const handleHirePress = () => {
@@ -401,12 +416,23 @@ export default function AgentDetailScreen() {
     if (!agent || !taskInput.trim() || hiring) return;
     setHiring(true);
     try {
-      const res = await apiClient.post(`/agents/${agent._id}/hire`, {
-        task: taskInput.trim(),
+      const threadResponse = await apiClient.post(API_ROUTES.agents.threads(agent._id), {
+        title: taskInput.trim().slice(0, 120),
+        executionTarget: 'sandbox',
+        approvalMode: 'ask',
       });
+      const threadId = String(threadResponse.data.thread.id);
+      const res = await apiClient.post(API_ROUTES.agents.goals(threadId), {
+        objective: taskInput.trim(),
+      }, { headers: { 'Idempotency-Key': `${agent._id}:${Date.now()}:${Math.random()}` } });
       setTaskInput("");
       setShowHireInput(false);
-      toast.success(t("agents.hireStarted"));
+      toast.success(t("agents.taskStarted"));
+
+      const handle = agentHandle(agent);
+      if (handle) {
+        router.push({ pathname: "/(app)/[username]", params: { username: `@${handle}`, threadId } });
+      }
 
       // Open agent panel if session was created
       const sessionId = res.data?.sessionId;
@@ -428,7 +454,7 @@ export default function AgentDetailScreen() {
         // Through the extractor, not off the body: `/v1` answers
         // `{ error: { message, type } }`, and handing that object to `toast`
         // is the same React #31 crash deleting a show produced.
-        toast.error(getErrorMessage(err, "Failed to hire agent"));
+        toast.error(getErrorMessage(err, "Failed to start task"));
       }
     } finally {
       setHiring(false);
@@ -693,8 +719,8 @@ export default function AgentDetailScreen() {
               >
                 <Text className="text-[13px] font-medium text-foreground">
                   {agent.price != null
-                    ? `${t("agents.hire")} · $${agent.price.toFixed(2)}`
-                    : t("agents.hire")}
+                    ? `${t("agents.startTask")} · ${agent.price} credits`
+                    : t("agents.startTask")}
                 </Text>
               </Pressable>
               <View className="w-px bg-border" />
@@ -829,6 +855,35 @@ export default function AgentDetailScreen() {
             {/* Overview Tab Content (shown for all archetypes when overview is active) */}
             {detailTab === "overview" && (
               <>
+                {agentThreads.length > 0 && (
+                  <View className="mb-5">
+                    <SectionLabel>{t("agents.threads")}</SectionLabel>
+                    <View className="mt-2 gap-2">
+                      {agentThreads.slice(0, 8).map((thread) => (
+                        <Pressable
+                          key={thread.id}
+                          onPress={() => {
+                            const handle = agentHandle(agent);
+                            if (handle) router.push({
+                              pathname: "/(app)/[username]",
+                              params: { username: `@${handle}`, threadId: thread.id },
+                            });
+                          }}
+                          className="flex-row items-center justify-between rounded-xl border border-border px-3 py-2.5 active:bg-muted"
+                        >
+                          <View className="flex-1 mr-3">
+                            <Text className="text-[13px] font-medium text-foreground" numberOfLines={1}>{thread.title}</Text>
+                            <Text className="text-[11px] text-muted-foreground mt-0.5">
+                              {thread.executionTarget === 'cowork' ? 'Cowork' : 'Sandbox'} · {thread.status}
+                            </Text>
+                          </View>
+                          <Text className="text-[11px] text-muted-foreground">{formatRelativeTime(thread.updatedAt)}</Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                  </View>
+                )}
+
                 {/* Activity Grid */}
                 <View className="mb-5">
                   <SectionLabel>{t("agents.activity")}</SectionLabel>

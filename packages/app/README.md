@@ -22,7 +22,7 @@ Expo app for web, iOS, and Android.
 - `alia.approval_result`
 - `alia.research_progress`
 - `alia.model_switch`
-- `alia.agent_session`
+- `alia.agent_turn`
 - `alia.title`
 
 All payloads include `eventVersion: 1`.

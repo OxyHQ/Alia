@@ -77,6 +77,8 @@ export const conversations = pgTable(
     isPublic: boolean().notNull().default(false),
     /** An `agents` row. No foreign key — that table is a later batch. */
     agentId: text(),
+    /** The durable agent thread this bounded conversation stretch belongs to. */
+    agentThreadId: text(),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -94,6 +96,7 @@ export const conversations = pgTable(
       t.agentId,
       t.updatedAt.desc(),
     ),
+    index('conversations_agent_thread_updated_at_idx').on(t.agentThreadId, t.updatedAt.desc()),
     checkOneOf('conversations_source_check', t.source, CONVERSATION_SOURCES),
   ],
 );
@@ -302,4 +305,3 @@ export const canvasSessions = pgTable(
     index('canvas_sessions_conversation_id_idx').on(t.conversationId),
   ],
 );
-

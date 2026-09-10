@@ -456,6 +456,20 @@
       "when": 1788958552575,
       "tag": "0064_remove_legacy_routing_flag",
       "breakpoints": true
+    },
+    {
+      "idx": 65,
+      "version": "7",
+      "when": 1789005684389,
+      "tag": "0065_agent_runtime",
+      "breakpoints": true
+    },
+    {
+      "idx": 66,
+      "version": "7",
+      "when": 1789006465272,
+      "tag": "0066_agent_runtime_guardrails",
+      "breakpoints": true
     }
   ]
 }

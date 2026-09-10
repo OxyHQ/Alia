@@ -111,7 +111,7 @@ export const AgentCard = React.memo(function AgentCard({
           {agent.tagline}
         </Text>
 
-        {/* Spacer to push stats + hire to bottom */}
+        {/* Spacer to push stats + task action to bottom */}
         <View className="flex-1" />
 
         {/* Stats */}
@@ -162,8 +162,8 @@ export const AgentCard = React.memo(function AgentCard({
               <Zap size={13} className="text-foreground" />
               <Text className="text-[12px] font-semibold text-foreground">
                 {agent.price != null
-                  ? `${t("agents.hire")} · $${agent.price.toFixed(2)}`
-                  : t("agents.hire")}
+                  ? `${t("agents.startTask")} · ${agent.price} credits`
+                  : t("agents.startTask")}
               </Text>
             </View>
           </Button>

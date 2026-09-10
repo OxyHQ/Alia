@@ -22,6 +22,7 @@ const logger = createLogger('ToolExecutor')
 
 export class ToolExecutor {
   private homeDir: string
+  private allowedRoots: Set<string> = new Set()
   private openedApplications: Set<string> = new Set()
   private mainWindow?: BrowserWindow
   private stagehand?: Stagehand
@@ -31,18 +32,38 @@ export class ToolExecutor {
     this.mainWindow = mainWindow
   }
 
+  /** Explicit user selection is the only operation that widens filesystem scope. */
+  grantRoot(root: string): void {
+    const resolved = fs.realpathSync(root)
+    const directory = fs.statSync(resolved).isDirectory() ? resolved : path.dirname(resolved)
+    this.allowedRoots.add(directory)
+  }
+
+  private isWithinAllowedRoot(candidate: string): boolean {
+    for (const root of this.allowedRoots) {
+      const relativePath = path.relative(root, candidate)
+      if (relativePath === '' || (!relativePath.startsWith(`..${path.sep}`) && relativePath !== '..' && !path.isAbsolute(relativePath))) {
+        return true
+      }
+    }
+    return false
+  }
+
   private resolvePath(filePath?: string): string {
-    // Default to home directory if no path provided
-    if (!filePath || filePath === '' || filePath === '.') {
-      return this.homeDir
-    }
-    if (path.isAbsolute(filePath)) {
-      return filePath
-    }
-    if (filePath.startsWith('~')) {
-      return path.join(this.homeDir, filePath.slice(1))
-    }
-    return path.resolve(filePath)
+    const firstRoot = this.allowedRoots.values().next().value as string | undefined
+    if (!firstRoot) throw new Error('Select a file or folder before using local filesystem tools')
+    const requested = !filePath || filePath === '.'
+      ? firstRoot
+      : filePath.startsWith('~')
+        ? path.join(this.homeDir, filePath.slice(1))
+        : path.isAbsolute(filePath) ? filePath : path.resolve(firstRoot, filePath)
+    const absolute = path.resolve(requested)
+    let existing = absolute
+    while (!fs.existsSync(existing) && path.dirname(existing) !== existing) existing = path.dirname(existing)
+    const realExisting = fs.realpathSync(existing)
+    const canonical = path.join(realExisting, path.relative(existing, absolute))
+    if (!this.isWithinAllowedRoot(canonical)) throw new Error('Path is outside the folders selected for this Cowork session')
+    return canonical
   }
 
   async readFile(args: { path: string; start_line?: number; end_line?: number }): Promise<string> {
@@ -106,7 +127,7 @@ export class ToolExecutor {
   }
 
   async listFiles(args: { path?: string; recursive?: boolean }): Promise<string> {
-    const dirPath = this.resolvePath(args.path || this.homeDir)
+    const dirPath = this.resolvePath(args.path)
 
     if (!fs.existsSync(dirPath)) {
       throw new Error(`Directory not found: ${args.path}`)
@@ -142,7 +163,7 @@ export class ToolExecutor {
     if (!args.pattern) {
       throw new Error('Search pattern is required for search_files')
     }
-    const searchPath = this.resolvePath(args.path || this.homeDir)
+    const searchPath = this.resolvePath(args.path)
     const platform = process.platform
 
     let command: string
@@ -167,7 +188,7 @@ export class ToolExecutor {
     if (!args.command) {
       throw new Error('Command is required for run_command')
     }
-    const cwd = args.cwd ? this.resolvePath(args.cwd) : this.homeDir
+    const cwd = this.resolvePath(args.cwd)
 
     const { stdout, stderr } = await execAsync(args.command, {
       cwd,
@@ -221,7 +242,7 @@ export class ToolExecutor {
       cpus: os.cpus().length,
       totalMemory: `${Math.round(os.totalmem() / 1024 / 1024 / 1024)}GB`,
       freeMemory: `${Math.round(os.freemem() / 1024 / 1024 / 1024)}GB`,
-      homeDir: os.homedir(),
+      filesystemScope: this.allowedRoots.size > 0 ? 'user-selected roots' : 'none',
       tempDir: os.tmpdir(),
       uptime: `${Math.round(os.uptime() / 3600)} hours`
     }

@@ -1,0 +1,3 @@
+-- oxy:deploy-phase=pre
+ALTER TABLE "agents" ADD CONSTRAINT "agents_max_concurrent_threads_check" CHECK ("agents"."max_concurrent_threads" between 1 and 10);--> statement-breakpoint
+ALTER TABLE "agent_threads" ADD CONSTRAINT "agent_threads_routing_profile_id_check" CHECK ("agent_threads"."routing_profile_id" in ('01a06477-94f5-74f0-bc25-4a1ff59d6945', '01a06477-94f5-74f0-bc25-4c5c13b93ccd', '01a06477-94f5-74f0-bc25-52437e0c724d', '01a06477-94f5-74f0-bc25-55ea2ebdb2b6', '01a06477-94f5-74f0-bc25-5a78baecbef6', '01a06477-94f5-74f0-bc25-5d796b49b616', '01a06477-94f5-74f0-bc25-628b5f45d802', '01a06477-94f5-74f0-bc25-658eeb277737'));

@@ -42,6 +42,7 @@ export interface ConversationRow {
   readonly isFavorite: boolean;
   readonly isPublic: boolean;
   readonly agentId: string | null;
+  readonly agentThreadId: string | null;
   readonly createdAt: Date;
   readonly updatedAt: Date;
 }
@@ -53,6 +54,7 @@ export interface NewConversation {
   readonly title: string;
   readonly source: ConversationSource;
   readonly agentId?: string;
+  readonly agentThreadId?: string;
 }
 
 /**
@@ -74,6 +76,7 @@ export async function createConversation(
       title: input.title,
       source: input.source,
       agentId: input.agentId ?? null,
+      agentThreadId: input.agentThreadId ?? null,
     })
     .returning();
   if (!row) throw new Error('conversation insert returned no row');
@@ -132,6 +135,19 @@ export async function findConversation(
   return row;
 }
 
+/** Most recent bounded conversation stretch belonging to one durable agent thread. */
+export async function findActiveAgentThreadConversation(
+  db: ApiDatabase,
+  oxyUserId: string,
+  agentThreadId: string,
+): Promise<ConversationRow | undefined> {
+  const [row] = await db.select().from(conversations).where(and(
+    eq(conversations.oxyUserId, oxyUserId),
+    eq(conversations.agentThreadId, agentThreadId),
+  )).orderBy(desc(conversations.updatedAt)).limit(1);
+  return row;
+}
+
 
 /** Whether this user holds a thread with this id. */
 export async function conversationExists(
@@ -172,6 +188,7 @@ export interface ConversationUpsert {
   readonly source?: ConversationSource;
   /** The insert branch only. */
   readonly agentId?: string;
+  readonly agentThreadId?: string;
 }
 
 /**
@@ -220,6 +237,7 @@ export async function upsertConversation(
       title: input.title ?? input.titleOnInsert,
       ...(input.source === undefined ? {} : { source: input.source }),
       agentId: input.agentId ?? null,
+      agentThreadId: input.agentThreadId ?? null,
       ...changed,
     })
     .onConflictDoUpdate({

@@ -7,6 +7,10 @@ import sessionsRouter from './sessions.js';
 import filesRouter from './files.js';
 import reviewsRouter from './reviews.js';
 import activityRouter from './activity.js';
+import threadsRouter from './threads.js';
+import memoryRouter from './memory.js';
+import teamsRouter from './teams.js';
+import coworkDevicesRouter from './cowork-devices.js';
 
 const router = Router();
 
@@ -24,6 +28,10 @@ router.use('/', generateRouter);
 // as the word `thread`. Oxy usernames are free-form, so `@activity` is a handle
 // somebody may hold, and mounted later this router would never see them.
 router.use('/', threadRouter);
+router.use('/', threadsRouter);
+router.use('/', memoryRouter);
+router.use('/', teamsRouter);
+router.use('/', coworkDevicesRouter);
 
 // Files and session-specific routes (sessions/:sid/...) before parameterized /:id routes
 router.use('/', filesRouter);

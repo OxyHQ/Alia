@@ -633,10 +633,10 @@ export function useStreamingChat(apiUrl: string, conversationId?: string, reason
                   );
                   continue;
                 }
-                case 'alia.agent_session': {
-                  if (parsed.sessionId) {
+                case 'alia.agent_turn': {
+                  if (parsed.turnId) {
                     const { useUIStore } = await import('@/lib/stores/ui-store');
-                    useUIStore.getState().openAgentPanel(parsed.sessionId, parsed.agentId || '');
+                    useUIStore.getState().openAgentPanel(String(parsed.turnId), String(parsed.agentId ?? agentId ?? ''));
                   }
                   continue;
                 }

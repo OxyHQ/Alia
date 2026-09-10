@@ -40,7 +40,7 @@ import { useTranslation } from "@/lib/hooks/use-translation";
  * why this file is short — see `components/conversation-screen.tsx`.
  */
 const AgentThreadPage = () => {
-  const { username } = useLocalSearchParams<{ username: string }>();
+  const { username, threadId } = useLocalSearchParams<{ username: string; threadId?: string }>();
   const { t } = useTranslation();
 
   /**
@@ -52,7 +52,7 @@ const AgentThreadPage = () => {
    * is the bare username, which is what `GET /agents/thread/:username` expects.
    */
   const handle = username?.replace(/^@+/, '') ?? '';
-  const { data: thread, isPending, isError } = useAgentThread(handle);
+  const { data: thread, isPending, isError } = useAgentThread(handle, threadId);
 
   /**
    * An agent that does not exist and an agent this person cannot reach are ONE
@@ -151,7 +151,7 @@ const AgentThreadPage = () => {
            * re-read when a new stretch begins. Without it the screen shows the
            * active conversation and nothing behind it.
            */
-          threadHandle={handle}
+          threadHandle={thread.threadId ? undefined : handle}
         />
       </View>
     </BloomColorScope>

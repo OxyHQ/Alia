@@ -6,6 +6,7 @@
 
 export * from './agents';
 export * from './agent-sessions';
+export * from './agent-runtime';
 export * from './agents-support';
 export * from './automation';
 export * from './agency';

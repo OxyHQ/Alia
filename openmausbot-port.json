@@ -1,0 +1,26 @@
+{
+  "upstream": "https://github.com/milind-soni/OpenMausBot",
+  "commit": "0a17fa5759e7b77ce4c3a0326109ca342da9c260",
+  "license": "Apache-2.0",
+  "excluded": ["enterprise/**", "inference drivers", "branding and assets"],
+  "ports": [
+    {
+      "source": "server/repeat-detector.ts",
+      "sourceSha256": "c9733033f28b46d0db418e12440cf548534a40d24d6a93a1730442795ff32679",
+      "destination": "packages/api/src/lib/agent/repeat-detector.ts",
+      "kind": "adapted"
+    },
+    {
+      "source": "server/memory-store.ts",
+      "sourceSha256": "7c68e8911cfeffdf34a8ef47bd74069b1cc8b7768317154342e47e3523759528",
+      "destination": "packages/api/src/lib/agent/memory-contract.ts",
+      "kind": "adapted"
+    },
+    {
+      "source": "server/team-manifest.ts",
+      "sourceSha256": "0bd84618a802cbe710dc28c72d97322e264eab4cd0d5ca358dc079062100980a",
+      "destination": "packages/api/src/lib/agent/team-package.ts",
+      "kind": "adapted"
+    }
+  ]
+}

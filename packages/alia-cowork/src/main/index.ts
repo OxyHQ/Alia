@@ -8,6 +8,7 @@ import { AuthProvider } from './auth'
 import { WindowStateManager } from './windowState'
 import { McpLocalClient } from './mcp-client'
 import { createLogger } from './logger'
+import { startCoworkDeviceRegistration } from './device-registration'
 
 // Load environment variables from .env file
 config({ path: join(__dirname, '../../.env') })
@@ -25,6 +26,7 @@ let authProvider: AuthProvider
 let windowStateManager: WindowStateManager
 let mcpClient: McpLocalClient | null = null
 let isFullScreen = false
+let stopDeviceRegistration: (() => void) | null = null
 let savedBounds: Electron.Rectangle | null = null
 
 // Constants
@@ -92,6 +94,8 @@ function createWindow(): void {
   // Restore before the renderer asks: the device secret on disk re-mints a
   // token, so a returning user is signed in without touching the sign-in flow.
   void authProvider.restore()
+  stopDeviceRegistration?.()
+  stopDeviceRegistration = startCoworkDeviceRegistration()
 
   // Start local MCP client (non-blocking)
   mcpClient = new McpLocalClient()
@@ -360,6 +364,7 @@ function setupIPC(): void {
       return null
     }
 
+    for (const filePath of result.filePaths) toolExecutor.grantRoot(filePath)
     return processFiles(result.filePaths)
   })
 
@@ -375,6 +380,7 @@ function setupIPC(): void {
     }
 
     const folderPath = result.filePaths[0]
+    toolExecutor.grantRoot(folderPath)
 
     // Return folder info only, let AI decide what to read
     return [{
@@ -488,6 +494,8 @@ app.on('window-all-closed', () => {
 })
 
 app.on('before-quit', () => {
+  stopDeviceRegistration?.()
+  stopDeviceRegistration = null
   if (windowStateManager) {
     windowStateManager.untrack()
   }
