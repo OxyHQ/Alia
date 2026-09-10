@@ -27,6 +27,9 @@ export interface ChatMessage {
 export function convertToAISDKMessages(messages: ChatMessage[], toolNameMapping: Map<string, string>): any[] {
   const result: any[] = [];
   const toolCallsMap = new Map<string, { name: string; index: number }>();
+  const sanitizedToolName = (originalName: string): string =>
+    Array.from(toolNameMapping.entries())
+      .find(([, original]) => original === originalName)?.[0] || originalName;
 
   for (let i = 0; i < messages.length; i++) {
     const msg = messages[i];
@@ -74,27 +77,30 @@ export function convertToAISDKMessages(messages: ChatMessage[], toolNameMapping:
         // Track tool calls for matching with results
         for (const tc of toolCalls) {
           if (tc.id && tc.function?.name) {
-            const sanitizedName = Array.from(toolNameMapping.entries())
-              .find(([_, orig]: [string, string]) => orig === tc.function.name)?.[0] || tc.function.name;
+            const sanitizedName = sanitizedToolName(tc.function.name);
             toolCallsMap.set(tc.id, { name: sanitizedName, index: result.length });
           }
         }
 
+        const assistantContent = [
+          ...(typeof msg.content === 'string' && msg.content.length > 0
+            ? [{ type: 'text' as const, text: msg.content }]
+            : []),
+          ...toolCalls.map((tc: { id: string; function?: { name: string; arguments: string } }) => {
+            const toolName = sanitizedToolName(tc.function?.name || 'unknown');
+            return {
+              type: 'tool-call' as const,
+              toolCallId: tc.id,
+              toolName,
+              input: typeof tc.function?.arguments === 'string'
+                ? JSON.parse(tc.function.arguments)
+                : (tc.function?.arguments || {}),
+            };
+          }),
+        ];
         result.push({
           role: 'assistant',
-          content: msg.content || '',
-          toolCalls: toolCalls.map((tc: { id: string; function?: { name: string; arguments: string } }) => {
-            const sanitizedName = Array.from(toolNameMapping.entries())
-              .find(([_, orig]: [string, string]) => orig === tc.function?.name)?.[0] || tc.function?.name || 'unknown';
-
-            return {
-              toolCallId: tc.id,
-              toolName: sanitizedName,
-              args: typeof tc.function?.arguments === 'string'
-                ? JSON.parse(tc.function.arguments)
-                : (tc.function?.arguments || {})
-            };
-          })
+          content: assistantContent,
         });
 
         // For toolInvocations with results, also push corresponding tool result messages
@@ -108,7 +114,7 @@ export function convertToAISDKMessages(messages: ChatMessage[], toolNameMapping:
                 content: [{
                   type: 'tool-result',
                   toolCallId: inv.toolCallId,
-                  toolName: inv.toolName,
+                  toolName: sanitizedToolName(inv.toolName),
                   output: {
                     type: 'text',
                     value: resultValue,
