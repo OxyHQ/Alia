@@ -156,6 +156,19 @@ describe('the internal-routes CORS middleware', () => {
     });
   });
 
+  it('allows Mention to read the catalogue over GET and preflight', async () => {
+    expect(await ask(MOUNTS.shipped, 'https://mention.earth')).toEqual({
+      status: 200,
+      allowOrigin: 'https://mention.earth',
+      allowCredentials: 'true',
+    });
+    expect(await ask(MOUNTS.shipped, 'https://mention.earth', 'OPTIONS')).toEqual({
+      status: 204,
+      allowOrigin: 'https://mention.earth',
+      allowCredentials: 'true',
+    });
+  });
+
   it('drops an opaque WEB_URL instead of admitting every scheme through it', async () => {
     expect((await ask(MOUNTS.webUrl, 'exp://localhost:8150')).allowOrigin).toBeNull();
     expect((await ask(MOUNTS.webUrl, 'vscode-webview://abc123')).allowOrigin).toBeNull();

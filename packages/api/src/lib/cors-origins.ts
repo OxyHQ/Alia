@@ -19,7 +19,7 @@ import { log } from './logger.js';
  */
 
 /**
- * The first-party browser origins this repo deploys.
+ * The trusted browser origins that consume Alia's credentialed product routes.
  *
  * `packages/alia-canvas` is served on `canvas.alia.onl` and nowhere else: it is
  * a Cloudflare WORKER with `workers_dev = false` (see its `wrangler.toml`), so
@@ -35,11 +35,17 @@ import { log } from './logger.js';
  * origin against this set, so a neighbouring host — `staging.alia.onl`, a
  * preview build, anything sharing the suffix — is not admitted by an entry
  * here, which is the intent.
+ *
+ * `mention.earth` reads the public model catalogue before it opens a chat
+ * through `/v1`. The latter has its own public CORS policy; the catalogue goes
+ * through this exact-origin allowlist, so both surfaces have to admit Mention
+ * for that browser flow to work.
  */
 export const PRODUCTION_ORIGINS: readonly string[] = [
   'https://alia.onl',
   'https://console.alia.onl',
   'https://canvas.alia.onl',
+  'https://mention.earth',
 ];
 
 /**
