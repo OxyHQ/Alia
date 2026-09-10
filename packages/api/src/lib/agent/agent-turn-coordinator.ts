@@ -14,6 +14,7 @@ import { BrowserSession } from './browser-session.js';
 import { EventStream } from './event-stream.js';
 import { cleanupSessionResources } from './session-resources.js';
 import { withAgentAdmission } from '../../db/agents/agentRuntimeRepository.js';
+import { log } from '../logger.js';
 
 export interface CoordinatedAgentTurn {
   id: string;
@@ -75,16 +76,31 @@ export class AgentTurnCoordinator {
     };
     eventStream.append('user_message', input.task);
 
-    const settle = async (status: 'completed' | 'failed', result: string) => {
-      eventStream.append(status === 'completed' ? 'complete' : 'error', result);
-      await eventStream.flush();
-      await browserSession.close();
-      await cleanupSessionResources(session._id, input.oxyUserId);
-      await updateAgentSession(getDb(), session._id, {
-        status,
-        result,
-        stats: { completedAt: new Date(), lastActivityAt: new Date() },
-      });
+    let settlement: Promise<void> | null = null;
+    const settle = (status: 'completed' | 'failed', result: string): Promise<void> => {
+      // A successful inference turn is over before its disposable browser and
+      // sandbox resources have finished tearing down. Release admission first:
+      // the client is allowed to send its next turn as soon as it receives
+      // [DONE], and counting cleanup time as active work made that immediate
+      // follow-up lose a race against maxConcurrentThreads=1.
+      settlement ??= (async () => {
+        eventStream.append(status === 'completed' ? 'complete' : 'error', result);
+        await eventStream.flush().catch((err: unknown) => {
+          log.agents.warn({ err, sessionId: session._id }, 'Failed to flush final agent events');
+        });
+        await updateAgentSession(getDb(), session._id, {
+          status,
+          result,
+          stats: { completedAt: new Date(), lastActivityAt: new Date() },
+        });
+        await browserSession.close().catch((err: unknown) => {
+          log.agents.warn({ err, sessionId: session._id }, 'Failed to close agent browser session');
+        });
+        await cleanupSessionResources(session._id, input.oxyUserId).catch((err: unknown) => {
+          log.agents.warn({ err, sessionId: session._id }, 'Failed to clean up agent session resources');
+        });
+      })();
+      return settlement;
     };
 
     return {
