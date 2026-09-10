@@ -180,6 +180,15 @@ export const agentSessions = pgTable(
     statsCompletedAt: timestamptz(),
     statsLastActivityAt: timestamptz(),
 
+    /**
+     * Present only for synchronous product-chat turns. The HTTP request owns
+     * the lease; background/autonomous sessions use their worker lifecycle and
+     * leave this NULL. An expired lease proves that no live chat request can
+     * still own the row, so admission may fail it without guessing from generic
+     * activity timestamps.
+     */
+    chatLeaseExpiresAt: timestamptz(),
+
     configMaxSteps: integer().notNull().default(50),
     configMaxTokens: integer().notNull().default(100000),
     configMaxVms: integer().notNull().default(2),
@@ -202,6 +211,9 @@ export const agentSessions = pgTable(
     index('agent_sessions_agent_id_idx').on(t.agentId),
     index('agent_sessions_oxy_user_id_idx').on(t.oxyUserId),
     index('agent_sessions_status_idx').on(t.status),
+    index('agent_sessions_chat_lease_expiry_idx')
+      .on(t.chatLeaseExpiresAt)
+      .where(sql`${t.chatLeaseExpiresAt} is not null`),
     index('agent_sessions_agent_status_created_idx').on(
       t.agentId,
       t.status,
