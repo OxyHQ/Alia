@@ -50,6 +50,11 @@ export interface AliaMeta {
   synthetic: boolean;
   /** Sending the same turn again is worth a try. Defaults to `true`. */
   retryable: boolean;
+  /** Stable product error code; never an upstream/provider message. */
+  code?: string;
+  /** Safe Alia run identifier support can use to trace the failed turn. */
+  reference?: string;
+  retryAfter?: number;
 }
 
 /**
@@ -64,9 +69,19 @@ export function readAliaMeta(chunk: unknown): AliaMeta {
   if (meta === null || typeof meta !== 'object') {
     return { synthetic: false, retryable: true };
   }
-  const { synthetic, retryable } = meta as { synthetic?: unknown; retryable?: unknown };
+  const { synthetic, retryable, error } = meta as {
+    synthetic?: unknown;
+    retryable?: unknown;
+    error?: unknown;
+  };
+  const failure = error !== null && typeof error === 'object'
+    ? error as { code?: unknown; reference?: unknown; retryAfter?: unknown }
+    : null;
   return {
     synthetic: synthetic === true,
     retryable: retryable !== false,
+    ...(typeof failure?.code === 'string' ? { code: failure.code } : {}),
+    ...(typeof failure?.reference === 'string' ? { reference: failure.reference } : {}),
+    ...(typeof failure?.retryAfter === 'number' ? { retryAfter: failure.retryAfter } : {}),
   };
 }

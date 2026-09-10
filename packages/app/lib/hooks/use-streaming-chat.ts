@@ -267,7 +267,7 @@ export function useStreamingChat(apiUrl: string, conversationId?: string, reason
      * Alia's mark is Alia declining, and it is the one thing this must not
      * read as. The flag is remembered here and answered when the stream ends.
      */
-    let syntheticTail: { retryable: boolean } | null = null;
+    let syntheticTail: { retryable: boolean; detail?: string } | null = null;
 
     /**
      * Keep the person's turn, and hang the failure on it.
@@ -514,7 +514,7 @@ export function useStreamingChat(apiUrl: string, conversationId?: string, reason
           // all: the turn stays, with the error under it. (With real output
           // AND a synthetic tail, this keeps the output and marks the tail.)
           if (syntheticTail !== null) {
-            return keepFailedTurn(syntheticTail.retryable);
+            return keepFailedTurn(syntheticTail.retryable, syntheticTail.detail);
           }
           if (!hasUsableStreamOutput(outputEvidence)) {
             setError(new Error('No response received from AI'));
@@ -813,7 +813,13 @@ export function useStreamingChat(apiUrl: string, conversationId?: string, reason
                 // Remembered, never rendered — see `syntheticTail`. The
                 // server sends a stop chunk and [DONE] right after, and the
                 // `done` branch turns this into the error under the turn.
-                syntheticTail = { retryable: meta.retryable };
+                const detail = [meta.code, meta.reference ? `Ref ${meta.reference}` : null]
+                  .filter((value): value is string => value !== null && value !== undefined)
+                  .join(' · ');
+                syntheticTail = {
+                  retryable: meta.retryable,
+                  ...(detail === '' ? {} : { detail }),
+                };
               } else {
                 outputEvidence.realOutputChars += delta.content.length;
 
