@@ -44,6 +44,7 @@
     "start:docker-host": "bun run --filter @alia/docker-host start",
     "start:integrations": "bun run --filter @alia/integrations start",
     "lint": "bun run --filter '*' lint",
+    "doctor:oxy": "oxy-doctor --ci",
     "lint:canvas": "bun run --filter alia-canvas lint",
     "android": "bun run --filter @alia/app android",
     "ios": "bun run --filter @alia/app ios",
@@ -59,6 +60,7 @@
   ],
   "author": "",
   "devDependencies": {
+    "@oxy.so/doctor": "1.0.0",
     "typescript": "^5.9.3"
   },
   "dependencies": {

@@ -249,6 +249,7 @@ bun run web    # or ios, or android
 | [Integrations](docs/integrations.mdx) | Channels and messaging |
 | [Oxy auth](docs/oxyhq-auth.md) | Identity and sessions |
 | [Developer access](docs/developers-portal.md) | `alia_sk_*` keys and their sunset |
+| [Dependency updates](docs/dependencies.md) | Reviewable Oxy updates and Doctor |
 | [Deployment](docs/deployment.md) | Shipping it |
 
 </td>

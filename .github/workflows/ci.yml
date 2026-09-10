@@ -249,6 +249,9 @@ jobs:
           bun install
           git diff --exit-code bun.lock
 
+      - name: Verify Oxy dependency health
+        run: bun run doctor:oxy
+
       - name: Lint API
         run: bun run --filter @alia/api lint
 
