@@ -1043,7 +1043,19 @@
     "noActivity": "No actions recorded yet",
     "loading": "Loading this conversation…",
     "loadFailed": "This conversation couldn't be loaded",
-    "messageGone": "This message is no longer in the conversation"
+    "messageGone": "This message is no longer in the conversation",
+    "working": "Working…",
+    "workingFor": "Working for {{elapsed}}…",
+    "worked": "Worked",
+    "workedFor": "Worked for {{elapsed}}",
+    "failedAfter": "Failed after {{elapsed}}",
+    "stoppedAfter": "Stopped after {{elapsed}}",
+    "outputs": "Outputs",
+    "noOutputs": "No files generated",
+    "openOutput": "Open {{name}} in the canvas",
+    "filesAndSources": "Files and sources",
+    "input": "Input",
+    "output": "Output"
   },
   "landing": {
     "tagline": "Your intelligent AI assistant",

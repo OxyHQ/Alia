@@ -55,8 +55,13 @@ vi.mock('lucide-react-native', async () => {
   return {
     Brain: icon('Brain'), CheckCircle2: icon('CheckCircle2'), X: icon('X'), Globe: icon('Globe'),
     ChevronRight: icon('ChevronRight'), XCircle: icon('XCircle'), Ban: icon('Ban'), Clock: icon('Clock'),
+    FileText: icon('FileText'),
   };
 });
+
+// `@/lib/utils` owns `cn`, which the execution rows really use, and a UUID
+// helper that pulls the Expo native module in on import. The leaf is stubbed.
+vi.mock('expo-crypto', () => ({ getRandomValues: (array: Uint8Array) => array }));
 
 vi.mock('@/components/ui/text', async () => {
   const ReactModule = await import('react');

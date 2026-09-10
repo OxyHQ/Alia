@@ -1007,7 +1007,19 @@
     "noActivity": "Aún no hay acciones registradas",
     "loading": "Cargando esta conversación…",
     "loadFailed": "No se pudo cargar esta conversación",
-    "messageGone": "Este mensaje ya no está en la conversación"
+    "messageGone": "Este mensaje ya no está en la conversación",
+    "working": "Trabajando…",
+    "workingFor": "Trabajando desde hace {{elapsed}}…",
+    "worked": "Trabajó",
+    "workedFor": "Trabajó durante {{elapsed}}",
+    "failedAfter": "Falló tras {{elapsed}}",
+    "stoppedAfter": "Detenido tras {{elapsed}}",
+    "outputs": "Resultados",
+    "noOutputs": "No se generaron archivos",
+    "openOutput": "Abrir {{name}} en el lienzo",
+    "filesAndSources": "Archivos y fuentes",
+    "input": "Entrada",
+    "output": "Salida"
   },
   "landing": {
     "tagline": "Tu asistente de IA inteligente",

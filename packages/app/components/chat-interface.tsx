@@ -21,16 +21,12 @@ import Animated, {
   FadeInUp,
   useSharedValue,
   useAnimatedStyle,
-  withRepeat,
-  withSequence,
   withTiming,
-  cancelAnimation,
   Easing,
 } from "react-native-reanimated";
 import * as Clipboard from "expo-clipboard";
 import { Reasoning, ReasoningTrigger } from "@/components/ui/reasoning";
-import { useTheme } from "@oxy.so/bloom/theme";
-import { getToolLabel, getToolActiveLabel, getResearchActiveLabel, getTextFromContent, getImagesFromContent } from '@alia.onl/sdk';
+import { getToolActiveLabel, getResearchActiveLabel, getTextFromContent, getImagesFromContent } from '@alia.onl/sdk';
 import { useUIStore, type ThoughtTab, type ThoughtScope } from "@/lib/stores/ui-store";
 import { useStore, type ChatIdState } from "@/lib/stores/global-store";
 import { useQueryClient } from "@tanstack/react-query";
@@ -54,6 +50,9 @@ import { daySeparators } from "@/lib/message-days";
 import { threadSeamIds, type ThreadMessage } from "@/lib/thread-history";
 import { FailedTurnCard } from "@/components/chat/failed-turn-card";
 import type { FailedTurn } from "@/components/chat/turn-failure";
+import { WorkSummary } from "@/components/execution/work-summary";
+import { rememberOpener } from "@/components/execution/focus-return";
+import { turnLifecycle, turnTiming } from "@/lib/thought-utils";
 
 const isWeb = Platform.OS === "web";
 
@@ -213,35 +212,35 @@ function getMessageImages(message: Message): string[] {
   return [];
 }
 
-/** Pulsing colored bullet for tool execution status (alia-codea style). */
-const ToolBullet = React.memo(function ToolBullet({ isRunning }: { isRunning: boolean }) {
-  const { colors } = useTheme();
-  const opacity = useSharedValue(1);
-  React.useEffect(() => {
-    if (isRunning) {
-      opacity.value = withRepeat(
-        withSequence(
-          withTiming(0.3, { duration: 500 }),
-          withTiming(1, { duration: 500 })
-        ),
-        -1
-      );
-    } else {
-      opacity.value = withTiming(1, { duration: 150 });
-    }
-    return () => cancelAnimation(opacity);
-  }, [isRunning, opacity]);
-  const style = useAnimatedStyle(() => ({ opacity: opacity.value }));
-  return (
-    <Animated.View style={style}>
-      <Text
-        style={{ color: isRunning ? colors.warning : colors.success, fontSize: 10 }}
-      >
-        ●
-      </Text>
-    </Animated.View>
-  );
-});
+/**
+ * The card a finished tool call draws in the conversation, or `null` for a
+ * call that has none. A call with a card is shown as the card; every other
+ * call is a row of the turn's work summary (#544) — the pulsing bullet rows
+ * that used to list them are that summary now, collapsed behind
+ * "Worked for Ns".
+ */
+const CARD_TYPES = new Set(['weather', 'market', 'faircoin']);
+
+/** The card a finished call returned, if it is one this conversation draws. */
+function cardOf(t: ToolInvocation): { type: string; data: unknown } | null {
+  if (t.state !== 'result') return null;
+  const card = (t.result as { card?: { type?: string; data?: unknown } } | undefined)?.card;
+  if (card?.type === undefined || !CARD_TYPES.has(card.type) || !card.data) return null;
+  return { type: card.type, data: card.data };
+}
+
+function toolCard(t: ToolInvocation, key: string): React.ReactElement | null {
+  const card = cardOf(t);
+  if (card === null) return null;
+  if (card.type === 'weather') return <WeatherCard key={key} data={card.data as WeatherCardData} />;
+  if (card.type === 'market') return <MarketCard key={key} data={card.data as MarketCardData} />;
+  return <FairCoinCard key={key} data={card.data as FairCoinCardData} />;
+}
+
+/** Whether a call draws a card, without building it. */
+function hasToolCard(t: ToolInvocation): boolean {
+  return cardOf(t) !== null;
+}
 
 /**
  * The line between two days, Messenger-style.
@@ -305,7 +304,21 @@ type MessageRowProps = {
   // Per-row audio-gen state: 'idle' unless this row is the active one (same
   // rationale as ttsState above).
   audioGenRowState: string;
-  openThoughtPanel: (messageId: string, tab?: ThoughtTab) => void;
+  /**
+   * Open the execution panel on this message. `opener` is the control that was
+   * pressed, when the caller has it, so the panel can hand focus back to it on
+   * close; without one the panel remembers whatever is focused at the time.
+   */
+  openThoughtPanel: (messageId: string, tab?: ThoughtTab, opener?: unknown) => void;
+  /**
+   * The turn's timing for its work summary, as primitives so the row's memo
+   * holds: epoch ms of the send, and of the persisted end or `null` for a
+   * turn the server has not stamped (`turnTiming` in `lib/thought-utils.ts`).
+   */
+  workStartedAt: number | null;
+  workEndedAt: number | null;
+  /** The failed-turn card is anchored on this message: the turn failed, whatever the message says. */
+  turnFailed: boolean;
   onStartEdit?: (messageId: string, content: string) => void;
   onRegenerate?: (messageId: string) => void;
   onApprovePlan?: (planId: string) => void;
@@ -319,11 +332,29 @@ const MessageRow = React.memo(function MessageRow({
   handleMarkLayout, onRowLayout, handleCopyMessage, handleVote, readAloud,
   generateAudio, audioGenRowState,
   openThoughtPanel, onStartEdit, onRegenerate, onApprovePlan, onRejectPlan,
+  workStartedAt, workEndedAt, turnFailed,
 }: MessageRowProps) {
   const { colors } = useColorScheme();
   const { t: rowT } = useTranslation();
   const messageText = getMessageText(m);
   const messageImages = getMessageImages(m);
+
+  /**
+   * The calls the work summary lists: every one that did not draw its own
+   * card. Read on each render — the list changes per streamed tool event and
+   * the row is memoised on `m` already.
+   */
+  const workInvocations = m.role === 'assistant' ? (m.toolInvocations ?? []).filter((t) => !hasToolCard(t)) : [];
+  // The same cast the scope below makes: the local Message is a structural
+  // superset of the conversation Message the lifecycle reads, with `content`
+  // optional here — and `turnLifecycle` reads an absent one as empty.
+  const workLifecycle = workInvocations.length === 0
+    ? null
+    : turnLifecycle(m as unknown as ConversationMessage, {
+        isLoading,
+        isLastAssistant: isLastAlia,
+        failedTurn: turnFailed ? { userMessageId: '', anchorMessageId: m.id, retryable: false, partial: true } : null,
+      });
 
   return (
     <Animated.View
@@ -357,54 +388,26 @@ const MessageRow = React.memo(function MessageRow({
         );
       })()}
 
-      {/* Tool Invocations — alia-codea bullet style */}
-      {m.toolInvocations?.map((t, ti) => {
-        const key = t.toolCallId || `tool-${m.id}-${ti}`;
-        const toolLabel = getToolLabel(t.toolName);
-        const isRunning = t.state === 'call' || t.state === 'partial-call';
+      {/* A tool that produced a card draws it where the answer is read. */}
+      {m.toolInvocations?.map((t, ti) => toolCard(t, t.toolCallId || `tool-${m.id}-${ti}`))}
 
-        // Build description from tool args
-        let description = '';
-        if (t.args?.url) {
-          const url = String(t.args.url);
-          description = url.length > 40 ? url.substring(0, 40) + '...' : url;
-        } else if (t.args?.query) {
-          const q = String(t.args.query);
-          description = `"${q.length > 30 ? q.substring(0, 30) + '...' : q}"`;
-        }
-
-        const isDone = t.state === 'result';
-
-        // A tool that produced a card draws it. The bullet stays for everything
-        // else, and for this tool while it is still running.
-        const card = isDone ? (t.result as { card?: { type?: string; data?: unknown } } | undefined)?.card : undefined;
-        if (card?.type === 'weather' && card.data) {
-          return <WeatherCard key={key} data={card.data as WeatherCardData} />;
-        }
-        if (card?.type === 'market' && card.data) {
-          return <MarketCard key={key} data={card.data as MarketCardData} />;
-        }
-        if (card?.type === 'faircoin' && card.data) {
-          return <FairCoinCard key={key} data={card.data as FairCoinCardData} />;
-        }
-
-        return (
-          <Pressable
-            key={key}
-            className="flex-row items-center gap-2 py-1 active:opacity-70"
-            onPress={isDone ? () => openThoughtPanel(m.id) : undefined}
-            disabled={!isDone}
-          >
-            <ToolBullet isRunning={isRunning} />
-            <Text className="text-sm text-foreground flex-1 flex-shrink">
-              <Text className="font-bold">{toolLabel}</Text>
-              {description ? (
-                <Text className="text-muted-foreground"> {description}</Text>
-              ) : null}
-            </Text>
-          </Pressable>
-        );
-      })}
+      {/* Every other call sits behind the work summary: "Worked for Ns", with
+          the execution rows under it and the panel a press away (#544). It
+          reads the lifecycle the runtime stamps, so a running turn is
+          "Working", a stopped one "Stopped" and a failed one "Failed" — never
+          "Done" because text arrived (#543). */}
+      {workLifecycle === null ? null : (
+        <View className="my-1 w-full">
+          <WorkSummary
+            messageId={m.id}
+            invocations={workInvocations}
+            lifecycle={workLifecycle}
+            startedAt={workStartedAt}
+            endedAt={workEndedAt}
+            onOpenDetails={(opener) => openThoughtPanel(m.id, 'steps', opener)}
+          />
+        </View>
+      )}
 
       {/* Deep Research Progress */}
       {m.role === "assistant" && m.researchProgress && (
@@ -880,7 +883,8 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
      * Both are written in the same update as the message id, which is what
      * makes the first open show the message's own tool history.
      */
-    const openThought = useCallback((messageId: string, tab?: ThoughtTab) => {
+    const openThought = useCallback((messageId: string, tab?: ThoughtTab, opener?: unknown) => {
+      rememberOpener(opener);
       const { live, history: thread } = thoughtScopesRef.current;
       const past = live.messages.some((m) => m.id === messageId) ? undefined : thread.find((m) => m.id === messageId);
       if (past === undefined) {
@@ -988,6 +992,9 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
     const renderMessage = (m: Message, index: number) => {
       const separator = separatorsByMessage.get(m.id);
       const fromHistory = index < history.length;
+      // The send before this answer and the answer's own stamp bracket its
+      // work; both are primitives so the memoised row below holds.
+      const timing = turnTiming(m, filteredMessages);
 
       return (
         <React.Fragment key={m.id || `msg-${index}`}>
@@ -1027,6 +1034,9 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
             generateAudio={generateAudio}
             audioGenRowState={audioGenActiveMessageId === m.id ? audioGenState : 'idle'}
             openThoughtPanel={openThought}
+            workStartedAt={timing.startedAt}
+            workEndedAt={timing.endedAt}
+            turnFailed={failedTurn !== null && failedTurn !== undefined && failedTurn.anchorMessageId === m.id}
             onStartEdit={fromHistory ? undefined : onStartEdit}
             onRegenerate={fromHistory ? undefined : onRegenerate}
             onApprovePlan={onApprovePlan}

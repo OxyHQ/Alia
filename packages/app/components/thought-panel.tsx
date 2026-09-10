@@ -1,20 +1,25 @@
-import { useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { View, Pressable, ScrollView, Platform } from "react-native";
 import * as WebBrowser from "expo-web-browser";
 import { Text } from "@/components/ui/text";
-import { Brain, CheckCircle2, X, Globe, ChevronRight, XCircle, Ban, Clock } from "lucide-react-native";
+import { Brain, CheckCircle2, X, Globe, XCircle, Ban, Clock } from "lucide-react-native";
 import { useUIStore, type ThoughtTab } from "@/lib/stores/ui-store";
 import { useTheme, type ThemeColors } from "@oxy.so/bloom/theme";
 import { useTranslation } from "@/lib/hooks/use-translation";
+import { cn } from "@/lib/utils";
 import {
   extractSources,
+  extractOutputs,
   buildSteps,
   buildAuditTimeline,
   mergeSources,
   researchSourcesToSources,
   turnLifecycle,
   isLiveLifecycle,
+  toolCallStatus,
+  toolCallText,
   type Source,
+  type OutputFile,
   type ThoughtStep,
   type AuditEntry,
   type TurnLifecycle,
@@ -28,8 +33,11 @@ import Animated, {
   withTiming,
   withSequence,
 } from "react-native-reanimated";
-import { useEffect } from "react";
 import type { Message } from "@/lib/hooks/use-conversations";
+import { ToolStep } from "@/components/execution/tool-step";
+import { FilesAndSources } from "@/components/execution/files-and-sources";
+import { restoreOpenerFocus } from "@/components/execution/focus-return";
+import { REF } from "@/components/execution/tokens";
 
 /** One array for "nothing selected", so the memos below hold across renders. */
 const NO_MESSAGES: Message[] = [];
@@ -44,10 +52,13 @@ function TabToggle({ value, onChange }: { value: ThoughtTab; onChange: (t: Thoug
   ];
 
   return (
-    <View className="flex-row bg-muted rounded-lg overflow-hidden">
+    <View className="flex-row bg-muted rounded-lg overflow-hidden" accessibilityRole="tablist">
       {tabs.map((tab) => (
         <Pressable
           key={tab.key}
+          accessibilityRole="tab"
+          accessibilityLabel={tab.label}
+          accessibilityState={{ selected: value === tab.key }}
           onPress={() => onChange(tab.key)}
           className={`flex-1 items-center px-3 py-1.5 ${value === tab.key ? "bg-background" : ""}`}
         >
@@ -100,7 +111,11 @@ const STEP_LABEL_KEYS: Record<Exclude<ThoughtStep["type"], "tool">, string> = {
   cancelled: "thought.cancelled",
 };
 
-function StepIcon({ step, isActive, live }: { step: ThoughtStep; isActive: boolean; live: boolean }) {
+/** A step that is a phase or an ending rather than a tool call. */
+type PhaseStep = Omit<ThoughtStep, "type"> & { type: Exclude<ThoughtStep["type"], "tool"> };
+
+/** The icon of a phase step. */
+function PhaseIcon({ step, isActive }: { step: PhaseStep; isActive: boolean }) {
   const { colors } = useTheme();
   if (step.type === "thinking") {
     if (isActive) return <PulsingDot color="#a855f7" />;
@@ -118,22 +133,53 @@ function StepIcon({ step, isActive, live }: { step: ThoughtStep; isActive: boole
   if (step.type === "failed") {
     return <XCircle size={14} color={colors.error} />;
   }
-  if (step.type === "cancelled") {
-    return <Ban size={14} className="text-muted-foreground" />;
-  }
-  // A tool step spins on ITS OWN state while the turn runs — not on being
-  // last — so a finished tool after it cannot hide that it is still going,
-  // and a call that never returned in a turn that is over sits still.
-  const ToolIcon = getToolIcon(step.toolName || "");
-  if (live && step.state !== "result") {
-    return <LottieLoader width={14} height={14} />;
-  }
-  return <ToolIcon size={14} className="text-foreground" />;
+  return <Ban size={14} className="text-muted-foreground" />;
 }
 
+/**
+ * A phase or ending, in the same 20px-column row as a tool step so the list
+ * reads as one timeline. Not a control: there is nothing to expand.
+ */
+function PhaseRow({ step, isActive }: { step: PhaseStep; isActive: boolean }) {
+  const { t } = useTranslation();
+  const label = t(STEP_LABEL_KEYS[step.type]);
+  return (
+    <View className="flex-row items-center py-1" accessible accessibilityLabel={label}>
+      <View className="w-[20px] shrink-0 items-center justify-center">
+        <PhaseIcon step={step} isActive={isActive} />
+      </View>
+      <View className="min-w-0 flex-1 px-2.5">
+        <Text
+          className={cn(
+            "text-sm leading-5",
+            step.type === "done"
+              ? "text-green-500 font-medium"
+              : step.type === "failed"
+                ? "text-red-500 font-medium"
+                : isActive
+                  ? "text-foreground font-medium"
+                  : REF.textTertiary,
+          )}
+        >
+          {label}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+/**
+ * The turn's steps as execution rows: each tool call in a `ToolStep` whose
+ * input and output open in place, the phases and the ending as plain rows.
+ *
+ * A tool step spins on ITS OWN state while the turn runs — not on being last
+ * — so a finished tool after it cannot hide that it is still going, and a
+ * call that never returned in a turn that is over sits still and says so.
+ */
 function StepsTab({ steps, lifecycle }: { steps: ThoughtStep[]; lifecycle: TurnLifecycle }) {
   const { t } = useTranslation();
   const live = isLiveLifecycle(lifecycle);
+  const [openRows, setOpenRows] = useState<Record<string, boolean>>({});
 
   if (steps.length === 0) {
     return (
@@ -148,120 +194,27 @@ function StepsTab({ steps, lifecycle }: { steps: ThoughtStep[]; lifecycle: TurnL
       {steps.map((step, index) => {
         const isLast = index === steps.length - 1;
         const isActive = live && isLast;
-        const label = step.type === "tool" ? step.label : t(STEP_LABEL_KEYS[step.type]);
-        const showSources = step.sources && step.sources.length > 0;
-        const displayedSources = showSources ? step.sources!.slice(0, 3) : [];
-        const extraCount = showSources ? Math.max(0, step.sources!.length - 3) : 0;
-
+        if (step.type !== "tool") {
+          return <PhaseRow key={`${step.type}-${index}`} step={{ ...step, type: step.type }} isActive={isActive} />;
+        }
+        const inv = step.invocation;
+        const key = inv?.toolCallId || `tool-${index}`;
+        const ToolIcon = getToolIcon(step.toolName || "");
+        const status = inv === undefined ? (live ? "running" : "done") : toolCallStatus(inv, live);
         return (
-          <View key={index} className="flex-row">
-            {/* Timeline column */}
-            <View className="items-center" style={{ width: 24 }}>
-              <View className="h-3" />
-              <View className="items-center justify-center" style={{ width: 20, height: 20 }}>
-                <StepIcon step={step} isActive={isActive} live={live} />
-              </View>
-              {!isLast && (
-                <View
-                  className="flex-1 border-l border-border"
-                  style={{ minHeight: 16 }}
-                />
-              )}
-            </View>
-
-            {/* Content column */}
-            <View className="flex-1 pl-2 pb-3" style={{ paddingTop: 12 }}>
-              <Text
-                className={`text-sm ${
-                  step.type === "done"
-                    ? "text-green-500 font-medium"
-                    : step.type === "failed"
-                    ? "text-red-500 font-medium"
-                    : isActive
-                    ? "text-foreground font-medium"
-                    : "text-muted-foreground"
-                }`}
-              >
-                {label}
-              </Text>
-
-              {/* Source badges for search steps */}
-              {showSources && (
-                <View className="flex-row flex-wrap gap-1.5 mt-1.5">
-                  {displayedSources.map((s, si) => (
-                    <View
-                      key={si}
-                      className="rounded-full bg-muted px-2.5 py-1 flex-row items-center gap-1"
-                    >
-                      <Globe size={10} className="text-muted-foreground" />
-                      <Text className="text-[10px] text-muted-foreground" numberOfLines={1}>
-                        {s.domain}
-                      </Text>
-                    </View>
-                  ))}
-                  {extraCount > 0 && (
-                    <View className="rounded-full bg-muted px-2.5 py-1">
-                      <Text className="text-[10px] text-muted-foreground">
-                        + {extraCount} more
-                      </Text>
-                    </View>
-                  )}
-                </View>
-              )}
-            </View>
-          </View>
+          <ToolStep
+            key={key}
+            title={step.label}
+            status={status}
+            icon={<ToolIcon size={14} className={status === "error" ? "text-destructive" : "text-foreground"} />}
+            input={inv === undefined ? "" : toolCallText(inv.args)}
+            output={inv === undefined ? "" : toolCallText(inv.result)}
+            sources={step.sources}
+            expanded={openRows[key] === true}
+            onToggle={() => setOpenRows((rows) => ({ ...rows, [key]: rows[key] !== true }))}
+          />
         );
       })}
-    </View>
-  );
-}
-
-function SourcesTab({ sources }: { sources: Source[] }) {
-  const { t } = useTranslation();
-
-  if (sources.length === 0) {
-    return (
-      <View className="items-center justify-center py-8">
-        <Text className="text-sm text-muted-foreground">{t("thought.noSources")}</Text>
-      </View>
-    );
-  }
-
-  return (
-    <View className="gap-2">
-      <Text className="text-xs font-medium text-muted-foreground">
-        {t("thought.websites")}
-      </Text>
-      {sources.map((source, index) => (
-        <Pressable
-          key={index}
-          onPress={() => {
-            if (Platform.OS === 'web') {
-              window.open(source.url, '_blank', 'noopener,noreferrer');
-            } else {
-              WebBrowser.openBrowserAsync(source.url);
-            }
-          }}
-          className="rounded-xl border border-border p-3 bg-background active:bg-muted"
-        >
-          <View className="flex-row items-center gap-2 mb-1">
-            <Globe size={12} className="text-muted-foreground" />
-            <Text className="text-xs text-muted-foreground" numberOfLines={1}>
-              {source.domain}
-            </Text>
-            <View className="flex-1" />
-            <ChevronRight size={12} className="text-muted-foreground" />
-          </View>
-          <Text className="text-sm font-medium text-foreground" numberOfLines={2}>
-            {source.title}
-          </Text>
-          {source.snippet.length > 0 && (
-            <Text className="text-xs text-muted-foreground mt-0.5" numberOfLines={2}>
-              {source.snippet}
-            </Text>
-          )}
-        </Pressable>
-      ))}
     </View>
   );
 }
@@ -356,6 +309,28 @@ function EmptyState({ status }: { status: 'loading' | 'failed' | 'gone' }) {
   );
 }
 
+/** Open a source where the platform reads the web. */
+function openSource(source: Source): void {
+  if (Platform.OS === 'web') {
+    window.open(source.url, '_blank', 'noopener,noreferrer');
+  } else {
+    void WebBrowser.openBrowserAsync(source.url);
+  }
+}
+
+/**
+ * The execution panel: what the selected turn did, produced and read.
+ *
+ * It renders inside `ExecutionSurface`, which draws the aside's chrome — the
+ * `rounded-3xl border` of the reference — and decides between the desktop
+ * rail and the in-viewport popover; this component is the aside's content
+ * and sizes to it. Closing hands focus back to whatever opened it.
+ *
+ * Everything shown comes from the selection's own scope and the lifecycle the
+ * runtime stamps (#542, #543): a message not yet loaded is "loading", a load
+ * that failed says so, a message cut out since is "gone", and none of them is
+ * ever "no steps".
+ */
 export function ThoughtPanel() {
   const { t } = useTranslation();
   const activeTab = useUIStore((s) => s.thoughtTab);
@@ -363,6 +338,7 @@ export function ThoughtPanel() {
   const setRightPanel = useUIStore((s) => s.setRightPanel);
   const thoughtMessageId = useUIStore((s) => s.thoughtMessageId);
   const scope = useUIStore((s) => s.thoughtScope);
+  const canvasArtifacts = useUIStore((s) => s.canvasArtifacts);
 
   /**
    * The scope's messages are the conversation the selection was made in and
@@ -403,10 +379,32 @@ export function ThoughtPanel() {
     [message]
   );
 
+  const outputs = useMemo(() => (message ? extractOutputs(message.toolInvocations) : []), [message]);
+
+  /**
+   * An output opens in the canvas only while the canvas holds its artifact —
+   * the streaming hook adds one per generated file under the invocation's
+   * id, and nothing persists it. A reloaded thread lists the file by name and
+   * offers no press, rather than a press that opens an empty canvas.
+   */
+  const openOutput = useCallback(
+    (output: OutputFile): boolean => {
+      if (!canvasArtifacts.some((artifact) => artifact.id === output.id)) return false;
+      setRightPanel('canvas');
+      return true;
+    },
+    [canvasArtifacts, setRightPanel],
+  );
+
   const auditEntries = useMemo(
     () => buildAuditTimeline(messages, { isLoading: scope?.isLoading ?? false, failedTurn: scope?.failedTurn ?? null }),
     [messages, scope?.isLoading, scope?.failedTurn]
   );
+
+  const close = useCallback(() => {
+    setRightPanel(null);
+    restoreOpenerFocus();
+  }, [setRightPanel]);
 
   /**
    * Which of the three things a missing message means. A message that IS
@@ -425,21 +423,23 @@ export function ThoughtPanel() {
     ) : activeTab === "steps" ? (
       <StepsTab steps={steps} lifecycle={lifecycle} />
     ) : activeTab === "sources" ? (
-      <SourcesTab sources={sources} />
+      <FilesAndSources outputs={outputs} sources={sources} onOpenOutput={openOutput} onOpenSource={openSource} />
     ) : (
       <ActivityTab entries={auditEntries} />
     );
 
   return (
-    <View className="flex-1 bg-background">
+    <View className={cn("w-full flex-shrink", REF.surface)} style={{ maxHeight: '100%' }}>
       {/* Header */}
-      <View className="flex-row items-center justify-between px-4 py-3 border-b border-border">
-        <Text className="text-base font-semibold text-foreground">
+      <View className={cn("flex-row items-center justify-between border-b px-4 py-3", REF.border)}>
+        <Text className="text-base font-semibold text-foreground" accessibilityRole="header">
           {t("thought.title")}
         </Text>
         <Pressable
           className="p-1 rounded-lg active:opacity-70"
-          onPress={() => setRightPanel(null)}
+          accessibilityRole="button"
+          accessibilityLabel={t("common.close")}
+          onPress={close}
         >
           <X size={20} className="text-muted-foreground" />
         </Pressable>
@@ -450,10 +450,14 @@ export function ThoughtPanel() {
         <TabToggle value={activeTab} onChange={setActiveTab} />
       </View>
 
-      {/* Content */}
-      <ScrollView className="flex-1 px-4" showsVerticalScrollIndicator={false}>
+      {/* Content: `overflow-x-hidden overflow-y-auto` — sized to what it holds, up to the aside's height. */}
+      <ScrollView
+        style={{ flexGrow: 0, flexShrink: 1 }}
+        className={activeTab === "sources" && emptyState === null ? "" : "px-4"}
+        showsVerticalScrollIndicator={false}
+      >
         {content}
-        <View style={{ height: 24 }} />
+        <View style={{ height: 16 }} />
       </ScrollView>
     </View>
   );
