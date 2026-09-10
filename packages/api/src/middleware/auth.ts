@@ -1,4 +1,3 @@
-import crypto from 'crypto';
 import { Request, Response, NextFunction } from 'express';
 import { OxyServices } from '@oxy.so/core';
 import {
@@ -64,23 +63,6 @@ export const authenticateToken = createOxyAuthMiddleware(oxyClient, { auth: { de
  * available. Never add `ACCESS_TOKEN_SECRET` or a private signing key here.
  */
 export const oxyServiceAuth = oxyClient.serviceAuth({ debug: true });
-
-/**
- * Which Oxy environment this process IS.
- *
- * Used for the synthetic `serviceApp` below, which claimed `'production'`
- * unconditionally — a statement that was false on every staging task and every
- * developer machine. Nothing in Alia reads the field today, which is exactly why
- * a wrong value could sit there: the first reader would inherit the lie.
- *
- * Kept local because authentication must not import the hosted inference
- * client or make outbound inference configuration part of the auth graph.
- */
-function deploymentEnvironment(): OxyServiceAppContext['environment'] {
-  if (process.env.NODE_ENV === 'production') return 'production';
-  if (process.env.NODE_ENV === 'staging') return 'staging';
-  return 'development';
-}
 
 /**
  * Optional auth - attaches user if token present, doesn't block if absent
@@ -250,37 +232,6 @@ export function authenticateTokenOrApiKey(
   if (!token) {
     res.status(401).json({ error: 'Authentication required' });
     return;
-  }
-
-  // Internal service auth (e.g., browse tool calling Alia API as LLM).
-  //
-  // The length guard and the comparison are both on BYTES. The guard used to
-  // be on STRING length while the comparison was on buffers, so a token with
-  // the same character count but a multi-byte character in it reached
-  // `timingSafeEqual` with mismatched buffer lengths — which throws a
-  // `RangeError` from inside a synchronous middleware, answering 500 to what
-  // is simply a bad credential.
-  //
-  // Nothing may come between reading the secret and the compare: two suites
-  // assert that as a source census (`service-token-verification.test.ts`,
-  // `inference-boundary.test.ts`), which is why this note is here and not
-  // there.
-  const serviceSecret = process.env.SERVICE_SECRET;
-  const presented = Buffer.from(token, 'utf8');
-  const expected = serviceSecret ? Buffer.from(serviceSecret, 'utf8') : null;
-  if (expected && presented.length === expected.length &&
-      crypto.timingSafeEqual(presented, expected)) {
-    req.userId = 'system';
-    req.user = { id: 'system' };
-    req.serviceApp = {
-      appId: 'internal',
-      appName: 'internal',
-      credentialId: 'service-secret',
-      ownerAccountId: 'internal',
-      scopes: ['internal'],
-      environment: deploymentEnvironment(),
-    };
-    return next();
   }
 
   // API key auth

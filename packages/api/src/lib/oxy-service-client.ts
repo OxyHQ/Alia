@@ -79,6 +79,13 @@ export function oxyServiceClient(): OxyServices | null {
   return client;
 }
 
+/** A short-lived token for Alia's own Oxy ApplicationCredential. */
+export async function oxyServiceToken(): Promise<string> {
+  const oxy = oxyServiceClient();
+  if (!oxy) throw new Error('Alia Oxy service credential is not configured');
+  return oxy.getServiceToken();
+}
+
 function build(): OxyServices | null {
   // Trimmed, and the presence check reads the trimmed value: a secret that
   // reached the environment from a file carries the file's trailing newline, and

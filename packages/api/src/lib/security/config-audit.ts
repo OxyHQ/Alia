@@ -64,8 +64,8 @@ export type ConfigAuditAction = 'create' | 'update' | 'delete' | 'upsert' | 'rot
  * `system` for the one change somebody needs to attribute.
  *
  *  - `user` — an authenticated person, `id` is their Oxy user id;
- *  - `service` — an internal caller authenticated by `SERVICE_SECRET` or an Oxy
- *    service token, `id` names which;
+ *  - `service` — an internal caller authenticated by an Oxy service token,
+ *    `id` names which;
  *  - `seed` — the boot seeding, `id` names the module;
  *  - `script` — a one-shot run by an operator, `id` names the script.
  */

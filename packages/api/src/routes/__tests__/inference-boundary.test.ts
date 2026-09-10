@@ -128,38 +128,13 @@ describe('no privilege comes from an unverified token (#139 ws15)', () => {
     ]);
   });
 
-  it('the only synthetic service principal comes from a constant-time secret compare', () => {
-    // `req.serviceApp` is what `apiKeyRateLimit` and `request-context.ts` read to
-    // skip a limiter and a credit reservation, so where it is SET is where the
-    // privilege is granted. Exactly one place in Alia sets it, and it does so
-    // only after `crypto.timingSafeEqual` against `SERVICE_SECRET`.
+  it('never synthesizes a service principal locally', () => {
+    // `req.serviceApp` is assigned only by @oxy.so/core after it verifies the
+    // signed Oxy service token and its claims against the public JWKS.
     const auth = code('middleware/auth.ts');
     const assignments = [...auth.matchAll(/req\.serviceApp\s*=/g)];
-    expect(assignments).toHaveLength(1);
-
-    const guard = /const serviceSecret = process\.env\.SERVICE_SECRET;[\s\S]{0,400}?crypto\.timingSafeEqual\([\s\S]{0,200}?req\.serviceApp = \{/;
-    expect(guard.test(auth), 'req.serviceApp is set without the timing-safe compare').toBe(true);
-
-    // The floor: the file was read and the pattern is being applied to real code.
+    expect(assignments).toHaveLength(0);
     expect(auth).toContain('authenticateTokenOrApiKey');
-    // The negative control: the same regex does NOT match the same code with the
-    // compare removed, so a pass is about the guard rather than about the regex
-    // matching anything at all.
-    expect(guard.test(auth.replace('crypto.timingSafeEqual', 'looseEquals'))).toBe(false);
-  });
-
-  it('the synthetic principal states the environment it is, not a constant', () => {
-    // It said `environment: 'production'` unconditionally until the commit that
-    // added this file — false on every staging task and every developer machine.
-    // Nothing reads the field today, which is why a wrong value could sit there:
-    // the first reader would inherit the lie rather than discover it.
-    const auth = code('middleware/auth.ts');
-    expect(auth).toContain('environment: deploymentEnvironment()');
-    expect(auth).not.toMatch(/environment: 'production'/);
-    // The floor and the mapping: the helper exists and answers all three.
-    expect(auth).toMatch(/NODE_ENV === 'production'\) return 'production'/);
-    expect(auth).toMatch(/NODE_ENV === 'staging'\) return 'staging'/);
-    expect(auth).toMatch(/return 'development'/);
   });
 
   it('uses public-JWKS service-token verification without private material', () => {
@@ -196,10 +171,10 @@ describe('no privilege comes from an unverified token (#139 ws15)', () => {
     // so the empty list is absence rather than a filter that rejects everything.
     expect(
       gitGrepFiles('SERVICE_SECRET', ['packages/api/src'])
+        .filter((file) => file !== SELF)
         .filter((file) => code(path.relative(API_SRC, path.join(REPO_ROOT, file))).includes('SERVICE_SECRET')),
-    ).toContain('packages/api/src/middleware/auth.ts');
-
-    expect(gitGrepFiles('SERVICE_SECRET', ['.github'])).not.toEqual([]);
+    ).toEqual([]);
+    expect(gitGrepFiles('SERVICE_SECRET', ['.github'])).toEqual([]);
   });
 });
 

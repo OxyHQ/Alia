@@ -27,10 +27,9 @@ import { routingTargetSchema } from '@oxy.so/contracts';
  *     is a two-member union — `model` and `routing_profile_id` — with no deployment
  *     member at all. Asserted against the live contract schema, not a copy.
  *  2. **By becoming an internal principal.** `req.serviceApp` is what marks a
- *     caller internal, and it is reachable only through a constant-time compare
- *     against `SERVICE_SECRET`. The behavioural half below drives the real
- *     middleware with a developer API key and with a user token, and asserts the
- *     field stays undefined.
+ *     caller internal, and only the Oxy SDK may set it after verifying a signed
+ *     service token. The behavioural half below drives the middleware with a
+ *     developer API key, a user token and a verified service token.
  *  3. **By reaching an internal route.** `/internal/*` is the only surface
  *     mounted behind service-token auth, and it does not also accept the
  *     credential middleware every public route uses.
@@ -206,7 +205,21 @@ vi.mock('@oxy.so/core', () => {
   };
   class MockOxyServices {
     auth() {
-      return vi.fn(passThrough);
+      return vi.fn((req: Request, _res: Response, next: NextFunction) => {
+        if (req.headers.authorization === 'Bearer verified-service-token') {
+          req.userId = 'delegated-user';
+          req.user = { id: 'delegated-user' };
+          req.serviceApp = {
+            appId: 'alia-caller',
+            appName: 'Alia caller',
+            credentialId: 'credential-1',
+            ownerAccountId: 'account-1',
+            scopes: ['alia:invoke'],
+            environment: 'production',
+          };
+        }
+        next();
+      });
     }
     serviceAuth() {
       return vi.fn(passThrough);
@@ -214,14 +227,29 @@ vi.mock('@oxy.so/core', () => {
   }
   return { OxyServices: MockOxyServices };
 });
+vi.mock('@oxy.so/core/server', () => ({
+  createOptionalOxyAuth: vi.fn(() => vi.fn((_req: Request, _res: Response, next: NextFunction) => next())),
+  createOxyAuthMiddleware: vi.fn(() => vi.fn((req: Request, _res: Response, next: NextFunction) => {
+    if (req.headers.authorization === 'Bearer verified-service-token') {
+      req.userId = 'delegated-user';
+      req.user = { id: 'delegated-user' };
+      req.serviceApp = {
+        appId: 'alia-caller',
+        appName: 'Alia caller',
+        credentialId: 'credential-1',
+        ownerAccountId: 'account-1',
+        scopes: ['alia:invoke'],
+        environment: 'production',
+      };
+    }
+    next();
+  })),
+}));
 
 const { findAppById, findKeyByHash } = await import('../../db/developers/developerRepository.js');
 const { authenticateTokenOrApiKey } = await import('../../middleware/auth.js');
 
 type MockFn = ReturnType<typeof vi.fn>;
-
-/** A SERVICE_SECRET long enough that a key of the same length is constructible. */
-const SERVICE_SECRET = 'a'.repeat(48);
 
 function request(authorization: string): Request {
   return { headers: { authorization }, path: '/v1/chat/completions', method: 'POST' } as Request;
@@ -239,7 +267,6 @@ function response(): Response {
 describe('no public credential acquires the internal principal (#139 ws17)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    process.env.SERVICE_SECRET = SERVICE_SECRET;
   });
 
   it('a developer API key never sets req.serviceApp', async () => {
@@ -269,29 +296,17 @@ describe('no public credential acquires the internal principal (#139 ws17)', () 
     expect(req.user?.id).not.toBe('system');
   });
 
-  it('a token of the right LENGTH but the wrong bytes is not the service secret', async () => {
-    // The near miss. `crypto.timingSafeEqual` throws on a length mismatch, so
-    // the length check in front of it is load-bearing; this is the case that
-    // reaches the compare and must still lose.
-    (findKeyByHash as unknown as MockFn).mockResolvedValue(null);
-    const req = request(`Bearer ${'b'.repeat(SERVICE_SECRET.length)}`);
-    const res = response();
-    const next = vi.fn();
-    authenticateTokenOrApiKey(req, res, next as unknown as NextFunction);
-    await vi.waitFor(() => {
-      expect(req.serviceApp).toBeUndefined();
-    });
-    expect(req.userId).not.toBe('system');
+  it('only the SDK-verified service token acquires a service principal', () => {
+    const publicToken = request('Bearer user-session-token');
+    authenticateTokenOrApiKey(publicToken, response(), vi.fn() as unknown as NextFunction);
+    expect(publicToken.serviceApp).toBeUndefined();
 
-    // The control for the whole block: the REAL secret does grant it, so the
-    // three refusals above are about the credentials and not about a middleware
-    // that grants nothing to anyone.
-    const internal = request(`Bearer ${SERVICE_SECRET}`);
+    const internal = request('Bearer verified-service-token');
     const granted = vi.fn();
     authenticateTokenOrApiKey(internal, response(), granted as unknown as NextFunction);
     expect(granted).toHaveBeenCalled();
-    expect(internal.serviceApp?.scopes).toEqual(['internal']);
-    expect(internal.userId).toBe('system');
+    expect(internal.serviceApp?.scopes).toEqual(['alia:invoke']);
+    expect(internal.userId).toBe('delegated-user');
   });
 
   it('an API key cannot be extended into internal scope by asking for it', async () => {

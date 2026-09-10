@@ -452,7 +452,7 @@ describe('the compatibility surface accepts no new credential (#139 ws6, ADR 000
     // Positive controls, chosen rather than found. Each scanner is shown reading
     // a value the file demonstrably contains before any exact set is asserted.
     expect(headersRead(auth)).toContain('authorization');
-    expect(environmentRead(auth)).toContain('SERVICE_SECRET');
+    expect(environmentRead(auth)).toContain('OXY_API_URL');
     expect(prefixesScreened(auth)).toContain('alia_sk_');
 
     /**
@@ -476,7 +476,7 @@ describe('the compatibility surface accepts no new credential (#139 ws6, ADR 000
     /**
      * Five mechanisms reach `/v1`, and each one is a header this file reads:
      *
-     *  - `authorization` — an Oxy JWT, an `alia_sk_*` key, or `SERVICE_SECRET`;
+     *  - `authorization` — an Oxy JWT/service token or an `alia_sk_*` key;
      *  - `x-telegram-bot-secret` with `x-oxy-user-id` and `x-telegram-id`;
      *  - `x-channel-bot-secret` with `x-oxy-user-id`.
      *
@@ -508,13 +508,9 @@ describe('the compatibility surface accepts no new credential (#139 ws6, ADR 000
   });
 
   it('holds exactly these four secrets, so a new shared secret is visible', () => {
-    // `SERVICE_SECRET` grants a synthetic principal that skips both the limiter
-    // and the credit reservation, so the set of secrets this file can be
-    // persuaded by is part of the surface's auth definition.
+    // Every shared-secret lane is enumerated, so adding one remains visible.
     expect(environmentRead(auth)).toEqual([
-      'NODE_ENV',
       'OXY_API_URL',
-      'SERVICE_SECRET',
       'TELEGRAM_BOT_SECRET',
     ]);
   });

@@ -11,6 +11,7 @@ import { Stagehand } from '@browserbasehq/stagehand';
 import { validateUrl } from './sandbox.js';
 import { log } from '../logger.js';
 import { getErrorMessage } from '../errors/index.js';
+import { oxyServiceToken } from '../oxy-service-client.js';
 
 export interface BrowseSearchResult {
   title: string;
@@ -63,10 +64,7 @@ export const browseTool = tool({
       }
 
       // Use the Alia API as LLM backend (OpenAI-compatible endpoint)
-      const serviceSecret = process.env.SERVICE_SECRET;
-      if (!serviceSecret) {
-        return { action, error: 'SERVICE_SECRET not configured for browse tool' };
-      }
+      const serviceToken = await oxyServiceToken();
 
       const aliaApiUrl = process.env.ALIA_API_URL || 'http://localhost:4150';
 
@@ -82,7 +80,7 @@ export const browseTool = tool({
         },
         model: {
           modelName: 'openai/route:instant',
-          apiKey: serviceSecret,
+          apiKey: serviceToken,
           baseURL: `${aliaApiUrl}/v1`,
         },
       });

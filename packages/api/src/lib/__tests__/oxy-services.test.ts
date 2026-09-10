@@ -6,6 +6,7 @@ const { getServiceToken } = vi.hoisted(() => ({
 
 vi.mock('../oxy-service-client.js', () => ({
   oxyServiceClient: () => ({ getServiceToken }),
+  oxyServiceToken: getServiceToken,
 }));
 
 vi.mock('../logger.js', () => {

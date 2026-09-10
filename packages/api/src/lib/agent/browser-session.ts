@@ -21,6 +21,7 @@ import { validateUrl } from '../tools/sandbox.js';
 import { log } from '../logger.js';
 import { getErrorMessage } from '../errors/index.js';
 import { clarityClient } from '../clarity-client.js';
+import { oxyServiceToken } from '../oxy-service-client.js';
 import { emitAgentActivity } from '../../socket.js';
 
 const MAX_CONTENT_CHARS = 12_000;
@@ -379,7 +380,7 @@ export class BrowserSession {
   private async ensureBrowser(): Promise<void> {
     if (this.stagehand) return;
 
-    const serviceSecret = process.env.SERVICE_SECRET;
+    const serviceToken = await oxyServiceToken();
     const aliaApiUrl = process.env.ALIA_API_URL || 'http://localhost:4150';
 
     const sh = new Stagehand({
@@ -388,13 +389,11 @@ export class BrowserSession {
         headless: true,
         args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
       },
-      ...(serviceSecret ? {
-        model: {
-          modelName: 'openai/route:instant',
-          apiKey: serviceSecret,
-          baseURL: `${aliaApiUrl}/v1`,
-        },
-      } : {}),
+      model: {
+        modelName: 'openai/route:instant',
+        apiKey: serviceToken,
+        baseURL: `${aliaApiUrl}/v1`,
+      },
     });
 
     await sh.init();

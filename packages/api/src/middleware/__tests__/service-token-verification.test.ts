@@ -271,24 +271,14 @@ describe('every principal a request can acquire is mapped (#139 ws15)', () => {
       guard: 'crypto.timingSafeEqual(expectedBuf, providedBuf)',
       header: 'x-oxy-user-id',
     },
-    {
-      file: 'packages/api/src/middleware/auth.ts',
-      after: 'const serviceSecret = process.env.SERVICE_SECRET;',
-      // Both sides are Buffers built once above. They used to be built inline
-      // as `Buffer.from(token)` / `Buffer.from(serviceSecret)` behind a guard
-      // on STRING length, which throws a `RangeError` for a multi-byte token of
-      // the same character count — a 500 where a 401 belongs.
-      guard: 'crypto.timingSafeEqual(presented, expected)',
-      header: 'authorization',
-    },
   ] as const;
 
   /** Files allowed to assign `req.user` / `req.userId` at all, with the count. */
   const ASSIGNING_FILES: Readonly<Record<string, number>> = {
-    // `authenticateApiKey` (a sha256 lookup of the presented key), the
-    // SERVICE_SECRET branch, `authenticateTelegramBot` and
-    // `authenticateChannelBotSecret`: four functions, two assignments each.
-    'packages/api/src/middleware/auth.ts': 8,
+    // `authenticateApiKey` (a sha256 lookup of the presented key),
+    // `authenticateTelegramBot` and `authenticateChannelBotSecret`:
+    // three functions, two assignments each.
+    'packages/api/src/middleware/auth.ts': 6,
     // The channel-bot pre-middleware, which sets `req.user` only.
     'packages/api/src/routes/v1.ts': 1,
   };
