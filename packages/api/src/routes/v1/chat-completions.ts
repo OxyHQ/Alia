@@ -78,7 +78,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
     if (!ctx) return; // response already written (validation error or gate rejection)
 
     const {
-      body, messages, conversationId, reasoningEffort, agentMode, deepResearch, webSearch,
+      body, messages, conversationId, reasoningEffort, deepResearch, webSearch,
       mcpServerId,
       includeUsage, isDirectUserSession, requestedModel, clientContext, promptModelId,
       isLocalRuntime,

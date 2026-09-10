@@ -23,6 +23,7 @@ interface ContextItem {
 
 /** OpenAI streaming delta may carry a non-standard `reasoning` field on the Alia gateway. */
 type ReasoningDelta = OpenAI.Chat.ChatCompletionChunk.Choice.Delta & { reasoning?: string }
+type FunctionToolCall = Extract<OpenAI.Chat.ChatCompletionMessageToolCall, { type: 'function' }>
 
 const logger = createLogger('ChatProvider')
 
@@ -440,7 +441,7 @@ export class ChatProvider {
 
       logger.debug('Stream created, processing chunks...')
       let assistantMessage = ''
-      let toolCalls: OpenAI.Chat.ChatCompletionMessageToolCall[] = []
+      let toolCalls: FunctionToolCall[] = []
       let chunkCount = 0
 
       // Process stream chunks
@@ -815,7 +816,7 @@ export class ChatProvider {
 
       logger.debug('Continuation stream created, processing chunks...')
       let assistantMessage = ''
-      let toolCalls: OpenAI.Chat.ChatCompletionMessageToolCall[] = []
+      let toolCalls: FunctionToolCall[] = []
       let contChunkCount = 0
 
       // Process stream chunks
