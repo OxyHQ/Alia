@@ -27,7 +27,6 @@ const REVERSIBLE_WRITE_TOOLS = new Set([
   'write_file',
   'edit_file',
   'createAutomation',
-  'updateTrigger',
   'saveUserMemory',
   'updateUserMemory',
   'updateUserPreferences',

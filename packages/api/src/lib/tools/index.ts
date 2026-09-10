@@ -38,7 +38,6 @@ export { delegateSubtaskTool, type SubtaskResult } from './delegate.js';
 export { createSearchAgentsTool } from './agent-search.js';
 export { createDelegateToAgentTool, type AgentDelegationResult } from './agent-delegate.js';
 export { createAgentTool } from './agent-create.js';
-export { listTriggersTool, updateTriggerTool, deleteTriggerTool } from './trigger-management.js';
 export { createAutomationTool } from './automation-create.js';
 
 // Deep research tool (AI-callable)
