@@ -56,6 +56,8 @@ import { queryKeys } from '@/lib/hooks/query-keys';
 
 let api: ReturnType<typeof useClearConversation>;
 let client: QueryClient;
+/** The mounted tree, so each test tears its own down — see `afterEach`. */
+let tree: ReturnType<typeof create> | null = null;
 
 function Probe() {
   api = useClearConversation();
@@ -96,7 +98,7 @@ async function mount() {
   client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   seed();
   await act(async () => {
-    create(
+    tree = create(
       <QueryClientProvider client={client}>
         <Probe />
       </QueryClientProvider>,
@@ -109,7 +111,19 @@ beforeEach(() => {
   http.outcome = 'ok';
 });
 
+/**
+ * Torn down, not left behind. A previous test's tree stayed mounted with its
+ * own QueryClient, and an invalidation in THAT client re-rendered its `Probe`
+ * — which reassigned the module-level `api` to the old hook, so the next test
+ * mutated the wrong cache and failed at random. Unmounting is what makes each
+ * test's `api` the only one there is.
+ */
 afterEach(() => {
+  act(() => {
+    tree?.unmount();
+  });
+  tree = null;
+  client?.clear();
   vi.useRealTimers();
 });
 
