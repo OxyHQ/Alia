@@ -210,7 +210,7 @@ export interface ForUserOptions {
    * (`lib/chat/request-context.ts`), and `delegateToAgent` needs `agentMode`,
    * which is refused there too — so this is the remaining door.
    *
-   * Everything else here stays: the web tools reach DuckDuckGo's free endpoint,
+   * Everything else here stays: the web tools reach Clarity Search,
    * and the rest touch the person's own data.
    */
   isLocalRuntime: boolean;
