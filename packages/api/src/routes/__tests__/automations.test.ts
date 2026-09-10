@@ -307,6 +307,38 @@ describe('structured automation control plane', () => {
     expect(state.create).not.toHaveBeenCalled();
   });
 
+  it('creates an assistant task without a user token or fabricated app authority', async () => {
+    state.token = undefined;
+    const response = await send('POST', '/automations', {
+      objective: 'Remind me to call Alex',
+      trigger: { type: 'schedule', cron: '0 10 11 9 *', timezone: 'Europe/Bucharest' },
+      actorSelection: { mode: 'fixed', agentId: 'agent-1' },
+      executionMode: 'execute',
+      actions: [],
+      inputs: { instructions: 'Remind me to call Alex', runOnce: true },
+      resources: [],
+      dataFlow: { sources: [], destinations: [] },
+      maximumAutonomy: 'autonomous',
+      limits: [],
+      enabled: true,
+    });
+
+    expect(response.status).toBe(201);
+    expect(state.oxyMap).not.toHaveBeenCalled();
+    expect(state.provision).not.toHaveBeenCalled();
+    expect(state.create).toHaveBeenCalledWith(database, expect.objectContaining({
+      actions: [],
+      resources: [],
+      enabled: false,
+    }));
+    expect(state.setEnabled).toHaveBeenCalledWith(
+      database,
+      expect.any(String),
+      'owner-1',
+      true,
+    );
+  });
+
   it('rejects an invalid schedule before persisting the definition', async () => {
     state.scheduleError.mockReturnValueOnce('invalid_timezone');
     const response = await send('POST', '/automations', {

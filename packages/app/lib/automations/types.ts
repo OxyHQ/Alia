@@ -43,6 +43,7 @@ export interface AutomationDefinition {
   actorSelection: AutomationActorSelection;
   executionMode: AutomationExecutionMode;
   actions: AutomationAction[];
+  inputs?: Record<string, unknown>;
   resources: AutomationResource[];
   dataFlow: { sources: AutomationResource[]; destinations: AutomationResource[] };
   maximumAutonomy: AutomationAutonomy;
@@ -64,6 +65,7 @@ export type AutomationUpdateActorSelection =
 
 export interface AutomationUpdateInput {
   objective: string;
+  instructions?: string;
   trigger: AutomationUpdateTrigger;
   actorSelection: AutomationUpdateActorSelection;
   resources: AutomationResource[];

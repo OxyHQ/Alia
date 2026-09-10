@@ -4,6 +4,7 @@ const state = vi.hoisted(() => ({
   activeAuthorizations: vi.fn(),
   createRun: vi.fn(),
   createSession: vi.fn(),
+  disable: vi.fn(),
   enqueue: vi.fn(),
   findAgent: vi.fn(),
   markRun: vi.fn(),
@@ -24,6 +25,7 @@ vi.mock('../../db/automation/automationDefinitionRepository.js', () => ({
   createObservedAutomationRun: state.observe,
   listActiveAutomationAuthorizations: state.activeAuthorizations,
   markAutomationRunForSession: state.markRun,
+  setAutomationEnabled: state.disable,
 }));
 vi.mock('../../db/agents/agentRepository.js', () => ({ findAgentById: state.findAgent }));
 vi.mock('../../db/agents/agentSessionRepository.js', () => ({
@@ -120,6 +122,7 @@ beforeEach(() => {
   state.observe.mockResolvedValue(true);
   state.createSession.mockImplementation(async (_db, input) => ({ id: 'session-1', ...input }));
   state.createRun.mockResolvedValue(true);
+  state.disable.mockResolvedValue({ id: 'automation-1', enabled: false });
   state.enqueue.mockResolvedValue(undefined);
   state.updateSession.mockResolvedValue(undefined);
   state.markRun.mockResolvedValue(undefined);
@@ -206,6 +209,46 @@ describe('normalized automation dispatch', () => {
       task: expect.stringContaining('"type":"schedule"'),
     }));
     expect(state.enqueue).toHaveBeenCalledWith(expect.objectContaining({ sessionId: 'session-1' }));
+  });
+
+  it('queues an assistant-only scheduled task without fabricating Oxy authority', async () => {
+    await expect(dispatchStructuredAutomation(
+      automation({
+        actorSelection: { mode: 'fixed', agentId: 'agent-a' },
+        executionMode: 'execute',
+        actions: [],
+        resources: [],
+        dataFlow: { sources: [], destinations: [] },
+        inputs: { instructions: 'Remind me to call Alex' },
+      }),
+      scheduleTrigger,
+    )).resolves.toEqual({ status: 'queued', sessionId: 'session-1' });
+
+    expect(state.oxyMap).not.toHaveBeenCalled();
+    expect(state.activeAuthorizations).not.toHaveBeenCalled();
+    expect(state.createRun).toHaveBeenCalledWith(expect.objectContaining({
+      stages: [expect.objectContaining({ actions: [] })],
+    }));
+    expect(state.createSession).toHaveBeenCalledWith(database, expect.objectContaining({
+      task: expect.stringContaining('has no connected-app effects'),
+    }));
+  });
+
+  it('disables a one-off task in the same transaction that claims its run', async () => {
+    await dispatchStructuredAutomation(
+      automation({
+        actorSelection: { mode: 'fixed', agentId: 'agent-a' },
+        executionMode: 'execute',
+        actions: [],
+        resources: [],
+        dataFlow: { sources: [], destinations: [] },
+        inputs: { instructions: 'Remind me tomorrow', runOnce: true },
+      }),
+      scheduleTrigger,
+    );
+
+    expect(state.disable).toHaveBeenCalledWith(database, 'automation-1', 'owner-1', false);
+    expect(state.enqueue).toHaveBeenCalled();
   });
 
   it('runs an execute-on-request definition only for its owner and audits the requester', async () => {

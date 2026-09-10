@@ -45,6 +45,7 @@ import { MessageSources } from "@/components/message-sources";
 import { WeatherCard, type WeatherCardData } from "@/components/cards/weather-card";
 import { MarketCard, type MarketCardData } from "@/components/cards/market-card";
 import { FairCoinCard, type FairCoinCardData } from "@/components/cards/faircoin-card";
+import { ScheduledTaskCard, type ScheduledTaskCardData } from "@/components/cards/scheduled-task-card";
 import { NewConversationOffer } from "@/components/new-conversation-offer";
 import { daySeparators } from "@/lib/message-days";
 import { threadSeamIds, type ThreadMessage } from "@/lib/thread-history";
@@ -219,7 +220,7 @@ function getMessageImages(message: Message): string[] {
  * that used to list them are that summary now, collapsed behind
  * "Worked for Ns".
  */
-const CARD_TYPES = new Set(['weather', 'market', 'faircoin']);
+const CARD_TYPES = new Set(['weather', 'market', 'faircoin', 'scheduled-task']);
 
 /** The card a finished call returned, if it is one this conversation draws. */
 function cardOf(t: ToolInvocation): { type: string; data: unknown } | null {
@@ -234,6 +235,9 @@ function toolCard(t: ToolInvocation, key: string): React.ReactElement | null {
   if (card === null) return null;
   if (card.type === 'weather') return <WeatherCard key={key} data={card.data as WeatherCardData} />;
   if (card.type === 'market') return <MarketCard key={key} data={card.data as MarketCardData} />;
+  if (card.type === 'scheduled-task') {
+    return <ScheduledTaskCard key={key} data={card.data as ScheduledTaskCardData} />;
+  }
   return <FairCoinCard key={key} data={card.data as FairCoinCardData} />;
 }
 

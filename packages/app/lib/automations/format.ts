@@ -159,5 +159,5 @@ export function decisionReason(decision: Record<string, unknown> | null | undefi
 export function canRunNow(
   automation: Pick<AutomationDefinition, 'legacyTriggerId' | 'trigger'>,
 ): boolean {
-  return Boolean(automation.legacyTriggerId) || automation.trigger.type === 'manual';
+  return Boolean(automation.legacyTriggerId) || automation.trigger.type !== 'event';
 }
