@@ -1,5 +1,13 @@
 # @alia.onl/sdk
 
+## 7.2.7
+
+### Compatible Oxy 1.0 peers
+
+The SDK now accepts the current `@oxy.so/core` and `@oxy.so/services` 1.x patch
+line from 1.0.1 onward. Applications therefore share one canonical Oxy runtime
+instead of installing duplicate 1.0.0 peer copies.
+
 ## 7.1.1
 
 ### A stream either answers or fails
