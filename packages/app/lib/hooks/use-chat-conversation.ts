@@ -4,7 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/hooks/query-keys";
 import { useStore, type Attachment } from "@/lib/stores/global-store";
 import { useStreamingChat, type SendOptions } from "@/lib/hooks/use-streaming-chat";
-import { ConversationNotFoundError, useConversation, useCreateConversation, useDeleteConversation } from "@/lib/hooks/use-conversations";
+import { ConversationNotFoundError, useConversation, useCreateConversation, useDeleteConversation, type Message } from "@/lib/hooks/use-conversations";
 import { generateAPIUrl } from "@/lib/generate-api-url";
 import { API_ROUTES } from "@/lib/api/routes";
 import { buildMessageContent } from "@/lib/attachment-utils";
@@ -19,6 +19,48 @@ interface UseChatConversationOptions {
   reasoningEffort?: EffortLevel | null;
   selectedModel?: string;
   agentId?: string;
+}
+
+type MessageContent = Message['content'];
+
+/**
+ * What an edit sends in place of the original user turn.
+ *
+ * A STRING is the composer's edit: it replaces the text of the turn and keeps
+ * every non-text part (`image_url`, files) the turn already carried, because
+ * the composer only ever shows the text for editing and a person rewording a
+ * question about a picture has not asked for the picture to go. A full parts
+ * ARRAY is sent verbatim — that is how regenerate replays a turn unchanged, and
+ * how a caller that has deliberately removed an attachment says so.
+ */
+export type EditedContent = string | MessageContent;
+
+/**
+ * Merge an edit into the original turn's content, per the `EditedContent` rule.
+ * The replacement text lands where the original's first text part was, so a
+ * turn built as `[text, image]` stays `[text, image]` rather than reordering
+ * the picture ahead of the question; an original with no text part (image-only)
+ * gets the new text appended after its attachments.
+ */
+export function mergeEditedContent(original: MessageContent | undefined, edit: EditedContent): MessageContent {
+  if (typeof edit !== 'string') return edit;
+  if (!Array.isArray(original)) return edit;
+  const attachments = original.filter((part) => part.type !== 'text');
+  if (attachments.length === 0) return edit;
+  if (!edit.trim()) return attachments;
+  const textPart = { type: 'text', text: edit };
+  const firstTextIndex = original.findIndex((part) => part.type === 'text');
+  if (firstTextIndex < 0) return [...attachments, textPart];
+  const before = original.slice(0, firstTextIndex).filter((part) => part.type !== 'text');
+  const after = original.slice(firstTextIndex + 1).filter((part) => part.type !== 'text');
+  return [...before, textPart, ...after];
+}
+
+/** True when there is nothing to send: no text and no attachment part. */
+function isEmptyContent(content: MessageContent | undefined): boolean {
+  if (content === undefined || content === null) return true;
+  if (typeof content === 'string') return !content.trim();
+  return content.length === 0;
 }
 
 export function useChatConversation({ conversationId, reasoningEffort, selectedModel, agentId }: UseChatConversationOptions = {}) {
@@ -274,25 +316,34 @@ export function useChatConversation({ conversationId, reasoningEffort, selectedM
 
   const editMessage = useCallback(async (
     messageId: string,
-    newContent: string,
+    newContent: EditedContent,
     options?: SendOptions,
   ): Promise<boolean> => {
     // Truncate to messages before the edited one, then re-send.
     // setMessages eagerly syncs messagesRef so append reads truncated history.
     const beforeEdit = messages;
+    const original = messages.find(msg => msg.id === messageId);
+    // A string edit keeps the original turn's attachments; only a full parts
+    // array replaces them. See `EditedContent`.
+    const content = mergeEditedContent(original?.content, newContent);
+    if (isEmptyContent(content)) return false;
+
     setMessages(prev => {
       const idx = prev.findIndex(msg => msg.id === messageId);
       return idx < 0 ? prev : prev.slice(0, idx);
     });
 
-    const outcome = await append({ role: 'user', content: newContent }, options);
+    const outcome = await append({ role: 'user', content }, options);
 
     // append rolls back to the truncated list; only this scope still knows what
     // was cut, so it restores the rest and returns the edit to the composer.
+    // The original turn — attachments included — comes back with the rest, so
+    // nothing the person attached is orphaned by a send that never happened;
+    // the composer gets the text, which is the part it can show.
     if (outcome === 'failed') {
       setMessages(beforeEdit);
       useStore.getState().setComposerDraft({
-        text: newContent,
+        text: getTextFromContent(content),
         target: conversationId ?? null,
         mcpServerId: options?.mcpServerId ?? null,
         skillNames: options?.skillNames ?? [],
@@ -309,14 +360,18 @@ export function useChatConversation({ conversationId, reasoningEffort, selectedM
     // Regenerating IS re-sending the prompt that produced this answer. Walk back
     // to the user turn before it and replay that — editMessage already truncates
     // the history and re-appends, so there is no second path to keep in step.
+    //
+    // The turn goes through WHOLE: a string stays a string and a parts array
+    // keeps its `image_url`/file parts. Reducing it to its text first is what
+    // used to regenerate "what is in this picture" without the picture, and
+    // refuse outright on a prompt that was only a picture.
     const idx = messages.findIndex(msg => msg.id === assistantMessageId);
     if (idx < 0) return false;
     for (let i = idx - 1; i >= 0; i--) {
       const candidate = messages[i];
       if (candidate.role !== 'user') continue;
-      const text = getTextFromContent(candidate.content);
-      if (!text) return false;
-      return editMessage(candidate.id, text, options);
+      if (isEmptyContent(candidate.content)) return false;
+      return editMessage(candidate.id, candidate.content, options);
     }
     return false;
   }, [messages, editMessage]);
