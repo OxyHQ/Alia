@@ -4,17 +4,25 @@ import { SettingsListGroup, SettingsListItem } from "@oxy.so/bloom/settings-list
 import { useTranslation } from "@/lib/hooks/use-translation";
 import { SettingsHeader } from "@/components/settings/settings-header";
 import { useColorScheme } from "@/lib/useColorScheme";
-import { useIsLargeScreen } from "@/lib/hooks/use-is-large-screen";
+import { useSettingsLayoutMode } from "@/components/settings/layout-mode";
 import { SETTINGS_GROUPS, FIRST_SETTINGS_SECTION } from "@/components/settings/sections";
 
 export default function SettingsIndexScreen() {
   const { t } = useTranslation();
   const router = useRouter();
   const { colors } = useColorScheme();
-  const isLargeScreen = useIsLargeScreen();
+  const mode = useSettingsLayoutMode();
 
-  // At md+ the section column is already on screen, so a menu here would repeat it.
-  if (isLargeScreen) {
+  // Not measured yet: neither the menu nor the redirect, for a frame. A
+  // redirect on a guess takes a phone away from the menu it asked for.
+  if (mode === null) {
+    return null;
+  }
+
+  // In split mode the section column is already on screen, so a menu here
+  // would repeat it. Split is the SCENE's width, not the window's: at 768 with
+  // the drawer open the scene is stacked and this menu is the navigation.
+  if (mode === "split") {
     return <Redirect href={FIRST_SETTINGS_SECTION} />;
   }
 
