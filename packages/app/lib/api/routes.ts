@@ -19,6 +19,12 @@ export const API_ROUTES = {
     get: (id: string) => `/conversations/${id}`,
     update: (id: string) => `/conversations/${id}`,
     delete: (id: string) => `/conversations/${id}`,
+    /**
+     * Empty a thread without removing it: every message goes, the row and its
+     * title stay. A sub-resource DELETE rather than a `/clear` verb, because
+     * what is being deleted is the message collection and nothing else.
+     */
+    clearMessages: (id: string) => `/conversations/${id}/messages`,
   },
 
   // Folder routes

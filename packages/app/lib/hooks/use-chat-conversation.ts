@@ -4,7 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/hooks/query-keys";
 import { useStore, type Attachment } from "@/lib/stores/global-store";
 import { useStreamingChat, type SendOptions } from "@/lib/hooks/use-streaming-chat";
-import { ConversationNotFoundError, useConversation, useCreateConversation, useDeleteConversation, type Message } from "@/lib/hooks/use-conversations";
+import { ConversationNotFoundError, useClearConversation, useConversation, useCreateConversation, useDeleteConversation, type Message } from "@/lib/hooks/use-conversations";
 import { generateAPIUrl } from "@/lib/generate-api-url";
 import { API_ROUTES } from "@/lib/api/routes";
 import { buildMessageContent } from "@/lib/attachment-utils";
@@ -80,6 +80,7 @@ export function useChatConversation({ conversationId, reasoningEffort, selectedM
   } = useConversation(conversationId || "");
   const createConversationMutation = useCreateConversation();
   const { mutateAsync: deleteConversation } = useDeleteConversation();
+  const { mutateAsync: clearMessages } = useClearConversation();
 
   // A missing row is not a transient loading failure and the URL cannot become
   // useful by staying open. Remove its cached detail/list state and return to a
@@ -392,11 +393,47 @@ export function useChatConversation({ conversationId, reasoningEffort, selectedM
     return outcome !== 'failed';
   }, [isLoading, retry]);
 
-  const clearConversation = useCallback(() => {
+  /**
+   * Empty the thread — on the server first, then on screen.
+   *
+   * The order is the fix for #553. `setMessages([])` alone cleared the screen
+   * and nothing else, and the sync effect above, seeing a cached history and
+   * no messages, read that as a data upgrade and hydrated it straight back
+   * under a dialog that had just promised the action could not be undone.
+   * `useClearConversation` empties the cache in its `onSuccess`, which has run
+   * by the time `mutateAsync` resolves, so the local reset that follows has
+   * nothing left to be undone by.
+   *
+   * A turn still streaming is stopped first rather than refused: the person
+   * has just confirmed they want the thread empty, and an answer that kept
+   * arriving into it would be the next thing to clear. Stopping settles the
+   * assistant placeholder as `cancelled` and lets the server close the turn,
+   * so the clear that follows is of a thread nothing is writing to.
+   *
+   * A refusal keeps everything: the screen is not reset, the cache is not
+   * touched, and the error is surfaced — a cleared view whose history returns
+   * on the next fetch is exactly the state this exists to end.
+   *
+   * With no conversation id there is nothing persisted to clear, so the
+   * screen's own list is all there is and the local reset is the whole job.
+   */
+  const clearConversation = useCallback(async (): Promise<boolean> => {
+    if (isLoading) stop();
+
+    if (conversationId) {
+      try {
+        await clearMessages(conversationId);
+      } catch {
+        toast.error(i18n.t('chatHeader.clearFailed'));
+        return false;
+      }
+    }
+
     setMessages([]);
     // The message the error hung under is gone with the rest.
     clearFailedTurn();
-  }, [setMessages, clearFailedTurn]);
+    return true;
+  }, [isLoading, stop, conversationId, clearMessages, setMessages, clearFailedTurn]);
 
   // True while loading conversation messages (initial fetch or seeded→full upgrade)
   const conversationLoading = conversationQueryLoading ||

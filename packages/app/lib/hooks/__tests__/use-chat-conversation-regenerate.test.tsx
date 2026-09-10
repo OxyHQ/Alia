@@ -87,6 +87,7 @@ vi.mock('@/lib/hooks/use-conversations', () => ({
   useConversation: () => ({ data: undefined, isLoading: false, isFetching: false }),
   useCreateConversation: () => ({ mutateAsync: vi.fn() }),
   useDeleteConversation: () => ({ mutateAsync: vi.fn() }),
+  useClearConversation: () => ({ mutateAsync: vi.fn() }),
 }));
 vi.mock('@oxy.so/bloom/toast', () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 // Platform modules the hook imports for its SEND path. Neither takes part in
