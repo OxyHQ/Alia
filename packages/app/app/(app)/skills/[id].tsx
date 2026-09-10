@@ -92,7 +92,10 @@ export default function SkillDetailScreen() {
 
         <ContentPanel surfaceClassName="bg-background">
           <View className="px-5 pt-2 pb-4 flex-row gap-4">
-            <SkillCover seed={skill.name} width={96} color={skill.color ?? undefined} title={skill.displayName} />
+            {/* The one cover on this screen is the one that may move: an
+                explicit opt-in, honoured on native only and not under reduced
+                motion. Shelves never pass it (#545). */}
+            <SkillCover seed={skill.name} width={96} color={skill.color ?? undefined} title={skill.displayName} animated />
             <View className="flex-1">
               <Text className="text-xl font-bold text-foreground">{skill.displayName}</Text>
               <Text className="text-[12px] text-muted-foreground mt-0.5">{skill.name}</Text>
