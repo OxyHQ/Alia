@@ -29,12 +29,15 @@ Epic #139 sets the target: Alia becomes a consumer of a shared inference platfor
 
 The database cut and the inference cut are separate. [PR #465](https://github.com/OxyHQ/Alia/pull/465) completed the PostgreSQL-only runtime: `@alia/api` opens no MongoDB connection and has no Mongo or Mongoose dependency. Before this change, provider adapters and plaintext `provider_keys` rows remained in Alia, and the dormant client/configuration still carried legacy `ALIA_RELAY_*`, `RELAY_BASE_URL`, `X-Oxy-Relay-*` and `oxy-relay-envelope:v1` identifiers. Those identifiers described migration debt, not a supported second name or proof of production cutover.
 
-This change removes that direct hosted runtime and uses the published
-`OxyInferenceClient`, but source completion is not production completion. Kaana
-has merged PostgreSQL/KMS custody for upstream credentials, including customer
-BYOK; the coordinated Alia/Oxy/infra route must still be deployed and live task
-definitions proven to contain no provider key before the production cutover can
-be claimed.
+The direct hosted runtime is removed and Alia uses the published
+`OxyInferenceClient`. Production cutover was completed and read back on
+2026-09-10 in deployment run `34468526433`: pre-phase migrations succeeded, the
+authenticated routing-profile readiness task succeeded, task definition
+`oxy-alia:311` reached a healthy two-of-two ECS steady state, and post-deploy
+reconciliation completed. Public readiness identified the Oxy path and
+configured service credential; `/v1/models` remained intentionally empty and
+`/catalogue` exposed reviewed product-routing profiles. Kaana retains
+PostgreSQL/KMS custody for upstream credentials, including customer BYOK.
 
 ## Decision
 

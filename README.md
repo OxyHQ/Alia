@@ -86,11 +86,13 @@ operation such as translate, classify, summarize, rewrite or smart reply uses
 other case: they are private Alia product agents, so their path is
 `product -> Alia agent -> Oxy -> Kaana`.
 
-That is the source target, not a claim that production has already cut over.
-Kaana's PostgreSQL/KMS provider-credential custody is merged, but the coordinated
-Alia/Oxy/infra rollout and live task-definition gates must still prove that no
-old Alia task or provider key remains active. The exclusive canonical Kaana
-origin is `https://kaana.ai`; Alia never configures that origin directly.
+Production cutover was verified on 2026-09-10 by the coordinated deployment of
+Alia task definition `oxy-alia:311`: pre-phase migrations and the authenticated
+reviewed-profile readiness task completed, ECS reached a healthy two-of-two
+steady state, and post-deploy reconciliation succeeded. Public readback returned
+ready with the Oxy path configured, the intentionally empty `/v1/models`, and
+only reviewed profiles from `/catalogue`. The exclusive canonical Kaana origin
+is `https://kaana.ai`; Alia never configures that origin directly.
 
 `/automations` is the normalized scheduling and control API for explicit actors,
 resources, actions, data flow and autonomy. `/triggers` remains available for legacy
