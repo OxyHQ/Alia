@@ -153,6 +153,40 @@ Two things to know about the responses:
 
 Scopes required: `chat:write` for `/v1/chat/completions`, `models:read` for `/v1/models`.
 
+## Using `@alia.onl/sdk` from your own application
+
+`@alia.onl/sdk` (`packages/alia-chat`) is a **product** client, not a generic one: its
+`useAliaChat` hook parses the `alia.*` stream events above. It nevertheless defaults to
+`POST /v1/chat/completions`, because the product route, `POST /alia/chat`, answers CORS
+preflights only for Alia's own origins (`packages/api/src/lib/cors-origins.ts`) while
+`/v1` answers `*`, and the SDK ships raw source that compiles into your app on your
+origin. Pointing it at `/alia/chat` from a browser would fail your preflight.
+
+The supported way to use the SDK from an application outside Alia's origins today is
+**through your own backend**. It receives the SDK's request, calls `POST /alia/chat`
+server-to-server — no `Origin` header, so no CORS decision — forwarding the
+`Authorization: Bearer …` header the SDK attached (the signed-in user's Oxy session, which
+Alia verifies with Oxy exactly as it would for a direct call, and meters to that user), and
+streams the `text/event-stream` body back unchanged. Then:
+
+```tsx
+useAliaChat({ apiUrl: 'https://your-backend.example' });
+```
+
+The hook appends its own paths, so your backend answers `POST /v1/chat/completions` and
+`GET /catalogue` under that base URL. The minimal relay is in
+[`packages/alia-chat/README.md`](../packages/alia-chat/README.md). Do not build it on an
+`alia_sk_*` key: the route accepts one, but issuance is closed and the credential is
+inside its own window above. A consumer-application credential for this route is Oxy
+Applications' to issue (`OxyHQ/oxy#972`).
+
+The cost is one more hop in the path of every stream. The two shapes that remove it — a
+CORS policy for registered consumer origins, and the SDK default moving in a major — are
+recorded in [#244](https://github.com/OxyHQ/Alia/issues/244): the first is blocked on the
+Oxy Applications origin registry, the second is an adoption window rather than a switch,
+and both wait on the open owner decision over whether `/v1` sunsets at all
+([ADR 0006](./adr/0006-the-destination-of-api-alia-onl-v1-is-recorded-twice.md)).
+
 ## Where new integrations go
 
 | You want | Go to |

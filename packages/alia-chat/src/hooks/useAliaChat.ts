@@ -10,7 +10,22 @@ import type { AliaChatStreamEvent } from '../lib/chat-stream';
 const API_URL = process.env.EXPO_PUBLIC_ALIA_API_URL ?? 'https://api.alia.onl';
 
 export interface UseAliaChatOptions {
-  /** Alia API base URL (default: EXPO_PUBLIC_ALIA_API_URL or https://api.alia.onl) */
+  /**
+   * Base URL the hook sends its requests to. Defaults to
+   * `EXPO_PUBLIC_ALIA_API_URL`, then `https://api.alia.onl`.
+   *
+   * The hook appends its own paths — `POST /v1/chat/completions` for a turn and
+   * `GET /catalogue` for the model check — so the value is a host, not a route.
+   *
+   * Point this at YOUR OWN backend to use the SDK from an origin Alia does not
+   * enumerate: Alia's product route, `POST /alia/chat`, answers CORS preflights
+   * only for Alia's own origins, while a server-to-server call carries no
+   * `Origin` header and is answered on its credential alone. Your backend
+   * receives the SDK's request, forwards the `Authorization` header it carries
+   * (the signed-in user's Oxy access token) to `/alia/chat`, and streams the
+   * SSE body back unchanged. The README's *consumer-backend path* section has
+   * the minimal relay; issue #244 records why this is the supported shape today.
+   */
   apiUrl?: string;
   /**
    * Kaana routing profile to use.
