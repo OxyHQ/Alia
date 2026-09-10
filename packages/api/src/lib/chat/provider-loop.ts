@@ -105,6 +105,8 @@ export interface ProviderLoopParams {
   includeUsage: boolean;
   /** Product service token selected by the authenticated app/agent binding gate. */
   inferenceServiceToken?: string;
+  /** Release durable turn state before the client is told it may send again. */
+  beforeStreamClose?: () => Promise<void>;
 }
 
 export type ProviderLoopResult =
@@ -117,7 +119,7 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
     req, res, sse, requestId, requestStartTime, globalTimer, globalTimeoutMs, state,
     body, messages, conversationId, reasoningEffort, convertedMessages, truncatedTools,
     toolNameMapping, agentMessages, systemPromptTokens, requestedModel,
-    autonomyRuntime, includeUsage, skills, inferenceServiceToken,
+    autonomyRuntime, includeUsage, skills, inferenceServiceToken, beforeStreamClose,
   } = params;
 
   // Track token usage (streaming path; the non-streaming path owns its own)
@@ -398,6 +400,14 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
 
       sse.stopKeepAlive();
       req.off('close', onClientClose);
+      if (beforeStreamClose) {
+        await beforeStreamClose().catch((err: unknown) => {
+          // The answer has already completed and been persisted. A bookkeeping
+          // failure must be observable, but must not turn that answer into a
+          // provider retry or prevent the client from receiving its terminator.
+          log.v1.warn({ err }, 'Failed to settle agent turn before stream close');
+        });
+      }
       res.write('data: [DONE]\n\n');
       res.end();
       clearTimeout(globalTimer);
