@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, lt, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm';
 import type { ApiDatabase, Executor } from '../index.js';
 import {
   agentApprovalRequests,
@@ -165,6 +165,25 @@ export async function withAgentAdmission<T>(
 ): Promise<{ admitted: true; value: T } | { admitted: false }> {
   return db.transaction(async (tx) => {
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`alia-agent:${agentId}`}))`);
+    // A process crash, deployment or lost socket can strand a session in
+    // `running`. Without a lease expiry that row consumes concurrency forever;
+    // every later chat turn is then rejected before inference and the client
+    // can only put the message back in the composer. Active runners refresh
+    // `statsLastActivityAt`, and chat turns have an 80s hard timeout, so five
+    // quiet minutes is safely outside either live path.
+    const staleBefore = new Date(Date.now() - 5 * 60_000);
+    await tx.update(agentSessions).set({
+      status: 'failed',
+      result: 'Session lease expired before it could settle',
+      statsCompletedAt: new Date(),
+    }).where(and(
+      eq(agentSessions.agentId, agentId),
+      eq(agentSessions.status, 'running'),
+      or(
+        lt(agentSessions.statsLastActivityAt, staleBefore),
+        and(isNull(agentSessions.statsLastActivityAt), lt(agentSessions.createdAt, staleBefore)),
+      ),
+    ));
     const [counted] = await tx.select({ count: sql<number>`count(*)::int` }).from(agentSessions).where(and(
       eq(agentSessions.agentId, agentId),
       inArray(agentSessions.status, ['queued', 'running']),
