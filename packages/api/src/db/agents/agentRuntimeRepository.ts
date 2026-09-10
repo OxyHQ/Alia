@@ -1,5 +1,5 @@
 import { and, desc, eq, inArray, lt, sql } from 'drizzle-orm';
-import type { ApiDatabase } from '../index.js';
+import type { ApiDatabase, Executor } from '../index.js';
 import {
   agentApprovalRequests,
   agentGoals,
@@ -161,7 +161,7 @@ export async function withAgentAdmission<T>(
   db: ApiDatabase,
   agentId: string,
   maxConcurrentThreads: number,
-  callback: () => Promise<T>,
+  callback: (tx: Executor) => Promise<T>,
 ): Promise<{ admitted: true; value: T } | { admitted: false }> {
   return db.transaction(async (tx) => {
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`alia-agent:${agentId}`}))`);
@@ -170,7 +170,10 @@ export async function withAgentAdmission<T>(
       inArray(agentSessions.status, ['queued', 'running']),
     ));
     if ((counted?.count ?? 0) >= maxConcurrentThreads) return { admitted: false as const };
-    return { admitted: true as const, value: await callback() };
+    // The active row must be created on this transaction handle. Using the
+    // root pool here can wait forever for a second connection under load and
+    // also makes the admission count and insert two different transactions.
+    return { admitted: true as const, value: await callback(tx) };
   });
 }
 

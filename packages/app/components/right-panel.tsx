@@ -40,6 +40,7 @@ export function RightPanel() {
       onClose={handleClose}
       side="right"
       width={panelWidth}
+      divided={false}
     >
       {renderPanelContent()}
     </Panel>

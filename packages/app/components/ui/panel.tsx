@@ -18,6 +18,8 @@ interface PanelProps {
   children: React.ReactNode;
   /** Additional className for the panel container */
   className?: string;
+  /** Whether the desktop panel draws the divider facing the content. */
+  divided?: boolean;
 }
 
 /**
@@ -34,6 +36,7 @@ export function Panel({
   width = 320,
   children,
   className,
+  divided = true,
 }: PanelProps) {
   const { width: screenWidth } = useWindowDimensions();
   const isLargeScreen = useIsLargeScreen();
@@ -48,7 +51,7 @@ export function Panel({
         style={{ width, paddingTop: insets.top }}
         className={cn(
           "bg-background",
-          side === "right" ? "border-l border-border" : "border-r border-border",
+          divided && (side === "right" ? "border-l border-border" : "border-r border-border"),
           className
         )}
       >
