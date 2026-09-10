@@ -1,21 +1,33 @@
 import { create } from "zustand";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { AccountScopedKey } from "./account-scope";
 
 interface PinnedStoreState {
   pinnedConversationIds: string[];
-  loadPinned: () => Promise<void>;
+  /**
+   * Bind the store to the signed-in account and load its pins. `null` (signed
+   * out) empties the list and reads nothing. The layout calls this whenever
+   * the user id changes; see `AccountScopedKey` for the namespace, the
+   * one-time legacy migration and the stale-load guard.
+   */
+  loadPinned: (userId: string | null) => Promise<void>;
   togglePin: (conversationId: string) => Promise<void>;
   isPinned: (conversationId: string) => boolean;
 }
 
-const PINNED_STORAGE_KEY = "alia-pinned-conversations";
+const storage = new AccountScopedKey("alia-pinned-conversations");
 
 export const usePinnedStore = create<PinnedStoreState>((set, get) => ({
   pinnedConversationIds: [],
 
-  loadPinned: async () => {
+  loadPinned: async (userId) => {
+    // Empty synchronously: the previous account's pins must not stay on screen
+    // for the duration of the read, and a signed-out state has none.
+    const token = storage.bind(userId);
+    set({ pinnedConversationIds: [] });
+    if (!userId) return;
     try {
-      const pinnedData = await AsyncStorage.getItem(PINNED_STORAGE_KEY);
+      const pinnedData = await storage.getItem();
+      if (!storage.isCurrent(token)) return;
       if (pinnedData) {
         const pinned = JSON.parse(pinnedData);
         set({ pinnedConversationIds: pinned });
@@ -34,8 +46,11 @@ export const usePinnedStore = create<PinnedStoreState>((set, get) => ({
         ? state.pinnedConversationIds.filter((id) => id !== conversationId)
         : [...state.pinnedConversationIds, conversationId];
 
-      await AsyncStorage.setItem(PINNED_STORAGE_KEY, JSON.stringify(newPinned));
-      set({ pinnedConversationIds: newPinned });
+      // Persist, then publish — unless the account changed while the write was
+      // in flight, in which case the list belongs to the previous account.
+      const token = storage.token;
+      await storage.setItem(JSON.stringify(newPinned));
+      if (storage.isCurrent(token)) set({ pinnedConversationIds: newPinned });
     } catch (error) {
       console.error("Error toggling pin:", error);
     }
