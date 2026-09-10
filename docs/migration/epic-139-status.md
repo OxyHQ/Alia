@@ -840,3 +840,58 @@ way to notice when that absence ends, and nothing in this repository's CI can go
 cheap defence is to write such a verdict with the observation that would refute it attached —
 `blockers.kaana` now carries the exact probes — so that re-checking it costs one command rather than
 one audit.
+
+## Re-audit 2026-09-10
+
+**Subject:** the 107 rows that were open under `BLOCKED_CUTOVER` (58), `ACTIONABLE_NOW` (8),
+`ALREADY_TRUE` (2), `ROLLUP_OF` (1), `BLOCKED_OPERATOR` (10), `BLOCKED_KAANA` (7, Alia's half only)
+and `DUPLICATE_OF` (21). **Why:** every one of them rested on a premise that changed after 2026-08-19 —
+Alia was cut over to `Alia -> Oxy -> Kaana` in `697c3f9` (#477), ADR 0010 made `api.alia.onl/v1/*` a
+permanent product API, OxyHQ/oxy#972 closed, and Codea, Cowork and the CLI moved onto `/alia/chat` (#561).
+
+**Result:** **47 earned** (`resolvedSince: 2026-09-10`, each with `resolutionEvidence` naming the
+mechanism `file:line` and the guard that keeps it true), **59 still open** (each with a rewritten
+`namedBlocker` and a new `unblockedBy` field: this repo / kaana / oxy / operator / product decision),
+**1 superseded** (`SUPERSEDED_BY_REMOVAL`, L274 — the aliases it asks to deprecate were deleted, so it
+can never be earned as written). Open verdicts now: `BLOCKED_CUTOVER` 30, `BLOCKED_OXY_972` 26,
+`BLOCKED_ALIAMODELS` 28, `ACTIONABLE_UPSTREAM` 17, `PRODUCT_DECISION` 11, `DUPLICATE_OF` 10,
+`BLOCKED_OPERATOR` 9, `BLOCKED_KAANA` 7, `ACTIONABLE_NOW` 2, `ROLLUP_OF` 1, `SUPERSEDED_BY_REMOVAL` 1.
+The full record is `reaudit20260910` in the JSON.
+
+**Method.** Read-only over the working tree at `aa4db14` (`claude/bold-mendel-a4utt1`, equal to
+`origin/main`). Every `file:line` cited was read in this session, and every guard named was read for
+what it *asserts* — not for whether it names the function (`textCannotSeeAnInvertedCondition`) — and
+run where the checkout allows: 20 of the 22 cited API suites are green (224 tests);
+`unified-product-runtime.test.ts` and `v1-compatibility-surface.test.ts` fail to **load** here only
+because `@clarity.surf/sdk` (#484) is not installed and `bun install` was out of bounds, so their
+assertions were read, not executed. The issue body was read through the GitHub API (416 boxes, 231
+ticked, 185 unticked) and every row was re-aligned by line number and by text modulo the
+Relay→Kaana rename. `OxyHQ/oxy`'s `kaanaInitialCatalogue.ts` was read from the sibling checkout to
+confirm the eight opaque routing-profile ids byte-for-byte. **Not measured:** ECS task definitions,
+SSM, the production database, any live HTTP call; every production claim in the new evidence is the
+owner's record at `README.md:102-108` (`oxy-alia:311`, verified 2026-09-10) and is labelled as such.
+
+**What flipped the cutover rows.** Not "the destination exists" — that was true on 2026-08-19 and
+earned nothing. What is new is that the entrypoint calls it: `chat-core.ts:135-163` hands every hosted
+turn to `kaanaLanguageModel`, which calls the published `OxyInferenceClient` (`oxy-inference.ts:94`),
+and the provider tree it replaced is gone (`hosted-provider-retirement.test.ts:11-28` asserts the
+files do not exist). The guards are behavioural where the 2026-08-19 hazards demanded it:
+`kaana-language-model.test.ts` drives the adapter against a fake client and asserts the exact opaque
+id and delegated user reach `respond`/`stream`; `boot-guards.test.ts` asserts a refused boot
+*terminates*; `health-route.test.ts:75-86` drives the real `/ready` handler in both directions.
+
+**One code change.** `packages/app/lib/hooks/__tests__/use-product-modes.test.ts` (10 tests, green;
+app `tsc --noEmit` exit 0) — the guard L283 lacked: exact-count parse of `GET /catalogue/modes`,
+drop-one → five, an entry serialized `object: "model"` refused, and the picker asserted to **call**
+`useProductModes()` / `presentation(` rather than merely import them (`mentionIsNotACall`).
+
+**Findings that are not verdicts.** (1) `request-context.ts:213-236` accepts `fallbackPolicy` and
+passes it to `resolveModel`, which ignores it (`chat-core.ts:73-99`): a silent no-op behind the ticked
+ws14 fallback rows. (2) The contract's `start` event carries `resolvedModelReference` and the adapter
+never reads it, while `usage.ts:151-153` still says "Alia has no Kaana to ask" — L290/L703/L442 are
+now doable in this repo. (3) `compatibility-window.md:75-95` and `epic-139-decisions.md` D1/D2
+describe alias deprecation headers that were deleted in #477. (4) L99 carries `resolvedSince` here and
+is `- [ ]` on the issue; it is still true and should be ticked. (5) `gateway-client.ts` still holds
+seven dynamic imports of `internal/providers/lib/routing-profile-catalogue.js` and the deploy seed
+still writes `model_configs` on every deploy with no reader left — L388/L420/L425 are repo work now,
+not cutover work.
