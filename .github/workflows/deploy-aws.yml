@@ -94,7 +94,6 @@ jobs:
       - name: Sync GitHub secrets -> SSM (GitHub is the source of truth)
         env:
           APP_DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          APP_SERVICE_SECRET: ${{ secrets.SERVICE_SECRET }}
           APP_TOKEN_ENCRYPTION_KEY: ${{ secrets.TOKEN_ENCRYPTION_KEY }}
           APP_VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY }}
           APP_VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
@@ -115,7 +114,6 @@ jobs:
           }
 
           sync_secret DATABASE_URL "$APP_DATABASE_URL" "/oxy/$APP/DATABASE_URL"
-          sync_secret SERVICE_SECRET "$APP_SERVICE_SECRET" "/oxy/$APP/SERVICE_SECRET"
           sync_secret TOKEN_ENCRYPTION_KEY "$APP_TOKEN_ENCRYPTION_KEY" "/oxy/$APP/TOKEN_ENCRYPTION_KEY"
           sync_secret VAPID_PUBLIC_KEY "$APP_VAPID_PUBLIC_KEY" "/oxy/$APP/VAPID_PUBLIC_KEY"
           sync_secret VAPID_PRIVATE_KEY "$APP_VAPID_PRIVATE_KEY" "/oxy/$APP/VAPID_PRIVATE_KEY"

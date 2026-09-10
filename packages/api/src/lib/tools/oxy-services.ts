@@ -26,7 +26,7 @@ import {
   createOxyExecutionAuthorization,
   revokeOxyExecutionAuthorization,
 } from '../oxy-capability-authority.js';
-import { oxyServiceClient } from '../oxy-service-client.js';
+import { oxyServiceToken } from '../oxy-service-client.js';
 import { TTLCache } from '../ttl-cache.js';
 
 const TOOL_TIMEOUT_MS = 15_000;
@@ -103,14 +103,8 @@ async function safeExecute(service: string, operation: () => Promise<unknown>): 
   }
 }
 
-async function serviceToken(): Promise<string> {
-  const client = oxyServiceClient();
-  if (!client) throw new Error('Alia Oxy service credential is not configured');
-  return client.getServiceToken();
-}
-
 async function oxyAuthorityFetch(path: string, init: RequestInit = {}): Promise<unknown> {
-  const token = await serviceToken();
+  const token = await oxyServiceToken();
   const response = await fetch(`${OXY_API_URL}${path}`, {
     ...init,
     headers: {

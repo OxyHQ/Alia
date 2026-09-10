@@ -8,7 +8,7 @@
 
 import type { ActorRef, AutonomyLevel, ResourceRef } from '@oxy.so/contracts';
 import { z } from 'zod';
-import { oxyServiceClient } from './oxy-service-client.js';
+import { oxyServiceToken } from './oxy-service-client.js';
 import { TTLCache } from './ttl-cache.js';
 
 const OXY_API_URL = (process.env.OXY_API_URL || 'https://api.oxy.so').replace(/\/$/, '');
@@ -52,16 +52,10 @@ export interface CreateOxyExecutionAuthorizationInput {
   expiresAt: Date;
 }
 
-async function serviceToken(): Promise<string> {
-  const client = oxyServiceClient();
-  if (!client) throw new Error('Alia Oxy service credential is not configured');
-  return client.getServiceToken();
-}
-
 async function serviceRequest(path: string): Promise<unknown> {
   const response = await fetch(`${OXY_API_URL}${path}`, {
     headers: {
-      authorization: `Bearer ${await serviceToken()}`,
+      authorization: `Bearer ${await oxyServiceToken()}`,
       accept: 'application/json',
     },
     signal: AbortSignal.timeout(AUTHORITY_TIMEOUT_MS),
