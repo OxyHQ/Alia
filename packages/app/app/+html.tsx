@@ -55,9 +55,9 @@ export default function Root({ children }: PropsWithChildren) {
         />
         <meta property="twitter:image" content="/og-image.png" />
 
-        {/* Theme color for mobile browsers */}
-        <meta name="theme-color" content="#d269e6" />
-        <meta name="msapplication-TileColor" content="#d269e6" />
+        {/* Startup fallback; Bloom adopts one entry and becomes the runtime owner. */}
+        <meta name="theme-color" content="#f9f2f6" media="(prefers-color-scheme: light)" />
+        <meta name="theme-color" content="#100d11" media="(prefers-color-scheme: dark)" />
 
         {/* PWA Manifest */}
         <link rel="manifest" href="/manifest.json" />

@@ -64,7 +64,7 @@
     "typescript": "^5.9.3"
   },
   "dependencies": {
-    "@oxy.so/bloom": "^1.0.0",
+    "@oxy.so/bloom": "^1.0.7",
     "@oxy.so/core": "^1.0.1",
     "@oxy.so/services": "^1.0.3",
     "@tanstack/query-sync-storage-persister": "^5.102.8",
