@@ -215,10 +215,11 @@ export function Chat() {
   /**
    * The routing profile the picker has selected, empty for "no explicit choice".
    *
-   * NOT called `currentModel`, and not called a mode either: a `profile:*`
-   * identifier is a routing policy, which #139's non-negotiable invariant says
-   * is never presented as an Alia-owned model — and `currentMode` directly
-   * above already means the ask/agent mode, so `mode` is taken in this file.
+   * NOT called `currentModel`, and not called a mode either: a `route:*`
+   * identifier (what `GET /catalogue` publishes and what the picker rows carry)
+   * is a routing policy, which #139's non-negotiable invariant says is never
+   * presented as an Alia-owned model — and `currentMode` directly above already
+   * means the ask/agent mode, so `mode` is taken in this file.
    *
    * Empty leaves the extension host in charge: it falls back to the
    * `codea.model` setting and finally to its own `PREFERRED_MODEL_ID`
@@ -373,9 +374,9 @@ export function Chat() {
       message: input.trim(),
       // Two different things, and the names are load-bearing: `mode` is
       // ask/agent, `model` is the request field the API itself reads
-      // (`body.model` in `lib/chat/request-context.ts`), carrying a `profile:*`
-      // identifier. Spelling the wire field anything else here would hide which
-      // contract it belongs to.
+      // (`body.model` in `lib/chat/request-context.ts`), carrying a `route:*`
+      // identifier from the picker, or empty. Spelling the wire field anything
+      // else here would hide which contract it belongs to.
       mode: currentMode,
       model: currentProfileId,
       context: messageContext

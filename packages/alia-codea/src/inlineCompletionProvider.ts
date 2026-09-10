@@ -3,6 +3,7 @@ import type { AliaAuthenticationProvider } from './authProvider';
 import { log } from './logger';
 import { PREFERRED_MODEL_ID } from './config';
 import { resolveModelId } from './catalogue';
+import { isSyntheticCompletion } from './aliaChat';
 
 export class AliaInlineCompletionProvider implements vscode.InlineCompletionItemProvider {
   private apiBaseUrl: string = '';
@@ -156,6 +157,20 @@ export class AliaInlineCompletionProvider implements vscode.InlineCompletionItem
       const data = await response.json() as {
         choices?: Array<{ message?: { content?: string } }>;
       };
+
+      /**
+       * The server never answers this path with a raw failure. When every
+       * provider is busy, or the 80s budget runs out, it returns a friendly
+       * sentence flagged `alia_meta.synthetic` (`routes/v1/chat-completions.ts`),
+       * and `choices[0].message.content` is then "I'm sorry, all models are
+       * currently busy…" — which this used to hand to VS Code as ghost text to
+       * insert into the file. No completion is the honest answer.
+       */
+      if (isSyntheticCompletion(data)) {
+        log.warn('Alia inline completion: server sent a synthetic stand-in, offering nothing');
+        return null;
+      }
+
       const completion = data.choices?.[0]?.message?.content?.trim();
 
       if (!completion) {

@@ -48,6 +48,8 @@ export function App({ options }: { options: AppOptions }) {
   const messagesRef = useRef<Message[]>([]);
   const sessionRef = useRef(createSession());
   const activeRef = useRef(true);
+  /** The in-flight request of the current turn, so Ctrl+C stops it on the wire. */
+  const abortRef = useRef<AbortController | null>(null);
   const streamingIdRef = useRef<string | null>(null);
   const msgCounterRef = useRef(0);
 
@@ -99,6 +101,9 @@ export function App({ options }: { options: AppOptions }) {
     if (key.ctrl && (input === 'c' || input === 'C')) {
       if (isProcessing) {
         activeRef.current = false;
+        // Stop the request itself, not only the rendering of it: a stream
+        // nobody reads still runs — and is billed — to completion.
+        abortRef.current?.abort();
         setIsProcessing(false);
         /**
          * Settle the approval before dropping it. `requestApproval` hands
@@ -238,6 +243,7 @@ export function App({ options }: { options: AppOptions }) {
 
     setIsProcessing(true);
     activeRef.current = true;
+    abortRef.current = new AbortController();
     streamingIdRef.current = null;
 
     const systemMessage = buildSystemMessage(codebaseContext, instructions);
@@ -248,6 +254,7 @@ export function App({ options }: { options: AppOptions }) {
       model,
       approvalMode,
       isActive: () => activeRef.current,
+      signal: abortRef.current.signal,
       requestApproval: (execution) => {
         return new Promise<boolean>((resolve) => {
           setPendingApproval({ execution, resolve });

@@ -473,12 +473,19 @@ export class ToolExecutor {
           const baseUrl = store.get('apiBaseUrl') as string
 
           /**
-           * OpenAI-protocol caller: the Stagehand agent derives
-           * `POST {baseURL}/chat/completions` itself, so this client chose the
-           * PROTOCOL and the protocol names the path. It stays on the compatibility
-           * surface deliberately while the clients that write their own URL moved to
-           * `POST /alia/chat` — epic #139 workstream 6, recorded with the rest in
-           * gate 7 of `packages/api/src/__tests__/architectureGates.test.ts`.
+           * The one `/v1` chat caller left in this process, and a legitimate
+           * one: Stagehand is a third-party OpenAI-protocol library that derives
+           * `POST {baseURL}/chat/completions` itself, so the protocol names the
+           * path. `/v1/chat/completions` and `/alia/chat` are one handler
+           * (`packages/api/src/routes/chat.ts`) and both are Alia's permanent
+           * product API (ADR 0010), so nothing is lost by staying here — except
+           * the named product events, which a browser agent has no use for.
+           * Cowork's own chat moved to `/alia/chat` in `./chat.ts` because it
+           * DOES read them.
+           *
+           * The bearer is the Oxy session token. The model is `route:research`
+           * (`./config`), a canonical routing profile the boundary accepts; the
+           * `profile:*` spelling it used to send was refused on every call.
            */
           const agent = this.stagehand.agent({
             model: {

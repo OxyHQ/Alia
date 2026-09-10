@@ -1,8 +1,10 @@
 import * as vscode from 'vscode';
+import type OpenAI from 'openai';
 import type { AliaAuthenticationProvider } from './authProvider';
 import { log } from './logger';
 import { PREFERRED_MODEL_ID } from './config';
 import { resolveModelId } from './catalogue';
+import { AliaChatError, streamAliaChat } from './aliaChat';
 
 export class AliaChatParticipant {
   private apiBaseUrl: string = '';
@@ -109,8 +111,8 @@ export class AliaChatParticipant {
   private buildMessages(
     request: vscode.ChatRequest,
     context: vscode.ChatContext
-  ): Array<{ role: string; content: string }> {
-    const messages: Array<{ role: string; content: string }> = [
+  ): OpenAI.Chat.ChatCompletionMessageParam[] {
+    const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
       {
         role: 'system',
         content: 'You are Codea, an expert coding assistant powered by Alia. You help developers write, understand, and improve their code. Provide clear, concise, and helpful responses. Format code using markdown code blocks.'
@@ -165,8 +167,18 @@ export class AliaChatParticipant {
     return messages;
   }
 
+  /**
+   * Stream one answer into the chat view.
+   *
+   * `POST /alia/chat` through `./aliaChat`, which is what reads the frames the
+   * hand-rolled loop this replaces did not: an in-stream error envelope was
+   * ignored and the turn reported success with no text, and the
+   * `alia_meta.synthetic` stand-in was rendered as the answer. Both are thrown
+   * here and land in `handleChatRequest`'s error path, where the person sees
+   * them as an error rather than as Codea's opinion.
+   */
   private async streamResponse(
-    messages: Array<{ role: string; content: string }>,
+    messages: OpenAI.Chat.ChatCompletionMessageParam[],
     stream: vscode.ChatResponseStream,
     token: vscode.CancellationToken,
     accessToken: string
@@ -189,100 +201,76 @@ export class AliaChatParticipant {
     if (token.isCancellationRequested) controller.abort();
     const cancellation = token.onCancellationRequested(() => { controller.abort(); });
 
-    const makeRequest = async (bearerToken: string) => {
-      /**
-       * `/alia/chat`, not `/v1/chat/completions`.
-       *
-       * The same handler serves both (`packages/api/src/routes/chat.ts`), so the
-       * OpenAI-shaped body below and the SSE frames parsed further down are
-       * unchanged — but ADR 0004 makes `/v1/*` a bounded-window compatibility
-       * surface for external callers, and epic #139 workstream 6 is Alia's own
-       * clients no longer being the reason it has to stay. The sibling webview
-       * chat in `chatProvider.ts` stays on `/v1` deliberately: it delegates to
-       * the `openai` package, which derives `POST {baseURL}/chat/completions`
-       * itself, so it is an OpenAI-protocol caller rather than a caller that
-       * chose this URL.
-       */
-      return fetch(`${this.apiBaseUrl}/alia/chat`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${bearerToken}`
-        },
-        body: JSON.stringify({
-          model: await resolveModelId(this.apiBaseUrl, this.model, bearerToken),
-          messages,
-          max_tokens: maxTokens,
-          temperature,
-          stream: true
-        }),
-        signal: controller.signal
+    const model = await resolveModelId(this.apiBaseUrl, this.model, accessToken);
+    const attempt = (bearerToken: string) =>
+      streamAliaChat({
+        baseUrl: this.apiBaseUrl,
+        accessToken: bearerToken,
+        body: { model, messages, max_tokens: maxTokens, temperature },
+        signal: controller.signal,
       });
+
+    /**
+     * Render one stream. Returns whether it ended in the server's stand-in,
+     * which is reported as an error rather than shown: the busy sentence is
+     * not Codea's answer, and a `ChatResult` that says success over it would
+     * be remembered by VS Code as one.
+     */
+    const render = async (bearerToken: string): Promise<{ retryable: boolean } | null> => {
+      let synthetic: { retryable: boolean } | null = null;
+      for await (const event of attempt(bearerToken)) {
+        if (token.isCancellationRequested) break;
+        switch (event.type) {
+          case 'content':
+            stream.markdown(event.text);
+            break;
+          case 'reasoning':
+            // A progress line, not the answer: the chat view shows it while
+            // the model works and folds it away when text arrives.
+            stream.progress(event.text);
+            break;
+          case 'synthetic':
+            synthetic = { retryable: event.retryable };
+            break;
+          case 'tool_calls':
+          case 'tool_result':
+          case 'finish':
+          case 'event':
+            // The participant offers no tools, so the server runs its own and
+            // the answer arrives as text.
+            break;
+        }
+      }
+      return synthetic;
     };
 
     try {
-      let response = await makeRequest(accessToken);
-
-      // On 401, try refreshing the token and retry once
-      if (response.status === 401) {
+      let synthetic: { retryable: boolean } | null;
+      try {
+        synthetic = await render(accessToken);
+      } catch (error: unknown) {
+        // On 401, re-mint once and retry. `getAccessToken` refreshes a stale
+        // token itself; this is for a token the server rejected regardless.
+        if (!(error instanceof AliaChatError) || error.status !== 401) throw error;
         const refreshed = await this.authProvider.refreshToken();
-        if (refreshed) {
-          const newToken = await this.authProvider.getAccessToken();
-          if (newToken && newToken !== accessToken) {
-            response = await makeRequest(newToken);
-          }
-        }
+        const newToken = refreshed ? await this.authProvider.getAccessToken() : null;
+        if (!newToken || newToken === accessToken) throw error;
+        synthetic = await render(newToken);
       }
 
-      if (!response.ok) {
-        throw new Error(`API error: ${response.status} ${response.statusText}`);
+      if (synthetic !== null) {
+        throw new AliaChatError(
+          synthetic.retryable
+            ? 'Alia could not finish that answer. Please send your message again.'
+            : 'Alia could not answer that request.',
+          { retryable: synthetic.retryable }
+        );
       }
-
-      if (!response.body) {
-        throw new Error('No response body');
-      }
-
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
-
-      while (true) {
-        if (token.isCancellationRequested) {
-          reader.cancel();
-          break;
-        }
-
-        const { done, value } = await reader.read();
-
-        if (done) {
-          break;
-        }
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || '';
-
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const data = line.slice(6);
-
-            if (data === '[DONE]') {
-              continue;
-            }
-
-            try {
-              const parsed = JSON.parse(data);
-              const content = parsed.choices?.[0]?.delta?.content;
-
-              if (content) {
-                stream.markdown(content);
-              }
-            } catch (e) {
-              // Skip invalid JSON
-            }
-          }
-        }
-      }
+    } catch (error: unknown) {
+      // A cancelled turn is not an error to report: the abort above rejects
+      // the fetch with `AbortError`, and the person already stopped it.
+      if (token.isCancellationRequested || (error instanceof Error && error.name === 'AbortError')) return;
+      throw error;
     } finally {
       // The listener is on VS Code's token, which outlives this request.
       cancellation.dispose();

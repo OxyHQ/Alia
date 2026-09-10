@@ -12,10 +12,31 @@
  *
  * `scripts/check-model-defaults.mjs` permits this module exactly two identifiers
  * and forbids every other module in the package from naming any, by exact count.
+ *
+ * ## Why these are `route:*` and not `profile:*`
+ *
+ * Both used to be spelled `profile:cowork` and `profile:research`. Those are
+ * Alia's INTERNAL policy ids (`packages/api/src/lib/routing/presets.ts`), and
+ * the request boundary refuses them by design: `toRoutingProfile` in
+ * `lib/product-modes.ts` accepts only a canonical Kaana `route:*` profile, and
+ * `getProductMode` only a `mode:*` product mode — "No compatibility spelling or
+ * internal `profile:*` policy id is translated." So the chat preference was
+ * never what a request carried: `resolveSelection` found no catalogue entry
+ * for it and substituted the cheapest chat-visible one, which meant Cowork
+ * silently ran on Instant rather than on its own routing profile, and ran on
+ * nothing at all — `400 unknown_routing_profile` — whenever the catalogue
+ * could not be read. The browser preference had no resolver in front of it and
+ * was refused on every `browser_action`.
+ *
+ * `route:cowork` is what the server's own Cowork fixture sends
+ * (`routes/v1/__tests__/chatFlowFixtures.test.ts`) and what `GET /catalogue`
+ * publishes for it. It is not `chat_visible` — Cowork has no picker, this is a
+ * surface preset — which is why `resolveSelection` honours a requested entry
+ * the catalogue lists at all, not only one it would show.
  */
 
 /** What a chat request asks for when the user has expressed no preference. */
-export const PREFERRED_CHAT_MODEL_ID = 'profile:cowork';
+export const PREFERRED_CHAT_MODEL_ID = 'route:cowork';
 
 /**
  * The model the browser-automation agent drives Stagehand with.
@@ -32,4 +53,4 @@ export const PREFERRED_CHAT_MODEL_ID = 'profile:cowork';
  * first-class filter. That is workstream 5's business, not something to fake
  * here.
  */
-export const PREFERRED_BROWSER_MODEL_ID = 'profile:research';
+export const PREFERRED_BROWSER_MODEL_ID = 'route:research';

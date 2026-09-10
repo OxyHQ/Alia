@@ -42,8 +42,11 @@ export async function runPrompt(prompt: string, options: RunOptions): Promise<vo
 
   let fullResponse = '';
   let active = true;
+  // Ctrl+C stops the request on the wire as well as the output; a stream
+  // nobody reads still runs — and is billed — to completion.
+  const controller = new AbortController();
 
-  process.once('SIGINT', () => { active = false; });
+  process.once('SIGINT', () => { active = false; controller.abort(); });
 
   await processConversation({
     messages,
@@ -51,6 +54,7 @@ export async function runPrompt(prompt: string, options: RunOptions): Promise<vo
     model: options.model,
     approvalMode,
     isActive: () => active,
+    signal: controller.signal,
     requestApproval: async (execution) => {
       if (options.quiet || options.json) return false;
       return askApproval(execution);
