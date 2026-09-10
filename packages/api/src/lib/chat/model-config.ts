@@ -53,6 +53,15 @@ export interface BuildBaseConfigParams {
   serviceToken?: string;
   /** Called from `onFinish` to hand captured usage back to the route's `let`. */
   onUsage: (usage: CreditUsage) => void;
+  /**
+   * Called from `onFinish` with the revision-pinned reference Kaana served —
+   * `providerMetadata.kaana.resolvedModelReference`, written by
+   * `lib/inference/kaana-language-model.ts` — so the turn's usage record can
+   * carry it. Not called when the answer carried none: the record then says
+   * null rather than echoing the requested id. Optional because the wire
+   * tests build a config with no observation to write into.
+   */
+  onResolvedModel?: (reference: string) => void;
 }
 
 export interface BaseConfigResult {
@@ -64,7 +73,7 @@ export interface BaseConfigResult {
 
 /** Assemble the shared AI SDK config for one provider attempt + its first-byte abort. */
 export function buildBaseConfig(params: BuildBaseConfigParams): BaseConfigResult {
-  const { resolved, body, convertedMessages, truncatedTools, reasoningEffort, systemPromptTokens, streamState, oxyUserId, serviceToken, onUsage } = params;
+  const { resolved, body, convertedMessages, truncatedTools, reasoningEffort, systemPromptTokens, streamState, oxyUserId, serviceToken, onUsage, onResolvedModel } = params;
 
   const model = getAIModel(resolved, 'chat', oxyUserId, serviceToken);
 
@@ -93,7 +102,16 @@ export function buildBaseConfig(params: BuildBaseConfigParams): BaseConfigResult
         outputTokenDetails?: { reasoningTokens?: number };
         reasoningTokens?: number;
       };
+      /** The LAST step's provider metadata — `ai@6` hands the final step's to `onFinish`. */
+      providerMetadata?: Record<string, Record<string, unknown> | undefined>;
     }) => {
+      /**
+       * The served revision, from the adapter's own namespace and nowhere else.
+       * A multi-step tool loop is several Kaana requests; the one recorded is
+       * the step that produced the answer, which is the step `onFinish` sees.
+       */
+      const reference = result.providerMetadata?.kaana?.resolvedModelReference;
+      if (typeof reference === 'string' && reference !== '') onResolvedModel?.(reference);
       // Capture token usage from AI SDK
       if (result.usage) {
         const usage: CreditUsage = {

@@ -62,6 +62,14 @@ export interface TurnObservation {
   timeToFirstTokenMs: number | null;
   /** Set when the caller's socket closed before the turn finished. */
   cancelled: boolean;
+  /**
+   * The revision-pinned `<publisher>/<model>@<revision>` Kaana served, or null
+   * when no answer named one (a turn that failed before Kaana started, or a
+   * local user-runtime turn). Written from the AI SDK `onFinish` through
+   * `model-config.ts` `onResolvedModel`; a safe opaque reference, never an
+   * upstream operator name.
+   */
+  resolvedModelReference: string | null;
 }
 
 /**
@@ -256,6 +264,7 @@ export function runPostChatHooks(
     timeToFirstTokenMs: observation.timeToFirstTokenMs,
     errorClass,
     cancelled: observation.cancelled,
+    resolvedModelReference: observation.resolvedModelReference,
   }).catch(err => log.v1.error({ err }, 'Error in afterChat hooks'));
 
   runAutonomyAfterChat({

@@ -64,6 +64,7 @@ async function seed(row: {
     timeToFirstTokenMs: null,
     errorClass: null,
     cancelled: false,
+    resolvedModelReference: null,
     platform: 'app',
     skillNames: [],
   });
@@ -93,6 +94,7 @@ describe('insertChatAnalytics', () => {
       timeToFirstTokenMs: 55,
       errorClass: 'RATE_LIMITED',
       cancelled: true,
+      resolvedModelReference: 'openai/gpt-5-mini@2026-08-18',
       platform: 'web',
       skillNames: ['ca-skill-1', 'ca-skill-2'],
     });
@@ -131,6 +133,7 @@ describe('insertChatAnalytics', () => {
     expect(row.requestedProfileId).toBe('route:thinking');
     expect(row.reasoningEffort).toBe('extended');
     expect(row.timeToFirstTokenMs).toBe(55);
+    expect(row.resolvedModelReference).toBe('openai/gpt-5-mini@2026-08-18');
     expect(row.errorClass).toBe('RATE_LIMITED');
     expect(row.cancelled).toBe(true);
   });
@@ -221,6 +224,7 @@ describe('insertChatAnalytics', () => {
       timeToFirstTokenMs: null,
       errorClass: null,
       cancelled: false,
+      resolvedModelReference: null,
       platform: 'app',
     });
 
@@ -269,6 +273,7 @@ describe('insertChatAnalytics', () => {
         timeToFirstTokenMs: null,
         errorClass: code,
         cancelled: false,
+        resolvedModelReference: null,
         platform: 'app',
       });
     }

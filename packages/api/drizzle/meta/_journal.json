@@ -477,6 +477,13 @@
       "when": 1789049476140,
       "tag": "0067_clever_sunfire",
       "breakpoints": true
+    },
+    {
+      "idx": 68,
+      "version": "7",
+      "when": 1789064682375,
+      "tag": "0068_resolved_model_reference",
+      "breakpoints": true
     }
   ]
 }

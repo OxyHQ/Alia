@@ -15,9 +15,10 @@ import { log } from '../../logger.js';
  * SHAPE beside it, because one string carries a product mode, a concrete model
  * and a legacy alias and recording it alone conflates the three —
  * `lib/observability/requested-model.ts` owns that reading. The RESOLVED
- * REVISION is the one field of the checkbox with nowhere to go: revisions belong
- * to the Kaana catalogue (`resolvedModelReference` on the contract's `start`
- * event) and Alia has no Kaana to ask, so it is absent rather than guessed.
+ * REVISION is `ctx.resolvedModelReference`: the `<publisher>/<model>@<revision>`
+ * Kaana reported on its `start` event (or as `model` on a completed response),
+ * carried through the adapter's `providerMetadata` and the turn observation.
+ * Null when no answer named one — never the requested id echoed back.
  *
  * The row is written for a FAILED turn as well as a successful one — that is
  * what makes `errorClass` a column with values in it rather than one that is
@@ -44,6 +45,7 @@ registerHook({
         timeToFirstTokenMs: ctx.timeToFirstTokenMs,
         errorClass: ctx.errorClass,
         cancelled: ctx.cancelled,
+        resolvedModelReference: ctx.resolvedModelReference,
         platform: ctx.platform,
         skillNames: ctx.skillNames ?? [],
       });
