@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react';
 import type { AudioPlayer, AudioSample, AudioStatus } from 'expo-audio';
 import { makeMutable, withTiming } from 'react-native-reanimated';
-import { useOxy } from '@oxyhq/services';
+import { useOxy } from '@oxy.so/services';
 import { errorMessage } from '../lib/utils';
 import { create } from 'zustand';
 import { createAudioLevelMeter } from '../lib/audio-level';

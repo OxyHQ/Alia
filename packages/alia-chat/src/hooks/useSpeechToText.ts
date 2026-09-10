@@ -7,7 +7,7 @@ import {
   getRecordingPermissionsAsync,
   setAudioModeAsync,
 } from 'expo-audio';
-import { useOxy } from '@oxyhq/services';
+import { useOxy } from '@oxy.so/services';
 import { create } from 'zustand';
 import { levelFromDbfs } from '../lib/audio-level';
 

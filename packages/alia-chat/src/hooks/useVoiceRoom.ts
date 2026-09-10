@@ -17,7 +17,7 @@ import {
   type RemoteParticipant,
   type DataPublishOptions,
 } from 'livekit-client';
-import { useOxy } from '@oxyhq/services';
+import { useOxy } from '@oxy.so/services';
 import { errorMessage } from '../lib/utils';
 import type { RoomState, AgentState, VoiceMessage, VoiceToolInvocation } from '../types';
 import { PREFERRED_VOICE_MODEL_ID } from '../lib/config';

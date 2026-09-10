@@ -97,23 +97,23 @@ up on terms they never chose. Not repeating that is worth a major.
 
 ### Changed
 
-- **The `@oxyhq/services` peer range now admits 24.x, 25.x and 26.x**
-  (`^23.0.1 || ^24.0.0 || ^25.0.0 || ^26.0.0`). An app on `@oxyhq/services@26`
+- **The `@oxy.so/services` peer range now admits 24.x, 25.x and 26.x**
+  (`^23.0.1 || ^24.0.0 || ^25.0.0 || ^26.0.0`). An app on `@oxy.so/services@26`
   previously got `warn: incorrect peer dependency` on every install, which reads
   as a broken integration and is the reason this range is stated rather than
   widened to `>=23.0.1`: each major in the union was audited, and a future one
   will be too before it is added.
 
   Nothing in this package changed, because nothing needed to. The whole surface
-  it consumes from `@oxyhq/services` is one import in four hooks — `useOxy`,
+  it consumes from `@oxy.so/services` is one import in four hooks — `useOxy`,
   then `oxyServices.httpService.getAccessToken()` — and every link in that chain
-  is byte-identical across services 23.0.1 through 26.0.0 and the `@oxyhq/core`
+  is byte-identical across services 23.0.1 through 26.0.0 and the `@oxy.so/core`
   13 through 17 those versions pull in. Services 24.0.0 and 25.0.0 were majors
-  solely because they raised their own `@oxyhq/core` range; 26.0.0 is the
+  solely because they raised their own `@oxy.so/core` range; 26.0.0 is the
   RFC 6749 token endpoint, whose `HttpService` changes are confined to
   `URLSearchParams` request encoding and an `error_description` error field.
 
-  This is a compatibility declaration, not a deduplication fix. `@oxyhq/services`
+  This is a compatibility declaration, not a deduplication fix. `@oxy.so/services`
   is a peer dependency here and always has been, so an unsatisfied range emitted
   a warning but never nested a second copy — verified on a clean install.
 
