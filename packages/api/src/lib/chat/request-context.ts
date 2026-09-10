@@ -24,9 +24,7 @@ import {
   type UserRuntimeSelection,
 } from '../inference/user-runtime-bridge.js';
 import {
-  isFallbackPolicy,
   FallbackNotPermittedError,
-  UnknownFallbackPolicyError,
   UnregisteredModelError,
 } from '../routing/policy.js';
 /**
@@ -79,7 +77,6 @@ import { getProductMode } from '../product-modes.js';
 export interface ChatRequestContext {
   body: Record<string, unknown> & {
     model?: string;
-    fallbackPolicy?: unknown;
     stream?: boolean;
     skillIds?: unknown;
     conversationId?: string;
@@ -210,31 +207,44 @@ export async function buildChatRequestContext(
   }
 
   /**
-   * `fallbackPolicy` — the request's own answer to ADR 0003 invariant 3.
+   * `fallbackPolicy` is REFUSED, not honoured and not ignored.
    *
-   * Validated here, before any credits are reserved, because it is a body
-   * parameter like `messages` and a mistyped value must not cost the caller a
-   * reservation. Absent means `DEFAULT_FALLBACK_POLICY`, which is what every
-   * client sends today and is the behaviour they already have.
+   * It used to be validated here and handed to `resolveModel`, which ignored
+   * it — a silent no-op behind an accepted parameter. Since #477 fallback is
+   * not Alia's to decide: the public Oxy inference request
+   * (`OxyResponsesRequest` in `@oxy.so/core`) carries no fallback, substitution
+   * or route field at all, and the contract's `authorizedRoutes` is Oxy's own
+   * envelope to Kaana — "the result of applying the policy" the application's
+   * routing policy resolves server-side (ADR 0017), never a value a caller
+   * sets. So a caller sending one is asking for something this API cannot
+   * carry, and the honest answer is 400 rather than a request that quietly
+   * did something else. Both spellings, because `GET /catalogue` documents
+   * the wire name as `fallback_policy`.
+   *
+   * Refused here, before any credits are reserved, like `messages`.
    */
-  if (
-    body.fallbackPolicy !== undefined &&
-    !isFallbackPolicy(body.fallbackPolicy)
-  ) {
-    const policyError = new UnknownFallbackPolicyError(body.fallbackPolicy);
-    res.status(policyError.httpStatus).json({
-      error: {
-        message: policyError.userMessage,
-        type: 'invalid_request_error',
-        param: 'fallbackPolicy',
-        code: policyError.code,
-      },
-    });
+  const sentFallbackPolicy =
+    body.fallbackPolicy !== undefined
+      ? 'fallbackPolicy'
+      : body.fallback_policy !== undefined
+        ? 'fallback_policy'
+        : null;
+  if (sentFallbackPolicy !== null) {
+    const refusal = {
+      message:
+        `"${sentFallbackPolicy}" is not a request parameter. Fallback is resolved by the routing ` +
+        'profile you select; list them at GET /catalogue.',
+      type: 'invalid_request_error',
+      param: sentFallbackPolicy,
+      code: 'invalid_request',
+    };
+    if (sse.sent) {
+      sse.writeError(refusal);
+    } else {
+      res.status(400).json({ error: refusal });
+    }
     return null;
   }
-  const requestedPolicy = isFallbackPolicy(body.fallbackPolicy)
-    ? body.fallbackPolicy
-    : undefined;
 
   // Extract optional parameters for Alia internal features
   const conversationId = body.conversationId as string | undefined;
@@ -617,15 +627,12 @@ export async function buildChatRequestContext(
     requestedModel,
   });
   /**
-   * Hosted Alia requests never pin a concrete model. The only per-request
-   * routing option left here is the fallback policy applied within the exact
-   * reviewed profile.
+   * Hosted Alia requests never pin a concrete model and carry no per-request
+   * fallback policy (refused above), so there is nothing to put here: Oxy
+   * resolves routes from the exact reviewed profile and the application's
+   * routing policy. Kept as an object so the resolver's signature is one shape.
    */
-  const routingOptions: RoutingOptions = {
-    ...(requestedPolicy === undefined
-      ? {}
-      : { fallbackPolicy: requestedPolicy }),
-  };
+  const routingOptions: RoutingOptions = {};
 
   // Extract client context from first system message if present (from editor/client)
   let clientContext: string | undefined;

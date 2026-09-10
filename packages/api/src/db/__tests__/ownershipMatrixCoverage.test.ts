@@ -77,12 +77,10 @@ const NOT_APPLICABLE: Readonly<Record<string, string>> = {
     'Test of generate-model-mappings.ts and model-capabilities-data.ts, both mapped (rows `tier-mappings-generated` and `model-capabilities-data`). Moves or dies with them.',
   'packages/api/src/internal/providers/lib/__tests__/model-publishers.test.ts':
     'Test of model-publishers.ts and the publisher column in generate-model-mappings.ts, both mapped (rows `tuple-model-publishers` and `tier-mappings-generated`). Moves or dies with them.',
-  'packages/api/src/internal/providers/lib/__tests__/seed-model-configs.test.ts':
-    'Fail-closed test of seed-model-configs.ts, which is mapped (row `dead-startup-seed`). Moves or dies with it.',
   'packages/api/src/internal/providers/lib/__tests__/credit-multipliers.test.ts':
     'Test of routing-profile-catalogue.ts and the product credit multiplier that remains in Alia. It does not exercise provider credentials or provider egress.',
 };
-const NOT_APPLICABLE_COUNT = 4;
+const NOT_APPLICABLE_COUNT = 3;
 
 interface MatrixRow {
   readonly id: string;
@@ -209,8 +207,20 @@ interface MatrixRow {
  * script therefore stopped being a working safety net and was the sole reason
  * the Mongoose driver remained installed. The script and dependency leave in
  * one cut; the retained pre-drop archive is external data and is not deleted.
+ *
+ * ## 109 -> 110: `dead-startup-seed`
+ *
+ * `internal/providers/lib/seed-model-configs.ts` is gone, and with it the last
+ * writer of `model_configs`, `routing_profiles` and
+ * `routing_profile_provider_mappings`: `scripts/seed.ts` ran it on every deploy
+ * for a catalogue no runtime module reads since #477 (Alia routes by exact
+ * opaque Oxy profile ids). Its test left with it, which is why
+ * `NOT_APPLICABLE` shrank by one in the same edit. The three tables stay until
+ * the production audit that gates their DROP (#139 workstream 10).
+ *
+ * It carries a branch name for the reason the others do.
  */
-const REMOVED_ROW_COUNT = 109;
+const REMOVED_ROW_COUNT = 110;
 
 const OWNERS = new Set(['alia', 'oxy', 'kaana', 'delete']);
 const REACHABLE = new Set(['live', 'dead', 'unverified', 'loaded-not-invoked']);

@@ -801,14 +801,16 @@ describe('routing policy refusals - /v1/chat/completions', () => {
     expect(mockRefundReservation).not.toHaveBeenCalled();
   });
 
-  it('answers an unavailable model under a restrictive policy with the policy message', async () => {
+  it('answers a resolver refusal under a restrictive preset with the policy message', async () => {
+    // The resolver's own refusal class, reachable from a preset's policy rather
+    // than from a request parameter — `fallbackPolicy` on the body is refused
+    // with 400 before the resolver runs (the tests below).
     mockResolveModel.mockRejectedValue(new FallbackNotPermittedError('route:auto', 'no-fallback'));
 
     const req = createMockReq({
       body: {
         messages: [{ role: 'user', content: 'Hello' }],
         model: 'route:auto',
-        fallbackPolicy: 'no-fallback',
         stream: false,
       },
     });
@@ -823,7 +825,12 @@ describe('routing policy refusals - /v1/chat/completions', () => {
     expect(payload.error.message).not.toBe('No models available. Please try again.');
   });
 
-  it('hands the caller’s policy to the resolver', async () => {
+  it('refuses a caller’s policy with 400 invalid_request instead of handing it to the resolver', async () => {
+    /**
+     * The public Oxy inference request carries no fallback field and Oxy
+     * resolves routes from the application's routing policy (ADR 0017), so the
+     * parameter cannot be honoured; it used to be accepted and then ignored.
+     */
     const req = createMockReq({
       body: {
         messages: [{ role: 'user', content: 'Hello' }],
@@ -832,18 +839,22 @@ describe('routing policy refusals - /v1/chat/completions', () => {
         stream: false,
       },
     });
+    const res = createMockRes();
 
-    await handler(req, createMockRes(), vi.fn());
+    await handler(req, res, vi.fn());
 
-    expect(mockResolveModel).toHaveBeenCalledWith('route:auto', undefined, undefined, {
-      fallbackPolicy: 'same-model-only',
-    });
+    expect(res.status).toHaveBeenCalledWith(400);
+    const [payload] = res.json.mock.calls[0];
+    expect(payload.error.code).toBe('invalid_request');
+    expect(payload.error.param).toBe('fallbackPolicy');
+    expect(mockResolveModel).not.toHaveBeenCalled();
+    expect(mockReserveCredits).not.toHaveBeenCalled();
   });
 
-  it('hands an EMPTY options object when the caller names no policy', async () => {
-    // The byte-identical-default assertion, made positively. An absent
-    // `fallbackPolicy` must not become an explicit one here — the engine's own
-    // default is the single place that decision lives.
+  it('hands an EMPTY options object to the resolver: no fallback policy travels', async () => {
+    // Made positively: there is no per-request policy for the options object to
+    // carry, so an explicit one appearing here would be a regression to the
+    // silently-ignored parameter.
     const req = createMockReq({
       body: { messages: [{ role: 'user', content: 'Hello' }], model: 'route:auto', stream: false },
     });
@@ -853,7 +864,7 @@ describe('routing policy refusals - /v1/chat/completions', () => {
     expect(mockResolveModel).toHaveBeenCalledWith('route:auto', undefined, undefined, {});
   });
 
-  it('resolves Kaana once with the caller policy and never retries in Alia', async () => {
+  it('resolves Kaana once and never retries in Alia', async () => {
     /**
      * Kaana owns provider selection, circuit breaking and retry policy. A
      * retryable stream failure must therefore end Alia's single attempt; a
@@ -872,7 +883,6 @@ describe('routing policy refusals - /v1/chat/completions', () => {
       body: {
         messages: [{ role: 'user', content: 'Hi' }],
         model: 'route:auto',
-        fallbackPolicy: 'no-fallback',
         stream: true,
       },
     });
@@ -880,10 +890,10 @@ describe('routing policy refusals - /v1/chat/completions', () => {
     await handler(req, createMockRes(), vi.fn());
 
     expect(mockResolveModel).toHaveBeenCalledTimes(1);
-    expect(mockResolveModel.mock.calls[0]?.[3]).toEqual({ fallbackPolicy: 'no-fallback' });
+    expect(mockResolveModel.mock.calls[0]?.[3]).toEqual({});
   });
 
-  it('rejects a mistyped policy before reserving credits', async () => {
+  it('rejects a mistyped policy before reserving credits, like any policy', async () => {
     const req = createMockReq({
       body: {
         messages: [{ role: 'user', content: 'Hello' }],
@@ -899,9 +909,8 @@ describe('routing policy refusals - /v1/chat/completions', () => {
     expect(res.status).toHaveBeenCalledWith(400);
     const [payload] = res.json.mock.calls[0];
     expect(payload.error.param).toBe('fallbackPolicy');
-    expect(payload.error.message).toContain('no_fallback');
-    // Nothing was reserved, so there is nothing to refund. A lenient parser
-    // would instead have widened this to `cross-model` and billed the request.
+    expect(payload.error.code).toBe('invalid_request');
+    // Nothing was reserved, so there is nothing to refund.
     expect(mockReserveCredits).not.toHaveBeenCalled();
     expect(mockResolveModel).not.toHaveBeenCalled();
   });

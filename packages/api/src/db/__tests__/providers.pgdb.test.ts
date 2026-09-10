@@ -5,8 +5,6 @@ import { closePostgres, connectPostgres, type ApiDatabase } from '../index';
 import { routingProfileProviderMappings, routingProfiles, modelConfigs } from '../schema/providers';
 import { apiKeyUsage } from '../schema/telemetry';
 import { ROUTING_TIERS } from '../../internal/providers/lib/routing-tiers';
-import { TIER_MODEL_MAPPINGS } from '../../internal/providers/lib/routing-profile-catalogue';
-import { seedModelConfigs } from '../../internal/providers/lib/seed-model-configs';
 
 /**
  * The retained routing catalogue, against a REAL server.
@@ -247,58 +245,16 @@ describe('developer API usage is recorded with its own clock', () => {
   });
 });
 
-describe('the deploy seeder can write the catalogue it is given', () => {
+describe('the routing tier vocabulary is what the database CHECK admits', () => {
   /**
-   * The seeder ran on every deploy and Postgres refused five of its rows.
-   *
-   * MEASURED in `/oxy/ecs`, stream `alia/alia/*`: five `Error seeding
-   * ModelConfig` per boot, each `new row for relation "model_configs" violates
-   * check constraint "model_configs_alia_tier_check"`, for `dall-e-3`,
-   * `openai-gpt-image-1`, `fal-ai/flux/schnell`, `fal-ai/fast-sdxl` and
-   * `grok-imagine-image` — every mapping of the `v1-image` tier. `ROUTING_TIERS`
-   * renders that CHECK and held thirteen values; the routing table it is the
-   * vocabulary FOR held fourteen, because `routing-profile-catalogue.ts` kept a second
-   * literal union with `v1-image` in it.
-   *
-   * The real seeder against the real migrations, because that pairing is the
-   * subject. A tuple widened without its migration, or a migration without its
-   * tuple, is invisible to anything that reads only one of them — and the
-   * seeder itself cannot report the difference: a refused row is a log line and
-   * a `skipped` count, which is also what an idempotent re-run produces. The
-   * rows it leaves behind are the only witness.
-   *
-   * `model_configs.alia_tier` and the CHECK named above are both GONE — the
-   * column could not be correct over a many-to-many mapping table, so it was
-   * dropped rather than widened again. This assertion is unaffected and is the
-   * reason the column's removal is safe to make: it asks whether the seeder
-   * leaves a ROW for every mapping, which is the whole of what any reader of
-   * this table ever needed.
+   * The deploy seeder that used to be exercised here (`seed-model-configs.ts`)
+   * is deleted: since #477 nothing reads `model_configs`, so `scripts/seed.ts`
+   * no longer writes it (`seedWiring.test.ts` pins that). What survives is the
+   * question the seeder's failure exposed — MEASURED in `/oxy/ecs`, five
+   * `Error seeding ModelConfig` per boot, because `ROUTING_TIERS` held thirteen
+   * values while the routing table held fourteen — which is a property of the
+   * tuple and its CHECK, not of the seeder.
    */
-  it('leaves a row for every mapping in the routing table, refusing none', async () => {
-    const expected = new Set(
-      Object.values(TIER_MODEL_MAPPINGS)
-        .flat()
-        .map((mapping) => `${mapping.provider}:${mapping.modelId}`),
-    );
-    // The vacuity floor. An empty routing table would satisfy the comparison
-    // below by having nothing to look for.
-    expect(expected.size).toBeGreaterThan(50);
-
-    await seedModelConfigs();
-
-    const rows = await db
-      .select({ provider: modelConfigs.provider, modelId: modelConfigs.modelId })
-      .from(modelConfigs);
-    const written = new Set(rows.map((row) => `${row.provider}:${row.modelId}`));
-
-    // Named rather than counted, so a failure says WHICH mapping the database
-    // turned away — the five image models above, in the state this replaces.
-    // One-directional on purpose: this file's other tests leave fixture rows,
-    // and a model that appears in two tiers is still ONE row, so neither an
-    // extra row nor a missing TIER is evidence of anything.
-    expect([...expected].filter((pair) => !written.has(pair)).sort()).toEqual([]);
-  });
-
   it('admits every tier the vocabulary declares, so the CHECK matches the tuple', async () => {
     /**
      * Against `routing_profiles.tier`, which is now the only column `ROUTING_TIERS`

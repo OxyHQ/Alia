@@ -68,7 +68,6 @@ export interface ResolvedModel {
  * @param options - Per-request routing options, including an optional model pin
  * @returns A credential-free Kaana resolution
  * @throws UnregisteredModelError when `routingProfileId` names no registered model
- * @throws FallbackNotPermittedError when a non-default policy exhausts its candidates
  */
 export async function resolveModel(
   routingProfileId: string,

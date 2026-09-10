@@ -306,7 +306,11 @@ describe('the census reads what it claims to read', () => {
     // failed parse produces the same clean result as a package with no leaks.
     expect(sources.length).toBeGreaterThan(400);
     expect(calls.length).toBeGreaterThan(850);
-    expect(properties.length).toBeGreaterThan(1_300);
+    // 1_300 -> 1_250: `internal/providers/lib/seed-model-configs.ts` is deleted
+    // with the routing-catalogue seed, and its fifteen logged properties with it
+    // (1,307 before, 1,292 after). The floor moves in the change that removed
+    // the sites, which is the only way it is allowed to move.
+    expect(properties.length).toBeGreaterThan(1_250);
     expect(sources.map((entry) => entry.file)).toContain(`${PACKAGE_PREFIX}/lib/chat/stream-runner.ts`);
   });
 

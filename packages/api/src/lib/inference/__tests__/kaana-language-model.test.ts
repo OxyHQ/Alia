@@ -12,6 +12,9 @@ vi.mock('../oxy-inference.js', () => ({
       mocks.requests.push(request);
       mocks.options.push(options);
       return {
+        requestId: 'req-1',
+        model: 'openai/gpt-5-mini@2026-08-18',
+        servingProvider: 'operator-that-must-not-leak',
         output: [{ role: 'assistant', content: [{ type: 'text', text: 'hola' }] }],
         finishReason: 'stop',
         usage: [{ unit: 'input_tokens', quantity: 2 }, { unit: 'output_tokens', quantity: 1 }],
@@ -81,6 +84,101 @@ describe('Kaana AI SDK adapter through Oxy', () => {
 
     expect(mocks.requests[0]).toMatchObject({ model: 'openai/gpt-5-mini' });
     expect(mocks.requests[0]).not.toHaveProperty('routingProfile');
+  });
+
+  it('sends a distinct Idempotency-Key on every respond and stream call', async () => {
+    /**
+     * The Oxy edge refuses a key already bound to a reservation with
+     * `idempotency_conflict`, so the key must be unique per ATTEMPT: two steps
+     * of one tool loop, or a stream after a respond, must never share one.
+     * Both methods are driven, twice each, and every key is asserted distinct
+     * and UUID-shaped — a fixed string per model instance would pass a
+     * presence check and refuse every second request in production.
+     */
+    const model = kaanaLanguageModel({
+      target: { kind: 'routing_profile_id', routingProfileId: '01a06477-94f5-74f0-bc25-628b5f45d802' },
+      modelId: 'route:auto',
+      surface: 'chat',
+      oxyUserId: 'user-id',
+    });
+    mocks.events.push({ type: 'done', finishReason: 'stop' });
+
+    await model.doGenerate({ prompt } as never);
+    await model.doGenerate({ prompt } as never);
+    await drain((await model.doStream({ prompt } as never)).stream);
+    await drain((await model.doStream({ prompt } as never)).stream);
+
+    const keys = mocks.options.map((o) => o.idempotencyKey);
+    expect(keys).toHaveLength(4);
+    const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+    for (const key of keys) expect(key, String(key)).toMatch(uuid);
+    expect(new Set(keys).size).toBe(4);
+    // The key rides beside the other per-call options rather than replacing them.
+    expect(mocks.options[0]).toMatchObject({ delegatedUserId: 'user-id' });
+    expect(mocks.options[0].signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it('carries the resolved model reference out of a completed response, and nothing about the operator', async () => {
+    /**
+     * #139 L290/L703: the revision Kaana served reaches the usage record. It is
+     * carried under the adapter's own `providerMetadata` namespace rather than
+     * only as `response.modelId`, because the AI SDK fills a missing
+     * `response.modelId` with the REQUESTED id and a reader could not tell the
+     * two apart. `servingProvider` is on the same wire and must go nowhere.
+     */
+    const model = kaanaLanguageModel({
+      target: { kind: 'routing_profile_id', routingProfileId: '01a06477-94f5-74f0-bc25-628b5f45d802' },
+      modelId: 'route:auto',
+      surface: 'chat',
+    });
+    const result = await model.doGenerate({ prompt } as never);
+
+    expect(result.providerMetadata).toEqual({ kaana: { resolvedModelReference: 'openai/gpt-5-mini@2026-08-18' } });
+    expect(result.response?.modelId).toBe('openai/gpt-5-mini@2026-08-18');
+    expect(JSON.stringify(result)).not.toContain('operator-that-must-not-leak');
+  });
+
+  it('reads the resolved model reference from the stream start event', async () => {
+    mocks.events.push(
+      {
+        type: 'start',
+        requestId: 'req-2',
+        resolvedModelReference: 'anthropic/claude-sonnet-4@2026-08-18',
+        servingProvider: 'operator-that-must-not-leak',
+        startedAt: '2026-09-10T00:00:00.000Z',
+      },
+      { type: 'delta', channel: 'output_text', text: 'ho' },
+      { type: 'done', finishReason: 'stop' },
+    );
+    const model = kaanaLanguageModel({
+      target: { kind: 'routing_profile_id', routingProfileId: '01a06477-94f5-74f0-bc25-4c5c13b93ccd' },
+      modelId: 'route:auto',
+      surface: 'chat',
+    });
+    const parts = await drain((await model.doStream({ prompt } as never)).stream);
+
+    const metadata = parts.find((part) => part.type === 'response-metadata');
+    expect(metadata).toMatchObject({ id: 'req-2', modelId: 'anthropic/claude-sonnet-4@2026-08-18' });
+    const finish = parts.at(-1);
+    expect(finish?.type).toBe('finish');
+    expect(finish?.providerMetadata).toEqual({
+      kaana: { resolvedModelReference: 'anthropic/claude-sonnet-4@2026-08-18' },
+    });
+    expect(JSON.stringify(parts)).not.toContain('operator-that-must-not-leak');
+  });
+
+  it('carries no resolved model reference when the stream never started', async () => {
+    // The discriminator: a stream with no `start` must not invent one from the
+    // requested id. `finish` then has NO providerMetadata key at all.
+    mocks.events.push({ type: 'done', finishReason: 'stop' });
+    const model = kaanaLanguageModel({
+      target: { kind: 'routing_profile_id', routingProfileId: '01a06477-94f5-74f0-bc25-4c5c13b93ccd' },
+      modelId: 'route:auto',
+      surface: 'chat',
+    });
+    const parts = await drain((await model.doStream({ prompt } as never)).stream);
+    expect(parts.some((part) => part.type === 'response-metadata')).toBe(false);
+    expect(parts.at(-1)).not.toHaveProperty('providerMetadata');
   });
 
   it('streams through the SDK and keeps usage and finish semantics', async () => {

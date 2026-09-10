@@ -2194,6 +2194,7 @@
       "domain": "provider-runtime",
       "kind": "module",
       "currentPath": "packages/api/src/internal/providers/lib/seed-model-configs.ts",
+      "removedIn": "claude/bold-mendel-a4utt1",
       "reachable": "dead",
       "owner": "delete",
       "targetPath": "delete",
@@ -2207,7 +2208,7 @@
       ],
       "removalGate": "NONE for the orchestrator. Positive control for the census: the same grep found warmupProviders with 2 call sites, so it can see callers. CAUTION: seed-plans/seed-features/seed-credit-packages seed BILLING data, not provider data — confirm the billing catalogue is populated another way before deleting them.  || data-billing inventory adds: Verified case-insensitively and against dynamic `await import(...)`: `runStartupSeed` appears exactly once in the repository, at its own definition. packages/api/src/index.ts:346-348 calls seedSkills/seedSuggestions/seedBots and NOT this. packages/api/package.json declares no seed script. So the catalogue is populated by nothing at boot — combined with the unmounted admin router, the catalogue tables have NO writer at all.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/internal/providers/lib/seed-model-configs.ts:258 (definition, no callers); seed-plans.ts:157, seed-features.ts:241, seed-credit-packages.ts:27; packages/api/src/internal/providers/lib/seed-model-configs.ts:258"
+      "evidence": "packages/api/src/internal/providers/lib/seed-model-configs.ts:258 (definition, no callers); seed-plans.ts:157, seed-features.ts:241, seed-credit-packages.ts:27; packages/api/src/internal/providers/lib/seed-model-configs.ts:258  || removed with its two callers in scripts/seed.ts: since #477 nothing outside db/providers reads model_configs / routing_profiles / routing_profile_provider_mappings, so the deploy seed wrote rows for nobody; guarded by packages/api/src/db/__tests__/seedWiring.test.ts ('never writes the routing catalogue')."
     },
     {
       "id": "deploy-secret-list",

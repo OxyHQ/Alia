@@ -629,7 +629,6 @@ describe('hosted chat routes only through reviewed Oxy profiles', () => {
         body: {
           messages: [{ role: 'user', content: 'hi' }],
           model: 'deepseek/deepseek-chat',
-          fallbackPolicy: 'no-fallback',
         },
       } as never,
       res as never,
@@ -641,6 +640,88 @@ describe('hosted chat routes only through reviewed Oxy profiles', () => {
     expect(captured.status).toBe(400);
     expect(captured.body?.error?.code).toBe('unknown_model');
     expect(resolveModel).not.toHaveBeenCalled();
+  });
+});
+
+describe('fallbackPolicy is refused, because this API cannot carry it', () => {
+  /**
+   * The public Oxy inference request has no fallback, substitution or route
+   * field, and the contract's `authorizedRoutes` is Oxy's own envelope to
+   * Kaana (ADR 0017) — resolved from the application's routing policy, never
+   * set by a caller. `request-context.ts` used to accept the parameter and hand
+   * it to a resolver that ignored it: a silent no-op behind an accepted field.
+   */
+  async function send(body: Record<string, unknown>, sseSent = false) {
+    const captured: Captured = { status: null, body: null };
+    const res = {
+      status(code: number) {
+        captured.status = code;
+        return res;
+      },
+      json(value: Captured['body']) {
+        captured.body = value;
+        return res;
+      },
+    };
+    const sse = { sent: sseSent, openEarly: vi.fn(), writeError: vi.fn() };
+    const timer = setTimeout(() => undefined, 60_000);
+    const ctx = await buildChatRequestContext(
+      { body: { messages: [{ role: 'user', content: 'hi' }], model: 'route:auto', ...body } } as never,
+      res as never,
+      sse as never,
+      timer as never,
+    );
+    clearTimeout(timer);
+    return { ctx, captured, sse };
+  }
+
+  it('answers 400 invalid_request naming the parameter, before any resolution', async () => {
+    const { ctx, captured } = await send({ fallbackPolicy: 'no-fallback' });
+    expect(ctx).toBeNull();
+    expect(captured.status).toBe(400);
+    expect(captured.body?.error).toMatchObject({
+      type: 'invalid_request_error',
+      code: 'invalid_request',
+      param: 'fallbackPolicy',
+    });
+    expect(captured.body?.error?.message).toContain('GET /catalogue');
+    // Nothing was resolved and nothing was reserved: the refusal is upstream of both.
+    expect(resolveModel).not.toHaveBeenCalled();
+    expect(reserveCredits).not.toHaveBeenCalled();
+  });
+
+  it('refuses a VALID-looking value too: the parameter, not its spelling, is what is wrong', async () => {
+    // The discriminator against the old behaviour, which accepted the three
+    // preset names and refused only a mistyped one.
+    for (const value of ['cross-model', 'same-model-only', 'no-fallback']) {
+      vi.clearAllMocks();
+      const { captured } = await send({ fallbackPolicy: value });
+      expect(captured.status, value).toBe(400);
+      expect(captured.body?.error?.code, value).toBe('invalid_request');
+      expect(resolveModel, value).not.toHaveBeenCalled();
+    }
+  });
+
+  it('refuses the wire spelling GET /catalogue documents, fallback_policy', async () => {
+    const { captured } = await send({ fallback_policy: 'cross-model' });
+    expect(captured.status).toBe(400);
+    expect(captured.body?.error).toMatchObject({ code: 'invalid_request', param: 'fallback_policy' });
+  });
+
+  it('writes the refusal as an SSE error once headers are out', async () => {
+    const { ctx, captured, sse } = await send({ fallbackPolicy: 'no-fallback' }, true);
+    expect(ctx).toBeNull();
+    expect(captured.status).toBeNull();
+    expect(sse.writeError).toHaveBeenCalledWith(
+      expect.objectContaining({ code: 'invalid_request', param: 'fallbackPolicy' }),
+    );
+  });
+
+  it('still admits a request that names no policy — the control', async () => {
+    const { ctx, captured } = await send({});
+    expect(captured.status).toBeNull();
+    expect(ctx).not.toBeNull();
+    expect(resolveModel).toHaveBeenCalled();
   });
 });
 
