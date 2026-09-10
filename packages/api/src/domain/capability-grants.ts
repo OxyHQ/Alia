@@ -173,7 +173,7 @@ export const FIXED_FAMILY_TOOLS: Readonly<Record<FixedCapabilityFamily, readonly
     'getWhatsAppMessages',
     'sendWhatsAppMessage',
   ],
-  automation: ['createAutomation', 'listTriggers', 'updateTrigger', 'deleteTrigger'],
+  automation: ['createAutomation'],
   delegation: ['createAgent', 'searchAgents', 'delegateToAgent', 'delegate'],
 };
 
