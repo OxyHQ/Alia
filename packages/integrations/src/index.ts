@@ -12,7 +12,7 @@ import { createLogger } from './shared/logger';
 const logger = createLogger('Integrations');
 
 const PORT = Number(process.env.PORT) || 3005;
-const INTERNAL_PORT = 3005; // Must match DO App Platform internal_ports + health_check.port
+const INTERNAL_PORT = 3005; // Must match the ECS container health-check port.
 const DATABASE_URL = process.env.DATABASE_URL;
 const APP_NAME = 'integrations';
 
@@ -253,8 +253,8 @@ async function main() {
     });
   });
 
-  // If DO App Platform overrides PORT (e.g. to 8080 via http_port), also listen
-  // on the internal port so health checks and internal_ports routing still work.
+  // If an operator overrides PORT, retain the canonical internal health port so
+  // the ECS container health check remains reachable.
   if (PORT !== INTERNAL_PORT) {
     const healthServer = http.createServer(app);
     healthServer.listen(INTERNAL_PORT, () => {
