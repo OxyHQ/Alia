@@ -3,6 +3,7 @@ import { randomUUID } from 'crypto';
 import { getDb } from '../db/index.js';
 import { storedMediaUrl } from '../lib/stored-media.js';
 import {
+  clearConversationPreview,
   createConversation,
   deleteConversation,
   findConversation,
@@ -409,6 +410,56 @@ router.patch(
     }
   },
 );
+
+/**
+ * Clear a conversation: every message goes, the thread stays.
+ *
+ * This is what the header's "Clear conversation" runs. It used to be a local
+ * `setMessages([])` under a dialog promising the action could not be undone —
+ * and the cached history hydrated straight back on the next render (#553). The
+ * promise is kept here instead: the rows are deleted and the preview the
+ * sidebar shows is dropped with them, while the row itself — its title, folder,
+ * icon, agent — is untouched, because emptying a thread is not deleting it.
+ *
+ * ## One transaction, and 404 decided inside it
+ *
+ * `clearConversationPreview` is the ownership check: it matches the row only
+ * under the caller's own `oxy_user_id`, and `0` means "not yours or not there"
+ * — one answer for both, so an id cannot be probed for. The message delete
+ * runs only when it matched, and in the same transaction, so a clear that
+ * failed halfway leaves the thread exactly as it was rather than as a preview
+ * with nothing behind it. `deleteMessages` is scoped to the caller too, so even
+ * outside the guard it could not reach somebody else's rows.
+ *
+ * A stream still writing into this thread is NOT this route's concern: the
+ * client stops it before asking, and a turn that lands after the clear is a
+ * new turn in an empty thread, which is what a person who kept typing wanted.
+ */
+router.delete('/:id/messages', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    if (!req.user?.id) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    const userId = req.user.id;
+    const conversationId = String(req.params.id);
+
+    const matched = await getDb().transaction(async (tx) => {
+      const found = await clearConversationPreview(tx, userId, conversationId);
+      if (found === 0) return 0;
+      await deleteMessages(tx, userId, conversationId);
+      return found;
+    });
+
+    if (matched === 0) {
+      return res.status(404).json({ error: 'Conversation not found' });
+    }
+
+    res.json({ success: true });
+  } catch (error: unknown) {
+    log.chat.error({ err: error }, 'Error clearing conversation');
+    res.status(500).json({ error: 'Failed to clear conversation' });
+  }
+});
 
 // Delete a conversation
 router.delete('/:id', authenticateToken, async (req: Request, res: Response) => {
