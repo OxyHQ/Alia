@@ -7,7 +7,8 @@ import { useTranslation } from "@/lib/hooks/use-translation";
 import { useColorScheme } from "@/lib/useColorScheme";
 import { SETTINGS_GROUPS } from "@/components/settings/sections";
 
-/** Section column of the two-pane settings layout. Only mounted at `md`+. */
+/** Section column of the two-pane settings layout. Mounted only in split mode
+ *  (`layout-mode.ts`), which is the scene's width and not the window's. */
 export const SettingsSidebar = React.memo(function SettingsSidebar() {
   const router = useRouter();
   const { t } = useTranslation();
