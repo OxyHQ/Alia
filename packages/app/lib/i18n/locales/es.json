@@ -176,6 +176,7 @@
     }
   },
   "nav": {
+    "openNavigation": "Abrir navegación",
     "chat": "Chat",
     "threads": "Hilos",
     "settings": "Configuración",

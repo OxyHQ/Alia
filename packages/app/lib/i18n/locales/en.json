@@ -201,6 +201,7 @@
     }
   },
   "nav": {
+    "openNavigation": "Open navigation",
     "chat": "Chat",
     "threads": "Threads",
     "settings": "Settings",
