@@ -22,6 +22,12 @@ export interface ThoughtStep {
   toolName?: string;
   sources?: Source[];
   state?: 'partial-call' | 'call' | 'result';
+  /**
+   * The invocation a tool step was built from, so a row can open its input
+   * and output in place without a second lookup by position. Only tool steps
+   * carry one.
+   */
+  invocation?: ToolInvocation;
 }
 
 /**
@@ -290,6 +296,7 @@ export function buildSteps(
         label: getToolLabel(inv.toolName),
         toolName: inv.toolName,
         state: inv.state,
+        invocation: inv,
       };
 
       // A research step carries every source the answer was written from.
@@ -459,4 +466,180 @@ export function buildAuditTimeline(
   }
 
   return entries;
+}
+
+// ---------------------------------------------------------------------------
+// Execution rows (#544): what one tool call reads as, what a turn produced,
+// and how long it worked.
+// ---------------------------------------------------------------------------
+
+/**
+ * How a single tool call reads in an execution row.
+ *
+ *  - `running`: it has not returned and its turn is still live.
+ *  - `done`: it returned, and what it returned was not an error.
+ *  - `error`: it returned an error — the tool pipeline reports a throw as a
+ *    result carrying `error`, so the call is over but did not succeed.
+ *  - `interrupted`: it never returned and its turn is over — a stop, a
+ *    failure, or a persisted turn cut short. It must not read as running.
+ */
+export type ToolCallStatus = 'running' | 'done' | 'error' | 'interrupted';
+
+export function toolCallStatus(inv: Pick<ToolInvocation, 'state' | 'result'>, live: boolean): ToolCallStatus {
+  if (inv.state !== 'result') return live ? 'running' : 'interrupted';
+  const result: unknown = inv.result;
+  if (result !== null && typeof result === 'object' && 'error' in result && Boolean((result as { error?: unknown }).error)) {
+    return 'error';
+  }
+  return 'done';
+}
+
+/** Upper bound on the text an expanded row prints for one side of a call. */
+export const TOOL_TEXT_LIMIT = 4000;
+
+/**
+ * One side of a tool call — its arguments or its result — as text a reader
+ * can scan. Strings are printed as they are; anything else is pretty JSON.
+ * Long output is cut with a marker rather than hidden, so a row never shows
+ * a fragment as if it were the whole.
+ */
+export function toolCallText(value: unknown, limit = TOOL_TEXT_LIMIT): string {
+  if (value === undefined || value === null) return '';
+  let text: string;
+  if (typeof value === 'string') {
+    text = value;
+  } else {
+    try {
+      text = JSON.stringify(value, null, 2) ?? '';
+    } catch {
+      text = String(value);
+    }
+  }
+  return text.length > limit ? `${text.slice(0, limit)}\n…` : text;
+}
+
+/** A file a turn produced, as the Outputs section lists it. */
+export interface OutputFile {
+  /** The invocation's id, which is also the canvas artifact's id when one was made. */
+  id: string;
+  name: string;
+  toolName: string;
+}
+
+/**
+ * The files a message's tools generated, read off the same persisted
+ * `toolInvocations` the sources come from: a finished `generateFile` names
+ * its file, and any tool that returned an `artifact` names that. Nothing is
+ * invented for a call that did not return — a running or interrupted
+ * generation is a step, not an output.
+ */
+export function extractOutputs(toolInvocations?: ToolInvocation[]): OutputFile[] {
+  if (!toolInvocations) return [];
+  const outputs: OutputFile[] = [];
+  for (const inv of toolInvocations) {
+    if (inv.state !== 'result' || !inv.result || typeof inv.result !== 'object') continue;
+    const result = inv.result as { filename?: unknown; title?: unknown; artifact?: { title?: unknown } | null };
+    let name: string | null = null;
+    if (inv.toolName === 'generateFile') {
+      name = typeof result.filename === 'string' && result.filename.length > 0
+        ? result.filename
+        : typeof result.title === 'string' && result.title.length > 0 ? result.title : getToolLabel(inv.toolName);
+    } else if (result.artifact && typeof result.artifact === 'object') {
+      name = typeof result.artifact.title === 'string' && result.artifact.title.length > 0
+        ? result.artifact.title
+        : getToolLabel(inv.toolName);
+    }
+    if (name === null) continue;
+    outputs.push({ id: inv.toolCallId || `output-${outputs.length}`, name, toolName: inv.toolName });
+  }
+  return outputs;
+}
+
+/**
+ * When a turn started and, if the conversation says, when it ended — both as
+ * epoch milliseconds, `null` where the conversation does not say.
+ *
+ * The start is the send: the user message before this one carries the
+ * client's own stamp (the hook writes it and `POST /conversations` keeps it).
+ * The end is the assistant row's stamp, which the server writes when the
+ * turn is SAVED — after the model finished — so on a reloaded thread the two
+ * bracket the work. A message the client has only just appended carries the
+ * send time on both rows, and an older thread saved before clients stamped
+ * their sends carries the save time on both; either way the gap is nothing,
+ * which is not an elapsed time. Under a second is therefore read as "the
+ * conversation does not say", and the live end is observed by the row instead
+ * (see `recordTurnEnd`).
+ */
+export interface TurnTiming {
+  startedAt: number | null;
+  endedAt: number | null;
+}
+
+const MIN_PERSISTED_ELAPSED_MS = 1000;
+
+function stampToMs(stamp: string | undefined): number | null {
+  if (stamp === undefined) return null;
+  const ms = Date.parse(stamp);
+  return Number.isNaN(ms) ? null : ms;
+}
+
+export function turnTiming(
+  message: { id: string; createdAt?: string },
+  messages: ReadonlyArray<{ id: string; role: string; createdAt?: string }>,
+): TurnTiming {
+  const index = messages.findIndex((m) => m.id === message.id);
+  let sendStamp: number | null = null;
+  for (let i = index - 1; i >= 0; i -= 1) {
+    if (messages[i].role === 'user') {
+      sendStamp = stampToMs(messages[i].createdAt);
+      break;
+    }
+  }
+  const ownStamp = stampToMs(message.createdAt);
+  const startedAt = sendStamp ?? ownStamp;
+  const endedAt =
+    sendStamp !== null && ownStamp !== null && ownStamp - sendStamp >= MIN_PERSISTED_ELAPSED_MS ? ownStamp : null;
+  return { startedAt, endedAt };
+}
+
+/**
+ * The moment a turn was SEEN to end on this device, by message id.
+ *
+ * A locally streamed turn has no persisted end until the thread is reloaded,
+ * so the row that watched it settle records the moment here; a row mounted
+ * later for the same message — the panel, or the thread after navigating away
+ * and back — reads it instead of guessing. Bounded so a long session does not
+ * grow it without limit; the oldest entries go first.
+ */
+const observedTurnEnds = new Map<string, number>();
+const OBSERVED_TURN_ENDS_LIMIT = 200;
+
+export function recordTurnEnd(messageId: string, endedAt: number): void {
+  if (observedTurnEnds.has(messageId)) return;
+  observedTurnEnds.set(messageId, endedAt);
+  if (observedTurnEnds.size > OBSERVED_TURN_ENDS_LIMIT) {
+    const oldest = observedTurnEnds.keys().next().value;
+    if (oldest !== undefined) observedTurnEnds.delete(oldest);
+  }
+}
+
+export function recordedTurnEnd(messageId: string): number | null {
+  return observedTurnEnds.get(messageId) ?? null;
+}
+
+/**
+ * An elapsed time the way the summary row prints it: `10s`, `1m 5s`, `1h 2m`.
+ * `long` spells the units out for an accessible name, where "10s" is read as
+ * a letter. Rounded to the second; anything under one reads as `0s`.
+ */
+export function formatElapsed(ms: number, long = false): string {
+  const total = Math.max(0, Math.round(ms / 1000));
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const seconds = total % 60;
+  const unit = (n: number, short: string, one: string, many: string): string =>
+    long ? `${n} ${n === 1 ? one : many}` : `${n}${short}`;
+  if (hours > 0) return `${unit(hours, 'h', 'hour', 'hours')} ${unit(minutes, 'm', 'minute', 'minutes')}`;
+  if (minutes > 0) return `${unit(minutes, 'm', 'minute', 'minutes')} ${unit(seconds, 's', 'second', 'seconds')}`;
+  return unit(seconds, 's', 'second', 'seconds');
 }
