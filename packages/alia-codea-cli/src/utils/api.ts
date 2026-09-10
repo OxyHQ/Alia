@@ -1,8 +1,15 @@
-import OpenAI from 'openai';
+import type OpenAI from 'openai';
 import { config } from './config.js';
 import type { Message, ToolCall } from './conversation.js';
 import { resolveModelId } from './catalogue.js';
 import { accessToken, restoreSession } from './oxy-session.js';
+import {
+  AliaChatError,
+  completedToolCalls,
+  mergeToolCallDeltas,
+  streamAliaChat,
+  type StreamedToolCall,
+} from './alia-chat.js';
 
 interface StreamCallbacks {
   onContent: (content: string) => void;
@@ -122,11 +129,31 @@ export const fileTools = [
   }
 ];
 
+/**
+ * Stream one request to Alia's product runtime and report what it produced.
+ *
+ * `onContent` fires per answer fragment, `onDone` once with the whole answer
+ * and any tool calls, `onError` instead of `onDone` when the turn failed.
+ * Three outcomes deserve saying out loud:
+ *
+ *  - **The server's stand-in is an error, not an answer.** A chunk flagged
+ *    `alia_meta.synthetic` — "I'm sorry, all models are currently busy" — is
+ *    never passed to `onContent`, so it is never printed, never pushed into
+ *    the conversation and never saved into the session file for `codea
+ *    resume` to replay. Its `retryable` flag decides the message.
+ *  - **An abort is silent.** When `signal` fires neither callback runs: the
+ *    caller asked for this and already knows. The request stops on the wire,
+ *    which is what stops it being billed.
+ *  - **Named product events are read, not dropped.** `alia.reasoning` has no
+ *    terminal surface yet and is ignored on purpose; the rest are logged
+ *    nowhere because a CLI has nowhere to put them.
+ */
 export async function streamChat(
   messages: Message[],
   systemMessage: string,
   model: string,
-  callbacks: StreamCallbacks
+  callbacks: StreamCallbacks,
+  signal?: AbortSignal
 ): Promise<void> {
   /**
    * The bearer is the Oxy session token, restored from this machine's device
@@ -143,19 +170,6 @@ export async function streamChat(
   if (!token) throw new Error('Not signed in. Run `codea login` first.');
 
   const baseUrl = config.get('apiBaseUrl') || 'https://api.alia.onl';
-
-  /**
-   * OpenAI-protocol caller: the `openai` package derives
-   * `POST {baseURL}/chat/completions` itself, so this client chose the
-   * PROTOCOL and the protocol names the path. It stays on the compatibility
-   * surface deliberately while the clients that write their own URL moved to
-   * `POST /alia/chat` — epic #139 workstream 6, recorded with the rest in
-   * gate 7 of `packages/api/src/__tests__/architectureGates.test.ts`.
-   */
-  const openai = new OpenAI({
-    apiKey: token,
-    baseURL: `${baseUrl}/v1`
-  });
 
   const allMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
     { role: 'system', content: systemMessage },
@@ -174,87 +188,94 @@ export async function streamChat(
   ];
 
   try {
-    const stream = await openai.chat.completions.create({
-      /**
-       * Resolved HERE because this is the one place every CLI path — the REPL,
-       * `run`, `exec` and a resumed session — actually names a model. A
-       * catalogue that cannot be read leaves the identifier alone and the server
-       * stays the authority.
-       */
-      model: await resolveModelId(model),
-      messages: allMessages,
-      tools: fileTools as OpenAI.Chat.ChatCompletionTool[],
-      stream: true
+    const stream = streamAliaChat({
+      baseUrl,
+      accessToken: token,
+      body: {
+        /**
+         * Resolved HERE because this is the one place every CLI path — the
+         * REPL, `run`, `exec` and a resumed session — actually names a model.
+         * A catalogue that cannot be read leaves the identifier alone and the
+         * server stays the authority.
+         */
+        model: await resolveModelId(model),
+        messages: allMessages,
+        tools: fileTools as OpenAI.Chat.ChatCompletionTool[],
+      },
+      signal,
     });
 
     let fullContent = '';
-    const toolCalls: ToolCall[] = [];
-    const toolCallsMap = new Map<number, ToolCall>();
+    const toolCalls: StreamedToolCall[] = [];
+    let synthetic: { retryable: boolean } | null = null;
 
-    for await (const chunk of stream) {
-      const delta = chunk.choices?.[0]?.delta;
-      if (!delta) continue;
-
-      if (delta.content) {
-        fullContent += delta.content;
-        callbacks.onContent(delta.content);
-      }
-
-      if (delta.tool_calls) {
-        for (const tc of delta.tool_calls) {
-          const index = tc.index ?? 0;
-
-          if (!toolCallsMap.has(index)) {
-            const newToolCall: ToolCall = {
-              id: tc.id || '',
-              type: 'function',
-              function: {
-                name: tc.function?.name || '',
-                arguments: tc.function?.arguments || ''
-              }
-            };
-            toolCallsMap.set(index, newToolCall);
-            toolCalls.push(newToolCall);
-          } else {
-            const existingToolCall = toolCallsMap.get(index)!;
-            if (tc.function?.name) {
-              existingToolCall.function.name = tc.function.name;
-            }
-            if (tc.function?.arguments) {
-              existingToolCall.function.arguments += tc.function.arguments;
-            }
-          }
-        }
+    for await (const event of stream) {
+      switch (event.type) {
+        case 'content':
+          fullContent += event.text;
+          callbacks.onContent(event.text);
+          break;
+        case 'tool_calls':
+          mergeToolCallDeltas(toolCalls, event.deltas);
+          break;
+        case 'synthetic':
+          synthetic = { retryable: event.retryable };
+          break;
+        case 'reasoning':
+        case 'tool_result':
+        case 'finish':
+        case 'event':
+          break;
       }
     }
 
-    // Validate tool call arguments before returning
-    for (const tc of toolCalls) {
+    if (synthetic !== null) {
+      callbacks.onError(
+        new Error(
+          synthetic.retryable
+            ? 'Alia could not finish that answer. Please send your message again.'
+            : 'Alia could not answer that request.'
+        )
+      );
+      return;
+    }
+
+    // A call whose arguments never became valid JSON is handed on as `{}` so
+    // the executor reports the malformed call rather than the loop crashing.
+    const completed = completedToolCalls(toolCalls).map((tc): ToolCall => {
       try {
         JSON.parse(tc.function.arguments);
+        return tc;
       } catch {
-        tc.function.arguments = '{}';
+        return { ...tc, function: { ...tc.function, arguments: '{}' } };
       }
-    }
+    });
 
-    callbacks.onDone(fullContent, toolCalls.length > 0 ? toolCalls : undefined);
+    callbacks.onDone(fullContent, completed.length > 0 ? completed : undefined);
   } catch (error: unknown) {
+    if (error instanceof Error && error.name === 'AbortError') return;
     callbacks.onError(new Error(extractErrorMessage(error)));
   }
 }
 
+/**
+ * A message a person can act on.
+ *
+ * A structured refusal carries its own message and, where the server sent
+ * one, a code — `MODEL_NOT_IN_PLAN` reads "Upgrade your plan to use this
+ * model." exactly as the server wrote it. The two status branches are for the
+ * refusals whose server message is not written for a person: the auth
+ * middleware's bare `Authentication required`, and a credit refusal.
+ */
 function extractErrorMessage(error: unknown): string {
+  if (error instanceof AliaChatError) {
+    if (error.status === 401) return 'Your Alia session has expired. Run `codea login` again.';
+    if (error.status === 402) return 'Insufficient credits. Add more at alia.onl.';
+    return error.message;
+  }
   if (typeof error === 'string') return error;
   if (typeof error !== 'object' || error === null) return 'Unknown error occurred';
   const e = error as Record<string, unknown>;
-  // OpenAI SDK structured errors
-  if (typeof e.error === 'object' && e.error !== null) {
-    const inner = e.error as Record<string, unknown>;
-    if (typeof inner.message === 'string') return inner.message;
-  }
-  // Standard Error objects
   if (typeof e.message === 'string') return e.message;
-  // HTTP status only
-  if (typeof e.status === 'number') return `API error (HTTP ${e.status})`;
   return 'Unknown error occurred';
 }

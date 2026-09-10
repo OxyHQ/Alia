@@ -43,13 +43,23 @@ export interface ConversationOptions {
   onEvent: (event: ConversationEvent) => void;
   requestApproval: (execution: ToolExecution) => Promise<boolean>;
   isActive: () => boolean;
+  /**
+   * Fired to stop the request on the wire, not only the rendering.
+   *
+   * `isActive` is polled between events, which is enough to stop printing and
+   * to leave the tool loop — but a stream that is no longer read still runs,
+   * and is billed, until the server finishes. Ctrl+C in the REPL and SIGINT in
+   * `codea run` abort this, and `streamChat` treats the abort as silence
+   * rather than as an error to report.
+   */
+  signal?: AbortSignal;
 }
 
 const MAX_CONSECUTIVE_FAILURES = 2;
 const MAX_TOOL_ROUNDS = 20;
 
 export async function processConversation(opts: ConversationOptions): Promise<void> {
-  const { messages, systemMessage, model, approvalMode, onEvent, requestApproval, isActive } = opts;
+  const { messages, systemMessage, model, approvalMode, onEvent, requestApproval, isActive, signal } = opts;
 
   let consecutiveFailures = 0;
   let toolRounds = 0;
@@ -73,7 +83,7 @@ export async function processConversation(opts: ConversationOptions): Promise<vo
         onError: (error) => {
           onEvent({ type: 'error', message: error.message });
         },
-      });
+      }, signal);
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
       onEvent({ type: 'error', message });

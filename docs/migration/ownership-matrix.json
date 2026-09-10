@@ -1655,9 +1655,9 @@
         "v1-me",
         "v1-models-list"
       ],
-      "removalGate": "The delta.reasoning field is documented NOWHERE and is not in the SSE event contract. Confirm whether the server still emits it before assuming the contract is just the 8 named events.",
+      "removalGate": "None: this is Alia's own surface on Alia's permanent product API (ADR 0010). The wire it reads is the named-event contract in packages/api/src/lib/chat-events.ts, pinned by src/main/__tests__/alia-chat.test.ts.",
       "provenance": "inventory-product-api",
-      "evidence": "packages/alia-cowork/src/main/chat.ts:149,20,30,1070,1087,1105"
+      "evidence": "packages/alia-cowork/src/main/alia-chat.ts; packages/alia-cowork/src/main/chat.ts; packages/alia-cowork/src/main/config.ts:39"
     },
     {
       "id": "cowork-console-models-consumer",

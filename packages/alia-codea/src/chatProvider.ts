@@ -1,19 +1,53 @@
 import * as vscode from 'vscode';
-import OpenAI from 'openai';
+import type OpenAI from 'openai';
 import { fileTools, ToolExecutor, type EditorContext } from './tools';
 import type { AliaAuthenticationProvider } from './authProvider';
-import { errorMessage, errorName, errorStatus } from './errors';
+import { errorMessage, errorName } from './errors';
 import { log } from './logger';
 import { PREFERRED_MODEL_ID } from './config';
 import { fetchOfferedModes, resolveModelId } from './catalogue';
+import {
+  AliaChatError,
+  completedToolCalls,
+  mergeToolCallDeltas,
+  streamAliaChat,
+  type AliaStreamEvent,
+  type StreamedToolCall,
+} from './aliaChat';
 
-/** Alia API streams an extra `alia_meta` field on chunks; not part of the OpenAI type. */
-type AliaMetaChunk = OpenAI.Chat.ChatCompletionChunk & {
-  alia_meta?: { synthetic?: boolean };
-};
-
-/** Codea only deals with function tool calls (not custom tool calls). */
-type FunctionToolCall = OpenAI.Chat.ChatCompletionMessageFunctionToolCall;
+/**
+ * The webview chat: Alia's product runtime, driven from the extension host.
+ *
+ * Streams `POST /alia/chat` through `./aliaChat` and runs the editor tools the
+ * model asks for in this VS Code window. The webview is a display — it
+ * receives `startAssistantMessage`, `streamContent`, `toolCall`, `toolResult`,
+ * `modeChanged`, `clearStream`, `error` and `endAssistantMessage` — and never
+ * holds the token.
+ *
+ * ## One loop, not two
+ *
+ * This file used to carry two copies of the same ~150-line turn —
+ * `streamChatCompletion` for the first request and `continueWithToolResults`
+ * for every request after a tool round — over the `openai` package. They had
+ * already drifted (one truncated tool output with an ellipsis, the other
+ * without; one logged an unparsable tool argument, the other dropped it
+ * silently), and both left a tool call with malformed arguments WITHOUT a
+ * `tool` message, which the next request was refused for. A turn is one loop
+ * now: stream, collect tool calls, run them, repeat until the model answers in
+ * text or the round budget is spent.
+ *
+ * ## The stand-in
+ *
+ * The server never sends a raw failure mid-answer: when every provider is busy
+ * or one dies part-way it streams a friendly sentence flagged
+ * `alia_meta.synthetic` (`packages/api/src/routes/v1/chat-completions.ts`).
+ * `./aliaChat` surfaces that as its own event, so it is retried once and then
+ * reported as a retryable error — never rendered as the answer and never
+ * remembered as one. The list of English and Spanish phrases this file used to
+ * match against is gone: the marker is the contract
+ * (`routes/v1/__tests__/chatFlowFixtures.test.ts`, fixture 3), and a phrase
+ * list is a copy of server text that goes stale the first time it is reworded.
+ */
 
 /**
  * The terminal `executedCommands` history is a proposed VS Code API not present in
@@ -27,27 +61,19 @@ interface ExtendedShellIntegration {
   executedCommands?: ShellExecutionRecord[];
 }
 
-/** Patterns that indicate a synthetic/error response from the backend */
-const SYNTHETIC_ERROR_PATTERNS = [
-  'I encountered a brief interruption',
-  'Hubo una breve interrupción',
-  'all models are currently busy',
-  'todos los modelos están ocupados',
-  'the request took too long',
-];
+/**
+ * How many tool rounds one user message may take before the model is told to
+ * answer with what it has. The server bounds its own steps the same way
+ * (`stopWhen: stepCountIs(5)` in `lib/chat/model-config.ts`).
+ */
+const MAX_TOOL_ROUNDS = 10;
 
-/** Thrown when a streaming response is detected as synthetic/error */
-class SyntheticErrorSignal extends Error {
-  constructor(public readonly message: string) {
-    super(message);
-    this.name = 'SyntheticErrorSignal';
-  }
-}
-
-/** Check if a message is a synthetic error response from the backend */
-function isSyntheticResponse(content: string): boolean {
-  const trimmed = content.trim();
-  return SYNTHETIC_ERROR_PATTERNS.some(pattern => trimmed.includes(pattern));
+/** What one streamed request produced, after the stream closed. */
+interface StreamOutcome {
+  text: string;
+  toolCalls: StreamedToolCall[];
+  /** The server sent a stand-in instead of (or after) an answer. */
+  synthetic: { retryable: boolean } | null;
 }
 
 interface Conversation {
@@ -696,83 +722,94 @@ You are running inside Visual Studio Code, Microsoft's popular code editor.
     return clientContext;
   }
 
+  /**
+   * One user message, to completion: stream, run tools, stream again.
+   *
+   * `accessToken` is the token the caller read; a 401 is retried once on a
+   * freshly minted one and the fresh token is used for the rest of the turn.
+   * The final round is sent with `tool_choice: 'none'` so a model that would
+   * keep calling tools is made to answer instead of being cut off silently.
+   */
   private async processConversation(baseUrl: string, accessToken: string, model: string, clientContext: string): Promise<void> {
     this._view?.webview.postMessage({ type: 'startAssistantMessage' });
+    this._abortController = new AbortController();
+
+    let currentToken = accessToken;
+    let retriedSynthetic = false;
+
+    /**
+     * The client context rides as the system message of EVERY request. The
+     * server replaces it with its complete prompt and folds this text in as
+     * client context (`lib/chat/request-context.ts`), so sending it only on
+     * the first request — as this used to — left every tool-round
+     * continuation without the editor's mode and workspace.
+     */
+    const request = (finalRound: boolean) => ({
+      model,
+      messages: [{ role: 'system' as const, content: clientContext }, ...this._messages],
+      tools: finalRound ? undefined : (fileTools as OpenAI.Chat.ChatCompletionTool[]),
+      ...(finalRound ? { tool_choice: 'none' as const } : {}),
+      temperature: 0.7,
+      max_tokens: 4096,
+    });
+
+    const streamOnce = async (finalRound: boolean): Promise<StreamOutcome> => {
+      const attempt = (token: string) =>
+        this.consume(streamAliaChat({ baseUrl, accessToken: token, body: request(finalRound), signal: this._abortController?.signal }));
+      try {
+        return await attempt(currentToken);
+      } catch (error: unknown) {
+        if (!(error instanceof AliaChatError) || error.status !== 401) throw error;
+        // On 401, re-mint once and retry. `getAccessToken` refreshes a stale
+        // token itself; this is for a token the server rejected regardless.
+        const refreshed = await this._authProvider.refreshToken();
+        const fresh = refreshed ? await this._authProvider.getAccessToken() : null;
+        if (!fresh || fresh === currentToken) throw error;
+        currentToken = fresh;
+        return await attempt(currentToken);
+      }
+    };
 
     try {
-      let currentToken = accessToken;
+      for (let round = 0; this._isProcessing; round++) {
+        const lastRound = round >= MAX_TOOL_ROUNDS;
+        if (lastRound) log.warn(`[Codea] Max tool rounds (${MAX_TOOL_ROUNDS}) reached, forcing final response`);
 
-      const makeRequest = async (token: string) => {
-        /**
-         * OpenAI-protocol caller: the `openai` package derives
-         * `POST {baseURL}/chat/completions` itself, so this client chose the
-         * PROTOCOL and the protocol names the path. It stays on the compatibility
-         * surface deliberately while the clients that write their own URL moved to
-         * `POST /alia/chat` — epic #139 workstream 6, recorded with the rest in
-         * gate 7 of `packages/api/src/__tests__/architectureGates.test.ts`.
-         */
-        const openai = new OpenAI({
-          apiKey: token,
-          baseURL: `${baseUrl}/v1`
-        });
+        const outcome = await streamOnce(lastRound);
 
-        this._abortController = new AbortController();
-
-        // Add client context as system message for first message
-        // The backend will prepend its own model-specific prompt
-        const messages: Array<OpenAI.Chat.ChatCompletionMessageParam> = this._messages.length === 1
-          ? [{ role: 'system', content: clientContext }, ...this._messages]
-          : this._messages; // Don't add system message on continuation
-
-        await this.streamChatCompletion(openai, model, messages);
-      };
-
-      try {
-        await makeRequest(currentToken);
-      } catch (error: unknown) {
-        // On synthetic error, auto-retry once after a short delay
-        if (error instanceof SyntheticErrorSignal) {
-          log.info('[Codea] Synthetic error detected, retrying in 2s...');
-          this._view?.webview.postMessage({ type: 'clearStream' });
-          await new Promise(resolve => setTimeout(resolve, 2000));
-
-          if (!this._isProcessing) {
-            this._view?.webview.postMessage({ type: 'endAssistantMessage' });
-            return;
+        if (outcome.synthetic !== null) {
+          if (!retriedSynthetic) {
+            // Once, after a short wait: the busy stand-in is usually momentary.
+            retriedSynthetic = true;
+            log.info('[Codea] Synthetic response detected, retrying in 2s...');
+            this._view?.webview.postMessage({ type: 'clearStream' });
+            await new Promise((resolve) => setTimeout(resolve, 2000));
+            round--;
+            continue;
           }
-
-          try {
-            await makeRequest(currentToken);
-          } catch (retryError: unknown) {
-            // Second attempt also failed — show as retryable error
-            if (retryError instanceof SyntheticErrorSignal) {
-              this._view?.webview.postMessage({
-                type: 'error',
-                message: 'The service is temporarily unavailable. Please try again.',
-                retryable: true
-              });
-              return;
-            }
-            throw retryError;
-          }
-          this._view?.webview.postMessage({ type: 'endAssistantMessage' });
+          this._view?.webview.postMessage({
+            type: 'error',
+            message: 'The service is temporarily unavailable. Please try again.',
+            retryable: true,
+          });
           return;
         }
 
-        // On 401, try refreshing the token and retry once
-        if (errorStatus(error) === 401 || errorMessage(error).includes('401')) {
-          const refreshed = await this._authProvider.refreshToken();
-          if (refreshed) {
-            const newToken = await this._authProvider.getAccessToken();
-            if (newToken && newToken !== currentToken) {
-              currentToken = newToken;
-              await makeRequest(currentToken);
-              this._view?.webview.postMessage({ type: 'endAssistantMessage' });
-              return;
-            }
-          }
+        if (outcome.text || outcome.toolCalls.length > 0) {
+          const assistant: OpenAI.Chat.ChatCompletionAssistantMessageParam = {
+            role: 'assistant',
+            content: outcome.text || null,
+          };
+          if (outcome.toolCalls.length > 0) assistant.tool_calls = outcome.toolCalls;
+          this._messages.push(assistant);
         }
-        throw error;
+
+        if (outcome.toolCalls.length === 0 || lastRound) break;
+
+        for (const toolCall of outcome.toolCalls) {
+          if (!this._isProcessing) break;
+          await this.runToolCall(toolCall);
+        }
       }
 
       this._view?.webview.postMessage({ type: 'endAssistantMessage' });
@@ -781,7 +818,8 @@ You are running inside Visual Studio Code, Microsoft's popular code editor.
         const errorMsg = this.formatErrorMessage(error);
         this._view?.webview.postMessage({
           type: 'error',
-          message: errorMsg
+          message: errorMsg,
+          retryable: error instanceof AliaChatError && error.retryable,
         });
         vscode.window.showErrorMessage(`Codea: ${errorMsg}`);
       }
@@ -791,324 +829,128 @@ You are running inside Visual Studio Code, Microsoft's popular code editor.
     }
   }
 
-  private async streamChatCompletion(
-    openai: OpenAI,
-    model: string,
-    messages: Array<OpenAI.Chat.ChatCompletionMessageParam>
-  ): Promise<void> {
-    const stream = await openai.chat.completions.create(
-      {
-        model,
-        messages,
-        tools: fileTools as OpenAI.Chat.ChatCompletionTool[],
-        stream: true,
-        temperature: 0.7,
-        max_tokens: 4096
-      },
-      {
-        signal: this._abortController?.signal
-      }
-    );
+  /** Forward a stream to the webview and collect what the history needs. */
+  private async consume(stream: AsyncIterable<AliaStreamEvent>): Promise<StreamOutcome> {
+    let text = '';
+    const toolCalls: StreamedToolCall[] = [];
+    let synthetic: StreamOutcome['synthetic'] = null;
 
-    let assistantMessage = '';
-    let toolCalls: FunctionToolCall[] = [];
-    let detectedSynthetic = false;
-
-    for await (const chunk of stream) {
+    for await (const event of stream) {
+      // `stopGeneration` aborts the controller, which ends the iteration with
+      // an AbortError; this is the guard for the frames already in flight.
       if (!this._isProcessing) break;
 
-      // Detect synthetic responses via alia_meta
-      if ((chunk as AliaMetaChunk).alia_meta?.synthetic) {
-        detectedSynthetic = true;
-      }
-
-      const delta = chunk.choices?.[0]?.delta;
-      if (!delta) continue;
-
-      if (delta.content) {
-        assistantMessage += delta.content;
-        this._view?.webview.postMessage({
-          type: 'streamContent',
-          content: delta.content
-        });
-      }
-
-      if (delta.tool_calls) {
-        for (const toolCall of delta.tool_calls) {
-          const index = toolCall.index ?? toolCalls.length;
-
-          if (!toolCalls[index]) {
-            toolCalls[index] = {
-              id: toolCall.id || '',
-              type: 'function',
-              function: { name: toolCall.function?.name || '', arguments: '' }
-            } as FunctionToolCall;
-          }
-
-          if (toolCall.function?.name) {
-            toolCalls[index].function.name = toolCall.function.name;
-          }
-
-          if (toolCall.function?.arguments) {
-            toolCalls[index].function.arguments += toolCall.function.arguments;
-          }
-
-          if (toolCall.id) {
-            toolCalls[index].id = toolCall.id;
-          }
-        }
+      switch (event.type) {
+        case 'content':
+          text += event.text;
+          this._view?.webview.postMessage({ type: 'streamContent', content: event.text });
+          break;
+        case 'tool_calls':
+          mergeToolCallDeltas(toolCalls, event.deltas);
+          break;
+        case 'synthetic':
+          log.warn('[Codea] Server sent a synthetic stand-in:', event.text);
+          synthetic = { retryable: event.retryable };
+          break;
+        case 'reasoning':
+        case 'tool_result':
+        case 'finish':
+        case 'event':
+          // The webview has no reasoning surface; a tool result for one of
+          // this extension's own tools is the server's echo of the arguments,
+          // and the real result comes from `runToolCall`.
+          break;
       }
     }
 
-    // Check if the response is a synthetic error (pattern match or alia_meta flag)
-    if (detectedSynthetic || isSyntheticResponse(assistantMessage)) {
-      throw new SyntheticErrorSignal(assistantMessage.trim());
-    }
-
-    const validToolCalls = toolCalls.filter(tc => tc && tc.id && tc.function && tc.function.name);
-
-    if (assistantMessage || validToolCalls.length > 0) {
-      const assistantMsg: OpenAI.Chat.ChatCompletionAssistantMessageParam = {
-        role: 'assistant',
-        content: assistantMessage || null
-      };
-      if (validToolCalls.length > 0) {
-        assistantMsg.tool_calls = validToolCalls;
-      }
-      this._messages.push(assistantMsg);
-    }
-
-    if (validToolCalls.length > 0) {
-      for (const toolCall of validToolCalls) {
-        const toolName = toolCall.function.name;
-        let args: Record<string, unknown> = {};
-        try {
-          args = JSON.parse(toolCall.function.arguments || '{}') as Record<string, unknown>;
-        } catch (e) {
-          log.error('[Codea] Failed to parse tool arguments:', toolCall.function.arguments, e);
-          continue;
-        }
-
-        if (toolName === 'set_mode') {
-          this._currentMode = String(args.mode ?? this._currentMode);
-          this._view?.webview.postMessage({
-            type: 'modeChanged',
-            mode: this._currentMode
-          });
-        }
-
-        this._view?.webview.postMessage({
-          type: 'toolCall',
-          tool: toolName,
-          args,
-          status: 'running'
-        });
-
-        try {
-          const result = await this._toolExecutor.execute(toolName, args);
-
-          this._messages.push({
-            role: 'tool',
-            tool_call_id: toolCall.id,
-            content: result.success ? result.result : `Error: ${result.result}`
-          });
-
-          this._view?.webview.postMessage({
-            type: 'toolResult',
-            tool: toolName,
-            success: result.success,
-            result: result.result.slice(0, 500) + (result.result.length > 500 ? '...' : '')
-          });
-        } catch (error: unknown) {
-          const errorMsg = errorMessage(error);
-          this._messages.push({
-            role: 'tool',
-            tool_call_id: toolCall.id,
-            content: `Error: ${errorMsg}`
-          });
-
-          this._view?.webview.postMessage({
-            type: 'toolResult',
-            tool: toolName,
-            success: false,
-            result: errorMsg
-          });
-        }
-      }
-
-      // Continue with tool results
-      await this.continueWithToolResults(openai, model, messages);
-    }
+    return { text, toolCalls: completedToolCalls(toolCalls), synthetic };
   }
 
-  private async continueWithToolResults(
-    openai: OpenAI,
-    model: string,
-    baseMessages: Array<OpenAI.Chat.ChatCompletionMessageParam>,
-    iterationCount: number = 0
-  ): Promise<void> {
-    const MAX_ITERATIONS = 10;
-    if (iterationCount >= MAX_ITERATIONS) {
-      log.warn(`[Codea] Max iterations (${MAX_ITERATIONS}) reached`);
+  /** Execute one tool call in this window and append its result to the history. */
+  private async runToolCall(toolCall: StreamedToolCall): Promise<void> {
+    const toolName = toolCall.function.name;
+
+    let args: Record<string, unknown> = {};
+    try {
+      args = JSON.parse(toolCall.function.arguments || '{}') as Record<string, unknown>;
+    } catch (e) {
+      log.error('[Codea] Failed to parse tool arguments:', toolCall.function.arguments, e);
+      // The model is told rather than left waiting for a result that never
+      // comes: a `tool_calls` entry with no matching `tool` message is a
+      // request the server refuses.
+      this._messages.push({
+        role: 'tool',
+        tool_call_id: toolCall.id,
+        content: 'Error: Malformed tool arguments. Please retry with valid JSON.',
+      });
+      this._view?.webview.postMessage({ type: 'toolResult', tool: toolName, success: false, result: 'Malformed tool arguments' });
       return;
     }
 
-    const stream = await openai.chat.completions.create(
-      {
-        model,
-        messages: this._messages,
-        tools: fileTools as OpenAI.Chat.ChatCompletionTool[],
-        stream: true,
-        temperature: 0.7,
-        max_tokens: 4096
-      },
-      {
-        signal: this._abortController?.signal
-      }
-    );
-
-    let assistantMessage = '';
-    let toolCalls: FunctionToolCall[] = [];
-    let detectedSynthetic = false;
-
-    for await (const chunk of stream) {
-      if (!this._isProcessing) break;
-
-      if ((chunk as AliaMetaChunk).alia_meta?.synthetic) {
-        detectedSynthetic = true;
-      }
-
-      const delta = chunk.choices?.[0]?.delta;
-      if (!delta) continue;
-
-      if (delta.content) {
-        assistantMessage += delta.content;
-        this._view?.webview.postMessage({
-          type: 'streamContent',
-          content: delta.content
-        });
-      }
-
-      if (delta.tool_calls) {
-        for (const toolCall of delta.tool_calls) {
-          const index = toolCall.index ?? toolCalls.length;
-          if (!toolCalls[index]) {
-            toolCalls[index] = {
-              id: toolCall.id || '',
-              type: 'function',
-              function: { name: toolCall.function?.name || '', arguments: '' }
-            } as FunctionToolCall;
-          }
-
-          if (toolCall.function?.name) {
-            toolCalls[index].function.name = toolCall.function.name;
-          }
-
-          if (toolCall.function?.arguments) {
-            toolCalls[index].function.arguments += toolCall.function.arguments;
-          }
-
-          if (toolCall.id) {
-            toolCalls[index].id = toolCall.id;
-          }
-        }
-      }
+    if (toolName === 'set_mode') {
+      this._currentMode = String(args.mode ?? this._currentMode);
+      this._view?.webview.postMessage({ type: 'modeChanged', mode: this._currentMode });
     }
 
-    // Check if the response is a synthetic error
-    if (detectedSynthetic || isSyntheticResponse(assistantMessage)) {
-      throw new SyntheticErrorSignal(assistantMessage.trim());
-    }
+    this._view?.webview.postMessage({ type: 'toolCall', tool: toolName, args, status: 'running' });
 
-    const validToolCalls = toolCalls.filter(tc => tc && tc.id && tc.function && tc.function.name);
+    try {
+      const result = await this._toolExecutor.execute(toolName, args);
 
-    if (assistantMessage || validToolCalls.length > 0) {
-      const assistantMsg: OpenAI.Chat.ChatCompletionAssistantMessageParam = {
-        role: 'assistant',
-        content: assistantMessage || null
-      };
-      if (validToolCalls.length > 0) {
-        assistantMsg.tool_calls = validToolCalls;
-      }
-      this._messages.push(assistantMsg);
-    }
+      this._messages.push({
+        role: 'tool',
+        tool_call_id: toolCall.id,
+        content: result.success ? result.result : `Error: ${result.result}`,
+      });
 
-    if (validToolCalls.length > 0) {
-      for (const toolCall of validToolCalls) {
-        const toolName = toolCall.function.name;
-        let args: Record<string, unknown> = {};
-        try {
-          args = JSON.parse(toolCall.function.arguments || '{}') as Record<string, unknown>;
-        } catch (e) {
-          continue;
-        }
-
-        if (toolName === 'set_mode') {
-          this._currentMode = String(args.mode ?? this._currentMode);
-          this._view?.webview.postMessage({
-            type: 'modeChanged',
-            mode: this._currentMode
-          });
-        }
-
-        this._view?.webview.postMessage({
-          type: 'toolCall',
-          tool: toolName,
-          args,
-          status: 'running'
-        });
-
-        try {
-          const result = await this._toolExecutor.execute(toolName, args);
-
-          this._messages.push({
-            role: 'tool',
-            tool_call_id: toolCall.id,
-            content: result.success ? result.result : `Error: ${result.result}`
-          });
-
-          this._view?.webview.postMessage({
-            type: 'toolResult',
-            tool: toolName,
-            success: result.success,
-            result: result.result.slice(0, 500)
-          });
-        } catch (error: unknown) {
-          const errorMsg = errorMessage(error);
-          this._messages.push({
-            role: 'tool',
-            tool_call_id: toolCall.id,
-            content: `Error: ${errorMsg}`
-          });
-
-          this._view?.webview.postMessage({
-            type: 'toolResult',
-            tool: toolName,
-            success: false,
-            result: errorMsg
-          });
-        }
-      }
-
-      await this.continueWithToolResults(openai, model, baseMessages, iterationCount + 1);
+      this._view?.webview.postMessage({
+        type: 'toolResult',
+        tool: toolName,
+        success: result.success,
+        result: result.result.slice(0, 500) + (result.result.length > 500 ? '...' : ''),
+      });
+    } catch (error: unknown) {
+      const errorMsg = errorMessage(error);
+      this._messages.push({ role: 'tool', tool_call_id: toolCall.id, content: `Error: ${errorMsg}` });
+      this._view?.webview.postMessage({ type: 'toolResult', tool: toolName, success: false, result: errorMsg });
     }
   }
 
+  /**
+   * What the webview shows for a failure.
+   *
+   * A structured refusal carries its own message and, where the server sent
+   * one, a code — `MODEL_NOT_IN_PLAN` reads "Upgrade your plan to use this
+   * model." exactly as the server wrote it. The status branches are for the
+   * refusals whose server message is not written for a person.
+   */
   private formatErrorMessage(error: unknown): string {
-    const message = errorMessage(error, 'An error occurred');
-
-    if (message.includes('402') || message.toLowerCase().includes('insufficient credits')) {
-      return 'Insufficient credits. Please add more credits at alia.onl';
-    } else if (message.includes('401') || message.toLowerCase().includes('unauthorized')) {
-      return 'Authentication failed. Please sign in again using the "Codea: Sign In" command.';
-    } else if (message.includes('429') || message.toLowerCase().includes('rate limit')) {
-      return 'Rate limit exceeded. Please wait a moment and try again.';
-    } else if (message.includes('500')) {
-      return 'Server error. Please try again later.';
-    } else if (message.includes('503')) {
-      return 'Service unavailable. Please try again later.';
+    if (error instanceof AliaChatError) {
+      switch (error.status) {
+        case 401:
+          return 'Authentication failed. Please sign in again using the "Codea: Sign In" command.';
+        case 402:
+          return 'Insufficient credits. Please add more credits at alia.onl';
+        case 429:
+          return 'Rate limit exceeded. Please wait a moment and try again.';
+        case 500:
+          return 'Server error. Please try again later.';
+        case 502:
+        case 503:
+        case 504:
+          return 'Service unavailable. Please try again later.';
+        default:
+          return error.message;
+      }
     }
 
+    const message = errorMessage(error, 'An error occurred');
+    if (message.toLowerCase().includes('insufficient credits')) {
+      return 'Insufficient credits. Please add more credits at alia.onl';
+    }
+    if (message.toLowerCase().includes('rate limit')) {
+      return 'Rate limit exceeded. Please wait a moment and try again.';
+    }
     return message;
   }
 
