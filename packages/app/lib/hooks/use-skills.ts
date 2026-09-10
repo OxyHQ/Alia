@@ -12,7 +12,7 @@
  * the system prompt's index are both downstream of it.
  */
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useOxy } from '@oxy.so/services';
 import apiClient from '../api/client';
 import { API_ROUTES } from '../api/routes';
@@ -83,6 +83,34 @@ export function useSkillCatalogue(filters: CatalogueFilters = {}) {
       const response = await apiClient.get(API_ROUTES.skills.catalogue, { params: filters });
       return response.data.skills ?? [];
     },
+  });
+}
+
+/** How many catalogue rows one page asks for. The server clamps at 100 and defaults to 60. */
+export const CATALOGUE_PAGE_SIZE = 24;
+
+/**
+ * The catalogue, a page at a time.
+ *
+ * The server's default answer is sixty rows, and the screen used to mount a
+ * cover for every one of them at once (#545). The API already takes `limit`
+ * and `offset` and returns no total, so a page is the last one when it comes
+ * back short. `pageSize` is part of the key so this cache never collides with
+ * `useSkillCatalogue`'s flat array under the same filters; both still sit
+ * under `['skills', 'catalogue']`, which is what an install invalidates.
+ */
+export function useSkillCataloguePages(filters: CatalogueFilters = {}, pageSize = CATALOGUE_PAGE_SIZE) {
+  return useInfiniteQuery({
+    queryKey: queryKeys.skills.catalogue({ ...filters, pageSize: String(pageSize) } as Record<string, string | undefined>),
+    initialPageParam: 0,
+    queryFn: async ({ pageParam }): Promise<Skill[]> => {
+      const response = await apiClient.get(API_ROUTES.skills.catalogue, {
+        params: { ...filters, limit: pageSize, offset: pageParam },
+      });
+      return response.data.skills ?? [];
+    },
+    getNextPageParam: (lastPage, allPages) =>
+      lastPage.length < pageSize ? undefined : allPages.reduce((count, page) => count + page.length, 0),
   });
 }
 
