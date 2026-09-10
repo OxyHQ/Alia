@@ -1,16 +1,13 @@
 /**
  * Web Search Tool
  *
- * Free web search via DuckDuckGo Lite scraping.
- * No API key required. Uses JSDOM to parse results.
+ * Public-web search provided by Clarity.
  */
 
 import { tool } from 'ai';
 import { z } from 'zod';
-import { JSDOM } from 'jsdom';
-import { withRetry } from '../retry.js';
 import { log } from '../logger.js';
-import { getStatusCode } from '../errors/index.js';
+import { clarityClient } from '../clarity-client.js';
 
 export interface WebSearchResult {
   title: string;
@@ -57,60 +54,6 @@ function setCache(query: string, result: WebSearchResponse): void {
   cache.set(key, { result, fetchedAt: Date.now() });
 }
 
-// ── DuckDuckGo Lite Parsing ──
-
-function parseDDGLite(html: string): WebSearchResult[] {
-  const dom = new JSDOM(html);
-  const doc = dom.window.document;
-  const results: WebSearchResult[] = [];
-
-  // DDG Lite uses table rows. Each organic result is a sequence of <tr>s:
-  // 1. <tr> with <a class="result-link"> (title + href)
-  // 2. <tr> with <td class="result-snippet"> (snippet)
-  // Sponsored results have class="result-sponsored" — skip those.
-  const allLinks = doc.querySelectorAll('a.result-link');
-
-  for (const linkEl of allLinks) {
-    // Skip sponsored results (parent <tr> has class="result-sponsored")
-    const parentTr = linkEl.closest('tr');
-    if (parentTr?.classList.contains('result-sponsored')) continue;
-
-    const title = linkEl.textContent?.trim() || '';
-    let url = linkEl.getAttribute('href') || '';
-
-    // Extract real URL from DDG redirect wrapper
-    if (url.includes('uddg=')) {
-      try {
-        const parsed = new URL(url, 'https://duckduckgo.com');
-        url = decodeURIComponent(parsed.searchParams.get('uddg') || url);
-      } catch {
-        // Keep original
-      }
-    }
-
-    if (!title || !url || !url.startsWith('http')) continue;
-
-    // Find the snippet in a sibling <tr> with td.result-snippet
-    let snippet = '';
-    // Walk forward through sibling <tr>s to find the snippet
-    let nextTr = parentTr?.nextElementSibling;
-    while (nextTr) {
-      const snippetTd = nextTr.querySelector('td.result-snippet');
-      if (snippetTd) {
-        snippet = snippetTd.textContent?.trim() || '';
-        break;
-      }
-      // Stop if we hit another result link or an empty separator row
-      if (nextTr.querySelector('a.result-link')) break;
-      nextTr = nextTr.nextElementSibling;
-    }
-
-    results.push({ title, url, snippet });
-  }
-
-  return results;
-}
-
 // ── Tool ──
 
 export const webSearchTool = tool({
@@ -129,36 +72,12 @@ export const webSearchTool = tool({
         return cached;
       }
 
-      const encodedQuery = encodeURIComponent(query);
-      const url = `https://lite.duckduckgo.com/lite/?q=${encodedQuery}`;
-
-      const html = await withRetry(
-        async () => {
-          const response = await fetch(url, {
-            headers: {
-              'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-              'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-              'Accept-Language': 'en-US,en;q=0.9',
-            },
-            signal: AbortSignal.timeout(10000),
-          });
-          if (!response.ok) {
-            throw Object.assign(new Error(`HTTP ${response.status}`), { status: response.status });
-          }
-          return response.text();
-        },
-        {
-          maxAttempts: 2,
-          minDelay: 500,
-          shouldRetry: (err) => {
-            const status = getStatusCode(err);
-            if (status && status >= 400 && status < 500 && status !== 429) return false;
-            return true;
-          },
-        }
-      );
-
-      const results = parseDDGLite(html).slice(0, 10);
+      const searchResponse = await clarityClient().search({ query, mode: 'hybrid', limit: 10 });
+      const results = searchResponse.data.map((result) => ({
+        title: result.title || result.canonicalUrl,
+        url: result.canonicalUrl,
+        snippet: result.snippet || result.description || '',
+      }));
 
       log.tools.info({ count: results.length }, 'Web search found results');
 

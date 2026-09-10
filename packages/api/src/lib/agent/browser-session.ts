@@ -3,8 +3,8 @@
  *
  * Provides a persistent browser session for agent interactions.
  * Uses a hybrid approach for performance:
- *   - search: DuckDuckGo Lite scraping (instant, no browser needed)
- *   - goto + get_text: Readability extraction (fast, no browser needed)
+ *   - search: Clarity Search (no browser needed)
+ *   - goto + get_text: Clarity document extraction (no browser needed)
  *   - goto + screenshot: Stagehand/Playwright (real browser)
  *   - click/type/scroll: Stagehand interactive actions
  *
@@ -12,14 +12,15 @@
  * Falls back to text extraction when vision is unavailable.
  */
 
+/// <reference lib="dom" />
+/// <reference lib="dom.iterable" />
+
 import { Stagehand } from '@browserbasehq/stagehand';
 import type { Page } from 'playwright';
-import { JSDOM } from 'jsdom';
-import { Readability } from '@mozilla/readability';
 import { validateUrl } from '../tools/sandbox.js';
-import { withRetry } from '../retry.js';
 import { log } from '../logger.js';
 import { getErrorMessage } from '../errors/index.js';
+import { clarityClient } from '../clarity-client.js';
 import { emitAgentActivity } from '../../socket.js';
 
 const MAX_CONTENT_CHARS = 12_000;
@@ -159,33 +160,15 @@ export class BrowserSession {
 
   // ── Actions ──
 
-  /** Search the web via DuckDuckGo Lite (no browser needed — fast) */
+  /** Search Clarity's public web index without opening a browser. */
   private async search(query: string): Promise<string> {
     if (!query) return 'Error: query is required for search action';
-
-    const encodedQuery = encodeURIComponent(query);
-    const url = `https://lite.duckduckgo.com/lite/?q=${encodedQuery}`;
-
-    const html = await withRetry(
-      async () => {
-        const response = await fetch(url, {
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml',
-          },
-          signal: AbortSignal.timeout(10_000),
-        });
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        return response.text();
-      },
-      { maxAttempts: 2, minDelay: 500 },
-    );
-
-    const results = parseDDGResults(html).slice(0, 8);
+    const response = await clarityClient().search({ query, mode: 'hybrid', limit: 8 });
+    const results = response.data;
     if (results.length === 0) return 'No search results found.';
 
     return results.map((r, i) =>
-      `${i + 1}. ${r.title}\n   ${r.url}\n   ${r.snippet}`
+      `${i + 1}. ${r.title || r.canonicalUrl}\n   ${r.canonicalUrl}\n   ${r.snippet || r.description || ''}`
     ).join('\n\n');
   }
 
@@ -422,47 +405,17 @@ export class BrowserSession {
     log.agents.info('Browser session initialized');
   }
 
-  /** Fast text extraction without browser (Readability + regex fallback) */
+  /** Read Clarity's extracted document before using the interactive browser. */
   private async fetchAndExtract(url: string): Promise<string | null> {
     try {
-      const response = await fetch(url, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (compatible; AliaBot/1.0)',
-          'Accept': 'text/html,application/xhtml+xml',
-        },
-        signal: AbortSignal.timeout(10_000),
-      });
-      if (!response.ok) return null;
-
-      const html = await response.text();
-
-      // Try Readability first
-      const dom = new JSDOM(html, { url });
-      const article = new Readability(dom.window.document).parse();
-      if (article?.textContent && article.textContent.length > 100) {
-        const content = truncate(article.textContent.trim(), MAX_CONTENT_CHARS);
-        return `# ${article.title || url}\n\n${content}`;
-      }
-
-      // Fallback to regex extraction
-      const text = html
-        .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
-        .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
-        .replace(/<nav[^>]*>[\s\S]*?<\/nav>/gi, '')
-        .replace(/<footer[^>]*>[\s\S]*?<\/footer>/gi, '')
-        .replace(/<[^>]+>/g, ' ')
-        .replace(/&nbsp;/g, ' ')
-        .replace(/&amp;/g, '&')
-        .replace(/\s+/g, ' ')
-        .trim();
-
-      if (text.length > 100) {
-        return truncate(text, MAX_CONTENT_CHARS);
-      }
-
-      return null; // Too little content — need real browser
-    } catch {
-      return null; // Fetch failed — try real browser
+      const resolution = await clarityClient().indexing.resolve({ urls: [url], waitMs: 8_000 });
+      const document = resolution.data[0]?.document;
+      const content = document?.content?.trim();
+      if (!document || !content) return null;
+      return `# ${document.title || document.canonicalUrl}\nURL: ${document.canonicalUrl}\n\n${truncate(content, MAX_CONTENT_CHARS)}`;
+    } catch (error: unknown) {
+      log.agents.warn({ err: error, url }, 'Clarity could not represent page; using browser fallback');
+      return null;
     }
   }
 
@@ -488,45 +441,4 @@ export class BrowserSession {
 function truncate(text: string, maxLen: number): string {
   if (text.length <= maxLen) return text;
   return text.slice(0, maxLen) + '\n\n[Content truncated]';
-}
-
-/** Parse DuckDuckGo Lite HTML into search results */
-function parseDDGResults(html: string): Array<{ title: string; url: string; snippet: string }> {
-  const dom = new JSDOM(html);
-  const doc = dom.window.document;
-  const results: Array<{ title: string; url: string; snippet: string }> = [];
-
-  const allLinks = doc.querySelectorAll('a.result-link');
-  for (const linkEl of allLinks) {
-    const parentTr = linkEl.closest('tr');
-    if (parentTr?.classList.contains('result-sponsored')) continue;
-
-    const title = linkEl.textContent?.trim() || '';
-    let url = linkEl.getAttribute('href') || '';
-
-    if (url.includes('uddg=')) {
-      try {
-        const parsed = new URL(url, 'https://duckduckgo.com');
-        url = decodeURIComponent(parsed.searchParams.get('uddg') || url);
-      } catch { /* keep original */ }
-    }
-
-    if (!title || !url || !url.startsWith('http')) continue;
-
-    let snippet = '';
-    let nextTr = parentTr?.nextElementSibling;
-    while (nextTr) {
-      const snippetTd = nextTr.querySelector('td.result-snippet');
-      if (snippetTd) {
-        snippet = snippetTd.textContent?.trim() || '';
-        break;
-      }
-      if (nextTr.querySelector('a.result-link')) break;
-      nextTr = nextTr.nextElementSibling;
-    }
-
-    results.push({ title, url, snippet });
-  }
-
-  return results;
 }

@@ -28,6 +28,7 @@
     "@aws-sdk/client-ssm": "^3.1086.0",
     "@aws-sdk/lib-storage": "^3.1086.0",
     "@browserbasehq/stagehand": "^3.7.0",
+    "@clarity.surf/sdk": "^0.2.4",
     "@livekit/agents": "^1.5.2",
     "@livekit/rtc-node": "^0.13.31",
     "@mozilla/readability": "^0.6.0",
