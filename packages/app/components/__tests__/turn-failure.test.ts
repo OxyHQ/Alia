@@ -25,6 +25,35 @@ describe('readAliaMeta', () => {
     });
   });
 
+  it('keeps only the safe failure code and correlation reference', () => {
+    expect(readAliaMeta({
+      alia_meta: {
+        synthetic: true,
+        retryable: true,
+        error: {
+          code: 'RATE_LIMITED',
+          reference: 'chatcmpl-safe-reference',
+          retryAfter: 10,
+        },
+      },
+    })).toEqual({
+      synthetic: true,
+      retryable: true,
+      code: 'RATE_LIMITED',
+      reference: 'chatcmpl-safe-reference',
+      retryAfter: 10,
+    });
+  });
+
+  it('drops malformed failure detail instead of rendering upstream data', () => {
+    expect(readAliaMeta({
+      alia_meta: {
+        synthetic: true,
+        error: { code: { provider: 'secret' }, reference: 42, retryAfter: 'soon' },
+      },
+    })).toEqual({ synthetic: true, retryable: true });
+  });
+
   it('treats a chunk with no meta as real output', () => {
     expect(readAliaMeta({ choices: [{ delta: { content: 'hi' } }] })).toEqual({
       synthetic: false,

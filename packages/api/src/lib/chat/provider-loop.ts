@@ -111,7 +111,15 @@ export interface ProviderLoopParams {
 
 export type ProviderLoopResult =
   | { status: 'completed' }
-  | { status: 'exhausted'; attemptedProviders: number };
+  | {
+      status: 'exhausted';
+      attemptedProviders: number;
+      error: {
+        code: AliaErrorCode;
+        retryable: boolean;
+        retryAfter?: number;
+      };
+    };
 
 /** Run one Kaana-hosted attempt and report whether a response was sent. */
 export async function runProviderLoop(params: ProviderLoopParams): Promise<ProviderLoopResult> {
@@ -170,6 +178,10 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
    * specific class the Kaana failure classified into.
    */
   let failureClass: AliaErrorCode = AliaErrorCode.FALLBACK_EXHAUSTED;
+  let failure = {
+    code: AliaErrorCode.FALLBACK_EXHAUSTED,
+    retryable: true,
+  } as { code: AliaErrorCode; retryable: boolean; retryAfter?: number };
 
   /**
    * The usage record for a turn that did not complete.
@@ -431,7 +443,13 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
       // succeeds. `toAliaError` owns the reason -> code table, so this is the
       // same classification the client is answered with rather than a second
       // one that can disagree with it.
-      failureClass = toAliaError(inferenceError).code;
+      const aliaError = toAliaError(inferenceError);
+      failureClass = aliaError.code;
+      failure = {
+        code: aliaError.code,
+        retryable: aliaError.retryable,
+        ...(aliaError.retryAfter === undefined ? {} : { retryAfter: aliaError.retryAfter }),
+      };
 
       if (TERMINAL_STREAM_ERRORS.has(errorReason)) {
         if (streamState.hasStreamedContent) {
@@ -456,5 +474,5 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
   // Every exit above that is not `completed` is a turn that
   // failed, and this is the only place it gets a usage record.
   recordFailedTurn(failureClass);
-  return { status: 'exhausted', attemptedProviders: 1 };
+  return { status: 'exhausted', attemptedProviders: 1, error: failure };
 }

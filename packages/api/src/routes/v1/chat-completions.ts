@@ -274,7 +274,26 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
     // ── LAST-RESORT SYNTHETIC RESPONSE ──
     // All providers exhausted or time budget exceeded — respond with a friendly
     // message instead of an error so the client never sees a raw failure.
-    log.v1.warn({ attempts: loopResult.attemptedProviders, model: requestedModel }, 'All providers exhausted, sending synthetic response');
+    const failureMeta = {
+      synthetic: true,
+      retryable: loopResult.error.retryable,
+      error: {
+        code: loopResult.error.code,
+        reference: requestId,
+        ...(loopResult.error.retryAfter === undefined
+          ? {}
+          : { retryAfter: loopResult.error.retryAfter }),
+      },
+    };
+    log.v1.warn(
+      {
+        attempts: loopResult.attemptedProviders,
+        model: requestedModel,
+        failureCode: loopResult.error.code,
+        reference: requestId,
+      },
+      'All providers exhausted, sending synthetic response',
+    );
 
     const syntheticMessage = isSpanish
       ? 'Lo siento, en este momento todos los modelos están ocupados. Por favor, intenta de nuevo en unos segundos.'
@@ -295,12 +314,12 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
         requestId,
         model: state.routingProfileId,
         content: syntheticMessage,
-        aliaMeta: { synthetic: true, retryable: true },
+        aliaMeta: failureMeta,
       }));
     } else {
       // Streaming: send synthetic message as normal SSE chunks
       sse.ensureHeaders();
-      const syntheticChunk = { ...makeChunk(requestId, state.routingProfileId, [{ index: 0, delta: { content: syntheticMessage }, finish_reason: null }]), alia_meta: { synthetic: true, retryable: true } };
+      const syntheticChunk = { ...makeChunk(requestId, state.routingProfileId, [{ index: 0, delta: { content: syntheticMessage }, finish_reason: null }]), alia_meta: failureMeta };
       res.write(`data: ${JSON.stringify(syntheticChunk)}\n\n`);
       writeStopChunk(res, requestId, state.routingProfileId);
       res.write('data: [DONE]\n\n');
