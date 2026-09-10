@@ -376,6 +376,7 @@
         "@aws-sdk/client-ssm": "^3.1086.0",
         "@aws-sdk/lib-storage": "^3.1086.0",
         "@browserbasehq/stagehand": "^3.7.0",
+        "@clarity.surf/sdk": "^0.2.4",
         "@livekit/agents": "^1.5.2",
         "@livekit/rtc-node": "^0.13.31",
         "@mozilla/readability": "^0.6.0",
@@ -919,6 +920,8 @@
     "@cacheable/node-cache": ["@cacheable/node-cache@1.7.6", "", { "dependencies": { "cacheable": "^2.3.1", "hookified": "^1.14.0", "keyv": "^5.5.5" } }, "sha512-6Omk2SgNnjtxB5f/E6bTIWIt5xhdpx39fGNRQgU9lojvRxU68v+qY+SXXLsp3ZGukqoPjsK21wZ6XABFr/Ge3A=="],
 
     "@cacheable/utils": ["@cacheable/utils@2.4.1", "", { "dependencies": { "hashery": "^1.5.1", "keyv": "^5.6.0" } }, "sha512-eiFgzCbIneyMlLOmNG4g9xzF7Hv3Mga4LjxjcSC/ues6VYq2+gUbQI8JqNuw/ZM8tJIeIaBGpswAsqV2V7ApgA=="],
+
+    "@clarity.surf/sdk": ["@clarity.surf/sdk@0.2.4", "", {}, "sha512-HFCFjLW6WH6ZPqwkknOYC05m7n7Zg4qOHecIzvOGGJOtaD4M3sTmXW1QNL0u/r3A+I+KbAfpYI9B0ihZWRItWA=="],
 
     "@cloudflare/kv-asset-handler": ["@cloudflare/kv-asset-handler@0.5.0", "", {}, "sha512-jxQYkj8dSIzc0cD6cMMNdOc1UVjqSqu8BZdor5s8cGjW2I8BjODt/kWPVdY+u9zj3ms75Q5qaZgnxUad83+eAg=="],
 

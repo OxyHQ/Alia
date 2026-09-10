@@ -1,6 +1,6 @@
 import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { act, create } from 'react-test-renderer';
+import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
@@ -56,6 +56,7 @@ import { queryKeys } from '@/lib/hooks/query-keys';
 
 let api: ReturnType<typeof useClearConversation>;
 let client: QueryClient;
+let renderer: ReactTestRenderer | undefined;
 
 function Probe() {
   api = useClearConversation();
@@ -96,7 +97,7 @@ async function mount() {
   client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   seed();
   await act(async () => {
-    create(
+    renderer = create(
       <QueryClientProvider client={client}>
         <Probe />
       </QueryClientProvider>,
@@ -110,6 +111,9 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  renderer?.unmount();
+  renderer = undefined;
+  vi.restoreAllMocks();
   vi.useRealTimers();
 });
 
