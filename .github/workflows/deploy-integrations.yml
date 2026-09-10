@@ -191,7 +191,7 @@ jobs:
 
       # Does this release carry a post-rollout migration?
       #
-      # Grepped with the pattern `@oxyhq/db` EXPORTS as `POST_PHASE_GREP_PATTERN`,
+      # Grepped with the pattern `@oxy.so/db` EXPORTS as `POST_PHASE_GREP_PATTERN`,
       # never a retyped copy — `packages/integrations/src/db/__tests__/deployWiring.test.ts`
       # asserts this workflow contains that exact string, so the two cannot drift.
       #
@@ -234,7 +234,7 @@ jobs:
       # `packages/api`.
       #
       # `MIGRATION_TARGET_DATABASE` is `alia_integrations`, a SEPARATE database
-      # from the API's `alia`, and that is not a preference. @oxyhq/db fixes the
+      # from the API's `alia`, and that is not a preference. @oxy.so/db fixes the
       # ledger at `drizzle.__drizzle_migrations` with no per-service namespacing
       # and applies a migration only when its journal `when` is strictly newer
       # than the newest recorded one. This package's only migration carries

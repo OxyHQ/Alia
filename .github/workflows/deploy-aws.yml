@@ -200,7 +200,7 @@ jobs:
 
       # Does this release carry a post-rollout migration at all?
       #
-      # Grepped with the pattern `@oxyhq/db` EXPORTS as `POST_PHASE_GREP_PATTERN`,
+      # Grepped with the pattern `@oxy.so/db` EXPORTS as `POST_PHASE_GREP_PATTERN`,
       # never a retyped copy — `packages/api/src/db/__tests__/deployWorkflow.test.ts`
       # asserts this workflow contains that exact string, so the two cannot drift.
       #
