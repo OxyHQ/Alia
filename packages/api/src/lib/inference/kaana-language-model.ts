@@ -31,6 +31,8 @@
  * it.
  */
 
+import { randomUUID } from 'node:crypto';
+
 import type {
   InferenceMessage,
   InferenceContentPart,
@@ -60,6 +62,28 @@ import type { AliaInferenceSurface } from './product-seam.js';
 /** One text block per response, because the contract streams one channel of it. */
 const TEXT_BLOCK_ID = 'kaana-text';
 
+/**
+ * The AI SDK `providerMetadata` namespace this adapter writes under.
+ *
+ * What it carries is `resolvedModelReference`: the revision-pinned
+ * `<publisher>/<model>@<revision>` Kaana actually served — reported on the
+ * contract's `start` event when streaming and as `model` on a completed
+ * response. It is the SAFE half of the answer to "which deployment served this
+ * turn" (ADR 0003 allows it in analytics); the other half, `servingProvider`,
+ * names an upstream operator and is deliberately not carried anywhere.
+ *
+ * `providerMetadata` rather than `response.modelId` alone: the AI SDK fills a
+ * missing `response.modelId` with the REQUESTED id, so a reader of that field
+ * cannot tell "Kaana said `openai/gpt-5-mini@…`" from "nothing said anything
+ * and the SDK echoed `route:auto`". A key that is absent when nothing arrived
+ * can.
+ */
+export const KAANA_PROVIDER_METADATA_KEY = 'kaana';
+
+function resolvedModelMetadata(reference: string | null): { kaana: { resolvedModelReference: string } } | undefined {
+  return reference === null ? undefined : { [KAANA_PROVIDER_METADATA_KEY]: { resolvedModelReference: reference } };
+}
+
 export interface KaanaModelOptions {
   /** The exact Oxy catalogue target; its kind is never inferred from its text. */
   readonly target:
@@ -77,6 +101,34 @@ function inferenceClient(options: KaanaModelOptions) {
   return options.serviceToken === undefined
     ? getOxyInferenceClient()
     : buildOxyInferenceClientForServiceToken(options.serviceToken);
+}
+
+/**
+ * The per-call options: signal, idempotency key, delegated user.
+ *
+ * `idempotencyKey` is a fresh UUID on EVERY call, never reused across a
+ * conversation turn's steps or a retry. The Oxy edge binds a key to one
+ * reservation and answers a second request carrying it with
+ * `idempotency_conflict` rather than replaying — responses are not retained —
+ * so a key that lived for a whole tool loop would refuse the loop's second
+ * step, and a key that lived for a retry would refuse the retry. What the key
+ * buys is the structural half of "a retry never produces a second charge":
+ * the same attempt re-sent (a proxy replay, a duplicated request on the wire)
+ * cannot reserve twice. Alia itself never re-sends an attempt
+ * (`provider-loop.ts` resolves Kaana once), so a new key per call is both the
+ * safe choice and the only correct one.
+ */
+function requestOptions(
+  options: KaanaModelOptions,
+  signal: AbortSignal,
+): { signal: AbortSignal; idempotencyKey: string; delegatedUserId?: string } {
+  return {
+    signal,
+    idempotencyKey: randomUUID(),
+    ...(options.oxyUserId === undefined || options.oxyUserId === null
+      ? {}
+      : { delegatedUserId: options.oxyUserId }),
+  };
 }
 
 /**
@@ -456,8 +508,10 @@ function contentFrom(response: OxyInferenceResponse): {
  *
  * `provider` is `kaana` and `modelId` is what was asked for, not what served
  * it: the AI SDK's identifiers describe the REQUEST, and which deployment
- * answered is Kaana's own routing decision, reported on its `start` event and
- * recorded there.
+ * answered is Kaana's own routing decision, reported on its `start` event (or
+ * as `model` on a completed response) and carried out of here as
+ * `providerMetadata.kaana.resolvedModelReference` so the per-turn usage record
+ * can write it.
  */
 export function kaanaLanguageModel(options: KaanaModelOptions): LanguageModelV3 {
   return {
@@ -471,19 +525,23 @@ export function kaanaLanguageModel(options: KaanaModelOptions): LanguageModelV3 
       if (client === null) throw new Error('Oxy inference is not configured for this deployment');
 
       const translation = translate(call);
-      const completion = await client.respond(requestFor(options, call, translation), {
-        signal: call.abortSignal ?? AbortSignal.timeout(120_000),
-        ...(options.oxyUserId === undefined || options.oxyUserId === null
-          ? {}
-          : { delegatedUserId: options.oxyUserId }),
-      });
+      const completion = await client.respond(
+        requestFor(options, call, translation),
+        requestOptions(options, call.abortSignal ?? AbortSignal.timeout(120_000)),
+      );
       const generated = contentFrom(completion);
+      // Typed as required on the SDK's response, read defensively anyway: a
+      // missing reference is recorded as nothing, never as the requested id.
+      const resolved = typeof completion.model === 'string' && completion.model !== '' ? completion.model : null;
+      const providerMetadata = resolvedModelMetadata(resolved);
 
       return {
         content: generated.content,
         finishReason: withToolCalls(toFinishReason(completion.finishReason), generated.toolCalls),
         usage: toUsage(completion.usage),
         warnings: translation.warnings,
+        ...(resolved === null ? {} : { response: { modelId: resolved } }),
+        ...(providerMetadata === undefined ? {} : { providerMetadata }),
       };
     },
 
@@ -493,12 +551,10 @@ export function kaanaLanguageModel(options: KaanaModelOptions): LanguageModelV3 
 
       const translation = translate(call);
       const signal = call.abortSignal ?? AbortSignal.timeout(120_000);
-      const events = client.stream(requestFor(options, call, translation), {
-        signal,
-        ...(options.oxyUserId === undefined || options.oxyUserId === null
-          ? {}
-          : { delegatedUserId: options.oxyUserId }),
-      });
+      const events = client.stream(
+        requestFor(options, call, translation),
+        requestOptions(options, signal),
+      );
 
       /**
        * One text block, opened on the first delta rather than up front.
@@ -513,6 +569,8 @@ export function kaanaLanguageModel(options: KaanaModelOptions): LanguageModelV3 
       let reasoningOpen = false;
       let usage: LanguageModelV3Usage = toUsage(undefined);
       let finishReason: LanguageModelV3FinishReason = { unified: 'other', raw: undefined };
+      /** What Kaana said it served, from the `start` event; null until it says. */
+      let resolvedModelReference: string | null = null;
 
       /**
        * Tool calls being assembled, keyed the way the contract keys them.
@@ -546,6 +604,20 @@ export function kaanaLanguageModel(options: KaanaModelOptions): LanguageModelV3 
           try {
             for await (const event of events) {
               switch (event.type) {
+                case 'start': {
+                  // The one event that names the served revision. `servingProvider`
+                  // rides beside it on the wire and is NOT read: an operator name
+                  // has no place on the product surface or in its analytics.
+                  if (typeof event.resolvedModelReference === 'string' && event.resolvedModelReference !== '') {
+                    resolvedModelReference = event.resolvedModelReference;
+                    controller.enqueue({
+                      type: 'response-metadata',
+                      ...(typeof event.requestId === 'string' ? { id: event.requestId } : {}),
+                      modelId: event.resolvedModelReference,
+                    });
+                  }
+                  break;
+                }
                 case 'delta': {
                   if (event.channel === 'reasoning') {
                     if (!reasoningOpen) {
@@ -625,10 +697,12 @@ export function kaanaLanguageModel(options: KaanaModelOptions): LanguageModelV3 
            */
           for (const [id, pending] of calls) closeCall(id, pending);
 
+          const providerMetadata = resolvedModelMetadata(resolvedModelReference);
           controller.enqueue({
             type: 'finish',
             finishReason: withToolCalls(finishReason, emittedToolCalls),
             usage,
+            ...(providerMetadata === undefined ? {} : { providerMetadata }),
           });
           controller.close();
         },

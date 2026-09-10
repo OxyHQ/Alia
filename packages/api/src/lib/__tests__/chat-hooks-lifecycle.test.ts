@@ -169,7 +169,7 @@ function lifecycleContext(overrides: Partial<LifecycleContext> = {}): LifecycleC
 }
 
 /** A turn that streamed its first chunk quickly and was not cancelled. */
-const OBSERVED: TurnObservation = { timeToFirstTokenMs: 120, cancelled: false };
+const OBSERVED: TurnObservation = { timeToFirstTokenMs: 120, cancelled: false, resolvedModelReference: null };
 
 /** `runPostChatHooks` is fire-and-forget by design; drain what it spawned. */
 async function settle(): Promise<void> {
@@ -311,7 +311,7 @@ describe('the after-run entrypoint drives every learning path there is', () => {
       runPostChatHooks(
         lifecycleContext(),
         'answer',
-        { timeToFirstTokenMs: 240, cancelled: true },
+        { timeToFirstTokenMs: 240, cancelled: true, resolvedModelReference: 'openai/gpt-5-mini@2026-08-18' },
         AliaErrorCode.CONTENT_FILTERED,
       );
       await settle();
@@ -321,6 +321,10 @@ describe('the after-run entrypoint drives every learning path there is', () => {
       expect(row.timeToFirstTokenMs).toBe(240);
       expect(row.errorClass).toBe(AliaErrorCode.CONTENT_FILTERED);
       expect(row.cancelled).toBe(true);
+      // The resolved revision (#139 L290/L703): what Kaana said it served,
+      // beside — and distinct from — the alias that was asked for.
+      expect(row.resolvedModelReference).toBe('openai/gpt-5-mini@2026-08-18');
+      expect(row.resolvedModelReference).not.toBe(row.routingProfileId);
       // Latency is the field that was already recorded; asserted beside the
       // three new ones so "the row has the new fields" is not compatible with
       // "the row lost the old one".
@@ -330,7 +334,12 @@ describe('the after-run entrypoint drives every learning path there is', () => {
     it('leaves the three null-or-false when the turn was ordinary', async () => {
       // The discriminator. Without it the assertions above are also satisfied by
       // a hook that writes those three constants whatever it is handed.
-      runPostChatHooks(lifecycleContext(), 'answer', { timeToFirstTokenMs: null, cancelled: false }, null);
+      runPostChatHooks(
+        lifecycleContext(),
+        'answer',
+        { timeToFirstTokenMs: null, cancelled: false, resolvedModelReference: null },
+        null,
+      );
       await settle();
 
       const [row] = H.rows;
@@ -338,6 +347,8 @@ describe('the after-run entrypoint drives every learning path there is', () => {
       expect(row.timeToFirstTokenMs).toBeNull();
       expect(row.errorClass).toBeNull();
       expect(row.cancelled).toBe(false);
+      // Null, not the requested id: a turn nothing answered names no revision.
+      expect(row.resolvedModelReference).toBeNull();
     });
 
     it('every AliaErrorCode reaches the row unchanged', async () => {
@@ -449,6 +460,7 @@ describe('the after-run entrypoint drives every learning path there is', () => {
       timeToFirstTokenMs: 5,
       errorClass: null,
       cancelled: false,
+      resolvedModelReference: null,
     });
 
     // The analytics hook has priority 100 and style-learning 200, so the

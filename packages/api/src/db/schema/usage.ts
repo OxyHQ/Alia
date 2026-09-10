@@ -148,9 +148,10 @@ export const costEntries = pgTable(
  * migration on a table whose row count nobody has.
  *
  * The resolved model REVISION — the third identifier #139 workstream 5 asks
- * for — is absent because no revision exists to record: revisions are the
- * Kaana catalogue's (`resolvedModelReference` on the contract's `start` event),
- * and Alia has no Kaana to ask.
+ * for — is `resolved_model_reference`: the Kaana catalogue's
+ * `resolvedModelReference`, reported on the contract's `start` event and read
+ * by `lib/inference/kaana-language-model.ts` since #477. Nullable, because a
+ * turn that failed before Kaana started has none to record.
  *
  * `conversation_id` and `skill_id` were absent when the table landed while the
  * hook wrote both, and a write with nowhere to go is data thrown away rather
@@ -263,6 +264,20 @@ export const chatAnalytics = pgTable(
      * `cancelled` error code — and it lands on this same column.
      */
     cancelled: boolean().notNull().default(false),
+    /**
+     * The revision-pinned `<publisher>/<model>@<revision>` Kaana served this
+     * turn — the "safe resolved revision reference" of #139 workstream 10, and
+     * the third identifier beside `requested_model_id` and `routing_profile_id`.
+     *
+     * Safe because it is the model's own identity, which ADR 0003 allows in
+     * analytics; the contract's `servingProvider` (an upstream operator) rides
+     * beside it on the wire and is never written here or anywhere else.
+     *
+     * Null where no answer named one — a turn that failed before Kaana started,
+     * or a local user-runtime turn — and never the requested id echoed back:
+     * the adapter only carries the value Kaana actually sent.
+     */
+    resolvedModelReference: text(),
     promptTokens: integer().notNull().default(0),
     completionTokens: integer().notNull().default(0),
     totalTokens: integer().notNull().default(0),

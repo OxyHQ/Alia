@@ -39,6 +39,14 @@ Decided items record **why**, because the reasoning is the part that is expensiv
 > `Add deprecation headers/events and a sunset date for external clients still using old aliases.`
 > (workstream 4)
 
+**OVERTAKEN BY REMOVAL — 2026-09-03, #477 (`697c3f9`).** The date never arrived: the cutover to
+`Alia -> Oxy -> Kaana` deleted the thirteen aliases outright, and with them
+`middleware/alias-deprecation.ts`, `ALIAS_SUNSET`, the `alia.deprecation` event, `alias-migration-map.json`
+and the alarm test named below. Nothing emits a `Sunset` for them and nothing resolves them: a request
+naming an `alia-*` id is refused by `lib/chat/request-context.ts` with `400` `unknown_routing_profile`
+(`param: "model"`, *"is not a routing profile. List them at GET /catalogue."*) before any credit is
+reserved. The two steps below stand as the record of what was decided while the aliases existed.
+
 **Decided in two steps, and this section records both.**
 
 **Step 1, 2026-08-17 — no date; unadvertise.** The thirteen `alia-*` identifiers came off every
@@ -119,7 +127,16 @@ migrate to. A date there would be a deadline holders cannot meet (O6).
 
 ## D2. Why not a full cut, and what a full cut would cost
 
-**Decided: the aliases stay on the request path. A full cut remains available as an explicit,
+**OVERTAKEN BY REMOVAL — 2026-09-03, #477 (`697c3f9`).** The full cut happened, as part of the
+cutover rather than as the separately-decided change this section reserved. The three costs it priced
+were paid there: resolution is by exact opaque Oxy routing-profile id (`mode:*`/`route:*` via
+`config/oxy-inference-routing-profile-ids.ts`; `fallback-engine.ts` and `alias-translation.ts` are
+gone), the credit multiplier hangs off the routing profile (`KAANA_ROUTING_PROFILES`), and Codea,
+Cowork and the CLI moved onto `/alia/chat` in #561. An installed copy of an older `@alia.onl/sdk` or
+`@alia-codea/cli` that still sends an `alia-*` id gets the `400 unknown_routing_profile` refusal
+recorded under D1. The measurement below is kept as the record of why the cut was deferred until then.
+
+**Decided at the time: the aliases stay on the request path. A full cut remains available as an explicit,
 separately-decided breaking change — recorded here so the option is not lost.**
 
 Removing them from resolution too would brick the product today. Three costs, each measured:

@@ -3,15 +3,18 @@
  *
  * Hosted inference does not cross this module: Kaana is invoked through the
  * inference seam, and unsupported modalities fail before a provider adapter is
- * imported. The dynamic imports below retain only Alia-owned product metadata,
- * billing repositories and historical health views needed by non-inference
- * routes while their data migration is completed.
+ * imported. The routing-profile catalogue is Alia product METADATA — names,
+ * tiers, credit multipliers — and is imported statically: the dynamic
+ * `import()` it used to hide behind existed so that loading this facade did
+ * not load a provider SDK, and no provider SDK is reachable from that module
+ * any more (`kaana-only-runtime.test.ts`). The billing repositories below stay
+ * dynamic because they pull in the database.
  */
 
+import * as catalogue from '../internal/providers/lib/routing-profile-catalogue.js';
 import type { PlanFilter } from '../db/billing/planRepository.js';
 import type { AvailabilityScope } from './availability-scope.js';
 import type { RequiredAttribution } from './model-attribution.js';
-import type { FallbackPolicy } from './routing/policy.js';
 import type { ModelIdentity } from './routing/model-identity.js';
 
 // ============== TYPES ==============
@@ -102,14 +105,13 @@ export interface ModelMapping {
 /**
  * Per-request routing options.
  *
- * Declared here rather than re-exported from `internal/providers`, matching how
- * every other type on this page is declared: this module is the seam, and it
- * must not pull the provider tree in at module load. The shape is structurally
- * identical to `FallbackOptions` and is checked against it by `tsc` at the one
- * call site below that passes it across.
+ * No `fallbackPolicy`: fallback is not a per-request choice on this API. The
+ * public Oxy inference request carries no such field and Oxy resolves routes
+ * from the application's routing policy (ADR 0017), so
+ * `lib/chat/request-context.ts` refuses the parameter rather than carrying a
+ * value nothing downstream could honour.
  */
 export interface RoutingOptions {
-  fallbackPolicy?: FallbackPolicy;
   /**
    * The model identity the caller named, when it named a model rather than a
    * profile (`lib/routing/model-selection.ts`).
@@ -195,8 +197,7 @@ export interface PlanFeatureData {
  * Get all alia models.
  */
 export async function getAllRoutingProfiles(): Promise<RoutingProfile[]> {
-  const { getAllRoutingProfiles: localGetAll } = await import('../internal/providers/lib/routing-profile-catalogue.js');
-  return localGetAll();
+  return catalogue.getAllRoutingProfiles();
 }
 
 /**
@@ -217,32 +218,28 @@ export async function getAvailableModels(): Promise<RoutingProfileWithAvailabili
  * Get a specific alia model by ID.
  */
 export async function getRoutingProfile(modelId: string): Promise<RoutingProfile | null> {
-  const { getRoutingProfile: localGet } = await import('../internal/providers/lib/routing-profile-catalogue.js');
-  return localGet(modelId);
+  return catalogue.getRoutingProfile(modelId);
 }
 
 /**
  * Check if a model ID is an alia model.
  */
 export async function isRoutingProfile(modelId: string): Promise<boolean> {
-  const { isRoutingProfile: localIsAlia } = await import('../internal/providers/lib/routing-profile-catalogue.js');
-  return localIsAlia(modelId);
+  return catalogue.isRoutingProfile(modelId);
 }
 
 /**
  * Get all alia models by category.
  */
 export async function getRoutingProfilesByCategory(category: string): Promise<RoutingProfile[]> {
-  const { getRoutingProfilesByCategory: localGetByCategory } = await import('../internal/providers/lib/routing-profile-catalogue.js');
-  return localGetByCategory(category as never);
+  return catalogue.getRoutingProfilesByCategory(category as never);
 }
 
 /**
  * Get default model for a category.
  */
 export async function getDefaultModelForCategory(category: string): Promise<RoutingProfile | null> {
-  const { getDefaultModelForCategory: localGetDefault } = await import('../internal/providers/lib/routing-profile-catalogue.js');
-  return localGetDefault(category as never);
+  return catalogue.getDefaultModelForCategory(category as never);
 }
 
 /**
@@ -273,16 +270,14 @@ export function getDefaultRoutingProfile(): string {
  * Get tier-to-model mappings.
  */
 export async function getTierMappings(): Promise<Record<string, ModelMapping[]>> {
-  const { TIER_MODEL_MAPPINGS } = await import('../internal/providers/lib/routing-profile-catalogue.js');
-  return TIER_MODEL_MAPPINGS as unknown as Record<string, ModelMapping[]>;
+  return catalogue.TIER_MODEL_MAPPINGS as unknown as Record<string, ModelMapping[]>;
 }
 
 /**
  * Get model mappings for a specific tier.
  */
 export async function getModelMappingsForTier(tier: string): Promise<ModelMapping[]> {
-  const { getModelMappingsForTier: localGetMappings } = await import('../internal/providers/lib/routing-profile-catalogue.js');
-  return localGetMappings(tier as never) as unknown as ModelMapping[];
+  return catalogue.getModelMappingsForTier(tier as never) as unknown as ModelMapping[];
 }
 
 // ============== BILLING DATA ==============

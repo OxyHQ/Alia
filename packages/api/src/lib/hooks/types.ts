@@ -49,6 +49,11 @@ export interface AfterChatContext extends ChatHookContext {
   errorClass: string | null;
   /** Whether the caller withdrew before the turn finished. */
   cancelled: boolean;
+  /**
+   * The revision-pinned model reference Kaana served this turn, or null when
+   * no answer named one. Safe to record (ADR 0003); never a provider name.
+   */
+  resolvedModelReference: string | null;
 }
 
 export type BeforeChatHook = (ctx: ChatHookContext) => Promise<ChatHookResult | void>;

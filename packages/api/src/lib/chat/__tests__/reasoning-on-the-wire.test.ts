@@ -17,6 +17,8 @@ vi.mock('../../inference/oxy-inference.js', () => {
       mocks.requests.push(request);
       mocks.options.push(options);
       return {
+        requestId: 'req-wire',
+        model: 'openai/gpt-5-mini@2026-08-18',
         output: [{ role: 'assistant', content: [{ type: 'text', text: 'ok' }] }],
         finishReason: 'stop',
         usage: [],
@@ -101,5 +103,37 @@ describe('reasoning crosses the Oxy inference boundary', () => {
     await requestFor(null, 'verified-product-service-token');
     expect(mocks.serviceTokens).toEqual(['verified-product-service-token']);
     expect(mocks.options[0]).toMatchObject({ delegatedUserId: 'oxy-user-id' });
+  });
+});
+
+describe('the served revision comes back off the wire', () => {
+  it('hands providerMetadata.kaana.resolvedModelReference to onResolvedModel from onFinish', async () => {
+    /**
+     * The one seam between the adapter and the usage record: `ai@6` hands the
+     * final step's `providerMetadata` to `onFinish`, and `buildBaseConfig` has to
+     * read the adapter's namespace there. Driven through the REAL `generateText`
+     * so the test fails if the SDK stops forwarding the field, not only if this
+     * repository stops reading it.
+     */
+    const seen: string[] = [];
+    const { config, clearFirstByteTimer } = buildBaseConfig({
+      resolved: resolved(),
+      body: {},
+      convertedMessages: [{ role: 'user', content: 'hello' }],
+      truncatedTools: {},
+      reasoningEffort: null,
+      systemPromptTokens: 0,
+      streamState: { hasStreamedContent: false } as never,
+      oxyUserId: 'oxy-user-id',
+      onUsage: () => undefined,
+      onResolvedModel: (reference) => { seen.push(reference); },
+    });
+    clearFirstByteTimer();
+    const { tools: _tools, ...call } = config as Record<string, unknown>;
+    await generateText(call as Parameters<typeof generateText>[0]);
+
+    expect(seen).toEqual(['openai/gpt-5-mini@2026-08-18']);
+    // The served revision, never the requested profile echoed back.
+    expect(seen[0]).not.toBe('route:thinking');
   });
 });

@@ -100,7 +100,6 @@ import { closePostgres, connectPostgres, getDb } from '../db/index.js';
 import { log } from '../lib/logger.js';
 import { seedCreditPackages } from '../internal/providers/lib/seed-credit-packages.js';
 import { seedFeatures, seedPlanFeatures } from '../internal/providers/lib/seed-features.js';
-import { seedRoutingProfiles, seedModelConfigs } from '../internal/providers/lib/seed-model-configs.js';
 import { seedCompedAccounts } from '../lib/seed-comped-accounts.js';
 import { seedPlans } from '../lib/seed-plans.js';
 import { seedSkills } from '../lib/skills/seed.js';
@@ -119,12 +118,15 @@ const logger = log.seed;
  * an EMPTY database it would have failed with a foreign-key violation. It never
  * did, only because it never ran.
  *
- * `routing_profile_provider_mappings` has the same shape against `routing_profiles` and
- * `model_configs`, which is why `seedModelConfigs` precedes `seedRoutingProfiles`.
+ * `model_configs`, `routing_profiles` and `routing_profile_provider_mappings` are
+ * NOT seeded. Since #477 the routing catalogue is Kaana's and Alia routes by the
+ * exact opaque profile ids in `config/oxy-inference-routing-profile-ids.ts`;
+ * no runtime module reads those three tables, so a deploy that rewrote them was
+ * writing rows for nobody. They stay in the schema until the production audit
+ * that gates their DROP (#139 workstream 10) — `db/__tests__/seedWiring.test.ts`
+ * pins that this script never writes them again.
  */
 const SEEDERS: readonly { readonly name: string; readonly run: () => Promise<unknown> }[] = [
-  { name: 'model_configs', run: seedModelConfigs },
-  { name: 'routing_profiles', run: seedRoutingProfiles },
   { name: 'features', run: seedFeatures },
   { name: 'plans', run: seedPlans },
   { name: 'plan_features', run: seedPlanFeatures },

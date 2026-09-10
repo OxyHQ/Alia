@@ -51,6 +51,8 @@ export interface ChatAnalyticsRecord {
   /** The `AliaErrorCode` the turn ended with, or null when it succeeded. */
   readonly errorClass: string | null;
   readonly cancelled: boolean;
+  /** The revision-pinned reference Kaana served, or null when no answer named one. */
+  readonly resolvedModelReference: string | null;
   readonly platform: string;
   /** Every skill that reached the model this turn. Empty for a turn that activated none. */
   readonly skillNames?: string[];
@@ -75,6 +77,7 @@ export async function insertChatAnalytics(
     timeToFirstTokenMs: record.timeToFirstTokenMs,
     errorClass: record.errorClass,
     cancelled: record.cancelled,
+    resolvedModelReference: record.resolvedModelReference,
     platform: record.platform,
     skillNames: record.skillNames ?? [],
   });

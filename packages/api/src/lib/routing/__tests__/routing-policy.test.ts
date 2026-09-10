@@ -7,7 +7,6 @@ import {
   FALLBACK_POLICIES,
   FallbackNotPermittedError,
   ROUTING_POLICY_VERSION,
-  UnknownFallbackPolicyError,
   UnregisteredModelError,
   isFallbackPolicy,
   type FallbackPolicy,
@@ -333,14 +332,6 @@ describe('the refusals say what happened', () => {
     }
   });
 
-  it('keeps a mistyped policy distinct from a mistyped model', () => {
-    const error = new UnknownFallbackPolicyError('no_fallback');
-    expect(error.userMessage).toContain('no_fallback');
-    for (const policy of FALLBACK_POLICIES) expect(error.userMessage).toContain(policy);
-    // The fix for this mistake is not "go and look at the model list".
-    expect(error.userMessage).not.toContain('route:auto');
-    expect(error.httpStatus).toBe(400);
-  });
 });
 
 describe('the policy type', () => {

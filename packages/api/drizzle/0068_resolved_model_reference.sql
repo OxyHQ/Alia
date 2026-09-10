@@ -1,0 +1,11 @@
+-- oxy:deploy-phase=pre
+-- The revision-pinned `<publisher>/<model>@<revision>` Kaana served a turn —
+-- the "safe resolved revision reference" of #139 workstream 10 (rows L290,
+-- L442, L703). Read off the contract's `start` event by
+-- `lib/inference/kaana-language-model.ts` and written by the analytics hook.
+--
+-- `pre` because it is additive and nullable: the OLD image never writes it and
+-- the NEW image writes null wherever Kaana named nothing, so neither side of
+-- the rollout can fail an insert. No backfill: earlier rows genuinely have no
+-- revision to record — Alia had no Kaana to ask before #477.
+ALTER TABLE "chat_analytics" ADD COLUMN "resolved_model_reference" text;

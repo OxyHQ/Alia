@@ -116,10 +116,12 @@ describe('every table seeder reaches the entrypoint that runs', () => {
     expect(files.some((f) => f.startsWith('src/internal/providers/lib/'))).toBe(true);
 
     const seeders = tableSeeders();
-    expect(seeders.length).toBeGreaterThanOrEqual(9);
+    // 8, not 9: `seedModelConfigs` and `seedRoutingProfiles` were deleted with
+    // the routing-catalogue seed (see the census below).
+    expect(seeders.length).toBeGreaterThanOrEqual(8);
     // Positive control on the MATCHER: two known members, one per directory.
     expect(seeders).toContain('seedSkills');
-    expect(seeders).toContain('seedModelConfigs');
+    expect(seeders).toContain('seedFeatures');
     // Negative control: the per-row repository helpers take arguments and must
     // not be swept in, or the exemption list becomes a dumping ground.
     expect(seeders).not.toContain('seedPlan');
@@ -131,9 +133,44 @@ describe('every table seeder reaches the entrypoint that runs', () => {
     // make every seeder look unwired, which fails loudly — but a slice that
     // captured the WHOLE file would make every seeder look wired, which does
     // not. This is the floor for the second case.
-    expect(wired.length).toBeGreaterThanOrEqual(8);
+    expect(wired.length).toBeGreaterThanOrEqual(7);
     expect(wired).toContain('seedSkills');
     expect(wired).not.toContain('seedBots');
+  });
+
+  it('never writes the routing catalogue: model_configs, routing_profiles and their mappings', () => {
+    /**
+     * Epic #139 workstream 10, *"Stop writing new rows to Alia-owned
+     * `model_configs`, `alia_models`, provider mappings ..."*. Since #477 the
+     * catalogue is Kaana's — Alia routes by the exact opaque profile ids in
+     * `config/oxy-inference-routing-profile-ids.ts` — and no runtime module reads
+     * these three tables, so a deploy-time seed of them wrote rows for nobody.
+     *
+     * Three readings, because each alone can be satisfied by a change that
+     * keeps the write: the `SEEDERS` array names no such table; no seeder
+     * module imports the two catalogue repositories (a seed that reached them
+     * through a helper would still be a write); and the deleted module has not
+     * come back under any name.
+     */
+    const seedersBlock = seedScript.slice(seedScript.indexOf('const SEEDERS'), seedScript.indexOf('];', seedScript.indexOf('const SEEDERS')));
+    const seededTables = [...seedersBlock.matchAll(/name:\s*'([a-z_]+)'/g)].map((m) => m[1]);
+    // Vacuity floor on the slice: the array still names real tables.
+    expect(seededTables).toContain('plans');
+    expect(seededTables).not.toContain('model_configs');
+    expect(seededTables).not.toContain('routing_profiles');
+    expect(seededTables).not.toContain('routing_profile_provider_mappings');
+
+    const wired = wiredSeeders();
+    expect(wired).not.toContain('seedModelConfigs');
+    expect(wired).not.toContain('seedRoutingProfiles');
+
+    const importsCatalogueRepository = seederFiles().filter((file) =>
+      /db\/providers\/(modelConfigRepository|routingProfileRepository)/.test(
+        readFileSync(path.join(PACKAGE_ROOT, file), 'utf8'),
+      ),
+    );
+    expect(importsCatalogueRepository).toEqual([]);
+    expect(seederFiles().some((f) => f.endsWith('seed-model-configs.ts'))).toBe(false);
   });
 
   it('wires every table seeder, or names it as deliberately unwired', () => {

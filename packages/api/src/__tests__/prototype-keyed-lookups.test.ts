@@ -178,7 +178,11 @@ describe('no lookup table answers an untrusted key from Object.prototype', () =>
     // The positive control, and it is two-sided. A census that could only
     // report "guarded" would pass forever; one that could only report
     // "unguarded" would be a permanent red. Both are found in real code.
-    expect(reads.length).toBeGreaterThanOrEqual(20);
+    // 20 -> 19: `internal/providers/lib/seed-model-configs.ts` is deleted with
+    // the routing-catalogue seed, and its guarded `MODEL_DISPLAY_NAMES[modelId]`
+    // read with it. The floor moves in the commit that removed the site, which
+    // is the only way it is allowed to move.
+    expect(reads.length).toBeGreaterThanOrEqual(19);
     expect(reads.filter((r) => r.guarded).length).toBeGreaterThanOrEqual(5);
     expect(reads.filter((r) => !r.guarded).length).toBeGreaterThanOrEqual(1);
 

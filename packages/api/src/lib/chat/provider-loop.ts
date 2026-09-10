@@ -139,7 +139,7 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
    *
    * The disconnect listener is registered once, before either response mode.
    */
-  const observation: TurnObservation = { timeToFirstTokenMs: null, cancelled: false };
+  const observation: TurnObservation = { timeToFirstTokenMs: null, cancelled: false, resolvedModelReference: null };
 
   const onClientClose = (): void => { observation.cancelled = true; };
   req.on('close', onClientClose);
@@ -220,6 +220,7 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
       oxyUserId: req.user?.id,
       serviceToken: inferenceServiceToken,
       onUsage: (usage) => { tokenUsage = usage; },
+      onResolvedModel: (reference) => { observation.resolvedModelReference = reference; },
     });
 
     try {

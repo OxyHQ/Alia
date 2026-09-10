@@ -67,6 +67,28 @@ describe('Kaana-only hosted inference architecture', () => {
     }
   });
 
+  it('holds no dynamic import of internal/providers in the product runtime', () => {
+    /**
+     * #139 workstream 8, *"Delete dynamic imports of `internal/providers` from
+     * the product runtime."* The `await import('../internal/providers/...')`
+     * shape existed so that loading a facade did not load a provider SDK. No
+     * provider SDK lives under that tree any more (the test above), so what a
+     * dynamic import hides today is only WHICH product metadata a module reads —
+     * from `tsc`, from this census, and from anyone grepping importers.
+     */
+    const dynamic = /import\s*\(\s*['"][^'"]*internal\/providers/;
+    for (const file of HOSTED_RUNTIME_FILES) {
+      expect(source(file), `${file}: dynamic import of internal/providers`).not.toMatch(dynamic);
+    }
+    // Positive control on the regex: the shape it hunts is recognised when present.
+    expect("await import('../internal/providers/lib/routing-profile-catalogue.js')").toMatch(dynamic);
+    // …and the facade still reaches the catalogue, statically, rather than by
+    // having stopped reading it.
+    expect(source('lib/gateway-client.ts')).toMatch(
+      /^import \* as catalogue from '\.\.\/internal\/providers\/lib\/routing-profile-catalogue\.js';$/m,
+    );
+  });
+
   it('keeps createOpenAI exclusively behind the local user-runtime branch', () => {
     const chatCore = source('lib/chat-core.ts');
     expect(chatCore.match(/createOpenAI\s*\(/g)).toHaveLength(1);

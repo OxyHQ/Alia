@@ -31,6 +31,39 @@ count and a real Oxy-authenticated inference request before revoking the old
 credential. Do not print either value. An empty or placeholder secret is not a
 rotation.
 
+### Revoking the credential
+
+Revoke in **Oxy Console → the Alia application → Credentials**: the
+ApplicationCredential whose key is the value of `OXY_SERVICE_API_KEY`. Nothing
+in Alia revokes it and nothing in Alia needs to change for the revocation to
+bite — the Oxy edge re-reads the credential row on every request rather than
+trusting a minted token's claims, so it is effective inside the token's own
+hour of life, not at the next exchange.
+
+What Alia then does, read from the code rather than assumed:
+
+- **Boot does not refuse.** `lib/inference/oxy-inference-credential.ts`
+  checks *presence* only — `OXY_SERVICE_API_KEY`, `OXY_SERVICE_API_SECRET`,
+  `OXY_API_URL` set and non-empty — and `lib/boot-guards.ts` refuses on that
+  alone. Whether the credential is *accepted* is answered on the first
+  exchange. `GET /ready` likewise keeps reporting `kaana.credentials:
+  "configured"` (`routes/health.ts` — "configured is not serving: nothing is
+  probed"), so a healthy probe is not evidence the credential still works.
+- **Every hosted turn fails, typed.** The service-token exchange or the edge
+  answers 401; `@oxy.so/core` surfaces it as `OxyInferenceError` with code
+  `authentication_failed`; `lib/errors/failover-error.ts` classifies a 401 as
+  `auth` and maps it to `AliaErrorCode.AUTH_FAILED` (HTTP 401 on the product
+  surface, no upstream detail). Alia never retries — `provider-loop.ts` resolves
+  Kaana once — and the turn is recorded in `chat_analytics` with
+  `error_class = AUTH_FAILED`. Local user-runtime turns carry no Oxy credential
+  and keep working.
+- **Recovery is a deploy, not a restart.** The SDK caches the service token per
+  `(apiKey, apiSecret)` pair; a running task keeps presenting the revoked pair
+  until a task revision binds the replacement from SSM, so follow the rotation
+  steps above. A rollback of the Alia image does not un-revoke anything, and an
+  image older than #477 cannot run at all (`provider_keys` is dropped, the
+  legacy variables are removed at deploy).
+
 Alia has no Kaana signing key to rotate. Oxy owns the Oxy-to-Kaana signing
 boundary and rotates it independently.
 
