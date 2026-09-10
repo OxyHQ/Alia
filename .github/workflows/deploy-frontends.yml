@@ -76,7 +76,7 @@ jobs:
       # and failed every call it made. `workers_dev = false` in
       # packages/app/wrangler.toml leaves `alia.onl` as the only way in.
       - name: Deploy the Worker
-        uses: cloudflare/wrangler-action@v3
+        uses: cloudflare/wrangler-action@v4
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
