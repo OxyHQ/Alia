@@ -194,7 +194,7 @@ function createStyles(colors: AliaColors, fontFamily: string | undefined) {
     //
     // `fontFamily` therefore comes from the caller, which is the only party
     // that both knows the family and is allowed to name it: this package has no
-    // `@oxyhq/bloom` dependency, and react-native-markdown-display takes RN
+    // `@oxy.so/bloom` dependency, and react-native-markdown-display takes RN
     // style objects, so there is no className path to NativeWind's token.
     body: { ...BODY_TEXT, color: textColor, fontFamily },
     text: { ...BODY_TEXT, color: textColor, fontFamily },
@@ -257,7 +257,7 @@ export interface AliaMarkdownProps {
    * Omitted, body text inherits: correct on web, where Bloom's
    * `--bloom-font-sans` reaches it through the cascade. On native nothing is
    * inherited (see `createStyles`), so a native caller that wants Bloom's face
-   * has to pass it — this package has no `@oxyhq/bloom` dependency and so
+   * has to pass it — this package has no `@oxy.so/bloom` dependency and so
    * cannot name it itself.
    */
   fontFamily?: string;

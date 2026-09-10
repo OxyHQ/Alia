@@ -8,7 +8,7 @@ const mocks = vi.hoisted(() => ({
   resolveModelId: vi.fn(async (_apiUrl: string, model: string) => model),
 }));
 
-vi.mock('@oxyhq/services', () => ({
+vi.mock('@oxy.so/services', () => ({
   useOxy: () => ({ oxyServices: mocks.oxyServices }),
 }));
 
