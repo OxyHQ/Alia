@@ -8,6 +8,18 @@ de servicio: `Alia -> Oxy -> Kaana`. Oxy resuelve identidad y rutas autorizadas;
 Alia no aloja lógica ni credenciales de proveedor, claves de firma de Kaana o
 un transporte alternativo.
 
+Tres papeles, ninguno subconjunto de otro (ADR 0010): **Kaana** es la API de
+inferencia (solo modelos; las credenciales de proveedor viven ahí); **Oxy** es la
+plataforma y Oxy Console (cuentas, aplicaciones, TODAS las claves de API — de
+Alia, Kaana y Mention — y facturación); **Alia** es el asistente, con su propia
+API de producto **permanente** (`api.alia.onl/v1/*` y `/alia/chat`). La llaman
+tres grupos, todos autorizados por Oxy: las superficies propias de Alia — app,
+Codea (extensión y CLI) y Cowork, que son productos de Alia, no externos —,
+otras apps del ecosistema Oxy, y terceros vía `@alia.onl/sdk`. Alia no emite
+claves: `alia_sk_*` está congelado y se
+retira; una clave para la API de Alia se emite en Oxy Console, y el camino que
+la valida en Alia aún no existe — no lo documentes como si existiera.
+
 Los perfiles que Alia envía a Oxy usan exclusivamente los IDs opacos exactos
 revisados en `packages/api/src/config/oxy-inference-routing-profile-ids.ts`.
 Nunca selecciones uno por nombre, slug, primer resultado u orden de consulta.

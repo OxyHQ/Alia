@@ -339,22 +339,24 @@ named SSE events. Seven packages call it, three of them (`@alia.onl/sdk`, the Co
 Code extension, the Codea CLI) published outside this repo where no Alia deploy can fix
 them.
 
-> **CONTESTED — this paragraph and ADR 0004 disagree.**
-> [ADR 0004](../adr/0004-product-endpoints-versus-generic-inference-endpoints.md), status
-> Accepted, decides that `api.alia.onl/v1/*` *"is a bounded-window compatibility surface,
-> then it sunsets"* and rejects keeping it permanently by name. Nothing has been edited to
-> settle that;
-> [ADR 0006](../adr/0006-the-destination-of-api-alia-onl-v1-is-recorded-twice.md) states
-> both positions with their costs and deliberately resolves neither. Do not act on either
-> claim until it is resolved.
+> **RESOLVED, 2026-09-10 — this paragraph was right; ADR 0004 §3 is amended.**
+> [ADR 0010](../adr/0010-alia-keeps-a-product-api-credentials-come-from-oxy-console.md)
+> records the owner's decision: `api.alia.onl/v1/*` is Alia's permanent product API —
+> called by Alia's own surfaces (app, Codea, Cowork, CLI), by other applications in the
+> Oxy ecosystem and by third parties through `@alia.onl/sdk`, all authorized by Oxy —
+> and it does not sunset. Generic model access is
+> Kaana through Oxy (`api.oxy.so/v1`); Alia's API is a product API that accepts an
+> OpenAI-compatible shape. What still sunsets is Alia's own credential system —
+> `alia_sk_*`, `developer_apps`, `developer_api_keys`, the `/developer` routes — on the
+> gate in `compatibility-window.md` § (c); a key for this surface is an Oxy application
+> credential issued in Oxy Console. ADR 0010 § 2 states precisely which credentials Alia
+> accepts today and that the Oxy-issued application-key path is not yet built.
 >
-> It is an OPEN OWNER DECISION, and something now waits on it:
-> [#244](https://github.com/OxyHQ/Alia/issues/244) — `@alia.onl/sdk` is a product
-> client whose consumers can only reach this surface, because `/alia/chat` answers CORS
-> for Alia's origins alone — is cosmetic if `/v1` is permanent and a hard blocker for
-> every SDK consumer if it sunsets. Until the owner decides, the SDK's supported path is
-> the consumer-backend relay recorded in `compatibility-window.md` § (b), and the
-> `sdk-chat-consumer` row says the same.
+> [#244](https://github.com/OxyHQ/Alia/issues/244) closes with it: `@alia.onl/sdk` stays
+> on `/v1/chat/completions` for the CORS reason and no longer sits on a surface with a
+> removal gate. Its supported path from a third-party origin is still the consumer-backend
+> relay recorded in `compatibility-window.md` § (b) until Oxy Console carries a
+> per-application origin list (OxyHQ/oxy#972); the `sdk-chat-consumer` row says the same.
 
 **What is deleted.** The four 410 tombstones, once access logs show a billing period with
 no hits — the 410 body is itself the public deprecation notice, so removing it turns a

@@ -43,7 +43,7 @@
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
       "dependsOn": [],
-      "removalGate": "Never removed. Any route moved OUT of /v1 loses wildcard CORS and instantly breaks every browser-based external client.",
+      "removalGate": "Not removed: permanent product API (ADR 0010). What is removed is the alia_sk_* credential path, on its own gate (docs/migration/compatibility-window.md section (c)). Any route moved OUT of /v1 loses wildcard CORS and instantly breaks every browser-based external client; under ADR 0010 section 3 the wildcard is replaced by the per-application origin list from Oxy Console once OxyHQ/oxy#972 lands, and not by widening lib/cors-origins.ts. || RESOLVED 2026-09-10 by ADR 0010, which amends ADR 0004 section 3 and supersedes ADR 0006.",
       "evidence": "packages/api/src/index.ts:125-136,168-171,228"
     },
     {
@@ -140,7 +140,7 @@
         "alia-models-registry",
         "sse-named-event-contract"
       ],
-      "removalGate": "Never removed. If inference moves to Kaana, this endpoint stays as the Alia-facing facade - the OpenAI shape, the alia_* extensions and the named SSE events are the public contract and must be reproduced byte-compatibly on the far side.",
+      "removalGate": "Not removed: permanent product API (ADR 0010). What is removed is the alia_sk_* credential path, on its own gate (docs/migration/compatibility-window.md section (c)). The endpoint stays as the Alia-facing product API whatever moves to Kaana behind it - the OpenAI shape, the alia_* extensions and the named SSE events are the public contract and must be reproduced byte-compatibly on the far side. || RESOLVED 2026-09-10 by ADR 0010, which amends ADR 0004 section 3 (\"a bounded-window compatibility surface, then it sunsets\") and supersedes ADR 0006. Credentials for this route are Oxy application credentials issued in Oxy Console; the Oxy-issued application-key auth path is not built yet (ADR 0010 section 2).",
       "evidence": "packages/api/src/routes/v1.ts:127; packages/api/src/routes/v1/chat-completions.ts:29,334"
     },
     {

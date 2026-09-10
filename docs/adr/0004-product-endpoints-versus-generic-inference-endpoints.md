@@ -4,6 +4,13 @@
 
 **Date:** 2026-08-15
 
+> **Amended by [ADR 0010](./0010-alia-keeps-a-product-api-credentials-come-from-oxy-console.md), 2026-09-10.**
+> Decision §3 — *"`api.alia.onl/v1/*` is a bounded-window compatibility surface, then it
+> sunsets"* — and the rejected alternative *"Keep `api.alia.onl/v1/*` permanently…"* no
+> longer hold: the surface is Alia's permanent product API. Conditions 1 to 3 (authenticate
+> through Oxy, no new `alia_sk_*`, no provider billing in Alia) stand, now as permanent
+> properties. Everything below is unchanged, as the record of the decision as taken.
+
 ## Context
 
 Alia serves two different audiences from one code path.

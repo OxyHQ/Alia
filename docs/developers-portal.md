@@ -1,20 +1,45 @@
 # Developer access to Alia
 
-**If you are building a new integration, do not start here.** Generic model access is an
-Oxy product: register an application in Oxy Console, obtain an Oxy ApplicationCredential,
-and call `api.oxy.so/v1`. This page exists for people who already hold an Alia-issued
-`alia_sk_*` credential and need to know what still works, what has stopped, and how the
-credential is retired.
+Three products, three roles, one console
+([ADR 0010](./adr/0010-alia-keeps-a-product-api-credentials-come-from-oxy-console.md)):
 
-The decisions behind that split are recorded in
-[ADR 0001](./adr/0001-alia-oxy-kaana-responsibility-boundary.md) (Oxy owns accounts,
-applications, credentials, the ledger and the public generic inference API) and
-[ADR 0004](./adr/0004-product-endpoints-versus-generic-inference-endpoints.md) (Alia's
-`/v1/*` becomes a bounded compatibility surface and then sunsets). The clock and its gates
-are in [`docs/migration/compatibility-window.md`](./migration/compatibility-window.md).
+- **Kaana** is the inference API — models only. Provider credentials live there.
+- **Oxy** is the platform and **Oxy Console** — accounts, applications, **every** API key
+  in the ecosystem (Alia's, Kaana's, Mention's), billing.
+- **Alia** is the assistant, with its own **permanent product API** at `api.alia.onl`:
+  `/v1/*` and `/alia/chat` (one handler), plus `/conversations`, `/shows`, `/skills`,
+  `/agents` and `/catalogue`. Three groups call it, all authorized by Oxy: Alia's own
+  surfaces — the app, Codea (the VS Code extension and the CLI) and Cowork, which are Alia
+  products and use `/alia/chat` with the user's Oxy session; other applications in the
+  Oxy ecosystem; and third parties through `@alia.onl/sdk`. It accepts an
+  OpenAI-compatible request shape and streams `alia.*` product events; it does not sunset.
 
-None of the Oxy-side pieces are live yet. This page is kept, rather than deleted, because a
-live credential with no documentation is worse for its holder than a deprecated page.
+**Pick the product, then get the key from Oxy Console.** For raw model access — a
+completion with no conversation, memory, agents or tools around it — use Kaana through
+Oxy: `api.oxy.so/v1`, the Oxy catalogue for models. For the assistant, use Alia's API.
+Neither is a substitute for the other, and Alia issues no keys for either.
+
+**What Alia's API accepts today, precisely** (`packages/api/src/middleware/auth.ts`,
+`authenticateTokenOrApiKey` at `:221`): an Oxy **user session token** and an Oxy
+**service token** (`:293`, through `@oxy.so/core`'s `oxy.auth()`, which validates the
+session against Oxy and verifies a service token against Oxy's JWKS), and — deprecated —
+an existing **`alia_sk_*`** key (`:287`). An **Oxy Console application key (`oxy_sk_*`) is
+not accepted yet**: it is not a JWT, `oxy.auth()` refuses it `401 INVALID_TOKEN_FORMAT`,
+and `@oxy.so/core` 1.0.1 has no lane for it (its own `server/auth.js` says the lane lives
+in the Oxy API until *"the machine principal's shape"* moves into the package). That path
+is built in Oxy first (`OxyHQ/oxy#972`), then in `@oxy.so/core/server`, then adopted here.
+Until then a third-party application calls Alia's API with the signed-in user's Oxy
+session — which is what `@alia.onl/sdk` already attaches.
+
+The rest of this page is for people who **already hold an `alia_sk_*` credential** and
+need to know what still works, what has stopped, and how the credential is retired. The
+decisions behind that are [ADR 0001](./adr/0001-alia-oxy-kaana-responsibility-boundary.md)
+(Oxy owns accounts, applications and credentials),
+[ADR 0004](./adr/0004-product-endpoints-versus-generic-inference-endpoints.md) (no new
+`alia_sk_*`, no provider billing in Alia — its sunset clause is amended by ADR 0010) and
+section (c) of [`docs/migration/compatibility-window.md`](./migration/compatibility-window.md),
+which carries the clock and its gate. The page is kept, rather than deleted, because a live
+credential with no documentation is worse for its holder than a deprecated page.
 
 ## What still works today
 
@@ -95,7 +120,7 @@ revisions of this page were removed.
 
 ## What has stopped, or is stopping
 
-Under ADR 0004 and the compatibility window:
+Under ADR 0004 (as amended by ADR 0010) and section (c) of the compatibility window:
 
 - **No new `alia_sk_*` credential is issued.** The set of Alia developer credentials is
   closed. All three creation paths refuse with `410 Gone` and a body naming Oxy Console.
@@ -106,17 +131,21 @@ Under ADR 0004 and the compatibility window:
   existing key's secret either — which is issuance wearing maintenance's clothes.
 - **No new Alia developer application** is created, for generic inference or otherwise.
   Every application this surface registered existed to hold `alia_sk_*` keys.
-- **The surface gains nothing.** No new route, no new capability and no new model lands on
-  `api.alia.onl/v1/*`. Generic inference development happens on `api.oxy.so/v1`.
+- **The `/v1` route list is frozen, not shrinking.** `api.alia.onl/v1/*` is permanent
+  (ADR 0010); its fifteen routes are frozen by name in
+  `packages/api/src/routes/__tests__/v1-compatibility-surface.test.ts`, and adding one is a
+  deliberate edit of that list. Generic model access is a different product — Kaana
+  through Oxy at `api.oxy.so/v1` — not a replacement for this one.
 - **Alia stops settling inference charges** for this surface. Usage is metered by Kaana and
   charged through the Oxy ledger ([ADR 0005](./adr/0005-product-entitlements-versus-financial-ledger.md)).
 
-Revocation, rotation, listing and inspection of **existing** keys stay available for the
-whole window. Removing revocation during a migration would be a security regression.
+Revocation, listing and inspection of **existing** keys stay available for the whole
+window (not rotation — none has ever existed on `/developer`, see above). Removing
+revocation during a migration would be a security regression.
 
-## Calling the compatibility surface
+## Calling Alia's API with an existing key
 
-While the window is open, an existing key authenticates as it always did:
+While the credential window is open, an existing key authenticates as it always did:
 
 ```bash
 curl -X POST https://api.alia.onl/v1/chat/completions \
@@ -145,11 +174,12 @@ const response = await fetch('https://api.alia.onl/v1/chat/completions', {
 Two things to know about the responses:
 
 - The stream carries `alia.*` product events (see
-  [the chat runtime page](./chat-runtime.mdx)). They are **not** part of the Oxy generic
-  inference contract and no generic client should be written against them.
-- `model` accepts the thirteen `alia-*` identifiers, which are themselves inside the
-  compatibility window. See [model abstraction](./model-abstraction.mdx) for what each one
-  actually is and how they are retired.
+  [the chat runtime page](./chat-runtime.mdx)). They are part of Alia's product API and
+  **not** of the Oxy generic inference contract; a client written against them is an Alia
+  client, which is the point.
+- `model` takes a routing-profile identifier from `GET /catalogue`. The thirteen `alia-*`
+  aliases are path (a) of the compatibility window; see
+  [model abstraction](./model-abstraction.mdx) for what each one was and how it is retired.
 
 Scopes required: `chat:write` for `/v1/chat/completions`, `models:read` for `/v1/models`.
 
@@ -180,25 +210,26 @@ The hook appends its own paths, so your backend answers `POST /v1/chat/completio
 inside its own window above. A consumer-application credential for this route is Oxy
 Applications' to issue (`OxyHQ/oxy#972`).
 
-The cost is one more hop in the path of every stream. The two shapes that remove it — a
-CORS policy for registered consumer origins, and the SDK default moving in a major — are
-recorded in [#244](https://github.com/OxyHQ/Alia/issues/244): the first is blocked on the
-Oxy Applications origin registry, the second is an adoption window rather than a switch,
-and both wait on the open owner decision over whether `/v1` sunsets at all
-([ADR 0006](./adr/0006-the-destination-of-api-alia-onl-v1-is-recorded-twice.md)).
+The cost is one more hop in the path of every stream. The shape that removes it is a CORS
+policy for the origins registered on your application in Oxy Console, blocked on that
+registry existing (`OxyHQ/oxy#972`); once it does, the per-application origin list
+replaces the `/v1` wildcard on both mounts (ADR 0010 § 3). The SDK default moving to
+`/alia/chat` in a major is an adoption window rather than a switch and is no longer
+needed to escape a sunset — `/v1/chat/completions` is permanent. Both shapes were recorded
+in [#244](https://github.com/OxyHQ/Alia/issues/244), which closed on that decision.
 
 ## Where new integrations go
 
 | You want | Go to |
 |---|---|
-| An application and credentials | Oxy Console |
-| Generic inference requests | `api.oxy.so/v1` |
-| The model catalogue | The Oxy catalogue |
+| An application, its credentials and its browser origins | Oxy Console — for Alia's API, Kaana's and Mention's alike |
+| Raw model access — a completion with nothing around it | Kaana through Oxy: `api.oxy.so/v1` |
+| The generic model catalogue | The Oxy catalogue |
 | Usage and invoices | Oxy |
-| Alia product behaviour — conversations, memory, agents, tools, approvals, research, triggers | The Alia product runtime |
+| The assistant — conversations, memory, agents, tools, approvals, research, triggers, the `alia.*` stream | Alia's product API: `api.alia.onl/v1/*` or `/alia/chat`, with the Oxy credential above; Alia's own catalogue of routing profiles at `GET /catalogue` |
 
-Alia does not own a generic model catalogue once the Oxy catalogue launches, and it does
-not hold the authoritative balance for anything.
+Alia does not own a generic model catalogue, and it does not hold the authoritative
+balance for anything.
 
 ## Removal gate
 
@@ -220,10 +251,9 @@ conditions must hold before removal:
 A stored key digest is never handed back as a replacement secret. Migration means the owner
 obtains a **new** Oxy credential.
 
-The `api.alia.onl/v1/*` routes themselves are gated separately, route by route, under
-section (b) of the same document — they have different consumers and empty at different
-times. On removal a route returns `410 Gone` naming its replacement, following the pattern
-`POST /v1/resolve-model` and `POST /v1/report-usage` already use.
+The `api.alia.onl/v1/*` routes themselves have **no** gate: they are Alia's permanent
+product API (ADR 0010), and section (b) of the same document records the withdrawal of
+the per-route gate it used to carry. Only the credential is retired.
 
 The clock owner is the owner of workstream 11 of #139, recorded on the epic.
 
