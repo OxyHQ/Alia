@@ -171,6 +171,13 @@ export interface AgentSessionAgentRef {
 export interface AgentSessionListing {
   _id: string;
   agentId: AgentSessionAgentRef | null;
+  /**
+   * The automation run this session executes a stage of, or null for a
+   * session somebody started by hand. The Tasks page folds a run's sessions
+   * under the automation they belong to rather than listing the same work
+   * twice (#537), and this is the only column that says which.
+   */
+  automationRunId: string | null;
   status: AgentSessionStatus;
   task: string;
   result: string | null;
@@ -340,6 +347,7 @@ const AGENT_REF = {
 
 const LISTING_COLUMNS = {
   _id: agentSessions.id,
+  automationRunId: agentSessions.automationRunId,
   status: agentSessions.status,
   task: agentSessions.task,
   result: agentSessions.result,
@@ -357,6 +365,7 @@ const LISTING_COLUMNS = {
 
 function toListing(row: {
   _id: string;
+  automationRunId: string | null;
   status: string;
   task: string;
   result: string | null;
@@ -381,6 +390,7 @@ function toListing(row: {
      * reject — and `TaskSession.agentId` is already typed to accept it.
      */
     agentId: row.agent,
+    automationRunId: row.automationRunId,
     status: row.status as AgentSessionStatus,
     task: row.task,
     result: row.result,

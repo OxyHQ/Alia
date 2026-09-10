@@ -42,6 +42,17 @@ export interface TaskSession {
   };
   createdAt: string;
   childAgents?: TaskAgentRef[];
+  /**
+   * The automation run this session executes a stage of, when it does.
+   *
+   * `agent_sessions.automation_run_id` exists and the row carries it, but the
+   * listing projection (`LISTING_COLUMNS` in the API's session repository)
+   * does not yet select it, so today this is absent. It is declared so the
+   * unified Tasks list (`unifiedWorkItems`) folds such a session under its
+   * automation the moment the listing carries it, instead of showing the run
+   * and its parent as two unrelated pieces of work.
+   */
+  automationRunId?: string | null;
 }
 
 export function useActiveTasks() {
