@@ -656,6 +656,8 @@ export interface CreateAgentSessionInput {
   automationRunId?: string;
   automationStage?: number;
   status?: AgentSessionStatus;
+  /** Explicit ownership lease for synchronous product-chat turns only. */
+  chatLeaseExpiresAt?: Date;
   depth?: number;
   messages?: AgentSessionMessage[];
   creditReservation?: AgentSessionCreditReservation;
@@ -675,6 +677,7 @@ function agentSessionValues(input: CreateAgentSessionInput): typeof agentSession
     automationRunId: input.automationRunId ?? null,
     automationStage: input.automationStage ?? null,
     ...(input.status !== undefined && { status: input.status }),
+    ...(input.chatLeaseExpiresAt !== undefined && { chatLeaseExpiresAt: input.chatLeaseExpiresAt }),
     ...(input.depth !== undefined && { depth: input.depth }),
     ...(input.messages !== undefined && { messages: input.messages }),
     ...(input.creditReservation !== undefined && {
@@ -732,6 +735,7 @@ export async function createAutomationStageSession(
 export interface UpdateAgentSessionInput {
   status?: AgentSessionStatus;
   result?: string;
+  chatLeaseExpiresAt?: Date | null;
   plan?: AgentSessionPlan | null;
   eventStream?: AgentSessionEventStreamEntry[];
   stats?: Partial<AgentSessionStats>;
@@ -741,6 +745,7 @@ function buildSessionPatch(input: UpdateAgentSessionInput): Record<string, unkno
   const patch: Record<string, unknown> = {};
   if (input.status !== undefined) patch.status = input.status;
   if (input.result !== undefined) patch.result = input.result;
+  if (input.chatLeaseExpiresAt !== undefined) patch.chatLeaseExpiresAt = input.chatLeaseExpiresAt;
   if (input.plan !== undefined) {
     patch.planObjective = input.plan === null ? null : input.plan.objective;
     patch.planItems = input.plan === null ? null : input.plan.items;

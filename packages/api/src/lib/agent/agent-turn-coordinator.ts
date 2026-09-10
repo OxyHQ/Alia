@@ -39,6 +39,10 @@ export class AgentTurnCoordinator {
         oxyUserId: input.oxyUserId,
         task: input.task.slice(0, 2000) || 'Continue the agent thread',
         status: 'running',
+        // The route has an 80-second hard deadline. This explicit two-minute
+        // lease covers that request with margin and is the proof admission uses
+        // after a process/socket dies; autonomous sessions have no chat lease.
+        chatLeaseExpiresAt: new Date(Date.now() + 120_000),
         threadId: conversation?.agentThreadId ?? undefined,
         conversationId: input.conversationId,
       }),
@@ -91,6 +95,7 @@ export class AgentTurnCoordinator {
         await updateAgentSession(getDb(), session._id, {
           status,
           result,
+          chatLeaseExpiresAt: null,
           stats: { completedAt: new Date(), lastActivityAt: new Date() },
         });
         await browserSession.close().catch((err: unknown) => {

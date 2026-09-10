@@ -165,6 +165,19 @@ export async function withAgentAdmission<T>(
 ): Promise<{ admitted: true; value: T } | { admitted: false }> {
   return db.transaction(async (tx) => {
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`alia-agent:${agentId}`}))`);
+    // Reclaim only synchronous chat work whose explicit ownership lease has
+    // expired. A generic `lastActivityAt` cutoff would be a guess and could
+    // terminate legitimate autonomous work; NULL leases are deliberately not
+    // eligible here.
+    await tx.update(agentSessions).set({
+      status: 'failed',
+      result: 'The chat request owning this turn ended before settlement',
+      statsCompletedAt: new Date(),
+    }).where(and(
+      eq(agentSessions.agentId, agentId),
+      eq(agentSessions.status, 'running'),
+      lt(agentSessions.chatLeaseExpiresAt, new Date()),
+    ));
     const [counted] = await tx.select({ count: sql<number>`count(*)::int` }).from(agentSessions).where(and(
       eq(agentSessions.agentId, agentId),
       inArray(agentSessions.status, ['queued', 'running']),
