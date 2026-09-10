@@ -8,6 +8,9 @@ there are no AWS keys in this repository.
 Infrastructure — the task definition, the ALB, the target group, ECR, IAM and the SSM
 parameter tree — is owned by `oxy-infra`, not by this repository. What lives here is the
 image, the environment contract below, and the secret allow-list in the deploy workflow.
+The retired DigitalOcean App Platform spec has been removed: it was not an executable
+production source after the AWS cutover and contradicted this contract. Historical
+migration records still describe the old platform where that provenance matters.
 
 ## Preconditions
 
@@ -280,10 +283,3 @@ caller is audited without being changed
 Each record carries `resource`, `action`, `target`, `actor`, `before`, `after` and `at`.
 It deliberately carries no prompt, response content or credential. Alia has no hosted
 provider-key writer to audit; Kaana owns that administrative trail.
-
-## Open questions
-
-- **`.do/app.yaml` is stale.** It describes a DigitalOcean App Platform deployment with a
-  `gateway` service built from `bun run build:gateway`, a script that no longer exists, and
-  points `GATEWAY_API_URL` at it. Whether to delete it or keep it as a historical record is
-  not decided here. *Owner: the #139 epic owner, with `oxy-infra`.*
