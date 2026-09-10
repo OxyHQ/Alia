@@ -1,5 +1,6 @@
 import type { ToolInvocation } from '@/lib/types/messages';
 import type { Message } from '@/lib/hooks/use-conversations';
+import type { FailedTurn } from '@/components/chat/turn-failure';
 import { getToolLabel } from '@alia.onl/sdk';
 
 export interface Source {
@@ -10,11 +11,132 @@ export interface Source {
 }
 
 export interface ThoughtStep {
-  type: 'thinking' | 'tool' | 'done';
+  /**
+   * `thinking`, `tool` and `writing` are phases of the work; the other four are
+   * how it ENDED, and at most one of them closes a list. The panel translates
+   * every non-tool type itself — `label` is the English default, kept so a
+   * caller without a translator still has something to print.
+   */
+  type: 'thinking' | 'tool' | 'writing' | 'waiting' | 'done' | 'failed' | 'cancelled';
   label: string;
   toolName?: string;
   sources?: Source[];
   state?: 'partial-call' | 'call' | 'result';
+}
+
+/**
+ * Where a turn is in its life, as the runtime knows it — never as guessed
+ * from what the message happens to contain.
+ *
+ *  - `queued`: the turn is in flight and nothing has arrived for it yet.
+ *  - `running`: tokens, reasoning or tool calls are arriving.
+ *  - `waiting_approval`: the run is paused on a tool the person has to allow.
+ *  - `completed`: the run ended on its own terms.
+ *  - `failed`: the run ended with an error — the failed-turn card is its twin.
+ *  - `cancelled`: the person stopped it, or a persisted turn shows a tool that
+ *    never returned, which is a run that was interrupted before it finished.
+ */
+export type TurnLifecycle = 'queued' | 'running' | 'waiting_approval' | 'completed' | 'failed' | 'cancelled';
+
+/** The three ways a settled turn can have ended, as stamped on its message. */
+export type TurnOutcome = NonNullable<Message['turnOutcome']>;
+
+/**
+ * What the streaming runtime knows about the conversation a message sits in.
+ *
+ * All of it is optional because a message read back from the server after a
+ * reload has none of it — and a message with no live context is, by
+ * definition, one whose turn is over.
+ */
+export interface TurnContext {
+  /** The hook's `isLoading`: a turn is in flight in THIS conversation. */
+  isLoading?: boolean;
+  /**
+   * The message is the last assistant message of the conversation, which is
+   * the one a running turn writes into. Only meaningful with `isLoading`.
+   */
+  isLastAssistant?: boolean;
+  /** The turn that got no answer, if any — its anchor names the failed message. */
+  failedTurn?: FailedTurn | null;
+}
+
+/** The fields of a message the lifecycle is read from; a `Message` satisfies it. */
+export type LifecycleMessage = Pick<
+  Message,
+  'id' | 'content' | 'thinking' | 'toolInvocations' | 'isStreaming' | 'turnOutcome' | 'pendingApproval' | 'pendingApprovalResult' | 'researchProgress'
+>;
+
+/** A tool that was called and never came back — `call` or `partial-call`. */
+export function hasUnresolvedTool(message: Pick<LifecycleMessage, 'toolInvocations'>): boolean {
+  return message.toolInvocations?.some((inv) => inv.state !== 'result') ?? false;
+}
+
+function hasContent(content: LifecycleMessage['content'] | undefined): boolean {
+  return typeof content === 'string' ? content.length > 0 : Array.isArray(content) && content.length > 0;
+}
+
+/**
+ * Anything at all has arrived for the turn: text, reasoning, a tool call, a
+ * research phase, or an approval request — which is the run asking a
+ * question, and so proof that it started.
+ */
+function hasAnyOutput(message: LifecycleMessage): boolean {
+  return (
+    hasContent(message.content) ||
+    (message.thinking !== undefined && message.thinking.length > 0) ||
+    (message.toolInvocations?.length ?? 0) > 0 ||
+    message.researchProgress !== undefined ||
+    message.pendingApproval !== undefined
+  );
+}
+
+/** An approval was asked for and no decision has answered THAT request yet. */
+function awaitingApproval(message: LifecycleMessage): boolean {
+  const request = message.pendingApproval;
+  if (request === undefined) return false;
+  return message.pendingApprovalResult?.requestId !== request.requestId;
+}
+
+/**
+ * The lifecycle of a turn, from the signals the runtime actually tracks.
+ *
+ * The panel used to decide a turn had ended by looking at whether the message
+ * had content — so the first streamed token flipped a running answer to
+ * "Done", a finished tool-only turn looked like it was still running, and
+ * array content counted as finished the moment it existed. None of those
+ * are the turn's state; they are what the message happened to hold.
+ *
+ * The order here is the order of certainty:
+ *
+ *  1. A settled outcome on the message, or the failed-turn card anchored on
+ *     it, is final — a stream cannot un-fail.
+ *  2. Otherwise the turn is live while its message is being streamed into.
+ *     `isStreaming` is the hook's own stamp and is trusted on its own, EXCEPT
+ *     against an explicit `isLoading: false`: a stamp that outlived the turn
+ *     (persisted mid-stream, or left on a voice row) must not run forever.
+ *     The `isLoading && isLastAssistant` pair is the fallback for a message
+ *     that carries no stamp at all.
+ *  3. With no live signal the turn is over. A tool still in `call` then is
+ *     one that never returned — an interrupted run, not a finished one.
+ */
+export function turnLifecycle(message: LifecycleMessage, ctx: TurnContext = {}): TurnLifecycle {
+  if (message.turnOutcome === 'failed' || ctx.failedTurn?.anchorMessageId === message.id) return 'failed';
+  if (message.turnOutcome === 'cancelled') return 'cancelled';
+  if (message.turnOutcome === 'completed') return 'completed';
+
+  const stamped = message.isStreaming === true && ctx.isLoading !== false;
+  const inferred = ctx.isLoading === true && ctx.isLastAssistant === true;
+  if (stamped || inferred) {
+    if (awaitingApproval(message)) return 'waiting_approval';
+    return hasAnyOutput(message) ? 'running' : 'queued';
+  }
+
+  return hasUnresolvedTool(message) ? 'cancelled' : 'completed';
+}
+
+/** The lifecycles during which the panel still animates. */
+export function isLiveLifecycle(lifecycle: TurnLifecycle): boolean {
+  return lifecycle === 'queued' || lifecycle === 'running' || lifecycle === 'waiting_approval';
 }
 
 function getDomain(url: string): string {
@@ -139,16 +261,24 @@ export function extractSources(toolInvocations?: ToolInvocation[]): Source[] {
 }
 
 /**
- * Build an ordered timeline of steps from a message's thinking + tool invocations.
+ * Build an ordered timeline of steps from a message's thinking + tool
+ * invocations, closed by the step its lifecycle earns.
+ *
+ * The closing step is decided by the LIFECYCLE and nothing else: text in the
+ * message does not mean the turn is over (it is "Writing" while the turn
+ * runs), and a turn that ended in an error or a stop never reads "Done" — it
+ * gets its own terminal step. A tool still running is left in its own state
+ * so a finished tool before it does not hide it.
  */
 export function buildSteps(
-  message: { thinking?: string; content?: any; toolInvocations?: ToolInvocation[] },
-  isStreaming: boolean,
+  message: Partial<Pick<LifecycleMessage, 'thinking' | 'content' | 'toolInvocations'>>,
+  lifecycle: TurnLifecycle,
 ): ThoughtStep[] {
   const steps: ThoughtStep[] = [];
 
-  // 1. Thinking step
-  if (message.thinking) {
+  // 1. Thinking step — also what a queued turn shows, since a turn with nothing
+  //    to show yet is nonetheless being thought about.
+  if (message.thinking || lifecycle === 'queued') {
     steps.push({ type: 'thinking', label: 'Thinking' });
   }
 
@@ -184,14 +314,29 @@ export function buildSteps(
     }
   }
 
-  // 3. Done step (only when message has content and is not streaming)
-  const hasContent =
-    typeof message.content === 'string'
-      ? message.content.length > 0
-      : Array.isArray(message.content) && message.content.length > 0;
-
-  if (hasContent && !isStreaming) {
-    steps.push({ type: 'done', label: 'Done' });
+  // 3. The step the lifecycle closes the list with.
+  switch (lifecycle) {
+    case 'queued':
+      break;
+    case 'running':
+      // A tool that has not returned is the live step; otherwise the model is
+      // writing, whether or not its first token has been flushed yet.
+      if (!hasUnresolvedTool(message)) steps.push({ type: 'writing', label: 'Writing' });
+      break;
+    case 'waiting_approval':
+      steps.push({ type: 'waiting', label: 'Waiting for approval' });
+      break;
+    case 'completed':
+      // "Done" under a message that holds nothing at all would be a step
+      // about nothing; a finished tool-only turn, though, is done.
+      if (steps.length > 0 || hasContent(message.content)) steps.push({ type: 'done', label: 'Done' });
+      break;
+    case 'failed':
+      steps.push({ type: 'failed', label: 'Failed' });
+      break;
+    case 'cancelled':
+      steps.push({ type: 'cancelled', label: 'Stopped' });
+      break;
   }
 
   return steps;
@@ -205,21 +350,30 @@ export interface AuditEntry {
   type: 'tool_call' | 'research_phase' | 'agent_delegation' | 'plan_approved' | 'artifact_generated';
   label: string;
   description: string;
-  status: 'in_progress' | 'complete';
+  /** `interrupted` is a tool call that never returned in a turn that is over. */
+  status: 'in_progress' | 'complete' | 'interrupted';
   toolName?: string;
   messageId: string;
 }
 
 /**
  * Build a chronological audit timeline from all conversation messages.
+ *
+ * A tool call without a result is "in progress" only while its turn is
+ * actually running; in a turn that ended — stopped, failed, or read back from
+ * the server that way — it is a call that never returned, and it must not
+ * pulse forever.
  */
 export function buildAuditTimeline(
-  messages: Message[]
+  messages: Message[],
+  ctx: Omit<TurnContext, 'isLastAssistant'> = {},
 ): AuditEntry[] {
   const entries: AuditEntry[] = [];
+  const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant');
 
   for (const msg of messages) {
     if (msg.role !== 'assistant') continue;
+    const live = isLiveLifecycle(turnLifecycle(msg, { ...ctx, isLastAssistant: msg === lastAssistant }));
 
     // Agent delegation
     if (msg.agentInfo) {
@@ -265,7 +419,7 @@ export function buildAuditTimeline(
           type: 'tool_call',
           label: toolLabel,
           description,
-          status: isDone ? 'complete' : 'in_progress',
+          status: isDone ? 'complete' : live ? 'in_progress' : 'interrupted',
           toolName: inv.toolName,
           messageId: msg.id,
         });
