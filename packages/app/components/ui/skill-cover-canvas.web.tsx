@@ -1,50 +1,13 @@
-import React, { Suspense } from "react";
-import { View } from "react-native";
-import { LoadSkiaWeb } from "@shopify/react-native-skia/lib/module/web";
-import type { SkillCoverCanvasProps } from "./skill-cover-palette";
-
-// Load the skia web runtime (canvaskit.wasm) only when a skill cover actually
-// mounts — the app itself renders immediately without waiting for it. Target
-// the skia impl by its own basename; "./skill-cover-canvas" would resolve back
-// to this .web file.
-const LazySkiaCanvas = React.lazy(async () => {
-  await LoadSkiaWeb({ locateFile: (file: string) => `/${file}` });
-  return import("./skill-cover-canvas-skia");
-});
-
-export default function SkillCoverCanvas(props: SkillCoverCanvasProps) {
-  const { width, height, cellW, cellH, grid, staticColors, isDarkColorScheme } =
-    props;
-
-  // Static first frame (plain Views) shown until canvaskit finishes loading —
-  // colors match the skia canvas's frame-0 output (staticColors[i]).
-  const staticGrid = (
-    <View
-      style={{
-        position: "absolute",
-        width,
-        height,
-        flexDirection: "row",
-        flexWrap: "wrap",
-        backgroundColor: isDarkColorScheme ? "#08080f" : "#f5f5f7",
-      }}
-    >
-      {grid.map((cell, i) => (
-        <View
-          key={`${cell.row}-${cell.col}`}
-          style={{
-            width: cellW,
-            height: cellH,
-            backgroundColor: staticColors[i],
-          }}
-        />
-      ))}
-    </View>
-  );
-
-  return (
-    <Suspense fallback={staticGrid}>
-      <LazySkiaCanvas {...props} />
-    </Suspense>
-  );
-}
+// Web facade: the cover is the static grid, full stop.
+//
+// This file deliberately imports NOTHING from `@shopify/react-native-skia` —
+// no `LoadSkiaWeb`, no lazy `import()` of the skia canvas, no `useClock`, no
+// canvas allocation. The previous version lazy-loaded canvaskit.wasm and then
+// turned EVERY mounted cover into an animated Skia canvas, which is what froze
+// Chrome on /skills (#545). Animation on web is off until it can be bounded;
+// the static grid needs no WASM, no GPU and no blur to be readable.
+//
+// `skill-cover-canvas-static.test.tsx` mocks the skia package to throw on
+// import and renders this module, so a skia import creeping back in fails CI
+// rather than a browser.
+export { default } from "./skill-cover-static";

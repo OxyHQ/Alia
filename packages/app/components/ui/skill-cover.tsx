@@ -1,9 +1,8 @@
-import React, { useMemo } from "react";
-import { View, Text, StyleSheet } from "react-native";
+import React, { Suspense, useMemo } from "react";
+import { View, Text, StyleSheet, Platform } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { BlurView } from "expo-blur";
 import { useColorScheme } from "@/lib/useColorScheme";
-import SkillCoverCanvas from "./skill-cover-canvas";
+import SkillCoverStaticGrid from "./skill-cover-static";
 import {
   GRID_SIZE,
   hashSeed,
@@ -11,8 +10,57 @@ import {
   generateGrid,
   computeCellColor,
 } from "./skill-cover-palette";
+import type { SkillCoverCanvasProps } from "./skill-cover-palette";
 
-// ─── Main component ──────────────────────────────────────────────────────────
+/**
+ * A skill's cover: a deterministic grid of colour seeded by its name, with the
+ * title over the bottom.
+ *
+ * The cover is STATIC unless a consumer says otherwise. `animated` used to
+ * default to true, and the catalogue never overrode it, so sixty results
+ * became sixty Skia canvases with a clock each — 3,240 animated, shadowed
+ * cells — and /skills froze Chrome (#545). Now:
+ *
+ * - The static grid (`skill-cover-static.tsx`) is what this module imports.
+ *   Nothing here reaches skia, reanimated or a blur view, so a shelf of these
+ *   costs a few hundred Views and no graphics runtime.
+ * - `animated` is an explicit opt-in for ONE focused cover (the detail page).
+ *   It is honoured on native only — never on web for now — and the animated
+ *   module is fetched with a lazy `import()` at that moment, so a static
+ *   consumer's bundle graph never contains it. Reduced motion is checked
+ *   inside that module and falls back to this same grid.
+ * - The animated path sits inside a local error boundary whose fallback is the
+ *   static grid: navigation must never depend on WASM or GPU initialisation.
+ *
+ * The title scrim is a gradient, not a blur. It reads fine, and a
+ * `backdrop-filter` per book was another sixty compositing layers on web.
+ */
+
+// Native-only: on web this is never fetched, so the web bundle carries no
+// animated cover at all. The module is resolved lazily so the static path's
+// import graph stays free of it too.
+const LazyAnimatedCanvas = React.lazy(() => import("./skill-cover-animated"));
+
+/**
+ * A boundary whose whole job is to keep a cover on screen. If the animated
+ * module fails to load, or the canvas throws while initialising, the person
+ * sees the static grid — the same picture, minus the motion — and the page
+ * around it is unaffected.
+ */
+class CoverErrorBoundary extends React.Component<
+  { fallback: React.ReactNode; children: React.ReactNode },
+  { failed: boolean }
+> {
+  state = { failed: false };
+
+  static getDerivedStateFromError(): { failed: boolean } {
+    return { failed: true };
+  }
+
+  render() {
+    return this.state.failed ? this.props.fallback : this.props.children;
+  }
+}
 
 function formatShortDate(dateStr?: string): string {
   if (!dateStr) return "";
@@ -25,6 +73,10 @@ export interface SkillCoverProps {
   seed: string;
   width?: number;
   color?: string;
+  /**
+   * Opt this ONE cover into motion. Native only; ignored on web, and under
+   * reduced motion. Never set it from a list.
+   */
   animated?: boolean;
   title?: string;
   author?: string;
@@ -35,7 +87,7 @@ export function SkillCover({
   seed,
   width = 110,
   color,
-  animated = true,
+  animated = false,
   title,
   author,
   updatedAt,
@@ -76,12 +128,35 @@ export function SkillCover({
     [grid, palette, lightMode],
   );
 
+  const canvasProps: SkillCoverCanvasProps = {
+    width,
+    height,
+    cellW,
+    cellH,
+    halfW,
+    halfH,
+    grid,
+    palette,
+    staticColors,
+    glowColor,
+    animated,
+    lightMode,
+    isDarkColorScheme,
+  };
+
+  const staticGrid = <SkillCoverStaticGrid {...canvasProps} />;
+  // Web is excluded HERE, before any import, so the animated module is not
+  // even requested from the web bundle.
+  const wantsMotion = animated && Platform.OS !== "web";
+
   // Scale font sizes relative to width
   const titleSize = Math.round(width * 0.17);
   const metaSize = Math.round(width * 0.082);
 
   return (
     <View
+      accessibilityRole="image"
+      accessibilityLabel={title}
       style={{
         width,
         height,
@@ -89,23 +164,17 @@ export function SkillCover({
         overflow: "hidden",
       }}
     >
-      <SkillCoverCanvas
-        width={width}
-        height={height}
-        cellW={cellW}
-        cellH={cellH}
-        halfW={halfW}
-        halfH={halfH}
-        grid={grid}
-        palette={palette}
-        staticColors={staticColors}
-        glowColor={glowColor}
-        animated={animated}
-        lightMode={lightMode}
-        isDarkColorScheme={isDarkColorScheme}
-      />
+      {wantsMotion ? (
+        <CoverErrorBoundary fallback={staticGrid}>
+          <Suspense fallback={staticGrid}>
+            <LazyAnimatedCanvas {...canvasProps} />
+          </Suspense>
+        </CoverErrorBoundary>
+      ) : (
+        staticGrid
+      )}
 
-      {/* Bottom overlay: blurred gradient with title + author/date */}
+      {/* Bottom overlay: gradient scrim with title + author/date */}
       {(title || author || updatedAt) && (
         <View
           style={{
@@ -120,18 +189,13 @@ export function SkillCover({
           }}
           pointerEvents="none"
         >
-          <BlurView
-            intensity={30}
-            tint={isDarkColorScheme ? "dark" : "light"}
-            style={StyleSheet.absoluteFill}
-          />
           <LinearGradient
             colors={[
               "transparent",
-              isDarkColorScheme
-                ? "rgba(0,0,0,0.7)"
-                : "rgba(255,255,255,0.7)",
+              isDarkColorScheme ? "rgba(0,0,0,0.55)" : "rgba(255,255,255,0.55)",
+              isDarkColorScheme ? "rgba(0,0,0,0.85)" : "rgba(255,255,255,0.85)",
             ]}
+            locations={[0, 0.35, 1]}
             style={StyleSheet.absoluteFill}
           />
           <View

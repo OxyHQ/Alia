@@ -1,5 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, ScrollView, Pressable, RefreshControl } from 'react-native';
+import { FlashList } from '@shopify/flash-list';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,7 +10,7 @@ import { useRouter } from 'expo-router';
 import {
   useInstallSkill,
   useInstalledSkills,
-  useSkillCatalogue,
+  useSkillCataloguePages,
   type InstalledSkill,
   type Skill,
 } from '@/lib/hooks/use-skills';
@@ -23,9 +24,40 @@ import { ContentPanel } from '@oxy.so/bloom/content-panel';
  *
  * Two questions, kept apart because they are different: what EXISTS (the
  * catalogue, which anybody can browse) and what this account has INSTALLED,
- * which is the only thing the model can reach. A skill on the shelf is marked as
- * such wherever it appears, so "installed" is never something to go and check.
+ * which is the only thing the model can reach.
+ *
+ * What this screen mounts is bounded, on purpose (#545). The catalogue arrives
+ * a page at a time; each shelf is a horizontal FlashList that mounts only the
+ * books within `drawDistance` of the viewport; a skill on the shelf appears on
+ * the Installed shelf ONLY, never a second time in its catalogue row; and every
+ * cover is the static grid — no canvas, no clock, no blur. The animated cover
+ * is the detail page's one opt-in.
  */
+
+const BOOK_WIDTH = 110;
+const BOOK_GAP = 10;
+/** Cover (2:3) + the gap below it + the install button. FlashList needs the height. */
+const SHELF_HEIGHT = BOOK_WIDTH * 1.5 + 6 + 28;
+/** How far past the viewport edge a shelf pre-mounts: about two books. */
+const SHELF_DRAW_DISTANCE = (BOOK_WIDTH + BOOK_GAP) * 2;
+/** Typing pauses this long before a keystroke becomes a request. */
+const SEARCH_DEBOUNCE_MS = 250;
+
+/**
+ * The server's `query` filter, applied locally to the installed shelf: an
+ * `ilike` on name, display name and description. The installed list is not
+ * searched server-side, and a shelf that ignored the search box while the
+ * others obeyed it would look like results.
+ */
+function matchesQuery(skill: Skill, query: string): boolean {
+  if (!query) return true;
+  const needle = query.toLowerCase();
+  return (
+    skill.name.toLowerCase().includes(needle) ||
+    skill.displayName.toLowerCase().includes(needle) ||
+    skill.description.toLowerCase().includes(needle)
+  );
+}
 
 function SkillBook({
   skill,
@@ -39,11 +71,11 @@ function SkillBook({
   onInstall: () => void;
 }) {
   return (
-    <View className="mr-2.5 w-[110px]">
+    <View style={{ width: BOOK_WIDTH, marginRight: BOOK_GAP }}>
       <Pressable onPress={onPress} className="active:opacity-80">
         <SkillCover
           seed={skill.name}
-          width={110}
+          width={BOOK_WIDTH}
           color={skill.color ?? undefined}
           title={skill.displayName}
           author={skill.publisher ?? undefined}
@@ -73,13 +105,28 @@ function Shelf({
   installedIds,
   onPressSkill,
   onInstall,
+  onEndReached,
 }: {
   title: string;
   skills: Skill[];
   installedIds: Set<string>;
   onPressSkill: (name: string) => void;
   onInstall: (id: string) => void;
+  /** Reaching the end of a catalogue shelf asks for the next page. */
+  onEndReached?: () => void;
 }) {
+  const renderItem = useCallback(
+    ({ item }: { item: Skill }) => (
+      <SkillBook
+        skill={item}
+        installed={installedIds.has(item._id)}
+        onPress={() => onPressSkill(item.name)}
+        onInstall={() => onInstall(item._id)}
+      />
+    ),
+    [installedIds, onPressSkill, onInstall],
+  );
+
   if (skills.length === 0) return null;
   return (
     <ContentPanel surfaceClassName="bg-background">
@@ -87,17 +134,21 @@ function Shelf({
         <View className="px-5 mb-2">
           <Text className="text-[11px] font-semibold text-muted-foreground tracking-wider uppercase">{title}</Text>
         </View>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20 }}>
-          {skills.map((skill) => (
-            <SkillBook
-              key={skill._id}
-              skill={skill}
-              installed={installedIds.has(skill._id)}
-              onPress={() => onPressSkill(skill.name)}
-              onInstall={() => onInstall(skill._id)}
-            />
-          ))}
-        </ScrollView>
+        {/* A horizontal list needs its height from outside; the books are all one size. */}
+        <View style={{ height: SHELF_HEIGHT }}>
+          <FlashList
+            horizontal
+            data={skills}
+            keyExtractor={(skill) => skill._id}
+            renderItem={renderItem}
+            extraData={installedIds}
+            drawDistance={SHELF_DRAW_DISTANCE}
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ paddingHorizontal: 20 }}
+            onEndReached={onEndReached}
+            onEndReachedThreshold={0.5}
+          />
+        </View>
       </View>
     </ContentPanel>
   );
@@ -107,8 +158,22 @@ export default function SkillsScreen() {
   const { t } = useTranslation();
   const router = useRouter();
   const [search, setSearch] = useState('');
+  /** What the catalogue is actually asked for: `search`, once typing has paused. */
+  const [query, setQuery] = useState('');
 
-  const catalogue = useSkillCatalogue(search.trim() ? { query: search.trim() } : {});
+  // Clearing the box answers at once; typing waits. A request per keystroke is
+  // a page of covers per keystroke.
+  useEffect(() => {
+    const trimmed = search.trim();
+    if (trimmed === '') {
+      setQuery('');
+      return;
+    }
+    const timer = setTimeout(() => setQuery(trimmed), SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  const catalogue = useSkillCataloguePages(query ? { query } : {});
   const installed = useInstalledSkills();
   const install = useInstallSkill();
 
@@ -117,11 +182,35 @@ export default function SkillsScreen() {
     [installed.data],
   );
 
-  const skills = catalogue.data ?? [];
-  const official = useMemo(() => skills.filter((skill) => skill.source === 'builtin' || skill.source === 'registry'), [skills]);
-  const community = useMemo(() => skills.filter((skill) => skill.source !== 'builtin' && skill.source !== 'registry'), [skills]);
+  const skills = useMemo(() => catalogue.data?.pages.flat() ?? [], [catalogue.data]);
+  // An installed skill lives on the Installed shelf and nowhere else on this
+  // screen: the same book twice is twice the covers for no information.
+  const official = useMemo(
+    () =>
+      skills.filter(
+        (skill) => !installedIds.has(skill._id) && (skill.source === 'builtin' || skill.source === 'registry'),
+      ),
+    [skills, installedIds],
+  );
+  const community = useMemo(
+    () =>
+      skills.filter(
+        (skill) => !installedIds.has(skill._id) && skill.source !== 'builtin' && skill.source !== 'registry',
+      ),
+    [skills, installedIds],
+  );
+  const installedShelf = useMemo(
+    () => (installed.data ?? []).filter((skill) => matchesQuery(skill, query)),
+    [installed.data, query],
+  );
 
-  const openSkill = (name: string) => router.push(`/(app)/skills/${name}`);
+  const openSkill = useCallback((name: string) => router.push(`/(app)/skills/${name}`), [router]);
+  const installSkill = useCallback((id: string) => install.mutate(id), [install]);
+  const loadMore = useCallback(() => {
+    if (catalogue.hasNextPage && !catalogue.isFetchingNextPage) void catalogue.fetchNextPage();
+  }, [catalogue]);
+
+  const nothingToShow = skills.length === 0 && installedShelf.length === 0;
 
   return (
     <View className="flex-1 bg-background">
@@ -130,7 +219,7 @@ export default function SkillsScreen() {
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
-            refreshing={catalogue.isFetching && !catalogue.isLoading}
+            refreshing={catalogue.isFetching && !catalogue.isLoading && !catalogue.isFetchingNextPage}
             onRefresh={() => {
               void catalogue.refetch();
               void installed.refetch();
@@ -179,43 +268,70 @@ export default function SkillsScreen() {
             </View>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, gap: 10 }}>
               {Array.from({ length: 4 }).map((_, index) => (
-                <Skeleton key={index} style={{ width: 110, height: 160, borderRadius: 8 }} />
+                <Skeleton key={index} style={{ width: BOOK_WIDTH, height: BOOK_WIDTH * 1.5, borderRadius: 8 }} />
               ))}
             </ScrollView>
           </View>
         ) : (
           <>
-            {(installed.data ?? []).length > 0 ? (
-              <Shelf
-                title={t('skills.installed')}
-                skills={installed.data ?? []}
-                installedIds={installedIds}
-                onPressSkill={openSkill}
-                onInstall={(id) => install.mutate(id)}
-              />
-            ) : null}
+            <Shelf
+              title={t('skills.installed')}
+              skills={installedShelf}
+              installedIds={installedIds}
+              onPressSkill={openSkill}
+              onInstall={installSkill}
+            />
             <Shelf
               title={t('skills.official')}
               skills={official}
               installedIds={installedIds}
               onPressSkill={openSkill}
-              onInstall={(id) => install.mutate(id)}
+              onInstall={installSkill}
+              onEndReached={loadMore}
             />
             <Shelf
               title={t('skills.community')}
               skills={community}
               installedIds={installedIds}
               onPressSkill={openSkill}
-              onInstall={(id) => install.mutate(id)}
+              onInstall={installSkill}
+              onEndReached={loadMore}
             />
+
+            {/* A failed request is said out loud, with the way back. A blank
+                catalogue after a search that errored reads as "no results". */}
+            {catalogue.isError ? (
+              <View className="px-5 py-6 items-center gap-3">
+                <Text className="text-[13px] text-muted-foreground text-center">{t('skills.loadFailed')}</Text>
+                <Button size="sm" variant="outline" className="rounded-full" onPress={() => void catalogue.refetch()}>
+                  <Text className="text-[13px]">{t('common.tryAgain')}</Text>
+                </Button>
+              </View>
+            ) : null}
 
             {/* An empty catalogue is a real state — a fresh database before the
                 registry sync has run — and saying so beats a blank screen. */}
-            {skills.length === 0 ? (
+            {nothingToShow && !catalogue.isError ? (
               <View className="px-5 py-10 items-center">
                 <Text className="text-[13px] text-muted-foreground text-center">
-                  {search.trim() ? t('skills.noResults') : t('skills.empty')}
+                  {query ? t('skills.noResults') : t('skills.empty')}
                 </Text>
+              </View>
+            ) : null}
+
+            {/* The shelves ask for more as they are scrolled; this is the same
+                request for anybody who would rather press than scroll. */}
+            {catalogue.hasNextPage ? (
+              <View className="px-5 pb-6 items-center">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="rounded-full"
+                  disabled={catalogue.isFetchingNextPage}
+                  onPress={loadMore}
+                >
+                  <Text className="text-[13px]">{t('skills.loadMore')}</Text>
+                </Button>
               </View>
             ) : null}
           </>
