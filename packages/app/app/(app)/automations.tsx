@@ -348,6 +348,7 @@ export default function AutomationsScreen() {
                 <Pressable
                   key={index}
                   onPress={() => handleCardPress(item.description)}
+                  accessibilityLabel={item.description}
                   className="w-[48%] md:w-[31%] rounded-2xl bg-surface border border-border p-4 active:bg-muted/50"
                 >
                   <Text className="text-2xl mb-3">{item.emoji}</Text>
