@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, Switch, View } from 'react-native';
 import { Plus, Trash2 } from 'lucide-react-native';
-import { Dialog } from '@oxyhq/bloom/dialog';
-import { toast } from '@oxyhq/bloom/toast';
+import { Dialog } from '@oxy.so/bloom/dialog';
+import { toast } from '@oxy.so/bloom/toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';

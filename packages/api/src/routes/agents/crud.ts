@@ -40,6 +40,7 @@ import {
 } from '../../domain/agent.js';
 import { log } from '../../lib/logger.js';
 import { z } from 'zod';
+import { OXY_KAANA_ROUTING_PROFILE_IDS } from '../../config/oxy-inference-routing-profile-ids.js';
 import { formatCapabilityGrant, isCapabilityGrant } from '../../domain/capability-grants.js';
 import {
   listMcpServersForUser,
@@ -424,6 +425,7 @@ router.post('/', authenticateToken, async (req: Request, res: Response) => {
 
     const agent = await createAgent(getDb(), {
       oxyAccountId: data.oxyAccountId,
+      ownerOxyAccountId: verdict.ownerAccountId,
       tagline: data.tagline,
       description: data.description,
       authorOxyUserId: req.user.id,
@@ -441,6 +443,7 @@ router.post('/', authenticateToken, async (req: Request, res: Response) => {
        */
       isPublished: data.isPublished ?? true,
       access: data.access ?? 'private',
+      routingProfileId: OXY_KAANA_ROUTING_PROFILE_IDS['route:auto'],
       ...(data.systemPrompt !== undefined && { systemPrompt: data.systemPrompt }),
       ...(data.archetype !== undefined && { archetype: data.archetype }),
       ...(data.archetypeConfig !== undefined && { archetypeConfig: data.archetypeConfig }),
