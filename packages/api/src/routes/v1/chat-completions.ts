@@ -256,9 +256,17 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
       autonomyRuntime,
       includeUsage,
       inferenceServiceToken: ctx.inferenceServiceToken,
+      beforeStreamClose: coordinatedTurn
+        ? async () => {
+            await coordinatedTurn?.complete();
+            coordinatedTurn = null;
+          }
+        : undefined,
     });
 
     if (loopResult.status === 'completed') {
+      // Streaming settles before [DONE] and clears the handle. Non-streaming
+      // has no client-side send race, so it is completed here as before.
       await coordinatedTurn?.complete();
       return;
     }
