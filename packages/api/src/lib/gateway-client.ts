@@ -3,11 +3,15 @@
  *
  * Hosted inference does not cross this module: Kaana is invoked through the
  * inference seam, and unsupported modalities fail before a provider adapter is
- * imported. The dynamic imports below retain only Alia-owned product metadata,
- * billing repositories and historical health views needed by non-inference
- * routes while their data migration is completed.
+ * imported. The routing-profile catalogue is Alia product METADATA — names,
+ * tiers, credit multipliers — and is imported statically: the dynamic
+ * `import()` it used to hide behind existed so that loading this facade did
+ * not load a provider SDK, and no provider SDK is reachable from that module
+ * any more (`kaana-only-runtime.test.ts`). The billing repositories below stay
+ * dynamic because they pull in the database.
  */
 
+import * as catalogue from '../internal/providers/lib/routing-profile-catalogue.js';
 import type { PlanFilter } from '../db/billing/planRepository.js';
 import type { AvailabilityScope } from './availability-scope.js';
 import type { RequiredAttribution } from './model-attribution.js';
@@ -195,8 +199,7 @@ export interface PlanFeatureData {
  * Get all alia models.
  */
 export async function getAllRoutingProfiles(): Promise<RoutingProfile[]> {
-  const { getAllRoutingProfiles: localGetAll } = await import('../internal/providers/lib/routing-profile-catalogue.js');
-  return localGetAll();
+  return catalogue.getAllRoutingProfiles();
 }
 
 /**
@@ -217,32 +220,28 @@ export async function getAvailableModels(): Promise<RoutingProfileWithAvailabili
  * Get a specific alia model by ID.
  */
 export async function getRoutingProfile(modelId: string): Promise<RoutingProfile | null> {
-  const { getRoutingProfile: localGet } = await import('../internal/providers/lib/routing-profile-catalogue.js');
-  return localGet(modelId);
+  return catalogue.getRoutingProfile(modelId);
 }
 
 /**
  * Check if a model ID is an alia model.
  */
 export async function isRoutingProfile(modelId: string): Promise<boolean> {
-  const { isRoutingProfile: localIsAlia } = await import('../internal/providers/lib/routing-profile-catalogue.js');
-  return localIsAlia(modelId);
+  return catalogue.isRoutingProfile(modelId);
 }
 
 /**
  * Get all alia models by category.
  */
 export async function getRoutingProfilesByCategory(category: string): Promise<RoutingProfile[]> {
-  const { getRoutingProfilesByCategory: localGetByCategory } = await import('../internal/providers/lib/routing-profile-catalogue.js');
-  return localGetByCategory(category as never);
+  return catalogue.getRoutingProfilesByCategory(category as never);
 }
 
 /**
  * Get default model for a category.
  */
 export async function getDefaultModelForCategory(category: string): Promise<RoutingProfile | null> {
-  const { getDefaultModelForCategory: localGetDefault } = await import('../internal/providers/lib/routing-profile-catalogue.js');
-  return localGetDefault(category as never);
+  return catalogue.getDefaultModelForCategory(category as never);
 }
 
 /**
@@ -273,16 +272,14 @@ export function getDefaultRoutingProfile(): string {
  * Get tier-to-model mappings.
  */
 export async function getTierMappings(): Promise<Record<string, ModelMapping[]>> {
-  const { TIER_MODEL_MAPPINGS } = await import('../internal/providers/lib/routing-profile-catalogue.js');
-  return TIER_MODEL_MAPPINGS as unknown as Record<string, ModelMapping[]>;
+  return catalogue.TIER_MODEL_MAPPINGS as unknown as Record<string, ModelMapping[]>;
 }
 
 /**
  * Get model mappings for a specific tier.
  */
 export async function getModelMappingsForTier(tier: string): Promise<ModelMapping[]> {
-  const { getModelMappingsForTier: localGetMappings } = await import('../internal/providers/lib/routing-profile-catalogue.js');
-  return localGetMappings(tier as never) as unknown as ModelMapping[];
+  return catalogue.getModelMappingsForTier(tier as never) as unknown as ModelMapping[];
 }
 
 // ============== BILLING DATA ==============
