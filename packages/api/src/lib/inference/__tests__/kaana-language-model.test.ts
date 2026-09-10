@@ -83,6 +83,38 @@ describe('Kaana AI SDK adapter through Oxy', () => {
     expect(mocks.requests[0]).not.toHaveProperty('routingProfile');
   });
 
+  it('sends a distinct Idempotency-Key on every respond and stream call', async () => {
+    /**
+     * The Oxy edge refuses a key already bound to a reservation with
+     * `idempotency_conflict`, so the key must be unique per ATTEMPT: two steps
+     * of one tool loop, or a stream after a respond, must never share one.
+     * Both methods are driven, twice each, and every key is asserted distinct
+     * and UUID-shaped — a fixed string per model instance would pass a
+     * presence check and refuse every second request in production.
+     */
+    const model = kaanaLanguageModel({
+      target: { kind: 'routing_profile_id', routingProfileId: '01a06477-94f5-74f0-bc25-628b5f45d802' },
+      modelId: 'route:auto',
+      surface: 'chat',
+      oxyUserId: 'user-id',
+    });
+    mocks.events.push({ type: 'done', finishReason: 'stop' });
+
+    await model.doGenerate({ prompt } as never);
+    await model.doGenerate({ prompt } as never);
+    await drain((await model.doStream({ prompt } as never)).stream);
+    await drain((await model.doStream({ prompt } as never)).stream);
+
+    const keys = mocks.options.map((o) => o.idempotencyKey);
+    expect(keys).toHaveLength(4);
+    const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+    for (const key of keys) expect(key, String(key)).toMatch(uuid);
+    expect(new Set(keys).size).toBe(4);
+    // The key rides beside the other per-call options rather than replacing them.
+    expect(mocks.options[0]).toMatchObject({ delegatedUserId: 'user-id' });
+    expect(mocks.options[0].signal).toBeInstanceOf(AbortSignal);
+  });
+
   it('streams through the SDK and keeps usage and finish semantics', async () => {
     mocks.events.push(
       { type: 'delta', channel: 'output_text', text: 'ho' },

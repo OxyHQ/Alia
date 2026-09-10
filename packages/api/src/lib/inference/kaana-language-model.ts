@@ -31,6 +31,8 @@
  * it.
  */
 
+import { randomUUID } from 'node:crypto';
+
 import type {
   InferenceMessage,
   InferenceContentPart,
@@ -77,6 +79,34 @@ function inferenceClient(options: KaanaModelOptions) {
   return options.serviceToken === undefined
     ? getOxyInferenceClient()
     : buildOxyInferenceClientForServiceToken(options.serviceToken);
+}
+
+/**
+ * The per-call options: signal, idempotency key, delegated user.
+ *
+ * `idempotencyKey` is a fresh UUID on EVERY call, never reused across a
+ * conversation turn's steps or a retry. The Oxy edge binds a key to one
+ * reservation and answers a second request carrying it with
+ * `idempotency_conflict` rather than replaying — responses are not retained —
+ * so a key that lived for a whole tool loop would refuse the loop's second
+ * step, and a key that lived for a retry would refuse the retry. What the key
+ * buys is the structural half of "a retry never produces a second charge":
+ * the same attempt re-sent (a proxy replay, a duplicated request on the wire)
+ * cannot reserve twice. Alia itself never re-sends an attempt
+ * (`provider-loop.ts` resolves Kaana once), so a new key per call is both the
+ * safe choice and the only correct one.
+ */
+function requestOptions(
+  options: KaanaModelOptions,
+  signal: AbortSignal,
+): { signal: AbortSignal; idempotencyKey: string; delegatedUserId?: string } {
+  return {
+    signal,
+    idempotencyKey: randomUUID(),
+    ...(options.oxyUserId === undefined || options.oxyUserId === null
+      ? {}
+      : { delegatedUserId: options.oxyUserId }),
+  };
 }
 
 /**
@@ -471,12 +501,10 @@ export function kaanaLanguageModel(options: KaanaModelOptions): LanguageModelV3 
       if (client === null) throw new Error('Oxy inference is not configured for this deployment');
 
       const translation = translate(call);
-      const completion = await client.respond(requestFor(options, call, translation), {
-        signal: call.abortSignal ?? AbortSignal.timeout(120_000),
-        ...(options.oxyUserId === undefined || options.oxyUserId === null
-          ? {}
-          : { delegatedUserId: options.oxyUserId }),
-      });
+      const completion = await client.respond(
+        requestFor(options, call, translation),
+        requestOptions(options, call.abortSignal ?? AbortSignal.timeout(120_000)),
+      );
       const generated = contentFrom(completion);
 
       return {
@@ -493,12 +521,10 @@ export function kaanaLanguageModel(options: KaanaModelOptions): LanguageModelV3 
 
       const translation = translate(call);
       const signal = call.abortSignal ?? AbortSignal.timeout(120_000);
-      const events = client.stream(requestFor(options, call, translation), {
-        signal,
-        ...(options.oxyUserId === undefined || options.oxyUserId === null
-          ? {}
-          : { delegatedUserId: options.oxyUserId }),
-      });
+      const events = client.stream(
+        requestFor(options, call, translation),
+        requestOptions(options, signal),
+      );
 
       /**
        * One text block, opened on the first delta rather than up front.
