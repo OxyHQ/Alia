@@ -903,7 +903,7 @@ not cutover work.
 and OxyHQ/oxy `main` (`19f25b7`), plus the eight Alia rows the morning pass had marked doable here.
 Full record: `reaudit20260910Upstream` in the JSON.
 
-**Result:** 24 more rows earned, 128 of 246 in total. Open verdicts now: `BLOCKED_ALIAMODELS` 28,
+**Result:** 25 more rows earned, 129 of 246 in total. Open verdicts now: `BLOCKED_ALIAMODELS` 28,
 `BLOCKED_CUTOVER` 26, `BLOCKED_OPERATOR` 24, `PRODUCT_DECISION` 17, `DUPLICATE_OF` 9, `ACTIONABLE_NOW` 4,
 `BLOCKED_KAANA` 4, `ACTIONABLE_UPSTREAM` 3, `ROLLUP_OF` 1, `SUPERSEDED_BY_REMOVAL` 1.
 
