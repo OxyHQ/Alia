@@ -20,7 +20,7 @@ export function PromptInputAddMenu({
   iconSize = 18,
   children,
 }: PromptInputAddMenuProps) {
-  const { addAttachment } = usePromptInput();
+  const { addAttachment, disabled, isLoading } = usePromptInput();
   const { pickImage, takePhoto } = useImagePicker();
   const { pickDocument } = useDocumentPicker();
   const { colors } = useColorScheme();
@@ -67,6 +67,11 @@ export function PromptInputAddMenu({
             className
           )}
           accessibilityLabel="Upload files and more"
+          // Nothing can be attached to a turn that is streaming, or to a
+          // composer the usage limit has closed. Locked on the control itself
+          // so the lock is reported for THIS button and not inherited by the
+          // stop button from a disabled ancestor.
+          disabled={disabled || isLoading}
         >
           <ComposerGlyph name="plus" size={iconSize} color={colors.mutedForeground} />
         </Button>

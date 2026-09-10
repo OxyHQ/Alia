@@ -1,7 +1,10 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useStore, type Attachment } from "@/lib/stores/global-store";
 import { useChatConversation } from "@/lib/hooks/use-chat-conversation";
-import { useCreateConversation, useSaveConversation } from "@/lib/hooks/use-conversations";
+import { useCreateConversation, useSaveConversation, type Conversation } from "@/lib/hooks/use-conversations";
+import { buildConversationMarkdown, exportFilename } from "@/lib/conversation-export";
+import { deliverMarkdownFile } from "@/lib/conversation-share";
+import { toast } from "@oxy.so/bloom/toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/hooks/query-keys";
 import { ChatPageContent } from "@/components/chat-page-content";
@@ -111,6 +114,8 @@ export const ConversationScreen = ({
     rejectPlan,
     suggestedNewConversation,
     dismissSuggestedNewConversation,
+    failedTurn,
+    retryFailedTurn,
   } = useChatConversation({ conversationId, reasoningEffort, selectedModel: selection.effectiveId ?? undefined, agentId });
 
   /**
@@ -160,6 +165,38 @@ export const ConversationScreen = ({
   const saveConversation = useSaveConversation();
   const createConversation = useCreateConversation();
   const queryClient = useQueryClient();
+
+  /**
+   * The messages, for the export — behind a ref, and that is the whole point.
+   *
+   * `ChatHeader` is memoized against this screen, which re-renders per
+   * streamed token, and `handleExport` becomes one of its props. A callback
+   * that closed over `messages` would be rebuilt on every token and hand every
+   * one of those renders to the whole header; one that reads a ref is built
+   * once and still sees the thread as it is when the menu item is chosen.
+   */
+  const messagesRef = useRef<Message[]>(messages);
+  useEffect(() => { messagesRef.current = messages; }, [messages]);
+
+  const handleExport = useCallback(() => {
+    // The title is read out of the query cache at the moment of the export
+    // rather than subscribed to: `useChatConversation` already keeps that
+    // entry live, and the `alia.title` frame writes the generated title into
+    // the same key, so this sees it without a dependency of its own.
+    const cached = queryClient.getQueryData<Conversation>(queryKeys.conversations.detail(conversationId));
+    const title = cached?.title?.trim() || agentName || t('chat.newChat');
+    const exportedAt = new Date();
+    const markdown = buildConversationMarkdown({
+      title,
+      messages: messagesRef.current,
+      exportedAt,
+      assistantName: agentName,
+      userLabel: t('chat.searchThreadYou'),
+    });
+    deliverMarkdownFile(exportFilename(title, exportedAt), markdown, title).catch(() => {
+      toast.error(t('chat.exportFailed'));
+    });
+  }, [queryClient, conversationId, agentName, t]);
 
   /**
    * Take the agent up on its offer: start the next stretch of this thread.
@@ -271,6 +308,9 @@ export const ConversationScreen = ({
           onLoadHistory={jumped ? past.loadMore : history.loadMore}
           onSearchPress={threadHandle === undefined ? undefined : handleSearchPress}
           focusCursor={jumpedTo}
+          onExport={handleExport}
+          failedTurn={failedTurn}
+          onRetryTurn={retryFailedTurn}
         />
         {!jumped ? null : (
           <View className="absolute inset-x-0 top-16 z-10 items-center" pointerEvents="box-none">

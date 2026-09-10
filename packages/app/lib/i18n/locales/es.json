@@ -993,7 +993,9 @@
     "noSources": "No se usaron fuentes",
     "noSteps": "No hay pasos para mostrar",
     "websites": "Sitios web",
-    "viewDetails": "Ver detalles"
+    "viewDetails": "Ver detalles",
+    "references": "Referencias",
+    "sourceLabel": "Fuente {{n}}: {{title}}"
   },
   "landing": {
     "tagline": "Tu asistente de IA inteligente",

@@ -50,14 +50,22 @@ import { FairCoinCard, type FairCoinCardData } from "@/components/cards/faircoin
 import { NewConversationOffer } from "@/components/new-conversation-offer";
 import { daySeparators } from "@/lib/message-days";
 import { threadSeamIds, type ThreadMessage } from "@/lib/thread-history";
+import { FailedTurnCard } from "@/components/chat/failed-turn-card";
+import type { FailedTurn } from "@/components/chat/turn-failure";
 
 const isWeb = Platform.OS === "web";
 
 // The action bar reveals on hover where a hover EXISTS, and is simply always
 // present where it does not — on touch these actions were reachable only
 // through a long-press menu, which nothing on screen advertises.
+//
+// `focus-within` beside `hover`: the buttons are real, focusable controls, and
+// a keyboard reaching one by Tab has no hover to reveal it with. Without this
+// the focus ring landed on an invisible button and the reader had no idea
+// what they were about to activate. The bar shows for as long as focus is in
+// it, on the row (`group-`) or on the bar itself.
 const ACTION_BAR = isWeb
-  ? "flex-row gap-1 opacity-0 transition-opacity group-hover:opacity-100"
+  ? "flex-row gap-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 focus-within:opacity-100"
   : "flex-row gap-1";
 const ACTION_BTN = isWeb
   ? "p-1.5 rounded-lg hover:bg-muted active:bg-muted"
@@ -145,6 +153,14 @@ type ChatInterfaceProps = {
    * reader twenty messages past the thing they searched for.
    */
   focusCursor?: string | null;
+  /**
+   * The turn that got no answer, or `null`. Its card is drawn under the row
+   * `anchorMessageId` names — the user message when nothing came back, the
+   * partial answer when something did — so the error sits with the turn it
+   * belongs to rather than at the end of the list.
+   */
+  failedTurn?: FailedTurn | null;
+  onRetryTurn?: () => void;
 };
 
 /**
@@ -457,6 +473,9 @@ const MessageRow = React.memo(function MessageRow({
                   key="read-aloud"
                   className={ACTION_BTN}
                   onPress={() => readAloud(m.id, messageText, chatId?.id, m.audioUrl)}
+                  accessibilityRole="button"
+                  accessibilityLabel={rowT('chat.readAloud')}
+                  accessibilityState={{ selected: ttsState === 'playing' || ttsState === 'paused', busy: ttsState === 'loading' }}
                 >
                   {ttsState === 'playing' || ttsState === 'paused' ? (
                     <Square size={14} className={ttsState === 'playing' ? "text-primary" : "text-muted-foreground"} />
@@ -468,6 +487,9 @@ const MessageRow = React.memo(function MessageRow({
                   key="generate-audio"
                   className={ACTION_BTN}
                   onPress={() => generateAudio(m.id, messageText, chatId?.id)}
+                  accessibilityRole="button"
+                  accessibilityLabel={rowT('chat.generateAudio')}
+                  accessibilityState={{ selected: audioGenRowState === 'playing', busy: audioGenRowState === 'generating' }}
                 >
                   {audioGenRowState === 'playing' ? (
                     <Square size={14} className="text-primary" />
@@ -479,6 +501,8 @@ const MessageRow = React.memo(function MessageRow({
                   key="copy"
                   className={ACTION_BTN}
                   onPress={() => handleCopyMessage(m.id, messageText)}
+                  accessibilityRole="button"
+                  accessibilityLabel={rowT('chat.copy')}
                 >
                   {isCopied ? (
                     <Check size={14} className="text-green-500" />
@@ -487,14 +511,34 @@ const MessageRow = React.memo(function MessageRow({
                   )}
                 </Pressable>
                 {onRegenerate === undefined || m.isStreaming ? null : (
-                  <Pressable key="regenerate" className={ACTION_BTN} onPress={() => onRegenerate(m.id)}>
+                  <Pressable
+                    key="regenerate"
+                    className={ACTION_BTN}
+                    onPress={() => onRegenerate(m.id)}
+                    accessibilityRole="button"
+                    accessibilityLabel={rowT('chat.regenerate')}
+                  >
                     <RotateCcw size={14} className="text-muted-foreground" />
                   </Pressable>
                 )}
-                <Pressable key="thumbs-up" className={ACTION_BTN} onPress={() => handleVote(m.id, 'up', chatId?.id)}>
+                <Pressable
+                  key="thumbs-up"
+                  className={ACTION_BTN}
+                  onPress={() => handleVote(m.id, 'up', chatId?.id)}
+                  accessibilityRole="button"
+                  accessibilityLabel={rowT('chat.like')}
+                  accessibilityState={{ selected: myVote === 'up' }}
+                >
                   <ThumbsUp size={14} className={myVote === 'up' ? "text-primary" : "text-muted-foreground"} />
                 </Pressable>
-                <Pressable key="thumbs-down" className={ACTION_BTN} onPress={() => handleVote(m.id, 'down', chatId?.id)}>
+                <Pressable
+                  key="thumbs-down"
+                  className={ACTION_BTN}
+                  onPress={() => handleVote(m.id, 'down', chatId?.id)}
+                  accessibilityRole="button"
+                  accessibilityLabel={rowT('chat.dislike')}
+                  accessibilityState={{ selected: myVote === 'down' }}
+                >
                   <ThumbsDown size={14} className={myVote === 'down' ? "text-primary" : "text-muted-foreground"} />
                 </Pressable>
               </View>
@@ -565,6 +609,8 @@ const MessageRow = React.memo(function MessageRow({
                     key="copy"
                     className={ACTION_BTN}
                     onPress={() => handleCopyMessage(m.id, messageText)}
+                    accessibilityRole="button"
+                    accessibilityLabel={rowT('chat.copy')}
                   >
                     {isCopied ? (
                       <Check size={14} className="text-green-500" />
@@ -582,6 +628,8 @@ const MessageRow = React.memo(function MessageRow({
                       key="edit"
                       className={ACTION_BTN}
                       onPress={() => onStartEdit(m.id, messageText)}
+                      accessibilityRole="button"
+                      accessibilityLabel={rowT('chat.edit')}
                     >
                       <Pencil size={14} className="text-muted-foreground" />
                     </Pressable>
@@ -639,7 +687,7 @@ const MessageRow = React.memo(function MessageRow({
 
 const imageThumbStyle = { width: 120, height: 120 };
 
-export const ChatInterface = React.memo(function ChatInterface({ messages, scrollViewRef, isLoading, conversationLoading, onStartEdit, onRegenerate, onCopyMessage, bottomPadding = 160, isVoiceActive = false, voiceAgentState, onScroll, onContentSizeChange, agentActivity, agentSessionId, onApprovePlan, onRejectPlan, suggestedNewConversation, onAcceptNewConversation, onDismissNewConversation, historyMessages, isLoadingHistory = false, onHistoryHeight, activeConversationId, focusCursor }: ChatInterfaceProps) {
+export const ChatInterface = React.memo(function ChatInterface({ messages, scrollViewRef, isLoading, conversationLoading, onStartEdit, onRegenerate, onCopyMessage, bottomPadding = 160, isVoiceActive = false, voiceAgentState, onScroll, onContentSizeChange, agentActivity, agentSessionId, onApprovePlan, onRejectPlan, suggestedNewConversation, onAcceptNewConversation, onDismissNewConversation, historyMessages, isLoadingHistory = false, onHistoryHeight, activeConversationId, focusCursor, failedTurn, onRetryTurn }: ChatInterfaceProps) {
     const { t, locale } = useTranslation();
     const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
     const [votedMessages, setVotedMessages] = useState<Record<string, 'up' | 'down'>>({});
@@ -910,6 +958,14 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
             onApprovePlan={onApprovePlan}
             onRejectPlan={onRejectPlan}
           />
+          {failedTurn === null || failedTurn === undefined || failedTurn.anchorMessageId !== m.id ? null : (
+            <FailedTurnCard
+              partial={failedTurn.partial}
+              retryable={failedTurn.retryable}
+              detail={failedTurn.detail}
+              onRetry={onRetryTurn}
+            />
+          )}
         </React.Fragment>
       );
     };

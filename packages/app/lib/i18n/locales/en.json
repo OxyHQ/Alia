@@ -1029,7 +1029,9 @@
     "noSources": "No sources used",
     "noSteps": "No steps to display",
     "websites": "Websites",
-    "viewDetails": "View details"
+    "viewDetails": "View details",
+    "references": "References",
+    "sourceLabel": "Source {{n}}: {{title}}"
   },
   "landing": {
     "tagline": "Your intelligent AI assistant",

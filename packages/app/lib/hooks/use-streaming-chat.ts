@@ -14,7 +14,6 @@ import { useStore } from '@/lib/stores/global-store';
 import { useModelStore } from '@/lib/stores/model-store';
 import type { EffortLevel } from '@/lib/hooks/use-catalogue';
 import { useUIStore } from '@/lib/stores/ui-store';
-import { toast } from '@oxy.so/bloom/toast';
 import i18n from '@/lib/i18n';
 import type { Conversation } from '@/lib/hooks/use-conversations';
 import { buildOutboundMessages } from '@/lib/chat-message-history';
@@ -22,15 +21,26 @@ import { hasUsableStreamOutput, type StreamOutputEvidence } from '@/lib/chat/str
 import { createSseFrameReader } from '@/lib/chat/sse-frame-reader';
 
 import type { ToolInvocation } from '@/lib/types/messages';
+import { readAliaMeta, type FailedTurn } from '@/components/chat/turn-failure';
 import { errorMessage as getErrorMessage, errorStatus, errorCode, errorName } from '../errors/error-utils';
 export type { ToolInvocation };
+export type { FailedTurn };
 
 /**
- * How a send ended. `failed` means the turn produced no real output — the
- * message list has been rolled back to what it was before the send, so the
- * caller can hand the text back to the composer.
+ * How a send ended.
+ *
+ *  - `sent`: the turn got an answer, or at least real output. It may STILL
+ *    carry a `failedTurn` — a stream that produced output and then a
+ *    synthetic tail keeps the output and shows the tail as an error.
+ *  - `errored`: no answer, and the person's turn is KEPT in the thread with
+ *    `failedTurn` attached, retry and all. The caller has nothing to restore.
+ *  - `failed`: the turn was rolled back to what the list was before the send,
+ *    so the caller hands the text back to the composer. Only the usage-limit
+ *    errors end this way now: they open a dialog of their own, and a retry
+ *    would be the wrong offer next to "upgrade" or "wait".
+ *  - `aborted`: the person stopped it; partial output is theirs to keep.
  */
-export type SendOutcome = 'sent' | 'failed' | 'aborted';
+export type SendOutcome = 'sent' | 'errored' | 'failed' | 'aborted';
 
 export interface SendOptions {
   /** `null` explicitly withholds MCP tools; omission preserves legacy callers. */
@@ -114,6 +124,15 @@ export function useStreamingChat(apiUrl: string, conversationId?: string, reason
    * was.
    */
   const [suggestedNewConversation, setSuggestedNewConversation] = useState<string | null>(null);
+  /**
+   * The turn that got no answer, drawn in the thread with an error and a
+   * retry — or `null`. See `components/chat/turn-failure.ts` for why a
+   * failure is kept rather than rolled back, and what the server persisted
+   * (nothing) that makes a plain re-send safe.
+   */
+  const [failedTurn, setFailedTurn] = useState<FailedTurn | null>(null);
+  /** What a retry re-sends: the same content and attachments, the same options. */
+  const retryRef = useRef<{ message: Omit<Message, 'id'>; options?: SendOptions; userMessageId: string } | null>(null);
   const { oxyServices } = useOxy();
   const queryClient = useQueryClient();
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -184,12 +203,25 @@ export function useStreamingChat(apiUrl: string, conversationId?: string, reason
     }
   }, []);
 
+  /**
+   * A different conversation is a different thread: a failure from the last
+   * one must not be drawn under a message in this one.
+   */
+  useEffect(() => {
+    setFailedTurn(null);
+    retryRef.current = null;
+  }, [conversationId]);
+
   const append = useCallback(async (
     message: Omit<Message, 'id'>,
     options?: SendOptions,
   ): Promise<SendOutcome> => {
     setIsLoading(true);
     setError(null);
+    // A new send answers the old failure, whether it is the retry or a fresh
+    // message: either way the card comes down.
+    setFailedTurn(null);
+    retryRef.current = null;
 
     // Everything the send is about to change, so a turn that produces no real
     // output can be undone in one step: the user message, the assistant
@@ -223,6 +255,51 @@ export function useStreamingChat(apiUrl: string, conversationId?: string, reason
 
     /** Keep a half-streamed turn — destroying real output is worse than showing the error. */
     const settleError = (): SendOutcome => hasUsableStreamOutput(outputEvidence) ? 'sent' : rollback();
+
+    /**
+     * The server's stand-in for an answer it could not get, if one arrived.
+     *
+     * Its content is NEVER appended: "all models are busy" rendered under
+     * Alia's mark is Alia declining, and it is the one thing this must not
+     * read as. The flag is remembered here and answered when the stream ends.
+     */
+    let syntheticTail: { retryable: boolean } | null = null;
+
+    /**
+     * Keep the person's turn, and hang the failure on it.
+     *
+     * With no real output the empty assistant placeholder comes out — an
+     * empty bubble under a thinking indicator would say an answer is still
+     * coming — and the user message stays where it was sent, with the error
+     * drawn under it. With real output, everything stays and the error is
+     * drawn under the answer as its tail. Either way what a retry needs is
+     * parked in `retryRef`, and the whole thing is one state update.
+     */
+    const keepFailedTurn = (retryable: boolean, detail?: string): SendOutcome => {
+      const partial = hasUsableStreamOutput(outputEvidence);
+      pendingContentRef.current = '';
+      pendingReasoningRef.current = '';
+      if (flushTimerRef.current) {
+        clearTimeout(flushTimerRef.current);
+        flushTimerRef.current = null;
+      }
+      if (!partial) {
+        // The updater form, on purpose: the user row and the placeholder went
+        // in through plain `setMessages` calls that may not have rendered yet
+        // when a very fast failure lands, so `messagesRef` can still hold the
+        // pre-send snapshot here. `prev` is always the queue's own truth.
+        setMessagesAndRef((prev) => prev.filter((m) => m.id !== assistantMessage.id));
+      }
+      retryRef.current = { message, options, userMessageId: userMessage.id };
+      setFailedTurn({
+        userMessageId: userMessage.id,
+        anchorMessageId: partial ? assistantMessage.id : userMessage.id,
+        retryable,
+        partial,
+        detail,
+      });
+      return partial ? 'sent' : 'errored';
+    };
 
     /**
      * Stamped here, not on the way back: a thread left open across midnight has
@@ -403,10 +480,15 @@ export function useStreamingChat(apiUrl: string, conversationId?: string, reason
           // Flush any remaining batched content before checking
           flushPendingUpdates();
 
-          // The stream closed without the model producing anything usable.
+          // The server answered with a stand-in, or with nothing usable at
+          // all: the turn stays, with the error under it. (With real output
+          // AND a synthetic tail, this keeps the output and marks the tail.)
+          if (syntheticTail !== null) {
+            return keepFailedTurn(syntheticTail.retryable);
+          }
           if (!hasUsableStreamOutput(outputEvidence)) {
             setError(new Error('No response received from AI'));
-            return rollback();
+            return keepFailedTurn(true);
           }
           break;
         }
@@ -662,7 +744,8 @@ export function useStreamingChat(apiUrl: string, conversationId?: string, reason
                 });
               }
 
-              // Generic SSE error — stop and report
+              // Generic SSE error — stop, and report it IN the thread: the
+              // turn stays with the error under it, so nothing needs a toast.
               const msg = getErrorMessage(err) || 'Something went wrong. Please try again.';
               setError(new Error(msg));
               setIsLoading(false);
@@ -671,11 +754,7 @@ export function useStreamingChat(apiUrl: string, conversationId?: string, reason
                 abortControllerRef.current = null;
               }
               reader.cancel();
-              const outcome = settleError();
-              // A rolled-back send is announced by the caller, which knows the
-              // text went back to the composer; don't stack two toasts.
-              if (outcome === 'sent') toast.error(msg);
-              return outcome;
+              return keepFailedTurn(err.retryable !== false, getErrorMessage(err) || undefined);
             }
 
             // Handle OpenAI-compatible format
@@ -693,21 +772,27 @@ export function useStreamingChat(apiUrl: string, conversationId?: string, reason
 
             // Handle text content (batched for performance)
             if (delta.content) {
-              if (parsed.alia_meta?.synthetic !== true) {
+              const meta = readAliaMeta(parsed);
+              if (meta.synthetic) {
+                // Remembered, never rendered — see `syntheticTail`. The
+                // server sends a stop chunk and [DONE] right after, and the
+                // `done` branch turns this into the error under the turn.
+                syntheticTail = { retryable: meta.retryable };
+              } else {
                 outputEvidence.realOutputChars += delta.content.length;
-              }
 
-              // Subtle streaming haptic, throttled by time — per-character
-              // counting fired dozens of native bridge calls per second on
-              // fast streams.
-              const now = Date.now();
-              if (now - lastHapticAt >= 150) {
-                lastHapticAt = now;
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-              }
+                // Subtle streaming haptic, throttled by time — per-character
+                // counting fired dozens of native bridge calls per second on
+                // fast streams.
+                const now = Date.now();
+                if (now - lastHapticAt >= 150) {
+                  lastHapticAt = now;
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+                }
 
-              pendingContentRef.current += delta.content;
-              scheduleFlush();
+                pendingContentRef.current += delta.content;
+                scheduleFlush();
+              }
             }
 
             // Handle usage/credits info (comes at the end of stream)
@@ -862,7 +947,7 @@ export function useStreamingChat(apiUrl: string, conversationId?: string, reason
 
               // Break out of the streaming loop
               reader.cancel();
-              return settleError();
+              return keepFailedTurn(true, errMsg);
             }
           } catch (frameError: unknown) {
             /**
@@ -936,11 +1021,14 @@ export function useStreamingChat(apiUrl: string, conversationId?: string, reason
         }
       }
 
+      // Everything else — the network, a 5xx, a 401 — keeps the turn in the
+      // thread with the error under it and a retry beside it. The message is
+      // shown as the card's detail line, not as an answer.
       const finalError = e instanceof Error
         ? e
         : new Error(typeof e === 'string' ? e : (getErrorMessage(e) || 'An unexpected error occurred'));
       setError(finalError);
-      return settleError();
+      return keepFailedTurn(true, finalError.message);
     } finally {
       // Flush any remaining batched content
       flushPendingUpdates();
@@ -972,6 +1060,33 @@ export function useStreamingChat(apiUrl: string, conversationId?: string, reason
   }, []);
 
   const clearError = useCallback(() => setError(null), []);
+
+  /**
+   * Send the failed turn again: the same content and attachments, the same
+   * options, through the same `append`.
+   *
+   * The thread is cut back to just before the failed user message first —
+   * the same truncation an edit does — so the re-sent turn lands where the
+   * failed one was rather than after it, and the history the server receives
+   * holds the message once. It was never persisted (see `turn-failure.ts`),
+   * so there is no second row to avoid on that side either. Cut from
+   * `messagesRef` directly and set as an array, not through an updater, so
+   * `append`'s snapshot sees the cut regardless of when React runs it.
+   */
+  const retryFailedTurn = useCallback(async (): Promise<SendOutcome> => {
+    const retry = retryRef.current;
+    if (retry === null) return 'failed';
+    const current = messagesRef.current;
+    const idx = current.findIndex((m) => m.id === retry.userMessageId);
+    if (idx >= 0) setMessagesAndRef(current.slice(0, idx));
+    return append(retry.message, retry.options);
+  }, [append, setMessagesAndRef]);
+
+  /** Take the error down without retrying — the thread was cleared, or the person moved on. */
+  const clearFailedTurn = useCallback(() => {
+    setFailedTurn(null);
+    retryRef.current = null;
+  }, []);
 
   const approvePlan = useCallback((planId: string) => {
     setMessages((prev) => prev.map((m) => {
@@ -1009,5 +1124,8 @@ export function useStreamingChat(apiUrl: string, conversationId?: string, reason
     rejectPlan,
     suggestedNewConversation,
     dismissSuggestedNewConversation,
+    failedTurn,
+    retryFailedTurn,
+    clearFailedTurn,
   };
 }
