@@ -32,17 +32,9 @@ import {
 } from '../../lib/agent-identity.js';
 import { latestMessagePerAgent } from '../../db/chat/conversationRepository.js';
 import {
-  createTrigger,
-  findAgentTriggerByType,
-  updateTrigger,
-} from '../../db/automation/triggerRepository.js';
-import { TRIGGER_SCHEDULE_TYPES, type TriggerScheduleType } from '../../db/schema/automation.js';
-import { reloadTrigger, generateWebhookToken } from '../../lib/trigger-engine.js';
-import {
   AGENT_ACCESS,
   AGENT_ARCHETYPES,
   AGENT_STATUSES,
-  readArchetypeConfig,
   type AgentAccess,
   type AgentArchetype,
   type AgentStatus,
@@ -62,106 +54,6 @@ import {
 import type { Request, Response } from 'express';
 
 const router = Router();
-
-/**
- * A stored `archetype_config.schedule.type` the trigger schema accepts.
- *
- * `archetype_config` is `jsonb` with nothing validating it, while
- * `triggers.schedule_type` carries a CHECK — so an unrecognised value falls back
- * to `daily` rather than becoming a refused write deep inside a fire-and-forget
- * sync nobody is awaiting.
- */
-function isTriggerScheduleType(value: unknown): value is TriggerScheduleType {
-  return typeof value === 'string' && (TRIGGER_SCHEDULE_TYPES as readonly string[]).includes(value);
-}
-
-// ── Archetype Trigger Sync ──────────────────────────────────────────
-
-/**
- * Sync triggers for archetype agents:
- * - status_update: auto-create/update schedule trigger
- * - task_router: auto-create webhook trigger if 'webhook' channel configured
- */
-async function syncArchetypeTriggers(
-  agentId: string,
-  userId: string,
-  agent: Pick<AgentRecord, 'archetype' | 'archetypeConfig'> & { name: string | null },
-): Promise<void> {
-  const config = readArchetypeConfig(agent.archetypeConfig);
-
-  if (agent.archetype === 'status_update' && config.schedule) {
-    const existing = await findAgentTriggerByType(getDb(), userId, agentId, 'schedule');
-
-    const triggerSchedule = {
-      // A stored `schedule.type` outside the trigger schema's closed set falls
-      // back to `daily` rather than becoming a refused write deep inside a
-      // fire-and-forget sync nobody is awaiting.
-      type: isTriggerScheduleType(config.schedule.type) ? config.schedule.type : 'daily',
-      ...(config.schedule.time && { time: config.schedule.time }),
-      ...(config.schedule.days && { days: config.schedule.days }),
-      ...(config.schedule.intervalMinutes && { intervalMinutes: config.schedule.intervalMinutes }),
-      ...(config.schedule.cron && { cron: config.schedule.cron }),
-    };
-
-    const reportPrompt = config.reportTemplate
-      ? `Generate a status report following this template:\n\n${config.reportTemplate}`
-      : 'Generate a comprehensive status update report from all configured data sources.';
-
-    if (existing) {
-      // `schedule` REPLACES and `action` MERGES, exactly as the hydrated-document
-      // path did: `set('schedule', …)` overwrote the sub-document while the
-      // prompt was assigned field by field.
-      await updateTrigger(getDb(), existing._id, {
-        schedule: triggerSchedule,
-        action: { prompt: reportPrompt },
-        name: `${agent.name || 'Agent'} Report`,
-      });
-      await reloadTrigger(existing._id);
-    } else {
-      const trigger = await createTrigger(getDb(), {
-        oxyUserId: userId,
-        name: `${agent.name || 'Agent'} Report`,
-        description: `Scheduled status report from ${agent.name || 'agent'}`,
-        type: 'schedule',
-        enabled: true,
-        action: {
-          prompt: reportPrompt,
-          agentId,
-          useTools: true,
-          notify: true,
-          ...(config.deliveryChannels?.[0] && { channelId: config.deliveryChannels[0] }),
-        },
-        schedule: triggerSchedule,
-        triggerCount: 0,
-      });
-      await reloadTrigger(trigger._id);
-    }
-  }
-
-  if (agent.archetype === 'task_router' && config.inboundChannels?.includes('webhook')) {
-    const existing = await findAgentTriggerByType(getDb(), userId, agentId, 'webhook');
-
-    if (!existing) {
-      await createTrigger(getDb(), {
-        oxyUserId: userId,
-        name: `${agent.name || 'Agent'} Webhook`,
-        description: `Inbound webhook for task routing by ${agent.name || 'agent'}`,
-        type: 'webhook',
-        enabled: true,
-        action: {
-          prompt: 'Process and route this incoming task.',
-          agentId,
-          useTools: true,
-          notify: true,
-        },
-        webhook: {
-          token: generateWebhookToken(),
-        },
-        triggerCount: 0,
-      });
-    }
-  }
-}
 
 /** The agent's own record plus the two child lists `populate` used to attach. */
 async function withChildLists(agent: AgentRecord): Promise<AgentRecord> {
@@ -196,12 +88,7 @@ router.get('/', optionalAuth, async (req: Request, res: Response) => {
       offset: (pageNum - 1) * limitNum,
     });
 
-    res.json({
-      agents: await attachAgentIdentities(agents.map(withoutInternalAgentBindings)),
-      total,
-      page: pageNum,
-      limit: limitNum,
-    });
+    res.json({ agents: await attachAgentIdentities(agents.map(withoutInternalAgentBindings)), total, page: pageNum, limit: limitNum });
   } catch (error: unknown) {
     log.agents.error({ err: error }, 'Error listing agents');
     res.status(500).json({ error: 'Failed to list agents' });
@@ -437,11 +324,7 @@ router.get('/:id', optionalAuth, async (req: Request, res: Response) => {
     }
 
     const agent = await withChildLists(found);
-    res.json({
-      agent: await attachAgentIdentity(
-        withoutInternalAgentBindings(mayEdit ? agent : withoutSystemPrompt(agent)),
-      ),
-    });
+    res.json({ agent: await attachAgentIdentity(withoutInternalAgentBindings(mayEdit ? agent : withoutSystemPrompt(agent))) });
   } catch (error: unknown) {
     log.agents.error({ err: error }, 'Error getting agent');
     res.status(500).json({ error: 'Failed to get agent' });
@@ -548,7 +431,6 @@ router.post('/', authenticateToken, async (req: Request, res: Response) => {
       description: data.description,
       authorOxyUserId: req.user.id,
       category: data.category,
-      routingProfileId: OXY_KAANA_ROUTING_PROFILE_IDS['route:auto'],
       tags: data.tags ?? [],
       price: data.price ?? null,
       capabilityGrants: data.capabilityGrants ?? [],
@@ -562,14 +444,13 @@ router.post('/', authenticateToken, async (req: Request, res: Response) => {
        */
       isPublished: data.isPublished ?? true,
       access: data.access ?? 'private',
+      routingProfileId: OXY_KAANA_ROUTING_PROFILE_IDS['route:auto'],
       ...(data.systemPrompt !== undefined && { systemPrompt: data.systemPrompt }),
       ...(data.archetype !== undefined && { archetype: data.archetype }),
       ...(data.archetypeConfig !== undefined && { archetypeConfig: data.archetypeConfig }),
     });
 
-    res.status(201).json({
-      agent: await attachAgentIdentity(withoutInternalAgentBindings(agent)),
-    });
+    res.status(201).json({ agent: await attachAgentIdentity(withoutInternalAgentBindings(agent)) });
   } catch (error: unknown) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: 'Invalid input', details: error.errors });
@@ -603,18 +484,6 @@ const updateAgentSchema = z
     status: statusSchema.optional(),
     access: accessSchema.optional(),
     systemPrompt: z.string().optional(),
-    /**
-     * Minutes between heartbeat runs, bounded at both ends.
-     *
-     * It was an unbounded `z.number().int()` interpolated straight into the
-     * step of a cron minute field by `lib/trigger-engine.ts`. `0` and negatives
-     * produced an INVALID cron, which `scheduleTrigger` swallows — so the
-     * heartbeat silently never fired and the agent looked broken for no visible
-     * reason. And `1` scheduled a billed LLM turn every minute, for as long as
-     * the agent existed, with nothing in the API saying no. Five minutes is the
-     * floor the cron step can express usefully; one day is the ceiling, past
-     * which a minute-field step is not a schedule any more.
-     */
     scheduleInterval: z.number().int().min(5).max(1440).optional(),
     archetype: archetypeSchema.optional(),
     archetypeConfig: z.unknown().optional(),
@@ -677,18 +546,6 @@ router.patch('/:id', authenticateToken, async (req: Request, res: Response) => {
      * only ever paper over it.
      */
     const hydrated = await attachAgentIdentity(await withChildLists(agent));
-
-    // Auto-manage linked triggers for archetype agents (non-blocking, only when relevant fields change)
-    if (
-      data.archetype !== undefined ||
-      data.archetypeConfig !== undefined ||
-      data.scheduleInterval !== undefined ||
-      data.status !== undefined
-    ) {
-      syncArchetypeTriggers(hydrated._id, hydrated.author, hydrated).catch((err) => {
-        log.agents.error({ err, agentId: hydrated._id }, 'Failed to sync archetype triggers');
-      });
-    }
 
     res.json({ agent: withoutInternalAgentBindings(hydrated) });
   } catch (error: unknown) {
