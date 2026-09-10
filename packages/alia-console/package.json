@@ -41,7 +41,7 @@
     "nitro": "latest",
     "radix-ui": "^1.6.2",
     "react": "19.2.0",
-    "react-dom": "19.2.0",
+    "react-dom": "19.2.8",
     "react-native-gesture-handler": "2.31.1",
     "react-native-qrcode-svg": "^6.3.21",
     "react-native-safe-area-context": "~5.8.0",
