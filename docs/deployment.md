@@ -60,7 +60,6 @@ OXY_API_URL=https://api.oxy.so
 OXY_SERVICE_API_KEY=<oxy-application-key>
 OXY_SERVICE_API_SECRET=<oxy-application-secret>
 DATABASE_URL=<postgres-connection-string>
-SERVICE_SECRET=<32-byte hex>
 ```
 
 The `OXY_SERVICE_API_*` pair identifies Alia to Oxy; it is not an upstream

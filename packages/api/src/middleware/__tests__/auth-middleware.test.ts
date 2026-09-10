@@ -99,7 +99,6 @@ describe('auth middleware', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     delete process.env.TELEGRAM_BOT_SECRET;
-    delete process.env.SERVICE_SECRET;
   });
 
   describe('authenticateApiKey', () => {
@@ -339,17 +338,14 @@ describe('auth middleware', () => {
       expect(res.json).toHaveBeenCalledWith({ error: 'Authentication required' });
     });
 
-    it('allows service secret auth', () => {
-      process.env.SERVICE_SECRET = 'my-service-secret';
-
-      const req = mockReq({ headers: { authorization: 'Bearer my-service-secret' } });
+    it('delegates Oxy bearer verification to the SDK middleware', () => {
+      const req = mockReq({ headers: { authorization: 'Bearer signed-oxy-token' } });
       const res = mockRes();
       const next = vi.fn();
 
       authenticateTokenOrApiKey(req, res, next);
 
       expect(next).toHaveBeenCalled();
-      expect(req.user).toEqual({ id: 'system' });
     });
   });
 
