@@ -9,6 +9,7 @@ import {
   markAutomationAuthorizationsRevoked,
   setAutomationEnabled,
 } from '../db/automation/automationDefinitionRepository.js';
+import { listTriggers } from '../db/automation/triggerRepository.js';
 import { getDb } from '../db/index.js';
 import {
   provisionAutomationAuthorizations,
@@ -78,10 +79,38 @@ async function stopAutomation(input: {
   return { automation: stopped, revoked: result.revoked.length, failed: result.failed.length };
 }
 
+/**
+ * The name a person gave a legacy-trigger automation, joined back on.
+ *
+ * `automation_definitions` has no name column: the transitional index copies
+ * the trigger's prompt as `objective` and drops `triggers.name`, so the client
+ * headed every card with the prompt and two automations with the same prompt
+ * were indistinguishable (#534). The name stays on the trigger — the row the
+ * person edits through `/triggers` — and is read here for the one listing
+ * that shows it. Structured definitions have no name of their own and carry
+ * `null`; a trigger that vanished underneath its index row also reads `null`
+ * rather than failing the whole listing.
+ */
+async function withLegacyTriggerNames<T extends { legacyTriggerId: string | null }>(
+  ownerAccountId: string,
+  definitions: T[],
+): Promise<Array<T & { name: string | null }>> {
+  if (!definitions.some((definition) => definition.legacyTriggerId)) {
+    return definitions.map((definition) => ({ ...definition, name: null }));
+  }
+  const triggers = await listTriggers(getDb(), ownerAccountId);
+  const names = new Map(triggers.map((trigger) => [trigger._id, trigger.name]));
+  return definitions.map((definition) => ({
+    ...definition,
+    name: definition.legacyTriggerId ? names.get(definition.legacyTriggerId) ?? null : null,
+  }));
+}
+
 router.get('/', async (request: Request, response: Response) => {
   const ownerAccountId = userId(request);
   if (!ownerAccountId) return response.status(401).json({ error: 'Unauthorized' });
-  return response.json({ automations: await listAutomationDefinitions(getDb(), ownerAccountId) });
+  const definitions = await listAutomationDefinitions(getDb(), ownerAccountId);
+  return response.json({ automations: await withLegacyTriggerNames(ownerAccountId, definitions) });
 });
 
 router.post('/', async (request: Request, response: Response) => {

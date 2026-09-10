@@ -1,8 +1,19 @@
 import React, { useMemo } from "react";
-import { Platform, View } from "react-native";
+import { Platform, Pressable, View } from "react-native";
+import * as WebBrowser from "expo-web-browser";
 import { AliaMarkdown } from '@alia.onl/sdk';
 import { fontFamilies } from "@oxy.so/bloom/fonts";
 import { useColorScheme } from "@/lib/useColorScheme";
+import { Text } from "@/components/ui/text";
+import { useTranslation } from "@/lib/hooks/use-translation";
+import {
+  extractCitationSources,
+  linkifyCitations,
+  splitReferences,
+  type CitationSource,
+  type ReferenceEntry,
+} from "@/lib/citations";
+import type { ToolInvocation } from "@/lib/types/messages";
 
 import {
   CompactList,
@@ -209,9 +220,108 @@ function renderBlock(blockType: string, data: any, key: number) {
   }
 }
 
-export function CustomMarkdown({ content }: { content: string }) {
+/** Open a source the way the Sources tab does: a new tab on web, the in-app browser on native. */
+function openSource(url: string): void {
+  if (Platform.OS === 'web') {
+    window.open(url, '_blank', 'noopener,noreferrer');
+  } else {
+    void WebBrowser.openBrowserAsync(url);
+  }
+}
+
+/**
+ * The references section of a research answer, as links.
+ *
+ * The API now writes each entry as a Markdown link, and the SDK's renderer
+ * would make those pressable on its own — but not ACCESSIBLE: its link rule
+ * is a `Text` with `onPress`, which a screen reader reads as text and a
+ * keyboard cannot reach. So the section is cut off the Markdown and drawn
+ * here, one `accessibilityRole="link"` per entry — an `<a href>` on web, so
+ * Tab reaches it and Enter opens it — named "Source n: title". Older answers,
+ * whose entries were a title over a bare URL, split the same way.
+ */
+function ReferenceList({
+  entries,
+  onCitationPress,
+}: {
+  entries: ReferenceEntry[];
+  onCitationPress?: (source: CitationSource) => void;
+}) {
+  const { t } = useTranslation();
+  return (
+    <View className="mt-3 gap-1 border-t border-border pt-3" accessibilityRole="list">
+      <Text className="text-xs font-medium text-muted-foreground">{t("thought.references")}</Text>
+      {entries.map((entry) => {
+        const press = () => {
+          if (onCitationPress) onCitationPress(entry);
+          else openSource(entry.url);
+        };
+        // On web the anchor itself navigates (new tab, no opener); `onPress`
+        // is wired only when the caller wants the press instead of the
+        // navigation, and the default is then prevented.
+        const webAnchor =
+          Platform.OS === 'web'
+            ? ({ href: entry.url, hrefAttrs: { target: '_blank', rel: 'noopener noreferrer' } } as object)
+            : {};
+        const onPress =
+          Platform.OS === 'web'
+            ? onCitationPress
+              ? (e: { preventDefault?: () => void }) => { e.preventDefault?.(); press(); }
+              : undefined
+            : press;
+        return (
+          <Pressable
+            key={entry.id}
+            accessibilityRole="link"
+            accessibilityLabel={t("thought.sourceLabel", { n: entry.id, title: entry.title })}
+            className="flex-row items-start gap-2 rounded-md py-0.5 active:opacity-70"
+            onPress={onPress}
+            {...webAnchor}
+          >
+            <Text className="text-sm text-muted-foreground">[{entry.id}]</Text>
+            <Text className="flex-1 text-sm text-primary underline" numberOfLines={2}>{entry.title}</Text>
+            <Text className="text-xs text-muted-foreground" numberOfLines={1}>{entry.domain}</Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
+/**
+ * The chat's Markdown, plus what a research answer needs on top of it.
+ *
+ * `toolInvocations` (the message's persisted record) and `researchSources`
+ * (the live progress event, before persistence) are where the `[n]` markers
+ * resolve: a marker naming a known source becomes a link to it, titled
+ * "Source n: title", and the References section becomes the accessible list
+ * above. Markers the model spelled as `【n†…】` or `[n, m]` in an older answer
+ * are normalised first. A message with neither prop renders exactly as
+ * before.
+ *
+ * `onCitationPress` replaces opening the URL for the references list. The
+ * inline markers are rendered by the SDK's link rule, which opens the URL
+ * itself and offers no hook, so they do not reach it.
+ */
+export function CustomMarkdown({
+  content,
+  toolInvocations,
+  researchSources,
+  onCitationPress,
+}: {
+  content: string;
+  toolInvocations?: ToolInvocation[];
+  researchSources?: Array<{ id: number; url: string; title: string }> | null;
+  onCitationPress?: (source: CitationSource) => void;
+}) {
   const { colors } = useColorScheme();
-  const blocks = useMemo(() => parseSpecialBlocks(content), [content]);
+  const sources = useMemo(
+    () => extractCitationSources(toolInvocations, researchSources),
+    [toolInvocations, researchSources],
+  );
+  const { body, references } = useMemo(() => splitReferences(content, sources), [content, sources]);
+  const linked = useMemo(() => linkifyCitations(body, sources), [body, sources]);
+  const blocks = useMemo(() => parseSpecialBlocks(linked), [linked]);
 
   const aliaColors = useMemo(() => ({
     text: colors.foreground,
@@ -231,6 +341,7 @@ export function CustomMarkdown({ content }: { content: string }) {
         }
         return null;
       })}
+      {references ? <ReferenceList entries={references} onCitationPress={onCitationPress} /> : null}
     </View>
   );
 }

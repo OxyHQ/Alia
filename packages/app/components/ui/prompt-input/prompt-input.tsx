@@ -390,10 +390,23 @@ export function PromptInput({
       onLayout={(event) => setTrailingWidth(event.nativeEvent.layout.width)}
     >
       {selectedModel !== undefined && onModelChange !== undefined && (
-        <>
+        /*
+         * Locked by the usage limit only, never by a stream: the choice applies
+         * to the NEXT turn, so changing it while an answer streams is harmless,
+         * and blocking it was a side effect of the whole bar being disabled
+         * rather than a decision. The selector takes no `disabled` of its own,
+         * so the lock is a wrapper that swallows pointer events and steps out
+         * of the accessibility tree with everything under it.
+         */
+        <View
+          className="flex-row items-center gap-1"
+          pointerEvents={disabled ? "none" : "auto"}
+          accessibilityElementsHidden={disabled}
+          importantForAccessibility={disabled ? "no-hide-descendants" : "auto"}
+        >
           <ModelSelector selectedModel={selectedModel} onModelChange={onModelChange} />
           {Platform.OS !== "web" && <EffortSelector selectedModel={selectedModel} />}
-        </>
+        </View>
       )}
       <PromptInputMicButton stt={stt} />
       <PromptInputSubmitButton
@@ -590,12 +603,24 @@ export function PromptInput({
       </View>
   );
 
+  /*
+   * A focus-catcher, NOT a control. Tapping the bar's padding puts the caret in
+   * the textarea, and that is all this Pressable is for — so it carries no
+   * `disabled` and is hidden from the accessibility tree. It used to take
+   * `disabled` too, and on web that lands `aria-disabled` on the DIV that wraps
+   * EVERYTHING in the bar: during a stream the textbox, the add menu, the model
+   * selector and the "Stop generating" button all read as disabled, because
+   * their common ancestor said so. The lock now lives on each editable control
+   * itself (the textarea's `editable`, the add menu, the mic, the send button),
+   * and the stop button is the one control that stays live throughout.
+   */
   const inputBox = (
     <Pressable
       onPress={() => {
         if (!disabled) textareaRef.current?.focus();
       }}
-      disabled={disabled}
+      accessible={false}
+      focusable={false}
     >
       {/* Fullscreen renders through a root portal: any transformed ancestor
           (the drawer animates with translate) turns position:fixed into

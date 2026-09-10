@@ -17,6 +17,7 @@ import { View, Pressable, RefreshControl, FlatList } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
+import { DrawerToggle } from '@/components/ui/drawer-toggle';
 import { Plus, Mic, ChevronRight, Lock, Link2, Globe } from 'lucide-react-native';
 import { useAuth } from '@oxy.so/services';
 import { ContentPanel } from '@oxy.so/bloom/content-panel';
@@ -140,7 +141,11 @@ export default function ShowsScreen() {
           ListHeaderComponent={
             <View className="pb-3 pt-6">
               <View className="flex-row items-center justify-between gap-3">
-                <Text className="text-2xl font-bold text-foreground">Shows</Text>
+                {/* The drawer opener sits first, as on every top-level page (#532). */}
+                <View className="flex-row items-center gap-2">
+                  <DrawerToggle />
+                  <Text className="text-2xl font-bold text-foreground">Shows</Text>
+                </View>
                 <Button
                   size="sm"
                   className="flex-row items-center gap-1.5 rounded-full"

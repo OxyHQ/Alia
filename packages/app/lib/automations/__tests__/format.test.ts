@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   actorLabel,
+  automationTitle,
   canRunNow,
+  cronLabel,
   latestRunsByAutomation,
   policyReason,
   resourceLabel,
@@ -41,7 +43,9 @@ describe('automation formatting', () => {
   it('describes each trigger and actor-selection shape', () => {
     expect(triggerLabel({ type: 'manual' })).toBe('Manual request');
     expect(triggerLabel({ type: 'schedule', cron: '0 9 * * 1', timezone: 'Europe/Bucharest' }))
-      .toBe('0 9 * * 1 · Europe/Bucharest');
+      .toBe('Mondays at 09:00 · Europe/Bucharest');
+    expect(triggerLabel({ type: 'schedule', cron: null, timezone: null }))
+      .toBe('Unscheduled · UTC');
     expect(actorLabel({ mode: 'fixed', agentId: 'agent-1' }, () => 'Writer'))
       .toBe('Writer');
     expect(actorLabel({ mode: 'automatic', eligibleAgentIds: [] }, () => 'unused'))
@@ -80,5 +84,40 @@ describe('automation formatting', () => {
     })).toBe(false);
     expect(canRunNow({ ...baseAutomation, legacyTriggerId: 'trigger-1' }))
       .toBe(true);
+  });
+});
+
+/**
+ * The schedules the create dialog writes (`scheduleToCron` on the API) read
+ * back as sentences; anything else stays a cron string rather than a guess.
+ */
+describe('cronLabel', () => {
+  it('reads the three shapes the app writes', () => {
+    expect(cronLabel('*/60 * * * *')).toBe('Every hour');
+    expect(cronLabel('*/15 * * * *')).toBe('Every 15 minutes');
+    expect(cronLabel('*/120 * * * *')).toBe('Every 2 hours');
+    expect(cronLabel('0 18 * * *')).toBe('Daily at 18:00');
+    expect(cronLabel('30 9 * * 1')).toBe('Mondays at 09:30');
+    expect(cronLabel('0 9 * * 1,3,5')).toBe('Mondays, Wednesdays, Fridays at 09:00');
+    expect(cronLabel('0 9 * * 1-5')).toBe('Weekdays at 09:00');
+    expect(cronLabel('0 9 * * 0,6')).toBe('Weekends at 09:00');
+    expect(cronLabel('0 9 * * 0,1,2,3,4,5,6')).toBe('Daily at 09:00');
+  });
+
+  it('leaves what it cannot read alone', () => {
+    expect(cronLabel('0 9 1 * *')).toBe('0 9 1 * *');
+    expect(cronLabel('0 9 * 6 *')).toBe('0 9 * 6 *');
+    expect(cronLabel('*/5 9 * * *')).toBe('*/5 9 * * *');
+    expect(cronLabel('0 25 * * *')).toBe('0 25 * * *');
+    expect(cronLabel('0 9 * * 8')).toBe('0 9 * * 8');
+    expect(cronLabel('not cron')).toBe('not cron');
+  });
+});
+
+describe('automationTitle', () => {
+  it('prefers the name and falls back to the objective', () => {
+    expect(automationTitle({ name: 'PR watch', objective: 'Review PRs' })).toBe('PR watch');
+    expect(automationTitle({ name: null, objective: 'Review PRs' })).toBe('Review PRs');
+    expect(automationTitle({ name: '   ', objective: 'Review PRs' })).toBe('Review PRs');
   });
 });

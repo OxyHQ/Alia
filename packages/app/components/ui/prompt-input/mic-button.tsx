@@ -28,7 +28,7 @@ export type PromptInputMicButtonProps = {
 };
 
 export function PromptInputMicButton({ className, stt }: PromptInputMicButtonProps) {
-  const { value, setValue } = usePromptInput();
+  const { value, setValue, disabled, isLoading } = usePromptInput();
   const { colors } = useColorScheme();
   const { colors: themeColors } = useTheme();
 
@@ -50,7 +50,10 @@ export function PromptInputMicButton({ className, stt }: PromptInputMicButtonPro
   return (
     <Pressable
       onPress={handlePress}
-      disabled={stt.isTranscribing}
+      // Dictation writes into the same draft typing does, so it is locked by
+      // the same two things: a stream in progress and the usage limit.
+      disabled={stt.isTranscribing || disabled || isLoading}
+      accessibilityRole="button"
       accessibilityLabel={stt.isRecording ? "Stop recording" : "Dictate"}
       className={cn(
         "h-9 w-9 rounded-full items-center justify-center web:hover:bg-muted active:bg-muted",

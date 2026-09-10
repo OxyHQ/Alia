@@ -14,6 +14,7 @@ import { toast } from "@oxy.so/bloom/toast";
 import { cn } from "@/lib/utils";
 import { agentIdentityMatches } from "@/lib/agents/identity";
 import { Skeleton } from "@/components/ui/skeleton";
+import { DrawerToggle } from "@/components/ui/drawer-toggle";
 import { ContentPanel } from "@oxy.so/bloom/content-panel";
 
 export default function AgentsScreen() {
@@ -94,9 +95,13 @@ export default function AgentsScreen() {
   const headerTop = useMemo(() => (
     <View className="px-5 pt-6 pb-1">
       <View className="flex-row items-center justify-between">
-        <Text className="text-2xl font-bold text-foreground">
-          {t("agents.title")}
-        </Text>
+        {/* The drawer opener sits first, as on every top-level page (#532). */}
+        <View className="flex-row items-center gap-2">
+          <DrawerToggle />
+          <Text className="text-2xl font-bold text-foreground">
+            {t("agents.title")}
+          </Text>
+        </View>
         <View className="flex-row gap-2">
           <Button onPress={handleTeams} size="icon" variant="outline" className="rounded-full h-8 w-8">
             <Users size={16} className="text-foreground" />

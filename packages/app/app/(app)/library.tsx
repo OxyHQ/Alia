@@ -14,6 +14,7 @@ import { cn } from '@/lib/utils';
 import { toast } from '@oxy.so/bloom/toast';
 import { useTranslation } from '@/lib/hooks/use-translation';
 import { Skeleton } from '@/components/ui/skeleton';
+import { DrawerToggle } from '@/components/ui/drawer-toggle';
 import { ContentPanel } from "@oxy.so/bloom/content-panel";
 
 export default function LibraryScreen() {
@@ -125,12 +126,24 @@ export default function LibraryScreen() {
       {/* Header */}
       <View className="px-5 pt-6 pb-1">
         <View className="flex-row items-center justify-between">
-          <Text className="text-2xl font-bold text-foreground">
-            {t('library.title')}
-          </Text>
+          {/* The drawer opener sits first: below `md` this header is the only
+              thing on screen, and without it the sidebar was reachable only by
+              a swipe nobody is told about (#532). */}
+          <View className="flex-row items-center gap-2">
+            <DrawerToggle />
+            <Text className="text-2xl font-bold text-foreground">
+              {t('library.title')}
+            </Text>
+          </View>
           <DropdownMenu.Root>
             <DropdownMenu.Trigger>
-              <Button size="icon" className="rounded-full h-8 w-8">
+              {/* A bare "+" has no name a screen reader can say (#536). */}
+              <Button
+                size="icon"
+                className="rounded-full h-8 w-8"
+                accessibilityRole="button"
+                accessibilityLabel={t('library.addFiles')}
+              >
                 <Plus size={16} className="text-primary-foreground" />
               </Button>
             </DropdownMenu.Trigger>

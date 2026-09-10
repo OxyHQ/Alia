@@ -26,7 +26,55 @@ function getDomain(url: string): string {
 }
 
 /**
- * Extract unique sources from tool invocations (webSearch, webScraper).
+ * The sources of a finished `deepResearch` invocation, as the research
+ * handler persists them: `{ id, url, title }[]` under `result.sources`, the
+ * same shape the final `alia.research_progress` event carries live. No
+ * snippet — research keeps excerpts server-side — so the card shows the
+ * title alone.
+ */
+function researchInvocationSources(result: { sources?: unknown }): Source[] {
+  if (!Array.isArray(result.sources)) return [];
+  return researchSourcesToSources(result.sources as Array<{ id?: unknown; url?: unknown; title?: unknown }>);
+}
+
+/**
+ * Research sources — from a persisted invocation or from the live progress
+ * event — in the shape the Sources row and panel render. One per URL: the
+ * tracker already de-duplicates server-side, and this keeps that true of
+ * whatever a row holds.
+ */
+export function researchSourcesToSources(
+  sources?: Array<{ id?: unknown; url?: unknown; title?: unknown }> | null,
+): Source[] {
+  if (!sources) return [];
+  const seen = new Set<string>();
+  const out: Source[] = [];
+  for (const s of sources) {
+    if (!s || typeof s.url !== 'string' || s.url.length === 0 || seen.has(s.url)) continue;
+    seen.add(s.url);
+    const title = typeof s.title === 'string' && s.title.trim().length > 0 ? s.title.trim() : getDomain(s.url);
+    out.push({ title, url: s.url, snippet: '', domain: getDomain(s.url) });
+  }
+  return out;
+}
+
+/** The union of two source lists, first occurrence of a URL winning. */
+export function mergeSources(...lists: Source[][]): Source[] {
+  const seen = new Set<string>();
+  const out: Source[] = [];
+  for (const list of lists) {
+    for (const source of list) {
+      if (seen.has(source.url)) continue;
+      seen.add(source.url);
+      out.push(source);
+    }
+  }
+  return out;
+}
+
+/**
+ * Extract unique sources from tool invocations (webSearch, webScraper,
+ * browse, and the `deepResearch` record a research answer is saved with).
  */
 export function extractSources(toolInvocations?: ToolInvocation[]): Source[] {
   if (!toolInvocations) return [];
@@ -36,6 +84,15 @@ export function extractSources(toolInvocations?: ToolInvocation[]): Source[] {
 
   for (const inv of toolInvocations) {
     if (inv.state !== 'result' || !inv.result) continue;
+
+    if (inv.toolName === 'deepResearch') {
+      for (const source of researchInvocationSources(inv.result)) {
+        if (seen.has(source.url)) continue;
+        seen.add(source.url);
+        sources.push(source);
+      }
+      continue;
+    }
 
     if ((inv.toolName === 'webSearch' || (inv.toolName === 'browse' && inv.result.action === 'search')) && Array.isArray(inv.result.results)) {
       for (const r of inv.result.results) {
@@ -104,6 +161,12 @@ export function buildSteps(
         toolName: inv.toolName,
         state: inv.state,
       };
+
+      // A research step carries every source the answer was written from.
+      if (inv.toolName === 'deepResearch' && inv.state === 'result' && inv.result) {
+        const researchSources = researchInvocationSources(inv.result);
+        if (researchSources.length > 0) step.sources = researchSources;
+      }
 
       // Attach sources for search tools that have results
       if ((inv.toolName === 'webSearch' || (inv.toolName === 'browse' && inv.result?.action === 'search')) && inv.state === 'result' && inv.result?.results) {
@@ -221,15 +284,21 @@ export function buildAuditTimeline(
       }
     }
 
-    // Research phases
+    // Research phases. `failed` is the engine saying the write-up did not
+    // happen: finished, not in progress, and not "complete" either.
     if (msg.researchProgress) {
       const rp = msg.researchProgress;
+      const failed = rp.phase === 'failed';
       entries.push({
         id: `research-${msg.id}`,
         type: 'research_phase',
-        label: rp.isComplete ? 'Research complete' : `Research: ${rp.phase || 'in progress'}`,
+        label: failed
+          ? 'Research incomplete'
+          : rp.isComplete
+            ? 'Research complete'
+            : `Research: ${rp.phase || 'in progress'}`,
         description: rp.message || '',
-        status: rp.isComplete ? 'complete' : 'in_progress',
+        status: rp.isComplete || failed ? 'complete' : 'in_progress',
         messageId: msg.id,
       });
     }

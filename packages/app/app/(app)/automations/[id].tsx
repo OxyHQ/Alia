@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { AutomationPill, automationStatusTone } from '@/components/automations/automation-pill';
 import {
   actorLabel,
+  automationTitle,
   autonomyLabel,
   decisionReason,
   humanizeIdentifier,
@@ -200,7 +201,7 @@ export default function AutomationHistoryScreen() {
       >
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Back to automations"
+          accessibilityLabel="Back"
           onPress={() => router.back()}
           className="h-9 w-9 items-center justify-center rounded-full active:bg-muted"
         >
@@ -208,9 +209,10 @@ export default function AutomationHistoryScreen() {
         </Pressable>
 
         <View className="gap-3">
+          {/* The heading is the name; the objective (a legacy trigger's prompt) reads under it (#534). */}
           <View className="flex-row flex-wrap items-center gap-2">
             <Text className="flex-1 text-2xl font-bold text-foreground" selectable>
-              {automation.objective}
+              {automationTitle(automation)}
             </Text>
             <AutomationPill
               label={automation.enabled ? 'Active' : 'Stopped'}
@@ -221,6 +223,11 @@ export default function AutomationHistoryScreen() {
               <AutomationPill label="Legacy transition" tone="warning" />
             ) : null}
           </View>
+          {automation.name?.trim() ? (
+            <Text className="text-base text-foreground" selectable>
+              {automation.objective}
+            </Text>
+          ) : null}
           <Text className="text-sm text-muted-foreground" selectable>
             {triggerLabel(automation.trigger)}
           </Text>

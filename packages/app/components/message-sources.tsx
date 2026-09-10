@@ -5,7 +5,7 @@ import { Globe } from "lucide-react-native";
 import { Text } from "@/components/ui/text";
 import { useTranslation } from "@/lib/hooks/use-translation";
 import config from "@/lib/config";
-import { extractSources } from "@/lib/thought-utils";
+import { extractSources, mergeSources, researchSourcesToSources } from "@/lib/thought-utils";
 import type { ToolInvocation } from "@/lib/types/messages";
 
 /** How many domain marks the stack shows before it stops adding them. */
@@ -58,16 +58,25 @@ function SourceMark({ domain }: { domain: string }) {
  * It reads `toolInvocations`, which is the same jsonb the message is stored
  * with, so a thread reopened next month shows the sources it was answered from
  * rather than nothing.
+ *
+ * A research answer is saved with its sources as a `deepResearch` invocation,
+ * which `extractSources` reads like any other. While it is still the live
+ * turn that record does not exist yet — the sources arrive on the final
+ * `alia.research_progress` event instead — so `researchSources` takes those,
+ * and the row is the same before and after a reload.
  */
 export function MessageSources({
   toolInvocations,
+  researchSources,
   onPress,
 }: {
   toolInvocations?: ToolInvocation[];
+  /** `researchProgress.sources` of a live research answer. */
+  researchSources?: Array<{ id: number; url: string; title: string }> | null;
   onPress: () => void;
 }) {
   const { t } = useTranslation();
-  const sources = extractSources(toolInvocations);
+  const sources = mergeSources(extractSources(toolInvocations), researchSourcesToSources(researchSources));
   if (sources.length === 0) return null;
 
   const stacked = sources.slice(0, STACK_LIMIT);

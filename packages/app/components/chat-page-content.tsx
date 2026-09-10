@@ -41,7 +41,7 @@ import { AgentTerminal } from "@/components/agent-terminal";
 import { Terminal as TerminalIcon, ChevronDown, ChevronUp } from "lucide-react-native";
 import { useMcpServers } from "@/lib/hooks/use-mcp-servers";
 import { useInstalledSkills } from "@/lib/hooks/use-skills";
-import type { SendOptions } from "@/lib/hooks/use-streaming-chat";
+import type { SendOptions, FailedTurn } from "@/lib/hooks/use-streaming-chat";
 import { ComposerGlyph } from "@/components/ui/prompt-input/composer-glyph";
 
 /**
@@ -154,6 +154,18 @@ interface ChatPageContentProps {
   onSearchPress?: () => void;
   /** The message a jump was aimed at, by cursor, or `null` at the present. */
   focusCursor?: string | null;
+  /**
+   * Export this conversation as Markdown, for the header's menu. A stable
+   * callback built by the screen that owns the messages — see `ChatHeader`'s
+   * note on why it is not the messages themselves.
+   */
+  onExport?: () => void;
+  /**
+   * The turn that got no answer, drawn in the thread with an error and a
+   * retry, or `null`. Both are passed straight through to the list.
+   */
+  failedTurn?: FailedTurn | null;
+  onRetryTurn?: () => void;
 }
 
 
@@ -189,6 +201,9 @@ export const ChatPageContent = ({
   onLoadHistory,
   onSearchPress,
   focusCursor,
+  onExport,
+  failedTurn,
+  onRetryTurn,
 }: ChatPageContentProps) => {
   const attachments = useStore((state) => state.attachments);
   const addAttachment = useStore((state) => state.addAttachment);
@@ -598,6 +613,8 @@ export const ChatPageContent = ({
           suggestedNewConversation={suggestedNewConversation}
           onAcceptNewConversation={onAcceptNewConversation}
           onDismissNewConversation={onDismissNewConversation}
+          failedTurn={failedTurn}
+          onRetryTurn={onRetryTurn}
         />
 
         <LinearGradient
@@ -613,6 +630,7 @@ export const ChatPageContent = ({
             agentName={agentName}
             agentColor={agentColor}
             onSearchPress={onSearchPress}
+            onExport={onExport}
           />
         </LinearGradient>
 
@@ -685,7 +703,11 @@ export const ChatPageContent = ({
                     onValueChange={setInputValue}
                     onSubmit={handleSubmit}
                     isLoading={isLoading}
-                    disabled={isLoading || disabled}
+                    // The usage limit ONLY. A stream used to be folded in here
+                    // too, which closed the whole bar — stop button included —
+                    // behind one disabled ancestor; `isLoading` now locks each
+                    // editable control on its own and leaves cancel live.
+                    disabled={disabled}
                     disableKeyboardAvoidance
                     attachments={attachments}
                     onAddAttachment={addAttachment}

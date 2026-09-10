@@ -20,6 +20,7 @@ export function PromptInputTextarea({
     setValue,
     onSubmit,
     disabled,
+    isLoading,
     textareaRef,
     setCurrentHeight,
     isFullscreen,
@@ -57,7 +58,11 @@ export function PromptInputTextarea({
       underlineColorAndroid="transparent"
       placeholder={placeholder}
       multiline
-      editable={!disabled}
+      // The composer's lock lives HERE, on the control, rather than on a
+      // wrapper around the whole bar: a stream blocks typing the next message
+      // (`isLoading`) and the usage limit blocks the composer (`disabled`), and
+      // neither may reach the stop button beside this field.
+      editable={!disabled && !isLoading}
       noFocus={true}
       {...props}
     />

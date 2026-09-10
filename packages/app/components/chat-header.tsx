@@ -12,7 +12,6 @@ import { CreditsMenu } from "@/components/credits-menu";
 import { useNavigation, useRouter } from "expo-router";
 import type { DrawerNavigationProp } from "expo-router/drawer";
 import * as DropdownMenu from "@/components/ui/dropdown-menu";
-import { toast } from "@oxy.so/bloom/toast";
 import { confirm } from "@oxy.so/bloom/surfaces";
 import { useTranslation } from "@/lib/hooks/use-translation";
 import { agentTint } from "@/lib/agents/agent-color";
@@ -23,6 +22,15 @@ interface ChatHeaderProps {
   ghostModeActive?: boolean;
   onSearchPress?: () => void;
   onClear?: () => void;
+  /**
+   * Export this conversation as Markdown. A CALLBACK rather than the messages
+   * themselves, for the same reason the identity below is two strings: the
+   * screen that owns the messages re-renders per streamed token, and a prop
+   * that changed with them would hand every one of those renders to the whole
+   * header. The screen keeps its messages in a ref and gives this one stable
+   * function. "Export" is in the menu only when it is provided.
+   */
+  onExport?: () => void;
   isConversation?: boolean;
   /**
    * The agent this thread belongs to. Omitted on Alia's own chat, where the
@@ -45,6 +53,7 @@ export const ChatHeader = React.memo(function ChatHeader({
   ghostModeActive = false,
   onSearchPress,
   onClear,
+  onExport,
   isConversation = false,
   agentName,
   agentColor,
@@ -69,21 +78,22 @@ export const ChatHeader = React.memo(function ChatHeader({
     if (ok) onClear?.();
   };
 
-  const handleExport = () => {
-    toast.info(t('chatHeader.exportComingSoon'));
-  };
-
-  const handleShare = () => {
-    toast.info(t('chatHeader.shareComingSoon'));
-  };
-
   const handleSettings = () => {
     router.push("/(app)/settings");
   };
 
-  const handleHelp = () => {
-    toast.info(t('chatHeader.helpComingSoon'));
-  };
+  /*
+   * Two items are deliberately NOT in the menu.
+   *
+   * "Share conversation": there is no share backend — no public links, no
+   * `/conversations/:id/share` — so the item could only ever say "coming soon"
+   * AFTER being chosen, which is a stub dressed as an action. It comes back
+   * when there is something for it to do.
+   *
+   * "Help": there is no docs URL anywhere in `lib/config.ts` or the constants
+   * to open, so the same applies. Add the URL there first, then the item with
+   * `Linking.openURL`.
+   */
 
   /*
    * Three columns, so the title sits in the middle of the HEADER rather than in
@@ -114,6 +124,8 @@ export const ChatHeader = React.memo(function ChatHeader({
           variant="ghost"
           size="icon"
           onPress={handleDrawerToggle}
+          accessibilityRole="button"
+          accessibilityLabel={t('chatHeader.openMenu')}
           className="h-9 w-9 rounded-full md:hidden"
         >
           <MenuIcon size={20} color={colors.mutedForeground} />
@@ -141,10 +153,16 @@ export const ChatHeader = React.memo(function ChatHeader({
         <CreditsMenu />
 
         {!isConversation && (
+          /* The label is the ACTION and the state is `selected`, so a screen
+             reader says "Temporary chat, selected" rather than a name that
+             would have to change to convey which way the toggle is. */
           <Button
             variant="ghost"
             size="icon"
             onPress={onGhostModePress}
+            accessibilityRole="button"
+            accessibilityLabel={t('chatHeader.temporaryChat')}
+            accessibilityState={{ selected: ghostModeActive }}
             className="h-9 w-9 rounded-full"
           >
             <GhostIcon size={20} filled={ghostModeActive} />
@@ -172,6 +190,13 @@ export const ChatHeader = React.memo(function ChatHeader({
               document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true }));
             }
           }}
+          accessibilityRole="button"
+          // Named for the question it answers, which is the branch above.
+          accessibilityLabel={
+            onSearchPress !== undefined
+              ? t('chatHeader.searchThread')
+              : t('chatHeader.searchConversations')
+          }
           className="h-9 w-9 rounded-full"
         >
           <SearchIcon size={20} color={colors.mutedForeground} />
@@ -182,19 +207,17 @@ export const ChatHeader = React.memo(function ChatHeader({
             <Button
               variant="ghost"
               size="icon"
+              accessibilityRole="button"
+              accessibilityLabel={t('chatHeader.moreOptions')}
               className="h-9 w-9 rounded-full"
             >
               <DotsHorizontalIcon size={20} color={colors.mutedForeground} />
             </Button>
           </DropdownMenu.Trigger>
           <DropdownMenu.Content align="end">
-            {isConversation && (
+            {isConversation && onExport !== undefined && (
               <>
-                <DropdownMenu.Item key="share" onSelect={handleShare}>
-                  <DropdownMenu.ItemIcon ios={{ name: "square.and.arrow.up" }} />
-                  <DropdownMenu.ItemTitle>{t('chatHeader.shareConversation')}</DropdownMenu.ItemTitle>
-                </DropdownMenu.Item>
-                <DropdownMenu.Item key="export" onSelect={handleExport}>
+                <DropdownMenu.Item key="export" onSelect={onExport}>
                   <DropdownMenu.ItemIcon ios={{ name: "arrow.down.doc" }} />
                   <DropdownMenu.ItemTitle>{t('chatHeader.export')}</DropdownMenu.ItemTitle>
                 </DropdownMenu.Item>
@@ -204,10 +227,6 @@ export const ChatHeader = React.memo(function ChatHeader({
             <DropdownMenu.Item key="settings" onSelect={handleSettings}>
               <DropdownMenu.ItemIcon ios={{ name: "gearshape" }} />
               <DropdownMenu.ItemTitle>{t('chatHeader.settings')}</DropdownMenu.ItemTitle>
-            </DropdownMenu.Item>
-            <DropdownMenu.Item key="help" onSelect={handleHelp}>
-              <DropdownMenu.ItemIcon ios={{ name: "questionmark.circle" }} />
-              <DropdownMenu.ItemTitle>{t('chatHeader.help')}</DropdownMenu.ItemTitle>
             </DropdownMenu.Item>
             {isConversation && (
               <>

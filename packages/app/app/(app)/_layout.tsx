@@ -1,4 +1,4 @@
-import { Drawer } from 'expo-router/drawer';
+import { Drawer, useDrawerStatus } from 'expo-router/drawer';
 import { Sidebar } from '@/components/sidebar';
 import { RightPanel } from '@/components/right-panel';
 import { AppErrorBoundary } from '@/components/error-boundary';
@@ -27,6 +27,39 @@ const VISIBLE_ROUTES = new Set(['c/[id]/index', 'settings']);
 
 // Routes that handle their own top safe area insets
 const SELF_INSET_ROUTES = new Set(['index', 'c/[id]/index', '[username]', 'settings']);
+
+/**
+ * The sidebar, out of the accessibility tree while the drawer is closed.
+ *
+ * Below `md` the drawer is a `front` overlay, and react-native-drawer-layout
+ * closes it by translating it one drawer-width offscreen — a visual fact and
+ * nothing more. The subtree stays mounted: every row is still announced by a
+ * screen reader and still reachable in the tab order, so a person on the
+ * Library page at 390px was offered a whole navigation they could not see
+ * (#532). The layout hides the SCENE while the drawer is open (`aria-hidden`
+ * on its content) but never the reverse, so the reverse is done here.
+ *
+ * Only while closed, and only at narrow widths: `permanent` drawers are always
+ * on screen. `useDrawerStatus` flips at the moment the open or close is
+ * dispatched, so the drawer that is sliding in is already exposed by the time
+ * focus can reach it, and nothing depends on the animation's timing.
+ */
+function DrawerSidebar() {
+  const status = useDrawerStatus();
+  const isLargeScreen = useIsLargeScreen();
+  const hidden = !isLargeScreen && status === 'closed';
+
+  return (
+    <View
+      style={{ flex: 1 }}
+      aria-hidden={hidden}
+      importantForAccessibility={hidden ? 'no-hide-descendants' : 'auto'}
+      accessibilityElementsHidden={hidden}
+    >
+      <Sidebar />
+    </View>
+  );
+}
 
 export default function AppLayout() {
   const isLargeScreen = useIsLargeScreen();
@@ -63,7 +96,7 @@ export default function AppLayout() {
     loadPinned();
   }, [loadProjects, loadFolders, loadFavorites, loadPinned]);
 
-  const renderDrawerContent = useCallback(() => <Sidebar />, []);
+  const renderDrawerContent = useCallback(() => <DrawerSidebar />, []);
 
   // Only the gutter band: `ContentPanel` refuses to nest, so each scene composes
   // its own panel(s) and a two-pane scene can render them as siblings. `pl-0`

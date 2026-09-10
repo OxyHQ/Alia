@@ -176,6 +176,7 @@
     }
   },
   "nav": {
+    "openNavigation": "Abrir navegación",
     "chat": "Chat",
     "threads": "Hilos",
     "settings": "Configuración",
@@ -273,6 +274,7 @@
     "subtitle": "Sube y administra tus archivos, documentos y recursos para usar con Alia",
     "empty": "Aún no hay elementos",
     "searchPlaceholder": "Buscar archivos...",
+    "addFiles": "Añadir archivos",
     "addImages": "Agregar imágenes",
     "uploadFiles": "Subir archivos",
     "documents": "Documentos",
@@ -321,7 +323,13 @@
     "dislike": "No me gusta",
     "edit": "Editar",
     "sources": "Fuentes",
-    "sourcesCount": "%{count} fuentes"
+    "sourcesCount": "%{count} fuentes",
+    "conversationOptions": "Opciones de la conversación",
+    "turnFailed": "Alia no ha podido responder ahora mismo.",
+    "turnInterrupted": "Alia se interrumpió antes de terminar.",
+    "turnFailedRetryHint": "Inténtalo de nuevo.",
+    "retry": "Reintentar",
+    "exportFailed": "No se pudo exportar esta conversación."
   },
   "credits": {
     "title": "Créditos",
@@ -372,7 +380,29 @@
     "promptPlaceholder": "Describe lo que esta automatización debe hacer...",
     "schedule": "Horario",
     "daily": "Diario",
-    "interval": "Intervalo"
+    "interval": "Intervalo",
+    "intervalMinutes": "Minutos entre ejecuciones",
+    "intervalInvalid": "Introduce un número entero de minutos, al menos 1.",
+    "runsEveryHour": "Se ejecuta cada hora.",
+    "runsEveryMinutes": "Se ejecuta cada {{minutes}} minutos.",
+    "created": "Automatización creada",
+    "createdDescription": "Ya aparece en Tareas junto al resto de tu trabajo.",
+    "viewTasks": "Ver tareas"
+  },
+  "tasks": {
+    "title": "Tareas",
+    "active": "Activas",
+    "history": "Historial",
+    "activeCount": "{{count}} activas",
+    "filterAll": "Todo",
+    "filterTasks": "Tareas",
+    "filterAutomations": "Automatizaciones",
+    "emptyActive": "No hay tareas ni automatizaciones activas",
+    "emptyActiveHint": "Contrata un agente desde la página de Agentes para iniciar una tarea, o crea una automatización desde la página de Automatizaciones. Ambas se ejecutan en segundo plano y puedes seguirlas aquí.",
+    "emptyHistory": "Aún no hay tareas terminadas ni automatizaciones detenidas",
+    "loadError": "No se pudieron cargar tus tareas y automatizaciones.",
+    "retry": "Reintentar",
+    "loadMore": "Cargar más"
   },
   "skills": {
     "title": "Skills",
@@ -549,18 +579,18 @@
     "failedToReset": "Error al restablecer la contraseña. Por favor, intenta de nuevo."
   },
   "chatHeader": {
-    "shareConversation": "Compartir conversación",
     "export": "Exportar",
     "settings": "Configuración",
-    "help": "Ayuda",
     "clearConversation": "Limpiar conversación",
     "clearConfirmTitle": "Limpiar conversación",
     "clearConfirmDescription": "¿Estás seguro de que quieres limpiar esta conversación? Esta acción no se puede deshacer.",
     "clear": "Limpiar",
-    "exportComingSoon": "La función de exportar conversación estará disponible pronto!",
-    "shareComingSoon": "La función de compartir conversación estará disponible pronto!",
     "settingsComingSoon": "La función de configuración estará disponible pronto!",
-    "helpComingSoon": "La función de ayuda estará disponible pronto!"
+    "openMenu": "Abrir menú",
+    "temporaryChat": "Chat temporal",
+    "searchConversations": "Buscar conversaciones",
+    "searchThread": "Buscar en este hilo",
+    "moreOptions": "Más opciones"
   },
   "welcome": {
     "greetingNamed": "Hola {{name}}, ¿qué tienes en mente?",
@@ -597,6 +627,10 @@
     "about": "Acerca de",
     "noAgents": "No se encontraron agentes",
     "notFound": "Agente no encontrado",
+    "notFoundDetail": "No se pudo encontrar este agente. Puede que se haya eliminado o que pertenezca a otra cuenta.",
+    "backToAgents": "Volver a agentes",
+    "loadFailed": "No se pudo cargar este agente",
+    "retry": "Reintentar",
     "statusActive": "Activo",
     "statusIdle": "Inactivo",
     "statusOffline": "Desconectado",
@@ -959,7 +993,9 @@
     "noSources": "No se usaron fuentes",
     "noSteps": "No hay pasos para mostrar",
     "websites": "Sitios web",
-    "viewDetails": "Ver detalles"
+    "viewDetails": "Ver detalles",
+    "references": "Referencias",
+    "sourceLabel": "Fuente {{n}}: {{title}}"
   },
   "landing": {
     "tagline": "Tu asistente de IA inteligente",
