@@ -7,6 +7,7 @@ import {
   createObservedAutomationRun,
   listActiveAutomationAuthorizations,
   markAutomationRunForSession,
+  setAutomationEnabled,
 } from '../db/automation/automationDefinitionRepository.js';
 import { findAgentById } from '../db/agents/agentRepository.js';
 import { createAgentSession, updateAgentSession } from '../db/agents/agentSessionRepository.js';
@@ -127,6 +128,90 @@ export async function dispatchStructuredAutomation(
     ...automation.dataFlow.sources,
   ]);
   const agents = await eligibleAgents(automation);
+  if (automation.actions.length === 0) {
+    const agent = agents[0];
+    if (!agent) {
+      const reason = 'The responsible agent is unavailable.';
+      await notifyNoExecution(automation, trigger, reason);
+      return { status: 'denied', reason: 'responsible_agent_unavailable' };
+    }
+    const resource = primaryResource(automation, trigger, sourceResources);
+    const stages = [{
+      stage: 0,
+      agentId: agent.id,
+      actorAccountId: agent.oxyAccountId,
+      actions: [],
+    }];
+    const requesterAccountId = trigger.kind === 'manual'
+      ? trigger.requesterAccountId
+      : automation.ownerAccountId;
+    const taskInputs = automationStageTaskInputs(automation, trigger, stages);
+    const runStages = [{
+      stage: 0,
+      selectedAgentId: agent.id,
+      selectedActorAccountId: agent.oxyAccountId,
+      resource,
+      taskInput: taskInputs[0] ?? {},
+      actions: [],
+    }];
+    if (automation.executionMode === 'observe') {
+      const created = await createObservedAutomationRun({
+        db: getDb(),
+        automationId: automation.id,
+        requesterAccountId,
+        triggerEventId: trigger.id,
+        stages: runStages,
+      });
+      return { status: created ? 'observed' : 'duplicate' };
+    }
+    const runId = uuidv7();
+    const session = await getDb().transaction(async (transaction) => {
+      const claimed = await claimAutomationRunPlan({
+        db: transaction,
+        runId,
+        automationId: automation.id,
+        requesterAccountId,
+        triggerEventId: trigger.id,
+        stages: runStages,
+      });
+      if (!claimed) return null;
+      if (automation.inputs.runOnce === true) {
+        const disabled = await setAutomationEnabled(
+          transaction,
+          automation.id,
+          automation.ownerAccountId,
+          false,
+        );
+        if (!disabled) throw new Error('Claimed one-off task could not be disabled');
+      }
+      const task = renderAutomationStageTask(taskInputs[0] ?? {});
+      return createAgentSession(transaction, {
+        agentId: agent.id,
+        oxyUserId: automation.ownerAccountId,
+        automationRunId: runId,
+        automationStage: 0,
+        task,
+        status: 'queued',
+        messages: [{ role: 'user', content: task, timestamp: new Date() }],
+      });
+    });
+    if (!session) return { status: 'duplicate' };
+    try {
+      await enqueueAgentSession({
+        sessionId: session.id,
+        userId: automation.ownerAccountId,
+        agentId: agent.id,
+        agentName: `Agent ${agent.id}`,
+      });
+    } catch (error: unknown) {
+      await Promise.all([
+        updateAgentSession(getDb(), session.id, { status: 'failed', result: 'Could not queue automation run' }),
+        markAutomationRunForSession(getDb(), session.id, 'failed'),
+      ]);
+      throw error;
+    }
+    return { status: 'queued', sessionId: session.id };
+  }
   const candidates = await loadAutomationActorCandidates(
     automation.ownerAccountId,
     agents,

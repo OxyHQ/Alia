@@ -103,7 +103,9 @@ export function renderAutomationStageTask(
   return [
     input.objective,
     '',
-    'This run was started by a normalized Oxy automation. Use only the declared actions and minimum context below.',
+    input.actions.length > 0
+      ? 'This run was started by a connected task. Use only the declared actions and minimum context below.'
+      : 'This scheduled task has no connected-app effects. Complete the instructions using only Alia assistant capabilities.',
     JSON.stringify(context),
   ].join('\n');
 }

@@ -51,7 +51,12 @@ describe('structured automation creation tool', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     createStructuredAutomation.mockResolvedValue({
-      automation: { id: 'automation-1' },
+      automation: {
+        id: 'automation-1',
+        objective: 'Send a weekly notes summary',
+        enabled: true,
+        trigger: definition.trigger,
+      },
       receipt: { undo: { method: 'DELETE', path: '/automations/automation-1' } },
     });
   });
@@ -67,9 +72,41 @@ describe('structured automation creation tool', () => {
     });
     expect(result).toEqual({
       success: true,
-      automation: { id: 'automation-1' },
+      automation: {
+        id: 'automation-1',
+        objective: 'Send a weekly notes summary',
+        enabled: true,
+        trigger: definition.trigger,
+      },
       receipt: { undo: { method: 'DELETE', path: '/automations/automation-1' } },
+      card: {
+        type: 'scheduled-task',
+        data: {
+          id: 'automation-1',
+          objective: 'Send a weekly notes summary',
+          enabled: true,
+          trigger: definition.trigger,
+        },
+      },
     });
     expect(JSON.stringify(result)).not.toContain('live-user-token');
+  });
+
+  it('accepts an assistant task with no fake app action', async () => {
+    const assistantTask = {
+      ...definition,
+      actions: [],
+      resources: [],
+      dataFlow: { sources: [], destinations: [] },
+      inputs: { instructions: 'Remind me to call Alex' },
+    };
+    const tool = createAutomationTool('owner-1', 'live-user-token') as unknown as ExecutableTool;
+
+    await expect(tool.execute(assistantTask)).resolves.toEqual(expect.objectContaining({
+      success: true,
+    }));
+    expect(createStructuredAutomation).toHaveBeenCalledWith(expect.objectContaining({
+      definition: assistantTask,
+    }));
   });
 });

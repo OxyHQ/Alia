@@ -138,8 +138,8 @@ export function useRunAutomation() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (automation: AutomationDefinition): Promise<void> => {
-      if (automation.trigger.type !== 'manual') {
-        throw new Error('Only manual structured automations can be run on request');
+      if (automation.trigger.type === 'event') {
+        throw new Error('Event tasks run only when their configured event occurs');
       }
       await apiClient.post(
         API_ROUTES.automations.run(automation.id),

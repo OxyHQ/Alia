@@ -126,6 +126,6 @@ for correlation without exposing provider or deployment details.
 
 ## Automation control plane
 
-`/automations` is the normalized structured control plane. `/triggers` remains
-available for legacy routines; both scheduled row types use the same elected
-scheduler.
+`/automations` is the normalized task control plane. Conversation can create a
+future assistant task with no connected-app action, or connected work with exact
+Oxy authority. Creation never runs the task; a separate Run now operation does.

@@ -95,8 +95,8 @@ export const createAutomationSchema = z.object({
   actorSelection: automationActorSelectionSchema,
   executionMode: z.enum(['observe', 'execute']).default('observe')
     .describe('Use execute only when the user explicitly asked for real actions'),
-  actions: z.array(automationActionSchema).min(1)
-    .describe('Ordered app actions; use exact resource and catalogue tool names'),
+  actions: z.array(automationActionSchema).default([])
+    .describe('Ordered connected-app effects. Leave empty for reminders, research, and assistant responses'),
   inputs: z.record(z.string(), z.unknown()).default({}),
   resources: z.array(automationResourceSchema).default([]),
   dataFlow: z.object({
@@ -112,6 +112,7 @@ export type CreateAutomationInput = z.infer<typeof createAutomationSchema>;
 
 export const updateAutomationSchema = z.object({
   objective: createAutomationSchema.shape.objective.optional(),
+  instructions: z.string().trim().min(1).optional(),
   trigger: automationTriggerSchema.optional(),
   actorSelection: automationActorSelectionSchema.optional(),
   resources: z.array(automationResourceSchema).optional(),
@@ -247,6 +248,22 @@ function validateDefinition(definition: CreateAutomationInput): void {
   if (definition.trigger.type === 'event' && definition.dataFlow.sources.length === 0) {
     throw new AutomationCreationError('event_automation_requires_explicit_data_source', 400);
   }
+  if (definition.actions.length === 0) {
+    if (definition.trigger.type === 'event') {
+      throw new AutomationCreationError('event_automation_requires_connected_action', 400);
+    }
+    if (definition.actorSelection.mode !== 'fixed') {
+      throw new AutomationCreationError('assistant_task_requires_responsible_agent', 400);
+    }
+    if (definition.resources.length > 0
+      || definition.dataFlow.sources.length > 0
+      || definition.dataFlow.destinations.length > 0) {
+      throw new AutomationCreationError('assistant_task_cannot_declare_connected_resources', 400);
+    }
+    if (definition.inputs.runOnce !== undefined && definition.inputs.runOnce !== true) {
+      throw new AutomationCreationError('assistant_task_run_once_must_be_true', 400);
+    }
+  }
   if (definition.trigger.type === 'schedule') {
     const scheduleError = automationScheduleError(
       definition.trigger.cron,
@@ -284,7 +301,9 @@ function editableDefinition(
       input: action.input,
       limits: action.limits,
     })),
-    inputs: existing.inputs,
+    inputs: patch.instructions === undefined
+      ? existing.inputs
+      : { ...existing.inputs, instructions: patch.instructions },
     resources: patch.resources ?? existing.resources,
     dataFlow: patch.dataFlow ?? existing.dataFlow,
     maximumAutonomy: patch.maximumAutonomy ?? existing.maximumAutonomy,
@@ -365,7 +384,10 @@ export async function updateStructuredAutomation(input: {
   }
   const agents = await ownedAutomationAgents(input.ownerAccountId, agentIds);
   if (!agents) throw new AutomationCreationError('automation_agent_not_owned', 403);
-  if (definition.executionMode === 'execute' && definition.enabled && !input.accessToken) {
+  if (definition.executionMode === 'execute'
+    && definition.enabled
+    && definition.actions.length > 0
+    && !input.accessToken) {
     throw new AutomationCreationError('user_session_required_for_execution_authority', 401);
   }
 
@@ -375,7 +397,9 @@ export async function updateStructuredAutomation(input: {
       : []),
     ...definition.dataFlow.sources,
   ]);
-  const authorityPairs = definition.executionMode === 'execute' && definition.enabled
+  const authorityPairs = definition.executionMode === 'execute'
+    && definition.enabled
+    && definition.actions.length > 0
     ? await executionAuthorityPairs({
       ownerAccountId: input.ownerAccountId,
       agents,
@@ -389,7 +413,10 @@ export async function updateStructuredAutomation(input: {
   }
 
   let provisioned: ProvisionedAutomationAuthorization[] = [];
-  if (definition.executionMode === 'execute' && definition.enabled && input.accessToken) {
+  if (definition.executionMode === 'execute'
+    && definition.enabled
+    && definition.actions.length > 0
+    && input.accessToken) {
     try {
       provisioned = await provisionAutomationAuthorizations({
         accessToken: input.accessToken,
@@ -439,6 +466,7 @@ export async function updateStructuredAutomation(input: {
       actorMode: selection.mode,
       fixedAgentId: selection.mode === 'fixed' ? selection.agentId : undefined,
       eligibleAgentIds: selection.mode === 'automatic' ? selection.eligibleAgentIds : [],
+      inputs: definition.inputs,
       resources: definition.resources,
       dataFlow: definition.dataFlow,
       maximumAutonomy: definition.maximumAutonomy,
@@ -492,7 +520,10 @@ export async function createStructuredAutomation(input: {
   }
   const agents = await ownedAutomationAgents(input.ownerAccountId, agentIds);
   if (!agents) throw new AutomationCreationError('automation_agent_not_owned', 403);
-  if (input.definition.executionMode === 'execute' && input.definition.enabled && !input.accessToken) {
+  if (input.definition.executionMode === 'execute'
+    && input.definition.enabled
+    && input.definition.actions.length > 0
+    && !input.accessToken) {
     throw new AutomationCreationError('user_session_required_for_execution_authority', 401);
   }
 
@@ -503,7 +534,9 @@ export async function createStructuredAutomation(input: {
     ...(trigger.type === 'event' && trigger.resource ? [trigger.resource] : []),
     ...input.definition.dataFlow.sources,
   ]);
-  const authorityPairs = input.definition.executionMode === 'execute' && input.definition.enabled
+  const authorityPairs = input.definition.executionMode === 'execute'
+    && input.definition.enabled
+    && actions.length > 0
     ? await executionAuthorityPairs({
       ownerAccountId: input.ownerAccountId,
       agents,
@@ -550,7 +583,10 @@ export async function createStructuredAutomation(input: {
     throw new AutomationCreationError('automation_store_unavailable', 503);
   }
 
-  if (input.definition.executionMode === 'execute' && input.definition.enabled && input.accessToken) {
+  if (input.definition.executionMode === 'execute'
+    && input.definition.enabled
+    && actions.length > 0
+    && input.accessToken) {
     let provisioned: ProvisionedAutomationAuthorization[];
     try {
       provisioned = await provisionAutomationAuthorizations({
@@ -589,6 +625,21 @@ export async function createStructuredAutomation(input: {
         { automationId, stopped: true },
       );
     }
+  } else if (input.definition.executionMode === 'execute' && input.definition.enabled) {
+    const activated = await setAutomationEnabled(
+      getDb(),
+      automation.id,
+      input.ownerAccountId,
+      true,
+    );
+    if (!activated) {
+      throw new AutomationCreationError(
+        'automation_store_unavailable',
+        503,
+        { automationId, stopped: true },
+      );
+    }
+    automation = activated;
   }
 
   await refreshAutomationSchedule(automation.id);

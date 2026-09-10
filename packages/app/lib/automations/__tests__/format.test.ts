@@ -82,6 +82,10 @@ describe('automation formatting', () => {
       ...baseAutomation,
       trigger: { type: 'event', appId: 'inbox', eventType: 'email.received' },
     })).toBe(false);
+    expect(canRunNow({
+      ...baseAutomation,
+      trigger: { type: 'schedule', cron: '0 9 * * 1', timezone: 'UTC' },
+    })).toBe(true);
     expect(canRunNow({ ...baseAutomation, legacyTriggerId: 'trigger-1' }))
       .toBe(true);
   });

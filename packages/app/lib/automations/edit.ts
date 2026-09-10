@@ -13,6 +13,7 @@ export interface AutomationLimitDraft {
 
 export interface AutomationEditDraft {
   objective: string;
+  instructions: string;
   trigger: AutomationUpdateTrigger;
   actorSelection: AutomationUpdateActorSelection;
   resources: AutomationResource[];
@@ -68,6 +69,9 @@ export function createAutomationEditDraft(
 ): AutomationEditDraft {
   return {
     objective: automation.objective,
+    instructions: typeof automation.inputs?.instructions === 'string'
+      ? automation.inputs.instructions
+      : automation.objective,
     trigger: editableTrigger(automation.trigger),
     actorSelection: editableActor(automation.actorSelection),
     resources: automation.resources.map(copyResource),
@@ -122,6 +126,7 @@ function parseLimitValue(value: string): AutomationUpdateInput['limits'][number]
 export function buildAutomationUpdate(draft: AutomationEditDraft): AutomationEditResult {
   const objective = draft.objective.trim();
   if (!objective) return { ok: false, error: 'Objective is required' };
+  if (!draft.instructions.trim()) return { ok: false, error: 'Instructions are required' };
   if (draft.trigger.type === 'schedule'
     && (!draft.trigger.cron.trim() || !draft.trigger.timezone.trim())) {
     return { ok: false, error: 'Schedule and timezone are required' };
@@ -168,6 +173,7 @@ export function buildAutomationUpdate(draft: AutomationEditDraft): AutomationEdi
     ok: true,
     value: {
       objective,
+      instructions: draft.instructions.trim(),
       trigger: draft.trigger.type === 'schedule'
         ? {
             type: 'schedule',

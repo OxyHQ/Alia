@@ -3,16 +3,17 @@
 Last updated: 2026-09-02
 
 Alia proactive intelligence has one normalized control plane (`/automations`) and
-one scheduler (`trigger-engine.ts`) during the trigger migration. Automation
-definitions own actors, exact Oxy actions, data flow, limits and execution mode;
-the elected scheduler reconciles both normalized schedules and legacy trigger
-rows without duplicating cron processes.
+one elected scheduler (`trigger-engine.ts`). A task always owns its human objective,
+schedule and responsible agent. Connected work additionally owns exact Oxy actions,
+data flow and limits; reminders, research and assistant responses deliberately carry
+no fabricated app resource or tool.
 
 ## Architecture
 
 1. User message (or external event) arrives.
 2. Runtime classifies intent and recalls context graph.
-3. The coordinator assigns each ordered action to the first eligible agent
+3. For assistant-only work, the chosen owned agent receives the prompt directly.
+   For connected work, the coordinator assigns each ordered action to the first eligible agent
    whose live capability map covers it. The first stage must also cover every
    declared source resource.
 4. Consecutive actions for the same agent form one stage. Each stage has its

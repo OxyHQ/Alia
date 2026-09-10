@@ -158,17 +158,26 @@ router.post('/:id/run', async (request: Request, response: Response) => {
     ownerAccountId,
   );
   if (!automation) return response.status(404).json({ error: 'Automation not found' });
-  if (automation.trigger.type !== 'manual') {
-    return response.status(409).json({ error: 'automation_trigger_is_not_manual' });
+  if (automation.trigger.type === 'event') {
+    return response.status(409).json({ error: 'event_task_waits_for_configured_event' });
   }
-
   try {
-    const run = await dispatchStructuredAutomation(automation, {
-      kind: 'manual',
-      id: `manual:${automation.id}:${idempotencyKey.data}`,
-      occurredAt: new Date(),
-      requesterAccountId: ownerAccountId,
-    });
+    const occurredAt = new Date();
+    const run = await dispatchStructuredAutomation(
+      automation,
+      automation.trigger.type === 'schedule'
+        ? {
+            kind: 'schedule',
+            id: `run-now:${automation.id}:${idempotencyKey.data}`,
+            occurredAt,
+          }
+        : {
+            kind: 'manual',
+            id: `manual:${automation.id}:${idempotencyKey.data}`,
+            occurredAt,
+            requesterAccountId: ownerAccountId,
+          },
+    );
     return response.status(run.status === 'queued' ? 202 : run.status === 'denied' ? 409 : 200).json({ run });
   } catch (error: unknown) {
     log.triggers.error({ err: error, automationId: automation.id }, 'Could not dispatch manual automation');
