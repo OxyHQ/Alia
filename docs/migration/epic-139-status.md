@@ -895,3 +895,47 @@ is `- [ ]` on the issue; it is still true and should be ticked. (5) `gateway-cli
 seven dynamic imports of `internal/providers/lib/routing-profile-catalogue.js` and the deploy seed
 still writes `model_configs` on every deploy with no reader left — L388/L420/L425 are repo work now,
 not cutover work.
+
+## Re-audit 2026-09-10, upstream half (Kaana, oxy) and the engineering that followed
+
+**Subject:** the 51 rows the morning pass left to the other two repositories — `ACTIONABLE_UPSTREAM`
+(17), `BLOCKED_KAANA` (7), `BLOCKED_OXY_972` (27) — re-read against OxyHQ/Kaana `main` (`5129210`)
+and OxyHQ/oxy `main` (`19f25b7`), plus the eight Alia rows the morning pass had marked doable here.
+Full record: `reaudit20260910Upstream` in the JSON.
+
+**Result:** 24 more rows earned, 128 of 246 in total. Open verdicts now: `BLOCKED_ALIAMODELS` 28,
+`BLOCKED_CUTOVER` 26, `BLOCKED_OPERATOR` 24, `PRODUCT_DECISION` 17, `DUPLICATE_OF` 9, `ACTIONABLE_NOW` 4,
+`BLOCKED_KAANA` 4, `ACTIONABLE_UPSTREAM` 3, `ROLLUP_OF` 1, `SUPERSEDED_BY_REMOVAL` 1.
+
+**What changed upstream since the tracker was written.** Kaana serves 26 built-in providers pinned by
+exact count (`internal/providerconfig/providerconfig.go:53-80`) — Anthropic, Google (through its
+OpenAI-compatible root), Cloudflare, Cohere, DeepSeek, DigitalOcean, Fireworks, Groq, Hyperbolic,
+Mistral, SambaNova and Together among them, which earns twelve workstream-7 adapter rows at code
+level. Same-model failover is no longer "off and unauthorisable": contract 1.3.0 carries an ordered
+`authorizedRoutes[]` with `substitution: same_model | cross_model` that Oxy resolves and Kaana executes
+verbatim. The Oxy→Alia static proxy is gone from `server.ts`, and Oxy Console carries the customer
+controls (credentials, routing policy, BYOK, usage, budgets, billing) while a staff API
+(`routes/inferenceAdmin.ts`) carries the operational ones. **Not earned by any of that:** anything
+whose text is a live claim — no rollout stage has been entered, `INFERENCE_EDGE_AUDIENCE` unset serves
+nobody, charging is shadow-metered — so registration, credential minting, catalogue launch, live
+E2E runs and reconciliation stay `BLOCKED_OPERATOR` with their code evidence attached.
+
+**Engineering landed in this pass.** Kaana #70 runs the conformance suite over every OpenAI-compatible
+built-in slug (25 subjects, derived from `providerconfig.Known`) and corrects the architecture doc on
+embeddings; oxy #1227 corrects `docs/inference/README.md` on which later-modality endpoints are
+mounted. In this repository: the routing-profile catalogue is imported statically from
+`gateway-client.ts` (L388, guard in `kaana-only-runtime.test.ts`); the deploy seed no longer writes
+`model_configs` / `routing_profiles` (L420, guard in `seedWiring.test.ts`; the DROP stays gated on the
+production audit, L425); the resolved model revision Kaana served is recorded in
+`chat_analytics.resolved_model_reference` (L290/L703/L442, migration `0068`); every `respond`/`stream`
+call carries a fresh `Idempotency-Key` (L655); the revocation step is in the credential runbook (L656);
+`fallbackPolicy` — accepted and silently ignored — is now refused with `400 invalid_request`; and the
+compatibility-window and decisions documents record that the `alia-*` aliases were removed in #477
+rather than deprecated (L274, `SUPERSEDED_BY_REMOVAL`).
+
+**Still upstream.** Kaana: audio-out and realtime adapters plus the contract arms (L335/L337/L691),
+async image/audio jobs and the ADR 0009 amendment batches would need (L369), Novita (its published
+root differs from the inventory guess), Perplexity (Sonar is not the shared path) and Replicate (neither
+protocol). oxy: per-environment service credentials for Alia are minted in Console or need a seed
+change (L178); the `alia_sk_` mapping tool (L453/L457) and the subscription/balance migration
+(L477–L479) wait on product decisions recorded in `epic-139-decisions.md`.

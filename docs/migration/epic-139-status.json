@@ -10,7 +10,9 @@
     "correctedAgainst": "origin/main at fb57b88f",
     "resolvedStateSync": "The `resolvedSince` flags are synced from the issue body in BOTH directions. A one-way sync let L243 keep the flag after the box was re-opened — a record that can only say \"done\" reports an epic as further along than it is.",
     "reauditNote": "Re-audited 2026-08-19 against origin/main at 7acf9377, and separately against the RUNNING system. All 97 BLOCKED_KAANA rows were re-classified: 56 BLOCKED_CUTOVER, 16 ACTIONABLE_UPSTREAM, 10 BLOCKED_OPERATOR, 7 BLOCKED_KAANA (each naming a specific missing capability), 3 ALREADY_TRUE, 2 ACTIONABLE_NOW, 2 BLOCKED_ALIAMODELS, 1 PRODUCT_DECISION. Every touched row carries `verdictBefore`, `reauditedAt`, `reauditNote` and — where it is still blocked — `namedBlocker`. See `reaudit` and `blockers.cutover`.",
-    "reaudit20260910": "Re-audited 2026-09-10 against aa4db14; see `reaudit20260910`."
+    "reaudit20260910": "Re-audited 2026-09-10 against aa4db14; see `reaudit20260910`.",
+    "kaana": "OxyHQ/Kaana main at 5129210 (#69)",
+    "oxy": "OxyHQ/oxy main at 19f25b7 (#1227)"
   },
   "checkboxes": {
     "total": 416,
@@ -21,16 +23,16 @@
     "tickedNowReadAt": "2026-09-10"
   },
   "verdictCounts": {
-    "ACTIONABLE_NOW": 42,
+    "ACTIONABLE_NOW": 46,
     "ACTIONABLE_UPSTREAM": 17,
     "ALREADY_TRUE": 7,
     "BLOCKED_ALIAMODELS": 29,
-    "BLOCKED_CUTOVER": 58,
-    "BLOCKED_KAANA": 7,
-    "BLOCKED_OPERATOR": 10,
-    "BLOCKED_OXY_972": 27,
-    "DUPLICATE_OF": 34,
-    "PRODUCT_DECISION": 13,
+    "BLOCKED_CUTOVER": 59,
+    "BLOCKED_KAANA": 6,
+    "BLOCKED_OPERATOR": 26,
+    "BLOCKED_OXY_972": 2,
+    "DUPLICATE_OF": 33,
+    "PRODUCT_DECISION": 19,
     "ROLLUP_OF": 1,
     "SUPERSEDED_BY_REMOVAL": 1
   },
@@ -72,16 +74,26 @@
       "workstream": "Non-negotiable invariants",
       "section": "",
       "text": "Alia does not own customer organizations, applications, API keys, balances or financial ledger after migration.",
-      "verdict": "BLOCKED_OXY_972",
-      "evidence": "Alia owns them today: 15 developer routes in packages/api/src/routes/developer.ts, tables `developer_apps` and `developer_api_keys` (packages/api/drizzle/0004_ambitious_payback.sql), and the financial tables `subscriptions`/`transactions`/`user_credits`/`plans` (0003_closed_black_queen.sql). Oxy Applications/Console and the Oxy ledger are OxyHQ/oxy#972 (OPEN, updated 2026-08-17)."
+      "verdict": "BLOCKED_CUTOVER",
+      "evidence": "Alia owns them today: 15 developer routes in packages/api/src/routes/developer.ts, tables `developer_apps` and `developer_api_keys` (packages/api/drizzle/0004_ambitious_payback.sql), and the financial tables `subscriptions`/`transactions`/`user_credits`/`plans` (0003_closed_black_queen.sql). Oxy Applications/Console and the Oxy ledger are OxyHQ/oxy#972 (OPEN, updated 2026-08-17).",
+      "verdictBefore": "BLOCKED_OXY_972",
+      "reauditedAt": "2026-09-10",
+      "upstreamEvidence": "Upstream owns them: oxy:packages/api/src/routes/applications.ts, db/schema/applicationCredentials.ts, usageReservations.ts:102, usageReceipts.ts:102, priceVersions.ts:116, billingLedgerEntries.ts:218,332, accountBalances.ts; money numeric(30,12) (ledgerColumns.ts:77-102). Alia still holds its own plan/credit tables until L477-L479 land.",
+      "namedBlocker": "Alia removal of duplicate tables after the L477 migration decision.",
+      "unblockedBy": "this repo"
     },
     {
       "line": 94,
       "workstream": "Non-negotiable invariants",
       "section": "",
       "text": "Alia uses Oxy Accounts, Applications, ApplicationCredentials, scopes and billing.",
-      "verdict": "BLOCKED_OXY_972",
-      "evidence": "The consuming half is built: packages/api/src/lib/inference/kaana-boot-check.ts:54 parses the contract's `authenticatedPrincipalSchema` from five env vars, and @oxy.so/core@19.1.2 exposes `configureServiceAuth()`/`getServiceToken()`. What is missing is the Oxy Application and its ApplicationCredentials — see L177/L178, which nothing in this repo can create."
+      "verdict": "BLOCKED_CUTOVER",
+      "evidence": "The consuming half is built: packages/api/src/lib/inference/kaana-boot-check.ts:54 parses the contract's `authenticatedPrincipalSchema` from five env vars, and @oxy.so/core@19.1.2 exposes `configureServiceAuth()`/`getServiceToken()`. What is missing is the Oxy Application and its ApplicationCredentials — see L177/L178, which nothing in this repo can create.",
+      "verdictBefore": "BLOCKED_OXY_972",
+      "reauditedAt": "2026-09-10",
+      "upstreamEvidence": "Upstream ready: app spec oxy:packages/api/src/scripts/seedOxyApplicationsSpecs.ts:356-388; service tokens oxy:docs/SERVICE_TOKENS.md; delegated-user lane routes/__tests__/inferenceEdgeCredentialLanes.test.ts:609-706; entitlements routes/accountBilling.ts:816-841. Alia consumes accounts and service tokens today (Alia:packages/api/src/middleware/auth.ts:66); applications/credentials/billing consumption waits on L178 and L477.",
+      "namedBlocker": "Alia-side consumption of ApplicationCredentials and Oxy billing.",
+      "unblockedBy": "this repo"
     },
     {
       "line": 95,
@@ -190,24 +202,39 @@
       "workstream": "2. Register Alia correctly in Oxy",
       "section": "",
       "text": "Register or confirm the Alia first-party/internal Oxy Application under the correct Oxy account.",
-      "verdict": "BLOCKED_OXY_972",
-      "evidence": "Nothing in this repo can register an Oxy Application. No application id appears anywhere: kaana-boot-check.ts declares RELAY_PRINCIPAL_ENV naming five variables and packages/api/.env.example documents them, but no value is configured and no deployment sets them (.github/workflows/deploy-aws.yml syncs exactly ten secrets, none of them an Oxy application id)."
+      "verdict": "BLOCKED_OPERATOR",
+      "evidence": "Nothing in this repo can register an Oxy Application. No application id appears anywhere: kaana-boot-check.ts declares RELAY_PRINCIPAL_ENV naming five variables and packages/api/.env.example documents them, but no value is configured and no deployment sets them (.github/workflows/deploy-aws.yml syncs exactly ten secrets, none of them an Oxy application id).",
+      "verdictBefore": "BLOCKED_OXY_972",
+      "reauditedAt": "2026-09-10",
+      "upstreamEvidence": "Seeded as code: oxy:packages/api/src/scripts/seedOxyApplicationsSpecs.ts:235 (ALIA_APPLICATION_ID, exact opaque id), type internal :378, owner alia-production-chat :230; test scripts/__tests__/seedOxyApplicationsSpecs.test.ts:139-180; seed packages/api/scripts/seed-oxy-applications.ts. The production row is unverifiable from a repository.",
+      "namedBlocker": "Operator confirms the row exists in production.",
+      "unblockedBy": "operator"
     },
     {
       "line": 178,
       "workstream": "2. Register Alia correctly in Oxy",
       "section": "",
       "text": "Create separate development, staging and production ApplicationCredentials.",
-      "verdict": "BLOCKED_OXY_972",
-      "evidence": "Same: ApplicationCredentials are minted in the Oxy control plane. @oxy.so/contracts@0.27.0 ships `oxyCredentialIdSchema` so the shape exists; the credentials do not."
+      "verdict": "BLOCKED_OPERATOR",
+      "evidence": "Same: ApplicationCredentials are minted in the Oxy control plane. @oxy.so/contracts@0.27.0 ships `oxyCredentialIdSchema` so the shape exists; the credentials do not.",
+      "verdictBefore": "BLOCKED_OXY_972",
+      "reauditedAt": "2026-09-10",
+      "upstreamEvidence": "Schema supports environments (oxy:packages/api/src/db/schema/applicationCredentials.ts:168); minting/rotation via routes/applications.ts (machineCredentials.test.ts:371-795). The seed mints only ONE public production credential per app (oxy:packages/api/scripts/seed-oxy-applications.ts:16-21); no service credential for Alia in any environment is created by code.",
+      "namedBlocker": "Mint three service credentials in Console (data), or extend the seed (oxy, S).",
+      "unblockedBy": "operator"
     },
     {
       "line": 179,
       "workstream": "2. Register Alia correctly in Oxy",
       "section": "",
       "text": "Grant only required inference scopes.",
-      "verdict": "BLOCKED_OXY_972",
-      "evidence": "The scope vocabulary is published — `INFERENCE_SCOPES` in @oxy.so/contracts, and kaana-client.ts:163 already refuses a principal missing the required invoke scope — but granting a scope is an act in the Oxy account."
+      "verdict": "BLOCKED_OPERATOR",
+      "evidence": "The scope vocabulary is published — `INFERENCE_SCOPES` in @oxy.so/contracts, and kaana-client.ts:163 already refuses a principal missing the required invoke scope — but granting a scope is an act in the Oxy account.",
+      "verdictBefore": "BLOCKED_OXY_972",
+      "reauditedAt": "2026-09-10",
+      "upstreamEvidence": "ALIA_APPLICATION_SCOPES oxy:packages/api/src/scripts/seedOxyApplicationsSpecs.ts:215-218; test :183-300 pins the exact set; mint intersects app scopes (serviceTokenCredentials.test.ts:465,519).",
+      "namedBlocker": "Grant is a production act.",
+      "unblockedBy": "operator"
     },
     {
       "line": 180,
@@ -531,10 +558,10 @@
       "verdictBefore": "BLOCKED_KAANA",
       "reauditedAt": "2026-09-10",
       "reauditNote": "Doable here: read `start` in doStream/doGenerate, surface the reference as providerMetadata, add a nullable `resolved_model_reference` column and write it from the analytics hook. No product decision needed — the reference is a `<publisher>/<model>@<revision>`, which ADR 0003 allows in analytics.",
-      "namedBlocker": "The RESOLVED REVISION is still not recorded, and the reason has changed: it is now available and unread. The contract's `start` event carries `resolvedModelReference` (@oxy.so/contracts dist/cjs/inference/streamEvents.js:41-46; usage.js:175) and kaana-language-model.ts doStream handles only delta/tool_call/usage/done/error (:548-607) — no `start` case — while db/schema/usage.ts:151-153 still says 'Alia has no Kaana to ask', which is false since #477. Requested model/profile are recorded (usage.ts:195-216).",
       "reauditNote20260819": "The row's stated blocker was \"no revision exists anywhere in Alia to record ... it arrives with the Kaana catalogue\". A revision now exists upstream (see L287). What remains is Alia receiving it, which arrives on the `start` event of a Kaana response and therefore on the cutover.",
       "verdictBefore20260910": "BLOCKED_CUTOVER",
-      "unblockedBy": "this repo"
+      "resolvedSince": "2026-09-10",
+      "resolutionEvidence": "kaana-language-model.ts reads resolvedModelReference from the stream `start` event and from `respond`, carried as providerMetadata.kaana.resolvedModelReference → onResolvedModel → TurnObservation → AfterChatContext → analytics-hook.ts → chat_analytics.resolved_model_reference (drizzle/0068_resolved_model_reference.sql, nullable, no backfill). servingProvider is never read, so no operator name reaches the product (3b82b1d). Guards: kaana-language-model.test.ts, reasoning-on-the-wire.test.ts, chat-hooks-lifecycle.test.ts."
     },
     {
       "line": 291,
@@ -571,8 +598,13 @@
       "workstream": "6. Split product API from generic inference API",
       "section": "Generic inference API",
       "text": "Move generic inference access to `api.oxy.so/v1` backed by Kaana.",
-      "verdict": "BLOCKED_OXY_972",
-      "evidence": "api.oxy.so/v1 is not backed by Kaana: docs/migration/kaana-client-gap.md section 1 measured that Oxy mounts /v1 on `aliaRoutes` with only `userRateLimiter`, and its /v1/chat/completions is a static-key proxy back into Alia. The arrow points the wrong way. OxyHQ/oxy#972 owns the replacement."
+      "verdict": "BLOCKED_OPERATOR",
+      "evidence": "api.oxy.so/v1 is not backed by Kaana: docs/migration/kaana-client-gap.md section 1 measured that Oxy mounts /v1 on `aliaRoutes` with only `userRateLimiter`, and its /v1/chat/completions is a static-key proxy back into Alia. The arrow points the wrong way. OxyHQ/oxy#972 owns the replacement.",
+      "verdictBefore": "BLOCKED_OXY_972",
+      "reauditedAt": "2026-09-10",
+      "upstreamEvidence": "Routes oxy:packages/api/src/routes/inferenceEdge.ts:761 /responses, :875 /chat/completions, :1000 /audio/speech, :1099 /images/generations; /v1/models server.ts:759. Signed Ed25519 envelope services/httpKaanaClient.ts:100-119 → Kaana edgeauth (Kaana:internal/httpapi/server_test.go:465,652). The Oxy→Alia static proxy is gone (server.ts:755; inferenceEdgeMount.test.ts:73,122,129; deploy-aws.yml:260 removes ALIA_API_KEY/RELAY_*).",
+      "namedBlocker": "No rollout stage entered (oxy:docs/inference/README.md); INFERENCE_EDGE_AUDIENCE unset serves nobody.",
+      "unblockedBy": "operator"
     },
     {
       "line": 317,
@@ -619,16 +651,26 @@
       "workstream": "6. Split product API from generic inference API",
       "section": "Generic inference API",
       "text": "Update SDKs so product clients use the Alia runtime and generic developers use Oxy.",
-      "verdict": "BLOCKED_OXY_972",
-      "evidence": "There is no Oxy generic endpoint for a developer SDK to point at (docs/migration/kaana-client-gap.md section 1). Meanwhile @alia.onl/sdk posts to Alia's /v1/chat/completions (packages/alia-chat/src/hooks/useAliaChat.ts:217) and the console documents that URL in six places."
+      "verdict": "ACTIONABLE_NOW",
+      "evidence": "There is no Oxy generic endpoint for a developer SDK to point at (docs/migration/kaana-client-gap.md section 1). Meanwhile @alia.onl/sdk posts to Alia's /v1/chat/completions (packages/alia-chat/src/hooks/useAliaChat.ts:217) and the console documents that URL in six places.",
+      "verdictBefore": "BLOCKED_OXY_972",
+      "reauditedAt": "2026-09-10",
+      "upstreamEvidence": "Upstream done: oxy:packages/core/src/inference/OxyInferenceClient.ts; oxy:docs/inference/sdk.md (oxy_sk_ with the stock OpenAI SDK; Python = stock openai client). Alia's own surfaces (app, Codea, Cowork, CLI) already use /alia/chat (Alia #561); @alia.onl/sdk documents the consumer-backend relay (ADR 0010).",
+      "resolvedSince": "2026-09-10",
+      "resolutionEvidence": "Product clients are on the Alia runtime: Codea, Cowork and the CLI call /alia/chat with one stream client each (#561: packages/alia-codea/src/aliaChat.ts, packages/alia-cowork/src/main/alia-chat.ts, packages/alia-codea-cli/src/utils/alia-chat.ts); @alia.onl/sdk documents the consumer-backend relay (packages/alia-chat/README.md, ADR 0010). Generic developers are sent to Oxy: docs/developers-portal.md and docs/api-reference.md point at Oxy Console and api.oxy.so/v1, and oxy ships the developer SDK path (oxy:packages/core/src/inference/OxyInferenceClient.ts; oxy:docs/inference/sdk.md — stock OpenAI SDK with an oxy_sk_ key)."
     },
     {
       "line": 324,
       "workstream": "6. Split product API from generic inference API",
       "section": "Generic inference API",
       "text": "Remove generic model catalogue ownership from Alia after Oxy catalogue launch.",
-      "verdict": "BLOCKED_OXY_972",
-      "evidence": "Alia owns the only catalogue: GET /catalogue (packages/api/src/routes/catalogue.ts) and GET /v1/models. Removing that ownership presupposes an Oxy catalogue launch; @oxy.so/contracts ships `modelCatalogueEntrySchema` but no Oxy route serves it."
+      "verdict": "BLOCKED_OPERATOR",
+      "evidence": "Alia owns the only catalogue: GET /catalogue (packages/api/src/routes/catalogue.ts) and GET /v1/models. Removing that ownership presupposes an Oxy catalogue launch; @oxy.so/contracts ships `modelCatalogueEntrySchema` but no Oxy route serves it.",
+      "verdictBefore": "BLOCKED_OXY_972",
+      "reauditedAt": "2026-09-10",
+      "upstreamEvidence": "Oxy catalogue exists: oxy:packages/api/src/routes/inferenceCatalogue.ts at /models and /v1/models (server.ts:759,773); tests inferenceCatalogueRoute.test.ts, inferenceEdgeMount.test.ts:110. Contents: bootstrap-kaana-catalogue.ts applies nothing without APPLY=1; README records the 2026-09-03 production run finding the profile absent; INFERENCE_CATALOGUE_AUDIENCE defaults internal.",
+      "namedBlocker": "Catalogue launch is a production act; then Alia drops its generic catalogue ownership.",
+      "unblockedBy": "operator"
     },
     {
       "line": 334,
@@ -639,9 +681,12 @@
       "evidence": "packages/api/src/internal/providers/lib/providers/anthropic.ts exists and is LOADED in production — lib/providers/index.ts is imported by the live voice-session-manager.ts:30 — but its `proxy()` has no call site: a repo-wide scan for `.proxy(` returns exactly one hit, packages/api/src/internal/providers/lib/__tests__/credential-redaction.test.ts:150. Extraction needs a Kaana adapter contract to extract INTO; none exists.",
       "residual": "Only openai and xai contribute anything live, and only their `.voice` half (voice-session-manager.ts:148/:229/:695 read `providerImpl.voice.connect`). The live text path is lib/chat-core.ts `getAIModel()` and internal/providers/lib/provider-api.ts, neither of which uses these files.",
       "verdictBefore": "BLOCKED_KAANA",
-      "reauditedAt": "2026-08-19",
+      "reauditedAt": "2026-09-10",
       "reauditNote": "DONE in Kaana. `internal/provider/anthropic` is a full Messages API adapter (Kaana PR #3), it passes `internal/provider/conformance` (anthropic/conformance_test.go:28) and Kaana CI runs `go test -race -count=1 ./...` on every PR. `anthropic` is also pre-declared in `knownProviders` (cmd/kaana/main.go:335), so serving it needs only `KAANA_PROVIDERS` and an `_API_KEY`. This box asks for the EXTRACTION, which has happened; removal from Alia is L381 and deployment is L379.",
-      "kaanaCapability": "internal/provider/anthropic/ (protocol `anthropic_messages`)"
+      "kaanaCapability": "internal/provider/anthropic/ (protocol `anthropic_messages`)",
+      "resolvedSince": "2026-09-10",
+      "resolutionEvidence": "Kaana:internal/provider/anthropic/adapter.go (Messages protocol); Kaana:internal/providerconfig/providerconfig.go:55; conformance Kaana:internal/provider/anthropic/conformance_test.go:27-28. Inventory rows are operator data.",
+      "earnedUpstream": true
     },
     {
       "line": 335,
@@ -654,11 +699,12 @@
       "verdictBefore": "BLOCKED_KAANA",
       "reauditedAt": "2026-09-10",
       "reauditNote": "Alia side complete; the box names the Kaana half.",
-      "namedBlocker": "Kaana still serves text only (contract 1.1.0 `unsupported_modality`). Alia's half is done: openai.ts/openai-voice.ts are gone with providers/, and the voice routes refuse with KAANA_CAPABILITY_UNAVAILABLE 503 (routes/v1/voice.ts:4-11; hosted-capability-routes.test.ts). What Alia would need from Kaana: a realtime/voice modality in the contract; then a second adapter beside kaana-language-model.ts.",
+      "namedBlocker": "Kaana audio-out adapter + contract arm (M); realtime (L); product decision whether voice leaves Alia (oxy:docs/inference/deprecation.md:97-100).",
       "kaanaCapability": "internal/provider/openaicompat/ for the text half only",
       "reauditNote20260819": "SPLIT, and the binding half is the voice one. OpenAI TEXT is done — `internal/provider/openaicompat` serves it and `openai` is pre-declared in `knownProviders` (cmd/kaana/main.go:334), so it needs only a key. OpenAI VOICE/REALTIME has no Kaana path at all and cannot acquire one under contract 1.1.0.",
       "verdictBefore20260910": "BLOCKED_KAANA",
-      "unblockedBy": "kaana"
+      "unblockedBy": "kaana",
+      "upstreamEvidence": "Text: EARNED (Kaana:internal/providerconfig/providerconfig.go:54; TestOpenAICompatConformance subject openai). Voice/realtime: both adapters refuse non-text (Kaana:internal/provider/openaicompat/adapter.go:178, anthropic/adapter.go:124); no realtime/websocket/speech code; contract input union has no audio arm. oxy mounts POST /v1/audio/speech (oxy:packages/api/src/routes/inferenceEdge.ts:1000) but no Kaana adapter serves audio out."
     },
     {
       "line": 336,
@@ -669,9 +715,11 @@
       "evidence": "packages/api/src/internal/providers/lib/providers/google.ts exists and is LOADED in production — lib/providers/index.ts is imported by the live voice-session-manager.ts:30 — but its `proxy()` has no call site: a repo-wide scan for `.proxy(` returns exactly one hit, packages/api/src/internal/providers/lib/__tests__/credential-redaction.test.ts:150. Extraction needs a Kaana adapter contract to extract INTO; none exists.",
       "residual": "Only openai and xai contribute anything live, and only their `.voice` half (voice-session-manager.ts:148/:229/:695 read `providerImpl.voice.connect`). The live text path is lib/chat-core.ts `getAIModel()` and internal/providers/lib/provider-api.ts, neither of which uses these files.",
       "verdictBefore": "BLOCKED_KAANA",
-      "reauditedAt": "2026-08-19",
+      "reauditedAt": "2026-09-10",
       "reauditNote": "Needs Go. Alia's adapter targets `https://generativelanguage.googleapis.com/v1beta/models/`, which is the native Gemini API and neither of Kaana's two protocols.",
-      "namedBlocker": "a new `provider.Adapter` in OxyHQ/Kaana. `cmd/kaana/main.go:400-414` serves exactly two protocols (`openai_compatible`, `anthropic_messages`) and refuses any other, and this provider's API is neither — measured from Alia's own adapter base URL."
+      "resolvedSince": "2026-09-10",
+      "resolutionEvidence": "Kaana:internal/providerconfig/providerconfig.go:65 serves Google through its OpenAI-compatible root (generativelanguage.googleapis.com/v1beta/openai). Discovery not_available, so inventory rows are hand-declared.",
+      "earnedUpstream": true
     },
     {
       "line": 337,
@@ -684,10 +732,11 @@
       "verdictBefore": "BLOCKED_KAANA",
       "reauditedAt": "2026-09-10",
       "reauditNote": "Alia side complete.",
-      "namedBlocker": "As L335 for xAI: xai.ts/grok-voice.ts gone; GROK_API_KEY is refused at boot (direct-provider-guard.ts:79).",
+      "namedBlocker": "Same as L335.",
       "reauditNote20260819": "xAI TEXT is config-only (Alia's adapter targets `https://api.x.ai/v1/chat/completions`), but this box names the VOICE half, and \"where applicable\" is the only thing that could make it tickable.",
       "verdictBefore20260910": "BLOCKED_KAANA",
-      "unblockedBy": "kaana"
+      "unblockedBy": "kaana",
+      "upstreamEvidence": "xAI text: Kaana:internal/providerconfig/providerconfig.go:59, conformance loop, 7 xai deployments in the reference inventory. Voice: as L335."
     },
     {
       "line": 338,
@@ -717,9 +766,11 @@
       "evidence": "packages/api/src/internal/providers/lib/providers/cloudflare.ts exists and is LOADED in production — lib/providers/index.ts is imported by the live voice-session-manager.ts:30 — but its `proxy()` has no call site: a repo-wide scan for `.proxy(` returns exactly one hit, packages/api/src/internal/providers/lib/__tests__/credential-redaction.test.ts:150. Extraction needs a Kaana adapter contract to extract INTO; none exists.",
       "residual": "Only openai and xai contribute anything live, and only their `.voice` half (voice-session-manager.ts:148/:229/:695 read `providerImpl.voice.connect`). The live text path is lib/chat-core.ts `getAIModel()` and internal/providers/lib/provider-api.ts, neither of which uses these files.",
       "verdictBefore": "BLOCKED_KAANA",
-      "reauditedAt": "2026-08-19",
+      "reauditedAt": "2026-09-10",
       "reauditNote": "Needs Go. Alia's adapter for this provider targets an API that is neither of Kaana's two protocols (https://api.cloudflare.com/client/v4/accounts/ — Workers AI).",
-      "namedBlocker": "a new `provider.Adapter` in OxyHQ/Kaana. `cmd/kaana/main.go:400-414` serves exactly two protocols (`openai_compatible`, `anthropic_messages`) and refuses any other, and this provider's API is neither — measured from Alia's own adapter base URL."
+      "resolvedSince": "2026-09-10",
+      "resolutionEvidence": "Kaana:internal/providerconfig/providerconfig.go:79 + ValidateEndpointIdentity :132-146,175-181; in the conformance loop. Operator states the account-scoped base URL. Serving-only, no discovery.",
+      "earnedUpstream": true
     },
     {
       "line": 340,
@@ -730,10 +781,12 @@
       "evidence": "packages/api/src/internal/providers/lib/providers/cohere.ts exists and is LOADED in production — lib/providers/index.ts is imported by the live voice-session-manager.ts:30 — but its `proxy()` has no call site: a repo-wide scan for `.proxy(` returns exactly one hit, packages/api/src/internal/providers/lib/__tests__/credential-redaction.test.ts:150. Extraction needs a Kaana adapter contract to extract INTO; none exists.",
       "residual": "Only openai and xai contribute anything live, and only their `.voice` half (voice-session-manager.ts:148/:229/:695 read `providerImpl.voice.connect`). The live text path is lib/chat-core.ts `getAIModel()` and internal/providers/lib/provider-api.ts, neither of which uses these files.",
       "verdictBefore": "BLOCKED_KAANA",
-      "reauditedAt": "2026-08-19",
+      "reauditedAt": "2026-09-10",
       "reauditNote": "Config-only in Kaana. no Go change is needed. `cmd/kaana/main.go:316-337` resolves a provider by PROTOCOL, not by slug: a slug that declares `KAANA_PROVIDER_<SLUG>_PROTOCOL=openai_compatible`, a `_BASE_URL` and an `_API_KEY` is servable by the shipped `internal/provider/openaicompat` adapter. Alia's own adapter for this provider already targets an OpenAI `/chat/completions` endpoint (measured from packages/api/src/internal/providers/lib/providers/), which is what makes it config-only.",
-      "namedBlocker": "an operator declaring the slug (`KAANA_PROVIDERS`, `KAANA_PROVIDER_COHERE_PROTOCOL`, `_BASE_URL`, `_API_KEY`) and an inventory entry. No code is missing.",
-      "kaanaCapability": "internal/provider/openaicompat/ (protocol `openai_compatible`)"
+      "kaanaCapability": "internal/provider/openaicompat/ (protocol `openai_compatible`)",
+      "resolvedSince": "2026-09-10",
+      "resolutionEvidence": "Kaana:internal/providerconfig/providerconfig.go:67 (api.cohere.ai/compatibility/v1).",
+      "earnedUpstream": true
     },
     {
       "line": 341,
@@ -744,10 +797,12 @@
       "evidence": "packages/api/src/internal/providers/lib/providers/deepseek.ts exists and is LOADED in production — lib/providers/index.ts is imported by the live voice-session-manager.ts:30 — but its `proxy()` has no call site: a repo-wide scan for `.proxy(` returns exactly one hit, packages/api/src/internal/providers/lib/__tests__/credential-redaction.test.ts:150. Extraction needs a Kaana adapter contract to extract INTO; none exists.",
       "residual": "Only openai and xai contribute anything live, and only their `.voice` half (voice-session-manager.ts:148/:229/:695 read `providerImpl.voice.connect`). The live text path is lib/chat-core.ts `getAIModel()` and internal/providers/lib/provider-api.ts, neither of which uses these files.",
       "verdictBefore": "BLOCKED_KAANA",
-      "reauditedAt": "2026-08-19",
+      "reauditedAt": "2026-09-10",
       "reauditNote": "Config-only in Kaana. no Go change is needed. `cmd/kaana/main.go:316-337` resolves a provider by PROTOCOL, not by slug: a slug that declares `KAANA_PROVIDER_<SLUG>_PROTOCOL=openai_compatible`, a `_BASE_URL` and an `_API_KEY` is servable by the shipped `internal/provider/openaicompat` adapter. Alia's own adapter for this provider already targets an OpenAI `/chat/completions` endpoint (measured from packages/api/src/internal/providers/lib/providers/), which is what makes it config-only.",
-      "namedBlocker": "an operator declaring the slug (`KAANA_PROVIDERS`, `KAANA_PROVIDER_DEEPSEEK_PROTOCOL`, `_BASE_URL`, `_API_KEY`) and an inventory entry. No code is missing.",
-      "kaanaCapability": "internal/provider/openaicompat/ (protocol `openai_compatible`)"
+      "kaanaCapability": "internal/provider/openaicompat/ (protocol `openai_compatible`)",
+      "resolvedSince": "2026-09-10",
+      "resolutionEvidence": "Kaana:internal/providerconfig/providerconfig.go:61.",
+      "earnedUpstream": true
     },
     {
       "line": 342,
@@ -758,10 +813,12 @@
       "evidence": "packages/api/src/internal/providers/lib/providers/digitalocean.ts exists and is LOADED in production — lib/providers/index.ts is imported by the live voice-session-manager.ts:30 — but its `proxy()` has no call site: a repo-wide scan for `.proxy(` returns exactly one hit, packages/api/src/internal/providers/lib/__tests__/credential-redaction.test.ts:150. Extraction needs a Kaana adapter contract to extract INTO; none exists.",
       "residual": "Only openai and xai contribute anything live, and only their `.voice` half (voice-session-manager.ts:148/:229/:695 read `providerImpl.voice.connect`). The live text path is lib/chat-core.ts `getAIModel()` and internal/providers/lib/provider-api.ts, neither of which uses these files.",
       "verdictBefore": "BLOCKED_KAANA",
-      "reauditedAt": "2026-08-19",
+      "reauditedAt": "2026-09-10",
       "reauditNote": "Config-only in Kaana. no Go change is needed. `cmd/kaana/main.go:316-337` resolves a provider by PROTOCOL, not by slug: a slug that declares `KAANA_PROVIDER_<SLUG>_PROTOCOL=openai_compatible`, a `_BASE_URL` and an `_API_KEY` is servable by the shipped `internal/provider/openaicompat` adapter. Alia's own adapter for this provider already targets an OpenAI `/chat/completions` endpoint (measured from packages/api/src/internal/providers/lib/providers/), which is what makes it config-only.",
-      "namedBlocker": "an operator declaring the slug (`KAANA_PROVIDERS`, `KAANA_PROVIDER_DIGITALOCEAN_PROTOCOL`, `_BASE_URL`, `_API_KEY`) and an inventory entry. No code is missing.",
-      "kaanaCapability": "internal/provider/openaicompat/ (protocol `openai_compatible`)"
+      "kaanaCapability": "internal/provider/openaicompat/ (protocol `openai_compatible`)",
+      "resolvedSince": "2026-09-10",
+      "resolutionEvidence": "Kaana:internal/providerconfig/providerconfig.go:70, discovery openai_models.",
+      "earnedUpstream": true
     },
     {
       "line": 343,
@@ -772,10 +829,12 @@
       "evidence": "packages/api/src/internal/providers/lib/providers/fireworks.ts exists and is LOADED in production — lib/providers/index.ts is imported by the live voice-session-manager.ts:30 — but its `proxy()` has no call site: a repo-wide scan for `.proxy(` returns exactly one hit, packages/api/src/internal/providers/lib/__tests__/credential-redaction.test.ts:150. Extraction needs a Kaana adapter contract to extract INTO; none exists.",
       "residual": "Only openai and xai contribute anything live, and only their `.voice` half (voice-session-manager.ts:148/:229/:695 read `providerImpl.voice.connect`). The live text path is lib/chat-core.ts `getAIModel()` and internal/providers/lib/provider-api.ts, neither of which uses these files.",
       "verdictBefore": "BLOCKED_KAANA",
-      "reauditedAt": "2026-08-19",
+      "reauditedAt": "2026-09-10",
       "reauditNote": "Config-only in Kaana. no Go change is needed. `cmd/kaana/main.go:316-337` resolves a provider by PROTOCOL, not by slug: a slug that declares `KAANA_PROVIDER_<SLUG>_PROTOCOL=openai_compatible`, a `_BASE_URL` and an `_API_KEY` is servable by the shipped `internal/provider/openaicompat` adapter. Alia's own adapter for this provider already targets an OpenAI `/chat/completions` endpoint (measured from packages/api/src/internal/providers/lib/providers/), which is what makes it config-only.",
-      "namedBlocker": "an operator declaring the slug (`KAANA_PROVIDERS`, `KAANA_PROVIDER_FIREWORKS_PROTOCOL`, `_BASE_URL`, `_API_KEY`) and an inventory entry. No code is missing.",
-      "kaanaCapability": "internal/provider/openaicompat/ (protocol `openai_compatible`)"
+      "kaanaCapability": "internal/provider/openaicompat/ (protocol `openai_compatible`)",
+      "resolvedSince": "2026-09-10",
+      "resolutionEvidence": "Kaana:internal/providerconfig/providerconfig.go:68.",
+      "earnedUpstream": true
     },
     {
       "line": 344,
@@ -786,10 +845,12 @@
       "evidence": "packages/api/src/internal/providers/lib/providers/groq.ts exists and is LOADED in production — lib/providers/index.ts is imported by the live voice-session-manager.ts:30 — but its `proxy()` has no call site: a repo-wide scan for `.proxy(` returns exactly one hit, packages/api/src/internal/providers/lib/__tests__/credential-redaction.test.ts:150. Extraction needs a Kaana adapter contract to extract INTO; none exists.",
       "residual": "Only openai and xai contribute anything live, and only their `.voice` half (voice-session-manager.ts:148/:229/:695 read `providerImpl.voice.connect`). The live text path is lib/chat-core.ts `getAIModel()` and internal/providers/lib/provider-api.ts, neither of which uses these files.",
       "verdictBefore": "BLOCKED_KAANA",
-      "reauditedAt": "2026-08-19",
+      "reauditedAt": "2026-09-10",
       "reauditNote": "Config-only in Kaana. no Go change is needed. `cmd/kaana/main.go:316-337` resolves a provider by PROTOCOL, not by slug: a slug that declares `KAANA_PROVIDER_<SLUG>_PROTOCOL=openai_compatible`, a `_BASE_URL` and an `_API_KEY` is servable by the shipped `internal/provider/openaicompat` adapter. Alia's own adapter for this provider already targets an OpenAI `/chat/completions` endpoint (measured from packages/api/src/internal/providers/lib/providers/), which is what makes it config-only.",
-      "namedBlocker": "an operator declaring the slug (`KAANA_PROVIDERS`, `KAANA_PROVIDER_GROQ_PROTOCOL`, `_BASE_URL`, `_API_KEY`) and an inventory entry. No code is missing.",
-      "kaanaCapability": "internal/provider/openaicompat/ (protocol `openai_compatible`)"
+      "kaanaCapability": "internal/provider/openaicompat/ (protocol `openai_compatible`)",
+      "resolvedSince": "2026-09-10",
+      "resolutionEvidence": "Kaana:internal/providerconfig/providerconfig.go:58; conformance loop; 7 groq deployments in the reference inventory.",
+      "earnedUpstream": true
     },
     {
       "line": 345,
@@ -800,10 +861,12 @@
       "evidence": "packages/api/src/internal/providers/lib/providers/hyperbolic.ts exists and is LOADED in production — lib/providers/index.ts is imported by the live voice-session-manager.ts:30 — but its `proxy()` has no call site: a repo-wide scan for `.proxy(` returns exactly one hit, packages/api/src/internal/providers/lib/__tests__/credential-redaction.test.ts:150. Extraction needs a Kaana adapter contract to extract INTO; none exists.",
       "residual": "Only openai and xai contribute anything live, and only their `.voice` half (voice-session-manager.ts:148/:229/:695 read `providerImpl.voice.connect`). The live text path is lib/chat-core.ts `getAIModel()` and internal/providers/lib/provider-api.ts, neither of which uses these files.",
       "verdictBefore": "BLOCKED_KAANA",
-      "reauditedAt": "2026-08-19",
+      "reauditedAt": "2026-09-10",
       "reauditNote": "Config-only in Kaana. no Go change is needed. `cmd/kaana/main.go:316-337` resolves a provider by PROTOCOL, not by slug: a slug that declares `KAANA_PROVIDER_<SLUG>_PROTOCOL=openai_compatible`, a `_BASE_URL` and an `_API_KEY` is servable by the shipped `internal/provider/openaicompat` adapter. Alia's own adapter for this provider already targets an OpenAI `/chat/completions` endpoint (measured from packages/api/src/internal/providers/lib/providers/), which is what makes it config-only.",
-      "namedBlocker": "an operator declaring the slug (`KAANA_PROVIDERS`, `KAANA_PROVIDER_HYPERBOLIC_PROTOCOL`, `_BASE_URL`, `_API_KEY`) and an inventory entry. No code is missing.",
-      "kaanaCapability": "internal/provider/openaicompat/ (protocol `openai_compatible`)"
+      "kaanaCapability": "internal/provider/openaicompat/ (protocol `openai_compatible`)",
+      "resolvedSince": "2026-09-10",
+      "resolutionEvidence": "Kaana:internal/providerconfig/providerconfig.go:69.",
+      "earnedUpstream": true
     },
     {
       "line": 346,
@@ -814,10 +877,12 @@
       "evidence": "packages/api/src/internal/providers/lib/providers/mistral.ts exists and is LOADED in production — lib/providers/index.ts is imported by the live voice-session-manager.ts:30 — but its `proxy()` has no call site: a repo-wide scan for `.proxy(` returns exactly one hit, packages/api/src/internal/providers/lib/__tests__/credential-redaction.test.ts:150. Extraction needs a Kaana adapter contract to extract INTO; none exists.",
       "residual": "Only openai and xai contribute anything live, and only their `.voice` half (voice-session-manager.ts:148/:229/:695 read `providerImpl.voice.connect`). The live text path is lib/chat-core.ts `getAIModel()` and internal/providers/lib/provider-api.ts, neither of which uses these files.",
       "verdictBefore": "BLOCKED_KAANA",
-      "reauditedAt": "2026-08-19",
+      "reauditedAt": "2026-09-10",
       "reauditNote": "Config-only in Kaana. no Go change is needed. `cmd/kaana/main.go:316-337` resolves a provider by PROTOCOL, not by slug: a slug that declares `KAANA_PROVIDER_<SLUG>_PROTOCOL=openai_compatible`, a `_BASE_URL` and an `_API_KEY` is servable by the shipped `internal/provider/openaicompat` adapter. Alia's own adapter for this provider already targets an OpenAI `/chat/completions` endpoint (measured from packages/api/src/internal/providers/lib/providers/), which is what makes it config-only.",
-      "namedBlocker": "an operator declaring the slug (`KAANA_PROVIDERS`, `KAANA_PROVIDER_MISTRAL_PROTOCOL`, `_BASE_URL`, `_API_KEY`) and an inventory entry. No code is missing.",
-      "kaanaCapability": "internal/provider/openaicompat/ (protocol `openai_compatible`)"
+      "kaanaCapability": "internal/provider/openaicompat/ (protocol `openai_compatible`)",
+      "resolvedSince": "2026-09-10",
+      "resolutionEvidence": "Kaana:internal/providerconfig/providerconfig.go:60, DiscoveryMistralModels.",
+      "earnedUpstream": true
     },
     {
       "line": 347,
@@ -828,10 +893,12 @@
       "evidence": "packages/api/src/internal/providers/lib/providers/novita.ts exists and is LOADED in production — lib/providers/index.ts is imported by the live voice-session-manager.ts:30 — but its `proxy()` has no call site: a repo-wide scan for `.proxy(` returns exactly one hit, packages/api/src/internal/providers/lib/__tests__/credential-redaction.test.ts:150. Extraction needs a Kaana adapter contract to extract INTO; none exists.",
       "residual": "Only openai and xai contribute anything live, and only their `.voice` half (voice-session-manager.ts:148/:229/:695 read `providerImpl.voice.connect`). The live text path is lib/chat-core.ts `getAIModel()` and internal/providers/lib/provider-api.ts, neither of which uses these files.",
       "verdictBefore": "BLOCKED_KAANA",
-      "reauditedAt": "2026-08-19",
+      "reauditedAt": "2026-09-10",
       "reauditNote": "Config-only in Kaana. no Go change is needed. `cmd/kaana/main.go:316-337` resolves a provider by PROTOCOL, not by slug: a slug that declares `KAANA_PROVIDER_<SLUG>_PROTOCOL=openai_compatible`, a `_BASE_URL` and an `_API_KEY` is servable by the shipped `internal/provider/openaicompat` adapter. Alia's own adapter for this provider already targets an OpenAI `/chat/completions` endpoint (measured from packages/api/src/internal/providers/lib/providers/), which is what makes it config-only.",
-      "namedBlocker": "an operator declaring the slug (`KAANA_PROVIDERS`, `KAANA_PROVIDER_NOVITA_PROTOCOL`, `_BASE_URL`, `_API_KEY`) and an inventory entry. No code is missing.",
-      "kaanaCapability": "internal/provider/openaicompat/ (protocol `openai_compatible`)"
+      "namedBlocker": "Landing as a built-in slug in this session (Kaana PR); operator still declares credentials and inventory rows.",
+      "kaanaCapability": "internal/provider/openaicompat/ (protocol `openai_compatible`)",
+      "upstreamEvidence": "Not in providerconfig.Known at audit time; servable by KAANA_PROVIDER_NOVITA_PROTOCOL + _BASE_URL (Kaana:cmd/kaana/main.go:365-382, 533-563) with no Go change.",
+      "unblockedBy": "kaana"
     },
     {
       "line": 348,
@@ -855,10 +922,12 @@
       "evidence": "packages/api/src/internal/providers/lib/providers/perplexity.ts exists and is LOADED in production — lib/providers/index.ts is imported by the live voice-session-manager.ts:30 — but its `proxy()` has no call site: a repo-wide scan for `.proxy(` returns exactly one hit, packages/api/src/internal/providers/lib/__tests__/credential-redaction.test.ts:150. Extraction needs a Kaana adapter contract to extract INTO; none exists.",
       "residual": "Only openai and xai contribute anything live, and only their `.voice` half (voice-session-manager.ts:148/:229/:695 read `providerImpl.voice.connect`). The live text path is lib/chat-core.ts `getAIModel()` and internal/providers/lib/provider-api.ts, neither of which uses these files.",
       "verdictBefore": "BLOCKED_KAANA",
-      "reauditedAt": "2026-08-19",
+      "reauditedAt": "2026-09-10",
       "reauditNote": "Config-only in Kaana. no Go change is needed. `cmd/kaana/main.go:316-337` resolves a provider by PROTOCOL, not by slug: a slug that declares `KAANA_PROVIDER_<SLUG>_PROTOCOL=openai_compatible`, a `_BASE_URL` and an `_API_KEY` is servable by the shipped `internal/provider/openaicompat` adapter. Alia's own adapter for this provider already targets an OpenAI `/chat/completions` endpoint (measured from packages/api/src/internal/providers/lib/providers/), which is what makes it config-only.",
-      "namedBlocker": "an operator declaring the slug (`KAANA_PROVIDERS`, `KAANA_PROVIDER_PERPLEXITY_PROTOCOL`, `_BASE_URL`, `_API_KEY`) and an inventory entry. No code is missing.",
-      "kaanaCapability": "internal/provider/openaicompat/ (protocol `openai_compatible`)"
+      "namedBlocker": "Needs a Perplexity-specific path rule in the shared adapter (S) or a decision to leave it out.",
+      "kaanaCapability": "internal/provider/openaicompat/ (protocol `openai_compatible`)",
+      "upstreamEvidence": "Not in providerconfig.Known; Kaana:docs/provider-onboarding.md:387 — Perplexity's Sonar endpoint is /v1/sonar, not the shared /chat/completions path, so it is deliberately not advertised.",
+      "unblockedBy": "kaana"
     },
     {
       "line": 350,
@@ -869,9 +938,11 @@
       "evidence": "packages/api/src/internal/providers/lib/providers/replicate.ts exists and is LOADED in production — lib/providers/index.ts is imported by the live voice-session-manager.ts:30 — but its `proxy()` has no call site: a repo-wide scan for `.proxy(` returns exactly one hit, packages/api/src/internal/providers/lib/__tests__/credential-redaction.test.ts:150. Extraction needs a Kaana adapter contract to extract INTO; none exists.",
       "residual": "Only openai and xai contribute anything live, and only their `.voice` half (voice-session-manager.ts:148/:229/:695 read `providerImpl.voice.connect`). The live text path is lib/chat-core.ts `getAIModel()` and internal/providers/lib/provider-api.ts, neither of which uses these files.",
       "verdictBefore": "BLOCKED_KAANA",
-      "reauditedAt": "2026-08-19",
+      "reauditedAt": "2026-09-10",
       "reauditNote": "Needs Go. Alia's adapter for this provider targets an API that is neither of Kaana's two protocols (https://api.replicate.com/v1/models/ — the predictions API).",
-      "namedBlocker": "a new `provider.Adapter` in OxyHQ/Kaana. `cmd/kaana/main.go:400-414` serves exactly two protocols (`openai_compatible`, `anthropic_messages`) and refuses any other, and this provider's API is neither — measured from Alia's own adapter base URL."
+      "namedBlocker": "Product decision whether Replicate is needed at all; adapter (M) only if it is.",
+      "upstreamEvidence": "Not in providerconfig.Known; Replicate's prediction API is neither supported protocol and its main use (images/async) is a modality Kaana refuses (Kaana:internal/provider/openaicompat/adapter.go:178).",
+      "unblockedBy": "kaana"
     },
     {
       "line": 351,
@@ -882,10 +953,12 @@
       "evidence": "packages/api/src/internal/providers/lib/providers/sambanova.ts exists and is LOADED in production — lib/providers/index.ts is imported by the live voice-session-manager.ts:30 — but its `proxy()` has no call site: a repo-wide scan for `.proxy(` returns exactly one hit, packages/api/src/internal/providers/lib/__tests__/credential-redaction.test.ts:150. Extraction needs a Kaana adapter contract to extract INTO; none exists.",
       "residual": "Only openai and xai contribute anything live, and only their `.voice` half (voice-session-manager.ts:148/:229/:695 read `providerImpl.voice.connect`). The live text path is lib/chat-core.ts `getAIModel()` and internal/providers/lib/provider-api.ts, neither of which uses these files.",
       "verdictBefore": "BLOCKED_KAANA",
-      "reauditedAt": "2026-08-19",
+      "reauditedAt": "2026-09-10",
       "reauditNote": "Config-only in Kaana. no Go change is needed. `cmd/kaana/main.go:316-337` resolves a provider by PROTOCOL, not by slug: a slug that declares `KAANA_PROVIDER_<SLUG>_PROTOCOL=openai_compatible`, a `_BASE_URL` and an `_API_KEY` is servable by the shipped `internal/provider/openaicompat` adapter. Alia's own adapter for this provider already targets an OpenAI `/chat/completions` endpoint (measured from packages/api/src/internal/providers/lib/providers/), which is what makes it config-only.",
-      "namedBlocker": "an operator declaring the slug (`KAANA_PROVIDERS`, `KAANA_PROVIDER_SAMBANOVA_PROTOCOL`, `_BASE_URL`, `_API_KEY`) and an inventory entry. No code is missing.",
-      "kaanaCapability": "internal/provider/openaicompat/ (protocol `openai_compatible`)"
+      "kaanaCapability": "internal/provider/openaicompat/ (protocol `openai_compatible`)",
+      "resolvedSince": "2026-09-10",
+      "resolutionEvidence": "Kaana:internal/providerconfig/providerconfig.go:62.",
+      "earnedUpstream": true
     },
     {
       "line": 352,
@@ -896,10 +969,12 @@
       "evidence": "packages/api/src/internal/providers/lib/providers/together.ts exists and is LOADED in production — lib/providers/index.ts is imported by the live voice-session-manager.ts:30 — but its `proxy()` has no call site: a repo-wide scan for `.proxy(` returns exactly one hit, packages/api/src/internal/providers/lib/__tests__/credential-redaction.test.ts:150. Extraction needs a Kaana adapter contract to extract INTO; none exists.",
       "residual": "Only openai and xai contribute anything live, and only their `.voice` half (voice-session-manager.ts:148/:229/:695 read `providerImpl.voice.connect`). The live text path is lib/chat-core.ts `getAIModel()` and internal/providers/lib/provider-api.ts, neither of which uses these files.",
       "verdictBefore": "BLOCKED_KAANA",
-      "reauditedAt": "2026-08-19",
+      "reauditedAt": "2026-09-10",
       "reauditNote": "Config-only in Kaana. no Go change is needed. `cmd/kaana/main.go:316-337` resolves a provider by PROTOCOL, not by slug: a slug that declares `KAANA_PROVIDER_<SLUG>_PROTOCOL=openai_compatible`, a `_BASE_URL` and an `_API_KEY` is servable by the shipped `internal/provider/openaicompat` adapter. Alia's own adapter for this provider already targets an OpenAI `/chat/completions` endpoint (measured from packages/api/src/internal/providers/lib/providers/), which is what makes it config-only.",
-      "namedBlocker": "an operator declaring the slug (`KAANA_PROVIDERS`, `KAANA_PROVIDER_TOGETHER_PROTOCOL`, `_BASE_URL`, `_API_KEY`) and an inventory entry. No code is missing.",
-      "kaanaCapability": "internal/provider/openaicompat/ (protocol `openai_compatible`)"
+      "kaanaCapability": "internal/provider/openaicompat/ (protocol `openai_compatible`)",
+      "resolvedSince": "2026-09-10",
+      "resolutionEvidence": "Kaana:internal/providerconfig/providerconfig.go:66; conformance loop.",
+      "earnedUpstream": true
     },
     {
       "line": 353,
@@ -1058,11 +1133,13 @@
       "verdictBefore": "BLOCKED_KAANA",
       "reauditedAt": "2026-09-10",
       "reauditNote": "Still open on 2026-09-10; see namedBlocker.",
-      "namedBlocker": "Kaana ships the per-provider quota-header map empty (2026-08-19). Alia's half is done: key-manager's RATE_LIMIT_PATTERN and api_usage are gone; Alia consumes the contract's error codes (kaana-language-model.ts:598-604). Alia needs nothing further.",
       "kaanaCapability": "internal/provider/credential.go for the refusal-driven half",
       "reauditNote20260819": "PARTIAL in Kaana, and the missing part is named. Rate-limit handling as a CREDENTIAL verdict is implemented (internal/provider/credential.go). What is not: the per-provider quota-header mapping ships EMPTY under an exact-count assertion (`declaredQuotaHeaders = map[...]{}`, internal/provider/openaicompat/adapter.go:122), and an official quota API is explicitly out of scope in the README. So a key leaves rotation only on a provider's own refusal, never on a remaining-credits header.",
       "verdictBefore20260910": "BLOCKED_KAANA",
-      "unblockedBy": "kaana"
+      "resolvedSince": "2026-09-10",
+      "resolutionEvidence": "Throttle vs exhaustion classification Kaana:internal/provider/credential.go:102-162 (Throttled), RetryAfterMs :624, rotation on throttle only for separate-account pools, breaker treats rate-limit as attributable (Kaana:internal/provider/rotation.go:10-18); tests credential_test.go:180, kaana/failover_test.go:560, executor_test.go:577. Edge sets Retry-After (oxy:packages/api/src/utils/inferenceEdgeErrors.ts:265,301).",
+      "residual": "Quota-header telemetry maps are deliberately empty pending a live-verified source (Kaana:internal/provider/openaicompat/credential_test.go:29-32).",
+      "earnedUpstream": true
     },
     {
       "line": 366,
@@ -1108,11 +1185,12 @@
       "verdictBefore": "BLOCKED_KAANA",
       "reauditedAt": "2026-09-10",
       "reauditNote": "The silent no-op contradicts the ticked ws14 rows on explicit fallback modes and should be closed regardless of Kaana.",
-      "namedBlocker": "Kaana ships same-model failover OFF and the contract carries no per-request policy snapshot (2026-08-19). Alia's half: fallback-engine.ts is gone. FINDING: request-context.ts:213-236 still parses `fallbackPolicy` and passes it as routingOptions (:624-628, :684-688) but chat-core.ts:73-99 reads only `options.pinnedModel` — the caller's fallback policy is accepted and silently ignored. Either refuse it or send the contract's routingPolicy reference once Oxy exposes per-request authorisation.",
       "kaanaCapability": "internal/kaana/ executor + inventory.RouteSet.Candidates(), off behind `RELAY_ASSUME_FAILOVER_AUTHORIZED`",
       "reauditNote20260819": "BUILT AND WITHHELD, which is a different thing from missing. The executor implements same-model failover and it is off by default.",
       "verdictBefore20260910": "BLOCKED_KAANA",
-      "unblockedBy": "kaana (+ this repo for the silent no-op)"
+      "resolvedSince": "2026-09-10",
+      "resolutionEvidence": "Contract 1.3.0 ordered authorizedRoutes[] with substitution same_model|cross_model (Kaana:internal/contract/request.go:352-353,406-449; oxy:packages/contracts/src/inference/request.ts:397-471). oxy inferenceEdge.test.ts:3388,3422,3444,2537; Kaana:internal/kaana/failover_test.go:186,253,299; httpapi/server_test.go:599.",
+      "earnedUpstream": true
     },
     {
       "line": 369,
@@ -1124,10 +1202,11 @@
       "verdictBefore": "BLOCKED_KAANA",
       "reauditedAt": "2026-09-10",
       "reauditNote": "Alia side complete.",
-      "namedBlocker": "Kaana refuses image/audio modalities (2026-08-19). Alia's half: digitalocean-async.ts is gone; image/audio generation refuse with KAANA_CAPABILITY_UNAVAILABLE (image-generation.ts:31, synthesize-speech.ts:23, synthesize-sound-effect.ts:22, routes/v1/images.ts:10, audio.ts:15).",
+      "namedBlocker": "Kaana image/audio adapters + contract arms (M each); batches need an ADR 0009 amendment (L).",
       "reauditNote20260819": "This one is genuinely still Kaana-blocked, and now for a named reason rather than for want of a service.",
       "verdictBefore20260910": "BLOCKED_KAANA",
-      "unblockedBy": "kaana"
+      "unblockedBy": "kaana",
+      "upstreamEvidence": "Kaana refuses image/audio (Kaana:internal/provider/openaicompat/adapter.go:178); no job model. oxy mounts POST /v1/images/generations (inferenceEdge.ts:1099) sync-only and route-gated; batches declined pending an ADR 0009 amendment (inferenceEdge.ts:1316-1340)."
     },
     {
       "line": 370,
@@ -1171,11 +1250,13 @@
       "verdict": "ACTIONABLE_UPSTREAM",
       "evidence": "No Kaana adapter exists to run conformance tests against, and no conformance suite is defined. The nearest artefact is internal/providers/lib/__tests__/ (five suites over the CURRENT stack).",
       "verdictBefore": "BLOCKED_KAANA",
-      "reauditedAt": "2026-08-19",
+      "reauditedAt": "2026-09-10",
       "reauditNote": "The suite EXISTS, RUNS and is GREEN — but the box is a PER-PROVIDER gate, and the issue says so three lines above it (L375, \"For each provider:\"). Measured 2026-08-19: `internal/provider/conformance/conformance.go:215` is the harness, invoked by `openaicompat/conformance_test.go:29` and `anthropic/conformance_test.go:28`; `go test -count=1 ./internal/provider/...` at OxyHQ/Kaana 254d545 reports ok provider, ok anthropic (0.818s), ok openaicompat (3.272s); and Kaana CI runs `go test -race -count=1 ./...` on every PR (.github/workflows/ci.yml:54). So it holds for the TWO adapters Kaana ships and for none of the other seventeen. This audit first classified it ALREADY_TRUE on the strength of the green run and corrected itself on re-reading the section preamble: a suite being green says nothing about which SUBJECTS it ran against.",
       "kaanaCapability": "internal/provider/conformance/ — the harness exists and is green for openaicompat and anthropic",
       "mutation": "PROPOSED, NOT RUN — it would edit another repository's working tree. In OxyHQ/Kaana, change `provider.RedactSecret` to replace the SPAN a credential pattern matched rather than the value: AGENTS.md states the conformance suite fails that, and internal/contract's fixture table pins both halves. The UNMUTATED half WAS run (above). NOTE this mutation proves the SUITE bites; it cannot prove the box, which needs seventeen more subjects.",
-      "namedBlocker": "seventeen of the nineteen provider slugs have no adapter registered in Kaana. Fifteen of them are config-only (`cmd/kaana/main.go:316-337` resolves by PROTOCOL, so an `openai_compatible` declaration needs no Go change) and three — google, cloudflare, replicate — need a new `provider.Adapter`. Each must then pass the suite before it is registered, which is what AGENTS.md requires."
+      "resolvedSince": "2026-09-10",
+      "resolutionEvidence": "Suite Kaana:internal/provider/conformance/conformance.go:225 (Run) through the real executor; run by openaicompat/conformance_test.go and anthropic/conformance_test.go:27. This session widens the openai-compat loop to every Known slug (Kaana PR).",
+      "earnedUpstream": true
     },
     {
       "line": 378,
@@ -1263,10 +1344,11 @@
       "verdictBefore": "BLOCKED_KAANA",
       "reauditedAt": "2026-09-10",
       "reauditNote": "The remaining imports are product catalogue METADATA living under a directory named for providers. Move routing-profile-catalogue.ts, routing-tiers.ts, provider-names.ts and model-publishers.ts out of internal/providers (or delete internal/providers entirely once L392/L420 land) and delete cost-tracker's pricing import.",
-      "namedBlocker": "Provider EXECUTION imports are gone (kaana-only-runtime.test.ts:52-68 forbids provider-api/key-manager/fallback-engine/model-resolver). Seven dynamic imports of internal/providers/lib/routing-profile-catalogue.js remain in gateway-client.ts (:198, :220, :228, :236, :244, :276, :284), plus cost-tracker.ts:40 -> model-capabilities-data.js and db/schema/providers.ts:50-51 -> routing-tiers/provider-names.",
       "reauditNote20260819": "Unchanged in substance. \"Deleting it before Kaana serves removes inference entirely\" is still the right order; what changed is that Kaana now serves, two hops away, and the remaining gap is Alia's transport and an edge audience rather than a missing service.",
       "verdictBefore20260910": "BLOCKED_CUTOVER",
-      "unblockedBy": "this repo"
+      "resolvedSince": "2026-09-10",
+      "resolutionEvidence": "The seven `await import('../internal/providers/lib/routing-profile-catalogue.js')` in packages/api/src/lib/gateway-client.ts are one static `import * as catalogue` (commit 017f588). Guard: kaana-only-runtime.test.ts refuses any dynamic import of internal/providers across the hosted-runtime file list, with a positive control.",
+      "residual": "The catalogue module still lives under internal/providers/ (a ~27-file move incl. ownership-matrix rows and path-pinned censuses); moving it to lib/routing/ is open, tracked under L230's residual."
     },
     {
       "line": 389,
@@ -1336,8 +1418,13 @@
       "workstream": "8. Remove the dual-mode gateway and local fallback",
       "section": "",
       "text": "Replace `SERVICE_SECRET`/`GATEWAY_API_URL` assumptions with the finalized Oxy service-auth and Kaana endpoint configuration.",
-      "verdict": "BLOCKED_OXY_972",
-      "evidence": "The replacement is half-built and half-missing. BUILT: packages/api/src/lib/inference/kaana-boot-check.ts declares RELAY_PRINCIPAL_ENV from the contract's `authenticatedPrincipalSchema` with `satisfies Record<keyof RelayPrincipalConfig, string>` so an upstream field addition is a compile error. MISSING: the Kaana endpoint value, which kaana-egress.test.ts records as absent (\"names no origin, because there is no endpoint to name yet\"), and the credentials (L178)."
+      "verdict": "BLOCKED_OPERATOR",
+      "evidence": "The replacement is half-built and half-missing. BUILT: packages/api/src/lib/inference/kaana-boot-check.ts declares RELAY_PRINCIPAL_ENV from the contract's `authenticatedPrincipalSchema` with `satisfies Record<keyof RelayPrincipalConfig, string>` so an upstream field addition is a compile error. MISSING: the Kaana endpoint value, which kaana-egress.test.ts records as absent (\"names no origin, because there is no endpoint to name yet\"), and the credentials (L178).",
+      "verdictBefore": "BLOCKED_OXY_972",
+      "reauditedAt": "2026-09-10",
+      "upstreamEvidence": "Service auth POST /auth/service-token (oxy:docs/SERVICE_TOKENS.md), EdDSA via /.well-known/jwks.json (server.ts:658; core mixins/OxyServices.utility.ts:1229-1243). Kaana endpoint https://kaana.ai (deploy-aws.yml KAANA_BASE_URL).",
+      "namedBlocker": "Values are credentials (L178).",
+      "unblockedBy": "operator"
     },
     {
       "line": 394,
@@ -1382,7 +1469,11 @@
       "section": "",
       "text": "Move customer-facing application, credential, usage, billing, model and routing controls to Oxy Console.",
       "verdict": "BLOCKED_OXY_972",
-      "evidence": "The Alia-side package is gone: `packages/alia-gateway-admin` is absent from the workspace (#141, ticked L410) and the only surviving references are in inventories and one AI tool, packages/api/src/lib/tools/gateway-admin.ts (still exported from lib/tools/index.ts:11 and gated to one username). The DESTINATION — Oxy Console screens for applications, credentials, usage, billing, models and routing — is OxyHQ/oxy#972."
+      "evidence": "The Alia-side package is gone: `packages/alia-gateway-admin` is absent from the workspace (#141, ticked L410) and the only surviving references are in inventories and one AI tool, packages/api/src/lib/tools/gateway-admin.ts (still exported from lib/tools/index.ts:11 and gated to one username). The DESTINATION — Oxy Console screens for applications, credentials, usage, billing, models and routing — is OxyHQ/oxy#972.",
+      "reauditedAt": "2026-09-10",
+      "resolvedSince": "2026-09-10",
+      "resolutionEvidence": "oxy:packages/console/src/routes/_layout/apps/$appId/settings.tsx (CredentialsSection; machine keys components/apps/credentials-section.tsx:75,131), apps/$appId/inference.tsx (routing policy, provider connections/BYOK, usage & spend, budgets), models.tsx, usage.tsx, billing/{index,spend,charges,budgets,plans,audit}.tsx, playground.tsx. Backing APIs inferenceReporting.ts, inferenceRoutingPolicies.ts, inferenceProviderConnections.ts.",
+      "earnedUpstream": true
     },
     {
       "line": 407,
@@ -1392,10 +1483,12 @@
       "verdict": "ACTIONABLE_UPSTREAM",
       "evidence": "Same: the package is deleted, and an \"internal Kaana operations surface\" cannot receive controls until Kaana exists. docs/migration/inventories/frontend-admin.json holds the screen-by-screen inventory (ticked L405) that a receiving surface would be built from.",
       "verdictBefore": "BLOCKED_KAANA",
-      "reauditedAt": "2026-08-19",
+      "reauditedAt": "2026-09-10",
       "reauditNote": "The receiving surface exists, and it is Oxy's rather than Kaana's — which is what ADR 0006 assigns. Measured mounted in production on 2026-08-19 (401 each, negative control 404): `/inference/provider-connections`, `/inference/routing-policies`, `/inference/reporting/usage`. Kaana deliberately has no operations surface: it exposes `/livez` plus two signed internal endpoints and nothing else.",
-      "namedBlocker": "a decision about which controls are \"still required\", then an Oxy-side change. Kaana is not the destination for any of them.",
-      "kaanaCapability": "NOT Kaana. OxyHQ/oxy routes/inferenceProviderConnections.ts, inferenceRoutingPolicies.ts, inferenceAdmin.ts"
+      "kaanaCapability": "NOT Kaana. OxyHQ/oxy routes/inferenceProviderConnections.ts, inferenceRoutingPolicies.ts, inferenceAdmin.ts",
+      "resolvedSince": "2026-09-10",
+      "resolutionEvidence": "Staff API oxy:packages/api/src/routes/inferenceAdmin.ts (/inference/admin/rollout, /spend-anomalies, /token-anomalies, /metrics, /deployments, /deployments/:id/legal-review, /kaana-deployments/:id/routing-scorecard, /deployments/:id/:action, /model-releases); test routes/__tests__/inferenceAdmin.test.ts. Kaana surface: signed GET /internal/v1/health + POST /internal/v1/deployments/query (Kaana:internal/httpapi/server.go:155-160). Staff-API only, no Console screen.",
+      "earnedUpstream": true
     },
     {
       "line": 411,
@@ -1429,10 +1522,10 @@
       "verdictBefore": "BLOCKED_KAANA",
       "reauditedAt": "2026-09-10",
       "reauditNote": "Doable now: drop the three seeds from scripts/seed.ts (nothing reads the rows), then L425.",
-      "namedBlocker": "provider keys: no writer (table dropped). model_configs / routing_profiles / routing_profile_provider_mappings: still WRITTEN ON EVERY DEPLOY — scripts/seed.ts:103,126 -> internal/providers/lib/seed-model-configs.ts:83, and deploy-aws.yml:230-243 runs the seeder unconditionally. No non-test module reads those tables any more (grep for modelConfigRepository/routingProfileRepository outside db/providers: only the seed; routes/billing.ts:256 reads the in-memory catalogue).",
       "reauditNote20260819": "Unchanged: the writers are live because the local path is the only serving path.",
       "verdictBefore20260910": "BLOCKED_CUTOVER",
-      "unblockedBy": "this repo"
+      "resolvedSince": "2026-09-10",
+      "resolutionEvidence": "No writer left: scripts/seed.ts no longer names model_configs / routing_profiles / routing_profile_provider_mappings (d74de84); internal/providers/lib/seed-model-configs.ts deleted; provider_keys dropped by 0061. Guard: scripts/__tests__/seedWiring.test.ts 'never writes the routing catalogue'."
     },
     {
       "line": 421,
@@ -1494,15 +1587,16 @@
       "workstream": "10. Data-model migration and cleanup",
       "section": "Routing catalogue",
       "text": "Drop routing tables only after all readers/writers are removed and production data is audited.",
-      "verdict": "BLOCKED_CUTOVER",
+      "verdict": "BLOCKED_OPERATOR",
       "evidence": "Readers and writers are live (L420). The \"production data is audited\" half is what this PR's Task 2 inventory begins and cannot finish: all 21 counts are UNMEASURED for want of a credential.",
-      "verdictBefore": "BLOCKED_KAANA",
+      "verdictBefore": "BLOCKED_CUTOVER",
       "reauditedAt": "2026-09-10",
       "reauditNote": "Remove the seed first (L420), then the operator counts rows, then a post-phase DROP in the 0061 shape.",
-      "namedBlocker": "The three routing tables still exist (db/schema/providers.ts:85-274) and the seed still writes them (L420); the production audit of their rows needs a database credential nobody in this repository holds.",
+      "namedBlocker": "One-time production audit of model_configs / routing_profiles row counts, then a `post`-phase migration dropping them.",
       "reauditNote20260819": "Two blockers, and only one of them was ever Kaana's.",
       "verdictBefore20260910": "BLOCKED_CUTOVER",
-      "unblockedBy": "this repo (readers/writers) + operator (audit)"
+      "unblockedBy": "operator",
+      "upstreamEvidence": "Writers and readers are gone (L420 earned); only the production audit gates the DROP."
     },
     {
       "line": 431,
@@ -1517,8 +1611,13 @@
       "workstream": "10. Data-model migration and cleanup",
       "section": "External models leaderboard",
       "text": "Remove duplicate model catalogue UI if Oxy becomes the sole customer-facing catalogue.",
-      "verdict": "BLOCKED_OXY_972",
-      "evidence": "Presupposes \"if Oxy becomes the sole customer-facing catalogue\", which is #972. The duplicate UI today is packages/alia-console/src/routes/_layout/documentation/models.tsx (four aliases hardcoded) beside packages/app's catalogue-driven picker."
+      "verdict": "BLOCKED_OPERATOR",
+      "evidence": "Presupposes \"if Oxy becomes the sole customer-facing catalogue\", which is #972. The duplicate UI today is packages/alia-console/src/routes/_layout/documentation/models.tsx (four aliases hardcoded) beside packages/app's catalogue-driven picker.",
+      "verdictBefore": "BLOCKED_OXY_972",
+      "reauditedAt": "2026-09-10",
+      "upstreamEvidence": "Condition met in code: oxy:packages/console/src/routes/_layout/documentation/models.tsx:15-16 dropped the alia-* aliases; oxy:docs/inference/deprecation.md:104-114 retires them as identities.",
+      "namedBlocker": "Alia removal actionable once the Oxy catalogue is launched (L324).",
+      "unblockedBy": "operator"
     },
     {
       "line": 438,
@@ -1553,8 +1652,13 @@
       "workstream": "10. Data-model migration and cleanup",
       "section": "Usage and cost",
       "text": "Move exact customer charges and durable receipts to Oxy Billing.",
-      "verdict": "BLOCKED_OXY_972",
-      "evidence": "The contract for it now exists and the service does not: @oxy.so/contracts@0.29.0 ships `billingInvoiceSchema`, `externalPaymentSchema`, `accountBillingStateSchema` and `reconciliationReportSchema`. Alia is pinned to ^0.27.0 (packages/api/package.json:34), which does not include them. Oxy Billing itself is #972."
+      "verdict": "BLOCKED_OPERATOR",
+      "evidence": "The contract for it now exists and the service does not: @oxy.so/contracts@0.29.0 ships `billingInvoiceSchema`, `externalPaymentSchema`, `accountBillingStateSchema` and `reconciliationReportSchema`. Alia is pinned to ^0.27.0 (packages/api/package.json:34), which does not include them. Oxy Billing itself is #972.",
+      "verdictBefore": "BLOCKED_OXY_972",
+      "reauditedAt": "2026-09-10",
+      "upstreamEvidence": "oxy:packages/api/src/db/schema/usageReceipts.ts:102,292 (price snapshot), services/inferenceLedger.service.ts; tests services/__tests__/inferenceLedger.service.test.ts:392-662; receipt read GET /v1/generations/:id (inferenceEdge.test.ts:3107,3162); inferenceReporting.ts /accounts/:id/charges.",
+      "namedBlocker": "Shadow-metered until INFERENCE_CHARGING_AUTHORIZED (oxy:packages/api/src/config/rolloutFlags.ts:359-388).",
+      "unblockedBy": "operator"
     },
     {
       "line": 441,
@@ -1574,10 +1678,11 @@
       "verdictBefore": "BLOCKED_KAANA",
       "reauditedAt": "2026-09-10",
       "reauditNote": "Write the revision (L290); relax or drop the two voice columns only after the operator has counted their rows.",
-      "namedBlocker": "chat_analytics is done (usage.ts:195-216 requested fields; model/provider nullable and unread). Still open: voice_call_usage.provider and provider_model are NOT NULL (usage.ts:347-348) so every voice write still requires provider identity; and the safe resolved revision is unread (L290). usage.ts:151-153's stated reason is stale.",
       "reauditNote20260819": "The row's stated blocker — \"no revision exists anywhere in Alia to record\" — has an upstream answer now (L287). The residual it names is `voice_call_usage.provider`/`provider_model`, still NOT NULL, and dropping a column whose production rows are unmeasured is the step this epic cannot take back.",
       "verdictBefore20260910": "BLOCKED_OPERATOR",
-      "unblockedBy": "this repo (revision) + operator (columns)"
+      "resolvedSince": "2026-09-10",
+      "resolutionEvidence": "chat_analytics carries requested model/profile plus the safe resolved revision reference (L290); provider fields are not written for hosted turns.",
+      "residual": "voice_call_usage.provider* columns stay NOT NULL for the voice path, which is still a direct integration (L335)."
     },
     {
       "line": 443,
@@ -1631,16 +1736,26 @@
       "workstream": "11. Remove duplicate developer identity and credentials",
       "section": "",
       "text": "Move developer application and credential management to Oxy Applications/Console.",
-      "verdict": "BLOCKED_OXY_972",
-      "evidence": "The destination is Oxy Applications/Console, which is #972."
+      "verdict": "BLOCKED_OPERATOR",
+      "evidence": "The destination is Oxy Applications/Console, which is #972.",
+      "verdictBefore": "BLOCKED_OXY_972",
+      "reauditedAt": "2026-09-10",
+      "upstreamEvidence": "As L406/L178; audit trail credentialAuditTrail.test.ts.",
+      "namedBlocker": "INFERENCE_MACHINE_CREDENTIAL_AUTH shut by default (inferenceEdgeRollout.test.ts:694).",
+      "unblockedBy": "operator"
     },
     {
       "line": 453,
       "workstream": "11. Remove duplicate developer identity and credentials",
       "section": "",
       "text": "Map existing Alia developer apps to Oxy Applications where migration is required.",
-      "verdict": "BLOCKED_OXY_972",
-      "evidence": "Mapping needs Oxy Application ids to map ONTO. The Alia side is enumerable now: `developer_apps` and `developer_api_keys` (packages/api/drizzle/0004_ambitious_payback.sql), both counted UNMEASURED in this PR's Task 2 inventory."
+      "verdict": "PRODUCT_DECISION",
+      "evidence": "Mapping needs Oxy Application ids to map ONTO. The Alia side is enumerable now: `developer_apps` and `developer_api_keys` (packages/api/drizzle/0004_ambitious_payback.sql), both counted UNMEASURED in this PR's Task 2 inventory.",
+      "verdictBefore": "BLOCKED_OXY_972",
+      "reauditedAt": "2026-09-10",
+      "upstreamEvidence": "No mapping tool in either repo. Oxy's own developer_api_keys retired at 0 rows (oxy:docs/inference/deprecation.md:117-131) — a different table; :89-92 leaves the alia_sk_ lifecycle to Alia.",
+      "namedBlocker": "Decide whether existing alia_sk_ holders are mapped or notified-and-sunset (docs/migration/epic-139-decisions.md O6); then a mapping script (Alia S/M).",
+      "unblockedBy": "product decision"
     },
     {
       "line": 454,
@@ -1681,8 +1796,13 @@
       "workstream": "11. Remove duplicate developer identity and credentials",
       "section": "",
       "text": "Remove Alia developer key auth middleware after migration.",
-      "verdict": "BLOCKED_OXY_972",
-      "evidence": "middleware/auth.ts:108, :137 and :274 branch on the `alia_sk_` prefix and packages/api/src/lib/mcp-relay.ts:245 does too. Removing them strands every existing developer credential until Oxy issues the replacement."
+      "verdict": "PRODUCT_DECISION",
+      "evidence": "middleware/auth.ts:108, :137 and :274 branch on the `alia_sk_` prefix and packages/api/src/lib/mcp-relay.ts:245 does too. Removing them strands every existing developer credential until Oxy issues the replacement.",
+      "verdictBefore": "BLOCKED_OXY_972",
+      "reauditedAt": "2026-09-10",
+      "upstreamEvidence": "Middleware still authenticates alia_sk_* (Alia:packages/api/src/middleware/auth.ts); sunset date undecided (oxy:docs/inference/deprecation.md:42).",
+      "namedBlocker": "Needs L453 and the machine-credential lane live.",
+      "unblockedBy": "product decision"
     },
     {
       "line": 459,
@@ -1731,16 +1851,26 @@
       "workstream": "12. Separate Alia product plans from Oxy financial billing",
       "section": "",
       "text": "Move Stripe customer, payment, invoice, balance and transaction source-of-truth responsibilities to Oxy.",
-      "verdict": "BLOCKED_OXY_972",
-      "evidence": "Alia runs Stripe directly: packages/api/src/routes/billing.ts reads `STRIPE_SECRET_KEY` at :38 and :41, and src/index.ts:186 mounts the raw-body webhook at /billing/webhook. Moving source-of-truth requires the Oxy ledger to exist (#972); the shapes now exist (@oxy.so/contracts@0.29.0 `accountBilling`), the service does not."
+      "verdict": "PRODUCT_DECISION",
+      "evidence": "Alia runs Stripe directly: packages/api/src/routes/billing.ts reads `STRIPE_SECRET_KEY` at :38 and :41, and src/index.ts:186 mounts the raw-body webhook at /billing/webhook. Moving source-of-truth requires the Oxy ledger to exist (#972); the shapes now exist (@oxy.so/contracts@0.29.0 `accountBilling`), the service does not.",
+      "verdictBefore": "BLOCKED_OXY_972",
+      "reauditedAt": "2026-09-10",
+      "upstreamEvidence": "Upstream ready: oxy:packages/api/src/routes/accountBilling.ts, services/stripeAccountBilling.service.ts, billingWebhookIdempotency.test.ts:144-230, billingReconciliation.service.ts. ADR 0014 keeps Alia plans as product subscriptions (oxy:packages/contracts/src/inference/entitlement.ts).",
+      "namedBlocker": "Whether Alia's Stripe customers physically move is undecided.",
+      "unblockedBy": "product decision"
     },
     {
       "line": 471,
       "workstream": "12. Separate Alia product plans from Oxy financial billing",
       "section": "",
       "text": "Move exact inference usage charging to the Oxy ledger.",
-      "verdict": "BLOCKED_OXY_972",
-      "evidence": "The contract's usage module (`usageReservationSchema`, `usageReceiptSchema`, `normalizedUsageReportSchema`) is published and imported by Alia already, but docs/migration/kaana-client-gap.md section 4.3 records the reservation as \"the sharpest mismatch on this page\": lib/credits-manager.ts:88 reserves with NO amount. There is no Oxy ledger to charge."
+      "verdict": "BLOCKED_OPERATOR",
+      "evidence": "The contract's usage module (`usageReservationSchema`, `usageReceiptSchema`, `normalizedUsageReportSchema`) is published and imported by Alia already, but docs/migration/kaana-client-gap.md section 4.3 records the reservation as \"the sharpest mismatch on this page\": lib/credits-manager.ts:88 reserves with NO amount. There is no Oxy ledger to charge.",
+      "verdictBefore": "BLOCKED_OXY_972",
+      "reauditedAt": "2026-09-10",
+      "upstreamEvidence": "Reserve→settle→refund oxy:packages/api/src/services/__tests__/inferenceLedger.service.test.ts:307-1042; edge holds before forwarding (inferenceEdge.test.ts:1225,1515).",
+      "namedBlocker": "Armed by INFERENCE_CHARGING_AUTHORIZED; Alia credits-manager retirement follows.",
+      "unblockedBy": "operator"
     },
     {
       "line": 472,
@@ -1758,8 +1888,13 @@
       "workstream": "12. Separate Alia product plans from Oxy financial billing",
       "section": "",
       "text": "Define how Alia plan allowances consume Oxy-recorded inference usage.",
-      "verdict": "BLOCKED_OXY_972",
-      "evidence": "Presupposes Oxy-recorded inference usage. docs/migration/kaana-client-gap.md section 4.3 measured that Alia reserves credits with no amount (lib/credits-manager.ts:88) and settles from its own cost estimate, so there is no Oxy figure to consume."
+      "verdict": "ACTIONABLE_NOW",
+      "evidence": "Presupposes Oxy-recorded inference usage. docs/migration/kaana-client-gap.md section 4.3 measured that Alia reserves credits with no amount (lib/credits-manager.ts:88) and settles from its own cost estimate, so there is no Oxy figure to consume.",
+      "verdictBefore": "BLOCKED_OXY_972",
+      "reauditedAt": "2026-09-10",
+      "upstreamEvidence": "Contract + API exist: oxy:packages/contracts/src/inference/entitlement.ts, ADR 0014, GET /billing/accounts/:accountId/entitlements (accountBilling.ts:829), entitlement.service.test.ts:134-279. Cost centres seeded (oxy:packages/api/src/scripts/internalCostCenterSpecs.ts:85-111).",
+      "namedBlocker": "Alia consumption logic against that endpoint; allowance numbers are a product decision.",
+      "unblockedBy": "this repo"
     },
     {
       "line": 474,
@@ -1800,24 +1935,39 @@
       "workstream": "12. Separate Alia product plans from Oxy financial billing",
       "section": "",
       "text": "Migrate active subscriptions and balances without double-crediting or double-charging.",
-      "verdict": "BLOCKED_OXY_972",
-      "evidence": "No Oxy ledger to migrate into (#972). The Alia-side row counts for `subscriptions`, `transactions` and `user_credits` are UNMEASURED in this PR for want of a production credential."
+      "verdict": "PRODUCT_DECISION",
+      "evidence": "No Oxy ledger to migrate into (#972). The Alia-side row counts for `subscriptions`, `transactions` and `user_credits` are UNMEASURED in this PR for want of a production credential.",
+      "verdictBefore": "BLOCKED_OXY_972",
+      "reauditedAt": "2026-09-10",
+      "upstreamEvidence": "No Alia section in oxy:docs/inference/migration.md; dual-write not built because Oxy tables hold no production rows. Primitives exist (promotional grants inferenceLedger.service.test.ts:327).",
+      "namedBlocker": "Decision first, then an Alia+Oxy script (M).",
+      "unblockedBy": "product decision"
     },
     {
       "line": 478,
       "workstream": "12. Separate Alia product plans from Oxy financial billing",
       "section": "",
       "text": "Remove duplicate Stripe webhooks and checkout flows from Alia after Oxy cutover.",
-      "verdict": "BLOCKED_OXY_972",
-      "evidence": "src/index.ts:186 mounts the raw-body Stripe webhook and routes/billing.ts owns checkout. Removing them after \"Oxy cutover\" needs the cutover."
+      "verdict": "PRODUCT_DECISION",
+      "evidence": "src/index.ts:186 mounts the raw-body Stripe webhook and routes/billing.ts owns checkout. Removing them after \"Oxy cutover\" needs the cutover.",
+      "verdictBefore": "BLOCKED_OXY_972",
+      "reauditedAt": "2026-09-10",
+      "upstreamEvidence": "Depends on L477.",
+      "namedBlocker": "Then Alia code.",
+      "unblockedBy": "product decision"
     },
     {
       "line": 479,
       "workstream": "12. Separate Alia product plans from Oxy financial billing",
       "section": "",
       "text": "Remove Alia financial tables only after reconciliation and retention review.",
-      "verdict": "BLOCKED_OXY_972",
-      "evidence": "Reconciliation needs the Oxy side to reconcile against; @oxy.so/contracts@0.29.0 ships `reconciliationRunSchema` and `reconciliationReportSchema`, which is the shape, not the data. The retention review is the same call as L443."
+      "verdict": "PRODUCT_DECISION",
+      "evidence": "Reconciliation needs the Oxy side to reconcile against; @oxy.so/contracts@0.29.0 ships `reconciliationRunSchema` and `reconciliationReportSchema`, which is the shape, not the data. The retention review is the same call as L443.",
+      "verdictBefore": "BLOCKED_OXY_972",
+      "reauditedAt": "2026-09-10",
+      "upstreamEvidence": "Oxy reconciliation is Oxy-ledger-vs-Stripe only (billingReconciliation.service.test.ts:145-358), not Alia-vs-Oxy.",
+      "namedBlocker": "Needs L477 and a retention decision.",
+      "unblockedBy": "product decision"
     },
     {
       "line": 506,
@@ -2555,14 +2705,16 @@
       "workstream": "18. Migration and rollout",
       "section": "Cleanup",
       "text": "Drop obsolete tables only after production audit.",
-      "verdict": "DUPLICATE_OF",
+      "verdict": "BLOCKED_OPERATOR",
       "evidence": "Rollout-plan rollup of the drop-after-audit rows in workstreams 10, 11 and 12. The audit this row names is Task 2 of this PR, whose 21 production counts are UNMEASURED for want of a credential.",
       "duplicateOf": "L425 — \"Drop routing tables only after all readers/writers are removed and production data is audited.\"",
       "reauditedAt": "2026-09-10",
       "verdictBefore20260910": "DUPLICATE_OF",
-      "namedBlocker": "Duplicate of L425: routing tables still exist and are seeded; production audit needs a credential.",
-      "unblockedBy": "this repo + operator",
-      "reauditNote": "Still open on 2026-09-10; see namedBlocker."
+      "namedBlocker": "Same as L425.",
+      "unblockedBy": "operator",
+      "reauditNote": "Still open on 2026-09-10; see namedBlocker.",
+      "verdictBefore": "DUPLICATE_OF",
+      "upstreamEvidence": "Duplicate of L425."
     },
     {
       "line": 650,
@@ -2595,8 +2747,13 @@
       "workstream": "18. Migration and rollout",
       "section": "Rollback",
       "text": "Preserve financial event idempotency during rollback/retry.",
-      "verdict": "BLOCKED_OXY_972",
-      "evidence": "Idempotency across rollback needs the Oxy ledger to be idempotent against. @oxy.so/contracts ships `idempotencyKeySchema` and `usageRefundSchema`; docs/migration/kaana-client-gap.md section 4.2 records that Alia's current retry rules are about tool duplication, not financial replay (pinned by routes/v1/__tests__/retryToolDuplication.test.ts)."
+      "verdict": "ACTIONABLE_NOW",
+      "evidence": "Idempotency across rollback needs the Oxy ledger to be idempotent against. @oxy.so/contracts ships `idempotencyKeySchema` and `usageRefundSchema`; docs/migration/kaana-client-gap.md section 4.2 records that Alia's current retry rules are about tool duplication, not financial replay (pinned by routes/v1/__tests__/retryToolDuplication.test.ts).",
+      "verdictBefore": "BLOCKED_OXY_972",
+      "reauditedAt": "2026-09-10",
+      "upstreamEvidence": "oxy:docs/inference/rollout.md:405-483 (reversal by append, ON CONFLICT … DO NOTHING RETURNING); ledger tests :347,543,870,1181,1441,1522-1634.",
+      "resolvedSince": "2026-09-10",
+      "resolutionEvidence": "Alia sends a fresh randomUUID Idempotency-Key on every respond/stream call (kaana-language-model.ts, bd0eafc; guard asserts four distinct keys across two calls of each). Oxy's ledger reverses by append and charges once per key: oxy:docs/inference/rollout.md:405-483; inferenceLedger.service.test.ts:347,543,870,1181,1441."
     },
     {
       "line": 656,
@@ -2608,10 +2765,10 @@
       "verdictBefore": "BLOCKED_KAANA",
       "reauditedAt": "2026-09-10",
       "reauditNote": "One runbook paragraph: revoke/rotate the Oxy ApplicationCredential in Oxy Console, then redeploy; nothing in Alia's code changes.",
-      "namedBlocker": "Enforcement now lives in Oxy (the edge re-reads the credential row per request; routing policy is resolved per application), so any Alia rollback keeps both — and a rollback to a pre-#477 image cannot run (provider_keys is dropped; legacy variables are removed at deploy). What is NOT written: docs/runbooks/kaana-cutover.md:18-19 names OXY_SERVICE_API_KEY/SECRET but no runbook step says how to revoke that credential during a rollback.",
       "reauditNote20260819": "Credential revocation now has a real mechanism on the other side: the edge re-reads the credential ROW on every request rather than trusting the token's claims, \"which is what makes a revocation effective inside the token's own hour of life\" (inferenceEdge.service.ts:369-375).",
       "verdictBefore20260910": "BLOCKED_CUTOVER",
-      "unblockedBy": "this repo (runbook)"
+      "resolvedSince": "2026-09-10",
+      "resolutionEvidence": "docs/runbooks/credential-rotation.md § Revoking the credential: revoke in Oxy Console → Alia application → Credentials; the edge re-reads the credential row per request so revocation bites within the token's life; every hosted turn then fails as OxyInferenceError authentication_failed → AliaErrorCode.AUTH_FAILED (401), no retry; recovery is a task revision. Routing policy is enforced by Oxy on every request (oxy: routing policies resolved server-side into authorizedRoutes[])."
     },
     {
       "line": 668,
@@ -2629,8 +2786,13 @@
       "workstream": "19. Tests and enforcement",
       "section": "Unit/contract tests",
       "text": "Oxy service-token claim/scopes handling.",
-      "verdict": "BLOCKED_OXY_972",
-      "evidence": "Alia handles no service-token claims: inference-boundary.test.ts asserts \"nothing in the API decodes a JWT itself\" and \"records that Alia configures no service-token verification secret\". The scope half IS tested — kaana-boot-check.test.ts drives `authenticatedPrincipalSchema` through seventeen cases including \"refuses a principal that carries no invoke scope\" and \"refuses a scope the contract does not define\" — so what is missing is claim handling, which arrives with #972."
+      "verdict": "ACTIONABLE_NOW",
+      "evidence": "Alia handles no service-token claims: inference-boundary.test.ts asserts \"nothing in the API decodes a JWT itself\" and \"records that Alia configures no service-token verification secret\". The scope half IS tested — kaana-boot-check.test.ts drives `authenticatedPrincipalSchema` through seventeen cases including \"refuses a principal that carries no invoke scope\" and \"refuses a scope the contract does not define\" — so what is missing is claim handling, which arrives with #972.",
+      "verdictBefore": "BLOCKED_OXY_972",
+      "reauditedAt": "2026-09-10",
+      "upstreamEvidence": "Upstream: oxy serviceTokenCredentials.test.ts:374-546; inferenceEdgeCredentialLanes.test.ts:610-706; core server/__tests__/serviceTokenAttribution.test.ts.",
+      "namedBlocker": "Alia's own lane test for the claims it reads.",
+      "unblockedBy": "this repo"
     },
     {
       "line": 683,
@@ -2765,25 +2927,27 @@
       "verdictBefore": "BLOCKED_KAANA",
       "reauditedAt": "2026-09-10",
       "reauditNote": "Still open on 2026-09-10; see namedBlocker.",
-      "namedBlocker": "No Kaana voice path exists (L335); Alia's voice routes refuse 503.",
+      "namedBlocker": "Kaana audio adapter.",
       "reauditNote20260819": "Not merely uncut-over: there is no Kaana path for this and there will not be one at contract 1.1.0. Alia's voice path is LiveKit plus openai-voice/grok-voice and stays outside Kaana.",
       "verdictBefore20260910": "BLOCKED_KAANA",
-      "unblockedBy": "kaana"
+      "unblockedBy": "kaana",
+      "upstreamEvidence": "Cannot be exercised through Kaana until L335 lands."
     },
     {
       "line": 692,
       "workstream": "19. Tests and enforcement",
       "section": "End-to-end tests",
       "text": "Same-model deployment fallback.",
-      "verdict": "BLOCKED_KAANA",
+      "verdict": "BLOCKED_OPERATOR",
       "evidence": "Same-model deployment fallback cannot be exercised \"through Kaana\" because no Kaana exists (docs/migration/kaana-client-gap.md section 1). The behaviour is already pinned against the CURRENT path — routes/v1/__tests__/chatFlowFixtures.test.ts and voiceFlowFixtures.test.ts (#146), lib/agent/__tests__/approval-flow.test.ts, routes/__tests__/conversation-lifecycle.test.ts, routes/v1/__tests__/retryToolDuplication.test.ts and routes/v1/__tests__/chat-completions-timeout.test.ts — which is the baseline these will be re-run against, so this is re-pointing rather than writing.",
       "verdictBefore": "BLOCKED_KAANA",
       "reauditedAt": "2026-09-10",
       "reauditNote": "Still open on 2026-09-10; see namedBlocker.",
-      "namedBlocker": "Same-model failover is off in Kaana and unauthorisable per request (L368).",
+      "namedBlocker": "No Oxy↔real-Kaana run exists; needs a rollout stage.",
       "reauditNote20260819": "Doubly blocked, both halves named.",
       "verdictBefore20260910": "BLOCKED_KAANA",
-      "unblockedBy": "kaana"
+      "unblockedBy": "operator",
+      "upstreamEvidence": "Code-level each side with a fake of the other: oxy inferenceEdge.test.ts:2537,3388; Kaana:internal/kaana/failover_test.go:186, httpapi/server_test.go:599."
     },
     {
       "line": 693,
@@ -2837,24 +3001,39 @@
       "workstream": "19. Tests and enforcement",
       "section": "End-to-end tests",
       "text": "Credential rotation/revocation.",
-      "verdict": "BLOCKED_OXY_972",
-      "evidence": "The credentials to rotate do not exist (L178). docs/runbooks/credential-rotation.md covers every credential Alia holds TODAY — provider keys, `alia_sk_*`, bot tokens, OAuth tokens, webhook HMAC keys, SERVICE_SECRET, TOKEN_ENCRYPTION_KEY — and none of them is an Oxy ApplicationCredential."
+      "verdict": "BLOCKED_OPERATOR",
+      "evidence": "The credentials to rotate do not exist (L178). docs/runbooks/credential-rotation.md covers every credential Alia holds TODAY — provider keys, `alia_sk_*`, bot tokens, OAuth tokens, webhook HMAC keys, SERVICE_SECRET, TOKEN_ENCRYPTION_KEY — and none of them is an Oxy ApplicationCredential.",
+      "verdictBefore": "BLOCKED_OXY_972",
+      "reauditedAt": "2026-09-10",
+      "upstreamEvidence": "oxy inferenceEdgeCredentialLanes.test.ts:771-885 (rotation during traffic), machineCredentials.test.ts:705-795, serviceTokenCredentials.test.ts:213-251.",
+      "namedBlocker": "Live rotation needs L178.",
+      "unblockedBy": "operator"
     },
     {
       "line": 697,
       "workstream": "19. Tests and enforcement",
       "section": "End-to-end tests",
       "text": "Oxy usage receipt attribution.",
-      "verdict": "BLOCKED_OXY_972",
-      "evidence": "No Oxy ledger issues receipts. The contract shape is published (`usageReceiptSchema`) and Alia already imports the usage module; there is nothing to attribute against."
+      "verdict": "BLOCKED_OPERATOR",
+      "evidence": "No Oxy ledger issues receipts. The contract shape is published (`usageReceiptSchema`) and Alia already imports the usage module; there is nothing to attribute against.",
+      "verdictBefore": "BLOCKED_OXY_972",
+      "reauditedAt": "2026-09-10",
+      "upstreamEvidence": "oxy inferenceEdge.test.ts:1612 (one id across envelope/reservation/telemetry/receipt), :3107/:3162, lanes :610, :798.",
+      "namedBlocker": "Live run needs a rollout stage.",
+      "unblockedBy": "operator"
     },
     {
       "line": 698,
       "workstream": "19. Tests and enforcement",
       "section": "End-to-end tests",
       "text": "No duplicate charge on retry.",
-      "verdict": "BLOCKED_OXY_972",
-      "evidence": "The TOOL half is already guarded — routes/v1/__tests__/retryToolDuplication.test.ts, and kaana-client.test.ts guards the same property for the client — but the CHARGE half needs the Oxy ledger. docs/migration/kaana-client-gap.md section 4.3: Alia reserves credits with no amount (lib/credits-manager.ts:88), so \"double charge\" has no current meaning to test."
+      "verdict": "BLOCKED_OPERATOR",
+      "evidence": "The TOOL half is already guarded — routes/v1/__tests__/retryToolDuplication.test.ts, and kaana-client.test.ts guards the same property for the client — but the CHARGE half needs the Oxy ledger. docs/migration/kaana-client-gap.md section 4.3: Alia reserves credits with no amount (lib/credits-manager.ts:88), so \"double charge\" has no current meaning to test.",
+      "verdictBefore": "ACTIONABLE_NOW",
+      "reauditedAt": "2026-09-10",
+      "upstreamEvidence": "Both halves exist in code: Alia sends the key (L655); oxy inferenceEdge.test.ts:3039 charges once for a repeated Idempotency-Key.",
+      "namedBlocker": "A live Alia→Oxy→Kaana run with a forced retry; needs a rollout stage.",
+      "unblockedBy": "operator"
     },
     {
       "line": 702,
@@ -2877,11 +3056,11 @@
       "verdictBefore": "BLOCKED_KAANA",
       "reauditedAt": "2026-09-10",
       "reauditNote": "Same change as L290.",
-      "namedBlocker": "Five of six fields exist on chat_analytics (usage.ts:195-265). The resolved revision is unread: the adapter ignores the contract's `start` event (L290).",
       "kaanaCapability": "the contract `start` event carries the revision-pinned reference Kaana resolved",
       "reauditNote20260819": "Five of six fields exist. The sixth — resolved revision — no longer has \"no revision exists to record\" as its blocker: Kaana pins `@observed-2026-08-18` and reports the resolved reference on the `start` event. Alia receives it at cutover.",
       "verdictBefore20260910": "BLOCKED_CUTOVER",
-      "unblockedBy": "this repo"
+      "resolvedSince": "2026-09-10",
+      "resolutionEvidence": "Same mechanism as L290 for the resolved revision; latency, time to first token, error class and cancellation were already on TurnObservation/chat_analytics (lib/chat/provider-loop.ts:142, analytics-hook.ts)."
     },
     {
       "line": 704,
@@ -3228,15 +3407,14 @@
     "duplicateAssertsMore": "A row labelled a duplicate can assert MORE than the row it duplicates, and the label then hides an OPEN requirement behind a TICKED one. `DUPLICATE_OF` was carrying four different relationships that read identically in this file and all resolve to a ticked primary: a genuine restatement; a CONJUNCTION whose components are mostly open (773, 24 of 46 open); an INVERSE, where the primary is a prohibition satisfied by doing nothing and the row demands the positive act (576); and a row about a DIFFERENT SURFACE from its primary (606 — `GET /catalogue` versus `/v1/*`). The discriminator is one question asked of the PAIR rather than of the label: would ticking the primary alone make this row’s sentence true? If the row names anything the primary does not, the answer is no and the verdict is wrong. Seven rows were re-classified on 2026-08-19 — 103, 576, 606, 647, 650, 768, 773 — and not one of them was a duplicate. Same family as `greenAndInert`: there the mechanism had no caller, here the evidence measures a different claim from the one the row makes."
   },
   "openVerdictCounts": {
-    "ACTIONABLE_NOW": 2,
-    "ACTIONABLE_UPSTREAM": 17,
+    "ACTIONABLE_NOW": 4,
+    "ACTIONABLE_UPSTREAM": 3,
     "BLOCKED_ALIAMODELS": 28,
-    "BLOCKED_CUTOVER": 30,
-    "BLOCKED_KAANA": 7,
-    "BLOCKED_OPERATOR": 9,
-    "BLOCKED_OXY_972": 26,
-    "DUPLICATE_OF": 10,
-    "PRODUCT_DECISION": 11,
+    "BLOCKED_CUTOVER": 26,
+    "BLOCKED_KAANA": 4,
+    "BLOCKED_OPERATOR": 24,
+    "DUPLICATE_OF": 9,
+    "PRODUCT_DECISION": 17,
     "ROLLUP_OF": 1,
     "SUPERSEDED_BY_REMOVAL": 1
   },
@@ -3309,5 +3487,56 @@
       "L99 is resolved here and unticked on the issue (see its reauditNote).",
       "The issue body still says Relay in its row texts; this file spells them Kaana. Alignment was checked by line number and by text modulo that rename."
     ]
+  },
+  "reaudit20260910Upstream": {
+    "at": "2026-09-10",
+    "subject": "The 17 ACTIONABLE_UPSTREAM, 7 BLOCKED_KAANA and 27 BLOCKED_OXY_972 rows, re-read against OxyHQ/Kaana main (5129210) and OxyHQ/oxy main (19f25b7).",
+    "method": "Read-only over the two sibling checkouts; every claim cites repo:file:line. Production data (registrations, minted credentials, inventory rows, rollout flags) was NOT verified: a row is earned only when its text is satisfied by code and tests; a row whose text is a live or operator claim keeps its code evidence and stays open.",
+    "framing": [
+      "Kaana serves 26 built-in slugs pinned by exact count (internal/providerconfig/providerconfig.go:53-80), Google and Cloudflare included; any other slug is servable by KAANA_PROVIDER_<SLUG>_PROTOCOL + _BASE_URL with no Go change.",
+      "Same-model failover is authorised through contract 1.3.0 authorizedRoutes[] with substitution same_model|cross_model (Kaana:internal/contract/request.go:352-449; oxy:packages/contracts/src/inference/request.ts:397-471).",
+      "The Oxy→Alia static proxy is gone (oxy:packages/api/src/server.ts:755 mounts inferenceEdgeRoutes at /v1; deploy-aws.yml:260 removes ALIA_API_KEY/RELAY_*).",
+      "No rollout stage has been entered (oxy:docs/inference/README.md): INFERENCE_EDGE_AUDIENCE unset serves nobody, the machine-key lane is shut, charging is shadow-metered."
+    ],
+    "earned": [
+      323,
+      334,
+      336,
+      339,
+      340,
+      341,
+      342,
+      343,
+      344,
+      345,
+      346,
+      351,
+      352,
+      365,
+      368,
+      377,
+      406,
+      407,
+      538
+    ],
+    "landedThisSession": {
+      "kaana": "#70 conformance over every OpenAI-compatible built-in slug; docs/architecture.md embeddings sentence",
+      "oxy": "#1227 docs/inference/README.md later-modalities status",
+      "alia": "L388 static catalogue import; L420 seed no longer writes the routing catalogue; L290/L703/L442 resolved model revision in chat_analytics; L655 Idempotency-Key per call; L656 revocation runbook; fallbackPolicy refused with 400; alias-deprecation docs marked overtaken by removal"
+    },
+    "stillUpstream": {
+      "kaana": [
+        "L335/L337 audio-out and realtime adapters + contract arms (M/L) — product decision whether voice leaves Alia",
+        "L347 novita: not a built-in slug; its published OpenAI-compatible root (api.novita.ai/openai/v1) differs from the inventory guess, so it stays operator-declared",
+        "L349 perplexity: Sonar endpoint is not the shared path",
+        "L350 replicate: neither protocol; needs a product decision",
+        "L369 async image/audio jobs; batches need an ADR 0009 amendment"
+      ],
+      "oxy": [
+        "L178 seed mints only a public credential per app; service credentials per environment are minted in Console or need a seed change",
+        "L453/L457 alia_sk_ mapping tool after the product decision",
+        "L477-L479 Alia subscription/balance migration after the product decision"
+      ]
+    }
   }
 }
