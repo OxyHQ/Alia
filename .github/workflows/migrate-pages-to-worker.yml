@@ -348,7 +348,7 @@ jobs:
       # GitHub tarball host, and `.github/scripts/check-bun-cache-wiring.mjs`
       # fails if this is removed — it is what caught its absence here.
       - name: Cache bun install cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.bun/install/cache
           key: bun-cache-${{ runner.os }}-${{ hashFiles('bun.lock') }}

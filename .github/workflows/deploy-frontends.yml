@@ -45,7 +45,7 @@ jobs:
       # made. See the comment at the top of ci.yml for the measurement, and
       # .github/scripts/check-bun-cache-wiring.mjs, which fails if this is removed.
       - name: Cache bun install cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.bun/install/cache
           key: bun-cache-${{ runner.os }}-${{ hashFiles('bun.lock') }}
@@ -97,7 +97,7 @@ jobs:
       # made. See the comment at the top of ci.yml for the measurement, and
       # .github/scripts/check-bun-cache-wiring.mjs, which fails if this is removed.
       - name: Cache bun install cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.bun/install/cache
           key: bun-cache-${{ runner.os }}-${{ hashFiles('bun.lock') }}
