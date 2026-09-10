@@ -279,6 +279,42 @@ export async function updateConversationTitle(
 }
 
 /**
+ * Forget a thread's preview, reporting whether one was found.
+ *
+ * The other half of "clear conversation": `DELETE /conversations/:id/messages`
+ * drops the rows and this drops `last_message`, which is a COPY of the newest
+ * of them and would otherwise go on advertising a turn that no longer exists
+ * in the sidebar. The title is deliberately left alone — clearing is emptying
+ * the thread, not renaming it.
+ *
+ * `db.update()` for the same reason `updateConversationTitle` uses it: the
+ * `$onUpdate` moves `updated_at`, so a thread that was just emptied surfaces
+ * where the list expects a thread that was just touched. The count is Mongo's
+ * `matchedCount` — the route reads `0` as "not yours or not there", and answers
+ * the two identically so an id cannot be probed for.
+ *
+ * Takes an {@link Executor} because the route runs it in ONE transaction with
+ * the message delete: a clear that dropped the rows but kept the preview, or
+ * the reverse, is a thread nothing can render correctly.
+ */
+export async function clearConversationPreview(
+  db: Executor,
+  oxyUserId: string,
+  conversationId: string,
+): Promise<number> {
+  const result = await db
+    .update(conversations)
+    .set({ lastMessage: null })
+    .where(
+      and(
+        eq(conversations.oxyUserId, oxyUserId),
+        eq(conversations.conversationId, conversationId),
+      ),
+    );
+  return result.count;
+}
+
+/**
  * Remove one thread, scoped to its owner.
  *
  * Its messages are NOT removed by this — there is no foreign key to cascade

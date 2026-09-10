@@ -3,6 +3,7 @@ import { useOxy } from '@oxy.so/services';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { toast } from '@oxy.so/bloom/toast';
 import apiClient from '../api/client';
+import { API_ROUTES } from '../api/routes';
 import { queryKeys } from './query-keys';
 import type { ToolInvocation } from '../types/messages';
 import type { ResearchProgress, PendingPlan } from '@alia.onl/sdk';
@@ -34,7 +35,23 @@ export interface Message {
   // Voice fields (optional, only present for voice-originated messages)
   source?: 'text' | 'voice';
   speaker?: 'primary' | 'cohost';
+  /**
+   * The turn is being streamed into this message right now.
+   *
+   * Set by `useStreamingChat` on the assistant placeholder it appends and
+   * cleared by it when the stream ends, whichever way it ends; voice sets it
+   * on its own rows. Absent on a message read back from the server.
+   */
   isStreaming?: boolean;
+  /**
+   * How the turn that wrote this message ended, once it has: on its own
+   * (`completed`), on an error (`failed`), or because the person stopped it
+   * (`cancelled`). Stamped by `useStreamingChat` alongside clearing
+   * `isStreaming`, and absent on a message the server sent — for those,
+   * `turnLifecycle` in `lib/thought-utils.ts` reads the outcome off the tool
+   * states instead.
+   */
+  turnOutcome?: 'completed' | 'failed' | 'cancelled';
   /**
    * Agent delegation metadata, when agent mode delegates to a specialist agent.
    *
@@ -440,6 +457,68 @@ export function useDeleteConversation() {
     },
     onError: (error: unknown) => {
       toast.error(getErrorMessage(error) || 'Failed to delete conversation');
+    },
+  });
+}
+
+/**
+ * Empty a conversation on the server, keeping the conversation.
+ *
+ * The persistent half of the header's "Clear conversation" (#553). The local
+ * half — `setMessages([])` in `useChatConversation` — is NOT enough on its own:
+ * the detail query still holds the history, and the sync effect there treats
+ * "cache has messages, screen has none" as a data upgrade and hydrates them
+ * straight back, which is the bug. So the cache is emptied HERE, on success
+ * only, and the caller resets its screen after `mutateAsync` resolves — by
+ * which point React Query has run this `onSuccess`, so there is no longer a
+ * history for the effect to restore. Nothing is touched optimistically: a
+ * clear the server refused must leave the thread exactly as it was, because
+ * the dialog that asked for it promised the opposite of "it will be back".
+ *
+ * The list entry keeps its place and loses its preview — the server dropped
+ * `lastMessage` in the same transaction — and both queries are then
+ * invalidated so whatever the server has (the moved `updatedAt`, a title it
+ * may have kept) replaces the local guess.
+ */
+export function useClearConversation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    retry: 1,
+    mutationFn: async (id: string) => {
+      try {
+        await apiClient.delete(API_ROUTES.conversations.clearMessages(id));
+      } catch (error: unknown) {
+        // If unauthorized, clear the offline copy — the same branch a delete takes.
+        if (errorStatus(error) === 401) {
+          const conversations = await fetchConversations();
+          const cleared = conversations.map((c) =>
+            c.id === id ? { ...c, messages: [], lastMessage: undefined, updatedAt: new Date() } : c,
+          );
+          await AsyncStorage.setItem(CONVERSATIONS_STORAGE_KEY, JSON.stringify(cleared));
+        } else {
+          throw error;
+        }
+      }
+      return id;
+    },
+    onSuccess: (id) => {
+      queryClient.setQueryData(
+        queryKeys.conversations.detail(id),
+        (old: Conversation | undefined) => (old ? { ...old, messages: [], lastMessage: undefined } : old),
+      );
+      queryClient.setQueryData(queryKeys.conversations.all, (oldData: ConversationsInfiniteData | undefined) => {
+        if (!oldData?.pages) return oldData;
+        return {
+          ...oldData,
+          pages: oldData.pages.map((page) => ({
+            ...page,
+            conversations: page.conversations.map((c) => (c.id === id ? { ...c, lastMessage: undefined } : c)),
+          })),
+        };
+      });
+      queryClient.invalidateQueries({ queryKey: queryKeys.conversations.detail(id) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.conversations.all });
     },
   });
 }

@@ -254,7 +254,11 @@ export function useStreamingChat(apiUrl: string, conversationId?: string, reason
     };
 
     /** Keep a half-streamed turn — destroying real output is worse than showing the error. */
-    const settleError = (): SendOutcome => hasUsableStreamOutput(outputEvidence) ? 'sent' : rollback();
+    const settleError = (): SendOutcome => {
+      if (!hasUsableStreamOutput(outputEvidence)) return rollback();
+      settleAssistant('failed');
+      return 'sent';
+    };
 
     /**
      * The server's stand-in for an answer it could not get, if one arrived.
@@ -283,7 +287,9 @@ export function useStreamingChat(apiUrl: string, conversationId?: string, reason
         clearTimeout(flushTimerRef.current);
         flushTimerRef.current = null;
       }
-      if (!partial) {
+      if (partial) {
+        settleAssistant('failed');
+      } else {
         // The updater form, on purpose: the user row and the placeholder went
         // in through plain `setMessages` calls that may not have rendered yet
         // when a very fast failure lands, so `messagesRef` can still hold the
@@ -318,15 +324,38 @@ export function useStreamingChat(apiUrl: string, conversationId?: string, reason
     // makes sending feel like a chat list rather than a form.
     previewAgentRow(agentId, typeof message.content === 'string' ? message.content : '');
 
-    // Create assistant message placeholder
+    // Create assistant message placeholder. `isStreaming` is the turn's own
+    // lifecycle stamp: the thought panel reads "still running" from it rather
+    // than from whether the message has text yet, and `settleAssistant` below
+    // clears it however the stream ends.
     const assistantMessage: Message = {
       id: (Date.now() + 1).toString(),
       role: 'assistant',
       content: '',
       toolInvocations: [],
       createdAt: new Date().toISOString(),
+      isStreaming: true,
     };
     setMessages((prev) => [...prev, assistantMessage]);
+
+    /**
+     * End the assistant message's turn, once.
+     *
+     * Only a message still marked streaming is touched: the error paths settle
+     * it as `failed` before returning, and the `finally` that runs after them
+     * must not re-settle it as completed or cancelled. Through the updater,
+     * so it lands after every batched content flush queued before it.
+     */
+    const settleAssistant = (outcome: NonNullable<Message['turnOutcome']>): void => {
+      setMessages((prev) => prev.map((m) =>
+        m.id === assistantMessage.id && m.isStreaming === true
+          ? { ...m, isStreaming: false, turnOutcome: outcome }
+          : m,
+      ));
+    };
+
+    /** The request's own controller: `finally` asks it whether the person stopped the turn. */
+    let controller: AbortController | null = null;
 
     try {
       // Collect device info (will be available to AI via tool if needed)
@@ -344,7 +373,8 @@ export function useStreamingChat(apiUrl: string, conversationId?: string, reason
       }
 
       // Create abort controller for this request
-      abortControllerRef.current = new AbortController();
+      controller = new AbortController();
+      abortControllerRef.current = controller;
 
       const agentMode = useStore.getState().agentMode;
       const deepResearchMode = useStore.getState().deepResearchMode;
@@ -378,7 +408,7 @@ export function useStreamingChat(apiUrl: string, conversationId?: string, reason
             ? {}
             : { mcpServerId: options.mcpServerId }),
         }),
-        signal: abortControllerRef.current.signal,
+        signal: controller.signal,
       });
 
       if (!response.ok) {
@@ -1043,6 +1073,10 @@ export function useStreamingChat(apiUrl: string, conversationId?: string, reason
         flushTimerRef.current = null;
       }
       abortControllerRef.current = null;
+      // A turn that is still streaming here ended without an error path
+      // settling it: on its own, or because `stop()` aborted the controller.
+      // (The error paths abort it too, but they have settled it first.)
+      settleAssistant(controller?.signal.aborted === true ? 'cancelled' : 'completed');
       setIsLoading(false);
       /*
        * The answer replaces your own line in the sidebar — after the flush, so

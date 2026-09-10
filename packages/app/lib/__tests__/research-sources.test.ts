@@ -65,7 +65,7 @@ describe('extractSources — persisted deepResearch invocation', () => {
 
 describe('buildSteps — research step', () => {
   it('carries the research sources on the step so the Steps tab shows them', () => {
-    const steps = buildSteps({ content: 'answer', toolInvocations: [persistedResearch] }, false);
+    const steps = buildSteps({ content: 'answer', toolInvocations: [persistedResearch] }, 'completed');
     expect(steps.map((s) => s.type)).toEqual(['tool', 'done']);
     expect(steps[0].toolName).toBe('deepResearch');
     expect(steps[0].sources?.map((s) => s.domain)).toEqual(['es.react.dev', 'en.wikipedia.org']);

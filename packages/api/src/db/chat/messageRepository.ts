@@ -33,7 +33,7 @@ import type {
   MessageVote,
   ToolInvocation,
 } from '../../domain/conversation.js';
-import type { ApiDatabase } from '../index';
+import type { ApiDatabase, Executor } from '../index';
 import { conversations, messages } from '../schema/chat';
 
 /** A stored message, as this repository reads it. */
@@ -601,9 +601,15 @@ export async function insertMessages(
   await db.insert(messages).values(rows.map(toInsert));
 }
 
-/** Remove every message this user holds in a thread. */
+/**
+ * Remove every message this user holds in a thread.
+ *
+ * Takes an {@link Executor} so `DELETE /conversations/:id/messages` can run it
+ * inside the same transaction as `clearConversationPreview`; the root handle is
+ * still what `DELETE /conversations/:id` passes.
+ */
 export async function deleteMessages(
-  db: ApiDatabase,
+  db: Executor,
   oxyUserId: string,
   conversationId: string,
 ): Promise<number> {

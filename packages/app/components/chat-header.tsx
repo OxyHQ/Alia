@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useRef } from "react";
 import { View, Platform } from "react-native";
 import { GhostIcon } from "@/components/ui/ghost-icon";
 import { DotsHorizontalIcon } from "@/components/ui/icons/dots-horizontal-icon";
@@ -21,7 +21,12 @@ interface ChatHeaderProps {
   onGhostModePress?: () => void;
   ghostModeActive?: boolean;
   onSearchPress?: () => void;
-  onClear?: () => void;
+  /**
+   * Empty the thread. Awaited when it returns a promise: the clear is a server
+   * round-trip now (#553), and a second tap on the menu item while the first is
+   * still in flight would confirm and send the same request twice.
+   */
+  onClear?: () => void | Promise<unknown>;
   /**
    * Export this conversation as Markdown. A CALLBACK rather than the messages
    * themselves, for the same reason the identity below is two strings: the
@@ -67,7 +72,16 @@ export const ChatHeader = React.memo(function ChatHeader({
     navigation.toggleDrawer();
   };
 
+  /**
+   * Held while a clear is in flight, so the menu item cannot start a second
+   * one. A ref rather than state because nothing here re-renders on it: the
+   * dialog resolves before the request starts and has no in-flight state to
+   * show, so the guard is the whole feedback until the thread empties.
+   */
+  const clearing = useRef(false);
+
   const handleClearConversation = async () => {
+    if (clearing.current) return;
     const ok = await confirm({
       title: t('chatHeader.clearConfirmTitle'),
       description: t('chatHeader.clearConfirmDescription'),
@@ -75,7 +89,15 @@ export const ChatHeader = React.memo(function ChatHeader({
       cancelLabel: t('common.cancel'),
       destructive: true,
     });
-    if (ok) onClear?.();
+    // Cancelling changes nothing: no request, no local reset.
+    if (!ok || onClear === undefined) return;
+    clearing.current = true;
+    try {
+      // A refusal is surfaced by the owner of the thread; nothing to add here.
+      await onClear();
+    } finally {
+      clearing.current = false;
+    }
   };
 
   const handleSettings = () => {

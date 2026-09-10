@@ -2,11 +2,23 @@ import { useMemo } from "react";
 import { View, Pressable, ScrollView, Platform } from "react-native";
 import * as WebBrowser from "expo-web-browser";
 import { Text } from "@/components/ui/text";
-import { Brain, CheckCircle2, X, Globe, ChevronRight } from "lucide-react-native";
+import { Brain, CheckCircle2, X, Globe, ChevronRight, XCircle, Ban, Clock } from "lucide-react-native";
 import { useUIStore, type ThoughtTab } from "@/lib/stores/ui-store";
 import { useTheme, type ThemeColors } from "@oxy.so/bloom/theme";
 import { useTranslation } from "@/lib/hooks/use-translation";
-import { extractSources, buildSteps, buildAuditTimeline, mergeSources, researchSourcesToSources, type Source, type ThoughtStep, type AuditEntry } from "@/lib/thought-utils";
+import {
+  extractSources,
+  buildSteps,
+  buildAuditTimeline,
+  mergeSources,
+  researchSourcesToSources,
+  turnLifecycle,
+  isLiveLifecycle,
+  type Source,
+  type ThoughtStep,
+  type AuditEntry,
+  type TurnLifecycle,
+} from "@/lib/thought-utils";
 import { getToolIcon } from "@/lib/tool-registry";
 import { LottieLoader } from "@/components/lottie-loader";
 import Animated, {
@@ -17,7 +29,10 @@ import Animated, {
   withSequence,
 } from "react-native-reanimated";
 import { useEffect } from "react";
+import type { Message } from "@/lib/hooks/use-conversations";
 
+/** One array for "nothing selected", so the memos below hold across renders. */
+const NO_MESSAGES: Message[] = [];
 
 
 function TabToggle({ value, onChange }: { value: ThoughtTab; onChange: (t: ThoughtTab) => void }) {
@@ -25,7 +40,7 @@ function TabToggle({ value, onChange }: { value: ThoughtTab; onChange: (t: Thoug
   const tabs: { key: ThoughtTab; label: string }[] = [
     { key: "steps", label: t("thought.steps") },
     { key: "sources", label: t("thought.sources") },
-    { key: "activity", label: "Activity" },
+    { key: "activity", label: t("thought.activity") },
   ];
 
   return (
@@ -70,25 +85,55 @@ function PulsingDot({ color }: { color: string }) {
   );
 }
 
-function StepIcon({ step, isActive }: { step: ThoughtStep; isActive: boolean }) {
+/**
+ * The panel's own wording for every step that is not a tool. Tool steps keep
+ * the label the registry gave them; these are lifecycle words, and they are
+ * translated here rather than in `buildSteps` so the pure function stays free
+ * of the locale.
+ */
+const STEP_LABEL_KEYS: Record<Exclude<ThoughtStep["type"], "tool">, string> = {
+  thinking: "thought.thinking",
+  writing: "thought.writing",
+  waiting: "thought.waitingApproval",
+  done: "thought.done",
+  failed: "thought.failed",
+  cancelled: "thought.cancelled",
+};
+
+function StepIcon({ step, isActive, live }: { step: ThoughtStep; isActive: boolean; live: boolean }) {
   const { colors } = useTheme();
   if (step.type === "thinking") {
     if (isActive) return <PulsingDot color="#a855f7" />;
     return <Brain size={14} color="#a855f7" />;
   }
+  if (step.type === "writing") {
+    return <PulsingDot color={colors.primary} />;
+  }
+  if (step.type === "waiting") {
+    return <Clock size={14} color={colors.warning} />;
+  }
   if (step.type === "done") {
     return <CheckCircle2 size={14} color={colors.success} />;
   }
-  // tool step
+  if (step.type === "failed") {
+    return <XCircle size={14} color={colors.error} />;
+  }
+  if (step.type === "cancelled") {
+    return <Ban size={14} className="text-muted-foreground" />;
+  }
+  // A tool step spins on ITS OWN state while the turn runs — not on being
+  // last — so a finished tool after it cannot hide that it is still going,
+  // and a call that never returned in a turn that is over sits still.
   const ToolIcon = getToolIcon(step.toolName || "");
-  if (isActive && step.state !== "result") {
+  if (live && step.state !== "result") {
     return <LottieLoader width={14} height={14} />;
   }
   return <ToolIcon size={14} className="text-foreground" />;
 }
 
-function StepsTab({ steps, isStreaming }: { steps: ThoughtStep[]; isStreaming: boolean }) {
+function StepsTab({ steps, lifecycle }: { steps: ThoughtStep[]; lifecycle: TurnLifecycle }) {
   const { t } = useTranslation();
+  const live = isLiveLifecycle(lifecycle);
 
   if (steps.length === 0) {
     return (
@@ -102,7 +147,8 @@ function StepsTab({ steps, isStreaming }: { steps: ThoughtStep[]; isStreaming: b
     <View className="gap-0">
       {steps.map((step, index) => {
         const isLast = index === steps.length - 1;
-        const isActive = isStreaming && isLast;
+        const isActive = live && isLast;
+        const label = step.type === "tool" ? step.label : t(STEP_LABEL_KEYS[step.type]);
         const showSources = step.sources && step.sources.length > 0;
         const displayedSources = showSources ? step.sources!.slice(0, 3) : [];
         const extraCount = showSources ? Math.max(0, step.sources!.length - 3) : 0;
@@ -113,7 +159,7 @@ function StepsTab({ steps, isStreaming }: { steps: ThoughtStep[]; isStreaming: b
             <View className="items-center" style={{ width: 24 }}>
               <View className="h-3" />
               <View className="items-center justify-center" style={{ width: 20, height: 20 }}>
-                <StepIcon step={step} isActive={isActive} />
+                <StepIcon step={step} isActive={isActive} live={live} />
               </View>
               {!isLast && (
                 <View
@@ -129,12 +175,14 @@ function StepsTab({ steps, isStreaming }: { steps: ThoughtStep[]; isStreaming: b
                 className={`text-sm ${
                   step.type === "done"
                     ? "text-green-500 font-medium"
+                    : step.type === "failed"
+                    ? "text-red-500 font-medium"
                     : isActive
                     ? "text-foreground font-medium"
                     : "text-muted-foreground"
                 }`}
               >
-                {step.label}
+                {label}
               </Text>
 
               {/* Source badges for search steps */}
@@ -232,10 +280,11 @@ function AuditIcon({ entry, colors }: { entry: AuditEntry; colors: ThemeColors }
 
 function ActivityTab({ entries }: { entries: AuditEntry[] }) {
   const { colors } = useTheme();
+  const { t } = useTranslation();
   if (entries.length === 0) {
     return (
       <View className="items-center justify-center py-8">
-        <Text className="text-sm text-muted-foreground">No actions recorded yet</Text>
+        <Text className="text-sm text-muted-foreground">{t("thought.noActivity")}</Text>
       </View>
     );
   }
@@ -252,6 +301,8 @@ function ActivityTab({ entries }: { entries: AuditEntry[] }) {
               <View className="items-center justify-center" style={{ width: 20, height: 20 }}>
                 {entry.status === 'in_progress' ? (
                   <PulsingDot color={colors.warning} />
+                ) : entry.status === 'interrupted' ? (
+                  <Ban size={12} className="text-muted-foreground" />
                 ) : (
                   <AuditIcon entry={entry} colors={colors} />
                 )}
@@ -289,28 +340,56 @@ function ActivityTab({ entries }: { entries: AuditEntry[] }) {
   );
 }
 
+/**
+ * The panel has nothing to show for the selection, and the reason. Rendered
+ * in place of the tabs' content so the three tabs never each say "none" about
+ * a message whose data has simply not arrived.
+ */
+function EmptyState({ status }: { status: 'loading' | 'failed' | 'gone' }) {
+  const { t } = useTranslation();
+  const key = status === 'loading' ? 'thought.loading' : status === 'failed' ? 'thought.loadFailed' : 'thought.messageGone';
+  return (
+    <View className="items-center justify-center py-8">
+      {status === 'loading' ? <LottieLoader width={24} height={24} /> : null}
+      <Text className="text-sm text-muted-foreground">{t(key)}</Text>
+    </View>
+  );
+}
+
 export function ThoughtPanel() {
   const { t } = useTranslation();
   const activeTab = useUIStore((s) => s.thoughtTab);
   const setActiveTab = useUIStore((s) => s.setThoughtTab);
   const setRightPanel = useUIStore((s) => s.setRightPanel);
   const thoughtMessageId = useUIStore((s) => s.thoughtMessageId);
-  const thoughtMessages = useUIStore((s) => s.thoughtMessages);
+  const scope = useUIStore((s) => s.thoughtScope);
 
+  /**
+   * The scope's messages are the conversation the selection was made in and
+   * nothing else — a screen showing another conversation never gets to write
+   * here (see `syncThoughtScope`), so a miss below is about THIS conversation:
+   * still loading, failed to load, or a message that has since been cut out
+   * of it by an edit or a regenerate.
+   */
+  const messages = scope?.messages ?? NO_MESSAGES;
   const message = useMemo(
-    () => thoughtMessages.find((m) => m.id === thoughtMessageId),
-    [thoughtMessages, thoughtMessageId]
+    () => messages.find((m) => m.id === thoughtMessageId),
+    [messages, thoughtMessageId]
   );
 
-  const isStreaming = useMemo(() => {
-    if (!message || !thoughtMessages.length) return false;
-    const lastMsg = thoughtMessages[thoughtMessages.length - 1];
-    return lastMsg?.id === message.id && lastMsg?.role === "assistant" && !message.content;
-  }, [message, thoughtMessages]);
+  const lifecycle = useMemo<TurnLifecycle>(() => {
+    if (!message) return 'completed';
+    const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant');
+    return turnLifecycle(message, {
+      isLoading: scope?.isLoading ?? false,
+      isLastAssistant: lastAssistant?.id === message.id,
+      failedTurn: scope?.failedTurn ?? null,
+    });
+  }, [message, messages, scope?.isLoading, scope?.failedTurn]);
 
   const steps = useMemo(
-    () => (message ? buildSteps(message, isStreaming) : []),
-    [message, isStreaming]
+    () => (message ? buildSteps(message, lifecycle) : []),
+    [message, lifecycle]
   );
 
   // A research answer's sources come from its persisted `deepResearch`
@@ -325,9 +404,31 @@ export function ThoughtPanel() {
   );
 
   const auditEntries = useMemo(
-    () => buildAuditTimeline(thoughtMessages),
-    [thoughtMessages]
+    () => buildAuditTimeline(messages, { isLoading: scope?.isLoading ?? false, failedTurn: scope?.failedTurn ?? null }),
+    [messages, scope?.isLoading, scope?.failedTurn]
   );
+
+  /**
+   * Which of the three things a missing message means. A message that IS
+   * here but whose conversation is still loading is shown as it is — the
+   * live turn is exactly that — so only a miss consults the status.
+   */
+  const emptyState: 'loading' | 'failed' | 'gone' | null =
+    message !== undefined ? null
+      : scope === null || scope.status === 'loading' ? 'loading'
+      : scope.status === 'failed' ? 'failed'
+      : 'gone';
+
+  const content =
+    emptyState !== null ? (
+      <EmptyState status={emptyState} />
+    ) : activeTab === "steps" ? (
+      <StepsTab steps={steps} lifecycle={lifecycle} />
+    ) : activeTab === "sources" ? (
+      <SourcesTab sources={sources} />
+    ) : (
+      <ActivityTab entries={auditEntries} />
+    );
 
   return (
     <View className="flex-1 bg-background">
@@ -351,13 +452,7 @@ export function ThoughtPanel() {
 
       {/* Content */}
       <ScrollView className="flex-1 px-4" showsVerticalScrollIndicator={false}>
-        {activeTab === "steps" ? (
-          <StepsTab steps={steps} isStreaming={isStreaming} />
-        ) : activeTab === "sources" ? (
-          <SourcesTab sources={sources} />
-        ) : (
-          <ActivityTab entries={auditEntries} />
-        )}
+        {content}
         <View style={{ height: 24 }} />
       </ScrollView>
     </View>

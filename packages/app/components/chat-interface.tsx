@@ -31,8 +31,10 @@ import * as Clipboard from "expo-clipboard";
 import { Reasoning, ReasoningTrigger } from "@/components/ui/reasoning";
 import { useTheme } from "@oxy.so/bloom/theme";
 import { getToolLabel, getToolActiveLabel, getResearchActiveLabel, getTextFromContent, getImagesFromContent } from '@alia.onl/sdk';
-import { useUIStore, type ThoughtTab } from "@/lib/stores/ui-store";
+import { useUIStore, type ThoughtTab, type ThoughtScope } from "@/lib/stores/ui-store";
 import { useStore, type ChatIdState } from "@/lib/stores/global-store";
+import { useQueryClient } from "@tanstack/react-query";
+import { queryKeys } from "@/lib/hooks/query-keys";
 import type { ToolInvocation } from "@/lib/types/messages";
 import type { Message as ConversationMessage } from "@/lib/hooks/use-conversations";
 import { AgentTaskCard } from "@/components/agent-task-card";
@@ -427,8 +429,11 @@ const MessageRow = React.memo(function MessageRow({
       )}
 
 
-      {/* Message Content */}
-      {(messageText.length > 0 || messageImages.length > 0 || m.isStreaming) && (
+      {/* Message Content. `isStreaming` opens the block for VOICE only: a
+          voice row shows its cursor before it has words, while a text turn's
+          placeholder — stamped `isStreaming` too, now — is the thinking
+          indicator's until its first token arrives. */}
+      {(messageText.length > 0 || messageImages.length > 0 || (m.isStreaming && m.source === 'voice')) && (
         <View key="message-content" className={cn("w-full", m.role === "user" && "mt-2")}>
           {m.role === "assistant" ? (
             // Assistant message: text below (flying face handles avatar)
@@ -465,7 +470,7 @@ const MessageRow = React.memo(function MessageRow({
                   />
                 )}
               </View>
-              {m.isStreaming ? null : (
+              {m.isStreaming && m.source === 'voice' ? null : (
                 <MessageSources
                   toolInvocations={m.toolInvocations}
                   researchSources={m.researchProgress?.sources}
@@ -698,7 +703,8 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
     const [votedMessages, setVotedMessages] = useState<Record<string, 'up' | 'down'>>({});
     const voteInFlightRef = useRef<Set<string>>(new Set());
     const openThoughtPanel = useUIStore((s) => s.openThoughtPanel);
-    const setThoughtMessages = useUIStore((s) => s.setThoughtMessages);
+    const syncThoughtScope = useUIStore((s) => s.syncThoughtScope);
+    const queryClient = useQueryClient();
     const { readAloud, activeMessageId: ttsActiveMessageId, playbackState: ttsPlaybackState } = useTTS();
     const { generateAudio, activeMessageId: audioGenActiveMessageId, state: audioGenState } = useAudioGen();
     const chatId = useStore(s => s.chatId);
@@ -821,15 +827,78 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
       });
     }, [markY]);
 
-    // Sync messages to the UI store so ThoughtPanel can access them — only when panel is open
-    const rightPanel = useUIStore((s) => s.rightPanel);
+    /**
+     * This conversation as the thought panel reads it: its messages, whether
+     * they are all here yet, and the turn in flight.
+     *
+     * Keyed on the conversation and its messages, NOT on the panel being open.
+     * Syncing only while the panel was open meant the first press on a tool
+     * row rendered against whatever the store held before — another
+     * conversation's messages, or none — and found nothing by id (#542).
+     * The store accepts this only while the open selection belongs to the
+     * same conversation, so the new-chat screen mounted underneath cannot
+     * blank a panel opened here.
+     *
+     * A load that failed is read off the query cache at the moment the memo
+     * recomputes: the load's end is what flips `conversationLoading`, so the
+     * read is fresh exactly when it matters. The local Message shape is a
+     * structural superset of the conversation Message the store holds.
+     */
+    const liveThoughtScope = useMemo<ThoughtScope>(() => {
+      const loadFailed =
+        activeConversationId !== undefined &&
+        queryClient.getQueryState(queryKeys.conversations.detail(activeConversationId))?.status === 'error';
+      return {
+        conversationId: activeConversationId ?? null,
+        messages: liveMessages as unknown as ConversationMessage[],
+        status: conversationLoading ? 'loading' : loadFailed ? 'failed' : 'ready',
+        isLoading: isLoading === true,
+        failedTurn: failedTurn ?? null,
+      };
+    }, [activeConversationId, liveMessages, conversationLoading, isLoading, failedTurn, queryClient]);
+
     useEffect(() => {
-      if (rightPanel === 'thought') {
-        // The local Message shape is a structural superset of the conversation Message
-        // used by the thought panel store.
-        setThoughtMessages(messages as unknown as ConversationMessage[]);
+      syncThoughtScope(liveThoughtScope);
+    }, [liveThoughtScope, syncThoughtScope]);
+
+    /**
+     * What a press on a row has to hand the store, read at press time through
+     * a ref so the callback the memoized rows receive never changes — it is a
+     * prop of every row, and the live scope changes per streamed token.
+     */
+    const thoughtScopesRef = useRef({ live: liveThoughtScope, history });
+    useEffect(() => {
+      thoughtScopesRef.current = { live: liveThoughtScope, history };
+    });
+
+    /**
+     * Open the panel on a row, with the conversation that row belongs to.
+     *
+     * A live row belongs to the conversation on screen. A history row belongs
+     * to an earlier stretch of the thread, which is persisted and complete, so
+     * its scope is that stretch's messages and nothing about the live turn.
+     * Both are written in the same update as the message id, which is what
+     * makes the first open show the message's own tool history.
+     */
+    const openThought = useCallback((messageId: string, tab?: ThoughtTab) => {
+      const { live, history: thread } = thoughtScopesRef.current;
+      const past = live.messages.some((m) => m.id === messageId) ? undefined : thread.find((m) => m.id === messageId);
+      if (past === undefined) {
+        openThoughtPanel(messageId, live, tab);
+        return;
       }
-    }, [messages, setThoughtMessages, rightPanel]);
+      openThoughtPanel(
+        messageId,
+        {
+          conversationId: past.conversationId,
+          messages: thread.filter((m) => m.conversationId === past.conversationId),
+          status: 'ready',
+          isLoading: false,
+          failedTurn: null,
+        },
+        tab,
+      );
+    }, [openThoughtPanel]);
 
     const handleCopyMessage = useCallback(async (messageId: string, content: string) => {
       await Clipboard.setStringAsync(content);
@@ -957,7 +1026,7 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
             readAloud={readAloud}
             generateAudio={generateAudio}
             audioGenRowState={audioGenActiveMessageId === m.id ? audioGenState : 'idle'}
-            openThoughtPanel={openThoughtPanel}
+            openThoughtPanel={openThought}
             onStartEdit={fromHistory ? undefined : onStartEdit}
             onRegenerate={fromHistory ? undefined : onRegenerate}
             onApprovePlan={onApprovePlan}

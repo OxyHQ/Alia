@@ -12,7 +12,8 @@ import { describe, expect, it, vi } from 'vitest';
  */
 vi.mock('@alia.onl/sdk', () => ({ getToolLabel: (toolName: string) => toolName }));
 
-const { buildSteps, extractSources } = await import('@/lib/thought-utils');
+const { buildSteps, extractSources, turnLifecycle, buildAuditTimeline } = await import('@/lib/thought-utils');
+type LifecycleMessage = Parameters<typeof turnLifecycle>[0];
 type ToolInvocation = NonNullable<Parameters<typeof extractSources>[0]>[number];
 
 /**
@@ -129,6 +130,95 @@ describe('extractSources', () => {
   });
 });
 
+describe('turnLifecycle', () => {
+  /**
+   * The lifecycle is read from what the RUNTIME tracks — the hook's stamp on
+   * the message, its `isLoading`, the failed-turn card, the tool states — and
+   * never from whether the message happens to have content. Each case below
+   * is a message whose content would have said the wrong thing.
+   */
+  const base = (partial: Partial<LifecycleMessage>): LifecycleMessage => ({ id: 'a1', content: '', ...partial });
+
+  it('keeps a turn running once its first text has arrived', () => {
+    // The old test: `!message.content` — so the first chunk ended the turn.
+    expect(turnLifecycle(base({ content: 'The first', isStreaming: true }))).toBe('running');
+    expect(turnLifecycle(base({ content: [{ type: 'text', text: 'The first' }], isStreaming: true }))).toBe('running');
+  });
+
+  it('is queued while the turn is in flight and nothing has arrived', () => {
+    expect(turnLifecycle(base({ isStreaming: true }))).toBe('queued');
+    expect(turnLifecycle(base({ content: [] , isStreaming: true }))).toBe('queued');
+  });
+
+  it('is completed for a contentless turn whose tools all returned', () => {
+    // A tool-only reply used to look like it was still streaming forever.
+    const done = base({
+      isStreaming: false,
+      toolInvocations: [invocation({ toolName: 'webSearch', result: { results: [] } } as never)],
+    });
+    expect(turnLifecycle(done)).toBe('completed');
+    expect(turnLifecycle(done, { isLoading: false, isLastAssistant: true })).toBe('completed');
+  });
+
+  it('reads a persisted message with no live signal as over', () => {
+    // Read back from the server: no stamp, no hook state — and array content.
+    expect(turnLifecycle(base({ content: [{ type: 'text', text: 'saved' }] }))).toBe('completed');
+    expect(turnLifecycle(base({ content: 'saved' }), {})).toBe('completed');
+  });
+
+  it('falls back to the hook state for the last assistant message without a stamp', () => {
+    expect(turnLifecycle(base({ content: 'partial' }), { isLoading: true, isLastAssistant: true })).toBe('running');
+    // An older message is never the one being written into.
+    expect(turnLifecycle(base({ content: 'earlier' }), { isLoading: true, isLastAssistant: false })).toBe('completed');
+  });
+
+  it('does not let a stamp that outlived its turn run forever', () => {
+    // Saved mid-stream, or left on a row — with the hook explicitly idle, the
+    // turn is over whatever the stamp says.
+    expect(turnLifecycle(base({ content: 'x', isStreaming: true }), { isLoading: false })).toBe('completed');
+  });
+
+  it('is failed when the turn was settled that way, or the failure card is anchored on it', () => {
+    expect(turnLifecycle(base({ content: 'partial', turnOutcome: 'failed' }))).toBe('failed');
+    expect(
+      turnLifecycle(base({ content: 'partial' }), {
+        failedTurn: { userMessageId: 'u1', anchorMessageId: 'a1', retryable: true, partial: true },
+      }),
+    ).toBe('failed');
+    // A failure anchored on ANOTHER row (the user message) is not this one's.
+    expect(
+      turnLifecycle(base({ content: 'fine' }), {
+        failedTurn: { userMessageId: 'u1', anchorMessageId: 'u1', retryable: true, partial: false },
+      }),
+    ).toBe('completed');
+  });
+
+  it('is cancelled when the person stopped it', () => {
+    expect(turnLifecycle(base({ content: 'partial', turnOutcome: 'cancelled' }))).toBe('cancelled');
+    // A failed/cancelled outcome is final even if a stale stamp says streaming.
+    expect(turnLifecycle(base({ isStreaming: true, turnOutcome: 'cancelled' }), { isLoading: true, isLastAssistant: true })).toBe('cancelled');
+  });
+
+  it('reads a persisted tool that never returned as an interrupted run', () => {
+    const interrupted = base({
+      content: '',
+      toolInvocations: [invocation({ toolName: 'browse', state: 'call' } as never)],
+    });
+    expect(turnLifecycle(interrupted)).toBe('cancelled');
+  });
+
+  it('is waiting while an approval request has no decision, and running once it has one', () => {
+    const asked = base({
+      isStreaming: true,
+      pendingApproval: { requestId: 'r1', toolName: 'sendEmail', description: '', severity: 'high', timeout: 60 },
+    });
+    expect(turnLifecycle(asked)).toBe('waiting_approval');
+    expect(turnLifecycle({ ...asked, pendingApprovalResult: { requestId: 'r1', decision: 'approved' } })).toBe('running');
+    // A decision for an earlier request does not answer this one.
+    expect(turnLifecycle({ ...asked, pendingApprovalResult: { requestId: 'r0', decision: 'approved' } })).toBe('waiting_approval');
+  });
+});
+
 describe('buildSteps', () => {
   it('puts thinking first, then the tools, in order', () => {
     const steps = buildSteps(
@@ -140,29 +230,65 @@ describe('buildSteps', () => {
           invocation({ toolName: 'getCurrentDate', result: {} } as never),
         ],
       },
-      false,
+      'completed',
     );
 
     expect(steps.map((s) => s.type)).toEqual(['thinking', 'tool', 'tool', 'done']);
     expect(steps[1].toolName).toBe('webSearch');
   });
 
-  it('withholds the done step while the answer is still streaming', () => {
+  it('shows "writing", never "done", while the answer is still arriving', () => {
     // "Done" under a reply that is still arriving is the one label here that
-    // states something false.
+    // states something false — and the first token used to trigger it.
     const message = { content: 'partial', toolInvocations: [] };
-    expect(buildSteps(message, true).some((s) => s.type === 'done')).toBe(false);
-    expect(buildSteps(message, false).some((s) => s.type === 'done')).toBe(true);
+    expect(buildSteps(message, 'running').map((s) => s.type)).toEqual(['writing']);
+    expect(buildSteps(message, 'completed').map((s) => s.type)).toEqual(['done']);
   });
 
-  it('withholds the done step when there is no content at all', () => {
-    expect(buildSteps({ content: '', toolInvocations: [] }, false)).toEqual([]);
-    expect(buildSteps({ content: [] }, false)).toEqual([]);
+  it('shows the tool as the live step while it runs, even after a finished one', () => {
+    const steps = buildSteps(
+      {
+        content: '',
+        toolInvocations: [
+          invocation({ toolName: 'webSearch', result: { results: [] } } as never),
+          invocation({ toolName: 'browse', state: 'call' } as never),
+        ],
+      },
+      'running',
+    );
+    // No "writing" step is appended over a tool that has not returned: the
+    // running tool is the last step, and it keeps its own `call` state.
+    expect(steps.map((s) => s.type)).toEqual(['tool', 'tool']);
+    expect(steps[1].state).toBe('call');
+  });
+
+  it('closes a contentless tool-only turn with done', () => {
+    const steps = buildSteps(
+      { content: '', toolInvocations: [invocation({ toolName: 'getCurrentDate', result: {} } as never)] },
+      'completed',
+    );
+    expect(steps.map((s) => s.type)).toEqual(['tool', 'done']);
+  });
+
+  it('withholds the done step when there is nothing at all', () => {
+    expect(buildSteps({ content: '', toolInvocations: [] }, 'completed')).toEqual([]);
+    expect(buildSteps({ content: [] }, 'completed')).toEqual([]);
   });
 
   it('counts multi-part content as content', () => {
-    const steps = buildSteps({ content: [{ type: 'text', text: 'hi' }] }, false);
+    const steps = buildSteps({ content: [{ type: 'text', text: 'hi' }] }, 'completed');
     expect(steps.map((s) => s.type)).toEqual(['done']);
+  });
+
+  it('never ends a failed or stopped turn with done', () => {
+    const message = { content: 'partial', toolInvocations: [invocation({ toolName: 'webSearch', result: { results: [] } } as never)] };
+    expect(buildSteps(message, 'failed').map((s) => s.type)).toEqual(['tool', 'failed']);
+    expect(buildSteps(message, 'cancelled').map((s) => s.type)).toEqual(['tool', 'cancelled']);
+  });
+
+  it('shows a queued turn as thinking, and a paused one as waiting', () => {
+    expect(buildSteps({ content: '' }, 'queued').map((s) => s.type)).toEqual(['thinking']);
+    expect(buildSteps({ content: '' }, 'waiting_approval').map((s) => s.type)).toEqual(['waiting']);
   });
 
   it('attaches the search results to the step that produced them', () => {
@@ -172,7 +298,7 @@ describe('buildSteps', () => {
           searchResult('webSearch', [{ url: 'https://a.test/', title: 'A' }, { title: 'no url' }]),
         ],
       },
-      true,
+      'running',
     );
 
     expect(step.sources?.map((s) => s.url)).toEqual(['https://a.test/']);
@@ -188,8 +314,21 @@ describe('buildSteps', () => {
           invocation({ toolName: 'aToolAddedLaterOnTheServer' } as never),
         ],
       },
-      true,
+      'running',
     );
-    expect(steps.map((s) => s.toolName)).toEqual(['webSearch', 'aToolAddedLaterOnTheServer']);
+    expect(steps.filter((s) => s.type === 'tool').map((s) => s.toolName)).toEqual(['webSearch', 'aToolAddedLaterOnTheServer']);
+  });
+});
+
+describe('buildAuditTimeline', () => {
+  it('pulses an unfinished tool only while its turn is running', () => {
+    const unfinished = [invocation({ toolName: 'browse', state: 'call' } as never)];
+    const running = buildAuditTimeline([{ id: 'a1', role: 'assistant', content: '', toolInvocations: unfinished, isStreaming: true }]);
+    expect(running.map((e) => e.status)).toEqual(['in_progress']);
+
+    // The same call read back after a reload: the turn is over and the tool
+    // never returned. It must not pulse forever.
+    const persisted = buildAuditTimeline([{ id: 'a1', role: 'assistant', content: '', toolInvocations: unfinished }]);
+    expect(persisted.map((e) => e.status)).toEqual(['interrupted']);
   });
 });
