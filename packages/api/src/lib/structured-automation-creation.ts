@@ -1,4 +1,4 @@
-import { uuidv7 } from '@oxyhq/db';
+import { uuidv7 } from '@oxy.so/db';
 import { z } from 'zod';
 import { findAgentById } from '../db/agents/agentRepository.js';
 import {

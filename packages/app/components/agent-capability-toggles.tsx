@@ -24,7 +24,7 @@
 
 import React from 'react';
 import { Switch } from '@/components/ui/switch';
-import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
+import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import { useColorScheme } from '@/lib/useColorScheme';
 import { CAPABILITY_FAMILIES } from '@/lib/constants/capability-families';
 

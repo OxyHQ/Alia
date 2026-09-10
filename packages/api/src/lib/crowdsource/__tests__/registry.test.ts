@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { SubjectTypeSchema } from '@oxyhq/crowdsource-contracts';
+import { SubjectTypeSchema } from '@oxy.so/crowdsource-contracts';
 import { deliverableTypes, subjectProviderFor } from '../subjects/registry.js';
 import { ReportedType } from '../../../domain/report.js';
 

@@ -43,7 +43,7 @@
  */
 
 import { and, eq, sql } from 'drizzle-orm';
-import { isUniqueViolation } from '@oxyhq/db';
+import { isUniqueViolation } from '@oxy.so/db';
 import crypto from 'crypto';
 import type { ApiDatabase } from '../index';
 import { referralRedemptions, referrals } from '../schema/notifications';

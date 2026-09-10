@@ -15,7 +15,7 @@ follows is only where `packages/api` differs, and it differs in the two ways tha
 matter most: **it has live production data**, and **its ids are already on the
 wire**.
 
-The mechanics ship in **`@oxyhq/db`**: column builders, the casing authority, the
+The mechanics ship in **`@oxy.so/db`**: column builders, the casing authority, the
 migration ledger and deploy phases, the driver-error helpers, the expiry sweep,
 the throwaway test harness. A local copy of anything that package owns is a
 second thing to keep in lockstep.
@@ -511,12 +511,12 @@ several ECS tasks, and losing it means two tasks running every schedule.
 
 `_migrations` and `_migration_lock` belong to this service's own **Mongo data**
 migration runner (`runPendingMigrations()`, called fire-and-forget from
-`index.ts`). `@oxyhq/db` brings a **Postgres DDL** ledger with `pre`/`post`
+`index.ts`). `@oxy.so/db` brings a **Postgres DDL** ledger with `pre`/`post`
 phases. They are different things that would look like the same thing:
 
 - Alia's runner records which one-off **document restructurings** were applied to
   Mongo. Its whole subject matter is a store that ceases to exist.
-- `@oxyhq/db`'s ledger records which **SQL files** were applied to Postgres.
+- `@oxy.so/db`'s ledger records which **SQL files** were applied to Postgres.
 
 Porting `_migrations` would carry a ledger asserting that migrations ran against
 a database they were never applied to — worse than dropping it, because it reads
@@ -809,7 +809,7 @@ It is not. There are only two `Workflow` write paths and NEITHER calls `.save()`
 correct, and it was the CALL SITE maintaining it rather than the hook.
 
 Verdict: case 3 — the hook enforced nothing, because the one thing it would have
-enforced was already done by hand. `updatedAt()` from `@oxyhq/db` now carries it
+enforced was already done by hand. `updatedAt()` from `@oxy.so/db` now carries it
 via `$onUpdate`, which is the same value written in the same circumstances. **No
 observable behaviour changes and no stored timestamp moves**, so there is nothing
 to announce. Check the call sites before believing a hook is load-bearing — a
@@ -859,7 +859,7 @@ seq", and converges with a delete + full re-insert.
 transaction.** The append, the delete and the re-insert are three separate
 statements on the pool, so the refused insert aborts nothing and the recovery
 runs on a clean session. `isUniqueViolation(err, APPEND_SEQ_INDEX)` from
-`@oxyhq/db` reads the SQLSTATE off `cause` — where drizzle puts it — and names
+`@oxy.so/db` reads the SQLSTATE off `cause` — where drizzle puts it — and names
 the index, so a future unique on `messages` cannot start triggering the rewrite
 for an unrelated reason. `lib/__tests__/conversation-saver.pgdb.test.ts` produces
 the race for real, by claiming the seq between the read and the insert.
@@ -950,7 +950,7 @@ suite gets disabled by whoever hits it next.
 `*.pgdb.test.ts` rather than the Mongo suite's `*-real-db.test.ts`: both are
 "real database" tests and only the filename says which database.
 
-Assert driver errors through `@oxyhq/db`'s helpers, never a message regex —
+Assert driver errors through `@oxy.so/db`'s helpers, never a message regex —
 drizzle wraps the failure so `code` and `constraint_name` live on `cause`. Name
 the CONSTRAINT too: `isUniqueViolation` alone cannot tell the index under test
 from any other index on the table.

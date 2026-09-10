@@ -46,7 +46,7 @@ vi.mock('../../lib/channels/registry.js', () => ({
   getConfiguredChannels: vi.fn(() => []),
 }));
 
-vi.mock('@oxyhq/core', () => {
+vi.mock('@oxy.so/core', () => {
   const passThroughMiddleware = (_req: Request, _res: Response, next: NextFunction) => next();
 
   class MockOxyServices {

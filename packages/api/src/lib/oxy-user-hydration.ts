@@ -18,7 +18,7 @@
  * round trip rather than twenty.
  */
 
-import { getNormalizedUserHandle, type User } from '@oxyhq/core';
+import { getNormalizedUserHandle, type User } from '@oxy.so/core';
 import { oxyClient } from '../middleware/auth.js';
 import { log } from './logger.js';
 import { oxyServiceClient } from './oxy-service-client.js';
@@ -89,7 +89,7 @@ function toHydrated(user: User): HydratedOxyUser | null {
  * `/users/by-ids` is a POST, so oxy-api's CSRF middleware refuses it unless the
  * request carries a bearer. `middleware/auth.ts`'s shared `oxyClient` carries
  * none — it exists to VERIFY inbound user tokens — so this read answered
- * `403 CSRF_TOKEN_MISSING` for every caller, and `@oxyhq/core` swallows a failed
+ * `403 CSRF_TOKEN_MISSING` for every caller, and `@oxy.so/core` swallows a failed
  * chunk and returns the users that resolved. Zero of them. Failing open then did
  * exactly what it promises: every name, handle and avatar in the product
  * rendered as a client-side fallback, and a newly created agent came back with
@@ -128,7 +128,7 @@ export async function hydrateOxyUsers(
       /**
        * The line this fault needed and did not have.
        *
-       * `@oxyhq/core` catches a failed chunk itself and returns the users that
+       * `@oxy.so/core` catches a failed chunk itself and returns the users that
        * resolved, so an unauthenticated 403 arrives here as an empty array and
        * the `catch` below never runs. "Oxy refused us" and "none of these
        * accounts exist" are the same value at this seam; they are not the same

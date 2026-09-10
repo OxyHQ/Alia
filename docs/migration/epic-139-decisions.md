@@ -386,7 +386,7 @@ the `internal_alia` scope filter that workstream 17's other rows build.
 
 **This is a contracts question about agreements Alia holds**, and no engineering measurement can
 answer it. What engineering supplies is a place to record the answer:
-`commercialPermissionSchema` (`@oxyhq/contracts`, installed) carries `public_resale_approved`,
+`commercialPermissionSchema` (`@oxy.so/contracts`, installed) carries `public_resale_approved`,
 `wholesale_contract`, `customer_byok`, `open_weight_hosting`, `standard_application_use` and
 `provider_default`. **Nothing in Alia records a value per provider today.**
 

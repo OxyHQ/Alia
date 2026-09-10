@@ -6,9 +6,9 @@ import Fontisto from "@expo/vector-icons/Fontisto";
 import * as Clipboard from "expo-clipboard";
 import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
-import { Dialog } from "@oxyhq/bloom/dialog";
+import { Dialog } from "@oxy.so/bloom/dialog";
 import { useReferralInfo, useRedeemInviteCode, useReferralHistory } from "@/lib/hooks/use-referrals";
-import { useTheme } from "@oxyhq/bloom/theme";
+import { useTheme } from "@oxy.so/bloom/theme";
 
 const SHARE_TEXT = "Check out Alia — sign up with my link and we both get 500 credits!";
 

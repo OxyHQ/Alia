@@ -19,7 +19,7 @@
  * ## What is stubbed
  *
  * Oxy, at the seam `verifyAgentAccount` reaches it through — `getAccount` on
- * `@oxyhq/core`, answering an account node this file controls. The refusal
+ * `@oxy.so/core`, answering an account node this file controls. The refusal
  * cache in front of it is real and cleared between cases. `generateText` and
  * the model resolution are stubbed for the same reason as everywhere else:
  * there is no model to call. The database, the credit arithmetic and
@@ -33,8 +33,8 @@ import type { AgentDelegationResult } from '../agent-delegate.js';
 /** The account node Oxy answers with, or `null` for a 404. */
 const oxyAccount = vi.hoisted(() => ({ current: null as Record<string, unknown> | null }));
 
-vi.mock('@oxyhq/core', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@oxyhq/core')>();
+vi.mock('@oxy.so/core', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@oxy.so/core')>();
   return {
     ...actual,
     OxyServices: class {

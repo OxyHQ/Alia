@@ -1,7 +1,7 @@
 import * as React from "react";
 import { View, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Dialog } from "@oxyhq/bloom/dialog";
+import { Dialog } from "@oxy.so/bloom/dialog";
 import { cn } from "@/lib/utils";
 import { useIsLargeScreen } from "@/lib/hooks/use-is-large-screen";
 

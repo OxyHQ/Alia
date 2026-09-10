@@ -6,7 +6,7 @@ const mocks = vi.hoisted(() => ({
   configuredCredentials: [] as Array<readonly [string, string]>,
 }));
 
-vi.mock('@oxyhq/core', () => ({
+vi.mock('@oxy.so/core', () => ({
   OxyInferenceClient: class {
     constructor(options: unknown) {
       mocks.clientOptions.push(options);

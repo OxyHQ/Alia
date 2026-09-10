@@ -12,10 +12,10 @@ import {
   useCancelSubscription,
   type SubscriptionPlan,
 } from '@/lib/hooks/use-billing';
-import { useAuth } from '@oxyhq/services';
-import { toast } from '@oxyhq/bloom/toast';
+import { useAuth } from '@oxy.so/services';
+import { toast } from '@oxy.so/bloom/toast';
 import { useTranslation } from '@/lib/hooks/use-translation';
-import { confirm } from '@oxyhq/bloom/surfaces';
+import { confirm } from '@oxy.so/bloom/surfaces';
 import { useColorScheme } from '@/lib/useColorScheme';
 import {
   type BillingPeriod,

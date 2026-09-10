@@ -94,7 +94,7 @@
  */
 
 import { sql } from 'drizzle-orm';
-import { readTargetDatabase } from '@oxyhq/db/migrate';
+import { readTargetDatabase } from '@oxy.so/db/migrate';
 
 import { closePostgres, connectPostgres, getDb } from '../db/index.js';
 import { log } from '../lib/logger.js';

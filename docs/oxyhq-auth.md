@@ -1,16 +1,16 @@
 # OxyHQ Authentication & Packages Guide (Alia)
 
-> **Model:** device-first, **zero-cookie**. There is **one** frontend SDK — `@oxyhq/services` (`OxyProvider` + `useAuth`/`useOxy`) — for **web AND native**. The old web-only `@oxyhq/auth` / `WebOxyProvider` package and cross-domain SSO/FedCM were removed ecosystem-wide (2026-07). The canonical reference lives in the Oxy repo at `docs/engineering/auth-and-identity.md` and `docs/auth/index.md`.
+> **Model:** device-first, **zero-cookie**. There is **one** frontend SDK — `@oxy.so/services` (`OxyProvider` + `useAuth`/`useOxy`) — for **web AND native**. The old web-only `@oxy.so/auth` / `WebOxyProvider` package and cross-domain SSO/FedCM were removed ecosystem-wide (2026-07). The canonical reference lives in the Oxy repo at `docs/engineering/auth-and-identity.md` and `docs/auth/index.md`.
 
 ## Which package?
 
 | Where | Package | What you mount / import |
 |-------|---------|-------------------------|
-| **Frontend — web** (Vite) | `@oxyhq/services` | `OxyProvider` + `useAuth()`/`useOxy()`. Bundle the React-Native graph in Vite with `rolldown-vite` + `vite-plugin-react-native-web` (see `packages/alia-console`, `packages/alia-canvas`). |
-| **Frontend — native** (Expo/RN) | `@oxyhq/services` | Same `OxyProvider` + `useAuth()`/`useOxy()`. |
-| **Backend** (Node/Express) | `@oxyhq/core/server` | `createOxyAuthMiddleware`, `createOptionalOxyAuth`, `requireOxyAuth`, `getRequiredOxyUserId`, `authSocket`. Never mount a frontend provider on the server. |
+| **Frontend — web** (Vite) | `@oxy.so/services` | `OxyProvider` + `useAuth()`/`useOxy()`. Bundle the React-Native graph in Vite with `rolldown-vite` + `vite-plugin-react-native-web` (see `packages/alia-console`, `packages/alia-canvas`). |
+| **Frontend — native** (Expo/RN) | `@oxy.so/services` | Same `OxyProvider` + `useAuth()`/`useOxy()`. |
+| **Backend** (Node/Express) | `@oxy.so/core/server` | `createOxyAuthMiddleware`, `createOptionalOxyAuth`, `requireOxyAuth`, `getRequiredOxyUserId`, `authSocket`. Never mount a frontend provider on the server. |
 
-`@oxyhq/core` provides the platform-agnostic client (`OxyServices`, `createLinkedClient`) and is a dependency of `@oxyhq/services`; import core types directly from `@oxyhq/core` and API contracts from `@oxyhq/contracts`.
+`@oxy.so/core` provides the platform-agnostic client (`OxyServices`, `createLinkedClient`) and is a dependency of `@oxy.so/services`; import core types directly from `@oxy.so/core` and API contracts from `@oxy.so/contracts`.
 
 ## Session model (device-first, zero-cookie)
 
@@ -20,7 +20,7 @@ The transport is a first-party `{ deviceId, deviceSecret }` persisted **per orig
 
 ```typescript
 // src/App.tsx
-import { OxyProvider, useAuth } from '@oxyhq/services';
+import { OxyProvider, useAuth } from '@oxy.so/services';
 
 function App() {
   return (
@@ -40,8 +40,8 @@ Vite config: use `rolldown-vite` + `vite-plugin-react-native-web` (+ the `react-
 ## Backend setup (Express)
 
 ```typescript
-import { OxyServices } from '@oxyhq/core';
-import { createOxyAuthMiddleware, getRequiredOxyUserId } from '@oxyhq/core/server';
+import { OxyServices } from '@oxy.so/core';
+import { createOxyAuthMiddleware, getRequiredOxyUserId } from '@oxy.so/core/server';
 
 const oxy = new OxyServices({ baseURL: 'https://api.oxy.so' });
 app.use('/api/protected', createOxyAuthMiddleware(oxy));
@@ -63,8 +63,8 @@ EXPO_PUBLIC_OXY_API_URL=https://api.oxy.so
 
 ## Don't
 
-- **Don't** import `@oxyhq/auth` / `WebOxyProvider` — the package is retired; use `@oxyhq/services` `OxyProvider` on web and native alike.
-- **Don't** mount a frontend provider on the backend — use `@oxyhq/core/server` middleware there.
+- **Don't** import `@oxy.so/auth` / `WebOxyProvider` — the package is retired; use `@oxy.so/services` `OxyProvider` on web and native alike.
+- **Don't** mount a frontend provider on the backend — use `@oxy.so/core/server` middleware there.
 - **Don't** hand-roll session restore, cookies, refresh tokens, or SSO redirects — the SDK's device-first cold boot owns it.
 
 ## Troubleshooting

@@ -2,7 +2,7 @@ import React, { useState, useMemo, useCallback } from "react";
 import { View, ScrollView, Pressable, RefreshControl } from "react-native";
 import { useIsLargeScreen } from "@/lib/hooks/use-is-large-screen";
 import { FlashList } from "@shopify/flash-list";
-import { Search } from "@oxyhq/bloom/search";
+import { Search } from "@oxy.so/bloom/search";
 import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react-native";
@@ -10,11 +10,11 @@ import { useAgentCatalogue } from "@/lib/hooks/use-agents";
 import { AgentCard } from "@/components/agent-card";
 import { useRouter } from "expo-router";
 import { useTranslation } from "@/lib/hooks/use-translation";
-import { toast } from "@oxyhq/bloom/toast";
+import { toast } from "@oxy.so/bloom/toast";
 import { cn } from "@/lib/utils";
 import { agentIdentityMatches } from "@/lib/agents/identity";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ContentPanel } from "@oxyhq/bloom/content-panel";
+import { ContentPanel } from "@oxy.so/bloom/content-panel";
 
 export default function AgentsScreen() {
   const { t } = useTranslation();

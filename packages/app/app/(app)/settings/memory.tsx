@@ -5,10 +5,10 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Dialog, type DialogAction } from "@oxyhq/bloom/dialog";
-import { confirm } from "@oxyhq/bloom/surfaces";
+import { Dialog, type DialogAction } from "@oxy.so/bloom/dialog";
+import { confirm } from "@oxy.so/bloom/surfaces";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { useOxy, useAuth } from "@oxyhq/services";
+import { useOxy, useAuth } from "@oxy.so/services";
 import { useRouter } from "expo-router";
 import { generateAPIUrl } from "@/lib/generate-api-url";
 import {
@@ -20,13 +20,13 @@ import {
   FileText,
   Copy,
 } from "lucide-react-native";
-import { Search } from "@oxyhq/bloom/search";
+import { Search } from "@oxy.so/bloom/search";
 import { useTranslation } from "@/lib/hooks/use-translation";
 import { useUserData } from "@/lib/hooks/use-user-data";
 import { useUserDataStore } from "@/lib/stores/user-data-store";
 import { useStore } from "@/lib/stores/global-store";
 import { cn } from "@/lib/utils";
-import { toast } from "@oxyhq/bloom/toast";
+import { toast } from "@oxy.so/bloom/toast";
 import { SettingsHeader } from "@/components/settings/settings-header";
 import { MemoryTable } from "@/components/settings/memory-table";
 

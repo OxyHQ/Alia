@@ -75,7 +75,7 @@ vi.mock('react-native-reanimated', async () => {
   };
 });
 
-vi.mock('@oxyhq/services', () => ({
+vi.mock('@oxy.so/services', () => ({
   useAuth: () => ({ user: { name: { displayName: 'Nate' } }, isAuthenticated: true }),
 }));
 

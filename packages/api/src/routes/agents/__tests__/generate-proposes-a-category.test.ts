@@ -7,7 +7,7 @@
  *
  *  - `category` is Alia's own, FREE TEXT, and feeds the catalogue's `ilike`
  *    search (`agentRepository.ts`). Nothing renders it.
- *  - `accountCategory` is Oxy's, a CLOSED taxonomy in `@oxyhq/contracts`, and
+ *  - `accountCategory` is Oxy's, a CLOSED taxonomy in `@oxy.so/contracts`, and
  *    travels to `CreateAccountInput.accountCategories` where the account graph
  *    and every profile surface outside Alia can read it.
  *
@@ -56,7 +56,7 @@ vi.mock('../../../lib/logger.js', () => ({
 }));
 
 const { default: generateRouter } = await import('../generate.js');
-const { ACCOUNT_CATEGORY_IDS, isSelectableAccountCategoryId } = await import('@oxyhq/contracts');
+const { ACCOUNT_CATEGORY_IDS, isSelectableAccountCategoryId } = await import('@oxy.so/contracts');
 
 let app: Express;
 let server: Server;

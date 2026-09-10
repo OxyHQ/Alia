@@ -2,13 +2,13 @@
  * Column and constraint helpers local to this schema.
  *
  * Everything general — `timestamptz`, `createdAt`/`updatedAt`, `generatedId`,
- * `inList` — belongs to `@oxyhq/db` and is imported from there, not re-declared.
+ * `inList` — belongs to `@oxy.so/db` and is imported from there, not re-declared.
  * This file holds only what that package does not own.
  */
 
 import { check, customType, type PgColumn } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
-import { inList } from '@oxyhq/db';
+import { inList } from '@oxy.so/db';
 import { decrypt, encrypt } from '../../lib/crypto-utils.js';
 
 /**

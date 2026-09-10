@@ -59,7 +59,7 @@
       "expo-notifications",
       "expo-status-bar",
       "./plugins/withSharedUserId",
-      "@oxyhq/services/plugins/withSharedIdentityReader"
+      "@oxy.so/services/plugins/withSharedIdentityReader"
     ],
     "experiments": {
       "typedRoutes": true

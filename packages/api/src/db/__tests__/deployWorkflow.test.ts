@@ -22,20 +22,20 @@
  * by grepping the migration files, and if that pattern and the marker the
  * migrator writes ever disagree, the workflow reads "no post migration" and the
  * drop is applied by nothing at all. Silently. So the pattern is compared
- * against the constant `@oxyhq/db` EXPORTS rather than a copy retyped here —
+ * against the constant `@oxy.so/db` EXPORTS rather than a copy retyped here —
  * a copy would drift in exactly the case it is meant to catch.
  */
 
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-// `@oxyhq/db/migrate`, not the root entry — the root export map does not
+// `@oxy.so/db/migrate`, not the root entry — the root export map does not
 // re-export the migrate subpath, so importing it from there yields `undefined`
 // and every substring assertion below would then compare against nothing. That
 // is not hypothetical: it is what this file did on its first run, and the
 // literal comparison in the drift test is what caught it rather than a
 // mysteriously passing `toContain`.
-import { POST_PHASE_GREP_PATTERN } from '@oxyhq/db/migrate';
+import { POST_PHASE_GREP_PATTERN } from '@oxy.so/db/migrate';
 
 const workflowPath = fileURLToPath(new URL('../../../../../.github/workflows/deploy-aws.yml', import.meta.url));
 const workflow = readFileSync(workflowPath, 'utf8');
@@ -180,7 +180,7 @@ describe('deploy-aws.yml migration wiring', () => {
     )).toContain('client.listRoutingProfiles');
   });
 
-  it('greps for the post-phase marker with the pattern @oxyhq/db exports, not a copy', () => {
+  it('greps for the post-phase marker with the pattern @oxy.so/db exports, not a copy', () => {
     expect(POST_PHASE_GREP_PATTERN).toBe('^-- oxy:deploy-phase=post$');
     expect(workflow).toContain(POST_PHASE_GREP_PATTERN);
   });
@@ -293,7 +293,7 @@ describe('deploy-aws.yml migration wiring', () => {
  * at which point the job timeout starts killing the script mid-rollback — the
  * one outcome the workflow's `concurrency` comment exists to prevent. So the
  * ceiling is recomputed from the script, exactly as the grep pattern above is
- * compared against the constant `@oxyhq/db` exports rather than a retyped copy.
+ * compared against the constant `@oxy.so/db` exports rather than a retyped copy.
  */
 describe('deploy-aws.yml stall bounds', () => {
   const script = readFileSync(fileURLToPath(new URL('../../../../../.github/scripts/deploy-ecs-image.sh', import.meta.url)), 'utf8');

@@ -28,7 +28,7 @@
  * Every writer supplies it — all three node upserts and the edge upsert set it
  * in `$set` (`context-graph.ts:248,264,288`, `oxy-service-events.ts:127`), so
  * the Mongoose default never fires in practice. Reproducing it would mean
- * copying `@oxyhq/db`'s private millisecond-truncated `now()` expression, and a
+ * copying `@oxy.so/db`'s private millisecond-truncated `now()` expression, and a
  * local copy of something that package owns is a second thing to keep in
  * lockstep — the rule this schema's conventions open with. Without a default a
  * caller that forgets gets a NOT NULL violation rather than a silently
@@ -37,7 +37,7 @@
  */
 
 import { boolean, doublePrecision, index, integer, jsonb, pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
-import { createdAt, generatedId, timestamptz, updatedAt } from '@oxyhq/db';
+import { createdAt, generatedId, timestamptz, updatedAt } from '@oxy.so/db';
 import { CONTEXT_NODE_TYPES } from '../../domain/context-node.js';
 import { CONTEXT_EDGE_TYPES } from '../../domain/context-edge.js';
 import { CONTEXT_SOURCE_AVAILABILITIES, CONTEXT_SOURCE_KINDS } from '../../domain/context-source.js';

@@ -51,7 +51,7 @@ import type { NotificationChannel } from '../db/schema/notifications.js';
 import { agentRemitPrompt } from './agent/archetype-prompts.js';
 import { handleRoutingDecision } from './agent/routing-handler.js';
 import { startLeaderElection, type LeaderElectionHandle, type LeaderElectionOptions } from './leader-election.js';
-import type { User as OxyUser } from '@oxyhq/core';
+import type { User as OxyUser } from '@oxy.so/core';
 import {
   beginLegacyTriggerAutomationRun,
   findAutomationDefinitionById,

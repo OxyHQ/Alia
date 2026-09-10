@@ -2618,9 +2618,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { confirm } from "@oxyhq/bloom/alert-dialog";
+import { confirm } from "@oxy.so/bloom/alert-dialog";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { useOxy, useAuth } from "@oxyhq/services";
+import { useOxy, useAuth } from "@oxy.so/services";
 import { generateAPIUrl } from "@/lib/generate-api-url";
 import {
   Brain,

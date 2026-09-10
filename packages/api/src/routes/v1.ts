@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import type { User } from '@oxyhq/core';
+import type { User } from '@oxy.so/core';
 import chatCompletionsRouter from './v1/chat-completions.js';
 import responsesRouter from './v1/responses.js';
 import modelsRouter from './v1/models.js';

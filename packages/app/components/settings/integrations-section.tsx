@@ -8,10 +8,10 @@ import {
   type ConnectedIntegration,
   type IntegrationEntry,
 } from "@/lib/hooks/use-integrations";
-import { toast } from "@oxyhq/bloom/toast";
-import { confirm } from "@oxyhq/bloom/surfaces";
-import { SettingsListGroup, SettingsListItem } from "@oxyhq/bloom/settings-list";
-import { useTheme } from "@oxyhq/bloom/theme";
+import { toast } from "@oxy.so/bloom/toast";
+import { confirm } from "@oxy.so/bloom/surfaces";
+import { SettingsListGroup, SettingsListItem } from "@oxy.so/bloom/settings-list";
+import { useTheme } from "@oxy.so/bloom/theme";
 import { Link2, Unlink, ExternalLink, Plug } from "lucide-react-native";
 
 function IntegrationStatusBadge({ status }: { status: ConnectedIntegration["status"] }) {

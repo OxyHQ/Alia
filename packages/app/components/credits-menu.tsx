@@ -2,7 +2,7 @@ import { Pressable } from "react-native";
 import { Text } from "@/components/ui/text";
 import { Sparkles } from "lucide-react-native";
 import { useCredits } from "@/lib/hooks/use-credits";
-import { useOxy } from "@oxyhq/services";
+import { useOxy } from "@oxy.so/services";
 import { useUIStore } from "@/lib/stores/ui-store";
 
 export function CreditsMenu() {

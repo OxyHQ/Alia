@@ -1,5 +1,5 @@
 /**
- * The extension DELEGATES its session to `@oxyhq/core` instead of
+ * The extension DELEGATES its session to `@oxy.so/core` instead of
  * reimplementing it.
  *
  * ## What this file used to assert, and why those tests are gone
@@ -15,7 +15,7 @@
  * code under test measures the re-implementation. `HttpService` already owns
  * single-flight dedup plus a cooldown, and `exchangeOAuthCode` already owns the
  * RFC 6749 exchange — and `refreshWithToken`, which those five tests mocked,
- * **does not exist in `@oxyhq/core@19`**. The suite passed because the mock
+ * **does not exist in `@oxy.so/core@19`**. The suite passed because the mock
  * supplied it. That is the sharpest possible illustration of the hazard: a
  * green suite, twelve tests, all of them asserting the behaviour of a method
  * the real dependency had removed.
@@ -42,7 +42,7 @@ const { refreshAccessTokenMock, installHandlerMock, schedulerMock } = vi.hoisted
   schedulerMock: vi.fn(),
 }));
 
-vi.mock('@oxyhq/core', () => {
+vi.mock('@oxy.so/core', () => {
   class OxyServices {
     private access: string | null = null;
     readonly httpService = { refreshAccessToken: refreshAccessTokenMock };
@@ -266,7 +266,7 @@ describe('the duplication does not come back', () => {
     expect(statedTokens('synthetic.ts', 'a.refreshWithToken();').has('refreshWithToken')).toBe(true);
   });
 
-  it('calls no method @oxyhq/core does not have', () => {
+  it('calls no method @oxy.so/core does not have', () => {
     // `refreshWithToken` was removed from core at v19. The old suite MOCKED it,
     // so the call survived a green build and only `tsc` ever objected.
     expect(stated.has('refreshWithToken')).toBe(false);

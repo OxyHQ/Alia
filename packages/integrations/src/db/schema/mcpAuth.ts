@@ -14,7 +14,7 @@
  */
 
 import { pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
-import { createdAt, generatedId, updatedAt } from '@oxyhq/db';
+import { createdAt, generatedId, updatedAt } from '@oxy.so/db';
 
 export const mcpConnectorAuths = pgTable(
   'mcp_connector_auths',

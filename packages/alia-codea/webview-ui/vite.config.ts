@@ -6,7 +6,7 @@ import reactNativeWeb from "vite-plugin-react-native-web"
 
 const emptyModule = path.resolve(__dirname, "./src/empty-module.js")
 
-// The webview bundles `@oxyhq/bloom`'s React Native module graph (the
+// The webview bundles `@oxy.so/bloom`'s React Native module graph (the
 // `BloomThemeProvider`) through the maintained `vite-plugin-react-native-web`
 // plugin — the same setup as `alia-canvas`. It aliases
 // react-native→react-native-web, applies `.web.*` platform-extension priority

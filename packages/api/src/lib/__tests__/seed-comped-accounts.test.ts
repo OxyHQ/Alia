@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
  * product without paying for it.
  *
  * The failure this suite exists for already happened once, in production: the
- * first version keyed on `req.user.username`, which `@oxyhq/core` never puts on
+ * first version keyed on `req.user.username`, which `@oxy.so/core` never puts on
  * a request unless `loadUser: true` is passed, so the grant was INERT and every
  * test still passed — because every test handed it a username. The lesson is
  * pinned in `who the account is`: the identity comes from Oxy, through a call
@@ -86,7 +86,7 @@ vi.mock('../logger.js', () => ({
   log: { seed: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } },
 }));
 
-vi.mock('@oxyhq/core', () => ({
+vi.mock('@oxy.so/core', () => ({
   OxyServices: class {
     async getProfileByUsername(username: string) {
       H.lookups.push(username);

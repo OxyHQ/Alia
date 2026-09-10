@@ -65,7 +65,7 @@ describe('the body family is derived from Bloom, not written out', () => {
   const markdown = code('ui/markdown.tsx');
 
   it('reads Bloom’s own sans token', () => {
-    expect(markdown).toContain("from \"@oxyhq/bloom/fonts\"");
+    expect(markdown).toContain("from \"@oxy.so/bloom/fonts\"");
     expect(markdown).toMatch(/fontFamilies\.sans\.split\(','\)\[0\]\.trim\(\)/);
   });
 

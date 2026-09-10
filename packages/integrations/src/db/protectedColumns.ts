@@ -6,7 +6,7 @@
  * a Telegram session string or a Baileys credential can be serialized into an
  * HTTP response nobody audited.
  *
- * Read through `publicColumns(table, PROTECTED_COLUMNS)` from `@oxyhq/db/assert`.
+ * Read through `publicColumns(table, PROTECTED_COLUMNS)` from `@oxy.so/db/assert`.
  * The exclusion is at the TYPE level: the row type has no such property, so a
  * serializer touching one fails `tsc` rather than shipping it — **provided this
  * stays `as const` and is never re-annotated with the registry type**, which

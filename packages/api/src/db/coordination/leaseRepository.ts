@@ -31,7 +31,7 @@
  * precisely the thing being prevented — and a bound `Date` would also be the
  * caller's clock wearing the server's authority.
  *
- * Stored instants are truncated to millisecond precision to match `@oxyhq/db`'s
+ * Stored instants are truncated to millisecond precision to match `@oxy.so/db`'s
  * `createdAt`/`updatedAt` defaults; a `timestamptz` carries microseconds a JS
  * `Date` cannot hold, so an untruncated write does not survive the round trip.
  * The expiry PREDICATE compares against a bare `now()` — it is a comparison, not

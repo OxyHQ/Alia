@@ -55,7 +55,7 @@ vi.mock('@/lib/api/client', () => ({
   },
 }));
 
-vi.mock('@oxyhq/services', () => ({ useOxy: () => ({ isAuthenticated: true }) }));
+vi.mock('@oxy.so/services', () => ({ useOxy: () => ({ isAuthenticated: true }) }));
 
 import { useCreateAgent, useDeleteAgent, useUpdateAgent } from '../use-agents';
 import { useMyAgents } from '../use-my-agents';

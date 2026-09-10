@@ -3,12 +3,12 @@ import { View, Pressable } from "react-native";
 import { vars } from "nativewind";
 import { Text } from "@/components/ui/text";
 import { useColorScheme } from "@/lib/useColorScheme";
-import { getPresetVars } from "@oxyhq/bloom/design-tokens";
-import { useBloomTheme, APP_COLOR_PRESETS, APP_COLOR_NAMES, type AppColorName } from "@oxyhq/bloom/theme";
+import { getPresetVars } from "@oxy.so/bloom/design-tokens";
+import { useBloomTheme, APP_COLOR_PRESETS, APP_COLOR_NAMES, type AppColorName } from "@oxy.so/bloom/theme";
 import { useTranslation } from "@/lib/hooks/use-translation";
 import { LanguageSelector } from "@/components/language-selector";
 import { cn } from "@/lib/utils";
-import { SettingsListGroup } from "@oxyhq/bloom/settings-list";
+import { SettingsListGroup } from "@oxy.so/bloom/settings-list";
 
 /** Miniature app layout using real theme tokens via NativeWind vars() */
 const AppMiniature = React.memo(function AppMiniature({ variant, presetName }: { variant: "light" | "dark"; presetName: AppColorName }) {

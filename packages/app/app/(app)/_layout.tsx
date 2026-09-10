@@ -11,7 +11,7 @@ import { usePinnedStore } from '@/lib/stores/pinned-store';
 import { useUIStore } from '@/lib/stores/ui-store';
 import { useCallback, useEffect, type ReactElement } from 'react';
 import { useColorScheme } from '@/lib/useColorScheme';
-import { useTheme } from '@oxyhq/bloom/theme';
+import { useTheme } from '@oxy.so/bloom/theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CommandPalette } from '@/components/command-palette';
 import { KeyboardShortcutsDialog } from '@/components/keyboard-shortcuts-dialog';

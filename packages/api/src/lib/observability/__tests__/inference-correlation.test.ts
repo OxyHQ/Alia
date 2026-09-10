@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { inferenceStreamEventSchema } from '@oxyhq/contracts';
+import { inferenceStreamEventSchema } from '@oxy.so/contracts';
 
 /**
  * The behaviour behind the correlation chokepoint — epic #139 workstream 19,
@@ -18,7 +18,7 @@ import { inferenceStreamEventSchema } from '@oxyhq/contracts';
  * Every event below is a literal parsed through the contract's OWN
  * `inferenceStreamEventSchema`, so it is a fixture in the sense that no server
  * produced it, and NOT a fixture in the sense that matters: its shape is
- * whatever `@oxyhq/contracts` says it is, and a contract bump that moves
+ * whatever `@oxy.so/contracts` says it is, and a contract bump that moves
  * `requestId` or `generationId` fails at the parse rather than passing against a
  * hand-written shape this file invented. When Kaana answers, the events arrive
  * over a socket, go through the same schema in `kaana-client.ts`, and reach

@@ -92,7 +92,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Platform } from 'react-native';
-import { useOxy } from '@oxyhq/services';
+import { useOxy } from '@oxy.so/services';
 import { SYRA_API_URL } from '@/lib/config';
 
 export type EpisodeAudioState = 'idle' | 'loading' | 'playing' | 'paused' | 'unplayable';

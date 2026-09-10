@@ -1,4 +1,4 @@
-import { APP_COLOR_PRESETS, parseRgb, type AppColorName } from '@oxyhq/bloom/theme';
+import { APP_COLOR_PRESETS, parseRgb, type AppColorName } from '@oxy.so/bloom/theme';
 
 /**
  * The Bloom preset an agent's colour names, or nothing.

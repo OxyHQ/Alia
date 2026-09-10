@@ -2,7 +2,7 @@
  * The inference seam Alia's PRODUCT code needs — epic #139 workstream 3.
  *
  * This is not the Oxy↔Kaana wire contract and must never become a copy of it.
- * The wire contract lives in `@oxyhq/contracts` (`src/inference/`) and owns the
+ * The wire contract lives in `@oxy.so/contracts` (`src/inference/`) and owns the
  * request envelope, the stream events, the usage units, the money and the error
  * codes. This file owns the other half: the CONVERSATION-LEVEL facts that only
  * Alia knows, which no wire contract can carry because they are decisions about
@@ -12,13 +12,13 @@
  *
  * **Nothing here describes a wire payload.** Every position that carries one is
  * an unbound TYPE PARAMETER, named after the contract symbol that will bind it
- * once `@oxyhq/contracts` publishes the inference module. That is deliberate and
+ * once `@oxy.so/contracts` publishes the inference module. That is deliberate and
  * it is the checkbox this file exists to keep honest: *"Shared stream/request
  * types come from the contracts package, not local copies."* A mirrored type set
  * is exactly the drift the epic exists to prevent, and a mirror written
  * "temporarily" is the way one arrives.
  *
- * `@oxyhq/contracts` is a dependency of `packages/api`, but it is imported only
+ * `@oxy.so/contracts` is a dependency of `packages/api`, but it is imported only
  * at the hosted adapter in `kaana-language-model.ts`, where Alia translates its
  * AI SDK request into the published Oxy inference contract. Keeping the
  * contract out of this product seam prevents product modules from depending on

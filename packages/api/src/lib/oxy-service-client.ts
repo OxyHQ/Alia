@@ -9,7 +9,7 @@
  * `POST /users/by-ids` is a state-changing method, so oxy-api's CSRF middleware
  * refuses it unless the request carries a bearer — measured against production
  * on 2026-08-25, an anonymous POST answers `403 CSRF_TOKEN_MISSING` while
- * `GET /users/:id` answers 200, and `@oxyhq/core`'s own `GET /csrf-token`
+ * `GET /users/:id` answers 200, and `@oxy.so/core`'s own `GET /csrf-token`
  * preflight does not rescue it, because the double-submit cookie it pairs with
  * cannot exist in a Node process.
  *
@@ -44,7 +44,7 @@
  * than turn every non-inference development task into a crash.
  */
 
-import { OxyServices } from '@oxyhq/core';
+import { OxyServices } from '@oxy.so/core';
 
 import { log } from './logger.js';
 
@@ -57,7 +57,7 @@ import { log } from './logger.js';
  * something asks, so importing this module opens nothing and warns about
  * nothing, and a test may stub the environment before the first call.
  *
- * One instance is the point rather than an accident. `@oxyhq/core` caches the
+ * One instance is the point rather than an accident. `@oxy.so/core` caches the
  * minted service token per `(apiKey, apiSecret)` pair on the INSTANCE, refreshes
  * it a minute before it expires and collapses concurrent callers onto one
  * in-flight exchange — all of which a fresh client per call would discard,

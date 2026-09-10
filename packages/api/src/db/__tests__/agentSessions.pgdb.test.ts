@@ -4,7 +4,7 @@ import {
   constraintNameOf,
   isCheckViolation,
   isUniqueViolation,
-} from '@oxyhq/db';
+} from '@oxy.so/db';
 import { closePostgres, connectPostgres, type ApiDatabase } from '../index';
 import {
   agentReviews,

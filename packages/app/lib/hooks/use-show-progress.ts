@@ -13,7 +13,7 @@
  */
 
 import { useEffect } from 'react';
-import { useOxy } from '@oxyhq/services';
+import { useOxy } from '@oxy.so/services';
 import { acquireNotificationsSocket } from '@/lib/api/notifications-socket';
 import { useShowStore, type ShowProgress } from '@/lib/stores/show-store';
 

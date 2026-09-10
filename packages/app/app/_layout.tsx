@@ -1,13 +1,13 @@
 import { Stack } from 'expo-router';
 import { useMemo, useRef } from 'react';
-import { OxyProvider, useOxy } from '@oxyhq/services';
-import { BloomProvider } from '@oxyhq/bloom/provider';
-import { ImageResolverProvider } from '@oxyhq/bloom/image-resolver';
-import { ConnectionStatusToasts } from '@oxyhq/bloom/connection-status';
+import { OxyProvider, useOxy } from '@oxy.so/services';
+import { BloomProvider } from '@oxy.so/bloom/provider';
+import { ImageResolverProvider } from '@oxy.so/bloom/image-resolver';
+import { ConnectionStatusToasts } from '@oxy.so/bloom/connection-status';
 import {
   preventNativeSplashAutoHide,
   useHideNativeSplashWhenReady,
-} from '@oxyhq/expo-splash';
+} from '@oxy.so/expo-splash';
 import * as Linking from 'expo-linking';
 import { Platform } from 'react-native';
 

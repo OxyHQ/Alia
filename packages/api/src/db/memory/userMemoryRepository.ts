@@ -34,7 +34,7 @@
  */
 
 import { and, asc, eq, sql } from 'drizzle-orm';
-import { sqlColumnName, uuidv7 } from '@oxyhq/db';
+import { sqlColumnName, uuidv7 } from '@oxy.so/db';
 import type { MemoryResponseLength, MemoryType } from '../../domain/user-memory.js';
 import type { IWritingStyleProfile } from '../../domain/writing-style.js';
 import type { ApiDatabase } from '../index';
@@ -192,7 +192,7 @@ function toProfile(row: ProfileRow, entries: EntryRow[]): UserMemoryProfile {
  *
  * `createdAt` ascending, which is the order a Mongo sub-document array preserved
  * — elements sat in insertion order and every consumer read them that way. The
- * id is the tiebreaker because `@oxyhq/db`'s uuid v7 is NOT monotonic within a
+ * id is the tiebreaker because `@oxy.so/db`'s uuid v7 is NOT monotonic within a
  * millisecond, so two entries created in the same millisecond would otherwise
  * come back in an arbitrary and unstable order.
  */
@@ -417,7 +417,7 @@ export async function findEntryByTitle(
  *  - `id`, normally `generatedId()`'s runtime default, comes from `uuidv7()`.
  *  - `updated_at`, normally `$onUpdate`, is set in the `do update` clause. It
  *    uses the SERVER clock here rather than a JS `Date`; `date_trunc` matches
- *    the precision `@oxyhq/db`'s INSERT default writes, so the two agree.
+ *    the precision `@oxy.so/db`'s INSERT default writes, so the two agree.
  *  - column names come from `sqlColumnName`, never `column.name`, which is the
  *    TypeScript property and would produce `column "userMemoryId" does not
  *    exist`.

@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Pressable, ScrollView, Platform } from 'react-native';
 import { Text } from '@/components/ui/text';
-import { useTheme, withAlpha } from '@oxyhq/bloom/theme';
+import { useTheme, withAlpha } from '@oxy.so/bloom/theme';
 
 interface ErrorBoundaryProps {
   children: React.ReactNode;

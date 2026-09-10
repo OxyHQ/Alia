@@ -1,6 +1,6 @@
 # Runbook: Alia to Kaana cutover
 
-Alia consumes hosted inference through `@oxyhq/core`'s
+Alia consumes hosted inference through `@oxy.so/core`'s
 `OxyInferenceClient`: `Alia -> Oxy -> Kaana`. Alia authenticates to Oxy with a
 short-lived service token. Oxy resolves the application identity, account,
 routing policy and exact authorised routes before it signs and forwards the
@@ -32,7 +32,7 @@ new task definition. A value in SSM without a live task binding is not delivered
 
 Do not enable production traffic until all of these pass:
 
-1. Alia's manifest and frozen lock resolve a published `@oxyhq/core` release
+1. Alia's manifest and frozen lock resolve a published `@oxy.so/core` release
    with the reviewed `OxyInferenceClient` and public-JWKS service-token support.
    Hosted paths call that client, never a bespoke transport. The repository
    build and inference-boundary tests are the source gate; a version cited by an

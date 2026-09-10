@@ -6,7 +6,7 @@ import {
   installAuthRefreshHandler,
   startTokenRefreshScheduler,
   type AuthStateStore,
-} from '@oxyhq/core';
+} from '@oxy.so/core';
 import { jwtDecode } from 'jwt-decode';
 import { errorMessage } from './errors';
 
@@ -28,7 +28,7 @@ const SESSION_STORAGE_KEY = 'alia.session.v1';
  *
  * `refreshToken` is deliberately gone. Under the device-first model there is no
  * app-held refresh token to rotate: `{ deviceId, deviceSecret }` mints a short
- * access token via `POST /session/device/token`, and `@oxyhq/core`'s
+ * access token via `POST /session/device/token`, and `@oxy.so/core`'s
  * `AuthStateStore` owns that credential. What stays here is what VS Code's
  * session list needs and core does not model — the display name.
  */
@@ -71,7 +71,7 @@ export class AliaAuthenticationProvider
      * The device credential, in VS Code's own secret storage.
      *
      * `createNativeAuthStateStore` takes any async key/value backing — its own
-     * doc says the factory is injected "so `@oxyhq/core` never imports
+     * doc says the factory is injected "so `@oxy.so/core` never imports
      * `expo-secure-store`" — and `vscode.SecretStorage` is exactly that shape,
      * backed by the OS keychain. So the extension supplies the one
      * platform-specific piece and inherits the cold boot, the re-mint lane and
@@ -369,7 +369,7 @@ export class AliaAuthenticationProvider
    * This used to be a hand-rolled rotation: read a persisted `refreshToken`,
    * call `OxyServices.refreshWithToken`, plant and re-persist the pair, all
    * behind a single-flight promise this class maintained itself. Two things
-   * were wrong with it. `refreshWithToken` does not exist in `@oxyhq/core@19`
+   * were wrong with it. `refreshWithToken` does not exist in `@oxy.so/core@19`
    * — it was the pre-device-first API, and calling it was the single type error
    * that kept this package out of CI. And the single-flight guard duplicated
    * `HttpService`, which already coalesces the timer, the request-time
@@ -488,10 +488,10 @@ export class AliaAuthenticationProvider
    * — so it proves itself with the PKCE `code_verifier` and never a client
    * secret.
    *
-   * `@oxyhq/core` exposes the same exchange as `OxyServices.exchangeOAuthCode`,
+   * `@oxy.so/core` exposes the same exchange as `OxyServices.exchangeOAuthCode`,
    * which would remove this duplication, and this class already holds an
    * `OxyServices`. It is not used here because that method only speaks RFC 6749
-   * from `@oxyhq/core@17`, while this package resolves `^13.0.0` (npm's latest
+   * from `@oxy.so/core@17`, while this package resolves `^13.0.0` (npm's latest
    * is 16.0.0): calling the SDK today would put the retired camelCase body on
    * the wire. Once core 17 is published and the workspace pin is raised, this
    * method can be replaced by that single call.

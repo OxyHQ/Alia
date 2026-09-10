@@ -169,7 +169,7 @@ app.use('/webhooks', createCrowdSourceWebhookRoutes());
 // `rawBody` is declared here because this hook is the only thing that sets it.
 // It outlived its original consumer: the declaration used to sit in the
 // `/internal/gateway` HMAC middleware, which was never mounted and is now gone.
-// The field is still READ, by `@oxyhq/crowdsource-express` — `readRawBody` does
+// The field is still READ, by `@oxy.so/crowdsource-express` — `readRawBody` does
 // a `Reflect.get(request, 'rawBody')` before touching the stream, which no grep
 // of this repo can see. That is the trap `crowdsource-webhook.ts` guards
 // against, so keep both the hook and the guard.

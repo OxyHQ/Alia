@@ -16,8 +16,8 @@ import Animated, {
   useSharedValue,
   withSpring,
 } from "react-native-reanimated";
-import { BottomSheet } from "@oxyhq/bloom/bottom-sheet";
-import { useHaptics } from "@oxyhq/bloom/hooks";
+import { BottomSheet } from "@oxy.so/bloom/bottom-sheet";
+import { useHaptics } from "@oxy.so/bloom/hooks";
 import * as DropdownMenu from "@/components/ui/dropdown-menu";
 import { Text } from "@/components/ui/text";
 import { useIsLargeScreen } from "@/lib/hooks/use-is-large-screen";

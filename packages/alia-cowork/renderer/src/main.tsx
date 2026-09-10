@@ -1,5 +1,5 @@
 import { createRoot } from "react-dom/client"
-import { applyFontFaces } from "@oxyhq/bloom/fonts"
+import { applyFontFaces } from "@oxy.so/bloom/fonts"
 
 // CSS is built separately by Gulp
 // import "./index.css"

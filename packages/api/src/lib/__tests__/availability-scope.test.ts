@@ -9,7 +9,7 @@
  * The **vocabulary** group would report a clean pass if `AVAILABILITY_SCOPES`
  * were an empty array, because "every scope is decided" is trivially true of no
  * scopes. So the vocabulary is asserted equal to the five the contract
- * publishes, read out of `@oxyhq/contracts` a second time rather than retyped —
+ * publishes, read out of `@oxy.so/contracts` a second time rather than retyped —
  * a copy of a copy would agree with itself while both drifted from the package.
  *
  * The **decision** group is a full cross product of scope by audience with
@@ -31,7 +31,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
 import type { Request } from 'express';
-import { availabilityScopeSchema } from '@oxyhq/contracts';
+import { availabilityScopeSchema } from '@oxy.so/contracts';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -45,7 +45,7 @@ import {
 } from '../availability-scope.js';
 
 describe('the vocabulary is the contract’s, not a copy of it', () => {
-  it('is exactly the five scopes @oxyhq/contracts publishes', () => {
+  it('is exactly the five scopes @oxy.so/contracts publishes', () => {
     // The five epic #139 names, spelled out so a contract release that dropped
     // or renamed one is a failure here rather than a silent behaviour change.
     expect([...AVAILABILITY_SCOPES].sort()).toEqual([

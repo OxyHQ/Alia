@@ -10,7 +10,7 @@ import { API_ROUTES } from "@/lib/api/routes";
 import { buildMessageContent } from "@/lib/attachment-utils";
 import type { ScrollView as GHScrollView } from "react-native-gesture-handler";
 import type { EffortLevel } from '@/lib/hooks/use-catalogue';
-import { toast } from "@oxyhq/bloom/toast";
+import { toast } from "@oxy.so/bloom/toast";
 import i18n from "@/lib/i18n";
 import { getTextFromContent } from "@alia.onl/sdk/content";
 

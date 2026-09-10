@@ -1,5 +1,5 @@
 import type { Request, Response, NextFunction } from 'express';
-import { verifySecret } from '@oxyhq/core/server';
+import { verifySecret } from '@oxy.so/core/server';
 
 const DOCKER_HOST_SECRET = process.env.DOCKER_HOST_SECRET;
 

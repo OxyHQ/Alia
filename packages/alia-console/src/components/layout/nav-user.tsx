@@ -6,7 +6,7 @@ import {
   Notification01Icon,
   Setting06Icon,
 } from '@hugeicons/core-free-icons'
-import { useAuth } from '@oxyhq/services'
+import { useAuth } from '@oxy.so/services'
 import { Link } from '@tanstack/react-router'
 import type { JSX } from 'react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'

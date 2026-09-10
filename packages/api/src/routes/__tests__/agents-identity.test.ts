@@ -7,7 +7,7 @@
  * reachable at all.
  *
  * Only OXY is replaced. `lib/agent-account.ts` runs for real — including
- * `resolveAccountDelegationAccess` from `@oxyhq/core`, imported for real through
+ * `resolveAccountDelegationAccess` from `@oxy.so/core`, imported for real through
  * `importActual`, so what these assert is the SHIPPED act-as rule rather than a
  * fixture's opinion of it. The repository is a spy because what matters here is
  * whether it was reached, and with what.
@@ -50,9 +50,9 @@ class Unreachable extends Error {
   status = 503;
 }
 
-vi.mock('@oxyhq/core', async () => {
+vi.mock('@oxy.so/core', async () => {
   // The act-as rule itself is the real one. Only the transport is a fixture.
-  const actual = await vi.importActual<typeof import('@oxyhq/core')>('@oxyhq/core');
+  const actual = await vi.importActual<typeof import('@oxy.so/core')>('@oxy.so/core');
   return {
     ...actual,
     OxyServices: class {

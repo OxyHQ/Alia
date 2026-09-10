@@ -20,7 +20,7 @@ import { describe, expect, it } from 'vitest';
  *    below asserts its absence rather than leaving it implied.
  *  - **Something → Alia is the inbound hop, and is where verification lives.**
  *    `POST /internal/trigger` is the one route that accepts a service token, and
- *    it does so through `@oxyhq/core`'s `serviceAuth` — which verifies an
+ *    it does so through `@oxy.so/core`'s `serviceAuth` — which verifies an
  *    Ed25519 signature from Oxy's public JWKS plus issuer, audience, lifetime,
  *    token type and scopes before granting. Alia holds no private verification
  *    secret; inability to resolve an exact public `kid` fails closed.
@@ -145,7 +145,7 @@ describe('no token is read without being verified (#139 ws15)', () => {
    *
    * `jose` and `jsonwebtoken` can verify properly, so their presence is not
    * automatically a bug — it is a SECOND implementation of a decision
-   * `@oxyhq/core` already owns, which is the thing the ecosystem rule forbids.
+   * `@oxy.so/core` already owns, which is the thing the ecosystem rule forbids.
    * Matched on the module specifier through the AST, so a mention in prose or a
    * commented-out import is not a hit.
    */
@@ -381,7 +381,7 @@ describe('every principal a request can acquire is mapped (#139 ws15)', () => {
 /*  Verification comes from the SDK, in both packages                          */
 /* -------------------------------------------------------------------------- */
 
-describe('inbound verification is @oxyhq/core, not a local implementation (#139 ws15)', () => {
+describe('inbound verification is @oxy.so/core, not a local implementation (#139 ws15)', () => {
   it('the API verifies through the SDK middleware and mounts the service one', () => {
     const auth = code(path.join(REPO_ROOT, 'packages/api/src/middleware/auth.ts'));
     // The three SDK entry points this repository is allowed to authenticate
@@ -395,7 +395,7 @@ describe('inbound verification is @oxyhq/core, not a local implementation (#139 
   });
 
   it('the integrations service compares its shared secret with the SDK helper', () => {
-    // `verifySecret` is `@oxyhq/core/server`'s constant-time compare. A `===`
+    // `verifySecret` is `@oxy.so/core/server`'s constant-time compare. A `===`
     // here would be a timing oracle on the secret that fronts every MCP and
     // account operation.
     const index = code(path.join(REPO_ROOT, 'packages/integrations/src/index.ts'));

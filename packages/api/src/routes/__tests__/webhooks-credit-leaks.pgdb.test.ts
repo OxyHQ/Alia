@@ -26,7 +26,7 @@ import { eq } from 'drizzle-orm';
  * `refundReservation` run for real against the real table.
  */
 
-vi.mock('@oxyhq/core/server', () => ({ verifySecret: vi.fn(() => false) }));
+vi.mock('@oxy.so/core/server', () => ({ verifySecret: vi.fn(() => false) }));
 vi.mock('ai', () => ({
   generateText: vi.fn(async () => ({ text: 'an answer', usage: { inputTokens: 10, outputTokens: 10 } })),
   stepCountIs: vi.fn(() => 5),

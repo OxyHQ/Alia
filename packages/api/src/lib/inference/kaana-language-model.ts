@@ -37,8 +37,8 @@ import type {
   ResponseFormat,
   ToolChoice,
   ToolDefinition,
-} from '@oxyhq/contracts';
-import type { OxyInferenceResponse, OxyResponsesRequest } from '@oxyhq/core';
+} from '@oxy.so/contracts';
+import type { OxyInferenceResponse, OxyResponsesRequest } from '@oxy.so/core';
 import type {
   LanguageModelV3,
   LanguageModelV3CallOptions,

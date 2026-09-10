@@ -56,7 +56,7 @@ vi.mock('@/lib/hooks/use-conversations', () => ({
   useCreateConversation: () => ({ mutateAsync: vi.fn() }),
   useDeleteConversation: () => ({ mutateAsync: vi.fn() }),
 }));
-vi.mock('@oxyhq/bloom/toast', () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
+vi.mock('@oxy.so/bloom/toast', () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 // Platform modules the hook imports for its SEND path. Neither takes part in
 // choosing which prompt a regenerate replays; they are here because importing
 // them pulls React Native's Flow source into the runner.

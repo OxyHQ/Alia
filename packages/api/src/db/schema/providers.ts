@@ -45,7 +45,7 @@ import {
   uniqueIndex,
 } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
-import { createdAt, generatedId, timestamptz, updatedAt } from '@oxyhq/db';
+import { createdAt, generatedId, timestamptz, updatedAt } from '@oxy.so/db';
 import { checkOneOf } from './columns';
 import { ROUTING_TIERS } from '../../internal/providers/lib/routing-tiers.js';
 import { PROVIDER_NAMES } from '../../internal/providers/lib/provider-names.js';

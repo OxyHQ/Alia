@@ -73,7 +73,7 @@ vi.mock('@/components/ui/switch', async () => {
   };
 });
 
-vi.mock('@oxyhq/bloom/settings-list', async () => {
+vi.mock('@oxy.so/bloom/settings-list', async () => {
   const ReactModule = await import('react');
   return {
     SettingsListGroup: ({

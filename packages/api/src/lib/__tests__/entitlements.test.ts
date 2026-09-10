@@ -3,7 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { PRODUCT_PLAN_STATUSES, productEntitlementSchema } from '@oxyhq/contracts';
+import { PRODUCT_PLAN_STATUSES, productEntitlementSchema } from '@oxy.so/contracts';
 
 /**
  * Plan and entitlement checks — epic #139 workstream 6, *"`/alia/chat` or its
@@ -122,7 +122,7 @@ afterEach(() => {
  * Alia"*, and ADR 0005's *"Alia keeps entitlements as a low-latency read
  * model"*.
  *
- * The shape is `@oxyhq/contracts`'s `productEntitlementSchema` rather than a
+ * The shape is `@oxy.so/contracts`'s `productEntitlementSchema` rather than a
  * local interface, so what is asserted here is that the read model really
  * produces a value that schema accepts — not that a local type compiles.
  *

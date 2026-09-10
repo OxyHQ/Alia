@@ -1,5 +1,5 @@
 import { createHash } from 'crypto';
-import type { ReportInput } from '@oxyhq/crowdsource';
+import type { ReportInput } from '@oxy.so/crowdsource';
 import { REPORT_TAXONOMY_VERSION, allegationsForCategories } from './report-taxonomy.js';
 import { subjectProviderFor } from './subjects/registry.js';
 import type { ModerationSubjectSnapshot } from './subjects/types.js';

@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { zodSchema } from 'ai';
-import { OxyInferenceError } from '@oxyhq/core';
+import { OxyInferenceError } from '@oxy.so/core';
 import { z } from 'zod';
 import { OXY_KAANA_ROUTING_PROFILE_IDS } from '../config/oxy-inference-routing-profile-ids.js';
 import { getDb } from '../db/index.js';

@@ -35,7 +35,7 @@
 
 import { boolean, index, integer, jsonb, pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
-import { createdAt, generatedId, timestamptz, updatedAt } from '@oxyhq/db';
+import { createdAt, generatedId, timestamptz, updatedAt } from '@oxy.so/db';
 import { checkOneOf, encryptedText } from './columns';
 
 export const BOT_STATUSES = ['active', 'inactive', 'error'] as const;

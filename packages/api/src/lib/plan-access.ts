@@ -6,7 +6,7 @@
  * here because it runs on every turn and cannot afford a network hop, while the
  * financial record moves to Oxy. This module is the whole of the first half.
  *
- * ## The shape is `@oxyhq/contracts`'s, not a local invention
+ * ## The shape is `@oxy.so/contracts`'s, not a local invention
  *
  * `entitlement` is a `ProductEntitlement`, parsed through the contract's own
  * schema before it is returned, so a value this module produces is by
@@ -52,7 +52,7 @@ import {
   productPlanStatusSchema,
   type PlanAllowance,
   type ProductEntitlement,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 import { getDb } from '../db/index.js';
 import { findActiveSubscriptions, type SubscriptionRow } from '../db/billing/subscriptionRepository.js';
 import { getPlans, getPlanFeatures, type PlanFeatureData } from './gateway-client.js';

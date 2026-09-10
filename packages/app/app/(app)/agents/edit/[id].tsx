@@ -17,7 +17,7 @@ import { ColorPicker } from "@/components/ui/color-picker";
 import { AGENT_SWATCHES } from "@/lib/constants/agent-colors";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Panel } from "@/components/ui/panel";
-import { Dialog } from "@oxyhq/bloom/dialog";
+import { Dialog } from "@oxy.so/bloom/dialog";
 import {
   ArrowLeft,
   X,
@@ -29,10 +29,10 @@ import {
   Send,
   Trash2,
 } from "lucide-react-native";
-import { Search } from "@oxyhq/bloom/search";
-import { GhostButton } from "@oxyhq/bloom/button";
-import { Item } from "@oxyhq/bloom/item";
-import { SettingsListGroup, SettingsListItem } from "@oxyhq/bloom/settings-list";
+import { Search } from "@oxy.so/bloom/search";
+import { GhostButton } from "@oxy.so/bloom/button";
+import { Item } from "@oxy.so/bloom/item";
+import { SettingsListGroup, SettingsListItem } from "@oxy.so/bloom/settings-list";
 import * as DropdownMenu from "@/components/ui/dropdown-menu";
 
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -41,8 +41,8 @@ import type { Agent, AgentArchetype, ArchetypeConfig } from "@/lib/types/agents"
 import { useTranslation } from "@/lib/hooks/use-translation";
 import { useColorScheme } from "@/lib/useColorScheme";
 import { agentTint } from "@/lib/agents/agent-color";
-import { toast } from "@oxyhq/bloom/toast";
-import { confirm } from "@oxyhq/bloom/surfaces";
+import { toast } from "@oxy.so/bloom/toast";
+import { confirm } from "@oxy.so/bloom/surfaces";
 import { cn } from "@/lib/utils";
 import apiClient from "@/lib/api/client";
 import { API_ROUTES } from "@/lib/api/routes";
@@ -52,8 +52,8 @@ import { AgentConnectorGrants } from "@/components/agent-connector-grants";
 import type { GrantableConnector } from "@/lib/constants/capability-families";
 import { useAgentBots, type AgentBot } from "@/lib/hooks/use-agent-bots";
 import { errorMessage as getErrorMessage, errorStatus } from "@/lib/errors/error-utils";
-import { ContentPanel } from "@oxyhq/bloom/content-panel";
-import { useOxy } from "@oxyhq/services";
+import { ContentPanel } from "@oxy.so/bloom/content-panel";
+import { useOxy } from "@oxy.so/services";
 
 type LinkedSkill = { _id: string; name: string; displayName: string; icon: string | null; color: string | null };
 type LinkedFile = { _id: string; name: string; type: string; category: string; url: string };

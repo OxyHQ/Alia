@@ -4,7 +4,7 @@ import * as WebBrowser from "expo-web-browser";
 import { Text } from "@/components/ui/text";
 import { Brain, CheckCircle2, X, Globe, ChevronRight } from "lucide-react-native";
 import { useUIStore, type ThoughtTab } from "@/lib/stores/ui-store";
-import { useTheme, type ThemeColors } from "@oxyhq/bloom/theme";
+import { useTheme, type ThemeColors } from "@oxy.so/bloom/theme";
 import { useTranslation } from "@/lib/hooks/use-translation";
 import { extractSources, buildSteps, buildAuditTimeline, type Source, type ThoughtStep, type AuditEntry } from "@/lib/thought-utils";
 import { getToolIcon } from "@/lib/tool-registry";

@@ -10,7 +10,7 @@ import Animated, {
   FadeIn,
 } from 'react-native-reanimated';
 import { CheckCircle2, Circle, AlertCircle } from 'lucide-react-native';
-import { useTheme } from '@oxyhq/bloom/theme';
+import { useTheme } from '@oxy.so/bloom/theme';
 import { getToolIcon } from '@/lib/tool-registry';
 import { LottieLoader } from '@/components/lottie-loader';
 import type { PlanItem } from '@/lib/hooks/use-agent-activity';

@@ -7,7 +7,7 @@
  *
  * Alia already logs a conversation id in a dozen places and mints a run id at
  * `routes/v1/chat-completions.ts`, and Kaana's contract already puts a
- * `requestId` on every stream event (`@oxyhq/contracts`, `identifiers.ts`:
+ * `requestId` on every stream event (`@oxy.so/contracts`, `identifiers.ts`:
  * "correlates the Oxy edge, the data plane, the financial ledger and the
  * customer-visible receipt"). What does not exist is a single record carrying
  * BOTH sides, and correlation across two services is only as good as the line
@@ -40,7 +40,7 @@
  * `kaanaCorrelationOf(event)` instead of `null` and correlation is live.
  */
 
-import type { InferenceStreamEvent } from '@oxyhq/contracts';
+import type { InferenceStreamEvent } from '@oxy.so/contracts';
 
 import { log } from '../logger.js';
 

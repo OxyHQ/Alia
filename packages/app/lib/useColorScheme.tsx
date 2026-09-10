@@ -1,6 +1,6 @@
 import { useColorScheme as useNativeWindColorScheme } from 'nativewind';
 import { useCallback, useMemo } from 'react';
-import { useBloomTheme, useTheme, type ThemeMode } from '@oxyhq/bloom/theme';
+import { useBloomTheme, useTheme, type ThemeMode } from '@oxy.so/bloom/theme';
 
 export type { ThemeMode };
 

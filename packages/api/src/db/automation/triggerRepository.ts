@@ -36,7 +36,7 @@
  */
 
 import { and, count, desc, eq, inArray, or, sql } from 'drizzle-orm';
-import { sqlColumnName } from '@oxyhq/db';
+import { sqlColumnName } from '@oxy.so/db';
 import type { ApiDatabase } from '../index';
 import {
   triggerExecutions,

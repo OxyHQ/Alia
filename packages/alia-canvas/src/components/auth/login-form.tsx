@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useAuth } from "@oxyhq/services";
+import { useAuth } from "@oxy.so/services";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 

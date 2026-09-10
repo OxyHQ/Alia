@@ -3,7 +3,7 @@
  * Uses $setOnInsert for idempotency — re-running never overwrites admin edits.
  */
 
-import { isUniqueViolation } from '@oxyhq/db';
+import { isUniqueViolation } from '@oxy.so/db';
 import { getDb } from '../../../db/index.js';
 import { seedCreditPackage } from '../../../db/billing/creditPackageRepository.js';
 import { log } from '../../../lib/logger.js';

@@ -46,7 +46,7 @@ vi.mock('react-native', () => ({
   },
 }));
 
-vi.mock('@oxyhq/services', () => ({
+vi.mock('@oxy.so/services', () => ({
   useOxy: () => ({ oxyServices: { getAccessToken: () => env.token } }),
 }));
 

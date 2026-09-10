@@ -10,7 +10,7 @@ import { View, Pressable } from "react-native";
 import { Text } from "@/components/ui/text";
 import { AliaMarkdown } from '@alia.onl/sdk';
 import { MARKDOWN_BODY_FONT } from './markdown';
-import { withAlpha } from "@oxyhq/bloom/theme";
+import { withAlpha } from "@oxy.so/bloom/theme";
 import { useColorScheme } from "@/lib/useColorScheme";
 import {
   Collapsible,

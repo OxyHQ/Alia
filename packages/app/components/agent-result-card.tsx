@@ -21,7 +21,7 @@ import {
   Coins,
 } from 'lucide-react-native';
 import { useColorScheme } from '@/lib/useColorScheme';
-import { useTheme, withAlpha } from '@oxyhq/bloom/theme';
+import { useTheme, withAlpha } from '@oxy.so/bloom/theme';
 import { WorkspaceBrowser } from '@/components/workspace-browser';
 import type { AgentActivityState, PlanItem } from '@/lib/hooks/use-agent-activity';
 

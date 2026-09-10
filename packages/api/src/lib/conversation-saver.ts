@@ -5,7 +5,7 @@
  */
 
 import { generateText } from 'ai';
-import { isUniqueViolation } from '@oxyhq/db';
+import { isUniqueViolation } from '@oxy.so/db';
 import { getDb } from '../db/index.js';
 import {
   findConversation,
@@ -93,7 +93,7 @@ function sameMessage(a: { role: string; content: unknown }, b: InputMessage): bo
  * Named, not just "some unique fired": `isUniqueViolation(error)` alone cannot
  * tell this index from any other on the table, so a future one would quietly
  * start triggering the full-rewrite recovery for an unrelated reason. It is also
- * why the SQLSTATE is read with `@oxyhq/db`'s helper rather than off
+ * why the SQLSTATE is read with `@oxy.so/db`'s helper rather than off
  * `error.code` — drizzle wraps the driver failure, so the code lives on `cause`
  * and a direct read matches nothing.
  */

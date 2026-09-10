@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import type { Request, Response, NextFunction } from 'express';
-import { routingTargetSchema } from '@oxyhq/contracts';
+import { routingTargetSchema } from '@oxy.so/contracts';
 
 /**
  * *"Add tests that public/user credentials cannot access internal-only
@@ -14,7 +14,7 @@ import { routingTargetSchema } from '@oxyhq/contracts';
  *
  * ## What "internal-only deployment" means, and where the term comes from
  *
- * `@oxyhq/contracts` gives it a name: `modelDeploymentSchema.availabilityScope`
+ * `@oxy.so/contracts` gives it a name: `modelDeploymentSchema.availabilityScope`
  * is one of `internal_alia | public_payg | enterprise | byok_only | oxy_hosted`,
  * and `internal_alia` is the member this checkbox is about. So the property is
  * not a vague "keep users out of internal things" — it is: **no credential a
@@ -200,7 +200,7 @@ vi.mock('../../lib/logger.js', () => ({
   log: { auth: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } },
 }));
 vi.mock('../../lib/channels/registry.js', () => ({ getConfiguredChannels: vi.fn(() => []) }));
-vi.mock('@oxyhq/core', () => {
+vi.mock('@oxy.so/core', () => {
   const passThrough = (_req: Request, _res: Response, next: NextFunction) => {
     next();
   };

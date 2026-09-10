@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DECISION_OUTCOMES, DECISION_STATUSES } from '@oxyhq/crowdsource-contracts';
+import { DECISION_OUTCOMES, DECISION_STATUSES } from '@oxy.so/crowdsource-contracts';
 import { legacyStatusForOutcome, reportStateForDecision } from '../report-status.js';
 import { ReportStatus } from '../../../domain/report.js';
 

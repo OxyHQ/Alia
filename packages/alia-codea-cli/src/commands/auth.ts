@@ -12,7 +12,7 @@
  *
  * #160 closed that endpoint — it answers `410 Gone` — so the flow does not work
  * any more. But the reason it is deleted rather than repointed is the ecosystem
- * rule: session handling lives entirely in `@oxyhq/core`, and every one of those
+ * rule: session handling lives entirely in `@oxy.so/core`, and every one of those
  * pieces is the platform-agnostic half core already owns and does better
  * (single-flight re-mint, rotation, durability checks, a bounded cold boot).
  *

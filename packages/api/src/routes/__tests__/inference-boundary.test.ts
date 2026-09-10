@@ -24,7 +24,7 @@ import { describe, expect, it } from 'vitest';
  *
  * `middleware/auth.ts` constructs `oxyClient.serviceAuth({ debug: true })` with
  * no `jwtSecret`, and no code path or workflow names an Oxy access-token secret
- * or service-token private key. The compatible `@oxyhq/core` release verifies
+ * or service-token private key. The compatible `@oxy.so/core` release verifies
  * Ed25519 service tokens from Oxy's public JWKS and fails closed if the endpoint
  * or exact `kid` is unavailable. What IS assertable here is that no Alia code
  * path grants privilege from a decoded-but-unverified token or imports private
@@ -95,7 +95,7 @@ function gitGrepFiles(pattern: string, pathspecs: readonly string[]): string[] {
 describe('no privilege comes from an unverified token (#139 ws15)', () => {
   it('nothing in the API decodes a JWT itself', () => {
     // The failure mode this forbids: reading `sub` or `scopes` out of a token's
-    // payload and acting on it. `@oxyhq/core` decodes to pick a branch and then
+    // payload and acting on it. `@oxy.so/core` decodes to pick a branch and then
     // VERIFIES (Ed25519 through Oxy's public JWKS, plus issuer, audience,
     // lifetime, type and scopes) before granting anything; a second, local
     // decoder would have no such obligation.

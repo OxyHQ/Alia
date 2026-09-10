@@ -63,7 +63,7 @@
  */
 
 import { and, asc, desc, eq, getTableColumns, inArray, max, sql, type SQL } from 'drizzle-orm';
-import { sqlColumnName } from '@oxyhq/db';
+import { sqlColumnName } from '@oxy.so/db';
 import type { PgColumn } from 'drizzle-orm/pg-core';
 import type { ApiDatabase, Executor } from '../index';
 import { agentKnowledge, agents, agentSkills } from '../schema/agents';

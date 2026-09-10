@@ -35,7 +35,7 @@
 
 import { boolean, index, integer, jsonb, pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
-import { createdAt, generatedId, timestamptz, updatedAt } from '@oxyhq/db';
+import { createdAt, generatedId, timestamptz, updatedAt } from '@oxy.so/db';
 import { checkOneOf } from './columns';
 
 export const TRIGGER_TYPES = ['schedule', 'webhook', 'integration_event', 'agent_heartbeat'] as const;
@@ -199,7 +199,7 @@ export const triggerExecutions = pgTable(
  * `node.data` is additionally an arbitrary per-node-type payload.
  *
  * Mongoose maintained `updatedAt` with a `pre('save')` hook. That is replaced by
- * the standard `updatedAt()` column builder, which `@oxyhq/db` maintains on every
+ * the standard `updatedAt()` column builder, which `@oxy.so/db` maintains on every
  * `db.update()` — the same guarantee, expressed where the column is declared
  * rather than in a hook nothing in this schema could see.
  */

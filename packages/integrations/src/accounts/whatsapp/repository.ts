@@ -36,7 +36,7 @@
  */
 
 import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
-import { publicColumns } from '@oxyhq/db/assert';
+import { publicColumns } from '@oxy.so/db/assert';
 import type { IntegrationsDatabase } from '../../db';
 import { PROTECTED_COLUMNS } from '../../db/protectedColumns';
 import {

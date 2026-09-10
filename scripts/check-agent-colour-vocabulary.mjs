@@ -18,7 +18,7 @@
  *     may PROPOSE.
  *   - `packages/app/lib/constants/agent-colors.ts` — what the editor OFFERS.
  *
- * They cannot be one constant. The API must not depend on `@oxyhq/bloom`, which
+ * They cannot be one constant. The API must not depend on `@oxy.so/bloom`, which
  * is a React Native package, and the app has no dependency on the API. So the
  * check is that they agree with each other AND that both equal the only list
  * either could justify:
@@ -33,7 +33,7 @@
  * ## The one restatement, and which way it can rot
  *
  * `FREE_COLOR_NAMES` is imported for real. `USER_COLOR_PRESETS` cannot be:
- * `@oxyhq/contracts` deliberately publishes no copy of it — "pinning the list a
+ * `@oxy.so/contracts` deliberately publishes no copy of it — "pinning the list a
  * second time in this package would be a second source of truth for what the
  * database accepts, and the two would drift apart silently" — so it is restated
  * below, once, and this is the only copy in the repository.
@@ -164,14 +164,14 @@ function pickerArgument({ file, component, prop }) {
 /**
  * Bloom's preset module, reached through the package's own CJS entry.
  *
- * Not `@oxyhq/bloom/theme`: that subpath resolves to `src/` TypeScript, which
+ * Not `@oxy.so/bloom/theme`: that subpath resolves to `src/` TypeScript, which
  * node cannot parse — this is a React Native package whose published entry
  * points are compiled by the consumer's Metro. Resolving the built `.` entry
  * and walking to its sibling is what gets a build-time script the REAL list
  * rather than a copy of it, which is the entire point of importing it here.
  */
 function loadBloomPresets() {
-  const entry = require.resolve('@oxyhq/bloom');
+  const entry = require.resolve('@oxy.so/bloom');
   return require(join(dirname(entry), 'theme', 'color-presets.js'));
 }
 

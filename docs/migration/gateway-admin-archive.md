@@ -75,7 +75,7 @@ the two can be diffed.
 
 | Screen | Why | Matrix row |
 | --- | --- | --- |
-| **Login** (`*`, unauthenticated) | An Oxy sign-in shell branded "Alia Providers / Admin Panel", shown to any unauthenticated or unauthorized visitor. Authentication belongs to `@oxyhq/services`; the shell had nothing to preserve. | `ga-screen-login` |
+| **Login** (`*`, unauthenticated) | An Oxy sign-in shell branded "Alia Providers / Admin Panel", shown to any unauthenticated or unauthorized visitor. Authentication belongs to `@oxy.so/services`; the shell had nothing to preserve. | `ga-screen-login` |
 
 ## What an operator could do when this archive was written
 

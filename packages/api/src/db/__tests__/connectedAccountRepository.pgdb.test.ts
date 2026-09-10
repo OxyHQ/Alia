@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { sql } from 'drizzle-orm';
-import { isCheckViolation, constraintNameOf } from '@oxyhq/db';
+import { isCheckViolation, constraintNameOf } from '@oxy.so/db';
 import { closePostgres, connectPostgres, type ApiDatabase } from '../index';
 import { connectedAccounts } from '../schema/integrations';
 import {

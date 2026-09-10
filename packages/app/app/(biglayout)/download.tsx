@@ -9,7 +9,7 @@ import { ArrowLeft } from 'lucide-react-native';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { useTheme } from '@oxyhq/bloom/theme';
+import { useTheme } from '@oxy.so/bloom/theme';
 
 const PLAY_STORE_URL =
   'https://play.google.com/store/apps/details?id=onl.alia.app';

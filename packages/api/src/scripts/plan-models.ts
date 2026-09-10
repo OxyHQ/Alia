@@ -31,7 +31,7 @@
  * and the field being corrected is the one that decides who may use what.
  */
 
-import { readTargetDatabase } from '@oxyhq/db/migrate';
+import { readTargetDatabase } from '@oxy.so/db/migrate';
 import { sql } from 'drizzle-orm';
 
 import { closePostgres, connectPostgres, getDb } from '../db/index.js';

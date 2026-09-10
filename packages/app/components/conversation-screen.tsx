@@ -21,7 +21,7 @@ import { resolveSelection, useCatalogue } from "@/lib/hooks/use-catalogue";
 import { useProductModes } from "@/lib/hooks/use-product-modes";
 import { useVoiceMode } from "@/lib/hooks/use-voice-mode";
 import { useVoiceSoundEffects } from "@/lib/hooks/use-sound-effects";
-import { ContentPanel } from "@oxyhq/bloom/content-panel";
+import { ContentPanel } from "@oxy.so/bloom/content-panel";
 
 interface ConversationScreenProps {
   conversationId: string;

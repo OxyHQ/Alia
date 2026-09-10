@@ -19,8 +19,8 @@ import React, { useCallback, useState } from 'react';
 import { View, ScrollView } from 'react-native';
 import { Text } from '@/components/ui/text';
 import { Input } from '@/components/ui/input';
-import { Dialog } from '@oxyhq/bloom/dialog';
-import { toast } from '@oxyhq/bloom/toast';
+import { Dialog } from '@oxy.so/bloom/dialog';
+import { toast } from '@oxy.so/bloom/toast';
 import { useShowStore } from '@/lib/stores/show-store';
 
 interface EpisodeCreateDialogProps {

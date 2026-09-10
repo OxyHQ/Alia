@@ -50,7 +50,7 @@ export interface StoredMemoryEmbedding {
  *
  * The source's explicit `$set: { updatedAt }` looks like it has to be carried
  * over, because the column's own default applies on INSERT only. It does not:
- * `@oxyhq/db`'s `updatedAt()` carries `$onUpdate`, and drizzle applies that to
+ * `@oxy.so/db`'s `updatedAt()` carries `$onUpdate`, and drizzle applies that to
  * an `onConflictDoUpdate` set as well as to `db.update()`. Compiling both forms
  * shows the conflict clause emitting `"updated_at" = $6` with the column named
  * nowhere in the `set`.

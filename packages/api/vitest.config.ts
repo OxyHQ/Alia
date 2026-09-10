@@ -4,7 +4,7 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   resolve: {
     alias: {
-      '@oxyhq/core/server': fileURLToPath(new URL('./src/__tests__/mocks/oxy-core-server.ts', import.meta.url)),
+      '@oxy.so/core/server': fileURLToPath(new URL('./src/__tests__/mocks/oxy-core-server.ts', import.meta.url)),
     },
   },
   test: {

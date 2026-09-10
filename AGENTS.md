@@ -3,7 +3,7 @@
 Producto de IA sobre Oxy y Kaana. Agente: `alia`.
 
 **Kaana es el plano de inferencia de Alia, pero Alia nunca lo llama ni lo firma
-directamente.** Alia usa `@oxyhq/core` (`OxyInferenceClient`) con una credencial
+directamente.** Alia usa `@oxy.so/core` (`OxyInferenceClient`) con una credencial
 de servicio: `Alia -> Oxy -> Kaana`. Oxy resuelve identidad y rutas autorizadas;
 Alia no aloja lógica ni credenciales de proveedor, claves de firma de Kaana o
 un transporte alternativo.

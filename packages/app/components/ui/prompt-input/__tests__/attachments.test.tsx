@@ -69,7 +69,7 @@ vi.mock('@/components/ui/text', async () => {
  * them. The stand-in keeps that shape so a test cannot pass on a value the
  * component would never receive.
  */
-vi.mock('@oxyhq/bloom/theme', () => ({
+vi.mock('@oxy.so/bloom/theme', () => ({
   withAlpha: (color: string, alpha: number) =>
     color.replace(/^rgb\(([^)]+)\)$/, (_m, channels: string) => `rgba(${channels}, ${alpha})`),
 }));

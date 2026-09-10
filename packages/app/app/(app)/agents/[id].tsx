@@ -22,9 +22,9 @@ import { queryKeys } from "@/lib/hooks/query-keys";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useTranslation } from "@/lib/hooks/use-translation";
-import { useOxy } from "@oxyhq/services";
-import { toast } from "@oxyhq/bloom/toast";
-import { alert, confirm } from "@oxyhq/bloom/surfaces";
+import { useOxy } from "@oxy.so/services";
+import { toast } from "@oxy.so/bloom/toast";
+import { alert, confirm } from "@oxy.so/bloom/surfaces";
 import { SectionLabel } from "@/components/detail/section-label";
 import { PillList } from "@/components/detail/pill-list";
 import { ActivityGrid } from "@/components/detail/activity-grid";
@@ -37,7 +37,7 @@ import { useAgentFavoritesStore } from "@/lib/stores/agent-favorites-store";
 import { CAPABILITY_FAMILIES } from "@/lib/constants/capability-families";
 import { errorMessage as getErrorMessage, errorStatus, errorResponseData } from "@/lib/errors/error-utils";
 import { agentDisplayName, agentHandle } from "@/lib/agents/identity";
-import { ContentPanel } from "@oxyhq/bloom/content-panel";
+import { ContentPanel } from "@oxy.so/bloom/content-panel";
 
 const STATUS_COLORS: Record<string, string> = {
   active: "bg-green-500",

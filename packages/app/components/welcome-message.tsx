@@ -1,5 +1,5 @@
 import { View } from "react-native";
-import { useAuth } from "@oxyhq/services";
+import { useAuth } from "@oxy.so/services";
 import { Text } from "@/components/ui/text";
 import { IdentityMark } from '@alia.onl/sdk';
 import { useColorScheme } from "@/lib/useColorScheme";

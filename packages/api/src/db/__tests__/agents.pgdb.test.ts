@@ -5,7 +5,7 @@ import {
   isCheckViolation,
   isForeignKeyViolation,
   isUniqueViolation,
-} from '@oxyhq/db';
+} from '@oxy.so/db';
 import { closePostgres, connectPostgres, type ApiDatabase } from '../index';
 import { agentKnowledge, agents, agentSkills } from '../schema/agents';
 import { skills } from '../schema/skills';

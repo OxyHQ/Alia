@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { View, Pressable, ScrollView } from "react-native";
 import { Text } from "@/components/ui/text";
 import { Input } from "@/components/ui/input";
-import { Dialog } from "@oxyhq/bloom/dialog";
+import { Dialog } from "@oxy.so/bloom/dialog";
 import {
   FolderOpen,
   Briefcase,

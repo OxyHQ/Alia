@@ -17,7 +17,7 @@ import Animated, {
   FadeIn,
 } from 'react-native-reanimated';
 import { Check, Circle, Loader, ChevronDown, ChevronUp, Monitor, AlertCircle } from 'lucide-react-native';
-import { useTheme } from '@oxyhq/bloom/theme';
+import { useTheme } from '@oxy.so/bloom/theme';
 import type { AgentActivityState, PlanItem, AgentScreenshot } from '@/lib/hooks/use-agent-activity';
 
 interface AgentTaskCardProps {

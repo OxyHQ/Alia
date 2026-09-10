@@ -43,7 +43,7 @@ vi.mock('expo/fetch', () => ({
   }),
 }));
 
-vi.mock('@oxyhq/services', () => ({
+vi.mock('@oxy.so/services', () => ({
   useOxy: () => ({ oxyServices: { getAccessToken: () => 'test-token' } }),
 }));
 

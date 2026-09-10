@@ -2,7 +2,7 @@ import React from "react";
 import { View, Pressable, ScrollView, ActivityIndicator } from "react-native";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
-import { withAlpha } from "@oxyhq/bloom/theme";
+import { withAlpha } from "@oxy.so/bloom/theme";
 import {
   FileText,
   FileSpreadsheet,

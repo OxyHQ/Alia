@@ -1,4 +1,4 @@
-import { CONTRACT_LIMITS } from '@oxyhq/crowdsource-contracts';
+import { CONTRACT_LIMITS } from '@oxy.so/crowdsource-contracts';
 import { getDb } from '../../../db/index.js';
 import { findReportedSkill, type ModerationSkill } from '../../../db/agents/skillRepository.js';
 import { ReportedType } from '../../../domain/report.js';

@@ -49,7 +49,7 @@ import {
   uniqueIndex,
 } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
-import { createdAt, generatedId, timestamptz, updatedAt } from '@oxyhq/db';
+import { createdAt, generatedId, timestamptz, updatedAt } from '@oxy.so/db';
 import { checkOneOf } from './columns';
 import { BILLING_PERIODS, PLAN_PRODUCTS } from '../../domain/plan.js';
 import { FEATURE_TYPES } from '../../domain/feature.js';

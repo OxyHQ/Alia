@@ -15,15 +15,15 @@ import {
   type InstalledMcpServer,
   type McpRegistryEntry,
 } from "@/lib/hooks/use-mcp-servers";
-import { toast } from "@oxyhq/bloom/toast";
-import { Dialog } from "@oxyhq/bloom/dialog";
+import { toast } from "@oxy.so/bloom/toast";
+import { Dialog } from "@oxy.so/bloom/dialog";
 import {
   Collapsible,
   CollapsibleTrigger,
   CollapsibleContent,
 } from "@/components/ui/collapsible";
 import { Plus, ChevronDown, Check } from "lucide-react-native";
-import { Search } from "@oxyhq/bloom/search";
+import { Search } from "@oxy.so/bloom/search";
 import { ActionKeyIcon } from "@/components/ui/action-key-icon";
 import { errorStatus } from "@/lib/errors/error-utils";
 import { useColorScheme } from "@/lib/useColorScheme";

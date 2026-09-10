@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { constraintNameOf, isForeignKeyViolation, isUniqueViolation } from '@oxyhq/db';
+import { constraintNameOf, isForeignKeyViolation, isUniqueViolation } from '@oxy.so/db';
 import { closePostgres, connectPostgres, type ApiDatabase } from '../index';
 import {
   deletePlanByPlanId,
@@ -99,7 +99,7 @@ describe('plans', () => {
       caught = error;
     }
     /**
-     * Caught by name through `@oxyhq/db`, never `error.code`: a drizzle error's
+     * Caught by name through `@oxy.so/db`, never `error.code`: a drizzle error's
      * SQLSTATE lives on `cause`, so a ported `err.code === '23505'` matches
      * nothing and the route's 409 silently becomes a 500.
      */

@@ -158,7 +158,7 @@ describe('a partial chat update leaves the fields it did not mention alone', () 
      * drizzle applies `$onUpdate` inside an `onConflictDoUpdate` set as well as
      * in a plain update, which is WHY the conflict clauses in the repositories
      * never name `updated_at`. That is a property of the pinned drizzle version
-     * and of `@oxyhq/db`'s `updatedAt()`, not of this code, so it is asserted
+     * and of `@oxy.so/db`'s `updatedAt()`, not of this code, so it is asserted
      * rather than assumed: pinning the column in a conflict set (an explicit
      * value beats the `$onUpdate`) turns this red.
      */

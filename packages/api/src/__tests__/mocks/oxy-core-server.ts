@@ -15,7 +15,7 @@ export function createOptionalOxyAuth() {
  * `createOxyCors` is the REAL implementation, not a stub, and it is reached
  * through `createRequire` on purpose.
  *
- * `vitest.config.ts` aliases `@oxyhq/core/server` to this file so tests can
+ * `vitest.config.ts` aliases `@oxy.so/core/server` to this file so tests can
  * mount routers without standing up authentication. A CORS test run against a
  * stubbed matcher would measure the stub — the matching rule is the whole
  * subject of `corsOrigins.test.ts`, including the regression gate for the
@@ -26,8 +26,8 @@ export function createOptionalOxyAuth() {
  *
  * The auth stubs above stay stubs: nothing here needs them to be real.
  */
-type OxyCoreServer = typeof import('@oxyhq/core/server');
+type OxyCoreServer = typeof import('@oxy.so/core/server');
 
-const real: OxyCoreServer = createRequire(import.meta.url)('@oxyhq/core/server');
+const real: OxyCoreServer = createRequire(import.meta.url)('@oxy.so/core/server');
 
 export const createOxyCors: OxyCoreServer['createOxyCors'] = real.createOxyCors;

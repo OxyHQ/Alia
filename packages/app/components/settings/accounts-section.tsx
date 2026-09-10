@@ -3,9 +3,9 @@ import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { useConnectedAccounts, type ConnectedAccount } from "@/lib/hooks/use-connected-accounts";
-import { toast } from "@oxyhq/bloom/toast";
-import { confirm } from "@oxyhq/bloom/surfaces";
-import { SettingsListGroup, SettingsListItem } from "@oxyhq/bloom/settings-list";
+import { toast } from "@oxy.so/bloom/toast";
+import { confirm } from "@oxy.so/bloom/surfaces";
+import { SettingsListGroup, SettingsListItem } from "@oxy.so/bloom/settings-list";
 import * as DropdownMenu from "@/components/ui/dropdown-menu";
 import {
   Smartphone,

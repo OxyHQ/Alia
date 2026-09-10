@@ -1,7 +1,7 @@
 import * as React from "react";
 import { Pressable, Animated } from "react-native";
 import { cn } from "@/lib/utils";
-import { useTheme, withAlpha } from "@oxyhq/bloom/theme";
+import { useTheme, withAlpha } from "@oxy.so/bloom/theme";
 
 interface SwitchProps {
   value: boolean;

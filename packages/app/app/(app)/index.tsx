@@ -9,7 +9,7 @@ import Animated, {
   withDelay,
   withTiming,
 } from "react-native-reanimated";
-import { useAuth } from "@oxyhq/services";
+import { useAuth } from "@oxy.so/services";
 import { WelcomeIntro } from "@/components/welcome-intro";
 import { useStore } from "@/lib/stores/global-store";
 import { useModelStore } from "@/lib/stores/model-store";
@@ -18,8 +18,8 @@ import { useProductModes } from "@/lib/hooks/use-product-modes";
 import { useChatConversation } from "@/lib/hooks/use-chat-conversation";
 import { useCreateConversation } from "@/lib/hooks/use-conversations";
 import { ChatPageContent } from "@/components/chat-page-content";
-import { toast } from "@oxyhq/bloom/toast";
-import { ContentPanel } from "@oxyhq/bloom/content-panel";
+import { toast } from "@oxy.so/bloom/toast";
+import { ContentPanel } from "@oxy.so/bloom/content-panel";
 
 /** The chat rises into view as the intro leaves: 600ms, 450ms after it starts. */
 const CHAT_RISE_DURATION = 600;

@@ -1,5 +1,5 @@
 /**
- * Cowork's Oxy session — device-first, zero-cookie, owned by `@oxyhq/core`.
+ * Cowork's Oxy session — device-first, zero-cookie, owned by `@oxy.so/core`.
  *
  * ## What this replaces
  *
@@ -10,7 +10,7 @@
  * minted an `alia_sk_*` developer credential, which #160 closed — the endpoint
  * answers `410 Gone`, so the flow no longer works at all.
  *
- * None of it is ported. Session handling lives entirely in `@oxyhq/core`, and
+ * None of it is ported. Session handling lives entirely in `@oxy.so/core`, and
  * the device flow needs no port, no redirect and no HTML: Oxy issues a
  * single-use code, the renderer shows it, an approver authorizes it elsewhere,
  * and this polls. The ~300 lines of HTML existed only to tell a browser tab it
@@ -19,7 +19,7 @@
  * ## The storage seam
  *
  * `createNativeAuthStateStore(storage)` accepts any async key/value backing —
- * its own doc says the factory is injected "so `@oxyhq/core` never imports
+ * its own doc says the factory is injected "so `@oxy.so/core` never imports
  * `expo-secure-store`". Electron supplies one over `safeStorage`, so the device
  * secret is encrypted with the OS keychain where one exists.
  *
@@ -41,7 +41,7 @@ import {
   runSessionColdBoot,
   startTokenRefreshScheduler,
   type AuthStateStore
-} from '@oxyhq/core'
+} from '@oxy.so/core'
 
 import { createLogger } from './logger'
 import { PREFERRED_CHAT_MODEL_ID } from './config'

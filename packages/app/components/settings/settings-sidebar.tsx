@@ -1,7 +1,7 @@
 import React from "react";
 import { ScrollView } from "react-native";
 import { Text } from "@/components/ui/text";
-import { SettingsListGroup, SettingsListItem } from "@oxyhq/bloom/settings-list";
+import { SettingsListGroup, SettingsListItem } from "@oxy.so/bloom/settings-list";
 import { useRouter } from "expo-router";
 import { useTranslation } from "@/lib/hooks/use-translation";
 import { useColorScheme } from "@/lib/useColorScheme";

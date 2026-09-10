@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { ArrowLeft, Sparkles } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
-import { toast } from "@oxyhq/bloom/toast";
+import { toast } from "@oxy.so/bloom/toast";
 import { useTranslation } from '@/lib/hooks/use-translation';
 import { useI18nStore } from '@/lib/stores/i18n-store';
 import { useCreateSkill, useGenerateSkillDraft } from '@/lib/hooks/use-skills';

@@ -57,18 +57,18 @@ vi.mock('@/lib/api/client', () => ({
   },
 }));
 
-vi.mock('@oxyhq/bloom/toast', () => ({ toast: toastCalls }));
+vi.mock('@oxy.so/bloom/toast', () => ({ toast: toastCalls }));
 // `cn` (via `lib/utils.ts`) reaches `expo-crypto` through `random-uuid`, whose
 // native module does not exist under this runner.
 vi.mock('expo-crypto', () => ({ getRandomValues: (array: Uint8Array) => array }));
-vi.mock('@oxyhq/bloom/surfaces', () => ({ confirm: vi.fn(async () => false) }));
+vi.mock('@oxy.so/bloom/surfaces', () => ({ confirm: vi.fn(async () => false) }));
 
 vi.mock('expo-router', () => ({
   useLocalSearchParams: () => ({ id: 'agent-1' }),
   useRouter: () => ({ back: vi.fn(), push: vi.fn() }),
 }));
 
-vi.mock('@oxyhq/services', () => ({
+vi.mock('@oxy.so/services', () => ({
   useOxy: () => ({
     isAuthenticated: true,
     oxyServices: {
@@ -172,28 +172,28 @@ vi.mock('@/components/ui/dropdown-menu', async () => {
     ItemTitle: host('MenuItemTitle'),
   };
 });
-vi.mock('@oxyhq/bloom/dialog', async () => {
+vi.mock('@oxy.so/bloom/dialog', async () => {
   const ReactModule = await import('react');
   return {
     Dialog: ({ open, children }: React.PropsWithChildren<{ open?: boolean }>) =>
       open === true ? ReactModule.createElement('Dialog', null, children) : null,
   };
 });
-vi.mock('@oxyhq/bloom/search', async () => {
+vi.mock('@oxy.so/bloom/search', async () => {
   const ReactModule = await import('react');
   return { Search: (props: Record<string, unknown>) => ReactModule.createElement('Search', props) };
 });
-vi.mock('@oxyhq/bloom/button', async () => {
+vi.mock('@oxy.so/bloom/button', async () => {
   const ReactModule = await import('react');
   return {
     GhostButton: (props: Record<string, unknown>) => ReactModule.createElement('GhostButton', props),
   };
 });
-vi.mock('@oxyhq/bloom/item', async () => {
+vi.mock('@oxy.so/bloom/item', async () => {
   const ReactModule = await import('react');
   return { Item: (props: Record<string, unknown>) => ReactModule.createElement('Item', props) };
 });
-vi.mock('@oxyhq/bloom/settings-list', async () => {
+vi.mock('@oxy.so/bloom/settings-list', async () => {
   const ReactModule = await import('react');
   return {
     SettingsListGroup: ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
@@ -202,7 +202,7 @@ vi.mock('@oxyhq/bloom/settings-list', async () => {
       ReactModule.createElement('SettingsListItem', props),
   };
 });
-vi.mock('@oxyhq/bloom/content-panel', async () => {
+vi.mock('@oxy.so/bloom/content-panel', async () => {
   const ReactModule = await import('react');
   return {
     ContentPanel: ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>

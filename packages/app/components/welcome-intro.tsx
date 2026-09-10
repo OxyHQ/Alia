@@ -10,7 +10,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { IdentityMark } from '@alia.onl/sdk';
-import { useAuth } from '@oxyhq/services';
+import { useAuth } from '@oxy.so/services';
 import { AmbientField, PARALLAX_DURATION, PARALLAX_EASE } from '@/components/ambient-field';
 import { Button } from '@/components/ui/button';
 import { Text } from '@/components/ui/text';

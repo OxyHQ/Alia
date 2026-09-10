@@ -1,14 +1,14 @@
 /**
  * The Postgres handle for this service.
  *
- * Built through `createDatabase()` from `@oxyhq/db` rather than a local
+ * Built through `createDatabase()` from `@oxy.so/db` rather than a local
  * `drizzle(postgres(url))`, because that is what guarantees the handle carries
  * `DATABASE_CASING` — so what queries REFERENCE matches what the migrations
  * CREATED. Getting that wrong produces `column "sessionId" does not exist` at
  * runtime with a schema that looks correct in the editor.
  */
 
-import { createDatabase, type OxyDatabase } from '@oxyhq/db';
+import { createDatabase, type OxyDatabase } from '@oxy.so/db';
 import type postgres from 'postgres';
 import * as schema from './schema';
 

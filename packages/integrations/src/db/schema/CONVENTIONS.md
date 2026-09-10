@@ -4,12 +4,12 @@ Binding for every table in this schema. Decision and reason, nothing else.
 
 This is the FIRST Alia service on Postgres, and it is deliberately the smallest:
 it owns its own database, held 2 documents in Mongo, and has no deploy. It exists
-to establish the toolchain — `@oxyhq/db`, the migration ledger, deploy phases and
+to establish the toolchain — `@oxy.so/db`, the migration ledger, deploy phases and
 the throwaway-database harness — somewhere a mistake costs nothing, so that
 `packages/api` inherits a working pattern instead of inventing one under
 cutover pressure.
 
-The mechanics ship in **`@oxyhq/db`**: the column builders, the casing authority,
+The mechanics ship in **`@oxy.so/db`**: the column builders, the casing authority,
 the migration ledger and deploy phases, the driver-error helpers, the throwaway
 test harness. Read it before hand-rolling any of them — a local copy of something
 that package owns is a second thing to keep in lockstep.
@@ -55,7 +55,7 @@ design, and nothing reads a collection name — call sites are being rewritten,
 not shimmed.
 
 **Columns: camelCase in TypeScript, snake_case in SQL**, derived by drizzle from
-`DATABASE_CASING` in `@oxyhq/db`. That one setting is read by `createDatabase()`
+`DATABASE_CASING` in `@oxy.so/db`. That one setting is read by `createDatabase()`
 (what queries reference) and by `drizzle.config.ts` (what the DDL creates), so the
 two cannot disagree.
 
@@ -129,7 +129,7 @@ value fails its CHECK. Both must land in the same PR.
 ## Timestamps
 
 `created_at` / `updated_at` are `timestamptz` via `createdAt()` / `updatedAt()`
-from `@oxyhq/db`, matching Mongoose's `timestamps: true`. `updated_at` is
+from `@oxy.so/db`, matching Mongoose's `timestamps: true`. `updated_at` is
 maintained by the application (`$onUpdate`), not a trigger — a trigger is
 invisible in the schema file and would overwrite historical values during a
 backfill.
@@ -163,7 +163,7 @@ the first time a Telegram `sessionString` — a full account credential — can 
 serialized into a response nobody audited.
 
 `../protectedColumns.ts` holds the registry; read through
-`publicColumns(table, PROTECTED_COLUMNS)` from `@oxyhq/db/assert`. The exclusion is
+`publicColumns(table, PROTECTED_COLUMNS)` from `@oxy.so/db/assert`. The exclusion is
 at the TYPE level, so a serializer touching one fails `tsc` — **provided the
 registry stays `as const` and is never re-annotated**, which would widen the
 literals away and delete the compile-time half while still looking fail-closed.
@@ -197,7 +197,7 @@ purpose rather than inherited from a forgotten flag. `--phase=all` is for a
 from-zero genesis run ONLY: when a chain interleaves phases, neither `pre` nor
 `post` alone can apply it against an empty ledger.
 
-`--target-database` is required too. `@oxyhq/db` leaves the guard optional so a
+`--target-database` is required too. `@oxy.so/db` leaves the guard optional so a
 service can adopt the runner without rewriting every invocation; this one adopts it
 from day one, so a `DATABASE_URL` pointing somewhere unexpected fails loudly
 instead of migrating another tenant on a shared instance.
@@ -214,7 +214,7 @@ A mocked `insert` accepts any statement, including one the server rejects outrig
 CHECK constraints, partial unique indexes, `ON DELETE CASCADE` and `ON CONFLICT`
 have no mocked counterpart, and they are precisely what a port gets wrong.
 
-**Assert driver errors through `@oxyhq/db`'s helpers, never a message regex.**
+**Assert driver errors through `@oxy.so/db`'s helpers, never a message regex.**
 Drizzle wraps the driver failure: `code` and `constraint_name` live on `cause`, and
 the wrapper's message is only `Failed query: …`. This suite failed on exactly that
 the first time it ran. Name the CONSTRAINT too — `isUniqueViolation` alone cannot

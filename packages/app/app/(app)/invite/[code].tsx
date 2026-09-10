@@ -4,13 +4,13 @@ import { View, Pressable } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import Head from "expo-router/head";
 import { HeartHandshake, Gift, ArrowRight, LogIn } from "lucide-react-native";
-import { useAuth } from "@oxyhq/services";
+import { useAuth } from "@oxy.so/services";
 import { AuthContainer } from "@/components/auth/auth-container";
 import { AuthLogo } from "@/components/auth/auth-logo";
 import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
 import { useRedeemInviteCode } from "@/lib/hooks/use-referrals";
-import { ContentPanel } from "@oxyhq/bloom/content-panel";
+import { ContentPanel } from "@oxy.so/bloom/content-panel";
 
 export default function InviteScreen() {
   const { code } = useLocalSearchParams<{ code: string }>();

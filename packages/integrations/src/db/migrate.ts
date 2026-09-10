@@ -23,7 +23,7 @@
  *
  * ## `--target-database` is required here
  *
- * `@oxyhq/db` makes the guard optional so a service can adopt the runner
+ * `@oxy.so/db` makes the guard optional so a service can adopt the runner
  * without rewriting every invocation. This service adopts it from day one, so
  * there is no legacy invocation to protect: a `DATABASE_URL` pointing somewhere
  * unexpected fails loudly instead of migrating another tenant's database on a
@@ -36,7 +36,7 @@ import {
   type MigrationRun,
   readTargetDatabase,
   runMigrations,
-} from '@oxyhq/db/migrate';
+} from '@oxy.so/db/migrate';
 import { createLogger } from '../shared/logger';
 
 const PACKAGE_ROOT = join(__dirname, '..', '..');
@@ -53,7 +53,7 @@ function isDryRun(argv: readonly string[]): boolean {
 /**
  * Read `--phase=<pre|post|all>`, with NO default.
  *
- * `@oxyhq/db` takes a `run` option rather than a flag, so how it is spelled on a
+ * `@oxy.so/db` takes a `run` option rather than a flag, so how it is spelled on a
  * command line belongs to the caller. Two deliberate choices here:
  *
  * - An unrecognised value throws instead of falling back. Silently running `all`

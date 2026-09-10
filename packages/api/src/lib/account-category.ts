@@ -1,4 +1,4 @@
-import { SELECTABLE_ACCOUNT_CATEGORY_IDS, type AccountCategoryId } from '@oxyhq/contracts';
+import { SELECTABLE_ACCOUNT_CATEGORY_IDS, type AccountCategoryId } from '@oxy.so/contracts';
 
 /**
  * What an agent's bot ACCOUNT is about, in Oxy's own taxonomy.
@@ -8,7 +8,7 @@ import { SELECTABLE_ACCOUNT_CATEGORY_IDS, type AccountCategoryId } from '@oxyhq/
  * LEAF that imports nothing, which is right for Alia's own frozen vocabularies
  * (`agent-color.ts`, `capability-grants.ts`) and wrong for this — it is a thin
  * reading of somebody else's contract, and its whole point is not restating
- * what `@oxyhq/contracts` already says.
+ * what `@oxy.so/contracts` already says.
  *
  * One definition for both doors an agent can be born through — `POST
  * /agents/generate` behind the create screen, and the chat tool that makes one

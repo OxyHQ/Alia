@@ -25,7 +25,7 @@
  */
 
 import { Router } from 'express';
-import { OxyServices } from '@oxyhq/core';
+import { OxyServices } from '@oxy.so/core';
 import { authenticateToken } from '../middleware/auth.js';
 import { refuseIssuance } from '../middleware/credential-deprecation.js';
 import { log } from '../lib/logger.js';

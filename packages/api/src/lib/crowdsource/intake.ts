@@ -1,4 +1,4 @@
-import { uuidv7 } from '@oxyhq/db';
+import { uuidv7 } from '@oxy.so/db';
 import { getDb } from '../../db/index.js';
 import {
   createReport as storeReport,

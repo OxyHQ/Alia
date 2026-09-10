@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { OxyProvider } from "@oxyhq/services";
-import { BloomThemeProvider } from "@oxyhq/bloom/theme";
-import { ConnectionStatusToasts } from "@oxyhq/bloom/connection-status";
+import { OxyProvider } from "@oxy.so/services";
+import { BloomThemeProvider } from "@oxy.so/bloom/theme";
+import { ConnectionStatusToasts } from "@oxy.so/bloom/connection-status";
 import { ThemeProvider } from "@/components/theme-provider";
 import { AuthGuard } from "@/components/auth-guard";
 import { DesktopOnlyGuard } from "@/components/desktop-only-guard";

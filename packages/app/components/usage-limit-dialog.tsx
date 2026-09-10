@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Zap, Clock, CreditCard, Lock } from 'lucide-react-native';
-import { Dialog, type DialogAction } from '@oxyhq/bloom/dialog';
+import { Dialog, type DialogAction } from '@oxy.so/bloom/dialog';
 import { UsageLimitError } from '@/lib/errors/usage-limit-error';
 import { useTranslation } from '@/lib/hooks/use-translation';
 

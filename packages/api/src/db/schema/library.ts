@@ -12,7 +12,7 @@
  */
 
 import { bigint, index, pgTable, text } from 'drizzle-orm/pg-core';
-import { createdAt, generatedId, updatedAt } from '@oxyhq/db';
+import { createdAt, generatedId, updatedAt } from '@oxy.so/db';
 import { FILE_CATEGORIES } from '../../domain/library-file.js';
 import { checkOneOf } from './columns';
 

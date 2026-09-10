@@ -11,7 +11,7 @@
 import React from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { AccountNode, CreateAccountInput } from '@oxyhq/core';
+import type { AccountNode, CreateAccountInput } from '@oxy.so/core';
 
 import { createBotAccount } from '../bot-account';
 
@@ -69,7 +69,7 @@ vi.mock('@/components/ui/prompt-input/prompt-input', async () => {
   };
 });
 
-vi.mock('@oxyhq/bloom/content-panel', async () => {
+vi.mock('@oxy.so/bloom/content-panel', async () => {
   const ReactModule = await import('react');
   return {
     ContentPanel: ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
@@ -77,7 +77,7 @@ vi.mock('@oxyhq/bloom/content-panel', async () => {
   };
 });
 
-vi.mock('@oxyhq/bloom/toast', () => ({
+vi.mock('@oxy.so/bloom/toast', () => ({
   toast: { error: mocks.toastError, success: mocks.toastSuccess, info: mocks.toastInfo },
 }));
 
@@ -85,7 +85,7 @@ vi.mock('expo-router', () => ({
   useRouter: () => ({ replace: mocks.replace }),
 }));
 
-vi.mock('@oxyhq/services', () => ({
+vi.mock('@oxy.so/services', () => ({
   useOxy: () => ({
     createAccount: mocks.createAccount,
     oxyServices: { checkUsernameAvailability: mocks.checkUsernameAvailability },

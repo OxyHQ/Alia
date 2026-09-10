@@ -33,8 +33,8 @@ const refundReservation = vi.fn();
  */
 const oxy = vi.hoisted(() => ({ mode: 'denies' as 'grants' | 'denies' | 'unreachable' }));
 
-vi.mock('@oxyhq/core', async () => {
-  const actual = await vi.importActual<typeof import('@oxyhq/core')>('@oxyhq/core');
+vi.mock('@oxy.so/core', async () => {
+  const actual = await vi.importActual<typeof import('@oxy.so/core')>('@oxy.so/core');
   return {
     ...actual,
     OxyServices: class {

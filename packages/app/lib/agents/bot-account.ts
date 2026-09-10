@@ -36,8 +36,8 @@
  * what the first one did.
  */
 
-import { USERNAME_MAX_LENGTH } from '@oxyhq/contracts';
-import type { AccountCategoryId, AccountNode, CreateAccountInput } from '@oxyhq/core';
+import { USERNAME_MAX_LENGTH } from '@oxy.so/contracts';
+import type { AccountCategoryId, AccountNode, CreateAccountInput } from '@oxy.so/core';
 
 const USERNAME_ATTEMPTS = 5;
 
@@ -64,7 +64,7 @@ const BOT_USERNAME_SUFFIX = 'bot';
  *
  * ## This lives here TEMPORARILY
  *
- * `@oxyhq/contracts` owns the rule — `usernameSchema` and the length live
+ * `@oxy.so/contracts` owns the rule — `usernameSchema` and the length live
  * there — but it does NOT publish this function yet. Measured against the
  * registry: `0.34.0`, today's `latest`, exports `usernameSchema`,
  * `isValidUsername`, `stripDisallowedUsernameCharacters` and the three length
@@ -116,7 +116,7 @@ export interface CreateBotAccountInput {
   bio?: string;
   /**
    * What the account is ABOUT, as Oxy's own taxonomy names it — validated by
-   * `POST /agents/generate` against `@oxyhq/contracts` before it ever gets
+   * `POST /agents/generate` against `@oxy.so/contracts` before it ever gets
    * here, so this forwards and does not judge.
    *
    * ORDERED at Oxy, first element primary; an agent is offered exactly one.

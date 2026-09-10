@@ -20,7 +20,7 @@
 
 import { boolean, doublePrecision, index, jsonb, pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
-import { createdAt, generatedId, updatedAt } from '@oxyhq/db';
+import { createdAt, generatedId, updatedAt } from '@oxy.so/db';
 import { MEMORY_RESPONSE_LENGTHS, MEMORY_TYPES } from '../../domain/user-memory.js';
 import { checkOneOf } from './columns';
 

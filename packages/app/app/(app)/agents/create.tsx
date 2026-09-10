@@ -4,16 +4,16 @@ import { Text } from "@/components/ui/text";
 import { PromptInput } from "@/components/ui/prompt-input/prompt-input";
 import { useRouter } from "expo-router";
 import { useCreateAgent } from "@/lib/hooks/use-agents";
-import { useOxy } from "@oxyhq/services";
-import { SELECTABLE_ACCOUNT_CATEGORY_IDS, type AccountCategoryId } from "@oxyhq/core";
+import { useOxy } from "@oxy.so/services";
+import { SELECTABLE_ACCOUNT_CATEGORY_IDS, type AccountCategoryId } from "@oxy.so/core";
 import { applyBotUsernameSuffix, createBotAccount } from "@/lib/agents/bot-account";
 import { useTranslation } from "@/lib/hooks/use-translation";
-import { toast } from "@oxyhq/bloom/toast";
+import { toast } from "@oxy.so/bloom/toast";
 import apiClient from "@/lib/api/client";
 import { API_ROUTES } from "@/lib/api/routes";
 import { Sparkles, MessageCircleQuestion, GitBranch, BarChart3 } from "lucide-react-native";
 import { errorMessage as getErrorMessage } from '@/lib/errors/error-utils';
-import { ContentPanel } from "@oxyhq/bloom/content-panel";
+import { ContentPanel } from "@oxy.so/bloom/content-panel";
 
 type Archetype = 'general' | 'qa' | 'task_router' | 'status_update';
 
