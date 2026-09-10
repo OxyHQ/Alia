@@ -1,12 +1,17 @@
 /**
- * Fallback policy — a property of ONE request, not a global setting.
+ * Fallback policy — a property of a routing PRESET, not of a request.
  *
  * ADR 0003 invariant 3: substituting one model for another is only permitted
  * when the caller selected a routing profile that allows it or set an explicit
- * fallback policy that allows it. This module is the type that carries that
- * decision from the request body down to the resolver, plus the two refusals
- * that become product-visible when a policy forbids what the engine would
- * otherwise have done silently.
+ * fallback policy that allows it. Since #477 only the first half is Alia's:
+ * the public Oxy inference request carries no fallback field and Oxy resolves
+ * routes from the application's routing policy (ADR 0017), so
+ * `lib/chat/request-context.ts` REFUSES a `fallbackPolicy` body parameter
+ * with 400 `invalid_request` rather than carrying a value nothing downstream
+ * honours. What this module still carries is the vocabulary
+ * `lib/routing/presets.ts` records per preset, plus the refusals that become
+ * product-visible when a resolver forbids what it would otherwise have done
+ * silently.
  *
  * ## The default is TODAY's behaviour and does not change here
  *
@@ -155,31 +160,5 @@ export class FallbackNotPermittedError extends AliaError {
       httpStatus: 503,
     });
     this.name = 'FallbackNotPermittedError';
-  }
-}
-
-/**
- * A caller named something that is not a fallback policy.
- *
- * Separate from `UnregisteredModelError` because the two are different mistakes
- * with different fixes, and collapsing them would tell a caller who mistyped a
- * policy to go and look at the model list.
- *
- * The echo follows the same rule as `UnregisteredModelError`'s: it is the
- * caller's own value, so only `redactUnsafeDetail` applies to it.
- */
-export class UnknownFallbackPolicyError extends AliaError {
-  constructor(readonly requested: unknown) {
-    super({
-      code: AliaErrorCode.INVALID_REQUEST,
-      message: `Unknown fallback policy: ${String(requested)}`,
-      userMessage: redactUnsafeDetail(
-        `"${String(requested)}" is not a fallback policy. Accepted values: ${FALLBACK_POLICIES.join(', ')}.`,
-      ),
-      retryable: false,
-      reason: 'format',
-      httpStatus: 400,
-    });
-    this.name = 'UnknownFallbackPolicyError';
   }
 }

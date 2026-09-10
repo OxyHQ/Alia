@@ -15,7 +15,6 @@ import * as catalogue from '../internal/providers/lib/routing-profile-catalogue.
 import type { PlanFilter } from '../db/billing/planRepository.js';
 import type { AvailabilityScope } from './availability-scope.js';
 import type { RequiredAttribution } from './model-attribution.js';
-import type { FallbackPolicy } from './routing/policy.js';
 import type { ModelIdentity } from './routing/model-identity.js';
 
 // ============== TYPES ==============
@@ -106,14 +105,13 @@ export interface ModelMapping {
 /**
  * Per-request routing options.
  *
- * Declared here rather than re-exported from `internal/providers`, matching how
- * every other type on this page is declared: this module is the seam, and it
- * must not pull the provider tree in at module load. The shape is structurally
- * identical to `FallbackOptions` and is checked against it by `tsc` at the one
- * call site below that passes it across.
+ * No `fallbackPolicy`: fallback is not a per-request choice on this API. The
+ * public Oxy inference request carries no such field and Oxy resolves routes
+ * from the application's routing policy (ADR 0017), so
+ * `lib/chat/request-context.ts` refuses the parameter rather than carrying a
+ * value nothing downstream could honour.
  */
 export interface RoutingOptions {
-  fallbackPolicy?: FallbackPolicy;
   /**
    * The model identity the caller named, when it named a model rather than a
    * profile (`lib/routing/model-selection.ts`).

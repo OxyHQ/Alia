@@ -59,14 +59,17 @@ region or permissive fallback may be invented in Alia.
   "reasoningEffort": "medium",
   "agentMode": "research",
   "deepResearch": true,
-  "fallbackPolicy": "cross-model",
   "tools": ["webSearch", "webScraper"],
   "stream_options": { "include_usage": true }
 }
 ```
 
 The profile expresses intent. Oxy and Kaana own route authorization and
-execution; Alia never sees an upstream-provider key.
+execution; Alia never sees an upstream-provider key. There is no per-request
+fallback parameter: a body carrying `fallbackPolicy` (or `fallback_policy`) is
+refused with `400 invalid_request` before any credit is reserved, because the
+public Oxy inference request has no such field and Oxy resolves routes from the
+application's routing policy (`lib/chat/request-context.ts`).
 
 ## Product stream events
 
