@@ -633,6 +633,12 @@ export function useStreamingChat(apiUrl: string, conversationId?: string, reason
                           sourcesFound: parsed.sourcesFound,
                           currentQuery: parsed.currentQuery,
                           iteration: parsed.iteration,
+                          isComplete: parsed.phase === 'complete',
+                          // The final event carries the sources; every earlier
+                          // one carries none, and a progress event after the
+                          // final one must not erase them.
+                          sources: parsed.sources ?? lastMessage.researchProgress?.sources,
+                          totalSearches: parsed.totalSearches ?? lastMessage.researchProgress?.totalSearches,
                         },
                       };
                     }

@@ -6,7 +6,7 @@ import { Brain, CheckCircle2, X, Globe, ChevronRight } from "lucide-react-native
 import { useUIStore, type ThoughtTab } from "@/lib/stores/ui-store";
 import { useTheme, type ThemeColors } from "@oxy.so/bloom/theme";
 import { useTranslation } from "@/lib/hooks/use-translation";
-import { extractSources, buildSteps, buildAuditTimeline, type Source, type ThoughtStep, type AuditEntry } from "@/lib/thought-utils";
+import { extractSources, buildSteps, buildAuditTimeline, mergeSources, researchSourcesToSources, type Source, type ThoughtStep, type AuditEntry } from "@/lib/thought-utils";
 import { getToolIcon } from "@/lib/tool-registry";
 import { LottieLoader } from "@/components/lottie-loader";
 import Animated, {
@@ -313,8 +313,14 @@ export function ThoughtPanel() {
     [message, isStreaming]
   );
 
+  // A research answer's sources come from its persisted `deepResearch`
+  // invocation after a reload and from the live progress event before one;
+  // both are read so the tab is the same either way.
   const sources = useMemo(
-    () => (message ? extractSources(message.toolInvocations) : []),
+    () =>
+      message
+        ? mergeSources(extractSources(message.toolInvocations), researchSourcesToSources(message.researchProgress?.sources))
+        : [],
     [message]
   );
 

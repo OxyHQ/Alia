@@ -458,12 +458,17 @@ const MessageRow = React.memo(function MessageRow({
                     {m.isStreaming ? '\u258C' : ''}
                   </Text>
                 ) : (
-                  <CustomMarkdown content={messageText} />
+                  <CustomMarkdown
+                    content={messageText}
+                    toolInvocations={m.toolInvocations}
+                    researchSources={m.researchProgress?.sources}
+                  />
                 )}
               </View>
               {m.isStreaming ? null : (
                 <MessageSources
                   toolInvocations={m.toolInvocations}
+                  researchSources={m.researchProgress?.sources}
                   onPress={() => openThoughtPanel(m.id, 'sources')}
                 />
               )}

@@ -2,20 +2,40 @@
  * Deep Research Engine
  *
  * Multi-step research flow:
- *   1. Decompose query into 3-5 sub-questions
+ *   0. Read the OUTPUT CONTRACT off the request — length, shape, language,
+ *      how many sources — and the subject it leaves behind
+ *   1. Decompose the subject into 3-5 sub-questions (2-3 for a short answer)
  *   2. For each sub-question: multiple web searches with varied query formulations
  *   3. Extract key findings from each source with URL tracking
- *   4. Synthesize into structured report with inline citations [1], [2]
- *   5. Identify gaps, do 1-2 follow-up iterations
- *   6. Generate final polished report with references section
+ *   4. Synthesize into the contracted shape with inline citations [1], [2]
+ *   5. Identify gaps, do 1-2 follow-up iterations (long-form reports only)
+ *   6. Normalise the citation markers and append the references section
  *
  * Streams progress events via a callback for real-time UI updates.
+ *
+ * ## What a failure looks like
+ *
+ * Every model step here is best-effort and falls back — except the write-up.
+ * When synthesis fails there is no report, and the result says so: `status`
+ * is `'partial'`, `report` is a short note plus the sources found, and the
+ * final progress phase is `'failed'`. It used to hand the joined intermediate
+ * findings to the reader under "Research complete" (#541), which is a report
+ * nobody wrote presented as one somebody did. The findings still travel, in
+ * `findingsSummary`, for the activity panel and the persisted tool record —
+ * never as the message.
  */
 
 import { generateText } from 'ai';
 import { resolveModel, getAIModel } from '../chat-core.js';
 import { webSearchTool } from '../tools/web-search.js';
-import { SourceTracker } from './source-tracker.js';
+import { SourceTracker, formatSourceLink } from './source-tracker.js';
+import { normalizeCitationMarkers } from './citations.js';
+import {
+  describeOutputContract,
+  isMetaSubQuestion,
+  parseOutputContract,
+  type OutputContract,
+} from './output-contract.js';
 import { log } from '../logger.js';
 
 // ── Types ──
@@ -27,7 +47,17 @@ export type ResearchPhase =
   | 'synthesizing'
   | 'follow_up'
   | 'finalizing'
-  | 'complete';
+  | 'complete'
+  /** Research ran but the final write-up could not be produced; the report is a partial note. */
+  | 'failed';
+
+/**
+ * `complete`: the report is the model's write-up. `partial`: searching
+ * finished but the write-up failed, and `report` is the explicit note.
+ * `failed` is reserved for a run that produced nothing at all (thrown, not
+ * returned, today) so the two remaining values are what a caller branches on.
+ */
+export type ResearchStatus = 'complete' | 'partial' | 'failed';
 
 export interface ResearchProgress {
   phase: ResearchPhase;
@@ -39,10 +69,18 @@ export interface ResearchProgress {
 }
 
 export interface ResearchResult {
+  status: ResearchStatus;
   report: string;
   sources: Array<{ id: number; url: string; title: string }>;
   subQuestions: string[];
   totalSearches: number;
+  /** The contract the answer was written to; `report` shape when none was requested. */
+  outputContract: OutputContract;
+  /**
+   * A bounded digest of the intermediate findings. Never part of the message:
+   * it is for progress/activity surfaces and the persisted tool record.
+   */
+  findingsSummary: string;
 }
 
 interface ResearchOptions {
@@ -56,6 +94,13 @@ interface ResearchOptions {
 
 const MAX_SOURCES_PER_QUERY = 5;
 const MAX_FOLLOW_UP_ITERATIONS = 2;
+/** How many sources the partial note lists before it says "and N more". */
+const PARTIAL_NOTE_SOURCES = 10;
+/** Upper bound on `findingsSummary`, in characters. */
+const FINDINGS_SUMMARY_CHARS = 1200;
+/** What a partial result says in place of the write-up. */
+export const PARTIAL_REPORT_NOTE =
+  'Research finished searching but the final write-up failed; here is what was found so far:';
 
 // ── Main Entry Point ──
 
@@ -68,11 +113,19 @@ export async function runDeepResearch(
   const sourceTracker = new SourceTracker();
   let totalSearches = 0;
 
+  // ── Phase 0: The output contract, before anything is decomposed ──
+  //
+  // Deterministic, so it adds no model call and no progress phase. The
+  // decomposer sees `contract.subject`; the synthesiser sees the whole contract.
+
+  const contract = parseOutputContract(query);
+  const isShortAnswer = contract.shape !== 'report';
+
   // ── Phase 1: Decompose into sub-questions ──
 
   onProgress({ phase: 'decomposing', message: 'Breaking down the research question...' });
 
-  const subQuestions = await decomposeQuery(query, messages, userId);
+  const subQuestions = await decomposeQuery(query, contract, messages, userId);
   onProgress({
     phase: 'decomposing',
     message: `Identified ${subQuestions.length} research angles`,
@@ -147,11 +200,17 @@ export async function runDeepResearch(
     sourcesFound: sourceTracker.count(),
   });
 
-  let report = await synthesize(query, subQuestions, allFindings, sourceTracker, userId);
+  let report = await synthesize(query, contract, subQuestions, allFindings, sourceTracker, userId);
 
   // ── Phase 4: Follow-up iterations (identify gaps + targeted search) ──
+  //
+  // Only for a long-form report, and only when there IS a report to find gaps
+  // in. A two-sentence answer has "gaps" by construction, and chasing them
+  // would only widen a result the person asked to be narrow.
 
-  for (let iter = 0; iter < maxIterations; iter++) {
+  const followUpRounds = report !== null && !isShortAnswer ? maxIterations : 0;
+
+  for (let iter = 0; iter < followUpRounds; iter++) {
     if (signal?.aborted) throw new Error('Research aborted');
 
     onProgress({
@@ -161,7 +220,7 @@ export async function runDeepResearch(
       sourcesFound: sourceTracker.count(),
     });
 
-    const gaps = await identifyGaps(query, report, userId);
+    const gaps = await identifyGaps(query, report ?? '', userId);
     if (!gaps || gaps.length === 0) break;
 
     // Search for each gap
@@ -180,10 +239,14 @@ export async function runDeepResearch(
       }
     }
 
-    // Re-synthesize with new sources
+    // Re-synthesize with new sources. A failed re-synthesis keeps the report
+    // we already have — it was a complete write-up, and a later round failing
+    // does not make it less of one — and stops iterating.
     const gapFindings = await extractFindings(gaps.join('; '), sourceTracker.getAll(), userId);
     allFindings.push(gapFindings);
-    report = await synthesize(query, subQuestions, allFindings, sourceTracker, userId);
+    const revised = await synthesize(query, contract, subQuestions, allFindings, sourceTracker, userId);
+    if (revised === null) break;
+    report = revised;
   }
 
   // ── Phase 5: Final polish ──
@@ -194,7 +257,31 @@ export async function runDeepResearch(
     sourcesFound: sourceTracker.count(),
   });
 
-  const finalReport = report + sourceTracker.formatReferences();
+  const sources = sourceTracker.toJSON();
+  const findingsSummary = summarizeFindings(allFindings);
+
+  if (report === null) {
+    onProgress({
+      phase: 'failed',
+      message: 'Research finished searching, but the final write-up failed',
+      sourcesFound: sourceTracker.count(),
+    });
+
+    return {
+      status: 'partial',
+      report: formatPartialReport(sourceTracker),
+      sources,
+      subQuestions,
+      totalSearches,
+      outputContract: contract,
+      findingsSummary,
+    };
+  }
+
+  // Markers are normalised against the tracker, so a number the model made up
+  // never reaches the reader as a dangling `[9]`.
+  const body = normalizeCitationMarkers(report, sources.map((s) => s.id)).trim();
+  const finalReport = body + sourceTracker.formatReferences();
 
   onProgress({
     phase: 'complete',
@@ -203,20 +290,53 @@ export async function runDeepResearch(
   });
 
   return {
+    status: 'complete',
     report: finalReport,
-    sources: sourceTracker.toJSON(),
+    sources,
     subQuestions,
     totalSearches,
+    outputContract: contract,
+    findingsSummary,
   };
 }
 
 // ── Helper Functions ──
 
+/**
+ * The message a partial result carries instead of a write-up: the note, then
+ * the sources as links, bounded. No findings — those were never written for a
+ * reader, and the note is what makes the state honest.
+ */
+function formatPartialReport(sourceTracker: SourceTracker): string {
+  const all = sourceTracker.getAll();
+  if (all.length === 0) {
+    return `**Research incomplete.** ${PARTIAL_REPORT_NOTE}\n\nNo usable sources were found.`;
+  }
+  const listed = all.slice(0, PARTIAL_NOTE_SOURCES).map((s) => `- [${s.id}] ${formatSourceLink(s)}`);
+  const rest = all.length - listed.length;
+  const more = rest > 0 ? `\n- …and ${rest} more source${rest === 1 ? '' : 's'}` : '';
+  return `**Research incomplete.** ${PARTIAL_REPORT_NOTE}\n\n${listed.join('\n')}${more}`;
+}
+
+/** The findings, flattened and bounded, for surfaces that show process rather than answer. */
+function summarizeFindings(findings: string[]): string {
+  const joined = findings
+    .map((f) => f.trim())
+    .filter((f) => f.length > 0)
+    .join('\n')
+    .replace(/\n{2,}/g, '\n');
+  return joined.length > FINDINGS_SUMMARY_CHARS ? `${joined.slice(0, FINDINGS_SUMMARY_CHARS - 1)}…` : joined;
+}
+
 async function decomposeQuery(
   query: string,
+  contract: OutputContract,
   messages: Array<{ role: string; content: string }>,
   _userId: string,
 ): Promise<string[]> {
+  const range = contract.shape === 'report' ? '3-5' : '2-3';
+  const limit = contract.shape === 'report' ? 5 : 3;
+
   try {
     const resolved = await resolveModel('route:instant');
     if (!resolved) throw new Error('No model available');
@@ -228,23 +348,43 @@ async function decomposeQuery(
       .map(m => m.content)
       .join('\n');
 
+    // The subject is what gets decomposed. The original request is shown only
+    // when it differs, and labelled as context, so its "two sentences" and
+    // "with a source" do not become research angles of their own.
+    const requestNote = contract.subject !== query.trim()
+      ? `Original request (context only — its length, format and citation instructions are handled elsewhere and must NOT become sub-questions):\n${query}\n\n`
+      : '';
+
     const { text } = await generateText({
       model,
-      system: 'You are a research planning assistant. Given a query, decompose it into 3-5 focused sub-questions that would help produce a comprehensive answer. Return ONLY a JSON array of strings, nothing else.',
-      prompt: `Query: ${query}\n\n${contextSummary ? `Context from conversation:\n${contextSummary}\n\n` : ''}Decompose this into 3-5 research sub-questions:`,
+      system: `You are a research planning assistant. Given a research SUBJECT, decompose it into ${range} focused sub-questions that would help answer it comprehensively.
+Every sub-question must be ABOUT THE SUBJECT ITSELF. Never produce a sub-question about how to write, summarize, shorten, cite, reference, format or structure an answer — those are not research topics.
+Return ONLY a JSON array of strings, nothing else.`,
+      prompt: `Subject: ${contract.subject}\n\n${requestNote}${contextSummary ? `Context from conversation:\n${contextSummary}\n\n` : ''}Decompose this into ${range} research sub-questions about the subject:`,
       maxOutputTokens: 500,
     });
 
-    const parsed = JSON.parse(text.replace(/```json?\n?|\n?```/g, '').trim());
+    const parsed: unknown = JSON.parse(text.replace(/```json?\n?|\n?```/g, '').trim());
     if (Array.isArray(parsed) && parsed.length > 0) {
-      return parsed.slice(0, 5);
+      const questions = parsed
+        .filter((q): q is string => typeof q === 'string' && q.trim().length > 0)
+        .map((q) => q.trim());
+      const onTopic = questions.filter((q) => !isMetaSubQuestion(q));
+      if (onTopic.length < questions.length) {
+        log.general.info({ dropped: questions.length - onTopic.length }, 'Research: dropped meta sub-questions about format');
+      }
+      if (onTopic.length > 0) return onTopic.slice(0, limit);
     }
   } catch (err) {
     log.general.warn({ err }, 'Research: failed to decompose query');
   }
 
-  // Fallback: use the original query plus two reformulations
-  return [query, `${query} latest research`, `${query} analysis comparison`];
+  // Fallback: the subject plus reformulations of it — of the SUBJECT, so the
+  // searches are not led by "summarize" or "two sentences".
+  const subject = contract.subject;
+  return contract.shape === 'report'
+    ? [subject, `${subject} latest research`, `${subject} analysis comparison`]
+    : [subject, `${subject} overview`];
 }
 
 function reformulateQuery(query: string): string {
@@ -258,6 +398,14 @@ function reformulateQuery(query: string): string {
   return strategy(query);
 }
 
+/**
+ * Key findings for one sub-question, with `[n]` citations into the tracker.
+ *
+ * Returns the empty string when extraction fails. It used to return the raw
+ * excerpts joined per source, which then reached the reader whenever synthesis
+ * failed too (#541); an empty finding is skipped by the synthesiser, which
+ * sees the source list separately and loses nothing it can cite.
+ */
 async function extractFindings(
   question: string,
   sources: Array<{ id: number; url: string; title: string; excerpt: string }>,
@@ -285,44 +433,61 @@ async function extractFindings(
     return text;
   } catch (err) {
     log.general.warn({ err }, 'Research: failed to extract findings');
-    return sources.map(s => `[${s.id}] ${s.title}: ${s.excerpt}`).join('\n');
+    return '';
   }
 }
 
+/** How many tracker entries the synthesis prompt lists for citing. */
+const SYNTHESIS_SOURCE_LIST = 40;
+
+/**
+ * The write-up, in the contracted shape — or `null` when the model call fails.
+ *
+ * `null` and not a fallback: there is no honest text to put in a report's
+ * place, and the caller decides what a partial result says.
+ */
 async function synthesize(
   originalQuery: string,
+  contract: OutputContract,
   subQuestions: string[],
   findings: string[],
   sourceTracker: SourceTracker,
   _userId: string,
-): Promise<string> {
+): Promise<string | null> {
   try {
     const resolved = await resolveModel('route:auto');
     if (!resolved) throw new Error('No model available');
     const model = getAIModel(resolved, 'deep_research');
 
-    const findingsText = findings.map((f, i) =>
-      `### Research Angle ${i + 1}: ${subQuestions[i] || 'Follow-up'}\n${f}`
-    ).join('\n\n');
+    const findingsText = findings
+      .map((f, i) => ({ finding: f.trim(), angle: subQuestions[i] || 'Follow-up' }))
+      .filter(({ finding }) => finding.length > 0)
+      .map(({ finding, angle }, i) => `### Research Angle ${i + 1}: ${angle}\n${finding}`)
+      .join('\n\n');
+
+    // The numbered source list is what `[n]` resolves against, so the model
+    // sees every id it may cite even where a finding failed to extract.
+    const sourceList = sourceTracker
+      .getAll()
+      .slice(0, SYNTHESIS_SOURCE_LIST)
+      .map((s) => `[${s.id}] ${s.title} — ${s.url}`)
+      .join('\n');
+
+    const task = contract.shape === 'report'
+      ? 'Synthesize these findings into a comprehensive research report:'
+      : 'Answer the original query from these findings, in exactly the requested shape:';
 
     const { text } = await generateText({
       model,
-      system: `You are a senior research analyst producing a comprehensive, well-structured report. Requirements:
-- Use clear headings and sections
-- Include inline citations [1], [2], etc. referencing the source numbers from the findings
-- Be thorough but concise — aim for 800-1500 words
-- Highlight key takeaways
-- Note any limitations or areas needing further research
-- Use professional tone
-Do NOT include a references section — it will be added automatically.`,
-      prompt: `Original Query: ${originalQuery}\n\nResearch Findings:\n${findingsText}\n\nTotal sources found: ${sourceTracker.count()}\n\nSynthesize these findings into a comprehensive research report:`,
+      system: describeOutputContract(contract),
+      prompt: `Original Query: ${originalQuery}\n\nResearch Findings:\n${findingsText || '(no findings were extracted)'}\n\nSources (cite by number):\n${sourceList || '(none)'}\n\nTotal sources found: ${sourceTracker.count()}\n\n${task}`,
       maxOutputTokens: 4000,
     });
 
     return text;
   } catch (err) {
     log.general.warn({ err }, 'Research: synthesis failed');
-    return findings.join('\n\n---\n\n');
+    return null;
   }
 }
 
