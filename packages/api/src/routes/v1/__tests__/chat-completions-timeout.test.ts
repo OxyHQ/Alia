@@ -347,6 +347,8 @@ function createMockRes() {
       _headersSent = true;
     }),
     on: vi.fn(),
+    off: vi.fn(),
+    get writableEnded() { return ended; },
     get headersSent() { return _headersSent; },
     socket: { setNoDelay: vi.fn() },
     // Test inspection helpers

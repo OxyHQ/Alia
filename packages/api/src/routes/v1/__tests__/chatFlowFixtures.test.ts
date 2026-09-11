@@ -426,6 +426,9 @@ interface RecordingRes {
   flushHeaders(): void;
   status(code: number): RecordingRes;
   json(body: unknown): void;
+  on(event: string, listener: () => void): void;
+  off(event: string, listener: () => void): void;
+  disconnect(): void;
   headersSent: boolean;
   writableEnded: boolean;
   socket: { setNoDelay: (on: boolean) => void };
@@ -437,6 +440,7 @@ interface RecordingRes {
 function recordingRes(): RecordingRes {
   const raw: string[] = [];
   const headers: Record<string, string> = {};
+  const listeners = new Map<string, Set<() => void>>();
   const res = {
     raw,
     headers,
@@ -468,6 +472,17 @@ function recordingRes(): RecordingRes {
       res.jsonBody = body;
       res.headersSent = true;
       H.timeline.push('http:json');
+    },
+    on(event: string, listener: () => void) {
+      if (!listeners.has(event)) listeners.set(event, new Set());
+      listeners.get(event)?.add(listener);
+    },
+    off(event: string, listener: () => void) {
+      listeners.get(event)?.delete(listener);
+    },
+    disconnect() {
+      H.timeline.push('client:disconnect');
+      for (const listener of listeners.get('close') ?? []) listener();
     },
   };
   return res;
@@ -944,7 +959,7 @@ describe('fixture: app chat flow — streaming, direct user session, one server 
     // await would be a disconnect nobody is listening for — a test that passes
     // for the wrong reason.
     H.state.onModelCall = (callIndex) => {
-      if (callIndex === 2) req.disconnect();
+      if (callIndex === 2) res.disconnect();
     };
 
     await run(req, res);
