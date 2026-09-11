@@ -149,8 +149,10 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
    */
   const observation: TurnObservation = { timeToFirstTokenMs: null, cancelled: false, resolvedModelReference: null };
 
-  const onClientClose = (): void => { observation.cancelled = true; };
-  req.on('close', onClientClose);
+  const onClientClose = (): void => {
+    if (!res.writableEnded) observation.cancelled = true;
+  };
+  res.on('close', onClientClose);
 
   /**
    * The lifecycle context AS IT STANDS, read fresh at each call because the
@@ -192,10 +194,10 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
    * that happens on every failing exit.
    */
   const recordFailedTurn = (errorClass: AliaErrorCode): void => {
-    req.off('close', onClientClose);
     runPostChatHooks(lifecycleContext(), '', observation, errorClass);
   };
 
+  try {
   hostedAttempt: {
     // Check the global timeout before opening the hosted stream.
     if (state.globalTimedOut) {
@@ -260,7 +262,9 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
           toolNameMapping,
           observation,
         });
-        req.off('close', onClientClose);
+        // Stable, metadata-free positive signal for the passive public status
+        // alarm. It is emitted only after the hosted turn completed.
+        if (!observation.cancelled) log.v1.info('Alia functional turn completed');
         return { status: 'completed' };
       }
 
@@ -412,7 +416,6 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
       });
 
       sse.stopKeepAlive();
-      req.off('close', onClientClose);
       if (beforeStreamClose) {
         await beforeStreamClose().catch((err: unknown) => {
           // The answer has already completed and been persisted. A bookkeeping
@@ -424,6 +427,9 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
       res.write('data: [DONE]\n\n');
       res.end();
       clearTimeout(globalTimer);
+      // Keep this identical to the non-streaming marker: CloudWatch counts one
+      // successful functional turn without learning user, model or provider.
+      if (!observation.cancelled) log.v1.info('Alia functional turn completed');
 
       // If the client disconnected before the stream finished, send a push notification
       if (observation.cancelled && req.user?.id && body.conversationId) {
@@ -475,4 +481,7 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
   // failed, and this is the only place it gets a usage record.
   recordFailedTurn(failureClass);
   return { status: 'exhausted', attemptedProviders: 1, error: failure };
+  } finally {
+    res.off('close', onClientClose);
+  }
 }
