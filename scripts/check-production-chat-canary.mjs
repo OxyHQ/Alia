@@ -15,7 +15,8 @@ requireText(workflow, '.synthetic', 'workflow does not fail synthetic HTTP-200 a
 for (const mode of ['instant', 'auto', 'thinking', 'research']) requireText(runner, `route:${mode}`, `${mode} is absent`);
 for (const label of ['search-tool', 'controlled-refusal', 'recovery']) requireText(runner, label, `${label} is absent`);
 requireText(runner, 'conversationId: null', 'the no-persistence result contract is absent');
-requireText(runner, '"x-oxy-user-id": qaUserId', 'runner does not exercise verified service acting-as');
+requireText(runner, 'x-oxy-user-id', 'runner does not send the delegated-user header');
+requireText(runner, 'qaUserId', 'runner does not bind the delegated-user header to the closed QA identity');
 requireText(runner, 'authorization: `Bearer ${token}`', 'runner does not enter the real bearer middleware');
 if (runner.includes('handleChatCompletions')) failures.push('runner bypasses HTTP authentication by importing the handler');
 requireText(runner, 'markerMatched', 'runner accepts arbitrary non-empty model output');

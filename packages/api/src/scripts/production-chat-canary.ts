@@ -1,6 +1,6 @@
-import { spawn } from "node:child_process";
-import { pathToFileURL } from "node:url";
-import { oxyServiceToken } from "../lib/oxy-service-client.js";
+import { spawn } from 'node:child_process';
+import { pathToFileURL } from 'node:url';
+import { oxyServiceToken } from '../lib/oxy-service-client.js';
 
 type Case = Readonly<{
   label: string;
@@ -16,73 +16,73 @@ type Case = Readonly<{
 
 export const PRODUCTION_CANARY_CASES: readonly Case[] = [
   {
-    label: "instant-1",
-    model: "route:instant",
-    prompt: "Reply exactly QA_INSTANT_OK_1.",
-    marker: "QA_INSTANT_OK_1",
+    label: 'instant-1',
+    model: 'route:instant',
+    prompt: 'Reply exactly QA_INSTANT_OK_1.',
+    marker: 'QA_INSTANT_OK_1',
   },
   {
-    label: "instant-2",
-    model: "route:instant",
-    prompt: "Reply exactly QA_INSTANT_OK_2.",
-    marker: "QA_INSTANT_OK_2",
+    label: 'instant-2',
+    model: 'route:instant',
+    prompt: 'Reply exactly QA_INSTANT_OK_2.',
+    marker: 'QA_INSTANT_OK_2',
   },
   {
-    label: "auto-1",
-    model: "route:auto",
-    prompt: "Reply exactly QA_AUTO_OK_1.",
-    marker: "QA_AUTO_OK_1",
+    label: 'auto-1',
+    model: 'route:auto',
+    prompt: 'Reply exactly QA_AUTO_OK_1.',
+    marker: 'QA_AUTO_OK_1',
   },
   {
-    label: "auto-2",
-    model: "route:auto",
-    prompt: "Reply exactly QA_AUTO_OK_2.",
-    marker: "QA_AUTO_OK_2",
+    label: 'auto-2',
+    model: 'route:auto',
+    prompt: 'Reply exactly QA_AUTO_OK_2.',
+    marker: 'QA_AUTO_OK_2',
   },
   {
-    label: "thinking-1",
-    model: "route:thinking",
-    prompt: "Calculate 17 + 25 and end with QA_THINKING_OK_42.",
-    marker: "QA_THINKING_OK_42",
+    label: 'thinking-1',
+    model: 'route:thinking',
+    prompt: 'Calculate 17 + 25 and end with QA_THINKING_OK_42.',
+    marker: 'QA_THINKING_OK_42',
   },
   {
-    label: "thinking-2",
-    model: "route:thinking",
-    prompt: "Calculate 19 + 24 and end with QA_THINKING_OK_43.",
-    marker: "QA_THINKING_OK_43",
+    label: 'thinking-2',
+    model: 'route:thinking',
+    prompt: 'Calculate 19 + 24 and end with QA_THINKING_OK_43.',
+    marker: 'QA_THINKING_OK_43',
   },
   {
-    label: "research-1",
-    model: "route:research",
-    prompt: "End your answer with QA_RESEARCH_OK_1.",
-    marker: "QA_RESEARCH_OK_1",
+    label: 'research-1',
+    model: 'route:research',
+    prompt: 'End your answer with QA_RESEARCH_OK_1.',
+    marker: 'QA_RESEARCH_OK_1',
     deepResearch: true,
   },
   {
-    label: "research-2",
-    model: "route:research",
-    prompt: "End your answer with QA_RESEARCH_OK_2.",
-    marker: "QA_RESEARCH_OK_2",
+    label: 'research-2',
+    model: 'route:research',
+    prompt: 'End your answer with QA_RESEARCH_OK_2.',
+    marker: 'QA_RESEARCH_OK_2',
     deepResearch: true,
   },
   {
-    label: "search-tool",
-    model: "route:auto",
+    label: 'search-tool',
+    model: 'route:auto',
     prompt:
-      "Use web search for the official React documentation. Include https://react.dev and end with QA_SEARCH_OK.",
-    marker: "QA_SEARCH_OK",
+      'Use web search for the official React documentation. Include https://react.dev and end with QA_SEARCH_OK.',
+    marker: 'QA_SEARCH_OK',
     webSearch: true,
     expectTool: true,
     tools: [
       {
-        type: "function",
+        type: 'function',
         function: {
-          name: "webSearch",
-          description: "Search the public web.",
+          name: 'webSearch',
+          description: 'Search the public web.',
           parameters: {
-            type: "object",
-            properties: { query: { type: "string" } },
-            required: ["query"],
+            type: 'object',
+            properties: { query: { type: 'string' } },
+            required: ['query'],
             additionalProperties: false,
           },
         },
@@ -90,28 +90,28 @@ export const PRODUCTION_CANARY_CASES: readonly Case[] = [
     ],
   },
   {
-    label: "controlled-refusal",
-    model: "route:not-registered",
-    prompt: "Refuse this unknown profile.",
-    marker: "",
+    label: 'controlled-refusal',
+    model: 'route:not-registered',
+    prompt: 'Refuse this unknown profile.',
+    marker: '',
     expectRefusal: true,
   },
   {
-    label: "recovery",
-    model: "route:auto",
-    prompt: "Reply exactly QA_RECOVERY_OK.",
-    marker: "QA_RECOVERY_OK",
+    label: 'recovery',
+    model: 'route:auto',
+    prompt: 'Reply exactly QA_RECOVERY_OK.',
+    marker: 'QA_RECOVERY_OK',
   },
 ];
 
 const SAFE_CODES = new Set([
-  "INVALID_REQUEST",
-  "MODEL_NOT_FOUND",
-  "REQUEST_REFUSED",
-  "RATE_LIMITED",
-  "PROVIDER_UNAVAILABLE",
-  "ROUTING_UNAVAILABLE",
-  "INTERNAL_ERROR",
+  'INVALID_REQUEST',
+  'MODEL_NOT_FOUND',
+  'REQUEST_REFUSED',
+  'RATE_LIMITED',
+  'PROVIDER_UNAVAILABLE',
+  'ROUTING_UNAVAILABLE',
+  'INTERNAL_ERROR',
 ]);
 
 export interface SafeResult {
@@ -128,7 +128,7 @@ export interface SafeResult {
 }
 
 export function summarize(
-  entry: Pick<Case, "label" | "marker">,
+  entry: Pick<Case, 'label' | 'marker'>,
   statusCode: number,
   payload: string,
 ): SafeResult {
@@ -137,51 +137,51 @@ export function summarize(
   let retryable: boolean | null = null;
   let synthetic = false;
   let done = false;
-  let content = "";
+  let content = '';
   let toolEvent = false;
   const inspect = (event: unknown): void => {
-    if (typeof event !== "object" || event === null) return;
+    if (typeof event !== 'object' || event === null) return;
     const record = event as Record<string, unknown>;
-    if (typeof record.id === "string" && record.id.length <= 128)
+    if (typeof record.id === 'string' && record.id.length <= 128)
       reference ??= record.id;
     const meta = record.alia_meta;
-    if (typeof meta === "object" && meta !== null) {
+    if (typeof meta === 'object' && meta !== null) {
       const fields = meta as Record<string, unknown>;
       synthetic ||= fields.synthetic === true;
-      if (typeof fields.retryable === "boolean") retryable = fields.retryable;
+      if (typeof fields.retryable === 'boolean') retryable = fields.retryable;
       const error = fields.error;
-      if (typeof error === "object" && error !== null) {
+      if (typeof error === 'object' && error !== null) {
         const safe = error as Record<string, unknown>;
-        if (typeof safe.code === "string" && SAFE_CODES.has(safe.code))
+        if (typeof safe.code === 'string' && SAFE_CODES.has(safe.code))
           code ??= safe.code;
-        if (typeof safe.reference === "string" && safe.reference.length <= 128)
+        if (typeof safe.reference === 'string' && safe.reference.length <= 128)
           reference ??= safe.reference;
       }
     }
     const error = record.error;
-    if (typeof error === "object" && error !== null) {
+    if (typeof error === 'object' && error !== null) {
       const safe = error as Record<string, unknown>;
-      if (typeof safe.code === "string" && SAFE_CODES.has(safe.code))
+      if (typeof safe.code === 'string' && SAFE_CODES.has(safe.code))
         code ??= safe.code;
-      else code ??= "REQUEST_REFUSED";
-    } else if (typeof error === "string") code ??= "REQUEST_REFUSED";
+      else code ??= 'REQUEST_REFUSED';
+    } else if (typeof error === 'string') code ??= 'REQUEST_REFUSED';
     const choices = record.choices;
     if (Array.isArray(choices)) {
       const delta = (
         choices[0] as
           { delta?: { content?: unknown; tool_calls?: unknown } } | undefined
       )?.delta;
-      if (typeof delta?.content === "string") content += delta.content;
+      if (typeof delta?.content === 'string') content += delta.content;
       toolEvent ||= delta?.tool_calls !== undefined;
     }
-    const kind = `${String(record.event ?? "")} ${String(record.type ?? "")}`;
-    toolEvent ||= kind.includes("tool");
+    const kind = `${String(record.event ?? '')} ${String(record.type ?? '')}`;
+    toolEvent ||= kind.includes('tool');
   };
-  if (!payload.includes("data: ")) inspect(JSON.parse(payload));
+  if (!payload.includes('data: ')) inspect(JSON.parse(payload));
   for (const line of payload.split(/\r?\n/)) {
-    if (!line.startsWith("data: ")) continue;
+    if (!line.startsWith('data: ')) continue;
     const data = line.slice(6);
-    if (data === "[DONE]") {
+    if (data === '[DONE]') {
       done = true;
       continue;
     }
@@ -195,7 +195,7 @@ export function summarize(
     synthetic,
     done,
     answerPresent: content.length > 0,
-    markerMatched: entry.marker === "" || content.includes(entry.marker),
+    markerMatched: entry.marker === '' || content.includes(entry.marker),
     toolEvent,
     statusCode,
   };
@@ -203,13 +203,13 @@ export function summarize(
 
 async function waitUntilReady(signal: AbortSignal): Promise<void> {
   for (let attempt = 0; attempt < 90; attempt += 1) {
-    const response = await fetch("http://127.0.0.1:3001/health/ready", {
+    const response = await fetch('http://127.0.0.1:3001/health/ready', {
       signal,
     }).catch(() => null);
     if (response?.ok) return;
     await new Promise((resolve) => setTimeout(resolve, 1_000));
   }
-  throw new Error("Alia API did not become ready");
+  throw new Error('Alia API did not become ready');
 }
 
 async function main(): Promise<void> {
@@ -220,30 +220,30 @@ async function main(): Promise<void> {
       qaUserId,
     )
   )
-    throw new Error("ALIA_CANARY_OXY_USER_ID must name one exact QA account");
+    throw new Error('ALIA_CANARY_OXY_USER_ID must name one exact QA account');
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 20 * 60 * 1_000);
-  const api = spawn(process.execPath, ["packages/api/dist/index.js"], {
+  const api = spawn(process.execPath, ['packages/api/dist/index.js'], {
     env: process.env,
-    stdio: ["ignore", "inherit", "inherit"],
+    stdio: ['ignore', 'inherit', 'inherit'],
   });
   try {
     await waitUntilReady(controller.signal);
     const token = await oxyServiceToken();
     const results: SafeResult[] = [];
     for (const entry of PRODUCTION_CANARY_CASES) {
-      const response = await fetch("http://127.0.0.1:3001/alia/chat", {
-        method: "POST",
+      const response = await fetch('http://127.0.0.1:3001/alia/chat', {
+        method: 'POST',
         signal: controller.signal,
         headers: {
           authorization: `Bearer ${token}`,
-          "x-oxy-user-id": qaUserId,
-          "content-type": "application/json",
-          "user-agent": "alia-production-canary/1",
+          'x-oxy-user-id': qaUserId,
+          'content-type': 'application/json',
+          'user-agent': 'alia-production-canary/1',
         },
         body: JSON.stringify({
           model: entry.model,
-          messages: [{ role: "user", content: entry.prompt }],
+          messages: [{ role: 'user', content: entry.prompt }],
           stream: true,
           stream_options: { include_usage: true },
           ...(entry.deepResearch ? { deepResearch: true } : {}),
@@ -257,12 +257,12 @@ async function main(): Promise<void> {
       `ALIA_PRODUCTION_CANARY ${JSON.stringify({ schemaVersion: 1, conversationId: null, results })}\n`,
     );
     const ordinary = results.filter(
-      (result) => result.label !== "controlled-refusal",
+      (result) => result.label !== 'controlled-refusal',
     );
     const refusal = results.find(
-      (result) => result.label === "controlled-refusal",
+      (result) => result.label === 'controlled-refusal',
     );
-    const search = results.find((result) => result.label === "search-tool");
+    const search = results.find((result) => result.label === 'search-tool');
     const references = ordinary.map((result) => result.reference);
     if (
       ordinary.some(
@@ -278,22 +278,22 @@ async function main(): Promise<void> {
       !search?.toolEvent ||
       !refusal ||
       refusal.statusCode !== 400 ||
-      refusal.code !== "REQUEST_REFUSED" ||
+      refusal.code !== 'REQUEST_REFUSED' ||
       refusal.synthetic ||
       refusal.done ||
       refusal.answerPresent ||
       refusal.toolEvent ||
-      results.at(-1)?.label !== "recovery"
+      results.at(-1)?.label !== 'recovery'
     )
       process.exitCode = 1;
   } finally {
     clearTimeout(timeout);
-    api.kill("SIGTERM");
+    api.kill('SIGTERM');
     await Promise.race([
-      new Promise<void>((resolve) => api.once("exit", () => resolve())),
+      new Promise<void>((resolve) => api.once('exit', () => resolve())),
       new Promise<void>((resolve) => setTimeout(resolve, 10_000)),
     ]);
-    if (api.exitCode === null) api.kill("SIGKILL");
+    if (api.exitCode === null) api.kill('SIGKILL');
   }
 }
 
