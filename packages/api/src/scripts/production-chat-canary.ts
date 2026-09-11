@@ -137,6 +137,7 @@ export function summarize(
   let done = false;
   let content = '';
   let toolEvent = false;
+  const requestedWebSearchCallIds = new Set<string>();
   const inspect = (event: unknown, eventName?: string): void => {
     if (typeof event !== 'object' || event === null) return;
     const record = event as Record<string, unknown>;
@@ -169,19 +170,27 @@ export function summarize(
         ?.delta;
       if (typeof delta?.content === 'string') content += delta.content;
       if (Array.isArray(delta?.tool_calls)) {
-        toolEvent ||= delta.tool_calls.some((call) => {
-          if (typeof call !== 'object' || call === null) return false;
-          const fn = (call as Record<string, unknown>).function;
-          return (
+        for (const call of delta.tool_calls) {
+          if (typeof call !== 'object' || call === null) continue;
+          const toolCall = call as Record<string, unknown>;
+          const fn = toolCall.function;
+          if (
             typeof fn === 'object' &&
             fn !== null &&
-            (fn as Record<string, unknown>).name === 'webSearch'
-          );
-        });
+            (fn as Record<string, unknown>).name === 'webSearch' &&
+            typeof toolCall.id === 'string' &&
+            toolCall.id.length > 0 &&
+            toolCall.id.length <= 128
+          )
+            requestedWebSearchCallIds.add(toolCall.id);
+        }
       }
     }
     toolEvent ||=
-      eventName === 'alia.tool_result' && record.name === 'webSearch';
+      eventName === 'alia.tool_result' &&
+      record.name === 'webSearch' &&
+      typeof record.tool_call_id === 'string' &&
+      requestedWebSearchCallIds.has(record.tool_call_id);
   };
   if (!payload.includes('data: ')) inspect(JSON.parse(payload));
   let eventName: string | undefined;

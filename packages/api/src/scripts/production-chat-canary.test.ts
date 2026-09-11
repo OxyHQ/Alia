@@ -39,11 +39,21 @@ describe('production chat canary safe projection', () => {
     const toolishEvent =
       'event: alia.toolish\ndata: {"name":"webSearch"}\n\ndata: [DONE]\n\n';
     const wrongTool =
-      'event: alia.tool_result\ndata: {"name":"otherTool"}\n\ndata: [DONE]\n\n';
+      'data: {"choices":[{"delta":{"tool_calls":[{"id":"call-1","function":{"name":"webSearch"}}]}}]}\n\nevent: alia.tool_result\ndata: {"tool_call_id":"call-1","name":"otherTool"}\n\ndata: [DONE]\n\n';
+    const requestedOnly =
+      'data: {"choices":[{"delta":{"tool_calls":[{"id":"call-1","function":{"name":"webSearch"}}]}}]}\n\ndata: [DONE]\n\n';
+    const unmatchedResult =
+      'data: {"choices":[{"delta":{"tool_calls":[{"id":"call-1","function":{"name":"webSearch"}}]}}]}\n\nevent: alia.tool_result\ndata: {"tool_call_id":"call-2","name":"webSearch"}\n\ndata: [DONE]\n\n';
     const executedSearch =
-      'event: alia.tool_result\ndata: {"name":"webSearch"}\n\ndata: [DONE]\n\n';
+      'data: {"choices":[{"delta":{"tool_calls":[{"id":"call-1","function":{"name":"webSearch"}}]}}]}\n\nevent: alia.tool_result\ndata: {"tool_call_id":"call-1","name":"webSearch"}\n\ndata: [DONE]\n\n';
 
-    for (const payload of [emptyCalls, toolishEvent, wrongTool]) {
+    for (const payload of [
+      emptyCalls,
+      toolishEvent,
+      wrongTool,
+      requestedOnly,
+      unmatchedResult,
+    ]) {
       expect(summarize({ label: 'search', marker: '' }, 200, payload).toolEvent).toBe(
         false,
       );
