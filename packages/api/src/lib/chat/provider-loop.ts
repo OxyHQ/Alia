@@ -149,8 +149,10 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
    */
   const observation: TurnObservation = { timeToFirstTokenMs: null, cancelled: false, resolvedModelReference: null };
 
-  const onClientClose = (): void => { observation.cancelled = true; };
-  req.on('close', onClientClose);
+  const onClientClose = (): void => {
+    if (!res.writableEnded) observation.cancelled = true;
+  };
+  res.on('close', onClientClose);
 
   /**
    * The lifecycle context AS IT STANDS, read fresh at each call because the
@@ -192,7 +194,7 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
    * that happens on every failing exit.
    */
   const recordFailedTurn = (errorClass: AliaErrorCode): void => {
-    req.off('close', onClientClose);
+    res.off('close', onClientClose);
     runPostChatHooks(lifecycleContext(), '', observation, errorClass);
   };
 
@@ -260,7 +262,7 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
           toolNameMapping,
           observation,
         });
-        req.off('close', onClientClose);
+        res.off('close', onClientClose);
         // Stable, metadata-free positive signal for the passive public status
         // alarm. It is emitted only after the hosted turn completed.
         if (!observation.cancelled) log.v1.info('Alia functional turn completed');
@@ -415,7 +417,7 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
       });
 
       sse.stopKeepAlive();
-      req.off('close', onClientClose);
+      res.off('close', onClientClose);
       if (beforeStreamClose) {
         await beforeStreamClose().catch((err: unknown) => {
           // The answer has already completed and been persisted. A bookkeeping

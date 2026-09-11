@@ -268,7 +268,8 @@ healthy and still receives traffic. Moving the target group to `/health/ready` i
   identifiers needed to correlate a product failure.
 - Each successfully delivered, non-cancelled hosted turn emits exactly
   `Alia functional turn completed` with no attached request, account, model or provider
-  fields. Failed and disconnected turns emit no success marker. The public status alarm combines
+  fields. Failed turns and a `ServerResponse` that closes before `writableEnded` emit no
+  success marker; a normal response close does not masquerade as cancellation. The public status alarm combines
   that positive marker with the existing capability-loading and Kaana-inference failure
   chokepoints. It creates no synthetic inference: silence is unknown, never success.
 

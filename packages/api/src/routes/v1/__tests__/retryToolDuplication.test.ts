@@ -256,9 +256,11 @@ import { handleChatCompletions } from '../chat-completions.js';
  *   stream chunk — which is the only way to reach the provider loop's OWN
  *   post-content guard (`provider-loop.ts:367`).
  */
-function recordingRes(failOn?: string) {
+function recordingRes(failOn?: string, closeBeforeCompletion = false) {
   const raw: string[] = [];
   let failed = false;
+  const closeListeners = new Set<() => void>();
+  let closeEmitted = false;
   const res = {
     raw,
     headersSent: false,
@@ -266,6 +268,10 @@ function recordingRes(failOn?: string) {
     socket: { setNoDelay: () => undefined },
     setHeader: () => undefined,
     write(chunk: string) {
+      if (closeBeforeCompletion && !closeEmitted && closeListeners.size > 0) {
+        closeEmitted = true;
+        for (const listener of closeListeners) listener();
+      }
       if (failOn !== undefined && !failed && chunk.includes(failOn)) {
         failed = true;
         throw new Error('write after end');
@@ -276,6 +282,7 @@ function recordingRes(failOn?: string) {
     },
     end() {
       res.writableEnded = true;
+      for (const listener of closeListeners) listener();
     },
     flushHeaders() {
       res.headersSent = true;
@@ -286,19 +293,23 @@ function recordingRes(failOn?: string) {
     json() {
       res.headersSent = true;
     },
+    on(event: string, listener: () => void) {
+      if (event === 'close') closeListeners.add(listener);
+    },
+    off(event: string, listener: () => void) {
+      if (event === 'close') closeListeners.delete(listener);
+    },
   };
   return res;
 }
 
-function apiKeyReq(cancelled = false) {
+function apiKeyReq() {
   return {
     user: { id: 'user-ws13' },
     apiKey: { id: 'key-ws13' },
     headers: {},
     socket: { destroyed: false },
-    on: (event: string, listener: () => void) => {
-      if (event === 'close' && cancelled) listener();
-    },
+    on: () => undefined,
     off: () => undefined,
     body: {
       messages: [{ role: 'user', content: 'search the web for alia' }],
@@ -312,10 +323,10 @@ type RouteReq = Parameters<typeof handleChatCompletions>[0];
 type RouteRes = Parameters<typeof handleChatCompletions>[1];
 
 async function run(options: { failWriteOn?: string; includeUsage?: boolean; cancelled?: boolean; stream?: boolean } = {}): Promise<ReturnType<typeof recordingRes>> {
-  const req = apiKeyReq(options.cancelled);
+  const req = apiKeyReq();
   if (options.stream === false) req.body.stream = false;
   if (options.includeUsage === true) req.body.stream_options = { include_usage: true };
-  const res = recordingRes(options.failWriteOn);
+  const res = recordingRes(options.failWriteOn, options.cancelled);
   await handleChatCompletions(req as unknown as RouteReq, res as unknown as RouteRes);
   return res;
 }
