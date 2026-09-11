@@ -84,14 +84,22 @@ Do not enable production traffic until all of these pass:
 
 For the mode/tool acceptance run, use the manual **Alia production chat
 canary** workflow. It runs only the exact live image as a private ECS one-shot,
-and invokes the same chat handler and Alia -> Oxy -> Kaana adapter without an
-HTTP-only authentication exception. The protected production environment must
+starts that image's API and enters its loopback HTTP endpoint with Alia's
+short-lived Oxy service bearer plus `X-Oxy-User-Id`. The ordinary Oxy auth
+middleware must verify the acting-as grant before the request can reach the
+chat handler; there is no canary-only endpoint or authentication exception.
+The protected production environment must
 hold `ALIA_CANARY_OXY_USER_ID`, the exact dedicated QA account id. That variable
 is not a workflow input: an operator cannot substitute an arbitrary customer.
+Create that account through the normal Oxy signup flow, grant the Alia
+application consent through the normal OAuth/service acting-as control plane,
+and verify the exact grant with Oxy before setting the protected variable. Do
+not insert a user, grant or bearer in SQL/SSM, and do not use a customer account.
 The runner supplies no conversation id, so it creates no durable thread or
 retryable tool side effects. Its result contains only product mode labels,
-Alia correlation references, classified product error codes and booleans; it
-never emits prompts, answers, credentials, provider names or deployments.
+Alia correlation references, allowlisted classified product error codes and
+booleans; it never emits the QA identity, prompts, answers, credentials,
+provider names or deployments.
 
 The workflow intentionally proves two consecutive turns in Auto, Instant,
 Thinking and Research, one web-search turn, a controlled unknown-profile

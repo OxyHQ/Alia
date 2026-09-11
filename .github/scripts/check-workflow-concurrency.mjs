@@ -59,6 +59,7 @@ const EXPECTED = {
   // additionally the ONLY interlock on the migrator, which takes no lock of its
   // own and reads the ledger's high-water mark outside its transaction.
   'deploy-integrations.yml': 'serialised',
+  'production-chat-canary.yml': 'serialised',
   'add-to-roadmap.yml': 'keyed',
 };
 

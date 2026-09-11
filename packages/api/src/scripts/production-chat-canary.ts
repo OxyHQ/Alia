@@ -1,130 +1,134 @@
-import { EventEmitter } from "node:events";
+import { spawn } from "node:child_process";
 import { pathToFileURL } from "node:url";
-import type { Request, Response } from "express";
-import { handleChatCompletions } from "../routes/v1/chat-completions.js";
-import { closePostgres, connectPostgres } from "../db/index.js";
 import { oxyServiceToken } from "../lib/oxy-service-client.js";
 
 type Case = Readonly<{
   label: string;
   model: string;
   prompt: string;
+  marker: string;
   deepResearch?: boolean;
   webSearch?: boolean;
-  tools?: string[];
+  tools?: readonly Record<string, unknown>[];
+  expectRefusal?: boolean;
+  expectTool?: boolean;
 }>;
-const CASES: readonly Case[] = [
+
+export const PRODUCTION_CANARY_CASES: readonly Case[] = [
   {
     label: "instant-1",
     model: "route:instant",
     prompt: "Reply exactly QA_INSTANT_OK_1.",
+    marker: "QA_INSTANT_OK_1",
   },
   {
     label: "instant-2",
     model: "route:instant",
     prompt: "Reply exactly QA_INSTANT_OK_2.",
+    marker: "QA_INSTANT_OK_2",
   },
   {
     label: "auto-1",
     model: "route:auto",
     prompt: "Reply exactly QA_AUTO_OK_1.",
+    marker: "QA_AUTO_OK_1",
   },
   {
     label: "auto-2",
     model: "route:auto",
     prompt: "Reply exactly QA_AUTO_OK_2.",
+    marker: "QA_AUTO_OK_2",
   },
   {
     label: "thinking-1",
     model: "route:thinking",
-    prompt: "Calculate 17 + 25 and reply exactly QA_THINKING_OK_42.",
+    prompt: "Calculate 17 + 25 and end with QA_THINKING_OK_42.",
+    marker: "QA_THINKING_OK_42",
   },
   {
     label: "thinking-2",
     model: "route:thinking",
-    prompt: "Calculate 19 + 24 and reply exactly QA_THINKING_OK_43.",
+    prompt: "Calculate 19 + 24 and end with QA_THINKING_OK_43.",
+    marker: "QA_THINKING_OK_43",
   },
   {
     label: "research-1",
     model: "route:research",
-    prompt: "Name the capital of France in one sentence.",
+    prompt: "End your answer with QA_RESEARCH_OK_1.",
+    marker: "QA_RESEARCH_OK_1",
     deepResearch: true,
   },
   {
     label: "research-2",
     model: "route:research",
-    prompt: "Name the capital of Italy in one sentence.",
+    prompt: "End your answer with QA_RESEARCH_OK_2.",
+    marker: "QA_RESEARCH_OK_2",
     deepResearch: true,
   },
   {
     label: "search-tool",
     model: "route:auto",
     prompt:
-      "Use web search to find the official React documentation and explain React in two sentences with its official link.",
+      "Use web search for the official React documentation. Include https://react.dev and end with QA_SEARCH_OK.",
+    marker: "QA_SEARCH_OK",
     webSearch: true,
-    tools: ["webSearch", "webScraper"],
+    expectTool: true,
+    tools: [
+      {
+        type: "function",
+        function: {
+          name: "webSearch",
+          description: "Search the public web.",
+          parameters: {
+            type: "object",
+            properties: { query: { type: "string" } },
+            required: ["query"],
+            additionalProperties: false,
+          },
+        },
+      },
+    ],
   },
   {
     label: "controlled-refusal",
     model: "route:not-registered",
-    prompt: "This request must be refused safely.",
+    prompt: "Refuse this unknown profile.",
+    marker: "",
+    expectRefusal: true,
   },
   {
     label: "recovery",
     model: "route:auto",
-    prompt: "Reply exactly QA_RECOVERY_OK without tools.",
+    prompt: "Reply exactly QA_RECOVERY_OK.",
+    marker: "QA_RECOVERY_OK",
   },
 ];
 
-interface SafeResult {
+const SAFE_CODES = new Set([
+  "INVALID_REQUEST",
+  "MODEL_NOT_FOUND",
+  "REQUEST_REFUSED",
+  "RATE_LIMITED",
+  "PROVIDER_UNAVAILABLE",
+  "ROUTING_UNAVAILABLE",
+  "INTERNAL_ERROR",
+]);
+
+export interface SafeResult {
   label: string;
   reference: string | null;
   code: string | null;
   retryable: boolean | null;
   synthetic: boolean;
   done: boolean;
-  answerDelta: boolean;
+  answerPresent: boolean;
+  markerMatched: boolean;
   toolEvent: boolean;
   statusCode: number;
 }
 
-class CanaryResponse extends EventEmitter {
-  statusCode = 200;
-  headersSent = false;
-  writableEnded = false;
-  readonly frames: string[] = [];
-  status(code: number): this {
-    this.statusCode = code;
-    return this;
-  }
-  setHeader(): this {
-    this.headersSent = true;
-    return this;
-  }
-  flushHeaders(): void {
-    this.headersSent = true;
-  }
-  json(value: unknown): this {
-    this.headersSent = true;
-    this.frames.push(JSON.stringify(value));
-    this.end();
-    return this;
-  }
-  write(value: string | Uint8Array): boolean {
-    this.headersSent = true;
-    this.frames.push(String(value));
-    return true;
-  }
-  end(value?: string | Uint8Array): this {
-    if (value !== undefined) this.frames.push(String(value));
-    this.writableEnded = true;
-    this.emit("finish");
-    return this;
-  }
-}
-
 export function summarize(
-  label: string,
+  entry: Pick<Case, "label" | "marker">,
   statusCode: number,
   payload: string,
 ): SafeResult {
@@ -133,20 +137,47 @@ export function summarize(
   let retryable: boolean | null = null;
   let synthetic = false;
   let done = false;
-  let answerDelta = false;
+  let content = "";
   let toolEvent = false;
-  if (!payload.includes("data: ")) {
-    const parsed: unknown = JSON.parse(payload);
-    if (typeof parsed === "object" && parsed !== null) {
-      const error = (parsed as Record<string, unknown>).error;
+  const inspect = (event: unknown): void => {
+    if (typeof event !== "object" || event === null) return;
+    const record = event as Record<string, unknown>;
+    if (typeof record.id === "string" && record.id.length <= 128)
+      reference ??= record.id;
+    const meta = record.alia_meta;
+    if (typeof meta === "object" && meta !== null) {
+      const fields = meta as Record<string, unknown>;
+      synthetic ||= fields.synthetic === true;
+      if (typeof fields.retryable === "boolean") retryable = fields.retryable;
+      const error = fields.error;
       if (typeof error === "object" && error !== null) {
         const safe = error as Record<string, unknown>;
-        if (typeof safe.code === "string") code = safe.code;
-        if (typeof safe.reference === "string") reference = safe.reference;
-        if (typeof safe.retryable === "boolean") retryable = safe.retryable;
-      } else if (typeof error === "string") code = "REQUEST_REFUSED";
+        if (typeof safe.code === "string" && SAFE_CODES.has(safe.code))
+          code ??= safe.code;
+        if (typeof safe.reference === "string" && safe.reference.length <= 128)
+          reference ??= safe.reference;
+      }
     }
-  }
+    const error = record.error;
+    if (typeof error === "object" && error !== null) {
+      const safe = error as Record<string, unknown>;
+      if (typeof safe.code === "string" && SAFE_CODES.has(safe.code))
+        code ??= safe.code;
+      else code ??= "REQUEST_REFUSED";
+    } else if (typeof error === "string") code ??= "REQUEST_REFUSED";
+    const choices = record.choices;
+    if (Array.isArray(choices)) {
+      const delta = (
+        choices[0] as
+          { delta?: { content?: unknown; tool_calls?: unknown } } | undefined
+      )?.delta;
+      if (typeof delta?.content === "string") content += delta.content;
+      toolEvent ||= delta?.tool_calls !== undefined;
+    }
+    const kind = `${String(record.event ?? "")} ${String(record.type ?? "")}`;
+    toolEvent ||= kind.includes("tool");
+  };
+  if (!payload.includes("data: ")) inspect(JSON.parse(payload));
   for (const line of payload.split(/\r?\n/)) {
     if (!line.startsWith("data: ")) continue;
     const data = line.slice(6);
@@ -154,75 +185,31 @@ export function summarize(
       done = true;
       continue;
     }
-    const event: unknown = JSON.parse(data);
-    if (typeof event !== "object" || event === null) continue;
-    const record = event as Record<string, unknown>;
-    if (typeof record.id === "string") reference ??= record.id;
-    const meta = record.alia_meta;
-    if (typeof meta === "object" && meta !== null) {
-      const safe = meta as Record<string, unknown>;
-      synthetic ||= safe.synthetic === true;
-      if (typeof safe.retryable === "boolean") retryable = safe.retryable;
-      const error = safe.error;
-      if (typeof error === "object" && error !== null) {
-        const fields = error as Record<string, unknown>;
-        if (typeof fields.code === "string") code ??= fields.code;
-        if (typeof fields.reference === "string")
-          reference ??= fields.reference;
-      }
-    }
-    const choices = record.choices;
-    if (Array.isArray(choices)) {
-      const delta = (
-        choices[0] as
-          { delta?: { content?: unknown; tool_calls?: unknown } } | undefined
-      )?.delta;
-      answerDelta ||=
-        typeof delta?.content === "string" && delta.content.length > 0;
-      toolEvent ||= delta?.tool_calls !== undefined;
-    }
-    const kind = `${String(record.event ?? "")} ${String(record.type ?? "")}`;
-    toolEvent ||= kind.includes("tool");
+    inspect(JSON.parse(data));
   }
   return {
-    label,
+    label: entry.label,
     reference,
     code,
     retryable,
     synthetic,
     done,
-    answerDelta,
+    answerPresent: content.length > 0,
+    markerMatched: entry.marker === "" || content.includes(entry.marker),
     toolEvent,
     statusCode,
   };
 }
 
-async function run(
-  entry: Case,
-  qaUserId: string,
-  serviceToken: string,
-): Promise<SafeResult> {
-  const req = Object.assign(new EventEmitter(), {
-    body: {
-      model: entry.model,
-      messages: [{ role: "user", content: entry.prompt }],
-      stream: true,
-      stream_options: { include_usage: true },
-      ...(entry.deepResearch ? { deepResearch: true } : {}),
-      ...(entry.webSearch ? { webSearch: true } : {}),
-      ...(entry.tools ? { tools: entry.tools } : {}),
-    },
-    headers: {},
-    method: "POST",
-    path: "/alia/chat",
-    user: { id: qaUserId },
-    userId: qaUserId,
-    accessToken: serviceToken,
-    socket: { destroyed: false, setNoDelay: () => undefined },
-  }) as unknown as Request;
-  const res = new CanaryResponse();
-  await handleChatCompletions(req, res as unknown as Response);
-  return summarize(entry.label, res.statusCode, res.frames.join(""));
+async function waitUntilReady(signal: AbortSignal): Promise<void> {
+  for (let attempt = 0; attempt < 90; attempt += 1) {
+    const response = await fetch("http://127.0.0.1:3001/health/ready", {
+      signal,
+    }).catch(() => null);
+    if (response?.ok) return;
+    await new Promise((resolve) => setTimeout(resolve, 1_000));
+  }
+  throw new Error("Alia API did not become ready");
 }
 
 async function main(): Promise<void> {
@@ -234,15 +221,40 @@ async function main(): Promise<void> {
     )
   )
     throw new Error("ALIA_CANARY_OXY_USER_ID must name one exact QA account");
-  if (!connectPostgres(process.env.DATABASE_URL))
-    throw new Error("DATABASE_URL is required");
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 20 * 60 * 1_000);
+  const api = spawn(process.execPath, ["packages/api/dist/index.js"], {
+    env: process.env,
+    stdio: ["ignore", "inherit", "inherit"],
+  });
   try {
-    const serviceToken = await oxyServiceToken();
+    await waitUntilReady(controller.signal);
+    const token = await oxyServiceToken();
     const results: SafeResult[] = [];
-    for (const entry of CASES)
-      results.push(await run(entry, qaUserId, serviceToken));
+    for (const entry of PRODUCTION_CANARY_CASES) {
+      const response = await fetch("http://127.0.0.1:3001/alia/chat", {
+        method: "POST",
+        signal: controller.signal,
+        headers: {
+          authorization: `Bearer ${token}`,
+          "x-oxy-user-id": qaUserId,
+          "content-type": "application/json",
+          "user-agent": "alia-production-canary/1",
+        },
+        body: JSON.stringify({
+          model: entry.model,
+          messages: [{ role: "user", content: entry.prompt }],
+          stream: true,
+          stream_options: { include_usage: true },
+          ...(entry.deepResearch ? { deepResearch: true } : {}),
+          ...(entry.webSearch ? { webSearch: true } : {}),
+          ...(entry.tools ? { tools: entry.tools } : {}),
+        }),
+      });
+      results.push(summarize(entry, response.status, await response.text()));
+    }
     process.stdout.write(
-      `ALIA_PRODUCTION_CANARY ${JSON.stringify({ schemaVersion: 1, qaIdentity: qaUserId, conversationId: null, results })}\n`,
+      `ALIA_PRODUCTION_CANARY ${JSON.stringify({ schemaVersion: 1, conversationId: null, results })}\n`,
     );
     const ordinary = results.filter(
       (result) => result.label !== "controlled-refusal",
@@ -250,21 +262,38 @@ async function main(): Promise<void> {
     const refusal = results.find(
       (result) => result.label === "controlled-refusal",
     );
+    const search = results.find((result) => result.label === "search-tool");
+    const references = ordinary.map((result) => result.reference);
     if (
       ordinary.some(
         (result) =>
           result.statusCode !== 200 ||
           result.synthetic ||
           !result.done ||
-          !result.answerDelta,
+          !result.answerPresent ||
+          !result.markerMatched ||
+          !result.reference?.match(/^chatcmpl-[0-9a-f-]{36}$/),
       ) ||
+      new Set(references).size !== ordinary.length ||
+      !search?.toolEvent ||
       !refusal ||
-      refusal.code === null ||
+      refusal.statusCode !== 400 ||
+      refusal.code !== "REQUEST_REFUSED" ||
+      refusal.synthetic ||
+      refusal.done ||
+      refusal.answerPresent ||
+      refusal.toolEvent ||
       results.at(-1)?.label !== "recovery"
     )
       process.exitCode = 1;
   } finally {
-    await closePostgres();
+    clearTimeout(timeout);
+    api.kill("SIGTERM");
+    await Promise.race([
+      new Promise<void>((resolve) => api.once("exit", () => resolve())),
+      new Promise<void>((resolve) => setTimeout(resolve, 10_000)),
+    ]);
+    if (api.exitCode === null) api.kill("SIGKILL");
   }
 }
 

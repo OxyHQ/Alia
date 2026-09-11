@@ -24,12 +24,12 @@ Routes are mounted in `packages/api/src/index.ts:221` through `:257`.
 
 ## Authentication
 
-| Credential | Where it works |
-|---|---|
-| `Authorization: Bearer <session-token>` | Everywhere. Issued by Oxy, verified by `packages/api/src/middleware/auth.ts` |
-| `Authorization: Bearer alia_sk_<key>` | `/v1/*` and `/codea/*` only. Inside the compatibility window — see [developer access](./developers-portal.md) |
-| Oxy Console application key (`oxy_sk_*`) | **Not yet.** It is not a JWT, so `oxy.auth()` in `@oxy.so/core` refuses it `401 INVALID_TOKEN_FORMAT`; the lane is built in the Oxy API first (OxyHQ/oxy#972), then `@oxy.so/core/server`, then adopted here — ADR 0010 § 2 |
-| Oxy service token | `POST /internal/trigger` only, via `oxyServiceAuth` |
+| Credential                               | Where it works                                                                                                                                                                                                                                                                                                                              |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Authorization: Bearer <session-token>`  | Everywhere. Issued by Oxy, verified by `packages/api/src/middleware/auth.ts`                                                                                                                                                                                                                                                                |
+| `Authorization: Bearer alia_sk_<key>`    | `/v1/*` and `/codea/*` only. Inside the compatibility window — see [developer access](./developers-portal.md)                                                                                                                                                                                                                               |
+| Oxy Console application key (`oxy_sk_*`) | **Not yet.** It is not a JWT, so `oxy.auth()` in `@oxy.so/core` refuses it `401 INVALID_TOKEN_FORMAT`; the lane is built in the Oxy API first (OxyHQ/oxy#972), then `@oxy.so/core/server`, then adopted here — ADR 0010 § 2                                                                                                                 |
+| Oxy service token                        | `/internal/trigger` via `oxyServiceAuth`; `/alia/chat` and `/v1/*` through `authenticateTokenOrApiKey` only when `X-Oxy-User-Id` names an exact grant-verified delegation                                                                                                                                                                   |
 | `x-channel-bot-secret` + `x-oxy-user-id` | Registered channel bots. Validated by `authenticateChannelBotSecret` (`packages/api/src/middleware/auth.ts`), which `authenticateTokenOrApiKey` dispatches to — so it works on `/alia/chat` as well as `/v1/*`. `routes/v1.ts:35` holds a second, pre-auth copy that matches against `listChannels()` rather than `getConfiguredChannels()` |
 
 `POST /alia/chat` and `/v1/*` are both mounted with `authenticateTokenOrApiKey`
@@ -97,23 +97,23 @@ earlier revisions of this page had both wrong:
 
 ### Conversations, memory and context
 
-| Mount | Owner module |
-|---|---|
+| Mount            | Owner module              |
+| ---------------- | ------------------------- |
 | `/conversations` | `routes/conversations.ts` |
-| `/memory` | `routes/memory.ts` |
-| `/library` | `routes/library.ts` |
+| `/memory`        | `routes/memory.ts`        |
+| `/library`       | `routes/library.ts`       |
 | `/writing-style` | `routes/writing-style.ts` |
-| `/suggestions` | `routes/suggestions.ts` |
+| `/suggestions`   | `routes/suggestions.ts`   |
 
 ### Agents and execution
 
-| Mount | Owner module |
-|---|---|
-| `/agents` | `routes/agents.ts` |
-| `/skills` | `routes/skills.ts` |
-| `/containers` | `routes/containers.ts` |
-| `/tools` | `routes/tools-proxy.ts`, proxied to the integrations service |
-| `/mcp` | `routes/mcp.ts` |
+| Mount         | Owner module                                                 |
+| ------------- | ------------------------------------------------------------ |
+| `/agents`     | `routes/agents.ts`                                           |
+| `/skills`     | `routes/skills.ts`                                           |
+| `/containers` | `routes/containers.ts`                                       |
+| `/tools`      | `routes/tools-proxy.ts`, proxied to the integrations service |
+| `/mcp`        | `routes/mcp.ts`                                              |
 
 ### Triggers and structured automations
 
@@ -121,19 +121,19 @@ earlier revisions of this page had both wrong:
 explicit actors, resources, actions, data flow and autonomy, and is the only source read
 by the elected scheduler. `/triggers` exposes historical legacy rows and executions only.
 
-| Route | Purpose |
-|---|---|
-| `GET /triggers` | List the caller's triggers |
-| `GET /triggers/:id/executions` | Execution history |
-| `POST/PATCH/DELETE /triggers/*` | Retired; returns `410 Gone` and points to `/automations` |
-| `POST /triggers/webhook/:token` | Retired; returns `410 Gone` without executing |
-| `GET /automations` | List structured definitions |
-| `POST /automations` | Create an observe/execute definition and receipt |
-| `PATCH /automations/:id` | Edit objective, trigger, actor assignment, resources, data flow, autonomy, limits, or enabled state; execution authority is revalidated |
-| `DELETE /automations/:id` | Stop and revoke its execution authorizations |
-| `POST /automations/:id/run` | Run a manual definition with an `Idempotency-Key` |
-| `GET /automations/runs` | List decision and execution history |
-| `GET /automations/runs/:runId/steps` | List correlated steps for an owned run |
+| Route                                | Purpose                                                                                                                                 |
+| ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /triggers`                      | List the caller's triggers                                                                                                              |
+| `GET /triggers/:id/executions`       | Execution history                                                                                                                       |
+| `POST/PATCH/DELETE /triggers/*`      | Retired; returns `410 Gone` and points to `/automations`                                                                                |
+| `POST /triggers/webhook/:token`      | Retired; returns `410 Gone` without executing                                                                                           |
+| `GET /automations`                   | List structured definitions                                                                                                             |
+| `POST /automations`                  | Create an observe/execute definition and receipt                                                                                        |
+| `PATCH /automations/:id`             | Edit objective, trigger, actor assignment, resources, data flow, autonomy, limits, or enabled state; execution authority is revalidated |
+| `DELETE /automations/:id`            | Stop and revoke its execution authorizations                                                                                            |
+| `POST /automations/:id/run`          | Run a manual definition with an `Idempotency-Key`                                                                                       |
+| `GET /automations/runs`              | List decision and execution history                                                                                                     |
+| `GET /automations/runs/:runId/steps` | List correlated steps for an owned run                                                                                                  |
 
 ### Webhooks and events
 
@@ -153,18 +153,18 @@ routes mounted at `packages/api/src/index.ts:194`.
 
 ### Notifications
 
-| Route | Purpose |
-|---|---|
-| `GET /notifications` | Paginated list. `status` (`pending \| sent \| read \| dismissed`), `type`, `limit` (default 30, max 100), `offset` |
-| `GET /notifications/unread-count` | `{ count: number }` |
-| `PATCH /notifications/:id/read` | Mark one read |
-| `POST /notifications/read-all` | Mark all read |
-| `PATCH /notifications/:id/dismiss` | Dismiss one |
-| `POST /notifications/push-token` | Register an Expo push token. Body `{ token, platform?, deviceId? }` |
-| `DELETE /notifications/push-token` | Deactivate one. Body `{ token }` |
-| `GET /notifications/vapid-public-key` | VAPID public key. **No auth required** |
-| `POST /notifications/web-push-subscription` | Register a browser subscription. Body `{ endpoint, keys: { p256dh, auth } }` |
-| `DELETE /notifications/web-push-subscription` | Deactivate one. Body `{ endpoint }` |
+| Route                                         | Purpose                                                                                                            |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `GET /notifications`                          | Paginated list. `status` (`pending \| sent \| read \| dismissed`), `type`, `limit` (default 30, max 100), `offset` |
+| `GET /notifications/unread-count`             | `{ count: number }`                                                                                                |
+| `PATCH /notifications/:id/read`               | Mark one read                                                                                                      |
+| `POST /notifications/read-all`                | Mark all read                                                                                                      |
+| `PATCH /notifications/:id/dismiss`            | Dismiss one                                                                                                        |
+| `POST /notifications/push-token`              | Register an Expo push token. Body `{ token, platform?, deviceId? }`                                                |
+| `DELETE /notifications/push-token`            | Deactivate one. Body `{ token }`                                                                                   |
+| `GET /notifications/vapid-public-key`         | VAPID public key. **No auth required**                                                                             |
+| `POST /notifications/web-push-subscription`   | Register a browser subscription. Body `{ endpoint, keys: { p256dh, auth } }`                                       |
+| `DELETE /notifications/web-push-subscription` | Deactivate one. Body `{ endpoint }`                                                                                |
 
 **Socket.IO.** Connect at the API origin, emit `subscribe-notifications` with the user id,
 and listen for `notification`, `alia.approval_request` and `alia.approval_result`. The same
@@ -172,33 +172,33 @@ channel emits cache-invalidation events for conversation, trigger and notificati
 
 ### Codea
 
-| Route | Purpose |
-|---|---|
-| `GET /codea/user` | Entitlement payload |
-| `GET /codea/token` | Token and quota metadata |
-| `GET /codea/mcp_registry` | MCP policy metadata |
-| `GET /codea/me` | Current user summary |
+| Route                     | Purpose                  |
+| ------------------------- | ------------------------ |
+| `GET /codea/user`         | Entitlement payload      |
+| `GET /codea/token`        | Token and quota metadata |
+| `GET /codea/mcp_registry` | MCP policy metadata      |
+| `GET /codea/me`           | Current user summary     |
 
 ### Catalogue and analytics
 
-| Route | Purpose |
-|---|---|
-| `GET /catalogue` | The truthful catalogue: routing profiles keyed `profile:*` and individually selectable models keyed `<publisher>/<model>`, each carrying its real kind (`routes/catalogue.ts`) |
-| `GET /catalogue/modes` | The product modes a person picks between (`routes/catalogue.ts`) |
-| `GET /external-models`, `/external-models/organizations`, `/external-models/:modelId` | The external-model leaderboard (`routes/external-models.ts`) |
-| `/analytics` | Product analytics |
-| `/audit`, `/reports` | Audit trail and user reports |
+| Route                                                                                 | Purpose                                                                                                                                                                        |
+| ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `GET /catalogue`                                                                      | The truthful catalogue: routing profiles keyed `profile:*` and individually selectable models keyed `<publisher>/<model>`, each carrying its real kind (`routes/catalogue.ts`) |
+| `GET /catalogue/modes`                                                                | The product modes a person picks between (`routes/catalogue.ts`)                                                                                                               |
+| `GET /external-models`, `/external-models/organizations`, `/external-models/:modelId` | The external-model leaderboard (`routes/external-models.ts`)                                                                                                                   |
+| `/analytics`                                                                          | Product analytics                                                                                                                                                              |
+| `/audit`, `/reports`                                                                  | Audit trail and user reports                                                                                                                                                   |
 
 The external-model leaderboard is inventoried separately under workstream 10 of #139; its
 destination is not decided by this page.
 
 ### Health
 
-| Route | What it answers |
-|---|---|
-| `GET /health/live` | "Is this process running." Deliberately unconditional — it consults no dependency |
+| Route               | What it answers                                                                                  |
+| ------------------- | ------------------------------------------------------------------------------------------------ |
+| `GET /health/live`  | "Is this process running." Deliberately unconditional — it consults no dependency                |
 | `GET /health/ready` | "Can this task serve traffic." Issues a real `select 1` against Postgres (`routes/health.ts:59`) |
-| `GET /health` | Detailed snapshot, cached for 10 seconds |
+| `GET /health`       | Detailed snapshot, cached for 10 seconds                                                         |
 
 MongoDB is not reported by any of the three, and there is nothing for them to report:
 `packages/api` registers no Mongoose model and opens no connection. Postgres is the only
@@ -234,16 +234,16 @@ by ADR 0010.
 
 Routes mounted in `packages/api/src/routes/v1.ts`:
 
-| Route | Mount | Auth |
-|---|---|---|
-| `GET /v1/` | `:20` | none |
-| `GET /v1/models`, `GET /v1/models/:modelId` | `:28` | none — mounted ahead of the auth middleware |
-| `GET /v1/me` | `:68` | session or key |
-| `POST /v1/chat/completions` | `:127` | session or key |
-| `/v1/responses` | `:130` | session or key |
-| `/v1/voice` | `:133` | session or key |
-| `/v1/audio` | `:136` | session or key |
-| `/v1/images` | `:139` | session or key |
+| Route                                       | Mount  | Auth                                        |
+| ------------------------------------------- | ------ | ------------------------------------------- |
+| `GET /v1/`                                  | `:20`  | none                                        |
+| `GET /v1/models`, `GET /v1/models/:modelId` | `:28`  | none — mounted ahead of the auth middleware |
+| `GET /v1/me`                                | `:68`  | session or key                              |
+| `POST /v1/chat/completions`                 | `:127` | session or key                              |
+| `/v1/responses`                             | `:130` | session or key                              |
+| `/v1/voice`                                 | `:133` | session or key                              |
+| `/v1/audio`                                 | `:136` | session or key                              |
+| `/v1/images`                                | `:139` | session or key                              |
 
 **What still works.** These routes are served with their existing request and response
 shapes. Product `alia.*` SSE events may still appear on them, because this surface is the
@@ -254,7 +254,7 @@ product runtime under an older name.
 **Removal gate, per route.** A measurement over `api_key_usage` filtered to that
 `endpoint`, across a window shorter than the 90-day retention and covering at least one
 full monthly billing cycle, showing zero external requests — with a positive control on a
-route known to be live over the same window. *Or* an enumeration showing every known
+route known to be live over the same window. _Or_ an enumeration showing every known
 consumer has migrated. Plus a documented replacement: either the equivalent
 `api.oxy.so/v1` route is live, or the capability is explicitly recorded as not carried
 forward. Route-by-route is deliberate, because gating the whole surface on its
@@ -344,19 +344,49 @@ no revision, no model card, and never `object: 'model'`.
 {
   "object": "list",
   "data": [
-    { "id": "mode:auto", "object": "product_mode", "label": "Auto",
+    {
+      "id": "mode:auto",
+      "object": "product_mode",
+      "label": "Auto",
       "description": "Alia picks how to answer.",
-      "routing": { "kind": "profile", "profile_id": "route:auto" }, "deep_research": false },
-    { "id": "mode:instant", "object": "product_mode", "label": "Instant",
-      "routing": { "kind": "profile", "profile_id": "route:instant" }, "deep_research": false },
-    { "id": "mode:thinking", "object": "product_mode", "label": "Thinking",
-      "routing": { "kind": "profile", "profile_id": "route:thinking" }, "deep_research": false },
-    { "id": "mode:pro", "object": "product_mode", "label": "Pro",
-      "routing": { "kind": "profile", "profile_id": "route:pro" }, "deep_research": false },
-    { "id": "mode:research", "object": "product_mode", "label": "Research",
-      "routing": { "kind": "profile", "profile_id": "route:research" }, "deep_research": true },
-    { "id": "mode:code", "object": "product_mode", "label": "Code",
-      "routing": { "kind": "profile", "profile_id": "route:code" }, "deep_research": false }
+      "routing": { "kind": "profile", "profile_id": "route:auto" },
+      "deep_research": false
+    },
+    {
+      "id": "mode:instant",
+      "object": "product_mode",
+      "label": "Instant",
+      "routing": { "kind": "profile", "profile_id": "route:instant" },
+      "deep_research": false
+    },
+    {
+      "id": "mode:thinking",
+      "object": "product_mode",
+      "label": "Thinking",
+      "routing": { "kind": "profile", "profile_id": "route:thinking" },
+      "deep_research": false
+    },
+    {
+      "id": "mode:pro",
+      "object": "product_mode",
+      "label": "Pro",
+      "routing": { "kind": "profile", "profile_id": "route:pro" },
+      "deep_research": false
+    },
+    {
+      "id": "mode:research",
+      "object": "product_mode",
+      "label": "Research",
+      "routing": { "kind": "profile", "profile_id": "route:research" },
+      "deep_research": true
+    },
+    {
+      "id": "mode:code",
+      "object": "product_mode",
+      "label": "Code",
+      "routing": { "kind": "profile", "profile_id": "route:code" },
+      "deep_research": false
+    }
   ]
 }
 ```
@@ -374,12 +404,12 @@ Four endpoints answer `410` with a message naming the replacement. There is no
 compatibility shim, and this is the pattern compatibility-window removals will follow
 rather than deleting a route and returning a bare `404`.
 
-| Endpoint | Handler | Message |
-|---|---|---|
-| `POST /v1/resolve-model` | `routes/v1.ts:109` | "Use /v1/chat/completions with Kaana routing profile IDs. Direct model resolution is internal-only." |
-| `POST /v1/report-usage` | `routes/v1.ts:120` | "Usage is tracked automatically by Alia runtime." |
-| `POST /codea/resolve-model` | `routes/codea.ts:235` | Same as `/v1/resolve-model` |
-| `POST /codea/report-usage` | `routes/codea.ts:246` | Same as `/v1/report-usage` |
+| Endpoint                    | Handler               | Message                                                                                              |
+| --------------------------- | --------------------- | ---------------------------------------------------------------------------------------------------- |
+| `POST /v1/resolve-model`    | `routes/v1.ts:109`    | "Use /v1/chat/completions with Kaana routing profile IDs. Direct model resolution is internal-only." |
+| `POST /v1/report-usage`     | `routes/v1.ts:120`    | "Usage is tracked automatically by Alia runtime."                                                    |
+| `POST /codea/resolve-model` | `routes/codea.ts:235` | Same as `/v1/resolve-model`                                                                          |
+| `POST /codea/report-usage`  | `routes/codea.ts:246` | Same as `/v1/report-usage`                                                                           |
 
 The two `/codea` routes still run `authenticateApiKey` and the per-key rate limit before
 answering `410`, so an unauthenticated caller gets a `401` rather than the `410`.
@@ -407,7 +437,7 @@ answering `410`, so an unauthenticated caller gets a `401` rather than the `410`
 ## Open questions
 
 - **Whether `Deprecation` and `Sunset` are emitted per-route or blanket across `/v1/*`.**
-  Per-route measurement is decided; per-route headers are not. *Owner: workstream 6 owner.*
+  Per-route measurement is decided; per-route headers are not. _Owner: workstream 6 owner._
 - ~~**Whether `/v1/shows` belongs to the compatibility window at all.**~~ ANSWERED, in
   #327: it does not. The workstream 1 inventory had already assigned all five routes
   `"proposedOwner": "alia"` and `"targetPath": "keep-alia-product"`, so they moved to

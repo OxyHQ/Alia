@@ -9,10 +9,17 @@ requireText(workflow, 'environment: production', 'workflow does not use the prot
 requireText(workflow, 'QA_USER_ID: ${{ vars.ALIA_CANARY_OXY_USER_ID }}', 'QA identity is not a closed protected variable');
 requireText(workflow, 'command:["node","packages/api/dist/scripts/production-chat-canary.js"]', 'workflow does not run the shipped private entrypoint');
 requireText(workflow, '.taskDefinition', 'workflow is not bound to the live task definition');
+requireText(workflow, 'expected_live_image_digest', 'workflow is not bound to an immutable live image');
+requireText(workflow, 'stop-task', 'workflow has no EXIT cleanup for its task');
 requireText(workflow, '.synthetic', 'workflow does not fail synthetic HTTP-200 answers');
 for (const mode of ['instant', 'auto', 'thinking', 'research']) requireText(runner, `route:${mode}`, `${mode} is absent`);
 for (const label of ['search-tool', 'controlled-refusal', 'recovery']) requireText(runner, label, `${label} is absent`);
 requireText(runner, 'conversationId: null', 'the no-persistence result contract is absent');
+requireText(runner, '"x-oxy-user-id": qaUserId', 'runner does not exercise verified service acting-as');
+requireText(runner, 'authorization: `Bearer ${token}`', 'runner does not enter the real bearer middleware');
+if (runner.includes('handleChatCompletions')) failures.push('runner bypasses HTTP authentication by importing the handler');
+requireText(runner, 'markerMatched', 'runner accepts arbitrary non-empty model output');
+requireText(runner, 'expectTool: true', 'search case does not require tool evidence');
 requireText(build, "entryPoints: ['src/scripts/production-chat-canary.ts']", 'the runtime image does not build the canary');
 if (failures.length) { process.stderr.write(`Production chat canary gate failed:\n- ${failures.join('\n- ')}\n`); process.exit(1); }
 process.stdout.write('Production chat canary remains private, live-image-bound, closed-identity and full-matrix.\n');
