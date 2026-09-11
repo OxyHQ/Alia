@@ -19,8 +19,10 @@ import { describe, expect, it } from 'vitest';
  *    in the Kaana tree would mean something had been invented; the last block
  *    below asserts its absence rather than leaving it implied.
  *  - **Something → Alia is the inbound hop, and is where verification lives.**
- *    `POST /internal/trigger` is the one route that accepts a service token, and
- *    it does so through `@oxy.so/core`'s `serviceAuth` — which verifies an
+ *    `POST /internal/trigger` requires one through `@oxy.so/core`'s
+ *    `serviceAuth`; the shared user-token middleware also accepts one on the
+ *    authenticated chat surface only after verifying an explicit acting-as
+ *    grant for its `X-Oxy-User-Id`. Both SDK paths verify an
  *    Ed25519 signature from Oxy's public JWKS plus issuer, audience, lifetime,
  *    token type and scopes before granting. Alia holds no private verification
  *    secret; inability to resolve an exact public `kid` fails closed.

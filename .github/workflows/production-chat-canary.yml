@@ -1,0 +1,117 @@
+name: Alia production chat canary
+
+on:
+  workflow_dispatch:
+    inputs:
+      expected_live_task_definition_arn:
+        description: Exact live oxy-alia task-definition ARN reviewed before the run
+        required: true
+        type: string
+      expected_live_image_digest:
+        description: Exact sha256 digest running on every live Alia task
+        required: true
+        type: string
+      reason:
+        description: Auditable incident or release reason
+        required: true
+        type: string
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: alia-production-chat-canary
+  cancel-in-progress: false
+
+jobs:
+  canary:
+    if: github.ref == 'refs/heads/main'
+    environment: production
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      AWS_REGION: us-west-2
+      CLUSTER: oxy-cluster
+      SERVICE: alia
+      QA_USER_ID: ${{ vars.ALIA_CANARY_OXY_USER_ID }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::237343248947:role/oxy-github-deploy
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Run the bounded private one-shot
+        env:
+          EXPECTED_TASK_DEFINITION: ${{ inputs.expected_live_task_definition_arn }}
+          EXPECTED_IMAGE_DIGEST: ${{ inputs.expected_live_image_digest }}
+          REASON: ${{ inputs.reason }}
+        run: |
+          set -euo pipefail
+          [[ "$EXPECTED_TASK_DEFINITION" =~ ^arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-alia:[1-9][0-9]*$ ]] || {
+            echo '::error::expected_live_task_definition_arn is not one exact production Alia revision'; exit 1;
+          }
+          [[ "$EXPECTED_IMAGE_DIGEST" =~ ^sha256:[a-f0-9]{64}$ ]] || { echo '::error::expected_live_image_digest is invalid'; exit 1; }
+          [[ "$QA_USER_ID" =~ ^([a-f0-9]{24}|[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$ ]] || {
+            echo '::error::the protected production ALIA_CANARY_OXY_USER_ID is absent or invalid'; exit 1;
+          }
+          [ -n "$REASON" ] || { echo '::error::reason is required'; exit 1; }
+          service_json=$(aws ecs describe-services --cluster "$CLUSTER" --services "$SERVICE" --query 'services[0]' --output json)
+          live=$(jq -r '.taskDefinition' <<<"$service_json")
+          [ "$live" = "$EXPECTED_TASK_DEFINITION" ] || { echo "::error::live task definition changed to $live"; exit 1; }
+          [ "$(jq -r '.runningCount == .desiredCount and .desiredCount > 0 and .pendingCount == 0 and ([.deployments[] | select(.status == "PRIMARY" and .rolloutState == "COMPLETED")] | length == 1)' <<<"$service_json")" = true ] || {
+            echo '::error::Alia is not in a positive completed steady state'; exit 1;
+          }
+          task_json=$(aws ecs describe-task-definition --task-definition "$live" --query 'taskDefinition' --output json)
+          [ "$(jq '[.containerDefinitions[] | select(.name == "alia")] | length' <<<"$task_json")" = 1 ] || { echo '::error::task definition lacks exactly one alia container'; exit 1; }
+          container=alia
+          declared_image=$(jq -r '.containerDefinitions[] | select(.name == "alia") | .image' <<<"$task_json")
+          [[ "$declared_image" == *@"$EXPECTED_IMAGE_DIGEST" ]] || { echo '::error::task definition does not pin the reviewed digest'; exit 1; }
+          log_group=$(jq -r '.containerDefinitions[] | select(.name == "alia") | .logConfiguration.options["awslogs-group"]' <<<"$task_json")
+          log_prefix=$(jq -r '.containerDefinitions[] | select(.name == "alia") | .logConfiguration.options["awslogs-stream-prefix"]' <<<"$task_json")
+          mapfile -t running_tasks < <(aws ecs list-tasks --cluster "$CLUSTER" --service-name "$SERVICE" --desired-status RUNNING --query 'taskArns[]' --output text | tr '\t' '\n')
+          [ "${#running_tasks[@]}" -gt 0 ] || { echo '::error::no running Alia tasks'; exit 1; }
+          running_json=$(aws ecs describe-tasks --cluster "$CLUSTER" --tasks "${running_tasks[@]}" --output json)
+          [ "$(jq --arg td "$live" --arg digest "$EXPECTED_IMAGE_DIGEST" '[.tasks[] | select(.taskDefinitionArn != $td or ([.containers[] | select(.name == "alia" and .imageDigest == $digest)] | length != 1))] | length' <<<"$running_json")" = 0 ] || { echo '::error::running tasks do not all attest the exact revision and digest'; exit 1; }
+          network=$(jq -c '.networkConfiguration.awsvpcConfiguration' <<<"$service_json")
+          overrides=$(jq -cn --arg container "$container" --arg user "$QA_USER_ID" '{containerOverrides:[{name:$container,command:["node","packages/api/dist/scripts/production-chat-canary.js"],environment:[{name:"ALIA_CANARY_OXY_USER_ID",value:$user}]}]}')
+          task=''
+          cleanup() {
+            status=$?
+            trap - EXIT INT TERM
+            if [ -n "$task" ]; then
+              cleanup_failed=0
+              if ! aws ecs stop-task --cluster "$CLUSTER" --task "$task" --reason "Alia canary workflow cleanup ${GITHUB_RUN_ID}" >/dev/null; then
+                echo '::error::failed to stop the ephemeral Alia canary task'
+                cleanup_failed=1
+              elif ! aws ecs wait tasks-stopped --cluster "$CLUSTER" --tasks "$task"; then
+                echo '::error::timed out waiting for the ephemeral Alia canary task to stop'
+                cleanup_failed=1
+              fi
+              [ "$cleanup_failed" = 0 ] || exit 1
+            fi
+            exit "$status"
+          }
+          trap cleanup EXIT
+          trap 'exit 130' INT
+          trap 'exit 143' TERM
+          run=$(aws ecs run-task --cluster "$CLUSTER" --launch-type FARGATE --task-definition "$live" --network-configuration "$(jq -cn --argjson n "$network" '{awsvpcConfiguration:$n}')" --overrides "$overrides" --started-by "gh-alia-chat-canary-${GITHUB_RUN_ID}" --tags "key=OxyOperation,value=AliaProductionChatCanary" "key=OxyTaskFamily,value=oxy-alia" "key=OxyRunId,value=${GITHUB_RUN_ID}" --output json)
+          task=$(jq -r '.tasks[0].taskArn // empty' <<<"$run")
+          [ -n "$task" ] && [ "$(jq '.failures | length' <<<"$run")" = 0 ] || { echo '::error::ECS refused the canary task'; exit 1; }
+          aws ecs wait tasks-stopped --cluster "$CLUSTER" --tasks "$task"
+          stopped=$(aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$task" --query 'tasks[0]' --output json)
+          [ "$(jq --arg td "$live" --arg digest "$EXPECTED_IMAGE_DIGEST" '.taskDefinitionArn == $td and ([.containers[] | select(.name == "alia" and .imageDigest == $digest)] | length == 1)' <<<"$stopped")" = true ] || { echo '::error::canary task did not execute the attested Alia image'; exit 1; }
+          exit_code=$(jq -r '.containers[] | select(.name == "alia") | .exitCode // -1' <<<"$stopped")
+          stream="$log_prefix/$container/${task##*/}"
+          result=''
+          for attempt in $(seq 1 12); do
+            result=$(aws logs filter-log-events --log-group-name "$log_group" --log-stream-names "$stream" --filter-pattern 'ALIA_PRODUCTION_CANARY' --query 'events[].message' --output text 2>/dev/null || true)
+            [ -n "$result" ] && break
+            sleep 5
+          done
+          [ "$exit_code" = 0 ] && [ "$(grep -c '^ALIA_PRODUCTION_CANARY ' <<<"$result")" = 1 ] || { echo "::error::private canary failed (exit=$exit_code)"; exit 1; }
+          safe=${result#ALIA_PRODUCTION_CANARY }
+          jq -e '.schemaVersion == 1 and .conversationId == null and (.results | length == 11) and ([.results[].label] | unique | length == 11) and ([.results[] | select(.label != "controlled-refusal") | select(.statusCode != 200 or .synthetic or (.done | not) or (.answerPresent | not) or (.markerMatched | not) or ((.reference | type != "string") or (.reference | test("^chatcmpl-[0-9a-f-]{36}$") | not)))] | length == 0) and ([.results[] | select(.label != "controlled-refusal") | .reference] | unique | length == 10) and ([.results[] | select(.label == "search-tool" and .toolEvent)] | length == 1) and ([.results[] | select(.label == "controlled-refusal" and .statusCode == 400 and .code == "REQUEST_REFUSED" and (.synthetic | not) and (.done | not) and (.answerPresent | not) and (.toolEvent | not))] | length == 1) and .results[-1].label == "recovery"' <<<"$safe" >/dev/null
+          jq '{schemaVersion,conversationId,results}' <<<"$safe"
+          task=''
+          trap - EXIT INT TERM
