@@ -261,6 +261,9 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
           observation,
         });
         req.off('close', onClientClose);
+        // Stable, metadata-free positive signal for the passive public status
+        // alarm. It is emitted only after the hosted turn completed.
+        log.v1.info('Alia functional turn completed');
         return { status: 'completed' };
       }
 
@@ -424,6 +427,9 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
       res.write('data: [DONE]\n\n');
       res.end();
       clearTimeout(globalTimer);
+      // Keep this identical to the non-streaming marker: CloudWatch counts one
+      // successful functional turn without learning user, model or provider.
+      log.v1.info('Alia functional turn completed');
 
       // If the client disconnected before the stream finished, send a push notification
       if (observation.cancelled && req.user?.id && body.conversationId) {
