@@ -266,6 +266,10 @@ healthy and still receives traffic. Moving the target group to `/health/ready` i
 - Do not expose upstream routing detail in product responses. Kaana owns provider
   deployment, retry and health telemetry; Alia logs only the Kaana request/result
   identifiers needed to correlate a product failure.
+- Each completed hosted turn emits exactly `Alia functional turn completed` with no
+  attached request, account, model or provider fields. The public status alarm combines
+  that positive marker with the existing capability-loading and Kaana-inference failure
+  chokepoints. It creates no synthetic inference: silence is unknown, never success.
 
 ### Auditing a change to model or routing configuration
 
