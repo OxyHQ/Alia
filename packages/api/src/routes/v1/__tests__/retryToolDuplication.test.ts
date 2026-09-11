@@ -42,6 +42,7 @@ const H = vi.hoisted(() => {
     toolOfferedCalls: 0,
     toolRuns: 0,
     resolveCalls: 0,
+    functionalCompletionMarkers: 0,
   };
   /** `Model.findById(...).select(...).lean()` and `Model.findOne(...).lean()`, both null. */
   const emptyQuery = () => ({ select: () => ({ lean: async () => null }), lean: async () => null });
@@ -231,7 +232,16 @@ vi.mock('../../../lib/tools/oxy-services.js', () => ({
 }));
 vi.mock('../../../lib/observability/index.js', () => ({ recordEvent: vi.fn() }));
 vi.mock('../../../lib/logger.js', () => {
-  const child = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };
+  const child = {
+    info: vi.fn((...args: unknown[]) => {
+      if (args.length === 1 && args[0] === 'Alia functional turn completed') {
+        H.state.functionalCompletionMarkers += 1;
+      }
+    }),
+    warn: vi.fn(),
+    error: vi.fn(),
+    debug: vi.fn(),
+  };
   return { log: { v1: child, chat: child, general: child, providers: child, codea: child, correlation: child } };
 });
 
@@ -246,9 +256,11 @@ import { handleChatCompletions } from '../chat-completions.js';
  *   stream chunk — which is the only way to reach the provider loop's OWN
  *   post-content guard (`provider-loop.ts:367`).
  */
-function recordingRes(failOn?: string) {
+function recordingRes(failOn?: string, closeBeforeCompletion = false) {
   const raw: string[] = [];
   let failed = false;
+  const closeListeners = new Set<() => void>();
+  let closeEmitted = false;
   const res = {
     raw,
     headersSent: false,
@@ -256,6 +268,10 @@ function recordingRes(failOn?: string) {
     socket: { setNoDelay: () => undefined },
     setHeader: () => undefined,
     write(chunk: string) {
+      if (closeBeforeCompletion && !closeEmitted && closeListeners.size > 0) {
+        closeEmitted = true;
+        for (const listener of closeListeners) listener();
+      }
       if (failOn !== undefined && !failed && chunk.includes(failOn)) {
         failed = true;
         throw new Error('write after end');
@@ -266,6 +282,7 @@ function recordingRes(failOn?: string) {
     },
     end() {
       res.writableEnded = true;
+      for (const listener of closeListeners) listener();
     },
     flushHeaders() {
       res.headersSent = true;
@@ -275,6 +292,12 @@ function recordingRes(failOn?: string) {
     },
     json() {
       res.headersSent = true;
+    },
+    on(event: string, listener: () => void) {
+      if (event === 'close') closeListeners.add(listener);
+    },
+    off(event: string, listener: () => void) {
+      if (event === 'close') closeListeners.delete(listener);
     },
   };
   return res;
@@ -299,10 +322,11 @@ function apiKeyReq() {
 type RouteReq = Parameters<typeof handleChatCompletions>[0];
 type RouteRes = Parameters<typeof handleChatCompletions>[1];
 
-async function run(options: { failWriteOn?: string; includeUsage?: boolean } = {}): Promise<ReturnType<typeof recordingRes>> {
+async function run(options: { failWriteOn?: string; includeUsage?: boolean; cancelled?: boolean; stream?: boolean } = {}): Promise<ReturnType<typeof recordingRes>> {
   const req = apiKeyReq();
+  if (options.stream === false) req.body.stream = false;
   if (options.includeUsage === true) req.body.stream_options = { include_usage: true };
-  const res = recordingRes(options.failWriteOn);
+  const res = recordingRes(options.failWriteOn, options.cancelled);
   await handleChatCompletions(req as unknown as RouteReq, res as unknown as RouteRes);
   return res;
 }
@@ -313,6 +337,7 @@ beforeEach(() => {
   H.state.toolOfferedCalls = 0;
   H.state.toolRuns = 0;
   H.state.resolveCalls = 0;
+  H.state.functionalCompletionMarkers = 0;
   vi.clearAllMocks();
 });
 
@@ -339,6 +364,7 @@ describe('a hosted inference failure is never retried around Kaana', () => {
     expect(bytes).toContain('Recovered.');
     expect(bytes).toContain('data: [DONE]');
     expect(res.writableEnded).toBe(true);
+    expect(H.state.functionalCompletionMarkers).toBe(1);
 
     // The tool call and its result reached the client exactly once each, which
     // is what a client counting side effects would see.
@@ -368,6 +394,7 @@ describe('a hosted inference failure is never retried around Kaana', () => {
     // The route's own mid-stream recovery took over, so the request ended
     // rather than being abandoned — a floor proving the run got that far.
     expect(res.raw.join('')).toContain('data: [DONE]');
+    expect(H.state.functionalCompletionMarkers).toBe(0);
   });
 
   it('does not rotate providers when a failure produced nothing', async () => {
@@ -378,5 +405,20 @@ describe('a hosted inference failure is never retried around Kaana', () => {
     expect(H.state.modelCalls).toBe(1);
     expect(H.state.toolRuns).toBe(0);
     expect(res.raw.join('')).toContain('all models are currently busy');
+    expect(H.state.functionalCompletionMarkers).toBe(0);
+  });
+
+  it('does not report a disconnected completion as functional traffic', async () => {
+    const res = await run({ cancelled: true });
+
+    expect(res.writableEnded).toBe(true);
+    expect(H.state.functionalCompletionMarkers).toBe(0);
+  });
+
+  it('reports exactly one successful non-streaming hosted completion', async () => {
+    const res = await run({ stream: false });
+
+    expect(res.headersSent).toBe(true);
+    expect(H.state.functionalCompletionMarkers).toBe(1);
   });
 });
