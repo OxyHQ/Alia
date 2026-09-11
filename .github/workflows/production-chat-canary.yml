@@ -77,13 +77,25 @@ jobs:
           overrides=$(jq -cn --arg container "$container" --arg user "$QA_USER_ID" '{containerOverrides:[{name:$container,command:["node","packages/api/dist/scripts/production-chat-canary.js"],environment:[{name:"ALIA_CANARY_OXY_USER_ID",value:$user}]}]}')
           task=''
           cleanup() {
+            status=$?
+            trap - EXIT INT TERM
             if [ -n "$task" ]; then
-              aws ecs stop-task --cluster "$CLUSTER" --task "$task" --reason "Alia canary workflow cleanup ${GITHUB_RUN_ID}" >/dev/null 2>&1 || true
-              aws ecs wait tasks-stopped --cluster "$CLUSTER" --tasks "$task" >/dev/null 2>&1 || true
+              cleanup_failed=0
+              if ! aws ecs stop-task --cluster "$CLUSTER" --task "$task" --reason "Alia canary workflow cleanup ${GITHUB_RUN_ID}" >/dev/null; then
+                echo '::error::failed to stop the ephemeral Alia canary task'
+                cleanup_failed=1
+              elif ! aws ecs wait tasks-stopped --cluster "$CLUSTER" --tasks "$task"; then
+                echo '::error::timed out waiting for the ephemeral Alia canary task to stop'
+                cleanup_failed=1
+              fi
+              [ "$cleanup_failed" = 0 ] || exit 1
             fi
+            exit "$status"
           }
-          trap cleanup EXIT INT TERM
-          run=$(aws ecs run-task --cluster "$CLUSTER" --launch-type FARGATE --task-definition "$live" --network-configuration "$(jq -cn --argjson n "$network" '{awsvpcConfiguration:$n}')" --overrides "$overrides" --started-by "gh-alia-chat-canary-${GITHUB_RUN_ID}" --tags "key=oxy.lifecycle,value=ephemeral" "key=oxy.purpose,value=alia-chat-canary" "key=oxy.run-id,value=${GITHUB_RUN_ID}" --output json)
+          trap cleanup EXIT
+          trap 'exit 130' INT
+          trap 'exit 143' TERM
+          run=$(aws ecs run-task --cluster "$CLUSTER" --launch-type FARGATE --task-definition "$live" --network-configuration "$(jq -cn --argjson n "$network" '{awsvpcConfiguration:$n}')" --overrides "$overrides" --started-by "gh-alia-chat-canary-${GITHUB_RUN_ID}" --tags "key=OxyOperation,value=AliaProductionChatCanary" "key=OxyTaskFamily,value=oxy-alia" "key=OxyRunId,value=${GITHUB_RUN_ID}" --output json)
           task=$(jq -r '.tasks[0].taskArn // empty' <<<"$run")
           [ -n "$task" ] && [ "$(jq '.failures | length' <<<"$run")" = 0 ] || { echo '::error::ECS refused the canary task'; exit 1; }
           aws ecs wait tasks-stopped --cluster "$CLUSTER" --tasks "$task"

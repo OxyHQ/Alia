@@ -8,7 +8,6 @@ type Case = Readonly<{
   prompt: string;
   marker: string;
   deepResearch?: boolean;
-  webSearch?: boolean;
   tools?: readonly Record<string, unknown>[];
   expectRefusal?: boolean;
   expectTool?: boolean;
@@ -71,7 +70,6 @@ export const PRODUCTION_CANARY_CASES: readonly Case[] = [
     prompt:
       'Use web search for the official React documentation. Include https://react.dev and end with QA_SEARCH_OK.',
     marker: 'QA_SEARCH_OK',
-    webSearch: true,
     expectTool: true,
     tools: [
       {
@@ -139,7 +137,7 @@ export function summarize(
   let done = false;
   let content = '';
   let toolEvent = false;
-  const inspect = (event: unknown): void => {
+  const inspect = (event: unknown, eventName?: string): void => {
     if (typeof event !== 'object' || event === null) return;
     const record = event as Record<string, unknown>;
     if (typeof record.id === 'string' && record.id.length <= 128)
@@ -167,25 +165,39 @@ export function summarize(
     } else if (typeof error === 'string') code ??= 'REQUEST_REFUSED';
     const choices = record.choices;
     if (Array.isArray(choices)) {
-      const delta = (
-        choices[0] as
-          { delta?: { content?: unknown; tool_calls?: unknown } } | undefined
-      )?.delta;
+      const delta = (choices[0] as { delta?: Record<string, unknown> } | undefined)
+        ?.delta;
       if (typeof delta?.content === 'string') content += delta.content;
-      toolEvent ||= delta?.tool_calls !== undefined;
+      if (Array.isArray(delta?.tool_calls)) {
+        toolEvent ||= delta.tool_calls.some((call) => {
+          if (typeof call !== 'object' || call === null) return false;
+          const fn = (call as Record<string, unknown>).function;
+          return (
+            typeof fn === 'object' &&
+            fn !== null &&
+            (fn as Record<string, unknown>).name === 'webSearch'
+          );
+        });
+      }
     }
-    const kind = `${String(record.event ?? '')} ${String(record.type ?? '')}`;
-    toolEvent ||= kind.includes('tool');
+    toolEvent ||=
+      eventName === 'alia.tool_result' && record.name === 'webSearch';
   };
   if (!payload.includes('data: ')) inspect(JSON.parse(payload));
+  let eventName: string | undefined;
   for (const line of payload.split(/\r?\n/)) {
+    if (line.startsWith('event: ')) {
+      eventName = line.slice(7);
+      continue;
+    }
     if (!line.startsWith('data: ')) continue;
     const data = line.slice(6);
     if (data === '[DONE]') {
       done = true;
       continue;
     }
-    inspect(JSON.parse(data));
+    inspect(JSON.parse(data), eventName);
+    eventName = undefined;
   }
   return {
     label: entry.label,
@@ -247,7 +259,6 @@ async function main(): Promise<void> {
           stream: true,
           stream_options: { include_usage: true },
           ...(entry.deepResearch ? { deepResearch: true } : {}),
-          ...(entry.webSearch ? { webSearch: true } : {}),
           ...(entry.tools ? { tools: entry.tools } : {}),
         }),
       });

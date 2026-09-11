@@ -26,11 +26,31 @@ describe('production chat canary safe projection', () => {
     const search = PRODUCTION_CANARY_CASES.find(
       ({ label }) => label === 'search-tool',
     );
-    expect(search).toMatchObject({ webSearch: true, expectTool: true });
+    expect(search).toMatchObject({ expectTool: true });
     expect(search?.tools?.[0]).toMatchObject({
       type: 'function',
       function: { name: 'webSearch' },
     });
+  });
+
+  it('requires exact, non-empty webSearch evidence', () => {
+    const emptyCalls =
+      'data: {"choices":[{"delta":{"tool_calls":[]}}]}\n\ndata: [DONE]\n\n';
+    const toolishEvent =
+      'event: alia.toolish\ndata: {"name":"webSearch"}\n\ndata: [DONE]\n\n';
+    const wrongTool =
+      'event: alia.tool_result\ndata: {"name":"otherTool"}\n\ndata: [DONE]\n\n';
+    const executedSearch =
+      'event: alia.tool_result\ndata: {"name":"webSearch"}\n\ndata: [DONE]\n\n';
+
+    for (const payload of [emptyCalls, toolishEvent, wrongTool]) {
+      expect(summarize({ label: 'search', marker: '' }, 200, payload).toolEvent).toBe(
+        false,
+      );
+    }
+    expect(
+      summarize({ label: 'search', marker: '' }, 200, executedSearch).toolEvent,
+    ).toBe(true);
   });
 
   it('enters the real HTTP auth router and has a bounded process lifetime', () => {
