@@ -1,0 +1,18 @@
+import { readFileSync } from 'node:fs';
+const workflow = readFileSync(new URL('../.github/workflows/production-chat-canary.yml', import.meta.url), 'utf8');
+const runner = readFileSync(new URL('../packages/api/src/scripts/production-chat-canary.ts', import.meta.url), 'utf8');
+const build = readFileSync(new URL('../packages/api/build.ts', import.meta.url), 'utf8');
+const failures = [];
+const requireText = (source, value, message) => { if (!source.includes(value)) failures.push(message); };
+requireText(workflow, "if: github.ref == 'refs/heads/main'", 'workflow is not main-only');
+requireText(workflow, 'environment: production', 'workflow does not use the protected production environment');
+requireText(workflow, 'QA_USER_ID: ${{ vars.ALIA_CANARY_OXY_USER_ID }}', 'QA identity is not a closed protected variable');
+requireText(workflow, 'command:["node","packages/api/dist/scripts/production-chat-canary.js"]', 'workflow does not run the shipped private entrypoint');
+requireText(workflow, '.taskDefinition', 'workflow is not bound to the live task definition');
+requireText(workflow, '.synthetic', 'workflow does not fail synthetic HTTP-200 answers');
+for (const mode of ['instant', 'auto', 'thinking', 'research']) requireText(runner, `route:${mode}`, `${mode} is absent`);
+for (const label of ['search-tool', 'controlled-refusal', 'recovery']) requireText(runner, label, `${label} is absent`);
+requireText(runner, 'conversationId: null', 'the no-persistence result contract is absent');
+requireText(build, "entryPoints: ['src/scripts/production-chat-canary.ts']", 'the runtime image does not build the canary');
+if (failures.length) { process.stderr.write(`Production chat canary gate failed:\n- ${failures.join('\n- ')}\n`); process.exit(1); }
+process.stdout.write('Production chat canary remains private, live-image-bound, closed-identity and full-matrix.\n');

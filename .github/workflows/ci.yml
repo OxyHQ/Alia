@@ -450,6 +450,9 @@ jobs:
       - name: Check no client hardcodes a model default
         run: node scripts/check-model-defaults.mjs
 
+      - name: Check production chat canary contract
+        run: node scripts/check-production-chat-canary.mjs
+
       - name: Check retired routing names cannot return
         run: node scripts/check-routing-vocabulary.mjs
 
