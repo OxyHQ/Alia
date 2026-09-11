@@ -88,7 +88,8 @@ jobs:
           [ -n "$task" ] && [ "$(jq '.failures | length' <<<"$run")" = 0 ] || { echo '::error::ECS refused the canary task'; exit 1; }
           aws ecs wait tasks-stopped --cluster "$CLUSTER" --tasks "$task"
           stopped=$(aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$task" --query 'tasks[0]' --output json)
-          exit_code=$(jq -r '.containers[0].exitCode // -1' <<<"$stopped")
+          [ "$(jq --arg td "$live" --arg digest "$EXPECTED_IMAGE_DIGEST" '.taskDefinitionArn == $td and ([.containers[] | select(.name == "alia" and .imageDigest == $digest)] | length == 1)' <<<"$stopped")" = true ] || { echo '::error::canary task did not execute the attested Alia image'; exit 1; }
+          exit_code=$(jq -r '.containers[] | select(.name == "alia") | .exitCode // -1' <<<"$stopped")
           stream="$log_prefix/$container/${task##*/}"
           result=''
           for attempt in $(seq 1 12); do
