@@ -19,6 +19,41 @@ import {
   type FailoverReason,
 } from './error-codes';
 import { BILLING_RE, AUTH_RE } from '../constants.js';
+import { OxyInferenceError } from '@oxy.so/core';
+import type { InferenceErrorCode } from '@oxy.so/contracts';
+
+// The hosted contract is authoritative. Provider messages and HTTP status can
+// describe the platform's account, so they must not imply a customer fault.
+const OXY_ERROR_REASONS: Record<InferenceErrorCode, FailoverReason> = {
+  invalid_request: 'format',
+  authentication_failed: 'auth',
+  permission_denied: 'auth',
+  insufficient_scope: 'auth',
+  model_not_found: 'model_not_found',
+  unsupported_modality: 'format',
+  context_length_exceeded: 'format',
+  request_too_large: 'format',
+  output_limit_exceeded: 'format',
+  idempotency_conflict: 'format',
+  insufficient_balance: 'billing',
+  spending_limit_exceeded: 'billing',
+  quota_exceeded: 'billing',
+  byok_credential_invalid: 'auth',
+  policy_violation: 'auth',
+  commercial_permission_denied: 'auth',
+  no_route_available: 'provider_unavailable',
+  upstream_content_filtered: 'content_filter',
+  cancelled: 'unknown',
+  rate_limited: 'rate_limit',
+  deployment_unavailable: 'provider_unavailable',
+  provider_error: 'provider_unavailable',
+  provider_timeout: 'timeout',
+  provider_overloaded: 'provider_unavailable',
+  provider_credential_invalid: 'provider_unavailable',
+  provider_billing_refused: 'provider_unavailable',
+  service_unavailable: 'provider_unavailable',
+  internal_error: 'provider_unavailable',
+};
 
 // ============== REGEX PATTERNS ==============
 
@@ -252,6 +287,7 @@ export function classifyError(err: unknown): FailoverReason {
   if (err instanceof AliaError) {
     return err.reason;
   }
+  if (err instanceof OxyInferenceError) return OXY_ERROR_REASONS[err.code];
 
   /**
    * The one reason that cannot be derived from a response, because there was
@@ -470,10 +506,12 @@ export function toAliaError(
     message: internalMessage,
     // userMessage is intentionally omitted -- the AliaError constructor
     // will use the safe default from DEFAULT_USER_MESSAGES
-    retryable: mapping.retryable,
-    retryAfter: retryAfterHeader ?? mapping.defaultRetryAfter,
+    retryable: err instanceof OxyInferenceError ? err.retryable : mapping.retryable,
+    retryAfter: err instanceof OxyInferenceError
+      ? (err.retryable && err.retryAfterMs !== undefined ? Math.ceil(err.retryAfterMs / 1000) : undefined)
+      : retryAfterHeader ?? mapping.defaultRetryAfter,
     reason,
-    httpStatus: status,
+    httpStatus: err instanceof OxyInferenceError ? undefined : status,
     cause: err instanceof Error ? err : undefined,
   });
 }

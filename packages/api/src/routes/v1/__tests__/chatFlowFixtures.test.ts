@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { OxyInferenceError } from '@oxy.so/core';
 
 /**
  * Regression fixtures for the four product flows that reach POST
@@ -1034,6 +1035,32 @@ describe('fixture: app chat flow — streaming, direct user session, one server 
 // ===========================================================================
 
 describe('fixture: what a failure surfaces to the user', () => {
+  it('keeps a platform billing refusal non-retryable through the real chat handler', async () => {
+    H.state.resolveAnswers = [RESOLVED, null];
+    H.state.streamTurns = [[streamStart, { type: 'error', error: new OxyInferenceError({
+      code: 'provider_billing_refused', retryable: false, status: 402,
+      message: `The platform's ${UPSTREAM_PROVIDER} account cannot be billed`,
+      requestId: 'oxy-private-request',
+    }) }]];
+    const res = recordingRes();
+    await run(recordingReq({
+      body: { messages: [{ role: 'user', content: 'hello' }], model: 'route:auto', stream: true },
+    }), res);
+    const bytes = res.raw.join('');
+    expect(bytes).toContain('"synthetic":true');
+    expect(bytes).toContain('"retryable":false');
+    expect(bytes).toContain('"code":"PROVIDER_UNAVAILABLE"');
+    expect(bytes).toMatch(/"reference":"chatcmpl-[0-9a-f-]{36}"/);
+    expect(bytes).not.toContain('retryAfter');
+    expect(bytes).not.toContain('QUOTA_EXCEEDED');
+    expect(bytes).not.toContain(UPSTREAM_PROVIDER);
+    expect(bytes).not.toContain('oxy-private-request');
+    expect(H.timeline).toContain('credits:refund');
+    expect(H.timeline).not.toContain('credits:finalize');
+    expect(H.timeline.filter(entry => entry === 'model:doStream')).toHaveLength(1);
+    expect(H.timeline.filter(entry => entry.startsWith('persist:'))).toEqual([]);
+  });
+
   it('exhausting every provider yields a synthetic answer, never a raw error', async () => {
     // Reachable in production: this is the path a tier-wide provider outage
     // takes. The route's own comment calls it the LAST-RESORT SYNTHETIC RESPONSE

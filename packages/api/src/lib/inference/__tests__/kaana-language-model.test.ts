@@ -31,6 +31,8 @@ vi.mock('../oxy-inference.js', () => ({
 }));
 
 import { kaanaLanguageModel } from '../kaana-language-model.js';
+import { OxyInferenceError } from '@oxy.so/core';
+import { toAliaError } from '../../errors/failover-error.js';
 
 const prompt = [{ role: 'user' as const, content: [{ type: 'text' as const, text: 'hola' }] }];
 
@@ -49,6 +51,36 @@ describe('Kaana AI SDK adapter through Oxy', () => {
     mocks.requests.length = 0;
     mocks.options.length = 0;
     mocks.events.length = 0;
+  });
+
+  it.each([
+    ['rate_limited', true, 1250, 'RATE_LIMITED', 2],
+    ['provider_billing_refused', false, undefined, 'PROVIDER_UNAVAILABLE', undefined],
+    ['provider_credential_invalid', false, undefined, 'PROVIDER_UNAVAILABLE', undefined],
+    ['no_route_available', false, undefined, 'PROVIDER_UNAVAILABLE', undefined],
+    ['provider_timeout', true, undefined, 'TIMEOUT', undefined],
+    ['quota_exceeded', false, undefined, 'QUOTA_EXCEEDED', undefined],
+  ] as const)('preserves %s through the stream and product classification', async (code, retryable, retryAfterMs, productCode, retryAfter) => {
+    mocks.events.push({
+      type: 'error', requestId: 'req-failed',
+      error: { code, message: 'Upstream refused the request.', retryable, ...(retryAfterMs === undefined ? {} : { retryAfterMs }) },
+    });
+    const model = kaanaLanguageModel({
+      target: { kind: 'routing_profile_id', routingProfileId: '01a06477-94f5-74f0-bc25-628b5f45d802' },
+      modelId: 'route:instant', surface: 'chat',
+    });
+    const { stream } = await model.doStream({ prompt } as never);
+    const parts = await drain(stream);
+    const failure = parts.find(part => part.type === 'error')?.error;
+    expect(failure).toBeInstanceOf(OxyInferenceError);
+    expect(failure).toMatchObject({ code, retryable, requestId: 'req-failed' });
+    const productError = toAliaError(failure);
+    expect(productError).toMatchObject({ code: productCode, retryable });
+    expect(productError.retryAfter).toBe(retryAfter);
+    expect(productError.httpStatus).toBeGreaterThanOrEqual(400);
+    expect(productError.userMessage).not.toContain('Upstream');
+    expect(parts.filter(part => part.type === 'error')).toHaveLength(1);
+    expect(parts.at(-1)).toMatchObject({ type: 'finish', finishReason: { unified: 'error', raw: code } });
   });
 
   it('sends an exact routing profile and delegated user to Oxy', async () => {
