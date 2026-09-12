@@ -1,0 +1,414 @@
+{
+  "incident": "chatcmpl-ece33a9a-1c55-4387-b116-19ee76400730",
+  "alia_pr": 572,
+  "alia_merge": "6aba5b26b7ca24a8f3aa365f3836c211a6be1f6a",
+  "alia_task": "oxy-alia:334",
+  "alia_digest": "sha256:1ea6d3864f654de017794ded3f508dfdb166b1042710b48ae48b71b6fd21e581",
+  "kaana_pr": 96,
+  "kaana_merge": "eb67b2930d2567cab9c1ceef1dcdb3dcf52b939b",
+  "kaana_candidate_digest": "sha256:8248f31d25e320fc99bb3a543820466973f71222b68c1231fc220e14ea60551b",
+  "kaana_serving_task": "oxy-kaana:40",
+  "oxy_pr": 1254,
+  "oxy_pr_head": "19de59aaa49919134d115bc1971fc2f6f4d80cd7",
+  "qa_user": "test",
+  "qa_user_id": "01a0966c-d2bd-7799-93b3-f2dda099cdeb",
+  "local_tests": {
+    "alia": 4248,
+    "alia_skipped": 1,
+    "oxy_api": 6747,
+    "oxy_api_suites": 454,
+    "kaana": "go test -race ./..., vet, build, golangci-lint passed"
+  },
+  "oxy_merge": "675a7fc536914890b28d62feabf65863edaf20a2",
+  "oxy_ci_run": 34705508634,
+  "oxy_ci_tests": {
+    "suites": 454,
+    "tests": 6747,
+    "shards": [
+      2091,
+      2302,
+      2354
+    ]
+  },
+  "oxy_task": "oxy-oxy-api:419",
+  "oxy_digest": "sha256:0bd01a9b3b58ac7d0e952cfc917db12a7eb819c6b3baac3570ebbac491894b70",
+  "bootstrap_task": "oxy-kaana-catalogue-bootstrap:6",
+  "inventory_snapshot": "snap_dfd6904a99d6313b",
+  "catalogue": {
+    "planSha256": "c92582c29270a55962fe5d75158eb6ccd6481d5768c5160a39662e76c37ccedf",
+    "reviewedFactsSha256": "29a980a4fd0e2178909cf746e9777b6408028f5097a35436266b47f03e56699c",
+    "appliedOperations": 4,
+    "readbackPassed": true,
+    "idempotencyPlannedOperations": 0
+  },
+  "services": [
+    {
+      "service": "alia",
+      "taskDefinition": "arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-alia:334",
+      "desired": 2,
+      "running": 2,
+      "pending": 0,
+      "deployments": [
+        {
+          "taskDefinition": "arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-alia:334",
+          "status": "PRIMARY",
+          "state": "COMPLETED"
+        }
+      ]
+    },
+    {
+      "service": "oxy-api",
+      "taskDefinition": "arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-oxy-api:419",
+      "desired": 2,
+      "running": 2,
+      "pending": 0,
+      "deployments": [
+        {
+          "taskDefinition": "arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-oxy-api:419",
+          "status": "PRIMARY",
+          "state": "COMPLETED"
+        }
+      ]
+    },
+    {
+      "service": "kaana",
+      "taskDefinition": "arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-kaana:40",
+      "desired": 1,
+      "running": 1,
+      "pending": 0,
+      "deployments": [
+        {
+          "taskDefinition": "arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-kaana:40",
+          "status": "PRIMARY",
+          "state": "COMPLETED"
+        }
+      ]
+    },
+    {
+      "service": "kaana-publisher",
+      "taskDefinition": "arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-kaana-publisher:46",
+      "desired": 1,
+      "running": 1,
+      "pending": 0,
+      "deployments": [
+        {
+          "taskDefinition": "arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-kaana-publisher:46",
+          "status": "PRIMARY",
+          "state": "COMPLETED"
+        }
+      ]
+    }
+  ],
+  "chat": {
+    "local": {
+      "identity": "01a0966c-d2bd-7799-93b3-f2dda099cdeb",
+      "conversationId": null,
+      "results": [
+        {
+          "label": "instant-1",
+          "reference": "chatcmpl-fc0ca597-a669-41e9-9520-65d3be2db109",
+          "code": null,
+          "retryable": null,
+          "synthetic": false,
+          "done": true,
+          "answerPresent": true,
+          "markerMatched": true,
+          "toolEvent": false,
+          "statusCode": 200
+        },
+        {
+          "label": "instant-2",
+          "reference": "chatcmpl-11f9f42f-6dac-44ff-b1fb-fa8400bb36e0",
+          "code": null,
+          "retryable": null,
+          "synthetic": false,
+          "done": true,
+          "answerPresent": true,
+          "markerMatched": true,
+          "toolEvent": false,
+          "statusCode": 200
+        },
+        {
+          "label": "auto-1",
+          "reference": "chatcmpl-9bf82a36-8b5a-4772-8de8-585af4a4ab0d",
+          "code": null,
+          "retryable": null,
+          "synthetic": false,
+          "done": true,
+          "answerPresent": true,
+          "markerMatched": true,
+          "toolEvent": false,
+          "statusCode": 200
+        },
+        {
+          "label": "auto-2",
+          "reference": "chatcmpl-cd3c7238-8cd3-43a0-9b72-9ac43a437a94",
+          "code": null,
+          "retryable": null,
+          "synthetic": false,
+          "done": true,
+          "answerPresent": true,
+          "markerMatched": true,
+          "toolEvent": false,
+          "statusCode": 200
+        },
+        {
+          "label": "thinking-1",
+          "reference": "chatcmpl-002ec87b-8fa2-4af5-a623-d321f86cb974",
+          "code": null,
+          "retryable": null,
+          "synthetic": false,
+          "done": true,
+          "answerPresent": true,
+          "markerMatched": true,
+          "toolEvent": false,
+          "statusCode": 200
+        },
+        {
+          "label": "thinking-2",
+          "reference": "chatcmpl-57d901cf-85dd-43f0-b953-8d586489aae5",
+          "code": null,
+          "retryable": null,
+          "synthetic": false,
+          "done": true,
+          "answerPresent": true,
+          "markerMatched": true,
+          "toolEvent": false,
+          "statusCode": 200
+        },
+        {
+          "label": "research-1",
+          "reference": "chatcmpl-0bfe218b-8bd1-44e6-921b-39cf3e31bb08",
+          "code": null,
+          "retryable": null,
+          "synthetic": false,
+          "done": true,
+          "answerPresent": true,
+          "markerMatched": true,
+          "toolEvent": false,
+          "statusCode": 200
+        },
+        {
+          "label": "research-2",
+          "reference": "chatcmpl-298de023-5a30-4da6-8e0b-db22b360431f",
+          "code": null,
+          "retryable": null,
+          "synthetic": false,
+          "done": true,
+          "answerPresent": true,
+          "markerMatched": true,
+          "toolEvent": false,
+          "statusCode": 200
+        },
+        {
+          "label": "search-tool",
+          "reference": "chatcmpl-6d253415-0d1f-4bc7-b17f-75ba22ac7d6b",
+          "code": null,
+          "retryable": null,
+          "synthetic": false,
+          "done": true,
+          "answerPresent": true,
+          "markerMatched": true,
+          "toolEvent": true,
+          "statusCode": 200
+        },
+        {
+          "label": "controlled-refusal",
+          "reference": null,
+          "code": "REQUEST_REFUSED",
+          "retryable": null,
+          "synthetic": false,
+          "done": false,
+          "answerPresent": false,
+          "markerMatched": true,
+          "toolEvent": false,
+          "statusCode": 400
+        },
+        {
+          "label": "recovery",
+          "reference": "chatcmpl-8d932413-4d56-4929-9d97-c1d42907ca55",
+          "code": null,
+          "retryable": null,
+          "synthetic": false,
+          "done": true,
+          "answerPresent": true,
+          "markerMatched": true,
+          "toolEvent": false,
+          "statusCode": 200
+        }
+      ]
+    },
+    "production": {
+      "identity": "01a0966c-d2bd-7799-93b3-f2dda099cdeb",
+      "conversationId": null,
+      "results": [
+        {
+          "label": "instant-1",
+          "reference": "chatcmpl-15ac616d-3017-4181-add1-cf6f57f9e128",
+          "code": null,
+          "retryable": null,
+          "synthetic": false,
+          "done": true,
+          "answerPresent": true,
+          "markerMatched": true,
+          "toolEvent": false,
+          "statusCode": 200
+        },
+        {
+          "label": "instant-2",
+          "reference": "chatcmpl-01caf07a-73ff-4ddc-a4cc-f61f75c81dfe",
+          "code": null,
+          "retryable": null,
+          "synthetic": false,
+          "done": true,
+          "answerPresent": true,
+          "markerMatched": true,
+          "toolEvent": false,
+          "statusCode": 200
+        },
+        {
+          "label": "auto-1",
+          "reference": "chatcmpl-5e125d40-5dd3-4ffa-b347-bdd6bb772a0f",
+          "code": null,
+          "retryable": null,
+          "synthetic": false,
+          "done": true,
+          "answerPresent": true,
+          "markerMatched": true,
+          "toolEvent": false,
+          "statusCode": 200
+        },
+        {
+          "label": "auto-2",
+          "reference": "chatcmpl-08d8bab6-ecf3-46b3-a8cd-98b0cb4d2dc3",
+          "code": null,
+          "retryable": null,
+          "synthetic": false,
+          "done": true,
+          "answerPresent": true,
+          "markerMatched": true,
+          "toolEvent": false,
+          "statusCode": 200
+        },
+        {
+          "label": "thinking-1",
+          "reference": "chatcmpl-d248e1de-20e9-4aa9-ba37-b01d47633c27",
+          "code": null,
+          "retryable": null,
+          "synthetic": false,
+          "done": true,
+          "answerPresent": true,
+          "markerMatched": true,
+          "toolEvent": false,
+          "statusCode": 200
+        },
+        {
+          "label": "thinking-2",
+          "reference": "chatcmpl-59348257-240f-4082-938c-dad1b31b8453",
+          "code": null,
+          "retryable": null,
+          "synthetic": false,
+          "done": true,
+          "answerPresent": true,
+          "markerMatched": true,
+          "toolEvent": false,
+          "statusCode": 200
+        },
+        {
+          "label": "research-1",
+          "reference": "chatcmpl-5d23bf2c-5629-41e4-a335-65f648ecdb03",
+          "code": null,
+          "retryable": null,
+          "synthetic": false,
+          "done": true,
+          "answerPresent": true,
+          "markerMatched": true,
+          "toolEvent": false,
+          "statusCode": 200
+        },
+        {
+          "label": "research-2",
+          "reference": "chatcmpl-5e8c0acd-de74-4ae7-94db-c00af8fd13f5",
+          "code": null,
+          "retryable": null,
+          "synthetic": false,
+          "done": true,
+          "answerPresent": true,
+          "markerMatched": true,
+          "toolEvent": false,
+          "statusCode": 200
+        },
+        {
+          "label": "search-tool",
+          "reference": "chatcmpl-f1b818f4-9661-44b6-8a5f-50828cfd60fb",
+          "code": null,
+          "retryable": null,
+          "synthetic": false,
+          "done": true,
+          "answerPresent": true,
+          "markerMatched": true,
+          "toolEvent": true,
+          "statusCode": 200
+        },
+        {
+          "label": "controlled-refusal",
+          "reference": null,
+          "code": "REQUEST_REFUSED",
+          "retryable": null,
+          "synthetic": false,
+          "done": false,
+          "answerPresent": false,
+          "markerMatched": true,
+          "toolEvent": false,
+          "statusCode": 400
+        },
+        {
+          "label": "recovery",
+          "reference": "chatcmpl-b9a8b7bf-8e19-4b68-962d-3370540a824e",
+          "code": null,
+          "retryable": null,
+          "synthetic": false,
+          "done": true,
+          "answerPresent": true,
+          "markerMatched": true,
+          "toolEvent": false,
+          "statusCode": 200
+        }
+      ]
+    }
+  },
+  "openrouterRouteEvidence": {
+    "observedCompletedRequests": 24,
+    "examples": [
+      {
+        "timestamp": 1789233979698,
+        "msg": "inference request served",
+        "requestId": "ca6ac2ef-c0ee-4892-8c65-ff7ee60929b8",
+        "deploymentId": "dep_openrouter_openai_gpt_oss_120b_observed_2026_09_01",
+        "provider": "openrouter",
+        "outcome": "completed",
+        "routeSwitches": 1
+      },
+      {
+        "timestamp": 1789233982988,
+        "msg": "inference request served",
+        "requestId": "a8550c1e-4ad6-41ce-a487-18bb7ffc9a46",
+        "deploymentId": "dep_openrouter_openai_gpt_oss_120b_observed_2026_09_01",
+        "provider": "openrouter",
+        "outcome": "completed",
+        "routeSwitches": 2
+      }
+    ]
+  },
+  "temporaryQaPlanRevoked": true,
+  "allQaSessionsRevoked": true,
+  "cleanup": {
+    "temporaryLocalRuntimeRemoved": true,
+    "temporaryDatabasesAndClusterRemoved": true,
+    "newlyInstalledPackagesPurged": 281,
+    "taskOwnedSiblingWorktreesRemoved": true,
+    "temporaryToolsScriptsCredentialsAndLogsRemoved": true,
+    "qaIdentityRetainedInOperatorVault": true,
+    "preexistingUserWorkPreserved": true
+  }
+}

@@ -99,13 +99,18 @@ operation such as translate, classify, summarize, rewrite or smart reply uses
 other case: they are private Alia product agents, so their path is
 `product -> Alia agent -> Oxy -> Kaana`.
 
-Production cutover was verified on 2026-09-10 by the coordinated deployment of
+Alia’s Oxy-only inference boundary was deployed and read back on 2026-09-10 with
 Alia task definition `oxy-alia:311`: pre-phase migrations and the authenticated
 reviewed-profile readiness task completed, ECS reached a healthy two-of-two
 steady state, and post-deploy reconciliation succeeded. Public readback returned
 ready with the Oxy path configured, the intentionally empty `/v1/models`, and
 only reviewed profiles from `/catalogue`. The exclusive canonical Kaana origin
 is `https://kaana.ai`; Alia never configures that origin directly.
+
+Readiness alone does not prove that a provider can answer a chat. The
+[2026-09-12 incident record](docs/runbooks/provider-unavailable-2026-09-12.md)
+tracks generation checks, recovery changes, and the remaining service-token
+and Kaana credential-runtime rollout gates.
 
 `/automations` is the normalized scheduling and control API for explicit actors,
 resources, actions, data flow and autonomy. `/triggers` remains available for legacy
