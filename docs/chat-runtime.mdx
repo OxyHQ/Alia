@@ -124,6 +124,14 @@ not retry an identical profile locally. An Oxy routing refusal is a `503`, an
 empty or invalid upstream result is a `502`, and a safe Oxy request ID is kept
 for correlation without exposing provider or deployment details.
 
+Streaming error events retain Oxy's exact error code, retryability, retry delay
+and request ID through the AI SDK adapter. The product maps the typed code
+before considering free-form messages or HTTP status. In particular, a platform
+provider billing/credential refusal remains a non-retryable service failure;
+it must not become a customer quota/authentication error or suggest that an
+identical retry will repair the platform account. Failure logs pair the Alia
+chat reference with the Oxy error/request ID for incident correlation.
+
 ## Automation control plane
 
 `/automations` is the normalized task control plane. Conversation can create a

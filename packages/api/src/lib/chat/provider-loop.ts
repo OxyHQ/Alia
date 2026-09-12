@@ -442,7 +442,7 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
       // Clean up timers on inference failure.
       sse.stopKeepAlive();
       clearFirstByteTimer();
-      log.v1.error({ err: inferenceError, modelId: resolved.modelId }, 'Kaana inference failed');
+      log.v1.error({ err: inferenceError, modelId: resolved.modelId, reference: requestId }, 'Kaana inference failed');
       const errorReason = classifyError(inferenceError);
 
       // The class this failure would end the turn with, if nothing after it
