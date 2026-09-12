@@ -41,6 +41,7 @@ import type {
   ToolDefinition,
 } from '@oxy.so/contracts';
 import type { OxyInferenceResponse, OxyResponsesRequest } from '@oxy.so/core';
+import { OxyInferenceError } from '@oxy.so/core';
 import type {
   LanguageModelV3,
   LanguageModelV3CallOptions,
@@ -670,7 +671,13 @@ export function kaanaLanguageModel(options: KaanaModelOptions): LanguageModelV3 
                 case 'error':
                   controller.enqueue({
                     type: 'error',
-                    error: new Error(event.error.message),
+                    error: new OxyInferenceError({
+                      ...event.error,
+                      requestId: event.requestId,
+                      // SSE is already open; its HTTP 200 is not the status of
+                      // this failed inference. Preserve the typed refusal.
+                      status: 502,
+                    }),
                   });
                   finishReason = { unified: 'error', raw: event.error.code };
                   break;
