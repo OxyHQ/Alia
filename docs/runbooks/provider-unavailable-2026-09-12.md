@@ -94,6 +94,13 @@ and successful recovery afterward. Each environment produced ten distinct
 successful references, no synthetic errors, and the expected HTTP 400 refusal.
 No conversation was persisted by these cases.
 
+Correction recorded on 2026-09-13: the search assertion checked a correlated
+`alia.tool_result` event and the final answer marker, but did not inspect the
+tool output. These results prove tool execution, not a successful search.
+The [Clarity incident](clarity-search-2026-09-13.md) records the 503 and the
+canary correction; the historical `toolEvent: true` fields have that limited
+meaning.
+
 Kaana's validation-window logs also recorded 24 completed OpenRouter requests.
 For example, `a8550c1e-4ad6-41ce-a487-18bb7ffc9a46` completed on the exact
 OpenRouter deployment after two route switches. This verifies real fallback,
@@ -126,8 +133,8 @@ and key-class checks merely because the Alia chat path recovers. The serving
 Kaana revision and the isolated candidate are distinct release evidence.
 
 Optional agency-tool discovery also reported `missing_application_capability`
-for `agency:coordinate` during the local run. The built-in web-search case
-passed; that does not certify the separately gated agency-tool registry. No
+for `agency:coordinate` during the local run. The built-in web-search invocation passed the old assertion; neither successful
+search results nor the separately gated agency-tool registry were certified. No
 application capability was broadened as part of provider recovery.
 
 ## Cleanup
