@@ -39,7 +39,6 @@ function errorOf(answer: RouteAnswer): Record<string, unknown> {
 
 describe('hosted modalities without a Kaana seam', () => {
   const cases = [
-    { router: audioRouter, route: '/speech', capability: 'speech synthesis' },
     { router: audioRouter, route: '/generate', capability: 'audio generation' },
     { router: imagesRouter, route: '/generations', capability: 'image generation' },
     { router: voiceRouter, route: '/token', capability: 'voice session' },

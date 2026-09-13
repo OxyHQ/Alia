@@ -63,9 +63,19 @@ hosted fallback and never uses a provider environment key.
 
 ## Capabilities
 
-Text chat uses the Kaana seam. Hosted image generation, speech synthesis, audio
-generation, transcription, voice sessions and embeddings do not yet have a
-Kaana capability seam in this repository. Those routes fail closed with HTTP
+Text chat uses the Kaana seam. The speech implementation uses the typed
+`OxyInferenceClient.speech` operation with delegated user identity and the exact
+speech-only profile in `oxy-inference-routing-profile-ids.ts`. This profile is
+excluded from agent/chat routing. MP3 output is stored privately and returned
+as a short-lived playback link.
+
+Speech rollout is still pending publication of the candidate Oxy packages,
+Kaana deployment and reviewed catalogue provisioning; source code and a direct
+provider probe do not prove production availability. See the
+[speech recovery record](./runbooks/speech-recovery-2026-09-13.md).
+
+Hosted image generation, audio generation, transcription, voice sessions and
+embeddings do not yet have a Kaana capability seam. Those routes fail closed with HTTP
 503 and `KAANA_CAPABILITY_UNAVAILABLE` before provider selection, billing or
 egress.
 

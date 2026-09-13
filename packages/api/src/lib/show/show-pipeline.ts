@@ -553,7 +553,7 @@ async function renderSegments(
     const results = await Promise.allSettled(
       batch.map(async (segment) =>
         segment.type === 'dialogue'
-          ? renderSpeech(segment.text, cast, segment.speaker)
+          ? renderSpeech(segment.text, cast, segment.speaker, episode.userId)
           : renderSoundEffect(segment.sfxPrompt ?? 'short transition sound, 2 seconds'),
       ),
     );
@@ -749,6 +749,7 @@ async function renderSpeech(
   text: string,
   cast: readonly ShowSpeaker[],
   speakerName: string,
+  userId: string,
 ): Promise<RenderedAudio | null> {
   const speaker = cast.find((member) => member.name === speakerName);
   if (!speaker) {
@@ -761,6 +762,7 @@ async function renderSpeech(
   const synthesized = await synthesizeSpeech({
     input: text,
     voice: speaker.voiceId,
+    userId,
     format: 'mp3',
   });
   return synthesized ? { buffer: synthesized.audio, format: synthesized.format } : null;
