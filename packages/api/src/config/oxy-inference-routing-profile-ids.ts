@@ -56,3 +56,6 @@ export function getOxyKaanaProductProfileId(
 ): OxyKaanaProductProfileId | null {
   return PRODUCT_PROFILE_BY_OXY_ROUTING_PROFILE_ID.get(routingProfileId) ?? null;
 }
+
+/** Speech-only profile. Never a stored agent/chat routing profile. */
+export const OXY_KAANA_SPEECH_ROUTING_PROFILE_ID = 'cc2471c8-807e-46ec-b5da-b6f3b39d2db5';

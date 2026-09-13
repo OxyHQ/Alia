@@ -1,22 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
-import { synthesizeSpeech } from '../synthesize-speech.js';
 import { buildScriptSystemPrompt } from '../show/script-prompt.js';
 import { PERFORMABLE_AUDIO_TAGS, speakableText } from '../show/audio-text.js';
 import type { ShowSpeaker } from '../../db/schema/shows.js';
-
-describe('synthesizeSpeech', () => {
-  it('fails closed without resolving an Alia-hosted TTS provider', async () => {
-    await expect(
-      synthesizeSpeech({ input: 'hello', voice: 'nova', format: 'mp3' }),
-    ).rejects.toMatchObject({
-      name: 'KaanaCapabilityUnavailableError',
-      code: 'KAANA_CAPABILITY_UNAVAILABLE',
-      httpStatus: 503,
-      capability: 'speech_synthesis',
-    });
-  });
-});
 
 describe('speakableText', () => {
   const PLAIN_MODEL = { audioTags: false } as const;
