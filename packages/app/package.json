@@ -20,6 +20,7 @@
     "build:ios": "eas build --platform ios"
   },
   "dependencies": {
+    "@oxy.so/telemetry": "^1.1.0",
     "@alia.onl/sdk": "*",
     "@config-plugins/react-native-webrtc": "^15.0.2",
     "@expo/html-elements": "^0.13.8",

@@ -18,18 +18,20 @@
 # run flags an invented top-level key as "Unexpected fields". Recognised, not
 # ignored.
 name = "alia-app"
+main = "worker/index.js"
 compatibility_date = "2026-08-24"
 
 workers_dev = false
 
-# Static assets with no `main`: no Worker script runs, every request is served
-# from the uploaded directory. `expo export --platform web` emits ONE
+# The Worker observes each request before streaming the asset response. `expo export --platform web` emits ONE
 # `index.html` plus hashed assets — a client-routed SPA, not per-route static
 # HTML — so the fallback below is what makes a deep link work.
 #
 # 88 files, 22 MB, largest 11 MB: inside the 20,000-file and 25 MiB-per-file
 # limits with room to spare.
 [assets]
+binding = "ASSETS"
+run_worker_first = true
 directory = "./dist"
 # Replaces `public/_redirects` (`/*  /index.html  200`), which is deleted in the
 # same change because `_redirects` is a Pages-only file and would be dead weight
