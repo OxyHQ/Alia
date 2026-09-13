@@ -166,8 +166,9 @@ export function summarize(
     } else if (typeof error === 'string') code ??= 'REQUEST_REFUSED';
     const choices = record.choices;
     if (Array.isArray(choices)) {
-      const delta = (choices[0] as { delta?: Record<string, unknown> } | undefined)
-        ?.delta;
+      const delta = (
+        choices[0] as { delta?: Record<string, unknown> } | undefined
+      )?.delta;
       if (typeof delta?.content === 'string') content += delta.content;
       if (Array.isArray(delta?.tool_calls)) {
         for (const call of delta.tool_calls) {
@@ -186,11 +187,36 @@ export function summarize(
         }
       }
     }
+    const output = record.output;
+    const search =
+      typeof output === 'object' && output !== null
+        ? (output as Record<string, unknown>)
+        : undefined;
+    const results = search?.results;
+    const usableSearch =
+      search !== undefined &&
+      !('error' in search) &&
+      Array.isArray(results) &&
+      results.length > 0 &&
+      search.count === results.length &&
+      results.every((result: unknown) => {
+        if (typeof result !== 'object' || result === null) return false;
+        const item = result as Record<string, unknown>;
+        if (typeof item.title !== 'string' || !item.title.trim()) return false;
+        if (typeof item.url !== 'string') return false;
+        try {
+          const url = new URL(item.url);
+          return url.protocol === 'https:' || url.protocol === 'http:';
+        } catch {
+          return false;
+        }
+      });
     toolEvent ||=
       eventName === 'alia.tool_result' &&
       record.name === 'webSearch' &&
       typeof record.tool_call_id === 'string' &&
-      requestedWebSearchCallIds.has(record.tool_call_id);
+      requestedWebSearchCallIds.has(record.tool_call_id) &&
+      usableSearch;
   };
   if (!payload.includes('data: ')) inspect(JSON.parse(payload));
   let eventName: string | undefined;

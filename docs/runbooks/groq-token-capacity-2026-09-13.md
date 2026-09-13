@@ -54,6 +54,9 @@ Alia remains `oxy-alia:334`, Oxy `oxy-oxy-api:420`, and the publisher
 - All eight real Alia cases passed in production: short Instant and Auto, long
   Instant and Auto, a long multi-turn conversation, real web search with long
   context, an unknown-profile HTTP 400 refusal, and successful recovery.
+  Correction: the web-search case verified invocation and final answer only.
+  It did not check whether Clarity returned an error. It is not evidence of
+  successful search; see the [Clarity incident](clarity-search-2026-09-13.md).
 - The identical long SDK probe then emitted `route_switch` with reason
   `rate_limited` to the exact authorized OpenRouter deployment, followed by
   `done`: request `88bb1294-beed-4ae8-a037-d2fba9838cb6`. Its diagnostic output
