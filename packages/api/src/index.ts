@@ -1,4 +1,5 @@
 import express from 'express';
+import { startPlatformActivity } from './lib/platform-activity.js';
 import http from 'http';
 import cors from 'cors';
 import dotenv from 'dotenv';
@@ -92,6 +93,8 @@ const server = http.createServer({
   keepAlive: true,
   keepAliveTimeout: 65000, // Slightly higher than default
 }, app);
+const activity = startPlatformActivity(() => server.listening);
+if (activity) app.use(activity.observeHttp);
 
 // Handle HTTP server errors (e.g. EADDRINUSE)
 server.on('error', (error: NodeJS.ErrnoException) => {
@@ -110,8 +113,10 @@ server.on('connection', (socket) => {
   socket.setKeepAlive(true, 60000);
 });
 
-initSocket(server);
-initMcpRelay(server);
+initSocket(server).on('connection', socket => activity?.observeSocket(socket));
+initMcpRelay(server, (socket, headers) => {
+  activity?.observeWebSocket(socket, { headers, activityType: 'ai' });
+});
 
 // Public API routes (/v1) - allow all origins (like OpenAI's API)
 app.use('/v1', cors({
@@ -477,6 +482,7 @@ const shutdown = async (signal: string) => {
 
     // Close the Postgres pool last: it is the store every ported route reads, so
     // it stays open until everything that could still be using it has stopped.
+    await activity?.stop();
     await closePostgres();
     log.general.info('Postgres pool closed');
 
