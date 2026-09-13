@@ -29,7 +29,7 @@
     "@livekit/react-native-expo-plugin": "^1.0.2",
     "@livekit/react-native-webrtc": "^144.1.1",
     "@oxy.so/bloom": "^1.0.0",
-    "@oxy.so/core": "^1.1.1",
+    "@oxy.so/core": "^1.1.2",
     "@oxy.so/contracts": "^1.1.1",
     "@oxy.so/expo-splash": "^1.0.0",
     "@oxy.so/services": "^1.0.3",
