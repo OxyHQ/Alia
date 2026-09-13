@@ -61,7 +61,7 @@ let nextCallId = 0;
 /**
  * Initialize the MCP relay WebSocket server on the given HTTP server.
  */
-export function initMcpRelay(server: http.Server): void {
+export function initMcpRelay(server: http.Server, observe?: (socket: WebSocket, headers: http.IncomingHttpHeaders) => void): void {
   // Share the HTTP server without letting `ws` install its own upgrade
   // listener. With `{ server, path }`, the ws library registers a global
   // `server.on('upgrade')` that 400s every upgrade whose path doesn't match —
@@ -79,7 +79,8 @@ export function initMcpRelay(server: http.Server): void {
     });
   });
 
-  relayServer.on('connection', (ws) => {
+  relayServer.on('connection', (ws, request) => {
+    observe?.(ws, request.headers);
     let userId: string | null = null;
 
     const authTimer = setTimeout(() => {

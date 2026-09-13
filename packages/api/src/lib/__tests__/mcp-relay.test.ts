@@ -114,7 +114,10 @@ async function authenticate(token: string): Promise<{ socket: WebSocket; reply: 
   return { socket, reply };
 }
 
+const observeRelay = vi.fn();
+
 beforeEach(async () => {
+  observeRelay.mockClear();
   sessions.clear();
   apiKeyRows.clear();
   fetchCalls = [];
@@ -129,7 +132,7 @@ beforeEach(async () => {
   }
   port = address.port;
 
-  initMcpRelay(server);
+  initMcpRelay(server, observeRelay);
 });
 
 afterEach(async () => {
@@ -148,6 +151,9 @@ describe('MCP relay authentication', () => {
       relayToken({ userId: 'user-from-session', sessionId: 'sess-1' }),
     );
     expect(reply.type).toBe('auth-ok');
+    expect(observeRelay).toHaveBeenCalledTimes(1);
+    expect(observeRelay.mock.calls[0][0]).toBeInstanceOf(WebSocket);
+    expect(observeRelay.mock.calls[0][1]).toHaveProperty('upgrade', 'websocket');
 
     socket.send(
       JSON.stringify({

@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import { startPlatformActivity } from './platform-activity';
 import express from 'express';
 import { Server as WebSocketServer } from 'ws';
 import http from 'http';
@@ -28,6 +29,8 @@ if (!process.env.INTEGRATIONS_SECRET) {
 }
 const INTEGRATIONS_SECRET: string = process.env.INTEGRATIONS_SECRET;
 
+let activityReady = false;
+const activity = startPlatformActivity(() => activityReady);
 const accountAdapters: AccountAdapter[] = [];
 const botAdapters: BotAdapter[] = [];
 
@@ -102,6 +105,7 @@ async function main() {
 
   // Express app
   const app = express();
+  if (activity) app.use(activity.observeHttp);
   app.use(express.json());
 
   // Health check
@@ -223,6 +227,10 @@ async function main() {
       return;
     }
 
+    activity?.observeWebSocket(ws, {
+      activityType: 'communication',
+      getPeer: () => ({ service: 'alia', region: typeof request.headers['x-oxy-source-region'] === 'string' ? request.headers['x-oxy-source-region'] : undefined }),
+    });
     const ownerUserId = verdict.userId;
     ws.on('message', (data) => {
       try {
@@ -248,6 +256,7 @@ async function main() {
   // Start HTTP server FIRST so health checks pass during adapter initialization
   await new Promise<void>((resolve) => {
     server.listen(PORT, () => {
+      activityReady = true;
       logger.info(`Running on port ${PORT}`);
       resolve();
     });
@@ -276,6 +285,7 @@ async function main() {
 
 // Graceful shutdown
 async function shutdown(signal: string) {
+  activityReady = false;
   logger.info(`Received ${signal}, shutting down...`);
   try {
     // Shutdown MCP servers
@@ -288,6 +298,7 @@ async function shutdown(signal: string) {
       await adapter.shutdown();
       logger.info(`${adapter.name} shut down`);
     }
+    await activity?.stop();
     await closePostgres();
     logger.info('Postgres pool closed');
   } catch (err) {
