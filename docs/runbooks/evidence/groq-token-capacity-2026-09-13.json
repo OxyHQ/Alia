@@ -1,0 +1,369 @@
+{
+  "incidentReference": "chatcmpl-ab7ad115-e273-4bdb-899a-13dd28cd7a74",
+  "upstreamRequestId": "5a5fccb0-71cb-4556-8b1c-cf26ce1f7237",
+  "reproduction": {
+    "localDate": "2026-09-13",
+    "providerStatus": 413,
+    "providerErrorType": "tokens",
+    "accountTokensPerMinuteLimit": 8000,
+    "requestedTokens": 11305,
+    "beforeCode": "request_too_large",
+    "beforeRouteSwitches": 0,
+    "syntheticAliaReference": "chatcmpl-84580cb7-11ec-4aae-965a-f3f01c345eaf"
+  },
+  "fix": {
+    "pullRequest": "https://github.com/OxyHQ/Kaana/pull/97",
+    "mainCommit": "41acf1526c5293da18b032ae20e38a7701251186",
+    "ciRun": 34726041343,
+    "backportBuildRun": 34726178398,
+    "image": {
+      "imageDigest": "sha256:7672df2b0f2f39b2c2baa16019c9078313de847c8530eaf526ebdb4ca2e7ce4a",
+      "architecture": "arm64",
+      "labels": {
+        "io.kaana.hotfix-patch": "9d467ac4efd3592977b7c12bb87e30f4b1b340717cbda74cf91994f5796e596c",
+        "io.kaana.hotfix-tree": "86dc4b060255a9c570772f68ea34ed04294dac16",
+        "io.kaana.serving-base": "df1fa39728b9377f1e00be038d0c4769f6bcb446",
+        "org.opencontainers.image.revision": "41acf1526c5293da18b032ae20e38a7701251186"
+      }
+    }
+  },
+  "localValidation": {
+    "regressionFailedBeforeFix": true,
+    "classificationControls": 8,
+    "realHttpExecutorControls": 3,
+    "main": [
+      "go test -race -count=1 ./...",
+      "go vet ./...",
+      "go build ./...",
+      "golangci-lint run ./..."
+    ],
+    "servingBackport": [
+      "go test -race -count=1 ./...",
+      "go vet ./...",
+      "go build ./...",
+      "golangci-lint run ./..."
+    ],
+    "allPassed": true,
+    "databaseIntegrationNote": "This adapter change adds no database dependency; optional database integration tests use their existing environment requirements."
+  },
+  "productionChat": {
+    "base": "https://api.alia.onl",
+    "results": [
+      {
+        "name": "short-instant",
+        "status": 200,
+        "outputMarker": true,
+        "done": true,
+        "tool": false,
+        "errors": [],
+        "references": [
+          "chatcmpl-468523c2-4a50-45ab-96d7-2d35bb03eac2"
+        ],
+        "pass": true
+      },
+      {
+        "name": "short-auto",
+        "status": 200,
+        "outputMarker": true,
+        "done": true,
+        "tool": false,
+        "errors": [],
+        "references": [
+          "chatcmpl-0edda75a-5604-4ae8-bb59-9adb11e3276f"
+        ],
+        "pass": true
+      },
+      {
+        "name": "long-instant",
+        "status": 200,
+        "outputMarker": true,
+        "done": true,
+        "tool": false,
+        "errors": [],
+        "references": [
+          "chatcmpl-85ba1240-bba4-46bb-be33-66c2f5adc4ac"
+        ],
+        "pass": true
+      },
+      {
+        "name": "long-auto",
+        "status": 200,
+        "outputMarker": true,
+        "done": true,
+        "tool": false,
+        "errors": [],
+        "references": [
+          "chatcmpl-934066f2-d529-44a1-9eb1-c4c4dc6005ab"
+        ],
+        "pass": true
+      },
+      {
+        "name": "long-conversation",
+        "status": 200,
+        "outputMarker": true,
+        "done": true,
+        "tool": false,
+        "errors": [],
+        "references": [
+          "chatcmpl-c99fc403-e2dd-4617-b686-9bbe296fe2d5"
+        ],
+        "pass": true
+      },
+      {
+        "name": "long-tools",
+        "status": 200,
+        "outputMarker": true,
+        "done": true,
+        "tool": true,
+        "errors": [],
+        "references": [
+          "chatcmpl-eefc8a18-2dfb-4a52-aefa-5025fbfc9995",
+          "chatcmpl-tool-b603a8665ab6efd3",
+          "chatcmpl-tool-96994cbd946bff8d",
+          "chatcmpl-tool-a21b798c5723e0d5"
+        ],
+        "pass": true
+      },
+      {
+        "name": "invalid-profile",
+        "status": 400,
+        "outputMarker": false,
+        "done": false,
+        "tool": false,
+        "errors": [
+          "unknown_routing_profile"
+        ],
+        "references": [],
+        "pass": true
+      },
+      {
+        "name": "recovery",
+        "status": 200,
+        "outputMarker": true,
+        "done": true,
+        "tool": false,
+        "errors": [],
+        "references": [
+          "chatcmpl-d7568b61-cd01-4960-9bdb-2f33c735bcbf"
+        ],
+        "pass": true
+      }
+    ]
+  },
+  "oxySdkLongContextEvents": [
+    {
+      "schemaVersion": 1,
+      "type": "route_switch",
+      "requestId": "88bb1294-beed-4ae8-a037-d2fba9838cb6",
+      "sequence": 0,
+      "reason": "rate_limited",
+      "detail": {
+        "scope": "deployment",
+        "modelReference": "openai/gpt-oss-120b@observed-2026-09-01",
+        "toProvider": "openrouter",
+        "toDeploymentId": "dep_openrouter_openai_gpt_oss_120b_observed_2026_09_01"
+      },
+      "occurredAt": "2026-09-12T23:59:12.254Z"
+    },
+    {
+      "schemaVersion": 1,
+      "type": "done",
+      "requestId": "88bb1294-beed-4ae8-a037-d2fba9838cb6",
+      "sequence": 32,
+      "generationId": "gen_t3cn3dlmywakksjz4vxka7o7mq",
+      "finishReason": "length",
+      "completedAt": "2026-09-12T23:59:13.786Z"
+    }
+  ],
+  "routeEvidence": [
+    {
+      "time": "2026-09-12T23:58:05.59053394Z",
+      "msg": "inference request served",
+      "requestId": "8e1cdba8-fc2e-44cb-a5d7-3aaa86ebaf3d",
+      "outcome": "completed",
+      "provider": "groq",
+      "deploymentId": "dep_groq_openai_gpt_oss_120b_observed_2026_09_01",
+      "routeSwitches": 0,
+      "durationMs": 432,
+      "code": null
+    },
+    {
+      "time": "2026-09-12T23:58:07.635556061Z",
+      "msg": "inference request served",
+      "requestId": "41280a9b-6fb2-4419-a8b9-37af7caf7e6f",
+      "outcome": "completed",
+      "provider": "openrouter",
+      "deploymentId": "dep_openrouter_openai_gpt_oss_120b_observed_2026_09_01",
+      "routeSwitches": 2,
+      "durationMs": 1460,
+      "code": null
+    },
+    {
+      "time": "2026-09-12T23:58:08.178346569Z",
+      "msg": "inference request served",
+      "requestId": "37de96b0-b5f1-45bc-9c5d-b97ddb943942",
+      "outcome": "completed",
+      "provider": "groq",
+      "deploymentId": "dep_groq_openai_gpt_oss_120b_observed_2026_09_01",
+      "routeSwitches": 0,
+      "durationMs": 387,
+      "code": null
+    },
+    {
+      "time": "2026-09-12T23:58:11.281346498Z",
+      "msg": "inference request served",
+      "requestId": "1a931ae4-e5ed-4eb0-825a-ec815f3862ab",
+      "outcome": "completed",
+      "provider": "openrouter",
+      "deploymentId": "dep_openrouter_openai_gpt_oss_120b_observed_2026_09_01",
+      "routeSwitches": 1,
+      "durationMs": 2834,
+      "code": null
+    },
+    {
+      "time": "2026-09-12T23:58:11.907367945Z",
+      "msg": "inference request served",
+      "requestId": "0d14de24-20a6-47cc-b96b-1ccf2b212baf",
+      "outcome": "completed",
+      "provider": "groq",
+      "deploymentId": "dep_groq_openai_gpt_oss_120b_observed_2026_09_01",
+      "routeSwitches": 0,
+      "durationMs": 399,
+      "code": null
+    },
+    {
+      "time": "2026-09-12T23:58:14.24162761Z",
+      "msg": "inference request served",
+      "requestId": "419eee8b-1d5f-437a-99dc-99b87b14454b",
+      "outcome": "completed",
+      "provider": "openrouter",
+      "deploymentId": "dep_openrouter_openai_gpt_oss_120b_observed_2026_09_01",
+      "routeSwitches": 2,
+      "durationMs": 2255,
+      "code": null
+    },
+    {
+      "time": "2026-09-12T23:58:18.733832779Z",
+      "msg": "inference request served",
+      "requestId": "8e170689-5492-489d-9c3d-b4f3a92343d6",
+      "outcome": "completed",
+      "provider": "openrouter",
+      "deploymentId": "dep_openrouter_openai_gpt_oss_120b_observed_2026_09_01",
+      "routeSwitches": 1,
+      "durationMs": 3332,
+      "code": null
+    },
+    {
+      "time": "2026-09-12T23:58:22.232023122Z",
+      "msg": "inference request served",
+      "requestId": "08b9f903-f483-4387-92ef-ab13e854d224",
+      "outcome": "completed",
+      "provider": "openrouter",
+      "deploymentId": "dep_openrouter_openai_gpt_oss_120b_observed_2026_09_01",
+      "routeSwitches": 1,
+      "durationMs": 2559,
+      "code": null
+    },
+    {
+      "time": "2026-09-12T23:58:23.738424271Z",
+      "msg": "inference request served",
+      "requestId": "a4252a13-501c-4396-84e6-8f4c1df48922",
+      "outcome": "completed",
+      "provider": "openrouter",
+      "deploymentId": "dep_openrouter_openai_gpt_oss_120b_observed_2026_09_01",
+      "routeSwitches": 0,
+      "durationMs": 1215,
+      "code": null
+    },
+    {
+      "time": "2026-09-12T23:58:26.859250975Z",
+      "msg": "inference request served",
+      "requestId": "a505bf87-653e-4dd8-a822-20d600c311a9",
+      "outcome": "completed",
+      "provider": "openrouter",
+      "deploymentId": "dep_openrouter_openai_gpt_oss_120b_observed_2026_09_01",
+      "routeSwitches": 0,
+      "durationMs": 2851,
+      "code": null
+    },
+    {
+      "time": "2026-09-12T23:58:29.70735374Z",
+      "msg": "inference request served",
+      "requestId": "5d4917ed-2ef9-44e4-865c-c85824099b12",
+      "outcome": "completed",
+      "provider": "openrouter",
+      "deploymentId": "dep_openrouter_openai_gpt_oss_120b_observed_2026_09_01",
+      "routeSwitches": 1,
+      "durationMs": 2666,
+      "code": null
+    },
+    {
+      "time": "2026-09-12T23:58:31.66862074Z",
+      "msg": "inference request served",
+      "requestId": "eae44f73-3a1a-4332-80e7-ab184b3d4ed1",
+      "outcome": "completed",
+      "provider": "openrouter",
+      "deploymentId": "dep_openrouter_openai_gpt_oss_120b_observed_2026_09_01",
+      "routeSwitches": 0,
+      "durationMs": 1355,
+      "code": null
+    }
+  ],
+  "finalState": {
+    "checkedAt": "2026-09-13T00:00:09.618970+00:00",
+    "services": [
+      {
+        "name": "alia",
+        "taskDefinition": "oxy-alia:334",
+        "running": 2,
+        "desired": 2,
+        "rollout": "COMPLETED"
+      },
+      {
+        "name": "oxy-api",
+        "taskDefinition": "oxy-oxy-api:420",
+        "running": 2,
+        "desired": 2,
+        "rollout": "COMPLETED"
+      },
+      {
+        "name": "kaana",
+        "taskDefinition": "oxy-kaana:41",
+        "running": 1,
+        "desired": 1,
+        "rollout": "COMPLETED"
+      },
+      {
+        "name": "kaana-publisher",
+        "taskDefinition": "oxy-kaana-publisher:46",
+        "running": 1,
+        "desired": 1,
+        "rollout": "COMPLETED"
+      }
+    ],
+    "temporaryTasks": [
+      {
+        "task": "1804cf90d9174b08891fad05f323a69a",
+        "status": "STOPPED"
+      },
+      {
+        "task": "ea89ea1f18c84c739b6a1b8ae0341fd9",
+        "status": "STOPPED"
+      },
+      {
+        "task": "e90782d8a8fa40cd93eaf3046977194e",
+        "status": "STOPPED"
+      },
+      {
+        "task": "99827948229942a493619917a9f7c72f",
+        "status": "STOPPED"
+      },
+      {
+        "task": "f150552d0d0a4775bc6aa06170e154f9",
+        "status": "STOPPED"
+      }
+    ],
+    "temporaryTaskDefinitionsDeregistered": true,
+    "qaSessionsRevoked": true
+  }
+}

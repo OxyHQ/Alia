@@ -43,7 +43,8 @@ The 2026-09-10 checks establish that boundary and readiness, not successful
 provider execution or completion of every subsequent credential migration.
 The [2026-09-12 incident record](../runbooks/provider-unavailable-2026-09-12.md)
 records the generation evidence and the distinct service-token signing and
-Kaana credential-runtime gates. Provider recovery must continue through Oxy;
+Kaana credential-runtime gates. The [long-context follow-up](../runbooks/groq-token-capacity-2026-09-13.md)
+records the narrowly scoped serving backport without advancing those gates. Provider recovery must continue through Oxy;
 none of these gates authorizes a direct Alia transport.
 
 ## Decision

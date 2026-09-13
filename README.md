@@ -110,7 +110,9 @@ is `https://kaana.ai`; Alia never configures that origin directly.
 Readiness alone does not prove that a provider can answer a chat. The
 [2026-09-12 incident record](docs/runbooks/provider-unavailable-2026-09-12.md)
 tracks generation checks, recovery changes, and the remaining service-token
-and Kaana credential-runtime rollout gates.
+and Kaana credential-runtime rollout gates. The
+[2026-09-13 follow-up](docs/runbooks/groq-token-capacity-2026-09-13.md) records
+the separate long-context refusal and its verified serving backport.
 
 `/automations` is the normalized scheduling and control API for explicit actors,
 resources, actions, data flow and autonomy. `/triggers` remains available for legacy
