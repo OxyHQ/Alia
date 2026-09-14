@@ -129,7 +129,7 @@
     "esbuild": "^0.28.1",
     "patch-package": "^8.0.1",
     "react-test-renderer": "19.2.3",
-    "typescript": "~5.9.3",
+    "typescript": "~7.0.2",
     "vitest": "^4.1.10"
   },
   "optionalDependencies": {

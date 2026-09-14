@@ -32,7 +32,7 @@
     "postgres": "3.4.9",
     "telegraf": "^4.16.3",
     "telegram": "^2.26.22",
-    "typescript": "^5.9.3",
+    "typescript": "^7.0.2",
     "ws": "^8.21.0",
     "zod": "^4.4.3"
   },
