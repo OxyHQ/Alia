@@ -27,7 +27,7 @@
   "author": "Alia",
   "license": "MIT",
   "dependencies": {
-    "@oxy.so/core": "^1.0.1",
+    "@oxy.so/core": "^1.1.2",
     "chalk": "^5.6.2",
     "commander": "^15.0.0",
     "conf": "^15.1.0",

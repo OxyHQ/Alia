@@ -11,17 +11,19 @@
 # silence on `workers_dev` and `not_found_handling` means they are recognised
 # rather than ignored.
 name = "alia-canvas"
+main = "worker/index.js"
 compatibility_date = "2026-08-24"
 
 # The whole point.
 workers_dev = false
 
-# Static assets with no `main`: there is no Worker script, so every request is
-# served straight from the uploaded directory. This replaces BOTH Pages-only
+# The Worker observes every request before the asset binding. This replaces BOTH Pages-only
 # files the project used to carry — `public/_redirects` (`/* /index.html 200`)
 # and the `public/_worker.js` that had to re-implement it once `_worker.js`
 # took over routing.
 [assets]
+binding = "ASSETS"
+run_worker_first = true
 directory = "./dist"
 # The SPA fallback, as a first-class setting rather than a catch-all rule: a
 # request that matches no asset gets `index.html`.
