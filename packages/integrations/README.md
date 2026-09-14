@@ -65,6 +65,11 @@ TELEGRAM_API_HASH=<from-my.telegram.org>
 
 # Port (default 3005)
 PORT=3005
+
+# Ecosystem activity (optional) — publishing starts automatically once BOTH are
+# set; there is no separate enable flag for this package
+OXY_SERVICE_API_KEY=<from-oxy-console>
+OXY_SERVICE_API_SECRET=<from-oxy-console>
 ```
 
 ## Development
