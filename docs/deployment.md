@@ -8,10 +8,6 @@ there are no AWS keys in this repository.
 Infrastructure — the task definition, the ALB, the target group, ECR, IAM and the SSM
 parameter tree — is owned by `oxy-infra`, not by this repository. What lives here is the
 image, the environment contract below, and the secret allow-list in the deploy workflow.
-The retired DigitalOcean App Platform spec has been removed: it was not an executable
-production source after the AWS cutover and contradicted this contract. Historical
-migration records still describe the old platform where that provenance matters.
-
 ## Preconditions
 
 - **PostgreSQL, reachable.** `DATABASE_URL` is required. `packages/api/src/index.ts:411`

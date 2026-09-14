@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import { startPlatformActivity } from './platform-activity.js';
 import express from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
@@ -16,7 +17,10 @@ export const log = pino({
   }),
 });
 
+let activityReady = false;
+const activity = startPlatformActivity(() => activityReady);
 const app = express();
+if (activity) app.use(activity.observeHttp);
 const PORT = parseInt(process.env.PORT || '9090', 10);
 
 app.use(helmet());
@@ -34,9 +38,24 @@ async function start() {
   await ensureNetwork();
   startCleanupLoop();
 
-  app.listen(PORT, () => {
+  const server = app.listen(PORT, () => {
+    activityReady = true;
     log.info('alia-docker-api listening on port %d', PORT);
   });
+  let stopping = false;
+  const stop = async () => {
+    if (stopping) return;
+    stopping = true;
+    activityReady = false;
+    const timeout = setTimeout(() => process.exit(1), 10_000);
+    timeout.unref();
+    await new Promise<void>(resolve => server.close(() => resolve()));
+    await activity?.stop();
+    clearTimeout(timeout);
+    process.exit(0);
+  };
+  process.once('SIGTERM', () => void stop());
+  process.once('SIGINT', () => void stop());
 }
 
 start().catch(err => {
