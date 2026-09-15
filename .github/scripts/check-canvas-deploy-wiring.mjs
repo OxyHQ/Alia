@@ -14,9 +14,11 @@
  * therefore failed on EVERY run from the commit that introduced it
  * (`25e55570`) onwards: five real runs, five failures.
  *
- * The `deploy-app` job in the same file uses the same action and works, which
- * is the control that isolates the cause: it passes no `workingDirectory`, so
- * the action finds the root `bun.lock` and picks bun.
+ * The `deploy-app` job in the same file used the same action and worked, which
+ * was the control that isolated the cause: the action found the root `bun.lock`
+ * and picked bun. It has since moved to `bunx wrangler@4` too, because the
+ * action's own install fails intermittently even when it picks bun, and that
+ * is asserted below as well.
  *
  * Nobody noticed for two reasons, and this file exists for the second one:
  *
@@ -58,7 +60,38 @@ function jobBlock(text, job) {
 
 const failures = [];
 
-const deployJob = jobBlock(readFileSync(WORKFLOW, 'utf8'), 'deploy-canvas');
+const workflowText = readFileSync(WORKFLOW, 'utf8');
+
+// `cloudflare/wrangler-action` is forbidden fleet-wide, not just for Canvas: its
+// mid-deploy `bun i wrangler@3.90.0` intermittently fails with
+// `Fail extracting tarball for "wrangler"` and publishes nothing. So no job in
+// this workflow may use it, and `deploy-app` must call a major-pinned wrangler.
+if (/uses:\s*cloudflare\/wrangler-action/.test(workflowText)) {
+  failures.push(
+    `${WORKFLOW}: a job deploys with cloudflare/wrangler-action, which installs its own wrangler\n` +
+      `    mid-deploy. Call \`bunx wrangler@4\` (or the package's declared wrangler) instead.`,
+  );
+}
+const appJob = jobBlock(workflowText, 'deploy-app');
+if (appJob === null) {
+  failures.push(`${WORKFLOW} has no \`deploy-app\` job. If it was renamed, rename it here too.`);
+} else {
+  const appText = appJob.join('\n');
+  if (!/^\s*run:\s*bunx wrangler@4 deploy[ \t]*$/m.test(appText)) {
+    failures.push(`${WORKFLOW} / deploy-app: no step runs \`bunx wrangler@4 deploy\`.`);
+  }
+  if (!/working-directory:\s*packages\/app\b/.test(appText)) {
+    failures.push(`${WORKFLOW} / deploy-app: nothing runs in packages/app, so wrangler.toml is not read.`);
+  }
+  for (const secret of ['CLOUDFLARE_API_TOKEN', 'CLOUDFLARE_ACCOUNT_ID']) {
+    const bound = new RegExp(`^\\s*${secret}:\\s*\\$\\{\\{\\s*secrets\\.${secret}\\s*\\}\\}`, 'm');
+    if (!bound.test(appText)) {
+      failures.push(`${WORKFLOW} / deploy-app: no \`env:\` binds ${secret}, so wrangler has no credentials.`);
+    }
+  }
+}
+
+const deployJob = jobBlock(workflowText, 'deploy-canvas');
 // A rename must fail here rather than make every assertion below vacuous.
 if (deployJob === null) {
   console.error(`check-canvas-deploy-wiring: ${WORKFLOW} has no \`deploy-canvas\` job. If it was renamed, rename it here too.`);
