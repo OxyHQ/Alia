@@ -75,13 +75,21 @@ jobs:
       # `alia.onl` while being in NEITHER CORS allowlist: it rendered the shell
       # and failed every call it made. `workers_dev = false` in
       # packages/app/wrangler.toml leaves `alia.onl` as the only way in.
+      #
+      # `bunx wrangler@4`, NOT `cloudflare/wrangler-action` (forbidden
+      # fleet-wide). The action installs its own wrangler mid-deploy
+      # (`bun i wrangler@3.90.0`), which intermittently dies with
+      # `Fail extracting tarball for "wrangler"` and publishes nothing, and it
+      # picks its package manager from a lockfile beside `workingDirectory` —
+      # there is none in packages/app, so it can fall back to npm, which is what
+      # broke Canvas below. Pinned to a major so a new one cannot change the
+      # deploy path with no diff. wrangler reads credentials from `env:`.
       - name: Deploy the Worker
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          workingDirectory: packages/app
-          command: deploy
+        working-directory: packages/app
+        run: bunx wrangler@4 deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
   deploy-canvas:
     needs: detect-changes
@@ -141,11 +149,12 @@ jobs:
       # on `react-native`, so that library's `peer react-native@"*"` is
       # unsatisfiable and the install exits ERESOLVE.
       #
-      # `deploy-app` above is the control: same action, no `workingDirectory`,
-      # so it finds the root `bun.lock`, picks bun, and works. It also shows
-      # what the action does when it works — `bun i wrangler@3.90.0`, which
-      # prints "Saved lockfile". The tool that deploys should be declared and
-      # pinned by us, not installed into the working tree mid-deploy.
+      # `deploy-app` above was the control: same action, run where it found the
+      # root `bun.lock`, so it picked bun and worked. It also showed what the
+      # action does when it works — `bun i wrangler@3.90.0`, which prints
+      # "Saved lockfile". The tool that deploys should be declared and pinned by
+      # us, not installed into the working tree mid-deploy; `deploy-app` now
+      # calls `bunx wrangler@4` directly for the same reason.
       #
       # `--legacy-peer-deps` would also have made the npm install succeed, and
       # is exactly the wrong fix: it ships a dependency resolution nobody has
