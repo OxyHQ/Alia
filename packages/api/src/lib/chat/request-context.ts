@@ -286,10 +286,40 @@ export async function buildChatRequestContext(
   // session would erase the application boundary and expose direct-only
   // context/tools to a machine caller.
   const isDirectUserSession = !!req.user && !req.apiKey && !req.serviceApp;
+  /**
+   * A present requester (ADR 0025 in OxyHQServices): a person signed in to a
+   * first-party product that entered with a requester assertion Oxy consumed
+   * live. It admits exactly the one native agent the assertion names, checked
+   * below and again when the agent's application binding is read.
+   */
+  const isPresentRequesterSession =
+    !!req.user?.id &&
+    !!req.serviceApp &&
+    req.oxyRequester?.userId === req.user.id &&
+    req.oxyRequester.applicationId === req.serviceApp.appId &&
+    req.oxyRequester.credentialId === req.serviceApp.credentialId;
   const isDelegatedServiceSession =
     !!req.user?.id &&
     !!req.serviceApp &&
-    req.serviceActingAs?.userId === req.user.id;
+    (req.serviceActingAs?.userId === req.user.id || isPresentRequesterSession);
+
+  /**
+   * An assertion is for ONE agent. Without this, a verified requester could
+   * omit `agentId` (ordinary Alia, with the person's memory) or name a public
+   * agent, and use a product's entry to reach what that product never asked for.
+   * Same neutral refusal as every other unavailable agent.
+   */
+  if (req.oxyRequester !== undefined && (!isPresentRequesterSession || body.agentId !== req.oxyRequester.agentId)) {
+    res.status(404).json({
+      error: {
+        message: 'The selected agent is unavailable.',
+        type: 'invalid_request_error',
+        param: 'agentId',
+        code: 'agent_unavailable',
+      },
+    });
+    return null;
+  }
 
   /**
    * An agent id is an exact identity selector, never a hint.
@@ -885,11 +915,22 @@ export async function buildChatRequestContext(
   if (linkedAgent?.applicationId != null) {
     const exactApplication =
       req.serviceApp?.appId === linkedAgent.applicationId;
+    /**
+     * Two ways a person can be behind a product's service token: an offline
+     * delegation grant (its scopes narrow the token), or a present requester
+     * whose assertion named exactly this agent (its authority is the person's
+     * own, so only the product credential's scopes apply). Payer is the product
+     * application either way.
+     */
+    const presentRequesterForThisAgent =
+      isPresentRequesterSession && req.oxyRequester?.agentId === linkedAgent._id;
     const exactDelegation =
-      req.user?.id !== undefined && req.serviceActingAs?.userId === req.user.id;
+      req.user?.id !== undefined &&
+      (req.serviceActingAs?.userId === req.user.id || presentRequesterForThisAgent);
     const hasInferenceScope =
       req.serviceApp?.scopes.includes('inference:invoke') === true &&
-      req.serviceActingAs?.scopes.includes('inference:invoke') === true;
+      (presentRequesterForThisAgent ||
+        req.serviceActingAs?.scopes.includes('inference:invoke') === true);
     if (
       !exactApplication ||
       !exactDelegation ||
