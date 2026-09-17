@@ -138,6 +138,8 @@ async function run(
       scopes: string[];
     };
     delegatedScopes?: string[];
+    /** A present requester Oxy's introspection already consumed (ADR 0025). */
+    oxyRequester?: { userId: string; agentId: string; applicationId: string; credentialId: string };
     accessToken?: string;
     /** A streaming request: headers are already out, so a refusal is an SSE event. */
     sseSent?: boolean;
@@ -178,6 +180,9 @@ async function run(
     ...(options.delegatedScopes === undefined || options.directUserId === undefined
       ? {}
       : { serviceActingAs: { userId: options.directUserId, scopes: options.delegatedScopes } }),
+    ...(options.oxyRequester === undefined
+      ? {}
+      : { oxyRequester: { ...options.oxyRequester, jti: 'jti-1', expiresAt: '2026-09-17T12:02:00.000Z' } }),
     accessToken: options.accessToken ?? 'token-1',
   };
   if (options.agentId !== undefined) {
@@ -414,6 +419,122 @@ describe('agentId is an exact fail-closed selector', () => {
     expect(ctx).toBeNull();
     expect(captured.status).toBe(404);
     expect(captured.body?.error).toMatchObject({ code: 'agent_unavailable', param: 'agentId' });
+  });
+});
+
+/**
+ * A present requester (ADR 0025 in OxyHQServices): Homiio's service token plus a
+ * requester assertion Oxy consumed live. No acting-as grant exists, and none is
+ * needed — but the assertion admits ONE agent, bound to the presenting product,
+ * and nothing else Alia can do for that person.
+ */
+describe('a present requester reaches exactly the native agent it was admitted for', () => {
+  const sindi = {
+    ...privateAgent,
+    _id: 'sindi-agent',
+    access: 'private',
+    applicationId: 'homiio-app-id',
+  };
+  const requester = {
+    userId: 'user-1',
+    agentId: 'sindi-agent',
+    applicationId: 'homiio-app-id',
+    credentialId: 'credential-1',
+  };
+  const product = { appId: 'homiio-app-id', scopes: ['inference:invoke', 'acting-as:offline'] };
+
+  it('admits the named product agent with no delegation grant, billed to the product token', async () => {
+    findAgentById.mockResolvedValue(sindi);
+    const { ctx, captured } = await run(undefined, {
+      directUserId: 'user-1',
+      agentId: 'sindi-agent',
+      serviceApp: product,
+      oxyRequester: requester,
+      accessToken: 'verified-homiio-service-token',
+    });
+    expect(captured.status).toBeNull();
+    expect(ctx?.linkedAgent?._id).toBe('sindi-agent');
+    expect(ctx?.inferenceServiceToken).toBe('verified-homiio-service-token');
+    expect(ctx?.isDirectUserSession).toBe(false);
+  });
+
+  it('refuses a turn that names no agent, so the entry cannot become plain Alia with the person\'s memory', async () => {
+    const { ctx, captured } = await run(undefined, {
+      directUserId: 'user-1',
+      serviceApp: product,
+      oxyRequester: requester,
+    });
+    expect(ctx).toBeNull();
+    expect(captured.status).toBe(404);
+    expect(captured.body?.error).toMatchObject({ code: 'agent_unavailable' });
+    expect(reserveCredits).not.toHaveBeenCalled();
+  });
+
+  it('refuses any other agent, including a public one', async () => {
+    findAgentById.mockResolvedValue({ ...privateAgent, _id: 'agent-2', access: 'public', applicationId: null });
+    const { ctx, captured } = await run(undefined, {
+      directUserId: 'user-1',
+      agentId: 'agent-2',
+      serviceApp: product,
+      oxyRequester: requester,
+    });
+    expect(ctx).toBeNull();
+    expect(captured.status).toBe(404);
+    expect(findAgentById).not.toHaveBeenCalled();
+  });
+
+  it('refuses a requester context that does not match the verified service token', async () => {
+    for (const mismatch of [
+      { ...requester, applicationId: 'other-app' },
+      { ...requester, credentialId: 'other-credential' },
+      { ...requester, userId: 'someone-else' },
+    ]) {
+      const { ctx, captured } = await run(undefined, {
+        directUserId: 'user-1',
+        agentId: 'sindi-agent',
+        serviceApp: product,
+        oxyRequester: mismatch,
+      });
+      expect(ctx).toBeNull();
+      expect(captured.status).toBe(404);
+    }
+    expect(reserveCredits).not.toHaveBeenCalled();
+  });
+
+  it('refuses when the agent is bound to a different product application', async () => {
+    findAgentById.mockResolvedValue({ ...sindi, applicationId: 'clarity-app-id' });
+    const { ctx, captured } = await run(undefined, {
+      directUserId: 'user-1',
+      agentId: 'sindi-agent',
+      serviceApp: product,
+      oxyRequester: requester,
+    });
+    expect(ctx).toBeNull();
+    expect(captured.status).toBe(404);
+  });
+
+  it('refuses when the product credential cannot pay for inference', async () => {
+    findAgentById.mockResolvedValue(sindi);
+    const { ctx, captured } = await run(undefined, {
+      directUserId: 'user-1',
+      agentId: 'sindi-agent',
+      serviceApp: { appId: 'homiio-app-id', scopes: ['user:read'] },
+      oxyRequester: requester,
+    });
+    expect(ctx).toBeNull();
+    expect(captured.status).toBe(404);
+    expect(ctx?.inferenceServiceToken).toBeUndefined();
+  });
+
+  it('still refuses offline delegation without a grant — the consent lane is unchanged', async () => {
+    findAgentById.mockResolvedValue(sindi);
+    const { ctx, captured } = await run(undefined, {
+      directUserId: 'user-1',
+      agentId: 'sindi-agent',
+      serviceApp: product,
+    });
+    expect(ctx).toBeNull();
+    expect(captured.status).toBe(404);
   });
 });
 

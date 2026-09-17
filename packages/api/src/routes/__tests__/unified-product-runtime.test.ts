@@ -30,6 +30,7 @@ vi.mock('../../middleware/auth.js', () => ({
   optionalAuth: vi.fn((_r: unknown, _s: unknown, next: () => void) => next()),
   authenticateToken: vi.fn((_r: unknown, _s: unknown, next: () => void) => next()),
   authenticateTokenOrApiKey: vi.fn((_r: unknown, _s: unknown, next: () => void) => next()),
+  authenticateRequesterAssertion: vi.fn((_r: unknown, _s: unknown, next: () => void) => next()),
 }));
 
 vi.mock('../../db/index.js', () => ({ getDb: vi.fn(() => ({})) }));
@@ -92,9 +93,18 @@ describe('both public chat surfaces run the same handler object', () => {
     // to the same handler all along (`routes/v1.ts`). It is asserted here by
     // EXACT equality rather than by containment so that any future change to this
     // stack has to be looked at, which is how the limiter's absence was found.
-    const { authenticateTokenOrApiKey } = await import('../../middleware/auth.js');
+    //
+    // `authenticateRequesterAssertion` (ADR 0025 in OxyHQServices) follows the
+    // token check on BOTH surfaces, before the limiter: a product's present
+    // requester reaches a native agent the same way through either URL.
+    const { authenticateRequesterAssertion, authenticateTokenOrApiKey } = await import('../../middleware/auth.js');
     const { apiKeyRateLimit } = await import('../../middleware/api-key-rate-limit.js');
     const handlers = postHandlers(aliaChatRouter, '/');
-    expect(handlers).toEqual([authenticateTokenOrApiKey, apiKeyRateLimit, handleChatCompletions]);
+    expect(handlers).toEqual([
+      authenticateTokenOrApiKey,
+      authenticateRequesterAssertion,
+      apiKeyRateLimit,
+      handleChatCompletions,
+    ]);
   });
 });
