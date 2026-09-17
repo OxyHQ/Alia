@@ -6,7 +6,7 @@ import modelsRouter from './v1/models.js';
 import voiceRouter from './v1/voice.js';
 import audioRouter from './v1/audio.js';
 import imagesRouter from './v1/images.js';
-import { authenticateTokenOrApiKey, oxyClient } from '../middleware/auth.js';
+import { authenticateRequesterAssertion, authenticateTokenOrApiKey, oxyClient } from '../middleware/auth.js';
 import { apiKeyRateLimit } from '../middleware/api-key-rate-limit.js';
 import { getRefreshedUserCredits } from '../lib/user-credits-helpers.js';
 import { listChannels } from '../lib/channels/registry.js';
@@ -53,6 +53,11 @@ router.use((req: Request, _res: Response, next) => {
 
 // Apply authentication to all other v1 routes (supports both JWT and API keys)
 router.use(authenticateTokenOrApiKey);
+
+// A product's present-requester assertion (ADR 0025 in OxyHQServices) is
+// accepted on the chat surface only — the same one `/alia/chat` mounts it on —
+// and BEFORE the limiter, so the limiter keys on the requester it attaches.
+router.use('/chat/completions', authenticateRequesterAssertion);
 
 // Apply rate limiting for API key authenticated requests
 router.use(apiKeyRateLimit);

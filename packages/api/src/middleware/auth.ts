@@ -3,7 +3,10 @@ import { OxyServices } from '@oxy.so/core';
 import {
   createOptionalOxyAuth,
   createOxyAuthMiddleware,
+  createOxyRequesterAssertionAuth,
+  OXY_REQUESTER_ASSERTION_HEADER,
   type OxyRequestUser,
+  type OxyRequesterContext,
   type OxyServiceAppContext,
   type OxyServiceActingAsContext,
 } from '@oxy.so/core/server';
@@ -14,6 +17,7 @@ import { getDb } from '../db/index.js';
 import { findAppById, findKeyByHash, touchKeyLastUsed } from '../db/developers/developerRepository.js';
 import { hashDeveloperApiKey } from '../lib/api-key-crypto.js';
 import { getConfiguredChannels } from '../lib/channels/registry.js';
+import { oxyServiceClient } from '../lib/oxy-service-client.js';
 
 // Initialize Oxy client
 const OXY_API_URL = process.env.OXY_API_URL || 'https://api.oxy.so';
@@ -37,6 +41,13 @@ declare global {
       serviceApp?: OxyServiceAppContext;
       /** Present only after Oxy verified the app's delegation grant for X-Oxy-User-Id. */
       serviceActingAs?: OxyServiceActingAsContext;
+      /**
+       * Present only after a product's requester assertion was verified against
+       * Oxy's JWKS, bound to the verified service token and consumed through
+       * Oxy's live introspection (ADR 0025 in OxyHQServices). The requester was
+       * signed in to that product when the turn was sent.
+       */
+      oxyRequester?: OxyRequesterContext;
       _usageRecorded?: boolean;
       workspace?: {
         id: string | null;
@@ -63,6 +74,64 @@ export const authenticateToken = createOxyAuthMiddleware(oxyClient, { auth: { de
  * available. Never add `ACCESS_TOKEN_SECRET` or a private signing key here.
  */
 export const oxyServiceAuth = oxyClient.serviceAuth({ debug: true });
+
+/**
+ * The audience name Oxy mints present-requester assertions for.
+ */
+export const ALIA_REQUESTER_ASSERTION_AUDIENCE = 'alia';
+
+let requesterAssertionAuth: ReturnType<typeof createOxyRequesterAssertionAuth> | undefined;
+
+/**
+ * Accepts `X-Oxy-Requester-Assertion` beside a verified product service token
+ * (ADR 0025 in OxyHQServices): a signed-in person chatting in a first-party
+ * product reaches that product's native agent without any consent grant, and
+ * without the product forwarding the person's bearer to Alia.
+ *
+ * Mounted after `authenticateTokenOrApiKey`, only on `/v1/chat/completions`.
+ * Without the header it does nothing. With it, the request is refused unless
+ * the assertion verifies against Oxy's JWKS, was minted for exactly the
+ * presenting application and credential, and Oxy's introspection consumes it
+ * live — which Oxy only lets ALIA's own credential do. So the introspecting
+ * client is Alia's service client, never `oxyClient` (which has no credential)
+ * and never anything derived from the request.
+ *
+ * `req.user` is then the requester from the verified claims; nothing about the
+ * identity is read from a header.
+ */
+export function authenticateRequesterAssertion(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): void {
+  if (req.headers[OXY_REQUESTER_ASSERTION_HEADER] === undefined) {
+    next();
+    return;
+  }
+  const introspector = oxyServiceClient();
+  if (!introspector) {
+    log.auth.error('Requester assertion received but Alia has no Oxy service credential to introspect it');
+    res.status(503).json({
+      error: 'REQUESTER_ASSERTION_UNAVAILABLE',
+      code: 'introspection_unavailable',
+      message: 'The requester assertion was not accepted',
+      status: 503,
+    });
+    return;
+  }
+  requesterAssertionAuth ??= createOxyRequesterAssertionAuth(introspector, {
+    audience: ALIA_REQUESTER_ASSERTION_AUDIENCE,
+    onRejected: ({ code, status, applicationId }) => {
+      log.auth.warn({ code, status, appId: applicationId }, 'Requester assertion rejected');
+    },
+  });
+  void requesterAssertionAuth(req, res, next);
+}
+
+/** Test seam: the middleware closes over the service client it was built with. */
+export function resetRequesterAssertionAuth(): void {
+  requesterAssertionAuth = undefined;
+}
 
 /**
  * Optional auth - attaches user if token present, doesn't block if absent

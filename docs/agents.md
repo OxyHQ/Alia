@@ -39,13 +39,27 @@ Neither field is accepted by public `POST/PATCH /agents`; an internal bootstrap
 or reconciliation writes them from authoritative Oxy records. A null owner
 fails closed for Oxy tools, and `author_oxy_user_id` is never a fallback.
 
-Product ingress must use that product's Oxy service token plus
-`X-Oxy-User-Id`. Alia accepts the turn only after Oxy verifies the acting-as
-grant, the credential-derived application exactly matches `application_id`,
-and both effective scope sets include `inference:invoke`. Alia reuses that
-verified inbound token for `Alia -> Oxy -> Kaana`, so Oxy charges the product
-application's owner/cost centre. A human bearer, a mismatched app, a missing
-delegation or a known agent id alone all receive the same neutral refusal.
+Product ingress always uses that product's Oxy service token as the bearer,
+and names the person in one of two ways:
+
+- **Present requester** (OxyHQServices ADR 0025) — the person is signed in to
+  the product right now. The product trades their live session with Oxy for a
+  one-use, 120-second `X-Oxy-Requester-Assertion`; the person's bearer never
+  reaches Alia. `authenticateRequesterAssertion` (both chat surfaces, before the
+  limiter) verifies it against Oxy's JWKS, requires it to name exactly the
+  presenting application and credential, and has Oxy consume it through live
+  introspection with Alia's own service credential. The turn must then name the
+  one agent the assertion admits. No consent grant is involved.
+- **Offline delegation** — `X-Oxy-User-Id`, for work with no present person.
+  Alia accepts it only after Oxy verifies the `acting-as:offline` grant.
+
+Either way the credential-derived application must exactly match
+`application_id` and the service token must carry `inference:invoke` (plus the
+delegation grant's scopes, for offline delegation). Alia reuses that verified
+inbound token for `Alia -> Oxy -> Kaana`, so Oxy charges the product
+application's owner/cost centre. A human bearer, a mismatched app, a missing or
+spent assertion, a missing delegation or a known agent id alone all receive a
+refusal that says nothing about which check failed.
 
 A new or unreconciled agent inherits no user name, memory, Inbox/Oxy context,
 installed skill shelf or messaging/delegation hint in its prompt. Empty
