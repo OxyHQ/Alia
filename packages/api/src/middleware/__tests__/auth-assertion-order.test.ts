@@ -55,7 +55,8 @@ afterAll(async () => {
   );
 });
 
-function post(headers: Record<string, string>): Promise<Response> {
+// `Response` here is express's; the fetch result is the DOM one.
+function post(headers: Record<string, string>): Promise<globalThis.Response> {
   return fetch(`${origin}/v1/chat/completions`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...headers },
