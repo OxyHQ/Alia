@@ -15,19 +15,19 @@
 /* NativeWind's theme.css ships an UNLAYERED `:root { @media ios { --font-sans: System } }`,
    which outranks anything `@theme` emits — that compiles into `@layer theme`, and
    unlayered beats layered. Restate Bloom's family here, unlayered and after that
-   import, so `font-sans` keeps resolving to BlomusModernus on every platform.
+   import, so `font-sans` keeps resolving to Bloom's UI face (Inter) on every platform.
    Native gets the bare family name: RN's `fontFamily` takes ONE family, not a CSS
    stack, and `--bloom-font-*` is web-only (injected at runtime by `applyFontFaces`).
    The `var()` fallback covers the static export's first paint, before that runs. */
 :root {
-  --font-sans: var(--bloom-font-sans, BlomusModernus, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
+  --font-sans: var(--bloom-font-sans, Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
 
   @media ios {
-    --font-sans: BlomusModernus;
+    --font-sans: Inter;
   }
 
   @media android {
-    --font-sans: BlomusModernus;
+    --font-sans: Inter;
   }
 }
 
