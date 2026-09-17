@@ -97,10 +97,11 @@ export type ScopeAdmission =
  */
 export function admitsAudience(scope: AvailabilityScope, audience: CallerAudience): ScopeAdmission {
   switch (scope) {
-    case 'internal_alia':
-      // The scope this whole module exists for. A route approved for Alia's own
-      // internal application use is not a route a customer bought, whatever
-      // credential they hold, so only a verified Oxy service credential passes.
+    case 'platform_internal':
+      // The scope this whole module exists for. A route approved for internal
+      // use by Oxy's own platform applications is not a route a customer bought,
+      // whatever credential they hold, so only a verified Oxy service credential
+      // passes.
       return audience === 'internal' ? { state: 'admitted' } : { state: 'refused' };
     case 'public_payg':
       // Sold publicly on a pay-as-you-go basis: every caller may see it, and
@@ -144,7 +145,7 @@ export function resolveCallerAudience(req: Request): CallerAudience {
  * classified, so an admitted entry can be told apart from an unclassified one.
  *
  * **The residual, stated rather than hidden:** an entry with one
- * `internal_alia` route and one unclassified route is ADMITTED, and publishes
+ * `platform_internal` route and one unclassified route is ADMITTED, and publishes
  * only the scopes that admitted the caller. That is right at this layer — the
  * entry is reachable through the other route — but it is not a statement that
  * the internal route will not be selected. Selecting among routes is the
