@@ -86,6 +86,21 @@ and
 The table is a source contract, not proof that both repositories' rows or live
 service credentials have been provisioned and read back in production.
 
+**Alia's half of that contract is a reviewed one-shot, not a hand-edited row.**
+Oxy provisions the project, bot account, application and credential and
+publishes the four ids above; the `agents` row they describe is Alia's, and for
+as long as it did not exist a correctly authenticated Homiio turn reached
+`Pre-stream setup complete` and was then refused with `agent_unavailable` — the
+gap between a published contract and a consumed one, with no warning anywhere in
+between. `packages/api/src/config/native-product-agents.ts` pins what Oxy
+publishes (with a SHA-256 Oxy's own suite asserts, so neither repository can
+drift quietly), `packages/api/src/scripts/bootstrap-native-product-agents.ts`
+applies it, and the `Bootstrap native product agents` workflow dispatches it
+against the live image: `dry-run` executes the plan and rolls it back, `apply`
+takes that exact plan hash plus a reason. It creates or updates only the agents
+above, never widens an agent's reach, and refuses any existing row it did not
+expect rather than repairing it.
+
   **An agent has no picture.** It is drawn as a glyph tinted with its Oxy
   account's `User.color`, a Bloom preset key — so `AgentIdentity` carries
   `color` where it used to carry `avatar`, and there is no image-generation step
