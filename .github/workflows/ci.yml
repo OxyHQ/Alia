@@ -285,6 +285,21 @@ jobs:
       - name: Check SDK entry isolation
         run: bun run --filter @alia.onl/sdk check:entries
 
+      - name: Typecheck server SDK
+        run: bun run --filter @alia.onl/server typecheck
+
+      # These fixtures are written by the API's OWN SSE writers, imported across
+      # the workspace boundary — so a change to what `/v1/chat/completions` puts
+      # on the wire fails here, in the same commit, rather than in a consumer's
+      # production logs a week later.
+      - name: Test server SDK against the API's own stream writers
+        run: bun run --filter @alia.onl/server test
+
+      # The package publishes compiled ESM + CJS + types, unlike @alia.onl/sdk.
+      # A build that only runs at `npm publish` time is a build nobody has run.
+      - name: Build server SDK
+        run: bun run --filter @alia.onl/server build
+
   # The frontend packages had no typecheck, no lint and no test script between
   # them, and none of them was referenced by this workflow — so every frontend PR
   # merged on a green that said nothing about it. This is the gate for that.
