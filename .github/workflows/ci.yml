@@ -300,6 +300,13 @@ jobs:
       - name: Build server SDK
         run: bun run --filter @alia.onl/server build
 
+      # Typecheck, tests and build all passed on 1.0.0 while the published
+      # package could not be compiled against from a CommonJS backend — the
+      # defect was in the exports map, which none of them read. This compiles a
+      # real `module: node16` consumer against the built package.
+      - name: Check server SDK entry points
+        run: bun run --filter @alia.onl/server check:entrypoints
+
   # The frontend packages had no typecheck, no lint and no test script between
   # them, and none of them was referenced by this workflow — so every frontend PR
   # merged on a green that said nothing about it. This is the gate for that.
