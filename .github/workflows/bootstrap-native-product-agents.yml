@@ -237,6 +237,9 @@ jobs:
             echo "plan sha256: \`$observed_plan\`"
             echo
             echo '```json'
-            jq '.counts, .plan.operations' <<<"$result_json"
+            # The stored grants as well as the diff: `unchanged` is the same
+            # word whether the row carries the published capabilities or none
+            # at all, so the values the table HOLDS are printed beside it.
+            jq '.counts, .storedCapabilityGrants, .plan.operations' <<<"$result_json"
             echo '```'
           } >>"$GITHUB_STEP_SUMMARY"

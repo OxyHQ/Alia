@@ -85,6 +85,18 @@ interface RunReport {
   readonly manifestSha256: string;
   readonly plan: BootstrapPlan;
   readonly counts: { readonly insert: number; readonly update: number; readonly unchanged: number };
+  /**
+   * `capability_grants` as the table HOLDS it, from the verification select
+   * rather than from what any statement returned.
+   *
+   * Every other column the plan writes is an id or a flag an operator can
+   * check against the manifest by eye. This one is a list, it is the field that
+   * decides what the agent may DO, and until it was reported the only evidence
+   * a run left behind was the ABSENCE of an operation — "unchanged", which is
+   * the same word a run over a row nobody had granted anything would print
+   * before this manifest existed. So the values are stated, not implied.
+   */
+  readonly storedCapabilityGrants: Readonly<Record<string, readonly string[]>>;
 }
 
 /** Thrown to roll a dry run back. Carries the report so the caller still has it. */
@@ -191,13 +203,6 @@ async function main(): Promise<void> {
       }
 
       const planSha256 = bootstrapPlanSha256(planned.plan);
-      const runReport: RunReport = {
-        mode: apply ? 'apply' : 'dry-run',
-        planSha256,
-        manifestSha256: observedManifestSha256,
-        plan: planned.plan,
-        counts: counts(planned.plan.operations),
-      };
 
       if (approval !== null && approval.expectedPlan !== planSha256) {
         throw new Error(
@@ -242,6 +247,26 @@ async function main(): Promise<void> {
       if (!verification.ok || verification.plan.operations.some((o) => o.kind !== 'unchanged')) {
         throw new Error('the rows do not match the manifest after the plan ran');
       }
+
+      /**
+       * Built from `after` — the verification select — and therefore from the
+       * table rather than from any statement's return value. A dry run reports
+       * what the rows WOULD hold and then rolls back; an apply reports what
+       * they do hold.
+       */
+      const storedCapabilityGrants: Record<string, readonly string[]> = {};
+      for (const agent of wanted) {
+        storedCapabilityGrants[agent.id] = afterById.get(agent.id)?.capabilityGrants ?? [];
+      }
+
+      const runReport: RunReport = {
+        mode: apply ? 'apply' : 'dry-run',
+        planSha256,
+        manifestSha256: observedManifestSha256,
+        plan: planned.plan,
+        counts: counts(planned.plan.operations),
+        storedCapabilityGrants,
+      };
 
       if (!apply) throw new DryRunRollback(runReport);
       return runReport;
