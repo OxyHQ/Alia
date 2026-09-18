@@ -19,6 +19,11 @@
 
 import { describe, it, expect } from 'vitest';
 import {
+  isCapabilityGrant,
+  readCapabilityGrants,
+  OXY_SERVICE_TOOL_SOURCE,
+} from '../../domain/capability-grants.js';
+import {
   assertWorkflowIdentityBindings,
   findNativeProductAgent,
   nativeProductAgentManifestSha256,
@@ -44,6 +49,7 @@ describe('the pinned native product-agent manifest', () => {
           ownerOxyAccountId: '6a50444ce8026582b949089d',
           product: 'homiio',
           visibility: 'private',
+          capabilityGrants: ['web', 'artifacts', 'memory'],
         },
         {
           id: '01a0646a-078f-7642-95ef-439952f4f3f9',
@@ -52,6 +58,7 @@ describe('the pinned native product-agent manifest', () => {
           ownerOxyAccountId: '01a0646a-078f-7f53-848d-a0f82d9f7fa6',
           product: 'clarity',
           visibility: 'private',
+          capabilityGrants: [],
         },
       ],
     });
@@ -60,7 +67,7 @@ describe('the pinned native product-agent manifest', () => {
   it('hashes to the hex Oxy asserts against its own source', () => {
     expect(nativeProductAgentManifestSha256()).toBe(NATIVE_PRODUCT_AGENT_MANIFEST_SHA256);
     expect(NATIVE_PRODUCT_AGENT_MANIFEST_SHA256).toBe(
-      '4d8b711602fff69d9711202cfa6017090d0559b608fa7ed0e2e2b3c09cd2e4c6',
+      'a7c1c787c24159ce70e1664ce60749c6a9d3b06a23ff461559b5c97ca2104547',
     );
   });
 
@@ -79,6 +86,7 @@ describe('the pinned native product-agent manifest', () => {
         ownerOxyAccountId: agent.ownerOxyAccountId,
         product: agent.product,
         visibility: agent.visibility,
+        capabilityGrants: agent.capabilityGrants,
       })),
     };
     expect(JSON.stringify(reordered)).not.toBe(JSON.stringify(NATIVE_PRODUCT_AGENT_MANIFEST));
@@ -96,6 +104,59 @@ describe('the pinned native product-agent manifest', () => {
       expect(agent.visibility).toBe('private');
       expect(agent.applicationId).not.toBe('');
     }
+  });
+
+  /**
+   * The grants are the one published field this image can MISREAD rather than
+   * merely mis-store: the reader drops what it does not recognise, so a family
+   * Oxy renamed, or a typo that survived review, becomes a tool set quietly
+   * smaller than the one both repositories agreed on, with nothing red.
+   *
+   * So each published grant is checked against the vocabulary here, where a
+   * failure names it, rather than at 3am in a turn that lost `webSearch`.
+   */
+  it("publishes only grants this image's vocabulary recognises", () => {
+    for (const agent of NATIVE_PRODUCT_AGENT_MANIFEST.agents) {
+      for (const grant of agent.capabilityGrants) {
+        expect(isCapabilityGrant(grant), `${agent.product} publishes "${grant}"`).toBe(true);
+      }
+      // A duplicate would be harmless to the reader and is still a manifest
+      // nobody wrote on purpose, so it is caught where it is cheap.
+      expect(new Set(agent.capabilityGrants).size).toBe(agent.capabilityGrants.length);
+    }
+  });
+
+  /**
+   * The exact list, and then the exclusions. `toEqual` alone fails the same way
+   * whether a fourth family was added or a name was misspelled; naming the
+   * families that must never appear says which failure would matter.
+   */
+  it('grants Sindi three reading families, and nothing that acts in the world', () => {
+    const sindi = findNativeProductAgent('01a0646a-078f-7514-9800-9f43ceed7df8');
+    expect(sindi?.capabilityGrants).toEqual(['web', 'artifacts', 'memory']);
+    const families = (sindi?.capabilityGrants ?? []).map((grant) => grant.split(':')[0]);
+    for (const denied of [
+      'shell',
+      'browser',
+      'files',
+      'messaging',
+      'automation',
+      'delegation',
+      'mcp',
+      'integration',
+      'agent',
+      OXY_SERVICE_TOOL_SOURCE,
+    ]) {
+      expect(families).not.toContain(denied);
+    }
+  });
+
+  it('grants Clarity nothing, which DENIES rather than leaving it unset', () => {
+    expect(findNativeProductAgent('01a0646a-078f-7642-95ef-439952f4f3f9')?.capabilityGrants)
+      .toEqual([]);
+    // Empty is what an ungranted agent reaches, stated through the reader so
+    // this is the vocabulary's answer and not this file's opinion of it.
+    expect(readCapabilityGrants([]).allows('web')).toBe(false);
   });
 
   it('finds an agent by its exact id and nothing near it', () => {
