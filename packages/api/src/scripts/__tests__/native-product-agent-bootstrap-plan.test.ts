@@ -41,6 +41,10 @@ function settled(agent = SINDI): NativeAgentRow {
     status: 'active',
     isPublished: false,
     routingProfileId: AUTO,
+    // From the MANIFEST, not a literal: a settled row is by definition one
+    // carrying the published grant, so a manifest change moves this fixture
+    // with it rather than leaving "settled" meaning last year's tool set.
+    capabilityGrants: [...agent.capabilityGrants],
   };
 }
 
@@ -91,6 +95,45 @@ describe('an empty database', () => {
         routingProfileId: NATIVE_PRODUCT_AGENT_SEEDS.homiio.routingProfileId,
       },
     });
+  });
+
+  /**
+   * The grant is applied ON INSERT and comes from the manifest rather than
+   * from the seed beside the tagline, which is the whole difference between a
+   * reviewed authority and a product default. Asserted as the exact published
+   * list so a row created by this planner cannot reach a tool neither
+   * repository merged.
+   */
+  it('grants an inserted agent exactly what the manifest publishes for it', () => {
+    const result = planNativeProductAgentBootstrap(observe({}));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    for (const operation of result.plan.operations) {
+      expect(operation.kind).toBe('insert');
+      if (operation.kind !== 'insert') continue;
+      const published = operation.agentId === SINDI.id ? SINDI : CLARITY;
+      expect(operation.values.capabilityGrants).toEqual([...published.capabilityGrants]);
+    }
+    const sindi = result.plan.operations.find((operation) => operation.agentId === SINDI.id);
+    expect(sindi?.kind === 'insert' && sindi.values.capabilityGrants).toEqual([
+      'web',
+      'artifacts',
+      'memory',
+    ]);
+    // Clarity's empty list is written, not omitted: the column defaults to
+    // `{}` either way, and an insert that left the field out would make the
+    // two cases indistinguishable in the plan somebody reviews.
+    const clarity = result.plan.operations.find((operation) => operation.agentId === CLARITY.id);
+    expect(clarity?.kind === 'insert' && clarity.values.capabilityGrants).toEqual([]);
+  });
+
+  it('never seeds a grant the manifest did not publish', () => {
+    // The seed file is where the tagline and the category live, and putting a
+    // default grant there too would give the column a second authority that
+    // the cross-repo hash cannot see.
+    for (const seed of Object.values(NATIVE_PRODUCT_AGENT_SEEDS)) {
+      expect(seed).not.toHaveProperty('capabilityGrants');
+    }
   });
 
   /**
@@ -192,6 +235,95 @@ describe('an existing row it may finish', () => {
     };
     const result = planNativeProductAgentBootstrap(
       observe({ homiio: { byId: tuned, byOxyAccountId: tuned } }),
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.plan.operations.find((operation) => operation.agentId === SINDI.id)?.kind).toBe(
+      'unchanged',
+    );
+  });
+
+  /**
+   * DRIFT REPAIR, which is the behaviour `capability_grants` does not share
+   * with any other mutable field. The row already exists — this is the live
+   * case, since Sindi's row was created before the grant was published — and a
+   * bootstrap that only applied grants on insert would have nothing to do here
+   * and would report `unchanged` over an agent that reaches nothing.
+   */
+  it('grants an EXISTING row what the manifest publishes, rather than leaving it empty', () => {
+    const ungranted: NativeAgentRow = { ...settled(), capabilityGrants: [] };
+    const result = planNativeProductAgentBootstrap(
+      observe({ homiio: { byId: ungranted, byOxyAccountId: ungranted } }),
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const sindi = result.plan.operations.find((operation) => operation.agentId === SINDI.id);
+    expect(sindi?.kind).toBe('update');
+    if (sindi?.kind !== 'update') return;
+    expect(sindi.changes).toEqual([
+      { field: 'capabilityGrants', from: [], to: ['web', 'artifacts', 'memory'] },
+    ]);
+    expect(planWidensReach(sindi)).toBe(false);
+  });
+
+  /**
+   * And the other direction, which matters more. The published list is the
+   * COMPLETE list, so a family somebody added by hand is removed — otherwise
+   * the manifest would be a floor rather than the decision, and a grant nobody
+   * reviewed would survive every future run.
+   */
+  it('removes a capability nobody published, and restores one somebody deleted', () => {
+    const tampered: NativeAgentRow = {
+      ...settled(),
+      capabilityGrants: ['web', 'shell', 'mcp:some-connector'],
+    };
+    const result = planNativeProductAgentBootstrap(
+      observe({ homiio: { byId: tampered, byOxyAccountId: tampered } }),
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const sindi = result.plan.operations.find((operation) => operation.agentId === SINDI.id);
+    expect(sindi?.kind).toBe('update');
+    if (sindi?.kind !== 'update') return;
+    expect(sindi.changes).toContainEqual({
+      field: 'capabilityGrants',
+      from: ['web', 'shell', 'mcp:some-connector'],
+      to: ['web', 'artifacts', 'memory'],
+    });
+  });
+
+  /**
+   * `text[]` keeps the order it was written in and the manifest states one, so
+   * a reordered column is not the reviewed bytes. Cheap to repair, and the
+   * alternative is a comparison that has to decide which reorderings are
+   * equivalent — which is how a set comparison starts quietly ignoring
+   * duplicates too.
+   */
+  it('rewrites a reordered grant list back to the published order', () => {
+    const shuffled: NativeAgentRow = {
+      ...settled(),
+      capabilityGrants: ['memory', 'web', 'artifacts'],
+    };
+    const result = planNativeProductAgentBootstrap(
+      observe({ homiio: { byId: shuffled, byOxyAccountId: shuffled } }),
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const sindi = result.plan.operations.find((operation) => operation.agentId === SINDI.id);
+    expect(sindi?.kind).toBe('update');
+    if (sindi?.kind !== 'update') return;
+    expect(sindi.changes).toContainEqual({
+      field: 'capabilityGrants',
+      from: ['memory', 'web', 'artifacts'],
+      to: ['web', 'artifacts', 'memory'],
+    });
+  });
+
+  it('leaves a row that already carries the published grant alone', () => {
+    // The idempotence case for this field on its own, so "a second run reports
+    // unchanged" is not carried solely by the whole-manifest assertion above.
+    const result = planNativeProductAgentBootstrap(
+      observe({ homiio: { byId: settled(), byOxyAccountId: settled() } }),
     );
     expect(result.ok).toBe(true);
     if (!result.ok) return;
@@ -327,6 +459,39 @@ describe('the reach invariant', () => {
     ).toBe(true);
   });
 
+  /**
+   * The grant bound is an EXACT value rather than a direction, so both a
+   * longer list and a merely different one answer true. This is the backstop
+   * for a future planner that decides to union the observed grants with the
+   * published ones — a change that looks conservative and is the blank cheque
+   * the manifest exists to prevent.
+   */
+  it('calls any grant but the published one a widening, however it differs', () => {
+    const base = { kind: 'update' as const, agentId: SINDI.id, product: 'homiio' as const };
+    const grants = (to: string[]) =>
+      planWidensReach({ ...base, changes: [{ field: 'capabilityGrants', from: [], to }] });
+
+    expect(grants(['web', 'artifacts', 'memory', 'shell'])).toBe(true);
+    expect(grants(['web', 'artifacts', 'memory', 'mcp:anything'])).toBe(true);
+    expect(grants(['memory', 'artifacts', 'web'])).toBe(true);
+    expect(grants(['web'])).toBe(true);
+    // The published list itself, which is the only accepted value.
+    expect(grants(['web', 'artifacts', 'memory'])).toBe(false);
+  });
+
+  it('refuses to grant an agent the manifest does not name at all', () => {
+    // No entry, no grant. A plan keyed on an id nobody published has nothing
+    // to be bounded by, so the answer is not "empty is safe" but "refuse".
+    expect(
+      planWidensReach({
+        kind: 'update',
+        agentId: 'an-agent-no-manifest-names',
+        product: 'homiio',
+        changes: [{ field: 'capabilityGrants', from: [], to: [] }],
+      }),
+    ).toBe(true);
+  });
+
   it('does not call binding an unbound agent, or activating it, a widening', () => {
     const base = { kind: 'update' as const, agentId: SINDI.id, product: 'homiio' as const };
     expect(
@@ -346,6 +511,9 @@ describe('the reach invariant', () => {
       { ...settled(), applicationId: null, ownerOxyAccountId: null, routingProfileId: null },
       { ...settled(), access: 'public', isPublished: true },
       { ...settled(), status: 'offline' },
+      { ...settled(), capabilityGrants: [] },
+      { ...settled(), capabilityGrants: ['shell', 'browser', 'delegation'] },
+      { ...settled(), capabilityGrants: ['memory', 'artifacts', 'web'] },
     ];
     for (const row of states) {
       const result = planNativeProductAgentBootstrap(

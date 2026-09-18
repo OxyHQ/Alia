@@ -72,10 +72,21 @@ Sindi is Homiio's private Alia agent and Clarity's assistant is another private
 Alia agent. They are Oxy `bot` principals, not provider identities, and neither
 holds a provider credential. Their core cross-service bindings are:
 
-| Product agent | Owner project | Bot account | Alia agent | Bound Oxy application |
-|---|---|---|---|---|
-| Sindi | `6a50444ce8026582b949089d` | `01a0646a-078f-7974-9645-a5e8be237f47` | `01a0646a-078f-7514-9800-9f43ceed7df8` | `6a2f851751b784a86fd0e922` |
-| Clarity | `01a0646a-078f-7f53-848d-a0f82d9f7fa6` | `01a0646a-078f-7120-a993-a03c180c81b0` | `01a0646a-078f-7642-95ef-439952f4f3f9` | `01a0648b-8d73-70ad-8e67-1c07ddc5eb6e` |
+| Product agent | Owner project | Bot account | Alia agent | Bound Oxy application | Granted capabilities |
+|---|---|---|---|---|---|
+| Sindi | `6a50444ce8026582b949089d` | `01a0646a-078f-7974-9645-a5e8be237f47` | `01a0646a-078f-7514-9800-9f43ceed7df8` | `6a2f851751b784a86fd0e922` | `web`, `artifacts`, `memory` |
+| Clarity | `01a0646a-078f-7f53-848d-a0f82d9f7fa6` | `01a0646a-078f-7120-a993-a03c180c81b0` | `01a0646a-078f-7642-95ef-439952f4f3f9` | `01a0648b-8d73-70ad-8e67-1c07ddc5eb6e` | (none) |
+
+The last column is `capability_grants`, and it is published in the same hashed
+manifest as the ids beside it rather than decided in Alia alone — a grant is
+what the agent may DO, so widening one is a change both repositories merge.
+Sindi reads and answers: `web` (search, scraping, browsing, deep research and
+the weather/quote/FairCoin cards), `artifacts` (canvas, generated files) and
+`memory` (saving and searching what the person has already said). It has no
+`shell`, `browser`, `files`, `messaging`, `automation` or `delegation`, and no
+connector row of any kind. Clarity's `(none)` is a decision that denies
+everything, not an unset field. Oxy app tools are not expressible here at all:
+Oxy's normalized DelegationGrant records are their sole authority.
 
 These are exact opaque primary keys. A bootstrap or runtime must compare them
 byte for byte; a name, handle, query order or first result is diagnostic data,

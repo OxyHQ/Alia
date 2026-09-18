@@ -104,7 +104,7 @@ check('the documented table falling behind fails', {
 check('a hand-edited hash that no longer matches the values fails', {
   root: tree('hash-drift', {
     [CONFIG]: [[
-      '4d8b711602fff69d9711202cfa6017090d0559b608fa7ed0e2e2b3c09cd2e4c6',
+      'a7c1c787c24159ce70e1664ce60749c6a9d3b06a23ff461559b5c97ca2104547',
       '0000000000000000000000000000000000000000000000000000000000000000',
     ]],
   }),
@@ -112,10 +112,45 @@ check('a hand-edited hash that no longer matches the values fails', {
   contains: ['nativeProductAgents.test.ts'],
 });
 
+/**
+ * The grant is the one manifest field that decides what the agent may DO, so
+ * both of its copies get a case of their own.
+ *
+ * The config case is the sharp one: the hash is computed over the grant array
+ * too, so a gate that could not parse it would recompute the OLD hex from the
+ * NEW file and report agreement — a clean pass over a widened product agent.
+ */
+check('a capability granted in the config alone fails', {
+  root: tree('grant-drift', {
+    [CONFIG]: [["['web', 'artifacts', 'memory']", "['web', 'artifacts', 'memory', 'shell']"]],
+  }),
+  status: 1,
+  contains: ['hash'],
+});
+
+check('the documented grant falling behind the config fails', {
+  root: tree('grant-doc-drift', {
+    [DOC]: [['`web`, `artifacts`, `memory` |', '`web` |']],
+  }),
+  status: 1,
+  contains: ['granted capabilities'],
+});
+
 // The vacuity floor the gate declares for itself: a config it can no longer
 // parse must be RED, not a clean pass over nothing.
 check('a config the gate cannot parse fails rather than passing vacuously', {
   root: tree('unparseable', { [CONFIG]: [['      oxyAccountId:', '      oxyAccount:']] }),
+  status: 1,
+  contains: ['expected 2'],
+});
+
+// The same floor for the grant field specifically, because it was added to the
+// extractor last and an extractor that stopped at `visibility` would still
+// parse two agents — and hash them without their grants.
+check('a grant list the gate cannot parse fails rather than hashing without it', {
+  root: tree('unparseable-grants', {
+    [CONFIG]: [['      capabilityGrants: Object.freeze(', '      grants: Object.freeze(']],
+  }),
   status: 1,
   contains: ['expected 2'],
 });

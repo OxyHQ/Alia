@@ -54,10 +54,31 @@
  * a null or unreviewed profile. An insert that left it null would make the next
  * deploy of Alia refuse to roll. So a null is filled with the seed's value, a
  * reviewed value is left exactly as it is, and an unreviewed one is refused.
+ *
+ * ## `capability_grants` is the other way round, and deliberately so
+ *
+ * It is the one mutable field where the MANIFEST is the whole truth and an
+ * observed value is never preserved. The plan sets the column to exactly the
+ * published list on insert AND on every later run, so a grant added by hand is
+ * removed and a grant removed by hand comes back.
+ *
+ * That is the opposite of the rule for the prose and the routing profile, and
+ * the difference is what the field decides. An operator who retuned a routing
+ * profile made a performance choice inside a reviewed list; an operator who
+ * edited `capability_grants` changed what a product assistant may DO to
+ * something no pull request in either repository contains. "Repair toward the
+ * reviewed value" is the only reading of drift that does not make the manifest
+ * advisory — and unlike every other mutable field, both directions of the
+ * repair are bounded, because the published list is the complete list.
+ *
+ * {@link planWidensReach} enforces that bound rather than trusting it: a
+ * planned grant change to anything but the manifest's exact bytes answers true
+ * and the whole plan is refused.
  */
 
 import { createHash } from 'node:crypto';
 import {
+  findNativeProductAgent,
   NATIVE_PRODUCT_AGENT_MANIFEST,
   NATIVE_PRODUCT_AGENT_MANIFEST_SHA256,
   type NativeProductAgent,
@@ -76,16 +97,20 @@ export const MUTABLE_FIELDS = [
   'status',
   'isPublished',
   'routingProfileId',
+  'capabilityGrants',
 ] as const;
 export type MutableField = (typeof MUTABLE_FIELDS)[number];
 
 /**
  * Alia's own defaults for a row this creates. Insert-only; see the file comment.
  *
- * `capabilityGrants` is deliberately absent and therefore empty, which DENIES
- * everything (`domain/capability-grants.ts`). A product agent that can answer
- * questions is the goal here; a product agent that can act in the world is a
- * separate, reviewable grant.
+ * `capabilityGrants` is deliberately NOT here. It used to be absent from the
+ * whole bootstrap and therefore empty, which DENIES everything
+ * (`domain/capability-grants.ts`) — the separate, reviewable grant that comment
+ * asked for is now the manifest's `capabilityGrants`, published by Oxy, hashed
+ * across both repositories and re-asserted on every run. Putting a default here
+ * as well would give the column two authorities, and the seed one would be
+ * insert-only and invisible to the gate.
  */
 export interface NativeProductAgentSeed {
   readonly tagline: string;
@@ -122,6 +147,8 @@ export interface NativeAgentRow {
   readonly status: string;
   readonly isPublished: boolean;
   readonly routingProfileId: string | null;
+  /** `NOT NULL DEFAULT '{}'`, so this is an array and never null. */
+  readonly capabilityGrants: readonly string[];
 }
 
 /**
@@ -160,10 +187,20 @@ export interface Refusal {
   readonly expected: string | null;
 }
 
+/**
+ * What a mutable column can hold. The array is `capability_grants`.
+ *
+ * MUTABLE, and copied at every boundary, because the driver's insert and
+ * update types demand `string[]`: a `readonly string[]` handed straight from
+ * the frozen manifest does not typecheck, and widening the driver's types to
+ * accept one would be loosening the wrong end.
+ */
+export type FieldValue = string | boolean | null | string[];
+
 export interface FieldChange {
   readonly field: MutableField;
-  readonly from: string | boolean | null;
-  readonly to: string | boolean | null;
+  readonly from: FieldValue;
+  readonly to: FieldValue;
 }
 
 export interface InsertValues {
@@ -179,6 +216,7 @@ export interface InsertValues {
   readonly status: 'active';
   readonly isPublished: false;
   readonly routingProfileId: string;
+  readonly capabilityGrants: string[];
 }
 
 export type Operation =
@@ -197,6 +235,11 @@ export type PlanResult =
   | { readonly ok: false; readonly refusals: readonly Refusal[] };
 
 const REVIEWED_ROUTING_PROFILES = new Set<string>(OXY_KAANA_ROUTING_PROFILE_ID_LIST);
+
+/** Exact sequence equality — see where it is used for why order counts. */
+function sameGrants(a: readonly string[], b: readonly string[]): boolean {
+  return a.length === b.length && a.every((grant, index) => grant === b[index]);
+}
 
 function refusal(
   agent: NativeProductAgent,
@@ -249,6 +292,9 @@ function planOne(observation: NativeAgentObservation): { operation: Operation | 
           status: 'active',
           isPublished: false,
           routingProfileId: seed.routingProfileId,
+          // The manifest's, not a seed's — see the file comment. Copied so the
+          // insert never hands a frozen array to the driver.
+          capabilityGrants: [...agent.capabilityGrants],
         },
       },
       refusals,
@@ -301,6 +347,20 @@ function planOne(observation: NativeAgentObservation): { operation: Operation | 
   if (byId.routingProfileId === null) {
     changes.push({ field: 'routingProfileId', from: null, to: seed.routingProfileId });
   }
+  /**
+   * The published list is the COMPLETE list, so drift is repaired in both
+   * directions rather than merged. Compared element by element and IN ORDER:
+   * `text[]` preserves the order it was written in, and the manifest states
+   * one, so a reordered column is a column that no longer matches the bytes
+   * both repositories reviewed.
+   */
+  if (!sameGrants(byId.capabilityGrants, agent.capabilityGrants)) {
+    changes.push({
+      field: 'capabilityGrants',
+      from: [...byId.capabilityGrants],
+      to: [...agent.capabilityGrants],
+    });
+  }
 
   if (changes.length === 0) {
     return { operation: { kind: 'unchanged', agentId: agent.id, product: agent.product }, refusals };
@@ -312,9 +372,15 @@ function planOne(observation: NativeAgentObservation): { operation: Operation | 
 }
 
 /**
- * Whether an operation would make an agent reachable by anyone the manifest did
- * not name. The plan is refused if this is ever true — see the file comment for
- * why `status` is not counted and the other three are.
+ * Whether an operation would widen an agent beyond what the manifest published.
+ *
+ * Two directions, both refused. The first three fields are about WHO can reach
+ * the agent — see the file comment for why `status` is not counted and the
+ * other three are. `capabilityGrants` is about what the agent can reach, and
+ * the bound there is not a direction but an exact value: the plan may set the
+ * column to the published list and to nothing else, whether that list is
+ * longer or shorter than what is stored. A grant change to anything else means
+ * the planner is writing a tool set no pull request contains.
  */
 export function planWidensReach(operation: Operation): boolean {
   if (operation.kind !== 'update') return false;
@@ -322,6 +388,12 @@ export function planWidensReach(operation: Operation): boolean {
     if (change.field === 'access' && change.to !== 'private') return true;
     if (change.field === 'isPublished' && change.to !== false) return true;
     if (change.field === 'applicationId' && (change.to === null || change.from !== null)) return true;
+    if (change.field === 'capabilityGrants') {
+      const published = findNativeProductAgent(operation.agentId)?.capabilityGrants;
+      // An id with no manifest entry cannot be granted anything at all.
+      if (published === undefined) return true;
+      if (!Array.isArray(change.to) || !sameGrants(change.to, published)) return true;
+    }
   }
   return false;
 }

@@ -54,6 +54,14 @@ env:
   # workflow retargeted on its own is refused by the image it dispatches. The
   # script compares each of these byte for byte and exits non-zero on the first
   # disagreement — see `assertWorkflowIdentityBindings`.
+  #
+  # The IDs are restated one by one because they are what this job targets and
+  # a reviewer of this file alone has to be able to see them. The manifest also
+  # publishes each agent's `capabilityGrants`, which are NOT restated here: they
+  # are not a target, and EXPECTED_MANIFEST_SHA256 below is over the whole
+  # manifest, so a grant that changed without this workflow changing is refused
+  # by the same binding. Clarity's list is empty, and an env var restating an
+  # empty list would make the drift gate's "stated twice" check vacuous.
   EXPECTED_HOMIIO_AGENT_ID: 01a0646a-078f-7514-9800-9f43ceed7df8
   EXPECTED_HOMIIO_BOT_ID: 01a0646a-078f-7974-9645-a5e8be237f47
   EXPECTED_HOMIIO_APPLICATION_ID: 6a2f851751b784a86fd0e922
@@ -62,7 +70,7 @@ env:
   EXPECTED_CLARITY_BOT_ID: 01a0646a-078f-7120-a993-a03c180c81b0
   EXPECTED_CLARITY_APPLICATION_ID: 01a0648b-8d73-70ad-8e67-1c07ddc5eb6e
   EXPECTED_CLARITY_PROJECT_ID: 01a0646a-078f-7f53-848d-a0f82d9f7fa6
-  EXPECTED_MANIFEST_SHA256: 4d8b711602fff69d9711202cfa6017090d0559b608fa7ed0e2e2b3c09cd2e4c6
+  EXPECTED_MANIFEST_SHA256: a7c1c787c24159ce70e1664ce60749c6a9d3b06a23ff461559b5c97ca2104547
 
 jobs:
   bootstrap:
@@ -167,7 +175,7 @@ jobs:
                   {name:"EXPECTED_CLARITY_BOT_ID",value:"01a0646a-078f-7120-a993-a03c180c81b0"},
                   {name:"EXPECTED_CLARITY_APPLICATION_ID",value:"01a0648b-8d73-70ad-8e67-1c07ddc5eb6e"},
                   {name:"EXPECTED_CLARITY_PROJECT_ID",value:"01a0646a-078f-7f53-848d-a0f82d9f7fa6"},
-                  {name:"EXPECTED_MANIFEST_SHA256",value:"4d8b711602fff69d9711202cfa6017090d0559b608fa7ed0e2e2b3c09cd2e4c6"}
+                  {name:"EXPECTED_MANIFEST_SHA256",value:"a7c1c787c24159ce70e1664ce60749c6a9d3b06a23ff461559b5c97ca2104547"}
                 ]
               }]}
             ')
@@ -229,6 +237,9 @@ jobs:
             echo "plan sha256: \`$observed_plan\`"
             echo
             echo '```json'
-            jq '.counts, .plan.operations' <<<"$result_json"
+            # The stored grants as well as the diff: `unchanged` is the same
+            # word whether the row carries the published capabilities or none
+            # at all, so the values the table HOLDS are printed beside it.
+            jq '.counts, .storedCapabilityGrants, .plan.operations' <<<"$result_json"
             echo '```'
           } >>"$GITHUB_STEP_SUMMARY"
