@@ -67,6 +67,7 @@ import {
   manifestAgents,
   planNativeProductAgentBootstrap,
   type BootstrapPlan,
+  type FieldValue,
   type NativeAgentObservation,
   type NativeAgentRow,
   type Operation,
@@ -102,6 +103,7 @@ const AGENT_COLUMNS = {
   status: agents.status,
   isPublished: agents.isPublished,
   routingProfileId: agents.routingProfileId,
+  capabilityGrants: agents.capabilityGrants,
 };
 
 function requireApproval(): { actor: string; reason: string; expectedPlan: string } {
@@ -207,7 +209,7 @@ async function main(): Promise<void> {
         if (operation.kind === 'insert') {
           await tx.insert(agents).values(operation.values);
         } else if (operation.kind === 'update') {
-          const patch: Record<string, string | boolean | null> = {};
+          const patch: Record<string, FieldValue> = {};
           for (const change of operation.changes) patch[change.field] = change.to;
           const updated = await tx
             .update(agents)
