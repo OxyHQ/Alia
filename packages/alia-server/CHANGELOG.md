@@ -1,5 +1,30 @@
 # @alia.onl/server
 
+## 1.0.1
+
+### A CommonJS consumer can compile against it
+
+1.0.0 was unusable from the consumer it was written for. Its `exports["."]`
+carried ONE `types` entry for both conditions, pointing at `dist/index.d.ts` —
+and in a `"type": "module"` package that is an ES module declaration, so a
+consumer whose tsconfig says `module: Node16` got **TS1479**: *"the referenced
+file is an ECMAScript module and cannot be imported with `require`"*.
+
+The runtime was fine the whole time. Node read `require` → `dist/index.cjs` and
+never looked at the types, which is why this package's own typecheck, tests and
+build all passed, and why every bundler-based consumer would have been fine too.
+The first backend to try it could not compile.
+
+Each condition now carries its own `types` — `.d.ts` for `import`, `.d.cts` for
+`require` — and `scripts/check-entrypoints.mjs` runs in CI: it asserts the
+shipped shape, loads both entry points, and compiles a real CommonJS `node16`
+consumer against a real `node_modules` layout. (Against a `paths` alias it
+compiled the broken shape clean, because TypeScript applies an `exports` map
+only when it resolves through `node_modules` — so that probe proved nothing and
+was replaced.)
+
+No API change.
+
 ## 1.0.0
 
 ### A server-side client, so no consumer hand-parses Alia's stream again

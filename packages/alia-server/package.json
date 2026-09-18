@@ -1,18 +1,23 @@
 {
   "name": "@alia.onl/server",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Alia's server-side streaming client — one typed event stream for a backend that calls Alia's product API",
   "license": "Apache-2.0",
   "private": false,
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
-  "types": "./dist/index.d.ts",
+  "types": "./dist/index.d.cts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
     },
     "./package.json": "./package.json"
   },
@@ -32,6 +37,7 @@
     "build": "tsup",
     "prepublishOnly": "bun run build",
     "typecheck": "tsc --noEmit",
+    "check:entrypoints": "node scripts/check-entrypoints.mjs",
     "test": "vitest run"
   },
   "keywords": [
