@@ -10,6 +10,7 @@
     "packages/api",
     "packages/app",
     "packages/alia-chat",
+    "packages/alia-server",
     "packages/alia-canvas",
     "packages/alia-docker-host",
     "packages/integrations",
