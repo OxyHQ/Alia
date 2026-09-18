@@ -1,0 +1,359 @@
+/**
+ * What the bootstrap would do to rows it did not create.
+ *
+ * The planner is pure, and that is the whole reason these cases can exist: the
+ * interesting states — a bot account already claimed, an id already bound to a
+ * different application, a public marketplace agent sitting on a manifest id —
+ * are ones nobody can conveniently produce in a database, so a planner that
+ * needed one would have its refusals exercised only by the accident that
+ * triggers them in production.
+ *
+ * Every case below is written against the property rather than the shape of the
+ * output, so a planner rewritten to emit different operations still has to make
+ * the same decisions.
+ */
+
+import { describe, it, expect } from 'vitest';
+import { NATIVE_PRODUCT_AGENT_MANIFEST } from '../../config/native-product-agents.js';
+import { OXY_KAANA_ROUTING_PROFILE_IDS } from '../../config/oxy-inference-routing-profile-ids.js';
+import {
+  bootstrapPlanSha256,
+  manifestAgents,
+  planNativeProductAgentBootstrap,
+  planWidensReach,
+  NATIVE_PRODUCT_AGENT_SEEDS,
+  type NativeAgentObservation,
+  type NativeAgentRow,
+} from '../native-product-agent-bootstrap-plan.js';
+
+const SINDI = NATIVE_PRODUCT_AGENT_MANIFEST.agents[0];
+const CLARITY = NATIVE_PRODUCT_AGENT_MANIFEST.agents[1];
+const AUTO = OXY_KAANA_ROUTING_PROFILE_IDS['route:auto'];
+
+/** A row exactly as a correct bootstrap leaves it. */
+function settled(agent = SINDI): NativeAgentRow {
+  return {
+    id: agent.id,
+    oxyAccountId: agent.oxyAccountId,
+    ownerOxyAccountId: agent.ownerOxyAccountId,
+    applicationId: agent.applicationId,
+    access: 'private',
+    status: 'active',
+    isPublished: false,
+    routingProfileId: AUTO,
+  };
+}
+
+/** Observations for the whole manifest, with one entry overridden. */
+function observe(
+  overrides: Partial<Record<'homiio' | 'clarity', Partial<NativeAgentObservation>>>,
+): NativeAgentObservation[] {
+  return manifestAgents().map((agent) => ({
+    agent,
+    byId: null,
+    byOxyAccountId: null,
+    ...overrides[agent.product],
+  }));
+}
+
+/** Both manifest entries settled — the state after a successful apply. */
+const SETTLED = (): NativeAgentObservation[] =>
+  manifestAgents().map((agent) => ({
+    agent,
+    byId: settled(agent),
+    byOxyAccountId: settled(agent),
+  }));
+
+describe('an empty database', () => {
+  it('plans exactly one insert per manifest agent and nothing else', () => {
+    const result = planNativeProductAgentBootstrap(observe({}));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.plan.operations).toHaveLength(2);
+    expect(result.plan.operations.every((operation) => operation.kind === 'insert')).toBe(true);
+  });
+
+  it('inserts the exact identity the manifest names, private, active and unlisted', () => {
+    const result = planNativeProductAgentBootstrap(observe({}));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const sindi = result.plan.operations.find((operation) => operation.agentId === SINDI.id);
+    expect(sindi).toMatchObject({
+      kind: 'insert',
+      values: {
+        id: SINDI.id,
+        oxyAccountId: SINDI.oxyAccountId,
+        ownerOxyAccountId: SINDI.ownerOxyAccountId,
+        applicationId: SINDI.applicationId,
+        access: 'private',
+        status: 'active',
+        isPublished: false,
+        routingProfileId: NATIVE_PRODUCT_AGENT_SEEDS.homiio.routingProfileId,
+      },
+    });
+  });
+
+  /**
+   * `check-agent-routing-profile-readiness.ts` is the deploy's PRE-deploy task
+   * and FAILS THE DEPLOY on an active agent with a null or unreviewed profile.
+   * An insert that left it null would make the next Alia deploy refuse to roll —
+   * a failure with no connection at all to the thing that caused it.
+   */
+  it('gives every inserted agent a reviewed routing profile', () => {
+    const result = planNativeProductAgentBootstrap(observe({}));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    for (const operation of result.plan.operations) {
+      expect(operation.kind).toBe('insert');
+      if (operation.kind !== 'insert') continue;
+      expect(Object.values(OXY_KAANA_ROUTING_PROFILE_IDS)).toContain(
+        operation.values.routingProfileId,
+      );
+    }
+  });
+});
+
+describe('a second run', () => {
+  it('is idempotent: nothing to do, and a plan that says so', () => {
+    const result = planNativeProductAgentBootstrap(SETTLED());
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.plan.operations.every((operation) => operation.kind === 'unchanged')).toBe(true);
+  });
+
+  /**
+   * The hash is what `apply` is approved against, so the two properties it
+   * needs are stated together: the SAME observed state must hash the same (or
+   * an approved apply refuses for no reason), and a DIFFERENT one must not (or
+   * an apply rides on a review of something else).
+   */
+  it('hashes the same plan to the same hex, and a different plan to a different one', () => {
+    const first = planNativeProductAgentBootstrap(SETTLED());
+    const again = planNativeProductAgentBootstrap(SETTLED());
+    const empty = planNativeProductAgentBootstrap(observe({}));
+    expect(first.ok && again.ok && empty.ok).toBe(true);
+    if (!first.ok || !again.ok || !empty.ok) return;
+    expect(bootstrapPlanSha256(first.plan)).toBe(bootstrapPlanSha256(again.plan));
+    expect(bootstrapPlanSha256(first.plan)).not.toBe(bootstrapPlanSha256(empty.plan));
+    expect(bootstrapPlanSha256(first.plan)).toMatch(/^[a-f0-9]{64}$/);
+  });
+
+  /**
+   * Observation order is an accident of however the rows came back. A plan hash
+   * that depended on it would make an approved apply refuse for no reason.
+   */
+  it('hashes the same however the observations were ordered', () => {
+    const forward = planNativeProductAgentBootstrap(observe({}));
+    const reversed = planNativeProductAgentBootstrap([...observe({})].reverse());
+    expect(forward.ok && reversed.ok).toBe(true);
+    if (!forward.ok || !reversed.ok) return;
+    expect(bootstrapPlanSha256(forward.plan)).toBe(bootstrapPlanSha256(reversed.plan));
+  });
+});
+
+describe('an existing row it may finish', () => {
+  it('binds an unbound, unowned draft without rewriting its prose', () => {
+    const draft: NativeAgentRow = {
+      ...settled(),
+      ownerOxyAccountId: null,
+      applicationId: null,
+      status: 'idle',
+      routingProfileId: null,
+    };
+    const result = planNativeProductAgentBootstrap(
+      observe({ homiio: { byId: draft, byOxyAccountId: draft } }),
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const sindi = result.plan.operations.find((operation) => operation.agentId === SINDI.id);
+    expect(sindi?.kind).toBe('update');
+    if (sindi?.kind !== 'update') return;
+    expect(sindi.changes.map((change) => change.field).sort()).toEqual([
+      'applicationId',
+      'ownerOxyAccountId',
+      'routingProfileId',
+      'status',
+    ]);
+    expect(sindi.changes).toContainEqual({
+      field: 'applicationId',
+      from: null,
+      to: SINDI.applicationId,
+    });
+  });
+
+  /**
+   * An operator may have tuned the profile on purpose. The seed is a default
+   * for a row this CREATES, never a correction applied to one it finds.
+   */
+  it('leaves a reviewed routing profile somebody else chose', () => {
+    const tuned: NativeAgentRow = {
+      ...settled(),
+      routingProfileId: OXY_KAANA_ROUTING_PROFILE_IDS['route:thinking'],
+    };
+    const result = planNativeProductAgentBootstrap(
+      observe({ homiio: { byId: tuned, byOxyAccountId: tuned } }),
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.plan.operations.find((operation) => operation.agentId === SINDI.id)?.kind).toBe(
+      'unchanged',
+    );
+  });
+
+  it('narrows a listed, public, bound agent back to private and unlisted', () => {
+    const wide: NativeAgentRow = { ...settled(), access: 'public', isPublished: true };
+    const result = planNativeProductAgentBootstrap(
+      observe({ homiio: { byId: wide, byOxyAccountId: wide } }),
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const sindi = result.plan.operations.find((operation) => operation.agentId === SINDI.id);
+    expect(sindi?.kind).toBe('update');
+    if (sindi?.kind !== 'update') return;
+    expect(sindi.changes).toContainEqual({ field: 'access', from: 'public', to: 'private' });
+    expect(sindi.changes).toContainEqual({ field: 'isPublished', from: true, to: false });
+    expect(planWidensReach(sindi)).toBe(false);
+  });
+});
+
+describe('a row it refuses', () => {
+  function refusalsFor(observation: Partial<NativeAgentObservation>) {
+    const result = planNativeProductAgentBootstrap(observe({ homiio: observation }));
+    expect(result.ok).toBe(false);
+    return result.ok ? [] : result.refusals;
+  }
+
+  it('refuses when another agent already IS the bot account', () => {
+    const squatter: NativeAgentRow = { ...settled(), id: 'some-other-agent' };
+    expect(refusalsFor({ byId: null, byOxyAccountId: squatter })).toContainEqual(
+      expect.objectContaining({ reason: 'bot_account_claimed_by_another_agent' }),
+    );
+  });
+
+  it('refuses when the id names a different bot account', () => {
+    const moved: NativeAgentRow = { ...settled(), oxyAccountId: 'another-bot-account' };
+    expect(refusalsFor({ byId: moved, byOxyAccountId: null })).toContainEqual(
+      expect.objectContaining({ reason: 'agent_bound_to_another_bot_account' }),
+    );
+  });
+
+  it('refuses to move an agent already bound to another application', () => {
+    const bound: NativeAgentRow = { ...settled(), applicationId: CLARITY.applicationId };
+    expect(refusalsFor({ byId: bound, byOxyAccountId: bound })).toContainEqual(
+      expect.objectContaining({
+        reason: 'agent_bound_to_another_application',
+        observed: CLARITY.applicationId,
+        expected: SINDI.applicationId,
+      }),
+    );
+  });
+
+  it('refuses an owner account that is not the manifest project', () => {
+    const owned: NativeAgentRow = { ...settled(), ownerOxyAccountId: 'someone-elses-project' };
+    expect(refusalsFor({ byId: owned, byOxyAccountId: owned })).toContainEqual(
+      expect.objectContaining({ reason: 'owner_account_mismatch' }),
+    );
+  });
+
+  it('refuses to repurpose a public marketplace agent that happens to hold the id', () => {
+    const marketplace: NativeAgentRow = {
+      ...settled(),
+      applicationId: null,
+      ownerOxyAccountId: SINDI.ownerOxyAccountId,
+      access: 'public',
+      isPublished: true,
+    };
+    expect(refusalsFor({ byId: marketplace, byOxyAccountId: marketplace })).toContainEqual(
+      expect.objectContaining({ reason: 'public_agent_would_be_repurposed' }),
+    );
+  });
+
+  it('refuses a routing profile no reviewed list contains', () => {
+    const unreviewed: NativeAgentRow = { ...settled(), routingProfileId: 'route:whatever' };
+    expect(refusalsFor({ byId: unreviewed, byOxyAccountId: unreviewed })).toContainEqual(
+      expect.objectContaining({ reason: 'unreviewed_routing_profile' }),
+    );
+  });
+
+  /**
+   * One refusal must not hide another, and it must not let the OTHER agent's
+   * insert through either: a partial apply is the state nobody can reason about.
+   */
+  it('reports every reason at once and plans nothing at all', () => {
+    const broken: NativeAgentRow = {
+      ...settled(),
+      applicationId: CLARITY.applicationId,
+      ownerOxyAccountId: 'someone-elses-project',
+    };
+    const result = planNativeProductAgentBootstrap(
+      observe({ homiio: { byId: broken, byOxyAccountId: broken } }),
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.refusals.map((refusal) => refusal.reason).sort()).toEqual([
+      'agent_bound_to_another_application',
+      'owner_account_mismatch',
+    ]);
+    expect(result).not.toHaveProperty('plan');
+  });
+});
+
+describe('the reach invariant', () => {
+  /**
+   * The predicate itself, exercised against operations the planner will not
+   * produce. It is the backstop for whoever loosens a rule later, so it has to
+   * be able to say yes — a guard only ever observed returning false is a guard
+   * nobody has tested.
+   */
+  it('recognises each widening the planner is forbidden to emit', () => {
+    const base = { kind: 'update' as const, agentId: SINDI.id, product: 'homiio' as const };
+    expect(
+      planWidensReach({ ...base, changes: [{ field: 'access', from: 'private', to: 'public' }] }),
+    ).toBe(true);
+    expect(
+      planWidensReach({ ...base, changes: [{ field: 'isPublished', from: false, to: true }] }),
+    ).toBe(true);
+    expect(
+      planWidensReach({
+        ...base,
+        changes: [{ field: 'applicationId', from: SINDI.applicationId, to: CLARITY.applicationId }],
+      }),
+    ).toBe(true);
+    expect(
+      planWidensReach({
+        ...base,
+        changes: [{ field: 'applicationId', from: SINDI.applicationId, to: null }],
+      }),
+    ).toBe(true);
+  });
+
+  it('does not call binding an unbound agent, or activating it, a widening', () => {
+    const base = { kind: 'update' as const, agentId: SINDI.id, product: 'homiio' as const };
+    expect(
+      planWidensReach({
+        ...base,
+        changes: [
+          { field: 'applicationId', from: null, to: SINDI.applicationId },
+          { field: 'status', from: 'idle', to: 'active' },
+        ],
+      }),
+    ).toBe(false);
+  });
+
+  it('never emits a widening for any state the planner accepts', () => {
+    const states: NativeAgentRow[] = [
+      settled(),
+      { ...settled(), applicationId: null, ownerOxyAccountId: null, routingProfileId: null },
+      { ...settled(), access: 'public', isPublished: true },
+      { ...settled(), status: 'offline' },
+    ];
+    for (const row of states) {
+      const result = planNativeProductAgentBootstrap(
+        observe({ homiio: { byId: row, byOxyAccountId: row } }),
+      );
+      expect(result.ok).toBe(true);
+      if (!result.ok) continue;
+      for (const operation of result.plan.operations) expect(planWidensReach(operation)).toBe(false);
+    }
+  });
+});
