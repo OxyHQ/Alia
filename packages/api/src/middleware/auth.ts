@@ -5,6 +5,7 @@ import {
   createOxyAuthMiddleware,
   createOxyRequesterAssertionAuth,
   OXY_REQUESTER_ASSERTION_HEADER,
+  type OxyAuthRefusal,
   type OxyRequestUser,
   type OxyRequesterContext,
   type OxyServiceAppContext,
@@ -61,10 +62,29 @@ declare global {
  * Oxy authentication middleware (official @oxy.so/core/server)
  * Validates JWT tokens (including service tokens) and sets req.userId, req.user, req.accessToken
  */
-const userTokenAuth = createOxyAuthMiddleware(oxyClient, { auth: { debug: true } });
+/**
+ * What Alia writes down when Oxy refuses a credential.
+ *
+ * The SDK answers a fixed body and tells the caller nothing, which is right —
+ * and on the optional path a refusal used to leave no trace at all: the request
+ * arrived unauthenticated and the generic 401 was the whole story. Oxy served
+ * `{"keys":[]}` from its JWKS with no signing key bound, every service token
+ * failed, Alia logged nothing and Homiio saw a 401. `code` is stable and
+ * greppable; nothing here reaches a response.
+ */
+const onOxyRefusal = ({ code, stage, reason, status, optional }: OxyAuthRefusal): void => {
+  log.auth.warn({ code, stage, reason, status, optional }, 'Oxy refused a credential');
+};
+
+const oxyAuthOptions = { auth: { debug: true, onRefusal: onOxyRefusal } } as const;
+
+/** The same observer on the service-only lane, which `serviceAuth` forwards. */
+const oxyServiceAuthOptions = { debug: true, onRefusal: onOxyRefusal } as const;
+
+const userTokenAuth = createOxyAuthMiddleware(oxyClient, oxyAuthOptions);
 
 /** Optional Oxy auth: verifies a token when present (service tokens set `req.serviceApp`), never refuses. */
-const optionalUserTokenAuth = createOptionalOxyAuth(oxyClient, { auth: { debug: true } });
+const optionalUserTokenAuth = createOptionalOxyAuth(oxyClient, oxyAuthOptions);
 
 /**
  * The header a service sets to say "I am acting for this person".
@@ -169,17 +189,17 @@ function delegationAware<Lane extends AuthLane>(
  */
 export const authenticateToken = delegationAware(
   userTokenAuth,
-  (verifier) => createOxyAuthMiddleware(verifier, { auth: { debug: true } }),
+  (verifier) => createOxyAuthMiddleware(verifier, oxyAuthOptions),
   'refuse',
 );
 
 const oxyOptionalAuth = delegationAware(
   optionalUserTokenAuth,
-  (verifier) => createOptionalOxyAuth(verifier, { auth: { debug: true } }),
+  (verifier) => createOptionalOxyAuth(verifier, oxyAuthOptions),
   'continue',
 );
 
-const serviceOnlyAuth = oxyClient.serviceAuth({ debug: true });
+const serviceOnlyAuth = oxyClient.serviceAuth(oxyServiceAuthOptions);
 
 /**
  * Service-only auth — rejects anything that isn't a service token.
@@ -198,7 +218,7 @@ const serviceOnlyAuth = oxyClient.serviceAuth({ debug: true });
  */
 export const oxyServiceAuth = delegationAware(
   serviceOnlyAuth,
-  (verifier) => verifier.serviceAuth({ debug: true }),
+  (verifier) => verifier.serviceAuth(oxyServiceAuthOptions),
   'refuse',
 );
 
