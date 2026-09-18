@@ -63,6 +63,9 @@ declare global {
  */
 export const authenticateToken = createOxyAuthMiddleware(oxyClient, { auth: { debug: true } });
 
+/** Optional Oxy auth: verifies a token when present (service tokens set `req.serviceApp`), never refuses. */
+const oxyOptionalAuth = createOptionalOxyAuth(oxyClient, { auth: { debug: true } });
+
 /**
  * Service-only auth — rejects anything that isn't a service token.
  * Use for internal-only endpoints (e.g., /internal/trigger).
@@ -137,7 +140,6 @@ export function resetRequesterAssertionAuth(): void {
  * Optional auth - attaches user if token present, doesn't block if absent
  * Tries bot auth first (Telegram), then Oxy JWT auth
  */
-const oxyOptionalAuth = createOptionalOxyAuth(oxyClient, { auth: { debug: true } });
 
 export function optionalAuth(
   req: Request,
@@ -277,6 +279,19 @@ export function authenticateTokenOrApiKey(
   // Already authenticated (e.g., by channel bot pre-middleware)
   if (req.user) {
     return next();
+  }
+
+  // A present-requester assertion (ADR 0025) carries the identity, and the
+  // product's own SERVICE token carries the caller — so this request has no
+  // user bearer by design. `authenticateToken` requires a user and answered 401
+  // before `authenticateRequesterAssertion` could ever look at the header, which
+  // is why Sindi's chat kept failing after the rest of the lane shipped. Verify
+  // the service token WITHOUT requiring a user and let the assertion middleware
+  // (mounted right after, on the chat surface) accept or refuse it; a request
+  // that carries the header and no valid assertion is refused there, never here.
+  if (req.headers[OXY_REQUESTER_ASSERTION_HEADER] !== undefined) {
+    oxyOptionalAuth(req, res, next);
+    return;
   }
 
   // Check for Telegram bot authentication first
