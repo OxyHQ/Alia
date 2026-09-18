@@ -209,6 +209,18 @@ jobs:
       - name: Verify the Canvas deploy is wired to a declared wrangler
         run: node .github/scripts/check-canvas-deploy-wiring.mjs
 
+      # Oxy publishes the exact ids that bind Sindi and Clarity; this repository
+      # holds three copies of them (the bootstrap's config, the workflow that
+      # dispatches it, and the table in docs/agents.md a person checks an
+      # observation against). Here because it reads files and installs nothing,
+      # and because the failure it catches — a copy quietly ageing — looks
+      # exactly like a clean repository until somebody writes a row with it.
+      - name: Check the native product-agent manifest has not drifted
+        run: node scripts/check-native-product-agent-manifest.mjs
+
+      - name: Verify that gate can still fail
+        run: node .github/scripts/test-check-native-product-agent-manifest.mjs
+
   lint-and-test:
     name: Lint & Test
     runs-on: ubuntu-latest

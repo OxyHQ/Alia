@@ -60,6 +60,14 @@ const EXPECTED = {
   // own and reads the ledger's high-water mark outside its transaction.
   'deploy-integrations.yml': 'serialised',
   'production-chat-canary.yml': 'serialised',
+  // The native product-agent bootstrap writes two rows on the LIVE image. It is
+  // serialised for the ordinary reason — two dispatches would each observe,
+  // plan and write over the other's review — and the group is the weaker half:
+  // the script's transaction-scoped advisory lock is what actually stops it
+  // interleaving with a deploy's one-shots. Never cancelling matters more here
+  // than for a rollout: a cancelled run abandons a task that is mid-transaction
+  // and reports nothing about whether it committed.
+  'bootstrap-native-product-agents.yml': 'serialised',
   'add-to-roadmap.yml': 'keyed',
 };
 
