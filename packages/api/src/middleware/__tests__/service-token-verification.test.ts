@@ -381,6 +381,12 @@ describe('inbound verification is @oxy.so/core, not a local implementation (#139
     expect(auth).toContain('createOxyAuthMiddleware(oxyClient');
     expect(auth).toContain('createOptionalOxyAuth(oxyClient');
     expect(auth).toContain('oxyClient.serviceAuth(');
+    // And a DELEGATED request is verified by a client that can prove who Alia
+    // is. `oxyClient` holds no credential, so the SDK's acting-as check could
+    // never reach Oxy from it and refused every delegated user; the lane split
+    // is asserted here because deleting it fails nothing else in this file.
+    expect(auth).toContain('const verifier = oxyServiceClient();');
+    expect(auth).toContain('createOxyAuthMiddleware(verifier');
     // And the service-token middleware is what `/internal` is behind.
     const internal = code(path.join(REPO_ROOT, 'packages/api/src/routes/internal.ts'));
     expect(internal).toMatch(/router\.post\('\/trigger',\s*oxyServiceAuth/);
