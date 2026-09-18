@@ -252,13 +252,31 @@ async function main(): Promise<void> {
     }
   }
 
+  /**
+   * Flat keys, and NO SPREAD.
+   *
+   * `lib/__tests__/log-content.test.ts` reads every logger call in this package
+   * with the TypeScript AST and refuses a spread it has not frozen, because a
+   * spread hides its keys from the census that checks nothing content-shaped
+   * reaches a log line. `...(approval !== null && { actor, reason })` is exactly
+   * that shape, and it is also unnecessary: an optional property spells the
+   * same thing where the checker can read it.
+   *
+   * The counts rather than the operations, too. The full diff is already on
+   * stdout under {@link RESULT_MARKER}, which is what the workflow greps and
+   * what an operator reads; repeating it here would put the seeded taglines
+   * into the structured record for no reader.
+   */
   logger.info(
     {
       mode: report.mode,
       planSha256: report.planSha256,
-      counts: report.counts,
-      operations: report.plan.operations,
-      ...(approval !== null && { actor: approval.actor, reason: approval.reason }),
+      manifestSha256: report.manifestSha256,
+      inserted: report.counts.insert,
+      updated: report.counts.update,
+      unchanged: report.counts.unchanged,
+      actor: approval?.actor,
+      reason: approval?.reason,
     },
     report.mode === 'apply'
       ? 'Native product agents bootstrapped'
