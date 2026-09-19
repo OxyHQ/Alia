@@ -34,6 +34,15 @@ const SECRET = 'gateway-secret-value';
 const USER = 'a1b2c3d4e5f6a1b2c3d4e5f6';
 const OTHER = 'ffffffffffffffffffffffff';
 
+/**
+ * A uuid v7 id — the shape ids actually have since the Postgres cutover.
+ *
+ * The fixtures above are 24-char ObjectId hex, which is why this gate's
+ * original `/^[a-f0-9]{24}$/` check passed every test in this file while
+ * refusing every real account in production.
+ */
+const USER_V7 = '0192f3a4-b5c6-7d8e-9f01-23456789abcd';
+
 const exactMatch = (candidate: string, expected: string) => candidate === expected;
 
 const goodHeaders = { 'x-gateway-secret': SECRET, 'x-oxy-user-id': USER };
@@ -74,8 +83,35 @@ describe('authorizeUpgrade', () => {
     });
   });
 
+  it('accepts a uuid v7 user id, which is what ids actually are now', () => {
+    // The bug this file could not see: ids are uuid v7 since the Postgres
+    // cutover (pre-cutover rows keep their 24-char ObjectId hex), and a gate
+    // written as `/^[a-f0-9]{24}$/` refuses every one of them. The failure mode
+    // is the worst kind for a realtime path — the upgrade is declined, the
+    // client sees a socket that will not connect, and nothing names the id as
+    // the reason. `packages/api/src/socket.ts` records the identical bug being
+    // hit in the agent-session subscribe path.
+    expect(
+      authorizeUpgrade({ ...goodHeaders, 'x-oxy-user-id': USER_V7 }, SECRET, exactMatch),
+    ).toEqual({ ok: true, userId: USER_V7 });
+  });
+
   it('refuses a user id that is not the shape the gateway forwards', () => {
-    for (const bad of ['', 'nope', USER.slice(0, 23), `${USER}0`, `${USER};DROP`]) {
+    for (const bad of [
+      '',
+      'nope',
+      USER.slice(0, 23),
+      `${USER}0`,
+      `${USER};DROP`,
+      // A uuid v4. Accepting "any uuid" would be the lazy widening; nothing in
+      // this ecosystem mints a v4, so one arriving is a client error rather
+      // than an id to look up — `isLiveEntityId` pins the version nibble.
+      '0192f3a4-b5c6-4d8e-9f01-23456789abcd',
+      // Right length and alphabet, wrong variant nibble.
+      '0192f3a4-b5c6-7d8e-1f01-23456789abcd',
+      // A v7 with its separators stripped: the same 32 characters, not an id.
+      USER_V7.replace(/-/g, ''),
+    ]) {
       expect(
         authorizeUpgrade({ ...goodHeaders, 'x-oxy-user-id': bad }, SECRET, exactMatch),
       ).toMatchObject({ ok: false });

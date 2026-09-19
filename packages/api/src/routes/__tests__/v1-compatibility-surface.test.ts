@@ -398,11 +398,24 @@ describe('the compatibility surface gains no auth mechanism (#139 ws6, ADR 0004)
     expect(v1Source).toContain('crypto.timingSafeEqual');
     // It must not trust the id it is handed: an unvalidated `x-oxy-user-id` is a
     // free choice of victim for anyone holding any channel's bot secret.
-    expect(v1Source).toContain('/^[a-f0-9]{24}$/.test(oxyUserId)');
-    // And the grant is downstream of the compare, not beside it.
+    //
+    // The PROPERTY is "the shape is checked before the grant", and that is what
+    // is asserted. This used to pin the literal `/^[a-f0-9]{24}$/.test(...)`,
+    // which pinned an implementation rather than the property — and that
+    // implementation was WRONG: ids are uuid v7 since the Postgres cutover, so
+    // a 24-hex-only check refused every current account (silently, by falling
+    // through to `next()` with `req.user` unset, so the request arrived
+    // unauthenticated for a reason nothing mentioned). Pinning the text made
+    // the gate defend the bug. `isLiveEntityId` accepts both stored shapes and
+    // pins the v7 version and variant nibbles, so it is not a widening.
+    expect(v1Source).toContain('isLiveEntityId(oxyUserId)');
+    // And the check AND the grant are both downstream of nothing that trusts
+    // the id first: validation precedes the compare, the grant follows it.
+    const validateAt = v1Source.indexOf('isLiveEntityId(oxyUserId)');
     const compareAt = v1Source.indexOf('crypto.timingSafeEqual');
     const grantAt = v1Source.indexOf('req.user = { id: oxyUserId }');
-    expect(compareAt).toBeGreaterThan(-1);
+    expect(validateAt).toBeGreaterThan(-1);
+    expect(compareAt).toBeGreaterThan(validateAt);
     expect(grantAt).toBeGreaterThan(compareAt);
   });
 });

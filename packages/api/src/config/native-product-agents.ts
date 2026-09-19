@@ -52,6 +52,24 @@
  * category — lives in `scripts/native-product-agent-bootstrap-plan.ts`. Mixing
  * it in would put values Oxy never published inside the hashed manifest, and the
  * cross-repo gate would fail on Alia's own product decisions.
+ *
+ * ## The one exception, and the line it is drawn on
+ *
+ * `capabilityGrants` is written in ALIA's vocabulary (`domain/capability-grants.ts`)
+ * and is nonetheless PUBLISHED by Oxy and hashed with the rest. The line is not
+ * "who invented the words", it is **what the field decides**: everything else
+ * Alia keeps to itself is cosmetic — a tagline that drifts is a tagline — while
+ * a grant decides what the agent may DO. Left in the seed file beside the
+ * category it would be insert-only, never re-asserted, and widening a live
+ * product assistant's reach would be a one-repository edit with no gate on it.
+ * That is precisely what the application binding two fields up is not allowed
+ * to be, and there is no reason the tool set should be weaker.
+ *
+ * So the grant travels the reviewed channel: it is in both repositories' diffs,
+ * it moves the SHA-256, and the bootstrap re-asserts it on every run. An EMPTY
+ * array is a decision that DENIES everything, never "unset" — see
+ * `domain/capability-grants.ts` for why the absence of a decision cannot keep
+ * meaning permission.
  */
 
 import { createHash } from 'node:crypto';
@@ -64,6 +82,18 @@ export interface NativeProductAgent {
   readonly ownerOxyAccountId: string;
   readonly product: 'homiio' | 'clarity';
   readonly visibility: 'private';
+  /**
+   * `capability_grants` exactly as the row must carry it — the COMPLETE list,
+   * in order, and `[]` where nothing is granted.
+   *
+   * Typed as strings rather than as `CapabilityFamily[]` on purpose. This is a
+   * pinned copy of bytes another repository publishes, so it has to be able to
+   * hold a value this image does not recognise; the reader drops what it does
+   * not know (`domain/capability-grants.ts`) and
+   * `__tests__/native-product-agents.test.ts` is where every published grant is
+   * checked against the vocabulary, at a moment somebody can be told.
+   */
+  readonly capabilityGrants: readonly string[];
 }
 
 export interface NativeProductAgentManifest {
@@ -86,6 +116,7 @@ export const NATIVE_PRODUCT_AGENT_MANIFEST: NativeProductAgentManifest = Object.
       ownerOxyAccountId: '6a50444ce8026582b949089d',
       product: 'homiio',
       visibility: 'private',
+      capabilityGrants: Object.freeze(['web', 'artifacts', 'memory'] as const),
     } as const),
     Object.freeze({
       id: '01a0646a-078f-7642-95ef-439952f4f3f9',
@@ -94,6 +125,7 @@ export const NATIVE_PRODUCT_AGENT_MANIFEST: NativeProductAgentManifest = Object.
       ownerOxyAccountId: '01a0646a-078f-7f53-848d-a0f82d9f7fa6',
       product: 'clarity',
       visibility: 'private',
+      capabilityGrants: Object.freeze([] as const),
     } as const),
   ]),
 } as const);
@@ -107,7 +139,7 @@ export const NATIVE_PRODUCT_AGENT_MANIFEST: NativeProductAgentManifest = Object.
  * fail until both repositories agree again.
  */
 export const NATIVE_PRODUCT_AGENT_MANIFEST_SHA256 =
-  '4d8b711602fff69d9711202cfa6017090d0559b608fa7ed0e2e2b3c09cd2e4c6';
+  'a7c1c787c24159ce70e1664ce60749c6a9d3b06a23ff461559b5c97ca2104547';
 
 /** The hash of what THIS file holds, recomputed rather than restated. */
 export function nativeProductAgentManifestSha256(): string {

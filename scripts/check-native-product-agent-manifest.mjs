@@ -48,7 +48,7 @@ const failures = [];
 function readPinnedAgents(source) {
   const agents = [];
   const blocks = source.matchAll(
-    /id:\s*'([^']+)',\s*oxyAccountId:\s*'([^']+)',\s*applicationId:\s*'([^']+)',\s*ownerOxyAccountId:\s*'([^']+)',\s*product:\s*'([^']+)',\s*visibility:\s*'([^']+)',/g,
+    /id:\s*'([^']+)',\s*oxyAccountId:\s*'([^']+)',\s*applicationId:\s*'([^']+)',\s*ownerOxyAccountId:\s*'([^']+)',\s*product:\s*'([^']+)',\s*visibility:\s*'([^']+)',\s*capabilityGrants:\s*Object\.freeze\(\[([^\]]*)\] as const\),/g,
   );
   for (const block of blocks) {
     agents.push({
@@ -58,6 +58,10 @@ function readPinnedAgents(source) {
       ownerOxyAccountId: block[4],
       product: block[5],
       visibility: block[6],
+      // The hash is over the ARRAY, so an unparsed grant list is a hash that
+      // silently disagrees with the one this gate is meant to confirm. An
+      // empty literal is an empty array and not a missing field.
+      capabilityGrants: [...block[7].matchAll(/'([^']*)'/g)].map((grant) => grant[1]),
     });
   }
   return agents;
@@ -118,6 +122,22 @@ for (const agent of agents) {
   }
   if (!doc.includes(agent.applicationId) || !doc.includes(agent.ownerOxyAccountId)) {
     failures.push(`${DOC}: the ${agent.product} row does not carry this manifest's bindings`);
+  }
+  /**
+   * The documented grant, as a whole cell rather than as substrings.
+   *
+   * `doc.includes('web')` is true of almost any English sentence, and the
+   * failure this guards is a table that still says `web` after the manifest
+   * added `shell` — so the table's cell is matched against the exact list, in
+   * the manifest's order, and the empty grant has to be spelled `(none)`
+   * rather than left blank where nobody can tell a decision from an omission.
+   */
+  const documented = agent.capabilityGrants.map((grant) => `\`${grant}\``).join(', ');
+  const cell = ` ${documented === '' ? '(none)' : documented} |`;
+  if (!doc.includes(cell)) {
+    failures.push(
+      `${DOC}: the ${agent.product} row does not state the granted capabilities as "${cell.trim()}"`,
+    );
   }
 }
 

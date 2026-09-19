@@ -100,4 +100,19 @@ describe('the bootstrap one-shot', () => {
     expect(script).toContain("'ALIA_NATIVE_PRODUCT_AGENTS_RESULT='");
     expect(workflow).toContain("grep '^ALIA_NATIVE_PRODUCT_AGENTS_RESULT='");
   });
+
+  /**
+   * And the result STATES the grants rather than implying them.
+   *
+   * `unchanged` is the same word whether the row carries the published
+   * capabilities or none at all — it was what a correct run printed for months
+   * while `capability_grants` was empty — so the only evidence an operator had
+   * that the grant landed would be the absence of an operation. The values come
+   * from the verification select, and the step summary prints them.
+   */
+  it('reports the stored capability grants, and puts them in the run summary', () => {
+    expect(script).toContain('storedCapabilityGrants');
+    expect(script).toContain('afterById.get(agent.id)?.capabilityGrants');
+    expect(workflow).toContain('.storedCapabilityGrants');
+  });
 });
