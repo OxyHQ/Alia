@@ -3,7 +3,11 @@ import { OxyServices } from '@oxy.so/core';
 import {
   createOptionalOxyAuth,
   createOxyAuthMiddleware,
+  createOxyRequesterAssertionAuth,
+  OXY_REQUESTER_ASSERTION_HEADER,
+  type OxyAuthRefusal,
   type OxyRequestUser,
+  type OxyRequesterContext,
   type OxyServiceAppContext,
   type OxyServiceActingAsContext,
 } from '@oxy.so/core/server';
@@ -14,6 +18,7 @@ import { getDb } from '../db/index.js';
 import { findAppById, findKeyByHash, touchKeyLastUsed } from '../db/developers/developerRepository.js';
 import { hashDeveloperApiKey } from '../lib/api-key-crypto.js';
 import { getConfiguredChannels } from '../lib/channels/registry.js';
+import { oxyServiceClient } from '../lib/oxy-service-client.js';
 
 // Initialize Oxy client
 const OXY_API_URL = process.env.OXY_API_URL || 'https://api.oxy.so';
@@ -37,6 +42,13 @@ declare global {
       serviceApp?: OxyServiceAppContext;
       /** Present only after Oxy verified the app's delegation grant for X-Oxy-User-Id. */
       serviceActingAs?: OxyServiceActingAsContext;
+      /**
+       * Present only after a product's requester assertion was verified against
+       * Oxy's JWKS, bound to the verified service token and consumed through
+       * Oxy's live introspection (ADR 0025 in OxyHQServices). The requester was
+       * signed in to that product when the turn was sent.
+       */
+      oxyRequester?: OxyRequesterContext;
       _usageRecorded?: boolean;
       workspace?: {
         id: string | null;
@@ -50,7 +62,144 @@ declare global {
  * Oxy authentication middleware (official @oxy.so/core/server)
  * Validates JWT tokens (including service tokens) and sets req.userId, req.user, req.accessToken
  */
-export const authenticateToken = createOxyAuthMiddleware(oxyClient, { auth: { debug: true } });
+/**
+ * What Alia writes down when Oxy refuses a credential.
+ *
+ * The SDK answers a fixed body and tells the caller nothing, which is right —
+ * and on the optional path a refusal used to leave no trace at all: the request
+ * arrived unauthenticated and the generic 401 was the whole story. Oxy served
+ * `{"keys":[]}` from its JWKS with no signing key bound, every service token
+ * failed, Alia logged nothing and Homiio saw a 401. `code` is stable and
+ * greppable; nothing here reaches a response.
+ */
+const onOxyRefusal = ({ code, stage, reason, status, optional }: OxyAuthRefusal): void => {
+  log.auth.warn({ code, stage, reason, status, optional }, 'Oxy refused a credential');
+};
+
+const oxyAuthOptions = { auth: { debug: true, onRefusal: onOxyRefusal } } as const;
+
+/** The same observer on the service-only lane, which `serviceAuth` forwards. */
+const oxyServiceAuthOptions = { debug: true, onRefusal: onOxyRefusal } as const;
+
+const userTokenAuth = createOxyAuthMiddleware(oxyClient, oxyAuthOptions);
+
+/** Optional Oxy auth: verifies a token when present (service tokens set `req.serviceApp`), never refuses. */
+const optionalUserTokenAuth = createOptionalOxyAuth(oxyClient, oxyAuthOptions);
+
+/**
+ * The header a service sets to say "I am acting for this person".
+ *
+ * Read as a constant so the delegation lane is chosen in ONE place. Nothing
+ * here grants anything on the strength of it: the grant is Oxy's answer to
+ * `GET /internal/service-acting-as/verify`, which the middleware below asks for
+ * on every delegated request.
+ */
+const OXY_DELEGATED_USER_HEADER = 'x-oxy-user-id';
+
+type AuthLane = (req: Request, res: Response, next: NextFunction) => unknown;
+
+/**
+ * A DELEGATED request needs a verifier that can prove who IT is.
+ *
+ * `@oxy.so/core` answers `X-Oxy-User-Id` by asking Oxy whether an explicit
+ * `acting-as:offline` grant exists for `(appId, userId)` — and that endpoint is
+ * service-to-service, so the SDK presents the VERIFIER's own service token to
+ * reach it. `oxyClient` has no credential (it is the token-verifying client and
+ * is correct without one), so `getServiceToken()` threw, the SDK logged
+ * `Service credentials not provided`, cached a negative result for 60s and
+ * answered `403 SERVICE_ACTING_AS_UNAUTHORIZED` — to a caller holding a
+ * perfectly valid grant. Alia could never accept an offline delegation. The
+ * production chat canary presents exactly this shape, and the C3 check in core
+ * is right: a service may only act as a user with an explicit grant. The
+ * missing piece was Alia's ability to ASK.
+ *
+ * So the lane is chosen per request: plain traffic keeps the credential-free
+ * client, and a request that claims delegation is verified by Alia's own
+ * credentialed client (`lib/oxy-service-client.ts`) — the same one that
+ * introspects requester assertions.
+ *
+ * Built lazily and rebuilt only if the credentialed client itself changes,
+ * because `oxyServiceClient()` reads the environment on first use and caches
+ * the minted service token on the INSTANCE. One instance per client keeps one
+ * token cache and one JWKS cache.
+ *
+ * @param plain the lane for a request that claims no delegation
+ * @param build the same lane, built against a credentialed verifier
+ * @param whenUnverifiable `refuse` answers 503 rather than denying a valid
+ *   grant with a misleading 403; `continue` is for the OPTIONAL lane, which may
+ *   not invent a new way to fail.
+ */
+function delegationAware<Lane extends AuthLane>(
+  plain: Lane,
+  build: (verifier: OxyServices) => Lane,
+  whenUnverifiable: 'refuse' | 'continue',
+): Lane {
+  let delegated: Lane | undefined;
+  let builtFrom: OxyServices | undefined;
+
+  const dispatch: AuthLane = (req, res, next) => {
+    if (req.headers[OXY_DELEGATED_USER_HEADER] === undefined) {
+      void plain(req, res, next);
+      return;
+    }
+
+    const verifier = oxyServiceClient();
+    if (!verifier) {
+      // Only reachable in a process that never ran the boot guards:
+      // `OXY_SERVICE_API_KEY`, `OXY_SERVICE_API_SECRET` and `OXY_API_URL` are
+      // already required before the socket opens (`lib/boot-guards.ts` →
+      // `OXY_INFERENCE_CREDENTIAL_REQUIRED_ENV`). Answering 503 with a name is
+      // still the point: the alternative is refusing every delegated user with
+      // a 403 that says they have no grant, which is a lie about somebody
+      // else's configuration.
+      if (whenUnverifiable === 'refuse') {
+        log.auth.error(
+          { path: req.path },
+          'Delegated request refused: Alia holds no Oxy service credential to check the acting-as grant with',
+        );
+        res.status(503).json({
+          error: 'SERVICE_DELEGATION_UNAVAILABLE',
+          code: 'delegation_unverifiable',
+          message: 'Delegated requests cannot be verified by this deployment',
+          status: 503,
+        });
+        return;
+      }
+      void plain(req, res, next);
+      return;
+    }
+
+    if (builtFrom !== verifier) {
+      delegated = build(verifier);
+      builtFrom = verifier;
+    }
+    void (delegated as Lane)(req, res, next);
+  };
+  // The dispatcher IS whichever lane it wraps, and saying so keeps each mount's
+  // own inference: Express reads `:planId` off the route only while every
+  // handler on it still carries the SDK's exact middleware type.
+  return dispatch as unknown as Lane;
+}
+
+/**
+ * Oxy authentication for a user bearer OR a service token, delegated or not.
+ *
+ * A delegated service token is verified by the credentialed client; everything
+ * else keeps the credential-free one.
+ */
+export const authenticateToken = delegationAware(
+  userTokenAuth,
+  (verifier) => createOxyAuthMiddleware(verifier, oxyAuthOptions),
+  'refuse',
+);
+
+const oxyOptionalAuth = delegationAware(
+  optionalUserTokenAuth,
+  (verifier) => createOptionalOxyAuth(verifier, oxyAuthOptions),
+  'continue',
+);
+
+const serviceOnlyAuth = oxyClient.serviceAuth(oxyServiceAuthOptions);
 
 /**
  * Service-only auth — rejects anything that isn't a service token.
@@ -61,14 +210,80 @@ export const authenticateToken = createOxyAuthMiddleware(oxyClient, { auth: { de
  * `/.well-known/jwks.json`, including issuer, audience, lifetime, type and
  * scopes. The middleware fails closed when that endpoint or exact `kid` is not
  * available. Never add `ACCESS_TOKEN_SECRET` or a private signing key here.
+ *
+ * `/internal/trigger` is a DELEGATED surface — it documents `X-Oxy-User-Id` and
+ * refuses without a `req.userId` — so it takes the same lane split as
+ * `authenticateToken`: the acting-as grant is checked by a verifier that can
+ * present its own service token.
  */
-export const oxyServiceAuth = oxyClient.serviceAuth({ debug: true });
+export const oxyServiceAuth = delegationAware(
+  serviceOnlyAuth,
+  (verifier) => verifier.serviceAuth(oxyServiceAuthOptions),
+  'refuse',
+);
+
+/**
+ * The audience name Oxy mints present-requester assertions for.
+ */
+export const ALIA_REQUESTER_ASSERTION_AUDIENCE = 'alia';
+
+let requesterAssertionAuth: ReturnType<typeof createOxyRequesterAssertionAuth> | undefined;
+
+/**
+ * Accepts `X-Oxy-Requester-Assertion` beside a verified product service token
+ * (ADR 0025 in OxyHQServices): a signed-in person chatting in a first-party
+ * product reaches that product's native agent without any consent grant, and
+ * without the product forwarding the person's bearer to Alia.
+ *
+ * Mounted after `authenticateTokenOrApiKey`, only on `/v1/chat/completions`.
+ * Without the header it does nothing. With it, the request is refused unless
+ * the assertion verifies against Oxy's JWKS, was minted for exactly the
+ * presenting application and credential, and Oxy's introspection consumes it
+ * live — which Oxy only lets ALIA's own credential do. So the introspecting
+ * client is Alia's service client, never `oxyClient` (which has no credential)
+ * and never anything derived from the request.
+ *
+ * `req.user` is then the requester from the verified claims; nothing about the
+ * identity is read from a header.
+ */
+export function authenticateRequesterAssertion(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): void {
+  if (req.headers[OXY_REQUESTER_ASSERTION_HEADER] === undefined) {
+    next();
+    return;
+  }
+  const introspector = oxyServiceClient();
+  if (!introspector) {
+    log.auth.error('Requester assertion received but Alia has no Oxy service credential to introspect it');
+    res.status(503).json({
+      error: 'REQUESTER_ASSERTION_UNAVAILABLE',
+      code: 'introspection_unavailable',
+      message: 'The requester assertion was not accepted',
+      status: 503,
+    });
+    return;
+  }
+  requesterAssertionAuth ??= createOxyRequesterAssertionAuth(introspector, {
+    audience: ALIA_REQUESTER_ASSERTION_AUDIENCE,
+    onRejected: ({ code, status, applicationId }) => {
+      log.auth.warn({ code, status, appId: applicationId }, 'Requester assertion rejected');
+    },
+  });
+  void requesterAssertionAuth(req, res, next);
+}
+
+/** Test seam: the middleware closes over the service client it was built with. */
+export function resetRequesterAssertionAuth(): void {
+  requesterAssertionAuth = undefined;
+}
 
 /**
  * Optional auth - attaches user if token present, doesn't block if absent
  * Tries bot auth first (Telegram), then Oxy JWT auth
  */
-const oxyOptionalAuth = createOptionalOxyAuth(oxyClient, { auth: { debug: true } });
 
 export function optionalAuth(
   req: Request,
@@ -208,6 +423,19 @@ export function authenticateTokenOrApiKey(
   // Already authenticated (e.g., by channel bot pre-middleware)
   if (req.user) {
     return next();
+  }
+
+  // A present-requester assertion (ADR 0025) carries the identity, and the
+  // product's own SERVICE token carries the caller — so this request has no
+  // user bearer by design. `authenticateToken` requires a user and answered 401
+  // before `authenticateRequesterAssertion` could ever look at the header, which
+  // is why Sindi's chat kept failing after the rest of the lane shipped. Verify
+  // the service token WITHOUT requiring a user and let the assertion middleware
+  // (mounted right after, on the chat surface) accept or refuse it; a request
+  // that carries the header and no valid assertion is refused there, never here.
+  if (req.headers[OXY_REQUESTER_ASSERTION_HEADER] !== undefined) {
+    oxyOptionalAuth(req, res, next);
+    return;
   }
 
   // Check for Telegram bot authentication first
