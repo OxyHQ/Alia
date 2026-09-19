@@ -10,7 +10,9 @@ import type { ScrollView as GHScrollView } from "react-native-gesture-handler";
 import { processMessage } from "@/lib/message-processor";
 import { cn } from "@/lib/utils";
 import { THREAD_COLUMN } from "@/lib/chat-layout";
-import { ThinkingIndicator, IdentityMark, type IdentityMarkState } from '@alia.onl/sdk';
+import { IdentityMark, type IdentityMarkState } from '@alia.onl/sdk';
+import { AgentThinking } from '@oxy.so/bloom/agent-thinking';
+import { AiChatAssistantMessage, AiChatUserMessage } from '@oxy.so/bloom/ai-chat';
 import { useColorScheme } from "@/lib/useColorScheme";
 import { agentTint } from "@/lib/agents/agent-color";
 import { Copy, ThumbsUp, ThumbsDown, Pencil, Check, Volume2, Square, Music, RotateCcw } from "lucide-react-native";
@@ -18,7 +20,6 @@ import * as DropdownMenu from "@/components/ui/dropdown-menu";
 import { useTTS } from "@/lib/hooks/use-tts";
 import { useAudioGen } from "@/lib/hooks/use-audio-gen";
 import Animated, {
-  FadeInUp,
   useSharedValue,
   useAnimatedStyle,
   withTiming,
@@ -361,9 +362,18 @@ const MessageRow = React.memo(function MessageRow({
       });
 
   return (
+    /**
+     * The row no longer carries an entrance of its own.
+     *
+     * It used to run `FadeInUp.springify()` while the message inside it now
+     * runs Bloom's reveal, which is two entrances for one arrival: the row
+     * springs up and the reply then fades and un-blurs on top of it. Bloom's
+     * is the one that belongs to the AI Chat composition — it staggers the
+     * reply's blocks and it honours reduced motion — so it is the one that
+     * stays, and the row is a plain layout element again.
+     */
     <Animated.View
       key={m.id || `msg-${index}`}
-      entering={isNewMessage ? FadeInUp.springify() : undefined}
       style={isAliaMessage && isLastAlia ? { paddingTop: 36 } : undefined}
       /**
        * Two things want this row's position and one element can report it: the
@@ -463,7 +473,23 @@ const MessageRow = React.memo(function MessageRow({
               ) : m.source === 'voice' && m.speaker === 'cohost' ? (
                 <Text className="text-xs text-indigo-400 mb-0.5">Cohost</Text>
               ) : null}
-              <View className="w-full">
+              {/* The reply, as Bloom composes one: a container that fades in
+                  while its blocks rise and un-blur 180ms apart.
+
+                  `feedback={false}` because Alia's own action bar below is a
+                  superset of Bloom's like / dislike / copy row — read aloud,
+                  generate audio, regenerate — and two feedback rows under one
+                  reply would be two answers to the same question.
+
+                  `animate={isNewMessage}` for the same reason as the user
+                  turn. The reveal is mount-only inside Bloom, so a streaming
+                  reply does not restart it on each token; what it must not do
+                  is play at all for a message restored from history. */}
+              <AiChatAssistantMessage
+                animate={isNewMessage}
+                feedback={false}
+                style={{ width: '100%' }}
+              >
                 {m.source === 'voice' ? (
                   <Text className="text-base text-foreground leading-7">
                     {messageText}
@@ -476,14 +502,14 @@ const MessageRow = React.memo(function MessageRow({
                     researchSources={m.researchProgress?.sources}
                   />
                 )}
-              </View>
-              {m.isStreaming && m.source === 'voice' ? null : (
-                <MessageSources
-                  toolInvocations={m.toolInvocations}
-                  researchSources={m.researchProgress?.sources}
-                  onPress={() => openThoughtPanel(m.id, 'sources')}
-                />
-              )}
+                {m.isStreaming && m.source === 'voice' ? null : (
+                  <MessageSources
+                    toolInvocations={m.toolInvocations}
+                    researchSources={m.researchProgress?.sources}
+                    onPress={() => openThoughtPanel(m.id, 'sources')}
+                  />
+                )}
+              </AiChatAssistantMessage>
               {/* Action Buttons for Assistant Messages */}
               <View className={ACTION_BAR}>
                 <Pressable
@@ -599,27 +625,29 @@ const MessageRow = React.memo(function MessageRow({
             <DropdownMenu.Trigger asChild>
             <Pressable className="group">
             <View className="flex-col items-end gap-0.5">
-                <View className="max-w-[70%] rounded-[22px] overflow-hidden bg-muted">
-                  <View className="px-4 py-2.5">
-                    {/* Inline images from multi-part content */}
-                    {messageImages.length > 0 && (
-                      <View className="flex-row flex-wrap gap-2 mb-2">
-                        {messageImages.map((imgUrl, imgIdx) => (
-                          <View key={`img-${imgIdx}`} className="rounded-xl overflow-hidden" style={imageThumbStyle}>
-                            <Image
-                              source={{ uri: imgUrl }}
-                              className="w-full h-full"
-                              contentFit="cover"
-                            />
-                          </View>
-                        ))}
-                      </View>
-                    )}
-                    <Text className="text-base text-foreground leading-6">
-                      {messageText}
-                    </Text>
-                  </View>
-                </View>
+                {/* Bloom's turn, not a bubble of our own: radius, column half,
+                    the 6px bleed past the column, the card shadow and the
+                    reveal all come from `AiChatUserMessage`. It reveals only
+                    for a message that has just arrived — `animate` is the same
+                    `isNewMessage` the row used to hand `FadeInUp`, which is
+                    what keeps restored history and a page loaded above from
+                    replaying as if the whole conversation were new. */}
+                <AiChatUserMessage animate={isNewMessage}>
+                  {messageImages.length > 0 && (
+                    <View className="flex-row flex-wrap gap-2">
+                      {messageImages.map((imgUrl, imgIdx) => (
+                        <View key={`img-${imgIdx}`} className="rounded-xl overflow-hidden" style={imageThumbStyle}>
+                          <Image
+                            source={{ uri: imgUrl }}
+                            className="w-full h-full"
+                            contentFit="cover"
+                          />
+                        </View>
+                      ))}
+                    </View>
+                  )}
+                  {messageText}
+                </AiChatUserMessage>
               {/* Action Buttons for User Messages */}
                 <View className={ACTION_BAR}>
                   <Pressable
@@ -674,27 +702,41 @@ const MessageRow = React.memo(function MessageRow({
         </View>
       )}
 
-      {/* ThinkingIndicator — shows when the last assistant message has no text yet */}
+      {/* Waiting on the turn, while the last reply still has no words.
+       *
+       * Bloom's `AgentThinking`, in place of the SDK's indicator. The one it
+       * replaces typed out a phrase picked at random from ten — "Cooking...",
+       * "Brewing...", "Conjuring..." — whenever no real status was available,
+       * which is a sentence about nothing dressed as a report on the turn.
+       * What is shown now is either a status the runtime actually emitted (the
+       * running tool, the research phase, reasoning) or the plain word for
+       * what is happening.
+       *
+       * `showTimer={false}` deliberately. Bloom's timer counts from when the
+       * indicator MOUNTED, which is not how long the turn has run: it restarts
+       * whenever this remounts and it knows nothing about a turn that began
+       * before the screen did. The duration Alia can stand behind is the one
+       * the runtime stamps, and `WorkSummary` above already reads it. */}
       {(isLoading || voiceAgentState === 'thinking') &&
         m.role === "assistant" &&
         isLastMessage &&
         !messageText && (() => {
-          // Derive context-aware status from active state
           const activeTool = m.toolInvocations?.find(t => t.state === 'call' || t.state === 'partial-call');
           const rp = m.researchProgress;
+          const isWorking = (m.toolInvocations?.length ?? 0) > 0;
           let activeStatus: string | undefined;
           if (activeTool) {
             activeStatus = getToolActiveLabel(activeTool.toolName);
           } else if (rp?.phase && rp.phase !== 'complete') {
             activeStatus = getResearchActiveLabel(rp.phase);
           } else if (m.thinking) {
-            activeStatus = "Reasoning...";
+            activeStatus = rowT('chat.reasoning');
           }
           return (
-            <ThinkingIndicator
-              isWorking={(m.toolInvocations?.length ?? 0) > 0}
-              statusText={activeStatus}
-              color={colors.primary}
+            <AgentThinking
+              variant={isWorking ? 'infinity' : 'wave'}
+              label={activeStatus ?? rowT(isWorking ? 'chat.working' : 'chat.thinking')}
+              showTimer={false}
             />
           );
         })()}
@@ -1151,12 +1193,12 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
             />
           )}
 
-          {/* Standalone ThinkingIndicator for voice mode — shows when AI is thinking
+          {/* Standalone waiting indicator for voice mode — shows when AI is thinking
               but there's no pending assistant message yet (e.g. right after user speaks) */}
           {voiceAgentState === 'thinking' &&
             !isLoading &&
             (messages.length === 0 || messages[messages.length - 1]?.role !== 'assistant') && (
-              <ThinkingIndicator isWorking={false} color={colors.primary} />
+              <AgentThinking variant="wave" label={t('chat.thinking')} showTimer={false} />
             )}
         </View>
       </KeyboardAwareScrollView>

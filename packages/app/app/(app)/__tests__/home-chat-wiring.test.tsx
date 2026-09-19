@@ -250,7 +250,7 @@ describe('the new-chat screen wires the whole conversation', () => {
     chat.suggestedNewConversation = 'this is getting long';
     const props = await mount();
 
-    await act(async () => { props.onAcceptNewConversation(); });
+    await act(async () => { (props.onAcceptNewConversation as () => void)(); });
 
     expect(chat.dismissSuggestedNewConversation).toHaveBeenCalledTimes(1);
     expect(chat.clearConversation).toHaveBeenCalledTimes(1);
