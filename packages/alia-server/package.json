@@ -1,0 +1,57 @@
+{
+  "name": "@alia.onl/server",
+  "version": "1.0.1",
+  "description": "Alia's server-side streaming client — one typed event stream for a backend that calls Alia's product API",
+  "license": "Apache-2.0",
+  "private": false,
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.cts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "NOTICE",
+    "CHANGELOG.md"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsup",
+    "prepublishOnly": "bun run build",
+    "typecheck": "tsc --noEmit",
+    "check:entrypoints": "node scripts/check-entrypoints.mjs",
+    "test": "vitest run"
+  },
+  "keywords": [
+    "alia",
+    "oxy",
+    "sse",
+    "streaming",
+    "chat"
+  ],
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^25.9.5",
+    "tsup": "^8.5.1",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.10"
+  }
+}

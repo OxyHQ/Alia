@@ -39,13 +39,27 @@ Neither field is accepted by public `POST/PATCH /agents`; an internal bootstrap
 or reconciliation writes them from authoritative Oxy records. A null owner
 fails closed for Oxy tools, and `author_oxy_user_id` is never a fallback.
 
-Product ingress must use that product's Oxy service token plus
-`X-Oxy-User-Id`. Alia accepts the turn only after Oxy verifies the acting-as
-grant, the credential-derived application exactly matches `application_id`,
-and both effective scope sets include `inference:invoke`. Alia reuses that
-verified inbound token for `Alia -> Oxy -> Kaana`, so Oxy charges the product
-application's owner/cost centre. A human bearer, a mismatched app, a missing
-delegation or a known agent id alone all receive the same neutral refusal.
+Product ingress always uses that product's Oxy service token as the bearer,
+and names the person in one of two ways:
+
+- **Present requester** (OxyHQServices ADR 0025) — the person is signed in to
+  the product right now. The product trades their live session with Oxy for a
+  one-use, 120-second `X-Oxy-Requester-Assertion`; the person's bearer never
+  reaches Alia. `authenticateRequesterAssertion` (both chat surfaces, before the
+  limiter) verifies it against Oxy's JWKS, requires it to name exactly the
+  presenting application and credential, and has Oxy consume it through live
+  introspection with Alia's own service credential. The turn must then name the
+  one agent the assertion admits. No consent grant is involved.
+- **Offline delegation** — `X-Oxy-User-Id`, for work with no present person.
+  Alia accepts it only after Oxy verifies the `acting-as:offline` grant.
+
+Either way the credential-derived application must exactly match
+`application_id` and the service token must carry `inference:invoke` (plus the
+delegation grant's scopes, for offline delegation). Alia reuses that verified
+inbound token for `Alia -> Oxy -> Kaana`, so Oxy charges the product
+application's owner/cost centre. A human bearer, a mismatched app, a missing or
+spent assertion, a missing delegation or a known agent id alone all receive a
+refusal that says nothing about which check failed.
 
 A new or unreconciled agent inherits no user name, memory, Inbox/Oxy context,
 installed skill shelf or messaging/delegation hint in its prompt. Empty
@@ -58,10 +72,21 @@ Sindi is Homiio's private Alia agent and Clarity's assistant is another private
 Alia agent. They are Oxy `bot` principals, not provider identities, and neither
 holds a provider credential. Their core cross-service bindings are:
 
-| Product agent | Owner project | Bot account | Alia agent | Bound Oxy application |
-|---|---|---|---|---|
-| Sindi | `6a50444ce8026582b949089d` | `01a0646a-078f-7974-9645-a5e8be237f47` | `01a0646a-078f-7514-9800-9f43ceed7df8` | `6a2f851751b784a86fd0e922` |
-| Clarity | `01a0646a-078f-7f53-848d-a0f82d9f7fa6` | `01a0646a-078f-7120-a993-a03c180c81b0` | `01a0646a-078f-7642-95ef-439952f4f3f9` | `01a0648b-8d73-70ad-8e67-1c07ddc5eb6e` |
+| Product agent | Owner project | Bot account | Alia agent | Bound Oxy application | Granted capabilities |
+|---|---|---|---|---|---|
+| Sindi | `6a50444ce8026582b949089d` | `01a0646a-078f-7974-9645-a5e8be237f47` | `01a0646a-078f-7514-9800-9f43ceed7df8` | `6a2f851751b784a86fd0e922` | `web`, `artifacts`, `memory` |
+| Clarity | `01a0646a-078f-7f53-848d-a0f82d9f7fa6` | `01a0646a-078f-7120-a993-a03c180c81b0` | `01a0646a-078f-7642-95ef-439952f4f3f9` | `01a0648b-8d73-70ad-8e67-1c07ddc5eb6e` | (none) |
+
+The last column is `capability_grants`, and it is published in the same hashed
+manifest as the ids beside it rather than decided in Alia alone — a grant is
+what the agent may DO, so widening one is a change both repositories merge.
+Sindi reads and answers: `web` (search, scraping, browsing, deep research and
+the weather/quote/FairCoin cards), `artifacts` (canvas, generated files) and
+`memory` (saving and searching what the person has already said). It has no
+`shell`, `browser`, `files`, `messaging`, `automation` or `delegation`, and no
+connector row of any kind. Clarity's `(none)` is a decision that denies
+everything, not an unset field. Oxy app tools are not expressible here at all:
+Oxy's normalized DelegationGrant records are their sole authority.
 
 These are exact opaque primary keys. A bootstrap or runtime must compare them
 byte for byte; a name, handle, query order or first result is diagnostic data,
@@ -71,6 +96,21 @@ and
 [`native-agent bootstrap runbook`](https://github.com/OxyHQ/oxy/blob/main/docs/runbooks/native-product-agent-bootstrap.md).
 The table is a source contract, not proof that both repositories' rows or live
 service credentials have been provisioned and read back in production.
+
+**Alia's half of that contract is a reviewed one-shot, not a hand-edited row.**
+Oxy provisions the project, bot account, application and credential and
+publishes the four ids above; the `agents` row they describe is Alia's, and for
+as long as it did not exist a correctly authenticated Homiio turn reached
+`Pre-stream setup complete` and was then refused with `agent_unavailable` — the
+gap between a published contract and a consumed one, with no warning anywhere in
+between. `packages/api/src/config/native-product-agents.ts` pins what Oxy
+publishes (with a SHA-256 Oxy's own suite asserts, so neither repository can
+drift quietly), `packages/api/src/scripts/bootstrap-native-product-agents.ts`
+applies it, and the `Bootstrap native product agents` workflow dispatches it
+against the live image: `dry-run` executes the plan and rolls it back, `apply`
+takes that exact plan hash plus a reason. It creates or updates only the agents
+above, never widens an agent's reach, and refuses any existing row it did not
+expect rather than repairing it.
 
   **An agent has no picture.** It is drawn as a glyph tinted with its Oxy
   account's `User.color`, a Bloom preset key — so `AgentIdentity` carries
