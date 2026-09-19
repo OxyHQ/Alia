@@ -19,8 +19,13 @@ const router = Router();
 router.get('/:id/reviews', optionalAuth, async (req: Request, res: Response) => {
   try {
     const { page = '1', limit = '20' } = req.query;
-    const pageNum = Math.max(1, parseInt(page as string, 10));
-    const limitNum = Math.min(50, Math.max(1, parseInt(limit as string, 10)));
+    // `|| <default>` is not decoration: `parseInt('abc', 10)` is `NaN`, and
+    // `Math.max(1, NaN)` / `Math.min(50, NaN)` are BOTH `NaN` — so `?limit=abc`
+    // used to reach the query as `limit: NaN, offset: NaN`. Every sibling
+    // listing in this package already has the guard (`activity.ts`,
+    // `sessions.ts`, `crud.ts`, `audit.ts`); this one was the exception.
+    const pageNum = Math.max(1, parseInt(page as string, 10) || 1);
+    const limitNum = Math.min(50, Math.max(1, parseInt(limit as string, 10) || 20));
 
     const agentId = String(req.params.id);
     const { reviews: rows, total } = await listVisibleAgentReviews(getDb(), agentId, {

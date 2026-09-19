@@ -122,6 +122,25 @@ await esbuild.build({
   logLevel: 'info',
 });
 
+// The native product-agent bootstrap. Oxy publishes the Sindi/Clarity manifest
+// and Alia owns the `agents` rows it describes, so applying it is a one-shot
+// against the live image — and a one-shot invokes a FILE PATH, which the
+// runtime stage (`node:*-slim`, no bun, no `src/`) can only resolve if the
+// bundle exists. `scripts/__tests__/native-product-agent-bootstrap-wiring.test.ts`
+// asserts this outfile and the workflow's command together.
+await esbuild.build({
+  entryPoints: ['src/scripts/bootstrap-native-product-agents.ts'],
+  bundle: true,
+  platform: 'node',
+  target: 'node20',
+  format: 'esm',
+  outfile: 'dist/scripts/bootstrap-native-product-agents.js',
+  plugins: [externalizeNodeModules],
+  sourcemap: false,
+  minify: false,
+  logLevel: 'info',
+});
+
 await esbuild.build({
   entryPoints: ['src/scripts/production-chat-canary.ts'],
   bundle: true,
