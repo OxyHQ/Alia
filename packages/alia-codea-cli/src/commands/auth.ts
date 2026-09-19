@@ -24,11 +24,26 @@
  * The API-key fallback is gone too, and deliberately: Alia issues no new
  * `alia_sk_*` credential, so a prompt inviting someone to paste one is a prompt
  * for a credential they can no longer obtain.
+ *
+ * ## How the code reaches an approver
+ *
+ * Printing the code and firing the `oxycommons://` deep link at `xdg-open` was
+ * not enough: the only thing that could resolve that code was the Commons app,
+ * and on WSL or over SSH the launcher failed silently. The waiting screen now
+ * comes from `utils/approval-surface.ts` — a QR for Commons, the link to
+ * `auth.oxy.so/device` for a browser, and the code — and the browser opens only
+ * when the person presses Enter.
  */
 
 import chalk from 'chalk';
-import { execFile } from 'node:child_process';
 
+import {
+  approvalLines,
+  approvalUrl,
+  openInBrowser,
+  remainingTime,
+  watchForEnter,
+} from '../utils/approval-surface.js';
 import {
   disposeSession,
   restoreSession,
@@ -45,59 +60,11 @@ function printError(message: string): void {
   console.log(chalk.red('✗ Error: ') + message);
 }
 
-function printInfo(message: string): void {
-  console.log(chalk.blue('ℹ ') + message);
-}
-
 /**
- * Schemes this is willing to hand to the operating system.
- *
- * `qrPayload` is documented as an `oxycommons://approve?...` deep link, and `https`
- * is accepted for the browser-resolvable form of the same approval.
+ * How often "still waiting" is repeated. The poll ticks every two seconds; a
+ * line per tick would bury the link and the code under a five-minute wait.
  */
-const LAUNCHABLE_SCHEMES = new Set(['oxycommons:', 'https:']);
-
-/**
- * Best-effort convenience only.
- *
- * The code is printed either way, because this is exactly the flow that has to
- * keep working on a machine with no desktop — over SSH, in CI, inside a
- * container. A launcher that fails silently must not be able to strand the user.
- *
- * ## Two guards, because this value comes off the network
- *
- * `qrPayload` is SERVER-supplied. Interpolating it into a shell string would
- * make a compromised or spoofed Oxy response into arbitrary command execution on
- * the user's machine — the previous implementation built exactly such a string,
- * though from a locally-constructed URL rather than a remote one.
- *
- *  1. `execFile`, never `exec`: no shell is involved, so shell metacharacters in
- *     the argument are passed through to the program as data.
- *  2. The scheme is checked against {@link LAUNCHABLE_SCHEMES} first, so a
- *     payload naming `file:` — or anything else the OS handler would treat as an
- *     instruction — is printed rather than launched.
- */
-function openApprover(payload: string): void {
-  let parsed: URL;
-  try {
-    parsed = new URL(payload);
-  } catch {
-    return;
-  }
-  if (!LAUNCHABLE_SCHEMES.has(parsed.protocol)) return;
-
-  const [command, args] =
-    process.platform === 'darwin'
-      ? ['open', [parsed.href]]
-      : process.platform === 'win32'
-        ? ['cmd', ['/c', 'start', '', parsed.href]]
-        : ['xdg-open', [parsed.href]];
-
-  execFile(command, args, () => {
-    // Ignored on purpose: the printed code above is the real affordance, and a
-    // machine with no launcher must still be able to complete this flow.
-  });
-}
+const WAITING_NOTICE_INTERVAL_MS = 30_000;
 
 export async function login(): Promise<boolean> {
   console.log();
@@ -121,15 +88,41 @@ export async function login(): Promise<boolean> {
     return false;
   }
 
-  console.log(chalk.gray('Approve this sign-in in the Oxy app, or at oxy.so:'));
-  console.log();
-  console.log('    ' + chalk.bold.cyan(handle.authorizeCode));
-  console.log();
-  openApprover(handle.qrPayload);
-  printInfo('Waiting for approval...');
+  const url = approvalUrl(handle.authorizeCode);
+  const canPromptEnter = Boolean(process.stdin.isTTY && process.stdout.isTTY);
+  for (const line of approvalLines({
+    authorizeCode: handle.authorizeCode,
+    qrPayload: handle.qrPayload,
+    approvalUrl: url,
+    columns: process.stdout.columns,
+    canRenderQr: Boolean(process.stdout.isTTY),
+    canPromptEnter,
+  })) {
+    console.log(line);
+  }
 
+  // The keypress and the poll race; neither owns the other. Approving through
+  // the QR ends the wait with the listener still attached, which is why it is
+  // released in `finally` rather than on the Enter path.
+  const stopWatching = canPromptEnter
+    ? watchForEnter(() => {
+        console.log(chalk.gray('  Opening your browser...'));
+        openInBrowser(url, (problem) => console.log(chalk.gray(`  ${problem}`)));
+      })
+    : () => {};
+
+  let lastNotice = Date.now();
   try {
-    const outcome = await waitForApproval(handle);
+    const outcome = await waitForApproval(handle, {
+      onWaiting: () => {
+        const now = Date.now();
+        if (now - lastNotice < WAITING_NOTICE_INTERVAL_MS) return;
+        lastNotice = now;
+        console.log(
+          chalk.gray(`  Still waiting — this code expires in ${remainingTime(handle.expiresAt, now)}.`),
+        );
+      },
+    });
     switch (outcome.kind) {
       case 'signed-in':
         console.log();
@@ -148,6 +141,8 @@ export async function login(): Promise<boolean> {
   } catch (error: unknown) {
     printError(error instanceof Error ? error.message : String(error));
     return false;
+  } finally {
+    stopWatching();
   }
 }
 
