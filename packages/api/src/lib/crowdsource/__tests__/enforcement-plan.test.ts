@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { decisionFixture } from '@oxy.so/crowdsource-testing';
+import { decisionFixture } from '@crowdsource.you/core/testing';
 import {
   RECOMMENDED_ACTIONS,
   type Decision,
   type RecommendedAction,
-} from '@oxy.so/crowdsource-contracts';
+} from '@crowdsource.you/contracts';
 import { planEnforcement } from '../enforcement-plan.js';
 import { MODERATION_ENFORCEMENT_ACTIONS } from '../../../domain/moderation-enforcement.js';
 

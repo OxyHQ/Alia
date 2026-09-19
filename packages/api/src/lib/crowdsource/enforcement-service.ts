@@ -1,4 +1,4 @@
-import type { Decision } from '@oxy.so/crowdsource-contracts';
+import type { Decision } from '@crowdsource.you/contracts';
 import {
   findAgentModerationState,
   setAgentCatalogueFlags,

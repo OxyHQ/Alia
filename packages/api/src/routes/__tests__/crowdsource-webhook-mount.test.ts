@@ -37,7 +37,7 @@ vi.mock('../../lib/crowdsource/event-store.js', () => ({
   }),
 }));
 
-import { caseDecidedEventFixture, signWebhookDelivery } from '@oxy.so/crowdsource-testing';
+import { caseDecidedEventFixture, signWebhookDelivery } from '@crowdsource.you/core/testing';
 import { resetCrowdSourceConfig } from '../../lib/crowdsource/config.js';
 import { assertRawBody, createCrowdSourceWebhookRoutes } from '../crowdsource-webhook.js';
 
@@ -111,7 +111,9 @@ describe('CrowdSource webhook mount order', () => {
     vi.clearAllMocks();
     claimed.clear();
     process.env.CROWDSOURCE_ENABLED = 'true';
-    process.env.CROWDSOURCE_SERVICE_KEY = 'app_1:cred_1:secret';
+    // No `CROWDSOURCE_SERVICE_KEY`: the outbound client presents the Oxy service
+    // token this process mints (oxy ADR 0026) and the inbound half never needed
+    // one — the webhook secret is what verifies a delivery.
     process.env.CROWDSOURCE_WEBHOOK_SECRET = SECRET;
     resetCrowdSourceConfig();
   });
@@ -120,7 +122,6 @@ describe('CrowdSource webhook mount order', () => {
     await harness?.close();
     harness = undefined;
     delete process.env.CROWDSOURCE_ENABLED;
-    delete process.env.CROWDSOURCE_SERVICE_KEY;
     delete process.env.CROWDSOURCE_WEBHOOK_SECRET;
     resetCrowdSourceConfig();
   });

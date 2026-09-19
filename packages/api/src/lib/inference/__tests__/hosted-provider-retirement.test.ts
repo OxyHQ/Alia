@@ -89,13 +89,24 @@ describe('Alia hosted provider runtime retirement', () => {
     expect(observability).not.toContain('providerRequestRecorded');
   });
 
-  it('binds only the Oxy service credential for hosted inference', () => {
+  /**
+   * Hosted inference binds NO credential now, which is the same boundary stated
+   * one step further on.
+   *
+   * The point of this test was never that a key was present — it was that the
+   * only thing bound for inference is an OXY identity, and never a provider's.
+   * Alia proves that identity by attesting its ECS task role (oxy ADR 0026), so
+   * the strongest form of the same assertion is that no `OXY_SERVICE_API_*`
+   * value reaches the task definition at all, alongside the provider names that
+   * were already forbidden.
+   */
+  it('binds no provider credential, and no Oxy service key either', () => {
     const workflow = readFileSync(path.join(REPO_ROOT, '.github/workflows/deploy-aws.yml'), 'utf8');
-    expect(workflow).toContain('for name in OXY_SERVICE_API_KEY OXY_SERVICE_API_SECRET');
-    expect(workflow).toContain('required Oxy-provisioned SecureString metadata is absent');
+    expect(workflow).not.toContain('for name in OXY_SERVICE_API_KEY OXY_SERVICE_API_SECRET');
     expect(workflow).not.toContain('secrets.OXY_SERVICE_API_KEY');
     expect(workflow).not.toContain('sync_secret OXY_SERVICE_API_');
-    expect(workflow).toContain('OXY_SERVICE_API_SECRET: $secret');
+    expect(workflow).not.toContain('OXY_SERVICE_API_SECRET: $secret');
+    expect(workflow).toContain('"OXY_SERVICE_API_KEY","OXY_SERVICE_API_SECRET"]');
     expect(workflow).not.toContain('secrets.ALIA_KAANA_CREDENTIAL_');
     expect(workflow).not.toContain('sync_secret ALIA_RELAY_CREDENTIAL_');
     expect(workflow).not.toContain('oxy-task-ssm-alia-provider-keys');

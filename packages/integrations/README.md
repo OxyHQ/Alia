@@ -66,8 +66,11 @@ TELEGRAM_API_HASH=<from-my.telegram.org>
 # Port (default 3005)
 PORT=3005
 
-# Ecosystem activity (optional) — publishing starts automatically once BOTH are
-# set; there is no separate enable flag for this package
+# Ecosystem activity (optional), and LOCAL ONLY. Publishing starts as soon as
+# this process has an Oxy identity — there is no separate enable flag for this
+# package. The deployed `alia-integrations` task carries NEITHER variable: it
+# attests its ECS task role instead (oxy ADR 0026) and publishes just the same.
+# Set both here, or leave both unset and this package reports no traffic.
 OXY_SERVICE_API_KEY=<from-oxy-console>
 OXY_SERVICE_API_SECRET=<from-oxy-console>
 ```

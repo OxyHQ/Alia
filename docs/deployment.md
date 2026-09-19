@@ -53,14 +53,26 @@ WEB_URL=https://alia.onl
 API_BASE_URL=https://api.alia.onl
 ALIA_API_URL=https://api.alia.onl
 OXY_API_URL=https://api.oxy.so
-OXY_SERVICE_API_KEY=<oxy-application-key>
-OXY_SERVICE_API_SECRET=<oxy-application-secret>
 DATABASE_URL=<postgres-connection-string>
 ```
 
-The `OXY_SERVICE_API_*` pair identifies Alia to Oxy; it is not an upstream
-provider credential. Provider keys are absent from this contract and remain
-only in Kaana's PostgreSQL/KMS custody.
+**Neither service carries an Oxy service credential.** The API and
+`alia-integrations` each prove what they ARE by attesting their ECS task role
+and get a short-lived Oxy service token back (oxy ADR 0026); `@oxy.so/core`
+>= 1.6.1 takes that path whenever `OXY_SERVICE_API_KEY` and
+`OXY_SERVICE_API_SECRET` are absent. Both remain local-development values —
+see `packages/api/.env.example`.
+
+Because a release renders from the task definition the service is already
+RUNNING, removing the pair took an explicit entry in each lane's
+`TASK_SECRET_REMOVALS_JSON`: deleting the lines that supplied it would have left
+it inherited on every future revision. `alia-integrations` never had such a line
+to delete — its pair comes from the task definition oxy-infra registered — which
+is precisely why the removal list is the only lever there.
+
+Alia's identity to Oxy is not an upstream provider credential either way.
+Provider keys are absent from this contract and remain only in Kaana's
+PostgreSQL/KMS custody.
 
 Terraform declares both public-origin names, while `deploy-aws.yml` re-asserts
 them through `TASK_ENV_OVERRIDES_JSON` on every runnable revision. The split is
@@ -144,9 +156,23 @@ calling Kaana.
 
 ```bash
 OXY_API_URL=https://api.oxy.so
+```
+
+That is the whole of it on a deployed task. The origin is still required —
+attestation says what this process IS, not where Oxy is, and a token with
+nowhere to present it is worth nothing — but the credential is the task role.
+A checkout, which can attest nothing, adds the pair:
+
+```bash
 OXY_SERVICE_API_KEY=<oxy-application-key>
 OXY_SERVICE_API_SECRET=<oxy-application-secret>
 ```
+
+Boot refuses a process that can neither attest nor present a pair, and names
+both variables, because setting them is the thing to do there. It no longer
+refuses a task that carries neither — which it did until oxy ADR 0026, and which
+would have made this migration a boot crash, an ECS circuit-breaker rollback and
+a service reported stable with nothing naming the cause.
 
 `OXY_API_URL` is pinned to `https://api.oxy.so` in deployed environments. Local
 development may use loopback. Paths, query strings, embedded credentials,

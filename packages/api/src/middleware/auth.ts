@@ -145,10 +145,12 @@ function delegationAware<Lane extends AuthLane>(
 
     const verifier = oxyServiceClient();
     if (!verifier) {
-      // Only reachable in a process that never ran the boot guards:
-      // `OXY_SERVICE_API_KEY`, `OXY_SERVICE_API_SECRET` and `OXY_API_URL` are
-      // already required before the socket opens (`lib/boot-guards.ts` →
-      // `OXY_INFERENCE_CREDENTIAL_REQUIRED_ENV`). Answering 503 with a name is
+      // Only reachable in a process that never ran the boot guards: being able
+      // to mint an Oxy service token — from a credential pair, or by attesting
+      // the ECS task role (oxy ADR 0026) — is already required before the socket
+      // opens (`lib/boot-guards.ts` → `unsetOxyInferenceCredentialVariables`),
+      // and `lib/oxy-service-client.ts` builds this verifier from the same
+      // capability. Answering 503 with a name is
       // still the point: the alternative is refusing every delegated user with
       // a 403 that says they have no grant, which is a lie about somebody
       // else's configuration.

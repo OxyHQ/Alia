@@ -310,23 +310,18 @@ jobs:
           INTEGRATIONS_SECRETS: ${{ steps.integrations.outputs.secret_overrides }}
           INTEGRATIONS_ENV: ${{ steps.integrations.outputs.env_overrides }}
         run: |
-          # Oxy provisions this ApplicationCredential from its database and
-          # writes the two secret values to SSM. Alia may bind them but must not
-          # copy a second value from GitHub or decrypt them in CI. GetParameter
-          # is exact-resource scoped; the query exposes only name and type.
-          for name in OXY_SERVICE_API_KEY OXY_SERVICE_API_SECRET; do
-            parameter_name="/oxy/$APP/$name"
-            metadata="$(aws ssm get-parameter \
-              --name "$parameter_name" \
-              --no-with-decryption \
-              --query 'Parameter.[Name,Type]' \
-              --output text)" || metadata=''
-            read -r actual_name actual_type <<<"$metadata"
-            if [ "$actual_name" != "$parameter_name" ] || [ "$actual_type" != "SecureString" ]; then
-              echo "::error::required Oxy-provisioned SecureString metadata is absent for $parameter_name"
-              exit 1
-            fi
-          done
+          # `/oxy/$APP/OXY_SERVICE_API_KEY` and `..._SECRET` are NOT checked here
+          # any more, and the omission is the point rather than an oversight.
+          #
+          # The rendered task definition no longer references either — see
+          # `TASK_SECRET_REMOVALS_JSON` in the deploy step below — so a gate on
+          # them would be a gate whose output nothing reads, and the first thing
+          # it would do is fail a healthy deploy on the day those parameters are
+          # retired. Alia's API attests its ECS task role instead (oxy ADR 0026)
+          # and `@oxy.so/core` >= 1.6.1 mints from that whenever no pair is set.
+          #
+          # No SSM parameter is deleted by this change. This is the reference to
+          # them going away, which is the half a deploy owns.
 
           required_env="$(jq -cn '{
             API_BASE_URL: "https://api.alia.onl",
@@ -334,13 +329,14 @@ jobs:
             OXY_API_URL: "https://api.oxy.so"
           }')"
 
-          oxy_inference_secrets="$(jq -cn \
-            --arg key "arn:aws:ssm:$AWS_REGION:237343248947:parameter/oxy/$APP/OXY_SERVICE_API_KEY" \
-            --arg secret "arn:aws:ssm:$AWS_REGION:237343248947:parameter/oxy/$APP/OXY_SERVICE_API_SECRET" \
-            '{OXY_SERVICE_API_KEY: $key,
-              OXY_SERVICE_API_SECRET: $secret}')"
-
-          merged_secrets="$(jq -cs '.[0] * .[1]' <(echo "${INTEGRATIONS_SECRETS:-{\}}") <(echo "$oxy_inference_secrets"))"
+          # Nothing is merged in here any more: the Oxy service credential was
+          # the only thing this step contributed to `secret_overrides`, and the
+          # API no longer carries one. `INTEGRATIONS_SECRET` stays, from the step
+          # above, because it is a shared secret and not an identity.
+          #
+          # Normalised through `jq` rather than passed through, so an empty
+          # upstream output is still the `{}` the script validates.
+          merged_secrets="$(jq -c '.' <(echo "${INTEGRATIONS_SECRETS:-{\}}"))"
           merged_env="$(jq -cs '.[0] * .[1]' <(echo "${INTEGRATIONS_ENV:-{\}}") <(echo "$required_env"))"
 
           printf 'secret_overrides=%s\n' "$merged_secrets" >>"$GITHUB_OUTPUT"
@@ -414,7 +410,19 @@ jobs:
           # Safe only because `lib/s3.ts` now omits the `credentials` key when
           # the environment carries no pair, instead of passing an EMPTY one that
           # the SDK signs with. That landed first, deliberately.
-          TASK_SECRET_REMOVALS_JSON: '["AWS_ACCESS_KEY_ID","AWS_SECRET_ACCESS_KEY","KAANA_EDGE_SIGNING_PRIVATE_KEY","ALIA_RELAY_CREDENTIAL_KEY","ALIA_RELAY_CREDENTIAL_SECRET","ALIA_KAANA_CREDENTIAL_KEY","ALIA_KAANA_CREDENTIAL_SECRET"]'
+          #
+          # `OXY_SERVICE_API_KEY` / `_SECRET` join them, and this list is the ONLY
+          # thing that actually retires them. DELETING THE LINES THAT SUPPLIED
+          # THEM REMOVES NOTHING: every release renders from the task definition
+          # the service is RUNNING, so a secret that once appeared in an override
+          # stays on every future revision, inherited and never re-declared. The
+          # two halves are a pair — stop supplying them AND take them out, or the
+          # migration silently does not happen.
+          #
+          # The API attests its ECS task role for an Oxy service token now (oxy
+          # ADR 0026). The SSM parameters are untouched and still exist; this
+          # removes the task definition's REFERENCE to them.
+          TASK_SECRET_REMOVALS_JSON: '["AWS_ACCESS_KEY_ID","AWS_SECRET_ACCESS_KEY","KAANA_EDGE_SIGNING_PRIVATE_KEY","ALIA_RELAY_CREDENTIAL_KEY","ALIA_RELAY_CREDENTIAL_SECRET","ALIA_KAANA_CREDENTIAL_KEY","ALIA_KAANA_CREDENTIAL_SECRET","OXY_SERVICE_API_KEY","OXY_SERVICE_API_SECRET"]'
           # Remove every legacy plain Relay/direct-Kaana binding inherited from
           # the live task definition. Keeping a removal here is harmless after
           # the first clean revision and prevents a rollback descendant from

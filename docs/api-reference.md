@@ -38,10 +38,11 @@ credentialed Oxy client (`lib/oxy-service-client.ts`), not by the credential-fre
 through a service-to-service endpoint and must present the verifier's own service
 token to reach it. With no credential it threw, cached a negative answer and
 refused every delegated user with `403 SERVICE_ACTING_AS_UNAUTHORIZED` — a valid
-grant included. A deployment that somehow holds no credential now answers
+grant included. A deployment that somehow holds no identity now answers
 `503 SERVICE_DELEGATION_UNAVAILABLE` instead of blaming the caller's grant;
-`OXY_SERVICE_API_KEY`, `OXY_SERVICE_API_SECRET` and `OXY_API_URL` are boot
-requirements, so a serving process always has one.
+being able to mint an Oxy service token — from a credential pair, or by
+attesting the ECS task role under oxy ADR 0026 — is a boot requirement, so a
+serving process always can.
 
 `POST /alia/chat` and `/v1/*` are both mounted with `authenticateTokenOrApiKey`
 (`packages/api/src/routes/chat.ts`, `routes/v1.ts:59`) plus the same per-key rate limit
