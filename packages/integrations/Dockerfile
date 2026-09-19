@@ -23,6 +23,7 @@ COPY package.json bun.lock ./
 COPY packages/api/package.json ./packages/api/
 COPY packages/app/package.json ./packages/app/
 COPY packages/alia-chat/package.json ./packages/alia-chat/
+COPY packages/alia-server/package.json ./packages/alia-server/
 COPY packages/alia-canvas/package.json ./packages/alia-canvas/
 COPY packages/alia-docker-host/package.json ./packages/alia-docker-host/
 COPY packages/integrations/package.json ./packages/integrations/
@@ -95,6 +96,7 @@ COPY package.json bun.lock ./
 COPY packages/api/package.json ./packages/api/
 COPY packages/app/package.json ./packages/app/
 COPY packages/alia-chat/package.json ./packages/alia-chat/
+COPY packages/alia-server/package.json ./packages/alia-server/
 COPY packages/alia-canvas/package.json ./packages/alia-canvas/
 COPY packages/alia-docker-host/package.json ./packages/alia-docker-host/
 COPY packages/integrations/package.json ./packages/integrations/
