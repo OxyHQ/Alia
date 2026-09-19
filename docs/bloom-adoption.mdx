@@ -460,7 +460,10 @@ None of the following has a 3.2.1 export that models it. Each stays Alia's.
 This document establishes what the published Bloom 3.2.1 types say and what
 files exist in `packages/app`. It establishes nothing else.
 
-Specifically, **nothing here was validated by running anything**:
+Specifically, **nothing in this section's matrix was validated by running
+anything**. What has since been run is listed in
+[§6](#6-what-has-been-adopted-so-far) and amounts to a typecheck, the unit
+suite and a web bundle export — no more than that:
 
 - The app was not launched, on web, iOS or Android.
 - No component was rendered, in a test, a browser or a device.
@@ -474,3 +477,53 @@ Specifically, **nothing here was validated by running anything**:
 The eight gaps in §3 are read from the 3.2.1 source and are reproducible by
 reading it. The adoption decisions in §2 are judgements about those types and
 remain open to revision the first time a component is actually mounted.
+
+## 6. What has been adopted so far
+
+This section records what is true of `main`, as distinct from §2's judgements
+about what could be. It is the part of [#608](https://github.com/OxyHQ/Alia/issues/608)
+that has actually landed.
+
+| Change | Where | Verified by |
+| --- | --- | --- |
+| Bloom `^3.1.0` → `^3.2.1` across all six workspaces that declare it | every `package.json`, `bun.lock` | typecheck, 686 tests, `expo export --platform web` |
+| The person's turn is `AiChatUserMessage`; the reply is `AiChatAssistantMessage` | `components/chat-interface.tsx` | `components/__tests__/ai-chat-message-composition.test.ts` |
+| Restored history and pages loaded above do not replay their reveal (`animate={isNewMessage}`) | same | same gate |
+| One entrance per arrival — the row's `FadeInUp.springify()` is gone, Bloom's reveal owns it, and honours reduced motion | same | same gate |
+| Waiting state is `AgentThinking`, with a real status label or the translated word, and no mount timer | same | typecheck, web export |
+| Skills are selectable without a runnable connector | `lib/chat/turn-selection.ts` | `lib/chat/__tests__/turn-selection.test.ts` |
+| One owner for ghost / agent / deep research, so the menu cannot disagree with the request body | `lib/chat/use-capability-modes.ts` | `lib/chat/__tests__/use-capability-modes.test.tsx` |
+| The new-chat screen can stop, retry, approve and answer like any other chat | `app/(app)/index.tsx` | `app/(app)/__tests__/home-chat-wiring.test.tsx` |
+| A dropped call started from an empty chat can be left | `lib/hooks/use-voice-mode.ts` | `lib/hooks/__tests__/use-voice-mode-disconnect.test.tsx` |
+
+Bloom's own feedback row is switched off under a reply: Alia's action bar is a
+superset of it (read aloud, generate audio, regenerate, vote), and two rows
+would be two answers to the same question. That also sidesteps gap 6 for now —
+`onCopy` announcing a success it never checked — rather than resolving it.
+
+### What #608 still asks for
+
+Stated as remaining work rather than left implied. None of it is blocked by
+anything above; all of it is larger than one change.
+
+- **The shell.** `AiChatShell` + `AiChatContainer` would replace the
+  `expo-router` `Drawer`, `components/sidebar.tsx` and `components/right-panel.tsx`.
+  Blocked on gaps 4 and 8 (`project` is required; there is no slot to put
+  `AmbientField` behind the content) and on it being a navigation change, not a
+  presentation one.
+- **The timeline.** `AiChatThread` cannot host Alia's scroll: gap 3. The anchor,
+  upward pagination, cursor jump and day/seam separators in
+  `lib/hooks/use-scroll-to-bottom.ts` stay until Bloom's `VirtualList` is wired
+  into the thread, or a composition over it is written here.
+- **The composer.** Adopting `ComposerPill` as published would *regress* Alia —
+  it selects models by display name and has no `onStop`; see gaps 1 and 2.
+  `ComposerPanel` takes `{id, name}` but still has no stop. Composition over the
+  public primitives is the path, not the pill.
+- **Attachments.** `ComposerAttachments` simulates its uploads (gap 5). Real
+  progress, error, retry and cancel have no Bloom contract to adopt.
+- **The feature-boundary tree** in #608 §4 — `features/{chat,voice,agents,…}/
+  {model,runtime,ui}`. `lib/chat/` is its beginning, not the whole of it.
+  `components/ui/` remains a second design layer beside Bloom's.
+- **Everything #608 §12 and §13 ask to measure.** No performance baseline, no
+  device run, no visual or motion comparison, no browser matrix. The web bundle
+  exports and the unit suite passes; that is the whole of what has been run.
