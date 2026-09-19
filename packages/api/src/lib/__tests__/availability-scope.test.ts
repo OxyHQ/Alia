@@ -18,7 +18,7 @@
  * measuring nothing.
  *
  * The **audience** group is the one that catches an ordering bug the catalogue
- * cannot see. `internal_alia` refuses a session and a developer key alike, so
+ * cannot see. `platform_internal` refuses a session and a developer key alike, so
  * swapping the two branches of `resolveCallerAudience` changes no response
  * today — and would change every response the moment a scope treats them
  * differently. It is measured here, at the resolver, where the difference is
@@ -51,8 +51,8 @@ describe('the vocabulary is the contract’s, not a copy of it', () => {
     expect([...AVAILABILITY_SCOPES].sort()).toEqual([
       'byok_only',
       'enterprise',
-      'internal_alia',
       'oxy_hosted',
+      'platform_internal',
       'public_payg',
     ]);
     // And it is the schema's own list, so a sixth scope arrives without an edit
@@ -72,7 +72,7 @@ describe('every scope has a decision for every audience', () => {
    * test and measure the re-implementation.
    */
   const EXPECTED: Readonly<Record<AvailabilityScope, Readonly<Record<CallerAudience, string>>>> = {
-    internal_alia: {
+    platform_internal: {
       public: 'refused',
       user: 'refused',
       api_key: 'refused',
@@ -138,22 +138,22 @@ describe('an entry’s verdict comes from the routes behind it', () => {
   it('publishes only the scopes that admitted this caller', () => {
     // A caller must not be told a route is theirs because some other route on
     // the same entry is.
-    expect(admitEntry(['internal_alia', 'public_payg'], 'public')).toEqual({
+    expect(admitEntry(['platform_internal', 'public_payg'], 'public')).toEqual({
       state: 'admitted',
       scopes: ['public_payg'],
     });
-    expect(admitEntry(['internal_alia', 'public_payg'], 'internal')).toEqual({
+    expect(admitEntry(['platform_internal', 'public_payg'], 'internal')).toEqual({
       state: 'admitted',
-      scopes: ['internal_alia', 'public_payg'],
+      scopes: ['platform_internal', 'public_payg'],
     });
   });
 
   it('withholds only when nothing admits, and says which kind of nothing', () => {
-    expect(admitEntry(['internal_alia'], 'user')).toEqual({ state: 'withheld', reason: 'refused' });
+    expect(admitEntry(['platform_internal'], 'user')).toEqual({ state: 'withheld', reason: 'refused' });
     expect(admitEntry(['enterprise'], 'user')).toEqual({ state: 'withheld', reason: 'undecidable' });
     // A refusal outranks an undecidable: the caller learns the more specific
     // of the two things that happened.
-    expect(admitEntry(['internal_alia', 'enterprise'], 'user')).toEqual({
+    expect(admitEntry(['platform_internal', 'enterprise'], 'user')).toEqual({
       state: 'withheld',
       reason: 'refused',
     });
@@ -162,7 +162,7 @@ describe('an entry’s verdict comes from the routes behind it', () => {
   it('keeps an entry reachable through an unclassified route', () => {
     // The residual the module documents, pinned so a later change that made
     // unclassified routes exclusive would be a deliberate act.
-    expect(admitEntry(['internal_alia', null], 'public')).toEqual({ state: 'admitted', scopes: [] });
+    expect(admitEntry(['platform_internal', null], 'public')).toEqual({ state: 'admitted', scopes: [] });
   });
 });
 

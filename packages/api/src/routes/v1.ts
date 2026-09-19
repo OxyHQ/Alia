@@ -6,12 +6,13 @@ import modelsRouter from './v1/models.js';
 import voiceRouter from './v1/voice.js';
 import audioRouter from './v1/audio.js';
 import imagesRouter from './v1/images.js';
-import { authenticateTokenOrApiKey, oxyClient } from '../middleware/auth.js';
+import { authenticateRequesterAssertion, authenticateTokenOrApiKey, oxyClient } from '../middleware/auth.js';
 import { apiKeyRateLimit } from '../middleware/api-key-rate-limit.js';
 import { getRefreshedUserCredits } from '../lib/user-credits-helpers.js';
 import { listChannels } from '../lib/channels/registry.js';
 import * as crypto from 'crypto';
 import { log } from '../lib/logger.js';
+import { isLiveEntityId } from '@oxy.so/db';
 
 const router = Router();
 
@@ -33,8 +34,19 @@ router.use((req: Request, _res: Response, next) => {
   const oxyUserId = req.headers['x-oxy-user-id'] as string;
   if (!botSecret || !oxyUserId) return next();
 
-  // Validate oxyUserId is a valid 24-char hex ObjectId to prevent injection
-  if (!/^[a-f0-9]{24}$/.test(oxyUserId)) return next();
+  // Validate the id SHAPE before trusting it. Both shapes: ids are uuid v7
+  // since the Postgres cutover, and rows predating it kept their 24-char
+  // ObjectId hex verbatim, so a check for either one alone refuses real
+  // accounts. `isLiveEntityId` is the single definition of "could name a row"
+  // (`@oxy.so/db`), which is why this does not spell a regex here.
+  //
+  // The failure mode this had was silent rather than loud: a v7 id fell to
+  // `next()` with `req.user` unset, so a trusted bot request arrived
+  // UNAUTHENTICATED instead of being rejected — the request then failed
+  // somewhere later, for a reason that did not mention the header. `socket.ts`
+  // records the same bug being hit from the other direction, where the check
+  // made `subscribe-agent-session` return without joining and without an error.
+  if (!isLiveEntityId(oxyUserId)) return next();
 
   for (const channel of listChannels()) {
     const expected = channel.config.getBotSecret();
@@ -53,6 +65,11 @@ router.use((req: Request, _res: Response, next) => {
 
 // Apply authentication to all other v1 routes (supports both JWT and API keys)
 router.use(authenticateTokenOrApiKey);
+
+// A product's present-requester assertion (ADR 0025 in OxyHQServices) is
+// accepted on the chat surface only — the same one `/alia/chat` mounts it on —
+// and BEFORE the limiter, so the limiter keys on the requester it attaches.
+router.use('/chat/completions', authenticateRequesterAssertion);
 
 // Apply rate limiting for API key authenticated requests
 router.use(apiKeyRateLimit);
