@@ -88,18 +88,61 @@ const ChatPage = () => {
   }, [chatRise]);
   const handleIntroDismissed = useCallback(() => setIntroState("done"), []);
 
+  /**
+   * The whole of the hook, because the whole of it applies here.
+   *
+   * This screen used to take seven of these and leave the rest on the floor,
+   * which read as "the first turn is a lesser turn": it could not be stopped
+   * once it started, a failure left no card and no way to retry, a plan asked
+   * for approval nobody could give, and the offer of a fresh thread had no
+   * answer. In ghost mode that is not the first turn of anything — nothing is
+   * ever persisted, so the ENTIRE conversation happens on this screen with
+   * those capabilities missing. `conversation-screen.tsx` is the reference for
+   * what a chat can do; the only honest difference here is that there is no
+   * conversation id yet.
+   */
   const {
     messages,
     isLoading,
+    conversationLoading,
     scrollViewRef,
     sendMessage,
     createNewConversation,
     editMessage,
     regenerateMessage,
+    stopGeneration,
     clearConversation,
+    approvePlan,
+    rejectPlan,
+    suggestedNewConversation,
+    dismissSuggestedNewConversation,
+    failedTurn,
+    retryFailedTurn,
   } = useChatConversation({ reasoningEffort, selectedModel: selection.effectiveId ?? undefined });
 
   const handleSubmit = ghostMode ? sendMessage : createNewConversation;
+
+  /**
+   * Taking the agent up on its offer of a fresh start, on the screen where a
+   * fresh start is the cheapest thing there is.
+   *
+   * On `conversation-screen.tsx` accepting means creating the NEXT stretch of
+   * an agent's thread — a persisted conversation, a handle to re-read. None of
+   * that applies here: this screen is already the empty one, and nothing has
+   * been written yet in ghost mode by design. So accepting stops whatever is
+   * streaming and empties the thread, which is the same act the header's
+   * "Clear" performs and is genuinely "start a new conversation" on a screen
+   * that has no id.
+   *
+   * It is not simply `dismiss`. The card's primary button says the offer will
+   * be acted on, and a button that only retires the card it sits in would be a
+   * control with nothing behind it — the offer already has a second button for
+   * that.
+   */
+  const handleAcceptNewConversation = useCallback(() => {
+    dismissSuggestedNewConversation();
+    void clearConversation();
+  }, [dismissSuggestedNewConversation, clearConversation]);
 
   const handleVoiceStart = useCallback(async () => {
     try {
@@ -123,16 +166,30 @@ const ChatPage = () => {
         </Head>
         <Animated.View style={[{ flex: 1 }, chatStyle]}>
           <ChatPageContent
+            // No `conversationId`, deliberately: this is the new-chat screen,
+            // and its absence is what `ChatPageContent` reads to decide which
+            // mounted instance a `composerDraft` belongs to. The drawer keeps
+            // every visited chat alive, so naming an id here would hand this
+            // screen's draft to a persisted conversation.
             messages={messages}
             scrollViewRef={scrollViewRef}
             isLoading={isLoading}
+            conversationLoading={conversationLoading}
             onSubmit={handleSubmit}
             onEditMessage={editMessage}
             onRegenerateMessage={regenerateMessage}
+            onStop={stopGeneration}
             onClear={clearConversation}
             selectedModel={selectedModel}
             onModelChange={setSelectedModel}
             onVoiceStart={handleVoiceStart}
+            onApprovePlan={approvePlan}
+            onRejectPlan={rejectPlan}
+            suggestedNewConversation={suggestedNewConversation}
+            onAcceptNewConversation={handleAcceptNewConversation}
+            onDismissNewConversation={dismissSuggestedNewConversation}
+            failedTurn={failedTurn}
+            onRetryTurn={retryFailedTurn}
           />
         </Animated.View>
 
