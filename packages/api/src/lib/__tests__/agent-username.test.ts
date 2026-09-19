@@ -14,14 +14,19 @@ import {
  * SUBSET — which is worse than encoding none, because the gaps are invisible.
  * It knew about empty slugs and leading digits. It did not know there is a
  * MINIMUM, so an agent called "Al" proposed `al` and collected a 400 from a
- * server it had never asked. And it invented a rule nobody has: leading digits
- * are fine, so "1984" was handed a random fallback for a name Oxy would have
- * taken.
+ * server it had never asked. And it refused every leading digit, so "1984a" was
+ * handed a random fallback for a name Oxy takes.
  *
  * Every expectation below is checked against `@oxy.so/contracts` itself rather
  * than against constants restated here. A test that hard-coded "3" would keep
  * passing the day the schema moved, which is the failure this whole change
  * exists to end.
+ *
+ * That cuts both ways, and it already has. This file used to assert that "1984"
+ * is offered as `1984`, which was true of contracts 1.2.0 and is not true of
+ * 1.3.0 — an ALL-digit username is now refused, while a leading digit is still
+ * fine. The row was a restated rule wearing a contract's clothes, so it is gone
+ * and the case below asks the schema instead.
  */
 
 describe('the username an agent is offered', () => {
@@ -36,13 +41,23 @@ describe('the username an agent is offered', () => {
   it.each([
     ['Community Maestro', 'community-maestro'],
     ['Nate.  Isern!', 'nate-isern'],
-    // The rule this file used to invent. Oxy takes it; nothing here may refuse it.
-    ['1984', '1984'],
+    // The rule this file used to invent. A leading digit is fine; nothing here
+    // may refuse it. (An ALL-digit name is a separate case, asserted below.)
+    ['1984a', '1984a'],
   ])('shapes %j into a name the schema accepts', (name, expected) => {
     const proposed = suggestAgentUsername(name);
 
     expect(proposed).toBe(expected);
     expect(isValidUsername(proposed ?? '')).toBe(true);
+  });
+
+  it('offers nothing for a name the schema refuses once shaped', () => {
+    // `suggestAgentUsername` ends in `isValidUsername(shaped) ? shaped : null`,
+    // so this asserts the deferral, not a rule of its own: the contract is asked
+    // first, and whatever it says about an all-digit name is what happens. Both
+    // lines move together the day Oxy changes its mind again.
+    expect(isValidUsername('1984')).toBe(false);
+    expect(suggestAgentUsername('1984')).toBeNull();
   });
 
   it('offers nothing for a name too short to be a username', () => {

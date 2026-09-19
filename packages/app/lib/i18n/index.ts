@@ -3,6 +3,21 @@ import { getLocales } from 'expo-localization';
 import en from './locales/en.json';
 import es from './locales/es.json';
 
+/**
+ * The exact locales this app ships a translation catalog for: one canonical
+ * `language-REGION` tag per dictionary (`./locales/en.json`,
+ * `./locales/es.json`). This is the single source of truth for that set —
+ * consumed both below (to seed the `i18n-js` instance's alias keys) and by
+ * `OxyProvider`'s `language` config in `app/_layout.tsx`, which resolves the
+ * signed-in account's (or device's) locale down to one of these via
+ * `coerceToSupportedLocale` (same-base-language match, e.g. an `es-MX`
+ * account reads this `es-ES` catalog).
+ */
+export const SUPPORTED_LOCALES = ['en-US', 'es-ES'] as const;
+
+/** Used when Oxy's resolved locale matches none of `SUPPORTED_LOCALES`. */
+export const DEFAULT_LOCALE = 'en-US';
+
 // Create i18n instance with translations
 // Using BCP 47 locale codes (en-US, es-ES) with fallback to language codes (en, es)
 const i18n = new I18n({
@@ -45,6 +60,6 @@ i18n.enableFallback = true;
 i18n.missingBehavior = 'guess';
 
 // Default locale
-i18n.defaultLocale = 'en-US';
+i18n.defaultLocale = DEFAULT_LOCALE;
 
 export default i18n;
