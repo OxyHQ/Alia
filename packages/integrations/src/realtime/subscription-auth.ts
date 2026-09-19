@@ -28,8 +28,26 @@
  * so there is one definition of "belongs to" rather than two that can drift.
  */
 
-/** The `X-Oxy-User-Id` shape the HTTP guard already enforces. */
-const OXY_USER_ID = /^[a-f0-9]{24}$/i;
+import { isLiveEntityId } from '@oxy.so/db';
+
+/**
+ * The `X-Oxy-User-Id` shape the HTTP guard already enforces.
+ *
+ * `isLiveEntityId` and not a regex here, and not a 24-hex regex in particular:
+ * ids are uuid v7 since the Postgres cutover, with pre-cutover rows keeping
+ * their 24-char ObjectId hex. This gate opened with `/^[a-f0-9]{24}$/i`, which
+ * refused every v7 id — i.e. every current account — and the failure mode is
+ * the worst kind for a realtime path: the upgrade is declined, the client sees
+ * a socket that will not connect, and nothing says the id was the reason.
+ * `packages/api/src/socket.ts` documents the identical bug in the agent-session
+ * subscribe path.
+ *
+ * Sharing the predicate with the HTTP guard is the point — the docblock above
+ * says this module re-derives ownership "so there is one definition of
+ * 'belongs to' rather than two that can drift", and an id-shape check copied
+ * into two files is exactly that drift.
+ */
+const isOxyUserId = isLiveEntityId;
 
 export type UpgradeVerdict =
   | { readonly ok: true; readonly userId: string }
@@ -82,7 +100,7 @@ export function authorizeUpgrade(
   }
 
   const userId = header(headers, 'x-oxy-user-id');
-  if (!userId || !OXY_USER_ID.test(userId)) {
+  if (!userId || !isOxyUserId(userId)) {
     return { ok: false, reason: 'user context required' };
   }
 

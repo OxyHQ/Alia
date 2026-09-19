@@ -29,8 +29,19 @@ Routes are mounted in `packages/api/src/index.ts:221` through `:257`.
 | `Authorization: Bearer <session-token>` | Everywhere. Issued by Oxy, verified by `packages/api/src/middleware/auth.ts` |
 | `Authorization: Bearer alia_sk_<key>` | `/v1/*` and `/codea/*` only. Inside the compatibility window — see [developer access](./developers-portal.md) |
 | Oxy Console application key (`oxy_sk_*`) | **Not yet.** It is not a JWT, so `oxy.auth()` in `@oxy.so/core` refuses it `401 INVALID_TOKEN_FORMAT`; the lane is built in the Oxy API first (OxyHQ/oxy#972), then `@oxy.so/core/server`, then adopted here — ADR 0010 § 2 |
-| Oxy service token | `/internal/trigger` via `oxyServiceAuth`; `/alia/chat` and `/v1/*` through `authenticateTokenOrApiKey` only when `X-Oxy-User-Id` names an exact grant-verified delegation |
+| Oxy service token | `/internal/trigger` via `oxyServiceAuth`; `/alia/chat` and `/v1/*` through `authenticateTokenOrApiKey` only when `X-Oxy-User-Id` names an exact grant-verified delegation; on the two chat surfaces also with an `X-Oxy-Requester-Assertion` that Oxy minted for the presenting product and consumes live (`authenticateRequesterAssertion`, OxyHQServices ADR 0025) — see [agents](./agents.md#product-bound-agents) |
 | `x-channel-bot-secret` + `x-oxy-user-id` | Registered channel bots. Validated by `authenticateChannelBotSecret` (`packages/api/src/middleware/auth.ts`), which `authenticateTokenOrApiKey` dispatches to — so it works on `/alia/chat` as well as `/v1/*`. `routes/v1.ts:35` holds a second, pre-auth copy that matches against `listChannels()` rather than `getConfiguredChannels()` |
+
+A delegated service request (`X-Oxy-User-Id`) is verified by Alia's OWN
+credentialed Oxy client (`lib/oxy-service-client.ts`), not by the credential-free
+`oxyClient` that verifies inbound user tokens: the SDK checks the acting-as grant
+through a service-to-service endpoint and must present the verifier's own service
+token to reach it. With no credential it threw, cached a negative answer and
+refused every delegated user with `403 SERVICE_ACTING_AS_UNAUTHORIZED` — a valid
+grant included. A deployment that somehow holds no credential now answers
+`503 SERVICE_DELEGATION_UNAVAILABLE` instead of blaming the caller's grant;
+`OXY_SERVICE_API_KEY`, `OXY_SERVICE_API_SECRET` and `OXY_API_URL` are boot
+requirements, so a serving process always has one.
 
 `POST /alia/chat` and `/v1/*` are both mounted with `authenticateTokenOrApiKey`
 (`packages/api/src/routes/chat.ts`, `routes/v1.ts:59`) plus the same per-key rate limit

@@ -1,0 +1,245 @@
+name: Bootstrap native product agents
+
+# Apply Oxy's Sindi/Clarity manifest to Alia's `agents` table, on the LIVE image.
+#
+# The one-shot runs the task definition the `alia` service is currently serving,
+# with a command override. Nothing here rolls the service, registers a task
+# definition or touches SSM: the only thing that changes is two rows, keyed on
+# exact primary keys the image carries.
+#
+# `dry-run` executes the plan and rolls it back, printing the exact diff and a
+# plan hash. `apply` takes that hash and refuses if the observed plan is no
+# longer the one that was read.
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Review or execute the exact native-agent plan
+        required: true
+        default: dry-run
+        type: choice
+        options:
+          - dry-run
+          - apply
+      expected_plan_sha256:
+        description: Exact hash emitted by the matching dry run (required for apply)
+        required: false
+        type: string
+      reason:
+        description: Auditable change/ticket reason (required for apply)
+        required: false
+        type: string
+
+concurrency:
+  # Serialized against itself. The script also takes a transaction-scoped
+  # advisory lock, which is what actually serializes it against a deploy's
+  # one-shots; this group only stops two dispatches racing each other's review.
+  # Never cancel in progress: an interrupted run leaves an unwatched ECS task.
+  group: native-product-agents-alia-production
+  cancel-in-progress: false
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: us-west-2
+  CLUSTER: oxy-cluster
+  SERVICE: alia
+  CONTAINER: alia
+  LOG_GROUP: /oxy/ecs
+  LOG_PREFIX: alia
+  # Restated from `packages/api/src/config/native-product-agents.ts` so a
+  # workflow retargeted on its own is refused by the image it dispatches. The
+  # script compares each of these byte for byte and exits non-zero on the first
+  # disagreement — see `assertWorkflowIdentityBindings`.
+  #
+  # The IDs are restated one by one because they are what this job targets and
+  # a reviewer of this file alone has to be able to see them. The manifest also
+  # publishes each agent's `capabilityGrants`, which are NOT restated here: they
+  # are not a target, and EXPECTED_MANIFEST_SHA256 below is over the whole
+  # manifest, so a grant that changed without this workflow changing is refused
+  # by the same binding. Clarity's list is empty, and an env var restating an
+  # empty list would make the drift gate's "stated twice" check vacuous.
+  EXPECTED_HOMIIO_AGENT_ID: 01a0646a-078f-7514-9800-9f43ceed7df8
+  EXPECTED_HOMIIO_BOT_ID: 01a0646a-078f-7974-9645-a5e8be237f47
+  EXPECTED_HOMIIO_APPLICATION_ID: 6a2f851751b784a86fd0e922
+  EXPECTED_HOMIIO_PROJECT_ID: 6a50444ce8026582b949089d
+  EXPECTED_CLARITY_AGENT_ID: 01a0646a-078f-7642-95ef-439952f4f3f9
+  EXPECTED_CLARITY_BOT_ID: 01a0646a-078f-7120-a993-a03c180c81b0
+  EXPECTED_CLARITY_APPLICATION_ID: 01a0648b-8d73-70ad-8e67-1c07ddc5eb6e
+  EXPECTED_CLARITY_PROJECT_ID: 01a0646a-078f-7f53-848d-a0f82d9f7fa6
+  EXPECTED_MANIFEST_SHA256: a7c1c787c24159ce70e1664ce60749c6a9d3b06a23ff461559b5c97ca2104547
+
+jobs:
+  bootstrap:
+    # workflow_dispatch accepts an arbitrary ref; only the protected branch may
+    # assume the deploy role.
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Configure AWS credentials (OIDC, no stored keys)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::237343248947:role/oxy-github-deploy
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Run the exact native product-agent plan on the live image
+        env:
+          REQUESTED_MODE: ${{ inputs.mode }}
+          EXPECTED_PLAN_SHA256_INPUT: ${{ inputs.expected_plan_sha256 }}
+          BOOTSTRAP_REASON_INPUT: ${{ inputs.reason }}
+          BOOTSTRAP_ACTOR_INPUT: ${{ github.actor }}
+        run: |
+          set -euo pipefail
+
+          case "$REQUESTED_MODE" in
+            dry-run)
+              apply=0
+              expected_plan=''
+              bootstrap_reason='dry-run only'
+              ;;
+            apply)
+              apply=1
+              expected_plan="$EXPECTED_PLAN_SHA256_INPUT"
+              bootstrap_reason="$BOOTSTRAP_REASON_INPUT"
+              if [[ ! "$expected_plan" =~ ^[a-f0-9]{64}$ ]]; then
+                echo '::error::apply requires the exact lowercase SHA-256 from its matching dry run'
+                exit 64
+              fi
+              if [ -z "$bootstrap_reason" ] \
+                 || [ "$bootstrap_reason" != "${bootstrap_reason# }" ] \
+                 || [ "$bootstrap_reason" != "${bootstrap_reason% }" ]; then
+                echo '::error::apply requires a non-empty reason without edge whitespace'
+                exit 64
+              fi
+              ;;
+            *)
+              echo '::error::unregistered native product-agent mode'
+              exit 64
+              ;;
+          esac
+
+          # Immutable PK bindings, repeated so a review of this file alone
+          # cannot turn it into a name- or order-selected job. The image
+          # re-checks every one of them against its own compiled manifest.
+          [ "$EXPECTED_HOMIIO_AGENT_ID" = '01a0646a-078f-7514-9800-9f43ceed7df8' ]
+          [ "$EXPECTED_HOMIIO_BOT_ID" = '01a0646a-078f-7974-9645-a5e8be237f47' ]
+          [ "$EXPECTED_HOMIIO_APPLICATION_ID" = '6a2f851751b784a86fd0e922' ]
+          [ "$EXPECTED_HOMIIO_PROJECT_ID" = '6a50444ce8026582b949089d' ]
+          [ "$EXPECTED_CLARITY_AGENT_ID" = '01a0646a-078f-7642-95ef-439952f4f3f9' ]
+          [ "$EXPECTED_CLARITY_BOT_ID" = '01a0646a-078f-7120-a993-a03c180c81b0' ]
+          [ "$EXPECTED_CLARITY_APPLICATION_ID" = '01a0648b-8d73-70ad-8e67-1c07ddc5eb6e' ]
+          [ "$EXPECTED_CLARITY_PROJECT_ID" = '01a0646a-078f-7f53-848d-a0f82d9f7fa6' ]
+
+          service_json=$(aws ecs describe-services \
+            --cluster "$CLUSTER" --services "$SERVICE" \
+            --query 'services[0]' --output json)
+          if [ "$(jq -r '.status // "NONE"' <<<"$service_json")" != ACTIVE ]; then
+            echo '::error::the live Alia service is not active'
+            exit 1
+          fi
+          # Run the image production is SERVING, not whatever main builds to.
+          # A bootstrap against a different manifest than the one answering
+          # turns is the drift this whole mechanism exists to prevent.
+          task_definition=$(jq -er '.taskDefinition' <<<"$service_json")
+          network=$(jq -ec '.networkConfiguration' <<<"$service_json")
+          echo "live task definition: $task_definition"
+
+          overrides=$(jq -nc \
+            --arg container "$CONTAINER" \
+            --arg apply "$apply" \
+            --arg actor "$BOOTSTRAP_ACTOR_INPUT" \
+            --arg reason "$bootstrap_reason" \
+            --arg expected "$expected_plan" '
+              {containerOverrides:[{
+                name:$container,
+                command:["node","packages/api/dist/scripts/bootstrap-native-product-agents.js","--target-database=alia"],
+                environment:[
+                  {name:"APPLY",value:$apply},
+                  {name:"BOOTSTRAP_ACTOR",value:$actor},
+                  {name:"BOOTSTRAP_REASON",value:$reason},
+                  {name:"EXPECTED_PLAN_SHA256",value:$expected},
+                  {name:"EXPECTED_HOMIIO_AGENT_ID",value:"01a0646a-078f-7514-9800-9f43ceed7df8"},
+                  {name:"EXPECTED_HOMIIO_BOT_ID",value:"01a0646a-078f-7974-9645-a5e8be237f47"},
+                  {name:"EXPECTED_HOMIIO_APPLICATION_ID",value:"6a2f851751b784a86fd0e922"},
+                  {name:"EXPECTED_HOMIIO_PROJECT_ID",value:"6a50444ce8026582b949089d"},
+                  {name:"EXPECTED_CLARITY_AGENT_ID",value:"01a0646a-078f-7642-95ef-439952f4f3f9"},
+                  {name:"EXPECTED_CLARITY_BOT_ID",value:"01a0646a-078f-7120-a993-a03c180c81b0"},
+                  {name:"EXPECTED_CLARITY_APPLICATION_ID",value:"01a0648b-8d73-70ad-8e67-1c07ddc5eb6e"},
+                  {name:"EXPECTED_CLARITY_PROJECT_ID",value:"01a0646a-078f-7f53-848d-a0f82d9f7fa6"},
+                  {name:"EXPECTED_MANIFEST_SHA256",value:"a7c1c787c24159ce70e1664ce60749c6a9d3b06a23ff461559b5c97ca2104547"}
+                ]
+              }]}
+            ')
+
+          run_json=$(aws ecs run-task \
+            --cluster "$CLUSTER" \
+            --task-definition "$task_definition" \
+            --launch-type FARGATE \
+            --network-configuration "$network" \
+            --overrides "$overrides" \
+            --started-by "gh-alia-native-agents-${GITHUB_RUN_ID}")
+          task_arn=$(jq -er '.tasks[0].taskArn' <<<"$run_json")
+          echo "$REQUESTED_MODE task: $task_arn"
+          aws ecs wait tasks-stopped --cluster "$CLUSTER" --tasks "$task_arn"
+          exit_code=$(aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$task_arn" \
+            --query "tasks[0].containers[?name=='$CONTAINER'].exitCode | [0]" --output text)
+
+          task_id=${task_arn##*/}
+          result_line=''
+          for _attempt in $(seq 1 10); do
+            result_line=$(aws logs get-log-events \
+              --log-group-name "$LOG_GROUP" \
+              --log-stream-name "$LOG_PREFIX/$CONTAINER/$task_id" \
+              --start-from-head --output json 2>/dev/null |
+              jq -r '.events[].message' |
+              grep '^ALIA_NATIVE_PRODUCT_AGENTS_RESULT=' | tail -1 || true)
+            [ -n "$result_line" ] && break
+            sleep 3
+          done
+
+          if [ -z "$result_line" ]; then
+            echo "::error::the $REQUESTED_MODE task emitted no plan result (exit $exit_code)"
+            exit 1
+          fi
+          result_json=${result_line#ALIA_NATIVE_PRODUCT_AGENTS_RESULT=}
+          jq . <<<"$result_json"
+
+          if [ "$exit_code" != 0 ]; then
+            echo "::error::the $REQUESTED_MODE task exited $exit_code: $(jq -r '.error // "no reason reported"' <<<"$result_json")"
+            exit 1
+          fi
+
+          jq -e \
+            --arg mode "$([ "$apply" = 1 ] && printf apply || printf dry-run)" '
+              .mode == $mode and (.planSha256 | test("^[a-f0-9]{64}$"))
+            ' <<<"$result_json" >/dev/null || {
+              echo '::error::the task did not report the mode it was asked for'
+              exit 1
+            }
+
+          observed_plan=$(jq -r '.planSha256' <<<"$result_json")
+          if [ "$apply" = 1 ] && [ "$observed_plan" != "$expected_plan" ]; then
+            echo '::error::the applied plan is not the reviewed one'
+            exit 1
+          fi
+          {
+            echo "### Native product agents — $REQUESTED_MODE"
+            echo
+            echo "plan sha256: \`$observed_plan\`"
+            echo
+            echo '```json'
+            # The stored grants as well as the diff: `unchanged` is the same
+            # word whether the row carries the published capabilities or none
+            # at all, so the values the table HOLDS are printed beside it.
+            jq '.counts, .storedCapabilityGrants, .plan.operations' <<<"$result_json"
+            echo '```'
+          } >>"$GITHUB_STEP_SUMMARY"
