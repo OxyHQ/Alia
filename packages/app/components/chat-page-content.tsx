@@ -41,17 +41,22 @@ import { AgentTerminal } from "@/components/agent-terminal";
 import { Terminal as TerminalIcon, ChevronDown, ChevronUp } from "lucide-react-native";
 import { useMcpServers } from "@/lib/hooks/use-mcp-servers";
 import { useInstalledSkills } from "@/lib/hooks/use-skills";
+import {
+  buildTurnSelection,
+  toggleConnectorId,
+  toggleSkillName,
+} from "@/lib/chat/turn-selection";
+import { useCapabilityModes } from "@/lib/chat/use-capability-modes";
 import type { SendOptions, FailedTurn } from "@/lib/hooks/use-streaming-chat";
 import { ComposerGlyph } from "@/components/ui/prompt-input/composer-glyph";
 
 /**
- * The capabilities a person can switch on, and every one of them reaches the
- * request.
+ * Where the composer's capabilities live now.
  *
  * ## Three were removed because they reached nothing
  *
- * `toggleMode` writes to a local `Set` and, for three of the six, to a store the
- * request body reads. The other three wrote to the `Set` and stopped there:
+ * The menu once offered six. Three of them wrote to a local `Set` and stopped
+ * there:
  *
  *  - **Web search** — no `webSearch` field existed on the request and no
  *    backend read one. It was meaningless in BOTH directions at once: it could
@@ -67,23 +72,15 @@ import { ComposerGlyph } from "@/components/ui/prompt-input/composer-glyph";
  *    decision recorded in the PR rather than something a menu should keep
  *    pretending about.
  *
- * What is left is the three that were already wired: ghost (client-side, it
- * stops the turn creating a conversation), agent (`agentMode`, which adds the
- * delegation tools) and deep research (`deepResearch`, which diverts the turn
- * into the real multi-step research engine).
+ * ## And the local `Set` is gone too
+ *
+ * The three that remained — ghost, agent and deep research — were owned twice:
+ * by that `Set`, which drew the checkmarks, and by the global store, which is
+ * what `use-streaming-chat.ts` reads at send time. A remount emptied the `Set`
+ * and left the store alone, so the two disagreed and the payload won silently.
+ * `useCapabilityModes` is the single owner now; see its file for the whole of
+ * that story. This component only renders what it reports.
  */
-type Mode = 'agent' | 'ghost' | 'deepResearch';
-
-const MODE_CONFIG: Record<Mode, {
-  label: string;
-  onToast: string;
-  offToast: string;
-  featureId?: string;
-}> = {
-  ghost:        { label: 'modes.ghostLabel',        onToast: 'modes.ghostOn',        offToast: 'modes.ghostOff' },
-  agent:        { label: 'modes.agentLabel',        onToast: 'modes.agentOn',        offToast: 'modes.agentOff', featureId: 'agent-mode' },
-  deepResearch: { label: 'modes.deepResearchLabel', onToast: 'modes.deepResearchOn', offToast: 'modes.deepResearchOff', featureId: 'deep-research' },
-};
 
 type VoiceState = ReturnType<typeof useVoiceMode>;
 
@@ -214,16 +211,7 @@ export const ChatPageContent = ({
   const router = useRouter();
   const { t } = useTranslation();
   const { installed } = useMcpServers();
-  const runnableConnectors = useMemo(
-    () => installed.filter((server) => (
-      server.enabled
-      && server.status === 'running'
-      && server.runtime === 'server'
-      && server.tools.length > 0
-    )),
-    [installed],
-  );
-  const [activeModes, setActiveModes] = useState<Set<Mode>>(new Set());
+  const { active: modeActive, toggle: toggleMode } = useCapabilityModes();
   const [selectedConnectorId, setSelectedConnectorId] = useState<string | null>(null);
   /**
    * Skills chosen for the NEXT message, by name.
@@ -235,14 +223,27 @@ export const ChatPageContent = ({
    */
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
   const { data: installedSkills = [] } = useInstalledSkills();
-  const availableSkills = useMemo(
-    () => installedSkills.filter((skill) => skill.enabled),
-    [installedSkills],
+  /**
+   * What this turn may be sent with, as two independent lists.
+   *
+   * Built by `lib/chat/turn-selection.ts` rather than derived in the menu's
+   * markup, which is where the two lists used to be tangled: the skills block
+   * was nested inside the connectors' `&&`, so an account with skills and no
+   * running MCP server was shown none of them.
+   */
+  const turnSelection = useMemo(
+    () => buildTurnSelection({
+      installedSkills,
+      installedConnectors: installed,
+      selectedSkillNames: selectedSkills,
+      selectedConnectorId,
+    }),
+    [installedSkills, installed, selectedSkills, selectedConnectorId],
   );
   /**
    * Whether Alia may reach the open web on this turn.
    *
-   * On the model store rather than in `activeModes`, because it is one of the
+   * On the model store rather than in the global store beside the three, because it is one of the
    * composer's three persistent axes and the request reads it at send time —
    * see `lib/stores/model-store.ts`. The effort axis lives with the model rows
    * in the composer's combined picker, not in this capability menu.
@@ -309,35 +310,6 @@ export const ChatPageContent = ({
   useEffect(() => {
     useStore.getState().setGhostMode(false);
   }, []);
-
-  const toggleMode = useCallback((mode: Mode) => {
-    const config = MODE_CONFIG[mode];
-    if (config.featureId && !entitlements?.features[config.featureId]) {
-      toast.info(t('subscribe.featureRequiresPlan', { feature: t(config.label) }));
-      router.push('/(biglayout)/subscribe');
-      return;
-    }
-    setActiveModes(prev => {
-      const next = new Set(prev);
-      if (next.has(mode)) {
-        next.delete(mode);
-        toast.info(t(config.offToast));
-      } else {
-        next.add(mode);
-        toast.info(t(config.onToast));
-      }
-      if (mode === 'ghost') {
-        useStore.getState().setGhostMode(next.has('ghost'));
-      }
-      if (mode === 'agent') {
-        useStore.getState().setAgentMode(next.has('agent'));
-      }
-      if (mode === 'deepResearch') {
-        useStore.getState().setDeepResearchMode(next.has('deepResearch'));
-      }
-      return next;
-    });
-  }, [entitlements, t, router]);
 
   // Stable identity so the memoized ChatHeader isn't re-rendered per
   // streaming flush by a fresh inline closure.
@@ -493,7 +465,7 @@ export const ChatPageContent = ({
       </DropdownMenu.CheckboxItem>
       <DropdownMenu.CheckboxItem
         key="deep-research"
-        value={activeModes.has('deepResearch') ? 'on' : 'off'}
+        value={modeActive.deepResearch ? 'on' : 'off'}
         onValueChange={() => toggleMode('deepResearch')}
       >
         <DropdownMenu.ItemIcon ios={{ name: "magnifyingglass" }}>
@@ -504,7 +476,7 @@ export const ChatPageContent = ({
       {isMainScreen && (
         <DropdownMenu.CheckboxItem
           key="ghost"
-          value={activeModes.has('ghost') ? 'on' : 'off'}
+          value={modeActive.ghost ? 'on' : 'off'}
           onValueChange={() => toggleMode('ghost')}
         >
           <DropdownMenu.ItemIcon ios={{ name: "eye.slash" }}>
@@ -515,7 +487,7 @@ export const ChatPageContent = ({
       )}
       <DropdownMenu.CheckboxItem
         key="agent"
-        value={activeModes.has('agent') ? 'on' : 'off'}
+        value={modeActive.agent ? 'on' : 'off'}
         onValueChange={() => toggleMode('agent')}
       >
         <DropdownMenu.ItemIcon ios={{ name: "cpu" }}>
@@ -529,46 +501,43 @@ export const ChatPageContent = ({
         </DropdownMenu.ItemIcon>
         <DropdownMenu.ItemTitle>Canvas</DropdownMenu.ItemTitle>
       </DropdownMenu.Item>
-      {runnableConnectors.length > 0 && (
+      {/* Skills and connectors: two lists, each present on its own terms. The
+          skills used to be nested inside the connectors' condition, which hid
+          them from every account without a running MCP server. */}
+      {turnSelection.skills.length > 0 && (
         <>
-          {availableSkills.length > 0 && (
-            <>
-              <DropdownMenu.Separator />
-              <DropdownMenu.Label className="px-2.5 font-normal">{t('skills.composerLabel')}</DropdownMenu.Label>
-              {availableSkills.map((skill) => (
-                <DropdownMenu.CheckboxItem
-                  key={skill._id}
-                  value={selectedSkills.includes(skill.name) ? 'on' : 'off'}
-                  onValueChange={() => setSelectedSkills((current) => (
-                    current.includes(skill.name)
-                      ? current.filter((name) => name !== skill.name)
-                      : [...current, skill.name]
-                  ))}
-                >
-                  <DropdownMenu.ItemIcon ios={{ name: "book" }}>
-                    <BookOpen size={16} color={colors.foreground} />
-                  </DropdownMenu.ItemIcon>
-                  <DropdownMenu.ItemTitle>{skill.displayName}</DropdownMenu.ItemTitle>
-                  <DropdownMenu.ItemSubtitle>{skill.description}</DropdownMenu.ItemSubtitle>
-                </DropdownMenu.CheckboxItem>
-              ))}
-            </>
-          )}
+          <DropdownMenu.Separator />
+          <DropdownMenu.Label className="px-2.5 font-normal">{t('skills.composerLabel')}</DropdownMenu.Label>
+          {turnSelection.skills.map((skill) => (
+            <DropdownMenu.CheckboxItem
+              key={skill.id}
+              value={skill.selected ? 'on' : 'off'}
+              onValueChange={() => setSelectedSkills((current) => toggleSkillName(current, skill.name))}
+            >
+              <DropdownMenu.ItemIcon ios={{ name: "book" }}>
+                <BookOpen size={16} color={colors.foreground} />
+              </DropdownMenu.ItemIcon>
+              <DropdownMenu.ItemTitle>{skill.label}</DropdownMenu.ItemTitle>
+              <DropdownMenu.ItemSubtitle>{skill.description}</DropdownMenu.ItemSubtitle>
+            </DropdownMenu.CheckboxItem>
+          ))}
+        </>
+      )}
+      {turnSelection.connectors.length > 0 && (
+        <>
           <DropdownMenu.Separator />
           <DropdownMenu.Label className="px-2.5 font-normal">Apps</DropdownMenu.Label>
-          {runnableConnectors.map((server) => (
+          {turnSelection.connectors.map((connector) => (
             <DropdownMenu.CheckboxItem
-              key={server._id}
-              value={selectedConnectorId === server._id ? 'on' : 'off'}
-              onValueChange={() => setSelectedConnectorId((current) => (
-                current === server._id ? null : server._id
-              ))}
+              key={connector.id}
+              value={connector.selected ? 'on' : 'off'}
+              onValueChange={() => setSelectedConnectorId((current) => toggleConnectorId(current, connector.id))}
             >
               <DropdownMenu.ItemIcon ios={{ name: "app" }}>
-                <ConnectorMenuIcon icon={server.icon} color={colors.foreground} />
+                <ConnectorMenuIcon icon={connector.icon} color={colors.foreground} />
               </DropdownMenu.ItemIcon>
-              <DropdownMenu.ItemTitle>{server.displayName}</DropdownMenu.ItemTitle>
-              <DropdownMenu.ItemSubtitle>{`${server.tools.length} tools`}</DropdownMenu.ItemSubtitle>
+              <DropdownMenu.ItemTitle>{connector.label}</DropdownMenu.ItemTitle>
+              <DropdownMenu.ItemSubtitle>{`${connector.toolCount} tools`}</DropdownMenu.ItemSubtitle>
             </DropdownMenu.CheckboxItem>
           ))}
         </>
@@ -624,7 +593,7 @@ export const ChatPageContent = ({
         >
           <ChatHeader
             onGhostModePress={handleGhostModeToggle}
-            ghostModeActive={activeModes.has('ghost')}
+            ghostModeActive={modeActive.ghost}
             onClear={onClear}
             isConversation={messages.length > 0}
             agentName={agentName}
@@ -757,7 +726,7 @@ export const ChatPageContent = ({
       )}
 
       {/* Terminal toggle button — shows when agent mode is active */}
-      {agentId && !showTerminal && activeModes.has('agent') && (
+      {agentId && !showTerminal && modeActive.agent && (
         <Pressable
           onPress={() => setShowTerminal(true)}
           className="absolute bottom-32 right-4 z-20 bg-card rounded-lg px-3 py-2 flex-row items-center gap-2 border border-border shadow-lg"
