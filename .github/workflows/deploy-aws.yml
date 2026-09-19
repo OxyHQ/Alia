@@ -411,18 +411,35 @@ jobs:
           # the environment carries no pair, instead of passing an EMPTY one that
           # the SDK signs with. That landed first, deliberately.
           #
-          # `OXY_SERVICE_API_KEY` / `_SECRET` join them, and this list is the ONLY
-          # thing that actually retires them. DELETING THE LINES THAT SUPPLIED
-          # THEM REMOVES NOTHING: every release renders from the task definition
-          # the service is RUNNING, so a secret that once appeared in an override
-          # stays on every future revision, inherited and never re-declared. The
-          # two halves are a pair — stop supplying them AND take them out, or the
-          # migration silently does not happen.
+          # `OXY_SERVICE_API_KEY` / `_SECRET` are DELIBERATELY NOT in this list,
+          # and adding them back would quietly cost Alia a capability.
           #
-          # The API attests its ECS task role for an Oxy service token now (oxy
-          # ADR 0026). The SSM parameters are untouched and still exist; this
-          # removes the task definition's REFERENCE to them.
-          TASK_SECRET_REMOVALS_JSON: '["AWS_ACCESS_KEY_ID","AWS_SECRET_ACCESS_KEY","KAANA_EDGE_SIGNING_PRIVATE_KEY","ALIA_RELAY_CREDENTIAL_KEY","ALIA_RELAY_CREDENTIAL_SECRET","ALIA_KAANA_CREDENTIAL_KEY","ALIA_KAANA_CREDENTIAL_SECRET","OXY_SERVICE_API_KEY","OXY_SERVICE_API_SECRET"]'
+          # The API can attest its ECS task role and does mint a real Oxy service
+          # token that way (oxy ADR 0026). What an attested token does not carry
+          # is the same AUTHORITY: `workloadIdentity.service.ts` filters every
+          # privileged scope out on purpose, while a credential that NAMED one
+          # keeps it. Minting both ways against production, Alia's key pair
+          # yields `capabilities:read`, `inference:invoke`, `user:read`; the
+          # attestation yields everything except `capabilities:read` — which is
+          # what `GET /capabilities/catalogs` and `POST /capabilities/capability-map`
+          # require, and therefore how `lib/tools/oxy-services.ts` builds Alia's
+          # entire tool catalogue.
+          #
+          # The same mistake already reached production elsewhere: Mention's pair
+          # came off at task revision 384 and its federation worker failed every
+          # ~6 minutes with `Missing required scope: federation:write` until
+          # revision 389 put it back. Alia is spared only because its deploys
+          # have been failing; the moment they pass, this list is what decides.
+          #
+          # Note the asymmetry that makes the ABSENCE load-bearing: every release
+          # renders from the task definition the service is RUNNING, so the pair
+          # Alia runs today is inherited and stays inherited. Nothing re-declares
+          # it and nothing needs to.
+          #
+          # This entry comes back when the BINDING can name privileged scopes the
+          # way a credential does (oxy, in flight) and Alia's role has been
+          # re-bound with `capabilities:read`.
+          TASK_SECRET_REMOVALS_JSON: '["AWS_ACCESS_KEY_ID","AWS_SECRET_ACCESS_KEY","KAANA_EDGE_SIGNING_PRIVATE_KEY","ALIA_RELAY_CREDENTIAL_KEY","ALIA_RELAY_CREDENTIAL_SECRET","ALIA_KAANA_CREDENTIAL_KEY","ALIA_KAANA_CREDENTIAL_SECRET"]'
           # Remove every legacy plain Relay/direct-Kaana binding inherited from
           # the live task definition. Keeping a removal here is harmless after
           # the first clean revision and prevents a rollback descendant from

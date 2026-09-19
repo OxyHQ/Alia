@@ -120,21 +120,22 @@ describe('deploy-aws.yml migration wiring', () => {
     }
   });
 
-  /**
-   * The API attests its task role, so the credential must LEAVE the running
-   * revision — and only the removal list can make that happen.
+   /**
+   * The API attests its task role — and still keeps the credential, because the
+   * two are not interchangeable.
    *
-   * These two assertions are a PAIR and neither is sufficient. Stopping the
-   * injection alone leaves the pair inherited on every future revision, because
-   * a release renders from the task definition the service is RUNNING and a
-   * secret nothing re-declares is never taken away. Removing alone while the
-   * step still injected would be a list arguing with an override, which the
-   * script refuses outright.
+   * The deploy stops INJECTING the pair: nothing here reads it out of SSM, and
+   * that half is permanent. What the deploy must not do is REMOVE it, which is
+   * a separate lever and the only one that takes a secret off a revision (a
+   * release renders from the task definition the service is RUNNING, so the
+   * inherited pair survives on its own). Attesting mints a token without
+   * `capabilities:read`, and Alia's tool catalogue is built from the two
+   * capability endpoints that require it.
    *
    * The SSM parameters are out of scope here and untouched; this is about the
    * task definition's reference to them.
    */
-  it('injects no Oxy service credential and actively removes the inherited one', () => {
+  it('injects no Oxy service credential and keeps the inherited one until the binding carries its scopes', () => {
     const from = workflow.indexOf('      - name: Stage Oxy inference configuration');
     const to = workflow.indexOf('      # RUN_MIGRATIONS', from);
     const stage = workflow.slice(from, to);
@@ -149,8 +150,21 @@ describe('deploy-aws.yml migration wiring', () => {
       'arn:aws:ssm:$AWS_REGION:237343248947:parameter/oxy/$APP/OXY_SERVICE_API_SECRET',
     );
     expect(workflow).toContain(
-      'TASK_SECRET_REMOVALS_JSON: \'["AWS_ACCESS_KEY_ID","AWS_SECRET_ACCESS_KEY","KAANA_EDGE_SIGNING_PRIVATE_KEY","ALIA_RELAY_CREDENTIAL_KEY","ALIA_RELAY_CREDENTIAL_SECRET","ALIA_KAANA_CREDENTIAL_KEY","ALIA_KAANA_CREDENTIAL_SECRET","OXY_SERVICE_API_KEY","OXY_SERVICE_API_SECRET"]\'',
+      'TASK_SECRET_REMOVALS_JSON: \'["AWS_ACCESS_KEY_ID","AWS_SECRET_ACCESS_KEY","KAANA_EDGE_SIGNING_PRIVATE_KEY","ALIA_RELAY_CREDENTIAL_KEY","ALIA_RELAY_CREDENTIAL_SECRET","ALIA_KAANA_CREDENTIAL_KEY","ALIA_KAANA_CREDENTIAL_SECRET"]\'',
     );
+    /**
+     * And the pair is NOT in it, which is the assertion that matters now.
+     *
+     * Attesting the task role mints a token without `capabilities:read` — the
+     * workload mint drops privileged scopes by design — and that scope is how
+     * Alia reads the capability catalogue it builds its tools from. The same
+     * removal took Mention's federation writes down for nine hours this
+     * morning. The entry returns when the binding can name the scope.
+     */
+    const removals = workflow.match(/TASK_SECRET_REMOVALS_JSON: '(\[[^\]]*\])'/)?.[1];
+    expect(removals).toBeDefined();
+    expect(JSON.parse(removals!)).not.toContain('OXY_SERVICE_API_KEY');
+    expect(JSON.parse(removals!)).not.toContain('OXY_SERVICE_API_SECRET');
     expect(workflow).not.toContain('secrets.OXY_SERVICE_API_KEY');
     expect(workflow).not.toContain('secrets.OXY_SERVICE_API_SECRET');
     expect(workflow).not.toContain('sync_secret OXY_SERVICE_API_');
@@ -425,12 +439,12 @@ describe('the deploy removes retired credentials and runtime configuration', () 
       'AWS_ACCESS_KEY_ID',
       'AWS_SECRET_ACCESS_KEY',
       'KAANA_EDGE_SIGNING_PRIVATE_KEY',
-      // Alia's own Oxy credential, retired in favour of attesting the task role
-      // (oxy ADR 0026). It is named here and nowhere else in this workflow: the
-      // step that used to inject it stopped, and a release renders from the
-      // RUNNING revision, so this list is the only thing that takes it off.
-      'OXY_SERVICE_API_KEY',
-      'OXY_SERVICE_API_SECRET',
+      // Alia's own Oxy credential is deliberately NOT here. Attesting the task
+      // role (oxy ADR 0026) proves what Alia IS, and that is all it proves: the
+      // workload mint drops every privileged scope, so the attested token has no
+      // `capabilities:read` — the scope behind the two capability endpoints that
+      // Alia's whole tool catalogue is built from. The name returns to this list
+      // when the role's BINDING carries that scope.
     ]);
   });
 
