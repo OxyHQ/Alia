@@ -47,6 +47,7 @@ import {
   UNGRANTED_TOOLS,
   type FixedCapabilityFamily,
 } from '../../domain/capability-grants.js';
+import { NATIVE_PRODUCT_AGENT_MANIFEST } from '../../config/native-product-agents.js';
 
 /**
  * Every bulk-source call, so "was it even asked" is assertable.
@@ -589,5 +590,95 @@ describe('the `agent` family: the owner\'s own agents, and what a bare grant mea
     // Not merely absent from the set: the source was never even asked, so a
     // nested turn costs no query either.
     expect(asked.agent).toEqual([]);
+  });
+});
+
+/**
+ * Sindi's PUBLISHED grant, measured against the real assembler.
+ *
+ * The manifest says three families; `domain/capability-grants.ts` says which
+ * tools each family contributes; the bootstrap writes the list into the row.
+ * Every one of those is a statement ABOUT the tool set, and none of them is the
+ * tool set. This block is the only place the published bytes are turned into
+ * the names a Homiio turn would actually see — the same positive control the
+ * per-family cases above exist for, applied to the one grant that is live in
+ * production.
+ *
+ * It reads the manifest rather than restating `['web','artifacts','memory']`,
+ * so a manifest edit that adds a family fails HERE as well as in the two hash
+ * gates, naming the tools it would hand over.
+ */
+describe("the native product agent's published grant", () => {
+  /** By PRODUCT, so a manifest that lost an entry fails here rather than skipping. */
+  function published(product: 'homiio' | 'clarity'): string[] {
+    const agent = NATIVE_PRODUCT_AGENT_MANIFEST.agents.find((entry) => entry.product === product);
+    if (agent === undefined) throw new Error(`the manifest publishes no ${product} agent`);
+    return [...agent.capabilityGrants];
+  }
+  const SINDI = published('homiio');
+  const CLARITY = published('clarity');
+
+  it('resolves to exactly the web, artifacts and memory tools, and nothing else', async () => {
+    const names = await namesFor([...SINDI]);
+
+    const expected = [
+      ...UNGRANTED_TOOLS,
+      ...FIXED_FAMILY_TOOLS.web,
+      ...FIXED_FAMILY_TOOLS.artifacts,
+      ...FIXED_FAMILY_TOOLS.memory,
+    ].sort();
+    // An EQUALITY, not a series of containments: "reaches these" and "reaches
+    // only these" are different claims and only the second one is the grant.
+    expect(names).toEqual(expected);
+  });
+
+  /**
+   * The exclusions named one family at a time.
+   *
+   * The equality above already fails if any of these appears, but it fails as
+   * one unreadable array diff. Naming the families says WHICH capability
+   * leaked, and these are the six that let an agent act in the world rather
+   * than read and answer.
+   */
+  it.each(['shell', 'browser', 'files', 'messaging', 'automation', 'delegation'] as const)(
+    'cannot reach the %s family',
+    async (family) => {
+      const names = await namesFor([...SINDI]);
+      for (const tool of FIXED_FAMILY_TOOLS[family]) expect(names).not.toContain(tool);
+    },
+  );
+
+  it('reaches no connector, MCP server, Oxy app or other agent', async () => {
+    const names = await namesFor([...SINDI]);
+
+    expect(names).not.toContain('askAgent');
+    expect(names.filter((name) => name.startsWith('mcp_'))).toEqual([]);
+    expect(names.filter((name) => name.startsWith('integration_'))).toEqual([]);
+    expect(names.filter((name) => name.startsWith('oxy_'))).toEqual([]);
+    /**
+     * And the sources were asked for NOTHING, which is the stronger claim. A
+     * set that merely lacked the tools would also be produced by a source that
+     * was handed every row and returned none — the empty selection is what
+     * says the grant narrowed the fetch rather than the filter cleaning up
+     * after it.
+     */
+    expect(asked.mcp).toEqual([[]]);
+    expect(asked.integration).toEqual([[]]);
+    expect(asked.agent).toEqual([[]]);
+  });
+
+  it('grants each of the three families something, so none of them is inert', async () => {
+    // The vacuity floor for the equality above: a family that contributed no
+    // tool would satisfy it by being absent from both sides.
+    const base = await namesFor([]);
+    for (const family of ['web', 'artifacts', 'memory'] as const) {
+      const added = (await namesFor([family])).filter((name) => !base.includes(name));
+      expect(added.length, `granting "${family}" changed nothing`).toBeGreaterThan(0);
+    }
+  });
+
+  it('leaves the other product agent with only the ungranted tools', async () => {
+    // Clarity's empty manifest entry, through the same path. Empty DENIES.
+    expect(await namesFor([...CLARITY])).toEqual([...UNGRANTED_TOOLS].sort());
   });
 });

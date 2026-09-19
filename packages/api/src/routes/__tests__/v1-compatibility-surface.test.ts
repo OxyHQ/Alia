@@ -65,6 +65,7 @@ import v1Router from '../v1.js';
 import {
   authenticateApiKey,
   authenticateChannelBotSecret,
+  authenticateRequesterAssertion,
   authenticateTelegramBot,
   authenticateToken,
   authenticateTokenOrApiKey,
@@ -123,6 +124,7 @@ const KNOWN_MIDDLEWARE: ReadonlyArray<readonly [unknown, string]> = [
   [authenticateApiKey, 'authenticateApiKey'],
   [authenticateTelegramBot, 'authenticateTelegramBot'],
   [authenticateChannelBotSecret, 'authenticateChannelBotSecret'],
+  [authenticateRequesterAssertion, 'authenticateRequesterAssertion'],
   [apiKeyRateLimit, 'apiKeyRateLimit'],
   [handleChatCompletions, 'handleChatCompletions'],
 ];
@@ -148,9 +150,18 @@ function mountPath(source: string): string {
 }
 
 function walk(router: unknown, prefix: string, inherited: readonly string[], into: Endpoint[]): void {
-  const globals = [...inherited];
-  /** Middleware mounted at a path, waiting for the router mounted at the same path. */
-  const scoped = new Map<string, string[]>();
+  /**
+   * Router-level middleware IN STACK ORDER, each with the mount path it is
+   * scoped to (`null` for every path). Express runs a path-scoped middleware at
+   * its position in the stack, not after the unscoped ones, so one ordered list
+   * filtered per mount is what reproduces the real chain — a separate
+   * per-path bucket appended at mount time would report a middleware declared
+   * before the limiter as running after it.
+   */
+  const ordered: { readonly source: string | null; readonly name: string }[] =
+    inherited.map((name) => ({ source: null, name }));
+  const chainFor = (source: string | null): string[] =>
+    ordered.filter((entry) => entry.source === null || entry.source === source).map((entry) => entry.name);
 
   for (const layer of (router as { stack: readonly Layer[] }).stack) {
     if (layer.route !== undefined) {
@@ -159,7 +170,7 @@ function walk(router: unknown, prefix: string, inherited: readonly string[], int
       for (const method of Object.keys(layer.route.methods ?? {})) {
         into.push({
           signature: `${method.toUpperCase()} ${`${prefix}${routePath}` || '/'}`,
-          chain: [...globals],
+          chain: chainFor(null),
           own,
         });
       }
@@ -169,14 +180,13 @@ function walk(router: unknown, prefix: string, inherited: readonly string[], int
     const source = layer.regexp?.source ?? '';
     const isRouter = layer.name === 'router';
     if (layer.regexp?.fast_slash === true) {
-      if (isRouter) walk(layer.handle, prefix, globals, into);
-      else globals.push(label(layer.handle));
+      if (isRouter) walk(layer.handle, prefix, chainFor(null), into);
+      else ordered.push({ source: null, name: label(layer.handle) });
       continue;
     }
 
-    const atPath = scoped.get(source) ?? [];
-    if (isRouter) walk(layer.handle, `${prefix}${mountPath(source)}`, [...globals, ...atPath], into);
-    else scoped.set(source, [...atPath, label(layer.handle)]);
+    if (isRouter) walk(layer.handle, `${prefix}${mountPath(source)}`, chainFor(source), into);
+    else ordered.push({ source, name: label(layer.handle) });
   }
 }
 
@@ -295,6 +305,21 @@ describe('the compatibility surface gains no route (#139 ws6, ADR 0004)', () => 
  * name, because it has none.
  */
 const AUTHENTICATED: readonly string[] = ['?anonymous', 'authenticateTokenOrApiKey', 'apiKeyRateLimit'];
+/**
+ * The chat surface alone also accepts a product's present-requester assertion
+ * (ADR 0025 in OxyHQServices). It is not a new credential: the bearer is still
+ * an Oxy service token verified by `authenticateTokenOrApiKey`, and the
+ * assertion is Oxy-signed and consumed through Oxy's live introspection, so
+ * condition 1 of ADR 0004 — authenticate through Oxy — holds. It sits before the
+ * limiter so the limiter keys on the requester it attaches, and `/alia/chat`
+ * mounts the same function in the same position.
+ */
+const CHAT: readonly string[] = [
+  '?anonymous',
+  'authenticateTokenOrApiKey',
+  'authenticateRequesterAssertion',
+  'apiKeyRateLimit',
+];
 
 const FROZEN_CHAINS: Readonly<Record<string, readonly string[]>> = {
   // Public: the catalogue is readable without a credential, which is what makes
@@ -306,8 +331,8 @@ const FROZEN_CHAINS: Readonly<Record<string, readonly string[]>> = {
   'GET /v1/me': AUTHENTICATED,
   'POST /v1/resolve-model': AUTHENTICATED,
   'POST /v1/report-usage': AUTHENTICATED,
-  'POST /v1/chat/completions': AUTHENTICATED,
-  'GET /v1/chat/completions': AUTHENTICATED,
+  'POST /v1/chat/completions': CHAT,
+  'GET /v1/chat/completions': CHAT,
   'POST /v1/responses': AUTHENTICATED,
   'POST /v1/voice/token': AUTHENTICATED,
   'POST /v1/voice/transcribe': AUTHENTICATED,
@@ -347,7 +372,12 @@ describe('the compatibility surface gains no auth mechanism (#139 ws6, ADR 0004)
     expect(routeLevel).toEqual([]);
 
     const control = aliaChat.find((e) => e.signature === 'POST /alia/chat');
-    expect(control?.own).toEqual(['authenticateTokenOrApiKey', 'apiKeyRateLimit', 'handleChatCompletions']);
+    expect(control?.own).toEqual([
+      'authenticateTokenOrApiKey',
+      'authenticateRequesterAssertion',
+      'apiKeyRateLimit',
+      'handleChatCompletions',
+    ]);
   });
 
   it('the one unnamed middleware is the channel-bot pre-auth, and it still compares in constant time', () => {
@@ -790,10 +820,15 @@ describe('the two chat surfaces differ only where it is recorded (#139 ws6, ADR 
     // comparison is over the effective chain rather than over where each sits.
     const effective = (endpoint: Endpoint): string[] =>
       [...endpoint.chain, ...endpoint.own].filter((name) => name !== 'handleChatCompletions');
-    expect(effective(product as Endpoint)).toEqual(['authenticateTokenOrApiKey', 'apiKeyRateLimit']);
+    expect(effective(product as Endpoint)).toEqual([
+      'authenticateTokenOrApiKey',
+      'authenticateRequesterAssertion',
+      'apiKeyRateLimit',
+    ]);
     expect(effective(generic as Endpoint)).toEqual([
       '?anonymous',
       'authenticateTokenOrApiKey',
+      'authenticateRequesterAssertion',
       'apiKeyRateLimit',
     ]);
   });

@@ -605,8 +605,8 @@ describe('a route whose availability scope does not admit the caller is withheld
     // operates and does not sell, and it is a step toward locating an internal
     // deployment — the disclosure `internal-only-access.test.ts` exists to stop.
     state.mappings = {
-      lite: [mapping('one', {}, { availabilityScope: 'internal_alia' })],
-      'v1-codea': [mapping('three', {}, { availabilityScope: 'internal_alia' })],
+      lite: [mapping('one', {}, { availabilityScope: 'platform_internal' })],
+      'v1-codea': [mapping('three', {}, { availabilityScope: 'platform_internal' })],
       'v1-pro': [mapping('four'), mapping('five'), mapping('six')],
     };
     const { body } = await get('/catalogue');
@@ -621,21 +621,21 @@ describe('a route whose availability scope does not admit the caller is withheld
     // the RESPONSE. A lexical ban on the word could never have measured this,
     // and this fails for any future field that echoes a refused route's scope.
     state.mappings = {
-      lite: [mapping('one', {}, { availabilityScope: 'internal_alia' }), mapping('two')],
-      'v1-codea': [mapping('three', {}, { availabilityScope: 'internal_alia' })],
+      lite: [mapping('one', {}, { availabilityScope: 'platform_internal' }), mapping('two')],
+      'v1-codea': [mapping('three', {}, { availabilityScope: 'platform_internal' })],
       'v1-pro': [mapping('four', {}, { availabilityScope: 'public_payg' }), mapping('five'), mapping('six')],
     };
 
     const anonymous = await get('/catalogue');
-    expect(JSON.stringify(anonymous.body)).not.toContain('internal_alia');
+    expect(JSON.stringify(anonymous.body)).not.toContain('platform_internal');
     // The control, in both directions: the same scan SEES a scope the caller
     // was admitted under, so the absence above is not an empty body…
     expect(JSON.stringify(anonymous.body)).toContain('public_payg');
-    // …and it sees `internal_alia` for the caller that may have it, so the
+    // …and it sees `platform_internal` for the caller that may have it, so the
     // assertion is about the audience and not about the string being absent
     // from every response Alia can produce.
     state.serviceAppId = 'alia-internal';
-    expect(JSON.stringify((await get('/catalogue')).body)).toContain('internal_alia');
+    expect(JSON.stringify((await get('/catalogue')).body)).toContain('platform_internal');
   });
 
   it('leaves a publicly scoped entry reachable by the caller it is sold to', async () => {
@@ -644,7 +644,7 @@ describe('a route whose availability scope does not admit the caller is withheld
     state.mappings = {
       lite: [mapping('one', {}, { availabilityScope: 'public_payg' })],
       'v1-codea': [mapping('three', {}, { availabilityScope: 'oxy_hosted' })],
-      'v1-pro': [mapping('four', {}, { availabilityScope: 'internal_alia' }), mapping('five', {}, { availabilityScope: 'internal_alia' })],
+      'v1-pro': [mapping('four', {}, { availabilityScope: 'platform_internal' }), mapping('five', {}, { availabilityScope: 'platform_internal' })],
     };
     const { body } = await get('/catalogue');
     expect((body.data ?? []).map((e) => e.id)).toEqual(['route:instant', 'route:code']);
@@ -663,8 +663,8 @@ describe('a route whose availability scope does not admit the caller is withheld
     // states; here there is none, so the entry is the caller's or it is nobody's.
     state.mappings = {
       lite: [
-        mapping('one', {}, { availabilityScope: 'internal_alia' }),
-        mapping('two', {}, { availabilityScope: 'internal_alia' }),
+        mapping('one', {}, { availabilityScope: 'platform_internal' }),
+        mapping('two', {}, { availabilityScope: 'platform_internal' }),
       ],
       'v1-codea': [mapping('three')],
       'v1-pro': [mapping('four'), mapping('five'), mapping('six')],
@@ -682,7 +682,7 @@ describe('a route whose availability scope does not admit the caller is withheld
     const internal = await get('/catalogue');
     expect((internal.body.data ?? []).map((e) => e.id)).toContain('route:instant');
     const lite = (internal.body.data ?? []).find((e) => e.id === 'route:instant');
-    expect(lite?.availability).toMatchObject({ scope: { state: 'admitted', values: ['internal_alia'] } });
+    expect(lite?.availability).toMatchObject({ scope: { state: 'admitted', values: ['platform_internal'] } });
   });
 
   it('refuses a signed-in user and a developer key, not only an anonymous caller', async () => {
@@ -691,7 +691,7 @@ describe('a route whose availability scope does not admit the caller is withheld
     // resolver that tested the session first would hand every `alia_sk_` key
     // whatever a session may have.
     state.mappings = {
-      lite: [mapping('one', {}, { availabilityScope: 'internal_alia' })],
+      lite: [mapping('one', {}, { availabilityScope: 'platform_internal' })],
       'v1-codea': [mapping('three')],
       'v1-pro': [mapping('four'), mapping('five'), mapping('six')],
     };
@@ -731,7 +731,7 @@ describe('a route whose availability scope does not admit the caller is withheld
     // route is not a scope, so it does not exclude anybody; what it must not do
     // is make the entry look internal-approved to the caller it admitted.
     state.mappings = {
-      lite: [mapping('one', {}, { availabilityScope: 'internal_alia' }), mapping('two')],
+      lite: [mapping('one', {}, { availabilityScope: 'platform_internal' }), mapping('two')],
       'v1-codea': [mapping('three')],
       'v1-pro': [mapping('four'), mapping('five'), mapping('six')],
     };
