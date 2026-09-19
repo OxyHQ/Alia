@@ -72,6 +72,7 @@ import { libraryFiles } from '../schema/library';
 import { skills } from '../schema/skills';
 import type { AgentAccess, AgentArchetype, AgentStatus } from '../../domain/agent';
 import type { OxyKaanaRoutingProfileId } from '../../config/oxy-inference-routing-profile-ids';
+import { escapeLikePattern } from '@oxy.so/utils/sql';
 
 type AgentRow = typeof agents.$inferSelect;
 
@@ -376,11 +377,6 @@ export interface AgentCatalogueQuery {
   offset: number;
 }
 
-/** `%`, `_` and the escape itself — ILIKE's metacharacters, not a regex's. */
-function escapeLike(input: string): string {
-  return input.replace(/[\\%_]/g, (c) => `\\${c}`);
-}
-
 function catalogueFilter(query: AgentCatalogueQuery): SQL | undefined {
   const clauses: SQL[] = [eq(agents.isPublished, true)];
   if (query.category !== undefined && query.category !== 'all') {
@@ -427,7 +423,7 @@ function catalogueFilter(query: AgentCatalogueQuery): SQL | undefined {
    * over the fields Alia owns.
    */
   if (query.search !== undefined && query.search !== '') {
-    const pattern = `%${escapeLike(query.search)}%`;
+    const pattern = `%${escapeLikePattern(query.search)}%`;
     const tagColumn = sql.raw(`"${'agents'}"."${sqlColumnName(agents.tags)}"`);
     clauses.push(
       sql`(
@@ -549,7 +545,7 @@ export async function searchActiveAgents(
 ): Promise<AgentSearchResult[]> {
   const words = query.split(/\s+/).filter((word) => word !== '');
   if (words.length === 0) return [];
-  const patterns = words.map((word) => `%${escapeLike(word)}%`);
+  const patterns = words.map((word) => `%${escapeLikePattern(word)}%`);
 
   const allWords = (column: SQL | PgColumn): SQL =>
     sql.join(

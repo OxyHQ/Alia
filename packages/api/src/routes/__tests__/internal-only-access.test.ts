@@ -15,11 +15,11 @@ import { routingTargetSchema } from '@oxy.so/contracts';
  * ## What "internal-only deployment" means, and where the term comes from
  *
  * `@oxy.so/contracts` gives it a name: `modelDeploymentSchema.availabilityScope`
- * is one of `internal_alia | public_payg | enterprise | byok_only | oxy_hosted`,
- * and `internal_alia` is the member this checkbox is about. So the property is
+ * is one of `platform_internal | public_payg | enterprise | byok_only | oxy_hosted`,
+ * and `platform_internal` is the member this checkbox is about. So the property is
  * not a vague "keep users out of internal things" — it is: **no credential a
  * member of the public can hold may cause Alia to send a request that names, or
- * resolves to, a deployment scoped `internal_alia`.**
+ * resolves to, a deployment scoped `platform_internal`.**
  *
  * There are exactly three ways that could happen, and each has a block below:
  *
@@ -88,9 +88,9 @@ describe('the request envelope cannot name a deployment at all (#139 ws17)', () 
       { kind: 'deployment', deploymentId: 'dep_internal_1' },
       { kind: 'model', modelReference: 'oxy/atlas', deploymentId: 'dep_internal_1' },
       { kind: 'routing_profile', routingProfile: 'balanced' },
-      { kind: 'routing_profile', routingProfile: 'balanced', availabilityScope: 'internal_alia' },
-      { kind: 'routing_profile_id', routingProfileId: 'profile-id', availabilityScope: 'internal_alia' },
-      { kind: 'internal_alia', deploymentId: 'dep_internal_1' },
+      { kind: 'routing_profile', routingProfile: 'balanced', availabilityScope: 'platform_internal' },
+      { kind: 'routing_profile_id', routingProfileId: 'profile-id', availabilityScope: 'platform_internal' },
+      { kind: 'platform_internal', deploymentId: 'dep_internal_1' },
     ]) {
       expect(routingTargetSchema.safeParse(target).success, JSON.stringify(target)).toBe(false);
     }
@@ -135,7 +135,7 @@ describe('the request envelope cannot name a deployment at all (#139 ws17)', () 
       .filter((file) => file.endsWith('.ts') && !file.includes('/__tests__/') && existsSync(path.join(REPO_ROOT, file)));
 
     const naming = files.filter((file) =>
-      /\binternal_alia\b|\bavailabilityScope\b/.test(readFileSync(path.join(REPO_ROOT, file), 'utf8')),
+      /\bplatform_internal\b|\bavailabilityScope\b/.test(readFileSync(path.join(REPO_ROOT, file), 'utf8')),
     );
     expect(files.length).toBeGreaterThan(300);
     expect(naming.sort()).toEqual([
@@ -151,7 +151,7 @@ describe('the request envelope cannot name a deployment at all (#139 ws17)', () 
       'packages/api/src/routes/catalogue.ts',
     ]);
     // The control: the predicate fires on the string it is looking for.
-    expect(/\binternal_alia\b|\bavailabilityScope\b/.test("scope: 'internal_alia'")).toBe(true);
+    expect(/\bplatform_internal\b|\bavailabilityScope\b/.test("scope: 'platform_internal'")).toBe(true);
   });
 
   it('never authors a scope of its own, it only reads one off a mapping', () => {
@@ -165,7 +165,7 @@ describe('the request envelope cannot name a deployment at all (#139 ws17)', () 
     // is a read of the contract's vocabulary rather than an assertion about any
     // route.
     const scopeModule = code('lib/availability-scope.ts');
-    const scopeLiterals = /'(?:internal_alia|public_payg|enterprise|byok_only|oxy_hosted)'/g;
+    const scopeLiterals = /'(?:platform_internal|public_payg|enterprise|byok_only|oxy_hosted)'/g;
     const occurrences = [...scopeModule.matchAll(scopeLiterals)];
     // The floor: the module really does name the vocabulary.
     expect(occurrences.length).toBeGreaterThanOrEqual(5);
@@ -180,7 +180,7 @@ describe('the request envelope cannot name a deployment at all (#139 ws17)', () 
       expect(code(relative).match(scopeLiterals), relative).toBeNull();
     }
     // The control: the same pattern finds a literal where one exists.
-    expect("availabilityScope: 'internal_alia'".match(scopeLiterals)).toHaveLength(1);
+    expect("availabilityScope: 'platform_internal'".match(scopeLiterals)).toHaveLength(1);
   });
 });
 
@@ -244,6 +244,13 @@ vi.mock('@oxy.so/core/server', () => ({
     }
     next();
   })),
+  // The entry middleware reads this header name to route a present-requester
+  // request (ADR 0025) past the user requirement; this suite's subject is the
+  // service principal, so the real constant is enough.
+  OXY_REQUESTER_ASSERTION_HEADER: 'x-oxy-requester-assertion',
+  createOxyRequesterAssertionAuth: vi.fn(() =>
+    vi.fn((_req: Request, _res: Response, next: NextFunction) => next()),
+  ),
 }));
 
 const { findAppById, findKeyByHash } = await import('../../db/developers/developerRepository.js');
