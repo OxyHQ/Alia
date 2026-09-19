@@ -39,6 +39,7 @@
 import { and, asc, desc, eq, gt, isNull, or, sql, type SQL } from 'drizzle-orm';
 import type { ApiDatabase } from '../index';
 import { suggestions, type SuggestionScope, type SuggestionType } from '../schema/notifications';
+import { escapeLikePattern } from '@oxy.so/utils/sql';
 
 export type SuggestionRow = typeof suggestions.$inferSelect;
 
@@ -60,17 +61,6 @@ export function deriveTemplateFields(text: string): {
 /** Rows whose publication deadline has not passed. `NULL` means no deadline. */
 function notExpired(): SQL {
   return or(isNull(suggestions.expiresAt), gt(suggestions.expiresAt, sql`now()`)) as SQL;
-}
-
-/**
- * Escape a needle for `ILIKE`.
- *
- * `%` and `_` are the wildcards and the backslash is the escape, so all three
- * have to be neutralised — and the backslash FIRST, or the escapes inserted for
- * the other two get escaped in turn.
- */
-function escapeLike(needle: string): string {
-  return needle.replace(/\\/g, '\\\\').replace(/[%_]/g, (c) => `\\${c}`);
 }
 
 export interface NewSuggestion {
@@ -381,7 +371,7 @@ export async function searchSuggestions(
   oxyUserId: string | undefined,
   limit: number,
 ): Promise<SuggestionSearchHit[]> {
-  const escaped = escapeLike(needle);
+  const escaped = escapeLikePattern(needle);
   const prefix = `${escaped}%`;
   const substring = `%${escaped}%`;
 
