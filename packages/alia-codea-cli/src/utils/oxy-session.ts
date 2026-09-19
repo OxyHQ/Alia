@@ -50,6 +50,7 @@ import {
   type AuthStateStore,
 } from '@oxy.so/core';
 
+import { toEpochMs } from './approval-surface.js';
 import { config } from './config.js';
 
 /**
@@ -147,7 +148,12 @@ export async function startSignIn(): Promise<SignInHandle> {
   return {
     authorizeCode: handle.authorizeCode,
     qrPayload: handle.qrPayload,
-    expiresAt: handle.expiresAt,
+    // Core types this as a number, but the API sends an ISO-8601 string and core
+    // passes it through. Left as-is, `Date.now() >= handle.expiresAt` in
+    // `waitForApproval` compares against NaN and never fires, so the wait only
+    // ended when the server itself reported `expired`. Five minutes is the
+    // lifetime core requests, used only if the server's value is unreadable.
+    expiresAt: toEpochMs(handle.expiresAt, Date.now() + 5 * 60_000),
     sessionToken: handle.sessionToken,
   };
 }
