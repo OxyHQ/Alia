@@ -43,9 +43,11 @@ hour of life, not at the next exchange.
 What Alia then does, read from the code rather than assumed:
 
 - **Boot does not refuse.** `lib/inference/oxy-inference-credential.ts`
-  checks *presence* only — `OXY_SERVICE_API_KEY`, `OXY_SERVICE_API_SECRET`,
-  `OXY_API_URL` set and non-empty — and `lib/boot-guards.ts` refuses on that
-  alone. Whether the credential is *accepted* is answered on the first
+  checks *capability* only — `OXY_API_URL` set, and either a complete
+  `OXY_SERVICE_API_KEY` / `OXY_SERVICE_API_SECRET` pair or a task role this
+  process can attest (oxy ADR 0026) — and `lib/boot-guards.ts` refuses on that
+  alone. On a deployed task there is no pair to rotate in the first place; this
+  runbook describes a credential that still exists somewhere holding one. Whether the credential is *accepted* is answered on the first
   exchange. `GET /ready` likewise keeps reporting `kaana.credentials:
   "configured"` (`routes/health.ts` — "configured is not serving: nothing is
   probed"), so a healthy probe is not evidence the credential still works.

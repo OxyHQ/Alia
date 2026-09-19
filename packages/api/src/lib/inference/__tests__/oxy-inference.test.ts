@@ -54,6 +54,51 @@ describe('Oxy inference client', () => {
     expect(mocks.clientOptions).toEqual([]);
   });
 
+  /**
+   * A deployed Alia carries neither half of the pair (oxy ADR 0026), and this is
+   * the assertion that says the SDK is left to attest rather than handed a
+   * credential it cannot use.
+   *
+   * `configureServiceAuth` being UNCALLED is the whole property: `getServiceToken()`
+   * falls back to the task role only when nothing was configured, so calling it
+   * with a blank or half credential would replace a working attestation with one
+   * that cannot mint — and the failure would arrive as one `authentication_failed`
+   * per user request rather than at boot.
+   */
+  it('builds against an attested task role, arming no credential', async () => {
+    const attesting = {
+      NODE_ENV: 'production',
+      OXY_API_URL: 'https://api.oxy.so',
+      AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: '/v2/credentials/9f0c',
+    } as NodeJS.ProcessEnv;
+
+    expect(buildOxyInferenceClient(attesting)).not.toBeNull();
+    expect(mocks.serviceOptions).toEqual([{ baseURL: 'https://api.oxy.so' }]);
+    expect(mocks.configuredCredentials).toEqual([]);
+
+    const options = mocks.clientOptions[0] as { credential: () => Promise<string> };
+    await expect(options.credential()).resolves.toBe('short-lived-oxy-service-token');
+  });
+
+  /**
+   * Half a pair on a task that can attest is IGNORED, not armed.
+   *
+   * Left in the environment by a half-finished rollout, an api key with no
+   * secret would otherwise reach `configureServiceAuth` and take the deployment
+   * off the path that works.
+   */
+  it('ignores half a credential rather than arming it', () => {
+    expect(
+      buildOxyInferenceClient({
+        NODE_ENV: 'production',
+        OXY_API_URL: 'https://api.oxy.so',
+        AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: '/v2/credentials/9f0c',
+        OXY_SERVICE_API_KEY: 'credential-key',
+      } as NodeJS.ProcessEnv),
+    ).not.toBeNull();
+    expect(mocks.configuredCredentials).toEqual([]);
+  });
+
   it('accepts only the canonical deployed Oxy API origin', () => {
     expect(oxyInferenceEndpointRefusal('https://api.oxy.so', 'production')).toBeNull();
     expect(oxyInferenceEndpointRefusal('https://kaana.ai', 'production')).toContain('not an approved Oxy');

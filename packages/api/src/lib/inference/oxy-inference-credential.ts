@@ -43,6 +43,7 @@
  */
 
 import { OxyServices, type OxyInferenceCredential } from '@oxy.so/core';
+import { canAttestWorkloadIdentity } from '@oxy.so/core/server';
 
 /**
  * The ApplicationCredential this deployment presents to mint service tokens.
@@ -57,6 +58,16 @@ import { OxyServices, type OxyInferenceCredential } from '@oxy.so/core';
  *
  * These names are coordinated with the task definition and repository secrets.
  * No former spelling is read; a partial rollout is a boot refusal.
+ *
+ * ## A deployed Alia sets neither
+ *
+ * Under oxy ADR 0026 a first-party service proves what it IS — a signed
+ * `GetCallerIdentity` for its ECS task role, which Oxy replays to AWS — and gets
+ * back the same short-lived service token these two used to buy. `@oxy.so/core`
+ * >= 1.6.1 takes that path inside `getServiceToken()` whenever no pair was
+ * configured, so a task definition carrying neither variable mints exactly as
+ * before. They remain the way a CHECKOUT, which can attest nothing, borrows
+ * Alia's identity.
  */
 export const OXY_INFERENCE_CREDENTIAL_ENV = {
   apiKey: 'OXY_SERVICE_API_KEY',
@@ -74,7 +85,16 @@ export const OXY_INFERENCE_CREDENTIAL_ENV = {
  */
 export const OXY_API_URL_ENV = 'OXY_API_URL';
 
-/** Every variable the exchange needs. */
+/**
+ * Every variable the exchange needs on a machine that cannot attest.
+ *
+ * Kept as the full list, and deliberately not narrowed to what a deployment
+ * carries: it describes a CHECKOUT, which is the only environment where all
+ * three are still required, and `.env.example` and the runbooks name the same
+ * three. What a deployed task actually needs is
+ * {@link unsetOxyInferenceCredentialVariables} evaluated against its own
+ * environment, which is a different question with a different answer.
+ */
 export const OXY_INFERENCE_CREDENTIAL_REQUIRED_ENV: readonly string[] = [
   OXY_INFERENCE_CREDENTIAL_ENV.apiKey,
   OXY_INFERENCE_CREDENTIAL_ENV.apiSecret,
@@ -82,7 +102,28 @@ export const OXY_INFERENCE_CREDENTIAL_REQUIRED_ENV: readonly string[] = [
 ];
 
 /**
- * Which of {@link OXY_INFERENCE_CREDENTIAL_REQUIRED_ENV} this environment does not set.
+ * Whether this process can mint an Oxy service token at all.
+ *
+ * Two ways, and a deployment has one of them without anybody configuring it: in
+ * ECS the task role attests (oxy ADR 0026 — no secret anywhere) and elsewhere
+ * the key pair does. A local checkout has neither, which is the honest answer to
+ * "can this talk to Oxy as Alia".
+ *
+ * Both or neither for the pair. One alone is not half an identity — it REPLACES
+ * the attestation path with a credential that cannot mint, so it reads here as
+ * no pair at all and the deployment falls back to what it can prove.
+ */
+function canMintOxyServiceToken(env: NodeJS.ProcessEnv): boolean {
+  if (canAttestWorkloadIdentity(env)) return true;
+  return (
+    (env[OXY_INFERENCE_CREDENTIAL_ENV.apiKey] ?? '').trim().length > 0 &&
+    (env[OXY_INFERENCE_CREDENTIAL_ENV.apiSecret] ?? '').trim().length > 0
+  );
+}
+
+/**
+ * What this environment is missing before it can exchange a credential, if
+ * anything.
  *
  * Presence only. Whether the credential is ACCEPTED is a question for the Oxy
  * edge and is answered on the first exchange — a check that tried to answer it
@@ -90,15 +131,34 @@ export const OXY_INFERENCE_CREDENTIAL_REQUIRED_ENV: readonly string[] = [
  * format, and the format of an `oxy_dk_` key is the control plane's business,
  * not this deployment's.
  *
+ * ## Why the pair is conditional and the origin is not
+ *
+ * This is the function that would have refused to start a deployment that could
+ * mint perfectly well. It used to name the two credential variables whenever
+ * they were unset, and `runBootGuards` turns anything it returns into
+ * `process.exit(1)` before the socket opens — so removing the pair from the task
+ * definition, which is the whole of the ADR 0026 migration, would have killed
+ * the API at boot, been rolled back by the ECS circuit breaker, and left an
+ * operator looking at a stable service and a failed deploy with nothing naming
+ * the cause.
+ *
+ * `OXY_API_URL` stays unconditional: attestation says what this process IS, not
+ * where Oxy is, and a token with nowhere to present it is worth nothing. A
+ * checkout that can attest nothing still gets an accurate refusal naming all
+ * three, because setting all three is still the thing to do there.
+ *
  * Returned as a LIST rather than as a sentence because
  * `oxyInferenceBootConfigurationFailure` folds it into the one message that names every
  * unset Oxy inference variable at once. Two messages would send an operator round the
  * deploy loop twice: once for the principal, once for the credential.
  */
 export function unsetOxyInferenceCredentialVariables(env: NodeJS.ProcessEnv): readonly string[] {
-  return OXY_INFERENCE_CREDENTIAL_REQUIRED_ENV.filter(
-    (variable) => (env[variable] ?? '').trim().length === 0,
-  );
+  const unset = (variable: string): boolean => (env[variable] ?? '').trim().length === 0;
+  const missing: string[] = [];
+  if (unset(OXY_API_URL_ENV)) missing.push(OXY_API_URL_ENV);
+  if (canMintOxyServiceToken(env)) return missing;
+  missing.push(OXY_INFERENCE_CREDENTIAL_ENV.apiKey, OXY_INFERENCE_CREDENTIAL_ENV.apiSecret);
+  return missing;
 }
 
 /**
@@ -131,9 +191,19 @@ export function createOxyInferenceCredential(
   const read = (variable: string): string => (env[variable] ?? '').trim();
 
   const oxy = new OxyServices({ baseURL: read(OXY_API_URL_ENV) });
-  oxy.configureServiceAuth(
-    read(OXY_INFERENCE_CREDENTIAL_ENV.apiKey),
-    read(OXY_INFERENCE_CREDENTIAL_ENV.apiSecret),
-  );
+
+  /**
+   * Armed only with a COMPLETE pair, and left unconfigured otherwise on purpose.
+   *
+   * `getServiceToken()` falls back to attesting this task role when nothing was
+   * configured, so not calling this is what takes the ADR 0026 path. Calling it
+   * with half a pair would replace that path with a credential that cannot mint
+   * and turn a working deployment into one `authentication_failed` per request —
+   * which is why the check is both values rather than either.
+   */
+  const apiKey = read(OXY_INFERENCE_CREDENTIAL_ENV.apiKey);
+  const apiSecret = read(OXY_INFERENCE_CREDENTIAL_ENV.apiSecret);
+  if (apiKey !== '' && apiSecret !== '') oxy.configureServiceAuth(apiKey, apiSecret);
+
   return () => oxy.getServiceToken();
 }

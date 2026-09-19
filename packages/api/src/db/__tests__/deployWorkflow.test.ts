@@ -120,26 +120,59 @@ describe('deploy-aws.yml migration wiring', () => {
     }
   });
 
-  it('binds the Oxy-provisioned application credential without copying a GitHub value', () => {
+  /**
+   * The API attests its task role, so the credential must LEAVE the running
+   * revision — and only the removal list can make that happen.
+   *
+   * These two assertions are a PAIR and neither is sufficient. Stopping the
+   * injection alone leaves the pair inherited on every future revision, because
+   * a release renders from the task definition the service is RUNNING and a
+   * secret nothing re-declares is never taken away. Removing alone while the
+   * step still injected would be a list arguing with an override, which the
+   * script refuses outright.
+   *
+   * The SSM parameters are out of scope here and untouched; this is about the
+   * task definition's reference to them.
+   */
+  it('injects no Oxy service credential and actively removes the inherited one', () => {
     const from = workflow.indexOf('      - name: Stage Oxy inference configuration');
     const to = workflow.indexOf('      # RUN_MIGRATIONS', from);
     const stage = workflow.slice(from, to);
 
     expect(from).toBeGreaterThanOrEqual(0);
     expect(to).toBeGreaterThan(from);
-    expect(stage).toContain('for name in OXY_SERVICE_API_KEY OXY_SERVICE_API_SECRET');
-    expect(stage).toContain('aws ssm get-parameter');
-    expect(stage).toContain('--no-with-decryption');
-    expect(stage).toContain("--query 'Parameter.[Name,Type]'");
-    expect(stage).toContain('actual_type" != "SecureString');
-    expect(stage).toContain('required Oxy-provisioned SecureString metadata is absent');
-    expect(stage).toContain('arn:aws:ssm:$AWS_REGION:237343248947:parameter/oxy/$APP/OXY_SERVICE_API_KEY');
-    expect(stage).toContain('arn:aws:ssm:$AWS_REGION:237343248947:parameter/oxy/$APP/OXY_SERVICE_API_SECRET');
+    expect(stage).not.toContain('for name in OXY_SERVICE_API_KEY OXY_SERVICE_API_SECRET');
+    expect(stage).not.toContain(
+      'arn:aws:ssm:$AWS_REGION:237343248947:parameter/oxy/$APP/OXY_SERVICE_API_KEY',
+    );
+    expect(stage).not.toContain(
+      'arn:aws:ssm:$AWS_REGION:237343248947:parameter/oxy/$APP/OXY_SERVICE_API_SECRET',
+    );
+    expect(workflow).toContain(
+      'TASK_SECRET_REMOVALS_JSON: \'["AWS_ACCESS_KEY_ID","AWS_SECRET_ACCESS_KEY","KAANA_EDGE_SIGNING_PRIVATE_KEY","ALIA_RELAY_CREDENTIAL_KEY","ALIA_RELAY_CREDENTIAL_SECRET","ALIA_KAANA_CREDENTIAL_KEY","ALIA_KAANA_CREDENTIAL_SECRET","OXY_SERVICE_API_KEY","OXY_SERVICE_API_SECRET"]\'',
+    );
     expect(workflow).not.toContain('secrets.OXY_SERVICE_API_KEY');
     expect(workflow).not.toContain('secrets.OXY_SERVICE_API_SECRET');
     expect(workflow).not.toContain('sync_secret OXY_SERVICE_API_');
     expect(stage).not.toContain('--with-decryption');
     expect(stage).not.toContain('describe-parameters');
+  });
+
+  /**
+   * The SECOND service, whose whole story is different and ends the same way.
+   *
+   * `alia-integrations` never had a line to delete: no `sync_secret`, no
+   * `TASK_SECRET_OVERRIDES_JSON`, so its pair is inherited from the task
+   * definition oxy-infra first registered. That makes the removal list the only
+   * lever there is, and its absence indistinguishable from a migration that
+   * worked.
+   */
+  it('removes the same pair from the alia-integrations revision', () => {
+    expect(integrationsWorkflow).toContain(
+      'TASK_SECRET_REMOVALS_JSON: \'["OXY_SERVICE_API_KEY","OXY_SERVICE_API_SECRET"]\'',
+    );
+    expect(integrationsWorkflow).not.toContain('secrets.OXY_SERVICE_API_KEY');
+    expect(integrationsWorkflow).not.toContain('sync_secret OXY_SERVICE_API_');
   });
 
   it('deploys the validated linux/arm64 child while retaining the provenance index', () => {
@@ -392,6 +425,12 @@ describe('the deploy removes retired credentials and runtime configuration', () 
       'AWS_ACCESS_KEY_ID',
       'AWS_SECRET_ACCESS_KEY',
       'KAANA_EDGE_SIGNING_PRIVATE_KEY',
+      // Alia's own Oxy credential, retired in favour of attesting the task role
+      // (oxy ADR 0026). It is named here and nowhere else in this workflow: the
+      // step that used to inject it stopped, and a release renders from the
+      // RUNNING revision, so this list is the only thing that takes it off.
+      'OXY_SERVICE_API_KEY',
+      'OXY_SERVICE_API_SECRET',
     ]);
   });
 

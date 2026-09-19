@@ -211,6 +211,10 @@ async function loadHydration(
   vi.stubEnv('OXY_API_URL', edge.baseURL);
   vi.stubEnv('OXY_SERVICE_API_KEY', credential === 'configured' ? API_KEY : undefined);
   vi.stubEnv('OXY_SERVICE_API_SECRET', credential === 'configured' ? API_SECRET : undefined);
+  // Unset, so `absent` is a laptop rather than a task. `canAttestWorkloadIdentity`
+  // reads this and nothing else sets it (oxy ADR 0026), and a stray value in the
+  // ambient environment would turn the "no identity" cases into attesting ones.
+  vi.stubEnv('AWS_CONTAINER_CREDENTIALS_RELATIVE_URI', undefined);
   const { hydrateOxyUsers } = await import('../oxy-user-hydration.js');
   return hydrateOxyUsers;
 }
@@ -242,11 +246,47 @@ describe('an Oxy account is hydrated as Alia, not as nobody', () => {
     // credential, and this particular batch resolved nobody.
     expect(logged.warn).toHaveBeenCalledWith(
       { unset: ['OXY_SERVICE_API_KEY', 'OXY_SERVICE_API_SECRET'] },
-      expect.stringContaining('no Oxy service credential'),
+      expect.stringContaining('no Oxy service identity'),
     );
     expect(logged.warn).toHaveBeenCalledWith(
       { requested: 1 },
       expect.stringContaining('resolved none'),
+    );
+  });
+
+  /**
+   * The deployment this migration produces, which the old code called broken.
+   *
+   * No pair anywhere, and a task role the SDK attests. Before oxy ADR 0026 those
+   * were the same state: the client came back `null`, every name and handle
+   * rendered blank, and a warning told the operator to go and set a credential
+   * the deployment does not need — which is a warning that gets acted on.
+   *
+   * ## Why this stops at the client and does not hydrate
+   *
+   * The attested exchange is two round trips to `169.254.170.2`, the container
+   * credentials endpoint, which exists on a Fargate task and nowhere else. The
+   * fake edge in this file cannot stand in for it, and a mock of
+   * `getServiceToken` would be asserting the mock. What belongs to Alia is the
+   * decision — build the client, do not warn — and that is what is asserted
+   * here; minting from the attestation is `@oxy.so/core`'s and is tested there.
+   */
+  it('builds a client, silently, on an attested task role with no pair', async () => {
+    vi.resetModules();
+    vi.stubEnv('OXY_API_URL', edge.baseURL);
+    vi.stubEnv('OXY_SERVICE_API_KEY', undefined);
+    vi.stubEnv('OXY_SERVICE_API_SECRET', undefined);
+    vi.stubEnv('AWS_CONTAINER_CREDENTIALS_RELATIVE_URI', '/v2/credentials/9f0c');
+
+    const { canAuthenticateAsOxyService, oxyServiceClient } = await import(
+      '../oxy-service-client.js'
+    );
+
+    expect(canAuthenticateAsOxyService()).toBe(true);
+    expect(oxyServiceClient()).not.toBeNull();
+    expect(logged.warn).not.toHaveBeenCalledWith(
+      expect.anything(),
+      expect.stringContaining('no Oxy service identity'),
     );
   });
 

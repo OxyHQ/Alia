@@ -47,7 +47,12 @@ vi.mock('@oxy.so/core/server', async () => {
 
 const serviceClient = vi.hoisted(() => ({ current: null as unknown }));
 
-vi.mock('../../lib/oxy-service-client.js', () => ({
+// PARTIAL: `oxyServiceClient` is replaced because these cases drive the
+// delegation lane against a controlled verifier, but `canAuthenticateAsOxyService`
+// stays REAL — the last describe in this file asserts that it and the boot guard
+// answer the same question, and a stub would make that agreement vacuous.
+vi.mock('../../lib/oxy-service-client.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../lib/oxy-service-client.js')>()),
   oxyServiceClient: () => serviceClient.current,
 }));
 vi.mock('../../lib/logger.js', () => {
@@ -247,8 +252,9 @@ describe('a delegated service request is verified by a credentialed client', () 
     });
 
     // 503, not a 403 that blames the caller's grant for Alia's own missing
-    // credential. `OXY_SERVICE_API_KEY` / `_SECRET` are boot-guard requirements,
-    // so a deployment that serves at all never takes this branch.
+    // identity. Being able to mint an Oxy service token — from a credential pair
+    // or from an attested task role — is a boot-guard requirement, so a
+    // deployment that serves at all never takes this branch.
     expect(result.status).toBe(503);
     expect(result.body.error).toBe('SERVICE_DELEGATION_UNAVAILABLE');
   });
@@ -276,21 +282,38 @@ describe('a delegated service request is verified by a credentialed client', () 
   });
 });
 
-describe('the credential the delegation lane depends on', () => {
-  it('is already a boot requirement, so a serving process can always ask', async () => {
-    const { OXY_INFERENCE_CREDENTIAL_REQUIRED_ENV } = await import(
+describe('the identity the delegation lane depends on', () => {
+  /**
+   * The 503 branch above is a last resort, not the design: `runBootGuards`
+   * refuses to open the socket unless this process can mint an Oxy service
+   * token, and `lib/oxy-service-client.ts` builds the verifier from exactly the
+   * same capability. If the two ever stop agreeing, the delegation lane silently
+   * loses its verifier — so the coupling is asserted rather than assumed.
+   *
+   * Asserted as an AGREEMENT rather than as a list of variable names, because
+   * the names stopped being the answer. A deployed Alia carries neither half of
+   * the pair and attests its ECS task role instead (oxy ADR 0026); pinned to the
+   * three names, this test would have gone green on a boot guard that refuses
+   * precisely the deployment the delegation lane works on.
+   */
+  it.each([
+    ['a credential pair', { OXY_SERVICE_API_KEY: 'oxy_dk_alia', OXY_SERVICE_API_SECRET: 's3cret' }],
+    ['an attestable task role', { AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: '/v2/credentials/abc' }],
+    ['neither', {}],
+    // Half a pair is not half an identity: it REPLACES attestation with a
+    // credential that cannot mint, so it has to read as no pair at all.
+    ['half a pair', { OXY_SERVICE_API_KEY: 'oxy_dk_alia' }],
+  ])('agrees with the client about %s', async (_case, identity) => {
+    const { unsetOxyInferenceCredentialVariables } = await import(
       '../../lib/inference/oxy-inference-credential.js'
     );
-    // The 503 branch above is a last resort, not the design. These three
-    // variables are what `lib/oxy-service-client.ts` builds the verifier from,
-    // and `runBootGuards` refuses to open the socket without them. If this ever
-    // stops holding, the delegation lane silently loses its verifier — so the
-    // coupling is asserted rather than assumed.
-    expect([...OXY_INFERENCE_CREDENTIAL_REQUIRED_ENV].sort()).toEqual([
-      'OXY_API_URL',
-      'OXY_SERVICE_API_KEY',
-      'OXY_SERVICE_API_SECRET',
-    ]);
+    const { canAuthenticateAsOxyService } = await import('../../lib/oxy-service-client.js');
+
+    const env = { OXY_API_URL: 'https://api.oxy.so', ...identity } as NodeJS.ProcessEnv;
+
+    expect(unsetOxyInferenceCredentialVariables(env).length === 0).toBe(
+      canAuthenticateAsOxyService(env),
+    );
   });
 });
 

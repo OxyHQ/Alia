@@ -12,8 +12,8 @@ import { cp } from 'fs/promises';
 // transitive '@oxy.so/protocol' as ESM without complaint. The rationale is
 // obsolete.
 //
-// The exemption was also actively dangerous. @oxyhq packages published as
-// CommonJS (every @oxy.so/crowdsource* package today) get each internal
+// The exemption was also actively dangerous. First-party packages published as
+// CommonJS (every @crowdsource.you/* package today) get each internal
 // require() rewritten into an esbuild shim when inlined into this ESM bundle,
 // which throws the moment it runs:
 //   Error: Dynamic require of "zod" is not supported

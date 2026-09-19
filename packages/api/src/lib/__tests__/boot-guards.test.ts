@@ -96,7 +96,17 @@ async function run(env: Record<string, string>): Promise<Run> {
   const trace: string[] = [];
   const exits: number[] = [];
   runBootGuards({
-    reportFatal: (message) => trace.push(`fatal: ${message}`),
+    /**
+     * The DETAIL is traced too, not just the headline.
+     *
+     * `runBootGuards` reports the inference refusal as a fixed sentence plus a
+     * `failure` naming the variables, and the names are the only part an
+     * operator can act on. Dropping them here let a refusal be asserted without
+     * anything checking WHAT it refused over — which is how a guard that names
+     * the wrong variable goes green.
+     */
+    reportFatal: (message, detail) =>
+      trace.push(`fatal: ${message}${detail === undefined ? '' : ` ${JSON.stringify(detail)}`}`),
     reportInfo: (message) => trace.push(`info: ${message}`),
     exit: (code) => {
       trace.push(`exit(${code})`);
@@ -178,6 +188,65 @@ describe('Oxy inference configuration is checked after the database and before t
     expect(trace[0]).toBe('info: Postgres connected');
     expect(trace[1]).toContain('Oxy inference client configuration is invalid');
     expect(egressInstalls).toBe(0);
+  });
+
+  /**
+   * The refusal that would have taken production down, asserted from the side
+   * that hurts.
+   *
+   * This guard calls `process.exit(1)` before the socket opens, and until oxy
+   * ADR 0026 it did that whenever `OXY_SERVICE_API_KEY` and
+   * `OXY_SERVICE_API_SECRET` were unset. Removing the pair from the task
+   * definition — the whole of the migration — would therefore have killed the
+   * API at boot, the ECS circuit breaker would have rolled the deploy back and
+   * reported the service stable, and the operator would have seen a failed
+   * deploy with nothing naming the cause.
+   *
+   * `AWS_CONTAINER_CREDENTIALS_RELATIVE_URI` is set by ECS on every task and by
+   * nothing else, which is what `canAttestWorkloadIdentity` reads. A task with
+   * it and no pair mints exactly as before, so it must BOOT.
+   */
+  it('boots a task that attests its role and carries no credential pair', async () => {
+    const { trace, exits, egressInstalls } = await run({
+      ...HEALTHY_ENV,
+      OXY_API_URL: OXY_INFERENCE_ALLOWED_ORIGINS[0] as string,
+      AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: '/v2/credentials/9f0c',
+    });
+
+    expect(exits).toEqual([]);
+    expect(trace.join('\n')).not.toContain('Oxy inference client configuration is invalid');
+    expect(egressInstalls).toBe(1);
+  });
+
+  /**
+   * Half a pair is not half an identity — and on a task that can attest, it is
+   * not a reason to refuse either.
+   *
+   * A key with no secret would REPLACE the attestation path with a credential
+   * that cannot mint, so `createOxyInferenceCredential` ignores it and attests
+   * instead. Refusing to boot over it would be this guard's original mistake in
+   * a smaller form: a leftover SSM binding taking down a deployment whose
+   * identity is intact.
+   *
+   * Where nothing can attest, the same half pair IS the whole story and the
+   * refusal names both variables, because setting both is the thing to do there.
+   */
+  it('ignores half a pair where the role attests, and refuses it where nothing does', async () => {
+    const attesting = await run({
+      ...HEALTHY_ENV,
+      OXY_API_URL: OXY_INFERENCE_ALLOWED_ORIGINS[0] as string,
+      AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: '/v2/credentials/9f0c',
+      OXY_SERVICE_API_KEY: 'oxy_dk_alia',
+    });
+    expect(attesting.exits).toEqual([]);
+
+    const checkout = await run({
+      ...HEALTHY_ENV,
+      OXY_API_URL: OXY_INFERENCE_ALLOWED_ORIGINS[0] as string,
+      OXY_SERVICE_API_KEY: 'oxy_dk_alia',
+    });
+    expect(checkout.exits).toEqual([1]);
+    expect(checkout.trace.join('\n')).toContain('OXY_SERVICE_API_KEY, OXY_SERVICE_API_SECRET');
   });
 
   it('reports the DATABASE failure, not the inference one, when both are wrong', async () => {

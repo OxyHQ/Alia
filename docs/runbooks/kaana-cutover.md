@@ -15,18 +15,25 @@ The Alia task requires exactly this inference configuration:
 
 ```text
 OXY_API_URL
-OXY_SERVICE_API_KEY
-OXY_SERVICE_API_SECRET
 ```
 
-The values are an Oxy ApplicationCredential, not Kaana or provider credentials.
-Oxy derives account, application and credential IDs from the exchanged token;
-do not copy those IDs into Alia configuration or introduce legacy aliases.
+The credential is the task role. Under oxy ADR 0026 the task proves what it IS —
+a signed `GetCallerIdentity`, which Oxy replays to AWS — and gets back the same
+short-lived Oxy service token; `@oxy.so/core` >= 1.6.1 takes that path whenever
+no `OXY_SERVICE_API_KEY` / `OXY_SERVICE_API_SECRET` pair is set, which on a
+deployed task is always. The origin is not part of that and stays required:
+attestation says what this process is, not where Oxy is.
 
-Oxy provisions the two credential values from its ApplicationCredential record
-into exact SSM parameters. Alia's deploy validates their names and
-`SecureString` types without reading or overwriting them, then binds them to each
-new task definition. A value in SSM without a live task binding is not delivered.
+A local checkout can attest nothing and adds the pair, which is an Oxy
+ApplicationCredential and not a Kaana or provider credential. Oxy derives
+account, application and credential IDs from the exchanged token either way; do
+not copy those IDs into Alia configuration or introduce legacy aliases.
+
+The two SSM parameters still exist and are untouched. What changed is that the
+deploy no longer validates or binds them — see `TASK_SECRET_REMOVALS_JSON` in
+both `deploy-aws.yml` and `deploy-integrations.yml`, which is what takes them off
+a revision that would otherwise inherit them forever. A value in SSM without a
+live task binding is not delivered, and that is now the intended state.
 
 ## Preconditions
 

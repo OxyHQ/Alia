@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { TaxonomyCodeSchema } from '@oxy.so/crowdsource-contracts';
+import { TaxonomyCodeSchema } from '@crowdsource.you/contracts';
 import { REPORT_TAXONOMY_VERSION, allegationsForCategories } from '../report-taxonomy.js';
 import { ReportCategory } from '../../../domain/report.js';
 

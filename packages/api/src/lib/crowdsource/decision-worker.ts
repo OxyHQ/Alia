@@ -1,4 +1,4 @@
-import { DecisionSchema, type Decision } from '@oxy.so/crowdsource-contracts';
+import { DecisionSchema, type Decision } from '@crowdsource.you/contracts';
 import {
   applyDecisionToReport,
   findReportsByCaseId,

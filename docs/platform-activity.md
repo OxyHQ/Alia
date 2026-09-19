@@ -15,9 +15,15 @@ is a network ingress location, not a visitor's physical location.
 
 `OXY_ECOSYSTEM_ACTIVITY_ENABLED=true` explicitly enables the deployed producer; it is disabled by default. Keep it false in local environments, even when using AWS storage.
 
-`AWS_REGION` supplies the process location. `OXY_SERVICE_API_KEY` and
-`OXY_SERVICE_API_SECRET` authenticate publication. Enabled producer configuration is validated before
-listening. Each process registers a fresh instance, refreshes its lease,
+`AWS_REGION` supplies the process location. Publication is authenticated by an
+Oxy service token, and a deployed task mints one by attesting its ECS task role
+rather than from a credential (oxy ADR 0026) — so neither
+`OXY_SERVICE_API_KEY` nor `OXY_SERVICE_API_SECRET` is set on `alia` or
+`alia-integrations`. Both remain the way a local process, which can attest
+nothing, publishes at all. Enabled producer configuration is validated before
+listening, and what is validated is whether this process can mint a token: the
+check used to read the two variables, which would have switched observability
+off on exactly the deployments that can authenticate. Each process registers a fresh instance, refreshes its lease,
 and removes it during graceful shutdown. Crashed instances disappear when their
 lease expires. Oxy broadcasts authoritative snapshots over Socket.IO.
 
