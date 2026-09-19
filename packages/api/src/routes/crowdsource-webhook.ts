@@ -1,5 +1,5 @@
 import { Router, type NextFunction, type Request, type Response } from 'express';
-import { crowdsourceWebhooks } from '@oxy.so/crowdsource-express';
+import { crowdsourceWebhooks } from '@crowdsource.you/core/express';
 import { crowdSourceConfig } from '../lib/crowdsource/config.js';
 import {
   recordDecisionEvent,
@@ -19,7 +19,7 @@ import { recordMetric } from '../lib/observability/index.js';
  * parser has run, those bytes are gone.
  *
  * Alia's parser happens to keep a Buffer copy on `req.rawBody`, which
- * `@oxy.so/crowdsource-express` would accept, so mounting late would appear to work
+ * `@crowdsource.you/core/express` would accept, so mounting late would appear to work
  * — and that is exactly why the guard below exists rather than a comment. The
  * `verify` hook that populates `req.rawBody` lives in `index.ts` and answers to
  * nothing here; the day somebody removes or narrows it, webhook verification

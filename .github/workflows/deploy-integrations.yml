@@ -255,6 +255,30 @@ jobs:
           MIGRATION_ENTRYPOINT: packages/integrations/dist/db/migrate.js
           MIGRATION_TARGET_DATABASE: ${{ env.MIGRATION_DATABASE }}
           POST_DEPLOY_TASK_COMMAND_JSON: ${{ steps.phases.outputs.post_command }}
+          # This service stops holding an Oxy service credential too, and this is
+          # the only thing that makes that happen.
+          #
+          # `alia-integrations` binds `/oxy/alia/OXY_SERVICE_API_KEY` and
+          # `..._SECRET` the same way the API did, from a task definition this
+          # workflow never wrote: there is no `sync_secret` line and no
+          # `TASK_SECRET_OVERRIDES_JSON` here, so the pair is inherited on every
+          # revision from oxy-infra's original one. That is precisely why
+          # deleting something is not the same as removing it — every release
+          # renders from the RUNNING revision, and there is no line here to
+          # delete in the first place.
+          #
+          # `src/platform-activity.ts` is the reader, and it asks whether this
+          # process can authenticate rather than whether the pair is present, so
+          # the task keeps reporting traffic on the attested role (oxy ADR 0026).
+          #
+          # Ordering, and it is the same for this lane as for the API's: the
+          # `alia-integrations` task role must ALREADY be bound as its Oxy
+          # application before this merges. The first deploy after it renders a
+          # task definition with no pair, and a service still on the shared role
+          # would have no identity at all.
+          #
+          # No SSM parameter is deleted. This removes the reference.
+          TASK_SECRET_REMOVALS_JSON: '["OXY_SERVICE_API_KEY","OXY_SERVICE_API_SECRET"]'
         run: |
           STATUS=$(aws ecs describe-services --cluster "$CLUSTER" --services "$APP" --query 'services[0].status' --output text 2>/dev/null || echo NONE)
           if [ "$STATUS" != "ACTIVE" ]; then

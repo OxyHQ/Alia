@@ -13,12 +13,19 @@ import {
   createOxyInferenceCredential,
   OXY_API_URL_ENV,
   OXY_INFERENCE_CREDENTIAL_REQUIRED_ENV,
+  unsetOxyInferenceCredentialVariables,
 } from './oxy-inference-credential.js';
 
 /** The only Oxy origin a deployed Alia task may send inference credentials to. */
 export const OXY_INFERENCE_ALLOWED_ORIGINS: readonly string[] = ['https://api.oxy.so'];
 
-/** Every variable needed to build the SDK client. */
+/**
+ * Every variable needed to build the SDK client on a machine that cannot attest.
+ *
+ * A list of NAMES, which is all a `.env.example` or a runbook can be. What a
+ * given environment is actually missing is {@link unsetOxyInferenceVariables},
+ * because a deployed task needs none of the credential half (oxy ADR 0026).
+ */
 export const OXY_INFERENCE_REQUIRED_ENV: readonly string[] = [
   ...OXY_INFERENCE_CREDENTIAL_REQUIRED_ENV,
 ];
@@ -33,13 +40,19 @@ export function resolveOxyDeploymentEnvironment(
   return 'development';
 }
 
-/** Variables absent from an otherwise required SDK configuration. */
+/**
+ * Variables absent from an otherwise required SDK configuration.
+ *
+ * Delegated rather than filtered over {@link OXY_INFERENCE_REQUIRED_ENV}: the
+ * answer is not a per-name presence test any more, because a task that attests
+ * its ECS role needs no credential pair at all. Two implementations of that one
+ * rule is how the boot guard and the client come to disagree about whether this
+ * process can reach Oxy — and this is the side that calls `process.exit(1)`.
+ */
 export function unsetOxyInferenceVariables(
   env: NodeJS.ProcessEnv = process.env,
 ): readonly string[] {
-  return OXY_INFERENCE_REQUIRED_ENV.filter(
-    (variable) => (env[variable] ?? '').trim().length === 0,
-  );
+  return unsetOxyInferenceCredentialVariables(env);
 }
 
 /** Why an Oxy base URL is unsafe, or `null` when it is approved. */

@@ -119,8 +119,9 @@ Key groups:
 - Server and CORS (`PORT`, `WEB_URL`, `API_BASE_URL`)
 - PostgreSQL (`DATABASE_URL`) — the one variable the process cannot start without
 - PostgreSQL is the only database; there is no Mongo connection string or driver dependency
-- Identity and internal auth (`OXY_API_URL`, `OXY_SERVICE_API_KEY`,
-  `OXY_SERVICE_API_SECRET`, `TOKEN_ENCRYPTION_KEY`)
+- Identity and internal auth (`OXY_API_URL`, `TOKEN_ENCRYPTION_KEY`, and —
+  locally only — `OXY_SERVICE_API_KEY` / `OXY_SERVICE_API_SECRET`; a deployed
+  task attests its ECS role instead and carries neither, oxy ADR 0026)
 - Queue and async execution (`REDIS_URL`)
 - Integrations and channels (`INTEGRATIONS_URL`, `INTEGRATIONS_SECRET`, channel secrets)
 - Optional sandbox runtime (`DOCKER_HOST_URL`, `DOCKER_HOST_SECRET`)

@@ -3,17 +3,21 @@
  *
  * Alia has no central config module — env is read inline at each call site — so
  * this is deliberately the exception rather than a new convention: the enabled
- * flag, the credential and the webhook secret have to be validated TOGETHER, and
- * a check that only exists where a value happens to be read is a check that runs
- * after the damage.
+ * flag and the webhook secret have to be validated TOGETHER, and a check that
+ * only exists where a value happens to be read is a check that runs after the
+ * damage.
  *
- * ## There is no `CROWDSOURCE_APP_ID`, and one must never be added
+ * ## There is no `CROWDSOURCE_SERVICE_KEY` and no `CROWDSOURCE_APP_ID`
  *
- * `applicationId` is read off the service credential by the SDK, which exposes no
- * option, field or parameter through which one could be passed. A variable holding
- * it could only ever disagree with the credential — and a tenant id the caller can
- * choose is not isolation, it is an IDOR. The envelope's copy exists so a mismatch
- * can be DETECTED; the credential is its only source.
+ * Alia is a first-party Oxy application, so `crowdSourceForOxyService()` presents
+ * the Oxy service token this process already mints and CrowdSource resolves the
+ * tenant from the Oxy application that token names (oxy ADR 0026). There is
+ * nothing to issue by hand, store in a parameter or rotate.
+ *
+ * A variable holding a tenant could only ever disagree with the token — and a
+ * tenant id the caller can choose is not isolation, it is an IDOR. The
+ * envelope's copy exists so a mismatch can be DETECTED; the token is its only
+ * source.
  */
 
 import { log } from '../logger.js';
@@ -33,8 +37,6 @@ const MAX_OUTBOX_BATCH_SIZE = 500;
 
 export interface CrowdSourceConfig {
   readonly enabled: boolean;
-  /** `applicationId:credentialId:secret`, ONE opaque value. Never split here. */
-  readonly serviceKey?: string;
   /** Optional; the SDK defaults to the one deployment. */
   readonly baseUrl?: string;
   readonly webhookSecret?: string;
@@ -81,33 +83,35 @@ function enforcementMode(value: string | undefined): ModerationEnforcementMode {
 }
 
 /**
- * Enabled requires BOTH halves of the round trip.
+ * Enabled requires the RETURN half of the round trip.
  *
- * A deployment with a service key and no webhook secret sends reports that can
+ * A deployment that delivers reports with no webhook secret sends work that can
  * never come back: cases open, juries decide, and Alia never learns the outcome —
  * with nothing failing anywhere to say so. Refusing to consider that "enabled" is
  * the only place this can be caught, because every later stage sees only its own
  * half.
+ *
+ * Only the webhook secret is checked. The OUTBOUND half stopped being
+ * configuration: `crowdSourceForOxyService()` presents the Oxy service token this
+ * process can already mint, and whether it can is something the process IS rather
+ * than something somebody typed — so it is answered at the client, by the same
+ * capability the rest of Alia's Oxy calls rest on, and not by a variable this
+ * file could compare against.
  */
 function readConfig(): CrowdSourceConfig {
   const requested = trimmed(process.env.CROWDSOURCE_ENABLED) === 'true';
-  const serviceKey = trimmed(process.env.CROWDSOURCE_SERVICE_KEY);
   const webhookSecret = trimmed(process.env.CROWDSOURCE_WEBHOOK_SECRET);
-  const enabled = requested && serviceKey !== undefined && webhookSecret !== undefined;
+  const enabled = requested && webhookSecret !== undefined;
 
   if (requested && !enabled) {
     log.general.error(
-      {
-        hasServiceKey: serviceKey !== undefined,
-        hasWebhookSecret: webhookSecret !== undefined,
-      },
-      '[CrowdSource] CROWDSOURCE_ENABLED=true but the integration is half-configured; staying off',
+      { hasWebhookSecret: false },
+      '[CrowdSource] CROWDSOURCE_ENABLED=true but CROWDSOURCE_WEBHOOK_SECRET is unset; staying off',
     );
   }
 
   return {
     enabled,
-    ...(serviceKey === undefined ? {} : { serviceKey }),
     ...(trimmed(process.env.CROWDSOURCE_BASE_URL) === undefined
       ? {}
       : { baseUrl: trimmed(process.env.CROWDSOURCE_BASE_URL) }),
