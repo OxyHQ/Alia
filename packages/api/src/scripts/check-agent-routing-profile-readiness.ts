@@ -1,7 +1,7 @@
 import { pathToFileURL } from 'node:url';
 import { readTargetDatabase } from '@oxy.so/db/migrate';
 import { eq } from 'drizzle-orm';
-import { OXY_KAANA_ROUTING_PROFILE_ID_LIST } from '../config/oxy-inference-routing-profile-ids.js';
+import { OXY_KAANA_ROUTING_PROFILE_ID_LIST, OXY_KAANA_SPEECH_ROUTING_PROFILE_ID } from '../config/oxy-inference-routing-profile-ids.js';
 import { assertTargetDatabase } from '../db/assertTargetDatabase.js';
 import { closePostgres, connectPostgres, getDb } from '../db/index.js';
 import { agents } from '../db/schema/agents.js';
@@ -32,7 +32,7 @@ export function agentRoutingReadinessReport(rows: readonly AgentRoutingReadiness
  * Oxy. Source constants alone cannot prove that the reviewed bootstrap ran. */
 export function oxyRoutingReadinessReport(routingProfileIds: readonly string[]) {
   const visible = new Set(routingProfileIds);
-  const missing = OXY_KAANA_ROUTING_PROFILE_ID_LIST.filter((id) => !visible.has(id));
+  const missing = [...OXY_KAANA_ROUTING_PROFILE_ID_LIST, OXY_KAANA_SPEECH_ROUTING_PROFILE_ID].filter((id) => !visible.has(id));
   return { ready: missing.length === 0, missingCount: missing.length, missing };
 }
 

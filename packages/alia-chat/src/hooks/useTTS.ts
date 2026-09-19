@@ -105,6 +105,7 @@ export function useTTS(options: UseTTSOptions = {}) {
   const reset = useTTSStore((s) => s.reset);
 
   const playerRef = useRef<AudioPlayer | null>(null);
+  const requestRef = useRef<AbortController | null>(null);
 
   // ============== AUTH ==============
 
@@ -114,7 +115,7 @@ export function useTTS(options: UseTTSOptions = {}) {
   }, [options.accessToken, oxyServices]);
 
   const getTTSVoice = useCallback(() => {
-    return voicePref === 'male' ? 'echo' : 'nova';
+    return voicePref === 'male' ? 'male' : 'female';
   }, [voicePref]);
 
   const getTTSSpeed = useCallback(() => {
@@ -133,6 +134,8 @@ export function useTTS(options: UseTTSOptions = {}) {
   }, []);
 
   const stop = useCallback(() => {
+    requestRef.current?.abort();
+    requestRef.current = null;
     releasePlayer();
     reset();
   }, [reset, releasePlayer]);
@@ -150,6 +153,7 @@ export function useTTS(options: UseTTSOptions = {}) {
   const playFromUrl = useCallback((
     audioUrl: string,
     _messageId: string,
+    signal: AbortSignal,
     onUnplayable?: () => void,
   ) => {
     releasePlayer();
@@ -157,6 +161,7 @@ export function useTTS(options: UseTTSOptions = {}) {
     (async () => {
       try {
         const { createAudioPlayer } = await import('expo-audio');
+        if (signal.aborted) return;
         /**
          * `crossOrigin` is web-only and ignored elsewhere, and it is what makes
          * the waveform readable there: a browser will not let an `AnalyserNode`
@@ -199,6 +204,7 @@ export function useTTS(options: UseTTSOptions = {}) {
         });
 
         player.addListener('playbackStatusUpdate', (status: AudioStatus) => {
+          if (signal.aborted || playerRef.current !== player) return;
           if (status.error) {
             releasePlayer();
             if (onUnplayable) {
@@ -217,6 +223,7 @@ export function useTTS(options: UseTTSOptions = {}) {
         player.play();
         setPlaybackState('playing');
       } catch {
+        if (signal.aborted) return;
         if (onUnplayable) {
           onUnplayable();
           return;
@@ -256,6 +263,8 @@ export function useTTS(options: UseTTSOptions = {}) {
       stop();
     }
 
+    const controller = new AbortController();
+    requestRef.current = controller;
     try {
       setActiveMessage(messageId);
       setPlaybackState('loading');
@@ -276,6 +285,7 @@ export function useTTS(options: UseTTSOptions = {}) {
 
         const response = await fetch(`${apiUrl}/v1/audio/speech`, {
           method: 'POST',
+          signal: controller.signal,
           headers: {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${token}`,
@@ -299,7 +309,8 @@ export function useTTS(options: UseTTSOptions = {}) {
         }
 
         const data = await response.json();
-        playFromUrl(data.audioUrl, messageId);
+        controller.signal.throwIfAborted();
+        playFromUrl(data.audioUrl, messageId, controller.signal);
       };
 
       /**
@@ -311,22 +322,26 @@ export function useTTS(options: UseTTSOptions = {}) {
        * forever, and the person notices nothing.
        */
       if (audioUrl) {
-        playFromUrl(audioUrl, messageId, () => {
-          void synthesize().catch((e: unknown) => setError(errorMessage(e, 'Failed to read aloud')));
+        playFromUrl(audioUrl, messageId, controller.signal, () => {
+          void synthesize().catch((e: unknown) => {
+            if (!controller.signal.aborted) setError(errorMessage(e, 'Failed to read aloud'));
+          });
         });
         return;
       }
 
       await synthesize();
     } catch (e: unknown) {
+      if (controller.signal.aborted) return;
       console.error('[TTS] Error:', e);
       setError(errorMessage(e, 'Failed to read aloud'));
     }
-  }, [getToken, apiUrl, getTTSVoice, getTTSSpeed, stop, playFromUrl, setActiveMessage, setPlaybackState, setError]);
+  }, [getToken, apiUrl, voiceModel, getTTSVoice, getTTSSpeed, stop, playFromUrl, setActiveMessage, setPlaybackState, setError]);
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
+      requestRef.current?.abort();
       releasePlayer();
     };
   }, []);

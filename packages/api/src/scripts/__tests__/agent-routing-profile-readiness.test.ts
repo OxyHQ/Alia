@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { OXY_KAANA_ROUTING_PROFILE_IDS } from '../../config/oxy-inference-routing-profile-ids.js';
+import { OXY_KAANA_ROUTING_PROFILE_IDS, OXY_KAANA_SPEECH_ROUTING_PROFILE_ID } from '../../config/oxy-inference-routing-profile-ids.js';
 import {
   agentRoutingReadinessReport,
   oxyRoutingReadinessReport,
@@ -64,7 +64,7 @@ describe('agent routing-profile rollout readiness', () => {
 
 describe('live Oxy routing-profile readiness', () => {
   it('requires every reviewed primary key to be visible to Alia', () => {
-    expect(oxyRoutingReadinessReport(Object.values(OXY_KAANA_ROUTING_PROFILE_IDS))).toEqual({
+    expect(oxyRoutingReadinessReport([...Object.values(OXY_KAANA_ROUTING_PROFILE_IDS), OXY_KAANA_SPEECH_ROUTING_PROFILE_ID])).toEqual({
       ready: true,
       missingCount: 0,
       missing: [],
@@ -72,7 +72,7 @@ describe('live Oxy routing-profile readiness', () => {
   });
 
   it('reports the exact missing key instead of accepting matching slugs', () => {
-    const ids = Object.values(OXY_KAANA_ROUTING_PROFILE_IDS).slice(1);
+    const ids = [...Object.values(OXY_KAANA_ROUTING_PROFILE_IDS), OXY_KAANA_SPEECH_ROUTING_PROFILE_ID].filter((id) => id !== OXY_KAANA_ROUTING_PROFILE_IDS['route:instant']);
     expect(oxyRoutingReadinessReport(['route:instant', ...ids])).toEqual({
       ready: false,
       missingCount: 1,

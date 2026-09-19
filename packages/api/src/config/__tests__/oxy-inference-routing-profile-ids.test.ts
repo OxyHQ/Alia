@@ -4,6 +4,7 @@ import {
   getOxyKaanaProductProfileId,
   getOxyKaanaRoutingProfileId,
   OXY_KAANA_ROUTING_PROFILE_IDS,
+  OXY_KAANA_SPEECH_ROUTING_PROFILE_ID,
 } from '../oxy-inference-routing-profile-ids.js';
 
 describe('reviewed Oxy Kaana routing-profile IDs', () => {
@@ -19,6 +20,12 @@ describe('reviewed Oxy Kaana routing-profile IDs', () => {
       'route:pro': '01a06477-94f5-74f0-bc25-658eeb277737',
     });
     expect(new Set(Object.values(OXY_KAANA_ROUTING_PROFILE_IDS)).size).toBe(8);
+  });
+
+  it('keeps the exact speech identity outside agent and chat routing', () => {
+    expect(OXY_KAANA_SPEECH_ROUTING_PROFILE_ID).toBe('cc2471c8-807e-46ec-b5da-b6f3b39d2db5');
+    expect(getOxyKaanaRoutingProfileId('route:voice')).toBeNull();
+    expect(getOxyKaanaProductProfileId(OXY_KAANA_SPEECH_ROUTING_PROFILE_ID)).toBeNull();
   });
 
   it('fails closed instead of choosing a profile by name, order, or similarity', () => {
