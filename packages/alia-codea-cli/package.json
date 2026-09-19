@@ -38,6 +38,7 @@
     "marked-terminal": "^7.3.0",
     "openai": "^6.46.0",
     "ora": "^9.4.1",
+    "qrcode": "^1.5.4",
     "react": "19.2.0",
     "simple-git": "^3.36.0"
   },
