@@ -1,76 +1,73 @@
-import { describe, expect, it, vi } from 'vitest';
+import { EventEmitter } from 'node:events';
+import { OxyInferenceError } from '@oxy.so/core';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const H = vi.hoisted(() => ({
-  reserveCredits: vi.fn(),
-  finalizeCredits: vi.fn(),
-  synthesizeSpeech: vi.fn(),
-  callProviderAPI: vi.fn(),
-}));
-
-vi.mock('../../../lib/credits-manager.js', () => ({
-  reserveCredits: H.reserveCredits,
-  finalizeCredits: H.finalizeCredits,
-}));
+const H = vi.hoisted(() => ({ synthesizeSpeech: vi.fn(), upload: vi.fn(), remove: vi.fn(), find: vi.fn(), save: vi.fn(), link: vi.fn() }));
 vi.mock('../../../lib/synthesize-speech.js', () => ({ synthesizeSpeech: H.synthesizeSpeech }));
-vi.mock('../../../lib/gateway-client.js', () => ({ callProviderAPI: H.callProviderAPI }));
+vi.mock('../../../lib/s3.js', () => ({ uploadToS3: H.upload, deleteS3Objects: H.remove }));
+vi.mock('../../../lib/stored-media.js', () => ({ storedMediaUrl: H.link }));
+vi.mock('../../../db/chat/messageRepository.js', () => ({ findMessageAudioUrl: H.find, setMessageAudioUrl: H.save }));
 vi.mock('../../../db/index.js', () => ({ getDb: vi.fn(() => ({})) }));
 vi.mock('../../../db/notifications/audioJobRepository.js', () => ({ findAudioJobStatus: vi.fn() }));
-vi.mock('../../../lib/logger.js', () => ({
-  log: { general: { error: vi.fn() } },
-}));
-
+vi.mock('../../../lib/logger.js', () => ({ log: { general: { error: vi.fn() } } }));
 const { default: audioRouter } = await import('../audio.js');
-
-interface RouteLayer {
-  route?: {
-    path?: string;
-    methods?: Record<string, boolean>;
-    stack: Array<{ handle: (req: unknown, res: unknown, next: unknown) => Promise<void> | void }>;
-  };
-}
-
-function handlerFor(path: string) {
-  const stack = (audioRouter as unknown as { stack: RouteLayer[] }).stack;
-  const layer = stack.find((entry) => entry.route?.path === path && entry.route.methods?.post);
-  if (!layer?.route) throw new Error(`POST ${path} not mounted on the audio router`);
+interface RouteLayer { route?: { path?: string; methods?: Record<string, boolean>; stack: Array<{ handle: (req: unknown, res: unknown, next: unknown) => unknown }> } }
+function handler() {
+  const layer = (audioRouter as unknown as { stack: RouteLayer[] }).stack.find((entry) => entry.route?.path === '/speech' && entry.route.methods?.post);
+  if (!layer?.route) throw new Error('Speech route missing');
   return layer.route.stack[layer.route.stack.length - 1].handle;
 }
-
-function capturingRes() {
-  const res = {
-    statusCode: 200,
-    body: undefined as unknown,
-    status(code: number) { res.statusCode = code; return res; },
-    json(body: unknown) { res.body = body; return res; },
-  };
-  return res;
-}
-
-describe('POST /v1/audio/speech is a fail-closed Kaana capability boundary', () => {
-  it('still rejects an anonymous caller before disclosing capability state', async () => {
-    const res = capturingRes();
-    await handlerFor('/speech')({ user: undefined, body: { input: 'hello' } }, res, undefined);
-
-    expect(res.statusCode).toBe(401);
-    expect(res.body).toEqual({ error: 'Authentication required' });
+function response() {
+  return Object.assign(new EventEmitter(), {
+    statusCode: 200, body: undefined as unknown, writableEnded: false, headers: {} as Record<string,string>,
+    status(code: number) { this.statusCode = code; return this; },
+    json(body: unknown) { this.body = body; this.writableEnded = true; return this; },
+    setHeader(name: string, value: string) { this.headers[name] = value; },
   });
-
-  it('returns a stable 503 without synthesizing or touching Alia credits', async () => {
-    const res = capturingRes();
-    await handlerFor('/speech')({ user: { id: 'u1' }, body: { input: 'hello' } }, res, undefined);
-
-    expect(res.statusCode).toBe(503);
-    expect(res.body).toEqual({
-      error: {
-        code: 'KAANA_CAPABILITY_UNAVAILABLE',
-        message: 'The speech synthesis capability is not available through Kaana.',
-        type: 'server_error',
-        retryable: false,
-      },
-    });
-    expect(H.synthesizeSpeech).not.toHaveBeenCalled();
-    expect(H.callProviderAPI).not.toHaveBeenCalled();
-    expect(H.reserveCredits).not.toHaveBeenCalled();
-    expect(H.finalizeCredits).not.toHaveBeenCalled();
+}
+const body = { model: 'route:voice', input: 'Hola', voice: 'female', speed: 1.15, conversationId: 'c1', messageId: 'm1' };
+beforeEach(() => {
+  vi.clearAllMocks(); H.find.mockResolvedValue(null); H.save.mockResolvedValue(1);
+  H.synthesizeSpeech.mockResolvedValue({ audio: Buffer.from('ID3'), format: 'mp3', requestId: 'req_tts' });
+  H.upload.mockResolvedValue('test/audio/u1/speech.mp3'); H.remove.mockResolvedValue(1);
+  H.link.mockReturnValue('https://api.alia.test/media?signed');
+});
+describe('speech synthesis boundary', () => {
+  it('requires authentication before synthesis or storage', async () => {
+    const res = response(); await handler()({ body }, res, undefined);
+    expect(res.statusCode).toBe(401); expect(H.synthesizeSpeech).not.toHaveBeenCalled(); expect(H.upload).not.toHaveBeenCalled();
+  });
+  it('returns playable stored audio and only updates the authenticated user’s message', async () => {
+    const res = response(); await handler()({ user: { id: 'u1' }, body }, res, undefined);
+    expect(res.statusCode).toBe(200); expect(res.body).toEqual({ audioUrl: 'https://api.alia.test/media?signed', requestId: 'req_tts' });
+    expect(H.synthesizeSpeech).toHaveBeenCalledWith({ input: 'Hola', voice: 'female', format: 'mp3', userId: 'u1', speed: 1.15, signal: expect.any(AbortSignal) });
+    expect(H.save).toHaveBeenCalledWith({}, 'u1', 'c1', 'm1', 'test/audio/u1/speech.mp3');
+    expect(H.remove).not.toHaveBeenCalled(); expect(res.listenerCount('close')).toBe(0);
+  });
+  it.each([{ input: '' }, { input: ' '.repeat(4) }, { input: 'a'.repeat(15001) }, { voice: 'unknown' }, { speed: 4 }, { model: 'xai/model' }])('rejects unsupported input before egress: %p', async (patch) => {
+    const res = response(); await handler()({ user: { id: 'u1' }, body: { ...body, ...patch } }, res, undefined);
+    expect(res.statusCode).toBe(400); expect(H.synthesizeSpeech).not.toHaveBeenCalled();
+  });
+  it('does not generate audio for another user’s message', async () => {
+    H.find.mockResolvedValue(undefined); const res = response();
+    await handler()({ user: { id: 'u1' }, body }, res, undefined);
+    expect(res.statusCode).toBe(404); expect(H.synthesizeSpeech).not.toHaveBeenCalled();
+  });
+  it('preserves provider rate limits and never retries a paid request', async () => {
+    H.synthesizeSpeech.mockRejectedValue(new OxyInferenceError({ status: 429, code: 'rate_limited', message: 'Capacity unavailable', requestId: 'req_limit', retryable: true, retryAfterMs: 1500 }));
+    const res = response(); await handler()({ user: { id: 'u1' }, body }, res, undefined);
+    expect(res.statusCode).toBe(429); expect(res.headers['Retry-After']).toBe('2');
+    expect(res.body).toMatchObject({ error: { code: 'rate_limited', requestId: 'req_limit', retryAfterMs: 1500 } });
+    expect(H.synthesizeSpeech).toHaveBeenCalledTimes(1); expect(H.upload).not.toHaveBeenCalled();
+  });
+  it('removes generated storage when the message disappears before attachment', async () => {
+    H.save.mockResolvedValue(0); const res = response(); await handler()({ user: { id: 'u1' }, body }, res, undefined);
+    expect(res.statusCode).toBe(502); expect(H.remove).toHaveBeenCalledWith(['test/audio/u1/speech.mp3']);
+  });
+  it('cancels synthesis when its client disconnects', async () => {
+    const res = response();
+    H.synthesizeSpeech.mockImplementation(async (options) => { res.emit('close'); options.signal.throwIfAborted(); });
+    await handler()({ user: { id: 'u1' }, body }, res, undefined);
+    expect(H.upload).not.toHaveBeenCalled(); expect(res.body).toBeUndefined(); expect(res.listenerCount('close')).toBe(0);
   });
 });
