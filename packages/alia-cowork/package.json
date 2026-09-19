@@ -42,7 +42,7 @@
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
     "dotenv": "^16.6.1",
-    "electron-store": "^8.2.0",
+    "electron-store": "^11.0.2",
     "lucide-react": "^0.563.0",
     "openai": "^6.46.0",
     "playwright": "^1.61.1",

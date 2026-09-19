@@ -39,7 +39,7 @@ function getStripe(): Stripe {
       throw new Error('STRIPE_SECRET_KEY is not defined');
     }
     stripeInstance = new Stripe(process.env.STRIPE_SECRET_KEY, {
-      apiVersion: '2026-02-25.clover',
+      apiVersion: '2026-08-26.dahlia',
     });
   }
   return stripeInstance;
