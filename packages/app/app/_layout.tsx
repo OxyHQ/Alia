@@ -16,6 +16,8 @@ import { KeyboardProvider } from '@/lib/keyboard';
 import { useColorScheme } from '@/lib/useColorScheme';
 import { setTokenGetter } from '@/lib/api/client';
 import { BLOOM_THEME_PERSIST_KEY, BLOOM_THEME_STORAGE } from '@/lib/themePersistence';
+import { useI18nStore } from '@/lib/stores/i18n-store';
+import { SUPPORTED_LOCALES, DEFAULT_LOCALE } from '@/lib/i18n';
 import 'react-native-reanimated';
 import '../global.css';
 import '@/lib/i18n';
@@ -106,6 +108,19 @@ function RootLayout() {
           baseURL={OXY_API_URL}
           clientId={OXY_CLIENT_ID}
           authRedirectUri={Platform.OS !== 'web' ? AUTH_REDIRECT_URI : undefined}
+          // Wires Alia's own i18n-js instance to Oxy's resolved language (the
+          // signed-in account's primary locale, or the device/guest locale
+          // when signed out) — Oxy decides WHICH language; `useI18nStore`
+          // keeps owning the translation catalogs and library. See ADR 0022
+          // in OxyHQServices (`docs/adr/0022-app-i18n-follows-oxy-language.md`).
+          language={{
+            supportedLocales: SUPPORTED_LOCALES,
+            fallbackLocale: DEFAULT_LOCALE,
+            onChange: useI18nStore.getState().setLocale,
+            onError: (error, locale) => {
+              console.error('Failed to follow the Oxy-resolved language', error, { locale });
+            },
+          }}
         >
           <AppContent />
         </OxyProvider>
