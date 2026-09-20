@@ -299,6 +299,39 @@ screens, not opening a conversation.** §12's "apertura de conversación" is
 below, unmeasured.
 
 
+### Which listeners, and who attaches them
+
+The measurement above says listeners grow; it does not say which. A separate
+probe answered that by wrapping `EventTarget.prototype.addEventListener` and
+`removeEventListener` before the first bundle script evaluated, tallying by
+event type across ten round trips between `/` and `/library`, and recording a
+twelve-frame stack at each add site.
+
+Two types account for all of the net growth:
+
+| Type | Added | Removed | Net |
+| --- | --- | --- | --- |
+| `scroll` | 50 | 0 | **+50** |
+| `invalid` | 20 | 0 | **+20** |
+
+Everything else nets to zero or negative over the window.
+
+**Neither has an application frame in its stack.** Both are attached from
+inside React DOM's commit phase — nine and ten frames of minified React
+internals with nothing of Alia's above them. `scroll` and `invalid` are among
+the events React DOM attaches directly to a host node rather than delegating
+from the root, so these are React's own listeners on React's own elements.
+
+That rules out the usual suspect. This is **not** an `useEffect` somewhere in
+`packages/app` forgetting to return a cleanup: no app code is adding these.
+What it is instead — a detached tree being retained so its nodes and their
+listeners never collect, or screens being remounted rather than reused — is not
+established here, and naming it needs a heap snapshot with retaining paths.
+
+Recorded as a narrowing, not a diagnosis. The useful part is the direction it
+rules out: looking for a missing cleanup in Alia's own effects would be looking
+in the wrong place.
+
 ## 8. What this still does not measure
 
 §12 lists seven flows. **One is measured.**
