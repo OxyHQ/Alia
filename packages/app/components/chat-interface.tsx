@@ -1,18 +1,16 @@
 import { View, Pressable, Platform, type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent } from "react-native";
 import { toast } from "@oxy.so/bloom/toast";
-import { KeyboardAwareScrollView } from "@/lib/keyboard";
 import { Image } from "expo-image";
 import { CustomMarkdown } from "@/components/ui/markdown";
 import { Text } from "@/components/ui/text";
 import { WelcomeMessage } from "@/components/welcome-message";
 import React, { useEffect, useState, useCallback, useRef, useMemo } from "react";
-import type { ScrollView as GHScrollView } from "react-native-gesture-handler";
 import { processMessage } from "@/lib/message-processor";
 import { cn } from "@/lib/utils";
 import { THREAD_COLUMN } from "@/lib/chat-layout";
 import { IdentityMark, type IdentityMarkState } from '@alia.onl/sdk';
 import { AgentThinking } from '@oxy.so/bloom/agent-thinking';
-import { AiChatAssistantMessage, AiChatUserMessage } from '@oxy.so/bloom/ai-chat';
+import { AiChatAssistantMessage, AiChatThread, AiChatUserMessage, type AiChatThreadHandle } from '@oxy.so/bloom/ai-chat';
 import { useColorScheme } from "@/lib/useColorScheme";
 import { agentTint } from "@/lib/agents/agent-color";
 import { Copy, ThumbsUp, ThumbsDown, Pencil, Check, Volume2, Square, Music, RotateCcw } from "lucide-react-native";
@@ -58,6 +56,17 @@ import { rememberOpener } from "@/components/execution/focus-return";
 import { turnLifecycle, turnTimings } from "@/lib/thought-utils";
 
 const isWeb = Platform.OS === "web";
+
+/** How near the end still counts as being at the bottom, px. */
+export const AT_BOTTOM_THRESHOLD = 50;
+/**
+ * How near the top asks for the page above, px.
+ *
+ * A screenful of warning rather than the top itself: asking at zero leaves the
+ * reader at a dead end while the request flies, and a thread is read upwards
+ * at speed.
+ */
+const NEAR_TOP = 300;
 
 /**
  * For a row the timings map has never heard of. It cannot happen — the map is
@@ -124,7 +133,21 @@ type Message = {
 
 type ChatInterfaceProps = {
   messages: Message[];
-  scrollViewRef: React.RefObject<GHScrollView | null>;
+  /**
+   * Bloom's thread handle, for the jump-to-present button and for a restore.
+   *
+   * It replaced a `ScrollView` ref: the thread owns its scroll view now, and
+   * `AiChatThreadHandle` is the seam — `scrollToEnd`, `scrollToOffset`, and
+   * `getScrollView()` for the one thing neither covers (measuring a row for a
+   * cursor jump).
+   */
+  threadRef: React.RefObject<AiChatThreadHandle | null>;
+  /**
+   * Ask for the page above. Absent where there is no history behind the
+   * thread, which is also what turns the anchor off — Bloom only holds the
+   * reader's position for growth it was asked for.
+   */
+  onLoadHistory?: () => void;
   isLoading?: boolean;
   conversationLoading?: boolean;
   onStartEdit?: (messageId: string, content: string) => void;
@@ -134,7 +157,6 @@ type ChatInterfaceProps = {
   isVoiceActive?: boolean;
   voiceAgentState?: 'idle' | 'listening' | 'thinking' | 'speaking';
   onScroll?: (e: NativeSyntheticEvent<NativeScrollEvent>) => void;
-  onContentSizeChange?: () => void;
   agentActivity?: AgentActivityState | null;
   agentSessionId?: string | null;
   onApprovePlan?: (planId: string) => void;
@@ -768,7 +790,7 @@ const MessageRow = React.memo(function MessageRow({
 
 const imageThumbStyle = { width: 120, height: 120 };
 
-export const ChatInterface = React.memo(function ChatInterface({ messages, scrollViewRef, isLoading, conversationLoading, onStartEdit, onRegenerate, onCopyMessage, bottomPadding = 160, isVoiceActive = false, voiceAgentState, onScroll, onContentSizeChange, agentActivity, agentSessionId, onApprovePlan, onRejectPlan, suggestedNewConversation, onAcceptNewConversation, onDismissNewConversation, historyMessages, isLoadingHistory = false, onHistoryHeight, activeConversationId, focusCursor, failedTurn, onRetryTurn }: ChatInterfaceProps) {
+export const ChatInterface = React.memo(function ChatInterface({ messages, threadRef, onLoadHistory, isLoading, conversationLoading, onStartEdit, onRegenerate, onCopyMessage, bottomPadding = 160, isVoiceActive = false, voiceAgentState, onScroll, agentActivity, agentSessionId, onApprovePlan, onRejectPlan, suggestedNewConversation, onAcceptNewConversation, onDismissNewConversation, historyMessages, isLoadingHistory = false, onHistoryHeight, activeConversationId, focusCursor, failedTurn, onRetryTurn }: ChatInterfaceProps) {
     const { t, locale } = useTranslation();
     const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
     const [votedMessages, setVotedMessages] = useState<Record<string, 'up' | 'down'>>({});
@@ -1037,8 +1059,17 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
       filteredMessages.length === 0 && "flex-1 justify-center"
     );
 
-    const scrollContentStyle = useMemo(
-      () => ({ flexGrow: 1, paddingTop: 60, paddingBottom: bottomPadding }),
+    /**
+     * Room under the last turn for whatever floats over it.
+     *
+     * Bloom owns the thread's own `contentContainerStyle` — it carries the
+     * bottom-anchoring and the react-native-web `min-height` workaround — so
+     * this is spacing INSIDE the content instead of a container style. It has
+     * to be here rather than nowhere: the composer floats above the thread and
+     * would otherwise cover the newest answer.
+     */
+    const bottomSpacerStyle = useMemo(
+      () => ({ height: bottomPadding }),
       [bottomPadding]
     );
 
@@ -1067,8 +1098,8 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
      * message you went looking for wants to be.
      */
     const handleFocusLayout = useCallback((e: LayoutChangeEvent) => {
-      scrollViewRef.current?.scrollTo({ y: Math.max(0, e.nativeEvent.layout.y), animated: false });
-    }, [scrollViewRef]);
+      threadRef.current?.scrollToOffset({ offset: Math.max(0, e.nativeEvent.layout.y) });
+    }, [threadRef]);
 
     /**
      * One message, wherever it sits in the whole of what is shown.
@@ -1144,18 +1175,36 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
       );
     };
 
+    /*
+     * Bloom's thread, with the four behaviours Alia's own scroll hook had.
+     *
+     * `followAnimated={false}` is the one that is not a default, and it is the
+     * rule `use-scroll-to-bottom.ts` was built around: an ANIMATED
+     * `scrollToEnd` emits a run of intermediate positions from above the end,
+     * and anything reading those as the reader's own scrolling stops following
+     * at the first token — the classic autoscroll that switches itself off and
+     * looks random. Unanimated there are no intermediate positions, so the
+     * trap is unreachable rather than guarded against.
+     *
+     * `onStartReached` rather than an end-reached: a chat pages UPWARD.
+     * `maintainStartPosition` adds the page's growth to the offset so the turn
+     * being read does not slide away under it — without that, a reader near
+     * the top is left near the top, asking for the next page, and the next,
+     * until the whole thread has been pulled in.
+     *
+     * The keyboard is handled by `ChatWorkspace` one level up: Bloom's AI Chat
+     * family imports no keyboard controller at all.
+     */
     return (
-      <KeyboardAwareScrollView
-        ref={scrollViewRef}
-        bottomOffset={60}
-        // The AmbientField is a sibling behind this list. Keep the scroll
-        // surface transparent so its idle and voice animations remain visible.
-        className="flex-1 bg-transparent px-4 py-4"
-        contentContainerStyle={scrollContentStyle}
-        showsVerticalScrollIndicator={false}
+      <AiChatThread
+        ref={threadRef}
+        followAnimated={false}
+        followThreshold={AT_BOTTOM_THRESHOLD}
+        onStartReached={onLoadHistory}
+        onStartReachedThreshold={NEAR_TOP}
+        maintainStartPosition={onLoadHistory !== undefined}
         onScroll={onScroll}
-        scrollEventThrottle={16}
-        onContentSizeChange={onContentSizeChange}
+        style={{ paddingLeft: 16, paddingRight: 16 }}
       >
         <View className={containerClassName}>
           {!filteredMessages.length && (
@@ -1245,6 +1294,7 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
               <AgentThinking variant="wave" label={t('chat.thinking')} showTimer={false} />
             )}
         </View>
-      </KeyboardAwareScrollView>
+        <View style={bottomSpacerStyle} />
+      </AiChatThread>
     );
 });
