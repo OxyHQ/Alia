@@ -1,0 +1,451 @@
+---
+title: "Bundle baseline"
+description: "Where the 11 MB of Alia's web export actually came from, attributed module by module from the emitted source map; why the code splitting the app appeared to have did nothing; what was cut and by how much; and the four things that could not be cut, with the reason each one is out of reach."
+order: 9
+---
+
+# Bundle baseline
+
+[#608](https://github.com/OxyHQ/Alia/issues/608) §12 asks for bundle size to be
+recorded and for "carga diferida de canvas, terminal, visores pesados y voz
+cuando encaje en el bundler", with one condition attached:
+
+> No romper registro nativo requerido ni prometer que un import dinámico
+> elimina un módulo del bundle sin verificarlo.
+
+That condition is the method here. Every number on this page came out of an
+`expo export --platform web`, and every claim about a module being absent was
+checked against the emitted chunks — not inferred from an import statement, a
+`package.json`, or a `lazy()` that looks like it should have worked. Two changes
+that looked like optimisations turned out to save nothing and were reverted;
+they are in [§7](#7-what-was-tried-and-reverted), with their measurements.
+
+## 1. Where it started
+
+[The visual baseline](./visual-baseline.mdx) recorded the export as 48 chunks
+and 11,281,491 B of JS, of which `index-*.js` alone was 10,528,839. Re-measured
+here, and then again on `main` at `e31f919a` after the attachments, panel-resize
+and perf-harness work landed:
+
+| | At `ad6a8074` | `main` at `e31f919a` |
+| --- | ---: | ---: |
+| JS chunks | 48 | 48 |
+| Total JS | 11,294,236 B | 11,306,695 B |
+| `index-*.js` | 10,541,584 B (93.3%) | 10,554,043 B (93.3%) |
+| The other 47 chunks | 752,652 B | 752,652 B |
+| **JS fetched to render `/`** | **10,577,639 B** | **10,590,098 B** |
+| `dist/` as deployed | 21,797,718 B | 21,810,379 B |
+
+The last two rows are the ones that matter and neither was in the original
+record. "JS fetched to render `/`" is measured by serving the export and
+recording what Chromium actually requests — `index-*.js` alone undercounts a
+split build, and overcounts a build whose entry is never all needed. `dist/` as
+deployed includes `canvaskit.wasm`, which `bun run build` copied in; see
+[§5](#5-eight-megabytes-of-wasm-nobody-fetched).
+
+Two weeks of feature work moved the entry chunk by 12,459 B, 0.1%. The shape
+below is what it was.
+
+## 2. What was in it
+
+Metro emits one `__d(…)` factory per generated line, so a line belongs to
+exactly one module. Exporting with `--source-maps` and attributing each whole
+line — wrapper, minified body and newline — to the source that owns the most
+mapped bytes on it accounts for **100% of the file**: 10,541,700 B over 5,533
+modules, nothing unattributed. Per-segment attribution leaves ~14% behind in
+minifier output the map does not cover, which is why it is not used here.
+
+Baseline `index-*.js`, by package:
+
+| Bytes | Share | Package |
+| ---: | ---: | --- |
+| 1,836,042 | 17.42% | `lucide-react-native` |
+| 1,058,239 | 10.04% | `@oxy.so/bloom` |
+| 766,661 | 7.27% | `react-native-reanimated` |
+| 594,312 | 5.64% | `@oxy.so/core` |
+| 541,355 | 5.14% | `livekit-client` |
+| 485,111 | 4.60% | `expo-router` |
+| 424,282 | 4.02% | `@radix-ui/react-icons` |
+| 308,029 | 2.92% | `react-native-web` |
+| 278,436 | 2.64% | `@oxy.so/services` |
+| 236,395 | 2.24% | `@oxy.so/contracts` |
+| 218,542 | 2.07% | `packages/app/app/(app)` |
+| 216,213 | 2.05% | `react-native-gesture-handler` |
+| 213,173 | 2.02% | `@expo/vector-icons` |
+| 179,556 | 1.70% | `react-dom` |
+| 169,648 | 1.61% | `@lottiefiles/dotlottie-web` |
+| 152,717 | 1.45% | `packages/alia-chat` |
+| 131,046 | 1.24% | `@tanstack/query-core` |
+| 122,981 | 1.17% | `tldts` |
+| 122,627 | 1.16% | `packages/app/components/ui` |
+| 114,161 | 1.08% | `react-native-keyboard-controller` |
+| 91,792 | 0.87% | `packages/app/lib/hooks` |
+| 91,418 | 0.87% | `expo-localization` |
+
+287 buckets in total; the tail below 0.9% is 2.1 MB of long-tail dependencies.
+
+Single heaviest **modules**, which is where the shape of the problem shows:
+
+| Bytes | Module |
+| ---: | --- |
+| 595,137 | `lucide-react-native/dist/esm/lucide-react-native.mjs` |
+| 541,355 | `livekit-client/dist/livekit-client.esm.mjs` |
+| 424,282 | `@radix-ui/react-icons/dist/react-icons.esm.js` |
+| 232,688 | `@oxy.so/core/dist/esm/i18n/index.js` |
+| 186,311 | `@expo/vector-icons/build/MaterialCommunityIcons.js` |
+| 175,153 | `react-dom/cjs/react-dom-client.production.js` |
+| 169,648 | `@lottiefiles/dotlottie-web/dist/index.js` |
+| 120,145 | `tldts/dist/es6/src/data/trie.js` |
+
+Three of the top five are **one file each, imported for a handful of names**.
+That is the whole diagnosis: not too much application code, but barrels that
+Metro has no way to narrow.
+
+## 3. Why nothing was splitting
+
+Two reasons, both verified against the emitted bundle rather than reasoned
+about.
+
+### The route tree was one static require
+
+`expo-router`'s `_ctx.web.js` calls `require.context(…,
+process.env.EXPO_ROUTER_IMPORT_MODE)`. Unset, that resolves to `sync`, and
+Metro's `sync` context template emits `require(…)` per key. The emitted module
+8 in the baseline bundle is exactly that:
+
+```js
+__d(function(g,r,i,a,m,e,d){const t=Object.defineProperties({},{
+  "./(app)/[username].tsx":{enumerable:!0,get:()=>r(d[0])},
+  …51 entries…
+})…},8,[9,5214,5392,…,5583]);
+```
+
+All 51 route files are **static dependencies** of the context module, so
+everything any route can reach is in `index-*.js`. The 47 "lazy" chunks the
+baseline found were not routes at all: they are `@oxy.so/services` screens
+(`FileManagementScreen`, `TrustCenterScreen`, …) and xterm, which that SDK
+already splits for itself.
+
+Metro **does** honour `React.lazy(() => import(…))` on the web export — the
+xterm chunk proves it, and [§4.4](#44-the-thinking-indicator) adds another. The
+router simply was not asking it to.
+
+### Barrels, and no tree shaking
+
+Metro's default web export does not tree shake. A root entry that re-exports a
+whole library lands in the bundle whole:
+
+- `lucide-react-native` re-exports all 1,747 icons under three aliases each.
+  89 files in `packages/app` imported from it — **every one of them inside this
+  repo**, which is what made a fix possible — and 146 distinct icons were used.
+  Cost: 1,836,042 B.
+- `@radix-ui/react-icons` ships one 424,282 B ESM file with **no subpath
+  exports at all**, for `CheckIcon` and `ChevronRightIcon`.
+- `@expo/vector-icons/MaterialCommunityIcons` inlines a 7,448-entry
+  name-to-codepoint map, for the two marks on `/download`.
+
+A fourth icon set is in the bundle that no app file asks for. `packages/app`
+imports `@oxy.so/bloom/icons` in **zero** files — Bloom 3.2.1 gives every glyph
+its own subpath and Alia never used the barrel — and 376,328 B of Remix icons
+are in `__common` anyway, because `@oxy.so/services`' root barrel reaches
+`FollowTargetButton`, which imports `@oxy.so/bloom/icons`, and
+`app/(app)/_layout.tsx` imports that root barrel. "We do not import the barrel"
+is not the same as "the barrel is not in the bundle"; only the emitted chunk
+settles it.
+
+## 4. What changed, and by how much
+
+Each row is a separate commit, measured by re-exporting at `ad6a8074`.
+"First-paint JS" is what Chromium fetches to render `/`.
+
+| Change | `index-*.js` | First-paint JS |
+| --- | ---: | ---: |
+| baseline | 10,541,584 | 10,577,639 |
+| icon barrel shims | 8,401,622 | 8,437,677 |
+| MaterialCommunityIcons glyph map | 8,215,615 | 8,251,670 |
+| lazy thinking indicator | 8,043,381 | 8,079,436 |
+| `asyncRoutes` on web | 1,115,015 † | 7,722,257 |
+
+† With route splitting on, `index-*.js` stops being the interesting number:
+6,352,444 B moved into an eagerly-loaded `__common` chunk. Read the right-hand
+column.
+
+Re-measured after merging `main` at `e31f919a`, which is what actually ships:
+
+| | `main` | This branch | Δ |
+| --- | ---: | ---: | ---: |
+| JS chunks | 48 | 100 | |
+| Total JS | 11,306,695 | 8,986,092 | −2,320,603 |
+| Eagerly loaded JS | 10,590,098 | 7,484,227 | −3,105,871 (−29.3%) |
+| **JS fetched to render `/`** | **10,590,098** | **7,735,549** | **−2,854,549 (−27.0%)** |
+| `dist/` as deployed | 21,810,379 | 11,413,223 | −10,397,156 (−47.7%) |
+
+The merge cost 2 more icons in the generated shim — `main` added composer
+attachment UI — and the test caught it, which is the guard working.
+
+### 4.1 Icon barrel shims — −2,139,962 B
+
+`metro.config.js` resolves `lucide-react-native` and `@radix-ui/react-icons` to
+local barrels, **on web only**:
+
+```js
+if (platform === "web" && moduleName in webIconBarrelShims) {
+  return { filePath: webIconBarrelShims[moduleName], type: "sourceFile" };
+}
+```
+
+The pattern already existed in this file for `react-native-track-player`. The
+redirect is gated on the platform so that native resolution — and with it every
+native module registration — is byte-for-byte unchanged; #608's "no romper
+registro nativo requerido" is not a thing to be careful about here, it is a
+thing the gate makes impossible.
+
+Editing the 89 importing files would not have worked: six of them
+(`components/ui/prompt-input/*`, `components/sidebar.tsx`,
+`components/chat-page-content.tsx`) belong to concurrent work on the chat
+shell, and **one** surviving barrel import keeps all 1,747 icons. A resolver
+redirect covers every consumer at once, including future ones.
+
+`lib/shims/lucide-icons.ts` is generated, because 146 hand-maintained
+re-exports would rot:
+
+```bash
+bun run --filter @alia/app generate:icon-shims
+```
+
+`lib/shims/radix-icons.tsx` is hand-written — Radix publishes no subpaths, so
+the two components are transcribed verbatim from `dist/react-icons.esm.js`
+(same 15×15 viewBox, same path data, same `color` default).
+
+**This needs a test and has one.** TypeScript cannot guard it: `tsc` resolves
+both specifiers to the real packages and never sees a shim, so an icon added to
+a component and forgotten in the barrel compiles clean and renders `undefined`
+in the browser. `__tests__/icon-shims.test.ts` re-runs the scan, byte-compares
+the generated file against a fresh render, and asserts the shim imports only
+`lucide-react-native/icons/*` subpaths — never the root it replaces.
+
+### 4.2 MaterialCommunityIcons — −186,007 B
+
+`components/ui/material-community-glyphs.tsx` builds the same icon set from the
+same `.ttf` under the same `material-community` family name, with the two
+codepoints `/download` draws. Verified by loading `/download` from both exports
+and diffing the rendered text: identical, private-use characters and all.
+
+The 1,307,660 B font file stays — it is what draws them — and is fetched only by
+visitors to that route.
+
+### 4.3 `asyncRoutes` on web — −357,179 B to first paint
+
+```json
+"extra": { "router": { "asyncRoutes": { "web": true, "default": false } } }
+```
+
+This flips Metro's context template from `require` to `import`, which is what
+emits a chunk per route. 49 chunks become 100. Native stays on `sync`.
+
+The eager set drops by 608,167 B; `/` gives 250,988 of that back for its own
+layout and screen chunks, leaving 357,179. Both numbers are worth keeping in
+view, because the first is what a route other than `/` saves.
+
+Checked beyond the byte count: `/`, `/download`, `/settings`, `/tasks` and an
+unmatched path all render with no console errors; clicking through four routes
+in-app produces identical output to the sync build; `visual:baseline --check`
+passes. One behavioural difference is real and benign — with sync routes a
+direct load of `/download` also mounted the `(app)` tree (27 SVGs, a textarea,
+the ambient field's blur filters, none of it visible); with async routes it does
+not, because the chunk is not there to mount.
+
+### 4.4 The thinking indicator — −172,234 B
+
+On web `lottie-react-native` resolves through `@lottiefiles/dotlottie-react` to
+`@lottiefiles/dotlottie-web`, to animate three dots that appear only once a turn
+is already running. `components/lottie-loader.tsx` now loads it with `lazy()`,
+the fallback is the same box at the same size, and Metro emits a 172,368 B
+chunk. Total JS is unchanged: **deferred, not deleted**, which is the honest way
+to describe it.
+
+## 5. Eight megabytes of wasm nobody fetched
+
+`bun run build` ran `setup-skia-web public`, which copies `canvaskit.wasm` —
+8,076,553 B, more than a third of the deployed export — into `public/`. Nothing
+loads it. `components/ui/skill-cover-canvas.web.tsx` deliberately draws without
+Skia and `components/__tests__/skill-cover-static.test.tsx` holds that line, so
+`@shopify/react-native-skia` contributes **zero** bytes to the web bundle.
+
+Both halves were measured:
+
+- no emitted chunk matches `/canvaskit|CanvasKitInit|react-native-skia|LoadSkiaWeb/`;
+- serving an export that *did* contain the file and loading `/` in Chromium
+  records **0 wasm bytes fetched**.
+
+The web build scripts no longer copy it. Because the failure mode of being wrong
+about this is a silent 404 at runtime, `scripts/check-web-bundle.mjs` runs after
+every `bun run build` and greps the export's own output:
+
+```
+check-web-bundle: 100 chunks, no Skia — canvaskit.wasm is correctly absent.
+```
+
+If a web path ever reaches Skia it names the chunk and tells you to put
+`setup-skia-web` back. The `setup-skia-web` script itself stays.
+
+One caveat for local checkouts: `public/canvaskit.wasm` is gitignored, so a
+deploy from a clean tree never has it — but a machine that ran
+`setup-skia-web` before (including via `visual:baseline --rebuild`) keeps the
+file, and `expo export` copies whatever is in `public/`. Delete it to see the
+real deployed size.
+
+`scripts/visual/capture.mjs` still copies the wasm for its own export; that
+harness belongs to another change and was not touched.
+
+## 6. What is still eager, and why it could not be cut
+
+7,484,227 B still load before anything renders: a 1,115,063 B entry chunk and a
+6,365,354 B `__common`. The attribution below is of the pre-merge export, whose
+`__common` was 6,352,564 B; the merge moved 12,790 B of it.
+
+The entry is the framework floor — `expo-router` 444,641, `react-native-web`
+308,033, `react-dom` 179,556 — 83.6% of it in three packages that first paint
+genuinely needs.
+
+`__common` is every module two or more route chunks share:
+
+| Bytes | Package | Why it is still there |
+| ---: | --- | --- |
+| 1,069,153 | `@oxy.so/bloom` | Already imported by subpath (`/toast`, `/theme`, `/content-panel`, …) — the app does this right. 376,328 of it is the Remix icon set, reached from `@oxy.so/services`'s root barrel via `app/(app)/_layout.tsx`. |
+| 766,653 | `react-native-reanimated` | Its own root barrel; the ambient field animates at first paint. Not fixable from here. |
+| 594,351 | `@oxy.so/core` | Root barrel with only `./server` and `./logger` as subpaths. Drags `i18n` (232,688), `tldts` (122,981) and `@noble/curves`. Needs an export map in the SDK. |
+| 541,355 | `livekit-client` | See below. |
+| 290,708 | `@oxy.so/services` | Root barrel, and the door the Bloom icons come through. |
+| 236,465 | `@oxy.so/contracts` | Reached from ten `@oxy.so/core` modules — see [§7](#7-what-was-tried-and-reverted). |
+| 216,200 | `react-native-gesture-handler` | Root barrel. |
+| 122,981 | `tldts` | Via `@oxy.so/core`'s `registrableApex`. |
+
+### The voice path could not be cut from here
+
+`livekit-client` is 541,355 B and the chain is exact:
+
+```
+app/(app)/index.tsx
+  components/chat-page-content.tsx      ← owned by concurrent work
+    packages/alia-chat/src/voice.ts
+      packages/alia-chat/src/hooks/useVoiceRoom.ts
+        livekit-client
+```
+
+`packages/alia-chat` already splits voice out of its own entry, and
+`scripts/check-entry-isolation.mjs` there keeps `src/index.ts` off
+`livekit-client` — that boundary works. What defeats it is
+`chat-page-content.tsx` importing `alia-chat/voice` at module scope, so the
+chat surface pulls in the voice client whether or not a call starts. Both files
+in that chain are outside this change's scope. **This is the single largest
+remaining win: 541 KB, one static import.**
+
+### Things #608 §12 named that turned out not to be the problem
+
+Measured, not assumed:
+
+| Suspect | Actual weight |
+| --- | --- |
+| Canvas renderers (`components/canvas/`) | 787 B in `__common`; 11,301 B in the whole baseline. Not heavy. |
+| Agent terminal | 4,665 B. xterm is 0 B in the eager set — already its own 339,317 B chunk, and not fetched at first paint. |
+| Skia / `canvaskit.wasm` | Not reachable at all. [§5](#5-eight-megabytes-of-wasm-nobody-fetched). |
+| Heavy card / chart renderers | Nothing above 6 KB. |
+| Voice | Real, 541 KB, and blocked on a file outside this change. |
+
+The heavy things were three icon barrels and a router flag. None of them were on
+the list.
+
+## 7. What was tried and reverted
+
+Both of these are exactly the failure #608 warns about — a dynamic import that
+adds a loading state and saves nothing — and both are here because a negative
+result that was measured is worth more than a change that was not.
+
+**Dropping `@oxy.so/contracts` from `lib/agents/bot-account.ts`.**
+`packages/app` imports that package from exactly one file, for exactly one
+constant, `USERNAME_MAX_LENGTH`, and it costs 236,465 B plus zod. Replacing the
+import with a literal:
+
+| | Eager JS |
+| --- | ---: |
+| before | 7,471,269 |
+| after | 7,471,345 (+76, the comment) |
+
+Nothing moved. `@oxy.so/core` imports `@oxy.so/contracts` from ten of its own
+modules — `OxyInferenceClient`, `SessionClient`, four `OxyServices.*` mixins,
+`validationUtils` — so the app's single import was never what put it there.
+Reverted: inlining a contract constant to save zero bytes is pure drift risk.
+
+**Lazy-loading `react-native-qrcode-svg`.** 28,190 B, two consumers:
+`components/app-download-dialog.tsx` and the `/download` route. Behind `lazy()`
+in the dialog: eager JS 7,471,269 → 7,471,345 (+76), `__common` unchanged to the
+byte. Behind `lazy()` in **both**: eager unchanged again, total JS +426.
+
+The `__common` chunk hash did not move in either attempt, which is the finding:
+**Metro's `splitChunks` hoists any module two or more chunks reach into the
+eagerly-loaded `__common`, whether the edge is `require` or `import()`.** A
+dynamic import only defers a module that exactly one chunk reaches — which is
+why [§4.4](#44-the-thinking-indicator) worked (`lottie-react-native` has a single
+importer) and this did not. Both reverted.
+
+## 8. Metro's experimental tree shaking, measured but not enabled
+
+Expo can tree shake the production graph:
+
+```bash
+EXPO_UNSTABLE_METRO_OPTIMIZE_GRAPH=1 EXPO_UNSTABLE_TREE_SHAKING=1 \
+NODE_ENV=production bun x expo export --platform web --clear
+```
+
+| Configuration | Eager JS |
+| --- | ---: |
+| baseline, no tree shaking | 10,577,639 |
+| baseline + tree shaking | 7,414,949 |
+| this change, no tree shaking | 7,471,269 |
+| this change + tree shaking | 6,389,883 |
+
+Two things follow. Tree shaking alone would have recovered most of the icon
+barrels — and the changes on this page are still worth **1,025,066 B on top of
+it**, because a barrel narrowed at resolution time is narrower than one a
+graph optimiser has to prove is unused. And the flags are not needed to get most
+of the way: the shipped build uses none.
+
+It is **not enabled** here. It passes `visual:baseline --check` (worst Δ4
+against a ±6 tolerance) and the route smoke tests, but it is `UNSTABLE` by name,
+it changes module-evaluation semantics across ~3,000 modules by eliding imports
+it believes are side-effect free, and the checks available here exercise one
+signed-out screen and five routes. That is not enough evidence to turn it on for
+everyone. The number is recorded so the decision can be taken deliberately.
+
+## 9. Reproducing any of this
+
+```bash
+# the export, and the Skia assertion
+bun run --filter @alia/app build
+
+# module-by-module attribution
+cd packages/app && bun x expo export --platform web --source-maps --output-dir /tmp/e
+# then attribute each generated line to the source owning most of its mapped bytes
+```
+
+The attribution script is not checked in — it is 80 lines of VLQ decoding around
+one idea (whole lines, not segments), and it is described precisely enough in
+[§2](#2-what-was-in-it) to rewrite. What *is* checked in is the part that has to
+keep running: `scripts/icon-shims.mjs`, `__tests__/icon-shims.test.ts` and
+`scripts/check-web-bundle.mjs`.
+
+## 10. Honest status
+
+- The 27% cut is to **JS fetched for `/`**, signed out. A signed-in session
+  fetches more; no measurement of that exists.
+- Nothing here measures **parse or execution time**, which is the other half of
+  what a 7.5 MB bundle costs. #608 §12 also asks for "tiempo de interacción y
+  costes de render/JS/UI" — still at zero.
+- Nothing here measures **transfer size**. Every number is uncompressed bytes on
+  disk; the ratio after gzip or brotli will differ per chunk and was not checked.
+- **Native is unmeasured.** Both platform-gated changes leave native resolution
+  identical by construction, and `asyncRoutes` is `web`-only, but no native
+  export was produced to confirm it.
+- The `--check` gate covers **one screen**. A splitting change that broke a
+  screen the harness does not capture would not be caught here.
