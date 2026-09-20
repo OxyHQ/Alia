@@ -1,5 +1,6 @@
 import React, { createContext, useContext } from "react";
 import type { TextInput as RNTextInput } from "react-native";
+import type { AttachmentIntake } from "./use-attachment-intake";
 
 /**
  * The composer's own corner radius, mirroring the `rounded-[28px]` on the bar in
@@ -50,6 +51,16 @@ export type PromptInputContextType = {
   addAttachment: (attachment: Attachment) => void;
   removeAttachment: (id: string) => void;
   updateAttachment: (id: string, updates: Partial<Attachment>) => void;
+  /**
+   * The files the composer is still reading, and the controls over them.
+   *
+   * OPTIONAL, and it has to be: every test in this directory builds a context
+   * value by casting a two-key object through `as unknown as
+   * PromptInputContextType`, so a required field here would be `undefined` at
+   * runtime in a tree TypeScript had declared safe — which is the one shape of
+   * bug a type cannot catch. Read it with `?.` and mean it.
+   */
+  intake?: AttachmentIntake;
   handleCompletionKey: ((key: string) => boolean) | null;
   setHandleCompletionKey: React.Dispatch<
     React.SetStateAction<((key: string) => boolean) | null>

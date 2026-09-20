@@ -53,6 +53,8 @@ vi.mock('lucide-react-native', async () => {
     FileAudio: icon('FileAudio'),
     File: icon('File'),
     X: icon('X'),
+    RotateCw: icon('RotateCw'),
+    TriangleAlert: icon('TriangleAlert'),
   };
 });
 
@@ -116,6 +118,7 @@ import {
   type Attachment,
   type PromptInputContextType,
 } from '../context';
+import type { IntakeItem } from '../use-attachment-intake';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
@@ -156,6 +159,46 @@ function render(attachments: Attachment[]) {
   renderer = next;
   return { r: next, removeAttachment };
 }
+
+/**
+ * The strip with files still being read in it.
+ *
+ * A separate helper rather than another argument to `render`, because a
+ * pending file is not an attachment: it has no `uri`, it lives in the intake
+ * queue and not in the list, and the whole point of the separation is that the
+ * two cannot be confused for one another.
+ */
+function renderPending(items: IntakeItem[], attachments: Attachment[] = []) {
+  const cancel = vi.fn();
+  const retry = vi.fn();
+  const value = {
+    attachments,
+    removeAttachment: vi.fn(),
+    intake: { items, cancel, retry, accept: vi.fn(), dismiss: cancel, isBusy: true },
+  } as unknown as PromptInputContextType;
+  let next: ReactTestRenderer | undefined;
+  act(() => {
+    next = create(
+      <PromptInputContext.Provider value={value}>
+        <PromptInputAttachments />
+      </PromptInputContext.Provider>,
+    );
+  });
+  if (next === undefined) throw new Error('the attachment row did not render');
+  renderer = next;
+  return { r: next, cancel, retry };
+}
+
+const pending = (over: Partial<IntakeItem> = {}): IntakeItem => ({
+  id: 'in-1',
+  name: 'photo.png',
+  size: 4096,
+  mimeType: 'image/png',
+  kind: 'image',
+  status: 'reading',
+  fraction: null,
+  ...over,
+});
 
 function nodes(r: ReactTestRenderer, name: string): ReactTestInstance[] {
   return r.root.findAll((node) => node.type === name);
@@ -349,5 +392,129 @@ describe('the tile corner, and the colours', () => {
     expect(source).not.toMatch(interpolatedAlpha);
     expect(source).not.toMatch(concatenatedAlpha);
     expect(source).toContain('withAlpha');
+  });
+
+  it('draws no percentage it did not measure', () => {
+    // The whole of #608 §7 in one assertion. Bloom's `use-attachment-queue.ts`
+    // fills its ring from `step * (0.55 + Math.random() * 0.9)` on a 50ms tick
+    // and calls `onUploadComplete` whether or not a byte moved; a number on
+    // this strip has to have come from a `ProgressEvent`.
+    expect(source).not.toContain('Math.random');
+    expect(source).not.toContain('setInterval');
+  });
+});
+
+describe('a file still being read', () => {
+  it('shows activity, not a number, when nothing measurable was reported', () => {
+    const { r } = renderPending([pending({ fraction: null })]);
+
+    // `fraction: null` is "the browser would not say how far this has got".
+    // The honest rendering is a spinner; a bar at 0% would read as stuck, and
+    // a bar at anything else would be invented.
+    expect(nodes(r, 'ActivityIndicator')).toHaveLength(1);
+    expect(nodes(r, 'Text').map((node) => node.props.children)).not.toContain('0%');
+  });
+
+  it('shows the measured fraction, in the label and in the fill', () => {
+    const { r } = renderPending([pending({ fraction: 0.42 })]);
+    const written = nodes(r, 'Text').map((node) => node.props.children);
+    const fill = nodes(r, 'View').find(
+      (node) => classes(node).includes('bg-primary') && node.props.style?.width,
+    );
+    const tile = nodes(r, 'View').find(
+      (node) => node.props.accessibilityRole === 'progressbar',
+    );
+
+    expect(written).toContain('42%');
+    expect(fill?.props.style.width).toBe('42%');
+    // And the same number reaches a reader, rather than a bar that is only a
+    // picture of one.
+    expect(tile?.props.accessibilityValue).toEqual({ min: 0, max: 100, now: 42 });
+    expect(nodes(r, 'ActivityIndicator')).toHaveLength(0);
+  });
+
+  it('offers a cancel that names the file it stops', () => {
+    const { r, cancel } = renderPending([
+      pending({ id: 'in-a', name: 'first.png' }),
+      pending({ id: 'in-b', name: 'second.png' }),
+    ]);
+    const buttons = nodes(r, 'Pressable');
+
+    expect(buttons.map((node) => node.props.accessibilityLabel)).toEqual([
+      'composer.cancelRead name=first.png',
+      'composer.cancelRead name=second.png',
+    ]);
+    act(() => buttons[1].props.onPress());
+
+    // Two, so "stops the one it names" cannot pass by stopping the first.
+    expect(cancel).toHaveBeenCalledWith('in-b');
+    expect(cancel).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('a file that could not be read', () => {
+  it('can be read again, from the tile itself', () => {
+    const { r, retry } = renderPending([pending({ id: 'in-x', status: 'failed' })]);
+    const buttons = nodes(r, 'Pressable');
+    const retryButton = buttons.find(
+      (node) => node.props.accessibilityLabel === 'composer.retryRead name=photo.png',
+    );
+
+    expect(retryButton).toBeDefined();
+    act(() => retryButton?.props.onPress());
+    expect(retry).toHaveBeenCalledWith('in-x');
+  });
+
+  it('stops offering to cancel something that already stopped', () => {
+    const { r } = renderPending([pending({ status: 'failed' })]);
+    const labels = nodes(r, 'Pressable').map((node) => node.props.accessibilityLabel);
+
+    // The corner control is the same pixel in both states and must not claim
+    // to stop a read that has already ended — there is nothing left to abort,
+    // so it discards.
+    expect(labels).toContain('composer.dismissFailed name=photo.png');
+    expect(labels).not.toContain('composer.cancelRead name=photo.png');
+    expect(nodes(r, 'ActivityIndicator')).toHaveLength(0);
+  });
+
+  it('sits after the settled tiles rather than among them', () => {
+    const { r } = renderPending([pending()], [image({ id: 'a' }), image({ id: 'b' })]);
+    const tiles = nodes(r, 'View').filter((node) =>
+      classes(node).some((name) => name === 'w-60' || name === 'h-14'),
+    );
+
+    // Two settled pictures, then the file still being read — newest last, and
+    // never inserted between tiles the user is already reaching for.
+    expect(tiles.map((tile) => (classes(tile).includes('h-14') ? 'square' : 'wide'))).toEqual(
+      ['square', 'square', 'wide'],
+    );
+  });
+});
+
+describe('a file the composer will not take', () => {
+  it('says which file and why, in the strip rather than in a toast', () => {
+    const { r } = renderPending([
+      pending({ name: 'enormous.png', status: 'refused', refusal: 'too-large' }),
+    ]);
+    const written = nodes(r, 'Text').map((node) => node.props.children);
+
+    // A drop of six files where one was too large is a sentence the user needs
+    // BESIDE the five that worked, not one that slides away after four
+    // seconds. The limit reaches the sentence too, so "too large" is a fact
+    // with a number rather than a complaint.
+    expect(written).toContain('enormous.png');
+    expect(written).toContain('composer.fileTooLarge name=enormous.png limit=20 MB');
+  });
+
+  it('offers only a way to dismiss it — retrying a refusal changes nothing', () => {
+    const { r } = renderPending([
+      pending({ name: 'Pictures', status: 'refused', refusal: 'empty' }),
+    ]);
+    const labels = nodes(r, 'Pressable').map((node) => node.props.accessibilityLabel);
+
+    expect(labels).toEqual(['composer.dismissFailed name=Pictures']);
+    // A dropped folder arrives as a zero-byte File, and reading it again would
+    // produce the same nothing.
+    expect(labels).not.toContain('composer.retryRead name=Pictures');
   });
 });

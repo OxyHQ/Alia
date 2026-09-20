@@ -21,6 +21,11 @@ import { asViewStyle } from "@/lib/types/webStyles";
 import { Portal } from "@oxy.so/bloom/portal";
 import { useTranslation } from "@/lib/hooks/use-translation";
 import { PromptInputContext, COMPOSER_RADIUS, type Attachment } from "./context";
+import {
+  useAttachmentIntake,
+  releaseRemovedAttachment,
+} from "./use-attachment-intake";
+import { useComposerDropTarget, PromptInputDropOverlay } from "./drop-zone";
 import { PromptInputTextarea } from "./textarea";
 import { PromptInputActions } from "./actions";
 import { PromptInputMicButton } from "./mic-button";
@@ -97,6 +102,14 @@ export type PromptInputProps = {
   children?: React.ReactNode;
   className?: string;
   disabled?: boolean;
+  /**
+   * @deprecated No longer called. The composer reads pasted files itself, the
+   * same way it reads dropped ones, so that both get measured progress, a
+   * cancel that aborts the read, a retry, and a released reader — none of
+   * which a callback handed a `File[]` can be given from out here. The prop
+   * stays declared because `chat-page-content.tsx` still passes one and its
+   * removal belongs to that file's owner, not to this one.
+   */
   onImagePaste?: (files: File[]) => void;
   // Simple mode props (when no children)
   placeholder?: string;
@@ -135,6 +148,9 @@ export function PromptInput({
   onSubmit,
   children,
   disabled = false,
+  // Destructured and deliberately unread — see the prop's doc above. It has to
+  // be pulled out of the rest anyway: everything left in `...props` is spread
+  // onto the bar's View, and a function landing there becomes a DOM attribute.
   onImagePaste,
   placeholder,
   autocomplete = false,
@@ -192,15 +208,32 @@ export function PromptInput({
     [onAddAttachment]
   );
 
+  /**
+   * Drop an attachment — and give back whatever it was holding.
+   *
+   * The release is the point of the wrapper. On web BOTH Expo pickers return
+   * `URL.createObjectURL(file)` as the attachment's `uri`, and Alia revoked
+   * none of them: every image and document picked in a browser pinned its own
+   * bytes in the page for the life of the tab, whether or not the user took it
+   * straight back out of the composer. Removing the tile made the leak
+   * invisible, not smaller.
+   *
+   * Only on an explicit removal, and NOT when the list is emptied by a send.
+   * `chat-page-content.tsx` calls `clearAttachments()` before awaiting the
+   * request, and the attachment's `uri` is still what the sent turn renders
+   * from — revoking on "the list got shorter" would blank the picture in the
+   * transcript the moment the message appeared.
+   */
   const removeAttachment = useCallback(
     (id: string) => {
+      releaseRemovedAttachment(attachments, id);
       if (onRemoveAttachment) {
         onRemoveAttachment(id);
       } else {
         setInternalAttachments((prev) => prev.filter((a) => a.id !== id));
       }
     },
-    [onRemoveAttachment]
+    [attachments, onRemoveAttachment]
   );
 
   const updateAttachment = useCallback(
@@ -214,6 +247,36 @@ export function PromptInput({
       }
     },
     [onUpdateAttachment]
+  );
+
+  const intake = useAttachmentIntake({ addAttachment });
+
+  /**
+   * Nothing may be attached to a composer that is closed, or to a turn already
+   * streaming — the same rule the add menu states on its own button. It is
+   * asked of the drop AND of the paste, because a gesture that bypasses a
+   * locked control is a lock that only applies to people using the mouse.
+   */
+  const canAttach = !disabled && !isLoading;
+
+  /**
+   * Pasted files, read by the composer itself.
+   *
+   * This used to be handed out through the `onImagePaste` prop, and the chat
+   * page's handler did its own `new FileReader()` with no progress, no cancel,
+   * and — the actual bug — no `abort()` anywhere: removing a pasted image while
+   * it was still being read left the read running to completion, holding the
+   * whole `File` and then writing a data URL into an attachment that no longer
+   * existed. Paste and drop now enter through one queue, so the corner button
+   * that stops a dropped file also stops a pasted one, and a failed read of
+   * either can be tried again.
+   */
+  const handlePaste = useCallback(
+    (files: File[]) => {
+      if (!canAttach) return;
+      intake.accept(files);
+    },
+    [canAttach, intake],
   );
 
   const handleChange = (newValue: string) => {
@@ -331,6 +394,22 @@ export function PromptInput({
     attachmentCount: attachments.length,
     collapsedHeight: stableCollapsedHeight,
   });
+  /**
+   * Files dropped on the bar, on web.
+   *
+   * Bound to the bar's DOM node by id and re-bound on `barState`, because
+   * fullscreen re-parents that node through a portal and listeners do not
+   * follow it. `enabled` is the composer's own lock rather than a separate
+   * rule: a drop is another way of reaching the add menu, and the add menu is
+   * shut while a turn streams or the usage limit is on.
+   */
+  const isDragOver = useComposerDropTarget({
+    elementId: `${inputId}-bar`,
+    enabled: canAttach,
+    onFiles: intake.accept,
+    rebindKey: barState,
+  });
+
   const workingLight = composerWorkingLight({
     isLoading,
     isDictating,
@@ -362,17 +441,18 @@ export function PromptInput({
     currentHeight,
     setCurrentHeight,
     isFullscreen: showFullscreen,
-    onImagePaste,
+    onImagePaste: handlePaste,
     attachments,
     addAttachment,
     removeAttachment,
     updateAttachment,
+    intake,
     handleCompletionKey,
     setHandleCompletionKey,
   }), [
     isLoading, currentValue, currentSetValue, maxHeight, handleSubmit,
-    onSuggestionSend, disabled, currentHeight, showFullscreen, onImagePaste,
-    attachments, addAttachment, removeAttachment, updateAttachment,
+    onSuggestionSend, disabled, currentHeight, showFullscreen, handlePaste,
+    attachments, addAttachment, removeAttachment, updateAttachment, intake,
     handleCompletionKey, setHandleCompletionKey,
   ]);
 
@@ -646,6 +726,11 @@ export function PromptInput({
         ) : (
           content
         )}
+        {/* LAST, so it covers the draft and the controls rather than sliding
+            under them — a drop affordance the textarea draws over is one the
+            user reads as a background. The bar's `overflow-hidden` clips it to
+            the same corner. */}
+        <PromptInputDropOverlay visible={isDragOver} enabled={canAttach} />
       </View>
   );
 
