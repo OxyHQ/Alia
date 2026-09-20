@@ -435,7 +435,13 @@ jobs:
           # answered false on a task whose identity is its role — which is why
           # every Alia deploy failed its readiness gate with `Service credentials
           # not provided`. 1.7.1 fixes it, and this lockfile takes it.
-          TASK_SECRET_REMOVALS_JSON: '["AWS_ACCESS_KEY_ID","AWS_SECRET_ACCESS_KEY","KAANA_EDGE_SIGNING_PRIVATE_KEY","ALIA_RELAY_CREDENTIAL_KEY","ALIA_RELAY_CREDENTIAL_SECRET","ALIA_KAANA_CREDENTIAL_KEY","ALIA_KAANA_CREDENTIAL_SECRET","OXY_SERVICE_API_KEY","OXY_SERVICE_API_SECRET"]'
+          # MEASURED 2026-09-20, and it is why the pair is out of this list again.
+          # The readiness task runs on the revision this list produces. With the
+          # pair removed it mints by attestation, and the gate reported
+          # `oxy.ready=false` with ALL EIGHT chat profiles missing — the attested
+          # token listed none of them. The rule below did not change; the answer
+          # to it did, and this is the first run that could actually test it.
+          TASK_SECRET_REMOVALS_JSON: '["AWS_ACCESS_KEY_ID","AWS_SECRET_ACCESS_KEY","KAANA_EDGE_SIGNING_PRIVATE_KEY","ALIA_RELAY_CREDENTIAL_KEY","ALIA_RELAY_CREDENTIAL_SECRET","ALIA_KAANA_CREDENTIAL_KEY","ALIA_KAANA_CREDENTIAL_SECRET"]'
           # Remove every legacy plain Relay/direct-Kaana binding inherited from
           # the live task definition. Keeping a removal here is harmless after
           # the first clean revision and prevents a rollback descendant from
