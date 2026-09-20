@@ -1257,5 +1257,23 @@
       "billion": "B",
       "trillion": "T"
     }
+  },
+  "composer": {
+    "message": "Message",
+    "addMenu": "Add to chat",
+    "camera": "Camera",
+    "photos": "Photos",
+    "files": "Files",
+    "voice": "Dictate",
+    "voiceStop": "Stop recording",
+    "send": "Send message",
+    "stop": "Stop generating",
+    "expand": "Expand the composer",
+    "collapse": "Shrink the composer",
+    "remove": "Remove attachment %{position}: %{name}",
+    "untitled": "untitled",
+    "dictationDiscard": "Discard dictation",
+    "dictationStop": "Stop dictation",
+    "dictationSend": "Send dictated message"
   }
 }

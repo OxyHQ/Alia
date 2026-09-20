@@ -19,7 +19,8 @@ import { Maximize2, Minimize2 } from "lucide-react-native";
 import { cn } from "@/lib/utils";
 import { asViewStyle } from "@/lib/types/webStyles";
 import { Portal } from "@oxy.so/bloom/portal";
-import { PromptInputContext, type Attachment } from "./context";
+import { useTranslation } from "@/lib/hooks/use-translation";
+import { PromptInputContext, COMPOSER_RADIUS, type Attachment } from "./context";
 import { PromptInputTextarea } from "./textarea";
 import { PromptInputActions } from "./actions";
 import { PromptInputMicButton } from "./mic-button";
@@ -32,14 +33,13 @@ import { PromptInputAddMenu } from "./add-menu";
 import { ModelSelector } from "@/components/model-selector";
 import { EffortSelector } from "@/components/effort-selector";
 import { useIsLargeScreen } from "@/lib/hooks/use-is-large-screen";
-
-// Height (px) of the collapsed bar's single-line track.
-const SINGLE_LINE_TRACK = 44;
-// Height above which the text no longer fits the collapsed single-line track.
-// The value compared with this threshold is always measured at the COLLAPSED
-// text width, even while the visible composer is expanded. That stable frame of
-// reference is what prevents expand/collapse feedback loops near a line wrap.
-const EXPAND_ABOVE = 56;
+import { PromptInputWorkingLight } from "./working-light";
+import {
+  composerBarState,
+  composerWorkingLight,
+  SINGLE_LINE_TRACK,
+  type ComposerBarState,
+} from "@/lib/chat/composer-state";
 
 // Fullscreen grow (web): animate the fixed bar's insets + radius. A comma'd
 // property list is unwieldy as an arbitrary NW class, so it rides on the style.
@@ -154,6 +154,7 @@ export function PromptInput({
   disableKeyboardAvoidance = false,
   ...props
 }: PromptInputProps) {
+  const { t } = useTranslation();
   const [internalValue, setInternalValue] = useState(value || "");
   const [currentHeight, setCurrentHeight] = useState(44);
   const [collapsedMeasureHeight, setCollapsedMeasureHeight] = useState(SINGLE_LINE_TRACK);
@@ -308,30 +309,34 @@ export function PromptInput({
   const currentValue = value ?? internalValue;
   const currentSetValue = onValueChange ?? handleChange;
 
-  // Measuring the visible textarea caused a genuine feedback loop: collapsed
-  // text has less width because it shares the row with the controls, while the
-  // expanded textarea spans the full bar. A value could therefore wrap in the
-  // collapsed state, expand, fit on one line at the wider width, collapse, and
-  // repeat. The invisible mirror below always retains the collapsed width.
+  // The height the mirror below measures at the COLLAPSED width — see
+  // `EXPAND_ABOVE` in `lib/chat/composer-state.ts` for why measuring the
+  // VISIBLE field instead is a feedback loop. Until the two clusters have been
+  // laid out the mirror has no inset to measure against, so the live height
+  // stands in.
   const stableCollapsedHeight =
     leadingWidth > 0 && trailingWidth > 0 ? collapsedMeasureHeight : currentHeight;
-  const overflowsTrack = stableCollapsedHeight > EXPAND_ABOVE;
   const showExpandIcon = !isChatComposer && stableCollapsedHeight > 100;
 
-  // Three visual states of the SAME bar. Fullscreen wins; otherwise the value's
-  // fit decides collapsed vs expanded. (Fullscreen is entered via the maximize
-  // affordance, not derived from content.)
-  const isExpanded =
-    isSimpleMode &&
-    ((isChatComposer && !isLargeScreen)
-      || currentValue.includes("\n")
-      || attachments.length > 0
-      || overflowsTrack);
-  const barState: "collapsed" | "expanded" | "fullscreen" = showFullscreen
-    ? "fullscreen"
-    : isExpanded
-      ? "expanded"
-      : "collapsed";
+  // The three visual states of the SAME bar, and whether Bloom's rim light is
+  // drawn at all — both decided in `lib/chat/composer-state.ts` so the rules
+  // can be read, and pinned, without mounting a composer, a recorder or a
+  // theme. What stays here is everything that genuinely needs a renderer.
+  const barState: ComposerBarState = composerBarState({
+    isSimpleMode,
+    isChatComposer,
+    isFullscreen: showFullscreen,
+    isLargeScreen,
+    value: currentValue,
+    attachmentCount: attachments.length,
+    collapsedHeight: stableCollapsedHeight,
+  });
+  const workingLight = composerWorkingLight({
+    isLoading,
+    isDictating,
+    state: barState,
+    isChatComposer,
+  });
   const contextValue = useMemo(() => ({
     isLoading,
     value: currentValue,
@@ -404,6 +409,32 @@ export function PromptInput({
           accessibilityElementsHidden={disabled}
           importantForAccessibility={disabled ? "no-hide-descendants" : "auto"}
         >
+          {/*
+           * Alia's own two controls, and not Bloom's `ModelPicker`, though its
+           * identity contract is the right one.
+           *
+           * `ModelPickerProps` takes `{ id, name }` models and calls
+           * `onValueChange(modelId)` — the opaque-id equality `chat-runtime`
+           * requires, and exactly what `ComposerPill` gets wrong by keying its
+           * menu on display names with a `models?.[0] ?? ''` fallback. What
+           * stops it here is the OTHER axis. The picker renders an `EffortMenu`
+           * on whichever row is checked, unconditionally, and the menu is an
+           * index into `effortLevels`:
+           *
+           *   const level = levels[value] ?? levels[DEFAULT_EFFORT] ?? '';
+           *
+           * Alia's effort levels come from the catalogue per entry
+           * (`capabilities.reasoningLevels`, an intersection over every route
+           * behind the entry), and `use-catalogue.ts` states that "empty is the
+           * common answer" — it is empty for every routing profile, which is
+           * what Alia's default selection IS. Handing Bloom `[]` renders an
+           * empty chip with a chevron over a slider whose `max` is 0 and which
+           * never commits: a control wired to nothing, in the default case.
+           * And `effort?: number` has no way to say the thing Alia's store says
+           * by `null` — no level chosen, the parameter omitted, the model
+           * decides — so adopting it would also have turned the absence of a
+           * choice into the appearance of one.
+           */}
           <ModelSelector selectedModel={selectedModel} onModelChange={onModelChange} />
           {Platform.OS !== "web" && <EffortSelector selectedModel={selectedModel} />}
         </View>
@@ -549,6 +580,16 @@ export function PromptInput({
         id={`${inputId}-bar`}
         style={barState === "fullscreen" ? fullscreenGrowStyle(barRect, fsSettled) : undefined}
       >
+        {/* FIRST, so Bloom's band lies on the bar's own paint and everything
+            else lies over the band. A child draws above its parent's
+            background and below its later siblings, so this is the one
+            position where the light is visible without veiling the draft —
+            mounted last, its 16px inward bloom would sit across the text. The
+            bar's `overflow-hidden` is what clips the stroke's outer half to
+            the corner above. */}
+        {workingLight !== null && (
+          <PromptInputWorkingLight active={workingLight.active} radius={COMPOSER_RADIUS} />
+        )}
         {isSimpleMode && barState !== "fullscreen" && leadingWidth > 0 && trailingWidth > 0 && (
           <View
             pointerEvents="none"
@@ -574,6 +615,11 @@ export function PromptInput({
         {!disabled && (showFullscreen || showExpandIcon) && (
           <Pressable
             onPress={toggleFullscreen}
+            // It had no name at all: an icon-only control announced as an
+            // unlabelled button, and the icon it swaps between is the only
+            // thing that said which way it goes.
+            accessibilityRole="button"
+            accessibilityLabel={t(showFullscreen ? "composer.collapse" : "composer.expand")}
             className="absolute top-2 right-2 z-10 bg-background rounded-full p-1.5 border border-border active:opacity-70"
           >
             {showFullscreen ? (

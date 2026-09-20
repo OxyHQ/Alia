@@ -6,9 +6,23 @@ import * as DropdownMenu from "@/components/ui/dropdown-menu";
 import { useImagePicker, type ImagePickerAsset } from "@/lib/hooks/use-image-picker";
 import { useDocumentPicker } from "@/lib/hooks/use-document-picker";
 import { useColorScheme } from "@/lib/useColorScheme";
+import { useTranslation } from "@/lib/hooks/use-translation";
 import { usePromptInput } from "./context";
 import { ComposerGlyph } from "./composer-glyph";
 
+/**
+ * The plus button, and what can be added to a turn.
+ *
+ * Bloom describes the same menu as data — `ComposerPanelAddMenuGroup`, a label
+ * and rows of `{ id, label, description?, icon? }`, with `onAddMenuSelect`
+ * returning the row's id — and the shape is right. It is not reachable from
+ * here: the groups are a prop of `ComposerPanel` and `ComposerPill`, rendered
+ * by an `AddMenu` neither family exports, so taking the data model would mean
+ * taking the composer it hangs off. Alia's rows also do more than name
+ * themselves — each one owns a picker and writes the result into the
+ * attachment list — and `children` carries the capability menu the page builds
+ * from skills and connectors, which has no counterpart in that type at all.
+ */
 export type PromptInputAddMenuProps = {
   className?: string;
   iconSize?: number;
@@ -24,6 +38,7 @@ export function PromptInputAddMenu({
   const { pickImage, takePhoto } = useImagePicker();
   const { pickDocument } = useDocumentPicker();
   const { colors } = useColorScheme();
+  const { t } = useTranslation();
 
   const addImages = (assets: ImagePickerAsset[] | undefined) => {
     assets?.forEach((asset) => {
@@ -66,7 +81,7 @@ export function PromptInputAddMenu({
             "h-10 w-10 rounded-full items-center justify-center web:hover:bg-muted active:bg-muted",
             className
           )}
-          accessibilityLabel="Upload files and more"
+          accessibilityLabel={t("composer.addMenu")}
           // Nothing can be attached to a turn that is streaming, or to a
           // composer the usage limit has closed. Locked on the control itself
           // so the lock is reported for THIS button and not inherited by the
@@ -81,19 +96,19 @@ export function PromptInputAddMenu({
           <DropdownMenu.ItemIcon ios={{ name: "camera" }}>
             <Camera size={20} color={colors.foreground} />
           </DropdownMenu.ItemIcon>
-          <DropdownMenu.ItemTitle>Camera</DropdownMenu.ItemTitle>
+          <DropdownMenu.ItemTitle>{t("composer.camera")}</DropdownMenu.ItemTitle>
         </DropdownMenu.Item>
         <DropdownMenu.Item key="photos" onSelect={handleAddPhotos}>
           <DropdownMenu.ItemIcon ios={{ name: "photo" }}>
             <ComposerGlyph name="image" color={colors.foreground} />
           </DropdownMenu.ItemIcon>
-          <DropdownMenu.ItemTitle>Photos</DropdownMenu.ItemTitle>
+          <DropdownMenu.ItemTitle>{t("composer.photos")}</DropdownMenu.ItemTitle>
         </DropdownMenu.Item>
         <DropdownMenu.Item key="document" onSelect={handleAddDocument}>
           <DropdownMenu.ItemIcon ios={{ name: "folder" }}>
             <ComposerGlyph name="file" color={colors.foreground} />
           </DropdownMenu.ItemIcon>
-          <DropdownMenu.ItemTitle>Files</DropdownMenu.ItemTitle>
+          <DropdownMenu.ItemTitle>{t("composer.files")}</DropdownMenu.ItemTitle>
         </DropdownMenu.Item>
         {children != null && (
           <>
