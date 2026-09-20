@@ -98,13 +98,23 @@ describe('Bloom is consumed through its public subpaths', () => {
   });
 
   it('imports only subpaths the package actually exports', () => {
-    const exported = new Set(
-      Object.keys(
-        JSON.parse(
-          readFileSync(join(APP, '..', '..', 'node_modules', '@oxy.so', 'bloom', 'package.json'), 'utf8'),
-        ).exports,
-      ).map((key) => key.replace(/^\.\/?/, '')),
-    );
+    const declared = Object.keys(
+      JSON.parse(
+        readFileSync(join(APP, '..', '..', 'node_modules', '@oxy.so', 'bloom', 'package.json'), 'utf8'),
+      ).exports,
+    ).map((key) => key.replace(/^\.\/?/, ''));
+
+    const literal = new Set(declared.filter((key) => !key.includes('*')));
+    /**
+     * Bloom declares its glyphs as a pattern, not as a thousand keys:
+     * `"./icons/Ri*"`. A gate that only compared literal keys would call every
+     * per-glyph import unknown — which is backwards, since importing
+     * `@oxy.so/bloom/icons/RiChat3Line` instead of the barrel is the point of
+     * that pattern and is what stops an app shipping all 1,747 of them.
+     */
+    const patterns = declared
+      .filter((key) => key.includes('*'))
+      .map((key) => new RegExp(`^${key.split('*').map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('.*')}$`));
 
     const unknown = ALL
       .filter(({ specifier }) => specifier.startsWith('@oxy.so/bloom'))
@@ -113,7 +123,10 @@ describe('Bloom is consumed through its public subpaths', () => {
         specifier,
         subpath: specifier.replace(/^@oxy\.so\/bloom\/?/, ''),
       }))
-      .filter(({ subpath }) => subpath !== '' && !exported.has(subpath));
+      .filter(({ subpath }) =>
+        subpath !== ''
+        && !literal.has(subpath)
+        && !patterns.some((pattern) => pattern.test(subpath)));
 
     expect(unknown).toEqual([]);
   });
