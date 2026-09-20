@@ -4,7 +4,7 @@ import { AliaLogo } from '@/components/ui/alia-logo';
 import { useRouter } from 'expo-router';
 import Head from 'expo-router/head';
 import QRCode from 'react-native-qrcode-svg';
-import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import MaterialCommunityIcons from '@/components/ui/material-community-glyphs';
 import { ArrowLeft } from 'lucide-react-native';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
