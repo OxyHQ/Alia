@@ -319,6 +319,7 @@
     "thinking": "Pensando",
     "working": "Trabajando",
     "reasoning": "Razonando",
+    "blockFailed": "Esta parte de la respuesta no se ha podido mostrar.",
     "readAloud": "Leer en voz alta",
     "generateAudio": "Generar audio",
     "copy": "Copiar",

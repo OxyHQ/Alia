@@ -583,6 +583,61 @@ function stampToMs(stamp: string | undefined): number | null {
   return Number.isNaN(ms) ? null : ms;
 }
 
+/**
+ * Every turn's timing, in one pass over the thread.
+ *
+ * ## Why this exists beside `turnTiming`
+ *
+ * `turnTiming` answers for ONE message and has to find it first, so it opens
+ * with `messages.findIndex(...)` and then walks backwards for the send that
+ * started the turn. Both are scans. That is the right shape for the execution
+ * panel, which asks about a single message a person has opened.
+ *
+ * The thread asks about all of them. `chat-interface.tsx` called it once per
+ * row, inside the render, with the WHOLE list as the second argument — so
+ * drawing n messages cost O(n²) comparisons, and it paid that on every render.
+ * The list re-renders roughly twenty times a second while an answer streams,
+ * which is where this stops being a curiosity: at a thousand messages the
+ * lookup alone is on the order of half a million comparisons per frame, for an
+ * answer that does not change as tokens arrive.
+ *
+ * One pass, carrying the last user stamp forward, gives the same answers in
+ * O(n). The per-message function stays for its own callers and for the cases
+ * this one cannot serve — a message that is not in the list it was handed.
+ *
+ * Keyed by message id. A message with no id is skipped rather than colliding
+ * with another one under `undefined`.
+ */
+export function turnTimings(
+  messages: ReadonlyArray<{ id: string; role: string; createdAt?: string }>,
+): Map<string, TurnTiming> {
+  const timings = new Map<string, TurnTiming>();
+  /** The stamp of the last user message SEEN, which is the send that opened the turn each row below belongs to. */
+  let sendStamp: number | null = null;
+
+  for (const message of messages) {
+    const ownStamp = stampToMs(message.createdAt);
+
+    // Read before writing: a user message's own turn is bracketed by the send
+    // BEFORE it, never by itself. The original walked backwards from the row
+    // and broke on the first user message, which is the same message this
+    // carries forward.
+    if (message.id !== undefined) {
+      timings.set(message.id, {
+        startedAt: sendStamp ?? ownStamp,
+        endedAt:
+          sendStamp !== null && ownStamp !== null && ownStamp - sendStamp >= MIN_PERSISTED_ELAPSED_MS
+            ? ownStamp
+            : null,
+      });
+    }
+
+    if (message.role === 'user') sendStamp = ownStamp;
+  }
+
+  return timings;
+}
+
 export function turnTiming(
   message: { id: string; createdAt?: string },
   messages: ReadonlyArray<{ id: string; role: string; createdAt?: string }>,
