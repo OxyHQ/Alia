@@ -9,8 +9,8 @@ import { Text } from "@/components/ui/text";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Button } from "@/components/ui/button";
 import { CreditsMenu } from "@/components/credits-menu";
-import { useNavigation, useRouter } from "expo-router";
-import type { DrawerNavigationProp } from "expo-router/drawer";
+import { useAppNav } from "@/components/app-shell/nav-context";
+import { useRouter } from "expo-router";
 import * as DropdownMenu from "@/components/ui/dropdown-menu";
 import { confirm } from "@oxy.so/bloom/surfaces";
 import { useTranslation } from "@/lib/hooks/use-translation";
@@ -66,11 +66,14 @@ export const ChatHeader = React.memo(function ChatHeader({
   const { t } = useTranslation();
   const { colors } = useColorScheme();
   const insets = useSafeAreaInsets();
-  const navigation = useNavigation<DrawerNavigationProp<ReactNavigation.RootParamList>>();
   const router = useRouter();
-  const handleDrawerToggle = () => {
-    navigation.toggleDrawer();
-  };
+  /**
+   * The hamburger's target. `navigation.toggleDrawer()` belonged to the
+   * expo-router `Drawer` that `AiChatShell` replaced; `useAppNav()` is the
+   * shell's own open/close, and it is the SAME nav `DrawerToggle` drives from
+   * every other top-level page, so the two controls cannot drift apart.
+   */
+  const nav = useAppNav();
 
   /**
    * Held while a clear is in flight, so the menu item cannot start a second
@@ -145,10 +148,15 @@ export const ChatHeader = React.memo(function ChatHeader({
         <Button
           variant="ghost"
           size="icon"
-          onPress={handleDrawerToggle}
+          onPress={nav.toggle}
           accessibilityRole="button"
           accessibilityLabel={t('chatHeader.openMenu')}
-          className="h-9 w-9 rounded-full md:hidden"
+          accessibilityState={{ expanded: nav.presented }}
+          /* `lg:hidden`, not `md:hidden`: the nav is a drawer up to 1023 now,
+             and a hamburger that vanished at 768 would leave the whole
+             768–1023 band with a drawer and nothing to open it. See
+             `components/app-shell/metrics.ts`. */
+          className="h-9 w-9 rounded-full lg:hidden"
         >
           <MenuIcon size={20} color={colors.mutedForeground} />
         </Button>
