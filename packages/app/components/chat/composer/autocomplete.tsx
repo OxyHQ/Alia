@@ -2,8 +2,30 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from "react"
 import { View, Pressable } from "react-native";
 import { Text } from "@/components/ui/text";
 import { cn } from "@/lib/utils";
-import { usePromptInput } from "./context";
 import { useSearchSuggestions, useWelcomeSuggestions, useRecordSuggestionUsage } from "@/lib/hooks/use-suggestions";
+
+/**
+ * The suggestion list over the composer — and the keyboard that drives it.
+ *
+ * ## Why it takes props now
+ *
+ * It used to read the draft out of `PromptInputContext` and register its key
+ * handler back into the same object, which is what made it a part of one
+ * composer rather than a list that can sit over any of them. Bloom's pill has
+ * no context to join; what it has is `onKeyPress`, which fires the field's keys
+ * BEFORE its own Enter rule and stops at a `defaultPrevented` event. So the
+ * arrows, Enter and Escape reach this list the same way they always did, and
+ * the wiring is a callback the composer holds rather than a context both sides
+ * have to be inside.
+ *
+ * `onKeyHandlerChange` is the whole of that wiring: this component hands up a
+ * function while it has rows to steer, and `null` when it has none — so the
+ * composer knows, without asking, whether there is anything for an arrow key to
+ * do. That distinction is load-bearing. A handler that always existed and
+ * returned `false` for an empty list would still have had to be CALLED on every
+ * keystroke, and Enter would have taken a round trip through a list with
+ * nothing in it before reaching the field that was going to send the message.
+ */
 
 interface Completion {
   text: string;
@@ -14,21 +36,36 @@ interface Completion {
   isTemplate?: boolean;
 }
 
-export type PromptInputAutocompleteProps = {
+export type ComposerAutocompleteProps = {
   enabled?: boolean;
   position?: "top" | "bottom";
   className?: string;
   /** When true (empty conversation), show default welcome suggestions while the query is short. */
   showDefaultSuggestions?: boolean;
+  /** The draft, as the composer holds it. */
+  value: string;
+  /** Fill the composer with a template that still needs finishing. */
+  setValue: (value: string) => void;
+  /** Send a suggestion's text directly (non-template selections), bypassing the draft. */
+  onSuggestionSend?: (text: string) => void;
+  /**
+   * The key handler while there are rows to steer, or `null`. Called on every
+   * change of either, so the composer never holds a handler for a list that is
+   * no longer on screen.
+   */
+  onKeyHandlerChange: (handler: ((key: string) => boolean) | null) => void;
 };
 
-export function PromptInputAutocomplete({
+export function ComposerAutocomplete({
   enabled = true,
   position = "top",
   className,
   showDefaultSuggestions = false,
-}: PromptInputAutocompleteProps) {
-  const { value, setValue, setHandleCompletionKey, onSuggestionSend } = usePromptInput();
+  value,
+  setValue,
+  onSuggestionSend,
+  onKeyHandlerChange,
+}: ComposerAutocompleteProps) {
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const selectedIndexRef = useRef(-1);
   const completionsRef = useRef<Completion[]>([]);
@@ -165,15 +202,14 @@ export function PromptInputAutocomplete({
     return false;
   }, [selectCompletion]);
 
-  // Register/unregister the key handler based on completions
+  // Hand the key handler up while there are rows, and take it back when there
+  // are not. The cleanup matters as much as the registration: a list that
+  // unmounts while its handler is still held is a composer whose Enter is
+  // being offered to a list that is not on screen.
   useEffect(() => {
-    if (completions.length > 0) {
-      setHandleCompletionKey(() => handleKey);
-    } else {
-      setHandleCompletionKey(null);
-    }
-    return () => setHandleCompletionKey(null);
-  }, [completions.length, handleKey, setHandleCompletionKey]);
+    onKeyHandlerChange(completions.length > 0 ? handleKey : null);
+    return () => onKeyHandlerChange(null);
+  }, [completions.length, handleKey, onKeyHandlerChange]);
 
   if (completions.length === 0) return null;
 

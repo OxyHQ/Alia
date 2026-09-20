@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from "react";
 import { View, ActivityIndicator, Pressable, ScrollView } from "react-native";
 import { Text } from "@/components/ui/text";
-import { PromptInput } from "@/components/ui/prompt-input/prompt-input";
+import { Composer } from "@/components/chat/composer/composer";
 import { useRouter } from "expo-router";
 import { useCreateAgent } from "@/lib/hooks/use-agents";
 import { useOxy } from "@oxy.so/services";
@@ -234,11 +234,23 @@ export default function CreateAgentScreen() {
             </View>
           </View>
 
-          <PromptInput
+          {/*
+            The simple composer: a field, a send control and a suggestion list.
+            No attachments and no model chip — `models` is omitted, which is how
+            Bloom's pill is told to draw none. `busy` and `disabled` carry the
+            same flag on purpose: there is no stream to cancel here, so
+            generating greys send rather than offering a stop, and with no
+            `onStop` Bloom draws no stop control at all.
+
+            It gains a growing field and a dictate button it did not have, both
+            of which come with the pill and neither of which this screen has to
+            ask for.
+          */}
+          <Composer
             value={inputValue}
             onValueChange={setInputValue}
             onSubmit={handleGenerate}
-            isLoading={generating}
+            busy={generating}
             disabled={generating}
             placeholder={t("agents.createPlaceholder")}
             autocomplete

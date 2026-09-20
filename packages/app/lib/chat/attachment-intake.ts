@@ -12,7 +12,7 @@
  * arithmetic guarding a visible effect, which is precisely the kind of thing
  * that is easy to get subtly wrong and almost impossible to watch going wrong.
  *
- * So it lives here, beside `composer-state.ts`, under the same rule: nothing
+ * So it lives here, beside `turn-selection.ts`, under the same rule: nothing
  * in this file may import react-native, read a store, or touch the DOM. The
  * reader that moves the bytes is a platform adapter and lives with the
  * composer; what can be decided by arithmetic is decided here, where it can be
