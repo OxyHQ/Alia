@@ -3,7 +3,7 @@ import { View, ScrollView, ActivityIndicator, Pressable } from 'react-native';
 import { Text } from '@/components/ui/text';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Label } from '@/components/ui/label';
+import { Label } from '@oxy.so/bloom/label';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { ArrowLeft, Trash2 } from 'lucide-react-native';

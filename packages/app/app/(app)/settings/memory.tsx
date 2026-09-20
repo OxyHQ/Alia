@@ -3,7 +3,7 @@ import { View, ScrollView } from "react-native";
 import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
+import { Label } from "@oxy.so/bloom/label";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, type DialogAction } from "@oxy.so/bloom/dialog";
 import { confirm } from "@oxy.so/bloom/surfaces";
