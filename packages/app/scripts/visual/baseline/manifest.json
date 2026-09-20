@@ -1,6 +1,6 @@
 {
   "note": "Written by packages/app/scripts/visual/capture.mjs. Regenerate with `bun run --filter @alia/app visual:baseline`; verify with the same command plus --check.",
-  "capturedAt": "2026-09-20T03:51:35.764Z",
+  "capturedAt": "2026-09-20T09:41:44.626Z",
   "chromium": "149.0.7827.55",
   "pinned": {
     "deviceScaleFactor": 1,
@@ -50,52 +50,52 @@
     }
   ],
   "bundle": {
-    "jsChunks": 48,
-    "jsTotalBytes": 11281491,
+    "jsChunks": 100,
+    "jsTotalBytes": 9013266,
     "largestJsChunks": [
       {
-        "name": "index-4403b1dac8cfd0dd78f3d9317981e875.js",
-        "bytes": 10528839
+        "name": "__common-84cfa912a1bc1847dfde77be76f11a1f.js",
+        "bytes": 6407247
       },
       {
-        "name": "xterm-ea1424bccb6929ae774d705af3f3db1b.js",
+        "name": "index-dae482d8344783e7bf8cddd66b9cb87c.js",
+        "bytes": 1115063
+      },
+      {
+        "name": "xterm-61ef338df51d52b6edae88e25ee2c00a.js",
         "bytes": 339317
       },
       {
-        "name": "FileManagementScreen-73569d8c938360ff08196d7ac1bb7b68.js",
-        "bytes": 70422
+        "name": "_layout-8a2cb66641d848bdeec1ba6b2509a050.js",
+        "bytes": 214617
       },
       {
-        "name": "__common-caf6d7c93640e4146bc9d063ccaf1d3b.js",
-        "bytes": 32245
+        "name": "index-c0d5a0ce2c9e787017c8b55d8d84704f.js",
+        "bytes": 172366
       },
       {
-        "name": "PaymentGatewayScreen-34a49a6fe9b2e137e60c319a8db9fd43.js",
-        "bytes": 29231
+        "name": "FileManagementScreen-e00d944ec3fbd0e5fbafacbb823d5744.js",
+        "bytes": 70423
       },
       {
-        "name": "EditProfileFieldScreen-645f6813421680a81a24cdf69e72ece9.js",
-        "bytes": 27987
+        "name": "PaymentGatewayScreen-b5745decb16e9874d65257bc115a05bb.js",
+        "bytes": 29232
       },
       {
-        "name": "PremiumSubscriptionScreen-bb6ffd61374003622bdbeecf2115a6c0.js",
-        "bytes": 27985
+        "name": "[id]-115b70ecb54e19e02fc73bb820952081.js",
+        "bytes": 28551
       },
       {
-        "name": "AvatarCropScreen-3be65b0e3fb02ea4c84d397a23ecab85.js",
-        "bytes": 21012
+        "name": "[id]-620cc47dae6b5ada55f72ceb21d71c45.js",
+        "bytes": 28049
       },
       {
-        "name": "ManageAccountScreen-9d204b11210c79397e972a8c18136980.js",
-        "bytes": 19585
-      },
-      {
-        "name": "FeedbackScreen-1e8cf75807501213c2bec283961e0fc4.js",
-        "bytes": 14782
+        "name": "EditProfileFieldScreen-1ab25f79fb247dd9e418ee7004b592b7.js",
+        "bytes": 27983
       }
     ],
     "cssFiles": 1,
-    "cssTotalBytes": 101711
+    "cssTotalBytes": 97458
   },
   "files": [
     {
@@ -120,7 +120,7 @@
     },
     {
       "name": "welcome_390x844_light_reduced.png",
-      "bytes": 93754
+      "bytes": 93753
     },
     {
       "name": "welcome_390x844_dark_motion.png",
@@ -128,87 +128,87 @@
     },
     {
       "name": "welcome_390x844_dark_reduced.png",
-      "bytes": 86160
+      "bytes": 86166
     },
     {
       "name": "welcome_768x1024_light_motion.png",
-      "bytes": 174683
+      "bytes": 194606
     },
     {
       "name": "welcome_768x1024_light_reduced.png",
-      "bytes": 173155
+      "bytes": 198824
     },
     {
       "name": "welcome_768x1024_dark_motion.png",
-      "bytes": 155996
+      "bytes": 165224
     },
     {
       "name": "welcome_768x1024_dark_reduced.png",
-      "bytes": 155822
+      "bytes": 167735
     },
     {
       "name": "welcome_1024x768_light_motion.png",
-      "bytes": 185184
+      "bytes": 185419
     },
     {
       "name": "welcome_1024x768_light_reduced.png",
-      "bytes": 189690
+      "bytes": 189900
     },
     {
       "name": "welcome_1024x768_dark_motion.png",
-      "bytes": 161172
+      "bytes": 161232
     },
     {
       "name": "welcome_1024x768_dark_reduced.png",
-      "bytes": 162990
+      "bytes": 163024
     },
     {
       "name": "welcome_1280x800_light_motion.png",
-      "bytes": 243591
+      "bytes": 243853
     },
     {
       "name": "welcome_1280x800_light_reduced.png",
-      "bytes": 250688
+      "bytes": 250933
     },
     {
       "name": "welcome_1280x800_dark_motion.png",
-      "bytes": 206248
+      "bytes": 206226
     },
     {
       "name": "welcome_1280x800_dark_reduced.png",
-      "bytes": 209049
+      "bytes": 209040
     },
     {
       "name": "welcome_1440x900_light_motion.png",
-      "bytes": 289899
+      "bytes": 290137
     },
     {
       "name": "welcome_1440x900_light_reduced.png",
-      "bytes": 296099
+      "bytes": 296367
     },
     {
       "name": "welcome_1440x900_dark_motion.png",
-      "bytes": 246276
+      "bytes": 246335
     },
     {
       "name": "welcome_1440x900_dark_reduced.png",
-      "bytes": 251309
+      "bytes": 251324
     },
     {
       "name": "ambient_1280x800_light_motion_t01200.png",
-      "bytes": 158207
+      "bytes": 158408
     },
     {
       "name": "ambient_1280x800_light_motion_t02400.png",
-      "bytes": 248104
+      "bytes": 248349
     },
     {
       "name": "ambient_1280x800_light_motion_t03590.png",
-      "bytes": 250038
+      "bytes": 250264
     },
     {
       "name": "ambient_1280x800_light_motion_t09000.png",
-      "bytes": 249560
+      "bytes": 249764
     }
   ]
 }

@@ -201,9 +201,19 @@ welcome_1440x900_{light,dark}_{motion,reduced}.png
 ```
 
 The widths are #608 §12's (320, 390, 768, 1024, 1280, 1440); the heights are
-pinned here because a screenshot must have one. At 768 and above the drawer is
-in frame, so the captures are of the whole application chrome and not only the
-intro.
+pinned here because a screenshot must have one.
+
+**The sidebar is in frame from 1024, not from 768.** That moved when the shell
+became Bloom's `AiChatShell`, whose `SIDEBAR_BREAKPOINT` is 1024; Alia's own
+drawer had been in flow from 768. So tablet portrait now gets a drawer and a
+full-bleed chat, with a labelled opener, the way the AI Chat template does it —
+a product decision, taken deliberately, not a rendering artefact. The 768
+captures were re-recorded against it.
+
+A caveat worth carrying: these are SIGNED-OUT captures, so the composer is not
+on screen in any of them. A change that replaces the composer wholesale can
+leave this matrix byte-identical, as one did. This baseline speaks for the
+shell, the intro and the ambient field — not for the composer.
 
 Plus four frames of the AmbientField's own timeline, at 1280x800 light, as
 motion evidence:
