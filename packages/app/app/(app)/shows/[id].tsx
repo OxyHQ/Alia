@@ -23,7 +23,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Avatar } from '@oxy.so/bloom/avatar';
 import { Plus, Trash2, ChevronLeft, ExternalLink, Lock, Link2, Globe, Pencil } from 'lucide-react-native';
 import { toast } from '@oxy.so/bloom/toast';
 import { confirm } from '@oxy.so/bloom/surfaces';
@@ -354,13 +354,18 @@ export default function SeriesDetailScreen() {
           <Text className="text-base font-bold text-foreground">Hosts</Text>
           {series.speakers.map((speaker) => (
             <View key={`${speaker.name}-${speaker.voiceId}`} className="flex-row items-center gap-3">
-              <Avatar className="h-11 w-11">
-                <AvatarFallback>
-                  <Text className="text-sm font-semibold text-muted-foreground">
-                    {speaker.name.slice(0, 1).toUpperCase()}
-                  </Text>
-                </AvatarFallback>
-              </Avatar>
+              {/*
+                A host has no photo anywhere in the Shows model, so this was
+                only ever the initials disc — three nested components and a
+                hand-sliced first letter to draw one grey circle. Bloom's
+                Avatar derives the initial itself and, unlike the slice this
+                replaces, walks the letter along its ramp until it clears AA
+                in whichever mode is on. `color="neutral"` pins the quiet grey
+                the wrapper's `bg-muted` had; dropping it would tint the disc
+                per host, which is a product decision and not this refactor's
+                to make.
+              */}
+              <Avatar name={speaker.name} size={44} color="neutral" />
               <View className="min-w-0 flex-1">
                 <Text className="text-[15px] font-semibold text-foreground" numberOfLines={1}>
                   {speaker.name}
