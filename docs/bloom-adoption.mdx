@@ -495,6 +495,10 @@ that has actually landed.
 | One owner for ghost / agent / deep research, so the menu cannot disagree with the request body | `lib/chat/use-capability-modes.ts` | `lib/chat/__tests__/use-capability-modes.test.tsx` |
 | The new-chat screen can stop, retry, approve and answer like any other chat | `app/(app)/index.tsx` | `app/(app)/__tests__/home-chat-wiring.test.tsx` |
 | A dropped call started from an empty chat can be left | `lib/hooks/use-voice-mode.ts` | `lib/hooks/__tests__/use-voice-mode-disconnect.test.tsx` |
+| Each block built from tool output sits in a Bloom `ErrorBoundary`, so a malformed one cannot take the conversation down | `components/chat/message-block-boundary.tsx` | `components/__tests__/message-block-boundary.test.tsx` |
+| Bloom components can be MOUNTED in tests instead of mocked (`server.deps.inline`) | `packages/app/vitest.config.ts` | the boundary test mounts the real `ErrorBoundary` |
+| The thread no longer costs O(n²) to draw | `lib/thought-utils.ts`, `components/chat-interface.tsx` | `lib/__tests__/turn-timings-scale.test.ts` |
+| Twelve unreachable packages left the manifest | `packages/app/package.json` | [dependency audit](./dependency-audit.mdx) |
 
 Bloom's own feedback row is switched off under a reply: Alia's action bar is a
 superset of it (read aloud, generate audio, regenerate, vote), and two rows
@@ -511,10 +515,15 @@ anything above; all of it is larger than one change.
   Blocked on gaps 4 and 8 (`project` is required; there is no slot to put
   `AmbientField` behind the content) and on it being a navigation change, not a
   presentation one.
-- **The timeline.** `AiChatThread` cannot host Alia's scroll: gap 3. The anchor,
-  upward pagination, cursor jump and day/seam separators in
-  `lib/hooks/use-scroll-to-bottom.ts` stay until Bloom's `VirtualList` is wired
-  into the thread, or a composition over it is written here.
+- **The timeline.** Neither `AiChatThread` nor Bloom's `VirtualList` can host
+  Alia's scroll, and this is now evidenced rather than assumed:
+  `VirtualListProps.onEndReached` fires at the END of the list while Alia pages
+  UPWARD into history; `maintainVisibleContentPosition` is documented in Bloom's
+  own types as "accepted-but-ignored on web", which is exactly where the anchor
+  restore has to work; and there is no `scrollToIndex`, so the cursor jump has
+  no primitive. The anchor, upward pagination, cursor jump and day/seam
+  separators in `lib/hooks/use-scroll-to-bottom.ts` stay until Bloom grows those
+  three things.
 - **The composer.** Adopting `ComposerPill` as published would *regress* Alia —
   it selects models by display name and has no `onStop`; see gaps 1 and 2.
   `ComposerPanel` takes `{id, name}` but still has no stop. Composition over the
