@@ -74,6 +74,24 @@ vi.mock('@oxy.so/bloom/theme', () => ({
     color.replace(/^rgb\(([^)]+)\)$/, (_m, channels: string) => `rgba(${channels}, ${alpha})`),
 }));
 
+/**
+ * The strip's labels are localised now, and `@/lib/i18n` reaches
+ * `expo-localization` at module load — a native module with nothing behind it
+ * here. `t` returns the key plus its parameters so an assertion can still see
+ * WHICH attachment a button names, which is the property the remove button has
+ * to keep.
+ */
+vi.mock('@/lib/hooks/use-translation', () => ({
+  useTranslation: () => ({
+    t: (key: string, params?: Record<string, unknown>) =>
+      params === undefined
+        ? key
+        : `${key} ${Object.entries(params)
+            .map(([name, value]) => `${name}=${String(value)}`)
+            .join(' ')}`,
+  }),
+}));
+
 vi.mock('@/lib/useColorScheme', () => ({
   useColorScheme: () => ({
     colors: {
@@ -247,10 +265,13 @@ describe('the remove button', () => {
     const labels = nodes(r, 'Pressable').map((node) => node.props.accessibilityLabel);
 
     // Position as well as name, because two files can share a name and the name
-    // alone would then describe both buttons.
+    // alone would then describe both buttons. Read through the stubbed `t`, so
+    // what is pinned is that both facts reach the label — the words themselves
+    // are `composer.remove` in `lib/i18n/locales/*.json` and change with the
+    // reader's language.
     expect(labels).toEqual([
-      'Remove attachment 1: first.pdf',
-      'Remove attachment 2: second.pdf',
+      'composer.remove position=1 name=first.pdf',
+      'composer.remove position=2 name=second.pdf',
     ]);
   });
 });

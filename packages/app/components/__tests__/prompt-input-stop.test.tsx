@@ -32,7 +32,35 @@ vi.mock('react-native', async () => {
     KeyboardAvoidingView: host('KeyboardAvoidingView'),
     ScrollView: host('ScrollView'),
     Platform: { OS: 'web', select: (spec: Record<string, unknown>) => spec.web },
-    StyleSheet: { create: <T,>(styles: T) => styles },
+    StyleSheet: {
+      create: <T,>(styles: T) => styles,
+      // The working light fills the bar with it; a marker object is enough for
+      // a tree that never lays anything out.
+      absoluteFill: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
+    },
+  };
+});
+
+/**
+ * The composer's labels are localised, and `@/lib/i18n` reaches
+ * `expo-localization` at module load. `t` returns the key, so an assertion
+ * names the string rather than one language's wording of it.
+ */
+vi.mock('@/lib/hooks/use-translation', () => ({
+  useTranslation: () => ({ t: (key: string) => key }),
+}));
+
+/**
+ * Bloom's `ComposerLoader`, as a host element that reports what it was handed.
+ * The real one is an `<svg>` on a CSS keyframe reading Bloom's theme; what
+ * belongs in THIS file is only that the band never becomes another ancestor
+ * the stop button is trapped under.
+ */
+vi.mock('@oxy.so/bloom/composer-loader', async () => {
+  const ReactModule = await import('react');
+  return {
+    ComposerLoader: ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
+      ReactModule.createElement('ComposerLoader', props, children),
   };
 });
 
@@ -164,10 +192,16 @@ function nodes(r: ReactTestRenderer, name: string): ReactTestInstance[] {
   return r.root.findAll((node) => node.type === name);
 }
 
-/** The one control labelled as the stop button. */
+/**
+ * The one control labelled as the stop button.
+ *
+ * By KEY, not by wording: the composer's accessible names come from
+ * `lib/i18n/locales/*.json` now, and pinning "Stop generating" here would make
+ * this test an assertion about English.
+ */
 function stopButton(r: ReactTestRenderer): ReactTestInstance {
   const found = r.root.findAll(
-    (node) => typeof node.type === 'string' && node.props.accessibilityLabel === 'Stop generating',
+    (node) => typeof node.type === 'string' && node.props.accessibilityLabel === 'composer.stop',
   );
   if (found.length !== 1) throw new Error(`expected one stop button, found ${found.length}`);
   return found[0];
