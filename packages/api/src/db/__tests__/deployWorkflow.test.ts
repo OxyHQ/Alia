@@ -150,28 +150,35 @@ describe('deploy-aws.yml migration wiring', () => {
       'arn:aws:ssm:$AWS_REGION:237343248947:parameter/oxy/$APP/OXY_SERVICE_API_SECRET',
     );
     expect(workflow).toContain(
-      'TASK_SECRET_REMOVALS_JSON: \'["AWS_ACCESS_KEY_ID","AWS_SECRET_ACCESS_KEY","KAANA_EDGE_SIGNING_PRIVATE_KEY","ALIA_RELAY_CREDENTIAL_KEY","ALIA_RELAY_CREDENTIAL_SECRET","ALIA_KAANA_CREDENTIAL_KEY","ALIA_KAANA_CREDENTIAL_SECRET","OXY_SERVICE_API_KEY","OXY_SERVICE_API_SECRET"]\'',
+      'TASK_SECRET_REMOVALS_JSON: \'["AWS_ACCESS_KEY_ID","AWS_SECRET_ACCESS_KEY","KAANA_EDGE_SIGNING_PRIVATE_KEY","ALIA_RELAY_CREDENTIAL_KEY","ALIA_RELAY_CREDENTIAL_SECRET","ALIA_KAANA_CREDENTIAL_KEY","ALIA_KAANA_CREDENTIAL_SECRET"]\'',
     );
     /**
-     * And the pair IS in it, which is the assertion that matters now — the
-     * inverse of what stood here yesterday, and the same rule underneath.
+     * And the pair is NOT in it. The rule has never changed — a removal is
+     * allowed once the authority survives it — and on 2026-09-20 the answer
+     * went back to no, this time from a deploy rather than from a probe.
      *
-     * The entry came out because attesting yielded a token without
-     * `capabilities:read`: the workload mint dropped every privileged scope, and
-     * that scope is how Alia reads the capability catalogue it builds its tools
-     * from. oxy#1350 gave a BINDING its own scopes, `oxy-alia-task` was re-bound
-     * with all three, and a token minted by attestation was read back carrying
-     * exactly `capabilities:read`, `inference:invoke`, `user:read`. So the rule
-     * never changed — a removal is allowed once the authority survives it — only
-     * the answer did.
+     * The entry came out on 2026-09-19 because attesting yielded a token
+     * without `capabilities:read`, the scope Alia reads its capability
+     * catalogue with. oxy#1350 gave a BINDING its own scopes, `oxy-alia-task`
+     * was re-bound, a token minted by attestation read back all three, and the
+     * entry went back in.
+     *
+     * Then the first deploy that could actually exercise it ran. The readiness
+     * task executes on the revision this list produces, so with the pair
+     * removed it minted by attestation — and reported `oxy.ready=false` with
+     * ALL EIGHT chat profiles missing. Carrying the scope and being able to
+     * read the profiles turn out to be different things, and a probe that mints
+     * a token cannot tell them apart. Only this gate can.
+     *
+     * So the pair stays until a readiness run WITHOUT it comes back ready.
      *
      * Parsed as JSON rather than matched as a string, so a reordering cannot
-     * smuggle one out.
+     * smuggle one in.
      */
     const removals = workflow.match(/TASK_SECRET_REMOVALS_JSON: '(\[[^\]]*\])'/)?.[1];
     expect(removals).toBeDefined();
-    expect(JSON.parse(removals!)).toContain('OXY_SERVICE_API_KEY');
-    expect(JSON.parse(removals!)).toContain('OXY_SERVICE_API_SECRET');
+    expect(JSON.parse(removals!)).not.toContain('OXY_SERVICE_API_KEY');
+    expect(JSON.parse(removals!)).not.toContain('OXY_SERVICE_API_SECRET');
     expect(workflow).not.toContain('secrets.OXY_SERVICE_API_KEY');
     expect(workflow).not.toContain('secrets.OXY_SERVICE_API_SECRET');
     expect(workflow).not.toContain('sync_secret OXY_SERVICE_API_');
@@ -446,17 +453,16 @@ describe('the deploy removes retired credentials and runtime configuration', () 
       'AWS_ACCESS_KEY_ID',
       'AWS_SECRET_ACCESS_KEY',
       'KAANA_EDGE_SIGNING_PRIVATE_KEY',
-      // Alia's own Oxy credential, retired once attesting the task role stopped
-      // costing authority. `oxy-alia-task` is bound with `capabilities:read`,
-      // `inference:invoke` and `user:read` (oxy#1350), and a token minted BY
-      // ATTESTATION was read back carrying exactly those three — so the scope
-      // behind the two capability endpoints Alia's tool catalogue is built from
-      // survives the removal. It is named here and nowhere else in this
-      // workflow: the step that used to inject it stopped, and a release renders
-      // from the RUNNING revision, so this list is the only thing that takes it
-      // off.
-      'OXY_SERVICE_API_KEY',
-      'OXY_SERVICE_API_SECRET',
+      // Alia's own Oxy credential is deliberately NOT here, and this is the
+      // second time the answer has moved. `oxy-alia-task` is bound with
+      // `capabilities:read`, `inference:invoke` and `user:read` (oxy#1350), and
+      // a probe that minted BY ATTESTATION read back exactly those three — on
+      // which the pair was retired. The first deploy that could exercise that
+      // then ran its readiness task on a revision without the pair, and the
+      // task reported `oxy.ready=false` with all eight chat profiles missing.
+      // Carrying the scope and being able to read the profiles are not the same
+      // thing. The pair returns to this list when a readiness run WITHOUT it
+      // comes back ready — the deploy is the only instrument that can say so.
     ]);
   });
 
