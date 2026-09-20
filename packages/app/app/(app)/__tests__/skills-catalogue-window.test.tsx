@@ -135,9 +135,11 @@ vi.mock('@/components/ui/input', async () => {
   const ReactModule = await import('react');
   return { Input: (props: Record<string, unknown>) => ReactModule.createElement('Input', props) };
 });
-vi.mock('@/components/ui/skeleton', async () => {
+vi.mock('@oxy.so/bloom/skeleton', async () => {
   const ReactModule = await import('react');
-  return { Skeleton: (props: Record<string, unknown>) => ReactModule.createElement('Skeleton', props) };
+  const shape = (name: string) => (props: Record<string, unknown>) =>
+    ReactModule.createElement(name, props);
+  return { Box: shape('Skeleton'), Circle: shape('Skeleton'), Pill: shape('Skeleton'), Text: shape('Skeleton') };
 });
 vi.mock('@/components/ui/drawer-toggle', async () => {
   const ReactModule = await import('react');
