@@ -531,6 +531,7 @@ that has actually landed.
 | The composer's rim light is Bloom's `ComposerLoader` | `components/ui/prompt-input/working-light.tsx` | `__tests__/working-light.test.tsx`, and `bloom-composer-loader-dash` appears in the emitted web bundle |
 | Enter no longer sends a message an input method was still composing | `components/ui/prompt-input/textarea.tsx`, `lib/chat/composer-state.ts` | `__tests__/textarea-ime.test.tsx` (3 of its 6 fail with the guard removed) |
 | The composer's controls carry translated accessible names; the fullscreen toggle had none at all | `components/ui/prompt-input/*` | mount tests per control |
+| A reproducible visual baseline of "Meet Alia" and the ambient field — 6 viewports x light/dark x reduced/no-preference, plus 4 motion frames | `packages/app/scripts/visual/` | `bun run --filter @alia/app visual:baseline --check` |
 
 Bloom's own feedback row is switched off under a reply: Alia's action bar is a
 superset of it (read aloud, generate audio, regenerate, vote), and two rows
@@ -568,6 +569,16 @@ anything above; all of it is larger than one change.
 - **The feature-boundary tree** in #608 §4 — `features/{chat,voice,agents,…}/
   {model,runtime,ui}`. `lib/chat/` is its beginning, not the whole of it.
   `components/ui/` remains a second design layer beside Bloom's.
-- **Everything #608 §12 and §13 ask to measure.** No performance baseline, no
-  device run, no visual or motion comparison, no browser matrix. The web bundle
-  exports and the unit suite passes; that is the whole of what has been run.
+- **§13's visual comparison, for the chat itself.** The welcome screen and the
+  ambient field now have a reproducible reference (see
+  [the visual baseline](./visual-baseline.mdx)). The conversation, dictation,
+  playback and call references #608 §3.1 also asks for remain uncaptured: each
+  needs authentication and a live API, and none was faked to fill the row.
+- **§12 runtime performance.** The bundle baseline exists and says something
+  uncomfortable: `index-*.js` is 10,528,839 B, 93% of all JS, against 752,652 B
+  spread over 47 lazy route chunks. Code splitting exists in name only. Runtime
+  cost — time to interaction, render and JS cost while streaming, memory — is
+  still unmeasured; the capture harness pins the animation clock precisely so
+  that timings cannot be read off it, so that needs a second harness.
+- **Native.** No iOS or Android run. Bloom documents different blur and mask
+  backends there, so the web baseline does not transfer.
