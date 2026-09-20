@@ -23,7 +23,7 @@
  */
 
 import React from 'react';
-import { Switch } from '@/components/ui/switch';
+import { Switch } from '@oxy.so/bloom/switch';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import { useColorScheme } from '@/lib/useColorScheme';
 import { CAPABILITY_FAMILIES } from '@/lib/constants/capability-families';
@@ -71,7 +71,7 @@ export function AgentCapabilityToggles({
             disabled={disabled}
             showChevron={false}
             rightElement={
-              <Switch value={granted} onValueChange={() => toggle(id)} disabled={disabled} />
+              <Switch accessibilityLabel={label} value={granted} onValueChange={() => toggle(id)} disabled={disabled} />
             }
           />
         );

@@ -4,7 +4,7 @@ import Svg, { Circle } from "react-native-svg";
 import * as Linking from "expo-linking";
 import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
+import * as Skeleton from "@oxy.so/bloom/skeleton";
 import { Calendar, X, Crown, MessageSquare, Layers, ShoppingCart } from "lucide-react-native";
 import { useCredits, useCreditsUsage, useAnalytics, PERIODS, type UsagePeriod } from "@/lib/hooks/use-credits";
 import { useSubscription, useCreditPackages, useCreateCheckout } from "@/lib/hooks/use-billing";
@@ -102,16 +102,20 @@ function ChartSkeleton() {
   return (
     <View className="gap-3">
       <View className="gap-1">
-        <Skeleton style={{ width: 60, height: 10 }} />
-        <Skeleton style={{ width: 80, height: 20 }} />
+        <Skeleton.Box width={60} height={10} borderRadius={4} />
+        <Skeleton.Box width={80} height={20} borderRadius={4} />
       </View>
       <View className="flex-row items-end gap-1.5" style={{ height: 100 }}>
         {[40, 65, 30, 80, 55, 45, 70].map((h, i) => (
           <View key={i} className="flex-1 items-center gap-1.5">
             <View className="w-full items-center justify-end" style={{ height: 80 }}>
-              <Skeleton className="w-full rounded-t-sm" style={{ height: `${h}%` }} />
+              <Skeleton.Box
+                width="100%"
+                borderRadius={0}
+                style={{ height: `${h}%`, borderTopLeftRadius: 2, borderTopRightRadius: 2 }}
+              />
             </View>
-            <Skeleton style={{ width: 20, height: 8 }} />
+            <Skeleton.Box width={20} height={8} borderRadius={4} />
           </View>
         ))}
       </View>
@@ -175,16 +179,16 @@ function CreditsSkeleton() {
     <View className="rounded-2xl border border-border bg-surface px-3 py-2.5 gap-3">
       <View className="flex-row items-center justify-between">
         <View className="flex-row items-center gap-1.5">
-          <Skeleton className="rounded-full" style={{ width: RING_PX, height: RING_PX }} />
-          <Skeleton style={{ width: 56, height: 14 }} />
+          <Skeleton.Circle size={RING_PX} />
+          <Skeleton.Box width={56} height={14} borderRadius={4} />
         </View>
-        <Skeleton className="rounded-md" style={{ width: 64, height: 24 }} />
+        <Skeleton.Box width={64} height={24} borderRadius={6} />
       </View>
       <View className="gap-1.5">
         {[0, 1].map((row) => (
           <View key={row} className="flex-row items-center justify-between">
-            <Skeleton style={{ width: 52, height: 10 }} />
-            <Skeleton style={{ width: 76, height: 10 }} />
+            <Skeleton.Box width={52} height={10} borderRadius={4} />
+            <Skeleton.Box width={76} height={10} borderRadius={4} />
           </View>
         ))}
       </View>
@@ -196,31 +200,31 @@ function ActivitySkeleton() {
     <View className="gap-5">
       <View className="gap-2">
         <View className="flex-row items-center gap-2">
-          <Skeleton className="rounded-full" style={{ width: 18, height: 18 }} />
-          <Skeleton style={{ width: 60, height: 14 }} />
+          <Skeleton.Circle size={18} />
+          <Skeleton.Box width={60} height={14} borderRadius={4} />
         </View>
         <View className="flex-row items-baseline justify-between pl-6">
-          <Skeleton style={{ width: 90, height: 12 }} />
-          <Skeleton style={{ width: 50, height: 24 }} />
+          <Skeleton.Box width={90} height={12} borderRadius={4} />
+          <Skeleton.Box width={50} height={24} borderRadius={4} />
         </View>
         <View className="flex-row items-baseline justify-between pl-6">
-          <Skeleton style={{ width: 75, height: 12 }} />
-          <Skeleton style={{ width: 45, height: 16 }} />
+          <Skeleton.Box width={75} height={12} borderRadius={4} />
+          <Skeleton.Box width={45} height={16} borderRadius={4} />
         </View>
       </View>
       <View className="gap-2">
         <View className="flex-row items-center gap-2">
-          <Skeleton className="rounded-full" style={{ width: 18, height: 18 }} />
-          <Skeleton style={{ width: 55, height: 14 }} />
+          <Skeleton.Circle size={18} />
+          <Skeleton.Box width={55} height={14} borderRadius={4} />
         </View>
         <View className="pl-6 gap-1.5">
           <View className="flex-row items-baseline justify-between">
-            <Skeleton style={{ width: 90, height: 12 }} />
-            <Skeleton style={{ width: 20, height: 12 }} />
+            <Skeleton.Box width={90} height={12} borderRadius={4} />
+            <Skeleton.Box width={20} height={12} borderRadius={4} />
           </View>
           <View className="flex-row items-baseline justify-between">
-            <Skeleton style={{ width: 70, height: 12 }} />
-            <Skeleton style={{ width: 20, height: 12 }} />
+            <Skeleton.Box width={70} height={12} borderRadius={4} />
+            <Skeleton.Box width={20} height={12} borderRadius={4} />
           </View>
         </View>
       </View>

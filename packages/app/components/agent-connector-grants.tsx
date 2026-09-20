@@ -25,7 +25,7 @@
  */
 
 import React from 'react';
-import { Switch } from '@/components/ui/switch';
+import { Switch } from '@oxy.so/bloom/switch';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import { useColorScheme } from '@/lib/useColorScheme';
 import {
@@ -89,6 +89,7 @@ export function AgentConnectorGrants({
                   showChevron={false}
                   rightElement={
                     <Switch
+                      accessibilityLabel={connector.label}
                       value={granted}
                       onValueChange={() =>
                         onChange(

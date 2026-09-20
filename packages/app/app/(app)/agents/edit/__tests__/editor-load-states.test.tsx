@@ -88,7 +88,7 @@ vi.mock('react-native', async () => {
   };
 });
 
-vi.mock('@/components/ui/textarea', async () => {
+vi.mock('@oxy.so/bloom/textarea', async () => {
   const ReactModule = await import('react');
   return { Textarea: (props: Record<string, unknown>) => ReactModule.createElement('Textarea', props) };
 });
@@ -96,11 +96,11 @@ vi.mock('@/components/ui/input', async () => {
   const ReactModule = await import('react');
   return { Input: (props: Record<string, unknown>) => ReactModule.createElement('Input', props) };
 });
-vi.mock('@/components/ui/switch', async () => {
+vi.mock('@oxy.so/bloom/switch', async () => {
   const ReactModule = await import('react');
   return { Switch: (props: Record<string, unknown>) => ReactModule.createElement('Switch', props) };
 });
-vi.mock('@/components/ui/label', async () => {
+vi.mock('@oxy.so/bloom/label', async () => {
   const ReactModule = await import('react');
   return {
     Label: ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
@@ -350,7 +350,13 @@ function buttonLabelled(root: ReactTestInstance, label: string): ReactTestInstan
 }
 
 function editorIsOpen(root: ReactTestInstance): boolean {
-  return root.findAll((node) => isHost(node, 'Textarea')).length > 0;
+  // The system-prompt box is the one field that is always on the editor's
+  // main column, whatever tab or archetype is selected. It is a bare
+  // `TextInput` since the `components/ui` layer was retired, so it is found
+  // by its testID rather than by being the only Textarea on the screen.
+  return root.findAll(
+    (node) => isHost(node, 'TextInput') && node.props.testID === 'agent-system-prompt',
+  ).length > 0;
 }
 
 beforeEach(() => {

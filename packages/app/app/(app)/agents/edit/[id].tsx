@@ -1,16 +1,18 @@
 import React, { useState, useCallback, useEffect, useRef } from "react";
 import {
+  Platform,
   View,
   ScrollView,
   Pressable,
   TextInput,
 } from "react-native";
 import { useIsLargeScreen } from "@/lib/hooks/use-is-large-screen";
-import { Switch } from "@/components/ui/switch";
+import { asTextStyle } from "@/lib/types/webStyles";
+import { Switch } from "@oxy.so/bloom/switch";
 import { Text } from "@/components/ui/text";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
+import { Textarea } from "@oxy.so/bloom/textarea";
+import { Label } from "@oxy.so/bloom/label";
 import { Button } from "@/components/ui/button";
 import { IdentityMark } from "@alia.onl/sdk";
 import { ColorPicker } from "@/components/ui/color-picker";
@@ -849,7 +851,7 @@ function AgentEditor({ agent }: { agent: Agent }) {
                 value={description}
                 onChangeText={(text) => editDraft({ description: text })}
                 placeholder="Full description..."
-                placeholderTextColor={colors.mutedForeground}
+                autoResize
               />
             </View>
 
@@ -874,6 +876,7 @@ function AgentEditor({ agent }: { agent: Agent }) {
                 </Text>
               </View>
               <Switch
+                accessibilityLabel={t("agents.accessPublic")}
                 value={access === 'public'}
                 onValueChange={(next) => editDraft({ access: next ? 'public' : 'private' })}
               />
@@ -1124,14 +1127,36 @@ function AgentEditor({ agent }: { agent: Agent }) {
               />
             </View>
 
-            {/* System Prompt / Instructions */}
-            <Textarea
-              variant="ghost"
+            {/* System Prompt / Instructions.
+
+                A raw `TextInput`, and deliberately so. This is not a field: it
+                is a page-sized writing surface with no shell, no label and no
+                border, sitting directly on the editor's own column — which is
+                what the retired wrapper's `variant="ghost"` meant. Bloom's
+                `Textarea` always paints its filled shell and inset ring (the
+                view that draws them takes no style from the caller), so
+                composing it here would mean covering its chrome with more
+                chrome. The public API for "an editable region I paint myself"
+                is React Native's own input, not a second design system.
+
+                `fieldSizing: content` is the web's native grow-and-shrink; on
+                native `scrollEnabled={false}` plus `minHeight` is the same
+                behaviour. */}
+            <TextInput
+              testID="agent-system-prompt"
+              accessibilityLabel={t("agents.systemPromptPlaceholder")}
               value={systemPrompt}
               onChangeText={(text) => editDraft({ systemPrompt: text })}
               placeholder={t("agents.systemPromptPlaceholder")}
               placeholderTextColor={colors.mutedForeground}
-              style={{ fontSize: 15, lineHeight: 22, minHeight: 300 }}
+              multiline
+              scrollEnabled={false}
+              textAlignVertical="top"
+              className="font-sans text-foreground web:select-text"
+              style={[
+                { fontSize: 15, lineHeight: 22, minHeight: 300 },
+                Platform.OS === "web" ? asTextStyle({ fieldSizing: "content" }) : undefined,
+              ]}
             />
 
             {/* Archetype-specific configuration */}
@@ -1146,8 +1171,8 @@ function AgentEditor({ agent }: { agent: Agent }) {
                     value={archetypeConfig.reportTemplate || ''}
                     onChangeText={(text) => editDraft({ archetypeConfig: { ...archetypeConfig, reportTemplate: text } })}
                     placeholder="## Daily Standup\n### What happened\n### Key metrics\n### Action items"
-                    placeholderTextColor={colors.mutedForeground}
-                    style={{ minHeight: 120 }}
+                    autoResize
+                    rows={6}
                   />
                 </View>
 
@@ -1216,6 +1241,7 @@ function AgentEditor({ agent }: { agent: Agent }) {
                 <View className="flex-row items-center justify-between">
                   <Label>Compare with previous report</Label>
                   <Switch
+                    accessibilityLabel="Compare with previous report"
                     value={archetypeConfig.compareWithPrevious || false}
                     onValueChange={(val) => editDraft({ archetypeConfig: { ...archetypeConfig, compareWithPrevious: val } })}
                   />
@@ -1240,6 +1266,7 @@ function AgentEditor({ agent }: { agent: Agent }) {
                 <View className="flex-row items-center justify-between">
                   <Label>Cite sources in answers</Label>
                   <Switch
+                    accessibilityLabel="Cite sources in answers"
                     value={archetypeConfig.citeSources !== false}
                     onValueChange={(val) => editDraft({ archetypeConfig: { ...archetypeConfig, citeSources: val } })}
                   />

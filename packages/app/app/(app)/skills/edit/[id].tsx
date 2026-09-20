@@ -2,10 +2,10 @@ import { useEffect, useState } from 'react';
 import { View, ScrollView, ActivityIndicator, Pressable } from 'react-native';
 import { Text } from '@/components/ui/text';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Label } from '@/components/ui/label';
+import { Textarea } from '@oxy.so/bloom/textarea';
+import { Label } from '@oxy.so/bloom/label';
 import { Button } from '@/components/ui/button';
-import { Switch } from '@/components/ui/switch';
+import { Switch } from '@oxy.so/bloom/switch';
 import { ArrowLeft, Trash2 } from 'lucide-react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { toast } from "@oxy.so/bloom/toast";
@@ -165,14 +165,26 @@ export default function EditSkillScreen() {
 
           <View className="gap-1.5">
             <Label>{t('skills.descriptionLabel')}</Label>
-            <Textarea value={description} onChangeText={setDescription} multiline className="min-h-[90px]" />
+            <Textarea
+              accessibilityLabel={t('skills.descriptionLabel')}
+              value={description}
+              onChangeText={setDescription}
+              autoResize
+              rows={5}
+            />
             <Text className="text-[11px] text-muted-foreground">{t('skills.descriptionHint')}</Text>
             <Text className="text-[11px] text-muted-foreground">{description.length} / 1024</Text>
           </View>
 
           <View className="gap-1.5">
             <Label>{t('skills.bodyLabel')}</Label>
-            <Textarea value={body} onChangeText={setBody} multiline className="min-h-[260px]" />
+            <Textarea
+              accessibilityLabel={t('skills.bodyLabel')}
+              value={body}
+              onChangeText={setBody}
+              autoResize
+              rows={13}
+            />
             <Text className="text-[11px] text-muted-foreground">{t('skills.bodyHint')}</Text>
           </View>
 
@@ -196,7 +208,7 @@ export default function EditSkillScreen() {
               <Text className="text-[14px] text-foreground">{t('skills.publish')}</Text>
               <Text className="text-[12px] text-muted-foreground mt-0.5">{t('skills.publishHint')}</Text>
             </View>
-            <Switch value={isPublic} onValueChange={setIsPublic} />
+            <Switch accessibilityLabel={t('skills.publish')} value={isPublic} onValueChange={setIsPublic} />
           </View>
 
           <Pressable

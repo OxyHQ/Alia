@@ -2,9 +2,9 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { View, ScrollView } from "react-native";
 import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@oxy.so/bloom/textarea";
+import { Label } from "@oxy.so/bloom/label";
+import { Switch } from "@oxy.so/bloom/switch";
 import { Dialog, type DialogAction } from "@oxy.so/bloom/dialog";
 import { confirm } from "@oxy.so/bloom/surfaces";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
@@ -462,6 +462,7 @@ export default function MemoryScreen() {
               <Text className="text-sm text-muted-foreground">{t('memory.recallToggleDescription')}</Text>
             </View>
             <Switch
+              accessibilityLabel={t('memory.recallToggleLabel')}
               value={memory?.settings?.recallEnabled ?? true}
               onValueChange={(v) => handleToggleSetting('recallEnabled', v)}
               disabled={updatingSettings}
@@ -473,6 +474,7 @@ export default function MemoryScreen() {
               <Text className="text-sm text-muted-foreground">{t('memory.autoSaveToggleDescription')}</Text>
             </View>
             <Switch
+              accessibilityLabel={t('memory.autoSaveToggleLabel')}
               value={memory?.settings?.autoSaveEnabled ?? true}
               onValueChange={(v) => handleToggleSetting('autoSaveEnabled', v)}
               disabled={updatingSettings}
@@ -844,7 +846,8 @@ export default function MemoryScreen() {
                   onChangeText={setProviderPastedText}
                   placeholder={t('memory.pasteResponsePlaceholder')}
                   editable={!providerImporting}
-                  style={{ minHeight: 160 }}
+                  autoResize
+                  rows={8}
                 />
               </View>
 

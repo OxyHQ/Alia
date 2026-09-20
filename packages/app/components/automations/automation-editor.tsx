@@ -1,12 +1,13 @@
 import { useState } from 'react';
-import { Pressable, ScrollView, Switch, View } from 'react-native';
+import { Pressable, ScrollView, View } from 'react-native';
+import { Switch } from '@oxy.so/bloom/switch';
 import { Dialog } from '@oxy.so/bloom/dialog';
 import { toast } from '@oxy.so/bloom/toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { Label } from '@oxy.so/bloom/label';
 import { Text } from '@/components/ui/text';
-import { Textarea } from '@/components/ui/textarea';
+import { Textarea } from '@oxy.so/bloom/textarea';
 import {
   buildAutomationUpdate,
   createAutomationEditDraft,
@@ -163,7 +164,8 @@ export function AutomationEditor({
               value={instructions}
               onChangeText={setInstructions}
               accessibilityLabel="Task instructions"
-              className="min-h-28"
+              autoResize
+              rows={6}
             />
           </View>
 
