@@ -1248,7 +1248,9 @@
     "retryRead": "Reintentar la lectura de %{name}",
     "dismissFailed": "Descartar %{name}",
     "fileTooLarge": "%{name} supera %{limit} y no se ha adjuntado",
-    "fileEmpty": "%{name} está vacío: no se pueden adjuntar carpetas"
+    "fileEmpty": "%{name} está vacío: no se pueden adjuntar carpetas",
+    "attachmentNotSent": "No se envió %{name}: por ahora Alia solo puede leer imágenes en un mensaje",
+    "attachmentUnreadable": "No se pudo leer %{name} y no se envió"
   },
   "panel": {
     "resize": "Redimensionar el panel"

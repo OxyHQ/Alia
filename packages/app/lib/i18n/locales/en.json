@@ -1284,7 +1284,9 @@
     "retryRead": "Try reading %{name} again",
     "dismissFailed": "Discard %{name}",
     "fileTooLarge": "%{name} is larger than %{limit} and was not attached",
-    "fileEmpty": "%{name} is empty — folders can't be attached"
+    "fileEmpty": "%{name} is empty — folders can't be attached",
+    "attachmentNotSent": "%{name} wasn't sent — Alia can only read images in a message for now",
+    "attachmentUnreadable": "%{name} couldn't be read and wasn't sent"
   },
   "panel": {
     "resize": "Resize panel"
