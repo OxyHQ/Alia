@@ -51,6 +51,7 @@ import { NewConversationOffer } from "@/components/new-conversation-offer";
 import { daySeparators } from "@/lib/message-days";
 import { threadSeamIds, type ThreadMessage } from "@/lib/thread-history";
 import { FailedTurnCard } from "@/components/chat/failed-turn-card";
+import { MessageBlockBoundary } from "@/components/chat/message-block-boundary";
 import type { FailedTurn } from "@/components/chat/turn-failure";
 import { WorkSummary } from "@/components/execution/work-summary";
 import { rememberOpener } from "@/components/execution/focus-return";
@@ -400,18 +401,29 @@ const MessageRow = React.memo(function MessageRow({
       {m.pendingPlan && (() => {
         const plan = m.pendingPlan;
         return (
-          <PlanPreviewCard
-            steps={plan.steps}
-            approved={plan.approved}
-            rejected={plan.rejected}
-            onApprove={() => onApprovePlan?.(plan.planId)}
-            onReject={() => onRejectPlan?.(plan.planId)}
-          />
+          <MessageBlockBoundary>
+            <PlanPreviewCard
+              steps={plan.steps}
+              approved={plan.approved}
+              rejected={plan.rejected}
+              onApprove={() => onApprovePlan?.(plan.planId)}
+              onReject={() => onRejectPlan?.(plan.planId)}
+            />
+          </MessageBlockBoundary>
         );
       })()}
 
-      {/* A tool that produced a card draws it where the answer is read. */}
-      {m.toolInvocations?.map((t, ti) => toolCard(t, t.toolCallId || `tool-${m.id}-${ti}`))}
+      {/* A tool that produced a card draws it where the answer is read.
+          Each inside its own boundary: `cardOf` checks the card's NAME, not
+          the shape of its `data`, which is then cast unchecked — so a
+          malformed result reaches a card that reads it without guards. */}
+      {m.toolInvocations?.map((t, ti) => {
+        const key = t.toolCallId || `tool-${m.id}-${ti}`;
+        const card = toolCard(t, key);
+        return card === null ? null : (
+          <MessageBlockBoundary key={`${key}-block`}>{card}</MessageBlockBoundary>
+        );
+      })}
 
       {/* Every other call sits behind the work summary: "Worked for Ns", with
           the execution rows under it and the panel a press away (#544). It
@@ -433,7 +445,9 @@ const MessageRow = React.memo(function MessageRow({
 
       {/* Deep Research Progress */}
       {m.role === "assistant" && m.researchProgress && (
-        <ResearchProgressCard progress={m.researchProgress as ResearchProgressData} />
+        <MessageBlockBoundary>
+          <ResearchProgressCard progress={m.researchProgress as ResearchProgressData} />
+        </MessageBlockBoundary>
       )}
 
       {/* Thinking Content (Extended Thinking Mode) */}
