@@ -1,48 +1,27 @@
 import * as React from "react";
-import { Platform, View } from "react-native";
+import { Platform } from "react-native";
 import { useRouter } from "expo-router";
-import {
-  Sparkles,
-  Settings2,
-  Users,
-  Library,
-  CloudCog,
-  BookOpen,
-  Search,
-  CreditCard,
-  Bell,
-  MessageSquarePlus,
-  MessageSquare,
-  Star,
-} from "lucide-react-native";
-import {
-  CommandDialog,
-  CommandInput,
-  CommandList,
-  CommandEmpty,
-  CommandGroup,
-  CommandItem,
-  CommandSeparator,
-  CommandShortcut,
-} from "@/components/ui/command";
-import { Kbd } from "@oxy.so/bloom/kbd";
+import { Command, type CommandItem } from "@oxy.so/bloom/command";
+import { RiBankCardLine } from "@oxy.so/bloom/icons/RiBankCardLine";
+import { RiBookOpenLine } from "@oxy.so/bloom/icons/RiBookOpenLine";
+import { RiBookShelfLine } from "@oxy.so/bloom/icons/RiBookShelfLine";
+import { RiChat3Line } from "@oxy.so/bloom/icons/RiChat3Line";
+import { RiChatNewLine } from "@oxy.so/bloom/icons/RiChatNewLine";
+import { RiNotification3Line } from "@oxy.so/bloom/icons/RiNotification3Line";
+import { RiSearchLine } from "@oxy.so/bloom/icons/RiSearchLine";
+import { RiSettings3Line } from "@oxy.so/bloom/icons/RiSettings3Line";
+import { RiSparklingLine } from "@oxy.so/bloom/icons/RiSparklingLine";
+import { RiStarFill } from "@oxy.so/bloom/icons/RiStarFill";
+import { RiTeamLine } from "@oxy.so/bloom/icons/RiTeamLine";
+import { RiTimerLine } from "@oxy.so/bloom/icons/RiTimerLine";
 import { useConversations } from "@/lib/hooks/use-conversations";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { useFavoritesStore } from "@/lib/stores/favorites-store";
-import { defaultFilter } from "cmdk";
 
 /** How many conversations the palette offers before the user types anything. */
 const RESTING_CONVERSATIONS = 8;
 /** And how many it will search across once they do. */
 const SEARCHABLE_CONVERSATIONS = 100;
-/**
- * Multiplies cmdk's own score for a favourite. Measured: the scorer returns
- * ~0.99 for anything that contains the query, whatever else is in the string,
- * so its range is far too narrow for this to read as a nudge — in practice any
- * matching favourite ranks above any matching non-favourite. That is the
- * intent; the multiplier is just how it is expressed.
- */
-const FAVORITE_BOOST = 2;
 
 export function CommandPalette() {
   const [open, setOpen] = React.useState(false);
@@ -62,34 +41,6 @@ export function CommandPalette() {
       : all.slice(0, RESTING_CONVERSATIONS);
   }, [conversationsData, query]);
 
-  /**
-   * cmdk matches against an item's `value`, so the title has to be part of it —
-   * with the id appended, because two conversations may share a title and cmdk
-   * needs each value to be unique.
-   */
-  const valueFor = React.useCallback(
-    (id: string, title: string | null | undefined) => `${title ?? ""} ${id}`,
-    [],
-  );
-
-  const favoriteValues = React.useMemo(
-    () =>
-      new Set(
-        conversations
-          .filter((conv) => favoriteIds.includes(conv.id))
-          .map((conv) => valueFor(conv.id, conv.title)),
-      ),
-    [conversations, favoriteIds, valueFor],
-  );
-
-  const rankFavoritesFirst = React.useCallback(
-    (value: string, search: string, keywords?: string[]) => {
-      const score = defaultFilter(value, search, keywords);
-      return favoriteValues.has(value) ? score * FAVORITE_BOOST : score;
-    },
-    [favoriteValues],
-  );
-
   const runCommand = React.useCallback(
     (command: () => void) => {
       setOpen(false);
@@ -97,6 +48,114 @@ export function CommandPalette() {
     },
     []
   );
+
+  const items = React.useMemo<CommandItem[]>(() => {
+    const actions: CommandItem[] = [
+      {
+        id: "new-chat",
+        label: "New Chat",
+        group: "Actions",
+        icon: RiChatNewLine,
+        shortcut: "⌘⇧N",
+        onSelect: () => router.replace("/(app)"),
+      },
+      {
+        id: "search-library",
+        label: "Search Library",
+        group: "Actions",
+        icon: RiSearchLine,
+        onSelect: () => router.push("/(app)/library"),
+      },
+      {
+        id: "agents",
+        label: "Agents",
+        group: "Navigate",
+        icon: RiTeamLine,
+        onSelect: () => router.push("/(app)/agents"),
+      },
+      {
+        id: "library",
+        label: "Library",
+        group: "Navigate",
+        icon: RiBookShelfLine,
+        onSelect: () => router.push("/(app)/library"),
+      },
+      {
+        id: "automations",
+        label: "Automations",
+        group: "Navigate",
+        icon: RiTimerLine,
+        onSelect: () => router.push("/(app)/automations"),
+      },
+      {
+        id: "skills",
+        label: "Skills",
+        group: "Navigate",
+        icon: RiBookOpenLine,
+        onSelect: () => router.push("/(app)/skills"),
+      },
+      {
+        id: "settings",
+        label: "Settings",
+        group: "Settings",
+        icon: RiSettings3Line,
+        shortcut: "⌘,",
+        onSelect: () => router.push("/(app)/settings"),
+      },
+      {
+        id: "billing",
+        label: "Billing",
+        group: "Settings",
+        icon: RiBankCardLine,
+        onSelect: () => router.push("/(app)/settings/usage"),
+      },
+      {
+        id: "notifications",
+        label: "Notifications",
+        group: "Settings",
+        icon: RiNotification3Line,
+        onSelect: () => router.push("/(app)/notifications"),
+      },
+      {
+        id: "subscribe",
+        label: "Upgrade to Pro",
+        group: "Settings",
+        icon: RiSparklingLine,
+        onSelect: () => router.push("/(biglayout)/subscribe"),
+      },
+    ];
+
+    /**
+     * Favourites first, and that is the whole of the ranking.
+     *
+     * What this replaces was a custom `filter` that took cmdk's own score and
+     * multiplied a favourite's by two. The comment on that multiplier recorded
+     * the measurement that makes it redundant: cmdk returns ~0.99 for anything
+     * containing the query whatever else is in the string, so the boost never
+     * expressed a nudge — in practice ANY matching favourite outranked ANY
+     * matching non-favourite. Bloom's palette filters without re-ordering, so
+     * saying that outright, once, in the order of the array, is the same result
+     * with none of the arithmetic. It is also the reason the `value` trick is
+     * gone: cmdk matched on a synthesised `"title id"` string that had to be
+     * unique, and Bloom matches on the label with `id` kept separately.
+     */
+    const favouritesFirst = [...conversations].sort((a, b) => {
+      const af = favoriteIds.includes(a.id) ? 0 : 1;
+      const bf = favoriteIds.includes(b.id) ? 0 : 1;
+      return af - bf;
+    });
+
+    const group = query.trim() ? "Conversations" : "Recent Conversations";
+    const recents: CommandItem[] = favouritesFirst.map((conv) => ({
+      id: conv.id,
+      label: conv.title ?? "",
+      group,
+      icon: favoriteIds.includes(conv.id) ? RiStarFill : RiChat3Line,
+      onSelect: () => router.push(`/(app)/c/${conv.id}`),
+    }));
+
+    return [...actions, ...recents];
+  }, [conversations, favoriteIds, query, router]);
 
   React.useEffect(() => {
     if (Platform.OS !== "web") return;
@@ -135,93 +194,13 @@ export function CommandPalette() {
   if (Platform.OS !== "web") return null;
 
   return (
-    <CommandDialog open={open} onOpenChange={setOpen} filter={rankFavoritesFirst}>
-      <CommandInput
-        placeholder="Type a command or search..."
-        value={query}
-        onValueChange={setQuery}
-      />
-      <CommandList>
-        <CommandEmpty>No results found.</CommandEmpty>
-        <CommandGroup heading="Actions">
-          <CommandItem onSelect={() => runCommand(() => router.replace("/(app)"))}>
-            <MessageSquarePlus size={16} />
-            <span>New Chat</span>
-            <CommandShortcut>
-              <View className="flex-row items-center gap-1"><Kbd>⌘</Kbd><Kbd>⇧</Kbd><Kbd>N</Kbd></View>
-            </CommandShortcut>
-          </CommandItem>
-          <CommandItem onSelect={() => runCommand(() => router.push("/(app)/library"))}>
-            <Search size={16} />
-            <span>Search Library</span>
-          </CommandItem>
-        </CommandGroup>
-        <CommandSeparator />
-        <CommandGroup heading="Navigate">
-          <CommandItem onSelect={() => runCommand(() => router.push("/(app)/agents"))}>
-            <Users size={16} />
-            <span>Agents</span>
-          </CommandItem>
-          <CommandItem onSelect={() => runCommand(() => router.push("/(app)/library"))}>
-            <Library size={16} />
-            <span>Library</span>
-          </CommandItem>
-          <CommandItem onSelect={() => runCommand(() => router.push("/(app)/automations"))}>
-            <CloudCog size={16} />
-            <span>Automations</span>
-          </CommandItem>
-          <CommandItem onSelect={() => runCommand(() => router.push("/(app)/skills"))}>
-            <BookOpen size={16} />
-            <span>Skills</span>
-          </CommandItem>
-        </CommandGroup>
-        <CommandSeparator />
-        <CommandGroup heading="Settings">
-          <CommandItem onSelect={() => runCommand(() => router.push("/(app)/settings"))}>
-            <Settings2 size={16} />
-            <span>Settings</span>
-            <CommandShortcut>
-              <View className="flex-row items-center gap-1"><Kbd>⌘</Kbd><Kbd>,</Kbd></View>
-            </CommandShortcut>
-          </CommandItem>
-          <CommandItem onSelect={() => runCommand(() => router.push("/(app)/settings/usage"))}>
-            <CreditCard size={16} />
-            <span>Billing</span>
-          </CommandItem>
-          <CommandItem onSelect={() => runCommand(() => router.push("/(app)/notifications"))}>
-            <Bell size={16} />
-            <span>Notifications</span>
-          </CommandItem>
-          <CommandItem onSelect={() => runCommand(() => router.push("/(biglayout)/subscribe"))}>
-            <Sparkles size={16} />
-            <span>Upgrade to Pro</span>
-          </CommandItem>
-        </CommandGroup>
-        {conversations.length > 0 && (
-          <>
-            <CommandSeparator />
-            <CommandGroup heading={query.trim() ? "Conversations" : "Recent Conversations"}>
-              {conversations.map((conv) => {
-                const isFavorite = favoriteIds.includes(conv.id);
-                return (
-                  <CommandItem
-                    key={conv.id}
-                    value={valueFor(conv.id, conv.title)}
-                    onSelect={() => runCommand(() => router.push(`/(app)/c/${conv.id}`))}
-                  >
-                    {isFavorite ? (
-                      <Star size={16} className="fill-current" />
-                    ) : (
-                      <MessageSquare size={16} />
-                    )}
-                    <span className="truncate">{conv.title}</span>
-                  </CommandItem>
-                );
-              })}
-            </CommandGroup>
-          </>
-        )}
-      </CommandList>
-    </CommandDialog>
+    <Command
+      visible={open}
+      onClose={() => setOpen(false)}
+      items={items}
+      query={query}
+      onQueryChange={setQuery}
+      placeholder="Type a command or search..."
+    />
   );
 }
