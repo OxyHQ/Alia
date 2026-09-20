@@ -7,7 +7,7 @@ import { useStreamingChat, type SendOptions } from "@/lib/hooks/use-streaming-ch
 import { ConversationNotFoundError, useClearConversation, useConversation, useCreateConversation, useDeleteConversation, type Message } from "@/lib/hooks/use-conversations";
 import { generateAPIUrl } from "@/lib/generate-api-url";
 import { API_ROUTES } from "@/lib/api/routes";
-import { buildMessageContent } from "@/lib/attachment-utils";
+import { buildMessageContent, type DroppedAttachment } from "@/lib/attachment-utils";
 import type { ScrollView as GHScrollView } from "react-native-gesture-handler";
 import type { EffortLevel } from '@/lib/hooks/use-catalogue';
 import { toast } from "@oxy.so/bloom/toast";
@@ -61,6 +61,36 @@ function isEmptyContent(content: MessageContent | undefined): boolean {
   if (content === undefined || content === null) return true;
   if (typeof content === 'string') return !content.trim();
   return content.length === 0;
+}
+
+/**
+ * Say which attachments the turn went without.
+ *
+ * `buildMessageContent` used to drop them in silence: a document was filtered
+ * out by `a.type === 'image'`, and an image whose bytes would not read was a
+ * bare `continue`. The composer had already shown both as attached, so the
+ * turn left with the person believing the file went with it — the visible
+ * state and the real capability disagreeing, which is the failure #608 §1.6
+ * names.
+ *
+ * A toast rather than a blocked send: the message itself is fine and worth
+ * sending, and refusing the whole turn over a file the format cannot carry
+ * would be a worse trade. What matters is that nobody finds out by noticing
+ * the answer ignored their PDF.
+ */
+function reportDroppedAttachments(dropped: DroppedAttachment[] | undefined): void {
+  if (dropped === undefined || dropped.length === 0) return;
+
+  for (const attachment of dropped) {
+    toast.error(
+      i18n.t(
+        attachment.reason === 'unsupported'
+          ? 'composer.attachmentNotSent'
+          : 'composer.attachmentUnreadable',
+        { name: attachment.name },
+      ),
+    );
+  }
 }
 
 export function useChatConversation({ conversationId, reasoningEffort, selectedModel, agentId }: UseChatConversationOptions = {}) {
@@ -241,9 +271,11 @@ export function useChatConversation({ conversationId, reasoningEffort, selectedM
 
     useStore.getState().setBottomChatHeightHandler(true);
 
-    const messageContent = attachments?.length
+    const built = attachments?.length
       ? await buildMessageContent(content, attachments)
-      : content;
+      : null;
+    const messageContent = built ? built.content : content;
+    reportDroppedAttachments(built?.dropped);
 
     useStore.getState().clearAttachments();
 
@@ -280,9 +312,11 @@ export function useChatConversation({ conversationId, reasoningEffort, selectedM
     // If there are attachments, build multi-part content and store it as pending.
     // The raw text and attachments ride along so a failed send can restore them.
     const pendingAttachments = attachments ?? [];
-    const content = pendingAttachments.length
+    const built = pendingAttachments.length
       ? await buildMessageContent(initialMessage, pendingAttachments)
-      : initialMessage;
+      : null;
+    const content = built ? built.content : initialMessage;
+    reportDroppedAttachments(built?.dropped);
     useStore.getState().setPendingInitialMessage({
       content,
       text: initialMessage,

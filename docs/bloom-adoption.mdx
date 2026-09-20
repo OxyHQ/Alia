@@ -429,6 +429,34 @@ What Bloom would need: `EffortMenu` conditional on `effortLevels.length > 0`,
 and an effort value that can be absent. Until then Alia composes the model rows
 itself and keeps the two axes genuinely separate.
 
+### 10. `AiChatShell` cannot express a collapsed sidebar — FOUND DURING ADOPTION
+
+`AiChatShell` composes sidebar, workspace and right panel with a resize handle
+and mobile drawers, and is the obvious answer to #608 §5. Adopting it would
+cost Alia two things, and neither has a prop that recovers them.
+
+**A collapsed desktop rail.** Alia narrows its sidebar to a 56px icon rail
+through `sidebarOpen` in the UI store; `app/(app)/_layout.tsx` sets
+`drawerStyle.width` to 56 or 255 and the sidebar renders icon-only rows at that
+width. `AiChatShellProps` has `sidebar`, `mobileSidebar` and three widths — all
+three for the PANEL. The sidebar is either in flow above `lg` or a push drawer
+below it. There is no third state and no width to give it.
+
+**The accessibility fix in #532.** `DrawerSidebar` takes the sidebar out of the
+tab order and the screen-reader tree while the drawer is closed, because
+react-native-drawer-layout keeps the subtree mounted and merely translates it
+offscreen. That guard reads `useDrawerStatus`, which exists only because the
+drawer belongs to the router. Replacing the router's drawer replaces the signal
+the fix is built on.
+
+What was adopted instead is the part that is separable and that Alia genuinely
+lacked: `AiChatResizeHandle`, on the right panel, which had a fixed width. See
+`components/ui/panel.tsx`.
+
+What Bloom would need before the shell itself is worth adopting: a collapsed
+sidebar state with its own width, and a way for the host to know whether the
+nav is presented, so an equivalent of the #532 guard can be written against it.
+
 ### On the AI Chat template
 
 Issue #608 names `templates/ai-chat/AiChatTemplate.tsx` as the primary
@@ -531,6 +559,7 @@ that has actually landed.
 | The composer's rim light is Bloom's `ComposerLoader` | `components/ui/prompt-input/working-light.tsx` | `__tests__/working-light.test.tsx`, and `bloom-composer-loader-dash` appears in the emitted web bundle |
 | Enter no longer sends a message an input method was still composing | `components/ui/prompt-input/textarea.tsx`, `lib/chat/composer-state.ts` | `__tests__/textarea-ime.test.tsx` (3 of its 6 fail with the guard removed) |
 | The composer's controls carry translated accessible names; the fullscreen toggle had none at all | `components/ui/prompt-input/*` | mount tests per control |
+| The right panel is dragged, using Bloom's `AiChatResizeHandle`; it had a fixed width | `components/ui/panel.tsx`, `components/right-panel.tsx` | `components/__tests__/panel-resize.test.tsx`, `lib/stores/__tests__/right-panel-width.test.ts` |
 | A reproducible visual baseline of "Meet Alia" and the ambient field — 6 viewports x light/dark x reduced/no-preference, plus 4 motion frames | `packages/app/scripts/visual/` | `bun run --filter @alia/app visual:baseline --check` |
 
 Bloom's own feedback row is switched off under a reply: Alia's action bar is a
@@ -543,11 +572,12 @@ would be two answers to the same question. That also sidesteps gap 6 for now —
 Stated as remaining work rather than left implied. None of it is blocked by
 anything above; all of it is larger than one change.
 
-- **The shell.** `AiChatShell` + `AiChatContainer` would replace the
-  `expo-router` `Drawer`, `components/sidebar.tsx` and `components/right-panel.tsx`.
-  Blocked on gaps 4 and 8 (`project` is required; there is no slot to put
-  `AmbientField` behind the content) and on it being a navigation change, not a
-  presentation one.
+- **The shell.** `AiChatShell` is now declined with the cost named — see gap 10:
+  it cannot express Alia's collapsed 56px sidebar rail, and replacing the
+  router's drawer removes `useDrawerStatus`, which the #532 accessibility fix is
+  built on. `AiChatContainer` remains blocked on gaps 4 and 8 (`project` is
+  required; there is no slot to put `AmbientField` behind the content). The
+  separable part — the resize handle — is adopted.
 - **The timeline.** Neither `AiChatThread` nor Bloom's `VirtualList` can host
   Alia's scroll, and this is now evidenced rather than assumed:
   `VirtualListProps.onEndReached` fires at the END of the list while Alia pages
