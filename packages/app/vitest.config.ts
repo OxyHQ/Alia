@@ -19,10 +19,30 @@ export default defineConfig({
       '@': fileURLToPath(new URL('.', import.meta.url)),
     },
   },
+  /**
+   * Bloom, and the packages Bloom's own modules reach for, processed by vite
+   * rather than handed to node.
+   *
+   * Without this NOTHING from `@oxy.so/bloom/*` could be imported in a test at
+   * all: node resolves the package's `react-native` export condition to its raw
+   * `src/*.ts`, which the runner will not parse, and the suite dies at import
+   * with `Unexpected token 'typeof'`. That is why the older tests in this repo
+   * mock every `@oxy.so/bloom/*` specifier instead of importing it — and a test
+   * that mocks the component it is about is a test of its own stub.
+   *
+   * `react-native-css` is here for a different reason with the same effect: it
+   * publishes extensionless relative ESM (`./runtime`), which a bundler
+   * resolves and node does not. Bloom's styled components import it, so it is
+   * reached by anything that mounts one.
+   *
+   * Inlining is what makes #608 testable rather than assertable: an adoption
+   * can now be proven by mounting the real Bloom component, as
+   * `components/__tests__/panel-resize.test.tsx` does.
+   */
   test: {
     server: {
       deps: {
-        inline: [/@oxy\.so[\\/]bloom/],
+        inline: [/@oxy\.so[\\/]bloom/, /react-native-css/],
       },
     },
   },
