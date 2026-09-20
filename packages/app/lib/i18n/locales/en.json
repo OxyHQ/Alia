@@ -1275,5 +1275,8 @@
     "dictationDiscard": "Discard dictation",
     "dictationStop": "Stop dictation",
     "dictationSend": "Send dictated message"
+  },
+  "panel": {
+    "resize": "Resize panel"
   }
 }
