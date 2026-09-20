@@ -20,7 +20,7 @@
  * That trade needs a loud failure, not a silent 404: the moment a web path can
  * reach Skia, the wasm has to come back. This check is that alarm.
  */
-import { readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -60,4 +60,32 @@ if (offenders.length > 0) {
   process.exit(1);
 }
 
-console.log(`check-web-bundle: ${chunks.length} chunks, no Skia — canvaskit.wasm is correctly absent.`);
+/**
+ * And the 8 MB itself, which is a different question from whether a chunk
+ * imports Skia.
+ *
+ * `setup-skia-web` writes `public/canvaskit.wasm`, and `expo export` copies the
+ * whole of `public/` into `dist/`. The file is gitignored, so a fresh checkout
+ * and CI never have it — but a machine that ran the old `prebuild` once keeps
+ * it forever, and every export from then on ships 8 MB that nothing fetches
+ * while this script happily reports "no Skia". The chunk scan above cannot see
+ * that, because there is nothing in the chunks to see: the file is deployed
+ * because it is sitting in a directory, not because anything referenced it.
+ */
+const stray = join(dist, 'canvaskit.wasm');
+if (existsSync(stray)) {
+  console.error(
+    [
+      `check-web-bundle: canvaskit.wasm is in the export (${statSync(stray).size} bytes) and nothing fetches it.`,
+      '',
+      'It came from `public/canvaskit.wasm`, which `expo export` copies wholesale.',
+      'That file is left over from a `setup-skia-web` run on this machine — it is',
+      'gitignored, so CI does not have it. Delete packages/app/public/canvaskit.wasm',
+      'and export again. If the web build is meant to use Skia, the chunk scan above',
+      'is the check that should be failing, not this one.',
+    ].join('\n'),
+  );
+  process.exit(1);
+}
+
+console.log(`check-web-bundle: ${chunks.length} chunks, no Skia, no stray wasm in the export.`);
