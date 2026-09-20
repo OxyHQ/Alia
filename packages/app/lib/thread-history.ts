@@ -12,7 +12,7 @@ import type { Message } from '@/types/chat';
  * live messages, and says where the joins are.
  *
  * Everything here is pure. The scrolling, the fetching and the anchoring live
- * in `lib/hooks/use-thread-history.ts` and `lib/hooks/use-scroll-to-bottom.ts`.
+ * in `lib/hooks/use-thread-history.ts`; the thread's own anchoring is Bloom's.
  */
 
 /**
