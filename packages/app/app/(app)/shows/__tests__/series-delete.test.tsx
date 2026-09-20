@@ -149,11 +149,9 @@ vi.mock('@/components/ui/button', async () => {
   };
 });
 
-vi.mock('@/components/ui/avatar', async () => {
+vi.mock('@oxy.so/bloom/avatar', async () => {
   const ReactModule = await import('react');
-  const host = (name: string) => ({ children }: React.PropsWithChildren) =>
-    ReactModule.createElement(name, null, children);
-  return { Avatar: host('Avatar'), AvatarFallback: host('AvatarFallback') };
+  return { Avatar: () => ReactModule.createElement('Avatar') };
 });
 
 vi.mock('@/components/ui/skeleton', async () => {
