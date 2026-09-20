@@ -400,6 +400,35 @@ The Bloom change needed is a background node slot on `AiChatShell` /
 `AiChatContainer`, with the internal surfaces made transparent by opt-in. Reading
 into the container with web selectors, or forking it, is what issue §2 rules out.
 
+### 9. `ModelPicker` welds an effort axis to the model list — FOUND DURING ADOPTION
+
+Not in #608's list, and the one gap found by trying to adopt rather than by
+reading. `ModelPicker` is the picker the matrix and the issue both bless,
+because its identity contract is right: `{id, name}`, `onValueChange(modelId)`,
+no display-name matching. That part is correct.
+
+Its effort axis is not separable from it. `ModelPickerBase` renders `EffortMenu`
+on the checked row **unconditionally**, indexing `effortLevels`, and
+`EffortSlider` computes `max = levels.length - 1`.
+
+Alia's levels are per-entry `capabilities.reasoningLevels`, and
+`lib/hooks/use-catalogue.ts` says what that usually holds:
+
+> Empty is the common answer: a routing profile fanning out over seventeen
+> deployments offers a level only if all seventeen can send it.
+
+So for the default selection, `effortLevels` is `[]` — and the picker draws an
+empty chip with a chevron over a slider that can never commit. A control wired
+to nothing, in the common case, which is what #608 §1.6 forbids.
+
+There is a second half. `effort?: number` cannot express what Alia's store says
+with `null`: no level chosen, the parameter omitted, the model decides. Adopting
+the prop would turn the absence of a choice into the appearance of one.
+
+What Bloom would need: `EffortMenu` conditional on `effortLevels.length > 0`,
+and an effort value that can be absent. Until then Alia composes the model rows
+itself and keeps the two axes genuinely separate.
+
 ### On the AI Chat template
 
 Issue #608 names `templates/ai-chat/AiChatTemplate.tsx` as the primary
@@ -499,6 +528,9 @@ that has actually landed.
 | Bloom components can be MOUNTED in tests instead of mocked (`server.deps.inline`) | `packages/app/vitest.config.ts` | the boundary test mounts the real `ErrorBoundary` |
 | The thread no longer costs O(n²) to draw | `lib/thought-utils.ts`, `components/chat-interface.tsx` | `lib/__tests__/turn-timings-scale.test.ts` |
 | Twelve unreachable packages left the manifest | `packages/app/package.json` | [dependency audit](./dependency-audit.mdx) |
+| The composer's rim light is Bloom's `ComposerLoader` | `components/ui/prompt-input/working-light.tsx` | `__tests__/working-light.test.tsx`, and `bloom-composer-loader-dash` appears in the emitted web bundle |
+| Enter no longer sends a message an input method was still composing | `components/ui/prompt-input/textarea.tsx`, `lib/chat/composer-state.ts` | `__tests__/textarea-ime.test.tsx` (3 of its 6 fail with the guard removed) |
+| The composer's controls carry translated accessible names; the fullscreen toggle had none at all | `components/ui/prompt-input/*` | mount tests per control |
 
 Bloom's own feedback row is switched off under a reply: Alia's action bar is a
 superset of it (read aloud, generate audio, regenerate, vote), and two rows
@@ -524,10 +556,13 @@ anything above; all of it is larger than one change.
   no primitive. The anchor, upward pagination, cursor jump and day/seam
   separators in `lib/hooks/use-scroll-to-bottom.ts` stay until Bloom grows those
   three things.
-- **The composer.** Adopting `ComposerPill` as published would *regress* Alia —
-  it selects models by display name and has no `onStop`; see gaps 1 and 2.
-  `ComposerPanel` takes `{id, name}` but still has no stop. Composition over the
-  public primitives is the path, not the pill.
+- **The composer** is done, as composition rather than adoption: `ComposerLoader`
+  is reused directly, Bloom's Enter rule is reimplemented over Alia's own field,
+  and `ComposerPill`, `ComposerPanel`, `ModelPicker`, `ComposerAttachments`,
+  `ComposerStatusBar` and `ControlSurface` were each declined with the loss
+  named — see gaps 1, 2, 5 and 9. What remains is attachments: drag-and-drop and
+  retry do not exist in Alia today, and Bloom has no contract for real upload
+  progress to adopt.
 - **Attachments.** `ComposerAttachments` simulates its uploads (gap 5). Real
   progress, error, retry and cancel have no Bloom contract to adopt.
 - **The feature-boundary tree** in #608 §4 — `features/{chat,voice,agents,…}/
