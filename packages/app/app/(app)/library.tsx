@@ -13,7 +13,7 @@ import { FileCard } from '@/components/file-card';
 import { cn } from '@/lib/utils';
 import { toast } from '@oxy.so/bloom/toast';
 import { useTranslation } from '@/lib/hooks/use-translation';
-import { Skeleton } from '@/components/ui/skeleton';
+import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { DrawerToggle } from '@/components/ui/drawer-toggle';
 import { ContentPanel } from "@oxy.so/bloom/content-panel";
 
@@ -231,10 +231,10 @@ export default function LibraryScreen() {
         <View className="px-5 gap-1">
           {Array.from({ length: 5 }).map((_, i) => (
             <View key={i} className="flex-row items-center gap-3 py-2.5">
-              <Skeleton style={{ width: 36, height: 36, borderRadius: 8 }} />
+              <Skeleton.Box width={36} height={36} borderRadius={8} />
               <View className="flex-1 gap-1.5">
-                <Skeleton style={{ width: '60%', height: 12, borderRadius: 6 }} />
-                <Skeleton style={{ width: '35%', height: 10, borderRadius: 6 }} />
+                <Skeleton.Box width="60%" height={12} borderRadius={6} />
+                <Skeleton.Box width="35%" height={10} borderRadius={6} />
               </View>
             </View>
           ))}

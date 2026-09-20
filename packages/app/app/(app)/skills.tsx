@@ -15,7 +15,7 @@ import {
   type Skill,
 } from '@/lib/hooks/use-skills';
 import { SkillCover } from '@/components/ui/skill-cover';
-import { Skeleton } from '@/components/ui/skeleton';
+import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { DrawerToggle } from '@/components/ui/drawer-toggle';
 import { ContentPanel } from '@oxy.so/bloom/content-panel';
 
@@ -264,11 +264,11 @@ export default function SkillsScreen() {
         {catalogue.isLoading ? (
           <View className="mb-5">
             <View className="px-5 mb-2">
-              <Skeleton style={{ width: 80, height: 10, borderRadius: 6 }} />
+              <Skeleton.Box width={80} height={10} borderRadius={6} />
             </View>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, gap: 10 }}>
               {Array.from({ length: 4 }).map((_, index) => (
-                <Skeleton key={index} style={{ width: BOOK_WIDTH, height: BOOK_WIDTH * 1.5, borderRadius: 8 }} />
+                <Skeleton.Box key={index} width={BOOK_WIDTH} height={BOOK_WIDTH * 1.5} borderRadius={8} />
               ))}
             </ScrollView>
           </View>

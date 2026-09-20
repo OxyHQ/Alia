@@ -40,7 +40,7 @@ import { ShowArtwork } from '@/components/show/show-artwork';
 import { EpisodeCreateDialog } from '@/components/show/episode-create-dialog';
 import { useShowProgress } from '@/lib/hooks/use-show-progress';
 import { useColorScheme } from '@/lib/useColorScheme';
-import { Skeleton } from '@/components/ui/skeleton';
+import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { formatEpisodeCount } from '@/lib/utils/show-format';
 
 /** Where a listener would go to see the podcast itself. */
@@ -203,15 +203,15 @@ export default function SeriesDetailScreen() {
       <ContentPanel surfaceClassName="bg-background">
         <View className="flex-1 gap-4 bg-background p-4">
           <View className="flex-row gap-4">
-            <Skeleton className="h-28 w-28 rounded-2xl" />
+            <Skeleton.Box width={112} height={112} borderRadius={16} />
             <View className="flex-1 justify-center gap-2">
-              <Skeleton className="h-6 w-3/4 rounded-lg" />
-              <Skeleton className="h-4 w-1/2 rounded-lg" />
-              <Skeleton className="h-8 w-32 rounded-full" />
+              <Skeleton.Box width="75%" height={24} borderRadius={8} />
+              <Skeleton.Box width="50%" height={16} borderRadius={8} />
+              <Skeleton.Box width={128} height={32} borderRadius={9999} />
             </View>
           </View>
-          <Skeleton className="h-14 w-full rounded-lg" />
-          <Skeleton className="h-16 w-full rounded-xl" />
+          <Skeleton.Box width="100%" height={56} borderRadius={8} />
+          <Skeleton.Box width="100%" height={64} borderRadius={12} />
         </View>
       </ContentPanel>
     );
