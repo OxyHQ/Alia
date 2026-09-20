@@ -48,7 +48,7 @@ const SILENCE_FLOOR = 0.1;
  */
 const IDLE_PULSE = 0.22;
 
-export type PromptInputDictationBarProps = {
+export type DictationBarProps = {
   onCancel: () => void;
   onStop: () => void;
   onSend: () => void;
@@ -105,12 +105,12 @@ function DictationTrace({ active }: { active: boolean }) {
   );
 }
 
-export function PromptInputDictationBar({
+export function DictationBar({
   onCancel,
   onStop,
   onSend,
   isTranscribing = false,
-}: PromptInputDictationBarProps) {
+}: DictationBarProps) {
   const { colors } = useColorScheme();
   const { t } = useTranslation();
 

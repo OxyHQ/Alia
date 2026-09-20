@@ -11,7 +11,7 @@ import {
   type StartRead,
 } from '../use-attachment-intake';
 import { MAX_ATTACHMENT_BYTES } from '@/lib/chat/attachment-intake';
-import type { Attachment } from '../context';
+import type { Attachment } from '../types';
 
 /**
  * The queue between "the user handed us a file" and "the strip has it".

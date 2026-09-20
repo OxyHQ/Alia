@@ -3,7 +3,7 @@ import { Platform, View } from "react-native";
 import { Text } from "@/components/ui/text";
 import { useTranslation } from "@/lib/hooks/use-translation";
 import { dragCarriesFiles, nextDragDepth } from "@/lib/chat/attachment-intake";
-import { COMPOSER_RADIUS } from "./context";
+import { COMPOSER_RADIUS } from "./types";
 
 /**
  * Dropping files onto the composer, on web, where such a gesture exists.
@@ -21,8 +21,11 @@ import { COMPOSER_RADIUS } from "./context";
  * `View` has no `onDragEnter`. react-native-web forwards a fixed set of
  * handlers and the drag family is not in it, and NativeWind's wrapper means a
  * ref here does not resolve to the DOM node either — the fullscreen grow in
- * `prompt-input.tsx` ran into the same wall and solved it the same way, by
- * giving the bar an `id` and looking it up. This hook takes that id.
+ * old composer ran into the same wall and solved it the same way, by giving
+ * the bar an `id` and looking it up. This hook takes that id, and the id now
+ * belongs to the `View` the composer wraps Bloom's pill in — Bloom's own pill
+ * takes a `style` and a `testID` and no DOM handle at all, which is the right
+ * shape for a UI kit and leaves the drop target to its host.
  */
 export interface ComposerDropTargetOptions {
   /** The DOM id of the element the drop lands on — the composer bar itself. */
@@ -139,7 +142,7 @@ export function useComposerDropTarget({
  * drag is not a gesture a screen-reader user performs, the composer is shared
  * with people who do both.
  */
-export function PromptInputDropOverlay({
+export function ComposerDropOverlay({
   visible,
   enabled,
 }: {
@@ -163,4 +166,80 @@ export function PromptInputDropOverlay({
       </Text>
     </View>
   );
+}
+
+/**
+ * Files PASTED into the composer, on web, where such a gesture exists.
+ *
+ * It lives beside the drop target rather than with the field because it is the
+ * same question asked with a different gesture: bytes have arrived, they were
+ * not typed, and the composer has to decide whether to take them. Both are
+ * hand-attached DOM listeners for the same reason — react-native-web forwards
+ * neither the drag family nor `onPaste` through `View`, and NativeWind's
+ * wrapper means a ref does not resolve to the node either — so both are keyed
+ * off the composer's own DOM id.
+ *
+ * ## Why it is on the composer and not on the field
+ *
+ * `ChatTextInput` used to own this, listening on `document` and checking that
+ * the focused element was inside ITS wrapper. Bloom's pill owns the field now
+ * and exposes no DOM handle for it, so the containment test moves out one ring,
+ * to the element the pill is mounted inside. That is the same test with a
+ * larger box: a paste belongs to this composer when the thing being pasted
+ * into is somewhere in this composer.
+ *
+ * ## Why it takes every file and not only images
+ *
+ * The old handler filtered `item.type.indexOf('image')`, so pasting a PDF
+ * pasted its NAME. The intake queue classifies and refuses on its own terms
+ * (`lib/chat/attachment-intake.ts`) and says so in the strip, which is a better
+ * answer than a silent drop — and it is the same answer a dropped PDF already
+ * got, which is the point: one queue, one set of rules, whichever gesture the
+ * file arrived by.
+ */
+export function useComposerPasteTarget({
+  elementId,
+  enabled,
+  onFiles,
+}: Omit<ComposerDropTargetOptions, "rebindKey">): void {
+  // Held in a ref for the same reason the drop target holds its own: a
+  // listener swapped out mid-gesture is a gesture with no handler.
+  const latest = React.useRef({ enabled, onFiles });
+  latest.current = { enabled, onFiles };
+
+  React.useEffect(() => {
+    if (Platform.OS !== "web" || typeof document === "undefined") return;
+
+    const onPaste = (event: globalThis.ClipboardEvent) => {
+      // Resolved per EVENT rather than once per mount, which is also why this
+      // hook needs no `rebindKey`: the pill re-renders its own subtree as the
+      // draft grows, and a node captured at mount is a node the composer may
+      // since have replaced.
+      const host = document.getElementById(elementId);
+      if (!(host instanceof HTMLElement)) return;
+      if (!host.contains(document.activeElement)) return;
+
+      const items = event.clipboardData?.items;
+      if (items === undefined) return;
+      const files: File[] = [];
+      for (const item of Array.from(items)) {
+        if (item.kind !== "file") continue;
+        const file = item.getAsFile();
+        if (file !== null) files.push(file);
+      }
+      // Nothing was pasted that this is about. A paste carrying text as well
+      // as a picture — which is what copying from a web page produces — must
+      // still put its text in the field, so the default is left alone.
+      if (files.length === 0) return;
+
+      // Swallowed even when the composer is closed: the alternative is the
+      // browser's own default, which writes the file's bytes into the draft.
+      event.preventDefault();
+      if (!latest.current.enabled) return;
+      latest.current.onFiles(files);
+    };
+
+    document.addEventListener("paste", onPaste);
+    return () => document.removeEventListener("paste", onPaste);
+  }, [elementId]);
 }

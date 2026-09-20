@@ -1287,7 +1287,12 @@
     "fileTooLarge": "%{name} is larger than %{limit} and was not attached",
     "fileEmpty": "%{name} is empty — folders can't be attached",
     "attachmentNotSent": "%{name} wasn't sent — Alia can only read images in a message for now",
-    "attachmentUnreadable": "%{name} couldn't be read and wasn't sent"
+    "attachmentUnreadable": "%{name} couldn't be read and wasn't sent",
+    "addGroup": "Add",
+    "capabilitiesGroup": "Capabilities",
+    "appsGroup": "Apps",
+    "canvas": "Canvas",
+    "connectorTools": "%{count} tools"
   },
   "panel": {
     "resize": "Resize panel"
