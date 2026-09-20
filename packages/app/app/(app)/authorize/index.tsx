@@ -8,7 +8,7 @@ import { useAuth, useOxy } from '@oxy.so/services';
 import apiClient, { getSocketToken } from '@/lib/api/client';
 import config from '@/lib/config';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardBody, CardDescription, CardHeader, CardTitle } from '@oxy.so/bloom/card';
 import { Text } from '@/components/ui/text';
 import { Divider } from '@oxy.so/bloom/divider';
 import { io as socketIO } from 'socket.io-client';
@@ -277,20 +277,27 @@ export default function AuthorizeScreen() {
           {status === 'authorize' && (
             <Card>
               <CardHeader>
-                <CardTitle className="text-center">{t('authorize.authorizeApp', { app: appConfig.displayName })}</CardTitle>
-                <CardDescription className="text-center">
+                <CardTitle style={{ textAlign: 'center' }}>{t('authorize.authorizeApp', { app: appConfig.displayName })}</CardTitle>
+                <CardDescription style={{ textAlign: 'center' }}>
                   {t('authorize.appWantsAccess', { app: appConfig.displayName })}
                 </CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardBody>
                 <View className="gap-4">
                   <View className="gap-2">
                     <Text className="text-sm text-muted-foreground font-medium">
                       {t('authorize.willAllow', { app: appConfig.displayName })}
                     </Text>
                     <View className="gap-2 pl-1">
+                      {/*
+                        `text-foreground` is stated here now. The wrapper's
+                        `CardContent` pushed `text-surface-foreground` down
+                        through a `TextClassContext`, and this permission list
+                        was the ONE reader of it anywhere in the app — a context
+                        with a single consumer is a coupling, not an adaptation.
+                      */}
                       {appConfig.permissionKeys.map((key, index) => (
-                        <Text key={index} className="text-sm">
+                        <Text key={index} className="text-sm text-foreground">
                           • {t(`authorize.${key}`, { app: appConfig.displayName })}
                         </Text>
                       ))}
@@ -315,13 +322,13 @@ export default function AuthorizeScreen() {
                     </Button>
                   </View>
                 </View>
-              </CardContent>
+              </CardBody>
             </Card>
           )}
 
           {status === 'authorizing' && (
             <Card>
-              <CardContent>
+              <CardBody>
                 <View className="items-center py-4 gap-3">
                   <ActivityIndicator size="large" color={colors.primary} />
                   <Text className="text-xl font-semibold text-foreground">
@@ -331,13 +338,13 @@ export default function AuthorizeScreen() {
                     {t('authorize.pleaseWait')}
                   </Text>
                 </View>
-              </CardContent>
+              </CardBody>
             </Card>
           )}
 
           {status === 'needLogin' && (
             <Card>
-              <CardContent>
+              <CardBody>
                 <View className="items-center py-4 gap-3">
                   <Text className="text-4xl">🔐</Text>
                   <View className="gap-2 items-center">
@@ -349,13 +356,13 @@ export default function AuthorizeScreen() {
                     </Text>
                   </View>
                 </View>
-              </CardContent>
+              </CardBody>
             </Card>
           )}
 
           {status === 'success' && (
             <Card>
-              <CardContent>
+              <CardBody>
                 <View className="items-center py-4 gap-4">
                   <Text className="text-4xl">✅</Text>
                   <View className="gap-2 items-center">
@@ -396,13 +403,13 @@ export default function AuthorizeScreen() {
                     </Text>
                   )}
                 </View>
-              </CardContent>
+              </CardBody>
             </Card>
           )}
 
           {status === 'error' && (
             <Card>
-              <CardContent>
+              <CardBody>
                 <View className="items-center py-4 gap-4">
                   <Text className="text-4xl">❌</Text>
                   <View className="gap-2 items-center">
@@ -443,7 +450,7 @@ export default function AuthorizeScreen() {
                     </Button>
                   )}
                 </View>
-              </CardContent>
+              </CardBody>
             </Card>
           )}
         </AuthContainer>
