@@ -1,0 +1,99 @@
+---
+title: "Dependency audit"
+description: "Every package in the app manifest, what actually reaches it, and the twelve that nothing did."
+order: 8
+---
+
+# Dependency audit
+
+[#608](https://github.com/OxyHQ/Alia/issues/608) §11 asks for "una auditoría de
+dependencias basada en imports reales… **no una lista de paquetes presuntamente
+inútiles que haya que borrar a ciegas**." The emphasis is the whole job. This
+page is the audit and, more usefully, the record of which packages *looked*
+dead and were not.
+
+## Why a grep is not an audit
+
+A package can be reached without appearing in any `import`. Each of these
+mechanisms was checked for every entry in `packages/app/package.json`:
+
+| Mechanism | How it reaches a package | Where to look |
+| --- | --- | --- |
+| Optional peer | A library imports it when present | `peerDependencies` / `optionalPeers` of `@oxy.so/bloom`, `@oxy.so/services` |
+| Expo config plugin | Named as a **string**, never imported | `app.json`, `packages/app/plugins/` |
+| Build config | Referenced by name | `metro.config.js`, `babel.config.js`, `tailwind.config.js`, postcss |
+| Autolinking | Native module registered with no JS import | native manifests |
+| Platform fork | Imported only in a `.web`/`.native` file | the sibling fork |
+| Tooling host | A plugin loaded by a config that may not exist | `.prettierrc`, `postinstall` |
+
+The first and the last are where the mistakes live.
+
+## The near misses — packages that look dead and stay
+
+These have **no import in app code**. Removing them on that evidence alone would
+have been wrong, and three of them would have failed at runtime with no compile
+error at all.
+
+| Package | Why it stays |
+| --- | --- |
+| `@lottiefiles/dotlottie-react` | `lottie-react-native`'s **web fork** imports it directly. Nothing in Alia does. Removing it breaks the web bundle silently. |
+| `expo-image-manipulator` | An optional peer `@oxy.so/services` needs for its avatar crop. |
+| `@rn-primitives/hooks`, `@rn-primitives/slot`, `@rn-primitives/types` | Pulled in by the `collapsible` and `separator` the app does import. |
+
+## The verdict #608 asks for by name
+
+| Family | Verdict | Evidence |
+| --- | --- | --- |
+| Radix | **Live, minus one.** `@radix-ui/react-dropdown-menu` and `@radix-ui/react-icons` are imported by `components/ui/dropdown-menu.web.tsx`. `@radix-ui/react-scroll-area` is imported by nothing. |
+| Zeego | **Live.** `zeego/dropdown-menu` in both `dropdown-menu` forks. |
+| rn-primitives | **Live.** `collapsible` and `separator` in their own components, and the three support packages above through them. |
+
+So the three families #608 flags as "candidates for review" are, with one
+exception, load-bearing. That is the answer the issue asked for, and it is the
+opposite of the one a grep would have suggested.
+
+## Removed — twelve packages nothing reaches
+
+**dependencies**
+
+`@expo/html-elements` · `@radix-ui/react-scroll-area` ·
+`@react-native-community/hooks` · `event-target-shim` · `expo-speech` ·
+`prettier-plugin-tailwindcss` · `react-native-syntax-highlighter` ·
+`react-native-view-shot` · `zustand-persist`
+
+**devDependencies**
+
+`@babel/plugin-transform-react-jsx` · `esbuild` · `patch-package`
+
+Three of those looked reachable and were not:
+
+- **`event-target-shim`** is vendored by `@livekit/react-native-webrtc`, which
+  imports its own copy from `./vendor/event-target-shim` and declares no peer.
+- **`expo-speech`** survives only in a stale comment in `metro.config.js` and
+  another in `lib/shims/react-native-track-player.web.js`. The TTS path runs
+  through `useTTS` in `@alia.onl/sdk`, which rides `expo-audio`.
+- **`prettier-plugin-tailwindcss`** has no prettier config anywhere in the repo
+  to load it — and `prettier` itself is not a dependency — so it never
+  activates. `patch-package` is the same shape: no `patches/` directory and no
+  `postinstall` script to run it.
+
+### What proved it safe
+
+A typecheck cannot catch a runtime-only dependency, so the web bundle is the
+test that matters — it is what would have caught `@lottiefiles/dotlottie-react`
+had it been removed:
+
+```bash
+bun install                                     # resolved, lockfile updated
+bun run --filter @alia/app typecheck            # exit 0
+bun run --filter @alia/app test                 # 91 files, 698 tests
+cd packages/app && bun x expo export --platform web   # exit 0, no unresolved specifier
+```
+
+## Honest status
+
+This audit is a reading of imports and of the mechanisms listed above, confirmed
+by a clean web bundle. It is **not** a runtime verification on a device: the
+native bundle was not built, and no iOS or Android run exercised the autolinked
+modules. A package reached only from a native code path on a platform the web
+export does not compile would not have been caught here.

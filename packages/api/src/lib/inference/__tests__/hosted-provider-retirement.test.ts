@@ -90,23 +90,41 @@ describe('Alia hosted provider runtime retirement', () => {
   });
 
   /**
-   * Hosted inference binds NO credential now, which is the same boundary stated
-   * one step further on.
+   * Hosted inference binds no PROVIDER credential, and the deploy injects no Oxy
+   * service key of its own.
    *
    * The point of this test was never that a key was present — it was that the
    * only thing bound for inference is an OXY identity, and never a provider's.
-   * Alia proves that identity by attesting its ECS task role (oxy ADR 0026), so
-   * the strongest form of the same assertion is that no `OXY_SERVICE_API_*`
-   * value reaches the task definition at all, alongside the provider names that
-   * were already forbidden.
+   *
+   * It used to put that as "no `OXY_SERVICE_API_*` value reaches the task
+   * definition at all", asserting the removals list ENDS with the pair. #609
+   * reversed that half deliberately and moved the gate with it — but only in
+   * `db/__tests__/deployWorkflow.test.ts`. This was the third place that named
+   * the pair, it was missed, and main went red on it.
+   *
+   * Why the reversal is right: attesting the ECS task role (oxy ADR 0026) proves
+   * what Alia IS and nothing more. The workload mint drops every privileged
+   * scope by design, so the attested token carries no `capabilities:read` — the
+   * scope behind the two capability endpoints `lib/tools/oxy-services.ts` builds
+   * Alia's entire tool catalogue from. Mention lost its federation writes for
+   * nine hours to exactly this removal, at task revision 384.
+   *
+   * So INJECTION is what stays forbidden here, and that half was the real
+   * migration: nothing reads the pair out of SSM. REMOVAL is the separate lever,
+   * and the list must not name the pair, because a release renders from the
+   * RUNNING revision — the inherited pair survives only by being left alone. The
+   * names return to that list when the role's binding can carry the scope.
    */
-  it('binds no provider credential, and no Oxy service key either', () => {
+  it('binds no provider credential, and injects no Oxy service key', () => {
     const workflow = readFileSync(path.join(REPO_ROOT, '.github/workflows/deploy-aws.yml'), 'utf8');
     expect(workflow).not.toContain('for name in OXY_SERVICE_API_KEY OXY_SERVICE_API_SECRET');
     expect(workflow).not.toContain('secrets.OXY_SERVICE_API_KEY');
     expect(workflow).not.toContain('sync_secret OXY_SERVICE_API_');
     expect(workflow).not.toContain('OXY_SERVICE_API_SECRET: $secret');
-    expect(workflow).toContain('"OXY_SERVICE_API_KEY","OXY_SERVICE_API_SECRET"]');
+    const removals = workflow.match(/TASK_SECRET_REMOVALS_JSON: '(\[[^\]]*\])'/)?.[1];
+    expect(removals).toBeDefined();
+    expect(JSON.parse(removals!) as string[]).not.toContain('OXY_SERVICE_API_KEY');
+    expect(JSON.parse(removals!) as string[]).not.toContain('OXY_SERVICE_API_SECRET');
     expect(workflow).not.toContain('secrets.ALIA_KAANA_CREDENTIAL_');
     expect(workflow).not.toContain('sync_secret ALIA_RELAY_CREDENTIAL_');
     expect(workflow).not.toContain('oxy-task-ssm-alia-provider-keys');
