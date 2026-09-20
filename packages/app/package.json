@@ -11,6 +11,7 @@
     "generate-sitemap": "bun scripts/generate-sitemap.ts",
     "visual:baseline": "node scripts/visual/capture.mjs",
     "generate:icons": "bun scripts/icons/write.ts",
+    "generate:icon-shims": "node scripts/icon-shims.mjs",
     "setup-skia-web": "bun x setup-skia-web public",
     "prebuild": "bun run setup-skia-web && bun run generate-sitemap",
     "build": "bun x setup-skia-web public && bun x expo export --platform web",
