@@ -429,7 +429,7 @@ What Bloom would need: `EffortMenu` conditional on `effortLevels.length > 0`,
 and an effort value that can be absent. Until then Alia composes the model rows
 itself and keeps the two axes genuinely separate.
 
-### 10. `AiChatShell` cannot express a collapsed sidebar — FOUND DURING ADOPTION
+### 10. `AiChatShell` cannot express a collapsed sidebar — CLOSED in 3.3.0
 
 `AiChatShell` composes sidebar, workspace and right panel with a resize handle
 and mobile drawers, and is the obvious answer to #608 §5. Adopting it would
@@ -449,13 +449,22 @@ offscreen. That guard reads `useDrawerStatus`, which exists only because the
 drawer belongs to the router. Replacing the router's drawer replaces the signal
 the fix is built on.
 
-What was adopted instead is the part that is separable and that Alia genuinely
-lacked: `AiChatResizeHandle`, on the right panel, which had a fixed width. See
-`components/ui/panel.tsx`.
+Both are closed. Bloom 3.3.0 added `sidebarWidth`, `sidebarCollapsed` and
+`collapsedSidebarWidth` (default 56 — Alia's rail width exactly), and exported
+`useAiChatShell()` with `navPresented`, which is the signal the #532 guard
+needed. `AiChatShell` is the app's shell now; `components/app-shell/nav-region.tsx`
+carries the guard and is STRONGER than what it replaced, because it adds
+`inert` — the one attribute covering focus, tab order, assistive tech and
+find-in-page at once, where the old guard and Bloom's own wrapper reach only
+the AT tree and the pointer.
 
-What Bloom would need before the shell itself is worth adopting: a collapsed
-sidebar state with its own width, and a way for the host to know whether the
-nav is presented, so an equivalent of the #532 guard can be written against it.
+Two things did not survive the move, and neither has a Bloom contract yet:
+
+- **Swipe-to-open.** `expo-router`'s `Drawer` had `swipeEnabled`; `AiChatShell`
+  has no edge gesture.
+- **The rail's collapse animation on web.** `drawerStyle` carried
+  `transition: width 300ms`; the shell sets that column's width inline and its
+  `style` prop reaches only the shell root, so there is no hook for it.
 
 ### On the AI Chat template
 
@@ -572,12 +581,19 @@ would be two answers to the same question. That also sidesteps gap 6 for now —
 Stated as remaining work rather than left implied. None of it is blocked by
 anything above; all of it is larger than one change.
 
-- **The shell.** `AiChatShell` is now declined with the cost named — see gap 10:
-  it cannot express Alia's collapsed 56px sidebar rail, and replacing the
-  router's drawer removes `useDrawerStatus`, which the #532 accessibility fix is
-  built on. `AiChatContainer` remains blocked on gaps 4 and 8 (`project` is
-  required; there is no slot to put `AmbientField` behind the content). The
-  separable part — the resize handle — is adopted.
+- **The shell is adopted.** `AiChatShell` replaced the `expo-router` `Drawer`,
+  and the sidebar is COMPOSED from Bloom's parts (`SidebarItem`,
+  `SidebarFolder`, …) rather than swapped for the closed `<Sidebar>`, which has
+  no `children` and no slots and would have dropped the conversation context
+  menu, project and folder management, the history's infinite scroll and date
+  grouping, hover prefetch, the referral banner and the footer's unread badge.
+  What Bloom has a part for uses Bloom's; the rest stays Alia's, with the
+  missing contract named in gap 10.
+
+  One consequence is a product decision, not a defect: Bloom holds the nav in
+  flow only from `lg` (1024) while Alia's was in flow from 768, so tablet
+  portrait now gets a drawer and a full-bleed chat. The visual baseline records
+  it as a failure at 768 deliberately, pending that decision.
 - **The timeline.** Neither `AiChatThread` nor Bloom's `VirtualList` can host
   Alia's scroll, and this is now evidenced rather than assumed:
   `VirtualListProps.onEndReached` fires at the END of the list while Alia pages
