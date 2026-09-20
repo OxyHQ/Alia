@@ -1238,6 +1238,16 @@
     "untitled": "sin título",
     "dictationDiscard": "Descartar el dictado",
     "dictationStop": "Detener el dictado",
-    "dictationSend": "Enviar el mensaje dictado"
+    "dictationSend": "Enviar el mensaje dictado",
+    "dropHint": "Suelta los archivos aquí para adjuntarlos",
+    "dropUnavailable": "Ahora mismo no se pueden adjuntar archivos",
+    "readingFile": "Leyendo %{name}",
+    "readingFileProgress": "Leyendo %{name}: %{percent}%",
+    "readFailed": "No se pudo leer %{name}: selecciona para reintentar",
+    "cancelRead": "Detener la lectura de %{name}",
+    "retryRead": "Reintentar la lectura de %{name}",
+    "dismissFailed": "Descartar %{name}",
+    "fileTooLarge": "%{name} supera %{limit} y no se ha adjuntado",
+    "fileEmpty": "%{name} está vacío: no se pueden adjuntar carpetas"
   }
 }
