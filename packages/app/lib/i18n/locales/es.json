@@ -1239,5 +1239,8 @@
     "dictationDiscard": "Descartar el dictado",
     "dictationStop": "Detener el dictado",
     "dictationSend": "Enviar el mensaje dictado"
+  },
+  "panel": {
+    "resize": "Redimensionar el panel"
   }
 }

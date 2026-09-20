@@ -100,6 +100,34 @@ interface UIState {
   toggleShortcutsDialog: () => void;
   addCanvasArtifact: (artifact: CanvasArtifact) => void;
   clearCanvasArtifacts: () => void;
+
+  /**
+   * How wide the right panel is, in px, on a screen wide enough to show it
+   * beside the chat.
+   *
+   * It used to be two constants — 320, or 420 when an agent was in it — so the
+   * execution panel, the canvas and the agent were each whatever width somebody
+   * picked once. #608 §5 asks for "panel lateral y redimensionado coherentes
+   * con el template", and the template's panel is dragged.
+   *
+   * One width for every kind of panel rather than one per kind: the drag is the
+   * reader's statement about how they want their screen divided, and it would
+   * be a strange kind of memory that forgot it because the panel now holds a
+   * different thing.
+   */
+  rightPanelWidth: number;
+  setRightPanelWidth: (width: number) => void;
+}
+
+/** What the drag is clamped to. Bloom's own handle defaults to the same range. */
+export const RIGHT_PANEL_MIN_WIDTH = 320;
+export const RIGHT_PANEL_MAX_WIDTH = 560;
+export const RIGHT_PANEL_DEFAULT_WIDTH = 380;
+
+/** Keeps a restored or dragged width inside the range the layout can honour. */
+export function clampRightPanelWidth(width: number): number {
+  if (!Number.isFinite(width)) return RIGHT_PANEL_DEFAULT_WIDTH;
+  return Math.min(RIGHT_PANEL_MAX_WIDTH, Math.max(RIGHT_PANEL_MIN_WIDTH, Math.round(width)));
 }
 
 export const useUIStore = create<UIState>()(
@@ -114,6 +142,7 @@ export const useUIStore = create<UIState>()(
   canvasArtifacts: [],
   activeAgentSessionId: null,
   activeAgentId: null,
+  rightPanelWidth: RIGHT_PANEL_DEFAULT_WIDTH,
 
   toggleSidebar: () =>
     set((state) => ({ sidebarOpen: !state.sidebarOpen })),
@@ -161,6 +190,9 @@ export const useUIStore = create<UIState>()(
 
   clearCanvasArtifacts: () =>
     set({ canvasArtifacts: [] }),
+
+  setRightPanelWidth: (width) =>
+    set({ rightPanelWidth: clampRightPanelWidth(width) }),
 }),
     {
       name: 'alia-ui',
@@ -170,7 +202,23 @@ export const useUIStore = create<UIState>()(
       // whether they have an account, not what their browser remembers.
       partialize: (state) => ({
         sidebarOpen: state.sidebarOpen,
+        rightPanelWidth: state.rightPanelWidth,
       }),
+      /**
+       * A width written by an older build, or by hand, is clamped on the way
+       * back in. Restoring 4000 would push the chat off the screen with no way
+       * to drag it back, because the handle lives on the panel's edge.
+       */
+      merge: (persisted, current) => {
+        const saved = persisted as Partial<UIState> | undefined;
+        return {
+          ...current,
+          ...saved,
+          rightPanelWidth: clampRightPanelWidth(
+            saved?.rightPanelWidth ?? RIGHT_PANEL_DEFAULT_WIDTH,
+          ),
+        };
+      },
     },
   ),
 );
