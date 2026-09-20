@@ -14,6 +14,7 @@ import {
 } from "lucide-react-native";
 import { Text } from "@/components/ui/text";
 import { useColorScheme } from "@/lib/useColorScheme";
+import { useTranslation } from "@/lib/hooks/use-translation";
 import {
   usePromptInput,
   ATTACHMENT_TILE_RADIUS,
@@ -190,9 +191,32 @@ function FileTile({ attachment }: { attachment: Attachment }) {
   );
 }
 
+/**
+ * The strip of what is going out with the next message.
+ *
+ * ## Why this is not Bloom's `ComposerAttachments`
+ *
+ * The family has a tile strip with an upload ring around each tile, and it is
+ * driven by `composer-panel/use-attachment-queue.ts`, whose own doc comment
+ * says outright that "the upload is SIMULATED". It advances the ring on a 50ms
+ * tick by `step * (0.55 + Math.random() * 0.9)`, and fires `onUploadComplete`
+ * when the animation ends — whether or not a byte moved. There is no error
+ * state, no retry and no cancel in the type.
+ *
+ * Alia's attachments are real files going to a real endpoint, so a ring here
+ * would have to be drawn from a percentage the app measures. It does not
+ * measure one: the ONLY thing that ever sets `isLoading` is a pasted image,
+ * and `FileReader.onload` clears it after reading the bytes into a data URL
+ * locally. So the tile shows an indeterminate spinner and says nothing it
+ * cannot stand behind — see `ImageTile` below. The adoptable half of that
+ * family is `ComposerPanelAttachment.progress`, a genuinely controlled 0–100,
+ * but it is only consumed by `ComposerPanel`, which has no `onStop` and brings
+ * its own text field.
+ */
 export function PromptInputAttachments() {
   const { attachments, removeAttachment } = usePromptInput();
   const { colors } = useColorScheme();
+  const { t } = useTranslation();
 
   if (attachments.length === 0) return null;
 
@@ -219,7 +243,10 @@ export function PromptInputAttachments() {
             )}
             <RemoveButton
               onRemove={() => removeAttachment(attachment.id)}
-              label={`Remove attachment ${index + 1}: ${attachment.name || "untitled"}`}
+              label={t("composer.remove", {
+                position: index + 1,
+                name: attachment.name || t("composer.untitled"),
+              })}
             />
           </View>
         ))}
