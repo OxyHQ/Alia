@@ -2,7 +2,7 @@ import { useState } from "react";
 import { View, Platform } from "react-native";
 import { Text } from "@/components/ui/text";
 import { Input } from "@/components/ui/input";
-import { Switch } from "@/components/ui/switch";
+import { Switch } from "@oxy.so/bloom/switch";
 import { Button } from "@/components/ui/button";
 import { SettingsListGroup, SettingsListItem } from "@oxy.so/bloom/settings-list";
 import { useTheme } from "@oxy.so/bloom/theme";
@@ -75,6 +75,7 @@ export function LocalModelsSection() {
           showChevron={false}
           rightElement={
             <Switch
+              accessibilityLabel={t("settings.localModels.enable")}
               // Three stored states, one control: `unasked` reads as off, and
               // touching it is an answer either way — which is what makes this
               // the escape hatch for someone who declined the card and changed

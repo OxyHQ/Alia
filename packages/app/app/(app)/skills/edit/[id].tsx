@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@oxy.so/bloom/label';
 import { Button } from '@/components/ui/button';
-import { Switch } from '@/components/ui/switch';
+import { Switch } from '@oxy.so/bloom/switch';
 import { ArrowLeft, Trash2 } from 'lucide-react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { toast } from "@oxy.so/bloom/toast";
@@ -196,7 +196,7 @@ export default function EditSkillScreen() {
               <Text className="text-[14px] text-foreground">{t('skills.publish')}</Text>
               <Text className="text-[12px] text-muted-foreground mt-0.5">{t('skills.publishHint')}</Text>
             </View>
-            <Switch value={isPublic} onValueChange={setIsPublic} />
+            <Switch accessibilityLabel={t('skills.publish')} value={isPublic} onValueChange={setIsPublic} />
           </View>
 
           <Pressable

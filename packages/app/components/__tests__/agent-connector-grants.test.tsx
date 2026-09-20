@@ -66,7 +66,7 @@ vi.mock('@/components/ui/icons/clock-icon', async () => {
   return { ClockIcon: (props: Record<string, unknown>) => ReactModule.createElement('Icon', props) };
 });
 
-vi.mock('@/components/ui/switch', async () => {
+vi.mock('@oxy.so/bloom/switch', async () => {
   const ReactModule = await import('react');
   return {
     Switch: (props: Record<string, unknown>) => ReactModule.createElement('Switch', props),
