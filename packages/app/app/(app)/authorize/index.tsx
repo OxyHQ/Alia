@@ -10,7 +10,7 @@ import config from '@/lib/config';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Text } from '@/components/ui/text';
-import { Separator } from '@/components/ui/separator';
+import { Divider } from '@oxy.so/bloom/divider';
 import { io as socketIO } from 'socket.io-client';
 import { useTranslation } from '@/lib/hooks/use-translation';
 import { useColorScheme } from '@/lib/useColorScheme';
@@ -297,7 +297,13 @@ export default function AuthorizeScreen() {
                     </View>
                   </View>
 
-                  <Separator className="my-2" />
+                  {/*
+                    Bloom calls it a Divider. The wrapper this replaces was a
+                    `@rn-primitives/separator` root with `bg-border` and a
+                    hairline, on one screen, for one rule — and `my-2` is the
+                    `spacing` prop, so nothing is lost in the rename back.
+                  */}
+                  <Divider spacing={8} />
 
                   <View className="gap-3">
                     <Button onPress={handleOAuthAuthorize} size="lg">
