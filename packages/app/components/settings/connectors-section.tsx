@@ -17,11 +17,7 @@ import {
 } from "@/lib/hooks/use-mcp-servers";
 import { toast } from "@oxy.so/bloom/toast";
 import { Dialog } from "@oxy.so/bloom/dialog";
-import {
-  Collapsible,
-  CollapsibleTrigger,
-  CollapsibleContent,
-} from "@/components/ui/collapsible";
+import * as Collapsible from "@rn-primitives/collapsible";
 import { Plus, ChevronDown, Check } from "lucide-react-native";
 import { Search } from "@oxy.so/bloom/search";
 import { ActionKeyIcon } from "@/components/ui/action-key-icon";
@@ -687,8 +683,8 @@ export function ConnectorsSection() {
               />
             </View>
 
-            <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
-              <CollapsibleTrigger asChild>
+            <Collapsible.Root open={advancedOpen} onOpenChange={setAdvancedOpen}>
+              <Collapsible.Trigger asChild>
                 <Pressable className="flex-row items-center gap-1 py-1">
                   <ChevronDown
                     size={14}
@@ -699,8 +695,8 @@ export function ConnectorsSection() {
                     {t("connectors.advancedSettings")}
                   </Text>
                 </Pressable>
-              </CollapsibleTrigger>
-              <CollapsibleContent>
+              </Collapsible.Trigger>
+              <Collapsible.Content>
                 <View className="gap-3 mt-2">
                   <View className="gap-1">
                     <Text className="text-xs font-medium text-muted-foreground">
@@ -732,8 +728,8 @@ export function ConnectorsSection() {
                     />
                   </View>
                 </View>
-              </CollapsibleContent>
-            </Collapsible>
+              </Collapsible.Content>
+            </Collapsible.Root>
           </View>
 
       </Dialog>
