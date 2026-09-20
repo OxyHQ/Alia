@@ -5,7 +5,7 @@ import {
   type IntakeKind,
   type IntakeRefusal,
 } from "@/lib/chat/attachment-intake";
-import type { Attachment } from "./context";
+import type { Attachment } from "./types";
 
 /**
  * The composer's own file intake: the queue between "the user handed us a

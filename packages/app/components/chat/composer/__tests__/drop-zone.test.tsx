@@ -34,7 +34,7 @@ vi.mock('@/lib/hooks/use-translation', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
 
-import { PromptInputDropOverlay, useComposerDropTarget } from '../drop-zone';
+import { ComposerDropOverlay, useComposerDropTarget } from '../drop-zone';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
@@ -210,7 +210,7 @@ describe('the overlay', () => {
   it('draws nothing at all until a drag is over the bar', () => {
     let tree: ReactTestRenderer | undefined;
     act(() => {
-      tree = create(<PromptInputDropOverlay visible={false} enabled />);
+      tree = create(<ComposerDropOverlay visible={false} enabled />);
     });
     expect(tree?.toJSON()).toBeNull();
     act(() => tree?.unmount());
@@ -219,7 +219,7 @@ describe('the overlay', () => {
   it('is announced, and never takes the pointer events it is drawn from', () => {
     let tree: ReactTestRenderer | undefined;
     act(() => {
-      tree = create(<PromptInputDropOverlay visible enabled />);
+      tree = create(<ComposerDropOverlay visible enabled />);
     });
     const view = tree === undefined ? undefined : nodes(tree, 'View')[0];
 
@@ -234,7 +234,7 @@ describe('the overlay', () => {
   it('says which of the two situations it is in', () => {
     let tree: ReactTestRenderer | undefined;
     act(() => {
-      tree = create(<PromptInputDropOverlay visible enabled={false} />);
+      tree = create(<ComposerDropOverlay visible enabled={false} />);
     });
     const text = tree === undefined ? undefined : nodes(tree, 'Text')[0];
 

@@ -61,11 +61,11 @@ vi.mock('@/components/ui/text', async () => {
   };
 });
 
-vi.mock('@/components/ui/prompt-input/prompt-input', async () => {
+vi.mock('@/components/chat/composer/composer', async () => {
   const ReactModule = await import('react');
   return {
-    PromptInput: (props: Record<string, unknown>) =>
-      ReactModule.createElement('PromptInput', props),
+    Composer: (props: Record<string, unknown>) =>
+      ReactModule.createElement('Composer', props),
   };
 });
 
@@ -107,7 +107,7 @@ vi.mock('@/lib/api/client', () => ({
   default: { post: mocks.post },
 }));
 
-import { PromptInput } from '@/components/ui/prompt-input/prompt-input';
+import { Composer } from '@/components/chat/composer/composer';
 import CreateAgentScreen from '@/app/(app)/agents/create';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
@@ -417,10 +417,10 @@ describe('the create screen', () => {
     const root = created.root;
 
     act(() => {
-      root.findByType(PromptInput).props.onValueChange('an agent that helps');
+      root.findByType(Composer).props.onValueChange('an agent that helps');
     });
     await act(async () => {
-      root.findByType(PromptInput).props.onSubmit();
+      root.findByType(Composer).props.onSubmit();
     });
   }
 
@@ -502,10 +502,10 @@ describe('the handle a created agent gets', () => {
     const root = created.root;
 
     act(() => {
-      root.findByType(PromptInput).props.onValueChange('an agent that helps');
+      root.findByType(Composer).props.onValueChange('an agent that helps');
     });
     await act(async () => {
-      root.findByType(PromptInput).props.onSubmit();
+      root.findByType(Composer).props.onSubmit();
     });
   }
 

@@ -1,5 +1,7 @@
 import React from 'react';
 import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { act, create, type ReactTestRenderer, type ReactTestInstance } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -109,15 +111,13 @@ vi.mock('@/lib/useColorScheme', () => ({
   }),
 }));
 
-import { PromptInputAttachments } from '../attachments';
+import { ComposerAttachmentStrip } from '../attachment-strip';
 import {
-  PromptInputContext,
   COMPOSER_RADIUS,
   ATTACHMENT_ROW_INSET,
   ATTACHMENT_TILE_RADIUS,
   type Attachment,
-  type PromptInputContextType,
-} from '../context';
+} from '../types';
 import type { IntakeItem } from '../use-attachment-intake';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
@@ -144,15 +144,24 @@ const doc = (over: Partial<Attachment> = {}): Attachment => ({
   ...over,
 });
 
+/**
+ * Mounted on PROPS, with no provider around it.
+ *
+ * Every helper in this file used to build a `PromptInputContextType` by
+ * casting a two-key object through `as unknown as`, because the strip read its
+ * whole world out of an ambient context. That cast is what made the context's
+ * `intake` field have to be optional: a required field on a type nobody
+ * actually satisfies is `undefined` at runtime in a tree TypeScript has called
+ * safe, which is the one shape of bug a type cannot catch. The strip takes
+ * three props now, the cast is gone, and `intake` is optional because a strip
+ * with nothing being read is a real state rather than because a test lied.
+ */
 function render(attachments: Attachment[]) {
   const removeAttachment = vi.fn();
-  const value = { attachments, removeAttachment } as unknown as PromptInputContextType;
   let next: ReactTestRenderer | undefined;
   act(() => {
     next = create(
-      <PromptInputContext.Provider value={value}>
-        <PromptInputAttachments />
-      </PromptInputContext.Provider>,
+      <ComposerAttachmentStrip attachments={attachments} onRemove={removeAttachment} />,
     );
   });
   if (next === undefined) throw new Error('the attachment row did not render');
@@ -171,17 +180,14 @@ function render(attachments: Attachment[]) {
 function renderPending(items: IntakeItem[], attachments: Attachment[] = []) {
   const cancel = vi.fn();
   const retry = vi.fn();
-  const value = {
-    attachments,
-    removeAttachment: vi.fn(),
-    intake: { items, cancel, retry, accept: vi.fn(), dismiss: cancel, isBusy: true },
-  } as unknown as PromptInputContextType;
   let next: ReactTestRenderer | undefined;
   act(() => {
     next = create(
-      <PromptInputContext.Provider value={value}>
-        <PromptInputAttachments />
-      </PromptInputContext.Provider>,
+      <ComposerAttachmentStrip
+        attachments={attachments}
+        onRemove={vi.fn()}
+        intake={{ items, cancel, retry }}
+      />,
     );
   });
   if (next === undefined) throw new Error('the attachment row did not render');
@@ -351,13 +357,28 @@ describe('the tile corner, and the colours', () => {
    * red at the explanation rather than at the mistake.
    */
   const source = readFileSync(
-    fileURLToPath(new URL('../attachments.tsx', import.meta.url)),
+    fileURLToPath(new URL('../attachment-strip.tsx', import.meta.url)),
     'utf8',
   )
     .replace(/\/\*[\s\S]*?\*\//g, '')
     .replace(/\/\/[^\n]*/g, '');
-  const composer = readFileSync(
-    fileURLToPath(new URL('../prompt-input.tsx', import.meta.url)),
+  /**
+   * Bloom's pill, as SHIPPED.
+   *
+   * The composer's corner stopped being a Tailwind class on a bar this repo
+   * owns the moment the bar became `ComposerPill`, so the thing to read back
+   * is Bloom's own geometry. `PILL_HEIGHT` is the box the pill is at one line
+   * and `9999` is the radius it wears there, which resolves to half that
+   * height — the number every layer drawn over the pill has to agree with.
+   */
+  const pill = readFileSync(
+    // Resolved rather than reached for by a relative path: bun hoists
+    // `@oxy.so/bloom` to the workspace root, so `../../../../node_modules` is
+    // one of the two places it might be and the wrong one here.
+    join(
+      dirname(createRequire(import.meta.url).resolve('@oxy.so/bloom/package.json')),
+      'lib/module/composer-panel/ComposerPillBase.js',
+    ),
     'utf8',
   );
 
@@ -365,13 +386,18 @@ describe('the tile corner, and the colours', () => {
     expect(ATTACHMENT_TILE_RADIUS).toBe(COMPOSER_RADIUS - ATTACHMENT_ROW_INSET);
   });
 
-  it('keeps the derived corner honest against the class the composer actually wears', () => {
-    // The radius is a Tailwind class on the bar and a number here, and nothing
-    // makes those two agree — so the class is read back. Change one without the
-    // other and this is what says so.
-    const worn = composer.match(/rounded-\[(\d+)px\]/);
-    expect(worn).not.toBeNull();
-    expect(Number(worn?.[1])).toBe(COMPOSER_RADIUS);
+  it('keeps the derived corner honest against the corner Bloom actually draws', () => {
+    // Half of Bloom's one-line pill, which is what its `9999` resolves to
+    // there and what it squares off to past one line. Bump Bloom and change
+    // that box and this is what says the overlay, the loader band and the
+    // tiles have all drifted off the shape they are drawn on.
+    const height = pill.match(/const PILL_HEIGHT = (\d+);/);
+    expect(height).not.toBeNull();
+    expect(COMPOSER_RADIUS).toBe(Number(height?.[1]) / 2);
+
+    // And the pill genuinely wears that corner in both states: a full round at
+    // one line, and the same number spelt out once it has grown.
+    expect(pill).toContain(`borderRadius: multiLine ? ${COMPOSER_RADIUS} : 9999`);
   });
 
   it('names no colour of its own', () => {
