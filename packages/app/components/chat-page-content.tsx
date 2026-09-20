@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useMemo } from "react";
+import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { View, Pressable } from "react-native";
 import { Image } from "expo-image";
 import Entypo from "@expo/vector-icons/Entypo";
@@ -18,7 +18,8 @@ import { PromptInput } from "@/components/ui/prompt-input/prompt-input";
 import type { Attachment } from "@/components/ui/prompt-input/context";
 import { ScrollButton } from "@/components/ui/scroll-button";
 import { ChatInterface } from "@/components/chat-interface";
-import { useScrollToBottom } from "@/lib/hooks/use-scroll-to-bottom";
+import { useAtBottom } from "@/lib/hooks/use-at-bottom";
+import type { AiChatThreadHandle } from "@oxy.so/bloom/ai-chat";
 import { THREAD_COLUMN } from "@/lib/chat-layout";
 import { ChatHeader } from "@/components/chat-header";
 import { useAuth } from "@oxy.so/services";
@@ -299,13 +300,25 @@ export const ChatPageContent = ({
    * page that arrives without the position being restored leaves the reader at
    * the top again, asking for the next one.
    */
-  const { isAtBottom, scrollToBottom, onScroll, onContentSizeChange, historyEndsAt } =
-    useScrollToBottom(
-      scrollViewRef,
-      onLoadHistory === undefined
-        ? undefined
-        : { hasMore: hasMoreHistory, isLoading: isLoadingHistory, load: onLoadHistory },
-    );
+  const { isAtBottom, onScroll } = useAtBottom();
+
+  /**
+   * Ask for the page above, unless there is nothing above or one is already
+   * coming.
+   *
+   * Bloom fires `onStartReached` once per approach and re-arms when the reader
+   * leaves the zone, so the only guards left here are about the DATA: a thread
+   * with no older stretch, and a request already in flight.
+   */
+  const handleLoadHistory = useCallback(() => {
+    if (onLoadHistory === undefined || !hasMoreHistory || isLoadingHistory) return;
+    onLoadHistory();
+  }, [onLoadHistory, hasMoreHistory, isLoadingHistory]);
+
+  const threadRef = useRef<AiChatThreadHandle | null>(null);
+  const scrollToBottom = useCallback(() => {
+    threadRef.current?.scrollToEnd({ animated: true });
+  }, []);
 
   useEffect(() => {
     useStore.getState().setGhostMode(false);
@@ -560,7 +573,8 @@ export const ChatPageContent = ({
 
         <ChatInterface
           messages={messages}
-          scrollViewRef={scrollViewRef}
+          threadRef={threadRef}
+          onLoadHistory={onLoadHistory === undefined ? undefined : handleLoadHistory}
           isLoading={isLoading}
           conversationLoading={conversationLoading}
           onStartEdit={handleStartEdit}
@@ -569,10 +583,8 @@ export const ChatPageContent = ({
           isVoiceActive={isVoiceActive}
           voiceAgentState={voice?.agentState}
           onScroll={onScroll}
-          onContentSizeChange={onContentSizeChange}
           historyMessages={historyMessages}
           isLoadingHistory={isLoadingHistory}
-          onHistoryHeight={historyEndsAt}
           activeConversationId={conversationId}
           focusCursor={focusCursor}
           agentActivity={agentActivity}
