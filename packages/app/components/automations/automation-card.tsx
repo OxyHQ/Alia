@@ -1,6 +1,6 @@
 import { ActivityIndicator, Pressable, View } from 'react-native';
 import { Clock, Play, Square, Users } from 'lucide-react-native';
-import { Switch } from '@/components/ui/switch';
+import { Switch } from '@oxy.so/bloom/switch';
 import { Text } from '@/components/ui/text';
 import {
   actorLabel,
@@ -90,6 +90,7 @@ export function AutomationCard({
         </View>
         <View accessibilityLabel={`${automation.enabled ? 'Pause' : 'Resume'} ${title}`}>
           <Switch
+            accessibilityLabel={`${automation.enabled ? 'Pause' : 'Resume'} ${title}`}
             value={automation.enabled}
             disabled={controlsDisabled}
             onValueChange={(enabled) => onToggle(automation, enabled)}

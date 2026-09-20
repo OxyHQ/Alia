@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { View, TextInput, Pressable } from 'react-native';
-import { Switch } from '@/components/ui/switch';
+import { Switch } from '@oxy.so/bloom/switch';
 import { Text } from '@/components/ui/text';
 import { ChevronDown } from 'lucide-react-native';
 import { Button } from '@/components/ui/button';
@@ -93,6 +93,7 @@ export function FormRenderer({ data, onSubmit }: FormRendererProps) {
           {field.type === 'checkbox' && (
             <View className="flex-row items-center gap-2">
               <Switch
+                accessibilityLabel={field.label}
                 value={!!formValues[field.name]}
                 onValueChange={(v) => updateValue(field.name, v)}
               />

@@ -6,7 +6,7 @@ import {
   TextInput,
 } from "react-native";
 import { useIsLargeScreen } from "@/lib/hooks/use-is-large-screen";
-import { Switch } from "@/components/ui/switch";
+import { Switch } from "@oxy.so/bloom/switch";
 import { Text } from "@/components/ui/text";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -874,6 +874,7 @@ function AgentEditor({ agent }: { agent: Agent }) {
                 </Text>
               </View>
               <Switch
+                accessibilityLabel={t("agents.accessPublic")}
                 value={access === 'public'}
                 onValueChange={(next) => editDraft({ access: next ? 'public' : 'private' })}
               />
@@ -1216,6 +1217,7 @@ function AgentEditor({ agent }: { agent: Agent }) {
                 <View className="flex-row items-center justify-between">
                   <Label>Compare with previous report</Label>
                   <Switch
+                    accessibilityLabel="Compare with previous report"
                     value={archetypeConfig.compareWithPrevious || false}
                     onValueChange={(val) => editDraft({ archetypeConfig: { ...archetypeConfig, compareWithPrevious: val } })}
                   />
@@ -1240,6 +1242,7 @@ function AgentEditor({ agent }: { agent: Agent }) {
                 <View className="flex-row items-center justify-between">
                   <Label>Cite sources in answers</Label>
                   <Switch
+                    accessibilityLabel="Cite sources in answers"
                     value={archetypeConfig.citeSources !== false}
                     onValueChange={(val) => editDraft({ archetypeConfig: { ...archetypeConfig, citeSources: val } })}
                   />

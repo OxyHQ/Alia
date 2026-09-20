@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Pressable, ScrollView, Switch, View } from 'react-native';
+import { Pressable, ScrollView, View } from 'react-native';
+import { Switch } from '@oxy.so/bloom/switch';
 import { Dialog } from '@oxy.so/bloom/dialog';
 import { toast } from '@oxy.so/bloom/toast';
 import { Button } from '@/components/ui/button';

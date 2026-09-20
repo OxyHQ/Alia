@@ -1,7 +1,7 @@
 import { View, ScrollView, Pressable, ActivityIndicator, Linking } from 'react-native';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
-import { Switch } from '@/components/ui/switch';
+import { Switch } from '@oxy.so/bloom/switch';
 import { ArrowLeft, Check, Download, ExternalLink, FileText, Pencil, Play, Trash2 } from 'lucide-react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useOxy } from '@oxy.so/services';
@@ -140,6 +140,7 @@ export default function SkillDetailScreen() {
                   <Text className="text-[12px] text-muted-foreground mt-0.5">{t('skills.enabledHint')}</Text>
                 </View>
                 <Switch
+                  accessibilityLabel={t('skills.enabled')}
                   value={shelf.enabled}
                   onValueChange={(enabled: boolean) => updateInstall.mutate({ id: skill._id, patch: { enabled } })}
                 />
@@ -150,6 +151,7 @@ export default function SkillDetailScreen() {
                   <Text className="text-[12px] text-muted-foreground mt-0.5">{t('skills.autoInvokeHint')}</Text>
                 </View>
                 <Switch
+                  accessibilityLabel={t('skills.autoInvoke')}
                   value={shelf.autoInvoke}
                   onValueChange={(autoInvoke: boolean) => updateInstall.mutate({ id: skill._id, patch: { autoInvoke } })}
                 />

@@ -1,7 +1,7 @@
 import { View, Pressable, TextInput as RNTextInput, FlatList, Share, Platform } from "react-native";
 import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
+import { Switch } from "@oxy.so/bloom/switch";
 import { useState, useEffect, useCallback } from "react";
 import { useOxy } from "@oxy.so/services";
 import { generateAPIUrl } from "@/lib/generate-api-url";
@@ -210,7 +210,13 @@ export function SecuritySection() {
           icon={<ShieldAlert size={18} color={colors.textSecondary} />}
           title={t("settings.security.requireApproval")}
           description={t("settings.security.requireApprovalDesc")}
-          rightElement={<Switch value={requireApproval} onValueChange={setRequireApproval} />}
+          rightElement={
+            <Switch
+              accessibilityLabel={t("settings.security.requireApproval")}
+              value={requireApproval}
+              onValueChange={setRequireApproval}
+            />
+          }
         />
         <SettingsListItem
           icon={<Clock size={18} color={colors.textSecondary} />}
@@ -244,7 +250,13 @@ export function SecuritySection() {
           icon={<ShieldX size={18} color={colors.textSecondary} />}
           title={t("settings.security.autoDenyOnTimeout")}
           description={t("settings.security.autoDenyOnTimeoutDesc")}
-          rightElement={<Switch value={autoDenyOnTimeout} onValueChange={setAutoDenyOnTimeout} />}
+          rightElement={
+            <Switch
+              accessibilityLabel={t("settings.security.autoDenyOnTimeout")}
+              value={autoDenyOnTimeout}
+              onValueChange={setAutoDenyOnTimeout}
+            />
+          }
         />
       </SettingsListGroup>
 

@@ -32,7 +32,7 @@ vi.mock('@/components/ui/text', async () => {
       ReactModule.createElement('Text', props, children),
   };
 });
-vi.mock('@/components/ui/switch', async () => {
+vi.mock('@oxy.so/bloom/switch', async () => {
   const ReactModule = await import('react');
   return { Switch: (props: Record<string, unknown>) => ReactModule.createElement('Switch', props) };
 });

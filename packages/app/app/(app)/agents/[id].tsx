@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { View, ScrollView, Pressable, Share, TextInput, ActivityIndicator } from "react-native";
 import { useIsLargeScreen } from "@/lib/hooks/use-is-large-screen";
-import { Switch } from "@/components/ui/switch";
+import { Switch } from "@oxy.so/bloom/switch";
 import { Text } from "@/components/ui/text";
 import { IdentityMark } from "@alia.onl/sdk";
 import * as DropdownMenu from "@/components/ui/dropdown-menu";
@@ -681,6 +681,7 @@ export default function AgentDetailScreen() {
                   </Text>
                 </View>
                 <Switch
+                  accessibilityLabel="Accepting hires"
                   value={agent.status === "active"}
                   onValueChange={(on) =>
                     handleStatusToggle(on ? "active" : "idle")
