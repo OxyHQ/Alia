@@ -54,9 +54,17 @@ import { FailedTurnCard } from "@/components/chat/failed-turn-card";
 import type { FailedTurn } from "@/components/chat/turn-failure";
 import { WorkSummary } from "@/components/execution/work-summary";
 import { rememberOpener } from "@/components/execution/focus-return";
-import { turnLifecycle, turnTiming } from "@/lib/thought-utils";
+import { turnLifecycle, turnTimings } from "@/lib/thought-utils";
 
 const isWeb = Platform.OS === "web";
+
+/**
+ * For a row the timings map has never heard of. It cannot happen — the map is
+ * built from the very list being drawn — but `Map.get` says it might, and a
+ * shared frozen object keeps the memoised rows from re-rendering on a fresh
+ * `{}` if it ever does.
+ */
+const EMPTY_TIMING = Object.freeze({ startedAt: null, endedAt: null });
 
 // The action bar reveals on hover where a hover EXISTS, and is simply always
 // present where it does not — on touch these actions were reachable only
@@ -784,6 +792,27 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
     );
 
     /**
+     * Every turn's start and end, computed once for the whole thread.
+     *
+     * `renderMessage` used to ask `turnTiming(m, filteredMessages)` per row,
+     * handing it the entire list each time — and that function has to FIND the
+     * row before it can answer, so each call opened with a `findIndex` across
+     * the thread and then walked backwards for the send. Two scans per row
+     * makes drawing n messages O(n²), and this list re-renders roughly twenty
+     * times a second while an answer streams. Measured: 8.3ms per render at
+     * 1,000 messages and 80ms at 5,000, recomputing on every token an answer
+     * that only changes when the thread does.
+     *
+     * One pass over the same list gives the same answers — pinned row by row
+     * against the old function in `lib/__tests__/turn-timings-scale.test.ts` —
+     * and the memo means a streamed token does not trigger even that.
+     */
+    const timingsByMessage = useMemo(
+      () => turnTimings(filteredMessages as unknown as ConversationMessage[]),
+      [filteredMessages],
+    );
+
+    /**
      * The conversation each history message belongs to, as the id a row's own
      * actions address.
      *
@@ -1039,8 +1068,9 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
       const separator = separatorsByMessage.get(m.id);
       const fromHistory = index < history.length;
       // The send before this answer and the answer's own stamp bracket its
-      // work; both are primitives so the memoised row below holds.
-      const timing = turnTiming(m, filteredMessages);
+      // work; both are primitives so the memoised row below holds. Looked up
+      // rather than computed: see `timingsByMessage`.
+      const timing = timingsByMessage.get(m.id) ?? EMPTY_TIMING;
 
       return (
         <React.Fragment key={m.id || `msg-${index}`}>
