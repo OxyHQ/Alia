@@ -1,0 +1,311 @@
+---
+title: "Visual baseline"
+description: "The checked-in visual and motion reference for Alia's web surface: how to re-run the harness, what it pins to make an animated screen screenshottable, the comparison tolerance and its evidence, the bundle numbers, and exactly which of #608's required references are still missing."
+order: 8
+---
+
+# Visual baseline
+
+[#608](https://github.com/OxyHQ/Alia/issues/608) §3.1 asks for a visual and
+motion reference captured **before** the chat refactor goes further, §12 for a
+reproducible performance baseline over a fixed viewport matrix, and §13 for
+visual comparison evidence. All three were at zero while `packages/app`'s chat
+UI was being actively rewritten.
+
+This page is the record of what now exists. The harness is
+`packages/app/scripts/visual/`; the images are committed next to it in
+`baseline/`.
+
+**Read the [honest status](#7-what-is-still-not-captured) before quoting this as
+coverage.** One screen is captured. Four of #608 §3.1's six required references
+are not, and cannot be from a static export.
+
+## 1. Running it
+
+```bash
+bun run --filter @alia/app visual:baseline
+```
+
+That is the whole command. It reuses `packages/app/dist` if the export is
+already there, otherwise it runs `setup-skia-web` and `expo export --platform
+web` itself; serves `dist/` from Node's own `http` on an ephemeral loopback
+port; drives Chromium through `playwright-core`; and overwrites the 28 PNGs and
+`manifest.json` in `packages/app/scripts/visual/baseline/`.
+
+| Flag | Effect |
+| --- | --- |
+| `--check` | Capture into a temp directory and **compare** against the committed baseline instead of overwriting it. Exits non-zero on any case outside tolerance. |
+| `--rebuild` | Re-export even if `dist/` exists. |
+| `--only <text>` | Only cases whose file name contains `text`. |
+| `--tolerance <n>` | Override the per-channel tolerance. |
+
+`--check` is both the determinism proof and the regression gate:
+
+```bash
+bun run --filter @alia/app visual:baseline --check
+```
+
+A full run is about nine minutes, nearly all of it the 60fps replay described
+below. `dist/` is gitignored and never committed; the PNGs are (4.8 MB for all
+28).
+
+### No new dependencies
+
+Nothing was added to any manifest but the one script entry. The harness uses
+`playwright-core` (already in the tree via `packages/alia-cowork` and
+`packages/integrations`, with Chromium already cached in `~/.cache/ms-playwright`)
+and otherwise only `node:http`, `node:zlib` and `node:fs`. In particular there
+is **no image-diff package**: `scripts/visual/png.mjs` is a ~90-line PNG reader
+for the one format Chromium's screenshot encoder emits (8-bit, non-interlaced,
+colour type 2 or 6) plus a channel comparison. A dependency whose entire job is
+`inflate` plus a subtraction is a dependency that has to be audited and upgraded
+forever.
+
+The files are `.mjs` rather than `.ts` on purpose. `packages/app/tsconfig.json`
+includes `**/*.ts`, so a TypeScript harness would put an undeclared
+`playwright-core` import into `bun run --filter @alia/app typecheck`. The types
+that matter are carried in JSDoc instead.
+
+## 2. The problem: this screen never stops moving
+
+`packages/app/components/ambient-field.tsx` is the brand gradient #608 §3.1 says
+must be preserved. It is three blurred, blended SVG radial gradients that enter
+on a staggered 2.4s tween and then run `withRepeat(..., -1)` float loops of
+8000ms, 9500ms and 11000ms, plus a 900ms pulse. It **never settles**. "Wait a
+couple of seconds, then screenshot" is not a baseline for it; it is a lottery
+over the loop phase, and every re-run would look like a regression.
+
+So the clock is owned rather than waited on.
+
+Reanimated 4 on web steps every animation from the timestamp its
+`requestAnimationFrame` callback is handed (`valueSetter.js`:
+`step(timestamp)`), and takes an animation's *start* time from
+`performance.now()` (`react-native-worklets`, `initializers.js`:
+`_getAnimationTimestamp = () => performance.now()`). `scripts/visual/clock.mjs`
+replaces both, in an init script that runs before any bundle script:
+
+- `requestAnimationFrame` still fires on Chromium's real frames — the app keeps
+  booting and rendering — but every callback receives `__visualClock.now`.
+- `now` starts at **0 and stays there through boot**. This is the half that
+  matters: every animation's start time is 0 regardless of how many real frames
+  the machine burned loading a 10 MB bundle, so a fast host and a slow host
+  start from the same instant.
+- `performance.now()` and `Date.now()` read the same virtual clock, so nothing
+  can sample a second, real clock behind our backs.
+
+### Why it replays instead of jumping
+
+The obvious move — set `now = 6000` and shoot — does not work, and it fails
+*quietly*. `withDelay(400, withTiming(...))` is a delay animation that starts
+its inner tween on the first frame past the delay. A single jump satisfies the
+delay at t=6000 and then starts a 500ms tween **at** 6000, against a clock that
+never moves again, so it sits at progress 0 forever.
+
+This was not theoretical: the first capture at 6000ms produced a plausible-looking
+screenshot of the mark and the headline with the subtitle, both buttons and the
+entire body reveal missing, because `reveal`, `subtitleIn` and `ctaIn` were all
+stranded at 0. It would have been committed as "the Meet Alia baseline".
+
+`playTo(ms)` instead advances `now` by exactly one 60fps frame (16.667ms) per
+real frame until it reaches the target, then stops dead. Every chained animation
+gets the intermediate timestamps it needs, and the step is a constant rather
+than whatever the machine managed, so the replay is identical everywhere. After
+the target it holds still for ten frames, because the value setter and the style
+mapper are separate frames and the last animated value needs a motionless frame
+or two to reach the DOM.
+
+## 3. Everything that is pinned
+
+| Pinned | Value | Why |
+| --- | --- | --- |
+| Animation clock | virtual, 16.667ms/frame, frozen at the target | The field never settles on its own; see above. |
+| Capture instant | **6000ms** virtual for every still | The last blob comes to rest at 3590ms (1190ms delay + 2400ms tween). 6000 is past that and 2410ms into the float loops — a frame where the field is visibly drifting, not one where it happens to sit at its origin. |
+| `Date.now()` / `new Date()` | `2026-01-01T12:00:00Z` + virtual ms | Anything that renders a date renders the same one. |
+| `deviceScaleFactor` | `1` | A fractional factor resamples the 70px blur differently per machine. |
+| `locale` / `timezoneId` | `en-US` / `UTC` | The headline is read from `lib/i18n/locales/en.json`; a different locale is a different picture. |
+| Network | everything but the local static server is `route.abort`ed | A signed-out capture of a static bundle. Letting a font CDN or the Oxy API answer would make the baseline depend on what those returned that day. |
+| Screenshot | `animations: 'disabled'`, `caret: 'hide'`, `scale: 'css'` | The virtual clock owns rAF; this covers the other half, the CSS transitions and Web Animations that NativeWind and Bloom use. |
+| Browser | Chromium 149.0.7827.55 (`playwright-core` 1.61.1, headless) | Recorded in `manifest.json`. A Chromium bump is expected to move the blur and will need a re-record. |
+
+### Waited on, not slept through
+
+Two real signals gate every capture.
+
+1. **The headline has finished typing.** `welcome-intro.tsx` reveals it one
+   character every 55ms using `setInterval` — *real* time, which the virtual
+   clock deliberately does not touch. The harness waits for the element whose
+   `aria-label` equals its own `textContent`, and reads the expected string from
+   `lib/i18n/locales/en.json` so the signal cannot silently rot when the copy
+   changes. Then it waits on `document.fonts.ready`: text measured in a fallback
+   face and reflowed afterwards is the classic non-deterministic screenshot.
+2. **The body reveal has a measured height.** After the replay, the harness waits
+   for a clipping box carrying a non-zero inline height. The reveal animates from
+   0 to a height measured by `onLayout`, and the component writes no height at
+   all until that measurement lands — so this is positive proof that the
+   subtitle and both calls to action are laid out and on screen. It is exactly
+   the check that would have caught the stranded-animation bug above.
+
+There is no `waitForTimeout` anywhere in the capture path.
+
+## 4. The tolerance, and why it is not zero
+
+Byte equality does not work here and never will. The screen is a 70px blur over
+three blended radial gradients; Chromium's blur is separable-convolution
+arithmetic whose last bit depends on which tile boundaries the compositor
+picked. Two runs of the identical frame agree on the composition and disagree on
+the low bits of a few pixels.
+
+Measured by capturing the whole matrix twice back to back, at
+`deviceScaleFactor: 1`, same clock, same everything:
+
+| | |
+| --- | --- |
+| Byte-identical cases | **24 of 28** |
+| `welcome_390x844_dark_motion` | max Δ**4**, over 20 px |
+| `welcome_390x844_dark_reduced` | max Δ3, over 42 px |
+| `welcome_1280x800_light_reduced` | max Δ3, over 8 px |
+| `welcome_390x844_light_reduced` | max Δ2, over 37 px |
+
+42 pixels is 0.013% of the 329,160 in that frame. A third capture, checked
+against the same committed baseline at ±6, came back green with the same worst
+case of 4 and no case outside tolerance.
+
+**The gate is a per-channel absolute difference of ±6, with zero pixels allowed
+over it.** Two bits of headroom above the worst observed noise, 2% of the
+channel range, invisible. It is not a loose gate: a moved element, a changed
+design token or a different type face does not nudge a few dozen pixels by 4, it
+moves thousands of pixels by tens or hundreds, and fails this on both the
+magnitude and the count, which `--check` reports separately for exactly that
+reason.
+
+`compareRasters` deliberately reports `maxDelta` whether or not the case passes.
+The number is the evidence: a run whose worst channel moved by 2 is the same
+picture, and one whose worst channel moved by 90 is a different picture no
+matter how few pixels it touched.
+
+## 5. What was captured
+
+28 PNGs, all of the **signed-out "Meet Alia" welcome screen** — #608 §3.2 says
+it must be preserved, and it is the one meaningful surface that renders without
+authentication.
+
+The full matrix, 6 viewports × light/dark × reduced-motion/no-preference:
+
+```
+welcome_320x568_{light,dark}_{motion,reduced}.png
+welcome_390x844_{light,dark}_{motion,reduced}.png
+welcome_768x1024_{light,dark}_{motion,reduced}.png
+welcome_1024x768_{light,dark}_{motion,reduced}.png
+welcome_1280x800_{light,dark}_{motion,reduced}.png
+welcome_1440x900_{light,dark}_{motion,reduced}.png
+```
+
+The widths are #608 §12's (320, 390, 768, 1024, 1280, 1440); the heights are
+pinned here because a screenshot must have one. At 768 and above the drawer is
+in frame, so the captures are of the whole application chrome and not only the
+intro.
+
+Plus four frames of the AmbientField's own timeline, at 1280x800 light, as
+motion evidence:
+
+```
+ambient_1280x800_light_motion_t01200.png   mid-entrance: one blob has arrived
+ambient_1280x800_light_motion_t02400.png   the field is assembling
+ambient_1280x800_light_motion_t03590.png   the last blob reaches rest
+ambient_1280x800_light_motion_t09000.png   deep into the float loops
+```
+
+These four differ from each other in the gradient and are identical everywhere
+else, which is the evidence that the field animates and that the clock controls
+it. Capturing them at every size would multiply the matrix for no extra
+information — the timeline is the same, only the frame differs.
+
+`baseline/manifest.json` records the Chromium version, every pin, the tolerance,
+the viewport list, the bundle numbers and each file's size.
+
+### Reduced motion
+
+`prefers-reduced-motion: reduce` is a real pass, not a copy. Reanimated reads
+`window.matchMedia('(prefers-reduced-motion: reduce)')` once at module init
+(`ReducedMotion.js`) and resolves every animation instantly, so the reduced
+captures show the field already at rest with no float offset. Compare
+`welcome_1280x800_light_reduced.png` against `..._motion.png`: **the content,
+layout and brand gradient are all present** — the gradient does not vanish, it
+simply does not drift. That is the §3.2 requirement evidenced rather than
+asserted.
+
+Note this is Reanimated's own behaviour. Neither `ambient-field.tsx` nor
+`welcome-intro.tsx` contains a reduced-motion branch of its own.
+
+## 6. Bundle baseline (§12)
+
+From the same `expo export --platform web` the screenshots were taken against.
+These are the numbers to compare later work to; there is no earlier measurement
+to compare *them* to.
+
+| | |
+| --- | --- |
+| JS chunks | **48** |
+| JS total | **11,281,491 B** (10.76 MB) |
+| CSS | 1 file, 101,711 B (99 KB) |
+| `dist/` total | 21,784,973 B (20.8 MB) |
+
+Largest chunks:
+
+| Chunk | Size |
+| --- | --- |
+| `index-*.js` | **10,528,839 B (10.04 MB)** |
+| `xterm-*.js` | 339,317 B (331 KB) |
+| `FileManagementScreen-*.js` | 70,422 B (69 KB) |
+| `__common-*.js` | 32,245 B (31 KB) |
+| `PaymentGatewayScreen-*.js` | 29,231 B (29 KB) |
+| `EditProfileFieldScreen-*.js` | 27,987 B (27 KB) |
+
+**The interesting number is the first one.** The 47 lazy route chunks together
+are 752,652 B (735 KB); the single `index` chunk is 10.04 MB — 93% of all shipped
+JavaScript in one eagerly-loaded file. Splitting exists in name only. Outside `dist/_expo`,
+`canvaskit.wasm` is a further 7.8 MB and `assets/` 2.3 MB.
+
+This is a **bundle** baseline, not a performance baseline. See below.
+
+## 7. What is still NOT captured
+
+#608 §3.1 names six references. **Two are captured, four are not.**
+
+| §3.1 reference | Status |
+| --- | --- |
+| Light and dark | ✅ all 6 viewports, both schemes |
+| Start | ⚠️ **partial** — the signed-*out* welcome screen only. The signed-in empty chat screen is not captured. |
+| Conversation | ❌ not captured |
+| Dictation | ❌ not captured |
+| Playback | ❌ not captured |
+| Call | ❌ not captured |
+
+The four missing ones are not an oversight and are not reachable by trying
+harder with this harness. Each needs a signed-in Oxy session **and** a live Alia
+API: a conversation needs `useChatConversation` to have messages, which means
+`POST /alia/chat` streaming back; dictation and playback need microphone and
+speech; the call UI needs a LiveKit room. The harness blocks all non-local
+network by design. Reaching them needs a seeded account, an API fixture or a
+recorded transport, and that is a separate piece of work.
+
+No screen was faked to fill a row in that table. An invented conversation would
+be a picture of the harness, not of Alia.
+
+Also outstanding:
+
+- **§12 runtime performance.** What exists is the bundle size above. There is no
+  time-to-interactive, no frame-rate trace, no memory figure — `playTo` replaces
+  wall-clock time with a virtual clock precisely so that timings *cannot* be
+  read off this run. Runtime numbers need a second harness that does not pin the
+  clock.
+- **Native.** iOS and Android render `ambient-field.tsx` through a different
+  blur (`filter: [{ blur }]` rather than CSS `blur()`) and a different SVG
+  backend. Nothing here says anything about them.
+- **Interaction states.** Hover, focus rings, pressed buttons, the pointer
+  parallax on the field (`onPointerMove`, ±120px) are all uncaptured; every
+  still is at pointer origin.
+- **The chat surfaces being refactored.** The composer, the thread, the message
+  list and the Bloom migration tracked in [Bloom adoption](./bloom-adoption.mdx)
+  have no visual reference at all. That is the gap #608 §13 most wants closed,
+  and this page does not close it.
