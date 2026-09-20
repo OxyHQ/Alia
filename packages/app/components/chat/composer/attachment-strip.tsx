@@ -18,11 +18,7 @@ import { Text } from "@/components/ui/text";
 import { useColorScheme } from "@/lib/useColorScheme";
 import { useTranslation } from "@/lib/hooks/use-translation";
 import { MAX_ATTACHMENT_BYTES } from "@/lib/chat/attachment-intake";
-import {
-  usePromptInput,
-  ATTACHMENT_TILE_RADIUS,
-  type Attachment,
-} from "./context";
+import { ATTACHMENT_TILE_RADIUS, type Attachment } from "./types";
 import type { IntakeItem } from "./use-attachment-intake";
 
 /**
@@ -376,15 +372,43 @@ function FileTile({ attachment }: { attachment: Attachment }) {
  * which has no `onStop` and brings its own text field — and the type has no
  * failure state at all, so the failed-and-retryable tile below could not be
  * expressed in it even then.
+ *
+ * ## Why it is a SIBLING of Bloom's pill
+ *
+ * `ComposerPillProps` declares no attachments, and that is the right shape
+ * rather than a gap: the pill is one row 52px tall and a file tile is 56
+ * square, so a strip inside it would be a second composer wearing the first
+ * one's clothes. It mounts ABOVE the pill instead, inside the surface the
+ * `ComposerLoader` paints, so a file and the draft it is going out with read
+ * as one control.
  */
-export function PromptInputAttachments() {
-  const { attachments, removeAttachment, intake } = usePromptInput();
+export interface ComposerAttachmentStripProps {
+  /** The files that ARE attached — each with bytes behind it. */
+  attachments: readonly Attachment[];
+  onRemove: (id: string) => void;
+  /**
+   * The files still being read, and the two things that can be done to one.
+   *
+   * Optional, and it stays optional now that the context is gone: a strip
+   * mounted with settled attachments and no reader in sight is a real state
+   * (every test in this directory is one), and demanding a queue to prove
+   * there is nothing in it would be a requirement with no meaning.
+   */
+  intake?: {
+    items: readonly IntakeItem[];
+    cancel: (id: string) => void;
+    retry: (id: string) => void;
+  };
+}
+
+export function ComposerAttachmentStrip({
+  attachments,
+  onRemove,
+  intake,
+}: ComposerAttachmentStripProps) {
   const { colors } = useColorScheme();
   const { t } = useTranslation();
 
-  // `?.` and not a default: the context field is optional because the tests in
-  // this directory build their provider value by casting a partial object, and
-  // a required field would be `undefined` in a tree TypeScript called safe.
   const pending = intake?.items ?? [];
 
   if (attachments.length === 0 && pending.length === 0) return null;
@@ -411,7 +435,7 @@ export function PromptInputAttachments() {
               <FileTile attachment={attachment} />
             )}
             <RemoveButton
-              onRemove={() => removeAttachment(attachment.id)}
+              onRemove={() => onRemove(attachment.id)}
               label={t("composer.remove", {
                 position: index + 1,
                 name: attachment.name || t("composer.untitled"),

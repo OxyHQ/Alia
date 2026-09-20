@@ -141,7 +141,7 @@ describe('the module itself', () => {
     expect(source).not.toContain('Math.random');
     expect(source).not.toContain('setInterval');
     expect(source).not.toContain('setTimeout');
-    // Nor may this file reach a renderer or a store — the rule `composer-state.ts`
+    // Nor may this file reach a renderer or a store — the rule `turn-selection.ts`
     // next door states and the reason either of them is testable.
     expect(source).not.toContain('react-native');
     expect(source).not.toContain('useStore');

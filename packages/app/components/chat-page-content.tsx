@@ -1,6 +1,5 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { View, Pressable } from "react-native";
-import { Image } from "expo-image";
 import Entypo from "@expo/vector-icons/Entypo";
 import { useColorScheme } from "@/lib/useColorScheme";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -9,13 +8,14 @@ import { LinearGradient } from "expo-linear-gradient";
 import type { ScrollView as GHScrollView } from "react-native-gesture-handler";
 import { useStore } from "@/lib/stores/global-store";
 import { useUIStore } from "@/lib/stores/ui-store";
-import { X, Ghost, Bot, Search, BookOpen } from "lucide-react-native";
-import * as DropdownMenu from "@/components/ui/dropdown-menu";
-import { ActionKeyIcon } from "@/components/ui/action-key-icon";
+import { X } from "lucide-react-native";
 import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
-import { PromptInput } from "@/components/ui/prompt-input/prompt-input";
-import type { Attachment } from "@/components/ui/prompt-input/context";
+import { Composer } from "@/components/chat/composer/composer";
+import { useComposerAddMenu } from "@/components/chat/composer/add-menu";
+import { useComposerLineup } from "@/components/chat/composer/model-lineup";
+import { LocalModelsInvite } from "@/components/local-models-invite";
+import type { Attachment } from "@/components/chat/composer/types";
 import { ScrollButton } from "@/components/ui/scroll-button";
 import { ChatInterface } from "@/components/chat-interface";
 import { useAtBottom } from "@/lib/hooks/use-at-bottom";
@@ -49,7 +49,6 @@ import {
 } from "@/lib/chat/turn-selection";
 import { useCapabilityModes } from "@/lib/chat/use-capability-modes";
 import type { SendOptions, FailedTurn } from "@/lib/hooks/use-streaming-chat";
-import { ComposerGlyph } from "@/components/ui/prompt-input/composer-glyph";
 
 /**
  * Where the composer's capabilities live now.
@@ -81,16 +80,20 @@ import { ComposerGlyph } from "@/components/ui/prompt-input/composer-glyph";
  * and left the store alone, so the two disagreed and the payload won silently.
  * `useCapabilityModes` is the single owner now; see its file for the whole of
  * that story. This component only renders what it reports.
+ *
+ * ## And the menu is data now
+ *
+ * The rows were a `DropdownMenu` tree spelled out here — a `CheckboxItem` per
+ * mode, a `Separator` and a `Label` per section, an icon component for a
+ * connector's artwork. Bloom's add menu takes
+ * `ComposerPanelAddMenuGroup[]` and reports the pressed row's id, so all of it
+ * became a list built in `components/chat/composer/add-menu.tsx`, and this
+ * component supplies the state and the handlers rather than the markup. What
+ * stays here is what was always this file's: which axes exist, what toggling
+ * one MEANS, and the toast that says it happened.
  */
 
 type VoiceState = ReturnType<typeof useVoiceMode>;
-
-function ConnectorMenuIcon({ icon, color }: { icon?: string; color: string }) {
-  if (icon && /^https?:\/\//i.test(icon)) {
-    return <Image source={{ uri: icon }} style={{ width: 20, height: 20 }} contentFit="contain" />;
-  }
-  return <ActionKeyIcon size={20} color={color} />;
-}
 
 interface ChatPageContentProps {
   messages: Message[];
@@ -416,28 +419,18 @@ export const ChatPageContent = ({
     toast.info(next ? t('modes.searchOn') : t('modes.searchOff'));
   };
 
-  const handleImagePaste = useCallback((files: File[]) => {
-    files.forEach((file) => {
-      const id = `paste-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-      addAttachment({
-        id,
-        uri: "",
-        type: "image",
-        name: file.name || "Pasted image",
-        size: file.size || 0,
-        mimeType: file.type || "image/png",
-        isLoading: true,
-      });
-      const reader = new FileReader();
-      reader.onload = () => {
-        useStore.getState().updateAttachment(id, {
-          uri: reader.result as string,
-          isLoading: false,
-        });
-      };
-      reader.readAsDataURL(file);
-    });
-  }, [addAttachment]);
+  /*
+   * Pasting is no longer this file's business.
+   *
+   * There used to be a `handleImagePaste` here that did its own
+   * `new FileReader()` with no progress, no cancel, and — the actual bug — no
+   * `abort()` anywhere: removing a pasted image while it was still being read
+   * left the read running to completion, holding the whole `File` and then
+   * writing a data URL into an attachment that no longer existed. Paste and
+   * drop now enter the composer's one intake queue, so the corner button that
+   * stops a dropped file stops a pasted one too, and a failed read of either
+   * can be tried again.
+   */
 
   const handleCanvas = () => {
     useUIStore.getState().setRightPanel('canvas');
@@ -464,99 +457,39 @@ export const ChatPageContent = ({
     }
   }, [voice, onVoiceStart, isAuthenticated, entitlements, creditsInfo, t, router]);
 
-  const composerMenu = (
-    <>
-      <DropdownMenu.CheckboxItem
-        key="web-search"
-        value={webSearch ? 'on' : 'off'}
-        onValueChange={handleWebSearch}
-      >
-        <DropdownMenu.ItemIcon ios={{ name: "globe" }}>
-          <ComposerGlyph name="globe" color={colors.foreground} />
-        </DropdownMenu.ItemIcon>
-        <DropdownMenu.ItemTitle>Web search</DropdownMenu.ItemTitle>
-      </DropdownMenu.CheckboxItem>
-      <DropdownMenu.CheckboxItem
-        key="deep-research"
-        value={modeActive.deepResearch ? 'on' : 'off'}
-        onValueChange={() => toggleMode('deepResearch')}
-      >
-        <DropdownMenu.ItemIcon ios={{ name: "magnifyingglass" }}>
-          <Search size={20} color={colors.foreground} />
-        </DropdownMenu.ItemIcon>
-        <DropdownMenu.ItemTitle>Deep research</DropdownMenu.ItemTitle>
-      </DropdownMenu.CheckboxItem>
-      {isMainScreen && (
-        <DropdownMenu.CheckboxItem
-          key="ghost"
-          value={modeActive.ghost ? 'on' : 'off'}
-          onValueChange={() => toggleMode('ghost')}
-        >
-          <DropdownMenu.ItemIcon ios={{ name: "eye.slash" }}>
-            <Ghost size={20} color={colors.foreground} />
-          </DropdownMenu.ItemIcon>
-          <DropdownMenu.ItemTitle>Ghost mode</DropdownMenu.ItemTitle>
-        </DropdownMenu.CheckboxItem>
-      )}
-      <DropdownMenu.CheckboxItem
-        key="agent"
-        value={modeActive.agent ? 'on' : 'off'}
-        onValueChange={() => toggleMode('agent')}
-      >
-        <DropdownMenu.ItemIcon ios={{ name: "cpu" }}>
-          <Bot size={20} color={colors.foreground} />
-        </DropdownMenu.ItemIcon>
-        <DropdownMenu.ItemTitle>Agent mode</DropdownMenu.ItemTitle>
-      </DropdownMenu.CheckboxItem>
-      <DropdownMenu.Item key="canvas" onSelect={handleCanvas}>
-        <DropdownMenu.ItemIcon ios={{ name: "pencil.tip" }}>
-          <Pencil size={20} color={colors.foreground} />
-        </DropdownMenu.ItemIcon>
-        <DropdownMenu.ItemTitle>Canvas</DropdownMenu.ItemTitle>
-      </DropdownMenu.Item>
-      {/* Skills and connectors: two lists, each present on its own terms. The
-          skills used to be nested inside the connectors' condition, which hid
-          them from every account without a running MCP server. */}
-      {turnSelection.skills.length > 0 && (
-        <>
-          <DropdownMenu.Separator />
-          <DropdownMenu.Label className="px-2.5 font-normal">{t('skills.composerLabel')}</DropdownMenu.Label>
-          {turnSelection.skills.map((skill) => (
-            <DropdownMenu.CheckboxItem
-              key={skill.id}
-              value={skill.selected ? 'on' : 'off'}
-              onValueChange={() => setSelectedSkills((current) => toggleSkillName(current, skill.name))}
-            >
-              <DropdownMenu.ItemIcon ios={{ name: "book" }}>
-                <BookOpen size={16} color={colors.foreground} />
-              </DropdownMenu.ItemIcon>
-              <DropdownMenu.ItemTitle>{skill.label}</DropdownMenu.ItemTitle>
-              <DropdownMenu.ItemSubtitle>{skill.description}</DropdownMenu.ItemSubtitle>
-            </DropdownMenu.CheckboxItem>
-          ))}
-        </>
-      )}
-      {turnSelection.connectors.length > 0 && (
-        <>
-          <DropdownMenu.Separator />
-          <DropdownMenu.Label className="px-2.5 font-normal">Apps</DropdownMenu.Label>
-          {turnSelection.connectors.map((connector) => (
-            <DropdownMenu.CheckboxItem
-              key={connector.id}
-              value={connector.selected ? 'on' : 'off'}
-              onValueChange={() => setSelectedConnectorId((current) => toggleConnectorId(current, connector.id))}
-            >
-              <DropdownMenu.ItemIcon ios={{ name: "app" }}>
-                <ConnectorMenuIcon icon={connector.icon} color={colors.foreground} />
-              </DropdownMenu.ItemIcon>
-              <DropdownMenu.ItemTitle>{connector.label}</DropdownMenu.ItemTitle>
-              <DropdownMenu.ItemSubtitle>{`${connector.toolCount} tools`}</DropdownMenu.ItemSubtitle>
-            </DropdownMenu.CheckboxItem>
-          ))}
-        </>
-      )}
-    </>
+  const handleToggleSkill = useCallback(
+    (name: string) => setSelectedSkills((current) => toggleSkillName(current, name)),
+    [],
   );
+  const handleToggleConnector = useCallback(
+    (id: string) => setSelectedConnectorId((current) => toggleConnectorId(current, id)),
+    [],
+  );
+
+  const addMenu = useComposerAddMenu({
+    addAttachment,
+    // Nothing may be attached to a turn already streaming, or to a composer
+    // the usage limit has closed — the same lock the old plus button wore,
+    // now aimed at the three rows that need it rather than at the whole menu.
+    canAttach: !isLoading && !disabled,
+    modes: modeActive,
+    toggleMode,
+    webSearch,
+    onToggleWebSearch: handleWebSearch,
+    onOpenCanvas: handleCanvas,
+    // Ghost decides whether what you are about to start gets saved, and a
+    // stretch already on screen has been saved — so it is offered on an empty
+    // conversation and nowhere else, exactly as it was.
+    offerGhost: isMainScreen,
+    turnSelection,
+    onToggleSkill: handleToggleSkill,
+    onToggleConnector: handleToggleConnector,
+  });
+
+  // The catalogue, in the shape Bloom's model menu takes — including the
+  // entitlement gate, which survives as an intercepted change rather than a
+  // row that refuses itself. See `model-lineup.ts`.
+  const lineup = useComposerLineup(selectedModel, onModelChange);
 
   return (
     <View className="flex-1 bg-background">
@@ -679,41 +612,60 @@ export const ChatPageContent = ({
                       </Pressable>
                     </View>
                   )}
-                  <PromptInput
+                  {/*
+                    The one time Alia asks whether it may look for a model on
+                    this machine.
+
+                    It used to hang off the model selector, because that is
+                    where the answer is relevant — and the selector is Bloom's
+                    now, with no slot to hang anything from. So it anchors to
+                    the composer instead, which is the next box out and the one
+                    the model chip lives in. The card itself decides whether it
+                    appears at all (signed in, unasked, large screen, once);
+                    all this position changes is what it points at.
+                  */}
+                  <LocalModelsInvite>
+                  <Composer
                     value={inputValue}
                     onValueChange={setInputValue}
                     onSubmit={handleSubmit}
-                    isLoading={isLoading}
-                    // The usage limit ONLY. A stream used to be folded in here
-                    // too, which closed the whole bar — stop button included —
-                    // behind one disabled ancestor; `isLoading` now locks each
-                    // editable control on its own and leaves cancel live.
+                    // The two locks, kept apart. `busy` is the stream: send
+                    // becomes stop, and Bloom keeps stop outside `disabled`'s
+                    // reach by contract — which is the property the old
+                    // composer had to fight its own DOM to hold on to.
+                    // `disabled` is the usage limit and nothing else.
+                    busy={isLoading}
                     disabled={disabled}
+                    onStop={onStop}
                     disableKeyboardAvoidance
                     attachments={attachments}
                     onAddAttachment={addAttachment}
                     onRemoveAttachment={removeAttachment}
-                    onImagePaste={handleImagePaste}
                     autocomplete
                     showDefaultSuggestions={isMainScreen && !conversationLoading}
                     onSuggestionSend={handleSuggestionSend}
                     floatingAutocomplete
                     placeholder={disabled ? t('usageLimit.inputDisabledPlaceholder') : "Message Alia..."}
-                    selectedModel={selectedModel}
-                    onModelChange={onModelChange}
-                    composerMenu={composerMenu}
-                    onStop={onStop}
+                    models={lineup.models}
+                    model={lineup.model}
+                    onModelChange={lineup.onModelChange}
+                    effortLevels={lineup.effortLevels}
+                    effort={lineup.effort}
+                    onEffortChange={lineup.onEffortChange}
+                    addMenu={addMenu.groups}
+                    onAddMenuSelect={addMenu.onSelect}
                     emptyAction={
                       <Button
                         size="icon"
                         className="h-9 w-9 rounded-full items-center justify-center"
                         onPress={handleVoiceActivate}
-                        accessibilityLabel="Start Voice mode"
+                        accessibilityLabel={t('modes.voiceMode')}
                       >
                         <Entypo name="sound" size={18} color={colors.primaryForeground} />
                       </Button>
                     }
                   />
+                  </LocalModelsInvite>
               </View>
             </View>
           </LinearGradient>
