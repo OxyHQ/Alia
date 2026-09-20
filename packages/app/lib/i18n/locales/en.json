@@ -202,6 +202,7 @@
   },
   "nav": {
     "openNavigation": "Open navigation",
+    "closeNavigation": "Close navigation",
     "chat": "Chat",
     "threads": "Threads",
     "settings": "Settings",

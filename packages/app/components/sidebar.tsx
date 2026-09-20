@@ -64,6 +64,7 @@ import { AppDownloadDialog } from "@/components/app-download-dialog";
 import { FolderEditDialog } from "@/components/folder-edit-dialog";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { useUnreadCount } from "@/lib/hooks/use-notifications";
+import { SidebarItem } from "@oxy.so/bloom/sidebar";
 import {
   SidebarRow,
   SectionHeader,
@@ -71,6 +72,7 @@ import {
   useRailTooltip,
   useSidebarCollapse,
 } from "@/components/sidebar/primitives";
+import { bloomIcon } from "@/components/sidebar/bloom-icon";
 import { ConversationItem } from "@/components/sidebar/conversation-item";
 import { AgentRow } from "@/components/sidebar/agent-row";
 import { FolderSection } from "@/components/sidebar/folder-section";
@@ -78,6 +80,16 @@ import { HistoryList } from "@/components/sidebar/history-list";
 import type { Project } from "@/lib/stores/projects-store";
 import type { Folder as FolderType } from "@/lib/stores/folders-store";
 import type { StopPropagationEvent } from '@/lib/types/events';
+
+/**
+ * The Agents glyph, wrapped for Bloom once at module scope.
+ *
+ * `bloomIcon` memoises per source component anyway, but hoisting the call says
+ * the thing out loud: `SidebarItem` is `memo`'d and compares `icon` by
+ * identity, so this has to be the same component on every render of a sidebar
+ * that re-renders whenever a page of conversations lands.
+ */
+const AGENTS_GLYPH = bloomIcon(AgentRobotIcon);
 
 // Icon mapping for projects and folders
 const ICON_MAP: Record<string, LucideIcon> = {
@@ -551,30 +563,41 @@ export const Sidebar = React.memo(function Sidebar() {
     </View>
   );
 
-  // Navigation links — SidebarRow everywhere; the Agents entry expands a
-  // nested submenu when the sidebar is open and expands the rail otherwise.
+  /*
+   * Navigation links.
+   *
+   * Every one of them is Bloom's `SidebarItem` now — five through `SidebarRow`,
+   * and Agents directly, because Agents is the one row with something on its
+   * right. `badge` is that slot: it is typed `ReactNode`, not a count, and it
+   * rides in the same collapse slot as the label, so the chevron slides away
+   * with the words when the rail closes and the glyph stays pinned. The row it
+   * replaced was a hand-rolled `Pressable` with its own `h-9`, its own hover and
+   * its own `justify-between`, which drew the same thing one token off — and
+   * after the other five moved to Bloom it drew the only dark label in a column
+   * of grey ones, which is how a design system tells you a row was missed.
+   *
+   * It keeps `handleToggleAgents` rather than navigating: this row opens the
+   * submenu under it. In the rail there is no submenu to open, so the same row
+   * expands the sidebar instead.
+   */
   const navigation = (
     <>
       {collapsed ? (
         <SidebarRow icon={AgentRobotIcon} label={t('sidebar.agents')} onPress={handleExpandSidebar} iconOnly />
       ) : (
         <View>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={t('sidebar.agents')}
+          <SidebarItem
+            icon={AGENTS_GLYPH}
+            label={t('sidebar.agents')}
             onPress={handleToggleAgents}
-            className="h-9 flex-row items-center justify-between rounded-full px-1.5 w-full hover:bg-muted active:bg-muted"
-          >
-            <View className="flex-row items-center gap-2">
-              <AgentRobotIcon size={18} color={colors.foreground} />
-              <Text className="text-sm text-foreground">{t('sidebar.agents')}</Text>
-            </View>
-            {agentsExpanded ? (
-              <ChevronDownIcon size={12} color={colors.mutedForeground} />
-            ) : (
-              <ChevronRightIcon size={12} color={colors.mutedForeground} />
-            )}
-          </Pressable>
+            badge={
+              agentsExpanded ? (
+                <ChevronDownIcon size={12} color={colors.mutedForeground} />
+              ) : (
+                <ChevronRightIcon size={12} color={colors.mutedForeground} />
+              )
+            }
+          />
           {agentsExpanded && (
             <View className="ml-7 gap-px">
               <SidebarRow icon={AgentRobotIcon} label={t('agents.allAgents')} onPress={handleAgents} sub />

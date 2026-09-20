@@ -24,10 +24,22 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
  * nothing.
  */
 
-const toggleDrawer = vi.hoisted(() => vi.fn());
+const navToggle = vi.hoisted(() => vi.fn());
+
+/**
+ * What `AiChatShell` publishes, as this file hands it out.
+ *
+ * The shell itself is mocked and the guard is NOT: `useAiChatShell` is the
+ * source of the signal, and stubbing a signal to see what something does with
+ * it is the only way to see both of its branches. Mounting a real `AiChatShell`
+ * here would also drag reanimated, svg and the whole `ai-chat` barrel through a
+ * `react-native` mock that exports four components.
+ */
+const shell = vi.hoisted(() => ({ current: null as Record<string, unknown> | null }));
+
+vi.mock('@oxy.so/bloom/ai-chat', () => ({ useAiChatShell: () => shell.current }));
 
 vi.mock('expo-router', () => ({
-  useNavigation: () => ({ toggleDrawer }),
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn() }),
 }));
 
@@ -39,6 +51,8 @@ vi.mock('react-native', async () => {
       ReactModule.createElement(name, props, children);
   return {
     Platform: { OS: 'web', select: (spec: Record<string, unknown>) => spec.web },
+    // `ShellNavProvider`'s fallback reads the window when there is no shell.
+    useWindowDimensions: () => ({ width: 1280, height: 800, scale: 1, fontScale: 1 }),
     View: host('View'),
     ScrollView: host('ScrollView'),
     Pressable: host('Pressable'),
@@ -179,13 +193,54 @@ function isHost(node: ReactTestInstance, name: string): boolean {
 }
 
 const { default: LibraryScreen } = await import('../library');
+const { AppNavProvider } = await import('@/components/app-shell/nav-context');
+const { NavRegion } = await import('@/components/app-shell/nav-region');
+type AppNav = import('@/components/app-shell/nav-context').AppNav;
+
+/** The nav the Library page is rendered inside: a closed drawer on a phone. */
+const NAV: AppNav = {
+  inFlow: false,
+  presented: false,
+  open: () => undefined,
+  close: () => undefined,
+  toggle: navToggle,
+};
+
+/** A shell state with the one field under test set, and the rest plausible. */
+function shellWith(navPresented: boolean): Record<string, unknown> {
+  return {
+    compact: true,
+    navCollapsed: true,
+    hasNav: true,
+    hasPanel: false,
+    navPresented,
+    sidebarCollapsed: false,
+    openNav: () => undefined,
+    closeNav: () => undefined,
+    openPanel: () => undefined,
+    panelLabel: 'Code',
+    panelIcon: null,
+    labels: { openNavigation: 'Open navigation', openPanel: () => '' },
+  };
+}
+
+/** Mounts a node and hands back its renderer, unmounted by the caller. */
+function mount(node: React.ReactElement): ReactTestRenderer {
+  let next!: ReactTestRenderer;
+  act(() => {
+    next = create(node);
+  });
+  return next;
+}
 
 let renderer: ReactTestRenderer | null = null;
 
 async function renderLibrary(): Promise<ReactTestRenderer> {
   let next!: ReactTestRenderer;
   await act(async () => {
-    next = create(React.createElement(LibraryScreen));
+    next = create(
+      React.createElement(AppNavProvider, { value: NAV }, React.createElement(LibraryScreen)),
+    );
   });
   renderer = next;
   return next;
@@ -199,7 +254,8 @@ function buttonsLabelled(root: ReactTestInstance, label: string): ReactTestInsta
 }
 
 beforeEach(() => {
-  toggleDrawer.mockClear();
+  navToggle.mockClear();
+  shell.current = null;
 });
 
 afterEach(() => {
@@ -210,26 +266,36 @@ afterEach(() => {
 });
 
 describe('the Library header at phone width', () => {
-  it('renders one labelled drawer toggle, hidden from md up', async () => {
+  it('renders one labelled drawer toggle, hidden from lg up', async () => {
     const { root } = await renderLibrary();
 
     const toggles = buttonsLabelled(root, 'nav.openNavigation');
     expect(toggles, 'exactly one way to open the drawer').toHaveLength(1);
     const [toggle] = toggles;
     expect(toggle.props.accessibilityRole).toBe('button');
-    // Present below `md` only: at desktop widths the drawer is permanent and the
-    // sidebar carries its own collapse control.
-    expect(String(toggle.props.className)).toContain('md:hidden');
+    /*
+     * `lg:hidden`, and the number matters more than the utility does.
+     *
+     * It was `md:hidden` for as long as the drawer was expo-router's, because
+     * that drawer became `permanent` at 768. `AiChatShell` holds the nav in
+     * flow only from 1024, so between 768 and 1023 there IS a drawer — and an
+     * opener hidden at 768 would leave that whole band with nothing that opens
+     * it, which is #532 at a width the visual baseline photographs. A
+     * regression to `md:hidden` is the exact fault this line exists to catch,
+     * so it is asserted as an absence as well as a presence.
+     */
+    expect(String(toggle.props.className)).toContain('lg:hidden');
+    expect(String(toggle.props.className)).not.toContain('md:hidden');
   });
 
-  it('opens the drawer — the real one, through the navigator', async () => {
+  it("opens the drawer — the real one, through the shell's own nav", async () => {
     const { root } = await renderLibrary();
 
     const [toggle] = buttonsLabelled(root, 'nav.openNavigation');
     await act(async () => {
       (toggle.props.onPress as () => void)();
     });
-    expect(toggleDrawer).toHaveBeenCalledTimes(1);
+    expect(navToggle).toHaveBeenCalledTimes(1);
   });
 
   it('puts the toggle before the title, in the same row', async () => {
@@ -277,11 +343,12 @@ describe('the Library header at phone width', () => {
 describe('the labels are translated', () => {
   const locales = ['en', 'es'] as const;
   for (const locale of locales) {
-    it(`${locale}: nav.openNavigation and library.addFiles`, () => {
+    it(`${locale}: nav.openNavigation, nav.closeNavigation and library.addFiles`, () => {
       const messages = JSON.parse(
         readFileSync(fileURLToPath(new URL(`../../../lib/i18n/locales/${locale}.json`, import.meta.url)), 'utf8'),
       ) as { nav: Record<string, string>; library: Record<string, string> };
       expect(messages.nav.openNavigation).toMatch(/\S/);
+      expect(messages.nav.closeNavigation).toMatch(/\S/);
       expect(messages.library.addFiles).toMatch(/\S/);
     });
   }
@@ -313,12 +380,65 @@ describe('the same opener on every top-level page', () => {
     expect(page('notifications')).toContain('router.back()');
   });
 
-  it('the closed drawer takes the sidebar out of the accessibility tree', () => {
+  /**
+   * The guard left `_layout.tsx` and left `useDrawerStatus`, which went with the
+   * expo-router `Drawer` itself. `AiChatShell` publishes `navPresented` in its
+   * place — true in flow, and below `lg` only while the drawer is open — so what
+   * was four `toContain`s over a file's text is now a component MOUNTED on both
+   * of its branches, plus one text pin that it is actually installed. A guard
+   * that works and is not wired is the same bug as no guard.
+   */
+  it('is wired into both of the shell nav slots', () => {
     const layout = page('_layout');
-    expect(layout).toContain('useDrawerStatus');
-    expect(layout).toContain("status === 'closed'");
-    expect(layout).toContain('aria-hidden={hidden}');
-    expect(layout).toContain("importantForAccessibility={hidden ? 'no-hide-descendants' : 'auto'}");
-    expect(layout).toContain('accessibilityElementsHidden={hidden}');
+    expect(layout).toContain("from '@/components/app-shell/nav-region'");
+    expect(layout).toMatch(/<NavRegion>/);
+    // One `NavRegion`, handed to the column and to the drawer, because the two
+    // are the same sidebar and the gate must not depend on which is showing.
+    expect(layout).toContain('sidebar={nav}');
+    expect(layout).toContain('mobileSidebar={nav}');
+  });
+
+  it('takes the sidebar out of the accessibility tree AND the tab order while closed', () => {
+    shell.current = shellWith(false);
+    const r = mount(React.createElement(NavRegion, null, React.createElement('Rows')));
+    const region = r.root.find((node) => isHost(node, 'View'));
+
+    expect(region.props['aria-hidden']).toBe(true);
+    expect(region.props.importantForAccessibility).toBe('no-hide-descendants');
+    expect(region.props.accessibilityElementsHidden).toBe(true);
+    /*
+     * The half that neither `aria-hidden` nor the shell's own
+     * `pointerEvents="none"` covers. `aria-hidden` stops a screen reader
+     * announcing the rows and does nothing about Tab reaching them, and
+     * reachable-but-unannounced IS #532. `inert` is the one attribute that says
+     * both at once, and react-native-web forwards it.
+     */
+    expect(region.props.inert).toBe(true);
+
+    // Gated, not unmounted — which is the whole reason gating is necessary.
+    expect(r.root.findAll((node) => isHost(node, 'Rows'))).toHaveLength(1);
+    act(() => r.unmount());
+  });
+
+  it('puts it back the moment the drawer is presented', () => {
+    shell.current = shellWith(true);
+    const r = mount(React.createElement(NavRegion, null, React.createElement('Rows')));
+    const region = r.root.find((node) => isHost(node, 'View'));
+
+    expect(region.props['aria-hidden']).toBe(false);
+    expect(region.props.importantForAccessibility).toBe('auto');
+    expect(region.props.accessibilityElementsHidden).toBe(false);
+    expect(region.props.inert).toBeUndefined();
+    act(() => r.unmount());
+  });
+
+  it('hides nothing when there is no shell — there is no drawer to be behind', () => {
+    shell.current = null;
+    const r = mount(React.createElement(NavRegion, null, React.createElement('Rows')));
+    const region = r.root.find((node) => isHost(node, 'View'));
+
+    expect(region.props['aria-hidden']).toBe(false);
+    expect(region.props.inert).toBeUndefined();
+    act(() => r.unmount());
   });
 });

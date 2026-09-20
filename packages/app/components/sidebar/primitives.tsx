@@ -1,14 +1,13 @@
 import React from "react";
 import { View, Pressable, Platform } from "react-native";
 import { Portal } from "@oxy.so/bloom/portal";
-import { useNavigation } from "expo-router";
-import type { DrawerNavigationProp } from "expo-router/drawer";
+import { SidebarItem } from "@oxy.so/bloom/sidebar";
 import { Text } from "@/components/ui/text";
 import { ChevronDownIcon } from "@/components/ui/icons/chevron-down-icon";
 import { ChevronRightIcon } from "@/components/ui/icons/chevron-right-icon";
 import { PlusIcon } from "@/components/ui/icons/plus-icon";
-import { cn } from "@/lib/utils";
-import { useIsLargeScreen } from "@/lib/hooks/use-is-large-screen";
+import { bloomIcon } from "@/components/sidebar/bloom-icon";
+import { useAppNav } from "@/components/app-shell/nav-context";
 import { useColorScheme } from "@/lib/useColorScheme";
 import { useUIStore } from "@/lib/stores/ui-store";
 import type { IconComponent } from "@/lib/types/icon";
@@ -57,26 +56,32 @@ export function useRailTooltip(label: string): RailTooltipHandle {
 }
 
 /**
- * Desktop icon-rail collapse state shared by every sidebar variant. The drawer
- * width itself is driven from `(app)/_layout.tsx` off the same store flag.
+ * Desktop icon-rail collapse state shared by every sidebar variant.
+ *
+ * The two halves of "make the sidebar go away" are still two different things
+ * and still decided by the width, but neither of them is the router's any more.
+ * In flow (from `lg` up) the column narrows to the 56px rail and `sidebarOpen`
+ * is what says so — `app/(app)/_layout.tsx` hands the same flag to
+ * `AiChatShell` as `sidebarCollapsed`. Below it there is no rail to narrow to,
+ * because the nav is a drawer, so collapsing IS closing and the shell owns that.
+ *
+ * This used to call `navigation.closeDrawer()` on a `DrawerNavigationProp`,
+ * which stopped existing the moment the expo-router `Drawer` did.
  */
 export function useSidebarCollapse() {
-  const isLargeScreen = useIsLargeScreen();
-  const drawerNavigation = useNavigation<DrawerNavigationProp<ReactNavigation.RootParamList>>();
+  const nav = useAppNav();
   const sidebarOpen = useUIStore((s) => s.sidebarOpen);
   const setSidebarOpen = useUIStore((s) => s.setSidebarOpen);
 
-  const collapsed = isLargeScreen && !sidebarOpen;
+  const collapsed = nav.inFlow && !sidebarOpen;
 
   const collapse = React.useCallback(() => {
-    // Desktop: the permanent drawer collapses to an icon rail; mobile: the
-    // front drawer simply closes.
-    if (isLargeScreen) {
+    if (nav.inFlow) {
       setSidebarOpen(false);
     } else {
-      drawerNavigation.closeDrawer();
+      nav.close();
     }
-  }, [isLargeScreen, setSidebarOpen, drawerNavigation]);
+  }, [nav, setSidebarOpen]);
 
   const expand = React.useCallback(() => {
     setSidebarOpen(true);
@@ -87,18 +92,8 @@ export function useSidebarCollapse() {
 
 export interface SidebarRowProps {
   icon: IconComponent;
-  /**
-   * Drawn instead of `icon`, for a row whose mark is not an icon.
-   *
-   * An agent's mark carries its own colour, chosen per agent, and so cannot be
-   * an `IconComponent` — the row would hand it the row's colour. Passing the
-   * node keeps every row's height, spacing and hover on the one component
-   * rather than starting a second kind of row.
-   */
-  leading?: React.ReactNode;
   label: string;
   onPress: () => void;
-  accessibilityLabel?: string;
   /** Compact variant for nested rows (e.g. the expanded Agents children). */
   sub?: boolean;
   /** Icon-rail variant used when the sidebar is collapsed. */
@@ -107,47 +102,83 @@ export interface SidebarRowProps {
   active?: boolean;
 }
 
-/** Ghost menu row shared by every sidebar navigation entry. */
+/**
+ * Ghost menu row shared by every sidebar navigation entry — Bloom's
+ * `SidebarItem`, with Alia's rail tooltip around it.
+ *
+ * ## What Bloom draws now
+ *
+ * The row itself: the pill, the hover, the focus ring, the selected state, the
+ * `title` on a collapsed row, the `aria-current` on a selected one, and the
+ * label sliding into its collapse slot while the glyph stays pinned. The
+ * geometry lines up with what Alia drew by hand — Bloom's `medium` metrics are
+ * a 20px glyph in an 8px inset, which is a 36px row, which is the `h-9` this
+ * used to be, with the same 8px gap — so the rail's 36px square and the
+ * expanded row's height are unchanged. The two measurable differences are the
+ * glyph (20 rather than 18) and the label's colour, which is now Bloom's
+ * `text-secondary` rather than `text-foreground`. Both are Bloom's opinion
+ * about what a sidebar row looks like, which is the opinion being adopted.
+ *
+ * `sub` maps to `size="small"`: a 30px row with an 18px glyph and a 13px label,
+ * against the 32/16/12 it was. One rung down the size axis, rather than a
+ * bespoke set of numbers per nesting depth.
+ *
+ * ## What is still Alia's, and why
+ *
+ * The tooltip. Bloom's collapsed row sets the DOM `title` attribute, which is a
+ * browser tooltip: it appears after the browser's own delay, in the browser's
+ * own chrome, near the pointer rather than beside the rail, and on native it is
+ * nothing at all. Alia's is a portalled bubble in the app's own surface, pinned
+ * to the right of the row, and it is what the rail's other controls (New Chat,
+ * the expand button) already use — two kinds of tooltip in one 56px column
+ * would read as a mistake. So the row is wrapped in a `View` that carries the
+ * measure ref and the pointer enter/leave; `useRailTooltip` is web-only by its
+ * own first line, so pointer events are the whole of what it needs.
+ *
+ * Two props go with this change, both of which nothing passed. `leading` was a
+ * node drawn instead of the glyph, for a row whose mark carries its own colour —
+ * an agent's; no call site ever used it, because `AgentRow` says in its own
+ * comment why an agent is not a one-line row, and `SidebarItemProps` takes an
+ * icon COMPONENT with no node slot beside it. `accessibilityLabel` was a name
+ * that could differ from the visible label; Bloom's row names itself by its
+ * `label` and offers no second string, and a row whose spoken name disagrees
+ * with its written one is a thing to argue for case by case rather than to keep
+ * a general slot for.
+ */
 export function SidebarRow({
-  icon: Icon,
-  leading,
+  icon,
   label,
   onPress,
-  accessibilityLabel,
   sub = false,
   iconOnly = false,
   active = false,
 }: SidebarRowProps) {
   const { anchorProps, tooltip } = useRailTooltip(label);
-  const { colors } = useColorScheme();
+  const item = (
+    <SidebarItem
+      icon={bloomIcon(icon)}
+      label={label}
+      size={sub ? "small" : "medium"}
+      collapsed={iconOnly}
+      selected={active}
+      onPress={onPress}
+    />
+  );
+
+  // Expanded rows have their label on screen; only the rail needs a name for
+  // the glyph, so only the rail pays for a measured wrapper.
+  if (!iconOnly) return item;
+
   return (
     <>
-      <Pressable
-        {...(iconOnly ? anchorProps : null)}
-        accessibilityRole="button"
-        accessibilityLabel={accessibilityLabel ?? label}
-        onPress={onPress}
-        className={cn(
-          "flex-row items-center rounded-full hover:bg-muted active:bg-muted",
-          iconOnly ? "h-9 w-9 justify-center" : "gap-2 px-1.5 w-full",
-          !iconOnly && (sub ? "h-8" : "h-9"),
-          active && "bg-muted"
-        )}
+      <View
+        ref={anchorProps.ref}
+        onPointerEnter={anchorProps.onHoverIn}
+        onPointerLeave={anchorProps.onHoverOut}
       >
-        {leading ?? <Icon size={sub ? 16 : 18} color={colors.foreground} />}
-        {!iconOnly && (
-          <Text
-            className={cn(
-              "text-foreground",
-              sub ? "text-xs" : "text-sm",
-              active && "font-medium"
-            )}
-          >
-            {label}
-          </Text>
-        )}
-      </Pressable>
-      {iconOnly && tooltip}
+        {item}
+      </View>
+      {tooltip}
     </>
   );
 }
@@ -160,7 +191,14 @@ export interface SectionHeaderProps {
   addAccessibilityLabel: string;
 }
 
-/** Collapsible group header (label + chevron) with a trailing add action. */
+/**
+ * Collapsible group header (label + chevron) with a trailing add action.
+ *
+ * Alia's, still. Bloom's nearest thing is `SidebarTree`'s section label, which
+ * is a `Text` above a list of `SidebarFolder`s with no toggle of its own and no
+ * trailing slot — there is no "+ new project" to hang on it, and no way to
+ * collapse the section as a whole.
+ */
 export function SectionHeader({
   label,
   collapsed,
@@ -200,7 +238,14 @@ export interface GhostIconButtonProps {
   anchorProps?: RailTooltipHandle["anchorProps"];
 }
 
-/** Square ghost icon button (header collapse trigger, footer action bar). */
+/**
+ * Square ghost icon button (header collapse trigger, footer action bar).
+ *
+ * Alia's, still. It is a 32px square with an unread DOT — not a count — and
+ * Bloom's sidebar has no icon-button part at all: `SidebarItem` is a full-width
+ * pill with a label slot, and its `badge` is a node on the right of that label,
+ * which is not a thing that exists on a 32px square.
+ */
 export function GhostIconButton({
   icon: Icon,
   label,
