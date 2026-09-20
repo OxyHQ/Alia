@@ -10,6 +10,7 @@
     "web": "RCT_METRO_PORT=8150 expo start --web",
     "generate-sitemap": "bun scripts/generate-sitemap.ts",
     "visual:baseline": "node scripts/visual/capture.mjs",
+    "perf:baseline": "node scripts/perf/measure.mjs",
     "generate:icons": "bun scripts/icons/write.ts",
     "setup-skia-web": "bun x setup-skia-web public",
     "prebuild": "bun run setup-skia-web && bun run generate-sitemap",

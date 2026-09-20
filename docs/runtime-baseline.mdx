@@ -1,0 +1,348 @@
+---
+title: "Runtime baseline"
+description: "What booting Alia's web surface costs on the real clock: time to a hittable button, script and main-thread cost, settled memory, the cost of a screen that never stops animating, and what twelve route changes do to listeners, timers and the heap. With the run count, the spread, and the threshold below which a later difference is noise."
+order: 9
+---
+
+# Runtime baseline
+
+[#608](https://github.com/OxyHQ/Alia/issues/608) §12 asks for a reproducible
+runtime baseline before the chat refactor goes further — time to interaction,
+render/JS/UI cost, memory and live resources — and for evidence that repeatedly
+opening and closing things does not grow sockets, tracks, listeners, timers,
+object URLs or memory without bound.
+
+The [visual baseline](./visual-baseline.mdx) answers the pixel half of §12 and
+says outright that it cannot answer this half: it replaces the animation clock
+with a virtual one so that screenshots are reproducible, which makes every
+timing in it meaningless. This page is the other harness. It is
+`packages/app/scripts/perf/`, the numbers are committed beside it in
+`baseline/runtime.json`, and it installs no clock at all.
+
+**Read [§8](#8-what-this-still-does-not-measure) before quoting this as
+coverage.** One signed-out surface is measured. Six of the seven flows §12 names
+are not, and cannot be without a session and a live API.
+
+## 1. Running it
+
+```bash
+bun run --filter @alia/app perf:baseline
+```
+
+That is the whole command. It reuses `packages/app/dist` if the export is there,
+otherwise exports it; serves it with the visual harness's own static server;
+drives Chromium through `playwright-core`; and overwrites
+`packages/app/scripts/perf/baseline/runtime.json`.
+
+| Flag | Effect |
+| --- | --- |
+| `--check` | Measure into memory and **compare** against the committed baseline instead of overwriting it. Exits non-zero if a median moved further than the noise threshold. |
+| `--runs <n>` | Measured boots per CPU rate (default 7). |
+| `--warmup <n>` | Discarded boots before them (default 1). |
+| `--cycles <n>` | Mount/unmount cycles in the leak loop (default 12). |
+| `--rates <list>` | CPU throttling rates (default `1,4`). |
+| `--rebuild` | Re-export even if `dist/` exists. |
+
+A full run is about nine minutes: 2 × (1 + 7) boots, each of which loads a
+10 MB bundle and then watches an idle screen for two seconds, plus twelve route
+changes.
+
+### No new dependencies
+
+Nothing was added to any manifest but one script entry. The harness uses
+`playwright-core` — already in the tree, with Chromium already cached — plus
+`node:http`, `node:os` and `node:fs`, and it imports
+`scripts/visual/server.mjs` rather than writing a second static server. The
+files are `.mjs` for the same reason the visual harness's are: `tsconfig.json`
+includes `**/*.ts`, so a TypeScript harness would drag an undeclared
+`playwright-core` import into `bun run --filter @alia/app typecheck`.
+
+## 2. Why a second harness and not a flag on the first
+
+`scripts/visual/clock.mjs` hands every `requestAnimationFrame` callback a
+virtual timestamp, points `performance.now()` and `Date.now()` at the same
+virtual clock, and replays the screen one 16.667ms step per real frame. In that
+harness "6000ms" is a position in an animation, not an elapsed time; a fast
+machine and a slow one produce the same pixels *because* elapsed time has been
+deleted.
+
+This harness is the inverse. `scripts/perf/probes.mjs` touches no clock. It
+installs `PerformanceObserver`s, wraps the constructors that create long-lived
+resources, and polls once per real frame for two moments. Everything else comes
+from CDP — `Performance.getMetrics`, `HeapProfiler.collectGarbage`,
+`Emulation.setCPUThrottlingRate` — which is also how the JS, layout and style
+costs are read without a profiler trace.
+
+The two harnesses share the static server, the network blocking and the browser
+setup, and nothing else.
+
+## 3. What is pinned, and the one thing that cannot be
+
+| Pinned | Value | Why |
+| --- | --- | --- |
+| Viewport | 1280×800, `deviceScaleFactor: 1` | Boot cost does not vary with layout the way pixels do; six viewports would be six noise draws on one number. 1280 is the size at which the drawer and the composer are both mounted. |
+| Colour scheme / locale / timezone | light / `en-US` / `UTC` | Same reasons as the visual baseline; the copy the probes wait for is read from `lib/i18n/locales/en.json`. |
+| Network | everything but the local static server is `route.abort`ed | A boot that waited on the Oxy API would be measuring that day's network. |
+| CPU rate | `1` and `4`, both measured | See below. |
+| Warm-up | 1 boot per rate, discarded | Measured, not assumed — see below. |
+| Runs | 7 measured boots per rate, median + IQR | One run is an anecdote. |
+| Idle window | 2000ms after settle | Long enough for a stable frame rate. |
+| Leak loop | 12 cycles, no throttling | Counters compared against each other in one session. |
+
+### CPU throttling: measured at both rates, and it is not a normaliser
+
+`Emulation.setCPUThrottlingRate(4)` is tempting to describe as making runs
+comparable across machines. It does not: it slows *this* CPU by four, so a fast
+host throttled 4× is still a fast host. What it does buy is a boot long enough
+for the long-task structure to be legible — at 1× this boot has 2–4 long tasks,
+at 4× it has 7 and the longest is near a second — which is closer to what a
+mid-range phone browser does with a 10 MB bundle.
+
+It costs something too: the 4× medians are consistently the noisier half of
+every set (see §4). Both rates are therefore recorded, and a suspected
+regression should be confirmed at 1×.
+
+### The warm-up is not superstition
+
+A single unwarmed boot in a fresh browser process measured **1232ms** to first
+contentful paint against a warmed median of **612ms** on the same machine
+minutes earlier — twice the number, from being first rather than from being
+different. V8's code cache and Chromium's own lazy initialisation are paid once
+per process. That run is discarded, and the discard is why the remaining seven
+agree with each other.
+
+### The machine cannot be pinned, so it is recorded
+
+Every number here is a measurement of a shared computer. The harness reads
+`os.loadavg()` at the start and the end, writes both into the baseline, and
+prints a warning when the one-minute load is above a quarter of the core count.
+That warning is not decoration: see the third set in §4.
+
+## 4. The noise threshold, and how it was chosen
+
+Four full sets were measured on the same machine against the same export within
+one hour. The committed one is the last, **set D**.
+
+| Comparison | Worst timing median drift | Settled heap drift |
+| --- | --- | --- |
+| Set A → **set D**, both on a quiet machine, 30 minutes apart | +5.0% (4× first paint); every 1× metric ≤ +1.5% | −0.0% |
+| Set A → set B, quiet machine | **+13.7%** (4× first contentful paint); 1× worst +11.9% (total blocking time) | +0.0% |
+| Set A → set C, **four other headless browsers on the machine** | +34.6% at 1×, **+74.9%** at 4× | +0.1% |
+
+The spreads say the same thing from the other side. On a quiet machine the 1×
+IQRs sit between 4% and 13% of the median; in set C, at 4×, they reached 39%,
+and in set B they reached 44% on script duration.
+
+So: **two sets of the same code, on the same machine, can differ by 13%, and by
+75% if the machine is busy.** Anything smaller than the first is not a finding,
+and anything measured under the second is not a comparison.
+
+**The gate is ±20% on timings and ±3% on the settled heap**, and `--check`
+applies it per metric on the median. Two thresholds rather than one, because one
+would be wrong for both: a 20% gate on a heap figure that reproduces to a tenth
+of a percent would wave through a five-megabyte regression, and a 3% gate on a
+boot time whose own medians wander by 13% would fail on every run. ±20% is about
+1.5× the worst drift observed on a quiet machine — enough headroom that the gate
+does not fire on the weather, and still far below anything worth calling a
+regression on a boot that takes nearly two seconds.
+
+The third row is the real caveat. **A comparison between two sets taken under
+different machine load is not a comparison.** The committed baseline records the
+load average it was taken under — `3.74` at the start and `6.89` at the end, on
+32 cores — and a `--check` run whose load is materially higher should be re-run,
+not believed. That rise from 3.7 to 6.9 during the committed run is also why
+§7's route-change medians are the softest numbers on this page.
+
+## 5. The boot, measured
+
+Seven runs per rate, one warm-up discarded, on the signed-out `/` — the welcome
+intro over the drawer and the composer. Median, then the IQR as a share of it,
+then the full range.
+
+| | 1× (median, IQR, range) | 4× (median, IQR, range) |
+| --- | --- | --- |
+| First paint = first contentful paint | **616ms** · 8.4% · 596–732 | **2628ms** · 11.4% · 2244–2924 |
+| DOM content loaded | 256ms · 7.9% · 246–291 | 807ms · 12.3% · 662–893 |
+| App first render (`#root` has children) | 602ms · 8.0% · 582–717 | 2595ms · 11.5% · 2220–2893 |
+| Largest contentful paint | 1308ms · 3.2% · 1272–1408 | 3568ms · 9.0% · 3188–3928 |
+| **"Get started" actually hittable** | **1892ms** · 4.2% · 1830–1998 | **4168ms** · 8.8% · 3781–4488 |
+| …of which the intro's own entrance | 1290ms · 2.3% · 1249–1315 | 1561ms · 1.8% · 1519–1701 |
+| Script evaluation (CDP `ScriptDuration`) | 563ms · 6.7% · 538–659 | 2767ms · 11.4% · 2531–3207 |
+| All main-thread task time (`TaskDuration`) | 661ms · 7.4% · 632–771 | 3248ms · 10.6% · 2921–3691 |
+| Layout + style recalc | 15.3 + 16.5ms | 71.5 + 68.8ms |
+| Total blocking time | 203ms · 13.1% · 194–247 | 2049ms · 13.7% · 1780–2342 |
+| Long tasks before the button | 3 · range 2–4 | 7 · range 7–7 |
+| Longest single task | 175ms · 6.9% · 172–192 | 882ms · 13.7% · 764–1063 |
+| Heap at the button | 32.5 MiB | 32.1 MiB |
+| **Heap after a forced collection** | **25.73 MiB** · 0.0% | 25.70 MiB · 0.0% |
+| DOM nodes / live listeners, settled | 396 / 337 | 396 / 337 |
+| JavaScript decoded | 10,577,733 B in 3 requests | same |
+
+Four things in that table are worth saying out loud.
+
+**"Time to interaction" is mostly choreography, not cost.** The button becomes
+hittable at 1892ms, but 1290ms of that is the intro playing itself in:
+`welcome-intro.tsx` starts the call to action on `withDelay(700, withTiming(…,
+400))`, and it does not start until React has mounted. The engineering number
+underneath is the 602ms to first render. Both are in the table on purpose —
+shaving the bundle will move the first and not the second, and a later run that
+"improves" by 1.2s because someone deleted the entrance has not made the app
+faster. The entrance is not a constant either: it takes 271ms longer at 4×,
+because a frame-driven animation lands its last frame late when frames are
+sparse.
+
+**The blocking is one big task, not many small ones.** At 1× there are 2–4 long
+tasks and the longest is 175ms; at 4× there are 7, the longest is 882ms, and
+total blocking time is 2049ms. That is the shape of one 10 MB eagerly-loaded
+chunk being evaluated — which is exactly the bundle finding the [visual
+baseline](./visual-baseline.mdx#6-bundle-baseline-12) recorded from the other
+side: 10.04 MB of the 10.76 MB of JavaScript is in a single `index` chunk, and
+here it is, as 2.8s of script evaluation on a machine pretending to be four
+times slower.
+
+**Interaction is hittable ~1.6s before the largest contentful paint at 4×.** The
+button is real and pressable while the screen is still assembling.
+
+**The settled heap is the most reproducible number in the harness.** After
+`HeapProfiler.collectGarbage`, seven runs agree to within 0.0% — 26,981,972 B
+with an IQR of 7 KB. That is why it gets its own, much tighter gate.
+
+## 6. The screen that never stops
+
+After each boot the harness watches the settled screen for two seconds and asks
+what it costs to do nothing.
+
+| | 1× | 4× |
+| --- | --- | --- |
+| Frames per second | 28.5 · IQR 8.1% | 26.0 · IQR 12.0% |
+| Main thread per second of wall clock | **336ms/s** · 7.0% | 417ms/s · 7.7% |
+| …of which JavaScript | 13.1ms/s | 54.5ms/s |
+
+A third of a second of main thread per second, on a screen nobody is touching,
+and **96% of it is not JavaScript**. `ambient-field.tsx` is three blurred,
+blended SVG radial gradients on unbounded `withRepeat` loops; the cost is style,
+layout and rasterisation, and it never stops because the animation never ends.
+
+**This number does not transfer to a user's machine.** Headless Chromium
+rasterises in software, with no GPU, so the absolute figure is an artefact of
+this harness. What it is good for is comparison *within* the harness: if a later
+run of the same command reports 500ms/s, something started costing more.
+
+## 7. Twelve route changes, and what did not come back down
+
+The leak loop opens one page, then pushes `/download` and `/` alternately
+through the router's own web transport — `pushState` plus a `popstate` event,
+which is what React Navigation's linking listens to — so each cycle really
+unmounts one route's subtree and mounts another. Before every sample the harness
+forces a collection, so every figure is live, reachable state.
+
+The first two cycles are excluded: the first one fetches and evaluates
+`/download`'s lazy chunk and warms caches that never cool. The slope is over the
+ten that follow.
+
+| Counter | Cycle 3 | Cycle 12 | Slope per cycle | After 5 idle seconds |
+| --- | --- | --- | --- | --- |
+| Heap after GC | 28.70 MiB | 29.99 MiB | **+137 KiB** | 30.21 MiB |
+| Live listeners (engine count) | 387 | 537 | **+15.7** | 529 |
+| Pending timeouts | 122 | 402 | **+30.8** | 386 |
+| DOM nodes | 361 | 361 | 0 | 397 |
+| Intervals | 2 | 2 | 0 | 1 |
+| Observers | 4 | 4 | 0 | 4 |
+| Object URLs | 0 | 0 | 0 | 0 |
+| WebSockets | 0 | 0 | 0 | 0 |
+| Documents | 1 | 1 | 0 | 1 |
+
+**Nodes, intervals, observers and object URLs are flat. Listeners, pending
+timers and the heap are not.**
+
+It is not cache warming that would settle just past the window. The same loop
+run to **30 cycles** produced the same slopes — listeners 393 → 825 at
++15.7/cycle, pending timeouts 122 → 990 at +32.0/cycle, heap 28.68 → 31.53 MiB —
+and four independent sets agreed to within 0.5 of a listener per cycle. Nor is
+it work that has merely not finished: after five idle seconds the heap is
+*higher*, and listeners and timers have given back 8 and 16 of the several
+hundred they took.
+
+Three caveats, because this is a measurement and not a diagnosis:
+
+1. **A pending timer with a long delay looks exactly like a leaked one here.**
+   Five idle seconds cannot distinguish a `setTimeout` that fires in five
+   minutes from one that never fires. What the harness can say is that the count
+   rises by ~31 per cycle without bound over 30 cycles.
+2. **The net add/remove counter disagrees and the engine's count wins.** The
+   wrapped `addEventListener`/`removeEventListener` net *falls* by 6 per cycle
+   while the engine's live count rises by 15.7. The net is not trustworthy on
+   its own — it counts removals that match nothing, and never sees a listener
+   that vanishes with a collected node — which is precisely why the reported
+   figure is CDP's `JSEventListeners`, sampled after a forced collection.
+3. **It does not name the retainer.** That needs a heap snapshot with retaining
+   paths, which is the obvious next piece of work.
+
+### Route change cost
+
+| | Median | IQR | Range |
+| --- | --- | --- | --- |
+| `/` → `/download`, first (lazy chunk cold) | 109.9ms | — | single sample |
+| `/` → `/download`, after | 102.2ms | 20.6% | 74–116 |
+| `/download` → `/` | 73.6ms | 17.7% | 59–92 |
+
+Timed inside the page from `pushState` to the first frame on which the
+destination's text is on screen. These are the **least** reliable numbers in the
+baseline: they are short, so a scheduler hiccup is a large percentage, and the
+load average rose from 3.7 to 6.9 during this phase of the committed run. An
+earlier set measured the same two transitions at 59ms and 54ms. Treat them as an
+order of magnitude — tens of milliseconds, not hundreds — and not as a figure to
+gate on.
+
+And read the label carefully: **this is a route change between two signed-out
+screens, not opening a conversation.** §12's "apertura de conversación" is
+below, unmeasured.
+
+
+## 8. What this still does not measure
+
+§12 lists seven flows. **One is measured.**
+
+| §12 flow | Status |
+| --- | --- |
+| Inicio (start) | ✅ measured, signed out |
+| Apertura de conversación | ❌ needs a session and a conversation |
+| Escritura | ❌ needs a signed-in composer |
+| Streaming | ❌ needs `POST /alia/chat` answering |
+| Scroll | ❌ needs a message list with messages |
+| Paneles | ❌ needs the signed-in layout |
+| Llamada | ❌ needs a LiveKit room |
+
+None of the six is reachable by trying harder with this harness. Each needs an
+Oxy session and a live Alia API; the harness blocks all non-local network by
+design, and inventing a conversation would produce a measurement of the
+harness rather than of Alia. Reaching them needs a seeded account, an API
+fixture or a recorded transport, and that is a separate piece of work — the same
+conclusion the visual baseline reached about its four missing references.
+
+§12 also names five quantities to record for each of those flows. On the one
+flow that is reachable, they stand like this:
+
+| §12 quantity | Status |
+| --- | --- |
+| Bundle size | ✅ in the [visual baseline](./visual-baseline.mdx#6-bundle-baseline-12) |
+| Time to interaction | ✅ §5, with the choreography separated out |
+| Render / JS / UI cost | ✅ §5 and §6, from CDP's own counters |
+| Memory | ⚠️ settled heap after a forced collection, at boot and per cycle. No snapshot, no retainers, no per-component attribution. |
+| Active resources | ⚠️ listeners, timers, object URLs, observers, nodes, documents and sockets — but only what the signed-out surface creates |
+
+Also outstanding:
+
+- **Sockets and media tracks are counted but never exercised.** The counters
+  exist and read zero because nothing signed out opens a WebSocket against a
+  blocked network or asks for a microphone. "No socket growth" here means "no
+  sockets", which is not the same claim §12 wants.
+- **The retaining path for the growth in §7.** This harness counts; it does not
+  say who holds the references. That needs a heap snapshot with retainers, which
+  is the next piece of work and is a diagnosis rather than a baseline.
+- **A real GPU.** Everything here is headless Chromium with software
+  rasterisation.
+- **Native.** iOS and Android boot a different bundle through a different
+  renderer. Nothing here says anything about them.
+- **Bundle size**, which is not repeated here: it is measured by the visual
+  harness and recorded in the [visual baseline](./visual-baseline.mdx#6-bundle-baseline-12).
