@@ -19,14 +19,13 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
  * header and the same row, so it is pinned here too.
  */
 
-const toggleDrawer = vi.hoisted(() => vi.fn());
+const toggle = vi.hoisted(() => vi.fn());
 const back = vi.hoisted(() => vi.fn());
 
 /** An iPhone with a notch, which is where the title went missing. */
 const TOP_INSET = 47;
 
 vi.mock('expo-router', () => ({
-  useNavigation: () => ({ toggleDrawer }),
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back, canGoBack: () => true }),
 }));
 
@@ -79,6 +78,21 @@ vi.mock('expo-crypto', () => ({ getRandomValues: (array: Uint8Array) => array })
 
 import { SettingsHeader } from '../settings/settings-header';
 import { SettingsLayoutContext, type SettingsLayoutMode } from '../settings/layout-mode';
+import { AppNavProvider, type AppNav } from '../app-shell/nav-context';
+
+/**
+ * The shell's navigation, as the header sees it. `DrawerToggle` asks the shell
+ * to open the nav now — `navigation.toggleDrawer()` went with the expo-router
+ * `Drawer` — so the opener is pressed against this rather than against a
+ * navigator that no longer exists.
+ */
+const NAV: AppNav = {
+  inFlow: false,
+  presented: false,
+  open: () => undefined,
+  close: () => undefined,
+  toggle,
+};
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
@@ -97,6 +111,7 @@ afterEach(() => {
     renderer = null;
   }
   back.mockReset();
+  toggle.mockReset();
 });
 
 /** A style prop as one object, whichever of RN's shapes it came in. */
@@ -112,9 +127,11 @@ function render(
   let next: ReactTestRenderer | undefined;
   act(() => {
     next = create(
-      <SettingsLayoutContext.Provider value={mode}>
-        <SettingsHeader title={TITLE} subtitle={SUBTITLE} {...props} />
-      </SettingsLayoutContext.Provider>,
+      <AppNavProvider value={NAV}>
+        <SettingsLayoutContext.Provider value={mode}>
+          <SettingsHeader title={TITLE} subtitle={SUBTITLE} {...props} />
+        </SettingsLayoutContext.Provider>
+      </AppNavProvider>,
     );
   });
   if (next === undefined) throw new Error('the settings header did not render');
@@ -179,7 +196,7 @@ describe('the Connectors header on a phone', () => {
     expect(opener).toHaveLength(1);
     expect(String(opener[0].props.className)).toContain('h-9');
     act(() => opener[0].props.onPress());
-    expect(toggleDrawer).toHaveBeenCalledTimes(1);
+    expect(toggle).toHaveBeenCalledTimes(1);
   });
 
   it('still renders without a subtitle', () => {
