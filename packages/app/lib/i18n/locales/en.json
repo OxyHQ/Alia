@@ -345,6 +345,7 @@
     "thinking": "Thinking",
     "working": "Working",
     "reasoning": "Reasoning",
+    "blockFailed": "This part of the answer couldn't be shown.",
     "readAloud": "Read Aloud",
     "generateAudio": "Generate Audio",
     "copy": "Copy",

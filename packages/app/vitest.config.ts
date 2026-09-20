@@ -19,6 +19,13 @@ export default defineConfig({
       '@': fileURLToPath(new URL('.', import.meta.url)),
     },
   },
+  test: {
+    server: {
+      deps: {
+        inline: [/@oxy\.so[\\/]bloom/],
+      },
+    },
+  },
   /**
    * `__DEV__` is injected by Metro, not by the bundler vitest runs, and
    * `lib/config.ts` reads it at MODULE LOAD — so importing it from a test threw
