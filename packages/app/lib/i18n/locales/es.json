@@ -1220,5 +1220,23 @@
       "billion": " mil M",
       "trillion": " B"
     }
+  },
+  "composer": {
+    "message": "Mensaje",
+    "addMenu": "Añadir al chat",
+    "camera": "Cámara",
+    "photos": "Fotos",
+    "files": "Archivos",
+    "voice": "Dictar",
+    "voiceStop": "Detener la grabación",
+    "send": "Enviar mensaje",
+    "stop": "Detener la generación",
+    "expand": "Ampliar el redactor",
+    "collapse": "Reducir el redactor",
+    "remove": "Quitar el adjunto %{position}: %{name}",
+    "untitled": "sin título",
+    "dictationDiscard": "Descartar el dictado",
+    "dictationStop": "Detener el dictado",
+    "dictationSend": "Enviar el mensaje dictado"
   }
 }

@@ -5,6 +5,7 @@ import { useSTTStore } from "@alia.onl/sdk";
 
 import { cn } from "@/lib/utils";
 import { useColorScheme } from "@/lib/useColorScheme";
+import { useTranslation } from "@/lib/hooks/use-translation";
 
 /**
  * The composer while it is listening.
@@ -111,12 +112,13 @@ export function PromptInputDictationBar({
   isTranscribing = false,
 }: PromptInputDictationBarProps) {
   const { colors } = useColorScheme();
+  const { t } = useTranslation();
 
   return (
     <View className="flex-row items-center gap-2 px-2 min-h-[52px] py-1">
       <Pressable
         onPress={onCancel}
-        accessibilityLabel="Discard dictation"
+        accessibilityLabel={t("composer.dictationDiscard")}
         className="h-9 w-9 rounded-full items-center justify-center border border-border web:hover:bg-muted active:bg-muted"
       >
         <X size={18} color={colors.mutedForeground} />
@@ -127,7 +129,7 @@ export function PromptInputDictationBar({
       <Pressable
         onPress={onStop}
         disabled={isTranscribing}
-        accessibilityLabel="Stop dictation"
+        accessibilityLabel={t("composer.dictationStop")}
         className={cn(
           "h-9 w-9 rounded-full items-center justify-center border border-border web:hover:bg-muted active:bg-muted",
           isTranscribing && "opacity-50"
@@ -139,7 +141,7 @@ export function PromptInputDictationBar({
       <Pressable
         onPress={onSend}
         disabled={isTranscribing}
-        accessibilityLabel="Send dictated message"
+        accessibilityLabel={t("composer.dictationSend")}
         className={cn(
           "h-9 w-9 rounded-full items-center justify-center bg-primary",
           isTranscribing && "opacity-50"
