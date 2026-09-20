@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { View, ScrollView } from "react-native";
 import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
+import { Textarea } from "@oxy.so/bloom/textarea";
 import { Label } from "@oxy.so/bloom/label";
 import { Switch } from "@oxy.so/bloom/switch";
 import { Dialog, type DialogAction } from "@oxy.so/bloom/dialog";
@@ -846,7 +846,8 @@ export default function MemoryScreen() {
                   onChangeText={setProviderPastedText}
                   placeholder={t('memory.pasteResponsePlaceholder')}
                   editable={!providerImporting}
-                  style={{ minHeight: 160 }}
+                  autoResize
+                  rows={8}
                 />
               </View>
 

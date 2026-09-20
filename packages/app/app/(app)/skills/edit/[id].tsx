@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { View, ScrollView, ActivityIndicator, Pressable } from 'react-native';
 import { Text } from '@/components/ui/text';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
+import { Textarea } from '@oxy.so/bloom/textarea';
 import { Label } from '@oxy.so/bloom/label';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@oxy.so/bloom/switch';
@@ -165,14 +165,26 @@ export default function EditSkillScreen() {
 
           <View className="gap-1.5">
             <Label>{t('skills.descriptionLabel')}</Label>
-            <Textarea value={description} onChangeText={setDescription} multiline className="min-h-[90px]" />
+            <Textarea
+              accessibilityLabel={t('skills.descriptionLabel')}
+              value={description}
+              onChangeText={setDescription}
+              autoResize
+              rows={5}
+            />
             <Text className="text-[11px] text-muted-foreground">{t('skills.descriptionHint')}</Text>
             <Text className="text-[11px] text-muted-foreground">{description.length} / 1024</Text>
           </View>
 
           <View className="gap-1.5">
             <Label>{t('skills.bodyLabel')}</Label>
-            <Textarea value={body} onChangeText={setBody} multiline className="min-h-[260px]" />
+            <Textarea
+              accessibilityLabel={t('skills.bodyLabel')}
+              value={body}
+              onChangeText={setBody}
+              autoResize
+              rows={13}
+            />
             <Text className="text-[11px] text-muted-foreground">{t('skills.bodyHint')}</Text>
           </View>
 
