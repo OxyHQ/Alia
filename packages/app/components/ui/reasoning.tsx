@@ -12,11 +12,7 @@ import { AliaMarkdown } from '@alia.onl/sdk';
 import { MARKDOWN_BODY_FONT } from './markdown';
 import { withAlpha } from "@oxy.so/bloom/theme";
 import { useColorScheme } from "@/lib/useColorScheme";
-import {
-  Collapsible,
-  CollapsibleTrigger,
-  CollapsibleContent,
-} from "@/components/ui/collapsible";
+import * as Collapsible from "@rn-primitives/collapsible";
 import { Brain, ChevronDown, ChevronRight } from "lucide-react-native";
 import { cn } from "@/lib/utils";
 import Animated, {
@@ -157,13 +153,13 @@ export function Reasoning({
         duration,
       }}
     >
-      <Collapsible
+      <Collapsible.Root
         open={isOpen}
         onOpenChange={handleOpenChange}
         className={cn("w-full", className)}
       >
         {children}
-      </Collapsible>
+      </Collapsible.Root>
     </ReasoningContext.Provider>
   );
 }
@@ -247,15 +243,15 @@ export function ReasoningTrigger({
   );
 
   // When onPress is provided, render as a plain Pressable (opens panel)
-  // Otherwise, wrap in CollapsibleTrigger for inline expand/collapse
+  // Otherwise, wrap in Collapsible.Trigger for inline expand/collapse
   if (onPress) {
     return triggerContent;
   }
 
   return (
-    <CollapsibleTrigger asChild>
+    <Collapsible.Trigger asChild>
       {triggerContent}
-    </CollapsibleTrigger>
+    </Collapsible.Trigger>
   );
 }
 
@@ -276,7 +272,7 @@ export function ReasoningContent({ children, className }: ReasoningContentProps)
   }), [colors.foreground, colors.border, colors.muted, colors.mutedForeground, colors.primary]);
 
   return (
-    <CollapsibleContent>
+    <Collapsible.Content>
       <View
         className={cn(
           "px-3 pb-3 pt-1",
@@ -296,6 +292,6 @@ export function ReasoningContent({ children, className }: ReasoningContentProps)
           </View>
         </View>
       </View>
-    </CollapsibleContent>
+    </Collapsible.Content>
   );
 }

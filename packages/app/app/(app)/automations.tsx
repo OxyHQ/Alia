@@ -1,11 +1,11 @@
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
+import { ActivityIndicator, Platform, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { ArrowUp, CalendarClock, Mic, Paperclip } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { ContentPanel } from '@oxy.so/bloom/content-panel';
 import { toast } from '@oxy.so/bloom/toast';
 import { Text } from '@/components/ui/text';
-import { Textarea } from '@/components/ui/textarea';
+import { asTextStyle } from '@/lib/types/webStyles';
 import { useCreateConversation } from '@/lib/hooks/use-conversations';
 import { useStore } from '@/lib/stores/global-store';
 import { useColorScheme } from '@/lib/useColorScheme';
@@ -76,13 +76,24 @@ export default function AutomationsScreen() {
           </Text>
 
           <View className="mt-10 w-full rounded-[28px] border border-border bg-surface px-2 py-2 shadow-sm">
-            <Textarea
+            {/* The bar already IS the field: the View above paints the
+                28px radius, the border and the surface, and the row of
+                actions below sits inside the same box. So this is the bare
+                editing region, not a control — Bloom's `Textarea` would draw
+                its own shell inside that one, and the wrapper this replaces
+                was doing nothing here except turning that shell back off
+                (`border-0 bg-transparent`). */}
+            <TextInput
               value={prompt}
               onChangeText={setPrompt}
               placeholder="Schedule a task"
+              placeholderTextColor={colors.mutedForeground}
               accessibilityLabel="Schedule a task"
-              className="min-h-24 border-0 bg-transparent px-3 py-3 text-base"
               multiline
+              scrollEnabled={false}
+              textAlignVertical="top"
+              className="min-h-24 px-3 py-3 text-base text-foreground"
+              style={Platform.OS === 'web' ? asTextStyle({ fieldSizing: 'content' }) : undefined}
             />
             <View className="flex-row items-center gap-1 px-1 pb-1">
               <Pressable

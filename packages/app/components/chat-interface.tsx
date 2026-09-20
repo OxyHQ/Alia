@@ -39,7 +39,7 @@ import { AgentResultCard } from "@/components/agent-result-card";
 import { ResearchProgressCard, PlanPreviewCard } from '@alia.onl/sdk';
 import type { ResearchProgress as ResearchProgressData } from '@alia.onl/sdk';
 import type { AgentActivityState } from "@/lib/hooks/use-agent-activity";
-import { Skeleton } from "@/components/ui/skeleton";
+import * as Skeleton from "@oxy.so/bloom/skeleton";
 import apiClient from "@/lib/api/client";
 import { useTranslation } from "@/lib/hooks/use-translation";
 import { MessageSources } from "@/components/message-sources";
@@ -1162,19 +1162,19 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
             conversationLoading ? (
               <View className="gap-5 py-4">
                 <View className="items-end">
-                  <Skeleton style={{ width: '65%', height: 48, borderRadius: 24 }} />
+                  <Skeleton.Box width="65%" height={48} borderRadius={24} />
                 </View>
                 <View className="items-start gap-2.5">
-                  <Skeleton style={{ width: '80%', height: 14, borderRadius: 8 }} />
-                  <Skeleton style={{ width: '70%', height: 14, borderRadius: 8 }} />
-                  <Skeleton style={{ width: '45%', height: 14, borderRadius: 8 }} />
+                  <Skeleton.Box width="80%" height={14} borderRadius={8} />
+                  <Skeleton.Box width="70%" height={14} borderRadius={8} />
+                  <Skeleton.Box width="45%" height={14} borderRadius={8} />
                 </View>
                 <View className="items-end">
-                  <Skeleton style={{ width: '50%', height: 40, borderRadius: 24 }} />
+                  <Skeleton.Box width="50%" height={40} borderRadius={24} />
                 </View>
                 <View className="items-start gap-2.5">
-                  <Skeleton style={{ width: '85%', height: 14, borderRadius: 8 }} />
-                  <Skeleton style={{ width: '60%', height: 14, borderRadius: 8 }} />
+                  <Skeleton.Box width="85%" height={14} borderRadius={8} />
+                  <Skeleton.Box width="60%" height={14} borderRadius={8} />
                 </View>
               </View>
             ) : (

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { View, ScrollView, ActivityIndicator, Pressable } from 'react-native';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
+import { Textarea } from '@oxy.so/bloom/textarea';
 import { ArrowLeft, Sparkles } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { toast } from "@oxy.so/bloom/toast";
@@ -58,9 +58,10 @@ export default function CreateSkillScreen() {
           value={prompt}
           onChangeText={setPrompt}
           placeholder={t('skills.createPlaceholder')}
-          className="mt-5 min-h-[140px]"
+          style={{ marginTop: 20 }}
+          autoResize
+          rows={7}
           editable={!busy}
-          multiline
         />
 
         <Button className="mt-4 rounded-full" disabled={busy || prompt.trim().length < 10} onPress={handleCreate}>

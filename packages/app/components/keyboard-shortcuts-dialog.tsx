@@ -2,7 +2,7 @@ import * as React from "react";
 import { Platform, View } from "react-native";
 import { Dialog } from "@oxy.so/bloom/dialog";
 import { Text } from "@/components/ui/text";
-import { Kbd, KbdGroup } from "@/components/ui/kbd";
+import { Kbd } from "@oxy.so/bloom/kbd";
 import { useTranslation } from "@/lib/hooks/use-translation";
 import { useUIStore } from "@/lib/stores/ui-store";
 
@@ -78,11 +78,20 @@ export function KeyboardShortcutsDialog() {
                   <Text className="text-sm text-foreground">
                     {t(shortcut.labelKey)}
                   </Text>
-                  <KbdGroup>
+                  {/*
+                    Bloom owns the key cap (`@oxy.so/bloom/kbd`); the row that
+                    holds two or three of them is four pixels of gap and does
+                    not need a name. The wrapper this replaced spelled that row
+                    as a DOM `<kbd>` wrapping DOM `<kbd>`s, which is invalid
+                    HTML and, worse, would have thrown the moment either of
+                    these two screens was opened on native — they were web-only
+                    by accident rather than by decision.
+                  */}
+                  <View className="flex-row items-center gap-1">
                     {shortcut.keys().map((key, i) => (
                       <Kbd key={i}>{key}</Kbd>
                     ))}
-                  </KbdGroup>
+                  </View>
                 </View>
               ))}
             </View>

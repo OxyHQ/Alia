@@ -1,0 +1,309 @@
+---
+title: "UI layer retirement"
+description: "Which of packages/app/components/ui was a second design system and is now deleted, which survives because it carries adaptation Bloom cannot express, and every Bloom 3.2.1 gap the migration hit."
+order: 10
+---
+
+# UI layer retirement
+
+[#608](https://github.com/OxyHQ/Alia/issues/608) §4 and §5 ask for one
+implementation per responsibility, and say the quiet part out loud:
+
+> Los wrappers que solo renombran/reexportan un Button/Text de Bloom no son una
+> nueva capa de diseño. Usar directamente las APIs públicas salvo que exista
+> adaptación real del producto.
+
+`packages/app/components/ui/` was 37 files sitting beside Bloom — a
+shadcn-shaped NativeWind kit with its own Button, Card, Switch, Skeleton and
+so on. This page records what happened to each of them, and why.
+
+Everything below was decided by reading the installed
+`@oxy.so/bloom@3.2.1` (`node_modules/@oxy.so/bloom/src/<family>/`), not the
+stale `~/Oxy/Bloom` checkout and not the docs. Every migration was verified
+with `typecheck` + `test` on its own commit, and the whole branch against the
+[visual baseline](./visual-baseline.mdx) — see [the gate](#4-the-gate).
+
+## 1. The verdicts
+
+Ten wrappers are gone. `call sites` counts JSX elements at
+`934e2fd7`, not import statements; test mocks are listed separately because a
+`vi.mock` of a module path is a call site too, and each one had to move.
+
+| Wrapper | Verdict | Call sites migrated |
+| --- | --- | --- |
+| `ui/kbd.tsx` | **replaced by `@oxy.so/bloom/kbd`** | 6 `Kbd` + 3 `KbdGroup`, 2 files |
+| `ui/label.tsx` | **replaced by `@oxy.so/bloom/label`** | 30, 4 files + 2 test mocks |
+| `ui/avatar.tsx` | **replaced by `@oxy.so/bloom/avatar`** | 2, 1 file + 1 test mock |
+| `ui/separator.tsx` | **replaced by `@oxy.so/bloom/divider`** | 1, 1 file |
+| `ui/skeleton.tsx` | **replaced by `@oxy.so/bloom/skeleton`** | 50, 8 files + 3 test mocks |
+| `ui/card.tsx` | **replaced by `@oxy.so/bloom/card`** | 13, 1 file |
+| `ui/switch.tsx` | **replaced by `@oxy.so/bloom/switch`** | 18, 14 files + 3 test mocks |
+| `ui/textarea.tsx` | **replaced by `@oxy.so/bloom/textarea`** (7) **and by React Native's `TextInput`** (2) | 9, 6 files + 2 test mocks |
+| `ui/command.tsx` | **replaced by `@oxy.so/bloom/command`** | the whole 9-part tree, 1 file |
+| `ui/collapsible.tsx` | **replaced by `@rn-primitives/collapsible` directly** | 6, 2 files |
+| `ui/button.tsx` | **kept, real adaptation: `TextClassContext`** — see [§2](#2-what-survives-and-why) | 0 of 107 |
+| `ui/text.tsx` | **kept, real adaptation: `TextClassContext`** — see [§2](#2-what-survives-and-why) | 0 of 148 importing files |
+| `ui/dropdown-menu.tsx` + `.web.tsx` | **kept, not attempted** — see [§2](#2-what-survives-and-why) | 0 of 340 |
+| `ui/input.tsx` | kept, out of scope — see [§3](#3-bloom-gaps) | — |
+| `ui/toggle-group.tsx` | **kept, Bloom gap: no multi-select chip group** | — |
+
+Two dependencies left `packages/app/package.json` with the wrapper that was
+their only importer: `@rn-primitives/separator` and `cmdk`. `cmdk` stays in
+`bun.lock` for `alia-cowork` and `alia-console`, which are different apps.
+
+### What each replacement gained, briefly
+
+- **`kbd`** — the wrapper rendered DOM `<kbd>` and `<div>` intrinsics into a
+  React Native tree. Both screens that used it would have thrown on native;
+  they were web-only by accident, not by decision.
+- **`label`** — the wrapper had no `htmlFor`, no required marker and no
+  association with the control it named. All 30 call sites were
+  `<Label>text</Label>` with no className.
+- **`avatar`** — three components (`Avatar`/`AvatarImage`/`AvatarFallback`)
+  for one grey initials disc on one screen. `AvatarImage` had no call site;
+  the Shows model has no host photo. Bloom's walks the letter along its ramp
+  until it clears AA, which the hand-rolled `muted-foreground` never did.
+- **`separator`** — read as a Bloom gap only because Bloom spells it
+  `Divider`. `spacing` is the `my-2`.
+- **`skeleton`** — one `Animated.View` with `bg-muted`, running its own
+  opacity loop per mounted instance, and no shared vocabulary: a circle was
+  `{width:40,height:40,borderRadius:20}` in one file and
+  `className="rounded-full"` in the next. Bloom's is a namespace of shapes.
+- **`card`** — the full shadcn six, mounted on exactly one screen.
+  `CardFooter` had no call site at all.
+- **`switch`** — see [§3](#3-bloom-gaps); this one is a finding, not a
+  migration.
+- **`textarea`** — one component doing two unrelated jobs. See
+  [gap 1](#gap-1-textarea-has-no-borderless-form).
+- **`command`** — 170 lines of Tailwind around `cmdk`, DOM-only, one consumer.
+- **`collapsible`** — three lines: `const Collapsible = Primitive.Root` and
+  two more like it. The textbook §4 file.
+
+## 2. What survives, and why
+
+### `ui/text.tsx` and `ui/button.tsx` — one adaptation, held jointly
+
+These two are a pair and cannot be judged apart. `ui/text.tsx` publishes a
+`TextClassContext`; `ui/button.tsx` is its main provider. The app is written
+in the idiom that context enables:
+
+```tsx
+<Button variant="outline" size="sm" className="rounded-full">
+  <Check size={13} className="text-foreground" />
+  <Text className="ml-1.5">{t('skills.uninstall')}</Text>
+</Button>
+```
+
+The button's children are an arbitrary NODE — an icon element and a `Text`
+that takes its colour from the variant through the context, without the call
+site naming that colour. Bloom's `Button` has the opposite contract: children
+are the LABEL, which it wraps in its own `Text`, and the icon arrives through
+`icon={Component}`. It publishes no context. So every one of the 107
+`<Button>` elements is a restructuring, not an import swap, and each one also
+has to have its className translated — `rounded-full h-8 w-8`,
+`border-destructive/30`, `flex-1 flex-row items-center gap-2 h-10` — into
+Bloom props or `style`.
+
+**That is a migration project, and this branch deliberately did not start
+it.** Half-migrating it would leave the app with two button languages, which
+is worse than either one. There is also a hard gate: `components/welcome-intro.tsx`
+— the screen the [visual baseline](./visual-baseline.mdx) pins across 24
+viewport/scheme/motion cases — imports both `ui/button` and `ui/text`. Bloom's
+Button has different padding, corner and type ramp, so that migration MUST
+land together with a re-approved baseline, reviewed by a person looking at the
+diff images. It cannot ride along with anything else.
+
+The honest verdict is therefore **real adaptation**, with a caveat: the
+adaptation is real but it is also a *style*, and the right end state is Bloom's
+composition model, not a better `TextClassContext`. What makes it real today is
+that 107 `<Button>` elements and 148 files importing `ui/text` are
+written against it.
+
+One thing did get smaller: `ui/card.tsx`'s `CardContent` used to push
+`text-surface-foreground` through the same context, and the whole app had
+**one** reader of it — the permission bullet list on the authorize screen. A
+context with a single consumer is a coupling, not an adaptation; it now names
+its own colour, and `ui/button.tsx` is the only provider left.
+
+### `ui/dropdown-menu.tsx` + `ui/dropdown-menu.web.tsx` — not attempted
+
+Two forks: `dropdown-menu.tsx` re-exports `zeego/dropdown-menu` (the iOS and
+Android SYSTEM menus), and `dropdown-menu.web.tsx` is 357 lines of Radix with
+an `SF_SYMBOL_MAP` translating 34 SF Symbol names to Lucide icons so the web
+fork can accept zeego's props.
+
+Bloom's `@oxy.so/bloom/dropdown-menu` is the right destination — one
+cross-platform family, and adopting it would retire `zeego`,
+`@radix-ui/react-dropdown-menu`, `@radix-ui/react-icons` and both forks. It is
+also not a swap. The anatomies differ: zeego is `DropdownMenu.Root` /
+`.Trigger` / `.Content` / `.Item` / `.ItemTitle` / `.ItemIcon`, Bloom is flat
+exports (`DropdownMenuItem`, not `DropdownMenu.Item`) with no `ItemTitle` or
+`ItemIcon` — the label is the child and the icon is a prop taking a Bloom icon
+component. Every one of the **340** `DropdownMenu.*` usages across 16 files is
+a rewrite, every SF Symbol needs a Bloom icon chosen for it, six test files
+mock the module, and the native surface changes from the platform's own menu
+to Bloom's floating one — which is a product decision, not a refactor.
+
+One of those 16 files, `components/ui/prompt-input/add-menu.tsx`, is owned by
+other work in flight.
+
+### `ui/input.tsx` and `ui/toggle-group.tsx`
+
+`ui/input.tsx` (17 importers) was scoped out of this branch, but the premise
+it was scoped out on is wrong and worth correcting: Bloom **does** have a
+public single-line field, `@oxy.so/bloom/text-field` (`TextField`,
+`TextFieldInput`, `TextFieldLabel`, `TextFieldHint`, `TextFieldIcon`,
+`TextFieldSuffix`). It faces the same split the textarea did — most call sites
+want the field, a few want a bare input inside a container they paint
+themselves — and [gap 1](#gap-1-textarea-has-no-borderless-form) applies to it
+identically. Note that `TextFieldGhost`, despite the name, is not a borderless
+variant: it is the ghost-text autocomplete overlay.
+
+`ui/toggle-group.tsx` has no Bloom counterpart. Bloom's
+`segmented-control` is single-select with a sliding indicator in a shared
+track; this is a wrapping row of independent chips with a `type: 'single' |
+'multiple'` switch. See [gap 3](#gap-3-no-multi-select-chip-group).
+
+## 3. Bloom gaps
+
+Three real ones, plus one finding that is not a gap at all.
+
+### Gap 1 — `Textarea` has no borderless form
+
+`src/textarea/Textarea.tsx` renders three nested views: the field wrapper, the
+SHELL, and the control. `style` lands on the wrapper and `inputStyle` on the
+control. Nothing reaches the shell:
+
+```tsx
+<View style={[{ width: '100%' }, style]} testID={testID}>
+  {label ? <TextFieldLabel …/> : null}
+  <View style={[{ borderRadius: TEXT_FIELD_RADIUS,
+                  borderWidth: TEXT_FIELD_RING_WIDTH,
+                  paddingHorizontal: …, paddingVertical: …,
+                  ...paint }, TEXT_FIELD_WEB_TRANSITION]}>
+    <TextInput … style={controlStyle} />
+```
+
+So a textarea that must draw no chrome — because the surface around it already
+does — cannot be a Bloom textarea. Alia has two: the agent editor's
+system-prompt column and the automations composer, where the 28px-radius
+bordered box holding the input also holds the action row beneath it. Both are
+React Native `TextInput`s now.
+
+The fix is either a `variant="ghost"`, or letting `style` through to the
+shell. The same gap blocks the input migration in §2.
+
+### Gap 2 — `Command` has no ranking, only filtering
+
+`CommandProps.filter` is `(item: CommandItem, query: string) => boolean`, and
+the palette renders matches in array order. A consumer that wants to RANK —
+Alia boosts favourited conversations — has to express it by sorting the array
+it passes in.
+
+This one turned out to cost nothing: the retired `filter` multiplied cmdk's
+score by two for a favourite, and the comment on that multiplier recorded the
+measurement that makes it redundant (cmdk returns ~0.99 for anything
+containing the query, so any matching favourite already outranked any matching
+non-favourite). Sorting says the same thing without the arithmetic. It is
+recorded as a gap because the next consumer may want a real ordering, and
+there is no seam for one.
+
+### Gap 3 — no multi-select chip group
+
+Nothing in 3.2.1 covers a wrapping row of independent toggle chips.
+`segmented-control` is one track, single selection, sliding indicator;
+`chip` is a single chip with no group contract. `ui/toggle-group.tsx` stays
+until one exists.
+
+### Not a gap — `KbdGroup`
+
+Bloom exports `Kbd` and no group. It does not need one: the group was
+`inline-flex` and a 4px gap. That is a row, and a row does not need a name.
+
+### Not a gap, a finding — the forked `Switch`
+
+`components/ui/switch.tsx` was not a wrapper. It was a COPY of Bloom's
+`Switch`: the same `TRACK` / `THUMB` / `PADDING` / `SQUEEZE_RATIO` constants,
+the same 0.75 squeeze, the same comment on the squeeze. Bloom's own
+`src/hooks/use-accessible-name-warning.ts` names this file without knowing it:
+
+> It reached every app in the fleet for exactly that reason, and one consumer
+> forked the component rather than report it.
+
+What the fork dropped is the point of the warning. A switch draws a track and
+a thumb and no words, and the caption beside it is a SIBLING that names it on
+neither platform — so `accessibilityLabel` is the only route to a name, and
+the fork had no such prop. **Thirteen** of Alia's toggles announced themselves
+as "switch, on" with nothing else. They all carry the caption that was already
+rendered next to them now; swapping the import without that work would only
+have moved the warning into the console.
+
+`components/automations/automation-editor.tsx` was importing React Native's
+OWN `Switch` — a third implementation of one control in one app — and came
+along with it.
+
+## 4. The gate
+
+Every commit on this branch passed, on its own:
+
+```bash
+bun run --filter @alia/app typecheck   # 0
+bun run --filter @alia/app test        # 100 files, 795 tests
+```
+
+and the branch as a whole:
+
+```bash
+cd packages/app && bun x expo export --platform web   # 0
+bun run --filter @alia/app visual:baseline -- --check
+```
+
+All 28 cases matched, twice — **worst per-channel delta 3 on one run and 4 on
+the other**, against a ±6 tolerance. Most cases came back byte-identical; the
+handful that moved shifted a few dozen pixels by 2–4, which is the blur's
+known arithmetic noise that [the baseline doc](./visual-baseline.mdx)
+measures and bounds. The two runs disagreeing by one is itself that noise.
+
+That is a weaker statement than it looks, and it should be read as exactly
+what it is: the welcome screen does not mount a Card, a Skeleton, a Switch, a
+Textarea, a Label, an Avatar, a Kbd, a Divider, a Collapsible or the command
+palette. It mounts `ui/button` and `ui/text`, which is precisely why those two
+did not move. The gate proves nothing regressed on the ONE captured screen —
+it cannot speak for the settings, agent-editor, skills, shows, credits or
+authorize screens this branch changed.
+
+## 5. What moved, in visible pixels
+
+Stated rather than hidden, because each was a decision:
+
+- **Labels** gain ~10px of height: Bloom's `Label` is `body-medium` 14/20 with
+  a 4px bottom margin; the wrapper was 14/14 with none. That is Bloom's field
+  rhythm, which is the thing being adopted.
+- **Skeletons** are painted from `colors.contrast50` rather than `bg-muted`,
+  and shimmer 1500ms 1.0↔0.4 instead of 1600ms 0.7↔0.3 — one timing for the
+  app instead of one per mounted placeholder.
+- **The authorize card** goes 16 → Bloom's `radius-12` default, loses its 1px
+  border (Bloom's `elevated` card is surface + shadow), its title goes 24 →
+  17/22, and its padding 20 → 16. Asking for `variant="outlined" elevation="s"`
+  at all five sites would be re-skinning Bloom, which is the thing §4 forbids.
+- **Switches** take their off-track colour from `colors.border` rather than
+  `withAlpha(colors.text, 0.16)`, and their hit target grows from 4 to 8.
+- **Form textareas** are 14/20 in Bloom's filled shell, and their arbitrary
+  pixel `minHeight`s become line counts.
+- **The command palette** is Bloom's floating-menu surface with Remix icons
+  and a single `Kbd` per shortcut instead of one per key. The Lucide icons had
+  to go: Bloom's palette paints a row icon with `fill` and a Lucide glyph draws
+  with `stroke`, so it would have come out unpainted.
+
+## 6. What is left in `components/ui/`
+
+Thirty entries — 28 files plus `icons/` and `prompt-input/`, 69 files in
+all. Two are the design layer this page exists to remove
+(`button.tsx`, `text.tsx`), two more are the menu forks
+(`dropdown-menu.tsx`, `dropdown-menu.web.tsx`), and two are the deferred
+primitives (`input.tsx`, `toggle-group.tsx`). The rest are not a design system
+at all — they are Alia's own product components that happen to live in this
+folder: the prompt input, the skill covers, the markdown renderer, the
+reasoning block, the icons, `chat-text-input.tsx`, `panel.tsx`,
+`rich-blocks.tsx`. #608 §4's feature-boundary tree is where those belong; the
+folder name is the last thing that makes them look like a UI kit.

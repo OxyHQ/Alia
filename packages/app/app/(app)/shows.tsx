@@ -26,7 +26,7 @@ import { SeriesCreateDialog } from '@/components/show/series-create-dialog';
 import { ShowArtwork } from '@/components/show/show-artwork';
 import { useShowProgress } from '@/lib/hooks/use-show-progress';
 import { useColorScheme } from '@/lib/useColorScheme';
-import { Skeleton } from '@/components/ui/skeleton';
+import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { formatEpisodeCount } from '@/lib/utils/show-format';
 
 /** Who can hear it, as an icon and a word. */
@@ -172,11 +172,11 @@ export default function ShowsScreen() {
                       key={key}
                       className="flex-row items-center gap-4 rounded-2xl border border-border p-3"
                     >
-                      <Skeleton className="h-16 w-16 rounded-xl" />
+                      <Skeleton.Box width={64} height={64} borderRadius={12} />
                       <View className="flex-1 gap-2">
-                        <Skeleton className="h-4 w-2/3 rounded" />
-                        <Skeleton className="h-3 w-1/2 rounded" />
-                        <Skeleton className="h-3 w-1/3 rounded" />
+                        <Skeleton.Box width="66.6667%" height={16} borderRadius={4} />
+                        <Skeleton.Box width="50%" height={12} borderRadius={4} />
+                        <Skeleton.Box width="33.3333%" height={12} borderRadius={4} />
                       </View>
                     </View>
                   ))}

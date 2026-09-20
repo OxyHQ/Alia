@@ -101,7 +101,7 @@ vi.mock('react-native', async () => {
  * calls the network when one of their `onChange` props fires. Keeping the props
  * on a host element is what lets the test fire them.
  */
-vi.mock('@/components/ui/textarea', async () => {
+vi.mock('@oxy.so/bloom/textarea', async () => {
   const ReactModule = await import('react');
   return { Textarea: (props: Record<string, unknown>) => ReactModule.createElement('Textarea', props) };
 });
@@ -109,11 +109,11 @@ vi.mock('@/components/ui/input', async () => {
   const ReactModule = await import('react');
   return { Input: (props: Record<string, unknown>) => ReactModule.createElement('Input', props) };
 });
-vi.mock('@/components/ui/switch', async () => {
+vi.mock('@oxy.so/bloom/switch', async () => {
   const ReactModule = await import('react');
   return { Switch: (props: Record<string, unknown>) => ReactModule.createElement('Switch', props) };
 });
-vi.mock('@/components/ui/label', async () => {
+vi.mock('@oxy.so/bloom/label', async () => {
   const ReactModule = await import('react');
   return {
     Label: ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
@@ -394,8 +394,11 @@ async function letTimePass(seconds: number): Promise<void> {
 
 /** The system-prompt box: the one editable field on the screen's main column. */
 function systemPromptBox(renderer: ReactTestRenderer): { onChangeText: (text: string) => void } {
-  const boxes = renderer.root.findAllByType('Textarea' as unknown as React.ComponentType);
-  const box = boxes.find((node) => node.props.variant === 'ghost');
+  // It is a bare `TextInput` now, not a Textarea with `variant="ghost"`:
+  // the shell-less writing surface stopped pretending to be a field when the
+  // `components/ui` layer was retired. The testID is how it stays findable.
+  const boxes = renderer.root.findAllByType('TextInput' as unknown as React.ComponentType);
+  const box = boxes.find((node) => node.props.testID === 'agent-system-prompt');
   if (box === undefined) throw new Error('the system prompt box is not on the screen');
   return box.props as { onChangeText: (text: string) => void };
 }

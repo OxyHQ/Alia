@@ -23,7 +23,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Avatar } from '@oxy.so/bloom/avatar';
 import { Plus, Trash2, ChevronLeft, ExternalLink, Lock, Link2, Globe, Pencil } from 'lucide-react-native';
 import { toast } from '@oxy.so/bloom/toast';
 import { confirm } from '@oxy.so/bloom/surfaces';
@@ -40,7 +40,7 @@ import { ShowArtwork } from '@/components/show/show-artwork';
 import { EpisodeCreateDialog } from '@/components/show/episode-create-dialog';
 import { useShowProgress } from '@/lib/hooks/use-show-progress';
 import { useColorScheme } from '@/lib/useColorScheme';
-import { Skeleton } from '@/components/ui/skeleton';
+import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { formatEpisodeCount } from '@/lib/utils/show-format';
 
 /** Where a listener would go to see the podcast itself. */
@@ -203,15 +203,15 @@ export default function SeriesDetailScreen() {
       <ContentPanel surfaceClassName="bg-background">
         <View className="flex-1 gap-4 bg-background p-4">
           <View className="flex-row gap-4">
-            <Skeleton className="h-28 w-28 rounded-2xl" />
+            <Skeleton.Box width={112} height={112} borderRadius={16} />
             <View className="flex-1 justify-center gap-2">
-              <Skeleton className="h-6 w-3/4 rounded-lg" />
-              <Skeleton className="h-4 w-1/2 rounded-lg" />
-              <Skeleton className="h-8 w-32 rounded-full" />
+              <Skeleton.Box width="75%" height={24} borderRadius={8} />
+              <Skeleton.Box width="50%" height={16} borderRadius={8} />
+              <Skeleton.Box width={128} height={32} borderRadius={9999} />
             </View>
           </View>
-          <Skeleton className="h-14 w-full rounded-lg" />
-          <Skeleton className="h-16 w-full rounded-xl" />
+          <Skeleton.Box width="100%" height={56} borderRadius={8} />
+          <Skeleton.Box width="100%" height={64} borderRadius={12} />
         </View>
       </ContentPanel>
     );
@@ -354,13 +354,18 @@ export default function SeriesDetailScreen() {
           <Text className="text-base font-bold text-foreground">Hosts</Text>
           {series.speakers.map((speaker) => (
             <View key={`${speaker.name}-${speaker.voiceId}`} className="flex-row items-center gap-3">
-              <Avatar className="h-11 w-11">
-                <AvatarFallback>
-                  <Text className="text-sm font-semibold text-muted-foreground">
-                    {speaker.name.slice(0, 1).toUpperCase()}
-                  </Text>
-                </AvatarFallback>
-              </Avatar>
+              {/*
+                A host has no photo anywhere in the Shows model, so this was
+                only ever the initials disc — three nested components and a
+                hand-sliced first letter to draw one grey circle. Bloom's
+                Avatar derives the initial itself and, unlike the slice this
+                replaces, walks the letter along its ramp until it clears AA
+                in whichever mode is on. `color="neutral"` pins the quiet grey
+                the wrapper's `bg-muted` had; dropping it would tint the disc
+                per host, which is a product decision and not this refactor's
+                to make.
+              */}
+              <Avatar name={speaker.name} size={44} color="neutral" />
               <View className="min-w-0 flex-1">
                 <Text className="text-[15px] font-semibold text-foreground" numberOfLines={1}>
                   {speaker.name}

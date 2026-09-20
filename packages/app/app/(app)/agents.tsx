@@ -13,7 +13,7 @@ import { useTranslation } from "@/lib/hooks/use-translation";
 import { toast } from "@oxy.so/bloom/toast";
 import { cn } from "@/lib/utils";
 import { agentIdentityMatches } from "@/lib/agents/identity";
-import { Skeleton } from "@/components/ui/skeleton";
+import * as Skeleton from "@oxy.so/bloom/skeleton";
 import { DrawerToggle } from "@/components/ui/drawer-toggle";
 import { ContentPanel } from "@oxy.so/bloom/content-panel";
 
@@ -237,10 +237,10 @@ export default function AgentsScreen() {
               }}
             >
               <View className="bg-muted/50 rounded-xl p-3 gap-2.5">
-                <Skeleton style={{ width: 40, height: 40, borderRadius: 20 }} />
-                <Skeleton style={{ width: '70%', height: 14, borderRadius: 8 }} />
-                <Skeleton style={{ width: '90%', height: 10, borderRadius: 6 }} />
-                <Skeleton style={{ width: '50%', height: 10, borderRadius: 6 }} />
+                <Skeleton.Circle size={40} />
+                <Skeleton.Box width="70%" height={14} borderRadius={8} />
+                <Skeleton.Box width="90%" height={10} borderRadius={6} />
+                <Skeleton.Box width="50%" height={10} borderRadius={6} />
               </View>
             </View>
           ))}

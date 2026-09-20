@@ -1,5 +1,5 @@
 import { View, ScrollView, Pressable, Platform } from "react-native";
-import { Switch } from "@/components/ui/switch";
+import { Switch } from "@oxy.so/bloom/switch";
 import { Text } from "@/components/ui/text";
 import { BellIcon } from "@/components/ui/bell-icon";
 import { useRouter } from "expo-router";
@@ -164,6 +164,7 @@ export default function NotificationsScreen() {
                   </View>
                 </View>
                 <Switch
+                  accessibilityLabel={t('notifications.pushNotifications')}
                   value={pushEnabled}
                   onValueChange={handleTogglePush}
                   disabled={pushLoading}
