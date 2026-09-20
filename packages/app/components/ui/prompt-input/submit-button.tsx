@@ -21,9 +21,19 @@ export function PromptInputSubmitButton({
   emptyAction,
   className,
 }: PromptInputSubmitButtonProps) {
-  const { onSubmit, value, attachments, disabled } = usePromptInput();
+  const { onSubmit, value, attachments, disabled, intake } = usePromptInput();
   const { t } = useTranslation();
   const hasContent = value.trim() || attachments.length > 0;
+  /**
+   * A file still being read is not attached yet.
+   *
+   * It has no `uri`, and `buildMessageContent` filters the list on exactly
+   * that — so a turn sent mid-read goes out without the picture, and looks to
+   * the user like one that went out with it. #608 §6: validate the upload
+   * state before sending. This is that check, and the file the user is waiting
+   * on is the whole reason they are looking at the composer.
+   */
+  const isReading = intake?.isBusy === true;
 
   if (isLoading && onStop) {
     /*
@@ -57,7 +67,10 @@ export function PromptInputSubmitButton({
     );
   }
 
-  if (!hasContent && emptyAction) {
+  // The empty action (voice) only stands in for a composer with nothing in it.
+  // A read in flight is something in it, so the send button stays, greyed,
+  // rather than being replaced by a microphone that is about to vanish again.
+  if (!hasContent && !isReading && emptyAction) {
     return <>{emptyAction}</>;
   }
 
@@ -65,9 +78,10 @@ export function PromptInputSubmitButton({
     <Button
       size="icon"
       onPress={onSubmit}
-      // Nothing to send, a closed composer, or a turn already in flight
-      // (`isLoading` without an `onStop` to offer instead).
-      disabled={!hasContent || disabled || isLoading}
+      // Nothing to send, a closed composer, a turn already in flight
+      // (`isLoading` without an `onStop` to offer instead), or an attachment
+      // whose bytes have not arrived yet.
+      disabled={!hasContent || disabled || isLoading || isReading}
       accessibilityRole="button"
       accessibilityLabel={t("composer.send")}
       className={cn("h-9 w-9 rounded-full items-center justify-center", className)}

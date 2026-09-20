@@ -150,21 +150,28 @@ describe('deploy-aws.yml migration wiring', () => {
       'arn:aws:ssm:$AWS_REGION:237343248947:parameter/oxy/$APP/OXY_SERVICE_API_SECRET',
     );
     expect(workflow).toContain(
-      'TASK_SECRET_REMOVALS_JSON: \'["AWS_ACCESS_KEY_ID","AWS_SECRET_ACCESS_KEY","KAANA_EDGE_SIGNING_PRIVATE_KEY","ALIA_RELAY_CREDENTIAL_KEY","ALIA_RELAY_CREDENTIAL_SECRET","ALIA_KAANA_CREDENTIAL_KEY","ALIA_KAANA_CREDENTIAL_SECRET"]\'',
+      'TASK_SECRET_REMOVALS_JSON: \'["AWS_ACCESS_KEY_ID","AWS_SECRET_ACCESS_KEY","KAANA_EDGE_SIGNING_PRIVATE_KEY","ALIA_RELAY_CREDENTIAL_KEY","ALIA_RELAY_CREDENTIAL_SECRET","ALIA_KAANA_CREDENTIAL_KEY","ALIA_KAANA_CREDENTIAL_SECRET","OXY_SERVICE_API_KEY","OXY_SERVICE_API_SECRET"]\'',
     );
     /**
-     * And the pair is NOT in it, which is the assertion that matters now.
+     * And the pair IS in it, which is the assertion that matters now — the
+     * inverse of what stood here yesterday, and the same rule underneath.
      *
-     * Attesting the task role mints a token without `capabilities:read` — the
-     * workload mint drops privileged scopes by design — and that scope is how
-     * Alia reads the capability catalogue it builds its tools from. The same
-     * removal took Mention's federation writes down for nine hours this
-     * morning. The entry returns when the binding can name the scope.
+     * The entry came out because attesting yielded a token without
+     * `capabilities:read`: the workload mint dropped every privileged scope, and
+     * that scope is how Alia reads the capability catalogue it builds its tools
+     * from. oxy#1350 gave a BINDING its own scopes, `oxy-alia-task` was re-bound
+     * with all three, and a token minted by attestation was read back carrying
+     * exactly `capabilities:read`, `inference:invoke`, `user:read`. So the rule
+     * never changed — a removal is allowed once the authority survives it — only
+     * the answer did.
+     *
+     * Parsed as JSON rather than matched as a string, so a reordering cannot
+     * smuggle one out.
      */
     const removals = workflow.match(/TASK_SECRET_REMOVALS_JSON: '(\[[^\]]*\])'/)?.[1];
     expect(removals).toBeDefined();
-    expect(JSON.parse(removals!)).not.toContain('OXY_SERVICE_API_KEY');
-    expect(JSON.parse(removals!)).not.toContain('OXY_SERVICE_API_SECRET');
+    expect(JSON.parse(removals!)).toContain('OXY_SERVICE_API_KEY');
+    expect(JSON.parse(removals!)).toContain('OXY_SERVICE_API_SECRET');
     expect(workflow).not.toContain('secrets.OXY_SERVICE_API_KEY');
     expect(workflow).not.toContain('secrets.OXY_SERVICE_API_SECRET');
     expect(workflow).not.toContain('sync_secret OXY_SERVICE_API_');
@@ -439,12 +446,17 @@ describe('the deploy removes retired credentials and runtime configuration', () 
       'AWS_ACCESS_KEY_ID',
       'AWS_SECRET_ACCESS_KEY',
       'KAANA_EDGE_SIGNING_PRIVATE_KEY',
-      // Alia's own Oxy credential is deliberately NOT here. Attesting the task
-      // role (oxy ADR 0026) proves what Alia IS, and that is all it proves: the
-      // workload mint drops every privileged scope, so the attested token has no
-      // `capabilities:read` — the scope behind the two capability endpoints that
-      // Alia's whole tool catalogue is built from. The name returns to this list
-      // when the role's BINDING carries that scope.
+      // Alia's own Oxy credential, retired once attesting the task role stopped
+      // costing authority. `oxy-alia-task` is bound with `capabilities:read`,
+      // `inference:invoke` and `user:read` (oxy#1350), and a token minted BY
+      // ATTESTATION was read back carrying exactly those three — so the scope
+      // behind the two capability endpoints Alia's tool catalogue is built from
+      // survives the removal. It is named here and nowhere else in this
+      // workflow: the step that used to inject it stopped, and a release renders
+      // from the RUNNING revision, so this list is the only thing that takes it
+      // off.
+      'OXY_SERVICE_API_KEY',
+      'OXY_SERVICE_API_SECRET',
     ]);
   });
 

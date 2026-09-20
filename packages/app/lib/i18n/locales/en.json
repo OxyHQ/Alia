@@ -1274,6 +1274,21 @@
     "untitled": "untitled",
     "dictationDiscard": "Discard dictation",
     "dictationStop": "Stop dictation",
-    "dictationSend": "Send dictated message"
+    "dictationSend": "Send dictated message",
+    "dropHint": "Drop files here to attach them",
+    "dropUnavailable": "Files can't be attached right now",
+    "readingFile": "Reading %{name}",
+    "readingFileProgress": "Reading %{name}: %{percent}%",
+    "readFailed": "%{name} could not be read — select to try again",
+    "cancelRead": "Stop reading %{name}",
+    "retryRead": "Try reading %{name} again",
+    "dismissFailed": "Discard %{name}",
+    "fileTooLarge": "%{name} is larger than %{limit} and was not attached",
+    "fileEmpty": "%{name} is empty — folders can't be attached",
+    "attachmentNotSent": "%{name} wasn't sent — Alia can only read images in a message for now",
+    "attachmentUnreadable": "%{name} couldn't be read and wasn't sent"
+  },
+  "panel": {
+    "resize": "Resize panel"
   }
 }
