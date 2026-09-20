@@ -24,16 +24,17 @@ they are in [§7](#7-what-was-tried-and-reverted), with their measurements.
 
 [The visual baseline](./visual-baseline.mdx) recorded the export as 48 chunks
 and 11,281,491 B of JS, of which `index-*.js` alone was 10,528,839. Re-measured
-here on the same commit:
+here, and then again on `main` at `e31f919a` after the attachments, panel-resize
+and perf-harness work landed:
 
-| | Baseline |
-| --- | --- |
-| JS chunks | 48 |
-| Total JS | 11,294,236 B |
-| `index-*.js` | 10,541,584 B (93.3%) |
-| The other 47 chunks | 752,652 B |
-| **JS fetched to render `/`** | **10,577,639 B** |
-| `dist/` as deployed | 21,797,718 B |
+| | At `ad6a8074` | `main` at `e31f919a` |
+| --- | ---: | ---: |
+| JS chunks | 48 | 48 |
+| Total JS | 11,294,236 B | 11,306,695 B |
+| `index-*.js` | 10,541,584 B (93.3%) | 10,554,043 B (93.3%) |
+| The other 47 chunks | 752,652 B | 752,652 B |
+| **JS fetched to render `/`** | **10,577,639 B** | **10,590,098 B** |
+| `dist/` as deployed | 21,797,718 B | 21,810,379 B |
 
 The last two rows are the ones that matter and neither was in the original
 record. "JS fetched to render `/`" is measured by serving the export and
@@ -41,6 +42,9 @@ recording what Chromium actually requests — `index-*.js` alone undercounts a
 split build, and overcounts a build whose entry is never all needed. `dist/` as
 deployed includes `canvaskit.wasm`, which `bun run build` copied in; see
 [§5](#5-eight-megabytes-of-wasm-nobody-fetched).
+
+Two weeks of feature work moved the entry chunk by 12,459 B, 0.1%. The shape
+below is what it was.
 
 ## 2. What was in it
 
@@ -140,10 +144,19 @@ whole library lands in the bundle whole:
 - `@expo/vector-icons/MaterialCommunityIcons` inlines a 7,448-entry
   name-to-codepoint map, for the two marks on `/download`.
 
+A fourth icon set is in the bundle that no app file asks for. `packages/app`
+imports `@oxy.so/bloom/icons` in **zero** files — Bloom 3.2.1 gives every glyph
+its own subpath and Alia never used the barrel — and 376,328 B of Remix icons
+are in `__common` anyway, because `@oxy.so/services`' root barrel reaches
+`FollowTargetButton`, which imports `@oxy.so/bloom/icons`, and
+`app/(app)/_layout.tsx` imports that root barrel. "We do not import the barrel"
+is not the same as "the barrel is not in the bundle"; only the emitted chunk
+settles it.
+
 ## 4. What changed, and by how much
 
-Each row is a separate commit, measured by re-exporting. "First-paint JS" is
-what Chromium fetches to render `/`.
+Each row is a separate commit, measured by re-exporting at `ad6a8074`.
+"First-paint JS" is what Chromium fetches to render `/`.
 
 | Change | `index-*.js` | First-paint JS |
 | --- | ---: | ---: |
@@ -157,9 +170,18 @@ what Chromium fetches to render `/`.
 6,352,444 B moved into an eagerly-loaded `__common` chunk. Read the right-hand
 column.
 
-**Total: 10,577,639 → 7,722,257 B of JS to first paint, −2,855,382 (−27.0%).**
-Plus 10,397,989 B of `canvaskit.wasm` off the deploy ([§5](#5-eight-megabytes-of-wasm-nobody-fetched)),
-for 21,797,718 → 11,399,729 B in `dist/` (−47.7%).
+Re-measured after merging `main` at `e31f919a`, which is what actually ships:
+
+| | `main` | This branch | Δ |
+| --- | ---: | ---: | ---: |
+| JS chunks | 48 | 100 | |
+| Total JS | 11,306,695 | 8,986,092 | −2,320,603 |
+| Eagerly loaded JS | 10,590,098 | 7,484,227 | −3,105,871 (−29.3%) |
+| **JS fetched to render `/`** | **10,590,098** | **7,735,549** | **−2,854,549 (−27.0%)** |
+| `dist/` as deployed | 21,810,379 | 11,413,223 | −10,397,156 (−47.7%) |
+
+The merge cost 2 more icons in the generated shim — `main` added composer
+attachment UI — and the test caught it, which is the guard working.
 
 ### 4.1 Icon barrel shims — −2,139,962 B
 
@@ -267,13 +289,20 @@ check-web-bundle: 100 chunks, no Skia — canvaskit.wasm is correctly absent.
 If a web path ever reaches Skia it names the chunk and tells you to put
 `setup-skia-web` back. The `setup-skia-web` script itself stays.
 
+One caveat for local checkouts: `public/canvaskit.wasm` is gitignored, so a
+deploy from a clean tree never has it — but a machine that ran
+`setup-skia-web` before (including via `visual:baseline --rebuild`) keeps the
+file, and `expo export` copies whatever is in `public/`. Delete it to see the
+real deployed size.
+
 `scripts/visual/capture.mjs` still copies the wasm for its own export; that
 harness belongs to another change and was not touched.
 
 ## 6. What is still eager, and why it could not be cut
 
-7,471,269 B still load before anything renders: a 1,115,151 B entry chunk and a
-6,352,564 B `__common`.
+7,484,227 B still load before anything renders: a 1,115,063 B entry chunk and a
+6,365,354 B `__common`. The attribution below is of the pre-merge export, whose
+`__common` was 6,352,564 B; the merge moved 12,790 B of it.
 
 The entry is the framework floor — `expo-router` 444,641, `react-native-web`
 308,033, `react-dom` 179,556 — 83.6% of it in three packages that first paint
