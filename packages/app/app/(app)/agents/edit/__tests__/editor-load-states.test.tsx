@@ -100,7 +100,7 @@ vi.mock('@/components/ui/switch', async () => {
   const ReactModule = await import('react');
   return { Switch: (props: Record<string, unknown>) => ReactModule.createElement('Switch', props) };
 });
-vi.mock('@/components/ui/label', async () => {
+vi.mock('@oxy.so/bloom/label', async () => {
   const ReactModule = await import('react');
   return {
     Label: ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
