@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Platform } from "react-native";
+import { Platform, View } from "react-native";
 import { useRouter } from "expo-router";
 import {
   Sparkles,
@@ -25,7 +25,7 @@ import {
   CommandSeparator,
   CommandShortcut,
 } from "@/components/ui/command";
-import { Kbd, KbdGroup } from "@/components/ui/kbd";
+import { Kbd } from "@oxy.so/bloom/kbd";
 import { useConversations } from "@/lib/hooks/use-conversations";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { useFavoritesStore } from "@/lib/stores/favorites-store";
@@ -148,7 +148,7 @@ export function CommandPalette() {
             <MessageSquarePlus size={16} />
             <span>New Chat</span>
             <CommandShortcut>
-              <KbdGroup><Kbd>⌘</Kbd><Kbd>⇧</Kbd><Kbd>N</Kbd></KbdGroup>
+              <View className="flex-row items-center gap-1"><Kbd>⌘</Kbd><Kbd>⇧</Kbd><Kbd>N</Kbd></View>
             </CommandShortcut>
           </CommandItem>
           <CommandItem onSelect={() => runCommand(() => router.push("/(app)/library"))}>
@@ -181,7 +181,7 @@ export function CommandPalette() {
             <Settings2 size={16} />
             <span>Settings</span>
             <CommandShortcut>
-              <KbdGroup><Kbd>⌘</Kbd><Kbd>,</Kbd></KbdGroup>
+              <View className="flex-row items-center gap-1"><Kbd>⌘</Kbd><Kbd>,</Kbd></View>
             </CommandShortcut>
           </CommandItem>
           <CommandItem onSelect={() => runCommand(() => router.push("/(app)/settings/usage"))}>
