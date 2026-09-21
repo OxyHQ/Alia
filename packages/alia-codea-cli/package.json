@@ -36,7 +36,7 @@
     "ink-text-input": "^6.0.0",
     "marked": "^18.0.6",
     "marked-terminal": "^7.3.0",
-    "openai": "^6.46.0",
+    "openai": "^7.18.0",
     "ora": "^9.4.1",
     "qrcode": "^1.5.4",
     "react": "19.2.0",

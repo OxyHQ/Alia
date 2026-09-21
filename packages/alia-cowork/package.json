@@ -44,7 +44,7 @@
     "dotenv": "^16.6.1",
     "electron-store": "^11.0.2",
     "lucide-react": "^0.563.0",
-    "openai": "^6.46.0",
+    "openai": "^7.18.0",
     "playwright": "^1.61.1",
     "radix-ui": "^1.6.2",
     "react": "19.2.0",
