@@ -15,7 +15,7 @@
   "dependencies": {
     "@oxy.so/core": "^1.7.0",
     "dockerode": "^4.0.12",
-    "express": "^4.22.2",
+    "express": "^5.2.1",
     "helmet": "^8.3.0",
     "cors": "^2.8.6",
     "zod": "^3.25.76",
