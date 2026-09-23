@@ -22,7 +22,7 @@
  *
  * The primitives replace the 20+ structured tools from agent-tools.ts:
  *
- *   browser   — Web search, navigation, screenshots                grant: browser
+ *   browser   — Web search and page reading, through Clarity         grant: browser
  *   plan      — Task planning + completion signal                  ungranted
  *   delegate  — Hire specialist agents                             grant: delegation
  *
@@ -51,7 +51,7 @@
 import { tool, type ToolSet } from 'ai';
 import { z } from 'zod';
 import type { CapabilityGrantSet } from '../../domain/capability-grants.js';
-import { BrowserSession } from './browser-session.js';
+import { BROWSER_ACTIONS, BrowserSession } from './browser-session.js';
 import { TodoManager } from './todo-manager.js';
 import { log } from '../logger.js';
 import { getErrorMessage } from '../errors/index.js';
@@ -99,19 +99,21 @@ export function buildRuntimeTools(
 
   const actions: ToolSet = {};
 
-  // ── browser — Web search, navigation, screenshots ──
+  // ── browser — Web search and page reading, through Clarity ──
+  //
+  // Clarity-only: there is no local Chromium in the runtime image, so the
+  // screenshot/click/type/scroll/back actions that needed one are gone rather
+  // than offered and failing. See `browser-session.ts`.
 
   if (!options.protocolOnly && grants.allows('browser')) actions.browser = tool({
-    description: 'Interact with a web browser. Use for web research, reading pages, and interactive browsing. Actions: search (web search), goto (navigate to URL), get_text (extract page text), screenshot (capture page), click (click element), type (fill input), scroll_down, scroll_up, back, wait.',
+    description: 'Research the web. Actions: search (search the web for a query), goto (read the main text of a public URL and make it the current page), get_text (read the current page again). Pages are read as extracted text; there is no clicking, typing or screenshots.',
     inputSchema: z.object({
-      action: z.enum(['goto', 'click', 'type', 'scroll_down', 'scroll_up', 'screenshot', 'get_text', 'search', 'back', 'wait']),
+      action: z.enum(BROWSER_ACTIONS),
       url: z.string().optional().describe('URL for goto action'),
-      selector: z.string().optional().describe('Element selector or description for click/type'),
-      text: z.string().optional().describe('Text to type (type action)'),
       query: z.string().optional().describe('Search query (search action)'),
     }),
-    execute: async ({ action, url, selector, text, query }) => {
-      const result = await browserSession.execute(action, { url, selector, text, query });
+    execute: async ({ action, url, query }) => {
+      const result = await browserSession.execute(action, { url, query });
 
       // Track sources from browser navigation and content extraction
       if (eventStream && (action === 'goto' || action === 'get_text') && url) {

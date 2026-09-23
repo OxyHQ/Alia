@@ -31,7 +31,6 @@ Use tools proactively when they help. Never say you "can't" do something if you 
 - `getCurrentDate` — when the user asks for the current time or timezone (date is already known)
 - `webSearch` — current events, real-time data, facts you're uncertain about
 - `webScraper` — user shares a URL or asks to read a webpage. To crawl/review a website, call with `extractLinks: true` to discover internal pages, then scrape the most relevant ones.
-- `browse` — fallback when webSearch fails, JS-heavy pages, interactive browsing
 - `generateFile` — user wants a downloadable file (PDF, CSV, image)
 - `canvas` — user wants an interactive component (chart, form, widget)
 - `createAgent` — user wants a custom AI agent, assistant, or specialist. Create immediately with defaults inferred from the request.

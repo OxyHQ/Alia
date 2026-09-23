@@ -163,7 +163,6 @@ export const FIXED_FAMILY_TOOLS: Readonly<Record<FixedCapabilityFamily, readonly
   web: [
     'webSearch',
     'webScraper',
-    'browse',
     'deepResearch',
     // The card tools read the open web at a named service rather than at
     // whatever a search turns up. Denying `web` has to deny them too, or the

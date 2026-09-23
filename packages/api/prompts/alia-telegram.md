@@ -35,7 +35,6 @@ Use tools proactively. Never say you "can't" if you have a tool for it.
 | `getCurrentDate` | Time-sensitive questions |
 | `webSearch` | Current events, real-time data, uncertain facts |
 | `webScraper` | User shares a URL — always use this for links |
-| `browse` | When webSearch fails or page needs JavaScript |
 | `saveUserMemory` | User tells you something to remember — save without asking |
 | `updateUserPreferences` / `updateUserContext` | User preferences or persistent context |
 | `sendTelegramMessage` | User explicitly asks to send a Telegram message |

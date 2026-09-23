@@ -24,7 +24,7 @@
  * The collapse is a UNION, not an intersection. A capability that existed on
  * any path exists on all of them now, and what still differs does so because it
  * has a structural precondition — an SSE emitter to push events through, a live
- * container and browser to act on, a device to describe — never because of
+ * session and plan to act on, a device to describe — never because of
  * which function happened to build the set.
  *
  * ## The agent is an INPUT, and its GRANTS are what partition the set
@@ -58,7 +58,6 @@ import type { ToolSet } from 'ai';
 import {
   getCurrentDateTool,
   webSearchTool,
-  browseTool,
   webScraperTool,
   generateFileTool,
   saveUserMemoryTool,
@@ -375,16 +374,20 @@ export class ToolPipeline {
     /**
      * The web reaches this turn only if it was asked for.
      *
-     * These three were unconditional, and the composer's "Web search" switch
+     * These were unconditional, and the composer's "Web search" switch
      * toggled a local `Set` that reached no request field and no backend read —
      * so the switch was meaningless in both directions at once: it could not
      * enable searching (already on) and could not disable it (no flag). The
      * flag exists now and this is what it does.
+     *
+     * There is no `browse` beside them any more. It drove a local Chromium the
+     * runtime image does not ship, so it failed at launch in production; a
+     * Clarity-backed rewrite would have been `webSearch` plus `webScraper` under
+     * a third name.
      */
     if (webSearch && grants.allows('web')) {
       aliaTools.webSearch = webSearchTool;
       aliaTools.webScraper = webScraperTool;
-      aliaTools.browse = browseTool;
       // The card tools ride the same grant: each one is the assistant reaching
       // the open internet on the reader's behalf, just at a named service
       // rather than at whatever a search turns up.

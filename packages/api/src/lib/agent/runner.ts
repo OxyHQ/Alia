@@ -5,7 +5,7 @@
  *   - Up to 3 action primitives (browser, plan, delegate), partitioned by the
  *     agent's capability grants — see `actionLines`. There is no shell or
  *     workspace filesystem: the sandbox they needed never existed in production
- *   - Real browser with screenshots (Playwright/Stagehand)
+ *   - Web research through Clarity (search and page text; no local browser)
  *   - Stable tool context across iterations (KV-cache optimized): the set is
  *     fixed for the whole run, because a grant is a stored property of the
  *     agent and cannot change between steps
@@ -59,9 +59,6 @@ import {
   markAutomationRunForSession,
 } from '../../db/automation/automationDefinitionRepository.js';
 
-/** Regex to detect browser-related tasks for pre-initialization */
-const BROWSER_HINT_RE = /\b(browse|browser|website|web page|screenshot|http|https|www\.|\.com|\.org|url|navigate|click|open site)\b/i;
-
 /** Continuation prompts — varied to prevent brittle pattern mimicry */
 const CONTINUATION_PROMPTS = [
   'Continue working on the task.',
@@ -87,7 +84,7 @@ function actionLines(agent: HydratedAgent): string {
   const grants = readCapabilityGrants(agent.capabilityGrants);
   const lines: string[] = [];
   if (grants.allows('browser')) {
-    lines.push('**browser** — Interact with a web browser. Navigate to URLs, search the web, click elements, fill forms, take screenshots. Use for web research and testing.');
+    lines.push("**browser** — Research the web: search for a query, read a public URL's main text with goto, and read the current page again with get_text. Pages come back as extracted text; you cannot click, type or take screenshots.");
   }
   lines.push("**plan** — Create and update your task plan, or signal completion. Your plan persists as a checklist. Update it as you make progress. Call plan(action='complete', result='...') when done.");
   if (grants.allows('delegation')) {
@@ -147,7 +144,6 @@ function buildContextMessages(
   todoManager: TodoManager,
   stateMachine: AgentStateMachine,
   iteration: number,
-  screenshotBase64?: string | null,
 ): ModelMessage[] {
   const messages: ModelMessage[] = [];
 
@@ -179,19 +175,7 @@ function buildContextMessages(
   const continuationPrompt = CONTINUATION_PROMPTS[iteration % CONTINUATION_PROMPTS.length];
   const tailContent = tailParts.length > 0 ? tailParts.join('\n\n') + '\n\n' : '';
 
-  // 5. Include browser screenshot as vision content if available
-  if (screenshotBase64) {
-    messages.push({
-      role: 'user',
-      content: [
-        { type: 'text', text: tailContent + continuationPrompt },
-        { type: 'image', image: screenshotBase64, mediaType: 'image/png' },
-        { type: 'text', text: '[This is a screenshot of the current browser page. Use it to understand what you see and decide your next action.]' },
-      ],
-    });
-  } else {
-    messages.push({ role: 'user', content: tailContent + continuationPrompt });
-  }
+  messages.push({ role: 'user', content: tailContent + continuationPrompt });
 
   return messages;
 }
@@ -243,12 +227,7 @@ export async function runAgentSession(sessionId: string): Promise<void> {
   const eventStream = new EventStream({ agentId, sessionId });
   const stateMachine = new AgentStateMachine();
   const todoManager = new TodoManager();
-  const browserSession = new BrowserSession({ agentId, sessionId });
-
-  // Pre-initialize browser if the task likely needs it (saves 5-15s cold start)
-  if (BROWSER_HINT_RE.test(session.task)) {
-    browserSession.preInit();
-  }
+  const browserSession = new BrowserSession();
 
   // Restore event stream and plan if resuming
   await eventStream.loadFromDB();
@@ -434,7 +413,6 @@ export async function runAgentSession(sessionId: string): Promise<void> {
           },
         });
 
-        await browserSession.close();
         return;
       }
       eventStream.append('system_message', 'Single subtask — falling back to standard execution');
@@ -505,10 +483,9 @@ export async function runAgentSession(sessionId: string): Promise<void> {
       const model = getAIModel(activeResolved, 'agent_run');
       const startMs = Date.now();
 
-      // Build context (stable prefix + event stream + todo/state tail + browser screenshot)
+      // Build context (stable prefix + event stream + todo/state tail)
       const messages = buildContextMessages(
         systemPrompt, eventStream, todoManager, stateMachine, iteration,
-        browserSession.consumeLastScreenshot(),
       );
 
       try {
@@ -706,12 +683,9 @@ export async function runAgentSession(sessionId: string): Promise<void> {
      */
     let finalStatus: 'completed' | 'cancelled' | undefined;
     if (machineState === 'CANCELLED') {
-      await browserSession.close().catch(() => {});
       finalStatus = 'cancelled';
       sessionResult = sessionResult || 'Session cancelled';
     } else {
-      await browserSession.close();
-
       if (taskCompleted) {
         finalStatus = 'completed';
         sessionResult = taskResult;
@@ -776,9 +750,6 @@ export async function runAgentSession(sessionId: string): Promise<void> {
 
   } catch (err: unknown) {
     log.agents.error({ err, sessionId }, 'Agent session failed');
-
-    // Cleanup resources
-    await browserSession.close().catch(() => {});
 
     // Refund credits on failure
     if (session.creditReservation) {

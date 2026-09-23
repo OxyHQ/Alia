@@ -19,7 +19,7 @@ Tools live in `packages/api/src/lib/tools/` and self-register through `registry.
 | Category | Tools |
 |----------|-------|
 | Utility | `getCurrentDate`, `getDeviceInfo`, `switchModel` |
-| Research | `webSearch`, `webScraper`, `browse`, `deepResearch` |
+| Research | `webSearch`, `webScraper`, `deepResearch` |
 | Memory | `saveUserMemory`, `updateUserPreferences`, `updateUserContext` |
 | Generation | `generateFile`, `canvas` |
 | Agents | `searchAgents`, `delegateToAgent`, `orchestrateAgents`, `createAgent`, `delegateSubtask` |
@@ -80,7 +80,7 @@ resource, actor, account, run, step and tool.
 | `accounts/gmail/` | Gmail | IMAP / Gmail API sync |
 | `bots/telegram-bot/` | Telegram bot | Bot API bridge |
 | `bots/discord-bot/` | Discord | Bot user that mirrors guild channels |
-| `browser/` | Headless browser | Used by `browse` and `webScraper` tools |
+| `browser/` | Headless browser | Channel bridge only; the API's web tools read pages through Clarity |
 | `terminal/` | Terminal sessions | Used by Codea CLI for shell access |
 | `realtime/` | Realtime audio | Voice-tier model bridge |
 

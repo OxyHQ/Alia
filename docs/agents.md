@@ -80,7 +80,7 @@ holds a provider credential. Their core cross-service bindings are:
 The last column is `capability_grants`, and it is published in the same hashed
 manifest as the ids beside it rather than decided in Alia alone — a grant is
 what the agent may DO, so widening one is a change both repositories merge.
-Sindi reads and answers: `web` (search, scraping, browsing, deep research and
+Sindi reads and answers: `web` (search, page reading, deep research and
 the weather/quote/FairCoin cards), `artifacts` (canvas, generated files) and
 `memory` (saving and searching what the person has already said). It has no
 `browser`, `messaging`, `automation` or `delegation`, and no
@@ -335,6 +335,14 @@ echoed one instead of refusing the whole save, the reader ignores them, and
 migration 0071 (post phase) removed them from `agents.capability_grants`. An
 agent has no shell and no workspace filesystem; `plan` keeps its checklist on
 the session row.
+
+`browser` is **Clarity-only**. The runtime image ships no Chromium, so the
+runner's `browser` primitive offers exactly what works without one: `search`,
+`goto` (read a public URL's extracted text) and `get_text`, each behind
+`validateUrl`. Screenshot, click, type, scroll and back are gone with the
+Stagehand/Playwright fallback, and so is the chat tool `browse`, which launched
+Chromium and, rebuilt on Clarity, would only have been `webSearch` plus
+`webScraper` under a third name.
 
 Two properties are worth stating outright, because both reverse what came before:
 

@@ -27,7 +27,6 @@ export { createSuggestNewConversationTool } from './suggest-new-conversation.js'
 export { createSendTelegramTool } from './telegram.js';
 export { createGetWhatsAppChatsTool, createGetWhatsAppMessagesTool, createSendWhatsAppMessageTool } from './whatsapp.js';
 export { webScraperTool } from './web-scraper.js';
-export { browseTool } from './browse.js';
 export { generateFileTool } from './file-generator.js';
 export { createSearchAgentsTool } from './agent-search.js';
 export { createDelegateToAgentTool } from './agent-delegate.js';

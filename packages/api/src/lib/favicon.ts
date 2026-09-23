@@ -37,7 +37,7 @@
  * `lookup`, which means taking `undici` as a direct dependency of this service
  * for one route; the exposure that remains is a GET, with no credential, whose
  * body is only returned when it is an image under {@link MAX_ICON_BYTES}.
- * `lib/tools/sandbox.ts` — the guard `browse` and `webScraper` use — does not
+ * `lib/tools/sandbox.ts` — the guard `browser` and `webScraper` use — does not
  * resolve at all, so it does not close it either.
  *
  * ## Why the cache is a map in this process

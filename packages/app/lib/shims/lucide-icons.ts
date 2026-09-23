@@ -101,7 +101,6 @@ export { default as MessageCircle } from 'lucide-react-native/icons/message-circ
 export { default as MessageCircleQuestion } from 'lucide-react-native/icons/message-circle-question-mark';
 export { default as MessageSquare } from 'lucide-react-native/icons/message-square';
 export { default as Mic } from 'lucide-react-native/icons/mic';
-export { default as Monitor } from 'lucide-react-native/icons/monitor';
 export { default as MoreHorizontal } from 'lucide-react-native/icons/ellipsis';
 export { default as Music } from 'lucide-react-native/icons/music';
 export { default as Newspaper } from 'lucide-react-native/icons/newspaper';

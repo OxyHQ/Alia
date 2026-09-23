@@ -7,7 +7,7 @@ import { log } from './logger.js';
  * Whether a hostname is one this service will reach, and a client that connects
  * only to the addresses that answered yes.
  *
- * Alia fetches URLs it did not choose. `webScraper` and `browse` take whatever
+ * Alia fetches URLs it did not choose. `webScraper` and `browser` take whatever
  * the model produces — which is shaped by search results and by what the person
  * typed — and the favicon route takes a domain out of a message. Every one of
  * those requests leaves from inside the VPC, where `169.254.169.254` and every
@@ -25,7 +25,8 @@ import { log } from './logger.js';
  * somewhere else. {@link publicOnlyAgent} closes it by doing the check INSIDE
  * the lookup, so the addresses that were judged are the addresses connected to.
  * A caller that does not use the agent still gets the name check, and still has
- * that window — `browse` drives a real browser, which resolves on its own.
+ * that window — Clarity fetches for `webScraper` and `browser`, and resolves on
+ * its own.
  */
 
 export type HostVerdict = 'ok' | 'refused' | 'unresolvable';

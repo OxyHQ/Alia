@@ -9,7 +9,7 @@ import { validateUrl } from './sandbox.js';
 const MAX_CONTENT_CHARS = 8_000;
 
 export const webScraperTool = tool({
-  description: 'Read the indexed main content and citation metadata for a public web page. Clarity performs safe fetching and extraction; use browse only when Clarity cannot represent an interactive page.',
+  description: 'Read the indexed main content and citation metadata for a public web page. Clarity performs safe fetching and extraction. Pages that only render with JavaScript or need interaction may not be readable.',
   inputSchema: z.object({
     url: z.string().url().describe('The public URL to read'),
     extractLinks: z.boolean().optional().default(false).describe(
