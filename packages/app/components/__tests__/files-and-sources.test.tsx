@@ -3,7 +3,9 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 /**
- * The "Files and sources" sections of the execution panel (#544).
+ * The "Files and sources" sections of the execution panel (#544): two Bloom
+ * accordion sections of `Item` rows, stubbed at Bloom's boundary
+ * (`panel-bloom-stubs.tsx`).
  *
  * Pinned: an output is listed by its full name — truncated on screen, whole
  * for assistive tech — and is a control only when something can open it; a
@@ -32,27 +34,13 @@ vi.mock('react-native', async () => {
   };
 });
 
-vi.mock('lucide-react-native', async () => {
-  const ReactModule = await import('react');
-  const icon = (name: string) => (props: Record<string, unknown>) =>
-    ReactModule.createElement(name, props);
-  return {
-    ChevronRight: icon('ChevronRight'),
-    FileText: icon('FileText'),
-    Globe: icon('Globe'),
-  };
-});
+vi.mock('@oxy.so/bloom/accordion', async () => (await import('./panel-bloom-stubs')).accordionModule());
+vi.mock('@oxy.so/bloom/item', async () => (await import('./panel-bloom-stubs')).itemModule());
+vi.mock('@oxy.so/bloom/empty-state', async () => (await import('./panel-bloom-stubs')).emptyStateModule());
+vi.mock('@oxy.so/bloom/theme', async () => (await import('./panel-bloom-stubs')).themeModule());
+vi.mock('@oxy.so/bloom/icons/RiFileTextLine', async () => (await import('./panel-bloom-stubs')).iconModule('RiFileTextLine'));
+vi.mock('@oxy.so/bloom/icons/RiGlobalLine', async () => (await import('./panel-bloom-stubs')).iconModule('RiGlobalLine'));
 
-vi.mock('@oxy.so/bloom/typography', async () => {
-  const ReactModule = await import('react');
-  return {
-    Text: ({
-      children,
-      ...props
-    }: React.PropsWithChildren<Record<string, unknown>>) =>
-      ReactModule.createElement('Text', props, children),
-  };
-});
 
 vi.mock('@/lib/hooks/use-translation', () => ({
   useTranslation: () => ({

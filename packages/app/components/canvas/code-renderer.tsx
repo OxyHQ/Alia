@@ -1,3 +1,4 @@
+import { useTranslation } from '@/lib/hooks/use-translation';
 import { CodeBlock } from '@oxy.so/bloom/code';
 import * as Clipboard from 'expo-clipboard';
 
@@ -14,12 +15,14 @@ export function CodeRenderer({
   data: CodeData;
   filename?: string;
 }) {
+  const { t } = useTranslation();
   return (
     <CodeBlock
       code={data.code}
       language={data.language}
       filename={filename}
       onCopy={async (code) => { await Clipboard.setStringAsync(code); }}
+      labels={{ copy: t('panels.code.copy'), copied: t('panels.code.copied') }}
     />
   );
 }

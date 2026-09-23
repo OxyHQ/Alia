@@ -1,8 +1,6 @@
 import { FilesAndSources } from '@/components/execution/files-and-sources';
 import { restoreOpenerFocus } from '@/components/execution/focus-return';
-import { REF } from '@/components/execution/tokens';
 import { ToolStep } from '@/components/execution/tool-step';
-import { Loading } from '@oxy.so/bloom/loading';
 import type { Message } from '@/lib/hooks/use-conversations';
 import { useTranslation } from '@/lib/hooks/use-translation';
 import { useUIStore, type ThoughtTab } from '@/lib/stores/ui-store';
@@ -24,31 +22,28 @@ import {
   type TurnLifecycle,
 } from '@/lib/thought-utils';
 import { getToolIcon } from '@/lib/tool-registry';
-import { cn } from '@/lib/utils';
+import {
+  AgentLogRow,
+  AgentLogShimmerText,
+  AgentLogWorkingRow,
+  useAgentLogMotion,
+} from '@oxy.so/bloom/agent-log';
 import { useAiChatShell } from '@oxy.so/bloom/ai-chat';
 import { Button } from '@oxy.so/bloom/button';
+import { EmptyState } from '@oxy.so/bloom/empty-state';
+import { RiCheckboxCircleLine } from '@oxy.so/bloom/icons/RiCheckboxCircleLine';
+import { RiCloseCircleLine } from '@oxy.so/bloom/icons/RiCloseCircleLine';
+import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
+import { RiForbidLine } from '@oxy.so/bloom/icons/RiForbidLine';
+import { RiTimeLine } from '@oxy.so/bloom/icons/RiTimeLine';
+import { Loading } from '@oxy.so/bloom/loading';
 import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
-import { useTheme, type ThemeColors } from '@oxy.so/bloom/theme';
-import { Text } from '@oxy.so/bloom/typography';
+import { useTheme } from '@oxy.so/bloom/theme';
+import { Muted, Text } from '@oxy.so/bloom/typography';
 import * as WebBrowser from 'expo-web-browser';
-import {
-  Ban,
-  Brain,
-  CheckCircle2,
-  Clock,
-  Globe,
-  X,
-  XCircle,
-} from 'lucide-react-native';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Platform, ScrollView, View } from 'react-native';
-import Animated, {
-  useAnimatedStyle,
-  useSharedValue,
-  withRepeat,
-  withSequence,
-  withTiming,
-} from 'react-native-reanimated';
+
 /** One array for "nothing selected", so the memos below hold across renders. */
 const NO_MESSAGES: Message[] = [];
 
@@ -79,32 +74,6 @@ function TabToggle({
   );
 }
 
-function PulsingDot({ color }: { color: string }) {
-  const opacity = useSharedValue(1);
-
-  useEffect(() => {
-    opacity.value = withRepeat(
-      withSequence(
-        withTiming(0.3, { duration: 800 }),
-        withTiming(1, { duration: 800 }),
-      ),
-      -1,
-      false,
-    );
-  }, []);
-
-  const style = useAnimatedStyle(() => ({ opacity: opacity.value }));
-
-  return (
-    <Animated.View
-      style={[
-        { width: 8, height: 8, borderRadius: 4, backgroundColor: color },
-        style,
-      ]}
-    />
-  );
-}
-
 /**
  * The panel's own wording for every step that is not a tool. Tool steps keep
  * the label the registry gave them; these are lifecycle words, and they are
@@ -125,67 +94,37 @@ type PhaseStep = Omit<ThoughtStep, 'type'> & {
   type: Exclude<ThoughtStep['type'], 'tool'>;
 };
 
-/** The icon of a phase step. */
-function PhaseIcon({ step, isActive }: { step: PhaseStep; isActive: boolean }) {
+/** The glyph of a pause or an ending; a phase that is working has none — the log's own shimmer says so. */
+function PhaseIcon({ type }: { type: PhaseStep['type'] }) {
   const { colors } = useTheme();
-  if (step.type === 'thinking') {
-    if (isActive) return <PulsingDot color="#a855f7" />;
-    return <Brain size={14} color="#a855f7" />;
-  }
-  if (step.type === 'writing') {
-    return <PulsingDot color={colors.primary} />;
-  }
-  if (step.type === 'waiting') {
-    return <Clock size={14} color={colors.warning} />;
-  }
-  if (step.type === 'done') {
-    return <CheckCircle2 size={14} color={colors.success} />;
-  }
-  if (step.type === 'failed') {
-    return <XCircle size={14} color={colors.error} />;
-  }
-  return <Ban size={14} className="text-muted-foreground" />;
+  if (type === 'waiting') return <RiTimeLine size="sm" fill={colors.warning} />;
+  if (type === 'done') return <RiCheckboxCircleLine size="sm" fill={colors.success} />;
+  if (type === 'failed') return <RiCloseCircleLine size="sm" fill={colors.error} />;
+  if (type === 'cancelled') return <RiForbidLine size="sm" fill={colors.textSecondary} />;
+  return null;
 }
 
-/**
- * A phase or ending, in the same 20px-column row as a tool step so the list
- * reads as one timeline. Not a control: there is nothing to expand.
- */
+/** A phase or ending as one line of the log. Not a control: there is nothing to expand. */
 function PhaseRow({ step, isActive }: { step: PhaseStep; isActive: boolean }) {
   const { t } = useTranslation();
   const label = t(STEP_LABEL_KEYS[step.type]);
+  const ending = step.type === 'done' || step.type === 'failed';
   return (
-    <View
-      className="flex-row items-center py-1"
-      accessible
-      accessibilityLabel={label}
-    >
-      <View className="w-[20px] shrink-0 items-center justify-center">
-        <PhaseIcon step={step} isActive={isActive} />
-      </View>
-      <View className="min-w-0 flex-1 px-2.5">
-        <Text
-          className={cn(
-            'text-sm leading-5',
-            step.type === 'done'
-              ? 'text-green-500 font-medium'
-              : step.type === 'failed'
-                ? 'text-red-500 font-medium'
-                : isActive
-                  ? 'text-foreground font-medium'
-                  : REF.textTertiary,
-          )}
-        >
-          {label}
-        </Text>
-      </View>
+    <View className="flex-row items-center gap-1.5 py-1" accessible accessibilityLabel={label}>
+      <PhaseIcon type={step.type} />
+      <Text variant={ending ? 'body-medium' : 'body-regular'}>
+        {isActive ? <AgentLogShimmerText>{label}</AgentLogShimmerText> : label}
+      </Text>
     </View>
   );
 }
 
 /**
- * The turn's steps as execution rows: each tool call in a `ToolStep` whose
- * input and output open in place, the phases and the ending as plain rows.
+ * The turn's steps as Bloom's agent log: each tool call a `ToolStep` whose
+ * input and output open in place, the phases and the ending as plain lines,
+ * and — while the turn is thinking or writing — the log's working row at the
+ * tail. Rows land as the runtime reports them, so the log is driven by real
+ * events rather than a ticker.
  *
  * A tool step spins on ITS OWN state while the turn runs — not on being last
  * — so a finished tool after it cannot hide that it is still going, and a
@@ -199,157 +138,88 @@ function StepsTab({
   lifecycle: TurnLifecycle;
 }) {
   const { t } = useTranslation();
+  const reduce = useAgentLogMotion();
   const live = isLiveLifecycle(lifecycle);
   const [openRows, setOpenRows] = useState<Record<string, boolean>>({});
 
   if (steps.length === 0) {
-    return (
-      <View className="items-center justify-center py-8">
-        <Text className="text-sm text-muted-foreground">
-          {t('thought.noSteps')}
-        </Text>
-      </View>
-    );
+    return <EmptyState variant="compact" description={t('thought.noSteps')} />;
   }
 
+  const last = steps[steps.length - 1];
+  const tail = live && (last.type === 'thinking' || last.type === 'writing') ? last : null;
+  const rows = tail === null ? steps : steps.slice(0, -1);
+
   return (
-    <View className="gap-0">
-      {steps.map((step, index) => {
-        const isLast = index === steps.length - 1;
-        const isActive = live && isLast;
-        if (step.type !== 'tool') {
+    <View>
+      <View role="list">
+        {rows.map((step, index) => {
+          const first = index === 0;
+          const isLastRow = index === rows.length - 1;
+          if (step.type !== 'tool') {
+            return (
+              <AgentLogRow key={`${step.type}-${index}`} first={first} last={isLastRow} reduce={reduce}>
+                <PhaseRow step={{ ...step, type: step.type }} isActive={live && isLastRow && tail === null} />
+              </AgentLogRow>
+            );
+          }
+          const inv = step.invocation;
+          const key = inv?.toolCallId || `tool-${index}`;
+          const ToolIcon = getToolIcon(step.toolName || '');
+          const status =
+            inv === undefined ? (live ? 'running' : 'done') : toolCallStatus(inv, live);
           return (
-            <PhaseRow
-              key={`${step.type}-${index}`}
-              step={{ ...step, type: step.type }}
-              isActive={isActive}
-            />
-          );
-        }
-        const inv = step.invocation;
-        const key = inv?.toolCallId || `tool-${index}`;
-        const ToolIcon = getToolIcon(step.toolName || '');
-        const status =
-          inv === undefined
-            ? live
-              ? 'running'
-              : 'done'
-            : toolCallStatus(inv, live);
-        return (
-          <ToolStep
-            key={key}
-            title={step.label}
-            status={status}
-            icon={
-              <ToolIcon
-                size={14}
-                className={
-                  status === 'error' ? 'text-destructive' : 'text-foreground'
+            <AgentLogRow key={key} first={first} last={isLastRow} reduce={reduce}>
+              <ToolStep
+                title={step.label}
+                status={status}
+                icon={
+                  <ToolIcon
+                    size={14}
+                    className={status === 'error' ? 'text-destructive' : 'text-foreground'}
+                  />
                 }
+                input={inv === undefined ? '' : toolCallText(inv.args)}
+                output={inv === undefined ? '' : toolCallText(inv.result)}
+                sources={step.sources}
+                expanded={openRows[key] === true}
+                onToggle={() => setOpenRows((open) => ({ ...open, [key]: open[key] !== true }))}
               />
-            }
-            input={inv === undefined ? '' : toolCallText(inv.args)}
-            output={inv === undefined ? '' : toolCallText(inv.result)}
-            sources={step.sources}
-            expanded={openRows[key] === true}
-            onToggle={() =>
-              setOpenRows((rows) => ({ ...rows, [key]: rows[key] !== true }))
-            }
-          />
-        );
-      })}
+            </AgentLogRow>
+          );
+        })}
+      </View>
+      {tail === null ? null : (
+        <AgentLogWorkingRow label={t(STEP_LABEL_KEYS[tail.type as PhaseStep['type']])} reduce={reduce} />
+      )}
     </View>
   );
 }
 
-function AuditIcon({
-  entry,
-  colors,
-}: {
-  entry: AuditEntry;
-  colors: ThemeColors;
-}) {
-  if (entry.type === 'tool_call' && entry.toolName) {
-    const Icon = getToolIcon(entry.toolName);
-    return <Icon size={12} className="text-foreground" />;
-  }
-  if (entry.type === 'research_phase')
-    return <Brain size={12} color="#8b5cf6" />;
-  if (entry.type === 'agent_delegation')
-    return <Brain size={12} color="#f97316" />;
-  if (entry.type === 'plan_approved')
-    return <CheckCircle2 size={12} color={colors.success} />;
-  if (entry.type === 'artifact_generated')
-    return <CheckCircle2 size={12} color={colors.info} />;
-  return <Globe size={12} className="text-muted-foreground" />;
-}
-
+/** The conversation's audit trail as one agent log, oldest first. */
 function ActivityTab({ entries }: { entries: AuditEntry[] }) {
-  const { colors } = useTheme();
   const { t } = useTranslation();
+  const { colors } = useTheme();
+  const reduce = useAgentLogMotion();
   if (entries.length === 0) {
-    return (
-      <View className="items-center justify-center py-8">
-        <Text className="text-sm text-muted-foreground">
-          {t('thought.noActivity')}
-        </Text>
-      </View>
-    );
+    return <EmptyState variant="compact" description={t('thought.noActivity')} />;
   }
 
   return (
-    <View className="gap-0">
-      {entries.map((entry, index) => {
-        const isLast = index === entries.length - 1;
-        return (
-          <View key={entry.id} className="flex-row">
-            {/* Timeline column */}
-            <View className="items-center" style={{ width: 24 }}>
-              <View className="h-3" />
-              <View
-                className="items-center justify-center"
-                style={{ width: 20, height: 20 }}
-              >
-                {entry.status === 'in_progress' ? (
-                  <PulsingDot color={colors.warning} />
-                ) : entry.status === 'interrupted' ? (
-                  <Ban size={12} className="text-muted-foreground" />
-                ) : (
-                  <AuditIcon entry={entry} colors={colors} />
-                )}
-              </View>
-              {!isLast && (
-                <View
-                  className="flex-1 border-l border-border"
-                  style={{ minHeight: 16 }}
-                />
-              )}
-            </View>
-
-            {/* Content */}
-            <View className="flex-1 pl-2 pb-3" style={{ paddingTop: 12 }}>
-              <Text
-                className={`text-sm ${
-                  entry.status === 'in_progress'
-                    ? 'text-foreground font-medium'
-                    : 'text-muted-foreground'
-                }`}
-                numberOfLines={1}
-              >
-                {entry.label}
+    <View role="list">
+      {entries.map((entry, index) => (
+        <AgentLogRow key={entry.id} first={index === 0} last={index === entries.length - 1} reduce={reduce}>
+          <View className="py-1">
+            <View className="flex-row items-center gap-1.5">
+              {entry.status === 'interrupted' ? <RiForbidLine size="xs" fill={colors.textSecondary} /> : null}
+              <Text variant="body-regular" numberOfLines={1}>
+                {entry.status === 'in_progress' ? <AgentLogShimmerText>{entry.label}</AgentLogShimmerText> : entry.label}
               </Text>
-              {entry.description ? (
-                <Text
-                  className="text-xs text-muted-foreground mt-0.5"
-                  numberOfLines={1}
-                >
-                  {entry.description}
-                </Text>
-              ) : null}
             </View>
+            {entry.description ? <Muted numberOfLines={1}>{entry.description}</Muted> : null}
           </View>
-        );
-      })}
+        </AgentLogRow>
+      ))}
     </View>
   );
 }
@@ -359,7 +229,7 @@ function ActivityTab({ entries }: { entries: AuditEntry[] }) {
  * in place of the tabs' content so the three tabs never each say "none" about
  * a message whose data has simply not arrived.
  */
-function EmptyState({ status }: { status: 'loading' | 'failed' | 'gone' }) {
+function SelectionState({ status }: { status: 'loading' | 'failed' | 'gone' }) {
   const { t } = useTranslation();
   const key =
     status === 'loading'
@@ -368,10 +238,11 @@ function EmptyState({ status }: { status: 'loading' | 'failed' | 'gone' }) {
         ? 'thought.loadFailed'
         : 'thought.messageGone';
   return (
-    <View className="items-center justify-center py-8">
-      {status === 'loading' ? <Loading size="sm" iconSize={24} /> : null}
-      <Text className="text-sm text-muted-foreground">{t(key)}</Text>
-    </View>
+    <EmptyState
+      variant="compact"
+      illustration={status === 'loading' ? <Loading size="sm" iconSize={24} /> : undefined}
+      description={t(key)}
+    />
   );
 }
 
@@ -387,10 +258,9 @@ function openSource(source: Source): void {
 /**
  * The execution panel: what the selected turn did, produced and read.
  *
- * It renders inside `ExecutionSurface`, which draws the aside's chrome — the
- * `rounded-3xl border` of the reference — and decides between the desktop
- * rail and the in-viewport popover; this component is the aside's content
- * and sizes to it. Closing hands focus back to whatever opened it.
+ * It fills the workspace panel's slot (`WorkspacePanel`, opened with
+ * `useUIStore().openThoughtPanel`); closing hands focus back to whatever
+ * opened it.
  *
  * Everything shown comes from the selection's own scope and the lifecycle the
  * runtime stamps (#542, #543): a message not yet loaded is "loading", a load
@@ -503,7 +373,7 @@ export function ThoughtPanel() {
 
   const content =
     emptyState !== null ? (
-      <EmptyState status={emptyState} />
+      <SelectionState status={emptyState} />
     ) : activeTab === 'steps' ? (
       <StepsTab steps={steps} lifecycle={lifecycle} />
     ) : activeTab === 'sources' ? (
@@ -518,16 +388,9 @@ export function ThoughtPanel() {
     );
 
   return (
-    <View style={{ flex: 1, minHeight: 0, gap: 10, paddingTop: 8 }}>
-      <View
-        style={{
-          height: 30,
-          flexDirection: 'row',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-        }}
-      >
-        <View style={{ flexShrink: 1, minWidth: 0 }}>
+    <View className="min-h-0 flex-1 gap-2.5 pt-2">
+      <View className="h-[30px] flex-row items-center justify-between">
+        <View className="min-w-0 shrink">
           <TabToggle value={activeTab} onChange={setActiveTab} />
         </View>
         {!shell?.compact && (
@@ -537,19 +400,13 @@ export function ThoughtPanel() {
             size="xs"
             accessibilityLabel={t('common.close')}
             onPress={close}
-            icon={<X size={16} color={colors.textSecondary} />}
+            icon={<RiCloseLine size="sm" fill={colors.textSecondary} />}
           />
         )}
       </View>
 
-      {/* Content: `overflow-x-hidden overflow-y-auto` — sized to what it holds, up to the aside's height. */}
-      <ScrollView
-        style={{ flex: 1 }}
-        className={activeTab === 'sources' && emptyState === null ? '' : 'px-4'}
-        showsVerticalScrollIndicator={false}
-      >
+      <ScrollView className="flex-1 px-4" contentContainerClassName="pb-4" showsVerticalScrollIndicator={false}>
         {content}
-        <View style={{ height: 16 }} />
       </ScrollView>
     </View>
   );
