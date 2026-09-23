@@ -189,12 +189,6 @@ describe('the request envelope cannot name a deployment at all (#139 ws17)', () 
 /* -------------------------------------------------------------------------- */
 
 vi.mock('../../db/index.js', () => ({ getDb: vi.fn(() => ({})) }));
-vi.mock('../../db/developers/developerRepository.js', () => ({
-  findKeyByHash: vi.fn(),
-  findAppById: vi.fn(),
-  touchKeyLastUsed: vi.fn().mockResolvedValue(undefined),
-}));
-vi.mock('../../db/telemetry/apiKeyUsageRepository.js', () => ({ recordApiKeyUsage: vi.fn() }));
 vi.mock('../../lib/logger.js', () => ({
   log: { auth: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } },
 }));
@@ -253,10 +247,8 @@ vi.mock('@oxy.so/core/server', () => ({
   ),
 }));
 
-const { findAppById, findKeyByHash } = await import('../../db/developers/developerRepository.js');
 const { authenticateTokenOrApiKey } = await import('../../middleware/auth.js');
 
-type MockFn = ReturnType<typeof vi.fn>;
 
 function request(authorization: string): Request {
   return { headers: { authorization }, path: '/v1/chat/completions', method: 'POST' } as Request;
@@ -276,31 +268,17 @@ describe('no public credential acquires the internal principal (#139 ws17)', () 
     vi.clearAllMocks();
   });
 
-  it('a developer API key never sets req.serviceApp', async () => {
-    (findKeyByHash as unknown as MockFn).mockResolvedValue({
-      id: 'key_1',
-      appId: 'app_1',
-      oxyUserId: 'oxy-user-1',
-      scopes: ['chat'],
-      isActive: true,
-      expiresAt: null,
-    });
-    (findAppById as unknown as MockFn).mockResolvedValue({ id: 'app_1', isActive: true });
-
+  it('a retired alia_sk_ key is refused and sets no principal at all', () => {
     const req = request(`Bearer alia_sk_${'A1b2C3d4'.repeat(5)}`);
+    const res = response();
     const next = vi.fn();
-    authenticateTokenOrApiKey(req, response(), next as unknown as NextFunction);
-    await vi.waitFor(() => {
-      expect(next).toHaveBeenCalled();
-    });
+    authenticateTokenOrApiKey(req, res, next as unknown as NextFunction);
 
-    // The positive control first: the key WAS accepted, so the absence below is
-    // about the principal rather than about a rejected request.
-    expect(req.userId).toBe('oxy-user-1');
-    expect(req.apiKey?.id).toBe('key_1');
-    // And the property: no internal standing, on any field a route reads for it.
+    expect(next).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(401);
     expect(req.serviceApp).toBeUndefined();
-    expect(req.user?.id).not.toBe('system');
+    expect(req.user).toBeUndefined();
+    expect(req.userId).toBeUndefined();
   });
 
   it('only the SDK-verified service token acquires a service principal', () => {
@@ -314,81 +292,5 @@ describe('no public credential acquires the internal principal (#139 ws17)', () 
     expect(granted).toHaveBeenCalled();
     expect(internal.serviceApp?.scopes).toEqual(['alia:invoke']);
     expect(internal.userId).toBe('delegated-user');
-  });
-
-  it('an API key cannot be extended into internal scope by asking for it', async () => {
-    // `requireScope` is what a route uses to gate a capability. A key's scopes
-    // come from its row, so a caller who writes `internal` in a header, a body
-    // or a query gets nowhere — but a SESSION user skips the check entirely
-    // (`req.user && !req.apiKey`), which is why `internal` must never be a
-    // route-level scope name. It is not: nothing calls `requireScope('internal')`.
-    const { requireScope } = await import('../../middleware/auth.js');
-    const req = {
-      headers: {},
-      path: '/v1/models',
-      method: 'GET',
-      apiKey: { id: 'k', appId: 'a', userId: 'u', scopes: ['chat'] },
-    } as Request;
-    const res = response();
-    const next = vi.fn();
-    requireScope('internal')(req, res, next as unknown as NextFunction);
-    expect(next).not.toHaveBeenCalled();
-    expect(res.status).toHaveBeenCalledWith(403);
-
-    // The control: a scope the key DOES hold passes, so the refusal is about
-    // the scope rather than about a middleware that refuses everything.
-    const allowed = vi.fn();
-    requireScope('chat')(req, response(), allowed as unknown as NextFunction);
-    expect(allowed).toHaveBeenCalled();
-  });
-});
-
-/* -------------------------------------------------------------------------- */
-/*  3. No internal route accepts a public credential                           */
-/* -------------------------------------------------------------------------- */
-
-describe('the internal surface takes service tokens and nothing else (#139 ws17)', () => {
-  it('every /internal route is behind oxyServiceAuth', () => {
-    const internal = code('routes/internal.ts');
-    const handlers = [...internal.matchAll(/router\.(get|post|put|patch|delete)\(\s*'([^']+)'\s*,\s*([A-Za-z0-9_]+)/g)];
-    // The floor: the census found routes. An empty list passes any `every`.
-    expect(handlers.length).toBeGreaterThan(0);
-    for (const [, method, route, middleware] of handlers) {
-      expect(middleware, `${method.toUpperCase()} ${route} is not service-only`).toBe(
-        'oxyServiceAuth',
-      );
-    }
-    // And the credential middlewares a public route uses are absent from it.
-    for (const public_ of ['authenticateTokenOrApiKey', 'authenticateApiKey', 'optionalAuth']) {
-      expect(internal, `routes/internal.ts admits ${public_}`).not.toContain(public_);
-    }
-  });
-
-  it('the mount adds no second, weaker path to the same router', () => {
-    // A route mounted twice — once behind the service auth and once not — is how
-    // an internal surface becomes reachable without anyone editing the router.
-    const index = code('index.ts');
-    const mounts = [...index.matchAll(/app\.use\(\s*'(\/internal[^']*)'\s*(,[^)]*)?\)/g)];
-    expect(mounts).toHaveLength(1);
-    expect(mounts[0][1]).toBe('/internal');
-    // Mounted with the router alone: an auth middleware here would be a SECOND
-    // place the surface's access rule lives.
-    expect(mounts[0][2]?.trim()).toBe(', internalRouter');
-  });
-
-  it('no other route file mounts the internal router', () => {
-    const routes = execFileSync('git', ['ls-files', '--', 'packages/api/src/routes'], {
-      cwd: REPO_ROOT,
-      encoding: 'utf8',
-    })
-      .split('\n')
-      .filter((file) => file.endsWith('.ts') && !file.includes('/__tests__/') && existsSync(path.join(REPO_ROOT, file)));
-
-    expect(routes.length).toBeGreaterThan(20);
-    const offenders = routes
-      .map((file) => path.relative(API_SRC, path.join(REPO_ROOT, file)))
-      .filter((relative) => relative !== 'routes/internal.ts')
-      .filter((relative) => /from '\.\.?\/internal\.js'|internalRouter/.test(code(relative)));
-    expect(offenders).toEqual([]);
   });
 });

@@ -289,7 +289,6 @@ function getHandler(): (req: any, res: any, next: any) => Promise<void> {
 function createMockReq(overrides: Record<string, any> = {}) {
   return {
     user: { id: 'user-123' },
-    apiKey: undefined,
     body: {
       messages: [{ role: 'user', content: 'Hello' }],
       model: 'route:auto',

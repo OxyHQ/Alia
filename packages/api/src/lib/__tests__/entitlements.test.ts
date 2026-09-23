@@ -470,10 +470,10 @@ describe('the product runtime still runs the check (#139 ws6)', () => {
     // about the request path calling it. `chatFlowFixtures.test.ts` asserts the
     // 403 behaviourally, so what is added here is the SHAPE of the two
     // conditions, which are the parts a refactor would flatten without changing
-    // any transcript: the prefetch skips API keys, and the gate does too.
+    // any transcript: the prefetch needs a user, and so does the gate.
     const context = code('lib/chat/request-context.ts');
     expect(context).toContain('export async function buildChatRequestContext');
-    expect(context).toMatch(/\(req\.user && !req\.apiKey\)\s*\?\s*getUserEntitlements\(req\.user\.id\)/);
+    expect(context).toMatch(/req\.user\s*\?\s*getUserEntitlements\(req\.user\.id\)/);
     /**
      * The third conjunct is the local-runtime skip, and it is spelled out here
      * rather than matched loosely: a model served by the caller's own device is
@@ -482,7 +482,7 @@ describe('the product runtime still runs the check (#139 ws6)', () => {
      * the condition means widening it again is a diff in this file.
      */
     expect(context).toMatch(
-      /if \(req\.user && !req\.apiKey && entitlements && localRuntime === null\) \{\s*if \(!entitlements\.allowedModelIds\.includes\(routingProfileId\)\) \{/,
+      /if \(req\.user && entitlements && localRuntime === null\) \{\s*if \(!entitlements\.allowedModelIds\.includes\(routingProfileId\)\) \{/,
     );
     // Refund before refusal, because the reservation was already taken by the
     // parallel prefetch above it.

@@ -8,12 +8,11 @@
  * ## Why a SUBSCRIPTION ROW rather than an entitlement override
  *
  * "The active plan" is not read in one place. `lib/plan-access.ts` derives
- * models and features from it, but `routes/memory.ts`,
- * `middleware/api-key-rate-limit.ts` and `routes/codea.ts` each read
- * `subscriptions` directly. An override inside the entitlement read model would
- * grant the models and leave the memory allowance, the API-key rate limit and
- * the Codea gate on the free floor — a plan that is Ultra on one surface and
- * Free on three. Writing the row is what makes every reader agree, because the
+ * models and features from it, but `routes/memory.ts` and
+ * `middleware/api-key-rate-limit.ts` each read `subscriptions` directly. An
+ * override inside the entitlement read model would grant the models and leave
+ * the memory allowance and the rate limit on the free floor — a plan that is
+ * Ultra on one surface and Free on two. Writing the row is what makes every reader agree, because the
  * row is what every reader reads.
  *
  * ## Why a SEEDER, and not the auth middleware

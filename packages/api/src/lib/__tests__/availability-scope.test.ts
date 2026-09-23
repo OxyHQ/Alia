@@ -61,7 +61,7 @@ describe('the vocabulary is the contract’s, not a copy of it', () => {
   });
 
   it('covers every credential kind that can reach a route', () => {
-    expect([...CALLER_AUDIENCES].sort()).toEqual(['api_key', 'internal', 'public', 'user']);
+    expect([...CALLER_AUDIENCES].sort()).toEqual(['internal', 'public', 'user']);
   });
 });
 
@@ -75,26 +75,23 @@ describe('every scope has a decision for every audience', () => {
     platform_internal: {
       public: 'refused',
       user: 'refused',
-      api_key: 'refused',
       internal: 'admitted',
     },
-    public_payg: { public: 'admitted', user: 'admitted', api_key: 'admitted', internal: 'admitted' },
-    oxy_hosted: { public: 'admitted', user: 'admitted', api_key: 'admitted', internal: 'admitted' },
+    public_payg: { public: 'admitted', user: 'admitted', internal: 'admitted' },
+    oxy_hosted: { public: 'admitted', user: 'admitted', internal: 'admitted' },
     enterprise: {
       public: 'undecidable',
       user: 'undecidable',
-      api_key: 'undecidable',
       internal: 'undecidable',
     },
     byok_only: {
       public: 'undecidable',
       user: 'undecidable',
-      api_key: 'undecidable',
       internal: 'undecidable',
     },
   };
 
-  it('decides all twenty pairs, and the table is total over both vocabularies', () => {
+  it('decides all fifteen pairs, and the table is total over both vocabularies', () => {
     // The floor: a table missing a scope, or a scope missing an audience, is a
     // hole a `toMatchObject` would walk straight past.
     expect(Object.keys(EXPECTED).sort()).toEqual([...AVAILABILITY_SCOPES].sort());
@@ -111,7 +108,7 @@ describe('every scope has a decision for every audience', () => {
         decided += 1;
       }
     }
-    expect(decided).toBe(20);
+    expect(decided).toBe(15);
   });
 
   it('says which fact it is missing when it cannot decide', () => {
@@ -170,19 +167,14 @@ describe('a credential is classified by its strongest half', () => {
   /** Just the three fields `resolveCallerAudience` reads. */
   const request = (fields: Record<string, unknown>): Request => fields as unknown as Request;
 
-  it('reads a service token, a developer key and a session apart', () => {
+  it('reads a service token and a session apart', () => {
     expect(resolveCallerAudience(request({}))).toBe('public');
     expect(resolveCallerAudience(request({ user: { id: 'u' } }))).toBe('user');
-    expect(resolveCallerAudience(request({ apiKey: { id: 'k' } }))).toBe('api_key');
     expect(resolveCallerAudience(request({ serviceApp: { appId: 'a' } }))).toBe('internal');
   });
 
-  it('calls a developer key a developer key even though it also sets req.user', () => {
-    // `middleware/auth.ts` `authenticateApiKey` sets BOTH, so this ordering is
-    // the only thing standing between an `alia_sk_` key and a session's
-    // admissions. The catalogue cannot see the difference today, because no
-    // scope distinguishes the two — which is exactly why it is measured here.
-    expect(resolveCallerAudience(request({ apiKey: { id: 'k' }, user: { id: 'owner' } }))).toBe('api_key');
+  it('calls a delegated service token internal even though it also sets req.user', () => {
+    expect(resolveCallerAudience(request({ serviceApp: { appId: 'a' }, user: { id: 'owner' } }))).toBe('internal');
   });
 
   it('treats a null user as no user, not as a session', () => {

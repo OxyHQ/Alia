@@ -301,10 +301,9 @@ function recordingRes(failOn?: string, closeBeforeCompletion = false) {
   return res;
 }
 
-function apiKeyReq() {
+function sessionReq() {
   return {
     user: { id: 'user-ws13' },
-    apiKey: { id: 'key-ws13' },
     headers: {},
     socket: { destroyed: false },
     on: () => undefined,
@@ -321,7 +320,7 @@ type RouteReq = Parameters<typeof handleChatCompletions>[0];
 type RouteRes = Parameters<typeof handleChatCompletions>[1];
 
 async function run(options: { failWriteOn?: string; includeUsage?: boolean; cancelled?: boolean; stream?: boolean } = {}): Promise<ReturnType<typeof recordingRes>> {
-  const req = apiKeyReq();
+  const req = sessionReq();
   if (options.stream === false) req.body.stream = false;
   if (options.includeUsage === true) req.body.stream_options = { include_usage: true };
   const res = recordingRes(options.failWriteOn, options.cancelled);

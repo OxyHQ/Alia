@@ -11,12 +11,7 @@ import {
   type OxyServiceAppContext,
   type OxyServiceActingAsContext,
 } from '@oxy.so/core/server';
-import { recordApiKeyUsage } from '../db/telemetry/apiKeyUsageRepository.js';
-import { API_KEY_USAGE_METHODS } from '../domain/api-key-usage.js';
 import { log } from '../lib/logger.js';
-import { getDb } from '../db/index.js';
-import { findAppById, findKeyByHash, touchKeyLastUsed } from '../db/developers/developerRepository.js';
-import { hashDeveloperApiKey } from '../lib/api-key-crypto.js';
 import { getConfiguredChannels } from '../lib/channels/registry.js';
 import { oxyServiceClient } from '../lib/oxy-service-client.js';
 
@@ -26,19 +21,13 @@ export const oxyClient = new OxyServices({
   baseURL: OXY_API_URL,
 });
 
-// Extend Express Request for API keys and service tokens
+// Extend Express Request for Oxy users and service tokens
 declare global {
   namespace Express {
     interface Request {
       userId?: string;
       accessToken?: string;
       user?: OxyRequestUser | null;
-      apiKey?: {
-        id: string;
-        appId: string;
-        userId: string;
-        scopes: string[];
-      };
       serviceApp?: OxyServiceAppContext;
       /** Present only after Oxy verified the app's delegation grant for X-Oxy-User-Id. */
       serviceActingAs?: OxyServiceActingAsContext;
@@ -49,11 +38,6 @@ declare global {
        * signed in to that product when the turn was sent.
        */
       oxyRequester?: OxyRequesterContext;
-      _usageRecorded?: boolean;
-      workspace?: {
-        id: string | null;
-        role?: 'owner' | 'admin' | 'member';
-      };
     }
   }
 }
@@ -299,123 +283,31 @@ export function optionalAuth(
     return;
   }
 
-  // API keys should not go through JWT auth
-  const authHeader = req.headers['authorization'];
-  const token = authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : null;
-  if (token?.startsWith('alia_sk_')) {
-    return next();
-  }
-
   // Uses @oxy.so/core/server optional auth — attaches user if valid, continues if not.
   oxyOptionalAuth(req, res, next);
 }
 
 /**
- * Developer API Key authentication
+ * Refuse a retired `alia_sk_*` key with a body that says so.
+ *
+ * Alia-issued developer keys were retired by the owner's clean cut: the
+ * `developer_apps` / `developer_api_keys` tables are gone, so no such key can
+ * authenticate anywhere. The refusal is explicit rather than an accident of the
+ * Oxy SDK refusing a string that is not a JWT. Credentials for Alia's API come
+ * from Oxy (ADR 0010); Alia issues and accepts none of its own.
  */
-export async function authenticateApiKey(
-  req: Request,
-  res: Response,
-  next: NextFunction
-): Promise<void> {
-  const startTime = Date.now();
-
-  try {
-    const authHeader = req.headers.authorization;
-    const apiKey = authHeader?.startsWith('Bearer ')
-      ? authHeader.substring(7)
-      : null;
-
-    if (!apiKey) {
-      res.status(401).json({ error: 'API key required' });
-      return;
-    }
-
-    if (!apiKey.startsWith('alia_sk_')) {
-      res.status(401).json({ error: 'Invalid API key format' });
-      return;
-    }
-
-    const keyHash = hashDeveloperApiKey(apiKey);
-    const developerApiKey = await findKeyByHash(getDb(), keyHash);
-
-    if (!developerApiKey) {
-      res.status(401).json({ error: 'Invalid API key' });
-      return;
-    }
-
-    if (!developerApiKey.isActive) {
-      res.status(401).json({ error: 'API key is inactive' });
-      return;
-    }
-
-    if (developerApiKey.expiresAt && developerApiKey.expiresAt < new Date()) {
-      res.status(401).json({ error: 'API key has expired' });
-      return;
-    }
-
-    const app = await findAppById(getDb(), developerApiKey.appId);
-    if (!app || !app.isActive) {
-      res.status(401).json({ error: 'Associated app is inactive' });
-      return;
-    }
-
-    // Every one of these was `.toString()` on an ObjectId; the columns are
-    // `text`, so the conversion is gone rather than ported.
-    req.apiKey = {
-      id: developerApiKey.id,
-      appId: developerApiKey.appId,
-      userId: developerApiKey.oxyUserId,
-      scopes: developerApiKey.scopes,
-    };
-
-    req.userId = developerApiKey.oxyUserId;
-    req.user = { id: developerApiKey.oxyUserId };
-
-    // Update last used (async) — a failure to stamp it must not fail the
-    // request it describes.
-    touchKeyLastUsed(getDb(), developerApiKey.id).catch((err: unknown) =>
-      log.auth.error({ err }, 'Failed to update lastUsedAt'),
-    );
-
-    // Log usage after response (skip if the route already recorded usage via recordUsage())
-    res.on('finish', async () => {
-      if (req._usageRecorded) return;
-      const responseTime = Date.now() - startTime;
-      // The column accepts the five verbs this API exposes and a CHECK enforces
-      // it, so anything else is recognised here rather than failing in the
-      // driver. The Mongoose enum rejected the same set.
-      const method = API_KEY_USAGE_METHODS.find((known) => known === req.method);
-      if (!method) return;
-      try {
-        // `developerApiKey` is a Postgres row now, so the `String(...)` and
-        // `.toString()` the ObjectId columns needed are gone rather than ported.
-        await recordApiKeyUsage(getDb(), {
-          apiKeyId: developerApiKey.id,
-          oxyUserId: developerApiKey.oxyUserId,
-          appId: developerApiKey.appId,
-          endpoint: req.path,
-          method,
-          statusCode: res.statusCode,
-          responseTimeMs: responseTime,
-          userAgent: req.headers['user-agent'],
-          authType: 'api_key',
-        });
-      } catch (err) {
-        log.auth.error({ err }, 'Failed to log API key usage');
-      }
-    });
-
-    next();
-  } catch (error) {
-    log.auth.error({ err: error }, 'API key authentication error');
-    res.status(500).json({ error: 'Authentication failed' });
-  }
+export function refuseRetiredAliaKey(res: Response): void {
+  res.status(401).json({
+    error: 'credential_retired',
+    message: 'Alia API keys (alia_sk_*) have been retired and are no longer accepted. Authenticate with Oxy.',
+  });
 }
 
 /**
- * Accepts both Oxy JWT tokens and API keys
- * Also supports Telegram bot authentication
+ * Accepts an Oxy user or service token, plus the Telegram and channel bot
+ * secrets. The name keeps "API key" because this is where the Oxy Console
+ * application-key lane lands once Oxy and `@oxy.so/core/server` provide it
+ * (ADR 0010 §2); today no API key of any kind is accepted.
  */
 export function authenticateTokenOrApiKey(
   req: Request,
@@ -464,35 +356,13 @@ export function authenticateTokenOrApiKey(
     return;
   }
 
-  // API key auth
   if (token.startsWith('alia_sk_')) {
-    void authenticateApiKey(req, res, next);
+    refuseRetiredAliaKey(res);
     return;
   }
 
   // Oxy JWT auth
   authenticateToken(req, res, next);
-}
-
-/**
- * Check if API key has a specific scope
- */
-export function requireScope(scope: string) {
-  return (req: Request, res: Response, next: NextFunction): void => {
-    // Session users have all scopes
-    if (req.user && !req.apiKey) {
-      return next();
-    }
-
-    if (req.apiKey?.scopes.includes(scope)) {
-      return next();
-    }
-
-    res.status(403).json({
-      error: 'Insufficient permissions',
-      required_scope: scope
-    });
-  };
 }
 
 /**

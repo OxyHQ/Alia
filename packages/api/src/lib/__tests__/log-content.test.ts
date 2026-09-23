@@ -308,6 +308,9 @@ describe('the census reads what it claims to read', () => {
     // 850 -> 800: the agent sandbox left (container manager and pool, the
     // terminal session, workspace memory, the container and workspace-file
     // routes, the skill-script runner), and their log calls with it (809 after).
+    // 850 -> 800: the owner's clean cut deleted the developer-key routes,
+    // `routes/codea.ts`, the ZeroEval sync and the legacy trigger routes, and
+    // their log calls with them (about 880 before, 818 after).
     expect(calls.length).toBeGreaterThan(800);
     // 1_300 -> 1_250: `internal/providers/lib/seed-model-configs.ts` is deleted
     // with the routing-catalogue seed, and its fifteen logged properties with it
@@ -315,6 +318,7 @@ describe('the census reads what it claims to read', () => {
     // the sites, which is the only way it is allowed to move.
     // 1_250 -> 1_150: the same sandbox removal as the call floor above took
     // its logged properties with it (1,177 after).
+    // 1_250 -> 1_150: the same clean cut (1,213 after).
     expect(properties.length).toBeGreaterThan(1_150);
     expect(sources.map((entry) => entry.file)).toContain(`${PACKAGE_PREFIX}/lib/chat/stream-runner.ts`);
   });

@@ -279,13 +279,12 @@ export async function buildChatRequestContext(
     }).catch(() => null);
   }
 
-  // Determine if this is a direct user session (not API key)
-  // API key requests should be neutral and not include creator's personal info
+  // Determine if this is a direct user session.
   // A delegated service request has a person in `req.user`, but its principal
   // is still the verified application in `req.serviceApp`. Calling it a direct
   // session would erase the application boundary and expose direct-only
   // context/tools to a machine caller.
-  const isDirectUserSession = !!req.user && !req.apiKey && !req.serviceApp;
+  const isDirectUserSession = !!req.user && !req.serviceApp;
   /**
    * A present requester (ADR 0025 in OxyHQServices): a person signed in to a
    * first-party product that entered with a requester assertion Oxy consumed
@@ -742,7 +741,7 @@ export async function buildChatRequestContext(
       : Promise.resolve<OxyUserProfile | null>(null),
 
     // User entitlements (plan-based model access) — parallelized to avoid sequential delay
-    (req.user && !req.apiKey) ? getUserEntitlements(req.user.id).catch(() => null)
+    req.user ? getUserEntitlements(req.user.id).catch(() => null)
       : Promise.resolve(null),
 
     /**
@@ -1037,10 +1036,10 @@ export async function buildChatRequestContext(
     'Using provider',
   );
 
-  // Enforce plan-based model access (skip for API-key requests)
+  // Enforce plan-based model access
   // Uses entitlements prefetched in Promise.all above
   // No plan grants a person their own hardware, so there is nothing to check.
-  if (req.user && !req.apiKey && entitlements && localRuntime === null) {
+  if (req.user && entitlements && localRuntime === null) {
     if (!entitlements.allowedModelIds.includes(routingProfileId)) {
       if (creditReservation) await refundReservation(creditReservation);
       clearTimeout(globalTimer);
@@ -1067,7 +1066,7 @@ export async function buildChatRequestContext(
       messages,
       model: routingProfileId,
       skillNames: selectedSkillNames ?? undefined,
-      platform: req.apiKey ? ('telegram' as const) : ('app' as const),
+      platform: 'app' as const,
       metadata: {},
     }).catch(() => null);
     recalledMemories = hookResult?.metadata?.recalledMemories as

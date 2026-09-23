@@ -40,10 +40,9 @@
  *
  * ## Scope, so this does not silently overlap its neighbours
  *
- * - `middleware/__tests__/credential-deprecation.test.ts` (#139 ws11) owns the
- *   ISSUANCE half of "no Alia-owned API keys": nothing mints one, the generator
- *   is deleted, no module inserts into the developer tables. This file owns the
- *   ACCEPTANCE half: which credentials reach the compatibility surface.
+ * - "No Alia-owned API keys" is now total: the `alia_sk_*` keys, their tables and
+ *   their generator are gone, and `middleware/auth.ts` refuses the prefix by
+ *   name. This file owns which credentials reach the compatibility surface.
  * - `inference-boundary.test.ts` (#139 ws15) owns rate limiting and the global
  *   caller map for provider-key writers. This file owns the routes layer.
  * - `unified-product-runtime.test.ts` (#139 ws13) owns handler identity across
@@ -63,7 +62,6 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import aliaChatRouter from '../chat.js';
 import v1Router from '../v1.js';
 import {
-  authenticateApiKey,
   authenticateChannelBotSecret,
   authenticateRequesterAssertion,
   authenticateTelegramBot,
@@ -121,7 +119,6 @@ const KNOWN_MIDDLEWARE: ReadonlyArray<readonly [unknown, string]> = [
   [optionalAuth, 'optionalAuth'],
   [authenticateToken, 'authenticateToken'],
   [authenticateTokenOrApiKey, 'authenticateTokenOrApiKey'],
-  [authenticateApiKey, 'authenticateApiKey'],
   [authenticateTelegramBot, 'authenticateTelegramBot'],
   [authenticateChannelBotSecret, 'authenticateChannelBotSecret'],
   [authenticateRequesterAssertion, 'authenticateRequesterAssertion'],
@@ -519,18 +516,16 @@ describe('the compatibility surface accepts no new credential (#139 ws6, ADR 000
     /**
      * Five mechanisms reach `/v1`, and each one is a header this file reads:
      *
-     *  - `authorization` — an Oxy JWT/service token or an `alia_sk_*` key;
+     *  - `authorization` — an Oxy JWT/service token (an `alia_sk_*` key is
+     *    refused by name);
      *  - `x-telegram-bot-secret` with `x-oxy-user-id` and `x-telegram-id`;
      *  - `x-channel-bot-secret` with `x-oxy-user-id`.
      *
      * A sixth would be a new way to authenticate against the compatibility
-     * surface, which is what ADR 0004 condition 1 is about. `user-agent` is on
-     * the list because the file reads it — for the usage record, not for auth —
-     * and leaving it off would mean maintaining a reason to exclude something.
+     * surface, which is what ADR 0004 condition 1 is about.
      */
     expect(headersRead(auth)).toEqual([
       'authorization',
-      'user-agent',
       'x-channel-bot-secret',
       'x-oxy-user-id',
       'x-telegram-bot-secret',
@@ -538,16 +533,17 @@ describe('the compatibility surface accepts no new credential (#139 ws6, ADR 000
     ]);
   });
 
-  it('screens exactly one Alia-owned credential prefix', () => {
-    // `alia_sk_` is the Alia-owned key scheme the compatibility window is
-    // written about, and `Bearer ` is the HTTP scheme it arrives under. A second
-    // Alia-owned prefix here IS the reintroduction ADR 0004 condition 2
-    // forbids — a new key type that authenticates against `/v1`.
-    //
-    // Issuance is somebody else's assertion: nothing MINTS an `alia_sk_*`, and
-    // `middleware/__tests__/credential-deprecation.test.ts` (#139 ws11) is where
-    // that is enforced. This is the acceptance side.
+  it('screens exactly one Alia-owned credential prefix, and only to refuse it', () => {
+    // `alia_sk_` is the retired Alia-owned key scheme, and `Bearer ` is the
+    // HTTP scheme it arrived under. The prefix is screened only so the refusal
+    // can name it. A second Alia-owned prefix here IS the reintroduction ADR
+    // 0004 condition 2 forbids — a new key type that authenticates against `/v1`.
     expect(prefixesScreened(auth)).toEqual(['Bearer ', 'alia_sk_']);
+    const branch = read('middleware/auth.ts').match(
+      /if \(token\.startsWith\('alia_sk_'\)\) \{\s*([\s\S]*?)\n {2}\}/,
+    );
+    expect(branch?.[1]).toContain('refuseRetiredAliaKey(res)');
+    expect(branch?.[1]).not.toContain('next(');
   });
 
   it('holds exactly these four secrets, so a new shared secret is visible', () => {
@@ -583,11 +579,12 @@ describe('the compatibility surface accepts no new credential (#139 ws6, ADR 000
  * Oxy ledger.
  *
  *  - `insertCostEntry` was the only statement that wrote `cost_entries`, whose
- *    columns are `actual_provider`, `actual_model_id` and `cost_usd`;
+ *    columns were `actual_provider`, `actual_model_id` and `cost_usd`;
  *  - `recordCost` was its only wrapper.
  *
- * Neither ever had a production caller, and both were deleted. The names stay
- * here so that neither can come back under the same name unnoticed.
+ * Neither ever had a production caller, both were deleted, and the table is
+ * gone too (0070). The names stay here so that neither can come back under the
+ * same name unnoticed.
  *
  * Provider-account health and key spend no longer exist in this service: Kaana
  * owns provider credentials and their operational state.
@@ -639,14 +636,15 @@ describe('the compatibility surface reintroduces no provider billing (#139 ws6, 
     /**
      * Both controls, because both failures print the same comfortable answer.
      *
-     * POSITIVE: `recordApiKeyUsage` is called by `middleware/auth.ts`, so the
-     * pattern and the corpus both work on a real call site.
+     * POSITIVE: `recordApiKeyUsage` is called by
+     * `middleware/api-key-rate-limit.ts`, so the pattern and the corpus both
+     * work on a real call site.
      *
      * NEGATIVE: THIS FILE names both provider-cost writers, in prose, and
      * calls none of them. A census over raw text would report it as two call
      * sites — and the whole guard below would then be reporting itself.
      */
-    expect(namesCallTo('recordApiKeyUsage', ['middleware/auth.ts'])).toEqual(['middleware/auth.ts']);
+    expect(namesCallTo('recordApiKeyUsage', ['middleware/api-key-rate-limit.ts'])).toEqual(['middleware/api-key-rate-limit.ts']);
 
     const self = 'routes/__tests__/v1-compatibility-surface.test.ts';
     for (const writer of PROVIDER_COST_WRITERS) {

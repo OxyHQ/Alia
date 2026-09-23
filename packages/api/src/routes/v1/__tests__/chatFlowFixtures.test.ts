@@ -491,7 +491,6 @@ function recordingRes(): RecordingRes {
 
 interface RecordingReq {
   user?: { id: string };
-  apiKey?: { id: string };
   serviceApp?: unknown;
   accessToken?: string;
   body: Record<string, unknown>;
@@ -1208,7 +1207,7 @@ describe('fixture: what a failure surfaces to the user', () => {
 });
 
 // ===========================================================================
-// Fixture 3 — Codea (VS Code extension), API key, non-streaming completion
+// Fixture 3 — Codea (VS Code extension), Oxy session, non-streaming completion
 // ===========================================================================
 
 /**
@@ -1219,9 +1218,9 @@ describe('fixture: what a failure surfaces to the user', () => {
  * marker is part of Codea's contract and not an implementation detail
  * (`response-ext-alia-meta`, owned by Alia).
  */
-describe('fixture: Codea flow — API key, non-streaming, no client tools', () => {
+describe('fixture: Codea flow — Oxy session, non-streaming, no client tools', () => {
   const codeaReq = (body: Record<string, unknown>) =>
-    recordingReq({ apiKey: { id: 'key-ws13' }, user: { id: 'user-ws13' }, body });
+    recordingReq({ user: { id: 'user-ws13' }, body });
 
   beforeEach(() => {
     H.state.resolveAnswers = [{ ...RESOLVED, routingProfileId: 'route:code' }];
@@ -1314,37 +1313,21 @@ describe('fixture: Codea flow — API key, non-streaming, no client tools', () =
     expect(JSON.stringify(body)).not.toContain(UPSTREAM_PROVIDER);
   });
 
-  it('gives an API-key session no personal tools and no plan gate', async () => {
-    // The product difference between an editor session and an app session, and
-    // the reason both are pinned separately: an API-key request acts for NOBODY
-    // — `actsForPerson` is false — so `ToolPipeline` withholds memory,
-    // messaging, triggers, MCP, integrations and Oxy services. A developer key
-    // carries its owner's `userId`, so without that gate every one of them
-    // would run and hand the key HOLDER the key OWNER's data.
-    //
-    // The SSE-emitting tools are withheld separately, on `isDirectSession`:
-    // they push frames only Alia's own composer renders.
-    //
-    // `canvas` IS here, and is the one addition. It was reachable only through
-    // the Telegram assembler before the five became one, for no reason anybody
-    // chose — it is a pure formatter with no user data and no side effect, so
-    // an editor client gets it like everyone else.
+  it('holds an editor session to the plan like any app session', async () => {
+    // Codea used to reach this surface with an `alia_sk_*` key, which acted for
+    // nobody and skipped the plan gate. Those keys are retired: the editor
+    // signs in with Oxy, so its request is a direct user session and the plan
+    // decides the model exactly as it does for the app.
     H.state.entitlements = { tier: 'free', features: {}, allowedModelIds: [] };
     const res = recordingRes();
     await run(codeaReq({ messages: [{ role: 'user', content: 'complete this' }], model: 'route:code', stream: false }), res);
 
-    // An empty allow-list would have refused an app request; the editor request
-    // is served, because the plan gate is skipped for API keys.
-    expect(H.timeline).toContain('model:doGenerate');
-    expect(toolNamesSeenByModel().sort()).toEqual([
-      'browse', 'canvas', 'generateFile', 'getCurrentDate', 'getFairCoin',
-      'getMarketQuote', 'getWeather', 'webScraper', 'webSearch',
-    ]);
+    expect(H.timeline).not.toContain('model:doGenerate');
   });
 });
 
 // ===========================================================================
-// Fixture 4 — Cowork (Electron desktop), API key, streaming, client tools
+// Fixture 4 — Cowork (Electron desktop), Oxy session, streaming, client tools
 // ===========================================================================
 
 /**
@@ -1357,9 +1340,9 @@ describe('fixture: Codea flow — API key, non-streaming, no client tools', () =
  * (`lib/tool-converter.ts:27`) and must hand the ORIGINAL name back, or Cowork
  * cannot dispatch the call.
  */
-describe('fixture: Cowork flow — API key, streaming, client-supplied editor tools', () => {
+describe('fixture: Cowork flow — Oxy session, streaming, client-supplied editor tools', () => {
   const coworkReq = (body: Record<string, unknown>) =>
-    recordingReq({ apiKey: { id: 'key-ws13' }, user: { id: 'user-ws13' }, body });
+    recordingReq({ user: { id: 'user-ws13' }, body });
 
   const COWORK_BODY = {
     messages: [{ role: 'user', content: 'read the readme' }],

@@ -186,9 +186,9 @@ export const CREDENTIAL_PATTERNS: readonly CredentialPattern[] = [
   },
   {
     /**
-     * Alia's own developer credential, matched at the EXACT length the minter
-     * produces: `lib/api-key-crypto.ts` is `alia_sk_` plus 32 random bytes in
-     * unpadded base64url, which is always 43 characters.
+     * Alia's own (retired) developer credential, matched at the EXACT length
+     * the deleted minter produced: `alia_sk_` plus 32 random bytes in unpadded
+     * base64url, which is always 43 characters.
      *
      * The exactness is load-bearing rather than tidy. A `{16,}` floor matched
      * 33 spans across this repository's history, every one of them a
@@ -196,9 +196,8 @@ export const CREDENTIAL_PATTERNS: readonly CredentialPattern[] = [
      * `alia_sk_xxxxxxxx…` — and a ledger holding 33 fake keys that grows on
      * every edit to the developer docs is a ledger nobody reads and a gate
      * everybody silences. Length 43 is not a heuristic about what looks fake; it
-     * is the format the code mints, and `__tests__/credential-scan.test.ts`
-     * holds this pattern to a key from `generateDeveloperApiKey()` so the two
-     * cannot drift apart.
+     * is the format the minter produced, and `__tests__/credential-scan.test.ts`
+     * holds this pattern to a key of that exact shape.
      */
     name: 'alia_developer_key',
     provider: null,

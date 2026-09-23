@@ -58,14 +58,15 @@ export const AVAILABILITY_SCOPES: readonly AvailabilityScope[] = availabilitySco
  * What kind of credential is asking, in the vocabulary Alia's own middleware
  * produces.
  *
- * These four are the credential kinds that reach an Alia route:
+ * These three are the credential kinds that reach an Alia route:
  * `middleware/auth.ts` attaches `req.serviceApp` for a verified Oxy service
- * token, `req.apiKey` for an `alia_sk_` developer key, and `req.user` for an
- * Oxy session; a request carrying none of the three is anonymous.
+ * token and `req.user` for an Oxy session; a request carrying neither is
+ * anonymous. (The retired `alia_sk_*` developer keys were a fourth, `api_key`;
+ * an Oxy Console application key would be added here when Alia accepts one.)
  * `routes/__tests__/inference-boundary.test.ts` enumerates the same set from
  * the other side.
  */
-export const CALLER_AUDIENCES = ['public', 'user', 'api_key', 'internal'] as const;
+export const CALLER_AUDIENCES = ['public', 'user', 'internal'] as const;
 
 export type CallerAudience = (typeof CALLER_AUDIENCES)[number];
 
@@ -123,13 +124,11 @@ export function admitsAudience(scope: AvailabilityScope, audience: CallerAudienc
  * Which audience a request belongs to.
  *
  * Ordered most-privileged first so a request carrying two credentials is
- * classified by the stronger one — `authenticateApiKey` sets `req.user` as well
- * as `req.apiKey`, so testing `req.user` first would classify every developer
- * key as a session and hand it a session's admissions.
+ * classified by the stronger one: a delegated service token also sets
+ * `req.user`, and is still an internal caller.
  */
 export function resolveCallerAudience(req: Request): CallerAudience {
   if (req.serviceApp !== undefined) return 'internal';
-  if (req.apiKey !== undefined) return 'api_key';
   if (req.user !== undefined && req.user !== null) return 'user';
   return 'public';
 }

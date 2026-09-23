@@ -7,7 +7,6 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { randomBytes } from 'node:crypto';
 
-import { API_KEY_PREFIX } from '../../api-key-crypto.js';
 import { redactSecrets } from '../../agent/secret-scanner.js';
 import {
   assertPatternsMatchTheirControls,
@@ -60,18 +59,18 @@ const SECURITY_DIR = path.resolve(fileURLToPath(new URL('../', import.meta.url))
 const PLANTED = `sk-ant-api03-${'Zq7Wn2Rb8Xt4Yu6Ip0Oa1Sd3Fg5Hj9Kl2Zx4Cv6Bn8M'}`;
 
 /**
- * An `alia_sk_*` of the shape Alia's own credentials have.
+ * An `alia_sk_*` of the shape Alia's retired developer credentials had.
  *
- * The MINTER is gone — #139 workstream 11 deleted `generateDeveloperApiKey` and
- * `lib/api-key-crypto.ts` says so, because ADR 0001 gives developer credentials
- * to Oxy and issuance is closed here. So this reproduces the format the deleted
- * generator produced (`API_KEY_PREFIX` plus 32 random bytes in unpadded
- * base64url, always 43 characters), and reproducing it is sound for exactly the
- * reason the generator could be deleted: **no new shape can appear.** Every
- * `alia_sk_*` in existence was issued by that function, and nothing will issue
- * another. What is still anchored to live code is the PREFIX, which
- * `middleware/auth.ts` screens on and which is asserted below.
+ * The minter and the keys are gone: #139 workstream 11 deleted the generator,
+ * and the owner's clean cut later dropped the key tables and refused the
+ * prefix outright. Keys already disclosed somewhere are still worth finding —
+ * a leaked retired key is harmless, but its presence means the place it leaked
+ * to is not being scrubbed — so this reproduces the format the deleted generator
+ * produced (the prefix plus 32 random bytes in unpadded base64url, always 43
+ * characters). No new shape can appear, because nothing issues one.
  */
+const API_KEY_PREFIX = 'alia_sk_';
+
 function issuedDeveloperKey(): string {
   return `${API_KEY_PREFIX}${randomBytes(32).toString('base64url')}`;
 }
@@ -150,10 +149,10 @@ describe('the patterns are checked against something (#139 ws15)', () => {
     expect(failures).toEqual(['groq_api_key']);
   });
 
-  it('the Alia developer-key pattern matches what the minter actually mints', () => {
-    // The prefix is still live code — `middleware/auth.ts` screens on it — so a
-    // change to it fails here rather than leaving the audit blind to real keys.
-    expect(API_KEY_PREFIX).toBe('alia_sk_');
+  it('the Alia developer-key pattern matches what the minter used to mint', () => {
+    // The prefix is still in live code — `middleware/auth.ts` screens on it to
+    // refuse it — so a change to it fails here rather than leaving the audit
+    // blind to disclosed keys.
     expect(
       readFileSync(path.join(REPO_ROOT, 'packages/api/src/middleware/auth.ts'), 'utf8'),
     ).toContain(`startsWith('${API_KEY_PREFIX}')`);

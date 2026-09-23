@@ -5,8 +5,7 @@
  *
  * Six call sites read one subscription with `findOne({ oxyUserId, status: { $in:
  * ['active','trialing'] } })`. Two of them sorted; four did not — and a user can
- * genuinely hold more than one, which `routes/codea.ts` says out loud ("user may
- * have both Alia and Codea"). So those four returned whichever document the
+ * genuinely hold more than one (both Alia and Codea, say). So those four returned whichever document the
  * index happened to yield, and three of them fed `getMemoryLimit()`: an
  * arbitrary memory allowance for anyone holding two subscriptions.
  *

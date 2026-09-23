@@ -1045,7 +1045,8 @@
       ],
       "removalGate": "Same as codea-resolve-model-410.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/routes/codea.ts:246"
+      "evidence": "packages/api/src/routes/codea.ts:246",
+      "removedIn": "corte-db-alia-keys"
     },
     {
       "id": "codea-resolve-model-410",
@@ -1061,7 +1062,8 @@
       ],
       "removalGate": "packages/alia-codea/README.md:17 already states clients no longer call it. Gate on access logs; a stale published VS Code extension version may still.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/routes/codea.ts:235"
+      "evidence": "packages/api/src/routes/codea.ts:235",
+      "removedIn": "corte-db-alia-keys"
     },
     {
       "id": "codea-surface",
@@ -1075,7 +1077,8 @@
       "dependsOn": [],
       "removalGate": "Published VS Code extension versions in the wild may call /codea/user and /codea/token. Gate on marketplace version telemetry, not on the repo.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/routes/codea.ts:38,129,166,188,199; packages/alia-codea-cli/src/commands/auth.ts:162"
+      "evidence": "packages/api/src/routes/codea.ts:38,129,166,188,199; packages/alia-codea-cli/src/commands/auth.ts:162",
+      "removedIn": "corte-db-alia-keys"
     },
     {
       "id": "codea-webview-model-picker",
@@ -3598,7 +3601,8 @@
       ],
       "removalGate": "n/a for deletion. If it moves: the digest must stay byte-identical or every existing key silently 401s. The logger already redacts `alia_sk_*` (packages/api/src/lib/logger.ts:86) — keep that redaction wherever the minting goes.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/lib/api-key-crypto.ts:36"
+      "evidence": "packages/api/src/lib/api-key-crypto.ts:36",
+      "removedIn": "corte-db-alia-keys"
     },
     {
       "id": "hostname-anthropic",
