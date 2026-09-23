@@ -7,6 +7,17 @@ import { OXY_KAANA_ROUTING_PROFILE_ID_LIST } from '../../config/oxy-inference-ro
 
 export const AGENT_THREAD_STATUSES = ['open', 'closed'] as const;
 export const AGENT_THREAD_APPROVAL_MODES = ['ask', 'supervised_auto'] as const;
+/**
+ * Where a thread's work runs, as a LABEL on the thread — not a sandbox.
+ *
+ * `sandbox` is the historical name for "Alia's own servers": there is no
+ * container, docker host or isolated filesystem behind it (the sandbox host was
+ * never configured in production and is gone, and the `shell`/`files` grants
+ * that would have used it are retired). A `sandbox` thread runs the ordinary
+ * server-side runtime; `cowork` runs on the person's own registered Cowork
+ * device. Kept as stored rather than renamed, because the value is persisted
+ * and CHECK-constrained.
+ */
 export const AGENT_EXECUTION_TARGETS = ['sandbox', 'cowork'] as const;
 export const AGENT_GOAL_STATUSES = ['active', 'paused', 'blocked', 'candidate', 'completed', 'cancelled'] as const;
 export const AGENT_APPROVAL_STATUSES = ['pending', 'approved', 'denied', 'expired', 'cancelled'] as const;
