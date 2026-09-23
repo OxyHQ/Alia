@@ -11,13 +11,13 @@ import { useQuery } from '@tanstack/react-query';
 import { useOxy } from '@oxy.so/services';
 import apiClient from '../api/client';
 
-export interface LocalRuntimeModel {
+interface LocalRuntimeModel {
   /** The identifier to send as `model`, spelled by the API so the two agree. */
   id: string;
   name: string;
 }
 
-export interface LocalRuntime {
+interface LocalRuntime {
   id: string;
   label: string;
   models: LocalRuntimeModel[];
@@ -31,7 +31,7 @@ export interface LocalRuntime {
  */
 const REFRESH_MS = 30_000;
 
-export function useLocalRuntimes() {
+function useLocalRuntimes() {
   const { isAuthenticated } = useOxy();
 
   return useQuery({

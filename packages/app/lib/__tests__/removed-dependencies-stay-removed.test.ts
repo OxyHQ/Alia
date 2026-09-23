@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 /**
  * Twelve packages left the app manifest, and stay gone.
  *
- * They were removed by the audit in `docs/dependency-audit.mdx`, which checked
+ * They were removed by an import-based audit (#608 §11) that checked
  * every manifest entry against the specifiers the source really imports AND
  * against the mechanisms that reach a package without one — optional peers of
  * `@oxy.so/bloom` and `@oxy.so/services`, Expo config plugins named as strings

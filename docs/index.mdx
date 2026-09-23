@@ -44,7 +44,7 @@ the vocabulary behind it.
      User  ────────────────>|   iOS, Android)   |
                             +---------+---------+
                                       |
-                            POST /v1/chat/completions (SSE)
+                            POST /alia/chat (SSE)
                                       |
                             +---------v---------+
                             |  Express API      |
@@ -82,11 +82,10 @@ PostgreSQL is Alia's product store. The last domains — conversations, messages
 | `packages/integrations` | Express + TypeScript | Telegram / WhatsApp / Discord / browser bridges, and the MCP client |
 | `packages/alia-chat` | React | Published as `@alia.onl/sdk` — the CLIENT SDK (components, hooks, voice) |
 | `packages/alia-server` | TypeScript | Published as `@alia.onl/server` — the SERVER client a consumer backend calls Alia with |
-| `packages/shared-types` | TypeScript | Shared types |
 
 ## Install
 
-The monorepo uses Bun workspaces and Turbo. Bun is the only supported package manager.
+The monorepo uses Bun workspaces — no Turborepo or Nx; root scripts fan out with `bun run --filter`. Bun is the only supported package manager.
 
 ```sh
 bun install
@@ -199,16 +198,37 @@ Legacy trigger rows and their `trigger_executions` remain available through hist
 GET routes. They are not scheduled or dispatched; every legacy write or execution route
 returns `410 Gone` and points callers to `/automations`.
 
+## Guides
+
+- [Developer onboarding](./onboarding.md)
+- [API reference](./api-reference.md)
+- [Developer access to Alia](./developers-portal.md)
+- [Oxy authentication and packages](./oxyhq-auth.md)
+- [Deployment](./deployment.md)
+- [Dependency updates](./dependencies.md)
+
 ## Deep dives
 
 - [Chat runtime and SSE events](./chat-runtime.mdx)
 - [Kaana model abstraction](./model-abstraction.mdx)
-- [The `alia-*` layer: audit before removal](./alias-layer-audit.mdx)
+- [Agents, tools, approvals and tasks](./agents.md)
+- [Memory and the context graph](./memory-system.md)
+- [Proactive intelligence and automations](./proactive-intelligence.md)
+- [Shows: generated podcast series on Syra](./shows.mdx)
 - [Multi-channel integrations and tools](./integrations.mdx)
+- [Ecosystem activity reporting](./platform-activity.md)
+- [PostgreSQL-only runtime and the optional Mongo lock entry](./mongodb-runtime-boundary.md)
 - [Skills: the Agent Skills format, and what an install authorises](./skills.mdx)
 - [Bloom adoption: the matrix, and the contract gaps verified against 3.2.1](./bloom-adoption.mdx)
-- [Dependency audit: what actually reaches each package](./dependency-audit.mdx)
 - [Visual baseline: the reference the refactor is measured against](./visual-baseline.mdx)
 - [Runtime baseline: what booting the web surface costs, and what route changes leak](./runtime-baseline.mdx)
 - [Architecture decision records](./adr/README.md)
 - [Compatibility window and sunset criteria](./migration/compatibility-window.md)
+
+## Runbooks
+
+- [Kaana cutover](./runbooks/kaana-cutover.md)
+- [Rolling Alia back](./runbooks/rollback.md)
+- [Rotating and revoking Alia credentials](./runbooks/credential-rotation.md)
+- [Upstream provider credential exposure](./runbooks/provider-credential-exposure.md)
+- [Integrations service rollout](./runbooks/integrations-service-rollout.md)

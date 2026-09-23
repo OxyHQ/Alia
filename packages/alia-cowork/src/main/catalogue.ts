@@ -145,7 +145,7 @@ const cache = new Map<string, Promise<CatalogueEntry[]>>();
  * A rejected promise is evicted: a desktop application stays open for days, so
  * caching a failure would outlast the outage that caused it by a very long way.
  */
-export function fetchCatalogue(apiBaseUrl: string, accessToken?: string): Promise<CatalogueEntry[]> {
+function fetchCatalogue(apiBaseUrl: string, accessToken?: string): Promise<CatalogueEntry[]> {
   const cached = cache.get(apiBaseUrl);
   if (cached !== undefined) return cached;
 

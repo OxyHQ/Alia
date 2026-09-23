@@ -87,7 +87,6 @@ task('build:css', () => {
   const plugins = [
     postcssImport({
       path: [
-        path.join(__dirname, 'renderer/node_modules'),
         path.join(__dirname, 'node_modules'),
       ],
     }),
