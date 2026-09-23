@@ -477,14 +477,15 @@ describe('the same opener on every top-level page', () => {
    * of its branches, plus one text pin that it is actually installed. A guard
    * that works and is not wired is the same bug as no guard.
    */
-  it('is wired into both of the shell nav slots', () => {
+  it('is wired around the drawer copy of the sidebar', () => {
     const layout = page('_layout');
     expect(layout).toContain("from '@/components/app-shell/nav-region'");
-    expect(layout).toMatch(/<NavRegion>/);
-    // One `NavRegion`, handed to the column and to the drawer, because the two
-    // are the same sidebar and the gate must not depend on which is showing.
-    expect(layout).toContain('sidebar={nav}');
-    expect(layout).toContain('mobileSidebar={nav}');
+    // The template's two sidebars: the column from `lg` up, and the drawer
+    // copy below it. Only the drawer can be closed while mounted, so the gate
+    // wraps that one; in flow `navPresented` is always true.
+    expect(layout).toMatch(/<NavRegion>\s*<Sidebar mobile \/>\s*<\/NavRegion>/);
+    expect(layout).toContain('sidebar={sidebar}');
+    expect(layout).toContain('mobileSidebar={mobileSidebar}');
   });
 
   it('takes the sidebar out of the accessibility tree AND the tab order while closed', () => {

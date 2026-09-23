@@ -229,7 +229,15 @@
     "earlier": "Anteriores",
     "collapse": "Contraer barra lateral",
     "expand": "Expandir barra lateral",
-    "noAgentMessages": "Sin mensajes todavía"
+    "noAgentMessages": "Sin mensajes todavía",
+    "recent": "Recientes",
+    "chats": "Chats",
+    "support": "Soporte",
+    "tasks": "Tareas",
+    "shows": "Shows",
+    "freePlan": "Plan gratuito",
+    "signIn": "Iniciar sesión",
+    "newConversation": "Nueva conversación"
   },
   "billing": {
     "title": "Facturación",

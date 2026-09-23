@@ -255,7 +255,15 @@
     "earlier": "Earlier",
     "collapse": "Collapse sidebar",
     "expand": "Expand sidebar",
-    "noAgentMessages": "No messages yet"
+    "noAgentMessages": "No messages yet",
+    "recent": "Recent",
+    "chats": "Chats",
+    "support": "Support",
+    "tasks": "Tasks",
+    "shows": "Shows",
+    "freePlan": "Free Plan",
+    "signIn": "Sign in",
+    "newConversation": "New conversation"
   },
   "billing": {
     "title": "Billing",

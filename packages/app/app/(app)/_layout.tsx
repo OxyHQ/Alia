@@ -1,4 +1,3 @@
-import { useIsNavInFlow } from '@/components/app-shell/metrics';
 import { NavRegion } from '@/components/app-shell/nav-region';
 import { ShellNavProvider } from '@/components/app-shell/shell-nav';
 import { CommandPalette } from '@/components/command-palette';
@@ -32,9 +31,10 @@ const SELF_INSET_ROUTES = new Set([
   'settings',
 ]);
 
+/** The template's frame (`templates/shared/dashboard.tsx` in Bloom). */
+const TEMPLATE_FRAME = { flex: 1, width: '100%', minWidth: 0, minHeight: 0 } as const;
+
 export default function AppLayout() {
-  /** 1024: whether the nav is a column. `AiChatShell` decides this; see `metrics.ts`. */
-  const navInFlow = useIsNavInFlow();
   const insets = useSafeAreaInsets();
   const loadProjects = useProjectsStore((state) => state.loadProjects);
   const loadFolders = useFoldersStore((state) => state.loadFolders);
@@ -43,7 +43,6 @@ export default function AppLayout() {
   const rightPanel = useUIStore((state) => state.rightPanel);
   const setRightPanel = useUIStore((state) => state.setRightPanel);
   const rightPanelWidth = useUIStore((state) => state.rightPanelWidth);
-  const sidebarOpen = useUIStore((state) => state.sidebarOpen);
 
   // Prefetch welcome suggestions so they're ready before any chat screen mounts
   useWelcomeSuggestions();
@@ -74,22 +73,15 @@ export default function AppLayout() {
   }, [userId, loadProjects, loadFolders, loadFavorites, loadPinned]);
 
   /**
-   * The nav, once, for both of the shell's slots.
-   *
-   * The shell renders `sidebar` from `lg` up and `mobileSidebar` below it, and
-   * never both, so one element serves both without ever being mounted twice.
-   * Handing the same node to each is also the statement that Alia has ONE
-   * sidebar: the column and the drawer are the same rows in a different frame,
-   * which is why the drawer never needed a cut-down copy.
-   *
-   * `NavRegion` is what keeps the closed drawer out of the tab order and the
-   * screen-reader tree (#532) and what publishes the shell's open/close to the
-   * sidebar's own collapse control.
+   * The template's two sidebars: the in-flow panel from `lg` up, and the drawer
+   * copy (`mobile`, plain surface) below it. `NavRegion` keeps the closed drawer
+   * out of the tab order and the screen-reader tree (#532).
    */
-  const nav = useMemo(
+  const sidebar = useMemo(() => <Sidebar />, []);
+  const mobileSidebar = useMemo(
     () => (
       <NavRegion>
-        <Sidebar />
+        <Sidebar mobile />
       </NavRegion>
     ),
     [],
@@ -116,10 +108,10 @@ export default function AppLayout() {
   return (
     <AppErrorBoundary>
       <AliaSettingsProvider>
+        <View style={TEMPLATE_FRAME}>
         <AiChatShell
-          sidebar={nav}
-          mobileSidebar={nav}
-          sidebarCollapsed={navInFlow && !sidebarOpen}
+          sidebar={sidebar}
+          mobileSidebar={mobileSidebar}
           labels={shellLabels}
           defaultPanelWidth={rightPanelWidth}
           panelOpen={rightPanel !== null}
@@ -153,6 +145,7 @@ export default function AppLayout() {
             </Stack>
           </ShellNavProvider>
         </AiChatShell>
+        </View>
         <CommandPalette />
         <KeyboardShortcutsDialog />
       </AliaSettingsProvider>
