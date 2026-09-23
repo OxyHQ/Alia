@@ -207,8 +207,9 @@ export function Composer({
   );
 
   const host = (
-    // The panel's width in Bloom's own story frame; narrower screens fill.
-    <View id={hostId} className="w-full max-w-[640px] self-center">
+    // The transcript's column (Bloom's `AgentChat`: 768 at most, centred), so
+    // the composer and the conversation share one edge.
+    <View id={hostId} className="w-full max-w-[768px] self-center">
       <ComposerPanel
         value={value}
         onValueChange={onValueChange}

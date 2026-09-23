@@ -935,6 +935,20 @@ export const ChatInterface = React.memo(function ChatInterface({
                 showTimer={false}
               />
             )}
+
+          {/* Bloom's `AgentChat`: while a turn is busy and its reply has no
+              word yet, AgentThinking sits under the transcript, in its column.
+              A turn already running tools shows their own working line. */}
+          {isLoading &&
+            (() => {
+              const last = messages[messages.length - 1];
+              if (last === undefined || last.role === 'user') return true;
+              return (
+                last.role === 'assistant' &&
+                getMessageText(last).length === 0 &&
+                (last.toolInvocations?.length ?? 0) === 0
+              );
+            })() && <AgentThinking variant="wave" label={t('chat.thinking')} />}
         </View>
         <View style={bottomSpacerStyle} />
       </AiChatThread>
