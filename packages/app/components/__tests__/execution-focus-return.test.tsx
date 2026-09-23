@@ -31,53 +31,8 @@ vi.mock('react-native', async () => {
   };
 });
 
-vi.mock('react-native-reanimated', async () => {
-  const ReactModule = await import('react');
-  const Animated = {
-    View: ({
-      children,
-      ...props
-    }: React.PropsWithChildren<Record<string, unknown>>) =>
-      ReactModule.createElement('AnimatedView', props, children),
-  };
-  return {
-    default: Animated,
-    useAnimatedStyle: (factory: () => Record<string, unknown>) => factory(),
-    useSharedValue: <T,>(initial: T) =>
-      ReactModule.useRef({ value: initial }).current,
-    withTiming: <T,>(value: T) => value,
-    withRepeat: <T,>(value: T) => value,
-    withSequence: <T,>(value: T) => value,
-  };
-});
 
-vi.mock('lucide-react-native', async () => {
-  const ReactModule = await import('react');
-  const icon = (name: string) => (props: Record<string, unknown>) =>
-    ReactModule.createElement(name, props);
-  return {
-    Brain: icon('Brain'),
-    CheckCircle2: icon('CheckCircle2'),
-    X: icon('X'),
-    Globe: icon('Globe'),
-    ChevronRight: icon('ChevronRight'),
-    XCircle: icon('XCircle'),
-    Ban: icon('Ban'),
-    Clock: icon('Clock'),
-    FileText: icon('FileText'),
-  };
-});
 
-vi.mock('@oxy.so/bloom/typography', async () => {
-  const ReactModule = await import('react');
-  return {
-    Text: ({
-      children,
-      ...props
-    }: React.PropsWithChildren<Record<string, unknown>>) =>
-      ReactModule.createElement('Text', props, children),
-  };
-});
 vi.mock('@oxy.so/bloom/loading', async () => {
   const ReactModule = await import('react');
   return {
@@ -85,18 +40,25 @@ vi.mock('@oxy.so/bloom/loading', async () => {
       ReactModule.createElement('Loading', props),
   };
 });
+vi.mock('@oxy.so/bloom/agent-log', async () => (await import('./panel-bloom-stubs')).agentLogModule());
+vi.mock('@oxy.so/bloom/accordion', async () => (await import('./panel-bloom-stubs')).accordionModule());
+vi.mock('@oxy.so/bloom/item', async () => (await import('./panel-bloom-stubs')).itemModule());
+vi.mock('@oxy.so/bloom/empty-state', async () => (await import('./panel-bloom-stubs')).emptyStateModule());
+vi.mock('@oxy.so/bloom/typography', async () => (await import('./panel-bloom-stubs')).typographyModule());
+vi.mock('@oxy.so/bloom/theme', async () => (await import('./panel-bloom-stubs')).themeModule());
+vi.mock('@oxy.so/bloom/chip', async () => ({ Chip: (await import('./panel-bloom-stubs')).host('Chip') }));
+vi.mock('@oxy.so/bloom/code', async () => ({ CodeBlock: (await import('./panel-bloom-stubs')).host('CodeBlock') }));
+vi.mock('expo-clipboard', () => ({ setStringAsync: async () => true }));
+vi.mock('@oxy.so/bloom/icons/RiArrowDownSLine', async () => (await import('./panel-bloom-stubs')).iconModule('RiArrowDownSLine'));
+vi.mock('@oxy.so/bloom/icons/RiArrowRightSLine', async () => (await import('./panel-bloom-stubs')).iconModule('RiArrowRightSLine'));
+vi.mock('@oxy.so/bloom/icons/RiCheckboxCircleLine', async () => (await import('./panel-bloom-stubs')).iconModule('RiCheckboxCircleLine'));
+vi.mock('@oxy.so/bloom/icons/RiCloseCircleLine', async () => (await import('./panel-bloom-stubs')).iconModule('RiCloseCircleLine'));
+vi.mock('@oxy.so/bloom/icons/RiCloseLine', async () => (await import('./panel-bloom-stubs')).iconModule('RiCloseLine'));
+vi.mock('@oxy.so/bloom/icons/RiFileTextLine', async () => (await import('./panel-bloom-stubs')).iconModule('RiFileTextLine'));
+vi.mock('@oxy.so/bloom/icons/RiForbidLine', async () => (await import('./panel-bloom-stubs')).iconModule('RiForbidLine'));
+vi.mock('@oxy.so/bloom/icons/RiGlobalLine', async () => (await import('./panel-bloom-stubs')).iconModule('RiGlobalLine'));
+vi.mock('@oxy.so/bloom/icons/RiTimeLine', async () => (await import('./panel-bloom-stubs')).iconModule('RiTimeLine'));
 vi.mock('expo-web-browser', () => ({ openBrowserAsync: async () => {} }));
-vi.mock('@oxy.so/bloom/theme', () => ({
-  useTheme: () => ({
-    colors: {
-      success: 'green',
-      warning: 'orange',
-      info: 'blue',
-      error: 'red',
-      primary: 'black',
-    },
-  }),
-}));
 vi.mock('@/lib/hooks/use-translation', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));

@@ -38,42 +38,7 @@ vi.mock('react-native', async () => {
   };
 });
 
-vi.mock('react-native-reanimated', async () => {
-  const ReactModule = await import('react');
-  const Animated = {
-    View: ({
-      children,
-      ...props
-    }: React.PropsWithChildren<Record<string, unknown>>) =>
-      ReactModule.createElement('AnimatedView', props, children),
-  };
-  return {
-    default: Animated,
-    useAnimatedStyle: (factory: () => Record<string, unknown>) => factory(),
-    useSharedValue: <T,>(initial: T) =>
-      ReactModule.useRef({ value: initial }).current,
-    withTiming: <T,>(value: T) => value,
-    withRepeat: <T,>(value: T) => value,
-    withSequence: <T,>(value: T) => value,
-  };
-});
 
-vi.mock('lucide-react-native', async () => {
-  const ReactModule = await import('react');
-  const icon = (name: string) => (props: Record<string, unknown>) =>
-    ReactModule.createElement(name, props);
-  return {
-    Brain: icon('Brain'),
-    CheckCircle2: icon('CheckCircle2'),
-    X: icon('X'),
-    Globe: icon('Globe'),
-    ChevronRight: icon('ChevronRight'),
-    XCircle: icon('XCircle'),
-    Ban: icon('Ban'),
-    Clock: icon('Clock'),
-    FileText: icon('FileText'),
-  };
-});
 
 // `@/lib/utils` owns `cn`, which the execution rows really use, and a UUID
 // helper that pulls the Expo native module in on import. The leaf is stubbed.
@@ -81,16 +46,6 @@ vi.mock('expo-crypto', () => ({
   getRandomValues: (array: Uint8Array) => array,
 }));
 
-vi.mock('@oxy.so/bloom/typography', async () => {
-  const ReactModule = await import('react');
-  return {
-    Text: ({
-      children,
-      ...props
-    }: React.PropsWithChildren<Record<string, unknown>>) =>
-      ReactModule.createElement('Text', props, children),
-  };
-});
 
 vi.mock('@oxy.so/bloom/loading', async () => {
   const ReactModule = await import('react');
@@ -100,18 +55,25 @@ vi.mock('@oxy.so/bloom/loading', async () => {
   };
 });
 
+vi.mock('@oxy.so/bloom/agent-log', async () => (await import('./panel-bloom-stubs')).agentLogModule());
+vi.mock('@oxy.so/bloom/accordion', async () => (await import('./panel-bloom-stubs')).accordionModule());
+vi.mock('@oxy.so/bloom/item', async () => (await import('./panel-bloom-stubs')).itemModule());
+vi.mock('@oxy.so/bloom/empty-state', async () => (await import('./panel-bloom-stubs')).emptyStateModule());
+vi.mock('@oxy.so/bloom/typography', async () => (await import('./panel-bloom-stubs')).typographyModule());
+vi.mock('@oxy.so/bloom/theme', async () => (await import('./panel-bloom-stubs')).themeModule());
+vi.mock('@oxy.so/bloom/chip', async () => ({ Chip: (await import('./panel-bloom-stubs')).host('Chip') }));
+vi.mock('@oxy.so/bloom/code', async () => ({ CodeBlock: (await import('./panel-bloom-stubs')).host('CodeBlock') }));
+vi.mock('expo-clipboard', () => ({ setStringAsync: async () => true }));
+vi.mock('@oxy.so/bloom/icons/RiArrowDownSLine', async () => (await import('./panel-bloom-stubs')).iconModule('RiArrowDownSLine'));
+vi.mock('@oxy.so/bloom/icons/RiArrowRightSLine', async () => (await import('./panel-bloom-stubs')).iconModule('RiArrowRightSLine'));
+vi.mock('@oxy.so/bloom/icons/RiCheckboxCircleLine', async () => (await import('./panel-bloom-stubs')).iconModule('RiCheckboxCircleLine'));
+vi.mock('@oxy.so/bloom/icons/RiCloseCircleLine', async () => (await import('./panel-bloom-stubs')).iconModule('RiCloseCircleLine'));
+vi.mock('@oxy.so/bloom/icons/RiCloseLine', async () => (await import('./panel-bloom-stubs')).iconModule('RiCloseLine'));
+vi.mock('@oxy.so/bloom/icons/RiFileTextLine', async () => (await import('./panel-bloom-stubs')).iconModule('RiFileTextLine'));
+vi.mock('@oxy.so/bloom/icons/RiForbidLine', async () => (await import('./panel-bloom-stubs')).iconModule('RiForbidLine'));
+vi.mock('@oxy.so/bloom/icons/RiGlobalLine', async () => (await import('./panel-bloom-stubs')).iconModule('RiGlobalLine'));
+vi.mock('@oxy.so/bloom/icons/RiTimeLine', async () => (await import('./panel-bloom-stubs')).iconModule('RiTimeLine'));
 vi.mock('expo-web-browser', () => ({ openBrowserAsync: async () => {} }));
-vi.mock('@oxy.so/bloom/theme', () => ({
-  useTheme: () => ({
-    colors: {
-      success: 'green',
-      warning: 'orange',
-      info: 'blue',
-      error: 'red',
-      primary: 'black',
-    },
-  }),
-}));
 vi.mock('@/lib/hooks/use-translation', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
@@ -343,6 +305,8 @@ describe('watching a turn run (#543)', () => {
     const r = render();
     expect(text(r)).toContain('thought.thinking');
     expect(text(r)).not.toContain('thought.done');
+    // The live phase is the agent log's working row at the tail, not a settled line.
+    expect(hosts(r, 'AgentLogWorkingRow')).toHaveLength(1);
 
     // A tool starts, then finishes; the model has not written yet.
     messages = [
@@ -390,6 +354,9 @@ describe('watching a turn run (#543)', () => {
     sync(scope('c1', messages, { isLoading: false }));
     expect(text(r)).toContain('thought.done');
     expect(text(r)).not.toContain('thought.writing');
+    expect(hosts(r, 'AgentLogWorkingRow')).toHaveLength(0);
+    // Every step is one row of the log: the tool and the ending.
+    expect(hosts(r, 'AgentLogRow')).toHaveLength(2);
   });
 
   it('shows a finished tool-only turn as done, not as still running', () => {
@@ -452,7 +419,7 @@ describe('watching a turn run (#543)', () => {
     const r = render();
     expect(text(r)).toContain('thought.failed');
     expect(text(r)).not.toContain('thought.done');
-    expect(hosts(r, 'XCircle')).toHaveLength(1);
+    expect(hosts(r, 'RiCloseCircleLine')).toHaveLength(1);
   });
 
   it('ends a stopped turn with "stopped", and stops its tool from spinning', () => {
@@ -474,7 +441,7 @@ describe('watching a turn run (#543)', () => {
     expect(hosts(r, 'Loading')).toHaveLength(0);
 
     setTab('activity');
-    expect(hosts(r, 'Ban')).toHaveLength(1);
+    expect(hosts(r, 'RiForbidLine')).toHaveLength(1);
   });
 
   it('shows the pause on an approval', () => {

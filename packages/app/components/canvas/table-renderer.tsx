@@ -1,5 +1,5 @@
-import { Text } from '@oxy.so/bloom/typography';
-import { ScrollView, View } from 'react-native';
+import { Table, TableBody, TableCell, TableColumn, TableHeader, TableRow } from '@oxy.so/bloom/table';
+
 interface TableData {
   headers: string[];
   rows: string[][];
@@ -7,32 +7,34 @@ interface TableData {
 
 interface TableRendererProps {
   data: TableData;
+  /** Names the table for assistive tech — the canvas component's title. */
+  title?: string;
 }
 
-export function TableRenderer({ data }: TableRendererProps) {
+/** Below this width per column the table scrolls sideways instead of squeezing. */
+const COLUMN_MIN_WIDTH = 100;
+
+export function TableRenderer({ data, title }: TableRendererProps) {
   const { headers, rows } = data;
 
   return (
-    <ScrollView horizontal showsHorizontalScrollIndicator={true}>
-      <View className="border border-border rounded-lg overflow-hidden">
-        <View className="flex-row bg-muted">
-          {headers.map((header, i) => (
-            <View key={i} className="px-3 py-2 border-r border-border last:border-r-0" style={{ minWidth: 100 }}>
-              <Text className="text-xs font-semibold text-foreground">{header}</Text>
-            </View>
-          ))}
-        </View>
-
-        {rows.map((row, rowIdx) => (
-          <View key={rowIdx} className={`flex-row ${rowIdx % 2 === 1 ? 'bg-muted/50' : ''} border-t border-border`}>
-            {row.map((cell, cellIdx) => (
-              <View key={cellIdx} className="px-3 py-2 border-r border-border last:border-r-0" style={{ minWidth: 100 }}>
-                <Text className="text-xs text-foreground">{cell}</Text>
-              </View>
-            ))}
-          </View>
+    <Table size="sm" accessibilityLabel={title} minWidth={headers.length * COLUMN_MIN_WIDTH}>
+      <TableHeader>
+        {headers.map((header, i) => (
+          <TableColumn key={i} minWidth={COLUMN_MIN_WIDTH}>
+            {header}
+          </TableColumn>
         ))}
-      </View>
-    </ScrollView>
+      </TableHeader>
+      <TableBody>
+        {rows.map((row, rowIdx) => (
+          <TableRow key={rowIdx}>
+            {row.map((cell, cellIdx) => (
+              <TableCell key={cellIdx}>{cell}</TableCell>
+            ))}
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
   );
 }

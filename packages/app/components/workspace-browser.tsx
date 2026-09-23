@@ -1,38 +1,35 @@
 import apiClient from '@/lib/api/client';
-import { useColorScheme } from '@/lib/useColorScheme';
-import { Text } from '@oxy.so/bloom/typography';
+import { useTranslation } from '@/lib/hooks/use-translation';
+import { Button } from '@oxy.so/bloom/button';
+import { Card } from '@oxy.so/bloom/card';
+import { CodeBlock } from '@oxy.so/bloom/code';
+import { EmptyState } from '@oxy.so/bloom/empty-state';
+import type { BloomIconComponent } from '@oxy.so/bloom/icons';
+import { RiArrowDownSLine } from '@oxy.so/bloom/icons/RiArrowDownSLine';
+import { RiArrowRightSLine } from '@oxy.so/bloom/icons/RiArrowRightSLine';
+import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
+import { RiDownloadLine } from '@oxy.so/bloom/icons/RiDownloadLine';
+import { RiFileCodeLine } from '@oxy.so/bloom/icons/RiFileCodeLine';
+import { RiFileImageLine } from '@oxy.so/bloom/icons/RiFileImageLine';
+import { RiFilePaper2Line } from '@oxy.so/bloom/icons/RiFilePaper2Line';
+import { RiFileTextLine } from '@oxy.so/bloom/icons/RiFileTextLine';
+import { RiFolder3Line } from '@oxy.so/bloom/icons/RiFolder3Line';
+import { RiFolderLine } from '@oxy.so/bloom/icons/RiFolderLine';
+import { RiFolderOpenLine } from '@oxy.so/bloom/icons/RiFolderOpenLine';
+import { Item } from '@oxy.so/bloom/item';
+import { Loading } from '@oxy.so/bloom/loading';
+import { useTheme } from '@oxy.so/bloom/theme';
+import { Muted, Text } from '@oxy.so/bloom/typography';
 import { useQuery } from '@tanstack/react-query';
-import {
-  ChevronDown,
-  ChevronRight,
-  Download,
-  File,
-  FileCode,
-  FileText,
-  Folder,
-  FolderOpen,
-  FolderTree,
-  Image as ImageIcon,
-  X,
-} from 'lucide-react-native';
+import * as Clipboard from 'expo-clipboard';
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
-import Animated, { FadeIn } from 'react-native-reanimated';
+import { ScrollView, View } from 'react-native';
+
 /**
- * WorkspaceBrowser — Tree view of agent workspace files with preview/download.
- *
- * Shows files created by an agent during task execution.
- * Supports expanding directories, previewing text files, and downloading.
+ * WorkspaceBrowser — the files an agent wrote during a task, as a tree of
+ * Bloom `Item` rows: directories expand in place (each level indented by
+ * nesting), text files open a `CodeBlock` preview, and every file downloads.
  */
-
-
-
-
-
-
-
-
-
 
 interface WorkspaceFile {
   name: string;
@@ -47,35 +44,28 @@ interface WorkspaceBrowserProps {
   onClose?: () => void;
 }
 
-const FILE_ICON_MAP: Record<string, typeof FileCode> = {
-  '.ts': FileCode,
-  '.tsx': FileCode,
-  '.js': FileCode,
-  '.jsx': FileCode,
-  '.py': FileCode,
-  '.rs': FileCode,
-  '.go': FileCode,
-  '.java': FileCode,
-  '.rb': FileCode,
-  '.json': FileCode,
-  '.yaml': FileCode,
-  '.yml': FileCode,
-  '.toml': FileCode,
-  '.md': FileText,
-  '.txt': FileText,
-  '.csv': FileText,
-  '.log': FileText,
-  '.png': ImageIcon,
-  '.jpg': ImageIcon,
-  '.jpeg': ImageIcon,
-  '.gif': ImageIcon,
-  '.svg': ImageIcon,
-  '.webp': ImageIcon,
-};
+const CODE_EXTENSIONS = ['.ts', '.tsx', '.js', '.jsx', '.py', '.rs', '.go', '.java', '.rb', '.json', '.yaml', '.yml', '.toml'];
+const TEXT_EXTENSIONS = ['.md', '.txt', '.csv', '.log'];
+const IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp'];
+const PREVIEWABLE = [
+  ...CODE_EXTENSIONS,
+  ...TEXT_EXTENSIONS,
+  '.html', '.css', '.sh', '.bash', '.zsh', '.sql', '.xml', '.env',
+  '.gitignore', '.dockerfile', '.makefile',
+];
+/** How much of a file the preview shows. */
+const PREVIEW_LIMIT = 5000;
 
-function getFileIcon(name: string) {
-  const ext = name.substring(name.lastIndexOf('.')).toLowerCase();
-  return FILE_ICON_MAP[ext] || File;
+function extension(name: string): string {
+  return name.substring(name.lastIndexOf('.')).toLowerCase();
+}
+
+function fileIcon(name: string): BloomIconComponent {
+  const ext = extension(name);
+  if (CODE_EXTENSIONS.includes(ext)) return RiFileCodeLine;
+  if (TEXT_EXTENSIONS.includes(ext)) return RiFileTextLine;
+  if (IMAGE_EXTENSIONS.includes(ext)) return RiFileImageLine;
+  return RiFilePaper2Line;
 }
 
 function formatFileSize(bytes?: number): string {
@@ -86,64 +76,50 @@ function formatFileSize(bytes?: number): string {
 }
 
 function isPreviewable(name: string): boolean {
-  const ext = name.substring(name.lastIndexOf('.')).toLowerCase();
-  const previewable = [
-    '.ts', '.tsx', '.js', '.jsx', '.py', '.rs', '.go', '.java', '.rb',
-    '.json', '.yaml', '.yml', '.toml', '.md', '.txt', '.csv', '.log',
-    '.html', '.css', '.sh', '.bash', '.zsh', '.sql', '.xml', '.env',
-    '.gitignore', '.dockerfile', '.makefile',
-  ];
-  return previewable.includes(ext) || !name.includes('.');
+  return PREVIEWABLE.includes(extension(name)) || !name.includes('.');
 }
 
-function FileTreeItem({
-  file,
-  sessionId,
-  depth,
-  colors,
-}: {
-  file: WorkspaceFile;
-  sessionId: string;
-  depth: number;
-  colors: any;
-}) {
+function countFiles(files: WorkspaceFile[]): number {
+  let count = 0;
+  for (const f of files) {
+    if (f.type === 'file') count++;
+    if (f.children) count += countFiles(f.children);
+  }
+  return count;
+}
+
+function FileTreeItem({ file, sessionId, depth }: { file: WorkspaceFile; sessionId: string; depth: number }) {
+  const { t } = useTranslation();
+  const { colors } = useTheme();
   const [expanded, setExpanded] = useState(depth === 0);
   const [preview, setPreview] = useState<string | null>(null);
   const [loadingPreview, setLoadingPreview] = useState(false);
+  const isDirectory = file.type === 'directory';
 
   const handlePress = useCallback(async () => {
-    if (file.type === 'directory') {
+    if (isDirectory) {
       setExpanded(!expanded);
       return;
     }
-
-    // Toggle preview for text files
-    if (isPreviewable(file.name)) {
-      if (preview !== null) {
-        setPreview(null);
-        return;
-      }
-      setLoadingPreview(true);
-      try {
-        const res = await apiClient.get(
-          `/agents/sessions/${sessionId}/files/${file.path}`,
-          { responseType: 'text' },
-        );
-        setPreview(typeof res.data === 'string' ? res.data : JSON.stringify(res.data, null, 2));
-      } catch {
-        setPreview('(failed to load file)');
-      }
-      setLoadingPreview(false);
+    if (!isPreviewable(file.name)) return;
+    if (preview !== null) {
+      setPreview(null);
+      return;
     }
-  }, [file, expanded, preview, sessionId]);
+    setLoadingPreview(true);
+    try {
+      const res = await apiClient.get(`/agents/sessions/${sessionId}/files/${file.path}`, { responseType: 'text' });
+      setPreview(typeof res.data === 'string' ? res.data : JSON.stringify(res.data, null, 2));
+    } catch {
+      setPreview(t('panels.workspace.previewFailed'));
+    }
+    setLoadingPreview(false);
+  }, [file, isDirectory, expanded, preview, sessionId, t]);
 
   const handleDownload = useCallback(async () => {
     // On web, trigger download. On native, this would use expo-sharing.
     try {
-      const res = await apiClient.get(
-        `/agents/sessions/${sessionId}/files/${file.path}`,
-        { responseType: 'blob' },
-      );
+      const res = await apiClient.get(`/agents/sessions/${sessionId}/files/${file.path}`, { responseType: 'blob' });
       if (typeof window !== 'undefined' && window.URL) {
         const url = window.URL.createObjectURL(res.data);
         const a = document.createElement('a');
@@ -157,73 +133,71 @@ function FileTreeItem({
     }
   }, [file, sessionId]);
 
-  const Icon = file.type === 'directory'
-    ? (expanded ? FolderOpen : Folder)
-    : getFileIcon(file.name);
-
-  const iconColor = file.type === 'directory' ? '#f59e0b' : colors.mutedForeground;
+  const Icon = isDirectory ? (expanded ? RiFolderOpenLine : RiFolderLine) : fileIcon(file.name);
+  const Chevron = expanded ? RiArrowDownSLine : RiArrowRightSLine;
 
   return (
     <View>
-      <Pressable
+      <Item
+        density="compact"
+        leading={
+          <View className="flex-row items-center gap-0.5">
+            {isDirectory ? <Chevron size="xs" fill={colors.textSecondary} /> : null}
+            <Icon size="sm" fill={isDirectory ? colors.warning : colors.textSecondary} />
+          </View>
+        }
+        title={file.name}
+        expanded={isDirectory ? expanded : undefined}
         onPress={handlePress}
-        className="flex-row items-center py-1.5 active:bg-muted/50"
-        style={{ paddingLeft: 12 + depth * 16 }}
-      >
-        {file.type === 'directory' && (
-          expanded
-            ? <ChevronDown size={12} color={colors.mutedForeground} style={{ marginRight: 2 }} />
-            : <ChevronRight size={12} color={colors.mutedForeground} style={{ marginRight: 2 }} />
-        )}
-        <Icon size={14} color={iconColor} style={{ marginRight: 6 }} />
-        <Text className="text-sm text-foreground flex-1" numberOfLines={1}>
-          {file.name}
-        </Text>
-        {file.size !== undefined && file.type === 'file' && (
-          <Text className="text-[10px] text-muted-foreground mr-2">
-            {formatFileSize(file.size)}
-          </Text>
-        )}
-        {file.type === 'file' && (
-          <Pressable onPress={handleDownload} hitSlop={8} className="p-1">
-            <Download size={12} color={colors.mutedForeground} />
-          </Pressable>
-        )}
-        {loadingPreview && (
-          <ActivityIndicator size="small" style={{ marginLeft: 4 }} />
-        )}
-      </Pressable>
+        trailing={
+          isDirectory ? null : (
+            <View className="flex-row items-center gap-1">
+              {file.size !== undefined ? <Muted>{formatFileSize(file.size)}</Muted> : null}
+              {loadingPreview ? <Loading size="sm" iconSize={12} /> : null}
+              <Button
+                appearance="plain"
+                tone="neutral"
+                size="xs"
+                accessibilityLabel={t('panels.workspace.download', { name: file.name })}
+                onPress={handleDownload}
+                icon={<RiDownloadLine size="xs" fill={colors.textSecondary} />}
+              />
+            </View>
+          )
+        }
+      />
 
-      {/* File preview */}
-      {preview !== null && (
-        <View className="mx-3 mb-2 rounded-lg bg-muted/50 border border-border overflow-hidden">
-          <ScrollView
-            horizontal={false}
-            style={{ maxHeight: 200, padding: 8 }}
-          >
-            <Text className="text-xs text-foreground font-mono" selectable>
-              {preview.length > 5000 ? preview.slice(0, 5000) + '\n\n[truncated]' : preview}
-            </Text>
+      {preview !== null ? (
+        <View className="px-3 pb-2">
+          <ScrollView className="max-h-[200px]" nestedScrollEnabled>
+            <CodeBlock
+              code={preview.length > PREVIEW_LIMIT ? `${preview.slice(0, PREVIEW_LIMIT)}\n\n${t('panels.workspace.truncated')}` : preview}
+              filename={file.name}
+              lineNumbers={false}
+              wrap
+              onCopy={async (code) => {
+                await Clipboard.setStringAsync(code);
+              }}
+              labels={{ copy: t('panels.code.copy'), copied: t('panels.code.copied') }}
+            />
           </ScrollView>
         </View>
-      )}
+      ) : null}
 
-      {/* Children for directories */}
-      {expanded && file.children?.map(child => (
-        <FileTreeItem
-          key={child.path}
-          file={child}
-          sessionId={sessionId}
-          depth={depth + 1}
-          colors={colors}
-        />
-      ))}
+      {expanded && file.children && file.children.length > 0 ? (
+        <View className="pl-4">
+          {file.children.map((child) => (
+            <FileTreeItem key={child.path} file={child} sessionId={sessionId} depth={depth + 1} />
+          ))}
+        </View>
+      ) : null}
     </View>
   );
 }
 
 export function WorkspaceBrowser({ sessionId, onClose }: WorkspaceBrowserProps) {
-  const { colors } = useColorScheme();
+  const { t } = useTranslation();
+  const { colors } = useTheme();
 
   const { data, isLoading, error } = useQuery<{ files: WorkspaceFile[]; containerId?: string }>({
     queryKey: ['workspace-files', sessionId],
@@ -238,72 +212,40 @@ export function WorkspaceBrowser({ sessionId, onClose }: WorkspaceBrowserProps) 
   const hasFiles = files.length > 0;
 
   return (
-    <Animated.View
-      entering={FadeIn.duration(200)}
-      className="rounded-xl border border-border bg-background overflow-hidden"
-    >
-      {/* Header */}
-      <View className="flex-row items-center justify-between px-3 py-2 border-b border-border bg-muted/30">
-        <View className="flex-row items-center gap-2">
-          <FolderTree size={14} color={colors.primary} />
-          <Text className="text-xs font-semibold text-foreground">Workspace Files</Text>
-          {hasFiles && (
-            <Text className="text-[10px] text-muted-foreground">
-              {countFiles(files)} files
-            </Text>
-          )}
+    <Card appearance="outline" radius="radius-12">
+      <View className="flex-row items-center justify-between gap-2 px-3 py-2">
+        <View className="min-w-0 shrink flex-row items-center gap-2">
+          <RiFolder3Line size="sm" fill={colors.textSecondary} />
+          <Text variant="body-semibold">{t('panels.workspace.title')}</Text>
+          {hasFiles ? <Muted>{t('panels.workspace.fileCount', { count: countFiles(files) })}</Muted> : null}
         </View>
-        {onClose && (
-          <Pressable onPress={onClose} hitSlop={8} className="p-1">
-            <X size={14} color={colors.mutedForeground} />
-          </Pressable>
-        )}
+        {onClose ? (
+          <Button
+            appearance="plain"
+            tone="neutral"
+            size="xs"
+            accessibilityLabel={t('common.close')}
+            onPress={onClose}
+            icon={<RiCloseLine size="sm" fill={colors.textSecondary} />}
+          />
+        ) : null}
       </View>
 
-      {/* Content */}
-      <ScrollView style={{ maxHeight: 320 }}>
-        {isLoading && (
-          <View className="items-center py-6">
-            <ActivityIndicator size="small" />
-            <Text className="text-xs text-muted-foreground mt-2">Loading workspace...</Text>
-          </View>
-        )}
-
-        {!isLoading && error && (
-          <View className="items-center py-6 px-4">
-            <Text className="text-xs text-muted-foreground text-center">
-              Unable to load workspace files. The container may have expired.
-            </Text>
-          </View>
-        )}
-
-        {!isLoading && !error && !hasFiles && (
-          <View className="items-center py-6 px-4">
-            <Text className="text-xs text-muted-foreground text-center">
-              No files in workspace yet.
-            </Text>
-          </View>
-        )}
-
-        {hasFiles && files.map(file => (
-          <FileTreeItem
-            key={file.path}
-            file={file}
-            sessionId={sessionId}
-            depth={0}
-            colors={colors}
+      <ScrollView className="max-h-80">
+        {isLoading ? (
+          <EmptyState
+            variant="compact"
+            illustration={<Loading size="sm" iconSize={20} />}
+            description={t('panels.workspace.loading')}
           />
-        ))}
+        ) : error ? (
+          <EmptyState variant="compact" description={t('panels.workspace.loadFailed')} />
+        ) : !hasFiles ? (
+          <EmptyState variant="compact" description={t('panels.workspace.empty')} />
+        ) : (
+          files.map((file) => <FileTreeItem key={file.path} file={file} sessionId={sessionId} depth={0} />)
+        )}
       </ScrollView>
-    </Animated.View>
+    </Card>
   );
-}
-
-function countFiles(files: WorkspaceFile[]): number {
-  let count = 0;
-  for (const f of files) {
-    if (f.type === 'file') count++;
-    if (f.children) count += countFiles(f.children);
-  }
-  return count;
 }
