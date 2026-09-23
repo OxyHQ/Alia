@@ -275,7 +275,7 @@ describe('an existing row it may finish', () => {
   it('removes a capability nobody published, and restores one somebody deleted', () => {
     const tampered: NativeAgentRow = {
       ...settled(),
-      capabilityGrants: ['web', 'shell', 'mcp:some-connector'],
+      capabilityGrants: ['web', 'messaging', 'mcp:some-connector'],
     };
     const result = planNativeProductAgentBootstrap(
       observe({ homiio: { byId: tampered, byOxyAccountId: tampered } }),
@@ -287,7 +287,7 @@ describe('an existing row it may finish', () => {
     if (sindi?.kind !== 'update') return;
     expect(sindi.changes).toContainEqual({
       field: 'capabilityGrants',
-      from: ['web', 'shell', 'mcp:some-connector'],
+      from: ['web', 'messaging', 'mcp:some-connector'],
       to: ['web', 'artifacts', 'memory'],
     });
   });
@@ -471,7 +471,7 @@ describe('the reach invariant', () => {
     const grants = (to: string[]) =>
       planWidensReach({ ...base, changes: [{ field: 'capabilityGrants', from: [], to }] });
 
-    expect(grants(['web', 'artifacts', 'memory', 'shell'])).toBe(true);
+    expect(grants(['web', 'artifacts', 'memory', 'messaging'])).toBe(true);
     expect(grants(['web', 'artifacts', 'memory', 'mcp:anything'])).toBe(true);
     expect(grants(['memory', 'artifacts', 'web'])).toBe(true);
     expect(grants(['web'])).toBe(true);
@@ -512,7 +512,7 @@ describe('the reach invariant', () => {
       { ...settled(), access: 'public', isPublished: true },
       { ...settled(), status: 'offline' },
       { ...settled(), capabilityGrants: [] },
-      { ...settled(), capabilityGrants: ['shell', 'browser', 'delegation'] },
+      { ...settled(), capabilityGrants: ['messaging', 'browser', 'delegation'] },
       { ...settled(), capabilityGrants: ['memory', 'artifacts', 'web'] },
     ];
     for (const row of states) {

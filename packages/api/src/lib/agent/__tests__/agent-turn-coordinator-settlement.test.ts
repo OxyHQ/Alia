@@ -17,9 +17,7 @@ vi.mock('../../../db/agents/agentRuntimeRepository.js', () => ({
   })),
 }));
 vi.mock('../browser-session.js', () => ({ BrowserSession: class { close = closeBrowser; } }));
-vi.mock('../terminal-session.js', () => ({ TerminalSession: class {} }));
 vi.mock('../todo-manager.js', () => ({ TodoManager: class {} }));
-vi.mock('../workspace-memory.js', () => ({ WorkspaceMemory: class {} }));
 vi.mock('../event-stream.js', () => ({ EventStream: class {
   append = vi.fn();
   flush = vi.fn(async () => { events.push('events:flushed'); });

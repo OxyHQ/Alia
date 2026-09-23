@@ -144,8 +144,8 @@ describe('each product event is emitted under its own name, to its own room', ()
     emitApprovalRequest('sess-ws13', {
       requestId: 'req-1',
       agentId: 'agent-ws13',
-      toolName: 'shell',
-      args: { command: 'ls' },
+      toolName: 'browser',
+      args: { action: 'search', query: 'alia' },
       description: 'why',
       severity: 'critical',
       timeout: 60_000,
@@ -170,8 +170,8 @@ describe('each product event is emitted under its own name, to its own room', ()
     expect(broadcasts[1].payload).toMatchObject({
       eventVersion: 1,
       requestId: 'req-1',
-      toolName: 'shell',
-      args: { command: 'ls' },
+      toolName: 'browser',
+      args: { action: 'search', query: 'alia' },
     });
     expect(broadcasts[3].payload).toEqual({ eventVersion: 1, requestId: 'req-1', decision: 'approved' });
   });

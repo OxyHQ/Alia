@@ -49,14 +49,6 @@ vi.mock('@/components/ui/action-key-icon', async () => {
   const ReactModule = await import('react');
   return { ActionKeyIcon: (props: Record<string, unknown>) => ReactModule.createElement('Icon', props) };
 });
-vi.mock('@/components/ui/files-icon', async () => {
-  const ReactModule = await import('react');
-  return { FilesIcon: (props: Record<string, unknown>) => ReactModule.createElement('Icon', props) };
-});
-vi.mock('@/components/ui/terminal-icon', async () => {
-  const ReactModule = await import('react');
-  return { TerminalIcon: (props: Record<string, unknown>) => ReactModule.createElement('Icon', props) };
-});
 vi.mock('@/components/ui/icons/agent-robot-icon', async () => {
   const ReactModule = await import('react');
   return { AgentRobotIcon: (props: Record<string, unknown>) => ReactModule.createElement('Icon', props) };

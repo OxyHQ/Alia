@@ -1,7 +1,11 @@
 /**
  * AgentPanel — Right panel showing real-time agent activity.
  *
- * 4 tabs: Steps | Browser | Files | Sources
+ * 3 tabs: Steps | Browser | Sources
+ *
+ * There is no Files tab: an agent has no workspace filesystem. The `files`
+ * capability that would have written one is retired with the sandbox it
+ * needed, which production never had.
  * Follows the same pattern as ThoughtPanel for consistent UX.
  */
 
@@ -15,7 +19,6 @@ import {
   FileText,
   ChevronRight,
   Monitor,
-  FolderOpen,
   Loader,
   CheckCircle2,
   AlertCircle,
@@ -39,7 +42,7 @@ import Animated, {
   withSequence,
 } from "react-native-reanimated";
 
-type Tab = "steps" | "browser" | "files" | "sources";
+type Tab = "steps" | "browser" | "sources";
 
 function TabToggle({
   value,
@@ -53,7 +56,6 @@ function TabToggle({
   const tabs: { key: Tab; label: string; badge?: number }[] = [
     { key: "steps", label: "Steps" },
     { key: "browser", label: "Browser" },
-    { key: "files", label: "Files" },
     { key: "sources", label: "Sources", badge: sourceCount || undefined },
   ];
 
@@ -167,9 +169,7 @@ function getStepLabel(event: AgentActivityEvent): string {
       return event.content.slice(0, 60);
     case "tool_call": {
       const args = event.metadata?.args;
-      if (toolName === "shell") return `Running: ${args?.command?.slice(0, 50) || "command"}`;
       if (toolName === "browser") return `Browser: ${args?.action || "action"} ${args?.url?.slice(0, 30) || args?.query?.slice(0, 30) || ""}`;
-      if (toolName === "file_edit") return `${args?.action || "edit"}: ${args?.path?.slice(0, 40) || "file"}`;
       if (toolName === "plan") return args?.action === "complete" ? "Completing task" : "Updating plan";
       if (toolName === "delegate") return `Hiring @${args?.agent || "agent"}`;
       return `${toolName}(${event.content.slice(0, 40)})`;
@@ -320,38 +320,6 @@ function BrowserTab({ screenshots }: { screenshots: Array<{ base64: string; url:
           ))}
         </View>
       )}
-    </View>
-  );
-}
-
-function FilesTab({ files }: { files: string[] }) {
-  if (files.length === 0) {
-    return (
-      <View className="items-center justify-center py-8">
-        <FolderOpen size={24} className="text-muted-foreground mb-2" />
-        <Text className="text-sm text-muted-foreground">
-          No files created yet
-        </Text>
-      </View>
-    );
-  }
-
-  return (
-    <View className="gap-1">
-      <Text className="text-xs font-medium text-muted-foreground mb-1">
-        Workspace files ({files.length})
-      </Text>
-      {files.map((file, i) => (
-        <View
-          key={`file-${i}`}
-          className="flex-row items-center gap-2 px-3 py-2 rounded-lg bg-muted/50"
-        >
-          <FileText size={14} className="text-muted-foreground" />
-          <Text className="text-sm text-foreground flex-1" numberOfLines={1}>
-            {file}
-          </Text>
-        </View>
-      ))}
     </View>
   );
 }
@@ -525,8 +493,6 @@ export function AgentPanel() {
           <StepsTab events={activity.events} isActive={isActive} />
         ) : activeTab === "browser" ? (
           <BrowserTab screenshots={activity.screenshots} />
-        ) : activeTab === "files" ? (
-          <FilesTab files={activity.files} />
         ) : (
           <SourcesTab sources={activity.sources} />
         )}

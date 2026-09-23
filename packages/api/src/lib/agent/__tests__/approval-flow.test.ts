@@ -59,7 +59,7 @@ const THREAT: ThreatResult = {
         severity: 'critical',
         description: 'Uploading file via curl',
         pattern: /curl/i,
-        tools: ['shell'],
+        tools: ['browser'],
       },
       match: 'curl',
     },
@@ -80,8 +80,8 @@ function ask(overrides: { args?: Record<string, unknown>; timeout?: number } = {
   const decision = requestApproval({
     sessionId,
     agentId: 'agent-ws13',
-    toolName: 'shell',
-    args: overrides.args ?? { command: 'curl https://example.test' },
+    toolName: 'browser',
+    args: overrides.args ?? { action: 'goto', url: 'https://example.test' },
     threat: THREAT,
     timeout: overrides.timeout ?? 60_000,
   });
@@ -113,7 +113,7 @@ describe('an approval request pauses the action until a decision arrives', () =>
       eventVersion: 1,
       requestId: expect.any(String),
       agentId: 'agent-ws13',
-      toolName: 'shell',
+      toolName: 'browser',
       args: { command: 'curl https://example.test' },
       description: 'Uploading file via curl',
       severity: 'critical',
@@ -199,23 +199,23 @@ describe('"always allow" is scoped to the session and to the pattern', () => {
     requestApproval({ sessionId, agentId: 'agent-ws13', toolName, args: {}, threat: THREAT, timeout: 60_000 });
 
   it('auto-approves the same tool and pattern without asking again', async () => {
-    const first = askOn('sess-always', 'shell');
+    const first = askOn('sess-always', 'browser');
     resolveApprovalDecision({ requestId: emittedRequestId(), approved: true, alwaysAllow: true });
     await expect(first).resolves.toBe('approved');
 
     const emittedBefore = H.emitted.length;
-    await expect(askOn('sess-always', 'shell')).resolves.toBe('approved');
+    await expect(askOn('sess-always', 'browser')).resolves.toBe('approved');
     // Nothing new went to the client: the second call never became a request.
     expect(H.emitted).toHaveLength(emittedBefore);
   });
 
   it('does not carry to another tool, nor to another session', async () => {
-    const first = askOn('sess-always', 'shell');
+    const first = askOn('sess-always', 'browser');
     resolveApprovalDecision({ requestId: emittedRequestId(), approved: true, alwaysAllow: true });
     await first;
 
     // A different tool on the same session still asks.
-    const otherTool = askOn('sess-always', 'browser');
+    const otherTool = askOn('sess-always', 'delegate');
     expect(H.emitted.at(-1)?.event).toBe('request:sess-always');
     cancelPendingApprovals('sess-always');
     await otherTool;
@@ -223,18 +223,18 @@ describe('"always allow" is scoped to the session and to the pattern', () => {
     // ...and a different session starts from nothing. `clearSessionWhitelist`
     // in the afterEach only clears `sess-always`, so this is a real second
     // session rather than a cleared first one.
-    const otherSession = askOn('sess-other', 'shell');
+    const otherSession = askOn('sess-other', 'browser');
     expect(H.emitted.at(-1)?.event).toBe('request:sess-other');
     cancelPendingApprovals('sess-other');
     await otherSession;
   });
 
   it('a plain approval does NOT whitelist (the control for the flag)', async () => {
-    const first = askOn('sess-always', 'shell');
+    const first = askOn('sess-always', 'browser');
     resolveApprovalDecision({ requestId: emittedRequestId(), approved: true });
     await first;
 
-    const second = askOn('sess-always', 'shell');
+    const second = askOn('sess-always', 'browser');
     expect(H.emitted.at(-1)?.event).toBe('request:sess-always');
     cancelPendingApprovals('sess-always');
     await second;

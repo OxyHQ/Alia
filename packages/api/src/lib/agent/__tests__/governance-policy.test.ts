@@ -261,7 +261,7 @@ async function policyApplied(ctx: AgentRuntimeContext, grants = GRANTS_EVERYTHIN
 describe('the governance wrapper enforces the level it classified', () => {
   it('R3 blocks before the tool runs, and says so on the event stream', async () => {
     const actions = await policyApplied(actionContext());
-    const result = await run(actions, 'shell', { command: 'rm -rf /workspace' });
+    const result = await run(actions, 'browser', { action: 'search', query: 'rm -rf /workspace' });
 
     // The refusal reaches the model as a tool result, so the agent can react.
     expect(result).toBe('Error: Action blocked by policy — Destructive or irreversible operation blocked by policy');
@@ -277,12 +277,12 @@ describe('the governance wrapper enforces the level it classified', () => {
   it('R2 asks for approval and refuses when the answer is not yes', async () => {
     H.state.approval = 'denied';
     const actions = await policyApplied(actionContext());
-    const result = await run(actions, 'shell', { command: 'echo hello' });
+    const result = await run(actions, 'browser', { action: 'search', query: 'hello' });
 
     expect(result).toBe('Error: Action requires approval (denied).');
     expect(H.timeline).toEqual([
-      'approval:request(shell)',
-      'event:system_message(APPROVAL DENIED: shell)',
+      'approval:request(browser)',
+      'event:system_message(APPROVAL DENIED: browser)',
     ]);
     expect(H.timeline.filter((entry) => entry.startsWith('exec:'))).toEqual([]);
   });
@@ -292,10 +292,10 @@ describe('the governance wrapper enforces the level it classified', () => {
     // executed anything would report.
     H.state.approval = 'approved';
     const actions = await policyApplied(actionContext());
-    const result = await run(actions, 'shell', { command: 'echo hello' });
+    const result = await run(actions, 'browser', { action: 'search', query: 'hello' });
 
-    expect(result).toBe('shell output');
-    expect(H.timeline).toEqual(['approval:request(shell)', 'exec:shell(echo hello)']);
+    expect(result).toBe('page text');
+    expect(H.timeline).toEqual(['approval:request(browser)', 'exec:browser(search)']);
   });
 
   it('R1 executes, then opens a rollback window recording what was done', async () => {
@@ -360,10 +360,8 @@ describe('every action carries the wrapper, and the exemption is exactly one', (
     expect(executable).toEqual([
       'browser',
       'delegate',
-      'file_edit',
       'plan',
       'read_file',
-      'shell',
       'write_file',
     ]);
 
@@ -409,15 +407,14 @@ describe('every action carries the wrapper, and the exemption is exactly one', (
      */
     H.state.approval = 'approved';
     const actions = await policyApplied(
-      actionContext(),
-      readCapabilityGrants(['browser', 'files', 'delegation']),
+      { ...actionContext(), onHireAgent: async () => 'delegated' } as unknown as AgentRuntimeContext,
+      readCapabilityGrants(['browser']),
     );
 
-    expect(Object.keys(actions)).not.toContain('shell');
+    expect(Object.keys(actions)).not.toContain('delegate');
     // The floor: the grant withheld ONE primitive rather than emptying the set,
     // which is what a broken grant reader would also produce.
     expect(Object.keys(actions)).toContain('browser');
-    expect(Object.keys(actions)).toContain('file_edit');
     expect(H.timeline.filter((entry) => entry.startsWith('exec:'))).toEqual([]);
   });
 });

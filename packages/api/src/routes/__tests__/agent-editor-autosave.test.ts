@@ -394,6 +394,36 @@ describe('the editor and the route agree on what a save contains', () => {
     expect(repository.updateAgent).not.toHaveBeenCalled();
   });
 
+  /**
+   * An agent saved before `shell` and `files` were retired, opened in an editor
+   * that still holds them.
+   *
+   * Migration 0071 removes them from the table, but an editor that loaded the
+   * agent before the deploy echoes its whole grant list back on every autosave.
+   * Refusing that as "not a capability grant" would 400 every keystroke — the
+   * bug this file was written from — so a RETIRED family is dropped and the save
+   * goes through, while an unknown one is still refused (the test above).
+   */
+  it('saves an agent whose editor still holds a retired grant, and drops only that', async () => {
+    const stale = { ...AGENT_ROW, capabilityGrants: ['web', 'shell', 'files', 'mcp:conn-1'] };
+    repository.findAgentById.mockResolvedValue(stale);
+    repository.updateAgent.mockResolvedValue({ ...stale, capabilityGrants: ['web', 'mcp:conn-1'] });
+
+    const keys = editorSaveKeys();
+    const body = Object.fromEntries(keys.map((key) => [key, VALUE_FOR[key] ?? 'unmapped']));
+    body.capabilityGrants = stale.capabilityGrants;
+
+    const res = await patch(body);
+
+    expect(res.status, `PATCH refused a stale grant list: ${JSON.stringify(res.body)}`).toBe(200);
+    expect(repository.updateAgent).toHaveBeenCalledTimes(1);
+    const written = repository.updateAgent.mock.calls[0][2] as Record<string, unknown>;
+    expect(written.capabilityGrants).toEqual(['web', 'mcp:conn-1']);
+    // The rest of the save survived: the prompt the owner was typing is the
+    // thing a refused autosave used to lose.
+    expect(written.systemPrompt).toBe(VALUE_FOR.systemPrompt);
+  });
+
   it('STORES both shapes of an agent grant, which is the other half of that rule', async () => {
     /**
      * `agent` alone is the one bare instanced grant the vocabulary accepts —
@@ -501,8 +531,11 @@ describe('the app and the API name the same capability families', () => {
   it('reads ids out of the app source, so an empty parse cannot pass', () => {
     const ids = appFamilyIds();
     expect(ids.length).toBeGreaterThanOrEqual(10);
-    expect(ids).toContain('shell');
+    expect(ids).toContain('browser');
     expect(ids).toContain('mcp');
+    // Retired with the sandbox they needed; the API drops them on read and write.
+    expect(ids).not.toContain('shell');
+    expect(ids).not.toContain('files');
   });
 
   it('declares exactly the families the vocabulary declares', () => {
@@ -526,15 +559,15 @@ describe('the app and the API name the same capability families', () => {
    * `robot_2` in the editor, the same label under two icons two screens apart.
    *
    * It is a SECOND declaration of something the API already knows, so it needs
-   * this: put `file_edit` under `shell` on the app side and the panel would
-   * draw a terminal for a file write, silently and forever.
+   * this: put `delegate` under `browser` on the app side and the panel would
+   * draw a browser for a hire, silently and forever.
    */
   it('maps each runtime tool to the family the assembler grants it from', () => {
     const app = appRuntimeToolFamilies();
 
     // The floor: a parse that found nothing would satisfy every comparison
     // below by iterating an empty object.
-    expect(Object.keys(app).length).toBeGreaterThanOrEqual(4);
+    expect(Object.keys(app).length).toBeGreaterThanOrEqual(2);
 
     // `Object.hasOwn` first: `family` is a string parsed out of another
     // package's source, so indexing the table with it directly would answer an
@@ -559,8 +592,11 @@ describe('the app and the API name the same capability families', () => {
     // inherit. Every OTHER primitive must be mapped, or the panel silently
     // falls back to a generic glyph for it.
     const app = appRuntimeToolFamilies();
-    const primitives = ['shell', 'browser', 'file_edit', 'delegate'];
+    const primitives = ['browser', 'delegate'];
     expect(primitives.filter((tool) => app[tool] === undefined)).toEqual([]);
+    // And maps nothing that no longer exists: `shell` and `file_edit` left with
+    // their families.
+    expect(Object.keys(app).sort()).toEqual([...primitives].sort());
     expect(app.plan).toBeUndefined();
     expect(UNGRANTED_TOOLS).toContain('plan');
   });

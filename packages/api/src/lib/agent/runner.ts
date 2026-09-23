@@ -2,9 +2,9 @@
  * Agent Runner — Autonomous Agent Execution Engine (v3)
  *
  * Manus-level architecture:
- *   - Up to 5 action primitives (shell, browser, file_edit, plan, delegate),
- *     partitioned by the agent's capability grants — see `actionLines`
- *   - Persistent terminal session with CWD/env tracking
+ *   - Up to 3 action primitives (browser, plan, delegate), partitioned by the
+ *     agent's capability grants — see `actionLines`. There is no shell or
+ *     workspace filesystem: the sandbox they needed never existed in production
  *   - Real browser with screenshots (Playwright/Stagehand)
  *   - Stable tool context across iterations (KV-cache optimized): the set is
  *     fixed for the whole run, because a grant is a stored property of the
@@ -35,8 +35,6 @@ import { log } from '../logger.js';
 import { EventStream } from './event-stream.js';
 import { AgentStateMachine } from './state-machine.js';
 import { TodoManager } from './todo-manager.js';
-import { WorkspaceMemory } from './workspace-memory.js';
-import { TerminalSession } from './terminal-session.js';
 import { BrowserSession } from './browser-session.js';
 import { ToolPipeline } from '../tool-pipeline.js';
 import { oxyExecutionAuthorizationKey } from '../tools/oxy-services.js';
@@ -80,7 +78,7 @@ const CONTINUATION_PROMPTS = [
  * Derived from the same grants `buildRuntimeTools` reads, so the prompt cannot
  * promise an action the tool set withheld. It used to be a fixed "You have 5
  * actions" list, which was true only while every agent got all five — under
- * deny-by-default it would tell an agent with no shell to run bash, and the
+ * deny-by-default it would tell an agent with no browser to browse, and the
  * model would spend steps calling a tool that is not there.
  *
  * `plan` is always listed because it is ungranted: it is how a run ends.
@@ -88,14 +86,8 @@ const CONTINUATION_PROMPTS = [
 function actionLines(agent: HydratedAgent): string {
   const grants = readCapabilityGrants(agent.capabilityGrants);
   const lines: string[] = [];
-  if (grants.allows('shell')) {
-    lines.push("**shell** — Run any bash command in a persistent terminal. Your working directory and environment persist between calls. Use this for installing packages, running code, git operations, and anything you'd do in a terminal.");
-  }
   if (grants.allows('browser')) {
     lines.push('**browser** — Interact with a web browser. Navigate to URLs, search the web, click elements, fill forms, take screenshots. Use for web research and testing.');
-  }
-  if (grants.allows('files')) {
-    lines.push("**file_edit** — Read, write, edit, or list files directly. More precise than shell for file modifications. Use search-replace for targeted edits. Use action='list' to see directory contents.");
   }
   lines.push("**plan** — Create and update your task plan, or signal completion. Your plan persists as a checklist. Update it as you make progress. Call plan(action='complete', result='...') when done.");
   if (grants.allows('delegation')) {
@@ -251,8 +243,6 @@ export async function runAgentSession(sessionId: string): Promise<void> {
   const eventStream = new EventStream({ agentId, sessionId });
   const stateMachine = new AgentStateMachine();
   const todoManager = new TodoManager();
-  const workspaceMemory = new WorkspaceMemory();
-  const terminalSession = new TerminalSession();
   const browserSession = new BrowserSession({ agentId, sessionId });
 
   // Pre-initialize browser if the task likely needs it (saves 5-15s cold start)
@@ -383,8 +373,6 @@ export async function runAgentSession(sessionId: string): Promise<void> {
       onComplete,
       onHireAgent,
       todoManager,
-      workspaceMemory,
-      terminalSession,
       browserSession,
       eventStream,
     },
@@ -611,8 +599,8 @@ export async function runAgentSession(sessionId: string): Promise<void> {
                   }
                 } else {
                   // Only reset consecutive error count for the specific tool that succeeded.
-                  // A successful plan(update) between two failed shell calls should NOT
-                  // reset the counter — only a successful shell call should.
+                  // A successful plan(update) between two failed browser calls should NOT
+                  // reset the counter — only a successful browser call should.
                   const successKey = tr.toolName || 'unknown';
                   if (toolErrorTracker.has(successKey)) {
                     toolErrorTracker.delete(successKey);
