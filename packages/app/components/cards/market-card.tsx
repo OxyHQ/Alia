@@ -1,13 +1,12 @@
-import { useMemo, useState } from "react";
-import { View, Pressable } from "react-native";
-import { Line, Text as SvgText } from "react-native-svg";
-import { Text } from "@/components/ui/text";
-import { useColorScheme } from "@/lib/useColorScheme";
-import { useTranslation } from "@/lib/hooks/use-translation";
-import { cn } from "@/lib/utils";
-import { AreaChart, areaGeometry } from "@/components/cards/area-chart";
-import { CardSurface } from "@/components/cards/card-surface";
-
+import { AreaChart, areaGeometry } from '@/components/cards/area-chart';
+import { CardSurface } from '@/components/cards/card-surface';
+import { useTranslation } from '@/lib/hooks/use-translation';
+import { useColorScheme } from '@/lib/useColorScheme';
+import { cn } from '@/lib/utils';
+import { Text } from '@oxy.so/bloom/typography';
+import { useMemo, useState } from 'react';
+import { Pressable, View } from 'react-native';
+import { Line, Text as SvgText } from 'react-native-svg';
 /**
  * A crypto quote, drawn from the snapshot stored with the message.
  *

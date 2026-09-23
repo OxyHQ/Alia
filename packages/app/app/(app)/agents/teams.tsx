@@ -1,10 +1,8 @@
-import React from 'react';
-import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
+import { useAgentTeams } from '@/lib/hooks/use-agent-teams';
+import { Text } from '@oxy.so/bloom/typography';
 import { useRouter } from 'expo-router';
 import { ArrowLeft, Users } from 'lucide-react-native';
-import { Text } from '@/components/ui/text';
-import { useAgentTeams } from '@/lib/hooks/use-agent-teams';
-
+import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
 export default function AgentTeamsScreen() {
   const router = useRouter();
   const { data: teams = [], isLoading } = useAgentTeams();

@@ -1,13 +1,28 @@
-import { ChevronDown } from "lucide-react-native";
-import { useState } from "react";
+import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuTrigger } from '@oxy.so/bloom/dropdown-menu';
+import {
+  EFFORT_LEVELS,
+  resolveSelection,
+  useCatalogue,
+  type EffortLevel,
+} from '@/lib/hooks/use-catalogue';
+import { useIsLargeScreen } from '@/lib/hooks/use-is-large-screen';
+import { useProductModes } from '@/lib/hooks/use-product-modes';
+import { useTranslation } from '@/lib/hooks/use-translation';
+import { effortFor, useModelStore } from '@/lib/stores/model-store';
+import { cn } from '@/lib/utils';
+import { BottomSheet } from '@oxy.so/bloom/bottom-sheet';
+import { useHaptics } from '@oxy.so/bloom/hooks';
+import { Text } from '@oxy.so/bloom/typography';
+import { ChevronDown } from 'lucide-react-native';
+import { useState } from 'react';
 import {
   Platform,
   Pressable,
   StyleSheet,
   View,
   type LayoutChangeEvent,
-} from "react-native";
-import { Gesture, GestureDetector } from "react-native-gesture-handler";
+} from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   runOnJS,
   useAnimatedReaction,
@@ -15,23 +30,7 @@ import Animated, {
   useDerivedValue,
   useSharedValue,
   withSpring,
-} from "react-native-reanimated";
-import { BottomSheet } from "@oxy.so/bloom/bottom-sheet";
-import { useHaptics } from "@oxy.so/bloom/hooks";
-import * as DropdownMenu from "@/components/ui/dropdown-menu";
-import { Text } from "@/components/ui/text";
-import { useIsLargeScreen } from "@/lib/hooks/use-is-large-screen";
-import { useTranslation } from "@/lib/hooks/use-translation";
-import {
-  EFFORT_LEVELS,
-  resolveSelection,
-  useCatalogue,
-  type EffortLevel,
-} from "@/lib/hooks/use-catalogue";
-import { useProductModes } from "@/lib/hooks/use-product-modes";
-import { effortFor, useModelStore } from "@/lib/stores/model-store";
-import { cn } from "@/lib/utils";
-
+} from 'react-native-reanimated';
 /** Where each level's name lives, so both controls say the same words. */
 const EFFORT_LABEL_KEY: Record<EffortLevel, string> = {
   instant: "effort.levels.instant",
@@ -165,8 +164,8 @@ export function EffortSelector({ selectedModel }: { selectedModel: string }) {
   }
 
   return (
-    <DropdownMenu.Root>
-      <DropdownMenu.Trigger>
+    <DropdownMenu>
+      <DropdownMenuTrigger label="Actions" asChild>
         <Pressable
           accessibilityLabel={t("effort.select")}
           accessibilityRole="button"
@@ -175,21 +174,21 @@ export function EffortSelector({ selectedModel }: { selectedModel: string }) {
           <Text className="text-sm font-medium text-foreground">{triggerLabel}</Text>
           <ChevronDown size={14} className="text-muted-foreground" />
         </Pressable>
-      </DropdownMenu.Trigger>
-      <DropdownMenu.Content side="top" align="end" className="w-44 rounded-2xl py-1.5">
+      </DropdownMenuTrigger>
+      <DropdownMenuContent side="top" align="end" minWidth={176}>
         {EFFORT_LEVELS.map((level) => (
-          <DropdownMenu.CheckboxItem
+          <DropdownMenuCheckboxItem
             key={level}
-            value={active === level ? "on" : "off"}
+            checked={active === level}
             disabled={!supported.includes(level)}
-            onValueChange={() => setReasoningEffort(level)}
-            className="rounded-xl px-2 py-2"
+            onCheckedChange={() => setReasoningEffort(level)}
+
           >
-            <DropdownMenu.ItemTitle>{t(EFFORT_LABEL_KEY[level])}</DropdownMenu.ItemTitle>
-          </DropdownMenu.CheckboxItem>
+            {t(EFFORT_LABEL_KEY[level])}
+          </DropdownMenuCheckboxItem>
         ))}
-      </DropdownMenu.Content>
-    </DropdownMenu.Root>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 

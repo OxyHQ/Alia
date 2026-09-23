@@ -1,3 +1,24 @@
+import {
+  useEpisodeAudio,
+  type EpisodeAudioProblem,
+} from '@/lib/hooks/use-episode-audio';
+import {
+  ACTIVE_EPISODE_STATUSES,
+  episodeDisplayTitle,
+  useShowStore,
+  type ShowEpisode,
+  type ShowEpisodeStatus,
+} from '@/lib/stores/show-store';
+import { useColorScheme } from '@/lib/useColorScheme';
+import {
+  formatEpisodeDate,
+  formatEpisodeDuration,
+  joinEpisodeMeta,
+} from '@/lib/utils/show-format';
+import { Text } from '@oxy.so/bloom/typography';
+import { AlertCircle, Pause, Play, Trash2 } from 'lucide-react-native';
+import { useCallback } from 'react';
+import { ActivityIndicator, Pressable, View } from 'react-native';
 /**
  * One episode, in the shape Syra gives an episode.
  *
@@ -23,24 +44,14 @@
  * and it plays. See `lib/hooks/use-episode-audio.ts`.
  */
 
-import React, { useCallback } from 'react';
-import { ActivityIndicator, Pressable, View } from 'react-native';
-import { AlertCircle, Pause, Play, Trash2 } from 'lucide-react-native';
-import { Text } from '@/components/ui/text';
-import { useEpisodeAudio, type EpisodeAudioProblem } from '@/lib/hooks/use-episode-audio';
-import { useColorScheme } from '@/lib/useColorScheme';
-import {
-  ACTIVE_EPISODE_STATUSES,
-  episodeDisplayTitle,
-  useShowStore,
-  type ShowEpisode,
-  type ShowEpisodeStatus,
-} from '@/lib/stores/show-store';
-import {
-  formatEpisodeDate,
-  formatEpisodeDuration,
-  joinEpisodeMeta,
-} from '@/lib/utils/show-format';
+
+
+
+
+
+
+
+
 
 /**
  * What a listener reads when an episode will not play, one line each.

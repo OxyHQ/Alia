@@ -1,6 +1,11 @@
-import React from 'react';
-import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import React from 'react';
+import {
+  act,
+  create,
+  type ReactTestInstance,
+  type ReactTestRenderer,
+} from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
@@ -52,10 +57,19 @@ vi.mock('@/lib/api/client', () => ({
 }));
 
 vi.mock('@oxy.so/bloom/toast', () => ({
-  toast: { loading: vi.fn(), success: vi.fn(), error: vi.fn(), dismiss: vi.fn() },
+  toast: {
+    loading: vi.fn(),
+    success: vi.fn(),
+    error: vi.fn(),
+    dismiss: vi.fn(),
+  },
 }));
-vi.mock('expo-crypto', () => ({ getRandomValues: (array: Uint8Array) => array }));
-vi.mock('@oxy.so/bloom/surfaces', () => ({ confirm: vi.fn(async () => false) }));
+vi.mock('expo-crypto', () => ({
+  getRandomValues: (array: Uint8Array) => array,
+}));
+vi.mock('@oxy.so/bloom/surfaces', () => ({
+  confirm: vi.fn(async () => false),
+}));
 
 vi.mock('expo-router', () => ({
   useLocalSearchParams: () => ({ id: 'agent-1' }),
@@ -77,10 +91,16 @@ vi.mock('react-native', async () => {
   const ReactModule = await import('react');
   const host =
     (name: string) =>
-    ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
+    ({
+      children,
+      ...props
+    }: React.PropsWithChildren<Record<string, unknown>>) =>
       ReactModule.createElement(name, props, children);
   return {
-    Platform: { OS: 'web', select: (spec: Record<string, unknown>) => spec.web },
+    Platform: {
+      OS: 'web',
+      select: (spec: Record<string, unknown>) => spec.web,
+    },
     View: host('View'),
     ScrollView: host('ScrollView'),
     Pressable: host('Pressable'),
@@ -90,100 +110,154 @@ vi.mock('react-native', async () => {
 
 vi.mock('@oxy.so/bloom/textarea', async () => {
   const ReactModule = await import('react');
-  return { Textarea: (props: Record<string, unknown>) => ReactModule.createElement('Textarea', props) };
+  return {
+    Textarea: (props: Record<string, unknown>) =>
+      ReactModule.createElement('Textarea', props),
+  };
 });
-vi.mock('@/components/ui/input', async () => {
+vi.mock('@oxy.so/bloom/text-field', async () => {
   const ReactModule = await import('react');
-  return { Input: (props: Record<string, unknown>) => ReactModule.createElement('Input', props) };
+  return {
+    TextFieldInput: (props: Record<string, unknown>) =>
+      ReactModule.createElement('Input', props),
+  };
 });
 vi.mock('@oxy.so/bloom/switch', async () => {
   const ReactModule = await import('react');
-  return { Switch: (props: Record<string, unknown>) => ReactModule.createElement('Switch', props) };
+  return {
+    Switch: (props: Record<string, unknown>) =>
+      ReactModule.createElement('Switch', props),
+  };
 });
 vi.mock('@oxy.so/bloom/label', async () => {
   const ReactModule = await import('react');
   return {
-    Label: ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
+    Label: ({
+      children,
+      ...props
+    }: React.PropsWithChildren<Record<string, unknown>>) =>
       ReactModule.createElement('Label', props, children),
   };
 });
-vi.mock('@/components/ui/text', async () => {
+vi.mock('@oxy.so/bloom/typography', async () => {
   const ReactModule = await import('react');
   return {
-    Text: ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
+    Text: ({
+      children,
+      ...props
+    }: React.PropsWithChildren<Record<string, unknown>>) =>
       ReactModule.createElement('Text', props, children),
   };
 });
-vi.mock('@/components/ui/button', async () => {
+vi.mock('@oxy.so/bloom/button', async () => {
   const ReactModule = await import('react');
   return {
-    Button: ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
+    Button: ({
+      children,
+      ...props
+    }: React.PropsWithChildren<Record<string, unknown>>) =>
       ReactModule.createElement('Button', props, children),
   };
 });
 vi.mock('@/components/ui/toggle-group', async () => {
   const ReactModule = await import('react');
   return {
-    ToggleGroup: ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
+    ToggleGroup: ({
+      children,
+      ...props
+    }: React.PropsWithChildren<Record<string, unknown>>) =>
       ReactModule.createElement('ToggleGroup', props, children),
-    ToggleGroupItem: ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
+    ToggleGroupItem: ({
+      children,
+      ...props
+    }: React.PropsWithChildren<Record<string, unknown>>) =>
       ReactModule.createElement('ToggleGroupItem', props, children),
   };
 });
 vi.mock('@/components/ui/panel', async () => {
   const ReactModule = await import('react');
   return {
-    Panel: ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
+    Panel: ({
+      children,
+      ...props
+    }: React.PropsWithChildren<Record<string, unknown>>) =>
       ReactModule.createElement('Panel', props, children),
   };
 });
 vi.mock('@/components/ui/color-picker', async () => {
   const ReactModule = await import('react');
   return {
-    ColorPicker: ({ renderSwatch: _renderSwatch, ...props }: Record<string, unknown>) =>
+    ColorPicker: ({
+      renderSwatch: _renderSwatch,
+      ...props
+    }: Record<string, unknown>) =>
       ReactModule.createElement('ColorPicker', props),
   };
 });
-vi.mock('@/components/ui/dropdown-menu', async () => {
+vi.mock('@oxy.so/bloom/dropdown-menu', async () => {
   const ReactModule = await import('react');
   const host =
     (name: string) =>
-    ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
+    ({
+      children,
+      ...props
+    }: React.PropsWithChildren<Record<string, unknown>>) =>
       ReactModule.createElement(name, props, children);
   return {
-    Root: host('MenuRoot'),
-    Trigger: host('MenuTrigger'),
-    Content: host('MenuContent'),
-    Item: host('MenuItem'),
-    ItemIcon: host('MenuItemIcon'),
-    ItemTitle: host('MenuItemTitle'),
+    DropdownMenu: host('MenuRoot'),
+    DropdownMenuTrigger: host('MenuTrigger'),
+    DropdownMenuContent: host('MenuContent'),
+    DropdownMenuItem: host('MenuItem'),
   };
 });
 vi.mock('@oxy.so/bloom/dialog', async () => {
   const ReactModule = await import('react');
   return {
-    Dialog: ({ open, children }: React.PropsWithChildren<{ open?: boolean }>) =>
-      open === true ? ReactModule.createElement('Dialog', null, children) : null,
+    Dialog: ({
+      open,
+      children,
+    }: React.PropsWithChildren<{ open?: boolean }>) =>
+      open === true
+        ? ReactModule.createElement('Dialog', null, children)
+        : null,
   };
 });
 vi.mock('@oxy.so/bloom/search', async () => {
   const ReactModule = await import('react');
-  return { Search: (props: Record<string, unknown>) => ReactModule.createElement('Search', props) };
+  return {
+    Search: (props: Record<string, unknown>) =>
+      ReactModule.createElement('Search', props),
+  };
 });
 vi.mock('@oxy.so/bloom/button', async () => {
   const ReactModule = await import('react');
   return {
-    GhostButton: (props: Record<string, unknown>) => ReactModule.createElement('GhostButton', props),
+    GhostButton: (props: Record<string, unknown>) =>
+      ReactModule.createElement('GhostButton', props),
+    Button: ({ children, ...props }: any) =>
+      ReactModule.createElement(
+        'Button',
+        props,
+        typeof children === 'string'
+          ? ReactModule.createElement('Text', null, children)
+          : children,
+      ),
   };
 });
 vi.mock('@oxy.so/bloom/item', async () => {
   const ReactModule = await import('react');
-  return { Item: (props: Record<string, unknown>) => ReactModule.createElement('Item', props) };
+  return {
+    Item: (props: Record<string, unknown>) =>
+      ReactModule.createElement('Item', props),
+  };
 });
 vi.mock('@oxy.so/bloom/settings-list', async () => {
   const ReactModule = await import('react');
   return {
-    SettingsListGroup: ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
+    SettingsListGroup: ({
+      children,
+      ...props
+    }: React.PropsWithChildren<Record<string, unknown>>) =>
       ReactModule.createElement('SettingsListGroup', props, children),
     SettingsListItem: (props: Record<string, unknown>) =>
       ReactModule.createElement('SettingsListItem', props),
@@ -192,23 +266,42 @@ vi.mock('@oxy.so/bloom/settings-list', async () => {
 vi.mock('@oxy.so/bloom/content-panel', async () => {
   const ReactModule = await import('react');
   return {
-    ContentPanel: ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
+    ContentPanel: ({
+      children,
+      ...props
+    }: React.PropsWithChildren<Record<string, unknown>>) =>
       ReactModule.createElement('ContentPanel', props, children),
   };
 });
 vi.mock('@alia.onl/sdk', async () => {
   const ReactModule = await import('react');
   return {
-    IdentityMark: (props: Record<string, unknown>) => ReactModule.createElement('IdentityMark', props),
+    IdentityMark: (props: Record<string, unknown>) =>
+      ReactModule.createElement('IdentityMark', props),
   };
 });
 vi.mock('lucide-react-native', async () => {
   const ReactModule = await import('react');
-  const glyph = (props: Record<string, unknown>) => ReactModule.createElement('Glyph', props);
+  const glyph = (props: Record<string, unknown>) =>
+    ReactModule.createElement('Glyph', props);
   const names = [
-    'ArrowLeft', 'X', 'Plus', 'Ellipsis', 'Settings', 'ChevronRight', 'Search',
-    'FileText', 'Globe', 'Terminal', 'FileDown', 'FolderOpen', 'Image', 'Brain',
-    'Users', 'Send', 'Trash2',
+    'ArrowLeft',
+    'X',
+    'Plus',
+    'Ellipsis',
+    'Settings',
+    'ChevronRight',
+    'Search',
+    'FileText',
+    'Globe',
+    'Terminal',
+    'FileDown',
+    'FolderOpen',
+    'Image',
+    'Brain',
+    'Users',
+    'Send',
+    'Trash2',
   ];
   return Object.fromEntries(names.map((name) => [name, glyph]));
 });
@@ -226,12 +319,16 @@ vi.mock('@/components/agent-connector-grants', async () => {
       ReactModule.createElement('AgentConnectorGrants', props),
   };
 });
-vi.mock('@/lib/constants/agent-colors', () => ({ AGENT_SWATCHES: ['blue', 'violet'] }));
+vi.mock('@/lib/constants/agent-colors', () => ({
+  AGENT_SWATCHES: ['blue', 'violet'],
+}));
 vi.mock('@/lib/agents/agent-color', () => ({ agentTint: () => 'rgb(0 0 0)' }));
 vi.mock('@/lib/useColorScheme', () => ({
   useColorScheme: () => ({ colors: { mutedForeground: 'rgb(113 113 122)' } }),
 }));
-vi.mock('@/lib/hooks/use-is-large-screen', () => ({ useIsLargeScreen: () => true }));
+vi.mock('@/lib/hooks/use-is-large-screen', () => ({
+  useIsLargeScreen: () => true,
+}));
 vi.mock('@/lib/hooks/use-agent-bots', () => ({
   useAgentBots: () => ({ bots: [], registerBot: vi.fn(), removeBot: vi.fn() }),
 }));
@@ -242,7 +339,9 @@ vi.mock('@/lib/hooks/use-translation', () => {
 });
 vi.mock('@/lib/stores/library-store', () => {
   const state = { files: [] as unknown[], loadFiles: () => undefined };
-  return { useLibraryStore: (select: (s: typeof state) => unknown) => select(state) };
+  return {
+    useLibraryStore: (select: (s: typeof state) => unknown) => select(state),
+  };
 });
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
@@ -298,7 +397,9 @@ function agentFixture(): Record<string, unknown> {
 
 /** An Axios-shaped refusal, exactly as the client rejects with it. */
 function httpError(status: number, error: string): Error {
-  return Object.assign(new Error('Request failed'), { response: { status, data: { error } } });
+  return Object.assign(new Error('Request failed'), {
+    response: { status, data: { error } },
+  });
 }
 
 /** How many times the screen asked the route for the agent. */
@@ -313,10 +414,17 @@ let renderer: ReactTestRenderer | null = null;
  * — because how many times the query retries is one of the things measured.
  */
 function screenElement(client: QueryClient): React.ReactElement {
-  return React.createElement(QueryClientProvider, { client }, React.createElement(EditAgentScreen));
+  return React.createElement(
+    QueryClientProvider,
+    { client },
+    React.createElement(EditAgentScreen),
+  );
 }
 
-async function renderScreen(): Promise<{ renderer: ReactTestRenderer; client: QueryClient }> {
+async function renderScreen(): Promise<{
+  renderer: ReactTestRenderer;
+  client: QueryClient;
+}> {
   const client = new QueryClient();
   let next!: ReactTestRenderer;
   await act(async () => {
@@ -337,15 +445,21 @@ async function letTimePass(seconds: number): Promise<void> {
 
 function texts(root: ReactTestInstance): string[] {
   return root
-    .findAll((node) => isHost(node, 'Text') && typeof node.props.children === 'string')
+    .findAll(
+      (node) => isHost(node, 'Text') && typeof node.props.children === 'string',
+    )
     .map((node) => node.props.children as string);
 }
 
-function buttonLabelled(root: ReactTestInstance, label: string): ReactTestInstance {
+function buttonLabelled(
+  root: ReactTestInstance,
+  label: string,
+): ReactTestInstance {
   const found = root.findAll(
     (node) => isHost(node, 'Button') && node.props.accessibilityLabel === label,
   );
-  if (found.length !== 1) throw new Error(`expected one "${label}" button, found ${found.length}`);
+  if (found.length !== 1)
+    throw new Error(`expected one "${label}" button, found ${found.length}`);
   return found[0];
 }
 
@@ -354,9 +468,13 @@ function editorIsOpen(root: ReactTestInstance): boolean {
   // main column, whatever tab or archetype is selected. It is a bare
   // `TextInput` since the `components/ui` layer was retired, so it is found
   // by its testID rather than by being the only Textarea on the screen.
-  return root.findAll(
-    (node) => isHost(node, 'TextInput') && node.props.testID === 'agent-system-prompt',
-  ).length > 0;
+  return (
+    root.findAll(
+      (node) =>
+        isHost(node, 'TextInput') &&
+        node.props.testID === 'agent-system-prompt',
+    ).length > 0
+  );
 }
 
 beforeEach(() => {
@@ -384,7 +502,10 @@ describe('before the session can sign the request', () => {
     const { renderer: screen, client } = await renderScreen();
     await letTimePass(2);
 
-    expect(agentRequests(), 'a request before the bearer exists is the 404 itself').toBe(0);
+    expect(
+      agentRequests(),
+      'a request before the bearer exists is the 404 itself',
+    ).toBe(0);
     expect(texts(screen.root)).toContain('common.loading');
     expect(editorIsOpen(screen.root)).toBe(false);
 
@@ -396,7 +517,10 @@ describe('before the session can sign the request', () => {
     await letTimePass(2);
 
     expect(agentRequests()).toBe(1);
-    expect(editorIsOpen(screen.root), 'the editor opens on its own once the query can run').toBe(true);
+    expect(
+      editorIsOpen(screen.root),
+      'the editor opens on its own once the query can run',
+    ).toBe(true);
   });
 
   /**
@@ -415,14 +539,20 @@ describe('before the session can sign the request', () => {
     // A fresh element per render: React skips a re-render handed the very same
     // element object, and the probe has to re-read the session to see it change.
     const element = () =>
-      React.createElement(QueryClientProvider, { client }, React.createElement(Probe));
+      React.createElement(
+        QueryClientProvider,
+        { client },
+        React.createElement(Probe),
+      );
     let probe!: ReactTestRenderer;
     await act(async () => {
       probe = create(element());
     });
     renderer = probe;
     await letTimePass(1);
-    expect(new Set(seen), 'never fetching while pending').toEqual(new Set(['idle']));
+    expect(new Set(seen), 'never fetching while pending').toEqual(
+      new Set(['idle']),
+    );
     expect(agentRequests()).toBe(0);
 
     session.isPrivateApiPending = false;
@@ -448,14 +578,25 @@ describe('when the route says the agent is not there', () => {
     const shown = texts(screen.root);
     expect(shown).toContain('agents.notFound');
     expect(shown).toContain('agents.notFoundDetail');
-    expect(shown, 'a failed query is not a loading one').not.toContain('common.loading');
+    expect(shown, 'a failed query is not a loading one').not.toContain(
+      'common.loading',
+    );
     expect(agentRequests(), 'a deliberate 404 is asked once').toBe(1);
 
     await act(async () => {
-      (buttonLabelled(screen.root, 'agents.backToAgents').props.onPress as () => void)();
+      (
+        buttonLabelled(screen.root, 'agents.backToAgents').props
+          .onPress as () => void
+      )();
     });
     expect(replace).toHaveBeenCalledWith('/(app)/agents');
-    expect(screen.root.findAll((node) => isHost(node, 'Button') && node.props.accessibilityLabel === 'agents.retry')).toHaveLength(0);
+    expect(
+      screen.root.findAll(
+        (node) =>
+          isHost(node, 'Button') &&
+          node.props.accessibilityLabel === 'agents.retry',
+      ),
+    ).toHaveLength(0);
   });
 });
 
@@ -475,14 +616,20 @@ describe('when the route fails for any other reason', () => {
 
     const shown = texts(screen.root);
     expect(shown).toContain('agents.loadFailed');
-    expect(shown, 'the route message reaches the screen').toContain('Agent infrastructure unavailable');
+    expect(shown, 'the route message reaches the screen').toContain(
+      'Agent infrastructure unavailable',
+    );
     expect(shown).not.toContain('common.loading');
-    expect(agentRequests(), 'a transient failure IS retried').toBeGreaterThan(1);
+    expect(agentRequests(), 'a transient failure IS retried').toBeGreaterThan(
+      1,
+    );
     const askedBeforeRetry = agentRequests();
 
     failing = false;
     await act(async () => {
-      (buttonLabelled(screen.root, 'agents.retry').props.onPress as () => void)();
+      (
+        buttonLabelled(screen.root, 'agents.retry').props.onPress as () => void
+      )();
     });
     await letTimePass(2);
 
@@ -490,3 +637,5 @@ describe('when the route fails for any other reason', () => {
     expect(editorIsOpen(screen.root)).toBe(true);
   });
 });
+
+vi.mock('@oxy.so/bloom/icons', () => ({ RiDeleteBinLine: () => null }));

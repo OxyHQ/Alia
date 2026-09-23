@@ -1,24 +1,31 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { View, ActivityIndicator, Linking, Platform } from 'react-native';
-import { useRouter, useLocalSearchParams } from 'expo-router';
-import Head from 'expo-router/head';
 import { AuthContainer } from '@/components/auth/auth-container';
 import { AuthLogo } from '@/components/auth/auth-logo';
-import { useAuth, useOxy } from '@oxy.so/services';
 import apiClient, { getSocketToken } from '@/lib/api/client';
 import config from '@/lib/config';
-import { Button } from '@/components/ui/button';
-import { Card, CardBody, CardDescription, CardHeader, CardTitle } from '@oxy.so/bloom/card';
-import { Text } from '@/components/ui/text';
-import { Divider } from '@oxy.so/bloom/divider';
-import { io as socketIO } from 'socket.io-client';
+import { errorMessage as getErrorMessage } from '@/lib/errors/error-utils';
 import { useTranslation } from '@/lib/hooks/use-translation';
 import { useColorScheme } from '@/lib/useColorScheme';
-import { errorMessage as getErrorMessage } from '@/lib/errors/error-utils';
-import { ContentPanel } from "@oxy.so/bloom/content-panel";
+import { Button } from '@oxy.so/bloom/button';
+import {
+  Card,
+  CardBody,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@oxy.so/bloom/card';
+import { ContentPanel } from '@oxy.so/bloom/content-panel';
+import { Divider } from '@oxy.so/bloom/divider';
+import { Text } from '@oxy.so/bloom/typography';
+import { useAuth, useOxy } from '@oxy.so/services';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import Head from 'expo-router/head';
+import { useCallback, useEffect, useState } from 'react';
+import { ActivityIndicator, Linking, Platform, View } from 'react-native';
+import { io as socketIO } from 'socket.io-client';
 
 type AppType = string;
-type Status = 'loading' | 'authorize' | 'authorizing' | 'success' | 'error' | 'needLogin';
+type Status =
+  'loading' | 'authorize' | 'authorizing' | 'success' | 'error' | 'needLogin';
 
 interface AppConfig {
   name: string;
@@ -53,12 +60,14 @@ const APP_CONFIGS: Record<string, AppConfig> = {
 };
 
 function getAppConfig(app: string): AppConfig {
-  return APP_CONFIGS[app] || {
-    name: app,
-    displayName: app.charAt(0).toUpperCase() + app.slice(1),
-    permissionKeys: ['linkAccount', 'sendVia'],
-    isChannel: true,
-  };
+  return (
+    APP_CONFIGS[app] || {
+      name: app,
+      displayName: app.charAt(0).toUpperCase() + app.slice(1),
+      permissionKeys: ['linkAccount', 'sendVia'],
+      isChannel: true,
+    }
+  );
 }
 
 export default function AuthorizeScreen() {
@@ -145,7 +154,9 @@ export default function AuthorizeScreen() {
 
     // Verify token is valid via bot route
     try {
-      const res = await apiClient.get(`/bots/internal/${channelType}/check-token/${token}`);
+      const res = await apiClient.get(
+        `/bots/internal/${channelType}/check-token/${token}`,
+      );
       if (!res.data?.valid) {
         setStatus('error');
         setMessage(res.data?.error || t('authorize.tokenExpired'));
@@ -166,9 +177,12 @@ export default function AuthorizeScreen() {
 
     // Link via bot platform route
     try {
-      const response = await apiClient.post(`/bots/platform/${channelType}/link`, {
-        authToken: token,
-      });
+      const response = await apiClient.post(
+        `/bots/platform/${channelType}/link`,
+        {
+          authToken: token,
+        },
+      );
       if (response.data.success) {
         setStatus('success');
         setMessage(t('authorize.linkSuccess', { app: appConfig.displayName }));
@@ -205,7 +219,16 @@ export default function AuthorizeScreen() {
       }
       setStatus('authorize');
     }
-  }, [isAuthenticated, authLoading, app, channel, params, signIn, handleChannelAuth, appConfig.isChannel]);
+  }, [
+    isAuthenticated,
+    authLoading,
+    app,
+    channel,
+    params,
+    signIn,
+    handleChannelAuth,
+    appConfig.isChannel,
+  ]);
 
   // Real-time socket subscription for Telegram token linking
   useEffect(() => {
@@ -257,7 +280,9 @@ export default function AuthorizeScreen() {
         <AuthLogo />
         <View className="items-center py-8">
           <ActivityIndicator size="large" color={colors.primary} />
-          <Text className="text-muted-foreground mt-4">{t('common.loading')}</Text>
+          <Text className="text-muted-foreground mt-4">
+            {t('common.loading')}
+          </Text>
         </View>
       </AuthContainer>
     );
@@ -267,8 +292,15 @@ export default function AuthorizeScreen() {
     <ContentPanel surfaceClassName="bg-background">
       <>
         <Head>
-          <title>{t('authorize.authorizeApp', { app: appConfig.displayName })}</title>
-          <meta name="description" content={t('authorize.appWantsAccess', { app: appConfig.displayName })} />
+          <title>
+            {t('authorize.authorizeApp', { app: appConfig.displayName })}
+          </title>
+          <meta
+            name="description"
+            content={t('authorize.appWantsAccess', {
+              app: appConfig.displayName,
+            })}
+          />
           <meta name="robots" content="noindex, nofollow" />
         </Head>
         <AuthContainer>
@@ -277,9 +309,13 @@ export default function AuthorizeScreen() {
           {status === 'authorize' && (
             <Card>
               <CardHeader>
-                <CardTitle style={{ textAlign: 'center' }}>{t('authorize.authorizeApp', { app: appConfig.displayName })}</CardTitle>
+                <CardTitle style={{ textAlign: 'center' }}>
+                  {t('authorize.authorizeApp', { app: appConfig.displayName })}
+                </CardTitle>
                 <CardDescription style={{ textAlign: 'center' }}>
-                  {t('authorize.appWantsAccess', { app: appConfig.displayName })}
+                  {t('authorize.appWantsAccess', {
+                    app: appConfig.displayName,
+                  })}
                 </CardDescription>
               </CardHeader>
               <CardBody>
@@ -298,7 +334,10 @@ export default function AuthorizeScreen() {
                       */}
                       {appConfig.permissionKeys.map((key, index) => (
                         <Text key={index} className="text-sm text-foreground">
-                          • {t(`authorize.${key}`, { app: appConfig.displayName })}
+                          •{' '}
+                          {t(`authorize.${key}`, {
+                            app: appConfig.displayName,
+                          })}
                         </Text>
                       ))}
                     </View>
@@ -314,11 +353,15 @@ export default function AuthorizeScreen() {
 
                   <View className="gap-3">
                     <Button onPress={handleOAuthAuthorize} size="lg">
-                      <Text>{t('common.authorize')}</Text>
+                      {t('common.authorize')}
                     </Button>
 
-                    <Button onPress={handleCancel} variant="outline" size="lg">
-                      <Text>{t('common.cancel')}</Text>
+                    <Button
+                      onPress={handleCancel}
+                      variant="secondary"
+                      size="lg"
+                    >
+                      {t('common.cancel')}
                     </Button>
                   </View>
                 </View>
@@ -332,7 +375,9 @@ export default function AuthorizeScreen() {
                 <View className="items-center py-4 gap-3">
                   <ActivityIndicator size="large" color={colors.primary} />
                   <Text className="text-xl font-semibold text-foreground">
-                    {appConfig.isChannel ? t('authorize.linkingAccount') : t('authorize.authorizing')}
+                    {appConfig.isChannel
+                      ? t('authorize.linkingAccount')
+                      : t('authorize.authorizing')}
                   </Text>
                   <Text className="text-muted-foreground text-center">
                     {t('authorize.pleaseWait')}
@@ -367,7 +412,9 @@ export default function AuthorizeScreen() {
                   <Text className="text-4xl">✅</Text>
                   <View className="gap-2 items-center">
                     <Text className="text-xl font-semibold text-foreground">
-                      {appConfig.isChannel ? t('authorize.linked') : t('authorize.authorized')}
+                      {appConfig.isChannel
+                        ? t('authorize.linked')
+                        : t('authorize.authorized')}
                     </Text>
                     <Text className="text-muted-foreground text-center">
                       {message}
@@ -387,7 +434,7 @@ export default function AuthorizeScreen() {
                         }}
                         size="lg"
                       >
-                        <Text>{t('authorize.openAppManually')}</Text>
+                        {t('authorize.openAppManually')}
                       </Button>
                       <Text className="text-xs text-muted-foreground text-center select-all">
                         {redirectUrl}
@@ -395,11 +442,13 @@ export default function AuthorizeScreen() {
                     </>
                   ) : appConfig.isChannel ? (
                     <Text className="text-xs text-muted-foreground text-center">
-                      You can now return to {appConfig.displayName} and start chatting with Alia!
+                      You can now return to {appConfig.displayName} and start
+                      chatting with Alia!
                     </Text>
                   ) : (
                     <Text className="text-xs text-muted-foreground text-center">
-                      If not redirected automatically, you can close this window.
+                      If not redirected automatically, you can close this
+                      window.
                     </Text>
                   )}
                 </View>
@@ -414,7 +463,9 @@ export default function AuthorizeScreen() {
                   <Text className="text-4xl">❌</Text>
                   <View className="gap-2 items-center">
                     <Text className="text-xl font-semibold text-foreground">
-                      {appConfig.isChannel ? 'Link Failed' : 'Authorization Failed'}
+                      {appConfig.isChannel
+                        ? 'Link Failed'
+                        : 'Authorization Failed'}
                     </Text>
                     <Text className="text-muted-foreground text-center">
                       {message}
@@ -423,7 +474,9 @@ export default function AuthorizeScreen() {
                   {message.includes('expired') ? (
                     <Button
                       onPress={() => {
-                        const botUsername = process.env.EXPO_PUBLIC_TELEGRAM_BOT_USERNAME || 'alia_onlbot';
+                        const botUsername =
+                          process.env.EXPO_PUBLIC_TELEGRAM_BOT_USERNAME ||
+                          'alia_onlbot';
                         const botUrl = `https://t.me/${botUsername}?start=link`;
                         if (Platform.OS === 'web') {
                           window.open(botUrl, '_blank');
@@ -433,7 +486,7 @@ export default function AuthorizeScreen() {
                       }}
                       size="lg"
                     >
-                      <Text>Request New Link</Text>
+                      Request New Link
                     </Button>
                   ) : (
                     <Button
@@ -446,7 +499,7 @@ export default function AuthorizeScreen() {
                       }}
                       size="lg"
                     >
-                      <Text>Try Again</Text>
+                      Try Again
                     </Button>
                   )}
                 </View>

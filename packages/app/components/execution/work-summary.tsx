@@ -1,11 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { View, Pressable } from "react-native";
-import { ChevronRight } from "lucide-react-native";
-import Animated, { useAnimatedStyle, useSharedValue, withRepeat, withSequence, withTiming } from "react-native-reanimated";
-import { Text } from "@/components/ui/text";
-import { cn } from "@/lib/utils";
-import { useTranslation } from "@/lib/hooks/use-translation";
-import { getToolIcon } from "@/lib/tool-registry";
+import { useTranslation } from '@/lib/hooks/use-translation';
 import {
   buildSteps,
   formatElapsed,
@@ -16,11 +9,23 @@ import {
   toolCallText,
   type ThoughtStep,
   type TurnLifecycle,
-} from "@/lib/thought-utils";
-import type { ToolInvocation } from "@/lib/types/messages";
-import { ToolStep } from "./tool-step";
-import { REF } from "./tokens";
-
+} from '@/lib/thought-utils';
+import { getToolIcon } from '@/lib/tool-registry';
+import type { ToolInvocation } from '@/lib/types/messages';
+import { cn } from '@/lib/utils';
+import { Text } from '@oxy.so/bloom/typography';
+import { ChevronRight } from 'lucide-react-native';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Pressable, View } from 'react-native';
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withSequence,
+  withTiming,
+} from 'react-native-reanimated';
+import { REF } from './tokens';
+import { ToolStep } from './tool-step';
 /**
  * The elapsed time of a turn, ticking once a second while it is live.
  *

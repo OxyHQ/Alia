@@ -1,14 +1,14 @@
-import { useState, useCallback, useMemo } from 'react';
-import { View, FlatList, RefreshControl, ActivityIndicator } from 'react-native';
-import { Text } from '@/components/ui/text';
-import { Button } from '@/components/ui/button';
+import { AutomationCard } from '@/components/automations/automation-card';
+import { TaskCard } from '@/components/tasks/task-card';
 import { DrawerToggle } from '@/components/ui/drawer-toggle';
-import { ListTodo, Inbox } from 'lucide-react-native';
-import { toast } from '@oxy.so/bloom/toast';
-import { useColorScheme } from '@/lib/useColorScheme';
-import { useTranslation } from '@/lib/hooks/use-translation';
+import type { AutomationDefinition } from '@/lib/automations/types';
+import {
+  unifiedWorkItems,
+  type WorkItem,
+  type WorkTab,
+  type WorkTypeFilter,
+} from '@/lib/automations/work-items';
 import { errorMessage as getErrorMessage } from '@/lib/errors/error-utils';
-import { useActiveTasks, useTaskHistory, type TaskSession } from '@/lib/hooks/use-tasks';
 import { useAgentActivity } from '@/lib/hooks/use-agent-activity';
 import {
   useAutomationOverview,
@@ -17,17 +17,26 @@ import {
   useStopAutomation,
 } from '@/lib/hooks/use-automations';
 import { useMyAgents } from '@/lib/hooks/use-my-agents';
-import { TaskCard } from '@/components/tasks/task-card';
-import { AutomationCard } from '@/components/automations/automation-card';
-import type { AutomationDefinition } from '@/lib/automations/types';
 import {
-  unifiedWorkItems,
-  type WorkItem,
-  type WorkTab,
-  type WorkTypeFilter,
-} from '@/lib/automations/work-items';
+  useActiveTasks,
+  useTaskHistory,
+  type TaskSession,
+} from '@/lib/hooks/use-tasks';
+import { useTranslation } from '@/lib/hooks/use-translation';
+import { useColorScheme } from '@/lib/useColorScheme';
+import { Button } from '@oxy.so/bloom/button';
+import { ContentPanel } from '@oxy.so/bloom/content-panel';
+import { toast } from '@oxy.so/bloom/toast';
+import { Text } from '@oxy.so/bloom/typography';
 import { useRouter } from 'expo-router';
-import { ContentPanel } from "@oxy.so/bloom/content-panel";
+import { Inbox, ListTodo } from 'lucide-react-native';
+import { useCallback, useMemo, useState } from 'react';
+import {
+  ActivityIndicator,
+  FlatList,
+  RefreshControl,
+  View,
+} from 'react-native';
 
 /**
  * The one place work is seen and managed (#537).
@@ -41,7 +50,13 @@ import { ContentPanel } from "@oxy.so/bloom/content-panel";
  */
 
 /** Wrapper that subscribes to real-time activity for a single active task */
-function ActiveTaskCard({ task, onPress }: { task: TaskSession; onPress: () => void }) {
+function ActiveTaskCard({
+  task,
+  onPress,
+}: {
+  task: TaskSession;
+  onPress: () => void;
+}) {
   const activity = useAgentActivity(
     task.status === 'running' ? task._id : null,
     task.agentId?._id ?? null,
@@ -77,84 +92,116 @@ export default function TasksPage() {
   const [busyId, setBusyId] = useState<string | null>(null);
 
   const agentNames = useMemo(
-    () => new Map((agents.data ?? []).map((agent) => [
-      agent._id,
-      agent.name ?? agent.handle ?? `Agent ${agent._id.slice(0, 8)}`,
-    ])),
+    () =>
+      new Map(
+        (agents.data ?? []).map((agent) => [
+          agent._id,
+          agent.name ?? agent.handle ?? `Agent ${agent._id.slice(0, 8)}`,
+        ]),
+      ),
     [agents.data],
   );
   const agentName = useCallback(
-    (agentId: string) => agentNames.get(agentId) ?? `Agent ${agentId.slice(0, 8)}`,
+    (agentId: string) =>
+      agentNames.get(agentId) ?? `Agent ${agentId.slice(0, 8)}`,
     [agentNames],
   );
 
   const [refreshing, setRefreshing] = useState(false);
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await Promise.all([activeTasks.refetch(), taskHistory.refetch(), overview.refetch()]);
+    await Promise.all([
+      activeTasks.refetch(),
+      taskHistory.refetch(),
+      overview.refetch(),
+    ]);
     setRefreshing(false);
   }, [activeTasks, taskHistory, overview]);
 
-  const handleTaskPress = useCallback((task: TaskSession) => {
-    if (task.agentId?._id) {
-      router.push({ pathname: "/(app)/agents/[id]", params: { id: task.agentId._id } });
-    }
-  }, [router]);
-
-  const handleToggleEnabled = useCallback(async (automation: AutomationDefinition, enabled: boolean) => {
-    setBusyId(automation.id);
-    try {
-      const result = await setEnabled.mutateAsync({ automation, enabled });
-      if (result.revocation?.failed) {
-        toast.error(
-          `Automation stopped, but ${result.revocation.failed} authorization revocation failed`,
-        );
+  const handleTaskPress = useCallback(
+    (task: TaskSession) => {
+      if (task.agentId?._id) {
+        router.push({
+          pathname: '/(app)/agents/[id]',
+          params: { id: task.agentId._id },
+        });
       }
-    } catch (error: unknown) {
-      toast.error(getErrorMessage(error, 'Failed to update automation'));
-    } finally {
-      setBusyId(null);
-    }
-  }, [setEnabled]);
+    },
+    [router],
+  );
 
-  const handleStop = useCallback(async (automation: AutomationDefinition) => {
-    setBusyId(automation.id);
-    try {
-      const result = await stopAutomation.mutateAsync(automation);
-      if (result.revocation?.failed) {
-        toast.error(
-          `Automation stopped, but ${result.revocation.failed} authorization revocation failed`,
-        );
-      } else {
+  const handleToggleEnabled = useCallback(
+    async (automation: AutomationDefinition, enabled: boolean) => {
+      setBusyId(automation.id);
+      try {
+        const result = await setEnabled.mutateAsync({ automation, enabled });
+        if (result.revocation?.failed) {
+          toast.error(
+            `Automation stopped, but ${result.revocation.failed} authorization revocation failed`,
+          );
+        }
+      } catch (error: unknown) {
+        toast.error(getErrorMessage(error, 'Failed to update automation'));
+      } finally {
+        setBusyId(null);
+      }
+    },
+    [setEnabled],
+  );
+
+  const handleStop = useCallback(
+    async (automation: AutomationDefinition) => {
+      setBusyId(automation.id);
+      try {
+        const result = await stopAutomation.mutateAsync(automation);
+        if (result.revocation?.failed) {
+          toast.error(
+            `Automation stopped, but ${result.revocation.failed} authorization revocation failed`,
+          );
+        } else {
+          toast.success(
+            automation.legacyTriggerId
+              ? 'Automation stopped'
+              : 'Automation stopped and access revoked',
+          );
+        }
+      } catch (error: unknown) {
+        toast.error(getErrorMessage(error, 'Failed to stop automation'));
+      } finally {
+        setBusyId(null);
+      }
+    },
+    [stopAutomation],
+  );
+
+  const handleRunNow = useCallback(
+    async (automation: AutomationDefinition) => {
+      setBusyId(automation.id);
+      try {
+        await runAutomation.mutateAsync(automation);
         toast.success(
-          automation.legacyTriggerId ? 'Automation stopped' : 'Automation stopped and access revoked',
+          automation.legacyTriggerId
+            ? 'Automation completed'
+            : 'Automation queued',
         );
+      } catch (error: unknown) {
+        toast.error(getErrorMessage(error, 'Automation run failed'));
+      } finally {
+        setBusyId(null);
       }
-    } catch (error: unknown) {
-      toast.error(getErrorMessage(error, 'Failed to stop automation'));
-    } finally {
-      setBusyId(null);
-    }
-  }, [stopAutomation]);
+    },
+    [runAutomation],
+  );
 
-  const handleRunNow = useCallback(async (automation: AutomationDefinition) => {
-    setBusyId(automation.id);
-    try {
-      await runAutomation.mutateAsync(automation);
-      toast.success(automation.legacyTriggerId ? 'Automation completed' : 'Automation queued');
-    } catch (error: unknown) {
-      toast.error(getErrorMessage(error, 'Automation run failed'));
-    } finally {
-      setBusyId(null);
-    }
-  }, [runAutomation]);
-
-  const handleViewHistory = useCallback((automation: AutomationDefinition) => {
-    router.push({
-      pathname: '/(app)/automations/[id]',
-      params: { id: automation.id },
-    });
-  }, [router]);
+  const handleViewHistory = useCallback(
+    (automation: AutomationDefinition) => {
+      router.push({
+        pathname: '/(app)/automations/[id]',
+        params: { id: automation.id },
+      });
+    },
+    [router],
+  );
 
   const automations = overview.data?.automations ?? [];
   const runs = overview.data?.runs ?? [];
@@ -163,52 +210,94 @@ export default function TasksPage() {
 
   // The badge counts the unified active list, whichever tab or filter is shown.
   const activeItems = useMemo(
-    () => unifiedWorkItems({ tasks: activeSessions, automations, runs, tab: 'active' }),
+    () =>
+      unifiedWorkItems({
+        tasks: activeSessions,
+        automations,
+        runs,
+        tab: 'active',
+      }),
     [activeSessions, automations, runs],
   );
   const items = useMemo(
-    () => (tab === 'active' && typeFilter === 'all'
-      ? activeItems
-      : unifiedWorkItems({
-        tasks: tab === 'active' ? activeSessions : historySessions,
-        automations,
-        runs,
-        tab,
-        typeFilter,
-      })),
-    [tab, typeFilter, activeItems, activeSessions, historySessions, automations, runs],
+    () =>
+      tab === 'active' && typeFilter === 'all'
+        ? activeItems
+        : unifiedWorkItems({
+            tasks: tab === 'active' ? activeSessions : historySessions,
+            automations,
+            runs,
+            tab,
+            typeFilter,
+          }),
+    [
+      tab,
+      typeFilter,
+      activeItems,
+      activeSessions,
+      historySessions,
+      automations,
+      runs,
+    ],
   );
   const activeCount = activeItems.length;
 
-  const sourceLoading = activeTasks.isLoading
-    || overview.isLoading
-    || (tab === 'history' && taskHistory.isLoading);
+  const sourceLoading =
+    activeTasks.isLoading ||
+    overview.isLoading ||
+    (tab === 'history' && taskHistory.isLoading);
   const isLoading = sourceLoading && items.length === 0;
-  const isError = activeTasks.isError || overview.isError || (tab === 'history' && taskHistory.isError);
+  const isError =
+    activeTasks.isError ||
+    overview.isError ||
+    (tab === 'history' && taskHistory.isError);
 
-  const renderItem = useCallback(({ item }: { item: WorkItem }) => {
-    if (item.kind === 'task') {
-      return item.task.status === 'running' || item.task.status === 'queued'
-        ? <ActiveTaskCard task={item.task} onPress={() => handleTaskPress(item.task)} />
-        : <TaskCard task={item.task} onPress={() => handleTaskPress(item.task)} />;
-    }
-    return (
-      <AutomationCard
-        variant="compact"
-        automation={item.automation}
-        latestRun={item.latestRun}
-        agentName={agentName}
-        busy={busyId === item.id}
-        controlsDisabled={busyId !== null}
-        onToggle={handleToggleEnabled}
-        onRun={handleRunNow}
-        onStop={handleStop}
-        onViewHistory={handleViewHistory}
-      />
-    );
-  }, [agentName, busyId, handleRunNow, handleStop, handleTaskPress, handleToggleEnabled, handleViewHistory]);
+  const renderItem = useCallback(
+    ({ item }: { item: WorkItem }) => {
+      if (item.kind === 'task') {
+        return item.task.status === 'running' ||
+          item.task.status === 'queued' ? (
+          <ActiveTaskCard
+            task={item.task}
+            onPress={() => handleTaskPress(item.task)}
+          />
+        ) : (
+          <TaskCard
+            task={item.task}
+            onPress={() => handleTaskPress(item.task)}
+          />
+        );
+      }
+      return (
+        <AutomationCard
+          variant="compact"
+          automation={item.automation}
+          latestRun={item.latestRun}
+          agentName={agentName}
+          busy={busyId === item.id}
+          controlsDisabled={busyId !== null}
+          onToggle={handleToggleEnabled}
+          onRun={handleRunNow}
+          onStop={handleStop}
+          onViewHistory={handleViewHistory}
+        />
+      );
+    },
+    [
+      agentName,
+      busyId,
+      handleRunNow,
+      handleStop,
+      handleTaskPress,
+      handleToggleEnabled,
+      handleViewHistory,
+    ],
+  );
 
-  const keyExtractor = useCallback((item: WorkItem) => `${item.kind}:${item.id}`, []);
+  const keyExtractor = useCallback(
+    (item: WorkItem) => `${item.kind}:${item.id}`,
+    [],
+  );
 
   const ListEmpty = isLoading ? (
     <View className="items-center justify-center py-16">
@@ -230,24 +319,29 @@ export default function TasksPage() {
 
   const ListHeader = isError ? (
     <View className="mb-6 rounded-2xl border border-border bg-surface p-4 gap-3 items-start">
-      <Text className="text-sm text-muted-foreground" selectable>{t('tasks.loadError')}</Text>
-      <Button variant="outline" size="sm" onPress={() => void onRefresh()}>
-        <Text className="text-xs text-foreground">{t('tasks.retry')}</Text>
+      <Text className="text-sm text-muted-foreground" selectable>
+        {t('tasks.loadError')}
+      </Text>
+      <Button variant="secondary" size="sm" onPress={() => void onRefresh()}>
+        {t('tasks.retry')}
       </Button>
     </View>
   ) : null;
 
-  const ListFooter = tab === 'history' && taskHistory.data && taskHistory.data.total > historyPage * 20 ? (
-    <View className="items-center py-6">
-      <Button
-        variant="ghost"
-        size="sm"
-        onPress={() => setHistoryPage(p => p + 1)}
-      >
-        <Text className="text-xs text-foreground">{t('tasks.loadMore')}</Text>
-      </Button>
-    </View>
-  ) : null;
+  const ListFooter =
+    tab === 'history' &&
+    taskHistory.data &&
+    taskHistory.data.total > historyPage * 20 ? (
+      <View className="items-center py-6">
+        <Button
+          variant="ghost"
+          size="sm"
+          onPress={() => setHistoryPage((p) => p + 1)}
+        >
+          {t('tasks.loadMore')}
+        </Button>
+      </View>
+    ) : null;
 
   return (
     <ContentPanel surfaceClassName="bg-background">
@@ -257,7 +351,9 @@ export default function TasksPage() {
           <View className="flex-row items-center gap-2 mb-3">
             <DrawerToggle className="-ml-2" />
             <ListTodo size={20} color={colors.foreground} />
-            <Text className="text-lg font-semibold text-foreground">{t('tasks.title')}</Text>
+            <Text className="text-lg font-semibold text-foreground">
+              {t('tasks.title')}
+            </Text>
             {activeCount > 0 && (
               <View className="bg-primary rounded-full px-2 py-0.5 ml-1">
                 <Text className="text-[10px] font-medium text-primary-foreground">
@@ -270,28 +366,24 @@ export default function TasksPage() {
           {/* Tabs */}
           <View className="flex-row flex-wrap items-center gap-2">
             <Button
-              variant={tab === 'active' ? 'default' : 'outline'}
+              variant={tab === 'active' ? 'primary' : 'secondary'}
               size="sm"
               className="rounded-full"
-              accessibilityRole="tab"
-              accessibilityState={{ selected: tab === 'active' }}
+              accessibilityRole="button"
+              pressed={tab === 'active'}
               onPress={() => setTab('active')}
             >
-              <Text className={tab === 'active' ? 'text-primary-foreground text-xs' : 'text-foreground text-xs'}>
-                {t('tasks.active')}
-              </Text>
+              {t('tasks.active')}
             </Button>
             <Button
-              variant={tab === 'history' ? 'default' : 'outline'}
+              variant={tab === 'history' ? 'primary' : 'secondary'}
               size="sm"
               className="rounded-full"
-              accessibilityRole="tab"
-              accessibilityState={{ selected: tab === 'history' }}
+              accessibilityRole="button"
+              pressed={tab === 'history'}
               onPress={() => setTab('history')}
             >
-              <Text className={tab === 'history' ? 'text-primary-foreground text-xs' : 'text-foreground text-xs'}>
-                {t('tasks.history')}
-              </Text>
+              {t('tasks.history')}
             </Button>
 
             {/* Type filter: narrows the unified list, never replaces it. */}
@@ -304,12 +396,10 @@ export default function TasksPage() {
                   className={`rounded-full ${typeFilter === filter.value ? 'bg-muted' : ''}`}
                   accessibilityRole="button"
                   accessibilityLabel={t(filter.key)}
-                  accessibilityState={{ selected: typeFilter === filter.value }}
+                  pressed={typeFilter === filter.value}
                   onPress={() => setTypeFilter(filter.value)}
                 >
-                  <Text className={typeFilter === filter.value ? 'text-foreground text-xs' : 'text-muted-foreground text-xs'}>
-                    {t(filter.key)}
-                  </Text>
+                  {t(filter.key)}
                 </Button>
               ))}
             </View>

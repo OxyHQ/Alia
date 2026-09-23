@@ -1,17 +1,19 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { View, Pressable } from 'react-native';
-import { Text } from '@/components/ui/text';
-import Animated, { FadeIn } from 'react-native-reanimated';
-import { ChevronDown, ChevronUp, Loader } from 'lucide-react-native';
-import { useColorScheme } from '@/lib/useColorScheme';
-import type { TaskSession } from '@/lib/hooks/use-tasks';
+import { agentDisplayName } from '@/lib/agents/identity';
 import type { AgentActivityState } from '@/lib/hooks/use-agent-activity';
+import type { TaskAgentRef, TaskSession } from '@/lib/hooks/use-tasks';
+import {
+  formatDuration,
+  getStatusConfig,
+  getToolPillLabel,
+} from '@/lib/task-utils';
+import { useColorScheme } from '@/lib/useColorScheme';
+import { Text } from '@oxy.so/bloom/typography';
+import { ChevronDown, ChevronUp, Loader } from 'lucide-react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Pressable, View } from 'react-native';
+import Animated, { FadeIn } from 'react-native-reanimated';
 import { AgentMarkRow } from './agent-mark-row';
 import { TaskTimelineStep } from './task-timeline-step';
-import { getStatusConfig, formatDuration, getToolPillLabel } from '@/lib/task-utils';
-import { agentDisplayName } from "@/lib/agents/identity";
-import type { TaskAgentRef } from "@/lib/hooks/use-tasks";
-
 interface TaskCardProps {
   task: TaskSession;
   activity?: AgentActivityState | null;

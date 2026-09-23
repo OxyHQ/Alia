@@ -1,6 +1,5 @@
-import { View, ScrollView } from 'react-native';
-import { Text } from '@/components/ui/text';
-
+import { Text } from '@oxy.so/bloom/typography';
+import { ScrollView, View } from 'react-native';
 interface TableData {
   headers: string[];
   rows: string[][];

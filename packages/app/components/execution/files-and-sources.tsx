@@ -1,12 +1,11 @@
-import { useState, type ReactNode } from "react";
-import { View, Pressable } from "react-native";
-import { ChevronRight, FileText, Globe } from "lucide-react-native";
-import { Text } from "@/components/ui/text";
-import { cn } from "@/lib/utils";
-import { useTranslation } from "@/lib/hooks/use-translation";
-import type { OutputFile, Source } from "@/lib/thought-utils";
-import { REF } from "./tokens";
-
+import { useTranslation } from '@/lib/hooks/use-translation';
+import type { OutputFile, Source } from '@/lib/thought-utils';
+import { cn } from '@/lib/utils';
+import { Text } from '@oxy.so/bloom/typography';
+import { ChevronRight, FileText, Globe } from 'lucide-react-native';
+import { useState, type ReactNode } from 'react';
+import { Pressable, View } from 'react-native';
+import { REF } from './tokens';
 /**
  * "Files and sources": what a turn produced and what it read, in two
  * collapsible sections.

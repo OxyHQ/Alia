@@ -1,23 +1,32 @@
-import { View, ScrollView, Pressable, Platform } from "react-native";
-import { Switch } from "@oxy.so/bloom/switch";
-import { Text } from "@/components/ui/text";
-import { BellIcon } from "@/components/ui/bell-icon";
-import { useRouter } from "expo-router";
-import { ArrowLeft, Bell, BellOff, CheckCheck, Zap, Clock, Eye, AlertTriangle, MessageSquare, X } from "lucide-react-native";
-import { useState, useEffect, useCallback } from "react";
-import { useAuth } from "@oxy.so/services";
-import * as ExpoNotifications from "expo-notifications";
-import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
-
-import { useTranslation } from "@/lib/hooks/use-translation";
+import { BellIcon } from '@/components/ui/bell-icon';
+import { Switch } from '@oxy.so/bloom/switch';
+import { Text } from '@oxy.so/bloom/typography';
+import { useAuth } from '@oxy.so/services';
+import * as ExpoNotifications from 'expo-notifications';
+import { useRouter } from 'expo-router';
 import {
-  useNotifications,
-  useMarkAsRead,
-  useMarkAllAsRead,
+  AlertTriangle,
+  ArrowLeft,
+  Bell,
+  BellOff,
+  CheckCheck,
+  Clock,
+  Eye,
+  MessageSquare,
+  X,
+  Zap,
+} from 'lucide-react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { Platform, Pressable, ScrollView, View } from 'react-native';
+import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
+import {
   useDismissNotification,
-} from "@/lib/hooks/use-notifications";
-import { ContentPanel } from "@oxy.so/bloom/content-panel";
-
+  useMarkAllAsRead,
+  useMarkAsRead,
+  useNotifications,
+} from '@/lib/hooks/use-notifications';
+import { useTranslation } from '@/lib/hooks/use-translation';
+import { ContentPanel } from '@oxy.so/bloom/content-panel';
 const TYPE_ICONS: Record<string, typeof Zap> = {
   trigger_result: Zap,
   proactive_insight: Eye,

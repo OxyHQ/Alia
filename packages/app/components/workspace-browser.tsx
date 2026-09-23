@@ -1,3 +1,23 @@
+import apiClient from '@/lib/api/client';
+import { useColorScheme } from '@/lib/useColorScheme';
+import { Text } from '@oxy.so/bloom/typography';
+import { useQuery } from '@tanstack/react-query';
+import {
+  ChevronDown,
+  ChevronRight,
+  Download,
+  File,
+  FileCode,
+  FileText,
+  Folder,
+  FolderOpen,
+  FolderTree,
+  Image as ImageIcon,
+  X,
+} from 'lucide-react-native';
+import { useCallback, useState } from 'react';
+import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
+import Animated, { FadeIn } from 'react-native-reanimated';
 /**
  * WorkspaceBrowser — Tree view of agent workspace files with preview/download.
  *
@@ -5,26 +25,14 @@
  * Supports expanding directories, previewing text files, and downloading.
  */
 
-import React, { useState, useCallback } from 'react';
-import { View, Pressable, ScrollView, ActivityIndicator } from 'react-native';
-import { Text } from '@/components/ui/text';
-import { useQuery } from '@tanstack/react-query';
-import apiClient from '@/lib/api/client';
-import Animated, { FadeIn } from 'react-native-reanimated';
-import {
-  Folder,
-  FolderOpen,
-  File,
-  FileCode,
-  FileText,
-  Image as ImageIcon,
-  Download,
-  ChevronRight,
-  ChevronDown,
-  X,
-  FolderTree,
-} from 'lucide-react-native';
-import { useColorScheme } from '@/lib/useColorScheme';
+
+
+
+
+
+
+
+
 
 interface WorkspaceFile {
   name: string;

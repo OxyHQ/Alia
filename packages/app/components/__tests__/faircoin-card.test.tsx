@@ -23,14 +23,28 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('react-native', async () => {
   const ReactModule = await import('react');
-  const h = (name: string) => ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
-    ReactModule.createElement(name, props, children);
-  return { View: h('View'), Pressable: h('Pressable'), ScrollView: h('ScrollView') };
+  const h =
+    (name: string) =>
+    ({
+      children,
+      ...props
+    }: React.PropsWithChildren<Record<string, unknown>>) =>
+      ReactModule.createElement(name, props, children);
+  return {
+    View: h('View'),
+    Pressable: h('Pressable'),
+    ScrollView: h('ScrollView'),
+  };
 });
 vi.mock('react-native-svg', async () => {
   const ReactModule = await import('react');
-  const h = (name: string) => ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
-    ReactModule.createElement(name, props, children);
+  const h =
+    (name: string) =>
+    ({
+      children,
+      ...props
+    }: React.PropsWithChildren<Record<string, unknown>>) =>
+      ReactModule.createElement(name, props, children);
   return {
     default: h('Svg'),
     Path: h('Path'),
@@ -41,10 +55,15 @@ vi.mock('react-native-svg', async () => {
     Text: h('SvgText'),
   };
 });
-vi.mock('@/components/ui/text', async () => {
+vi.mock('@oxy.so/bloom/typography', async () => {
   const ReactModule = await import('react');
-  const h = (name: string) => ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
-    ReactModule.createElement(name, props, children);
+  const h =
+    (name: string) =>
+    ({
+      children,
+      ...props
+    }: React.PropsWithChildren<Record<string, unknown>>) =>
+      ReactModule.createElement(name, props, children);
   return { Text: h('Text') };
 });
 // `cn` shares a module with a uuid helper that pulls expo-crypto, so importing
@@ -73,7 +92,11 @@ vi.mock('@/lib/hooks/use-translation', () => ({
   }),
 }));
 
-import { FairCoinCard, type FairCoinCardData, type FairCoinPoint } from '@/components/cards/faircoin-card';
+import {
+  FairCoinCard,
+  type FairCoinCardData,
+  type FairCoinPoint,
+} from '@/components/cards/faircoin-card';
 
 const UP = 'rgb(16, 185, 129)';
 const DOWN = 'rgb(220, 38, 38)';
@@ -103,7 +126,9 @@ const stored: FairCoinCardData = {
 
 function render(data: FairCoinCardData): ReactTestRenderer {
   let tree: ReactTestRenderer | undefined;
-  act(() => { tree = create(<FairCoinCard data={data} />); });
+  act(() => {
+    tree = create(<FairCoinCard data={data} />);
+  });
   if (!tree) throw new Error('act() returned without rendering');
   return tree;
 }
@@ -111,9 +136,16 @@ function render(data: FairCoinCardData): ReactTestRenderer {
 function texts(tree: ReactTestRenderer): string[] {
   const out: string[] = [];
   const walk = (node: unknown): void => {
-    if (typeof node === 'string') { out.push(node); return; }
-    if (Array.isArray(node)) { node.forEach(walk); return; }
-    if (node && typeof node === 'object' && 'children' in node) walk((node as { children: unknown }).children);
+    if (typeof node === 'string') {
+      out.push(node);
+      return;
+    }
+    if (Array.isArray(node)) {
+      node.forEach(walk);
+      return;
+    }
+    if (node && typeof node === 'object' && 'children' in node)
+      walk((node as { children: unknown }).children);
   };
   walk(tree.toJSON());
   return out;
@@ -124,8 +156,10 @@ function texts(tree: ReactTestRenderer): string[] {
  * `react-native-svg` passes each prop straight through, so a plain `findAll`
  * counts one grid line twice.
  */
-const hosts = (tree: ReactTestRenderer, match: (props: Record<string, unknown>) => boolean) =>
-  tree.root.findAll((n) => typeof n.type === 'string' && match(n.props));
+const hosts = (
+  tree: ReactTestRenderer,
+  match: (props: Record<string, unknown>) => boolean,
+) => tree.root.findAll((n) => typeof n.type === 'string' && match(n.props));
 
 /** The stroked curve. The filled twin under it has `fill` set instead. */
 const curve = (tree: ReactTestRenderer) =>
@@ -133,34 +167,49 @@ const curve = (tree: ReactTestRenderer) =>
 
 const curvePath = (tree: ReactTestRenderer) => curve(tree).props.d as string;
 /** Every "Lx,y" is one point after the opening "M". */
-const drawnPoints = (tree: ReactTestRenderer) => curvePath(tree).split('L').length;
+const drawnPoints = (tree: ReactTestRenderer) =>
+  curvePath(tree).split('L').length;
 
 const rangeButtons = (tree: ReactTestRenderer) =>
   tree.root.findAll(
-    (n) => typeof n.type !== 'string' && typeof n.props.accessibilityLabel === 'string'
-      && n.props.accessibilityLabel.startsWith('faircoin.range.'),
+    (n) =>
+      typeof n.type !== 'string' &&
+      typeof n.props.accessibilityLabel === 'string' &&
+      n.props.accessibilityLabel.startsWith('faircoin.range.'),
   );
 
 const offeredRanges = (tree: ReactTestRenderer) =>
   rangeButtons(tree).map((n) => n.props.accessibilityLabel as string);
 
 function press(tree: ReactTestRenderer, range: string) {
-  const button = rangeButtons(tree).find((n) => n.props.accessibilityLabel === `faircoin.range.${range}`);
-  if (!button) throw new Error(`no ${range} button; the card offers ${offeredRanges(tree).join(', ')}`);
-  act(() => { button.props.onPress(); });
+  const button = rangeButtons(tree).find(
+    (n) => n.props.accessibilityLabel === `faircoin.range.${range}`,
+  );
+  if (!button)
+    throw new Error(
+      `no ${range} button; the card offers ${offeredRanges(tree).join(', ')}`,
+    );
+  act(() => {
+    button.props.onPress();
+  });
 }
 
 /** The colour on the delta line, which is the only styled colour in the text. */
 const deltaColor = (tree: ReactTestRenderer) =>
-  (hosts(tree, (p) => p.style !== null && typeof p.style === 'object' && 'color' in p.style)[0]
-    .props.style as { color: string }).color;
+  (
+    hosts(
+      tree,
+      (p) =>
+        p.style !== null && typeof p.style === 'object' && 'color' in p.style,
+    )[0].props.style as { color: string }
+  ).color;
 
 afterEach(() => {
   vi.unstubAllGlobals();
 });
 
 describe('FairCoinCard', () => {
-  it('shows the coin, the indexed price and the explorer\'s own 24h change', () => {
+  it("shows the coin, the indexed price and the explorer's own 24h change", () => {
     const t = texts(render(stored));
     expect(t).toContain('faircoin.name');
     expect(t).toContain('faircoin.symbol');
@@ -211,7 +260,13 @@ describe('FairCoinCard', () => {
     const tree = render(stored);
     expect(drawnPoints(tree)).toBe(4);
 
-    const counts: Record<string, number> = { '7d': 5, '30d': 6, '1y': 7, all: 8, '24h': 4 };
+    const counts: Record<string, number> = {
+      '7d': 5,
+      '30d': 6,
+      '1y': 7,
+      all: 8,
+      '24h': 4,
+    };
     for (const [range, points] of Object.entries(counts)) {
       press(tree, range);
       expect(drawnPoints(tree)).toBe(points);
@@ -224,7 +279,8 @@ describe('FairCoinCard', () => {
   it('moves the selection to the range that was pressed', () => {
     const tree = render(stored);
     const selected = () =>
-      rangeButtons(tree).filter((n) => n.props.accessibilityState.selected)
+      rangeButtons(tree)
+        .filter((n) => n.props.accessibilityState.selected)
         .map((n) => n.props.accessibilityLabel);
 
     expect(selected()).toEqual(['faircoin.range.24h']);
@@ -232,7 +288,7 @@ describe('FairCoinCard', () => {
     expect(selected()).toEqual(['faircoin.range.1y']);
   });
 
-  it('reports the selected range\'s own change, derived from its series', () => {
+  it("reports the selected range's own change, derived from its series", () => {
     const tree = render(stored);
     press(tree, '30d');
     // 0.05 down to 0.042: eight thousandths lost, a sixth of where it started.
@@ -269,7 +325,10 @@ describe('FairCoinCard', () => {
 
     // An empty period is still a period the explorer answered for, so it is
     // still offered — and pressing it says why there is no line.
-    expect(offeredRanges(tree)).toEqual(['faircoin.range.24h', 'faircoin.range.7d']);
+    expect(offeredRanges(tree)).toEqual([
+      'faircoin.range.24h',
+      'faircoin.range.7d',
+    ]);
     press(tree, '7d');
     expect(texts(tree)).toContain('faircoin.noSamples');
     expect(texts(tree)).not.toContain('faircoin.noHistory');
@@ -283,7 +342,11 @@ describe('FairCoinCard', () => {
   });
 
   it('names no unavailable range when the explorer answered for all five', () => {
-    expect(texts(render(stored)).some((line) => line.startsWith('faircoin.unavailable'))).toBe(false);
+    expect(
+      texts(render(stored)).some((line) =>
+        line.startsWith('faircoin.unavailable'),
+      ),
+    ).toBe(false);
   });
 
   it('calls a single sample a dot rather than either kind of nothing', () => {
@@ -300,7 +363,10 @@ describe('FairCoinCard', () => {
   it('opens on a range it can actually draw', () => {
     // 24h is the range a reader wants, but landing on an empty one shows a
     // message where the chart should be for no reason.
-    const tree = render({ ...stored, series: { '24h': [], '7d': stored.series['7d'] } });
+    const tree = render({
+      ...stored,
+      series: { '24h': [], '7d': stored.series['7d'] },
+    });
     expect(drawnPoints(tree)).toBe(5);
     expect(texts(tree)).toContain('faircoin.since.7d');
   });
@@ -337,12 +403,14 @@ describe('FairCoinCard', () => {
   it('does not round a sub-cent price down to nothing', () => {
     // FAIR trades far below a dollar, and two decimals turns the whole card
     // into "$0.00" — the price, the delta and the axis alike.
-    const t = texts(render({
-      ...stored,
-      price: 0.000023,
-      changePct: null,
-      series: { '24h': run([0.000021, 0.000023]) },
-    }));
+    const t = texts(
+      render({
+        ...stored,
+        price: 0.000023,
+        changePct: null,
+        series: { '24h': run([0.000021, 0.000023]) },
+      }),
+    );
     expect(t).toContain('$0.000023');
     expect(t).not.toContain('$0.00');
     // The axis drops the currency symbol but not the digits.
@@ -351,7 +419,14 @@ describe('FairCoinCard', () => {
   });
 
   it('leaves out the numbers the pool did not report', () => {
-    const t = texts(render({ ...stored, volume24h: null, liquidityUsd: null, marketCapUsd: null }));
+    const t = texts(
+      render({
+        ...stored,
+        volume24h: null,
+        liquidityUsd: null,
+        marketCapUsd: null,
+      }),
+    );
     expect(t).not.toContain('faircoin.volume');
     expect(t).not.toContain('faircoin.liquidity');
     expect(t).not.toContain('faircoin.marketCap');
@@ -369,7 +444,9 @@ describe('FairCoinCard', () => {
 
     // Spanish "billón" is 10¹², not 10⁹, so every rung of the ladder has to be
     // a string somebody can translate rather than a letter appended here.
-    const big = texts(render({ ...stored, liquidityUsd: 1.5e9, marketCapUsd: 2.2e12 }));
+    const big = texts(
+      render({ ...stored, liquidityUsd: 1.5e9, marketCapUsd: 2.2e12 }),
+    );
     expect(big).toContain('faircoin.scale.billion[1.5]');
     expect(big).toContain('faircoin.scale.trillion[2.2]');
   });
@@ -387,15 +464,24 @@ describe('FairCoinCard', () => {
 
   it('asks for no string that either language is missing', () => {
     const locale = (name: string): Record<string, unknown> =>
-      JSON.parse(readFileSync(new URL(`../../lib/i18n/locales/${name}.json`, import.meta.url), 'utf8'));
+      JSON.parse(
+        readFileSync(
+          new URL(`../../lib/i18n/locales/${name}.json`, import.meta.url),
+          'utf8',
+        ),
+      );
     const en = locale('en');
     const es = locale('es');
     const resolve = (root: Record<string, unknown>, key: string): unknown =>
-      key.split('.').reduce<unknown>(
-        (node, part) =>
-          node && typeof node === 'object' ? (node as Record<string, unknown>)[part] : undefined,
-        root,
-      );
+      key
+        .split('.')
+        .reduce<unknown>(
+          (node, part) =>
+            node && typeof node === 'object'
+              ? (node as Record<string, unknown>)[part]
+              : undefined,
+          root,
+        );
 
     // Every string the card can render, collected by walking it through every
     // range and every empty state rather than from a list here that would drift
@@ -420,10 +506,16 @@ describe('FairCoinCard', () => {
     collect(render({ ...stored, price: null, changePct: null }));
     // The three kinds of nothing, and the roll-call of periods that failed.
     collect(render({ ...stored, series: {} }));
-    const empty = render({ ...stored, series: { '24h': stored.series['24h'], '7d': [] } });
+    const empty = render({
+      ...stored,
+      series: { '24h': stored.series['24h'], '7d': [] },
+    });
     press(empty, '7d');
     collect(empty);
-    const dot = render({ ...stored, series: { '24h': stored.series['24h'], '7d': run([0.039]) } });
+    const dot = render({
+      ...stored,
+      series: { '24h': stored.series['24h'], '7d': run([0.039]) },
+    });
     press(dot, '7d');
     collect(dot);
 
@@ -432,7 +524,9 @@ describe('FairCoinCard', () => {
     // asks for that is not there is a raw key on screen.
     const leaves = (node: unknown, prefix: string): string[] =>
       node && typeof node === 'object'
-        ? Object.entries(node as Record<string, unknown>).flatMap(([k, v]) => leaves(v, `${prefix}.${k}`))
+        ? Object.entries(node as Record<string, unknown>).flatMap(([k, v]) =>
+            leaves(v, `${prefix}.${k}`),
+          )
         : [prefix];
     expect([...asked].sort()).toEqual(leaves(en.faircoin, 'faircoin').sort());
 

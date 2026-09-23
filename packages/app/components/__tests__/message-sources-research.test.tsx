@@ -16,8 +16,13 @@ import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('react-native', async () => {
   const ReactModule = await import('react');
-  const h = (name: string) => ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
-    ReactModule.createElement(name, props, children);
+  const h =
+    (name: string) =>
+    ({
+      children,
+      ...props
+    }: React.PropsWithChildren<Record<string, unknown>>) =>
+      ReactModule.createElement(name, props, children);
   return {
     View: h('View'),
     Pressable: h('Pressable'),
@@ -27,20 +32,33 @@ vi.mock('react-native', async () => {
 
 vi.mock('expo-image', async () => {
   const ReactModule = await import('react');
-  return { Image: (props: Record<string, unknown>) => ReactModule.createElement('Image', props) };
+  return {
+    Image: (props: Record<string, unknown>) =>
+      ReactModule.createElement('Image', props),
+  };
 });
 
 vi.mock('lucide-react-native', async () => {
   const ReactModule = await import('react');
-  const h = (name: string) => ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
-    ReactModule.createElement(name, props, children);
+  const h =
+    (name: string) =>
+    ({
+      children,
+      ...props
+    }: React.PropsWithChildren<Record<string, unknown>>) =>
+      ReactModule.createElement(name, props, children);
   return { Globe: h('Globe') };
 });
 
-vi.mock('@/components/ui/text', async () => {
+vi.mock('@oxy.so/bloom/typography', async () => {
   const ReactModule = await import('react');
-  const h = (name: string) => ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
-    ReactModule.createElement(name, props, children);
+  const h =
+    (name: string) =>
+    ({
+      children,
+      ...props
+    }: React.PropsWithChildren<Record<string, unknown>>) =>
+      ReactModule.createElement(name, props, children);
   return { Text: h('Text') };
 });
 
@@ -53,26 +71,40 @@ vi.mock('@/lib/hooks/use-translation', () => ({
 import { MessageSources } from '@/components/message-sources';
 
 /** A finished research turn exactly as `messages.tool_invocations` stores one. */
-const persistedResearch = (sources: Array<{ id: number; url: string; title: string }>) => [
+const persistedResearch = (
+  sources: Array<{ id: number; url: string; title: string }>,
+) => [
   {
     toolCallId: 'research-req-1',
     toolName: 'deepResearch',
     state: 'result' as const,
     args: { query: 'resume en dos frases qué es React con una fuente' },
-    result: { status: 'complete', sources, subQuestions: ['qué es React'], totalSearches: 4 },
+    result: {
+      status: 'complete',
+      sources,
+      subQuestions: ['qué es React'],
+      totalSearches: 4,
+    },
   },
 ];
 
 function render(node: React.ReactElement) {
   let tree: ReactTestRenderer;
-  act(() => { tree = create(node); });
+  act(() => {
+    tree = create(node);
+  });
   return tree!;
 }
 
 function marks(tree: ReactTestRenderer) {
   return tree.root
     .findByProps({ accessibilityRole: 'button' })
-    .findAll((n) => typeof n.type === 'string' && typeof n.props.className === 'string' && n.props.className.includes('-ms-1.5'));
+    .findAll(
+      (n) =>
+        typeof n.type === 'string' &&
+        typeof n.props.className === 'string' &&
+        n.props.className.includes('-ms-1.5'),
+    );
 }
 
 describe('MessageSources — research answers', () => {
@@ -82,20 +114,29 @@ describe('MessageSources — research answers', () => {
         onPress={vi.fn()}
         toolInvocations={persistedResearch([
           { id: 1, url: 'https://es.react.dev/', title: 'React' },
-          { id: 2, url: 'https://en.wikipedia.org/wiki/React_(software)', title: 'React (software)' },
+          {
+            id: 2,
+            url: 'https://en.wikipedia.org/wiki/React_(software)',
+            title: 'React (software)',
+          },
         ])}
       />,
     );
     expect(tree.toJSON()).not.toBeNull();
     expect(marks(tree)).toHaveLength(2);
-    expect(tree.root.findByProps({ accessibilityRole: 'button' }).props.accessibilityLabel).toBe('chat.sourcesCount');
+    expect(
+      tree.root.findByProps({ accessibilityRole: 'button' }).props
+        .accessibilityLabel,
+    ).toBe('chat.sourcesCount');
   });
 
   it('shows the row for the live turn, from the final progress event', () => {
     const tree = render(
       <MessageSources
         onPress={vi.fn()}
-        researchSources={[{ id: 1, url: 'https://es.react.dev/', title: 'React' }]}
+        researchSources={[
+          { id: 1, url: 'https://es.react.dev/', title: 'React' },
+        ]}
       />,
     );
     expect(tree.toJSON()).not.toBeNull();
@@ -106,15 +147,24 @@ describe('MessageSources — research answers', () => {
     const tree = render(
       <MessageSources
         onPress={vi.fn()}
-        toolInvocations={persistedResearch([{ id: 1, url: 'https://es.react.dev/', title: 'React' }])}
-        researchSources={[{ id: 1, url: 'https://es.react.dev/', title: 'React' }]}
+        toolInvocations={persistedResearch([
+          { id: 1, url: 'https://es.react.dev/', title: 'React' },
+        ])}
+        researchSources={[
+          { id: 1, url: 'https://es.react.dev/', title: 'React' },
+        ]}
       />,
     );
     expect(marks(tree)).toHaveLength(1);
   });
 
   it('says nothing for a research record that saved no sources', () => {
-    const tree = render(<MessageSources onPress={vi.fn()} toolInvocations={persistedResearch([])} />);
+    const tree = render(
+      <MessageSources
+        onPress={vi.fn()}
+        toolInvocations={persistedResearch([])}
+      />,
+    );
     expect(tree.toJSON()).toBeNull();
   });
 });

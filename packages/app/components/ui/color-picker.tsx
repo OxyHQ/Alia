@@ -1,8 +1,7 @@
-import React from "react";
-import { View, Pressable } from "react-native";
-import { Text } from "@/components/ui/text";
-import { cn } from "@/lib/utils";
-
+import { cn } from '@/lib/utils';
+import { Text } from '@oxy.so/bloom/typography';
+import React from 'react';
+import { Pressable, View } from 'react-native';
 export const COLOR_OPTIONS = [
   "#3b82f6", // blue
   "#8b5cf6", // purple

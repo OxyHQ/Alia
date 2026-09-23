@@ -1,26 +1,24 @@
-import React from "react";
-import { View, Pressable, ScrollView, ActivityIndicator } from "react-native";
-import { Image } from "expo-image";
-import { LinearGradient } from "expo-linear-gradient";
-import { withAlpha } from "@oxy.so/bloom/theme";
+import { MAX_ATTACHMENT_BYTES } from '@/lib/chat/attachment-intake';
+import { useTranslation } from '@/lib/hooks/use-translation';
+import { useColorScheme } from '@/lib/useColorScheme';
+import { withAlpha } from '@oxy.so/bloom/theme';
+import { Text } from '@oxy.so/bloom/typography';
+import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
 import {
-  FileText,
-  FileSpreadsheet,
-  FileCode,
+  File,
   FileArchive,
   FileAudio,
-  File,
-  X,
+  FileCode,
+  FileSpreadsheet,
+  FileText,
   RotateCw,
   TriangleAlert,
-} from "lucide-react-native";
-import { Text } from "@/components/ui/text";
-import { useColorScheme } from "@/lib/useColorScheme";
-import { useTranslation } from "@/lib/hooks/use-translation";
-import { MAX_ATTACHMENT_BYTES } from "@/lib/chat/attachment-intake";
-import { ATTACHMENT_TILE_RADIUS, type Attachment } from "./types";
-import type { IntakeItem } from "./use-attachment-intake";
-
+  X,
+} from 'lucide-react-native';
+import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
+import { ATTACHMENT_TILE_RADIUS, type Attachment } from './types';
+import type { IntakeItem } from './use-attachment-intake';
 /**
  * How strongly a file-type hue tints its icon well.
  *

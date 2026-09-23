@@ -1,69 +1,38 @@
-import { Stack } from 'expo-router';
-import { AiChatShell } from '@oxy.so/bloom/ai-chat';
-import { Sidebar } from '@/components/sidebar';
-import { RightPanel } from '@/components/right-panel';
-import { AppErrorBoundary } from '@/components/error-boundary';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { View } from 'react-native';
+import { useIsNavInFlow } from '@/components/app-shell/metrics';
 import { NavRegion } from '@/components/app-shell/nav-region';
 import { ShellNavProvider } from '@/components/app-shell/shell-nav';
-import {
-  NAV_PANEL_WIDTH,
-  NAV_RAIL_WIDTH,
-  useIsNavInFlow,
-} from '@/components/app-shell/metrics';
-import { useProjectsStore } from '@/lib/stores/projects-store';
-import { useFoldersStore } from '@/lib/stores/folders-store';
-import { useFavoritesStore } from '@/lib/stores/favorites-store';
-import { usePinnedStore } from '@/lib/stores/pinned-store';
-import { useUIStore } from '@/lib/stores/ui-store';
-import { useEffect, useMemo } from 'react';
-import { useColorScheme } from '@/lib/useColorScheme';
-import { useOxy } from '@oxy.so/services';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CommandPalette } from '@/components/command-palette';
+import { AppErrorBoundary } from '@/components/error-boundary';
+import { restoreOpenerFocus } from '@/components/execution/focus-return';
 import { KeyboardShortcutsDialog } from '@/components/keyboard-shortcuts-dialog';
-import i18n from '@/lib/i18n';
-import { useWelcomeSuggestions } from '@/lib/hooks/use-suggestions';
-import { useNotificationSetup } from '@/lib/hooks/use-notification-setup';
+import { RightPanel } from '@/components/right-panel';
+import { AliaSettingsProvider } from '@/components/settings/alia-settings';
+import { Sidebar } from '@/components/sidebar';
 import { useLocalRuntime } from '@/lib/hooks/use-local-runtime';
-import { useIsLargeScreen } from '@/lib/hooks/use-is-large-screen';
+import { useNotificationSetup } from '@/lib/hooks/use-notification-setup';
+import { useWelcomeSuggestions } from '@/lib/hooks/use-suggestions';
+import i18n from '@/lib/i18n';
+import { useFavoritesStore } from '@/lib/stores/favorites-store';
+import { useFoldersStore } from '@/lib/stores/folders-store';
+import { usePinnedStore } from '@/lib/stores/pinned-store';
+import { useProjectsStore } from '@/lib/stores/projects-store';
+import { useUIStore } from '@/lib/stores/ui-store';
+import { AiChatShell } from '@oxy.so/bloom/ai-chat';
+import { useOxy } from '@oxy.so/services';
+import { Stack } from 'expo-router';
+import { useEffect, useMemo } from 'react';
+import { View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // Routes that handle their own top safe area insets
-const SELF_INSET_ROUTES = new Set(['index', 'c/[id]/index', '[username]', 'settings']);
-
-/**
- * The shell's own frame, flattened.
- *
- * `AiChatShell` draws itself as a 12px-inset card with a 16px gutter between
- * the nav column and the workspace, which is Bloom's AI-chat template and is
- * not Alia's layout: Alia's sidebar meets its content edge to edge and the
- * scene carries its own 8px gutter (`md:p-2 md:pl-0`, below). `style` is
- * applied after the shell's own root style, so naming the three properties
- * here is the whole of the override.
- *
- * `backgroundColor` is Alia's `background` rather than Bloom's `background-full`
- * for the same reason: it is the colour the expo-router `Drawer` painted, and
- * the colour the sidebar and every scene paint on top of. It travels with
- * `surface={false}`, which stops the shell painting `background-full` on the
- * root AND on the workspace — the workspace's paint would otherwise sit over a
- * scene that already has one, one token out.
- */
-function useShellFrame() {
-  const { colors } = useColorScheme();
-  return useMemo(
-    () => ({ padding: 0, gap: 0, backgroundColor: colors.background }),
-    [colors.background],
-  );
-}
+const SELF_INSET_ROUTES = new Set([
+  'index',
+  'c/[id]/index',
+  '[username]',
+  'settings',
+]);
 
 export default function AppLayout() {
-  /**
-   * 768: still what decides whether the right panel is a column beside the chat
-   * or a modal over it. Deliberately NOT the nav's breakpoint — these are two
-   * different questions and they were only ever one number by coincidence.
-   */
-  const isLargeScreen = useIsLargeScreen();
   /** 1024: whether the nav is a column. `AiChatShell` decides this; see `metrics.ts`. */
   const navInFlow = useIsNavInFlow();
   const insets = useSafeAreaInsets();
@@ -72,8 +41,9 @@ export default function AppLayout() {
   const loadFavorites = useFavoritesStore((state) => state.loadFavorites);
   const loadPinned = usePinnedStore((state) => state.loadPinned);
   const rightPanel = useUIStore((state) => state.rightPanel);
+  const setRightPanel = useUIStore((state) => state.setRightPanel);
+  const rightPanelWidth = useUIStore((state) => state.rightPanelWidth);
   const sidebarOpen = useUIStore((state) => state.sidebarOpen);
-  const shellFrame = useShellFrame();
 
   // Prefetch welcome suggestions so they're ready before any chat screen mounts
   useWelcomeSuggestions();
@@ -134,75 +104,58 @@ export default function AppLayout() {
     [],
   );
 
-  /**
-   * The scenes.
-   *
-   * A `Stack` where there was a `Drawer`, because the drawer the `Drawer` was
-   * for is `AiChatShell`'s now and what is left of the navigator is its actual
-   * job: owning the routes, the URLs, the browser's back and forward, and the
-   * platform's own back. `screenLayout` and `sceneContainerStyle` are gone with
-   * it — one scene is on screen at a time, so the gutter band that wrapped each
-   * scene wraps the navigator instead and says the same thing in one place.
-   *
-   * `VISIBLE_ROUTES` and `drawerItemStyle` are gone too, and were always
-   * vestigial: they hid routes from the drawer's built-in item list, which was
-   * never rendered — `drawerContent` replaced it with Alia's sidebar on the
-   * first day.
-   *
-   * The per-route top inset survives as `contentStyle`, which is the same idea
-   * with a different name: a screen in `SELF_INSET_ROUTES` places its own safe
-   * area (the chat header does it inside its 56px band), and everything else is
-   * pushed clear of the notch here.
-   */
+  // The router owns routes; Bloom owns the frame and the chat header's insets.
   const screenOptions = ({ route }: { route: { name: string } }) => ({
     headerShown: false,
     contentStyle: {
       paddingTop: SELF_INSET_ROUTES.has(route.name) ? 0 : insets.top,
-      // The scene's own surface is painted by the gutter band below; a second
-      // opaque layer here would sit over the 8px inset and fill it in.
       backgroundColor: 'transparent',
     },
   });
 
   return (
     <AppErrorBoundary>
-      <GestureHandlerRootView style={{ flex: 1 }}>
-      <View style={{ flex: 1, flexDirection: isLargeScreen ? 'row' : 'column' }}>
-        <View style={{ flex: 1 }}>
-          <AiChatShell
-            sidebar={nav}
-            mobileSidebar={nav}
-            sidebarWidth={NAV_PANEL_WIDTH}
-            /* The 56px icon rail. `sidebarOpen` is the same persisted flag that
-               used to set `drawerStyle.width`; below `lg` there is no column to
-               narrow, so the flag says nothing there. */
-            sidebarCollapsed={navInFlow && !sidebarOpen}
-            collapsedSidebarWidth={NAV_RAIL_WIDTH}
-            surface={false}
-            style={shellFrame}
-            labels={shellLabels}
-          >
-            {/* Only the gutter band: `ContentPanel` refuses to nest, so each
-                scene composes its own panel(s) and a two-pane scene can render
-                them as siblings. `pl-0` keeps the content meeting the nav. */}
-            <ShellNavProvider>
-              <View className="flex-1 bg-background md:p-2 md:pl-0">
-                <Stack screenOptions={screenOptions}>
-                  <Stack.Screen name="c/[id]/index" options={{ title: i18n.t('nav.chat') }} />
-                  <Stack.Screen name="settings" options={{ title: i18n.t('nav.settings') }} />
-                </Stack>
-              </View>
-            </ShellNavProvider>
-          </AiChatShell>
-        </View>
-        {/* Right Panel - flex on desktop, modal on mobile */}
-        {isLargeScreen && rightPanel && <RightPanel />}
-      </View>
-      {/* Mobile modal for right panel */}
-      {!isLargeScreen && <RightPanel />}
-      <CommandPalette />
-      <KeyboardShortcutsDialog />
-      </GestureHandlerRootView>
+      <AliaSettingsProvider>
+        <AiChatShell
+          sidebar={nav}
+          mobileSidebar={nav}
+          sidebarCollapsed={navInFlow && !sidebarOpen}
+          labels={shellLabels}
+          defaultPanelWidth={rightPanelWidth}
+          panelOpen={rightPanel !== null}
+          onPanelOpenChange={(open) => {
+            if (!open) {
+              setRightPanel(null);
+              if (rightPanel === 'thought') restoreOpenerFocus();
+            }
+          }}
+          panelLabel={
+            rightPanel === 'thought'
+              ? i18n.t('thought.title')
+              : (rightPanel ?? 'Details')
+          }
+          panel={
+            rightPanel
+              ? (width) => (
+                  <View style={{ width, minHeight: 0, height: '100%' }}>
+                    <RightPanel width={width} />
+                  </View>
+                )
+              : undefined
+          }
+        >
+          <ShellNavProvider>
+            <Stack screenOptions={screenOptions}>
+              <Stack.Screen
+                name="c/[id]/index"
+                options={{ title: i18n.t('nav.chat') }}
+              />
+            </Stack>
+          </ShellNavProvider>
+        </AiChatShell>
+        <CommandPalette />
+        <KeyboardShortcutsDialog />
+      </AliaSettingsProvider>
     </AppErrorBoundary>
   );
 }

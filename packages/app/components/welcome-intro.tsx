@@ -1,5 +1,21 @@
+import {
+  AmbientField,
+  PARALLAX_DURATION,
+  PARALLAX_EASE,
+} from '@/components/ambient-field';
+import { useTranslation } from '@/lib/hooks/use-translation';
+import { useColorScheme } from '@/lib/useColorScheme';
+import { IdentityMark } from '@alia.onl/sdk';
+import { Button } from '@oxy.so/bloom/button';
+import { Text } from '@oxy.so/bloom/typography';
+import { useAuth } from '@oxy.so/services';
 import { useEffect, useState } from 'react';
-import { Platform, View, type LayoutChangeEvent, type PointerEvent } from 'react-native';
+import {
+  Platform,
+  View,
+  type LayoutChangeEvent,
+  type PointerEvent,
+} from 'react-native';
 import Animated, {
   Easing,
   runOnJS,
@@ -9,13 +25,6 @@ import Animated, {
   withRepeat,
   withTiming,
 } from 'react-native-reanimated';
-import { IdentityMark } from '@alia.onl/sdk';
-import { useAuth } from '@oxy.so/services';
-import { AmbientField, PARALLAX_DURATION, PARALLAX_EASE } from '@/components/ambient-field';
-import { Button } from '@/components/ui/button';
-import { Text } from '@/components/ui/text';
-import { useTranslation } from '@/lib/hooks/use-translation';
-import { useColorScheme } from '@/lib/useColorScheme';
 
 /** Milliseconds between revealed characters of the headline. */
 const TYPE_INTERVAL = 55;
@@ -99,8 +108,14 @@ export function WelcomeIntro({
   useEffect(() => {
     headlineIn.value = withTiming(1, { duration: 500, easing: EASE_OUT });
     reveal.value = withTiming(1, { duration: 800, easing: EASE_REVEAL });
-    subtitleIn.value = withDelay(400, withTiming(1, { duration: 500, easing: EASE_OUT }));
-    ctaIn.value = withDelay(700, withTiming(1, { duration: 400, easing: EASE_OUT }));
+    subtitleIn.value = withDelay(
+      400,
+      withTiming(1, { duration: 500, easing: EASE_OUT }),
+    );
+    ctaIn.value = withDelay(
+      700,
+      withTiming(1, { duration: 400, easing: EASE_OUT }),
+    );
   }, [headlineIn, reveal, subtitleIn, ctaIn]);
 
   // Reveal the headline one character at a time; the interval clears itself
@@ -141,9 +156,13 @@ export function WelcomeIntro({
     // The mark is last out, so its completion is the end of the whole exit.
     markFall.value = withDelay(
       FALL_MARK.delay,
-      withTiming(1, { duration: FALL_MARK.duration, easing: EASE_FALL }, (finished) => {
-        if (finished) runOnJS(onDismissed)();
-      }),
+      withTiming(
+        1,
+        { duration: FALL_MARK.duration, easing: EASE_FALL },
+        (finished) => {
+          if (finished) runOnJS(onDismissed)();
+        },
+      ),
     );
   };
 
@@ -158,7 +177,10 @@ export function WelcomeIntro({
   const markStyle = useAnimatedStyle(() => ({
     opacity: headlineIn.value * (1 - markFall.value),
     transform: [
-      { translateY: (1 - headlineIn.value) * 10 + markFall.value * FALL_DISTANCE },
+      {
+        translateY:
+          (1 - headlineIn.value) * 10 + markFall.value * FALL_DISTANCE,
+      },
       { scale: (0.97 + headlineIn.value * 0.03) * (1 - markFall.value * 0.03) },
     ],
   }));
@@ -166,8 +188,14 @@ export function WelcomeIntro({
   const headlineStyle = useAnimatedStyle(() => ({
     opacity: headlineIn.value * (1 - headlineFall.value),
     transform: [
-      { translateY: (1 - headlineIn.value) * 10 + headlineFall.value * FALL_DISTANCE },
-      { scale: (0.97 + headlineIn.value * 0.03) * (1 - headlineFall.value * 0.03) },
+      {
+        translateY:
+          (1 - headlineIn.value) * 10 + headlineFall.value * FALL_DISTANCE,
+      },
+      {
+        scale:
+          (0.97 + headlineIn.value * 0.03) * (1 - headlineFall.value * 0.03),
+      },
     ],
   }));
 
@@ -180,7 +208,10 @@ export function WelcomeIntro({
   const subtitleStyle = useAnimatedStyle(() => ({
     opacity: subtitleIn.value * (1 - subtitleFall.value),
     transform: [
-      { translateY: (1 - subtitleIn.value) * 10 + subtitleFall.value * FALL_DISTANCE },
+      {
+        translateY:
+          (1 - subtitleIn.value) * 10 + subtitleFall.value * FALL_DISTANCE,
+      },
       { scale: 1 - subtitleFall.value * 0.03 },
     ],
   }));
@@ -255,7 +286,10 @@ export function WelcomeIntro({
         </Animated.View>
 
         <Animated.View className="w-full overflow-hidden" style={revealStyle}>
-          <View className="w-full items-center gap-6" onLayout={handleBodyLayout}>
+          <View
+            className="w-full items-center gap-6"
+            onLayout={handleBodyLayout}
+          >
             <Animated.View style={subtitleStyle}>
               <Text className="max-w-[520px] text-center text-muted-foreground">
                 {t('welcome.intro.subtitle')}
@@ -264,10 +298,15 @@ export function WelcomeIntro({
 
             <Animated.View className="items-center gap-2" style={ctaStyle}>
               <Button className="rounded-full px-5" onPress={handleGetStarted}>
-                <Text className="text-base font-semibold">{t('welcome.intro.cta')}</Text>
+                {t('welcome.intro.cta')}
               </Button>
-              <Button variant="ghost" size="sm" className="rounded-full" onPress={startExit}>
-                <Text className="text-sm text-muted-foreground">{t('welcome.intro.skip')}</Text>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="rounded-full"
+                onPress={startExit}
+              >
+                {t('welcome.intro.skip')}
               </Button>
             </Animated.View>
           </View>

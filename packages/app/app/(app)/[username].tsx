@@ -1,12 +1,11 @@
-import { View } from "react-native";
-import { useLocalSearchParams } from "expo-router";
-import { BloomColorScope } from "@oxy.so/bloom/theme";
-import { ContentPanel } from "@oxy.so/bloom/content-panel";
-import { Text } from "@/components/ui/text";
-import { ConversationScreen } from "@/components/conversation-screen";
-import { agentColorPreset } from "@/lib/agents/agent-color";
-import { useAgentThread } from "@/lib/hooks/use-agent-thread";
-import { useTranslation } from "@/lib/hooks/use-translation";
+import { ConversationScreen } from '@/components/conversation-screen';
+import { agentColorPreset } from '@/lib/agents/agent-color';
+import { useAgentThread } from '@/lib/hooks/use-agent-thread';
+import { useTranslation } from '@/lib/hooks/use-translation';
+import { BloomColorScope } from '@oxy.so/bloom/theme';
+import { Text } from '@oxy.so/bloom/typography';
+import { useLocalSearchParams } from 'expo-router';
+import { View } from 'react-native';
 
 /**
  * `/@pepe` — the permanent thread with one agent.
@@ -40,7 +39,10 @@ import { useTranslation } from "@/lib/hooks/use-translation";
  * why this file is short — see `components/conversation-screen.tsx`.
  */
 const AgentThreadPage = () => {
-  const { username, threadId } = useLocalSearchParams<{ username: string; threadId?: string }>();
+  const { username, threadId } = useLocalSearchParams<{
+    username: string;
+    threadId?: string;
+  }>();
   const { t } = useTranslation();
 
   /**
@@ -66,21 +68,21 @@ const AgentThreadPage = () => {
    */
   if (isError) {
     return (
-      <ContentPanel surfaceClassName="bg-background">
+      <>
         <View className="flex-1 items-center justify-center">
-          <Text className="text-muted-foreground">{t("agents.notFound")}</Text>
+          <Text className="text-muted-foreground">{t('agents.notFound')}</Text>
         </View>
-      </ContentPanel>
+      </>
     );
   }
 
   if (isPending || thread === undefined) {
     return (
-      <ContentPanel surfaceClassName="bg-background">
+      <>
         <View className="flex-1 items-center justify-center">
-          <Text className="text-muted-foreground">{t("common.loading")}</Text>
+          <Text className="text-muted-foreground">{t('common.loading')}</Text>
         </View>
-      </ContentPanel>
+      </>
     );
   }
 
@@ -93,7 +95,8 @@ const AgentThreadPage = () => {
    * Oxy account resolved nothing still gets called what they called it rather
    * than being renamed to a noun.
    */
-  const headerName = thread.agent.name?.trim() || thread.agent.handle?.trim() || handle;
+  const headerName =
+    thread.agent.name?.trim() || thread.agent.handle?.trim() || handle;
 
   /**
    * The agent's own Bloom recipe, applied to this screen and nothing else.

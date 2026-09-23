@@ -1,9 +1,12 @@
-import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { View, Pressable } from "react-native";
-import { Text } from "@/components/ui/text";
-import { cn } from "@/lib/utils";
-import { useSearchSuggestions, useWelcomeSuggestions, useRecordSuggestionUsage } from "@/lib/hooks/use-suggestions";
-
+import {
+  useRecordSuggestionUsage,
+  useSearchSuggestions,
+  useWelcomeSuggestions,
+} from '@/lib/hooks/use-suggestions';
+import { cn } from '@/lib/utils';
+import { Text } from '@oxy.so/bloom/typography';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Pressable, View } from 'react-native';
 /**
  * The suggestion list over the composer — and the keyboard that drives it.
  *

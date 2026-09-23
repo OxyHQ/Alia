@@ -1,12 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, ScrollView, Pressable, RefreshControl } from 'react-native';
-import { FlashList } from '@shopify/flash-list';
-import { Text } from '@/components/ui/text';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Check, Download, Plus, Search } from 'lucide-react-native';
-import { useTranslation } from '@/lib/hooks/use-translation';
-import { useRouter } from 'expo-router';
+import { DrawerToggle } from '@/components/ui/drawer-toggle';
+import { SkillCover } from '@/components/ui/skill-cover';
 import {
   useInstallSkill,
   useInstalledSkills,
@@ -14,10 +7,17 @@ import {
   type InstalledSkill,
   type Skill,
 } from '@/lib/hooks/use-skills';
-import { SkillCover } from '@/components/ui/skill-cover';
-import * as Skeleton from '@oxy.so/bloom/skeleton';
-import { DrawerToggle } from '@/components/ui/drawer-toggle';
+import { useTranslation } from '@/lib/hooks/use-translation';
+import { Button } from '@oxy.so/bloom/button';
 import { ContentPanel } from '@oxy.so/bloom/content-panel';
+import * as Skeleton from '@oxy.so/bloom/skeleton';
+import { TextFieldInput as Input } from '@oxy.so/bloom/text-field';
+import { Text } from '@oxy.so/bloom/typography';
+import { FlashList } from '@shopify/flash-list';
+import { useRouter } from 'expo-router';
+import { Check, Download, Plus, Search } from 'lucide-react-native';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
 
 /**
  * The Skills catalogue.
@@ -132,7 +132,9 @@ function Shelf({
     <ContentPanel surfaceClassName="bg-background">
       <View className="mb-5">
         <View className="px-5 mb-2">
-          <Text className="text-[11px] font-semibold text-muted-foreground tracking-wider uppercase">{title}</Text>
+          <Text className="text-[11px] font-semibold text-muted-foreground tracking-wider uppercase">
+            {title}
+          </Text>
         </View>
         {/* A horizontal list needs its height from outside; the books are all one size. */}
         <View style={{ height: SHELF_HEIGHT }}>
@@ -178,24 +180,33 @@ export default function SkillsScreen() {
   const install = useInstallSkill();
 
   const installedIds = useMemo(
-    () => new Set((installed.data ?? []).map((skill: InstalledSkill) => skill._id)),
+    () =>
+      new Set((installed.data ?? []).map((skill: InstalledSkill) => skill._id)),
     [installed.data],
   );
 
-  const skills = useMemo(() => catalogue.data?.pages.flat() ?? [], [catalogue.data]);
+  const skills = useMemo(
+    () => catalogue.data?.pages.flat() ?? [],
+    [catalogue.data],
+  );
   // An installed skill lives on the Installed shelf and nowhere else on this
   // screen: the same book twice is twice the covers for no information.
   const official = useMemo(
     () =>
       skills.filter(
-        (skill) => !installedIds.has(skill._id) && (skill.source === 'builtin' || skill.source === 'registry'),
+        (skill) =>
+          !installedIds.has(skill._id) &&
+          (skill.source === 'builtin' || skill.source === 'registry'),
       ),
     [skills, installedIds],
   );
   const community = useMemo(
     () =>
       skills.filter(
-        (skill) => !installedIds.has(skill._id) && skill.source !== 'builtin' && skill.source !== 'registry',
+        (skill) =>
+          !installedIds.has(skill._id) &&
+          skill.source !== 'builtin' &&
+          skill.source !== 'registry',
       ),
     [skills, installedIds],
   );
@@ -204,10 +215,17 @@ export default function SkillsScreen() {
     [installed.data, query],
   );
 
-  const openSkill = useCallback((name: string) => router.push(`/(app)/skills/${name}`), [router]);
-  const installSkill = useCallback((id: string) => install.mutate(id), [install]);
+  const openSkill = useCallback(
+    (name: string) => router.push(`/(app)/skills/${name}`),
+    [router],
+  );
+  const installSkill = useCallback(
+    (id: string) => install.mutate(id),
+    [install],
+  );
   const loadMore = useCallback(() => {
-    if (catalogue.hasNextPage && !catalogue.isFetchingNextPage) void catalogue.fetchNextPage();
+    if (catalogue.hasNextPage && !catalogue.isFetchingNextPage)
+      void catalogue.fetchNextPage();
   }, [catalogue]);
 
   const nothingToShow = skills.length === 0 && installedShelf.length === 0;
@@ -219,7 +237,11 @@ export default function SkillsScreen() {
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
-            refreshing={catalogue.isFetching && !catalogue.isLoading && !catalogue.isFetchingNextPage}
+            refreshing={
+              catalogue.isFetching &&
+              !catalogue.isLoading &&
+              !catalogue.isFetchingNextPage
+            }
             onRefresh={() => {
               void catalogue.refetch();
               void installed.refetch();
@@ -232,27 +254,42 @@ export default function SkillsScreen() {
             {/* The drawer opener sits first, as on every top-level page (#532). */}
             <View className="flex-row items-center gap-2">
               <DrawerToggle />
-              <Text className="text-2xl font-bold text-foreground">{t('skills.title')}</Text>
+              <Text className="text-2xl font-bold text-foreground">
+                {t('skills.title')}
+              </Text>
             </View>
             <View className="flex-row gap-2">
               <Button
                 size="icon"
-                variant="outline"
+                variant="secondary"
                 className="rounded-full h-8 w-8"
                 onPress={() => router.push('/(app)/skills/import')}
-              >
-                <Download size={16} className="text-foreground" />
-              </Button>
-              <Button size="icon" className="rounded-full h-8 w-8" onPress={() => router.push('/(app)/skills/create')}>
-                <Plus size={16} className="text-primary-foreground" />
-              </Button>
+                icon={
+                  <>
+                    <Download size={16} className="text-foreground" />
+                  </>
+                }
+              />
+              <Button
+                size="icon"
+                className="rounded-full h-8 w-8"
+                onPress={() => router.push('/(app)/skills/create')}
+                icon={
+                  <>
+                    <Plus size={16} className="text-primary-foreground" />
+                  </>
+                }
+              />
             </View>
           </View>
-          <Text className="text-[13px] text-muted-foreground mt-0.5">{t('skills.subtitle')}</Text>
+          <Text className="text-[13px] text-muted-foreground mt-0.5">
+            {t('skills.subtitle')}
+          </Text>
 
           <View className="mt-3 flex-row items-center gap-2 rounded-full border border-border px-3">
             <Search size={14} className="text-muted-foreground" />
             <Input
+              label={t('skills.searchPlaceholder')}
               value={search}
               onChangeText={setSearch}
               placeholder={t('skills.searchPlaceholder')}
@@ -266,9 +303,18 @@ export default function SkillsScreen() {
             <View className="px-5 mb-2">
               <Skeleton.Box width={80} height={10} borderRadius={6} />
             </View>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, gap: 10 }}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ paddingHorizontal: 20, gap: 10 }}
+            >
               {Array.from({ length: 4 }).map((_, index) => (
-                <Skeleton.Box key={index} width={BOOK_WIDTH} height={BOOK_WIDTH * 1.5} borderRadius={8} />
+                <Skeleton.Box
+                  key={index}
+                  width={BOOK_WIDTH}
+                  height={BOOK_WIDTH * 1.5}
+                  borderRadius={8}
+                />
               ))}
             </ScrollView>
           </View>
@@ -302,9 +348,16 @@ export default function SkillsScreen() {
                 catalogue after a search that errored reads as "no results". */}
             {catalogue.isError ? (
               <View className="px-5 py-6 items-center gap-3">
-                <Text className="text-[13px] text-muted-foreground text-center">{t('skills.loadFailed')}</Text>
-                <Button size="sm" variant="outline" className="rounded-full" onPress={() => void catalogue.refetch()}>
-                  <Text className="text-[13px]">{t('common.tryAgain')}</Text>
+                <Text className="text-[13px] text-muted-foreground text-center">
+                  {t('skills.loadFailed')}
+                </Text>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="rounded-full"
+                  onPress={() => void catalogue.refetch()}
+                >
+                  {t('common.tryAgain')}
                 </Button>
               </View>
             ) : null}
@@ -325,12 +378,12 @@ export default function SkillsScreen() {
               <View className="px-5 pb-6 items-center">
                 <Button
                   size="sm"
-                  variant="outline"
+                  variant="secondary"
                   className="rounded-full"
                   disabled={catalogue.isFetchingNextPage}
                   onPress={loadMore}
                 >
-                  <Text className="text-[13px]">{t('skills.loadMore')}</Text>
+                  {t('skills.loadMore')}
                 </Button>
               </View>
             ) : null}

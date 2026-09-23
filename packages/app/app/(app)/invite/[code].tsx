@@ -1,16 +1,16 @@
-import React, { useEffect, useState } from "react";
-import { errorMessage } from "@/lib/errors/error-utils";
-import { View, Pressable } from "react-native";
-import { useLocalSearchParams, useRouter } from "expo-router";
-import Head from "expo-router/head";
-import { HeartHandshake, Gift, ArrowRight, LogIn } from "lucide-react-native";
-import { useAuth } from "@oxy.so/services";
-import { AuthContainer } from "@/components/auth/auth-container";
-import { AuthLogo } from "@/components/auth/auth-logo";
-import { Text } from "@/components/ui/text";
-import { Button } from "@/components/ui/button";
-import { useRedeemInviteCode } from "@/lib/hooks/use-referrals";
-import { ContentPanel } from "@oxy.so/bloom/content-panel";
+import { AuthContainer } from '@/components/auth/auth-container';
+import { AuthLogo } from '@/components/auth/auth-logo';
+import { errorMessage } from '@/lib/errors/error-utils';
+import { useRedeemInviteCode } from '@/lib/hooks/use-referrals';
+import { Button } from '@oxy.so/bloom/button';
+import { ContentPanel } from '@oxy.so/bloom/content-panel';
+import { Text } from '@oxy.so/bloom/typography';
+import { useAuth } from '@oxy.so/services';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import Head from 'expo-router/head';
+import { ArrowRight, Gift, HeartHandshake, LogIn } from 'lucide-react-native';
+import { useEffect, useState } from 'react';
+import { View } from 'react-native';
 
 export default function InviteScreen() {
   const { code } = useLocalSearchParams<{ code: string }>();
@@ -30,8 +30,7 @@ export default function InviteScreen() {
         setRedeemed(true);
       },
       onError: (err: any) => {
-        const message =
-          errorMessage(err, "Failed to redeem invite code");
+        const message = errorMessage(err, 'Failed to redeem invite code');
         setError(message);
       },
     });
@@ -93,15 +92,18 @@ export default function InviteScreen() {
                   friend earned 500 credits.
                 </Text>
                 <Button
-                  onPress={() => router.replace("/(app)")}
+                  onPress={() => router.replace('/(app)')}
                   className="w-full h-12 rounded-full"
+                  leading={
+                    <>
+                      <ArrowRight
+                        size={18}
+                        className="text-primary-foreground"
+                      />
+                    </>
+                  }
                 >
-                  <View className="flex-row items-center gap-2">
-                    <Text className="text-base font-semibold text-primary-foreground">
-                      Start chatting
-                    </Text>
-                    <ArrowRight size={18} className="text-primary-foreground" />
-                  </View>
+                  Start chatting
                 </Button>
               </>
             )}
@@ -115,15 +117,18 @@ export default function InviteScreen() {
                   {error}
                 </Text>
                 <Button
-                  onPress={() => router.replace("/(app)")}
+                  onPress={() => router.replace('/(app)')}
                   className="w-full h-12 rounded-full"
+                  leading={
+                    <>
+                      <ArrowRight
+                        size={18}
+                        className="text-primary-foreground"
+                      />
+                    </>
+                  }
                 >
-                  <View className="flex-row items-center gap-2">
-                    <Text className="text-base font-semibold text-primary-foreground">
-                      Go to Alia
-                    </Text>
-                    <ArrowRight size={18} className="text-primary-foreground" />
-                  </View>
+                  Go to Alia
                 </Button>
               </>
             )}
@@ -163,26 +168,26 @@ export default function InviteScreen() {
               <Button
                 onPress={() => signIn().catch(() => {})}
                 className="w-full h-12 rounded-full"
+                leading={
+                  <>
+                    <Gift size={18} className="text-primary-foreground" />
+                  </>
+                }
               >
-                <View className="flex-row items-center gap-2">
-                  <Text className="text-base font-semibold text-primary-foreground">
-                    Sign up & claim credits
-                  </Text>
-                  <Gift size={18} className="text-primary-foreground" />
-                </View>
+                Sign up & claim credits
               </Button>
 
               <Button
-                variant="outline"
+                variant="secondary"
                 onPress={() => signIn().catch(() => {})}
                 className="w-full h-12 rounded-full"
+                leading={
+                  <>
+                    <LogIn size={18} className="text-foreground" />
+                  </>
+                }
               >
-                <View className="flex-row items-center gap-2">
-                  <LogIn size={18} className="text-foreground" />
-                  <Text className="text-base font-medium text-foreground">
-                    Already have an account? Sign in
-                  </Text>
-                </View>
+                Already have an account? Sign in
               </Button>
             </View>
           </View>

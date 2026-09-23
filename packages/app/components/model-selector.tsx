@@ -1,25 +1,24 @@
-import { ChevronDown } from "lucide-react-native";
-import { Pressable } from "react-native";
-import { useRouter } from "expo-router";
-import { toast } from "@oxy.so/bloom/toast";
-import * as DropdownMenu from "@/components/ui/dropdown-menu";
-import { Text } from "@/components/ui/text";
-import { useTranslation } from "@/lib/hooks/use-translation";
+import { LocalModelsInvite } from '@/components/local-models-invite';
+import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@oxy.so/bloom/dropdown-menu';
 import {
   AUTOMATIC_SELECTION_ID,
   resolveSelection,
   useCatalogue,
   type CatalogueEntry,
-} from "@/lib/hooks/use-catalogue";
+} from '@/lib/hooks/use-catalogue';
+import { useLocalModelOptions } from '@/lib/hooks/use-local-runtimes';
 import {
   modeById,
   modeForProfile,
   presentation,
   useProductModes,
-} from "@/lib/hooks/use-product-modes";
-import { useLocalModelOptions } from "@/lib/hooks/use-local-runtimes";
-import { LocalModelsInvite } from "@/components/local-models-invite";
-
+} from '@/lib/hooks/use-product-modes';
+import { useTranslation } from '@/lib/hooks/use-translation';
+import { toast } from '@oxy.so/bloom/toast';
+import { Text } from '@oxy.so/bloom/typography';
+import { useRouter } from 'expo-router';
+import { ChevronDown } from 'lucide-react-native';
+import { Pressable } from 'react-native';
 interface ModelSelectorProps {
   selectedModel: string;
   onModelChange: (modelId: string) => void;
@@ -90,28 +89,24 @@ export function ModelSelector({
   const renderEntry = (entry: CatalogueEntry) => {
     const label = presentation(entry, modes).label;
     return (
-      <DropdownMenu.CheckboxItem
+      <DropdownMenuCheckboxItem
         key={entry.id}
-        value={
-          !isAutomatic &&
+        checked={!isAutomatic &&
           selection.effectiveId ===
-            (modeForProfile(entry.id, modes)?.id ?? entry.id)
-            ? "on"
-            : "off"
-        }
-        onValueChange={() => selectEntry(entry)}
+            (modeForProfile(entry.id, modes)?.id ?? entry.id)}
+        onCheckedChange={() => selectEntry(entry)}
       >
-        <DropdownMenu.ItemTitle>
+
           {`${entry.entitled === false ? "🔒 " : ""}${label}`}
-        </DropdownMenu.ItemTitle>
-      </DropdownMenu.CheckboxItem>
+
+      </DropdownMenuCheckboxItem>
     );
   };
 
   return (
     <LocalModelsInvite>
-      <DropdownMenu.Root>
-        <DropdownMenu.Trigger>
+      <DropdownMenu>
+        <DropdownMenuTrigger label="Actions" asChild>
           <Pressable
             accessibilityLabel={`${t("models.selectModel")}: ${modelLabel}`}
             accessibilityRole="button"
@@ -125,41 +120,41 @@ export function ModelSelector({
             </Text>
             <ChevronDown size={14} className="text-muted-foreground" />
           </Pressable>
-        </DropdownMenu.Trigger>
+        </DropdownMenuTrigger>
 
-        <DropdownMenu.Content
+        <DropdownMenuContent
           side="top"
           align="end"
-          collisionPadding={8}
-          className="w-72 rounded-2xl py-1.5 shadow-xl"
+
+          minWidth={288}
         >
-          <DropdownMenu.Label className="px-2.5 font-normal">
+          <DropdownMenuLabel className="px-2.5 font-normal">
             {t("models.selectModel")}
-          </DropdownMenu.Label>
-          <DropdownMenu.CheckboxItem
+          </DropdownMenuLabel>
+          <DropdownMenuCheckboxItem
             key={AUTOMATIC_SELECTION_ID}
-            value={isAutomatic ? "on" : "off"}
-            onValueChange={() => onModelChange(AUTOMATIC_SELECTION_ID)}
+            checked={isAutomatic}
+            onCheckedChange={() => onModelChange(AUTOMATIC_SELECTION_ID)}
           >
-            <DropdownMenu.ItemTitle>{automaticLabel}</DropdownMenu.ItemTitle>
-          </DropdownMenu.CheckboxItem>
+            {automaticLabel}
+          </DropdownMenuCheckboxItem>
 
           {profiles.length > 0 && (
             <>
-              <DropdownMenu.Separator />
-              <DropdownMenu.Label className="px-2.5 font-normal">
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel className="px-2.5 font-normal">
                 Modes
-              </DropdownMenu.Label>
+              </DropdownMenuLabel>
               {profiles.map(renderEntry)}
             </>
           )}
 
           {models.length > 0 && (
             <>
-              <DropdownMenu.Separator />
-              <DropdownMenu.Label className="px-2.5 font-normal">
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel className="px-2.5 font-normal">
                 Models
-              </DropdownMenu.Label>
+              </DropdownMenuLabel>
               {models.map(renderEntry)}
             </>
           )}
@@ -169,43 +164,39 @@ export function ModelSelector({
             localhost, so the laptop announced this list when it connected. */}
           {localModels.length > 0 && (
             <>
-              <DropdownMenu.Separator />
-              <DropdownMenu.Label className="px-2.5 font-normal">
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel className="px-2.5 font-normal">
                 {t("models.onYourDevices")}
-              </DropdownMenu.Label>
+              </DropdownMenuLabel>
               {localModels.map((model) => (
-                <DropdownMenu.CheckboxItem
+                <DropdownMenuCheckboxItem
                   key={model.id}
-                  value={
-                    !isAutomatic && selection.effectiveId === model.id
-                      ? "on"
-                      : "off"
-                  }
+                  checked={!isAutomatic && selection.effectiveId === model.id}
                   // No plan gate: nobody's plan grants them their own machine.
-                  onValueChange={() => onModelChange(model.id)}
+                  onCheckedChange={() => onModelChange(model.id)}
                 >
-                  <DropdownMenu.ItemTitle>{`${model.name} · ${model.deviceLabel}`}</DropdownMenu.ItemTitle>
-                </DropdownMenu.CheckboxItem>
+                  {`${model.name} · ${model.deviceLabel}`}
+                </DropdownMenuCheckboxItem>
               ))}
             </>
           )}
 
           {isPending && (
-            <DropdownMenu.Item key="loading-models" disabled>
-              <DropdownMenu.ItemTitle>
+            <DropdownMenuItem key="loading-models" disabled>
+
                 {t("models.loadingModels")}
-              </DropdownMenu.ItemTitle>
-            </DropdownMenu.Item>
+
+            </DropdownMenuItem>
           )}
           {!isPending && entries === undefined && (
-            <DropdownMenu.Item key="models-unavailable" disabled>
-              <DropdownMenu.ItemTitle>
+            <DropdownMenuItem key="models-unavailable" disabled>
+
                 {t("models.catalogueUnavailable")}
-              </DropdownMenu.ItemTitle>
-            </DropdownMenu.Item>
+
+            </DropdownMenuItem>
           )}
-        </DropdownMenu.Content>
-      </DropdownMenu.Root>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </LocalModelsInvite>
   );
 }

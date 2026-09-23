@@ -1,10 +1,9 @@
-import { View } from "react-native";
-import { useAuth } from "@oxy.so/services";
-import { Text } from "@/components/ui/text";
+import { useTranslation } from '@/lib/hooks/use-translation';
+import { useColorScheme } from '@/lib/useColorScheme';
 import { IdentityMark } from '@alia.onl/sdk';
-import { useColorScheme } from "@/lib/useColorScheme";
-import { useTranslation } from "@/lib/hooks/use-translation";
-
+import { Text } from '@oxy.so/bloom/typography';
+import { useAuth } from '@oxy.so/services';
+import { View } from 'react-native';
 export const WelcomeMessage = () => {
   const { user, isAuthenticated } = useAuth();
   const { colors } = useColorScheme();
@@ -12,16 +11,15 @@ export const WelcomeMessage = () => {
 
   // Oxy identity rule: displayName with handle fallback.
   const name = user?.name?.displayName?.trim() || user?.username;
-  const greeting = isAuthenticated && name
-    ? t('welcome.greetingNamed', { name })
-    : t('welcome.greeting');
+  const greeting =
+    isAuthenticated && name
+      ? t('welcome.greetingNamed', { name })
+      : t('welcome.greeting');
 
   return (
-    <View className="flex-col md:flex-row items-center justify-center gap-3">
-      <IdentityMark size={38} color={colors.primary} spinOnPress />
-      <Text className="text-4xl tracking-tight text-foreground text-center md:text-left">
-        {greeting}
-      </Text>
+    <View className="flex-row items-center gap-2 py-3">
+      <IdentityMark size={20} color={colors.primary} spinOnPress />
+      <Text className="text-sm text-muted-foreground">{greeting}</Text>
     </View>
   );
 };

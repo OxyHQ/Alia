@@ -1,7 +1,6 @@
-import { View } from 'react-native';
-import { Text } from '@/components/ui/text';
 import { cn } from '@/lib/utils';
-
+import { Text } from '@oxy.so/bloom/typography';
+import { View } from 'react-native';
 const DOT_COLORS = {
   green: 'bg-green-500',
   orange: 'bg-orange-400',

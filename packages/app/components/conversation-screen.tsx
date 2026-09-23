@@ -1,30 +1,39 @@
-import { useState, useCallback, useEffect, useRef } from "react";
-import { useStore, type Attachment } from "@/lib/stores/global-store";
-import { useChatConversation } from "@/lib/hooks/use-chat-conversation";
-import { useCreateConversation, useSaveConversation, type Conversation } from "@/lib/hooks/use-conversations";
-import { buildConversationMarkdown, exportFilename } from "@/lib/conversation-export";
-import { deliverMarkdownFile } from "@/lib/conversation-share";
-import { toast } from "@oxy.so/bloom/toast";
-import { useQueryClient } from "@tanstack/react-query";
-import { queryKeys } from "@/lib/hooks/query-keys";
-import { ChatPageContent } from "@/components/chat-page-content";
-import type { Message } from "@/types/chat";
-import type { SendOptions } from "@/lib/hooks/use-streaming-chat";
-import { useThreadHistory } from "@/lib/hooks/use-thread-history";
-import { useThreadWindow, type ThreadSearchHit } from "@/lib/hooks/use-thread-search";
-import { ThreadSearch } from "@/components/thread-search";
-import { Text } from "@/components/ui/text";
-import { Button } from "@/components/ui/button";
-import { View } from "react-native";
-import { useTranslation } from "@/lib/hooks/use-translation";
-import { UsageLimitDialog } from "@/components/usage-limit-dialog";
-import { UsageLimitError } from "@/lib/errors/usage-limit-error";
-import { useModelStore } from "@/lib/stores/model-store";
-import { resolveSelection, useCatalogue } from "@/lib/hooks/use-catalogue";
-import { useProductModes } from "@/lib/hooks/use-product-modes";
-import { useVoiceMode } from "@/lib/hooks/use-voice-mode";
-import { useVoiceSoundEffects } from "@/lib/hooks/use-sound-effects";
-import { ContentPanel } from "@oxy.so/bloom/content-panel";
+import { ChatPageContent } from '@/components/chat-page-content';
+import { ThreadSearch } from '@/components/thread-search';
+import { UsageLimitDialog } from '@/components/usage-limit-dialog';
+import {
+  buildConversationMarkdown,
+  exportFilename,
+} from '@/lib/conversation-export';
+import { deliverMarkdownFile } from '@/lib/conversation-share';
+import { UsageLimitError } from '@/lib/errors/usage-limit-error';
+import { queryKeys } from '@/lib/hooks/query-keys';
+import { resolveSelection, useCatalogue } from '@/lib/hooks/use-catalogue';
+import { useChatConversation } from '@/lib/hooks/use-chat-conversation';
+import {
+  useConversation,
+  useCreateConversation,
+  useSaveConversation,
+  type Conversation,
+} from '@/lib/hooks/use-conversations';
+import { useProductModes } from '@/lib/hooks/use-product-modes';
+import { useVoiceSoundEffects } from '@/lib/hooks/use-sound-effects';
+import type { SendOptions } from '@/lib/hooks/use-streaming-chat';
+import { useThreadHistory } from '@/lib/hooks/use-thread-history';
+import {
+  useThreadWindow,
+  type ThreadSearchHit,
+} from '@/lib/hooks/use-thread-search';
+import { useTranslation } from '@/lib/hooks/use-translation';
+import { useVoiceMode } from '@/lib/hooks/use-voice-mode';
+import { type Attachment } from '@/lib/stores/global-store';
+import { useModelStore } from '@/lib/stores/model-store';
+import type { Message } from '@/types/chat';
+import { Button } from '@oxy.so/bloom/button';
+import { toast } from '@oxy.so/bloom/toast';
+import { useQueryClient } from '@tanstack/react-query';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { View } from 'react-native';
 
 interface ConversationScreenProps {
   conversationId: string;
@@ -75,17 +84,24 @@ export const ConversationScreen = ({
   threadHandle,
   startVoice = false,
 }: ConversationScreenProps) => {
-
   // A conversation keeps its own choice once one is made here, and follows the
   // user's standing choice until then. It used to open on a hard-coded
   // identifier instead, which silently discarded the model the user had picked
   // on the screen that started the conversation.
+  const { data: conversationDetails } = useConversation(conversationId);
   const globalModel = useModelStore((s) => s.selectedModel);
-  const [conversationModel, setConversationModel] = useState<string | null>(null);
+  const [conversationModel, setConversationModel] = useState<string | null>(
+    null,
+  );
   const selectedModel = conversationModel ?? globalModel;
   const { data: catalogue } = useCatalogue();
   const { data: modes } = useProductModes();
-  const selection = resolveSelection(selectedModel, catalogue, undefined, modes);
+  const selection = resolveSelection(
+    selectedModel,
+    catalogue,
+    undefined,
+    modes,
+  );
   /**
    * A request flag, read from the store rather than inferred from the model.
    *
@@ -116,7 +132,12 @@ export const ConversationScreen = ({
     dismissSuggestedNewConversation,
     failedTurn,
     retryFailedTurn,
-  } = useChatConversation({ conversationId, reasoningEffort, selectedModel: selection.effectiveId ?? undefined, agentId });
+  } = useChatConversation({
+    conversationId,
+    reasoningEffort,
+    selectedModel: selection.effectiveId ?? undefined,
+    agentId,
+  });
 
   /**
    * Everything said before this conversation, when this screen is a thread.
@@ -176,14 +197,18 @@ export const ConversationScreen = ({
    * once and still sees the thread as it is when the menu item is chosen.
    */
   const messagesRef = useRef<Message[]>(messages);
-  useEffect(() => { messagesRef.current = messages; }, [messages]);
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
 
   const handleExport = useCallback(() => {
     // The title is read out of the query cache at the moment of the export
     // rather than subscribed to: `useChatConversation` already keeps that
     // entry live, and the `alia.title` frame writes the generated title into
     // the same key, so this sees it without a dependency of its own.
-    const cached = queryClient.getQueryData<Conversation>(queryKeys.conversations.detail(conversationId));
+    const cached = queryClient.getQueryData<Conversation>(
+      queryKeys.conversations.detail(conversationId),
+    );
     const title = cached?.title?.trim() || agentName || t('chat.newChat');
     const exportedAt = new Date();
     const markdown = buildConversationMarkdown({
@@ -193,7 +218,11 @@ export const ConversationScreen = ({
       assistantName: agentName,
       userLabel: t('chat.searchThreadYou'),
     });
-    deliverMarkdownFile(exportFilename(title, exportedAt), markdown, title).catch(() => {
+    deliverMarkdownFile(
+      exportFilename(title, exportedAt),
+      markdown,
+      title,
+    ).catch(() => {
       toast.error(t('chat.exportFailed'));
     });
   }, [queryClient, conversationId, agentName, t]);
@@ -212,20 +241,33 @@ export const ConversationScreen = ({
   const handleAcceptNewConversation = useCallback(() => {
     dismissSuggestedNewConversation();
     if (agentId === undefined) return;
-    createConversation.mutate({ agentId }, {
-      onSuccess: () => {
-        if (threadHandle === undefined) return;
-        queryClient.invalidateQueries({ queryKey: queryKeys.agents.thread(threadHandle) });
-        /**
-         * And the history with it. The stretch that was live becomes history
-         * the moment a new one is active, and the pages held were fetched
-         * before its last turns existed — kept, they would put the reader back
-         * at a version of the conversation they just finished having.
-         */
-        queryClient.invalidateQueries({ queryKey: queryKeys.agents.threadMessages(threadHandle) });
+    createConversation.mutate(
+      { agentId },
+      {
+        onSuccess: () => {
+          if (threadHandle === undefined) return;
+          queryClient.invalidateQueries({
+            queryKey: queryKeys.agents.thread(threadHandle),
+          });
+          /**
+           * And the history with it. The stretch that was live becomes history
+           * the moment a new one is active, and the pages held were fetched
+           * before its last turns existed — kept, they would put the reader back
+           * at a version of the conversation they just finished having.
+           */
+          queryClient.invalidateQueries({
+            queryKey: queryKeys.agents.threadMessages(threadHandle),
+          });
+        },
       },
-    });
-  }, [agentId, threadHandle, createConversation, queryClient, dismissSuggestedNewConversation]);
+    );
+  }, [
+    agentId,
+    threadHandle,
+    createConversation,
+    queryClient,
+    dismissSuggestedNewConversation,
+  ]);
 
   // Save voice transcripts when voice mode ends
   const handleVoiceDeactivate = useCallback(() => {
@@ -242,21 +284,30 @@ export const ConversationScreen = ({
    * March while their message lands somewhere off-screen is the one outcome
    * that would be a lie.
    */
-  const handleSubmit = useCallback((
-    value: string,
-    attachments?: Attachment[],
-    options?: SendOptions,
-  ) => {
-    setJumpedTo(null);
-    return sendMessage(value, attachments, options);
-  }, [sendMessage]);
+  const handleSubmit = useCallback(
+    (value: string, attachments?: Attachment[], options?: SendOptions) => {
+      setJumpedTo(null);
+      return sendMessage(value, attachments, options);
+    },
+    [sendMessage],
+  );
 
-  const voice = useVoiceMode({ chatMessages: messages, setMessages, conversationId, agentId, onDeactivate: handleVoiceDeactivate });
+  const voice = useVoiceMode({
+    chatMessages: messages,
+    setMessages,
+    conversationId,
+    agentId,
+    onDeactivate: handleVoiceDeactivate,
+  });
 
   // Auto-activate voice when navigated with startVoice (once only)
   const voiceAutoStartedRef = useRef(false);
   useEffect(() => {
-    if (startVoice && !voiceAutoStartedRef.current && voice.roomState === 'disconnected') {
+    if (
+      startVoice &&
+      !voiceAutoStartedRef.current &&
+      voice.roomState === 'disconnected'
+    ) {
       voiceAutoStartedRef.current = true;
       voice.activateVoice();
     }
@@ -270,14 +321,16 @@ export const ConversationScreen = ({
   });
 
   // Check both instanceof AND name — Hermes can break instanceof for Error subclasses
-  const usageLimitError = (error instanceof UsageLimitError || error?.name === 'UsageLimitError')
-    ? (error as UsageLimitError)
-    : null;
+  const usageLimitError =
+    error instanceof UsageLimitError || error?.name === 'UsageLimitError'
+      ? (error as UsageLimitError)
+      : null;
 
   return (
-    <ContentPanel surfaceClassName="bg-background">
+    <>
       <>
         <ChatPageContent
+          conversationTitle={conversationDetails?.title}
           // Nothing live under a window: it is a view of the past, and the
           // conversation being streamed into is not below it in the thread.
           messages={jumped ? NO_MESSAGES : messages}
@@ -304,18 +357,32 @@ export const ConversationScreen = ({
           onDismissNewConversation={dismissSuggestedNewConversation}
           historyMessages={jumped ? past.messages : history.messages}
           hasMoreHistory={jumped ? past.hasMore : history.hasMore}
-          isLoadingHistory={jumped ? past.isLoadingMore || past.isLoading : history.isLoadingMore}
+          isLoadingHistory={
+            jumped
+              ? past.isLoadingMore || past.isLoading
+              : history.isLoadingMore
+          }
           onLoadHistory={jumped ? past.loadMore : history.loadMore}
-          onSearchPress={threadHandle === undefined ? undefined : handleSearchPress}
+          onSearchPress={
+            threadHandle === undefined ? undefined : handleSearchPress
+          }
           focusCursor={jumpedTo}
           onExport={handleExport}
           failedTurn={failedTurn}
           onRetryTurn={retryFailedTurn}
         />
         {!jumped ? null : (
-          <View className="absolute inset-x-0 top-16 z-10 items-center" pointerEvents="box-none">
-            <Button variant="secondary" size="sm" onPress={handleBackToLatest} className="rounded-full">
-              <Text className="text-sm">{t('chat.backToLatest')}</Text>
+          <View
+            className="absolute inset-x-0 top-16 z-10 items-center"
+            pointerEvents="box-none"
+          >
+            <Button
+              variant="secondary"
+              size="sm"
+              onPress={handleBackToLatest}
+              className="rounded-full"
+            >
+              {t('chat.backToLatest')}
             </Button>
           </View>
         )}
@@ -328,6 +395,6 @@ export const ConversationScreen = ({
         )}
         <UsageLimitDialog error={usageLimitError} onDismiss={clearError} />
       </>
-    </ContentPanel>
+    </>
   );
 };

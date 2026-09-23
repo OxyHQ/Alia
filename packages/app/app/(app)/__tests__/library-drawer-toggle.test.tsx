@@ -1,7 +1,12 @@
-import React from 'react';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
+import React from 'react';
+import {
+  act,
+  create,
+  type ReactTestInstance,
+  type ReactTestRenderer,
+} from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
@@ -35,9 +40,13 @@ const navToggle = vi.hoisted(() => vi.fn());
  * here would also drag reanimated, svg and the whole `ai-chat` barrel through a
  * `react-native` mock that exports four components.
  */
-const shell = vi.hoisted(() => ({ current: null as Record<string, unknown> | null }));
+const shell = vi.hoisted(() => ({
+  current: null as Record<string, unknown> | null,
+}));
 
-vi.mock('@oxy.so/bloom/ai-chat', () => ({ useAiChatShell: () => shell.current }));
+vi.mock('@oxy.so/bloom/ai-chat', () => ({
+  useAiChatShell: () => shell.current,
+}));
 
 vi.mock('expo-router', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn() }),
@@ -47,12 +56,23 @@ vi.mock('react-native', async () => {
   const ReactModule = await import('react');
   const host =
     (name: string) =>
-    ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
+    ({
+      children,
+      ...props
+    }: React.PropsWithChildren<Record<string, unknown>>) =>
       ReactModule.createElement(name, props, children);
   return {
-    Platform: { OS: 'web', select: (spec: Record<string, unknown>) => spec.web },
+    Platform: {
+      OS: 'web',
+      select: (spec: Record<string, unknown>) => spec.web,
+    },
     // `ShellNavProvider`'s fallback reads the window when there is no shell.
-    useWindowDimensions: () => ({ width: 1280, height: 800, scale: 1, fontScale: 1 }),
+    useWindowDimensions: () => ({
+      width: 1280,
+      height: 800,
+      scale: 1,
+      fontScale: 1,
+    }),
     View: host('View'),
     ScrollView: host('ScrollView'),
     Pressable: host('Pressable'),
@@ -84,36 +104,55 @@ vi.mock('@shopify/flash-list', async () => {
         'FlashList',
         null,
         ListHeaderComponent,
-        data.length === 0 ? ListEmptyComponent : data.map((item) => renderItem({ item })),
+        data.length === 0
+          ? ListEmptyComponent
+          : data.map((item) => renderItem({ item })),
       ),
   };
 });
 
 vi.mock('@oxy.so/bloom/search', async () => {
   const ReactModule = await import('react');
-  return { Search: (props: Record<string, unknown>) => ReactModule.createElement('Search', props) };
+  return {
+    Search: (props: Record<string, unknown>) =>
+      ReactModule.createElement('Search', props),
+  };
 });
 vi.mock('@oxy.so/bloom/toast', () => ({
-  toast: { success: vi.fn(), error: vi.fn(), loading: vi.fn(), dismiss: vi.fn() },
+  toast: {
+    success: vi.fn(),
+    error: vi.fn(),
+    loading: vi.fn(),
+    dismiss: vi.fn(),
+  },
 }));
 vi.mock('@oxy.so/bloom/content-panel', async () => {
   const ReactModule = await import('react');
   return {
-    ContentPanel: ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
+    ContentPanel: ({
+      children,
+      ...props
+    }: React.PropsWithChildren<Record<string, unknown>>) =>
       ReactModule.createElement('ContentPanel', props, children),
   };
 });
-vi.mock('@/components/ui/text', async () => {
+vi.mock('@oxy.so/bloom/typography', async () => {
   const ReactModule = await import('react');
   return {
-    Text: ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
+    Text: ({
+      children,
+      ...props
+    }: React.PropsWithChildren<Record<string, unknown>>) =>
       ReactModule.createElement('Text', props, children),
   };
 });
-vi.mock('@/components/ui/button', async () => {
+vi.mock('@oxy.so/bloom/button', async () => {
   const ReactModule = await import('react');
   return {
-    Button: ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
+    Button: ({
+      children,
+      ...props
+    }: React.PropsWithChildren<Record<string, unknown>>) =>
       ReactModule.createElement('Button', props, children),
   };
 });
@@ -121,36 +160,53 @@ vi.mock('@oxy.so/bloom/skeleton', async () => {
   const ReactModule = await import('react');
   const shape = (name: string) => (props: Record<string, unknown>) =>
     ReactModule.createElement(name, props);
-  return { Box: shape('Skeleton'), Circle: shape('Skeleton'), Pill: shape('Skeleton'), Text: shape('Skeleton') };
+  return {
+    Box: shape('Skeleton'),
+    Circle: shape('Skeleton'),
+    Pill: shape('Skeleton'),
+    Text: shape('Skeleton'),
+  };
 });
 vi.mock('@/components/ui/icons/menu-icon', async () => {
   const ReactModule = await import('react');
-  return { MenuIcon: (props: Record<string, unknown>) => ReactModule.createElement('MenuIcon', props) };
+  return {
+    MenuIcon: (props: Record<string, unknown>) =>
+      ReactModule.createElement('MenuIcon', props),
+  };
 });
-vi.mock('@/components/ui/dropdown-menu', async () => {
+vi.mock('@oxy.so/bloom/dropdown-menu', async () => {
   const ReactModule = await import('react');
   const host =
     (name: string) =>
-    ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
+    ({
+      children,
+      ...props
+    }: React.PropsWithChildren<Record<string, unknown>>) =>
       ReactModule.createElement(name, props, children);
   return {
-    Root: host('MenuRoot'),
-    Trigger: host('MenuTrigger'),
-    Content: host('MenuContent'),
-    Item: host('MenuItem'),
-    ItemIcon: host('MenuItemIcon'),
-    ItemTitle: host('MenuItemTitle'),
+    DropdownMenu: host('MenuRoot'),
+    DropdownMenuTrigger: host('MenuTrigger'),
+    DropdownMenuContent: host('MenuContent'),
+    DropdownMenuItem: host('MenuItem'),
   };
 });
 vi.mock('@/components/file-card', async () => {
   const ReactModule = await import('react');
-  return { FileCard: (props: Record<string, unknown>) => ReactModule.createElement('FileCard', props) };
+  return {
+    FileCard: (props: Record<string, unknown>) =>
+      ReactModule.createElement('FileCard', props),
+  };
 });
 vi.mock('lucide-react-native', async () => {
   const ReactModule = await import('react');
-  return { Plus: (props: Record<string, unknown>) => ReactModule.createElement('Glyph', props) };
+  return {
+    Plus: (props: Record<string, unknown>) =>
+      ReactModule.createElement('Glyph', props),
+  };
 });
-vi.mock('@/lib/hooks/use-image-picker', () => ({ useImagePicker: () => ({ pickImage: vi.fn() }) }));
+vi.mock('@/lib/hooks/use-image-picker', () => ({
+  useImagePicker: () => ({ pickImage: vi.fn() }),
+}));
 vi.mock('@/lib/hooks/use-document-picker', () => ({
   useDocumentPicker: () => ({ pickDocument: vi.fn() }),
 }));
@@ -164,14 +220,18 @@ vi.mock('@/lib/stores/library-store', () => {
     addFile: vi.fn(),
     deleteFile: vi.fn(),
   };
-  return { useLibraryStore: (select: (s: typeof state) => unknown) => select(state) };
+  return {
+    useLibraryStore: (select: (s: typeof state) => unknown) => select(state),
+  };
 });
 vi.mock('@/lib/useColorScheme', () => ({
   useColorScheme: () => ({ colors: { mutedForeground: 'rgb(113 113 122)' } }),
 }));
 // `cn` (via `lib/utils.ts`) reaches `expo-crypto` through `random-uuid`, whose
 // native module does not exist under this runner.
-vi.mock('expo-crypto', () => ({ getRandomValues: (array: Uint8Array) => array }));
+vi.mock('expo-crypto', () => ({
+  getRandomValues: (array: Uint8Array) => array,
+}));
 /**
  * `t` returns its key, so an assertion names the KEY the screen reads and not
  * one language's rendering of it — the label is checked to exist in both
@@ -179,7 +239,9 @@ vi.mock('expo-crypto', () => ({ getRandomValues: (array: Uint8Array) => array })
  */
 vi.mock('@/lib/hooks/use-translation', () => {
   const t = (key: string) => key;
-  return { useTranslation: () => ({ t, locale: 'en', changeLocale: () => undefined }) };
+  return {
+    useTranslation: () => ({ t, locale: 'en', changeLocale: () => undefined }),
+  };
 });
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
@@ -239,7 +301,11 @@ async function renderLibrary(): Promise<ReactTestRenderer> {
   let next!: ReactTestRenderer;
   await act(async () => {
     next = create(
-      React.createElement(AppNavProvider, { value: NAV }, React.createElement(LibraryScreen)),
+      React.createElement(
+        AppNavProvider,
+        { value: NAV },
+        React.createElement(LibraryScreen),
+      ),
     );
   });
   renderer = next;
@@ -247,7 +313,10 @@ async function renderLibrary(): Promise<ReactTestRenderer> {
 }
 
 /** Host `Button` nodes carrying the given accessibility label. */
-function buttonsLabelled(root: ReactTestInstance, label: string): ReactTestInstance[] {
+function buttonsLabelled(
+  root: ReactTestInstance,
+  label: string,
+): ReactTestInstance[] {
   return root.findAll(
     (node) => isHost(node, 'Button') && node.props.accessibilityLabel === label,
   );
@@ -305,7 +374,8 @@ describe('the Library header at phone width', () => {
     // result IS relative position on screen.
     const ordered = root.findAll(
       (node) =>
-        (isHost(node, 'Button') && node.props.accessibilityLabel === 'nav.openNavigation') ||
+        (isHost(node, 'Button') &&
+          node.props.accessibilityLabel === 'nav.openNavigation') ||
         (isHost(node, 'Text') && node.props.children === 'library.title'),
     );
     expect(ordered.map((node) => node.type)).toEqual(['Button', 'Text']);
@@ -313,12 +383,18 @@ describe('the Library header at phone width', () => {
     // And in the same flex row: the toggle's nearest row ancestor contains the title.
     const [toggle] = buttonsLabelled(root, 'nav.openNavigation');
     let row: ReactTestInstance | null = toggle.parent;
-    while (row !== null && !String(row.props.className ?? '').includes('flex-row')) {
+    while (
+      row !== null &&
+      !String(row.props.className ?? '').includes('flex-row')
+    ) {
       row = row.parent;
     }
     expect(row, 'the toggle sits in a flex row').not.toBeNull();
     expect(
-      row?.findAll((node) => isHost(node, 'Text') && node.props.children === 'library.title'),
+      row?.findAll(
+        (node) =>
+          isHost(node, 'Text') && node.props.children === 'library.title',
+      ),
     ).toHaveLength(1);
   });
 
@@ -345,7 +421,15 @@ describe('the labels are translated', () => {
   for (const locale of locales) {
     it(`${locale}: nav.openNavigation, nav.closeNavigation and library.addFiles`, () => {
       const messages = JSON.parse(
-        readFileSync(fileURLToPath(new URL(`../../../lib/i18n/locales/${locale}.json`, import.meta.url)), 'utf8'),
+        readFileSync(
+          fileURLToPath(
+            new URL(
+              `../../../lib/i18n/locales/${locale}.json`,
+              import.meta.url,
+            ),
+          ),
+          'utf8',
+        ),
       ) as { nav: Record<string, string>; library: Record<string, string> };
       expect(messages.nav.openNavigation).toMatch(/\S/);
       expect(messages.nav.closeNavigation).toMatch(/\S/);
@@ -362,7 +446,10 @@ describe('the labels are translated', () => {
  */
 describe('the same opener on every top-level page', () => {
   const page = (name: string) =>
-    readFileSync(fileURLToPath(new URL(`../${name}.tsx`, import.meta.url)), 'utf8');
+    readFileSync(
+      fileURLToPath(new URL(`../${name}.tsx`, import.meta.url)),
+      'utf8',
+    );
 
   for (const name of ['agents', 'skills', 'shows']) {
     it(`${name}.tsx renders DrawerToggle first in its header row`, () => {
@@ -371,7 +458,9 @@ describe('the same opener on every top-level page', () => {
       // The toggle is rendered, and it precedes the page's title in the file.
       const toggleAt = source.indexOf('<DrawerToggle />');
       const titleAt = source.indexOf('text-2xl font-bold');
-      expect(toggleAt, `${name}.tsx renders <DrawerToggle />`).toBeGreaterThan(-1);
+      expect(toggleAt, `${name}.tsx renders <DrawerToggle />`).toBeGreaterThan(
+        -1,
+      );
       expect(toggleAt, 'and before the title').toBeLessThan(titleAt);
     });
   }
@@ -400,7 +489,9 @@ describe('the same opener on every top-level page', () => {
 
   it('takes the sidebar out of the accessibility tree AND the tab order while closed', () => {
     shell.current = shellWith(false);
-    const r = mount(React.createElement(NavRegion, null, React.createElement('Rows')));
+    const r = mount(
+      React.createElement(NavRegion, null, React.createElement('Rows')),
+    );
     const region = r.root.find((node) => isHost(node, 'View'));
 
     expect(region.props['aria-hidden']).toBe(true);
@@ -422,7 +513,9 @@ describe('the same opener on every top-level page', () => {
 
   it('puts it back the moment the drawer is presented', () => {
     shell.current = shellWith(true);
-    const r = mount(React.createElement(NavRegion, null, React.createElement('Rows')));
+    const r = mount(
+      React.createElement(NavRegion, null, React.createElement('Rows')),
+    );
     const region = r.root.find((node) => isHost(node, 'View'));
 
     expect(region.props['aria-hidden']).toBe(false);
@@ -434,7 +527,9 @@ describe('the same opener on every top-level page', () => {
 
   it('hides nothing when there is no shell — there is no drawer to be behind', () => {
     shell.current = null;
-    const r = mount(React.createElement(NavRegion, null, React.createElement('Rows')));
+    const r = mount(
+      React.createElement(NavRegion, null, React.createElement('Rows')),
+    );
     const region = r.root.find((node) => isHost(node, 'View'));
 
     expect(region.props['aria-hidden']).toBe(false);
@@ -442,3 +537,5 @@ describe('the same opener on every top-level page', () => {
     act(() => r.unmount());
   });
 });
+
+vi.mock('@oxy.so/bloom/icons', () => ({ RiFileTextLine: () => null, RiImageLine: () => null }));

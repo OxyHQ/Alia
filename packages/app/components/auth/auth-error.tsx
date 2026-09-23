@@ -1,8 +1,6 @@
-import * as React from "react";
-import { View } from "react-native";
-import { Text } from "@/components/ui/text";
-import { cn } from "@/lib/utils";
-
+import { cn } from '@/lib/utils';
+import { Text } from '@oxy.so/bloom/typography';
+import { View } from 'react-native';
 export interface AuthErrorProps {
   message: string;
   className?: string;

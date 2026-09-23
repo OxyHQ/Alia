@@ -1,11 +1,10 @@
+import { Text } from '@oxy.so/bloom/typography';
 import { View } from 'react-native';
-import { Text } from '@/components/ui/text';
 import { ChartRenderer } from './chart-renderer';
-import { TableRenderer } from './table-renderer';
 import { CodeRenderer } from './code-renderer';
 import { FormRenderer } from './form-renderer';
 import { MarkdownRenderer } from './markdown-renderer';
-
+import { TableRenderer } from './table-renderer';
 interface CanvasComponentProps {
   component: {
     id: string;
@@ -16,7 +15,10 @@ interface CanvasComponentProps {
   onFormSubmit?: (formData: Record<string, any>) => void;
 }
 
-export function CanvasComponent({ component, onFormSubmit }: CanvasComponentProps) {
+export function CanvasComponent({
+  component,
+  onFormSubmit,
+}: CanvasComponentProps) {
   const renderContent = () => {
     switch (component.type) {
       case 'chart':
@@ -38,9 +40,16 @@ export function CanvasComponent({ component, onFormSubmit }: CanvasComponentProp
       case 'markdown':
         return <MarkdownRenderer data={component.data} />;
       case 'artifact':
-        return component.data.language
-          ? <CodeRenderer data={{ language: component.data.language, code: component.data.content }} />
-          : <MarkdownRenderer data={{ content: component.data.content }} />;
+        return component.data.language ? (
+          <CodeRenderer
+            data={{
+              language: component.data.language,
+              code: component.data.content,
+            }}
+          />
+        ) : (
+          <MarkdownRenderer data={{ content: component.data.content }} />
+        );
       default:
         return (
           <Text className="text-sm text-muted-foreground">
@@ -50,9 +59,24 @@ export function CanvasComponent({ component, onFormSubmit }: CanvasComponentProp
     }
   };
 
+  if (component.type === 'code')
+    return <CodeRenderer data={component.data} filename={component.title} />;
+  if (component.type === 'artifact' && component.data.language)
+    return (
+      <CodeRenderer
+        data={{
+          language: component.data.language,
+          code: component.data.content,
+        }}
+        filename={component.title}
+      />
+    );
+
   return (
-    <View className="border border-border rounded-xl bg-card p-4 gap-3">
-      <Text className="text-sm font-semibold text-foreground">{component.title}</Text>
+    <View className="gap-3">
+      <Text className="text-sm font-semibold text-foreground">
+        {component.title}
+      </Text>
       {renderContent()}
     </View>
   );

@@ -1,12 +1,11 @@
-import { Pressable, View } from 'react-native';
-import { CalendarClock, ChevronRight } from 'lucide-react-native';
-import { useRouter } from 'expo-router';
-import { Text } from '@/components/ui/text';
 import { AutomationPill } from '@/components/automations/automation-pill';
 import { triggerLabel } from '@/lib/automations/format';
 import type { AutomationTrigger } from '@/lib/automations/types';
 import { useColorScheme } from '@/lib/useColorScheme';
-
+import { Text } from '@oxy.so/bloom/typography';
+import { useRouter } from 'expo-router';
+import { CalendarClock, ChevronRight } from 'lucide-react-native';
+import { Pressable, View } from 'react-native';
 export interface ScheduledTaskCardData {
   id: string;
   objective: string;

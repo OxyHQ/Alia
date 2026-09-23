@@ -1,11 +1,10 @@
+import { useTranslation } from '@/lib/hooks/use-translation';
+import { Text } from '@oxy.so/bloom/typography';
+import { getNativeLanguageName } from '@oxy.so/core';
+import { useOxy } from '@oxy.so/services';
+import { ChevronRight, Globe2 } from 'lucide-react-native';
 import { useCallback } from 'react';
 import { Pressable, View } from 'react-native';
-import { ChevronRight, Globe2 } from 'lucide-react-native';
-import { Text } from '@/components/ui/text';
-import { useTranslation } from '@/lib/hooks/use-translation';
-import { useOxy } from '@oxy.so/services';
-import { getNativeLanguageName } from '@oxy.so/core';
-
 /**
  * The app's UI language is an Oxy-account concern, not Alia's: Oxy already
  * resolves it (the account's primary locale when signed in, otherwise the

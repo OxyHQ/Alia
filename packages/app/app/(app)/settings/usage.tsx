@@ -1,19 +1,4 @@
-import { View, ScrollView } from "react-native";
-import { useLocalSearchParams } from "expo-router";
-import { useTranslation } from "@/lib/hooks/use-translation";
-import { BillingSection } from "@/components/settings/billing-section";
-import { SettingsHeader } from "@/components/settings/settings-header";
-
-export default function SettingsBillingScreen() {
-  const { t } = useTranslation();
-  const { success } = useLocalSearchParams();
-
-  return (
-    <View className="flex-1 bg-background">
-      <SettingsHeader title={t("settings.sections.billing")} showBack />
-      <ScrollView className="flex-1" contentContainerClassName="p-5 max-w-2xl">
-        <BillingSection success={success === 'true'} />
-      </ScrollView>
-    </View>
-  );
+import { SettingsLink } from '@/components/settings/settings-link';
+export default function SettingsRoute() {
+  return <SettingsLink page="usage" />;
 }

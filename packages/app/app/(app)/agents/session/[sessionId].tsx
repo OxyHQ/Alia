@@ -1,3 +1,33 @@
+import apiClient from '@/lib/api/client';
+import { useColorScheme } from '@/lib/useColorScheme';
+import { cn } from '@/lib/utils';
+import { ContentPanel } from '@oxy.so/bloom/content-panel';
+import { Text } from '@oxy.so/bloom/typography';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import {
+  AlertTriangle,
+  ArrowLeft,
+  Brain,
+  CheckCircle2,
+  ChevronDown,
+  ChevronUp,
+  Clock,
+  FileEdit,
+  Globe,
+  MessageSquare,
+  ShieldAlert,
+  ShieldX,
+  Terminal,
+  XCircle,
+} from 'lucide-react-native';
+import React, { useCallback, useEffect, useState } from 'react';
+import {
+  ActivityIndicator,
+  FlatList,
+  Pressable,
+  RefreshControl,
+  View,
+} from 'react-native';
 /**
  * Agent Session Activity — Timeline view of all agent actions in a session.
  *
@@ -5,37 +35,15 @@
  * and model responses. Entries can be expanded for full details.
  */
 
-import React, { useEffect, useState, useCallback } from "react";
-import {
-  View,
-  FlatList,
-  Pressable,
-  ActivityIndicator,
-  RefreshControl,
-} from "react-native";
-import { Text } from "@/components/ui/text";
-import {
-  ArrowLeft,
-  Terminal,
-  Globe,
-  FileEdit,
-  Users,
-  Brain,
-  AlertTriangle,
-  ShieldAlert,
-  ShieldX,
-  CheckCircle2,
-  XCircle,
-  MessageSquare,
-  ChevronDown,
-  ChevronUp,
-  Clock,
-} from "lucide-react-native";
-import { useRouter, useLocalSearchParams } from "expo-router";
-import { useColorScheme } from "@/lib/useColorScheme";
-import { cn } from "@/lib/utils";
-import apiClient from "@/lib/api/client";
-import { ContentPanel } from "@oxy.so/bloom/content-panel";
+
+
+
+
+
+
+
+
+
 
 interface EventEntry {
   _id: string;

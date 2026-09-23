@@ -54,11 +54,9 @@ import { COMPOSER_RADIUS, type Attachment } from "./types";
  * light is the frame and the pill sits in it, and the two agree about the
  * corner without anybody restating it.
  *
- * The template's third line, `<ComposerStatusBar />`, is deliberately absent.
- * It shows a branch, local folders and a context-window meter; Alia has no
- * branch, no folders and does not publish a context figure it could stand
- * behind. #608 §6 says as much, and a status bar filled with invented numbers
- * would be the one failure this whole adoption exists to avoid.
+ * The page composes `ComposerStatusBar` below this control with its actual
+ * Chat/Agent mode. Branch, local-folder and context metrics are omitted because
+ * Alia does not expose those values.
  *
  * ## What is composed as a sibling, and why each one has to be
  *

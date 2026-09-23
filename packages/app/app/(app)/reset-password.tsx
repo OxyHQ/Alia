@@ -1,17 +1,17 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text } from 'react-native';
-import { useRouter, useLocalSearchParams } from 'expo-router';
-import { useAuth } from '@oxy.so/services';
 import { AuthContainer } from '@/components/auth/auth-container';
-import { AuthLogo } from '@/components/auth/auth-logo';
-import { AuthInput } from '@/components/auth/auth-input';
-import { AuthButton } from '@/components/auth/auth-button';
 import { AuthError } from '@/components/auth/auth-error';
+import { AuthLogo } from '@/components/auth/auth-logo';
 import apiClient from '@/lib/api/client';
-import { toast } from '@oxy.so/bloom/toast';
-import { useTranslation } from '@/lib/hooks/use-translation';
 import { errorMessage as getErrorMessage } from '@/lib/errors/error-utils';
-import { ContentPanel } from "@oxy.so/bloom/content-panel";
+import { useTranslation } from '@/lib/hooks/use-translation';
+import { Button as AuthButton } from '@oxy.so/bloom/button';
+import { ContentPanel } from '@oxy.so/bloom/content-panel';
+import { TextFieldInput as AuthInput } from '@oxy.so/bloom/text-field';
+import { toast } from '@oxy.so/bloom/toast';
+import { useAuth } from '@oxy.so/services';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
+import { Text, View } from 'react-native';
 
 export default function ResetPasswordScreen() {
   const { t } = useTranslation();
@@ -66,7 +66,10 @@ export default function ResetPasswordScreen() {
       signIn().catch(() => {});
     } catch (error: unknown) {
       console.error('Reset password error:', error);
-      const errorMessage = getErrorMessage(error, t('resetPassword.failedToReset'));
+      const errorMessage = getErrorMessage(
+        error,
+        t('resetPassword.failedToReset'),
+      );
       setError(errorMessage);
 
       toast.error(errorMessage);
@@ -95,6 +98,7 @@ export default function ResetPasswordScreen() {
           <AuthError message={error} />
 
           <AuthInput
+            label="Password"
             placeholder={t('resetPassword.newPasswordPlaceholder')}
             value={password}
             onChangeText={(text) => {
@@ -106,6 +110,7 @@ export default function ResetPasswordScreen() {
           />
 
           <AuthInput
+            label="Password"
             placeholder={t('resetPassword.confirmPasswordPlaceholder')}
             value={confirmPassword}
             onChangeText={(text) => {
@@ -120,8 +125,7 @@ export default function ResetPasswordScreen() {
           <AuthButton
             onPress={handleResetPassword}
             disabled={loading || !password || !confirmPassword || !token}
-            isLoading={loading}
-            loadingText={t('resetPassword.resetting')}
+            loading={loading}
             className="mt-3"
           >
             {t('resetPassword.resetButton')}

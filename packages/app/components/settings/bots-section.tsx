@@ -1,22 +1,30 @@
-import { View, Pressable, ActivityIndicator, Linking } from "react-native";
-import { Text } from "@/components/ui/text";
-import { Button } from "@/components/ui/button";
-import { useBots, type SystemBot, type BotLinkStatus } from "@/lib/hooks/use-bots";
-import { toast } from "@oxy.so/bloom/toast";
-import { SettingsListGroup, SettingsListItem } from "@oxy.so/bloom/settings-list";
-import { Bot, ExternalLink } from "lucide-react-native";
+import {
+  useBots,
+  type BotLinkStatus,
+  type SystemBot,
+} from '@/lib/hooks/use-bots';
+import { Button } from '@oxy.so/bloom/button';
+import {
+  SettingsCard,
+  SettingsRow,
+  SettingsSection,
+} from '@oxy.so/bloom/settings-modal';
+import { toast } from '@oxy.so/bloom/toast';
+import { Text } from '@oxy.so/bloom/typography';
+import { Bot, ExternalLink } from 'lucide-react-native';
+import { ActivityIndicator, Linking, View } from 'react-native';
 
 const PLATFORM_COLORS: Record<string, string> = {
-  telegram: "#0088CC",
-  discord: "#5865F2",
-  slack: "#4A154B",
+  telegram: '#0088CC',
+  discord: '#5865F2',
+  slack: '#4A154B',
 };
 
-function StatusDot({ status }: { status: SystemBot["status"] }) {
+function StatusDot({ status }: { status: SystemBot['status'] }) {
   const color = {
-    active: "bg-green-500",
-    inactive: "bg-gray-400",
-    error: "bg-red-500",
+    active: 'bg-green-500',
+    inactive: 'bg-gray-400',
+    error: 'bg-red-500',
   }[status];
 
   return <View className={`w-2 h-2 rounded-full ${color}`} />;
@@ -33,47 +41,45 @@ function BotRow({
   onLink: (bot: SystemBot) => void;
   onUnlink: (botId: string) => void;
 }) {
-  const color = PLATFORM_COLORS[bot.platform] ?? "#6b7280";
+  const color = PLATFORM_COLORS[bot.platform] ?? '#6b7280';
   const isLinked = linkStatus?.linked ?? false;
 
   const detail =
-    `${bot.platform}${bot.username ? ` @${bot.username}` : ""}` +
-    (isLinked && linkStatus?.username ? ` \u2022 Linked as @${linkStatus.username}` : "");
+    `${bot.platform}${bot.username ? ` @${bot.username}` : ''}` +
+    (isLinked && linkStatus?.username
+      ? ` \u2022 Linked as @${linkStatus.username}`
+      : '');
 
   return (
-    <SettingsListItem
-      icon={<Bot size={18} color={color} />}
-      title={bot.name}
-      description={detail}
-      showChevron={false}
-      rightElement={
-        <View className="flex-row items-center gap-2">
-          <StatusDot status={bot.status} />
-          {isLinked ? (
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-7 px-2.5"
-              onPress={() => onUnlink(bot._id)}
-            >
-              <Text className="text-xs text-destructive">Unlink</Text>
-            </Button>
-          ) : (
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-7 px-2.5"
-              onPress={() => onLink(bot)}
-            >
-              <View className="flex-row items-center gap-1">
+    <SettingsRow label={bot.name} description={detail}>
+      <View className="flex-row items-center gap-2">
+        <StatusDot status={bot.status} />
+        {isLinked ? (
+          <Button
+            variant="secondary"
+            size="sm"
+            className="h-7 px-2.5"
+            onPress={() => onUnlink(bot._id)}
+          >
+            Unlink
+          </Button>
+        ) : (
+          <Button
+            variant="secondary"
+            size="sm"
+            className="h-7 px-2.5"
+            onPress={() => onLink(bot)}
+            leading={
+              <>
                 <ExternalLink size={12} className="text-foreground" />
-                <Text className="text-xs">Link</Text>
-              </View>
-            </Button>
-          )}
-        </View>
-      }
-    />
+              </>
+            }
+          >
+            Link
+          </Button>
+        )}
+      </View>
+    </SettingsRow>
   );
 }
 
@@ -99,18 +105,18 @@ export function BotsSection() {
         toast.error(`Cannot open ${bot.platform}`);
       }
     } catch (err) {
-      console.error("Failed to open link URL:", err);
-      toast.error("Failed to open link");
+      console.error('Failed to open link URL:', err);
+      toast.error('Failed to open link');
     }
   };
 
   const handleUnlink = async (botId: string) => {
     try {
       await unlink(botId);
-      toast.success("Bot unlinked");
+      toast.success('Bot unlinked');
     } catch (err) {
-      console.error("Failed to unlink bot:", err);
-      toast.error("Failed to unlink bot");
+      console.error('Failed to unlink bot:', err);
+      toast.error('Failed to unlink bot');
     }
   };
 
@@ -125,9 +131,9 @@ export function BotsSection() {
   return (
     <View className="gap-4">
       <Text className="text-xs text-muted-foreground">
-        System bots allow others to interact with Alia and enable Alia to send messages on your
-        behalf. To give one of your own agents a dedicated Telegram bot, open the agent and use
-        its Telegram bot section.
+        System bots allow others to interact with Alia and enable Alia to send
+        messages on your behalf. To give one of your own agents a dedicated
+        Telegram bot, open the agent and use its Telegram bot section.
       </Text>
 
       {bots.length === 0 ? (
@@ -140,17 +146,19 @@ export function BotsSection() {
           </Text>
         </View>
       ) : (
-        <SettingsListGroup>
-          {bots.map((bot) => (
-            <BotRow
-              key={bot._id}
-              bot={bot}
-              linkStatus={linkStatuses[bot._id]}
-              onLink={handleLink}
-              onUnlink={handleUnlink}
-            />
-          ))}
-        </SettingsListGroup>
+        <SettingsSection>
+          <SettingsCard>
+            {bots.map((bot) => (
+              <BotRow
+                key={bot._id}
+                bot={bot}
+                linkStatus={linkStatuses[bot._id]}
+                onLink={handleLink}
+                onUnlink={handleUnlink}
+              />
+            ))}
+          </SettingsCard>
+        </SettingsSection>
       )}
     </View>
   );

@@ -1,15 +1,21 @@
-import { useState } from 'react';
-import { ActivityIndicator, Platform, Pressable, ScrollView, TextInput, View } from 'react-native';
-import { ArrowUp, CalendarClock, Mic, Paperclip } from 'lucide-react-native';
-import { useRouter } from 'expo-router';
-import { ContentPanel } from '@oxy.so/bloom/content-panel';
-import { toast } from '@oxy.so/bloom/toast';
-import { Text } from '@/components/ui/text';
-import { asTextStyle } from '@/lib/types/webStyles';
 import { useCreateConversation } from '@/lib/hooks/use-conversations';
 import { useStore } from '@/lib/stores/global-store';
+import { asTextStyle } from '@/lib/types/webStyles';
 import { useColorScheme } from '@/lib/useColorScheme';
-
+import { ContentPanel } from '@oxy.so/bloom/content-panel';
+import { toast } from '@oxy.so/bloom/toast';
+import { Text } from '@oxy.so/bloom/typography';
+import { useRouter } from 'expo-router';
+import { ArrowUp, CalendarClock, Mic, Paperclip } from 'lucide-react-native';
+import { useState } from 'react';
+import {
+  ActivityIndicator,
+  Platform,
+  Pressable,
+  ScrollView,
+  TextInput,
+  View,
+} from 'react-native';
 const SUGGESTIONS = [
   {
     title: 'Start my day informed',

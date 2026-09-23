@@ -17,31 +17,47 @@
  * for: another episode.
  */
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, Pressable, RefreshControl, FlatList, Linking, StyleSheet } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Text } from '@/components/ui/text';
-import { Button } from '@/components/ui/button';
-import { Avatar } from '@oxy.so/bloom/avatar';
-import { Plus, Trash2, ChevronLeft, ExternalLink, Lock, Link2, Globe, Pencil } from 'lucide-react-native';
-import { toast } from '@oxy.so/bloom/toast';
-import { confirm } from '@oxy.so/bloom/surfaces';
-import { ContentPanel } from '@oxy.so/bloom/content-panel';
-import { withAlpha } from '@oxy.so/bloom/theme';
+import { EpisodeCreateDialog } from '@/components/show/episode-create-dialog';
+import { EpisodeRow } from '@/components/show/episode-row';
+import { ShowArtwork } from '@/components/show/show-artwork';
+import { useShowProgress } from '@/lib/hooks/use-show-progress';
 import {
-  useShowStore,
   useSeriesEpisodes,
+  useShowStore,
   type ShowEpisode,
   type ShowVisibility,
 } from '@/lib/stores/show-store';
-import { EpisodeRow } from '@/components/show/episode-row';
-import { ShowArtwork } from '@/components/show/show-artwork';
-import { EpisodeCreateDialog } from '@/components/show/episode-create-dialog';
-import { useShowProgress } from '@/lib/hooks/use-show-progress';
 import { useColorScheme } from '@/lib/useColorScheme';
-import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { formatEpisodeCount } from '@/lib/utils/show-format';
+import { Avatar } from '@oxy.so/bloom/avatar';
+import { Button } from '@oxy.so/bloom/button';
+import { ContentPanel } from '@oxy.so/bloom/content-panel';
+import * as Skeleton from '@oxy.so/bloom/skeleton';
+import { confirm } from '@oxy.so/bloom/surfaces';
+import { withAlpha } from '@oxy.so/bloom/theme';
+import { toast } from '@oxy.so/bloom/toast';
+import { Text } from '@oxy.so/bloom/typography';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import {
+  ChevronLeft,
+  ExternalLink,
+  Globe,
+  Link2,
+  Lock,
+  Pencil,
+  Plus,
+  Trash2,
+} from 'lucide-react-native';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  FlatList,
+  Linking,
+  Pressable,
+  RefreshControl,
+  StyleSheet,
+  View,
+} from 'react-native';
 
 /** Where a listener would go to see the podcast itself. */
 const SYRA_WEB_URL = 'https://syra.fm';
@@ -54,11 +70,12 @@ const SYRA_WEB_URL = 'https://syra.fm';
 const DESCRIPTION_CLAMP_CHARS = 170;
 
 /** Who can hear it, as an icon and a word. */
-const VISIBILITY: Record<ShowVisibility, { label: string; icon: typeof Lock }> = {
-  private: { label: 'Private', icon: Lock },
-  unlisted: { label: 'Unlisted', icon: Link2 },
-  public: { label: 'Public', icon: Globe },
-};
+const VISIBILITY: Record<ShowVisibility, { label: string; icon: typeof Lock }> =
+  {
+    private: { label: 'Private', icon: Lock },
+    unlisted: { label: 'Unlisted', icon: Link2 },
+    public: { label: 'Public', icon: Globe },
+  };
 
 export default function SeriesDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -66,7 +83,9 @@ export default function SeriesDetailScreen() {
   const router = useRouter();
   const { colors } = useColorScheme();
 
-  const series = useShowStore((s) => s.series.find((entry) => entry.id === seriesId));
+  const series = useShowStore((s) =>
+    s.series.find((entry) => entry.id === seriesId),
+  );
   const episodes = useSeriesEpisodes(seriesId);
   const fetchOneSeries = useShowStore((s) => s.fetchOneSeries);
   const createEpisode = useShowStore((s) => s.createEpisode);
@@ -137,7 +156,9 @@ export default function SeriesDetailScreen() {
 
       const removed = await deleteEpisode(seriesId, episodeId);
       if (!removed) {
-        toast.error(useShowStore.getState().error ?? 'Could not remove the episode');
+        toast.error(
+          useShowStore.getState().error ?? 'Could not remove the episode',
+        );
         return;
       }
       toast.success('Episode deleted from Alia and Syra');
@@ -194,7 +215,8 @@ export default function SeriesDetailScreen() {
   );
 
   const hosts = useMemo(
-    () => (series ? series.speakers.map((speaker) => speaker.name).join(', ') : ''),
+    () =>
+      series ? series.speakers.map((speaker) => speaker.name).join(', ') : '',
     [series],
   );
 
@@ -283,7 +305,9 @@ export default function SeriesDetailScreen() {
                   {visibility.label}
                 </Text>
               </View>
-              <Text className="text-xs capitalize text-muted-foreground">{series.format}</Text>
+              <Text className="text-xs capitalize text-muted-foreground">
+                {series.format}
+              </Text>
               <Text className="text-xs text-muted-foreground">
                 {formatEpisodeCount(episodes.length)}
               </Text>
@@ -295,11 +319,13 @@ export default function SeriesDetailScreen() {
                 className="flex-row items-center gap-1.5 rounded-full"
                 onPress={handleNewEpisode}
                 disabled={starting}
+                leading={
+                  <>
+                    <Plus size={14} className="text-primary-foreground" />
+                  </>
+                }
               >
-                <Plus size={14} className="text-primary-foreground" />
-                <Text className="text-sm text-primary-foreground">
-                  {starting ? 'Starting...' : 'New episode'}
-                </Text>
+                {starting ? 'Starting...' : 'New episode'}
               </Button>
               {/*
                 The other case, kept and kept QUIET: usually there is nothing
@@ -314,7 +340,9 @@ export default function SeriesDetailScreen() {
                 className="h-8 flex-row items-center gap-1.5 rounded-full border border-border px-3 active:opacity-70 web:hover:bg-muted"
               >
                 <Pencil size={13} className="text-muted-foreground" />
-                <Text className="text-xs font-medium text-muted-foreground">Something specific</Text>
+                <Text className="text-xs font-medium text-muted-foreground">
+                  Something specific
+                </Text>
               </Pressable>
               <Pressable
                 onPress={openOnSyra}
@@ -323,7 +351,9 @@ export default function SeriesDetailScreen() {
                 className="h-8 flex-row items-center gap-1.5 rounded-full border border-border px-3 active:opacity-70 web:hover:bg-muted"
               >
                 <ExternalLink size={13} className="text-muted-foreground" />
-                <Text className="text-xs font-medium text-muted-foreground">Open on Syra</Text>
+                <Text className="text-xs font-medium text-muted-foreground">
+                  Open on Syra
+                </Text>
               </Pressable>
             </View>
           </View>
@@ -353,7 +383,10 @@ export default function SeriesDetailScreen() {
         <View className="gap-3 px-4 pb-6">
           <Text className="text-base font-bold text-foreground">Hosts</Text>
           {series.speakers.map((speaker) => (
-            <View key={`${speaker.name}-${speaker.voiceId}`} className="flex-row items-center gap-3">
+            <View
+              key={`${speaker.name}-${speaker.voiceId}`}
+              className="flex-row items-center gap-3"
+            >
               {/*
                 A host has no photo anywhere in the Shows model, so this was
                 only ever the initials disc — three nested components and a
@@ -367,10 +400,16 @@ export default function SeriesDetailScreen() {
               */}
               <Avatar name={speaker.name} size={44} color="neutral" />
               <View className="min-w-0 flex-1">
-                <Text className="text-[15px] font-semibold text-foreground" numberOfLines={1}>
+                <Text
+                  className="text-[15px] font-semibold text-foreground"
+                  numberOfLines={1}
+                >
                   {speaker.name}
                 </Text>
-                <Text className="text-[13px] capitalize text-muted-foreground" numberOfLines={1}>
+                <Text
+                  className="text-[13px] capitalize text-muted-foreground"
+                  numberOfLines={1}
+                >
                   {speaker.role} · {speaker.voiceName}
                 </Text>
               </View>
@@ -404,19 +443,22 @@ export default function SeriesDetailScreen() {
                 No episodes yet
               </Text>
               <Text className="text-center text-sm text-muted-foreground">
-                Alia will work out what the first one covers from what this show is about, write
-                it, voice it with {series.speakers.map((speaker) => speaker.name).join(' and ')},
+                Alia will work out what the first one covers from what this show
+                is about, write it, voice it with{' '}
+                {series.speakers.map((speaker) => speaker.name).join(' and ')},
                 and publish it.
               </Text>
               <Button
                 onPress={handleNewEpisode}
                 disabled={starting}
                 className="flex-row items-center gap-1.5 rounded-full"
+                leading={
+                  <>
+                    <Plus size={14} className="text-primary-foreground" />
+                  </>
+                }
               >
-                <Plus size={14} className="text-primary-foreground" />
-                <Text className="text-primary-foreground">
-                  {starting ? 'Starting...' : 'Record the first episode'}
-                </Text>
+                {starting ? 'Starting...' : 'Record the first episode'}
               </Button>
               <Pressable
                 onPress={() => setCreateOpen(true)}
@@ -440,7 +482,9 @@ export default function SeriesDetailScreen() {
                 className="flex-row items-center justify-center gap-1.5 p-2 active:opacity-70"
               >
                 <Trash2 size={14} className="text-destructive" />
-                <Text className="text-xs text-destructive">Remove this show from Alia</Text>
+                <Text className="text-xs text-destructive">
+                  Remove this show from Alia
+                </Text>
               </Pressable>
             </View>
           }

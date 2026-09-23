@@ -1,10 +1,8 @@
-import { View } from "react-native";
-import { ErrorBoundary } from "@oxy.so/bloom/error-boundary";
-import { AlertTriangle } from "lucide-react-native";
-
-import { Text } from "@/components/ui/text";
-import { useTranslation } from "@/lib/hooks/use-translation";
-
+import { ErrorBoundary } from '@oxy.so/bloom/error-boundary';
+import { AlertTriangle } from 'lucide-react-native';
+import { View } from 'react-native';
+import { useTranslation } from '@/lib/hooks/use-translation';
+import { Text } from '@oxy.so/bloom/typography';
 /**
  * One block of an answer, contained.
  *

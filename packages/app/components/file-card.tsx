@@ -1,17 +1,16 @@
-import React from 'react';
-import { View, Pressable } from 'react-native';
-import { Image } from 'expo-image';
-import { Text } from '@/components/ui/text';
-import {
-  FileText,
-  Image as ImageIcon,
-  File,
-  MoreHorizontal,
-} from 'lucide-react-native';
-import * as DropdownMenu from '@/components/ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@oxy.so/bloom/dropdown-menu';
+import { RiDeleteBinLine } from '@oxy.so/bloom/icons';
 import { LibraryFile } from '@/lib/stores/library-store';
 import { formatFileSize } from '@/lib/utils';
-
+import { Text } from '@oxy.so/bloom/typography';
+import { Image } from 'expo-image';
+import {
+  File,
+  FileText,
+  Image as ImageIcon,
+  MoreHorizontal,
+} from 'lucide-react-native';
+import { Pressable, View } from 'react-native';
 interface FileCardProps {
   file: LibraryFile;
   onPress?: (file: LibraryFile) => void;
@@ -78,19 +77,19 @@ export function FileCard({ file, onPress, onDelete }: FileCardProps) {
         </View>
 
         {/* Actions */}
-        <DropdownMenu.Root>
-          <DropdownMenu.Trigger>
+        <DropdownMenu>
+          <DropdownMenuTrigger label="Actions" asChild>
             <Pressable className="h-8 w-8 items-center justify-center rounded-full active:bg-muted/70">
               <MoreHorizontal size={14} className="text-muted-foreground" />
             </Pressable>
-          </DropdownMenu.Trigger>
-          <DropdownMenu.Content>
-            <DropdownMenu.Item key="delete" destructive onSelect={() => onDelete?.(file)}>
-              <DropdownMenu.ItemIcon ios={{ name: "trash" }} />
-              <DropdownMenu.ItemTitle>Delete</DropdownMenu.ItemTitle>
-            </DropdownMenu.Item>
-          </DropdownMenu.Content>
-        </DropdownMenu.Root>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent>
+            <DropdownMenuItem key="delete" tone="danger" onPress={() => onDelete?.(file)} leading={<RiDeleteBinLine size="sm" />}>
+
+              Delete
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </View>
     </Pressable>
   );

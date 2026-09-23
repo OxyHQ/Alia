@@ -1,20 +1,19 @@
+import { LottieLoader } from '@/components/lottie-loader';
+import type { PlanItem } from '@/lib/hooks/use-agent-activity';
+import { getToolIcon } from '@/lib/tool-registry';
+import { useTheme } from '@oxy.so/bloom/theme';
+import { Text } from '@oxy.so/bloom/typography';
+import { AlertCircle, CheckCircle2, Circle } from 'lucide-react-native';
 import React, { useEffect } from 'react';
 import { View } from 'react-native';
-import { Text } from '@/components/ui/text';
 import Animated, {
-  useSharedValue,
+  FadeIn,
   useAnimatedStyle,
+  useSharedValue,
   withRepeat,
   withSequence,
   withTiming,
-  FadeIn,
 } from 'react-native-reanimated';
-import { CheckCircle2, Circle, AlertCircle } from 'lucide-react-native';
-import { useTheme } from '@oxy.so/bloom/theme';
-import { getToolIcon } from '@/lib/tool-registry';
-import { LottieLoader } from '@/components/lottie-loader';
-import type { PlanItem } from '@/lib/hooks/use-agent-activity';
-
 interface TaskTimelineStepProps {
   item: PlanItem;
   isLast: boolean;

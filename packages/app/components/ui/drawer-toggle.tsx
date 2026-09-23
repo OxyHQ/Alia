@@ -1,10 +1,9 @@
-import React from "react";
-import { Button } from "@/components/ui/button";
-import { MenuIcon } from "@/components/ui/icons/menu-icon";
-import { useAppNav } from "@/components/app-shell/nav-context";
-import { useColorScheme } from "@/lib/useColorScheme";
-import { useTranslation } from "@/lib/hooks/use-translation";
-import { cn } from "@/lib/utils";
+import { useAppNav } from '@/components/app-shell/nav-context';
+import { MenuIcon } from '@/components/ui/icons/menu-icon';
+import { useTranslation } from '@/lib/hooks/use-translation';
+import { useColorScheme } from '@/lib/useColorScheme';
+import { cn } from '@/lib/utils';
+import { Button } from '@oxy.so/bloom/button';
 
 /**
  * The one control that opens the navigation at narrow widths.
@@ -47,12 +46,15 @@ export function DrawerToggle({ className }: { className?: string }) {
       onPress={nav.toggle}
       accessibilityRole="button"
       accessibilityLabel={
-        nav.presented ? t("nav.closeNavigation") : t("nav.openNavigation")
+        nav.presented ? t('nav.closeNavigation') : t('nav.openNavigation')
       }
-      accessibilityState={{ expanded: nav.presented }}
-      className={cn("h-9 w-9 rounded-full lg:hidden", className)}
-    >
-      <MenuIcon size={20} color={colors.mutedForeground} />
-    </Button>
+      aria-expanded={nav.presented}
+      className={cn('h-9 w-9 rounded-full lg:hidden', className)}
+      icon={
+        <>
+          <MenuIcon size={20} color={colors.mutedForeground} />
+        </>
+      }
+    />
   );
 }

@@ -1,34 +1,38 @@
-import { useState, useMemo, useEffect, useRef } from 'react';
-import { View, ScrollView, useWindowDimensions, ActivityIndicator } from 'react-native';
-import * as Linking from 'expo-linking';
-import { useRouter, useLocalSearchParams } from 'expo-router';
-import { Text } from '@/components/ui/text';
 import {
-  useSubscriptionPlans,
-  useSubscription,
-  useSubscriptionPolling,
-  useCreateSubscriptionCheckout,
-  useChangePlan,
-  useCancelSubscription,
-  type SubscriptionPlan,
-} from '@/lib/hooks/use-billing';
-import { useQueryClient } from '@tanstack/react-query';
-import { useAuth } from '@oxy.so/services';
-import { toast } from '@oxy.so/bloom/toast';
-import { useTranslation } from '@/lib/hooks/use-translation';
-import { queryKeys } from '@/lib/hooks/query-keys';
-import { confirm } from '@oxy.so/bloom/surfaces';
-import {
-  type BillingPeriod,
-  type PricingTier,
-  BillingToggle,
-  PlanGrid,
   BackButton,
+  BillingToggle,
   InfoBanners,
   PageFooter,
+  PlanGrid,
+  type BillingPeriod,
+  type PricingTier,
 } from '@/components/subscribe-shared';
+import { queryKeys } from '@/lib/hooks/query-keys';
+import {
+  useCancelSubscription,
+  useChangePlan,
+  useCreateSubscriptionCheckout,
+  useSubscription,
+  useSubscriptionPlans,
+  useSubscriptionPolling,
+  type SubscriptionPlan,
+} from '@/lib/hooks/use-billing';
+import { useTranslation } from '@/lib/hooks/use-translation';
+import { confirm } from '@oxy.so/bloom/surfaces';
+import { toast } from '@oxy.so/bloom/toast';
+import { Text } from '@oxy.so/bloom/typography';
+import { useAuth } from '@oxy.so/services';
+import { useQueryClient } from '@tanstack/react-query';
+import * as Linking from 'expo-linking';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  ActivityIndicator,
+  ScrollView,
+  useWindowDimensions,
+  View,
+} from 'react-native';
 import { errorMessage as getErrorMessage } from '../../lib/errors/error-utils';
-
 function buildTiers(
   apiPlans: SubscriptionPlan[],
   t: (key: string) => string,

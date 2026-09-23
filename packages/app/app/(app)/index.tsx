@@ -1,25 +1,24 @@
-import { useState, useEffect, useCallback } from "react";
-import { View } from "react-native";
-import { useLocalSearchParams, useRouter } from "expo-router";
-import Head from "expo-router/head";
+import { ChatPageContent } from '@/components/chat-page-content';
+import { WelcomeIntro } from '@/components/welcome-intro';
+import { resolveSelection, useCatalogue } from '@/lib/hooks/use-catalogue';
+import { useChatConversation } from '@/lib/hooks/use-chat-conversation';
+import { useCreateConversation } from '@/lib/hooks/use-conversations';
+import { useProductModes } from '@/lib/hooks/use-product-modes';
+import { useStore } from '@/lib/stores/global-store';
+import { useModelStore } from '@/lib/stores/model-store';
+import { toast } from '@oxy.so/bloom/toast';
+import { useAuth } from '@oxy.so/services';
+import { useRouter } from 'expo-router';
+import Head from 'expo-router/head';
+import { useCallback, useState } from 'react';
+import { View } from 'react-native';
 import Animated, {
   Easing,
   useAnimatedStyle,
   useSharedValue,
   withDelay,
   withTiming,
-} from "react-native-reanimated";
-import { useAuth } from "@oxy.so/services";
-import { WelcomeIntro } from "@/components/welcome-intro";
-import { useStore } from "@/lib/stores/global-store";
-import { useModelStore } from "@/lib/stores/model-store";
-import { resolveSelection, useCatalogue } from "@/lib/hooks/use-catalogue";
-import { useProductModes } from "@/lib/hooks/use-product-modes";
-import { useChatConversation } from "@/lib/hooks/use-chat-conversation";
-import { useCreateConversation } from "@/lib/hooks/use-conversations";
-import { ChatPageContent } from "@/components/chat-page-content";
-import { toast } from "@oxy.so/bloom/toast";
-import { ContentPanel } from "@oxy.so/bloom/content-panel";
+} from 'react-native-reanimated';
 
 /** The chat rises into view as the intro leaves: 600ms, 450ms after it starts. */
 const CHAT_RISE_DURATION = 600;
@@ -49,7 +48,12 @@ const ChatPage = () => {
   const reasoningEffort = useModelStore((s) => s.reasoningEffort);
   const { data: catalogue } = useCatalogue();
   const { data: modes } = useProductModes();
-  const selection = resolveSelection(selectedModel, catalogue, undefined, modes);
+  const selection = resolveSelection(
+    selectedModel,
+    catalogue,
+    undefined,
+    modes,
+  );
 
   const ghostMode = useStore((state) => state.ghostMode);
 
@@ -70,15 +74,21 @@ const ChatPage = () => {
    * signs the user in while its exit is still playing, and letting
    * `isAuthenticated` flip the gate mid-animation would tear it off the screen.
    */
-  const [introState, setIntroState] = useState<"idle" | "showing" | "done">("idle");
-  if (introState === "idle" && isAuthResolved && !isAuthenticated) {
-    setIntroState("showing");
+  const [introState, setIntroState] = useState<'idle' | 'showing' | 'done'>(
+    'idle',
+  );
+  if (introState === 'idle' && isAuthResolved && !isAuthenticated) {
+    setIntroState('showing');
   }
-  const introShown = introState !== "idle";
+  const introShown = introState !== 'idle';
   const chatRise = useSharedValue(0);
   const chatStyle = useAnimatedStyle(() => ({
     opacity: introShown ? chatRise.value : 1,
-    transform: [{ translateY: introShown ? (1 - chatRise.value) * CHAT_RISE_DISTANCE : 0 }],
+    transform: [
+      {
+        translateY: introShown ? (1 - chatRise.value) * CHAT_RISE_DISTANCE : 0,
+      },
+    ],
   }));
   const handleIntroExitStart = useCallback(() => {
     chatRise.value = withDelay(
@@ -86,7 +96,7 @@ const ChatPage = () => {
       withTiming(1, { duration: CHAT_RISE_DURATION, easing: CHAT_RISE_EASE }),
     );
   }, [chatRise]);
-  const handleIntroDismissed = useCallback(() => setIntroState("done"), []);
+  const handleIntroDismissed = useCallback(() => setIntroState('done'), []);
 
   /**
    * The whole of the hook, because the whole of it applies here.
@@ -118,7 +128,10 @@ const ChatPage = () => {
     dismissSuggestedNewConversation,
     failedTurn,
     retryFailedTurn,
-  } = useChatConversation({ reasoningEffort, selectedModel: selection.effectiveId ?? undefined });
+  } = useChatConversation({
+    reasoningEffort,
+    selectedModel: selection.effectiveId ?? undefined,
+  });
 
   const handleSubmit = ghostMode ? sendMessage : createNewConversation;
 
@@ -147,22 +160,34 @@ const ChatPage = () => {
   const handleVoiceStart = useCallback(async () => {
     try {
       const conv = await createConversationMutation.mutateAsync({});
-      router.replace({ pathname: "/(app)/c/[id]", params: { id: conv.id, startVoice: "true" } });
+      router.replace({
+        pathname: '/(app)/c/[id]',
+        params: { id: conv.id, startVoice: 'true' },
+      });
     } catch {
-      toast.error("Failed to start voice session");
+      toast.error('Failed to start voice session');
     }
   }, [createConversationMutation, router]);
 
   return (
-    <ContentPanel surfaceClassName="bg-background">
+    <>
       <>
         <Head>
           <title>Alia \ Oxy</title>
-          <meta name="description" content="Meet Alia, your intelligent AI assistant. Chat naturally, remember everything, and switch between the best AI models seamlessly." />
+          <meta
+            name="description"
+            content="Meet Alia, your intelligent AI assistant. Chat naturally, remember everything, and switch between the best AI models seamlessly."
+          />
           <link rel="canonical" href="https://alia.onl/" />
           <meta property="og:title" content="Alia \ Oxy" />
-          <meta property="og:description" content="Meet Alia, your intelligent AI assistant. Chat naturally, remember everything, and switch between the best AI models seamlessly." />
-          <meta property="og:image" content="https://alia.onl/og-image-default.png" />
+          <meta
+            property="og:description"
+            content="Meet Alia, your intelligent AI assistant. Chat naturally, remember everything, and switch between the best AI models seamlessly."
+          />
+          <meta
+            property="og:image"
+            content="https://alia.onl/og-image-default.png"
+          />
         </Head>
         <Animated.View style={[{ flex: 1 }, chatStyle]}>
           <ChatPageContent
@@ -193,8 +218,17 @@ const ChatPage = () => {
           />
         </Animated.View>
 
-        {introState === "showing" ? (
-          <View style={{ position: "absolute", top: 0, right: 0, bottom: 0, left: 0, zIndex: 20 }}>
+        {introState === 'showing' ? (
+          <View
+            style={{
+              position: 'absolute',
+              top: 0,
+              right: 0,
+              bottom: 0,
+              left: 0,
+              zIndex: 20,
+            }}
+          >
             <WelcomeIntro
               onExitStart={handleIntroExitStart}
               onDismissed={handleIntroDismissed}
@@ -202,7 +236,7 @@ const ChatPage = () => {
           </View>
         ) : null}
       </>
-    </ContentPanel>
+    </>
   );
 };
 

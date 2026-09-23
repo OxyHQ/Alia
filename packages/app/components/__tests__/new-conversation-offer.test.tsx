@@ -19,16 +19,23 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('react-native', async () => {
   const ReactModule = await import('react');
-  const host = (name: string) =>
-    ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
+  const host =
+    (name: string) =>
+    ({
+      children,
+      ...props
+    }: React.PropsWithChildren<Record<string, unknown>>) =>
       ReactModule.createElement(name, props, children);
   return { View: host('View'), Pressable: host('Pressable') };
 });
 
-vi.mock('@/components/ui/text', async () => {
+vi.mock('@oxy.so/bloom/typography', async () => {
   const ReactModule = await import('react');
   return {
-    Text: ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
+    Text: ({
+      children,
+      ...props
+    }: React.PropsWithChildren<Record<string, unknown>>) =>
       ReactModule.createElement('Text', props, children),
   };
 });
@@ -120,11 +127,15 @@ describe('the offer to start a new conversation', () => {
     // substitute of ours would read as theirs.
     const reason = 'we have moved from the migration to the billing bug';
 
-    expect(texts(render({ reason, onAccept: vi.fn(), onDismiss: vi.fn() }))).toContain(reason);
+    expect(
+      texts(render({ reason, onAccept: vi.fn(), onDismiss: vi.fn() })),
+    ).toContain(reason);
   });
 
   it('drops the line rather than inventing one when no reason came', () => {
-    const shown = texts(render({ reason: '', onAccept: vi.fn(), onDismiss: vi.fn() }));
+    const shown = texts(
+      render({ reason: '', onAccept: vi.fn(), onDismiss: vi.fn() }),
+    );
 
     // The offer and its two answers, and nothing standing in for the reason.
     expect(shown).toEqual([

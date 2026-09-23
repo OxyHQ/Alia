@@ -1,23 +1,33 @@
-import { useCallback, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
-import { ArrowLeft, Pencil } from 'lucide-react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ContentPanel } from '@oxy.so/bloom/content-panel';
-import { toast } from '@oxy.so/bloom/toast';
-import { Text } from '@/components/ui/text';
-import { Button } from '@/components/ui/button';
 import { AutomationEditor } from '@/components/automations/automation-editor';
-import { AutomationPill, automationStatusTone } from '@/components/automations/automation-pill';
+import {
+  AutomationPill,
+  automationStatusTone,
+} from '@/components/automations/automation-pill';
 import {
   actorLabel,
   automationTitle,
   triggerLabel,
 } from '@/lib/automations/format';
-import type { AutomationRun, AutomationUpdateInput } from '@/lib/automations/types';
-import { useAutomationOverview, useAutomationRuns, useUpdateAutomation } from '@/lib/hooks/use-automations';
+import type {
+  AutomationRun,
+  AutomationUpdateInput,
+} from '@/lib/automations/types';
+import { errorMessage } from '@/lib/errors/error-utils';
+import {
+  useAutomationOverview,
+  useAutomationRuns,
+  useUpdateAutomation,
+} from '@/lib/hooks/use-automations';
 import { useMyAgents } from '@/lib/hooks/use-my-agents';
 import { useColorScheme } from '@/lib/useColorScheme';
-import { errorMessage } from '@/lib/errors/error-utils';
+import { Button } from '@oxy.so/bloom/button';
+import { ContentPanel } from '@oxy.so/bloom/content-panel';
+import { toast } from '@oxy.so/bloom/toast';
+import { Text } from '@oxy.so/bloom/typography';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { ArrowLeft, Pencil } from 'lucide-react-native';
+import { useCallback, useMemo, useState } from 'react';
+import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
 
 const RUN_PAGE_SIZE = 20;
 
@@ -45,7 +55,10 @@ function RunCard({
             {run.selectedAgentId ? agentName(run.selectedAgentId) : 'Alia'}
           </Text>
         </View>
-        <AutomationPill label={run.status} tone={automationStatusTone(run.status)} />
+        <AutomationPill
+          label={run.status}
+          tone={automationStatusTone(run.status)}
+        />
       </View>
     </View>
   );
@@ -61,21 +74,32 @@ export default function AutomationHistoryScreen() {
   const updateAutomation = useUpdateAutomation();
   const [editorOpen, setEditorOpen] = useState(false);
   const [visibleRuns, setVisibleRuns] = useState(RUN_PAGE_SIZE);
-  const automation = overview.data?.automations.find((candidate) => candidate.id === id);
-  const agentNames = useMemo(() => new Map(
-    (agents.data ?? []).map((agent) => [
-      agent._id,
-      agent.name ?? agent.handle ?? `Agent ${agent._id.slice(0, 8)}`,
-    ]),
-  ), [agents.data]);
+  const automation = overview.data?.automations.find(
+    (candidate) => candidate.id === id,
+  );
+  const agentNames = useMemo(
+    () =>
+      new Map(
+        (agents.data ?? []).map((agent) => [
+          agent._id,
+          agent.name ?? agent.handle ?? `Agent ${agent._id.slice(0, 8)}`,
+        ]),
+      ),
+    [agents.data],
+  );
   const agentName = useCallback(
-    (agentId: string) => agentNames.get(agentId) ?? `Agent ${agentId.slice(0, 8)}`,
+    (agentId: string) =>
+      agentNames.get(agentId) ?? `Agent ${agentId.slice(0, 8)}`,
     [agentNames],
   );
-  const agentOptions = useMemo(() => (agents.data ?? []).map((agent) => ({
-    id: agent._id,
-    label: agent.name ?? agent.handle ?? `Agent ${agent._id.slice(0, 8)}`,
-  })), [agents.data]);
+  const agentOptions = useMemo(
+    () =>
+      (agents.data ?? []).map((agent) => ({
+        id: agent._id,
+        label: agent.name ?? agent.handle ?? `Agent ${agent._id.slice(0, 8)}`,
+      })),
+    [agents.data],
+  );
 
   if (overview.isLoading || runs.isLoading) {
     return (
@@ -93,7 +117,7 @@ export default function AutomationHistoryScreen() {
         </Text>
         <Button
           size="sm"
-          variant="outline"
+          variant="secondary"
           onPress={() => void Promise.all([overview.refetch(), runs.refetch()])}
         >
           Retry
@@ -105,8 +129,12 @@ export default function AutomationHistoryScreen() {
   if (!automation) {
     return (
       <View className="flex-1 items-center justify-center bg-background px-6 gap-3">
-        <Text className="text-sm text-muted-foreground" selectable>Automation not found.</Text>
-        <Button size="sm" variant="outline" onPress={() => router.back()}>Go back</Button>
+        <Text className="text-sm text-muted-foreground" selectable>
+          Automation not found.
+        </Text>
+        <Button size="sm" variant="secondary" onPress={() => router.back()}>
+          Go back
+        </Button>
       </View>
     );
   }
@@ -115,9 +143,14 @@ export default function AutomationHistoryScreen() {
   const displayedRuns = history.slice(0, visibleRuns);
   const saveUpdate = async (update: AutomationUpdateInput) => {
     try {
-      const result = await updateAutomation.mutateAsync({ automationId: automation.id, update });
+      const result = await updateAutomation.mutateAsync({
+        automationId: automation.id,
+        update,
+      });
       if (result.revocation?.failed) {
-        toast.error(`Saved, but ${result.revocation.failed} old authorizations could not be revoked`);
+        toast.error(
+          `Saved, but ${result.revocation.failed} old authorizations could not be revoked`,
+        );
       } else {
         toast.success('Automation updated and authority revalidated');
       }
@@ -146,7 +179,10 @@ export default function AutomationHistoryScreen() {
         <View className="gap-3">
           {/* The heading is the name; the objective (a legacy trigger's prompt) reads under it (#534). */}
           <View className="flex-row flex-wrap items-center gap-2">
-            <Text className="flex-1 text-2xl font-bold text-foreground" selectable>
+            <Text
+              className="flex-1 text-2xl font-bold text-foreground"
+              selectable
+            >
               {automationTitle(automation)}
             </Text>
             <AutomationPill
@@ -159,12 +195,16 @@ export default function AutomationHistoryScreen() {
             {!automation.legacyTriggerId ? (
               <Button
                 size="sm"
-                variant="outline"
+                variant="secondary"
                 onPress={() => setEditorOpen(true)}
                 className="ml-auto"
+                leading={
+                  <>
+                    <Pencil size={14} color={colors.foreground} />
+                  </>
+                }
               >
-                <Pencil size={14} color={colors.foreground} />
-                <Text>Edit</Text>
+                Edit
               </Button>
             ) : null}
           </View>
@@ -177,7 +217,8 @@ export default function AutomationHistoryScreen() {
             {triggerLabel(automation.trigger)}
           </Text>
           <Text className="text-sm text-muted-foreground" selectable>
-            Actors: {actorLabel(
+            Actors:{' '}
+            {actorLabel(
               automation.actorSelection,
               agentName,
               Boolean(automation.legacyTriggerId),
@@ -192,19 +233,27 @@ export default function AutomationHistoryScreen() {
 
         <View className="gap-3">
           <View className="flex-row items-center justify-between gap-3">
-            <Text className="text-lg font-semibold text-foreground">Run history</Text>
-            <Text className="text-xs text-muted-foreground" selectable>{history.length} runs</Text>
+            <Text className="text-lg font-semibold text-foreground">
+              Run history
+            </Text>
+            <Text className="text-xs text-muted-foreground" selectable>
+              {history.length} runs
+            </Text>
           </View>
-          {displayedRuns.length > 0 ? displayedRuns.map((run) => (
-            <RunCard key={run.id} run={run} agentName={agentName} />
-          )) : (
+          {displayedRuns.length > 0 ? (
+            displayedRuns.map((run) => (
+              <RunCard key={run.id} run={run} agentName={agentName} />
+            ))
+          ) : (
             <View className="rounded-2xl border border-border bg-surface p-4">
-              <Text className="text-sm text-muted-foreground" selectable>No runs recorded yet.</Text>
+              <Text className="text-sm text-muted-foreground" selectable>
+                No runs recorded yet.
+              </Text>
             </View>
           )}
           {visibleRuns < history.length ? (
             <Button
-              variant="outline"
+              variant="secondary"
               onPress={() => setVisibleRuns((count) => count + RUN_PAGE_SIZE)}
             >
               Show more

@@ -1,28 +1,27 @@
-import React, { useState, useEffect } from "react";
-import { View, Pressable } from "react-native";
-import { Text } from "@/components/ui/text";
-import { Input } from "@/components/ui/input";
-import { Dialog } from "@oxy.so/bloom/dialog";
+import { COLOR_OPTIONS, ColorPicker } from '@/components/ui/color-picker';
+import type { Folder as FolderType } from '@/lib/stores/folders-store';
+import { cn } from '@/lib/utils';
+import { Dialog } from '@oxy.so/bloom/dialog';
+import { TextFieldInput as Input } from '@oxy.so/bloom/text-field';
+import { Text } from '@oxy.so/bloom/typography';
 import {
-  Folder,
-  FolderOpen,
   Archive,
-  Inbox,
   BookMarked,
+  Folder,
   FolderClosed,
-  type LucideIcon,
-} from "lucide-react-native";
-import { cn } from "@/lib/utils";
-import { ColorPicker, COLOR_OPTIONS } from "@/components/ui/color-picker";
-import type { Folder as FolderType } from "@/lib/stores/folders-store";
+  FolderOpen,
+  Inbox,
+} from 'lucide-react-native';
+import { useEffect, useState } from 'react';
+import { Pressable, View } from 'react-native';
 
 const ICON_OPTIONS = [
-  { name: "Folder", Icon: Folder },
-  { name: "FolderOpen", Icon: FolderOpen },
-  { name: "FolderClosed", Icon: FolderClosed },
-  { name: "Archive", Icon: Archive },
-  { name: "Inbox", Icon: Inbox },
-  { name: "BookMarked", Icon: BookMarked },
+  { name: 'Folder', Icon: Folder },
+  { name: 'FolderOpen', Icon: FolderOpen },
+  { name: 'FolderClosed', Icon: FolderClosed },
+  { name: 'Archive', Icon: Archive },
+  { name: 'Inbox', Icon: Inbox },
+  { name: 'BookMarked', Icon: BookMarked },
 ];
 
 interface FolderEditDialogProps {
@@ -38,18 +37,18 @@ export const FolderEditDialog = ({
   folder,
   onSave,
 }: FolderEditDialogProps) => {
-  const [name, setName] = useState("");
-  const [selectedIcon, setSelectedIcon] = useState("Folder");
+  const [name, setName] = useState('');
+  const [selectedIcon, setSelectedIcon] = useState('Folder');
   const [selectedColor, setSelectedColor] = useState(COLOR_OPTIONS[0]);
 
   useEffect(() => {
     if (folder) {
       setName(folder.name);
-      setSelectedIcon(folder.icon || "Folder");
+      setSelectedIcon(folder.icon || 'Folder');
       setSelectedColor(folder.color || COLOR_OPTIONS[0]);
     } else {
-      setName("");
-      setSelectedIcon("Folder");
+      setName('');
+      setSelectedIcon('Folder');
       setSelectedColor(COLOR_OPTIONS[0]);
     }
   }, [folder, open]);
@@ -62,72 +61,72 @@ export const FolderEditDialog = ({
       icon: selectedIcon,
       color: selectedColor,
     });
-
   };
 
   return (
     <Dialog
       open={open}
       onClose={() => onOpenChange(false)}
-      placement={{ base: "bottom", md: "center" }}
-      title={folder ? "Edit Folder" : "New Folder"}
+      placement={{ base: 'bottom', md: 'center' }}
+      title={folder ? 'Edit Folder' : 'New Folder'}
       description={
         folder
-          ? "Update your folder details"
-          : "Create a new folder to organize your conversations"
+          ? 'Update your folder details'
+          : 'Create a new folder to organize your conversations'
       }
       actions={[
-        { label: "Cancel", color: "cancel" },
+        { label: 'Cancel', color: 'cancel' },
         {
-          label: folder ? "Save" : "Create",
+          label: folder ? 'Save' : 'Create',
           onPress: handleSave,
           disabled: !name.trim(),
         },
       ]}
     >
-        <View className="gap-4">
-          {/* Name Input */}
-          <View className="gap-2">
-            <Text className="text-sm font-medium text-foreground">Name</Text>
-            <Input
-              value={name}
-              onChangeText={setName}
-              placeholder="Folder name"
-              className="h-11"
-            />
-          </View>
-
-          {/* Icon Picker */}
-          <View className="gap-2">
-            <Text className="text-sm font-medium text-foreground">Icon</Text>
-            <View className="flex-row flex-wrap gap-2">
-              {ICON_OPTIONS.map(({ name: iconName, Icon }) => (
-                <Pressable
-                  key={iconName}
-                  onPress={() => setSelectedIcon(iconName)}
-                  className={cn(
-                    "h-12 w-12 items-center justify-center rounded-lg border-2 transition-colors",
-                    selectedIcon === iconName
-                      ? "border-primary bg-primary/10"
-                      : "border-border bg-muted active:bg-muted/70"
-                  )}
-                >
-                  <Icon
-                    size={20}
-                    className={cn(
-                      selectedIcon === iconName
-                        ? "text-primary"
-                        : "text-muted-foreground"
-                    )}
-                  />
-                </Pressable>
-              ))}
-            </View>
-          </View>
-
-          {/* Color Picker */}
-          <ColorPicker selected={selectedColor} onSelect={setSelectedColor} />
+      <View className="gap-4">
+        {/* Name Input */}
+        <View className="gap-2">
+          <Text className="text-sm font-medium text-foreground">Name</Text>
+          <Input
+            label="Folder name"
+            value={name}
+            onChangeText={setName}
+            placeholder="Folder name"
+            className="h-11"
+          />
         </View>
+
+        {/* Icon Picker */}
+        <View className="gap-2">
+          <Text className="text-sm font-medium text-foreground">Icon</Text>
+          <View className="flex-row flex-wrap gap-2">
+            {ICON_OPTIONS.map(({ name: iconName, Icon }) => (
+              <Pressable
+                key={iconName}
+                onPress={() => setSelectedIcon(iconName)}
+                className={cn(
+                  'h-12 w-12 items-center justify-center rounded-lg border-2 transition-colors',
+                  selectedIcon === iconName
+                    ? 'border-primary bg-primary/10'
+                    : 'border-border bg-muted active:bg-muted/70',
+                )}
+              >
+                <Icon
+                  size={20}
+                  className={cn(
+                    selectedIcon === iconName
+                      ? 'text-primary'
+                      : 'text-muted-foreground',
+                  )}
+                />
+              </Pressable>
+            ))}
+          </View>
+        </View>
+
+        {/* Color Picker */}
+        <ColorPicker selected={selectedColor} onSelect={setSelectedColor} />
+      </View>
     </Dialog>
   );
 };

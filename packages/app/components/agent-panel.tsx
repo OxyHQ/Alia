@@ -1,3 +1,6 @@
+import { useAiChatShell } from '@oxy.so/bloom/ai-chat';
+import { Button } from '@oxy.so/bloom/button';
+import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
 /**
  * AgentPanel — Right panel showing real-time agent activity.
  *
@@ -5,41 +8,41 @@
  * Follows the same pattern as ThoughtPanel for consistent UX.
  */
 
-import { useState, useMemo, useEffect } from "react";
-import { View, Pressable, ScrollView, Platform } from "react-native";
-import * as WebBrowser from "expo-web-browser";
-import { Text } from "@/components/ui/text";
-import {
-  X,
-  Globe,
-  FileText,
-  ChevronRight,
-  Monitor,
-  FolderOpen,
-  Loader,
-  CheckCircle2,
-  AlertCircle,
-  Search,
-  Code,
-  Eye,
-} from "lucide-react-native";
-import { useUIStore } from "@/lib/stores/ui-store";
-import { useTheme, type ThemeColors } from "@oxy.so/bloom/theme";
-import { capabilityIconForTool } from "@/lib/constants/capability-families";
+import { capabilityIconForTool } from '@/lib/constants/capability-families';
 import {
   useAgentActivity,
   type AgentActivityEvent,
   type AgentSource,
-} from "@/lib/hooks/use-agent-activity";
+} from '@/lib/hooks/use-agent-activity';
+import { useUIStore } from '@/lib/stores/ui-store';
+import { useTheme, type ThemeColors } from '@oxy.so/bloom/theme';
+import { Text } from '@oxy.so/bloom/typography';
+import * as WebBrowser from 'expo-web-browser';
+import {
+  AlertCircle,
+  CheckCircle2,
+  ChevronRight,
+  Code,
+  Eye,
+  FileText,
+  FolderOpen,
+  Globe,
+  Loader,
+  Monitor,
+  Search,
+  X,
+} from 'lucide-react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { Platform, Pressable, ScrollView, View } from 'react-native';
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
   withRepeat,
-  withTiming,
   withSequence,
-} from "react-native-reanimated";
+  withTiming,
+} from 'react-native-reanimated';
 
-type Tab = "steps" | "browser" | "files" | "sources";
+type Tab = 'steps' | 'browser' | 'files' | 'sources';
 
 function TabToggle({
   value,
@@ -51,41 +54,27 @@ function TabToggle({
   sourceCount: number;
 }) {
   const tabs: { key: Tab; label: string; badge?: number }[] = [
-    { key: "steps", label: "Steps" },
-    { key: "browser", label: "Browser" },
-    { key: "files", label: "Files" },
-    { key: "sources", label: "Sources", badge: sourceCount || undefined },
+    { key: 'steps', label: 'Steps' },
+    { key: 'browser', label: 'Browser' },
+    { key: 'files', label: 'Files' },
+    { key: 'sources', label: 'Sources', badge: sourceCount || undefined },
   ];
 
   return (
-    <View className="flex-row bg-muted rounded-lg overflow-hidden">
+    <Tabs
+      variant="pill"
+      value={value}
+      onValueChange={(next) => onChange(next as Tab)}
+    >
       {tabs.map((tab) => (
-        <Pressable
+        <TabsTrigger
           key={tab.key}
-          onPress={() => onChange(tab.key)}
-          className={`flex-1 items-center px-2 py-1.5 flex-row justify-center gap-1 ${
-            value === tab.key ? "bg-background" : ""
-          }`}
-        >
-          <Text
-            className={`text-xs font-medium ${
-              value === tab.key
-                ? "text-foreground"
-                : "text-muted-foreground"
-            }`}
-          >
-            {tab.label}
-          </Text>
-          {tab.badge ? (
-            <View className="bg-primary rounded-full px-1.5 min-w-[18px] items-center">
-              <Text className="text-[10px] text-primary-foreground font-bold">
-                {tab.badge}
-              </Text>
-            </View>
-          ) : null}
-        </Pressable>
+          value={tab.key}
+          label={tab.label}
+          count={tab.badge}
+        />
       ))}
-    </View>
+    </Tabs>
   );
 }
 
@@ -95,10 +84,10 @@ function PulsingDot({ color }: { color: string }) {
     opacity.value = withRepeat(
       withSequence(
         withTiming(0.3, { duration: 800 }),
-        withTiming(1, { duration: 800 })
+        withTiming(1, { duration: 800 }),
       ),
       -1,
-      false
+      false,
     );
   }, []);
   const style = useAnimatedStyle(() => ({ opacity: opacity.value }));
@@ -113,16 +102,16 @@ function PulsingDot({ color }: { color: string }) {
 }
 
 function getStepIcon(event: AgentActivityEvent, colors: ThemeColors) {
-  const toolName = event.metadata?.toolName || "";
+  const toolName = event.metadata?.toolName || '';
   switch (event.type) {
-    case "thinking":
+    case 'thinking':
       return <PulsingDot color="#a855f7" />;
-    case "complete":
+    case 'complete':
       return <CheckCircle2 size={14} color={colors.success} />;
-    case "error":
-    case "threat":
+    case 'error':
+    case 'threat':
       return <AlertCircle size={14} color={colors.error} />;
-    case "tool_call": {
+    case 'tool_call': {
       /**
        * The icon comes from the CAPABILITY FAMILY that grants the tool, so this
        * panel and the agent editor draw one concept one way.
@@ -138,14 +127,15 @@ function getStepIcon(event: AgentActivityEvent, colors: ThemeColors) {
       const FamilyIcon = capabilityIconForTool(toolName);
       if (FamilyIcon) return <FamilyIcon size={14} color={colors.text} />;
       // `plan` belongs to no family — it is ungranted — so it keeps its own.
-      if (toolName === "plan") return <CheckCircle2 size={14} className="text-foreground" />;
+      if (toolName === 'plan')
+        return <CheckCircle2 size={14} className="text-foreground" />;
       return <Code size={14} className="text-foreground" />;
     }
-    case "tool_result":
+    case 'tool_result':
       return <Eye size={14} className="text-muted-foreground" />;
-    case "source_found":
+    case 'source_found':
       return <Search size={14} color={colors.info} />;
-    case "response":
+    case 'response':
       return <FileText size={14} className="text-foreground" />;
     default:
       return <Globe size={14} className="text-muted-foreground" />;
@@ -153,52 +143,64 @@ function getStepIcon(event: AgentActivityEvent, colors: ThemeColors) {
 }
 
 function getStepLabel(event: AgentActivityEvent): string {
-  const toolName = event.metadata?.toolName || "";
+  const toolName = event.metadata?.toolName || '';
   switch (event.type) {
-    case "thinking":
-      return "Thinking...";
-    case "complete":
-      return "Task completed";
-    case "error":
-      return "Error occurred";
-    case "threat":
-      return event.content.slice(0, 80) || "Threat detected";
-    case "system":
+    case 'thinking':
+      return 'Thinking...';
+    case 'complete':
+      return 'Task completed';
+    case 'error':
+      return 'Error occurred';
+    case 'threat':
+      return event.content.slice(0, 80) || 'Threat detected';
+    case 'system':
       return event.content.slice(0, 60);
-    case "tool_call": {
+    case 'tool_call': {
       const args = event.metadata?.args;
-      if (toolName === "shell") return `Running: ${args?.command?.slice(0, 50) || "command"}`;
-      if (toolName === "browser") return `Browser: ${args?.action || "action"} ${args?.url?.slice(0, 30) || args?.query?.slice(0, 30) || ""}`;
-      if (toolName === "file_edit") return `${args?.action || "edit"}: ${args?.path?.slice(0, 40) || "file"}`;
-      if (toolName === "plan") return args?.action === "complete" ? "Completing task" : "Updating plan";
-      if (toolName === "delegate") return `Hiring @${args?.agent || "agent"}`;
+      if (toolName === 'shell')
+        return `Running: ${args?.command?.slice(0, 50) || 'command'}`;
+      if (toolName === 'browser')
+        return `Browser: ${args?.action || 'action'} ${args?.url?.slice(0, 30) || args?.query?.slice(0, 30) || ''}`;
+      if (toolName === 'file_edit')
+        return `${args?.action || 'edit'}: ${args?.path?.slice(0, 40) || 'file'}`;
+      if (toolName === 'plan')
+        return args?.action === 'complete'
+          ? 'Completing task'
+          : 'Updating plan';
+      if (toolName === 'delegate') return `Hiring @${args?.agent || 'agent'}`;
       return `${toolName}(${event.content.slice(0, 40)})`;
     }
-    case "tool_result":
-      return event.content.slice(0, 80) || "Result received";
-    case "source_found":
-      return `Found: ${event.metadata?.title || event.metadata?.url || "source"}`;
-    case "response":
+    case 'tool_result':
+      return event.content.slice(0, 80) || 'Result received';
+    case 'source_found':
+      return `Found: ${event.metadata?.title || event.metadata?.url || 'source'}`;
+    case 'response':
       return event.content.slice(0, 80);
     default:
       return event.content.slice(0, 60);
   }
 }
 
-function StepsTab({ events, isActive }: { events: AgentActivityEvent[]; isActive: boolean }) {
+function StepsTab({
+  events,
+  isActive,
+}: {
+  events: AgentActivityEvent[];
+  isActive: boolean;
+}) {
   const { colors } = useTheme();
   // Filter to meaningful events (skip system noise)
   const steps = useMemo(() => {
     return events.filter(
       (e) =>
-        e.type === "tool_call" ||
-        e.type === "tool_result" ||
-        e.type === "error" ||
-        e.type === "threat" ||
-        e.type === "complete" ||
-        e.type === "thinking" ||
-        e.type === "source_found" ||
-        e.type === "response"
+        e.type === 'tool_call' ||
+        e.type === 'tool_result' ||
+        e.type === 'error' ||
+        e.type === 'threat' ||
+        e.type === 'complete' ||
+        e.type === 'thinking' ||
+        e.type === 'source_found' ||
+        e.type === 'response',
     );
   }, [events]);
 
@@ -234,7 +236,7 @@ function StepsTab({ events, isActive }: { events: AgentActivityEvent[]; isActive
                 className="items-center justify-center"
                 style={{ width: 20, height: 20 }}
               >
-                {isStepActive && step.type === "tool_call" ? (
+                {isStepActive && step.type === 'tool_call' ? (
                   <PulsingDot color={colors.warning} />
                 ) : (
                   getStepIcon(step, colors)
@@ -252,13 +254,13 @@ function StepsTab({ events, isActive }: { events: AgentActivityEvent[]; isActive
             <View className="flex-1 pl-2 pb-3" style={{ paddingTop: 12 }}>
               <Text
                 className={`text-sm ${
-                  step.type === "complete"
-                    ? "text-green-500 font-medium"
-                    : step.type === "error" || step.type === "threat"
-                    ? "text-red-400"
-                    : isStepActive
-                    ? "text-foreground font-medium"
-                    : "text-muted-foreground"
+                  step.type === 'complete'
+                    ? 'text-green-500 font-medium'
+                    : step.type === 'error' || step.type === 'threat'
+                      ? 'text-red-400'
+                      : isStepActive
+                        ? 'text-foreground font-medium'
+                        : 'text-muted-foreground'
                 }`}
                 numberOfLines={2}
               >
@@ -272,7 +274,11 @@ function StepsTab({ events, isActive }: { events: AgentActivityEvent[]; isActive
   );
 }
 
-function BrowserTab({ screenshots }: { screenshots: Array<{ base64: string; url: string; timestamp: number }> }) {
+function BrowserTab({
+  screenshots,
+}: {
+  screenshots: Array<{ base64: string; url: string; timestamp: number }>;
+}) {
   if (screenshots.length === 0) {
     return (
       <View className="items-center justify-center py-8">
@@ -292,13 +298,16 @@ function BrowserTab({ screenshots }: { screenshots: Array<{ base64: string; url:
       <View className="rounded-lg overflow-hidden border border-border">
         <View className="bg-muted px-2 py-1 flex-row items-center gap-1">
           <Globe size={10} className="text-muted-foreground" />
-          <Text className="text-[10px] text-muted-foreground flex-1" numberOfLines={1}>
+          <Text
+            className="text-[10px] text-muted-foreground flex-1"
+            numberOfLines={1}
+          >
             {latest.url}
           </Text>
         </View>
         <Animated.Image
           source={{ uri: `data:image/png;base64,${latest.base64}` }}
-          style={{ width: "100%", height: 200 }}
+          style={{ width: '100%', height: 200 }}
           resizeMode="cover"
         />
       </View>
@@ -377,8 +386,8 @@ function SourcesTab({ sources }: { sources: AgentSource[] }) {
         <Pressable
           key={`${source.url}-${index}`}
           onPress={() => {
-            if (Platform.OS === "web") {
-              window.open(source.url, "_blank", "noopener,noreferrer");
+            if (Platform.OS === 'web') {
+              window.open(source.url, '_blank', 'noopener,noreferrer');
             } else {
               WebBrowser.openBrowserAsync(source.url);
             }
@@ -387,10 +396,7 @@ function SourcesTab({ sources }: { sources: AgentSource[] }) {
         >
           <View className="flex-row items-center gap-2 mb-1">
             <Globe size={12} className="text-muted-foreground" />
-            <Text
-              className="text-xs text-muted-foreground"
-              numberOfLines={1}
-            >
+            <Text className="text-xs text-muted-foreground" numberOfLines={1}>
               {source.domain}
             </Text>
             <View className="flex-1" />
@@ -417,8 +423,9 @@ function SourcesTab({ sources }: { sources: AgentSource[] }) {
 }
 
 export function AgentPanel() {
+  const shell = useAiChatShell();
   const { colors } = useTheme();
-  const [activeTab, setActiveTab] = useState<Tab>("steps");
+  const [activeTab, setActiveTab] = useState<Tab>('steps');
   const setRightPanel = useUIStore((s) => s.setRightPanel);
   const activeAgentSessionId = useUIStore((s) => s.activeAgentSessionId);
   const activeAgentId = useUIStore((s) => s.activeAgentId);
@@ -427,9 +434,35 @@ export function AgentPanel() {
   const isActive = !activity.isComplete && !activity.hasError;
 
   return (
-    <View className="flex-1 bg-background">
+    <View style={{ flex: 1, minHeight: 0, gap: 10, paddingTop: 8 }}>
+      <View
+        style={{
+          height: 30,
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+        }}
+      >
+        <View style={{ flexShrink: 1, minWidth: 0 }}>
+          <TabToggle
+            value={activeTab}
+            onChange={setActiveTab}
+            sourceCount={activity.sources.length}
+          />
+        </View>
+        {!shell?.compact && (
+          <Button
+            appearance="plain"
+            tone="neutral"
+            size="xs"
+            accessibilityLabel="Close agent panel"
+            onPress={() => setRightPanel(null)}
+            icon={<X size={16} color={colors.textSecondary} />}
+          />
+        )}
+      </View>
       {/* Header */}
-      <View className="flex-row items-center justify-between px-4 py-3 border-b border-border">
+      <View className="flex-row items-center px-4 py-1">
         <View className="flex-row items-center gap-2">
           {isActive ? (
             <PulsingDot color={colors.info} />
@@ -440,18 +473,12 @@ export function AgentPanel() {
           ) : null}
           <Text className="text-base font-semibold text-foreground">
             {activity.isComplete
-              ? "Task Complete"
+              ? 'Task Complete'
               : activity.hasError
-              ? "Task Failed"
-              : "Agent Working"}
+                ? 'Task Failed'
+                : 'Agent Working'}
           </Text>
         </View>
-        <Pressable
-          className="p-1 rounded-lg active:opacity-70"
-          onPress={() => setRightPanel(null)}
-        >
-          <X size={20} className="text-muted-foreground" />
-        </Pressable>
       </View>
 
       {/* Plan progress bar */}
@@ -463,7 +490,7 @@ export function AgentPanel() {
             </Text>
             <Text className="text-xs text-muted-foreground">
               {Math.round(
-                (activity.plan.completed / activity.plan.total) * 100
+                (activity.plan.completed / activity.plan.total) * 100,
               )}
               %
             </Text>
@@ -473,7 +500,7 @@ export function AgentPanel() {
               className="h-1.5 bg-primary rounded-full"
               style={{
                 width: `${Math.round(
-                  (activity.plan.completed / activity.plan.total) * 100
+                  (activity.plan.completed / activity.plan.total) * 100,
                 )}%`,
               }}
             />
@@ -488,17 +515,28 @@ export function AgentPanel() {
             Approval required
           </Text>
           <Text className="text-xs text-foreground mb-2">
-            {activity.approvalRequest.toolName}: {activity.approvalRequest.description}
+            {activity.approvalRequest.toolName}:{' '}
+            {activity.approvalRequest.description}
           </Text>
           <View className="flex-row gap-2">
             <Pressable
-              onPress={() => activity.respondApproval(activity.approvalRequest!.requestId, false)}
+              onPress={() =>
+                activity.respondApproval(
+                  activity.approvalRequest!.requestId,
+                  false,
+                )
+              }
               className="px-3 py-1.5 rounded-lg border border-border bg-background"
             >
               <Text className="text-xs text-foreground">Deny</Text>
             </Pressable>
             <Pressable
-              onPress={() => activity.respondApproval(activity.approvalRequest!.requestId, true)}
+              onPress={() =>
+                activity.respondApproval(
+                  activity.approvalRequest!.requestId,
+                  true,
+                )
+              }
               className="px-3 py-1.5 rounded-lg bg-yellow-600"
             >
               <Text className="text-xs text-white">Approve</Text>
@@ -507,25 +545,13 @@ export function AgentPanel() {
         </View>
       )}
 
-      {/* Tab Toggle */}
-      <View className="px-4 py-3">
-        <TabToggle
-          value={activeTab}
-          onChange={setActiveTab}
-          sourceCount={activity.sources.length}
-        />
-      </View>
-
       {/* Content */}
-      <ScrollView
-        className="flex-1 px-4"
-        showsVerticalScrollIndicator={false}
-      >
-        {activeTab === "steps" ? (
+      <ScrollView className="flex-1 px-4" showsVerticalScrollIndicator={false}>
+        {activeTab === 'steps' ? (
           <StepsTab events={activity.events} isActive={isActive} />
-        ) : activeTab === "browser" ? (
+        ) : activeTab === 'browser' ? (
           <BrowserTab screenshots={activity.screenshots} />
-        ) : activeTab === "files" ? (
+        ) : activeTab === 'files' ? (
           <FilesTab files={activity.files} />
         ) : (
           <SourcesTab sources={activity.sources} />
@@ -544,9 +570,9 @@ export function AgentPanel() {
             >
               <Text className="font-semibold">
                 {activity.currentAction.toolName}
-              </Text>{" "}
+              </Text>{' '}
               {activity.currentAction.content.length > 60
-                ? activity.currentAction.content.slice(0, 60) + "..."
+                ? activity.currentAction.content.slice(0, 60) + '...'
                 : activity.currentAction.content}
             </Text>
           </View>

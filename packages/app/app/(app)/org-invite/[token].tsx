@@ -1,22 +1,29 @@
-import React, { useState } from 'react';
-import { errorMessage } from "@/lib/errors/error-utils";
-import { View } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import Head from 'expo-router/head';
-import { Users, ArrowRight, LogIn, AlertCircle } from 'lucide-react-native';
-import { useAuth } from '@oxy.so/services';
 import { AuthContainer } from '@/components/auth/auth-container';
 import { AuthLogo } from '@/components/auth/auth-logo';
-import { Text } from '@/components/ui/text';
-import { Button } from '@/components/ui/button';
-import { useOrgInviteInfo, useAcceptOrgInvite } from '@/lib/hooks/use-organization-invites';
-import { ContentPanel } from "@oxy.so/bloom/content-panel";
+import { errorMessage } from '@/lib/errors/error-utils';
+import {
+  useAcceptOrgInvite,
+  useOrgInviteInfo,
+} from '@/lib/hooks/use-organization-invites';
+import { Button } from '@oxy.so/bloom/button';
+import { ContentPanel } from '@oxy.so/bloom/content-panel';
+import { Text } from '@oxy.so/bloom/typography';
+import { useAuth } from '@oxy.so/services';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import Head from 'expo-router/head';
+import { AlertCircle, ArrowRight, LogIn, Users } from 'lucide-react-native';
+import React, { useState } from 'react';
+import { View } from 'react-native';
 
 export default function OrgInviteScreen() {
   const { token } = useLocalSearchParams<{ token: string }>();
   const router = useRouter();
   const { isAuthenticated, isLoading: authLoading, signIn } = useAuth();
-  const { data: inviteData, isLoading: infoLoading, error: infoError } = useOrgInviteInfo(token || '');
+  const {
+    data: inviteData,
+    isLoading: infoLoading,
+    error: infoError,
+  } = useOrgInviteInfo(token || '');
   const acceptMutation = useAcceptOrgInvite();
   const [accepted, setAccepted] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -61,18 +68,19 @@ export default function OrgInviteScreen() {
               Invite not found
             </Text>
             <Text className="text-base text-muted-foreground text-center">
-              This invitation link is invalid, expired, or has already been used.
+              This invitation link is invalid, expired, or has already been
+              used.
             </Text>
             <Button
               onPress={() => router.replace('/(app)')}
               className="w-full h-12 rounded-full"
+              leading={
+                <>
+                  <ArrowRight size={18} className="text-primary-foreground" />
+                </>
+              }
             >
-              <View className="flex-row items-center gap-2">
-                <Text className="text-base font-semibold text-primary-foreground">
-                  Go to Alia
-                </Text>
-                <ArrowRight size={18} className="text-primary-foreground" />
-              </View>
+              Go to Alia
             </Button>
           </View>
         </AuthContainer>
@@ -86,7 +94,10 @@ export default function OrgInviteScreen() {
       <>
         <Head>
           <title>Join {orgName} - Alia</title>
-          <meta name="description" content={`Join ${orgName} on Alia as a ${role}.`} />
+          <meta
+            name="description"
+            content={`Join ${orgName} on Alia as a ${role}.`}
+          />
         </Head>
         <AuthContainer>
           <View className="items-center gap-6">
@@ -105,13 +116,16 @@ export default function OrgInviteScreen() {
                 <Button
                   onPress={() => router.replace('/(app)')}
                   className="w-full h-12 rounded-full"
+                  leading={
+                    <>
+                      <ArrowRight
+                        size={18}
+                        className="text-primary-foreground"
+                      />
+                    </>
+                  }
                 >
-                  <View className="flex-row items-center gap-2">
-                    <Text className="text-base font-semibold text-primary-foreground">
-                      Continue
-                    </Text>
-                    <ArrowRight size={18} className="text-primary-foreground" />
-                  </View>
+                  Continue
                 </Button>
               </>
             ) : error ? (
@@ -125,13 +139,16 @@ export default function OrgInviteScreen() {
                 <Button
                   onPress={() => router.replace('/(app)')}
                   className="w-full h-12 rounded-full"
+                  leading={
+                    <>
+                      <ArrowRight
+                        size={18}
+                        className="text-primary-foreground"
+                      />
+                    </>
+                  }
                 >
-                  <View className="flex-row items-center gap-2">
-                    <Text className="text-base font-semibold text-primary-foreground">
-                      Go to Alia
-                    </Text>
-                    <ArrowRight size={18} className="text-primary-foreground" />
-                  </View>
+                  Go to Alia
                 </Button>
               </>
             ) : (
@@ -146,13 +163,13 @@ export default function OrgInviteScreen() {
                   onPress={handleAccept}
                   disabled={acceptMutation.isPending}
                   className="w-full h-12 rounded-full"
+                  leading={
+                    <>
+                      <Users size={18} className="text-primary-foreground" />
+                    </>
+                  }
                 >
-                  <View className="flex-row items-center gap-2">
-                    <Users size={18} className="text-primary-foreground" />
-                    <Text className="text-base font-semibold text-primary-foreground">
-                      {acceptMutation.isPending ? 'Joining...' : 'Accept & Join'}
-                    </Text>
-                  </View>
+                  {acceptMutation.isPending ? 'Joining...' : 'Accept & Join'}
                 </Button>
               </>
             )}
@@ -168,7 +185,10 @@ export default function OrgInviteScreen() {
       <>
         <Head>
           <title>Join {orgName} - Alia</title>
-          <meta name="description" content={`Sign in to join ${orgName} on Alia.`} />
+          <meta
+            name="description"
+            content={`Sign in to join ${orgName} on Alia.`}
+          />
         </Head>
         <AuthContainer>
           <View className="items-center gap-6">
@@ -187,26 +207,26 @@ export default function OrgInviteScreen() {
               <Button
                 onPress={() => signIn().catch(() => {})}
                 className="w-full h-12 rounded-full"
+                leading={
+                  <>
+                    <Users size={18} className="text-primary-foreground" />
+                  </>
+                }
               >
-                <View className="flex-row items-center gap-2">
-                  <Text className="text-base font-semibold text-primary-foreground">
-                    Sign up & join
-                  </Text>
-                  <Users size={18} className="text-primary-foreground" />
-                </View>
+                Sign up & join
               </Button>
 
               <Button
-                variant="outline"
+                variant="secondary"
                 onPress={() => signIn().catch(() => {})}
                 className="w-full h-12 rounded-full"
+                leading={
+                  <>
+                    <LogIn size={18} className="text-foreground" />
+                  </>
+                }
               >
-                <View className="flex-row items-center gap-2">
-                  <LogIn size={18} className="text-foreground" />
-                  <Text className="text-base font-medium text-foreground">
-                    Already have an account? Sign in
-                  </Text>
-                </View>
+                Already have an account? Sign in
               </Button>
             </View>
           </View>

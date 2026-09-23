@@ -1,16 +1,14 @@
-import React, { useMemo } from "react";
 import {
-  View,
-  Pressable,
-  ScrollView,
-} from "react-native";
-import { useIsLargeScreen } from "@/lib/hooks/use-is-large-screen";
-import { Text } from "@/components/ui/text";
-import { useColorScheme } from "@/lib/useColorScheme";
-import { withAlpha } from "@oxy.so/bloom/theme";
-import { useActivityGrid, type ActivityGridDay } from "@/lib/hooks/use-activity-grid";
-import { toast } from "@oxy.so/bloom/toast";
-
+  useActivityGrid,
+  type ActivityGridDay,
+} from '@/lib/hooks/use-activity-grid';
+import { useIsLargeScreen } from '@/lib/hooks/use-is-large-screen';
+import { useColorScheme } from '@/lib/useColorScheme';
+import { withAlpha } from '@oxy.so/bloom/theme';
+import { toast } from '@oxy.so/bloom/toast';
+import { Text } from '@oxy.so/bloom/typography';
+import { useMemo } from 'react';
+import { Pressable, ScrollView, View } from 'react-native';
 const CELL_SIZE = 11;
 const CELL_GAP = 2;
 const LABEL_WIDTH = 26;

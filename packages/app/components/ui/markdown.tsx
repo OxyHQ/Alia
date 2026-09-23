@@ -1,29 +1,27 @@
-import React, { useMemo } from "react";
-import { Platform, Pressable, View } from "react-native";
-import * as WebBrowser from "expo-web-browser";
-import { AliaMarkdown } from '@alia.onl/sdk';
-import { fontFamilies } from "@oxy.so/bloom/fonts";
-import { useColorScheme } from "@/lib/useColorScheme";
-import { Text } from "@/components/ui/text";
-import { useTranslation } from "@/lib/hooks/use-translation";
 import {
   extractCitationSources,
   linkifyCitations,
   splitReferences,
   type CitationSource,
   type ReferenceEntry,
-} from "@/lib/citations";
-import type { ToolInvocation } from "@/lib/types/messages";
-
+} from '@/lib/citations';
+import { useTranslation } from '@/lib/hooks/use-translation';
+import type { ToolInvocation } from '@/lib/types/messages';
+import { useColorScheme } from '@/lib/useColorScheme';
+import { AliaMarkdown } from '@alia.onl/sdk';
+import { fontFamilies } from '@oxy.so/bloom/fonts';
+import { Text } from '@oxy.so/bloom/typography';
+import * as WebBrowser from 'expo-web-browser';
+import { useMemo } from 'react';
+import { Platform, Pressable, View } from 'react-native';
 import {
-  CompactList,
   Banner,
+  CompactList,
   Comparison,
-  Timeline,
-  RichImage,
   Credibility,
-} from "./rich-blocks";
-
+  RichImage,
+  Timeline,
+} from './rich-blocks';
 /**
  * The body face for `AliaMarkdown`, which cannot inherit one on native.
  *

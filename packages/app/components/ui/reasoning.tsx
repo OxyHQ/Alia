@@ -1,3 +1,10 @@
+import { useColorScheme } from '@/lib/useColorScheme';
+import { cn } from '@/lib/utils';
+import { AliaMarkdown } from '@alia.onl/sdk';
+import { withAlpha } from '@oxy.so/bloom/theme';
+import { Text } from '@oxy.so/bloom/typography';
+import * as Collapsible from '@rn-primitives/collapsible';
+import { Brain, ChevronDown, ChevronRight } from 'lucide-react-native';
 import React, {
   createContext,
   useContext,
@@ -5,25 +12,17 @@ import React, {
   useMemo,
   useRef,
   useState,
-} from "react";
-import { View, Pressable } from "react-native";
-import { Text } from "@/components/ui/text";
-import { AliaMarkdown } from '@alia.onl/sdk';
-import { MARKDOWN_BODY_FONT } from './markdown';
-import { withAlpha } from "@oxy.so/bloom/theme";
-import { useColorScheme } from "@/lib/useColorScheme";
-import * as Collapsible from "@rn-primitives/collapsible";
-import { Brain, ChevronDown, ChevronRight } from "lucide-react-native";
-import { cn } from "@/lib/utils";
+} from 'react';
+import { Pressable, View } from 'react-native';
 import Animated, {
+  cancelAnimation,
   useAnimatedStyle,
   useSharedValue,
   withRepeat,
-  withTiming,
   withSequence,
-  cancelAnimation,
-} from "react-native-reanimated";
-
+  withTiming,
+} from 'react-native-reanimated';
+import { MARKDOWN_BODY_FONT } from './markdown';
 // Context for sharing state between Reasoning components
 type ReasoningContextType = {
   isStreaming: boolean;

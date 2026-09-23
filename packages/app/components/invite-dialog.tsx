@@ -1,16 +1,35 @@
-import React from "react";
-import { errorMessage } from "@/lib/errors/error-utils";
-import { View, Pressable, ScrollView, Linking, Share, TextInput, ActivityIndicator } from "react-native";
-import { HeartHandshake, Copy, Send, Check, AlertCircle } from "lucide-react-native";
-import Fontisto from "@expo/vector-icons/Fontisto";
-import * as Clipboard from "expo-clipboard";
-import { Text } from "@/components/ui/text";
-import { Button } from "@/components/ui/button";
-import { Dialog } from "@oxy.so/bloom/dialog";
-import { useReferralInfo, useRedeemInviteCode, useReferralHistory } from "@/lib/hooks/use-referrals";
-import { useTheme } from "@oxy.so/bloom/theme";
+import { errorMessage } from '@/lib/errors/error-utils';
+import {
+  useRedeemInviteCode,
+  useReferralHistory,
+  useReferralInfo,
+} from '@/lib/hooks/use-referrals';
+import Fontisto from '@expo/vector-icons/Fontisto';
+import { Button } from '@oxy.so/bloom/button';
+import { Dialog } from '@oxy.so/bloom/dialog';
+import { useTheme } from '@oxy.so/bloom/theme';
+import { Text } from '@oxy.so/bloom/typography';
+import * as Clipboard from 'expo-clipboard';
+import {
+  AlertCircle,
+  Check,
+  Copy,
+  HeartHandshake,
+  Send,
+} from 'lucide-react-native';
+import React from 'react';
+import {
+  ActivityIndicator,
+  Linking,
+  Pressable,
+  ScrollView,
+  Share,
+  TextInput,
+  View,
+} from 'react-native';
 
-const SHARE_TEXT = "Check out Alia — sign up with my link and we both get 500 credits!";
+const SHARE_TEXT =
+  'Check out Alia — sign up with my link and we both get 500 credits!';
 
 interface InviteDialogProps {
   open: boolean;
@@ -21,7 +40,7 @@ const SocialButton = React.memo(function SocialButton({
   iconName,
   onPress,
 }: {
-  iconName: React.ComponentProps<typeof Fontisto>["name"];
+  iconName: React.ComponentProps<typeof Fontisto>['name'];
   onPress: () => void;
 }) {
   return (
@@ -38,13 +57,18 @@ export function InviteDialog({ open, onOpenChange }: InviteDialogProps) {
   const { colors } = useTheme();
   const { data: referralInfo } = useReferralInfo();
   const [copied, setCopied] = React.useState(false);
-  const [activeSection, setActiveSection] = React.useState<'redeem' | 'history' | null>(null);
+  const [activeSection, setActiveSection] = React.useState<
+    'redeem' | 'history' | null
+  >(null);
   const [redeemCode, setRedeemCode] = React.useState('');
-  const [redeemResult, setRedeemResult] = React.useState<{ success: boolean; message: string } | null>(null);
+  const [redeemResult, setRedeemResult] = React.useState<{
+    success: boolean;
+    message: string;
+  } | null>(null);
   const redeemMutation = useRedeemInviteCode();
   const { data: historyData, isLoading: historyLoading } = useReferralHistory();
 
-  const inviteUrl = referralInfo?.inviteUrl || "";
+  const inviteUrl = referralInfo?.inviteUrl || '';
 
   // Reset state when dialog closes
   React.useEffect(() => {
@@ -60,11 +84,17 @@ export function InviteDialog({ open, onOpenChange }: InviteDialogProps) {
     setRedeemResult(null);
     redeemMutation.mutate(redeemCode.trim(), {
       onSuccess: (data) => {
-        setRedeemResult({ success: true, message: `You got ${data.creditsAwarded} credits!` });
+        setRedeemResult({
+          success: true,
+          message: `You got ${data.creditsAwarded} credits!`,
+        });
         setRedeemCode('');
       },
       onError: (err: any) => {
-        setRedeemResult({ success: false, message: errorMessage(err, 'Invalid invite code') });
+        setRedeemResult({
+          success: false,
+          message: errorMessage(err, 'Invalid invite code'),
+        });
       },
     });
   }, [redeemCode, redeemMutation]);
@@ -78,43 +108,43 @@ export function InviteDialog({ open, onOpenChange }: InviteDialogProps) {
 
   const handleShareFacebook = React.useCallback(() => {
     Linking.openURL(
-      `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(inviteUrl)}`
+      `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(inviteUrl)}`,
     );
   }, [inviteUrl]);
 
   const handleShareX = React.useCallback(() => {
     Linking.openURL(
-      `https://twitter.com/intent/tweet?text=${encodeURIComponent(SHARE_TEXT)}&url=${encodeURIComponent(inviteUrl)}`
+      `https://twitter.com/intent/tweet?text=${encodeURIComponent(SHARE_TEXT)}&url=${encodeURIComponent(inviteUrl)}`,
     );
   }, [inviteUrl]);
 
   const handleShareLinkedIn = React.useCallback(() => {
     Linking.openURL(
-      `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(inviteUrl)}`
+      `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(inviteUrl)}`,
     );
   }, [inviteUrl]);
 
   const handleShareReddit = React.useCallback(() => {
     Linking.openURL(
-      `https://reddit.com/submit?url=${encodeURIComponent(inviteUrl)}&title=${encodeURIComponent(SHARE_TEXT)}`
+      `https://reddit.com/submit?url=${encodeURIComponent(inviteUrl)}&title=${encodeURIComponent(SHARE_TEXT)}`,
     );
   }, [inviteUrl]);
 
   const handleShareWhatsApp = React.useCallback(() => {
     Linking.openURL(
-      `https://wa.me/?text=${encodeURIComponent(`${SHARE_TEXT}\n${inviteUrl}`)}`
+      `https://wa.me/?text=${encodeURIComponent(`${SHARE_TEXT}\n${inviteUrl}`)}`,
     );
   }, [inviteUrl]);
 
   const handleShareTelegram = React.useCallback(() => {
     Linking.openURL(
-      `https://t.me/share/url?url=${encodeURIComponent(inviteUrl)}&text=${encodeURIComponent(SHARE_TEXT)}`
+      `https://t.me/share/url?url=${encodeURIComponent(inviteUrl)}&text=${encodeURIComponent(SHARE_TEXT)}`,
     );
   }, [inviteUrl]);
 
   const handleSharePinterest = React.useCallback(() => {
     Linking.openURL(
-      `https://pinterest.com/pin/create/button/?url=${encodeURIComponent(inviteUrl)}&description=${encodeURIComponent(SHARE_TEXT)}`
+      `https://pinterest.com/pin/create/button/?url=${encodeURIComponent(inviteUrl)}&description=${encodeURIComponent(SHARE_TEXT)}`,
     );
   }, [inviteUrl]);
 
@@ -129,175 +159,198 @@ export function InviteDialog({ open, onOpenChange }: InviteDialogProps) {
     <Dialog
       open={open}
       onClose={() => onOpenChange(false)}
-      placement={{ base: "bottom", md: "center" }}
+      placement={{ base: 'bottom', md: 'center' }}
       title="Invite to get credits"
       description="Share your invitation link with friends, get 500 credits each."
       // The body owns its own ScrollView.
       scrollable={false}
     >
-        <ScrollView showsVerticalScrollIndicator={false}>
-          {/* Header Icon */}
-          <View className="items-center mb-4">
-            <View className="h-16 w-16 items-center justify-center rounded-full bg-primary/10">
-              <HeartHandshake size={32} className="text-primary" />
-            </View>
+      <ScrollView showsVerticalScrollIndicator={false}>
+        {/* Header Icon */}
+        <View className="items-center mb-4">
+          <View className="h-16 w-16 items-center justify-center rounded-full bg-primary/10">
+            <HeartHandshake size={32} className="text-primary" />
           </View>
+        </View>
 
-          {/* Share Link */}
-          <View className="gap-2 mb-4">
-            <Text className="text-sm font-medium text-foreground">
-              Share invitation link
+        {/* Share Link */}
+        <View className="gap-2 mb-4">
+          <Text className="text-sm font-medium text-foreground">
+            Share invitation link
+          </Text>
+          <View className="flex-row items-center gap-2 rounded-full border border-input bg-muted/30 pl-4 pr-1.5 h-11">
+            <Text
+              className="flex-1 text-sm text-muted-foreground"
+              numberOfLines={1}
+            >
+              {inviteUrl || 'Loading...'}
             </Text>
-            <View className="flex-row items-center gap-2 rounded-full border border-input bg-muted/30 pl-4 pr-1.5 h-11">
-              <Text
-                className="flex-1 text-sm text-muted-foreground"
-                numberOfLines={1}
-              >
-                {inviteUrl || "Loading..."}
+            <Pressable
+              onPress={handleCopy}
+              className="flex-row items-center gap-1.5 py-1.5 px-2.5 rounded-full bg-background border border-border active:bg-muted"
+            >
+              <Copy size={14} className="text-foreground" />
+              <Text className="text-sm font-medium text-foreground">
+                {copied ? 'Copied!' : 'Copy'}
               </Text>
-              <Pressable
-                onPress={handleCopy}
-                className="flex-row items-center gap-1.5 py-1.5 px-2.5 rounded-full bg-background border border-border active:bg-muted"
-              >
-                <Copy size={14} className="text-foreground" />
-                <Text className="text-sm font-medium text-foreground">
-                  {copied ? "Copied!" : "Copy"}
-                </Text>
-              </Pressable>
-            </View>
+            </Pressable>
           </View>
+        </View>
 
-          {/* Social Sharing */}
-          <View className="flex-row flex-wrap justify-center gap-3 mb-4">
-            <SocialButton iconName="facebook" onPress={handleShareFacebook} />
-            <SocialButton iconName="twitter" onPress={handleShareX} />
-            <SocialButton iconName="linkedin" onPress={handleShareLinkedIn} />
-            <SocialButton iconName="reddit" onPress={handleShareReddit} />
-            <SocialButton iconName="whatsapp" onPress={handleShareWhatsApp} />
-            <SocialButton iconName="telegram" onPress={handleShareTelegram} />
-            <SocialButton iconName="pinterest" onPress={handleSharePinterest} />
-          </View>
+        {/* Social Sharing */}
+        <View className="flex-row flex-wrap justify-center gap-3 mb-4">
+          <SocialButton iconName="facebook" onPress={handleShareFacebook} />
+          <SocialButton iconName="twitter" onPress={handleShareX} />
+          <SocialButton iconName="linkedin" onPress={handleShareLinkedIn} />
+          <SocialButton iconName="reddit" onPress={handleShareReddit} />
+          <SocialButton iconName="whatsapp" onPress={handleShareWhatsApp} />
+          <SocialButton iconName="telegram" onPress={handleShareTelegram} />
+          <SocialButton iconName="pinterest" onPress={handleSharePinterest} />
+        </View>
 
-          {/* Share */}
-          <Button onPress={handleShare} className="h-11 rounded-full mb-4">
-            <View className="flex-row items-center gap-1.5">
+        {/* Share */}
+        <Button
+          onPress={handleShare}
+          className="h-11 rounded-full mb-4"
+          leading={
+            <>
               <Send size={14} className="text-primary-foreground" />
-              <Text className="text-sm font-medium text-primary-foreground">
-                Share invite link
-              </Text>
-            </View>
-          </Button>
+            </>
+          }
+        >
+          Share invite link
+        </Button>
 
-          {/* Stats Card */}
-          <View className="flex-row rounded-xl bg-muted/50 border border-border p-4 mb-4">
-            <View className="flex-1">
-              <Text className="text-2xl font-bold text-foreground">
-                {referralInfo?.totalCreditsEarned ?? 0}
-              </Text>
-              <Text className="text-xs text-muted-foreground">Credits</Text>
-            </View>
-            <View className="flex-1">
-              <Text className="text-2xl font-bold text-foreground">
-                {referralInfo?.totalReferrals ?? 0}
-              </Text>
-              <Text className="text-xs text-muted-foreground">Referrals</Text>
-            </View>
+        {/* Stats Card */}
+        <View className="flex-row rounded-xl bg-muted/50 border border-border p-4 mb-4">
+          <View className="flex-1">
+            <Text className="text-2xl font-bold text-foreground">
+              {referralInfo?.totalCreditsEarned ?? 0}
+            </Text>
+            <Text className="text-xs text-muted-foreground">Credits</Text>
           </View>
-
-          {/* Footer Links */}
-          <View className="flex-row items-center justify-center gap-4 mb-4">
-            <Pressable
-              className="active:opacity-70"
-              onPress={() => setActiveSection(activeSection === 'redeem' ? null : 'redeem')}
-            >
-              <Text className={`text-sm ${activeSection === 'redeem' ? 'text-primary font-medium' : 'text-muted-foreground'}`}>
-                Redeem
-              </Text>
-            </Pressable>
-            <View className="h-4 w-px bg-border" />
-            <Pressable
-              className="active:opacity-70"
-              onPress={() => setActiveSection(activeSection === 'history' ? null : 'history')}
-            >
-              <Text className={`text-sm ${activeSection === 'history' ? 'text-primary font-medium' : 'text-muted-foreground'}`}>
-                Invitation history
-              </Text>
-            </Pressable>
+          <View className="flex-1">
+            <Text className="text-2xl font-bold text-foreground">
+              {referralInfo?.totalReferrals ?? 0}
+            </Text>
+            <Text className="text-xs text-muted-foreground">Referrals</Text>
           </View>
+        </View>
 
-          {/* Redeem Section */}
-          {activeSection === 'redeem' && (
-            <View className="gap-3 rounded-xl border border-border bg-muted/30 p-4">
-              <Text className="text-sm font-medium text-foreground">Redeem invite code</Text>
-              <View className="flex-row items-center gap-2">
-                <TextInput
-                  value={redeemCode}
-                  onChangeText={setRedeemCode}
-                  placeholder="Enter invite code"
-                  placeholderTextColor={colors.textSecondary}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  className="flex-1 h-11 rounded-full border border-input bg-background px-4 text-sm text-foreground"
-                />
-                <Button
-                  onPress={handleRedeem}
-                  disabled={redeemMutation.isPending || !redeemCode.trim()}
-                  className="h-11 rounded-full px-5"
+        {/* Footer Links */}
+        <View className="flex-row items-center justify-center gap-4 mb-4">
+          <Pressable
+            className="active:opacity-70"
+            onPress={() =>
+              setActiveSection(activeSection === 'redeem' ? null : 'redeem')
+            }
+          >
+            <Text
+              className={`text-sm ${activeSection === 'redeem' ? 'text-primary font-medium' : 'text-muted-foreground'}`}
+            >
+              Redeem
+            </Text>
+          </Pressable>
+          <View className="h-4 w-px bg-border" />
+          <Pressable
+            className="active:opacity-70"
+            onPress={() =>
+              setActiveSection(activeSection === 'history' ? null : 'history')
+            }
+          >
+            <Text
+              className={`text-sm ${activeSection === 'history' ? 'text-primary font-medium' : 'text-muted-foreground'}`}
+            >
+              Invitation history
+            </Text>
+          </Pressable>
+        </View>
+
+        {/* Redeem Section */}
+        {activeSection === 'redeem' && (
+          <View className="gap-3 rounded-xl border border-border bg-muted/30 p-4">
+            <Text className="text-sm font-medium text-foreground">
+              Redeem invite code
+            </Text>
+            <View className="flex-row items-center gap-2">
+              <TextInput
+                value={redeemCode}
+                onChangeText={setRedeemCode}
+                placeholder="Enter invite code"
+                placeholderTextColor={colors.textSecondary}
+                autoCapitalize="none"
+                autoCorrect={false}
+                className="flex-1 h-11 rounded-full border border-input bg-background px-4 text-sm text-foreground"
+              />
+              <Button
+                onPress={handleRedeem}
+                disabled={redeemMutation.isPending || !redeemCode.trim()}
+                className="h-11 rounded-full px-5"
+              >
+                {redeemMutation.isPending ? 'Redeeming...' : 'Redeem'}
+              </Button>
+            </View>
+            {redeemResult && (
+              <View
+                className={`flex-row items-center gap-2 rounded-lg p-3 ${redeemResult.success ? 'bg-green-500/10' : 'bg-destructive/10'}`}
+              >
+                {redeemResult.success ? (
+                  <Check size={16} className="text-green-600" />
+                ) : (
+                  <AlertCircle size={16} className="text-destructive" />
+                )}
+                <Text
+                  className={`text-sm ${redeemResult.success ? 'text-green-600' : 'text-destructive'}`}
                 >
-                  <Text className="text-sm font-medium text-primary-foreground">
-                    {redeemMutation.isPending ? 'Redeeming...' : 'Redeem'}
-                  </Text>
-                </Button>
-              </View>
-              {redeemResult && (
-                <View className={`flex-row items-center gap-2 rounded-lg p-3 ${redeemResult.success ? 'bg-green-500/10' : 'bg-destructive/10'}`}>
-                  {redeemResult.success ? (
-                    <Check size={16} className="text-green-600" />
-                  ) : (
-                    <AlertCircle size={16} className="text-destructive" />
-                  )}
-                  <Text className={`text-sm ${redeemResult.success ? 'text-green-600' : 'text-destructive'}`}>
-                    {redeemResult.message}
-                  </Text>
-                </View>
-              )}
-            </View>
-          )}
-
-          {/* History Section */}
-          {activeSection === 'history' && (
-            <View className="gap-3 rounded-xl border border-border bg-muted/30 p-4">
-              <Text className="text-sm font-medium text-foreground">Invitation history</Text>
-              {historyLoading ? (
-                <View className="items-center py-4">
-                  <ActivityIndicator size="small" />
-                </View>
-              ) : !historyData?.referrals?.length ? (
-                <Text className="text-sm text-muted-foreground text-center py-4">
-                  No referrals yet
+                  {redeemResult.message}
                 </Text>
-              ) : (
-                <View className="gap-2">
-                  {historyData.referrals.map((referral, index) => (
-                    <View key={index} className="flex-row items-center justify-between rounded-lg bg-background/50 p-3">
-                      <View className="flex-1">
-                        <Text className="text-sm text-foreground" numberOfLines={1}>
-                          {referral.email || 'User'}
-                        </Text>
-                        <Text className="text-xs text-muted-foreground">
-                          {new Date(referral.creditedAt).toLocaleDateString()}
-                        </Text>
-                      </View>
-                      <Text className="text-sm font-medium text-primary">
-                        +{referral.creditsAwarded}
+              </View>
+            )}
+          </View>
+        )}
+
+        {/* History Section */}
+        {activeSection === 'history' && (
+          <View className="gap-3 rounded-xl border border-border bg-muted/30 p-4">
+            <Text className="text-sm font-medium text-foreground">
+              Invitation history
+            </Text>
+            {historyLoading ? (
+              <View className="items-center py-4">
+                <ActivityIndicator size="small" />
+              </View>
+            ) : !historyData?.referrals?.length ? (
+              <Text className="text-sm text-muted-foreground text-center py-4">
+                No referrals yet
+              </Text>
+            ) : (
+              <View className="gap-2">
+                {historyData.referrals.map((referral, index) => (
+                  <View
+                    key={index}
+                    className="flex-row items-center justify-between rounded-lg bg-background/50 p-3"
+                  >
+                    <View className="flex-1">
+                      <Text
+                        className="text-sm text-foreground"
+                        numberOfLines={1}
+                      >
+                        {referral.email || 'User'}
+                      </Text>
+                      <Text className="text-xs text-muted-foreground">
+                        {new Date(referral.creditedAt).toLocaleDateString()}
                       </Text>
                     </View>
-                  ))}
-                </View>
-              )}
-            </View>
-          )}
-        </ScrollView>
+                    <Text className="text-sm font-medium text-primary">
+                      +{referral.creditsAwarded}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            )}
+          </View>
+        )}
+      </ScrollView>
     </Dialog>
   );
 }

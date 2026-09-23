@@ -1,17 +1,33 @@
-import { View, TextInput } from "react-native";
-import * as Linking from "expo-linking";
-import { Text } from "@/components/ui/text";
-import { Button } from "@/components/ui/button";
-import { useRouter } from "expo-router";
-import { CreditCard, ExternalLink, Sparkle, Crown, Calendar, ShoppingCart } from "lucide-react-native";
-import { useCredits } from "@/lib/hooks/use-credits";
-import { useSubscription, useSubscriptionPolling, useCancelSubscription, useCreatePortalSession, useTransactions, useCreditPackages, useCreateCheckout, useCreateCustomCheckout, useCreditPrice } from "@/lib/hooks/use-billing";
-import { useEffect, useState, useRef } from "react";
-import { toast } from "@oxy.so/bloom/toast";
-import { useTranslation } from "@/lib/hooks/use-translation";
+import {
+  useCancelSubscription,
+  useCreateCheckout,
+  useCreateCustomCheckout,
+  useCreatePortalSession,
+  useCreditPackages,
+  useCreditPrice,
+  useSubscription,
+  useSubscriptionPolling,
+  useTransactions,
+} from '@/lib/hooks/use-billing';
+import { useCredits } from '@/lib/hooks/use-credits';
+import { useTranslation } from '@/lib/hooks/use-translation';
+import { Button, Button as SettingsActionButton } from '@oxy.so/bloom/button';
+import {
+  SettingsCard,
+  SettingsRow,
+  SettingsSection,
+  SettingsValueField,
+} from '@oxy.so/bloom/settings-modal';
+import { TextFieldInput } from '@oxy.so/bloom/text-field';
+import { useTheme } from '@oxy.so/bloom/theme';
+import { toast } from '@oxy.so/bloom/toast';
+import { Text } from '@oxy.so/bloom/typography';
+import * as Linking from 'expo-linking';
+import { useRouter } from 'expo-router';
+import { ExternalLink } from 'lucide-react-native';
+import { useEffect, useRef, useState } from 'react';
+import { View } from 'react-native';
 import { errorMessage as getErrorMessage } from '../../lib/errors/error-utils';
-import { useTheme } from "@oxy.so/bloom/theme";
-import { SettingsListGroup, SettingsListItem } from "@oxy.so/bloom/settings-list";
 
 /** Left padding that lines an icon-less row up with the rows that have one. */
 const ITEM_TEXT_INSET = 44;
@@ -23,8 +39,10 @@ interface BillingSectionProps {
 export function BillingSection({ success }: BillingSectionProps) {
   const router = useRouter();
   const { data: creditsInfo, isLoading, refetch } = useCredits();
-  const { data: subscription, refetch: refetchSubscription } = useSubscription();
-  const { data: transactionsData, refetch: refetchTransactions } = useTransactions(10, 0);
+  const { data: subscription, refetch: refetchSubscription } =
+    useSubscription();
+  const { data: transactionsData, refetch: refetchTransactions } =
+    useTransactions(10, 0);
   const { data: packages = [] } = useCreditPackages();
   const { data: creditPrice } = useCreditPrice();
   const cancelSubscriptionMutation = useCancelSubscription();
@@ -45,13 +63,17 @@ export function BillingSection({ success }: BillingSectionProps) {
   useEffect(() => {
     if (!success || toastShown.current) return;
 
-    if (polledSubscription && (polledSubscription.status === 'active' || polledSubscription.status === 'trialing')) {
+    if (
+      polledSubscription &&
+      (polledSubscription.status === 'active' ||
+        polledSubscription.status === 'trialing')
+    ) {
       toastShown.current = true;
       refetch();
       refetchSubscription();
       refetchTransactions();
       toast.success(t('billing.paymentSuccess'));
-      setTimeout(() => router.replace("/(app)/settings/usage"), 100);
+      setTimeout(() => router.replace('/(app)/settings/usage'), 100);
     }
   }, [success, polledSubscription]);
 
@@ -66,7 +88,7 @@ export function BillingSection({ success }: BillingSectionProps) {
         refetchSubscription();
         refetchTransactions();
         toast.success(t('billing.paymentSuccess'));
-        setTimeout(() => router.replace("/(app)/settings/usage"), 100);
+        setTimeout(() => router.replace('/(app)/settings/usage'), 100);
       }
     }, 32000);
     return () => clearTimeout(timeout);
@@ -77,13 +99,17 @@ export function BillingSection({ success }: BillingSectionProps) {
       await cancelSubscriptionMutation.mutateAsync();
       toast.success(t('billing.cancelSubscriptionSuccess'));
     } catch (error: unknown) {
-      toast.error(getErrorMessage(error) || t('billing.failedCancelSubscription'));
+      toast.error(
+        getErrorMessage(error) || t('billing.failedCancelSubscription'),
+      );
     }
   };
 
   const handleManagePayment = async () => {
     try {
-      const url = await createPortalMutation.mutateAsync(Linking.createURL("/settings/usage"));
+      const url = await createPortalMutation.mutateAsync(
+        Linking.createURL('/settings/usage'),
+      );
       if (url) {
         await Linking.openURL(url);
       }
@@ -93,14 +119,16 @@ export function BillingSection({ success }: BillingSectionProps) {
   };
 
   const isSubscribed = subscription && subscription.status === 'active';
-  const freeCredits = creditsInfo ? creditsInfo.credits - creditsInfo.paidCredits : 0;
+  const freeCredits = creditsInfo
+    ? creditsInfo.credits - creditsInfo.paidCredits
+    : 0;
 
   const handlePurchaseCredits = async (packageId: string) => {
     try {
       const { url } = await createCheckoutMutation.mutateAsync({
         packageId,
-        successUrl: Linking.createURL("/settings/usage?success=true"),
-        cancelUrl: Linking.createURL("/settings/usage"),
+        successUrl: Linking.createURL('/settings/usage?success=true'),
+        cancelUrl: Linking.createURL('/settings/usage'),
       });
       if (url) {
         await Linking.openURL(url);
@@ -125,8 +153,8 @@ export function BillingSection({ success }: BillingSectionProps) {
     try {
       const { url } = await createCustomCheckoutMutation.mutateAsync({
         credits: parsedCustomCredits,
-        successUrl: Linking.createURL("/settings/usage?success=true"),
-        cancelUrl: Linking.createURL("/settings/usage"),
+        successUrl: Linking.createURL('/settings/usage?success=true'),
+        cancelUrl: Linking.createURL('/settings/usage'),
       });
       if (url) {
         await Linking.openURL(url);
@@ -140,7 +168,9 @@ export function BillingSection({ success }: BillingSectionProps) {
   if (isLoading) {
     return (
       <View className="py-6">
-        <Text className="text-sm text-muted-foreground">{t('common.loading')}</Text>
+        <Text className="text-sm text-muted-foreground">
+          {t('common.loading')}
+        </Text>
       </View>
     );
   }
@@ -148,149 +178,202 @@ export function BillingSection({ success }: BillingSectionProps) {
   if (!creditsInfo) {
     return (
       <View className="py-6">
-        <Text className="text-sm text-muted-foreground">{t('billing.failedToLoad')}</Text>
+        <Text className="text-sm text-muted-foreground">
+          {t('billing.failedToLoad')}
+        </Text>
       </View>
     );
   }
 
   return (
     <View>
-      <SettingsListGroup title={t('credits.credits')}>
-        <SettingsListItem
-          icon={<Sparkle size={18} color={colors.textSecondary} />}
-          title={t('credits.freeCredits')}
-          value={`${freeCredits.toLocaleString()} / ${creditsInfo.freeLimit.toLocaleString()}`}
-        />
-        {creditsInfo.paidCredits > 0 ? (
-          <SettingsListItem
-            title={t('credits.paidCredits')}
-            value={creditsInfo.paidCredits.toLocaleString()}
-            leftInset={ITEM_TEXT_INSET}
-          />
-        ) : null}
-        {creditsInfo.dailyRefresh > 0 ? (
-          <SettingsListItem
-            icon={<Calendar size={18} color={colors.textSecondary} />}
-            title={t('credits.dailyRefresh')}
-            value={`+${creditsInfo.dailyRefresh}`}
-          />
-        ) : null}
-        {!isSubscribed ? (
-          <SettingsListItem
-            title={t('credits.upgrade')}
-            onPress={() => router.push("/(biglayout)/subscribe")}
-            leftInset={ITEM_TEXT_INSET}
-          />
-        ) : null}
-      </SettingsListGroup>
+      <SettingsSection label={t('credits.credits')}>
+        <SettingsCard>
+          <SettingsRow label={t('credits.freeCredits')}>
+            <SettingsValueField>{`${freeCredits.toLocaleString()} / ${creditsInfo.freeLimit.toLocaleString()}`}</SettingsValueField>
+          </SettingsRow>
+          {creditsInfo.paidCredits > 0 ? (
+            <SettingsRow label={t('credits.paidCredits')}>
+              <SettingsValueField>
+                {creditsInfo.paidCredits.toLocaleString()}
+              </SettingsValueField>
+            </SettingsRow>
+          ) : null}
+          {creditsInfo.dailyRefresh > 0 ? (
+            <SettingsRow label={t('credits.dailyRefresh')}>
+              <SettingsValueField>{`+${creditsInfo.dailyRefresh}`}</SettingsValueField>
+            </SettingsRow>
+          ) : null}
+          {!isSubscribed ? (
+            <SettingsRow label={t('credits.upgrade')}>
+              <SettingsActionButton
+                variant="secondary"
+                size="sm"
+                onPress={() => router.push('/(biglayout)/subscribe')}
+              >
+                {t('credits.upgrade')}
+              </SettingsActionButton>
+            </SettingsRow>
+          ) : null}
+        </SettingsCard>
+      </SettingsSection>
 
       {isSubscribed ? (
-        <SettingsListGroup
-          title={t('billing.activeSubscription')}
-          footer={
+        <SettingsSection
+          label={t('billing.activeSubscription')}
+          description={
             subscription.cancelAtPeriodEnd
-              ? t('billing.cancelsOn', { date: new Date(subscription.currentPeriodEnd).toLocaleDateString() })
-              : t('billing.renewsOn', { date: new Date(subscription.currentPeriodEnd).toLocaleDateString() })
+              ? t('billing.cancelsOn', {
+                  date: new Date(
+                    subscription.currentPeriodEnd,
+                  ).toLocaleDateString(),
+                })
+              : t('billing.renewsOn', {
+                  date: new Date(
+                    subscription.currentPeriodEnd,
+                  ).toLocaleDateString(),
+                })
           }
         >
-          <SettingsListItem
-            icon={<Crown size={18} color={colors.textSecondary} />}
-            title={subscription.plan.name}
-            description={t('billing.creditsPerMonth', { count: subscription.plan.creditsPerMonth.toLocaleString() })}
-            value={`$${(subscription.plan.price / 100).toFixed(2)}${t('credits.perMonth')}`}
-          />
-          {/*
-            * A complimentary plan is not billed and has no Stripe object behind
-            * it, so both management actions are refused by the API with a 400.
-            * They are not offered rather than offered-and-failing.
-            */}
-          {subscription.isComped ? null : (
-            <SettingsListItem
-              title={t('billing.changePlan')}
-              onPress={() => router.push("/(biglayout)/subscribe")}
-              leftInset={ITEM_TEXT_INSET}
-            />
-          )}
-          {!subscription.isComped && !subscription.cancelAtPeriodEnd ? (
-            <SettingsListItem
-              title={cancelSubscriptionMutation.isPending ? t('billing.canceling') : t('billing.cancelSubscription')}
-              onPress={handleCancelSubscription}
-              disabled={cancelSubscriptionMutation.isPending}
-              destructive
-              showChevron={false}
-              leftInset={ITEM_TEXT_INSET}
-            />
-          ) : null}
-        </SettingsListGroup>
+          <SettingsCard>
+            <SettingsRow
+              label={subscription.plan.name}
+              description={t('billing.creditsPerMonth', {
+                count: subscription.plan.creditsPerMonth.toLocaleString(),
+              })}
+            >
+              <SettingsValueField>{`$${(subscription.plan.price / 100).toFixed(2)}${t('credits.perMonth')}`}</SettingsValueField>
+            </SettingsRow>
+            {/*
+             * A complimentary plan is not billed and has no Stripe object behind
+             * it, so both management actions are refused by the API with a 400.
+             * They are not offered rather than offered-and-failing.
+             */}
+            {subscription.isComped ? null : (
+              <SettingsRow label={t('billing.changePlan')}>
+                <SettingsActionButton
+                  variant="secondary"
+                  size="sm"
+                  onPress={() => router.push('/(biglayout)/subscribe')}
+                >
+                  {t('billing.changePlan')}
+                </SettingsActionButton>
+              </SettingsRow>
+            )}
+            {!subscription.isComped && !subscription.cancelAtPeriodEnd ? (
+              <SettingsRow
+                label={
+                  cancelSubscriptionMutation.isPending
+                    ? t('billing.canceling')
+                    : t('billing.cancelSubscription')
+                }
+              >
+                <SettingsActionButton
+                  variant="secondary"
+                  size="sm"
+                  disabled={cancelSubscriptionMutation.isPending}
+                  tone="danger"
+                  onPress={handleCancelSubscription}
+                >
+                  {cancelSubscriptionMutation.isPending
+                    ? t('billing.canceling')
+                    : t('billing.cancelSubscription')}
+                </SettingsActionButton>
+              </SettingsRow>
+            ) : null}
+          </SettingsCard>
+        </SettingsSection>
       ) : null}
 
       {packages.length > 0 ? (
-        <SettingsListGroup title={t('credits.buyCredits')}>
-          {packages.map((pkg) => (
-            <SettingsListItem
-              key={pkg.id}
-              icon={<ShoppingCart size={18} color={colors.textSecondary} />}
-              title={pkg.name}
-              description={t('credits.perThousand', { price: `$${((pkg.price / pkg.credits) * 1000 / 100).toFixed(2)}` })}
-              value={`$${(pkg.price / 100).toFixed(2)}`}
-              onPress={() => handlePurchaseCredits(pkg.id)}
-              disabled={createCheckoutMutation.isPending}
-            />
-          ))}
-          <SettingsListItem
-            title={t('billing.customAmount')}
-            leftInset={ITEM_TEXT_INSET}
-            rightElement={
+        <SettingsSection label={t('credits.buyCredits')}>
+          <SettingsCard>
+            {packages.map((pkg) => (
+              <SettingsRow
+                key={pkg.id}
+                label={pkg.name}
+                description={t('credits.perThousand', {
+                  price: `$${(((pkg.price / pkg.credits) * 1000) / 100).toFixed(2)}`,
+                })}
+              >
+                <SettingsActionButton
+                  variant="secondary"
+                  size="sm"
+                  disabled={createCheckoutMutation.isPending}
+                  onPress={() => handlePurchaseCredits(pkg.id)}
+                >
+                  <SettingsValueField>{`$${(pkg.price / 100).toFixed(2)}`}</SettingsValueField>
+                </SettingsActionButton>
+              </SettingsRow>
+            ))}
+            <SettingsRow label={t('billing.customAmount')}>
               <View className="flex-row items-center gap-2">
-                <TextInput
+                <TextFieldInput
+                  label={t('billing.customAmountPlaceholder')}
                   value={customCredits}
-                  onChangeText={(text) => setCustomCredits(text.replace(/[^0-9]/g, ''))}
+                  onChangeText={(text) =>
+                    setCustomCredits(text.replace(/[^0-9]/g, ''))
+                  }
                   placeholder={t('billing.customAmountPlaceholder')}
                   keyboardType="number-pad"
                   className="w-28 py-1.5 px-3 rounded-lg border border-border bg-background text-sm text-foreground"
                   placeholderTextColor={colors.textSecondary}
                 />
                 <Button
-                  variant="outline"
+                  variant="secondary"
                   onPress={handleCustomPurchase}
-                  disabled={!canBuyCustom || createCustomCheckoutMutation.isPending}
+                  disabled={
+                    !canBuyCustom || createCustomCheckoutMutation.isPending
+                  }
                   size="sm"
                   className="rounded-full h-8 px-3"
-                  isLoading={createCustomCheckoutMutation.isPending}
+                  loading={createCustomCheckoutMutation.isPending}
                 >
-                  <Text className="text-foreground font-medium text-xs">
-                    {customPriceCents > 0 ? `$${(customPriceCents / 100).toFixed(2)}` : t('billing.buy')}
-                  </Text>
+                  {customPriceCents > 0
+                    ? `$${(customPriceCents / 100).toFixed(2)}`
+                    : t('billing.buy')}
                 </Button>
               </View>
-            }
-          />
-        </SettingsListGroup>
+            </SettingsRow>
+          </SettingsCard>
+        </SettingsSection>
       ) : null}
 
-      <SettingsListGroup title={t('billing.paymentMethods')}>
-        <SettingsListItem
-          icon={<CreditCard size={18} color={colors.textSecondary} />}
-          title={createPortalMutation.isPending ? t('common.loading') : t('billing.managePaymentMethods')}
-          onPress={handleManagePayment}
-          disabled={createPortalMutation.isPending}
-          showChevron={false}
-          rightElement={<ExternalLink size={14} color={colors.textTertiary} />}
-        />
-      </SettingsListGroup>
+      <SettingsSection label={t('billing.paymentMethods')}>
+        <SettingsCard>
+          <SettingsRow
+            label={
+              createPortalMutation.isPending
+                ? t('common.loading')
+                : t('billing.managePaymentMethods')
+            }
+          >
+            <SettingsActionButton
+              variant="secondary"
+              size="sm"
+              disabled={createPortalMutation.isPending}
+              onPress={handleManagePayment}
+            >
+              <ExternalLink size={14} color={colors.textTertiary} />
+            </SettingsActionButton>
+          </SettingsRow>
+        </SettingsCard>
+      </SettingsSection>
 
       {transactionsData && transactionsData.transactions.length > 0 ? (
-        <SettingsListGroup title={t('billing.recentTransactions')}>
-          {transactionsData.transactions.map((transaction) => (
-            <SettingsListItem
-              key={transaction._id}
-              title={transaction.description || transaction.type}
-              description={`${new Date(transaction.createdAt).toLocaleDateString()} · $${(transaction.amount / 100).toFixed(2)}`}
-              value={`+${transaction.credits.toLocaleString()}`}
-              leftInset={ITEM_TEXT_INSET}
-            />
-          ))}
-        </SettingsListGroup>
+        <SettingsSection label={t('billing.recentTransactions')}>
+          <SettingsCard>
+            {transactionsData.transactions.map((transaction) => (
+              <SettingsRow
+                key={transaction._id}
+                label={transaction.description || transaction.type}
+                description={`${new Date(transaction.createdAt).toLocaleDateString()} · $${(transaction.amount / 100).toFixed(2)}`}
+              >
+                <SettingsValueField>{`+${transaction.credits.toLocaleString()}`}</SettingsValueField>
+              </SettingsRow>
+            ))}
+          </SettingsCard>
+        </SettingsSection>
       ) : null}
     </View>
   );

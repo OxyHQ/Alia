@@ -1,8 +1,7 @@
+import { cn } from '@/lib/utils';
+import { Text } from '@oxy.so/bloom/typography';
 import * as React from 'react';
 import { Pressable, View } from 'react-native';
-import { cn } from '@/lib/utils';
-import { Text } from './text';
-
 interface ToggleGroupProps {
   type: 'single' | 'multiple';
   value?: string | string[];

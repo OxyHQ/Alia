@@ -1,21 +1,22 @@
-import React, { useEffect, useState, useMemo, useCallback } from 'react';
-import { View, ScrollView, Pressable, RefreshControl } from 'react-native';
-import { FlashList } from '@shopify/flash-list';
-import { Search } from '@oxy.so/bloom/search';
-import { Text } from '@/components/ui/text';
-import { Button } from '@/components/ui/button';
-import { Plus } from 'lucide-react-native';
-import * as DropdownMenu from '@/components/ui/dropdown-menu';
-import { useLibraryStore, FileCategory } from '@/lib/stores/library-store';
-import { useImagePicker } from '@/lib/hooks/use-image-picker';
-import { useDocumentPicker } from '@/lib/hooks/use-document-picker';
 import { FileCard } from '@/components/file-card';
-import { cn } from '@/lib/utils';
-import { toast } from '@oxy.so/bloom/toast';
-import { useTranslation } from '@/lib/hooks/use-translation';
-import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { DrawerToggle } from '@/components/ui/drawer-toggle';
-import { ContentPanel } from "@oxy.so/bloom/content-panel";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@oxy.so/bloom/dropdown-menu';
+import { RiFileTextLine, RiImageLine } from '@oxy.so/bloom/icons';
+import { useDocumentPicker } from '@/lib/hooks/use-document-picker';
+import { useImagePicker } from '@/lib/hooks/use-image-picker';
+import { useTranslation } from '@/lib/hooks/use-translation';
+import { useLibraryStore } from '@/lib/stores/library-store';
+import { cn } from '@/lib/utils';
+import { Button } from '@oxy.so/bloom/button';
+import { ContentPanel } from '@oxy.so/bloom/content-panel';
+import { Search } from '@oxy.so/bloom/search';
+import * as Skeleton from '@oxy.so/bloom/skeleton';
+import { toast } from '@oxy.so/bloom/toast';
+import { Text } from '@oxy.so/bloom/typography';
+import { FlashList } from '@shopify/flash-list';
+import { Plus } from 'lucide-react-native';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
 
 export default function LibraryScreen() {
   const files = useLibraryStore((state) => state.files);
@@ -42,29 +43,35 @@ export default function LibraryScreen() {
     setRefreshing(false);
   }, [loadFiles]);
 
-  const categories = useMemo(() => [
-    { value: null, label: t('common.all') },
-    { value: 'documents', label: t('library.documents') },
-    { value: 'images', label: t('library.images') },
-    { value: 'other', label: t('library.other') },
-  ], [t]);
+  const categories = useMemo(
+    () => [
+      { value: null, label: t('common.all') },
+      { value: 'documents', label: t('library.documents') },
+      { value: 'images', label: t('library.images') },
+      { value: 'other', label: t('library.other') },
+    ],
+    [t],
+  );
 
   const filteredFiles = useMemo(() => {
     let filtered = files;
 
     if (selectedCategory) {
-      filtered = filtered.filter(file => file.category === selectedCategory);
+      filtered = filtered.filter((file) => file.category === selectedCategory);
     }
 
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(file =>
-        file.name.toLowerCase().includes(query) ||
-        file.type.toLowerCase().includes(query)
+      filtered = filtered.filter(
+        (file) =>
+          file.name.toLowerCase().includes(query) ||
+          file.type.toLowerCase().includes(query),
       );
     }
 
-    return filtered.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    return filtered.sort(
+      (a, b) => b.createdAt.getTime() - a.createdAt.getTime(),
+    );
   }, [files, searchQuery, selectedCategory]);
 
   const handleUploadImage = async () => {
@@ -105,143 +112,175 @@ export default function LibraryScreen() {
     }
   };
 
-  const handleDeleteFile = useCallback(async (fileId: string) => {
-    try {
-      await deleteFile(fileId);
-      toast.success(t('library.fileDeleted'));
-    } catch (error) {
-      toast.error(t('library.failedDeleteFile'));
-    }
-  }, [deleteFile, t]);
+  const handleDeleteFile = useCallback(
+    async (fileId: string) => {
+      try {
+        await deleteFile(fileId);
+        toast.success(t('library.fileDeleted'));
+      } catch (error) {
+        toast.error(t('library.failedDeleteFile'));
+      }
+    },
+    [deleteFile, t],
+  );
 
-  const renderItem = useCallback(({ item: file }: { item: typeof filteredFiles[0] }) => (
-    <FileCard
-      file={file}
-      onDelete={(f) => handleDeleteFile(f._id)}
-    />
-  ), [handleDeleteFile]);
+  const renderItem = useCallback(
+    ({ item: file }: { item: (typeof filteredFiles)[0] }) => (
+      <FileCard file={file} onDelete={(f) => handleDeleteFile(f._id)} />
+    ),
+    [handleDeleteFile],
+  );
 
-  const listHeader = useMemo(() => (
-    <>
-      {/* Header */}
-      <View className="px-5 pt-6 pb-1">
-        <View className="flex-row items-center justify-between">
-          {/* The drawer opener sits first: below `md` this header is the only
+  const listHeader = useMemo(
+    () => (
+      <>
+        {/* Header */}
+        <View className="px-5 pt-6 pb-1">
+          <View className="flex-row items-center justify-between">
+            {/* The drawer opener sits first: below `md` this header is the only
               thing on screen, and without it the sidebar was reachable only by
               a swipe nobody is told about (#532). */}
-          <View className="flex-row items-center gap-2">
-            <DrawerToggle />
-            <Text className="text-2xl font-bold text-foreground">
-              {t('library.title')}
-            </Text>
+            <View className="flex-row items-center gap-2">
+              <DrawerToggle />
+              <Text className="text-2xl font-bold text-foreground">
+                {t('library.title')}
+              </Text>
+            </View>
+            <DropdownMenu>
+              <DropdownMenuTrigger label="Actions" asChild>
+                {/* A bare "+" has no name a screen reader can say (#536). */}
+                <Button
+                  size="icon"
+                  className="rounded-full h-8 w-8"
+                  accessibilityRole="button"
+                  accessibilityLabel={t('library.addFiles')}
+                  icon={
+                    <>
+                      <Plus size={16} className="text-primary-foreground" />
+                    </>
+                  }
+                />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                <DropdownMenuItem key="photos" onPress={handleUploadImage} leading={<RiImageLine size="sm" />}>
+
+                    {t('library.addImages')}
+
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  key="document"
+                  onPress={handleUploadDocument}
+                 leading={<RiFileTextLine size="sm" />}>
+
+                    {t('library.uploadFiles')}
+
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </View>
-          <DropdownMenu.Root>
-            <DropdownMenu.Trigger>
-              {/* A bare "+" has no name a screen reader can say (#536). */}
-              <Button
-                size="icon"
-                className="rounded-full h-8 w-8"
-                accessibilityRole="button"
-                accessibilityLabel={t('library.addFiles')}
-              >
-                <Plus size={16} className="text-primary-foreground" />
-              </Button>
-            </DropdownMenu.Trigger>
-            <DropdownMenu.Content>
-              <DropdownMenu.Item key="photos" onSelect={handleUploadImage}>
-                <DropdownMenu.ItemIcon ios={{ name: "photo" }} />
-                <DropdownMenu.ItemTitle>{t('library.addImages')}</DropdownMenu.ItemTitle>
-              </DropdownMenu.Item>
-              <DropdownMenu.Item key="document" onSelect={handleUploadDocument}>
-                <DropdownMenu.ItemIcon ios={{ name: "doc" }} />
-                <DropdownMenu.ItemTitle>{t('library.uploadFiles')}</DropdownMenu.ItemTitle>
-              </DropdownMenu.Item>
-            </DropdownMenu.Content>
-          </DropdownMenu.Root>
+          <Text className="text-[13px] text-muted-foreground mt-0.5">
+            {t('library.subtitle')}
+          </Text>
         </View>
-        <Text className="text-[13px] text-muted-foreground mt-0.5">
-          {t('library.subtitle')}
-        </Text>
-      </View>
 
-      {/* Search */}
-      <View className="px-5 pt-3 pb-2">
-        <Search
-          label={t('library.searchPlaceholder')}
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-          onClearText={() => setSearchQuery('')}
-        />
-      </View>
+        {/* Search */}
+        <View className="px-5 pt-3 pb-2">
+          <Search
+            label={t('library.searchPlaceholder')}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            onClearText={() => setSearchQuery('')}
+          />
+        </View>
 
-      {/* Category Chips */}
-      <View className="py-2">
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ paddingHorizontal: 20 }}
-        >
-          <View className="flex-row gap-1.5">
-            {categories.map((category) => {
-              const isActive = selectedCategory === category.value ||
-                (!selectedCategory && category.value === null);
-              return (
-                <Pressable
-                  key={category.label}
-                  onPress={() => setSelectedCategory(category.value)}
-                  className="active:opacity-70"
-                >
-                  <View className={cn(
-                    "px-3 py-1 rounded-full",
-                    isActive ? "bg-foreground" : "bg-muted/70"
-                  )}>
-                    <Text className={cn(
-                      "text-xs font-medium",
-                      isActive ? "text-background" : "text-muted-foreground"
-                    )}>
-                      {category.label}
-                    </Text>
-                  </View>
-                </Pressable>
-              );
-            })}
-          </View>
-        </ScrollView>
-      </View>
+        {/* Category Chips */}
+        <View className="py-2">
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ paddingHorizontal: 20 }}
+          >
+            <View className="flex-row gap-1.5">
+              {categories.map((category) => {
+                const isActive =
+                  selectedCategory === category.value ||
+                  (!selectedCategory && category.value === null);
+                return (
+                  <Pressable
+                    key={category.label}
+                    onPress={() => setSelectedCategory(category.value)}
+                    className="active:opacity-70"
+                  >
+                    <View
+                      className={cn(
+                        'px-3 py-1 rounded-full',
+                        isActive ? 'bg-foreground' : 'bg-muted/70',
+                      )}
+                    >
+                      <Text
+                        className={cn(
+                          'text-xs font-medium',
+                          isActive
+                            ? 'text-background'
+                            : 'text-muted-foreground',
+                        )}
+                      >
+                        {category.label}
+                      </Text>
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </ScrollView>
+        </View>
 
-      {/* Section Title */}
-      <View className="px-5">
-        {(searchQuery || selectedCategory) ? (
-          <View className="mb-2">
-            <Text className="text-[11px] font-semibold text-muted-foreground tracking-wider uppercase">
-              {filteredFiles.length} {filteredFiles.length === 1 ? 'file' : 'files'}
-            </Text>
-          </View>
-        ) : (
-          <View className="mb-2">
-            <Text className="text-[11px] font-semibold text-muted-foreground tracking-wider uppercase">
-              {t('common.all')}
-            </Text>
+        {/* Section Title */}
+        <View className="px-5">
+          {searchQuery || selectedCategory ? (
+            <View className="mb-2">
+              <Text className="text-[11px] font-semibold text-muted-foreground tracking-wider uppercase">
+                {filteredFiles.length}{' '}
+                {filteredFiles.length === 1 ? 'file' : 'files'}
+              </Text>
+            </View>
+          ) : (
+            <View className="mb-2">
+              <Text className="text-[11px] font-semibold text-muted-foreground tracking-wider uppercase">
+                {t('common.all')}
+              </Text>
+            </View>
+          )}
+        </View>
+
+        {/* Skeleton when loading */}
+        {loading && files.length === 0 && (
+          <View className="px-5 gap-1">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <View key={i} className="flex-row items-center gap-3 py-2.5">
+                <Skeleton.Box width={36} height={36} borderRadius={8} />
+                <View className="flex-1 gap-1.5">
+                  <Skeleton.Box width="60%" height={12} borderRadius={6} />
+                  <Skeleton.Box width="35%" height={10} borderRadius={6} />
+                </View>
+              </View>
+            ))}
           </View>
         )}
-      </View>
-
-      {/* Skeleton when loading */}
-      {loading && files.length === 0 && (
-        <View className="px-5 gap-1">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <View key={i} className="flex-row items-center gap-3 py-2.5">
-              <Skeleton.Box width={36} height={36} borderRadius={8} />
-              <View className="flex-1 gap-1.5">
-                <Skeleton.Box width="60%" height={12} borderRadius={6} />
-                <Skeleton.Box width="35%" height={10} borderRadius={6} />
-              </View>
-            </View>
-          ))}
-        </View>
-      )}
-    </>
-  ), [t, searchQuery, selectedCategory, categories, filteredFiles, loading, files, handleUploadImage, handleUploadDocument]);
+      </>
+    ),
+    [
+      t,
+      searchQuery,
+      selectedCategory,
+      categories,
+      filteredFiles,
+      loading,
+      files,
+      handleUploadImage,
+      handleUploadDocument,
+    ],
+  );
 
   const listEmpty = useMemo(() => {
     if (loading) return null;
@@ -269,7 +308,9 @@ export default function LibraryScreen() {
           ListEmptyComponent={listEmpty}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 24 }}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
         />
       </View>
     </ContentPanel>

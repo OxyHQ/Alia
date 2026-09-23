@@ -1,8 +1,7 @@
-import React from "react";
-import { View, Pressable } from "react-native";
-import { Text } from "@/components/ui/text";
-import { useTranslation } from "@/lib/hooks/use-translation";
-
+import { useTranslation } from '@/lib/hooks/use-translation';
+import { Text } from '@oxy.so/bloom/typography';
+import React from 'react';
+import { Pressable, View } from 'react-native';
 interface NewConversationOfferProps {
   /**
    * The model's own sentence for why it is offering, in the model's own words,

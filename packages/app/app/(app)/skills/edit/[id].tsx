@@ -1,21 +1,21 @@
-import { useEffect, useState } from 'react';
-import { View, ScrollView, ActivityIndicator, Pressable } from 'react-native';
-import { Text } from '@/components/ui/text';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@oxy.so/bloom/textarea';
-import { Label } from '@oxy.so/bloom/label';
-import { Button } from '@/components/ui/button';
-import { Switch } from '@oxy.so/bloom/switch';
-import { ArrowLeft, Trash2 } from 'lucide-react-native';
-import { useRouter, useLocalSearchParams } from 'expo-router';
-import { toast } from "@oxy.so/bloom/toast";
-import { useTranslation } from '@/lib/hooks/use-translation';
 import {
   useCreateSkillVersion,
   useDeleteSkill,
   useSkill,
   useUpdateSkill,
 } from '@/lib/hooks/use-skills';
+import { useTranslation } from '@/lib/hooks/use-translation';
+import { Button } from '@oxy.so/bloom/button';
+import { Label } from '@oxy.so/bloom/label';
+import { Switch } from '@oxy.so/bloom/switch';
+import { TextFieldInput as Input } from '@oxy.so/bloom/text-field';
+import { Textarea } from '@oxy.so/bloom/textarea';
+import { toast } from '@oxy.so/bloom/toast';
+import { Text } from '@oxy.so/bloom/typography';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { ArrowLeft, Trash2 } from 'lucide-react-native';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
 
 /**
  * Editing a skill.
@@ -78,7 +78,11 @@ export default function EditSkillScreen() {
   if (detail.isLoading || !detail.data) {
     return (
       <View className="flex-1 bg-background items-center justify-center">
-        {detail.isLoading ? <ActivityIndicator /> : <Text className="text-muted-foreground">{t('skills.notFound')}</Text>}
+        {detail.isLoading ? (
+          <ActivityIndicator />
+        ) : (
+          <Text className="text-muted-foreground">{t('skills.notFound')}</Text>
+        )}
       </View>
     );
   }
@@ -113,13 +117,20 @@ export default function EditSkillScreen() {
           body,
           license: license.trim() || undefined,
           compatibility: compatibility.trim() || undefined,
-          allowedTools: allowedTools.trim() ? allowedTools.trim().split(/\s+/) : undefined,
+          allowedTools: allowedTools.trim()
+            ? allowedTools.trim().split(/\s+/)
+            : undefined,
         },
       });
       if (result.unchanged) toast.info(t('skills.versionUnchanged'));
-      else toast.success(t('skills.versionSaved', { version: result.version?.version ?? '' }));
+      else
+        toast.success(
+          t('skills.versionSaved', { version: result.version?.version ?? '' }),
+        );
     } catch (error) {
-      const message = (error as { response?: { data?: { error?: { message?: string } } } }).response?.data?.error?.message;
+      const message = (
+        error as { response?: { data?: { error?: { message?: string } } } }
+      ).response?.data?.error?.message;
       toast.error(message ?? t('skills.saveFailed'));
     }
   };
@@ -137,30 +148,54 @@ export default function EditSkillScreen() {
   return (
     <View className="flex-1 bg-background">
       <View className="flex-row items-center justify-between px-4 pt-4">
-        <Pressable onPress={() => router.back()} className="h-9 w-9 items-center justify-center rounded-full active:bg-muted">
+        <Pressable
+          onPress={() => router.back()}
+          className="h-9 w-9 items-center justify-center rounded-full active:bg-muted"
+        >
           <ArrowLeft size={18} className="text-foreground" />
         </Pressable>
         <View className="flex-row gap-2">
-          <Button size="sm" variant="outline" className="rounded-full" disabled={patch.isPending} onPress={savePresentation}>
-            <Text>{t('skills.save')}</Text>
+          <Button
+            size="sm"
+            variant="secondary"
+            className="rounded-full"
+            disabled={patch.isPending}
+            onPress={savePresentation}
+          >
+            {t('skills.save')}
           </Button>
-          <Button size="sm" className="rounded-full" disabled={!documentChanged || newVersion.isPending} onPress={saveVersion}>
-            <Text>{t('skills.saveVersion')}</Text>
+          <Button
+            size="sm"
+            className="rounded-full"
+            disabled={!documentChanged || newVersion.isPending}
+            onPress={saveVersion}
+          >
+            {t('skills.saveVersion')}
           </Button>
         </View>
       </View>
 
-      <ScrollView className="flex-1 px-5" showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        className="flex-1 px-5"
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
         <View className="gap-4 pt-4 pb-10">
           <View className="gap-1.5">
             <Label>{t('skills.nameLabel')}</Label>
             <Text className="text-[13px] text-foreground">{skill.name}</Text>
-            <Text className="text-[11px] text-muted-foreground">{t('skills.nameHint')}</Text>
+            <Text className="text-[11px] text-muted-foreground">
+              {t('skills.nameHint')}
+            </Text>
           </View>
 
           <View className="gap-1.5">
             <Label>{t('skills.displayNameLabel')}</Label>
-            <Input value={displayName} onChangeText={setDisplayName} />
+            <Input
+              label="Value"
+              value={displayName}
+              onChangeText={setDisplayName}
+            />
           </View>
 
           <View className="gap-1.5">
@@ -172,8 +207,12 @@ export default function EditSkillScreen() {
               autoResize
               rows={5}
             />
-            <Text className="text-[11px] text-muted-foreground">{t('skills.descriptionHint')}</Text>
-            <Text className="text-[11px] text-muted-foreground">{description.length} / 1024</Text>
+            <Text className="text-[11px] text-muted-foreground">
+              {t('skills.descriptionHint')}
+            </Text>
+            <Text className="text-[11px] text-muted-foreground">
+              {description.length} / 1024
+            </Text>
           </View>
 
           <View className="gap-1.5">
@@ -185,40 +224,69 @@ export default function EditSkillScreen() {
               autoResize
               rows={13}
             />
-            <Text className="text-[11px] text-muted-foreground">{t('skills.bodyHint')}</Text>
+            <Text className="text-[11px] text-muted-foreground">
+              {t('skills.bodyHint')}
+            </Text>
           </View>
 
           <View className="gap-1.5">
             <Label>{t('skills.licenseLabel')}</Label>
-            <Input value={license} onChangeText={setLicense} placeholder="Apache-2.0" autoCapitalize="none" />
+            <Input
+              label="Apache-2.0"
+              value={license}
+              onChangeText={setLicense}
+              placeholder="Apache-2.0"
+              autoCapitalize="none"
+            />
           </View>
 
           <View className="gap-1.5">
             <Label>{t('skills.compatibilityLabel')}</Label>
-            <Input value={compatibility} onChangeText={setCompatibility} />
+            <Input
+              label="Value"
+              value={compatibility}
+              onChangeText={setCompatibility}
+            />
           </View>
 
           <View className="gap-1.5">
             <Label>{t('skills.allowedToolsLabel')}</Label>
-            <Input value={allowedTools} onChangeText={setAllowedTools} autoCapitalize="none" />
+            <Input
+              label="Value"
+              value={allowedTools}
+              onChangeText={setAllowedTools}
+              autoCapitalize="none"
+            />
           </View>
 
           <View className="flex-row items-center justify-between">
             <View className="flex-1 pr-4">
-              <Text className="text-[14px] text-foreground">{t('skills.publish')}</Text>
-              <Text className="text-[12px] text-muted-foreground mt-0.5">{t('skills.publishHint')}</Text>
+              <Text className="text-[14px] text-foreground">
+                {t('skills.publish')}
+              </Text>
+              <Text className="text-[12px] text-muted-foreground mt-0.5">
+                {t('skills.publishHint')}
+              </Text>
             </View>
-            <Switch accessibilityLabel={t('skills.publish')} value={isPublic} onValueChange={setIsPublic} />
+            <Switch
+              accessibilityLabel={t('skills.publish')}
+              value={isPublic}
+              onValueChange={setIsPublic}
+            />
           </View>
 
           <Pressable
             className="flex-row items-center gap-2 py-3 active:opacity-70"
-            onPress={() => (confirmingDelete ? void handleDelete() : setConfirmingDelete(true))}
+            onPress={() =>
+              confirmingDelete ? void handleDelete() : setConfirmingDelete(true)
+            }
             disabled={remove.isPending}
           >
             <Trash2 size={14} className="text-destructive" />
             <Text className="text-[13px] text-destructive flex-1">
-              {confirmingDelete ? t('skills.deleteSkillConfirm') : t('skills.deleteSkill')}
+              {confirmingDelete
+                ? t('skills.deleteSkillConfirm')
+                : t('skills.deleteSkill')}
             </Text>
           </Pressable>
         </View>
