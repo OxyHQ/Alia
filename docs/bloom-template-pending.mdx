@@ -43,7 +43,7 @@ Kept, invisible: cursor pagination (`onScroll`) and prefetch on hover (`onPrefet
 | "Editing message" banner | the composer's `placeholder` + `toast` |
 | Scroll-to-bottom button | `AiChatThread`'s own follow (no Bloom control yet) |
 | Local models invite | `toast` |
-| Agent terminal | the shell's `panel` |
+| Agent terminal | the shell's `panel` (a tab of the code panel's `browser`) |
 
 ## Composer
 
@@ -82,6 +82,12 @@ Still Alia's, pending a Bloom equivalent: `FailedTurnCard` (retry),
 - **Colour preset:** Alia keeps `purple`; Storybook shows the template in `oxy`.
 - **Logo:** Alia passes `logo` (mark + "Alia") as well as `account`; Bloom puts the
   account switcher on its own row under it.
-- **Signed out:** no `account` and no `plan`; "Sign in" is a `secondaryItems` row.
-- **Breadcrumb:** a chat outside any project has no `project`, and Bloom then draws
-  the title on its own.
+- **Signed out:** the account is "Guest" and the plan card "Free Plan"; both sign in.
+- **Breadcrumb and status bar folder:** the chat's folder as the sidebar files it,
+  its project or "Recent"; choosing another in the status bar moves the chat there.
+- **Effort:** the model menu shows the effort slider only for a mode that can send
+  a level (`packages/api/src/lib/reasoning-effort.ts`: a level is offered only
+  where it can be sent). "Auto" offers none, so its menu has no slider.
+- **Right panel:** the code panel is the canvas (the files Alia wrote in this
+  chat), the gallery shows Library images and the images generated in the chat.
+  Thought, credits and agent open in the same slot and hand it back when closed.

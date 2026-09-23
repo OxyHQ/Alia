@@ -19,9 +19,9 @@ signed-out welcome (`welcome-intro.tsx` over `ambient-field.tsx`).
 | --- | --- |
 | `<View style={TEMPLATE_FRAME}>` → `AiChatShell` | `app/(app)/_layout.tsx` |
 | `sidebar={<Sidebar …/>}`, `mobileSidebar={<Sidebar … mobile surface="plain"/>}` | `components/sidebar.tsx`: `logo`, `items`, `secondaryItems`, `account`, `tree`, `plan`; the drawer copy inside `NavRegion` (#532) |
-| `panel` / `panelLabel` | the thought / canvas panel (`RightPanel`) |
+| `panel` (always, from `xl`) with `AiChatCodePanel` / `AiChatGalleryPanel` | `components/workspace-panel.tsx`: the canvas as the code panel, Library and generated images as the gallery; thought, credits and agent take the slot while open |
 | `AiChatContainer project title header={<AiChatMobileHeader/>} working composer` | `components/chat-page-content.tsx` through `ChatWorkspace` (the native keyboard authority) |
-| `<ComposerLoader><ComposerPill surface={false} glass busy onStop/></ComposerLoader>` + `ComposerStatusBar` as a fragment | `components/chat/composer/composer.tsx` + the status bar with the Chat/Agent mode |
+| `<ComposerLoader><ComposerPill surface={false} glass busy onStop/></ComposerLoader>` + `ComposerStatusBar` as a fragment | `components/chat/composer/composer.tsx`; the add menu in the template's two groups (`add-menu.tsx`); the status bar with the chat's folder and the Chat/Agent mode |
 | `AiChatThread` → `AiChatUserMessage` / `AiChatAssistantMessage` (feedback row) | `components/chat-interface.tsx` |
 | `AiChatMessageLine`, `AiChatBulletList`, `AiChatStrong`, `AiChatLinkChip`, `CodeBlock` | `components/chat/bloom-markdown.tsx` renders each reply's Markdown into them |
 | `AgentProgress` while working, then "Worked for …" (`tone="secondary"`) | the turn's tool calls, as the runtime reports them |
