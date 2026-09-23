@@ -16,7 +16,7 @@ Codea uses the same unified chat runtime as app and Cowork:
   The `alia-*` identifiers this extension has always sent still resolve, but they are
   routing profiles rather than models Alia owns, and `GET /v1/models` no longer lists them
 - Streaming events: standardized named events with `eventVersion: 1`
-- Removed endpoints (`/codea/resolve-model`, `/codea/report-usage`) are no longer used by clients
+- The `/codea` API router is gone; the extension signs in with Oxy and uses the unified runtime above
 
 ## Features
 

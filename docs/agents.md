@@ -383,10 +383,10 @@ its objective, actor selection, trigger, resources, exact actions, allowed data 
 limits, autonomy policy and `observe | execute` mode. Runs and their correlated policy
 and tool decisions are persisted in `automation_runs` and `automation_steps`.
 
-Legacy rows and their `trigger_executions` remain queryable through `GET /triggers` for
-audit history. They are not scheduled or dispatched. Every former trigger write,
-manual-run, token-regeneration and webhook route returns `410 Gone`; active work is
-created and edited only through `/automations`.
+The legacy trigger model is gone: the `/triggers` routes, the `triggers` and
+`trigger_executions` tables and the definitions that indexed them were removed by
+migrations 0069 and 0070. Active work is created and edited only through
+`/automations`.
 
 ## Oxy Event Autonomy
 

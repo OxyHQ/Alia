@@ -29,9 +29,10 @@ commit que el `package.json` que lo cambia.
 - **Alia nunca llama ni firma a Kaana:** `Alia -> Oxy -> Kaana` con
   `OxyInferenceClient` de `@oxy.so/core`. Sin credenciales de proveedor, sin
   transporte alternativo — `docs/adr/0001-*.md`.
-- **Alia no emite claves.** `alia_sk_*` está congelado y se retira; la clave de
-  Oxy Console para la API de Alia aún no se valida aquí — no lo documentes como
-  si existiera — `docs/developers-portal.md`.
+- **Alia no emite ni acepta claves propias.** `alia_sk_*` está retirado: la API
+  lo rechaza (`credential_retired`) y sus tablas no existen. La clave de Oxy
+  Console para la API de Alia aún no se valida aquí — no lo documentes como si
+  existiera — `docs/developers-portal.md`.
 - **Perfiles de routing solo por ID opaco exacto** de
   `packages/api/src/config/oxy-inference-routing-profile-ids.ts`; nunca por
   nombre, slug u orden — `docs/model-abstraction.mdx`.

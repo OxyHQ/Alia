@@ -115,10 +115,8 @@ header as it is. `POST /alia/chat` authenticates with
 `packages/api/src/middleware/auth.ts`), which accepts an Oxy session token —
 verified with Oxy, the same way it would be if the browser had called Alia
 directly — and the turn is metered to that user's Alia entitlement, the same as
-a direct call. The route also accepts an existing `alia_sk_*` developer key,
-but Alia issues no new ones and that credential is inside its own sunset
-window, so do not build on one; the remaining credentials the middleware
-recognises are Alia-internal. There is no consumer-application credential for
+a direct call. The retired `alia_sk_*` developer keys are refused; the
+remaining credentials the middleware recognises are Alia-internal. There is no consumer-application credential for
 this route yet — that is Oxy Applications' to issue (OxyHQ/oxy#972).
 
 A minimal relay, Node 18+ and Express:
