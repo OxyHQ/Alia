@@ -6,7 +6,8 @@ import { eq } from 'drizzle-orm';
 /**
  * `POST /agents/threads/:threadId/goals`, driven through the REAL router against
  * a REAL Postgres server, for one property: **the caller's balance comes back
- * when the hire does not happen.**
+ * when the hire does not happen** — and, when it does, the goal records the
+ * price that was actually taken.
  *
  * A goal is the paid hire. This file was written against `POST /agents/:id/hire`
  * and moved here when that route was retired: the protection it measures lives
@@ -158,6 +159,13 @@ async function hire(
   return { status: res.status, body: (await res.json()) as Record<string, unknown> };
 }
 
+async function goalPrice(body: Record<string, unknown>): Promise<number | undefined> {
+  const goalId = (body.goal as { id?: string } | undefined)?.id;
+  if (goalId === undefined) return undefined;
+  const [row] = await db.select().from(agentGoals).where(eq(agentGoals.id, goalId));
+  return row?.priceCredits;
+}
+
 describe('POST /agents/threads/:threadId/goals — the reservation', () => {
   it('stays spent when the hire succeeds, because the worker settles it', async () => {
     const userId = await account(100, 0);
@@ -263,3 +271,29 @@ describe('POST /agents/threads/:threadId/goals — the reservation', () => {
   });
 });
 
+/**
+ * The goal RECORDS a price and the handoff RESERVES one. They were two
+ * expressions — `agent.price ?? 0` and `agent.price || 15` — so an agent with no
+ * price produced a goal that said 0 while the balance lost 15. Measured as the
+ * balance difference, so the recorded number is compared with what was taken,
+ * not with a second copy of the rule.
+ */
+describe('the price a goal records is the price it reserved', () => {
+  it.each([
+    ['a priced agent', 12],
+    ['an agent with no price', null],
+    ['an agent priced at zero', 0],
+  ])('for %s', async (_label, price) => {
+    const userId = await account(100, 0);
+    const agentId = await seedAgent(price);
+
+    const res = await hire(userId, await threadFor(userId, agentId), 'priced work');
+
+    expect(res.status, JSON.stringify(res.body)).toBe(202);
+    const after = await balanceOf(userId);
+    const taken = 100 - after.free;
+    // The floor: something was reserved, so an equality of two zeros cannot pass.
+    expect(taken).toBeGreaterThan(0);
+    expect(await goalPrice(res.body)).toBe(taken);
+  });
+});

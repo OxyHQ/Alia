@@ -80,7 +80,10 @@ const session = vi.hoisted(() => ({
   start: vi.fn(async () => ({ ok: true, sessionId: 'sess-1', queued: true, jobId: 'job-1' })),
 }));
 
-vi.mock('../../../lib/agent/session-handoff.js', () => ({ startAgentSession: session.start }));
+vi.mock('../../../lib/agent/session-handoff.js', () => ({
+  startAgentSession: session.start,
+  agentHirePrice: (agent: { price: number | null }) => agent.price || 15,
+}));
 
 /** The caller's own open thread with the agent — what a goal is started on. */
 const THREAD = {

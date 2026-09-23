@@ -15,7 +15,7 @@ import { agentGoals } from '../../db/schema/agent-runtime.js';
 import { agentSessions } from '../../db/schema/agent-sessions.js';
 import { createConversation, findActiveAgentThreadConversation } from '../../db/chat/conversationRepository.js';
 import { canReachAgent } from '../../lib/agent-account.js';
-import { startAgentSession } from '../../lib/agent/session-handoff.js';
+import { agentHirePrice, startAgentSession } from '../../lib/agent/session-handoff.js';
 import { authenticateToken } from '../../middleware/auth.js';
 import { OXY_KAANA_ROUTING_PROFILE_ID_LIST } from '../../config/oxy-inference-routing-profile-ids.js';
 import { randomUUID } from 'node:crypto';
@@ -162,7 +162,8 @@ router.post('/threads/:threadId/goals', authenticateToken, route(async (req: Req
       ? req.body.verificationPlan.trim()
       : 'Run the repository or domain checks relevant to the requested outcome and attach evidence.',
     idempotencyKey,
-    priceCredits: agent.price ?? 0,
+    // What `startAgentSession` below reserves, from the same resolver.
+    priceCredits: agentHirePrice(agent),
   });
   if (!created.created) {
     const [session] = await getDb().select().from(agentSessions).where(eq(agentSessions.goalId, created.goal.id)).limit(1);

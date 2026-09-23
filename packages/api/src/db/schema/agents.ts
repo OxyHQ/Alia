@@ -92,7 +92,7 @@ import { libraryFiles } from './library';
  * `rating` is `double precision`, not an integer or a money column:
  * `lib/agent-rating.ts:44` stores `Math.round(avg * 10) / 10`, a fraction to one
  * decimal place. `price` is `integer` because it is CREDITS —
- * `startAgentSession` in `lib/agent/session-handoff.ts` passes it to `reserveCredits` — and
+ * `agentHirePrice` in `lib/agent/session-handoff.ts` hands it to `reserveCredits` — and
  * credits are a count, per the money rule. The agent's own balance is NOT here:
  * a bot account is an Oxy account, so it has a `user_credits` row of its own
  * keyed by `oxy_account_id`, and the `credit_balance` column this replaced was

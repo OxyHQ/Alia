@@ -164,7 +164,8 @@ second paid session beside the answer.
 - `POST /agents/threads/:threadId/goals` starts explicitly priced work and
   requires `Idempotency-Key`. It is the only paid hire: the legacy
   `POST /agents/:id/hire` is gone. It re-asks `canReachAgent` at goal time, so a
-  thread does not outlive a revoked membership.
+  thread does not outlive a revoked membership, and the price the goal records
+  is the one `startAgentSession` reserves — both read `agentHirePrice`.
 - A thread stores only an opaque reviewed Oxy routing-profile ID. Tools remain
   deny-by-default.
 - PostgreSQL serializes admission by agent before a queued or running session
