@@ -91,7 +91,7 @@ export const learningRules = pgTable(
  * in the package — no route, no service, no tool. The rollback window is
  * recorded and never consulted. Ported faithfully because the shape is the
  * record, not because anything currently acts on it; the same call
- * `voice_call_usage.average_latency_ms` took. Worth stating so that a future
+ * `voice_call_usage.average_latency_ms` took before that table was dropped. Worth stating so that a future
  * reader does not infer a rollback feature from the presence of the table.
  *
  * The four `Mixed` columns are `jsonb`: `args` is whatever arguments that tool

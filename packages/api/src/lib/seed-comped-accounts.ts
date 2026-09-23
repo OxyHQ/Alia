@@ -116,13 +116,13 @@ interface BillingPeriod {
 /**
  * The UTC calendar month this seed runs in.
  *
- * A comped subscription has no invoice to take a period from, and the period is
- * not decorative: `findActiveSubscriptionByPeriodStart` measures voice minutes
- * from `current_period_start`. A period frozen at the first grant would
- * accumulate usage forever and shrink that allowance to nothing, so every
- * release re-stamps it to the current month. Nothing revokes the plan when the
- * period ends — `liveFor` filters on `status` alone — so a release-quiet month
- * costs a wider voice window, not a lost plan.
+ * A comped subscription has no invoice to take a period from, and a period is
+ * what every reader of a subscription takes it to be: the current one. A period
+ * frozen at the first grant would describe a month long gone (it once shrank the
+ * voice-minutes allowance, measured from `current_period_start`, to nothing,
+ * until that allowance was retired in 0072), so every release re-stamps it to
+ * the current month. Nothing revokes the plan when the period ends — `liveFor`
+ * filters on `status` alone — so a release-quiet month costs nothing.
  */
 function currentMonth(): BillingPeriod {
   const now = new Date();

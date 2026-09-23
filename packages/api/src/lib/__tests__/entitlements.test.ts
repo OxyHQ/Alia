@@ -173,7 +173,7 @@ describe('the entitlement read model publishes the Oxy contract shape (#139 ws12
     H.subscriptions = [subscription('pro')];
     H.plans = [{ planId: 'pro' }];
     H.planFeatures = [
-      { planId: 'pro', featureId: 'voice-minutes', limitValue: 600 },
+      { planId: 'pro', featureId: 'concurrent-tasks', limitValue: 10 },
       { planId: 'pro', featureId: 'voice-mode', enabled: true },
     ];
 
@@ -187,14 +187,14 @@ describe('the entitlement read model publishes the Oxy contract shape (#139 ws12
       currentPeriodStart: '2026-08-01T00:00:00.000Z',
       currentPeriodEnd: '2026-09-01T00:00:00.000Z',
       cancelAtPeriodEnd: false,
-      allowances: [{ key: 'voice_minutes', included: 600 }],
+      allowances: [{ key: 'concurrent_tasks', included: 10 }],
     });
     // A numeric LIMIT is an allowance; a boolean CAPABILITY is not. Rendering
     // `voice-mode` as `included: 1` would invent a quantity nothing counts down,
     // so its absence here is the assertion.
-    // The key is the CONTRACT's namespace, not Alia's: `voice-minutes` has a
+    // The key is the CONTRACT's namespace, not Alia's: `concurrent-tasks` has a
     // hyphen and `planAllowanceSchema.key` does not permit one.
-    expect(entitlement.allowances).toEqual([{ key: 'voice_minutes', included: 600 }]);
+    expect(entitlement.allowances).toEqual([{ key: 'concurrent_tasks', included: 10 }]);
     expect(entitlement.allowances.map((a) => a.key)).not.toContain('voice_mode');
   });
 
@@ -204,12 +204,12 @@ describe('the entitlement read model publishes the Oxy contract shape (#139 ws12
     H.subscriptions = [subscription('pro')];
     H.plans = [{ planId: 'pro' }];
     H.planFeatures = [
-      { planId: 'pro', featureId: 'voice-minutes', limitValue: 600 },
+      { planId: 'pro', featureId: 'concurrent-tasks', limitValue: 10 },
       { planId: 'pro', featureId: 'voice-mode', enabled: true },
     ];
 
     const entitlements = await getUserEntitlements(account());
-    expect(entitlements.features).toEqual({ 'voice-minutes': 600, 'voice-mode': true });
+    expect(entitlements.features).toEqual({ 'concurrent-tasks': 10, 'voice-mode': true });
   });
 
   it('reports no pay-as-you-go position and no cost centre, because Alia holds neither', async () => {

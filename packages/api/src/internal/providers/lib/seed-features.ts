@@ -69,7 +69,6 @@ const FEATURES: FeatureSeed[] = [
   { featureId: 'concurrent-tasks', label: 'Concurrent tasks', description: 'Number of simultaneous tasks', category: 'Limits', featureType: 'limit', sortOrder: 0, isVisibleOnPricing: true },
   { featureId: 'response-length', label: 'Response length', description: 'Maximum response output length', category: 'Limits', featureType: 'limit', sortOrder: 1, isVisibleOnPricing: true },
   { featureId: 'context-window', label: 'Context window', description: 'Maximum conversation context size', category: 'Limits', featureType: 'limit', sortOrder: 2, isVisibleOnPricing: true },
-  { featureId: 'voice-minutes', label: 'Voice minutes', description: 'Monthly voice conversation minutes', category: 'Limits', featureType: 'limit', sortOrder: 3, isVisibleOnPricing: true },
 ];
 
 // ─── PlanFeature mappings ────────────────────────────────────
@@ -115,7 +114,6 @@ const PLAN_FEATURES: PlanFeatureSeed[] = [
   { planId: 'go', featureId: 'shopping-research', enabled: true },
   { planId: 'go', featureId: 'concurrent-tasks', enabled: true, limitValue: 10, displayLabel: '10 concurrent tasks' },
   { planId: 'go', featureId: 'response-length', enabled: true, limitValue: 2, displayLabel: 'Longer responses' },
-  { planId: 'go', featureId: 'voice-minutes', enabled: true, limitValue: 10, displayLabel: '10 min / month' },
 
   // ═══ Pro Plan ═══
   { planId: 'pro', featureId: 'credits-display', enabled: true, displayLabel: '10,000 credits / month', displayDescription: 'Monthly allowance plus 300 daily refresh on top' },
@@ -146,7 +144,6 @@ const PLAN_FEATURES: PlanFeatureSeed[] = [
   { planId: 'pro', featureId: 'channels-discord', enabled: true },
   { planId: 'pro', featureId: 'concurrent-tasks', enabled: true, limitValue: 20, displayLabel: '20 concurrent tasks' },
   { planId: 'pro', featureId: 'response-length', enabled: true, limitValue: 3, displayLabel: 'Extended response length' },
-  { planId: 'pro', featureId: 'voice-minutes', enabled: true, limitValue: 30, displayLabel: '30 min / month' },
   { planId: 'pro', featureId: 'voice-cohost', enabled: true },
 
   // ═══ Max Plan ═══
@@ -183,7 +180,6 @@ const PLAN_FEATURES: PlanFeatureSeed[] = [
   { planId: 'max', featureId: 'channels-discord', enabled: true },
   { planId: 'max', featureId: 'concurrent-tasks', enabled: true, limitValue: 50, displayLabel: '50 concurrent tasks' },
   { planId: 'max', featureId: 'response-length', enabled: true, limitValue: 4, displayLabel: 'Extended output length' },
-  { planId: 'max', featureId: 'voice-minutes', enabled: true, limitValue: 60, displayLabel: '1 hour / month' },
   { planId: 'max', featureId: 'voice-cohost', enabled: true },
 
   // ═══ Ultra Plan ═══
@@ -222,7 +218,6 @@ const PLAN_FEATURES: PlanFeatureSeed[] = [
   { planId: 'ultra', featureId: 'channels-discord', enabled: true },
   { planId: 'ultra', featureId: 'concurrent-tasks', enabled: true, limitValue: 100, displayLabel: '100 concurrent tasks' },
   { planId: 'ultra', featureId: 'response-length', enabled: true, limitValue: 5, displayLabel: 'Maximum response length' },
-  { planId: 'ultra', featureId: 'voice-minutes', enabled: true, limitValue: 80, displayLabel: '1 hr 20 min / month' },
   { planId: 'ultra', featureId: 'voice-cohost', enabled: true },
 
   // ═══ Codea Pro ═══

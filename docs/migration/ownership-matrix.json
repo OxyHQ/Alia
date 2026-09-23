@@ -5548,14 +5548,14 @@
       "domain": "data-billing",
       "kind": "table",
       "currentPath": "packages/api/src/db/schema/usage.ts",
-      "reachable": "live",
+      "reachable": "dead",
       "owner": "alia",
       "targetPath": "alia: it is both the usage record and the entitlement meter (voice minutes per plan). cost_per_minute alone is kaana-upstream-cost",
       "dependsOn": [
         "concept-credit-reservation",
         "table-subscriptions"
       ],
-      "removalGate": "production row count audited AND the entitlement reader migrated in the SAME change — lib/voice-usage.ts is the only thing stopping a user exceeding their plan's voice minutes, and an empty table reads as 'zero minutes used', which is the permissive direction. Two columns (average_latency_ms, client_type) are declared and never written package-wide: confirm they are entirely absent before anybody reads one as meaningful.",
+      "removalGate": "production row count audited AND the entitlement reader migrated in the SAME change — lib/voice-usage.ts is the only thing stopping a user exceeding their plan's voice minutes, and an empty table reads as 'zero minutes used', which is the permissive direction. Two columns (average_latency_ms, client_type) are declared and never written package-wide: confirm they are entirely absent before anybody reads one as meaningful. || Dropped by 0074_voice_minutes_retired (post phase, with the `voice-minutes` feature rows): its only writer left with the LiveKit route in #477, so the allowance it metered enforced nothing, and voice turns are now ordinary chat and speech calls billed per call through Oxy.",
       "provenance": "re-derived",
       "evidence": "packages/api/src/db/schema/usage.ts:181"
     },

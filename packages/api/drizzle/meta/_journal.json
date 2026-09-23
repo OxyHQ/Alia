@@ -519,6 +519,13 @@
       "when": 1790200041626,
       "tag": "0073_drop_sandbox_containers",
       "breakpoints": true
+    },
+    {
+      "idx": 74,
+      "version": "7",
+      "when": 1790200893882,
+      "tag": "0074_voice_minutes_retired",
+      "breakpoints": true
     }
   ]
 }

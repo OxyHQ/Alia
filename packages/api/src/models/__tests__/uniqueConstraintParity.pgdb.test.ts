@@ -667,6 +667,14 @@ const UNIQUES_REMOVED_WITH_CAPABILITY: readonly UniqueRemovedWithCapability[] = 
     reason:
       'The agent sandbox never ran in production. Its snapshot table left with it, so the snapshot-tag uniqueness goes too.',
   },
+  {
+    model: 'VoiceCallUsage',
+    table: 'voice_call_usage',
+    constraint: 'voice_call_usage_session_id_key',
+    removedBy: '0074_voice_minutes_retired',
+    reason:
+      'The realtime voice session it recorded left with the LiveKit route in #477, and voice runs on the device since; the table and the voice-minutes allowance it metered were dropped together.',
+  },
 ];
 
 /**
@@ -1336,9 +1344,10 @@ describe('the ratchet', () => {
       'UNIQUES_REMOVED_WITH_CAPABILITY excuses a previously ported uniqueness only ' +
         'when its whole owning capability deliberately leaves Alia. Audit every new ' +
         'entry and pin the new count rather than letting this become a gap bucket.',
-      // 6 -> 7: `container_templates_snapshot_tag_key` left with the agent
-      // sandbox in 0073_drop_sandbox_containers.
-    ).toBe(7);
+      // 6 -> 8: `container_templates_snapshot_tag_key` left with the agent
+      // sandbox in 0073_drop_sandbox_containers, and `VoiceCallUsage` with the
+      // metered voice session in 0074_voice_minutes_retired.
+    ).toBe(8);
   });
 
   /**
