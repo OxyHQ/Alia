@@ -41,6 +41,21 @@ import type { EffortLevel } from './reasoning-effort.js';
  * profile that may select it.
  */
 const EXTENDED_REASONING_PROMPT = 'extended-reasoning';
+
+/**
+ * The spoken-answer layer, selected by the REQUEST (`responseMode: 'voice'`),
+ * not by a model id — the same move #139 workstream 4 made for reasoning.
+ *
+ * A voice call used to get this through its own profile (`route:voice`), which
+ * held a realtime session. The call is a chat turn now: it keeps the profile
+ * the conversation chose, with its tools, and asks for an answer meant to be
+ * heard. `prompts/voice.md` already says what that is — short, no formatting,
+ * nothing that reads badly aloud — and it is layered over the base prompt the
+ * way extended reasoning is, rather than replacing it, so the profile's own
+ * instructions still apply.
+ */
+const SPOKEN_ANSWER_PROMPT = 'voice';
+const SPOKEN_PROFILE_PROMPTS: ReadonlySet<string> = new Set(['voice', 'voice-pro']);
 import { log } from './logger.js';
 import { agentPromptName, type HydratedAgent } from './agent-identity.js';
 import { readCapabilityGrants } from '../domain/capability-grants.js';
@@ -110,6 +125,11 @@ export interface SystemPromptOptions {
    * which is the whole point of it being a parameter.
    */
   reasoningEffort?: EffortLevel | null;
+  /**
+   * `'voice'` when the turn was spoken in a voice call and will be read aloud.
+   * Layers `prompts/voice.md` over the base prompt; see `SPOKEN_ANSWER_PROMPT`.
+   */
+  responseMode?: 'voice' | null;
   /** Autonomy runtime context */
   autonomyRuntime?: AutonomyRuntimeContext | null;
 }
@@ -155,6 +175,7 @@ export class SystemPromptBuilder {
       agentMode,
       autonomyRuntime,
       reasoningEffort,
+      responseMode,
     } = opts;
 
     /**
@@ -202,6 +223,14 @@ export class SystemPromptBuilder {
     ) {
       const reasoning = await loadPrompt(EXTENDED_REASONING_PROMPT);
       if (reasoning !== '') systemMessage += `\n\n---\n\n${reasoning}`;
+    }
+
+    // 1c. A spoken answer, when the turn came from a voice call — last of the
+    // style layers, because how the answer will be DELIVERED overrides how a
+    // profile would format it on screen.
+    if (responseMode === 'voice' && !SPOKEN_PROFILE_PROMPTS.has(productPromptId ?? '')) {
+      const spoken = await loadPrompt(SPOKEN_ANSWER_PROMPT);
+      if (spoken !== '') systemMessage += `\n\n---\n\n${spoken}`;
     }
 
     // 2. Current date
