@@ -41,10 +41,6 @@
  * `gemini-2.5-flash-preview-tts` is a speech model. There is no parse that
  * answers this, only knowledge.
  *
- * `capabilitiesThinking` in `db/schema/providers.ts` is not that knowledge: it
- * is a column nothing outside `db/providers/modelConfigRepository.ts` reads,
- * and a boolean cannot say which LEVELS a model offers.
- *
  * ## Only three provider clients can carry a reasoning option
  *
  * `chat-core.ts` `getAIModel` builds a first-party client for exactly

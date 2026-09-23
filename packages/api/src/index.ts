@@ -35,7 +35,6 @@ import organizationRouter from './routes/organization.js';
 import canvasRouter from './routes/canvas/index.js';
 import codeaRouter from './routes/codea.js';
 import catalogueRouter from './routes/catalogue.js';
-import externalModelsRouter from './routes/external-models.js';
 import localRuntimesRouter from './routes/local-runtimes.js';
 import internalRouter from './routes/internal.js';
 import skillsRouter from './routes/skills.js';
@@ -263,7 +262,6 @@ app.use('/codea', codeaRouter);
 // Outside `/v1` on purpose: ADR 0004 keeps that surface frozen at the routes it
 // already has. See routes/catalogue.ts for the full shape argument.
 app.use('/catalogue', catalogueRouter);
-app.use('/external-models', externalModelsRouter);
 app.use('/local-runtimes', localRuntimesRouter);
 app.use('/skills', skillsRouter);
 app.use('/analytics', analyticsRouter);
@@ -304,7 +302,6 @@ app.get('/', (_req, res) => {
       '/organization',
       '/codea',
       '/models',
-      '/external-models',
       '/local-runtimes',
       '/skills',
       '/analytics',

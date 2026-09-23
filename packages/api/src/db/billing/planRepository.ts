@@ -106,8 +106,7 @@ export async function deletePlanByPlanId(db: ApiDatabase, planId: string): Promi
  * no longer touches that column. `plan_access.ts` reads `model_ids` to decide
  * whether a request may name a model at all, so this is a routing decision
  * wearing a billing table's name — which is why the record goes through
- * `lib/security/config-audit.ts` beside the five provider tables rather than
- * through anything of its own.
+ * `lib/security/config-audit.ts`.
  *
  * `actor` is required and has no default. An audit log whose actor defaults to
  * `system` says `system` for the one change somebody needs to attribute.

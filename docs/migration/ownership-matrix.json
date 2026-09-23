@@ -1735,7 +1735,8 @@
       "dependsOn": [],
       "removalGate": "Statements against external_models, the ZeroEval mirror. Not routing data. Stays with Alia unless external_models itself is retired; do not sweep it up with the provider repositories.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/db/providers/externalModelRepository.ts"
+      "evidence": "packages/api/src/db/providers/externalModelRepository.ts",
+      "removedIn": "corte-db-catalogue"
     },
     {
       "id": "db-repo-model-config",
@@ -1749,7 +1750,8 @@
       "dependsOn": [],
       "removalGate": "Statements against model_configs. Moves with table-model-configs. Measured test-only today: no runtime-reachable file imports it.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/db/providers/modelConfigRepository.ts"
+      "evidence": "packages/api/src/db/providers/modelConfigRepository.ts",
+      "removedIn": "corte-db-catalogue"
     },
     {
       "id": "db-repo-provider-key",
@@ -3810,7 +3812,8 @@
       ],
       "removalGate": "Unrelated to the epic.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/scripts/sync-zeroeval.ts:8"
+      "evidence": "packages/api/src/scripts/sync-zeroeval.ts:8",
+      "removedIn": "corte-db-catalogue"
     },
     {
       "id": "image-providers",
@@ -3933,7 +3936,8 @@
       ],
       "removalGate": "Unaffected by the Kaana migration; listed so a provider-name sweep does not mistake it for a leak (or does so knowingly).",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/routes/external-models.ts:16-40; mounted unauthenticated at packages/api/src/index.ts:240; packages/api/src/db/schema/providers.ts:415-425 (comment: 'NOT the routing catalogue')"
+      "evidence": "packages/api/src/routes/external-models.ts:16-40; mounted unauthenticated at packages/api/src/index.ts:240; packages/api/src/db/schema/providers.ts:415-425 (comment: 'NOT the routing catalogue')",
+      "removedIn": "corte-db-catalogue"
     },
     {
       "id": "leak-provider-api-error",
@@ -4575,7 +4579,8 @@
       ],
       "removalGate": "Not provider inference — a marketing/leaderboard feature. Keep, but its dead-on-boot state should be fixed independently.  || data-billing inventory adds: production row count audited on external_models. No scheduler wiring was found for this script; treat it as manually run until proven otherwise.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/scripts/sync-zeroeval.ts:8; called packages/api/src/index.ts:350; packages/api/src/scripts/sync-zeroeval.ts:122"
+      "evidence": "packages/api/src/scripts/sync-zeroeval.ts:8; called packages/api/src/index.ts:350; packages/api/src/scripts/sync-zeroeval.ts:122",
+      "removedIn": "corte-db-catalogue"
     },
     {
       "id": "sdk-ai-api",

@@ -36,7 +36,6 @@ const STOPPER_FOR: Readonly<Record<string, string>> = {
   initShowQueue: 'shutdownShowQueue',
   // Fire-and-forget work with no running resource behind it. Each of these
   // is one call that settles; there is nothing left to stop.
-  syncZeroEval: '',
   failOrphanedAudioJobs: '',
   reclaimOrphanedAgentSessions: '',
   startWorker: 'shutdownTaskQueue',
@@ -51,7 +50,6 @@ const traced = (name: string) => vi.fn(() => { order.push(name); return Promise.
 /** Records the call, in order, and returns nothing — for the synchronous starters. */
 const tracedSync = (name: string) => vi.fn(() => { order.push(name); });
 
-const syncZeroEval = traced('syncZeroEval');
 const startTriggerEngine = tracedSync('startTriggerEngine');
 const stopTriggerEngine = traced('stopTriggerEngine');
 const dispatcherStart = tracedSync('dispatcher.start');
@@ -71,7 +69,6 @@ const reclaimOrphanedAgentSessions = vi.fn(() => { order.push('reclaimOrphanedAg
 const DB_HANDLE = Symbol('db') as unknown as ReturnType<typeof getDbSignature>;
 const getDb = vi.fn((): ReturnType<typeof getDbSignature> => DB_HANDLE);
 
-vi.mock('../../scripts/sync-zeroeval.js', () => ({ syncZeroEval }));
 vi.mock('../trigger-engine.js', () => ({ startTriggerEngine, stopTriggerEngine }));
 vi.mock('../crowdsource/dispatcher.js', () => ({
   moderationOutboxDispatcher: { start: dispatcherStart, stop: dispatcherStop },
@@ -109,7 +106,6 @@ describe('startBackgroundServices', () => {
      * ordering assertion below is what stops a service being added here and
      * quietly left out of the source.
      */
-    expect(syncZeroEval).toHaveBeenCalledTimes(1);
     expect(startTriggerEngine).toHaveBeenCalledTimes(1);
     expect(dispatcherStart).toHaveBeenCalledTimes(1);
     expect(initTaskQueue).toHaveBeenCalledTimes(1);
@@ -153,7 +149,6 @@ describe('startBackgroundServices', () => {
      * the pre-existing shape and not an accident of the doubles.
      */
     expect(order).toEqual([
-      'syncZeroEval',
       'startTriggerEngine',
       'dispatcher.start',
       'initTaskQueue',
@@ -180,12 +175,12 @@ describe('startBackgroundServices', () => {
     /*
      * The positive control for every "it starts" assertion above: they would all
      * pass equally on a version that started nothing after the first failure.
-     * `syncZeroEval` is first, and an unavailable catalogue is an ordinary
-     * state — it must not be able to take the queues down with it.
+     * The audio-job cleanup runs early, and an unreachable database is an
+     * ordinary state — it must not be able to take the queues down with it.
      */
-    syncZeroEval.mockImplementationOnce(() => {
-      order.push('syncZeroEval');
-      return Promise.reject(new Error('catalogue unreachable'));
+    failOrphanedAudioJobs.mockImplementationOnce(() => {
+      order.push('failOrphanedAudioJobs');
+      return Promise.reject(new Error('database unreachable'));
     });
 
     startBackgroundServices();
@@ -271,7 +266,7 @@ describe('stopBackgroundServices', () => {
     );
     // Vacuity floor on the slice: an index that missed would make every pattern
     // below match nothing and the test pass over an empty string.
-    expect(startHalf).toContain('syncZeroEval');
+    expect(startHalf).toContain('startTriggerEngine');
 
     const called = [...startHalf.matchAll(/([A-Za-z][A-Za-z0-9]*)\s*\(/g)]
       .map((match) => match[1])

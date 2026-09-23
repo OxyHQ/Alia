@@ -24,18 +24,17 @@
  *
  * ## Where this is enforced
  *
- * Two chokepoints, both traced rather than assumed, both outside
- * `internal/providers/` because ADR 0002 puts that tree on a path to deletion
- * and adds nothing new to it:
+ * One chokepoint, traced rather than assumed, outside `internal/providers/`
+ * because ADR 0002 puts that tree on a path to deletion and adds nothing new
+ * to it:
  *
- *  - **Register** — `db/providers/routingProfileRepository.ts`. `createRoutingProfile` and
- *    `upsertRoutingProfile` are the only writers of `routing_profiles.routing_profile_id`;
- *    `updateRoutingProfile` deletes the column from its own SET clause, so an alias
- *    identity cannot move through an update.
  *  - **Serve** — `lib/chat-core.ts` `resolveModel()`, the hosted-model resolver
  *    shared by chat, agent, research, webhook and automation turns. Refusing
  *    there covers every product path before it can construct an Oxy inference
  *    target.
+ *
+ * There is no longer a register chokepoint: the `routing_profiles` table and
+ * its repository were dropped, and the routing-profile catalogue is code.
  *
  * `GET /v1/models/:modelId` needs nothing added: it looks the identifier up in
  * `KAANA_ROUTING_PROFILES`, which is keyed by the thirteen hyphenated aliases, so a slashed

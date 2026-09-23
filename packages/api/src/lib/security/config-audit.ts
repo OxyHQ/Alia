@@ -1,35 +1,22 @@
 /**
- * The audit record for a configuration change that affects model or routing
- * behaviour — epic #139 workstream 15, *"Add audit logs for configuration
- * changes that affect model/routing behavior."*
+ * The audit record for a configuration change that affects model access —
+ * epic #139 workstream 15, *"Add audit logs for configuration changes that
+ * affect model/routing behavior."*
  *
- * ## What counts as such a change, and what does not
+ * ## What counts as such a change
  *
- * Five tables decide which model a request can name and which one it resolves
- * to: `routing_profiles`, `routing_profile_provider_mappings`, `model_configs`,
- * `external_models` and `plans`. A write to
- * any of them is a decision a PERSON made about the product, and it is what
- * this records.
- *
- * `plans` joined the list in #139 workstream 14. It is the odd one out and
- * belongs here anyway: it is a BILLING table, but `plans.model_ids` is the
- * input to `lib/plan-access.ts`, which decides whether a request may name a
- * model at all — so a write to it changes which model a caller can reach, which
- * is the property this module is about. Recording it beside the other five
- * rather than inventing a second mechanism is the point; the alternative was a
- * parallel audit path for one column.
+ * One table is left: `plans`. It is a BILLING table, but `plans.model_ids` is
+ * the input to `lib/plan-access.ts`, which decides whether a request may name a
+ * model at all — so a write to it changes which model a caller can reach. The
+ * provider catalogue tables this module was first written for
+ * (`routing_profiles`, `routing_profile_provider_mappings`, `model_configs`,
+ * `external_models`) were dropped: the routing-profile catalogue is code, and
+ * Kaana owns everything behind it.
  *
  * ## Why a structured log line rather than a table
  *
- * `docs/migration/ownership.md` assigns `model_configs` and the mappings **to
- * Kaana**. An Alia-owned audit table for rows that are leaving is
- * a schema, a migration and an ownership entry for something with a known end
- * date, and it would have to be migrated or abandoned at the cutover. A
- * structured record on its own pino channel is machine-parseable, lands in the
- * same CloudWatch group as everything else, and costs nothing to retire.
- *
- * When the tables move, this module moves with them or is deleted; either way
- * nothing has to be un-migrated.
+ * A structured record on its own pino channel is machine-parseable, lands in
+ * the same CloudWatch group as everything else, and costs nothing to retire.
  *
  * ## Two rules the shape enforces
  *
@@ -37,20 +24,14 @@
  *    conversation or a completion; the payload is a per-resource FIELD
  *    ALLOW-LIST ({@link AUDITED_FIELDS}) applied to a row, so a field added
  *    upstream is absent from the record until somebody adds it here on purpose.
- * 2. **No credential material.** The resources this module accepts contain no
- *    hosted provider credential; those rows are no longer part of Alia's
- *    schema.
+ * 2. **No credential material.** The resource this module accepts contains no
+ *    credential.
  */
 
 import { createLogger } from '../logger.js';
 
-/** Which of the five configuration tables the record is about. */
-export type ConfigAuditResource =
-  | 'routing_profile'
-  | 'routing_profile_provider_mappings'
-  | 'model_config'
-  | 'external_model'
-  | 'plan';
+/** Which configuration table the record is about. */
+export type ConfigAuditResource = 'plan';
 
 /** What happened to it. `upsert` is one statement whose branch is not known. */
 export type ConfigAuditAction = 'create' | 'update' | 'delete' | 'upsert' | 'rotate' | 'reset';
@@ -80,16 +61,10 @@ declare const auditedFieldsBrand: unique symbol;
  * A projection {@link auditedFields} produced, and nothing else.
  *
  * The brand exists because the allow-list was one line thick: `after: row`
- * instead of `after: auditedFields('model_config', row)` compiled, ran, and put
- * every column of the row into the audit log — including
- * `model_configs.default_config_system_prompt`, which the allow-list omits on
- * purpose — with the whole suite green. The census in
- * `__tests__/config-audit.test.ts` now refuses that shape too; this refuses it
- * a compiler pass earlier, so the accidental form does not build at all.
- *
- * The two are not redundant. A brand is defeated by `as unknown as`, which the
- * census sees; a census is defeated by a spelling nobody predicted, which the
- * compiler sees. Neither is defeated by the same edit.
+ * instead of `after: auditedFields(resource, row)` compiled, ran, and put
+ * every column of the row into the audit log — including a system prompt the
+ * allow-list omitted on purpose — with the whole suite green. This refuses that
+ * shape at compile time, so the accidental form does not build at all.
  *
  * Type-only: `declare const` emits nothing, so no property is ever written and
  * the value pino receives is the plain object {@link auditedFields} built.
@@ -122,36 +97,9 @@ export interface ConfigAuditChange {
  * counter moving is not a configuration change.
  */
 export const AUDITED_FIELDS: Readonly<Record<ConfigAuditResource, readonly string[]>> = {
-  routing_profile: [
-    'routingProfileId',
-    'displayName',
-    'tier',
-    'creditMultiplier',
-    'isFreeTier',
-    'isActive',
-    'isDeprecated',
-    'deprecationDate',
-    'replacementModelId',
-  ],
-  routing_profile_provider_mappings: ['provider', 'modelId', 'priority', 'qualityScore', 'isActive'],
-  model_config: [
-    'provider',
-    'modelId',
-    'tier',
-    'priority',
-    'isActive',
-    'contextWindow',
-    'maxTokens',
-    'supportsTools',
-    'supportsVision',
-    'inputCostPer1M',
-    'outputCostPer1M',
-  ],
-  external_model: ['slug', 'organization', 'isActive', 'contextWindow'],
   // Which models a plan grants, and whether the plan is live at all. Price and
   // Stripe identifiers are money rather than routing and are deliberately out:
-  // this module records what changes model ACCESS, and a wider list here would
-  // make `plans` the one resource whose records carry unrelated fields.
+  // this module records what changes model ACCESS.
   plan: ['planId', 'product', 'modelIds', 'isActive'],
 };
 
@@ -185,9 +133,8 @@ export function auditedFields<T extends object>(
 /**
  * The channel, built on FIRST USE rather than at import.
  *
- * Not a micro-optimisation. Every `db/providers/*Repository.ts` imports this
- * module, so it is in the import graph of most of the package — and a
- * `createLogger(...)` at module scope is an import-time side effect that runs in
+ * Not a micro-optimisation. The plan repository imports this module, so it is
+ * in the import graph of most of the package — and a `createLogger(...)` at module scope is an import-time side effect that runs in
  * every test whose graph reaches a repository. Two suites that mock
  * `lib/logger.js` with only its `log` export broke on exactly that, at IMPORT,
  * before a single test ran. A module that does nothing until it is called cannot
