@@ -24,7 +24,6 @@ import {
 import { useOxy } from '@oxy.so/services';
 import { Stack } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
-import { View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // Routes that handle their own top safe area insets
@@ -34,9 +33,6 @@ const SELF_INSET_ROUTES = new Set([
   '[username]',
   'settings',
 ]);
-
-/** The template's frame (`templates/shared/dashboard.tsx` in Bloom). */
-const TEMPLATE_FRAME = { flex: 1, width: '100%', minWidth: 0, minHeight: 0 } as const;
 
 /** Routes that compose their own `AiChatContainer` (theirs holds the composer). */
 const CHAT_ROUTES = new Set(['index', 'c/[id]/index', '[username]']);
@@ -155,7 +151,6 @@ export default function AppLayout() {
   return (
     <AppErrorBoundary>
       <AliaSettingsProvider>
-        <View style={TEMPLATE_FRAME}>
         <AiChatShell
           sidebar={sidebar}
           mobileSidebar={mobileSidebar}
@@ -182,7 +177,6 @@ export default function AppLayout() {
             </Stack>
           </ShellNavProvider>
         </AiChatShell>
-        </View>
         <CommandPalette />
         <KeyboardShortcutsDialog />
       </AliaSettingsProvider>
