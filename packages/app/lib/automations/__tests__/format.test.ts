@@ -14,9 +14,8 @@ import type { AutomationDefinition, AutomationRun } from '../types';
 
 const baseAutomation = {
   id: 'automation-1',
-  legacyTriggerId: null,
   trigger: { type: 'manual' as const },
-} satisfies Pick<AutomationDefinition, 'id' | 'legacyTriggerId' | 'trigger'>;
+} satisfies Pick<AutomationDefinition, 'id' | 'trigger'>;
 
 function run(id: string, automationId: string, startedAt: string): AutomationRun {
   return {
@@ -86,8 +85,6 @@ describe('automation formatting', () => {
       ...baseAutomation,
       trigger: { type: 'schedule', cron: '0 9 * * 1', timezone: 'UTC' },
     })).toBe(true);
-    expect(canRunNow({ ...baseAutomation, legacyTriggerId: 'trigger-1' }))
-      .toBe(true);
   });
 });
 

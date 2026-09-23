@@ -29,15 +29,12 @@ export type AutomationActorSelection =
 export interface AutomationDefinition {
   id: string;
   /**
-   * The name the person typed when creating it, or null.
-   *
-   * Legacy-trigger automations require a name at creation and the index used
-   * to drop it, so lists and history showed the prompt as the heading and two
-   * automations with the same prompt were indistinguishable (#534). The API
-   * joins it back from the trigger; structured definitions have no name of
-   * their own and carry null. Render with `automationTitle`, never `name!`.
+   * No longer sent by the API. Only legacy-trigger automations ever had a name
+   * (joined from the `triggers` row, #534); those rows and that table are gone,
+   * and structured definitions have no name column. Optional until the
+   * Bloom-migrated screens stop reading it. Render with `automationTitle`.
    */
-  name: string | null;
+  name?: string | null;
   objective: string;
   trigger: AutomationTrigger;
   actorSelection: AutomationActorSelection;
@@ -49,7 +46,13 @@ export interface AutomationDefinition {
   maximumAutonomy: AutomationAutonomy;
   limits: Array<{ key: string; value: string | number | boolean | string[] }>;
   enabled: boolean;
-  legacyTriggerId: string | null;
+  /**
+   * No longer sent by the API: the legacy `triggers` table and the
+   * `automation_definitions.legacy_trigger_id` link were dropped. Optional only
+   * until the Bloom-migrated screens (`automation-card.tsx`,
+   * `automations/[id].tsx`, `tasks.tsx`) stop reading it; then delete it.
+   */
+  legacyTriggerId?: string | null;
   createdAt: string;
   updatedAt: string;
 }

@@ -365,9 +365,6 @@ export async function updateStructuredAutomation(input: {
   existing: AutomationDefinitionRecord;
   patch: UpdateAutomationInput;
 }) {
-  if (input.existing.legacyTriggerId) {
-    throw new AutomationCreationError('legacy_automation_not_editable', 409);
-  }
   const definition = editableDefinition(input.existing, input.patch);
   const executionPolicyError = automationExecutionPolicyError({
     enabled: definition.enabled,

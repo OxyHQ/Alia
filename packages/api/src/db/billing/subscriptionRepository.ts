@@ -16,8 +16,7 @@
  * sort already asked for, and what the field is read as meaning everywhere it is
  * displayed. A deliberate behaviour change, called out because it is one.
  *
- * `created_at` is `notNull`, so no `NULLS LAST` is needed here — unlike the
- * `last_failure` ordering in `authHealthRepository`, where it was load-bearing.
+ * `created_at` is `notNull`, so no `NULLS LAST` is needed here.
  *
  * ## `plan_snapshot_*` is what was SOLD
  *

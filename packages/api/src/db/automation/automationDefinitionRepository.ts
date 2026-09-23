@@ -144,7 +144,6 @@ function toDefinition(
     maximumAutonomy: row.maximumAutonomy,
     limits: row.limits,
     enabled: row.enabled,
-    legacyTriggerId: row.legacyTriggerId,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -196,12 +195,11 @@ export async function findAutomationDefinitionById(db: Executor, id: string) {
   return (await hydrateDefinitions(db, [row]))[0] ?? null;
 }
 
-/** Normalized schedules only. Legacy definitions continue through trigger rows. */
+/** Enabled schedules, for the scheduler. */
 export async function listSchedulableAutomationDefinitions(db: Executor) {
   const rows = await db.select().from(automationDefinitions).where(and(
     eq(automationDefinitions.triggerKind, 'schedule'),
     eq(automationDefinitions.enabled, true),
-    isNull(automationDefinitions.legacyTriggerId),
   )).orderBy(automationDefinitions.id);
   return hydrateDefinitions(db, rows);
 }
@@ -213,7 +211,6 @@ export async function listSchedulableAutomationVersions(db: Executor) {
   }).from(automationDefinitions).where(and(
     eq(automationDefinitions.triggerKind, 'schedule'),
     eq(automationDefinitions.enabled, true),
-    isNull(automationDefinitions.legacyTriggerId),
   )).orderBy(automationDefinitions.id);
 }
 
@@ -407,7 +404,6 @@ export async function matchingEventAutomations(
     eq(automationDefinitions.ownerAccountId, event.accountId),
     eq(automationDefinitions.triggerKind, 'event'),
     eq(automationDefinitions.enabled, true),
-    isNull(automationDefinitions.legacyTriggerId),
   )).orderBy(automationDefinitions.id);
   const matching = rows.filter((row) => (
     (row.eventAppId === null || row.eventAppId === '*' || row.eventAppId === event.appId)

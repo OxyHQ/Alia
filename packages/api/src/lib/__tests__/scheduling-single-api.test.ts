@@ -69,11 +69,10 @@ describe('one structured scheduling control plane', () => {
     expect(route?.calls).not.toContain('cron');
   });
 
-  it('does not load the retired trigger repository in the scheduler or dispatcher', () => {
-    for (const file of [TRIGGER_ENGINE, 'lib/automation-dispatcher.ts']) {
-      const source = SOURCES.find((entry) => entry.file === file);
-      expect(source, `${file} was not scanned`).toBeDefined();
-      expect(source?.specifiers.some((specifier) => specifier.endsWith(TRIGGER_REPOSITORY))).toBe(false);
+  it('has no legacy trigger repository for anything to load', () => {
+    expect(fs.existsSync(path.join(SRC, TRIGGER_REPOSITORY.replace(/\.js$/, '.ts')))).toBe(false);
+    for (const source of SOURCES) {
+      expect(source.specifiers.some((specifier) => specifier.endsWith(TRIGGER_REPOSITORY)), source.file).toBe(false);
     }
   });
 });
