@@ -567,10 +567,6 @@ async function renderSegments(
         const key = await uploadToS3(
           result.value.buffer,
           `segment.${result.value.format}`,
-          // A prefix of its OWN, not a folder inside `shows/`. The one-shot purge
-          // deletes everything under `{env}/shows/`, and sharing that prefix
-          // would make it unable to tell a dead recording from an episode being
-          // assembled while it runs.
           `show-segments/${episode.userId}/${episode.id}`,
           `segment-${segment.index}`,
         );

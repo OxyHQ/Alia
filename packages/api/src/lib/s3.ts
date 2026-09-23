@@ -3,7 +3,6 @@ import {
   DeleteObjectCommand,
   DeleteObjectsCommand,
   GetObjectCommand,
-  ListObjectsV2Command,
   PutObjectCommand,
 } from '@aws-sdk/client-s3';
 import crypto from 'crypto';
@@ -168,45 +167,6 @@ export async function deleteFromS3(key: string): Promise<void> {
 }
 
 /**
- * Every object key under a prefix, following the continuation token.
- *
- * `ListObjectsV2` caps a response at 1000 keys and reports the truncation in a
- * flag most callers never read — a single unpaginated call reports "1000 keys"
- * for a prefix holding a million, and the caller cannot tell that from a prefix
- * that really holds 1000. So the loop is not an optimisation; it is the
- * difference between an answer and a plausible one.
- *
- * An EMPTY prefix is refused. `ListObjectsV2` treats it as "the whole bucket",
- * so a caller that built a prefix from an undefined value would delete
- * everything — and the one caller that deletes is exactly the one most likely to
- * compute its prefix.
- */
-export async function listS3ObjectKeys(prefix: string): Promise<string[]> {
-  if (BUCKET_NAME === '' || prefix === '') return [];
-
-  const keys: string[] = [];
-  let continuationToken: string | undefined;
-
-  do {
-    const page = await s3Client.send(
-      new ListObjectsV2Command({
-        Bucket: BUCKET_NAME,
-        Prefix: prefix,
-        ...(continuationToken === undefined ? {} : { ContinuationToken: continuationToken }),
-      }),
-    );
-
-    for (const object of page.Contents ?? []) {
-      if (object.Key !== undefined) keys.push(object.Key);
-    }
-
-    continuationToken = page.IsTruncated === true ? page.NextContinuationToken : undefined;
-  } while (continuationToken !== undefined);
-
-  return keys;
-}
-
-/**
  * Delete these exact objects, and report how many went.
  *
  * By KEY, not by prefix, because a caller that knows what it wrote should say
@@ -246,14 +206,6 @@ export async function deleteS3Objects(keys: readonly string[]): Promise<number> 
   }
 
   return deleted;
-}
-
-/**
- * Delete everything under a prefix. For the one-shot purge, which has no list of
- * keys to work from — it is removing what a deleted table used to point at.
- */
-export async function deleteS3Prefix(prefix: string): Promise<number> {
-  return deleteS3Objects(await listS3ObjectKeys(prefix));
 }
 
 /**

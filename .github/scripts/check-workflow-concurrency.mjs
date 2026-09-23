@@ -68,7 +68,6 @@ const EXPECTED = {
   // than for a rollout: a cancelled run abandons a task that is mid-transaction
   // and reports nothing about whether it committed.
   'bootstrap-native-product-agents.yml': 'serialised',
-  'add-to-roadmap.yml': 'keyed',
 };
 
 /** The top-level `concurrency:` block of a workflow, or `null`. */
