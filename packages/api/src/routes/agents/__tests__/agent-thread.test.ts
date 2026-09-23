@@ -137,7 +137,6 @@ const AGENT_ROW = {
   access: 'private',
   status: 'active',
   systemPrompt: 'a prompt nobody else may read',
-  allowedModels: ['route:auto'],
   capabilityGrants: [],
   archetype: 'general',
   createdAt: new Date(),

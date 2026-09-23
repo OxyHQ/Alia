@@ -484,6 +484,20 @@
       "when": 1789064682375,
       "tag": "0068_resolved_model_reference",
       "breakpoints": true
+    },
+    {
+      "idx": 69,
+      "version": "7",
+      "when": 1790186630434,
+      "tag": "0069_remove_legacy_trigger_automations",
+      "breakpoints": true
+    },
+    {
+      "idx": 70,
+      "version": "7",
+      "when": 1790186651505,
+      "tag": "0070_clean_cut_dormant_tables",
+      "breakpoints": true
     }
   ]
 }

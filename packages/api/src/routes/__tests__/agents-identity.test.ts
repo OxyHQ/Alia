@@ -152,7 +152,6 @@ const AGENT_ROW = {
   allowHiring: false,
   systemPrompt: null,
   preferredImage: null,
-  allowedModels: ['route:auto'],
   scheduleInterval: null,
   archetype: 'general',
   archetypeConfig: null,

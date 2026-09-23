@@ -72,7 +72,7 @@ const CLAUDIO = {
   tagline: 'Your plant care companion',
   description: 'Watering, light, soil, pests.',
   systemPrompt: 'You look after plants.',
-  archetype: 'general', archetypeConfig: null, allowedModels: [], capabilityGrants: [],
+  archetype: 'general', archetypeConfig: null, capabilityGrants: [],
   author: 'user-1',
 };
 

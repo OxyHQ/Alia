@@ -583,18 +583,6 @@ interface SupersededUnique {
 
 const UNIQUES_SUPERSEDED: readonly SupersededUnique[] = [
   {
-    model: 'AliaModel',
-    file: 'src/internal/providers/models/alia-model.ts',
-    retiredBy: '60f910dd',
-    wasTable: 'alia_models',
-    nowTable: 'routing_profiles',
-    mongooseKey: ['aliasModelId'],
-    wasConstraint: 'alia_models_alias_model_id_key',
-    nowConstraint: 'routing_profiles_routing_profile_id_key',
-    reason:
-      'Migration 0059 renamed the same catalogue table, identity column and unique index from the retired Alia alias vocabulary to a Kaana routing profile. The identity remains protected under its canonical name without rewriting the frozen record of what Mongoose declared.',
-  },
-  {
     model: 'Skill',
     file: 'src/models/skill.ts',
     retiredBy: 'S9 containers/skills',
@@ -634,6 +622,44 @@ const UNIQUES_REMOVED_WITH_CAPABILITY: readonly UniqueRemovedWithCapability[] = 
     removedBy: '0061_remove_alia_provider_credentials',
     reason:
       'Kaana is the sole provider-credential custodian. The post-rollout migration drops the whole Alia table without reading or copying its secrets, so its exact-key uniqueness must leave with it.',
+  },
+  {
+    model: 'AliaModel',
+    table: 'alia_models',
+    constraint: 'alia_models_alias_model_id_key',
+    removedBy: '0070_clean_cut_dormant_tables',
+    reason:
+      'Superseded by `routing_profiles_routing_profile_id_key` when 0059 renamed the table; the clean cut then dropped `routing_profiles` itself, because the routing-profile catalogue is code and nothing read the table. Neither name exists now.',
+  },
+  {
+    model: 'ModelConfig',
+    table: 'model_configs',
+    constraint: 'model_configs_provider_model_id_key',
+    removedBy: '0070_clean_cut_dormant_tables',
+    reason:
+      'The retired model catalogue: no runtime reader since #477, dropped by the clean cut with its mappings.',
+  },
+  {
+    model: 'ExternalModel',
+    table: 'external_models',
+    constraint: 'external_models_model_id_key',
+    removedBy: '0070_clean_cut_dormant_tables',
+    reason: 'The ZeroEval leaderboard mirror, its sync and its route left Alia together.',
+  },
+  {
+    model: 'DeveloperApiKey',
+    table: 'developer_api_keys',
+    constraint: 'developer_api_keys_key_hash_key',
+    removedBy: '0070_clean_cut_dormant_tables',
+    reason:
+      'The `alia_sk_*` developer keys were retired outright: the API refuses the prefix and the key tables are dropped, so the hash uniqueness leaves with them.',
+  },
+  {
+    model: 'CanvasSession',
+    table: 'canvas_sessions',
+    constraint: 'canvas_sessions_oxy_user_conversation_id_key',
+    removedBy: '0070_clean_cut_dormant_tables',
+    reason: 'The table never had a writer; its read and delete paths were removed and the table dropped.',
   },
 ];
 
@@ -934,8 +960,8 @@ describe('the walk itself found something', () => {
     const historicalKeys = new Set(historical.map((r) => `${r.model}|${r.table}|${r.constraint}`));
     // A supersession layered over an immutable historical row is the same
     // uniqueness in a later state. Count only supersessions that are themselves
-    // the sole surviving record (Skill today), rather than double-counting the
-    // frozen AliaModel row.
+    // the sole surviving record (Skill today), never one layered over a frozen
+    // historical row.
     const independentlyRecordedSupersessions = UNIQUES_SUPERSEDED.filter(
       (r) => !historicalKeys.has(`${r.model}|${r.wasTable}|${r.wasConstraint}`),
     ).length;
@@ -1102,7 +1128,7 @@ describe('every uniqueness Mongoose enforced exists in PostgreSQL', () => {
     expect(
       resurrected,
       `${resurrected.join('; ')} returned after its whole capability left Alia. ` +
-        'Do not restore provider credential state to make the historical gate green.',
+        'Do not restore retired state to make the historical gate green.',
     ).toEqual([]);
   });
 
@@ -1304,7 +1330,7 @@ describe('the ratchet', () => {
       'UNIQUES_REMOVED_WITH_CAPABILITY excuses a previously ported uniqueness only ' +
         'when its whole owning capability deliberately leaves Alia. Audit every new ' +
         'entry and pin the new count rather than letting this become a gap bucket.',
-    ).toBe(1);
+    ).toBe(6);
   });
 
   /**

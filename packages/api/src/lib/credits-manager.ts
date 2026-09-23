@@ -142,9 +142,9 @@ export class UnpricedModelError extends Error {
  * this exact hole, and until now could only pin the values it would have
  * hidden.
  *
- * `|| 1` also swallowed a registered multiplier of 0. The column is constrained
- * `between 0.1 and 10` (`db/schema/providers.ts`), so that is not reachable
- * today, but the read no longer depends on it being unreachable.
+ * `|| 1` also swallowed a registered multiplier of 0. That was never reachable
+ * through the old catalogue table's `between 0.1 and 10` CHECK, but the read no
+ * longer depends on it being unreachable.
  *
  * ## The price comes from the ROUTING PRESET, not from the alias record
  *

@@ -90,7 +90,6 @@ function agentRecord(overrides: Record<string, unknown> = {}) {
     allowHiring: false,
     systemPrompt: 'You are helpful.',
     preferredImage: null,
-    allowedModels: [],
     scheduleInterval: null,
     archetype: 'general',
     archetypeConfig: null,

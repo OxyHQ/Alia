@@ -296,7 +296,7 @@ export const GRANTS_EVERYTHING: CapabilityGrantSet = {
  * Read a stored `capability_grants` array.
  *
  * Unrecognised entries are DROPPED rather than throwing: the column has no
- * CHECK — the same reasoning `allowed_models` one column over is given — so a
+ * CHECK, because a CHECK would fail a turn on a family renamed later — so a
  * value written before a family was renamed must not take the turn down with
  * it. The wire schema is where a bad grant is refused, at the moment somebody
  * can still be told about it.

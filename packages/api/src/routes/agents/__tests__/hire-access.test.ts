@@ -132,7 +132,6 @@ const AGENT = {
   status: 'active',
   price: 15,
   systemPrompt: 'p',
-  allowedModels: ['route:auto'],
   capabilityGrants: [],
   archetype: 'general',
   createdAt: new Date(),

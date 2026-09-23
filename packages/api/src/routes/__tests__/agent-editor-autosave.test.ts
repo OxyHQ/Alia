@@ -128,7 +128,6 @@ const AGENT_ROW = {
   access: 'private',
   systemPrompt: null,
   preferredImage: null,
-  allowedModels: ['route:auto'],
   scheduleInterval: null,
   archetype: 'general',
   archetypeConfig: null,
@@ -252,7 +251,6 @@ const VALUE_FOR: Readonly<Record<string, unknown>> = {
   archetypeConfig: { citeSources: true },
   isPublished: false,
   status: 'active',
-  allowedModels: ['route:auto'],
   scheduleInterval: 60,
 };
 

@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
@@ -63,18 +63,47 @@ describe('Alia hosted provider runtime retirement', () => {
     ) as { entries: Array<{ tag: string }> };
     expect(journal.entries.map((entry) => entry.tag)).toContain('0061_remove_alia_provider_credentials');
 
-    const schema = [
-      readFileSync(path.join(API_SRC, 'db/schema/providers.ts'), 'utf8'),
-      readFileSync(path.join(API_SRC, 'db/schema/telemetry.ts'), 'utf8'),
-    ].join('\n');
+    const schema = readdirSync(path.join(API_SRC, 'db/schema'))
+      .filter((file) => file.endsWith('.ts'))
+      .map((file) => readFileSync(path.join(API_SRC, 'db/schema', file), 'utf8'))
+      .join('\n');
     expect(schema).not.toContain("'provider_keys'");
+  });
+
+  it('drops the dormant hosted-provider telemetry post-rollout, with no rollback window', () => {
+    // The owner's clean cut: the three tables kept for the first cutover's
+    // rollback window are gone from the schema, and 0070 drops them — post
+    // phase, without reading them first and without CASCADE.
+    const schema = readdirSync(path.join(API_SRC, 'db/schema'))
+      .filter((file) => file.endsWith('.ts'))
+      .map((file) => readFileSync(path.join(API_SRC, 'db/schema', file), 'utf8'))
+      .join('\n');
+    expect(existsSync(path.join(API_SRC, 'db/schema/providers.ts'))).toBe(false);
+
+    const migration = readFileSync(
+      path.join(REPO_ROOT, 'packages/api/drizzle/0070_clean_cut_dormant_tables.sql'),
+      'utf8',
+    );
+    const executableSql = migration
+      .split('\n')
+      .filter((line) => !line.trimStart().startsWith('--'))
+      .join('\n');
+    expect(migration).toMatch(/^-- oxy:deploy-phase=post$/m);
+    expect(executableSql).not.toMatch(/\b(SELECT|INSERT|UPDATE|COPY)\b/i);
+    expect(executableSql).not.toMatch(/\bCASCADE\b/i);
     for (const table of ['provider_health', 'api_usage', 'fallback_events']) {
-      expect(schema).toContain(`'${table}'`);
+      expect(schema, table).not.toContain(`'${table}'`);
+      expect(executableSql, table).toContain(`DROP TABLE "${table}";`);
     }
 
     const agents = readFileSync(path.join(API_SRC, 'db/schema/agents.ts'), 'utf8');
-    expect(agents).toContain('allowedModels: text().array()');
-    expect(agents).toContain('non-authoritative reconciliation evidence');
+    expect(agents).not.toContain('allowedModels');
+    expect(executableSql).toContain('ALTER TABLE "agents" DROP COLUMN "allowed_models";');
+
+    const journal = JSON.parse(
+      readFileSync(path.join(REPO_ROOT, 'packages/api/drizzle/meta/_journal.json'), 'utf8'),
+    ) as { entries: Array<{ tag: string }> };
+    expect(journal.entries.map((entry) => entry.tag)).toContain('0070_clean_cut_dormant_tables');
   });
 
   it('has no direct hosted provider SDK or inert provider metric', () => {

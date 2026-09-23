@@ -161,7 +161,6 @@ async function seedAgent(input: {
     status: input.status ?? 'active',
     systemPrompt,
     routingProfileId: OXY_KAANA_ROUTING_PROFILE_IDS['route:instant'],
-    allowedModels: ['route:instant'],
   });
   return { id, oxyAccountId, systemPrompt };
 }
@@ -399,7 +398,7 @@ describe('who pays for the nested turn', () => {
     /**
      * 6000 tokens, `TOKENS_PER_CREDIT` 1000, and the `route:instant` preset's
      * multiplier of 0.5 — three credits. The agent's OWN model decides the
-     * price, which is why the row above pins `allowedModels`, and a number
+     * price, which is why the row above pins `routingProfileId`, and a number
      * bigger than the one-credit reservation is what makes the settlement
      * visible: at the minimum charge, "settled correctly" and "never settled"
      * are the same balance.
