@@ -1,15 +1,16 @@
-import { THREAD_COLUMN } from '@/lib/chat-layout';
 import {
   useThreadSearch,
   type ThreadSearchHit,
 } from '@/lib/hooks/use-thread-search';
 import { useTranslation } from '@/lib/hooks/use-translation';
 import { Button } from '@oxy.so/bloom/button';
-import { TextFieldInput as Input } from '@oxy.so/bloom/text-field';
-import { Text } from '@oxy.so/bloom/typography';
-import { Search, X } from 'lucide-react-native';
+import { Card, CardBody } from '@oxy.so/bloom/card';
+import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
+import { Item } from '@oxy.so/bloom/item';
+import { Search } from '@oxy.so/bloom/search';
+import { Muted } from '@oxy.so/bloom/typography';
 import { useState } from 'react';
-import { Pressable, ScrollView, View } from 'react-native';
+import { ScrollView, View } from 'react-native';
 
 /**
  * Searching what was said in this thread, across every conversation in it.
@@ -23,6 +24,10 @@ import { Pressable, ScrollView, View } from 'react-native';
  * Each result carries the cursor that opens the thread around it. A result you
  * can read and not reach is a wall, so `onJump` is not an extra: it is what the
  * hit is for.
+ *
+ * Bloom's `Search` for the field and an `Item` per hit, on a `Card` floating
+ * over the top of the thread in its 768 column: the card is the surface, so
+ * nothing here paints one of its own.
  */
 
 interface ThreadSearchProps {
@@ -60,86 +65,74 @@ export const ThreadSearch = ({
   const found = hits ?? [];
 
   return (
-    <View className="absolute inset-x-0 top-0 z-20 overflow-hidden border-b border-border bg-background px-4 pb-3 pt-4">
-      <View className={THREAD_COLUMN}>
-        <View className="flex-row items-center gap-2">
-          <View className="flex-1 flex-row items-center gap-2 rounded-xl border border-input bg-background px-3">
-            <Search size={16} className="text-muted-foreground" />
-            <Input
-              label={t('chat.searchThreadPlaceholder')}
-              value={query}
-              onChangeText={setQuery}
-              placeholder={t('chat.searchThreadPlaceholder')}
-              className="h-10 flex-1 border-0 px-0"
-              autoFocus
-              returnKeyType="search"
-            />
-          </View>
-          <Button
-            variant="ghost"
-            size="icon"
-            onPress={onClose}
-            className="h-9 w-9 rounded-full"
-            icon={
-              <>
-                <X size={18} className="text-muted-foreground" />
-              </>
-            }
-          />
-        </View>
+    <View className="absolute inset-x-0 top-0 z-20 px-4 pt-4" pointerEvents="box-none">
+      <View className="w-full max-w-[768px] self-center">
+        <Card elevation="m">
+          <CardBody>
+            <View className="flex-row items-center gap-2">
+              <View className="flex-1">
+                <Search
+                  label={t('chat.searchThreadPlaceholder')}
+                  value={query}
+                  onChangeText={setQuery}
+                  onClearText={() => setQuery('')}
+                  autoFocus
+                  returnKeyType="search"
+                />
+              </View>
+              <Button
+                size="md"
+                appearance="plain"
+                tone="neutral"
+                iconOnly
+                leadingIcon={RiCloseLine}
+                accessibilityLabel={t('common.close')}
+                onPress={onClose}
+              />
+            </View>
 
-        {!asked ? (
-          <Text className="px-1 py-4 text-sm text-muted-foreground">
-            {t('chat.searchThreadHint')}
-          </Text>
-        ) : isError ? (
-          <Text className="px-1 py-4 text-sm text-muted-foreground">
-            {t('chat.searchThreadFailed')}
-          </Text>
-        ) : found.length === 0 ? (
-          <Text className="px-1 py-4 text-sm text-muted-foreground">
-            {isFetching
-              ? t('chat.searchThreadSearching')
-              : t('chat.searchThreadEmpty')}
-          </Text>
-        ) : (
-          <ScrollView
-            // A height in px, not a percentage of a parent that has none:
-            // measured in Chromium, the list otherwise sized itself to its
-            // content and spilled the results over the thread behind it.
-            className="mt-2 max-h-96"
-            keyboardShouldPersistTaps="handled"
-          >
-            {found.map((hit) => (
-              <Pressable
-                // The cursor, never `messageId`: a message the server wrote has
-                // no client id, and `null` is not a key.
-                key={hit.cursor}
-                onPress={() => onJump(hit)}
-                className="rounded-xl px-1 py-3 web:hover:bg-muted"
+            {!asked ? (
+              <View className="px-1 py-4">
+                <Muted>{t('chat.searchThreadHint')}</Muted>
+              </View>
+            ) : isError ? (
+              <View className="px-1 py-4">
+                <Muted>{t('chat.searchThreadFailed')}</Muted>
+              </View>
+            ) : found.length === 0 ? (
+              <View className="px-1 py-4">
+                <Muted>
+                  {isFetching
+                    ? t('chat.searchThreadSearching')
+                    : t('chat.searchThreadEmpty')}
+                </Muted>
+              </View>
+            ) : (
+              <ScrollView
+                // A height in px, not a percentage of a parent that has none:
+                // measured in Chromium, the list otherwise sized itself to its
+                // content and spilled the results over the thread behind it.
+                className="mt-2 max-h-96"
+                keyboardShouldPersistTaps="handled"
               >
-                <View className="flex-row items-center justify-between gap-3">
-                  <Text className="text-xs font-medium text-muted-foreground">
-                    {t(
+                {found.map((hit) => (
+                  <Item
+                    // The cursor, never `messageId`: a message the server wrote
+                    // has no client id, and `null` is not a key.
+                    key={hit.cursor}
+                    title={hit.snippet}
+                    subtitle={`${t(
                       hit.role === 'user'
                         ? 'chat.searchThreadYou'
                         : 'chat.searchThreadAgent',
-                    )}
-                  </Text>
-                  <Text className="text-xs text-muted-foreground">
-                    {hitDay(hit.createdAt, locale)}
-                  </Text>
-                </View>
-                <Text
-                  className="mt-1 text-sm text-foreground"
-                  numberOfLines={2}
-                >
-                  {hit.snippet}
-                </Text>
-              </Pressable>
-            ))}
-          </ScrollView>
-        )}
+                    )} · ${hitDay(hit.createdAt, locale)}`}
+                    onPress={() => onJump(hit)}
+                  />
+                ))}
+              </ScrollView>
+            )}
+          </CardBody>
+        </Card>
       </View>
     </View>
   );

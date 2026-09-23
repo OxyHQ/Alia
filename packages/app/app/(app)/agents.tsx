@@ -4,6 +4,7 @@ import { useAgentCatalogue } from '@/lib/hooks/use-agents';
 import { useIsLargeScreen } from '@/lib/hooks/use-is-large-screen';
 import { useTranslation } from '@/lib/hooks/use-translation';
 import { Button } from '@oxy.so/bloom/button';
+import { ButtonGroup, ButtonGroupItem } from '@oxy.so/bloom/button-group';
 import { Card, CardBody } from '@oxy.so/bloom/card';
 import { Chip, ChipRow } from '@oxy.so/bloom/chip';
 import { EmptyState } from '@oxy.so/bloom/empty-state';
@@ -14,7 +15,7 @@ import { Search } from '@oxy.so/bloom/search';
 import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { Muted, Text } from '@oxy.so/bloom/typography';
 import { FlashList } from '@shopify/flash-list';
-import { useRouter } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import { RefreshControl, ScrollView, View } from 'react-native';
 
@@ -113,34 +114,10 @@ export default function AgentsScreen() {
   // ── Split header into smaller memos to avoid re-rendering everything ──
 
   /** The description, and the page's two actions beside it. */
-  const headerTop = useMemo(
-    () => (
-      <View className="flex-row flex-wrap items-center justify-between gap-3 pt-4">
-        <Muted className="shrink text-sm text-muted-foreground">
-          {t('agents.subtitle')}
-        </Muted>
-        <View className="flex-row gap-2">
-          <Button
-            size="sm"
-            tone="neutral"
-            appearance="subtle"
-            leadingIcon={RiTeamLine}
-            onPress={handleTeams}
-          >
-            {t('pages.agents.teams')}
-          </Button>
-          <Button
-            size="sm"
-            tone="action"
-            leadingIcon={RiAddLine}
-            onPress={handleCreateAgent}
-          >
-            {t('agents.createAgent')}
-          </Button>
-        </View>
-      </View>
-    ),
-    [t, handleCreateAgent, handleTeams],
+  const headerTop = (
+    <View className="pt-4">
+      <Muted>{t('agents.subtitle')}</Muted>
+    </View>
   );
 
   const searchBar = (
@@ -290,6 +267,27 @@ export default function AgentsScreen() {
   // room sit around the list and after it rather than in `contentContainerStyle`.
   return (
     <View className="flex-1 px-2.5">
+      <Stack.Screen
+        options={{
+          headerRight: () => (
+            <>
+              <ButtonGroup accessibilityLabel={t('pages.agents.teams')}>
+                <ButtonGroupItem leadingIcon={RiTeamLine} onPress={handleTeams}>
+                  {t('pages.agents.teams')}
+                </ButtonGroupItem>
+              </ButtonGroup>
+              <Button
+                size="md"
+                tone="action"
+                leadingIcon={RiAddLine}
+                onPress={handleCreateAgent}
+              >
+                {t('agents.createAgent')}
+              </Button>
+            </>
+          ),
+        }}
+      />
       <FlashList
         key={numColumns}
         data={loading && agents.length === 0 ? [] : filteredAgents}

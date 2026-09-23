@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
  *
  * ## The exposure
  *
- * `cardOf` in `chat-interface.tsx` validates the card's NAME — that
+ * `cardOf` in `lib/chat/tool-cards.ts` validates the card's NAME — that
  * `card.type` is one of four known strings and `card.data` is truthy — and then
  * hands the payload over with an unchecked cast:
  *
@@ -28,12 +28,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
  *
  * Both halves, because either alone proves nothing:
  *
- * 1. The real `WeatherCard` genuinely throws on a payload that `cardOf` would
- *    let through. If it ever stops throwing — because it grew its own guards —
- *    this test fails and says so, which is the right moment to revisit whether
- *    the boundary is still earning its place.
- * 2. The boundary catches it, says so in words, and keeps rendering everything
- *    around it.
+ * 1. The real weather card genuinely throws on a payload that `cardOf` would
+ *    let through (`ToolResultCard` reads `data.current` unguarded). If it ever
+ *    stops throwing — because it grew its own guards — this test fails and
+ *    says so, which is the right moment to revisit whether the boundary is
+ *    still earning its place.
+ * 2. The boundary catches it, says so in words (Bloom's compact empty state),
+ *    and keeps rendering everything around it.
  */
 
 vi.mock('react-native', async () => {
@@ -58,64 +59,73 @@ vi.mock('react-native', async () => {
   };
 });
 
-vi.mock('lucide-react-native', async () => {
-  const ReactModule = await import('react');
-  return {
-    AlertTriangle: (props: Record<string, unknown>) =>
-      ReactModule.createElement('AlertTriangle', props),
-  };
-});
+vi.mock('expo-router', () => ({ useRouter: () => ({ push: () => {} }) }));
+vi.mock('@oxy.so/bloom/badge', () => ({ Badge: () => null }));
+vi.mock('@oxy.so/bloom/chart-cards', () => ({ LineChartCard: () => null }));
+vi.mock('@oxy.so/bloom/item', () => ({ Item: () => null }));
+vi.mock('@oxy.so/bloom/icons/RiArrowRightSLine', () => ({ RiArrowRightSLine: () => null }));
+vi.mock('@oxy.so/bloom/icons/RiCalendarScheduleLine', () => ({ RiCalendarScheduleLine: () => null }));
+vi.mock('@oxy.so/bloom/icons/RiCloudLine', () => ({ RiCloudLine: () => null }));
+vi.mock('@oxy.so/bloom/icons/RiDropLine', () => ({ RiDropLine: () => null }));
+vi.mock('@oxy.so/bloom/icons/RiSnowflakeLine', () => ({ RiSnowflakeLine: () => null }));
+vi.mock('@oxy.so/bloom/icons/RiSunFoggyLine', () => ({ RiSunFoggyLine: () => null }));
+vi.mock('@oxy.so/bloom/icons/RiSunLine', () => ({ RiSunLine: () => null }));
 
-vi.mock('@oxy.so/bloom/typography', async () => {
-  const ReactModule = await import('react');
-  return {
-    Text: ({
-      children,
-      ...props
-    }: React.PropsWithChildren<Record<string, unknown>>) =>
-      ReactModule.createElement('Text', props, children),
-  };
-});
 
 vi.mock('@/lib/hooks/use-translation', () => ({
-  useTranslation: () => ({ t: (key: string) => key }),
+  useTranslation: () => ({ t: (key: string) => key, locale: 'en' }),
 }));
 
-vi.mock('@/lib/useColorScheme', () => ({
-  useColorScheme: () => ({
-    colors: { foreground: '#000', primary: '#000', muted: '#eee' },
-    isDarkColorScheme: false,
-  }),
-}));
-
-vi.mock('@/lib/utils', () => ({
-  cn: (...parts: unknown[]) => parts.filter(Boolean).join(' '),
-}));
-
-vi.mock('@/components/cards/card-surface', async () => {
+/** The fallback: Bloom's empty state, reduced to the line it says. */
+vi.mock('@oxy.so/bloom/empty-state', async () => {
   const ReactModule = await import('react');
   return {
-    CardSurface: ({ children }: React.PropsWithChildren) =>
-      ReactModule.createElement('CardSurface', null, children),
+    EmptyState: ({ description }: { description?: string }) =>
+      ReactModule.createElement('EmptyState', null, description),
   };
 });
 
-vi.mock('@/components/cards/area-chart', async () => {
+vi.mock('@oxy.so/bloom/icons/RiErrorWarningLine', () => ({
+  RiErrorWarningLine: () => null,
+}));
+
+/** Every Bloom piece the weather card composes, as a plain host. */
+vi.mock('@oxy.so/bloom/ai-chat', async () => {
   const ReactModule = await import('react');
   return {
-    AreaChart: () => ReactModule.createElement('AreaChart'),
-    areaGeometry: () => null,
+    AiChatMessageLine: ({ children }: React.PropsWithChildren) =>
+      ReactModule.createElement('Line', null, children),
   };
 });
+vi.mock('@oxy.so/bloom/card', async () => {
+  const ReactModule = await import('react');
+  const host =
+    (name: string) =>
+    ({ children }: React.PropsWithChildren) =>
+      ReactModule.createElement(name, null, children);
+  return { Card: host('Card'), CardHeader: host('CardHeader'), CardBody: host('CardBody') };
+});
+vi.mock('@oxy.so/bloom/icon-circle', () => ({ IconCircle: () => null }));
+vi.mock('@oxy.so/bloom/segmented-control', () => ({
+  SegmentedControl: () => null,
+  SegmentedControlItem: () => null,
+  SegmentedControlItemText: () => null,
+}));
+vi.mock('@oxy.so/bloom/typography', async () => {
+  const ReactModule = await import('react');
+  const host = ({ children }: React.PropsWithChildren) =>
+    ReactModule.createElement('Text', null, children);
+  return { Text: host, Muted: host };
+});
 
-import {
-  WeatherCard,
-  type WeatherCardData,
-} from '@/components/cards/weather-card';
 import { MessageBlockBoundary } from '@/components/chat/message-block-boundary';
+import { ToolResultCard } from '@/components/chat/tool-result-card';
+import type { ToolCard } from '@/lib/chat/tool-cards';
 
-/** What a tool could return that `cardOf` accepts and `WeatherCard` cannot read. */
-const MALFORMED = { place: 'Madrid' } as unknown as WeatherCardData;
+/** What a tool could return that `cardOf` accepts and the weather card cannot read. */
+const MALFORMED = { type: 'weather', data: { place: 'Madrid' } } as unknown as ToolCard;
+const WeatherCard = ({ data }: { data: ToolCard }) =>
+  React.createElement(ToolResultCard, { card: data });
 
 let consoleError: { mockRestore: () => void };
 

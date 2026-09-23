@@ -38,17 +38,12 @@ vi.mock('react-native', async () => {
   };
 });
 
-vi.mock('lucide-react-native', async () => {
-  const ReactModule = await import('react');
-  const icon = (name: string) => (props: Record<string, unknown>) =>
-    ReactModule.createElement(name, props);
-  return { X: icon('X'), Search: icon('Search') };
-});
+vi.mock('@oxy.so/bloom/icons/RiCloseLine', () => ({ RiCloseLine: () => null }));
 
 vi.mock('@oxy.so/bloom/typography', async () => {
   const ReactModule = await import('react');
   return {
-    Text: ({
+    Muted: ({
       children,
       ...props
     }: React.PropsWithChildren<Record<string, unknown>>) =>
@@ -56,12 +51,39 @@ vi.mock('@oxy.so/bloom/typography', async () => {
   };
 });
 
-vi.mock('@oxy.so/bloom/text-field', async () => {
+vi.mock('@oxy.so/bloom/search', async () => {
   const ReactModule = await import('react');
   return {
-    TextFieldInput: (props: Record<string, unknown>) =>
+    Search: (props: Record<string, unknown>) =>
       ReactModule.createElement('Input', props),
   };
+});
+
+/** Bloom's row, as a pressable with its two lines as text. */
+vi.mock('@oxy.so/bloom/item', async () => {
+  const ReactModule = await import('react');
+  return {
+    Item: ({
+      title,
+      subtitle,
+      ...props
+    }: { title?: React.ReactNode; subtitle?: React.ReactNode } & Record<string, unknown>) =>
+      ReactModule.createElement(
+        'Pressable',
+        props,
+        ReactModule.createElement('Text', null, title),
+        ReactModule.createElement('Text', null, subtitle),
+      ),
+  };
+});
+
+vi.mock('@oxy.so/bloom/card', async () => {
+  const ReactModule = await import('react');
+  const host =
+    (name: string) =>
+    ({ children }: React.PropsWithChildren) =>
+      ReactModule.createElement(name, null, children);
+  return { Card: host('Card'), CardBody: host('CardBody') };
 });
 
 vi.mock('@oxy.so/bloom/button', async () => {

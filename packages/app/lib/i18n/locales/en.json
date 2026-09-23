@@ -79,15 +79,6 @@
       "storage": {
         "signedOut": "Sign in to manage your files",
         "signedOutDescription": "Files you upload to your Library appear here.",
-        "uploadLabel": "Upload a file",
-        "uploadPrompt": "Drag and drop to upload or",
-        "uploadPromptNative": "Tap to",
-        "uploadSelect": "select",
-        "uploadSelectNative": "select a file",
-        "uploading": "Uploading {{size}}...",
-        "uploaded": "Uploaded successfully!",
-        "unsupported": "Only {{extensions}} files are supported",
-        "tooLarge": "That file is larger than {{max}}",
         "openFile": "Open file",
         "copyLink": "Copy link",
         "linkCopied": "Link copied"
@@ -495,7 +486,38 @@
     "support": "Support",
     "tasks": "Tasks",
     "shows": "Shows",
-    "newConversation": "New conversation"
+    "newConversation": "New conversation",
+    "chatOptions": "Options for {{title}}",
+    "rename": "Rename",
+    "renameTitle": "Rename chat",
+    "renameLabel": "Chat name",
+    "moveToProject": "Move to project",
+    "noProject": "No project",
+    "deleteChat": "Delete chat",
+    "deleteChatTitle": "Delete this chat?",
+    "deleteChatDescription": "“{{title}}” and its messages will be deleted. This cannot be undone.",
+    "projectOptions": "Options for {{name}}",
+    "newProject": "New project",
+    "deleteProjectTitle": "Delete this project?",
+    "deleteProjectDescription": "“{{name}}” is removed. Its chats are kept and move back to Recent.",
+    "inviteFriends": "Invite friends",
+    "projectDialog": {
+      "newTitle": "New project",
+      "editTitle": "Edit project",
+      "newDescription": "Create a project to organize your conversations",
+      "editDescription": "Update your project details",
+      "name": "Name",
+      "description": "Description (optional)",
+      "color": "Colour"
+    },
+    "colors": {
+      "blue": "Blue",
+      "purple": "Purple",
+      "rose": "Pink",
+      "yellow": "Amber",
+      "lime": "Green",
+      "cyan": "Cyan"
+    }
   },
   "billing": {
     "title": "Billing",
@@ -632,9 +654,42 @@
         "resetsDaily": "Resets every 24 hours",
         "planUsage": "Plan usage limits",
         "close": "Close credits panel"
-      }
+      },
+      "searchFailed": "Search failed",
+      "noResults": "No results"
     },
-    "voiceStartFailed": "Could not start the voice session"
+    "voiceStartFailed": "Could not start the voice session",
+    "emptyState": {
+      "title": "What can I help with?",
+      "description": "Ask anything, or start from one of these."
+    },
+    "exportMarkdown": "Export as Markdown",
+    "deleteConversation": "Delete conversation",
+    "deleteConversationTitle": "Delete this conversation?",
+    "deleteConversationDescription": "Every message in it will be deleted. This can't be undone.",
+    "deleteConversationConfirm": "Delete",
+    "toolCard": {
+      "scheduled": "Scheduled",
+      "paused": "Paused",
+      "openTask": "Open scheduled task %{objective}"
+    },
+    "agentRun": {
+      "working": "Agent working",
+      "complete": "Task complete",
+      "error": "Error",
+      "browser": "Browser",
+      "completed": "Completed",
+      "failed": "Failed",
+      "unknown": "Unknown",
+      "taskComplete": "Task complete",
+      "taskFailed": "Task failed",
+      "by": "by %{name}",
+      "steps": "%{count} steps",
+      "planItems": "%{done}/%{total} plan items",
+      "credits": "%{count} credits",
+      "planSummary": "Plan summary",
+      "files": "Workspace files"
+    }
   },
   "credits": {
     "title": "Credits",
@@ -833,7 +888,23 @@
     "confirmDowngrade": "Confirm",
     "upgradeSuccess": "Plan upgraded successfully!",
     "downgradeSuccess": "Plan changed successfully.",
-    "failedPlanChange": "Failed to change plan. Please try again."
+    "failedPlanChange": "Failed to change plan. Please try again.",
+    "billingPeriod": "Billing period",
+    "popular": "Popular",
+    "free": "Free",
+    "loadError": "The plans couldn't be loaded. Try again in a moment.",
+    "download": {
+      "pageTitle": "Download Alia",
+      "metaDescription": "Download the Alia app for Android and iOS.",
+      "title": "Get Alia on your phone",
+      "back": "Back to Alia",
+      "platform": "Platform",
+      "scanTitle": "Scan to download",
+      "scanDescription": "Scan the QR code with your phone to get the app.",
+      "googlePlay": "Get it on Google Play",
+      "iosTitle": "Coming soon",
+      "iosDescription": "The iOS app is on the way."
+    }
   },
   "usageLimit": {
     "outOfCreditsTitle": "Out of credits",
@@ -1694,6 +1765,145 @@
       "moreActions": "More actions",
       "addRoutingRule": "Add routing rule",
       "removeRoutingRule": "Remove routing rule"
+    }
+  },
+  "panels": {
+    "agent": {
+      "tabs": {
+        "steps": "Steps",
+        "browser": "Browser",
+        "files": "Files",
+        "sources": "Sources"
+      },
+      "close": "Close agent panel",
+      "working": "Agent working",
+      "complete": "Task complete",
+      "failed": "Task failed",
+      "waitingToStart": "Waiting for the agent to start",
+      "noSteps": "No steps yet",
+      "noBrowser": "No browser activity yet",
+      "noFiles": "No files created yet",
+      "noSources": "No sources found yet",
+      "workspaceFiles": {
+        "one": "Workspace files (1)",
+        "other": "Workspace files ({{count}})"
+      },
+      "websites": {
+        "one": "Websites (1)",
+        "other": "Websites ({{count}})"
+      },
+      "approvalRequired": "Approval required",
+      "approve": "Approve",
+      "deny": "Deny",
+      "planSteps": "{{completed}}/{{total}} steps",
+      "stepsLeft": {
+        "one": "1 step left",
+        "other": "{{count}} steps left"
+      },
+      "allCompleted": "All steps completed",
+      "minimizeSteps": "Minimize steps",
+      "expandSteps": "Expand steps",
+      "step": {
+        "thinking": "Thinking…",
+        "complete": "Task completed",
+        "error": "Error occurred",
+        "threat": "Threat detected",
+        "shell": "Running: {{command}}",
+        "command": "command",
+        "browser": "Browser: {{action}} {{target}}",
+        "action": "action",
+        "fileEdit": "{{action}}: {{path}}",
+        "edit": "edit",
+        "file": "file",
+        "completing": "Completing task",
+        "updatingPlan": "Updating plan",
+        "delegate": "Hiring @{{agent}}",
+        "result": "Result received",
+        "found": "Found: {{title}}",
+        "source": "source"
+      }
+    },
+    "workspace": {
+      "title": "Workspace files",
+      "fileCount": {
+        "one": "1 file",
+        "other": "{{count}} files"
+      },
+      "loading": "Loading workspace…",
+      "loadFailed": "Unable to load workspace files. The container may have expired.",
+      "empty": "No files in workspace yet.",
+      "previewFailed": "(failed to load file)",
+      "truncated": "[truncated]",
+      "download": "Download {{name}}"
+    },
+    "code": {
+      "copy": "Copy code",
+      "copied": "Code copied"
+    },
+    "canvas": {
+      "image": "Image",
+      "unsupported": "Unsupported component type: {{type}}"
+    },
+    "chart": {
+      "share": "Share",
+      "value": "Value"
+    },
+    "form": {
+      "enter": "Enter {{field}}",
+      "select": "Select…",
+      "submit": "Submit"
+    }
+  },
+  "dialogs": {
+    "commandPalette": {
+      "placeholder": "Type a command or search…",
+      "empty": "No results found.",
+      "groupActions": "Actions",
+      "groupNavigate": "Navigate",
+      "groupSettings": "Settings",
+      "groupConversations": "Conversations",
+      "groupRecentConversations": "Recent conversations",
+      "newChat": "New chat",
+      "searchLibrary": "Search library",
+      "agents": "Agents",
+      "library": "Library",
+      "automations": "Automations",
+      "skills": "Skills",
+      "settings": "Settings",
+      "billing": "Billing",
+      "notifications": "Notifications",
+      "upgrade": "Upgrade to Pro"
+    },
+    "errorBoundary": {
+      "title": "This screen didn't load",
+      "message": "Something broke while showing it. Try again; if it keeps happening, we have already been told."
+    },
+    "notFound": {
+      "pageTitle": "404 - Page Not Found | Alia",
+      "metaDescription": "The page you're looking for doesn't exist. Return to Alia to continue your conversations.",
+      "title": "This page doesn't exist",
+      "description": "The link may be broken, or the page may have moved.",
+      "home": "Go to Alia"
+    },
+    "invite": {
+      "title": "Invite to get credits",
+      "description": "Share your invitation link with friends, get 500 credits each.",
+      "tabShare": "Share",
+      "tabRedeem": "Redeem",
+      "tabHistory": "History",
+      "linkLabel": "Invitation link",
+      "copy": "Copy",
+      "copied": "Copied!",
+      "shareOn": "Share on",
+      "share": "Share invite link",
+      "shareText": "Check out Alia — sign up with my link and we both get 500 credits!",
+      "creditsEarned": "Credits earned",
+      "referrals": "Referrals",
+      "codeLabel": "Invite code",
+      "redeem": "Redeem",
+      "redeemSuccess": "You got {{count}} credits!",
+      "redeemInvalid": "Invalid invite code",
+      "noReferrals": "No referrals yet"
     }
   }
 }

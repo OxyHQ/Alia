@@ -5,6 +5,11 @@ import { Composer } from '@/components/chat/composer/composer';
 import { useAliaComposer } from '@/components/chat/composer/use-alia-composer';
 import { useEntitlements } from '@/lib/hooks/use-billing';
 import { useCredits } from '@/lib/hooks/use-credits';
+import {
+  useRecordSuggestionUsage,
+  useWelcomeSuggestions,
+  type Suggestion,
+} from '@/lib/hooks/use-suggestions';
 import { Button } from '@oxy.so/bloom/button';
 import { RiHeadphoneLine } from '@oxy.so/bloom/icons/RiHeadphoneLine';
 import { toast } from '@oxy.so/bloom/toast';
@@ -135,6 +140,12 @@ interface ChatPageContentProps {
    * composer until it is answered.
    */
   intro?: WelcomeIntroSlots;
+  /**
+   * The chat's own actions for the container's breadcrumb row (export,
+   * search, delete). Absent on the new-chat screen: there is nothing
+   * persisted to act on yet.
+   */
+  headerActions?: React.ReactNode;
 }
 
 export const ChatPageContent = ({
@@ -166,6 +177,7 @@ export const ChatPageContent = ({
   onModelChange,
   onVoiceStart,
   intro,
+  headerActions,
 }: ChatPageContentProps) => {
   const { isAuthenticated, signIn } = useAuth();
   const { t } = useTranslation();
@@ -288,6 +300,13 @@ export const ChatPageContent = ({
     useStore.getState().setGhostMode(false);
   }, []);
 
+  /**
+   * The welcome suggestions the empty chat offers — fetched once by the layout,
+   * read from the same query here.
+   */
+  const { data: welcomeSuggestions } = useWelcomeSuggestions();
+  const { mutate: recordSuggestionUsage } = useRecordSuggestionUsage();
+
   const handleSubmit = async (dictated?: string) => {
     // Dictation submits the text it just transcribed rather than relying on the
     // draft state, which has not flushed yet in the tick it was set.
@@ -317,6 +336,30 @@ export const ChatPageContent = ({
     if (sent) clearTurn();
   };
 
+  /**
+   * A welcome suggestion, picked: sent through the same submit path as a typed
+   * message. A template has blanks to fill, so it goes into the composer for
+   * the person to finish instead of being sent with its placeholders.
+   *
+   * Stable, reading the newest `handleSubmit` through a ref: it is a prop of
+   * the memoised thread.
+   */
+  const handleSubmitRef = useRef(handleSubmit);
+  useEffect(() => {
+    handleSubmitRef.current = handleSubmit;
+  });
+  const handlePickSuggestion = useCallback(
+    (suggestion: Suggestion) => {
+      recordSuggestionUsage(suggestion.suggestionId);
+      if (suggestion.isTemplate) {
+        setInputValue(suggestion.text);
+        return;
+      }
+      void handleSubmitRef.current(suggestion.text);
+    },
+    [recordSuggestionUsage],
+  );
+
 
   if (intro) {
     return (
@@ -341,6 +384,7 @@ export const ChatPageContent = ({
       }
       project={projectName}
       title={conversationTitle || agentName || t('chat.newChat')}
+      actions={headerActions}
       header={<AiChatMobileHeader title={conversationTitle || agentName || 'Alia'} />}
       composer={
         isVoiceActive && voice ? (
@@ -411,6 +455,8 @@ export const ChatPageContent = ({
         onDismissNewConversation={onDismissNewConversation}
         failedTurn={failedTurn}
         onRetryTurn={onRetryTurn}
+        suggestions={welcomeSuggestions}
+        onPickSuggestion={handlePickSuggestion}
       />
     </ChatWorkspace>
   );

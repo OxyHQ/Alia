@@ -37,7 +37,7 @@ import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { Muted, Text } from '@oxy.so/bloom/typography';
 import { useAuth } from '@oxy.so/services';
-import { useRouter } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { FlatList, RefreshControl, View } from 'react-native';
 
@@ -108,7 +108,11 @@ function SeriesRow({
               icon={visibility.icon}
               content={visibility.label}
             />
-            <RiArrowRightSLine width={20} height={20} fill={colors.textSecondary} />
+            <RiArrowRightSLine
+              width={20}
+              height={20}
+              fill={colors.textSecondary}
+            />
           </View>
         }
       />
@@ -162,11 +166,25 @@ export default function ShowsScreen() {
 
   /*
    * No surface, no title and no menu button: the layout's `AiChatContainer`
-   * draws the page, its "Shows" crumb and the mobile header. The page is its
-   * description, its one action, and the list.
+   * draws the page and its header, where this page puts its one action. The
+   * page is its description and the list.
    */
   return (
     <>
+      <Stack.Screen
+        options={{
+          headerRight: () => (
+            <Button
+              tone="action"
+              size="md"
+              leadingIcon={RiAddLine}
+              onPress={startShow}
+            >
+              New
+            </Button>
+          ),
+        }}
+      />
       <FlatList
         className="flex-1"
         data={loading && series.length === 0 ? [] : series}
@@ -177,19 +195,7 @@ export default function ShowsScreen() {
         ListHeaderComponent={
           // Stacking only: the top row, the error and the placeholders.
           <View className="gap-3">
-            <View className="flex-row items-center justify-between gap-3">
-              <Muted className="flex-1 text-sm text-muted-foreground">
-                Podcasts Alia writes, voices and publishes to Syra.
-              </Muted>
-              <Button
-                tone="action"
-                size="sm"
-                leadingIcon={RiAddLine}
-                onPress={startShow}
-              >
-                New
-              </Button>
-            </View>
+            <Muted>Podcasts Alia writes, voices and publishes to Syra.</Muted>
 
             {error ? <Admonition type="error">{error}</Admonition> : null}
 
@@ -218,7 +224,11 @@ export default function ShowsScreen() {
               media="circle"
               title="No shows yet"
               description="Start a show and Alia will write, voice and publish each episode to Syra — where it becomes a real podcast you can share or keep to yourself."
-              action={{ label: 'Start a show', icon: RiAddLine, onPress: startShow }}
+              action={{
+                label: 'Start a show',
+                icon: RiAddLine,
+                onPress: startShow,
+              }}
             />
           ) : null
         }

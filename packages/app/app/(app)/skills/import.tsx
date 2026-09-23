@@ -1,12 +1,11 @@
 import { useImportSkill } from '@/lib/hooks/use-skills';
 import { useTranslation } from '@/lib/hooks/use-translation';
 import { Button } from '@oxy.so/bloom/button';
-import { RiArrowLeftLine } from '@oxy.so/bloom/icons/RiArrowLeftLine';
 import { RiDownloadLine } from '@oxy.so/bloom/icons/RiDownloadLine';
 import { TextFieldInput } from '@oxy.so/bloom/text-field';
 import { toast } from '@oxy.so/bloom/toast';
-import { Muted, Text } from '@oxy.so/bloom/typography';
-import { useRouter } from 'expo-router';
+import { Muted } from '@oxy.so/bloom/typography';
+import { Stack, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { ScrollView, View } from 'react-native';
 
@@ -45,48 +44,41 @@ export default function ImportSkillScreen() {
   };
 
   return (
-    <ScrollView
-      showsVerticalScrollIndicator={false}
-      keyboardShouldPersistTaps="handled"
-      contentContainerClassName="w-full max-w-[768px] self-center gap-4 px-4 pb-12 pt-4"
-    >
-      <View className="flex-row items-center gap-2">
-        <Button
-          tone="neutral"
-          appearance="plain"
-          size="sm"
-          icon={RiArrowLeftLine}
-          accessibilityLabel={t('common.back')}
-          onPress={() => router.back()}
-        />
-      </View>
-
-      <Text variant="title-2-semibold">{t('skills.importTitle')}</Text>
-      <Muted>{t('skills.importSubtitle')}</Muted>
-
-      <TextFieldInput
-        label={t('skills.importPlaceholder')}
-        value={source}
-        onChangeText={setSource}
-        placeholder={t('skills.importPlaceholder')}
-        autoCapitalize="none"
-        autoCorrect={false}
-        editable={!importSkill.isPending}
+    <>
+      <Stack.Screen
+        options={{ title: t('skills.importTitle'), headerBackVisible: true }}
       />
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        contentContainerClassName="w-full max-w-[768px] self-center gap-4 px-4 pb-12 pt-4"
+      >
+        <Muted>{t('skills.importSubtitle')}</Muted>
 
-      <View className="flex-row items-center gap-2">
-        <Button
-          tone="action"
-          leadingIcon={RiDownloadLine}
-          loading={importSkill.isPending}
-          disabled={importSkill.isPending || !source.trim()}
-          onPress={() => void handleImport()}
-        >
-          {t('skills.import')}
-        </Button>
-      </View>
+        <TextFieldInput
+          label={t('skills.importPlaceholder')}
+          value={source}
+          onChangeText={setSource}
+          placeholder={t('skills.importPlaceholder')}
+          autoCapitalize="none"
+          autoCorrect={false}
+          editable={!importSkill.isPending}
+        />
 
-      {importSkill.isPending ? <Muted>{t('skills.importing')}</Muted> : null}
-    </ScrollView>
+        <View className="flex-row items-center gap-2">
+          <Button
+            tone="action"
+            leadingIcon={RiDownloadLine}
+            loading={importSkill.isPending}
+            disabled={importSkill.isPending || !source.trim()}
+            onPress={() => void handleImport()}
+          >
+            {t('skills.import')}
+          </Button>
+        </View>
+
+        {importSkill.isPending ? <Muted>{t('skills.importing')}</Muted> : null}
+      </ScrollView>
+    </>
   );
 }

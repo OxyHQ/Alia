@@ -1,8 +1,7 @@
-import { ErrorBoundary } from '@oxy.so/bloom/error-boundary';
-import { AlertTriangle } from 'lucide-react-native';
-import { View } from 'react-native';
 import { useTranslation } from '@/lib/hooks/use-translation';
-import { Text } from '@oxy.so/bloom/typography';
+import { EmptyState } from '@oxy.so/bloom/empty-state';
+import { ErrorBoundary } from '@oxy.so/bloom/error-boundary';
+import { RiErrorWarningLine } from '@oxy.so/bloom/icons/RiErrorWarningLine';
 /**
  * One block of an answer, contained.
  *
@@ -63,13 +62,14 @@ export function MessageBlockBoundary({
         console.error("A message block failed to render:", error);
         onError?.(error);
       }}
+      // Bloom's compact empty state — the panel rung, a glyph and one line —
+      // rather than the boundary's default, whose Retry is ruled out above.
       fallback={
-        <View className="my-1 flex-row items-center gap-2 rounded-xl border border-border bg-muted/40 px-3 py-2">
-          <AlertTriangle size={14} className="text-muted-foreground" />
-          <Text className="flex-1 text-xs text-muted-foreground">
-            {t("chat.blockFailed")}
-          </Text>
-        </View>
+        <EmptyState
+          variant="compact"
+          icon={RiErrorWarningLine}
+          description={t('chat.blockFailed')}
+        />
       }
     >
       {children}

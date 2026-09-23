@@ -1,8 +1,12 @@
 import { AgentResultCard } from '@/components/agent-result-card';
 import { AgentTaskCard } from '@/components/agent-task-card';
+import { ChatEmptyState } from '@/components/chat/chat-empty-state';
 import { FailedTurnCard } from '@/components/chat/failed-turn-card';
 import { MessageBlockBoundary } from '@/components/chat/message-block-boundary';
+import { ToolResultCard } from '@/components/chat/tool-result-card';
 import type { FailedTurn } from '@/components/chat/turn-failure';
+import { cardOf } from '@/lib/chat/tool-cards';
+import type { Suggestion } from '@/lib/hooks/use-suggestions';
 import { getToolPillLabel } from '@/lib/task-utils';
 import { isWebInvocation, taskListLog, webSearchLog } from '@/lib/chat/work-log';
 import { useAtBottom } from '@/lib/hooks/use-at-bottom';
@@ -12,7 +16,7 @@ import { ChatDateHeader, ScrollToBottomButton } from '@oxy.so/bloom/chat-screen'
 import { TaskList } from '@oxy.so/bloom/task-list';
 import { WebSearch } from '@oxy.so/bloom/web-search';
 import { NewConversationOffer } from '@/components/new-conversation-offer';
-import { bloomMarkdown } from '@/components/chat/bloom-markdown';
+import { CustomMarkdown } from '@/components/ui/markdown';
 import { agentTint } from '@/lib/agents/agent-color';
 import apiClient from '@/lib/api/client';
 import { queryKeys } from '@/lib/hooks/query-keys';
@@ -41,6 +45,7 @@ import {
   AiChatUserMessage,
   type AiChatThreadHandle,
 } from '@oxy.so/bloom/ai-chat';
+import { Loading } from '@oxy.so/bloom/loading';
 import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { toast } from '@oxy.so/bloom/toast';
 import { Text } from '@oxy.so/bloom/typography';
@@ -180,6 +185,12 @@ type ChatInterfaceProps = {
    */
   failedTurn?: FailedTurn | null;
   onRetryTurn?: () => void;
+  /**
+   * The welcome suggestions the empty chat offers, and what picking one does.
+   * Only read while the thread is empty.
+   */
+  suggestions?: readonly Suggestion[];
+  onPickSuggestion?: (suggestion: Suggestion) => void;
 };
 
 /**
@@ -228,24 +239,6 @@ function getMessageImages(message: Message): string[] {
     return getImagesFromContent(message.content);
   }
   return [];
-}
-
-/**
- * The tool calls whose result is a card rather than a step of the turn's
- * work. Every other call is a row of the work summary (#544), collapsed
- * behind "Worked for Ns".
- */
-const CARD_TYPES = new Set(['weather', 'market', 'faircoin', 'scheduled-task']);
-
-/** The card a finished call returned, if it is one this conversation draws. */
-function cardOf(t: ToolInvocation): { type: string; data: unknown } | null {
-  if (t.state !== 'result') return null;
-  const card = (
-    t.result as { card?: { type?: string; data?: unknown } } | undefined
-  )?.card;
-  if (card?.type === undefined || !CARD_TYPES.has(card.type) || !card.data)
-    return null;
-  return { type: card.type, data: card.data };
 }
 
 /** Whether a call returned a card, and so is left out of the work summary. */
@@ -328,6 +321,14 @@ const MessageRow = React.memo(function MessageRow({
   const hasWorkLog =
     (webLog !== null && webLog.steps.length > 0) ||
     (workInvocations.length > 0 && !turnWorking);
+  /** The calls that returned a card, drawn inside the turn where the answer is read. */
+  const toolCards =
+    m.role === 'assistant'
+      ? (m.toolInvocations ?? []).flatMap((t, ti) => {
+          const card = cardOf(t);
+          return card === null ? [] : [{ key: t.toolCallId || `tool-${m.id}-${ti}`, card }];
+        })
+      : [];
 
   return (
     /**
@@ -376,7 +377,7 @@ const MessageRow = React.memo(function MessageRow({
           indicator's until its first token arrives. */}
       {(messageText.length > 0 ||
         messageImages.length > 0 ||
-        (m.role === 'assistant' && hasWorkLog) ||
+        (m.role === 'assistant' && (hasWorkLog || toolCards.length > 0)) ||
         (m.isStreaming && m.source === 'voice')) && (
         <View
           key="message-content"
@@ -433,23 +434,34 @@ const MessageRow = React.memo(function MessageRow({
                     labels={{ sources: rowT('chat.sources') }}
                   />
                 )}
+                {/* Each card in its own boundary: `cardOf` checks the card's
+                    NAME, and its data is cast unchecked. */}
+                {toolCards.map(({ key, card }) => (
+                  <MessageBlockBoundary key={key}>
+                    <ToolResultCard card={card} />
+                  </MessageBlockBoundary>
+                ))}
+                {/* The reply's text as Alia always drew it: its own Markdown
+                    renderer (tables, headings, lists, code, citations), which
+                    reads better than a line-per-block transcript. */}
                 {m.source === 'voice' ? (
-                  <AiChatMessageLine>
+                  <Text className="text-base leading-7 text-foreground">
                     {messageText}
                     {m.isStreaming ? '\u258C' : ''}
-                  </AiChatMessageLine>
+                  </Text>
                 ) : (
-                  bloomMarkdown({
-                    content: messageText,
-                    toolInvocations: m.toolInvocations,
-                    researchSources: m.researchProgress?.sources,
-                  })
+                  <CustomMarkdown
+                    content={messageText}
+                    toolInvocations={m.toolInvocations}
+                    researchSources={m.researchProgress?.sources}
+                  />
                 )}
               </AiChatAssistantMessage>
             </View>
           ) : (
-            // The template's user turn: Bloom's bubble, nothing under it.
-            <View className="flex-col items-end">
+            // The template's user turn: Bloom's bubble, nothing under it, with
+            // the breathing room above it the thread had before the refactor.
+            <View className="mt-2 flex-col items-end">
               <AiChatUserMessage animate={isNewMessage}>
                 {messageImages.length > 0 && (
                   <View className="flex-row flex-wrap gap-2">
@@ -504,6 +516,8 @@ export const ChatInterface = React.memo(function ChatInterface({
   focusCursor,
   failedTurn,
   onRetryTurn,
+  suggestions,
+  onPickSuggestion,
 }: ChatInterfaceProps) {
   const { t, locale } = useTranslation();
   /** This screen's votes, read to decide whether a press casts or retracts one. */
@@ -837,6 +851,30 @@ export const ChatInterface = React.memo(function ChatInterface({
    * The keyboard is handled by `ChatWorkspace` one level up: Bloom's AI Chat
    * family imports no keyboard controller at all.
    */
+  /**
+   * Nothing said yet and nothing on its way: Bloom's empty state, centred in
+   * the transcript's 768 column as `AgentChat` centres its own, instead of the
+   * bottom-anchored thread with nothing in it.
+   */
+  const isEmpty =
+    filteredMessages.length === 0 &&
+    !conversationLoading &&
+    !isLoading &&
+    !isLoadingHistory &&
+    voiceAgentState !== 'thinking';
+  if (isEmpty) {
+    return (
+      <View className="flex-1 justify-center px-4">
+        <View className="w-full max-w-[768px] self-center">
+          <ChatEmptyState
+            suggestions={suggestions}
+            onPickSuggestion={onPickSuggestion}
+          />
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View className="flex-1">
       <AiChatThread
@@ -885,9 +923,7 @@ export const ChatInterface = React.memo(function ChatInterface({
                       by its own height, twice, with nothing to correct it. */}
                 {!isLoadingHistory ? null : (
                   <View className="items-center py-4">
-                    <Text className="text-xs text-muted-foreground">
-                      {t('chat.loadingHistory')}
-                    </Text>
+                    <Loading variant="inline" text={t('chat.loadingHistory')} />
                   </View>
                 )}
                 {history.map((m, index) => renderMessage(m, index))}

@@ -1,8 +1,6 @@
 import { useTranslation } from '@/lib/hooks/use-translation';
-import { Text } from '@oxy.so/bloom/typography';
-import { AlertTriangle } from 'lucide-react-native';
+import { Notification } from '@oxy.so/bloom/notification';
 import React from 'react';
-import { Pressable, View } from 'react-native';
 interface FailedTurnCardProps {
   /** Real output arrived before the failure — the wording says "interrupted", not "couldn't answer". */
   partial: boolean;
@@ -23,6 +21,9 @@ interface FailedTurnCardProps {
  *
  * The server's stand-in text ("all models are busy…") is never shown here as
  * Alia's words; the copy is the app's own, in the reader's language.
+ *
+ * Bloom's `Notification`, not dismissible (the card is the turn's state, not a
+ * message to clear), announced as an alert, with Retry as its one solid action.
  */
 export const FailedTurnCard = React.memo(function FailedTurnCard({
   partial,
@@ -31,35 +32,21 @@ export const FailedTurnCard = React.memo(function FailedTurnCard({
   onRetry,
 }: FailedTurnCardProps) {
   const { t } = useTranslation();
-  const line = partial ? t("chat.turnInterrupted") : t("chat.turnFailed");
+  const line = partial ? t('chat.turnInterrupted') : t('chat.turnFailed');
   const canRetry = retryable && onRetry !== undefined;
 
   return (
-    <View
-      accessibilityRole="alert"
-      className="my-2 flex-row items-start gap-3 rounded-2xl border border-destructive/30 bg-destructive/10 px-4 py-3"
-    >
-      <View className="pt-1">
-        <AlertTriangle size={16} className="text-destructive" />
-      </View>
-      <View className="flex-1 gap-1">
-        <Text className="text-sm text-foreground leading-5">
-          {canRetry ? `${line} ${t("chat.turnFailedRetryHint")}` : line}
-        </Text>
-        {detail === undefined || detail === "" ? null : (
-          <Text className="text-xs text-muted-foreground leading-4">{detail}</Text>
-        )}
-      </View>
-      {!canRetry ? null : (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={t("chat.retry")}
-          onPress={onRetry}
-          className="rounded-full bg-primary px-3.5 py-1.5 active:opacity-80"
-        >
-          <Text className="text-sm font-medium text-primary-foreground">{t("chat.retry")}</Text>
-        </Pressable>
-      )}
-    </View>
+    <Notification
+      status="error"
+      role="alert"
+      title={canRetry ? `${line} ${t('chat.turnFailedRetryHint')}` : line}
+      description={detail === undefined || detail === '' ? undefined : detail}
+      actions={
+        canRetry
+          ? [{ label: t('chat.retry'), onPress: onRetry, appearance: 'solid', tone: 'accent' }]
+          : undefined
+      }
+      dismissible={false}
+    />
   );
 });

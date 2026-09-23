@@ -17,26 +17,37 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
  * button wired to nothing at all.
  */
 
-vi.mock('react-native', async () => {
-  const ReactModule = await import('react');
-  const host =
-    (name: string) =>
-    ({
-      children,
-      ...props
-    }: React.PropsWithChildren<Record<string, unknown>>) =>
-      ReactModule.createElement(name, props, children);
-  return { View: host('View'), Pressable: host('Pressable') };
-});
-
-vi.mock('@oxy.so/bloom/typography', async () => {
+/**
+ * Bloom's `Notification`, reduced to what it is handed: its role, its title and
+ * description as text, and each action as a pressable named by its label.
+ */
+vi.mock('@oxy.so/bloom/notification', async () => {
   const ReactModule = await import('react');
   return {
-    Text: ({
-      children,
-      ...props
-    }: React.PropsWithChildren<Record<string, unknown>>) =>
-      ReactModule.createElement('Text', props, children),
+    Notification: ({
+      title,
+      description,
+      actions = [],
+      role,
+    }: {
+      title: React.ReactNode;
+      description?: React.ReactNode;
+      actions?: { label: string; onPress?: () => void }[];
+      role?: string;
+    }) =>
+      ReactModule.createElement(
+        'View',
+        { accessibilityRole: role },
+        ReactModule.createElement('Text', null, title),
+        description === undefined ? null : ReactModule.createElement('Text', null, description),
+        ...actions.map((action) =>
+          ReactModule.createElement(
+            'Pressable',
+            { key: action.label, accessibilityLabel: action.label, onPress: action.onPress },
+            ReactModule.createElement('Text', null, action.label),
+          ),
+        ),
+      ),
   };
 });
 
@@ -69,9 +80,11 @@ function hosts(root: ReturnType<typeof render>, name: string) {
   return root.findAll((node) => node.type === name);
 }
 
-/** The two buttons, in the order they are offered. */
-function buttons(root: ReturnType<typeof render>) {
-  return hosts(root, 'Pressable');
+/** One of the two answers, found by its label. */
+function button(root: ReturnType<typeof render>, label: string) {
+  return hosts(root, 'Pressable').find(
+    (node) => node.props.accessibilityLabel === label,
+  );
 }
 
 function texts(root: ReturnType<typeof render>) {
@@ -104,7 +117,7 @@ describe('the offer to start a new conversation', () => {
     const onDismiss = vi.fn();
 
     const root = render({ reason: 'we have moved on', onAccept, onDismiss });
-    act(() => buttons(root)[1]?.props.onPress());
+    act(() => button(root, 'chat.newConversationDismiss')?.props.onPress());
 
     expect(onAccept).not.toHaveBeenCalled();
     expect(onDismiss).toHaveBeenCalledOnce();
@@ -117,7 +130,7 @@ describe('the offer to start a new conversation', () => {
     const onDismiss = vi.fn();
 
     const root = render({ reason: 'we have moved on', onAccept, onDismiss });
-    act(() => buttons(root)[0]?.props.onPress());
+    act(() => button(root, 'chat.newConversationAccept')?.props.onPress());
 
     expect(onAccept).toHaveBeenCalledOnce();
   });
@@ -140,8 +153,8 @@ describe('the offer to start a new conversation', () => {
     // The offer and its two answers, and nothing standing in for the reason.
     expect(shown).toEqual([
       'chat.newConversationOffer',
-      'chat.newConversationAccept',
       'chat.newConversationDismiss',
+      'chat.newConversationAccept',
     ]);
   });
 });
