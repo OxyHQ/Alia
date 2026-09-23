@@ -53,9 +53,12 @@ async function stored(ids: string[]): Promise<Record<string, string[]>> {
 }
 
 describe('migration 0071 removes the retired grants and nothing else', () => {
-  it('is a post-phase migration, so no old replica can write them back after it', () => {
+  it('is a pre-phase migration, so the pre migration after it is not queued behind a post', () => {
+    // It shipped as post first and the deploy refused 0072 (pre) behind it:
+    // the migrator applies a release's pre migrations only while no earlier
+    // post is pending. The new image ignores and strips these grants anyway.
     const text = readFileSync(MIGRATION, 'utf8');
-    expect(text.match(/^-- oxy:deploy-phase=(pre|post)$/gm)).toEqual(['-- oxy:deploy-phase=post']);
+    expect(text.match(/^-- oxy:deploy-phase=(pre|post)$/gm)).toEqual(['-- oxy:deploy-phase=pre']);
   });
 
   it('strips shell and files, keeps every other grant in order, and leaves clean rows alone', async () => {
