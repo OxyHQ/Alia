@@ -29,6 +29,20 @@ import type {
 import { MCP_REGISTRY } from '../lib/mcp-registry.js';
 import { log } from '../lib/logger.js';
 
+/**
+ * What the integrations service answers for an MCP start or OAuth call, as far
+ * as this router reads it. `response.json()` is `unknown` under Node's fetch
+ * types.
+ */
+interface McpServiceReply {
+  success?: boolean;
+  error?: string;
+  authorizationUrl?: unknown;
+  tools?: unknown;
+  resources?: unknown;
+  [key: string]: unknown;
+}
+
 const router = express.Router();
 
 const INTEGRATIONS_URL = process.env.INTEGRATIONS_URL;
@@ -105,7 +119,7 @@ router.post('/:id/oauth/start', authenticateToken, async (req: express.Request<{
       signal: AbortSignal.timeout(30_000),
     });
 
-    const data = await response.json();
+    const data = (await response.json()) as McpServiceReply;
 
     if (!response.ok) {
       // The state row is short-lived (TTL), so a failed start self-cleans.
@@ -212,7 +226,7 @@ router.post('/oauth/complete', authenticateToken, async (req, res) => {
       signal: AbortSignal.timeout(30_000),
     });
 
-    const data = await response.json();
+    const data = (await response.json()) as McpServiceReply;
 
     if (!response.ok || !data.success) {
       await setMcpServerStatus(db, server.id, req.userId!, {
@@ -422,7 +436,7 @@ router.post('/:id/start', authenticateToken, async (req: express.Request<{ id: s
       signal: AbortSignal.timeout(30_000),
     });
 
-    const data = await response.json();
+    const data = (await response.json()) as McpServiceReply;
 
     const updated = response.ok
       ? await setMcpServerStatus(db, server.id, req.userId!, {
