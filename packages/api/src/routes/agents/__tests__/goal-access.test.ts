@@ -1,19 +1,23 @@
 /**
- * `POST /agents/:id/hire` — who may hire, now that being listed is not being
- * usable.
+ * `POST /agents/threads/:threadId/goals` — who may hire, now that being listed
+ * is not being usable.
  *
- * Hiring an agent IS using it, so the route asks the SAME question the thread
- * asks: `canReachAgent`. This file exists because a second copy of that rule is
- * the likely failure — the route used to key on `is_published`, and the cheap
- * repair would have been `access === 'public'`, which reads correct and closes
- * sharing by this door while the thread keeps it open.
+ * A goal is the paid hire: `POST /agents/:id/hire` was retired and this is the
+ * route the app hires through. Hiring an agent IS using it, so the route asks
+ * the SAME question the thread asks: `canReachAgent`, again at goal time — a
+ * thread opened while somebody could reach the agent must not outlive a revoked
+ * membership as a way to keep spending on it.
  *
- * So the case that matters most here is the MEMBER against a private agent.
+ * A second copy of that rule is the likely failure — the old hire route keyed
+ * on `is_published`, and the cheap repair would have been `access === 'public'`,
+ * which reads correct and closes sharing by this door while the thread keeps it
+ * open. So the case that matters most here is the MEMBER against a private
+ * agent.
  *
- * A real express server with the whole `/agents` router mounted, only Oxy and
- * the session machinery replaced, so the rule under test is the shipped one.
- * The credit reservation is `hire-credit-leak.pgdb.test.ts`'s subject and is
- * stubbed out here.
+ * A real express server with the whole `/agents` router mounted, only Oxy, the
+ * runtime repository and the session machinery replaced, so the rule under test
+ * is the shipped one. The credit reservation is
+ * `goal-credit-leak.pgdb.test.ts`'s subject and is stubbed out here.
  */
 
 import express, { type Express, type NextFunction, type Request, type Response } from 'express';
@@ -77,8 +81,31 @@ const session = vi.hoisted(() => ({
 }));
 
 vi.mock('../../../lib/agent/session-handoff.js', () => ({ startAgentSession: session.start }));
-vi.mock('../../../lib/agent/health.js', () => ({
-  getAgentCapabilities: async () => ({ shell: true, browser: true }),
+
+/** The caller's own open thread with the agent — what a goal is started on. */
+const THREAD = {
+  id: 'thread-1',
+  oxyUserId: 'oxy-caller',
+  agentId: 'agent-1',
+  status: 'open',
+};
+
+vi.mock('../../../db/agents/agentRuntimeRepository.js', () => ({
+  findAgentThread: vi.fn(async (_db: unknown, oxyUserId: string) => (
+    oxyUserId === state.userId ? { ...THREAD, oxyUserId } : undefined
+  )),
+  createAgentGoal: vi.fn(async (_db: unknown, input: Record<string, unknown>) => ({
+    goal: { id: 'goal-1', status: 'active', ...input },
+    created: true,
+  })),
+  withAgentAdmission: vi.fn(async (_db: unknown, _agentId: string, _max: number, callback: () => Promise<unknown>) => ({
+    admitted: true,
+    value: await callback(),
+  })),
+  createAgentThread: vi.fn(),
+  listAgentThreads: vi.fn(async () => []),
+  updateAgentThread: vi.fn(),
+  verifyAgentGoal: vi.fn(),
 }));
 
 vi.mock('../../../db/agents/agentRepository.js', async () => {
@@ -107,7 +134,16 @@ vi.mock('../../../db/agents/agentRepository.js', async () => {
   };
 });
 
-vi.mock('../../../db/index.js', () => ({ getDb: () => ({}) }));
+/**
+ * The route links the started session to its goal with one UPDATE. A chain that
+ * accepts it is all this file needs of a database.
+ */
+vi.mock('../../../db/index.js', () => {
+  const chain: Record<string, unknown> = {};
+  for (const method of ['update', 'set', 'where', 'select', 'from', 'limit']) chain[method] = () => chain;
+  (chain as { then: unknown }).then = (resolve: (value: unknown[]) => unknown) => resolve([]);
+  return { getDb: () => chain };
+});
 vi.mock('../../../lib/logger.js', () => ({
   log: {
     agents: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
@@ -169,10 +205,10 @@ beforeEach(() => {
 });
 
 async function hire(): Promise<{ status: number; body: Record<string, unknown> }> {
-  const res = await fetch(`${baseUrl}/agents/agent-1/hire`, {
+  const res = await fetch(`${baseUrl}/agents/threads/thread-1/goals`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ task: 'do the thing' }),
+    headers: { 'content-type': 'application/json', 'idempotency-key': `key-${Math.random()}` },
+    body: JSON.stringify({ objective: 'do the thing' }),
   });
   return { status: res.status, body: (await res.json()) as Record<string, unknown> };
 }
@@ -209,8 +245,8 @@ describe('hiring a PRIVATE agent', () => {
 
     const res = await hire();
 
-    expect(res.status).toBe(200);
-    expect(res.body).toMatchObject({ hired: true, sessionId: 'sess-1' });
+    expect(res.status).toBe(202);
+    expect(res.body).toMatchObject({ sessionId: 'sess-1' });
     expect(session.start).toHaveBeenCalledTimes(1);
   });
 
@@ -224,7 +260,7 @@ describe('hiring a PRIVATE agent', () => {
     };
     state.agent = { ...AGENT, isPublished: false };
 
-    expect((await hire()).status).toBe(200);
+    expect((await hire()).status).toBe(202);
   });
 
   it('is refused to somebody whose membership is not active yet', async () => {
@@ -247,8 +283,8 @@ describe('hiring a PUBLIC agent', () => {
   it('works for a stranger, and asks Oxy nothing', async () => {
     const res = await hire();
 
-    expect(res.status).toBe(200);
-    expect(res.body).toMatchObject({ hired: true });
+    expect(res.status).toBe(202);
+    expect(res.body).toMatchObject({ sessionId: 'sess-1' });
   });
 
   it('is still refused when the agent is not active', async () => {
@@ -256,5 +292,33 @@ describe('hiring a PUBLIC agent', () => {
     state.agent = { ...AGENT, access: 'public', status: 'idle' };
 
     expect((await hire()).status).toBe(404);
+  });
+});
+
+describe('the retired hire route', () => {
+  it('is not mounted: a hire is a goal on a thread, and nothing else starts one', async () => {
+    // `POST /agents/:id/hire` answered 503 in production for its whole life —
+    // it refused unless a sandbox or a browser existed, and neither did — and no
+    // client called it. Its absence is the decision; a stub would be a second
+    // door to the same reservation.
+    state.agent = { ...AGENT, access: 'public' };
+    const res = await fetch(`${baseUrl}/agents/agent-1/hire`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ task: 'do the thing' }),
+    });
+
+    expect(res.status).toBe(404);
+    expect(session.start).not.toHaveBeenCalled();
+    // The control: the same agent IS hireable through the live route.
+    expect((await hire()).status).toBe(202);
+  });
+
+  it('took GET /agents/health with it', async () => {
+    // It reported `shell: false, browser: false` forever. `health` now reads as
+    // an agent id, which does not exist.
+    const res = await fetch(`${baseUrl}/agents/health`);
+    const body = (await res.json()) as Record<string, unknown>;
+    expect(body).not.toHaveProperty('capabilities');
   });
 });

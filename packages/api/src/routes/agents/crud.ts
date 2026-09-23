@@ -1,6 +1,5 @@
 import { Router } from 'express';
 import { authenticateToken, optionalAuth } from '../../middleware/auth.js';
-import { getAgentCapabilities } from '../../lib/agent/health.js';
 import { getDb } from '../../db/index.js';
 import {
   createAgent,
@@ -149,17 +148,6 @@ router.get('/me', authenticateToken, async (req: Request, res: Response) => {
   } catch (error: unknown) {
     log.agents.error({ err: error }, 'Error listing user agents');
     res.status(500).json({ error: 'Failed to list your agents' });
-  }
-});
-
-// GET /agents/health - infrastructure status
-router.get('/health', async (_req: Request, res: Response) => {
-  try {
-    const capabilities = await getAgentCapabilities();
-    res.json({ capabilities });
-  } catch (error: unknown) {
-    log.agents.error({ err: error }, 'Error checking agent health');
-    res.status(500).json({ error: 'Failed to check health' });
   }
 });
 

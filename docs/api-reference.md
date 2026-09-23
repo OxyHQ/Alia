@@ -374,6 +374,12 @@ compatibility shim.
 `GET /agents/:id/routing-stats`, `GET /external-models*` and
 `GET`/`DELETE /api/sessions/:conversationId`.
 
+The agent clean cut removed two more. `POST /agents/:id/hire` refused with `503`
+for its whole life in production — it required a sandbox or a local browser, and
+the runtime image has neither — and no client called it; an explicit goal,
+`POST /agents/threads/:threadId/goals`, is the only paid hire. `GET /agents/health`
+reported that same `shell: false, browser: false` and went with it.
+
 ---
 
 ## Error contract
