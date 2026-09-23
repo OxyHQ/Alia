@@ -66,7 +66,7 @@ const icon = vi.hoisted(() => (name: string) => async () => {
 
 vi.mock('@oxy.so/bloom/icons/RiCameraLine', icon('RiCameraLine'));
 vi.mock('@oxy.so/bloom/icons/RiImageLine', icon('RiImageLine'));
-vi.mock('@oxy.so/bloom/icons/RiFileTextLine', icon('RiFileTextLine'));
+vi.mock('@oxy.so/bloom/icons/RiAttachment2', icon('RiAttachment2'));
 vi.mock('@oxy.so/bloom/icons/RiEarthLine', icon('RiEarthLine'));
 vi.mock('@oxy.so/bloom/icons/RiSearchLine', icon('RiSearchLine'));
 vi.mock('@oxy.so/bloom/icons/RiEyeOffLine', icon('RiEyeOffLine'));

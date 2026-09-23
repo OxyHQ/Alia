@@ -230,11 +230,42 @@ export const ChatPageContent = ({
 
   const { colors } = useColorScheme();
   const insets = useSafeAreaInsets();
-  /** The template's breadcrumb: the project this chat belongs to, if any. */
-  const projectName = useProjectsStore((state) =>
-    conversationId
-      ? state.projects.find((p) => p.conversationIds.includes(conversationId))?.name
-      : undefined,
+  /**
+   * The chat's folder, as the sidebar's tree files it: its project, or
+   * "Recent". It is the template's breadcrumb crumb and the status bar's
+   * folder menu, where choosing another moves the chat there.
+   */
+  const projects = useProjectsStore((state) => state.projects);
+  const addConversationToProject = useProjectsStore(
+    (state) => state.addConversationToProject,
+  );
+  const removeConversationFromProject = useProjectsStore(
+    (state) => state.removeConversationFromProject,
+  );
+  const recentLabel = t('sidebar.recent');
+  const projectName = conversationId
+    ? (projects.find((p) => p.conversationIds.includes(conversationId))?.name ??
+      recentLabel)
+    : undefined;
+  const folders = useMemo(
+    () => [
+      { prefix: '', name: recentLabel },
+      ...projects.map((p) => ({ prefix: '', name: p.name })),
+    ],
+    [projects, recentLabel],
+  );
+  const handleFolderChange = useCallback(
+    async (name: string) => {
+      if (!conversationId) return;
+      for (const project of projects) {
+        if (project.conversationIds.includes(conversationId)) {
+          await removeConversationFromProject(project.id, conversationId);
+        }
+      }
+      const target = projects.find((p) => p.name === name);
+      if (target) await addConversationToProject(target.id, conversationId);
+    },
+    [conversationId, projects, addConversationToProject, removeConversationFromProject],
   );
 
   const isMainScreen = messages.length === 0;
@@ -412,6 +443,10 @@ export const ChatPageContent = ({
               style={{ paddingLeft: 6, paddingRight: 6, paddingBottom: insets.bottom }}
             >
               <ComposerStatusBar
+                folders={conversationId ? folders : undefined}
+                folder={projectName}
+                onFolderChange={(name) => void handleFolderChange(name)}
+                labels={{ folders: t('sidebar.projects') }}
                 mode={modeActive.agent ? t('modes.agentLabel') : 'Chat'}
                 onModePress={() => toggleMode('agent')}
               />

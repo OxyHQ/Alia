@@ -4,7 +4,7 @@ import { CommandPalette } from '@/components/command-palette';
 import { AppErrorBoundary } from '@/components/error-boundary';
 import { restoreOpenerFocus } from '@/components/execution/focus-return';
 import { KeyboardShortcutsDialog } from '@/components/keyboard-shortcuts-dialog';
-import { RightPanel } from '@/components/right-panel';
+import { useWorkspacePanelChrome, WorkspacePanel } from '@/components/workspace-panel';
 import { AliaSettingsProvider } from '@/components/settings/alia-settings';
 import { Sidebar } from '@/components/sidebar';
 import { useLocalRuntime } from '@/lib/hooks/use-local-runtime';
@@ -19,7 +19,7 @@ import { useUIStore } from '@/lib/stores/ui-store';
 import { AiChatShell } from '@oxy.so/bloom/ai-chat';
 import { useOxy } from '@oxy.so/services';
 import { Stack } from 'expo-router';
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -43,6 +43,9 @@ export default function AppLayout() {
   const rightPanel = useUIStore((state) => state.rightPanel);
   const setRightPanel = useUIStore((state) => state.setRightPanel);
   const rightPanelWidth = useUIStore((state) => state.rightPanelWidth);
+  /** The panel drawer below `xl`, opened from the mobile header's panel button. */
+  const [panelDrawerOpen, setPanelDrawerOpen] = useState(false);
+  const panelChrome = useWorkspacePanelChrome();
 
   // Prefetch welcome suggestions so they're ready before any chat screen mounts
   useWelcomeSuggestions();
@@ -114,27 +117,17 @@ export default function AppLayout() {
           mobileSidebar={mobileSidebar}
           labels={shellLabels}
           defaultPanelWidth={rightPanelWidth}
-          panelOpen={rightPanel !== null}
+          panelOpen={panelDrawerOpen || rightPanel !== null}
           onPanelOpenChange={(open) => {
-            if (!open) {
+            setPanelDrawerOpen(open);
+            if (!open && rightPanel !== null) {
               setRightPanel(null);
               if (rightPanel === 'thought') restoreOpenerFocus();
             }
           }}
-          panelLabel={
-            rightPanel === 'thought'
-              ? i18n.t('thought.title')
-              : (rightPanel ?? 'Details')
-          }
-          panel={
-            rightPanel
-              ? (width) => (
-                  <View style={{ width, minHeight: 0, height: '100%' }}>
-                    <RightPanel width={width} />
-                  </View>
-                )
-              : undefined
-          }
+          panelLabel={panelChrome.label}
+          panelIcon={panelChrome.icon}
+          panel={(width) => <WorkspacePanel width={width} />}
         >
           <ShellNavProvider>
             <Stack screenOptions={screenOptions}>

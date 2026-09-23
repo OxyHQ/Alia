@@ -16,7 +16,6 @@ import { RiAddFill } from "@oxy.so/bloom/icons/RiAddFill";
 import { RiBookOpenLine } from "@oxy.so/bloom/icons/RiBookOpenLine";
 import { RiCustomerServiceLine } from "@oxy.so/bloom/icons/RiCustomerServiceLine";
 import { RiListCheck3 } from "@oxy.so/bloom/icons/RiListCheck3";
-import { RiLoginBoxLine } from "@oxy.so/bloom/icons/RiLoginBoxLine";
 import { RiMicLine } from "@oxy.so/bloom/icons/RiMicLine";
 import { RiRobot2Line } from "@oxy.so/bloom/icons/RiRobot2Line";
 import { RiSettings4Line } from "@oxy.so/bloom/icons/RiSettings4Line";
@@ -165,18 +164,6 @@ function useSidebarProps() {
   const signedIn = authReady && isAuthenticated;
 
   const secondaryItems: SidebarNavItem[] = [
-    ...(authReady && !isAuthenticated
-      ? [
-          {
-            key: "sign-in",
-            label: t("sidebar.signIn"),
-            icon: RiLoginBoxLine,
-            onPress: () => {
-              signIn().catch(() => {});
-            },
-          },
-        ]
-      : []),
     {
       key: "support",
       label: t("sidebar.support"),
@@ -201,34 +188,56 @@ function useSidebarProps() {
     ? { source: oxyServices.getFileDownloadUrl(user.avatar, "thumb") }
     : { initials: name.slice(0, 1).toUpperCase(), color: "neutral" as const };
 
-  const account: SidebarAccount | undefined = signedIn
-    ? {
-        name,
-        avatar,
-        users: [
-          {
-            id: user?.id ?? "me",
-            name,
-            avatar,
-            selected: true,
-            onPress: () => openAccountDialog("accounts"),
-          },
-        ],
-        onAddUser: () => {
-          signIn().catch(() => {});
-        },
-        onManage: () => showBottomSheet?.("ManageAccount"),
-      }
-    : undefined;
+  const signInNow = () => {
+    signIn().catch(() => {});
+  };
 
-  const plan: SidebarPlan | undefined = signedIn
-    ? {
-        name,
-        plan: subscription?.plan.name ?? t("sidebar.freePlan"),
-        avatar,
-        onAction: () => go("/(biglayout)/subscribe"),
-      }
-    : undefined;
+  // The template always has an account at the top and a plan card at the
+  // foot. Signed out, both are the guest's, and both lead to signing in.
+  const account: SidebarAccount | undefined = !authReady
+    ? undefined
+    : signedIn
+      ? {
+          name,
+          avatar,
+          users: [
+            {
+              id: user?.id ?? "me",
+              name,
+              avatar,
+              selected: true,
+              onPress: () => openAccountDialog("accounts"),
+            },
+          ],
+          onAddUser: signInNow,
+          onManage: () => showBottomSheet?.("ManageAccount"),
+        }
+      : {
+          name: t("sidebar.guest"),
+          avatar: { initials: "A", color: "neutral" },
+          users: [],
+          onAddUser: signInNow,
+          addUserLabel: t("sidebar.signIn"),
+          onManage: signInNow,
+          manageLabel: t("sidebar.signIn"),
+        };
+
+  const plan: SidebarPlan | undefined = !authReady
+    ? undefined
+    : signedIn
+      ? {
+          name,
+          plan: subscription?.plan.name ?? t("sidebar.freePlan"),
+          avatar,
+          onAction: () => go("/(biglayout)/subscribe"),
+        }
+      : {
+          name: "Alia",
+          plan: t("sidebar.freePlan"),
+          avatar: { initials: "A", color: "neutral" },
+          actionLabel: t("sidebar.signIn"),
+          onAction: signInNow,
+        };
 
   const onScroll = React.useCallback(
     (event: NativeSyntheticEvent<NativeScrollEvent>) => {

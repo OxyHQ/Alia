@@ -4,7 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Message } from '@/lib/hooks/use-conversations';
 import type { FailedTurn } from '@/components/chat/turn-failure';
 
-type RightPanel = 'credits' | 'thought' | 'canvas' | 'agent' | null;
+export type RightPanel = 'credits' | 'thought' | 'canvas' | 'gallery' | 'agent' | null;
 
 /** The panel's tabs. The store owns them because it owns which one opens. */
 export type ThoughtTab = 'steps' | 'sources' | 'activity';
@@ -122,7 +122,8 @@ interface UIState {
 /** What the drag is clamped to. Bloom's own handle defaults to the same range. */
 export const RIGHT_PANEL_MIN_WIDTH = 320;
 export const RIGHT_PANEL_MAX_WIDTH = 560;
-export const RIGHT_PANEL_DEFAULT_WIDTH = 380;
+/** Bloom's `AiChatShell` default, the template's panel width. */
+export const RIGHT_PANEL_DEFAULT_WIDTH = 410;
 
 /** Keeps a restored or dragged width inside the range the layout can honour. */
 export function clampRightPanelWidth(width: number): number {

@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 describe('right panel divider', () => {
   it('does not draw a second border beside the framed content panel', () => {
     const source = readFileSync(
-      resolve(import.meta.dirname, '../right-panel.tsx'),
+      resolve(import.meta.dirname, '../workspace-panel.tsx'),
       'utf8',
     );
 
@@ -15,6 +15,6 @@ describe('right panel divider', () => {
       'utf8',
     );
     expect(shell).toContain('<AiChatShell');
-    expect(shell).toContain('<RightPanel width={width} />');
+    expect(shell).toContain('<WorkspacePanel width={width} />');
   });
 });
