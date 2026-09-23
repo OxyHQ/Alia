@@ -1,6 +1,6 @@
 {
   "note": "Written by packages/app/scripts/visual/capture.mjs. Regenerate with `bun run --filter @alia/app visual:baseline`; verify with the same command plus --check.",
-  "capturedAt": "2026-09-23T18:24:56.087Z",
+  "capturedAt": "2026-09-23T19:18:51.069Z",
   "chromium": "149.0.7827.55",
   "pinned": {
     "deviceScaleFactor": 1,
@@ -51,11 +51,11 @@
   ],
   "bundle": {
     "jsChunks": 101,
-    "jsTotalBytes": 9165019,
+    "jsTotalBytes": 9154237,
     "largestJsChunks": [
       {
-        "name": "__common-69ebfd2bd6417db75a15716e2c9dfdba.js",
-        "bytes": 6424669
+        "name": "__common-9fb6b1c33517f06431b8c545dc819150.js",
+        "bytes": 6413887
       },
       {
         "name": "index-519c9a984498a6f6dd4e7763f912de87.js",
@@ -95,7 +95,7 @@
       }
     ],
     "cssFiles": 1,
-    "cssTotalBytes": 90844
+    "cssTotalBytes": 90654
   },
   "files": [
     {
@@ -144,7 +144,7 @@
     },
     {
       "name": "welcome_768x1024_dark_reduced.png",
-      "bytes": 152568
+      "bytes": 152556
     },
     {
       "name": "welcome_1024x768_light_motion.png",
@@ -152,7 +152,7 @@
     },
     {
       "name": "welcome_1024x768_light_reduced.png",
-      "bytes": 180297
+      "bytes": 180299
     },
     {
       "name": "welcome_1024x768_dark_motion.png",
@@ -176,7 +176,7 @@
     },
     {
       "name": "welcome_1280x800_dark_reduced.png",
-      "bytes": 153403
+      "bytes": 153417
     },
     {
       "name": "welcome_1440x900_light_motion.png",
@@ -192,7 +192,7 @@
     },
     {
       "name": "welcome_1440x900_dark_reduced.png",
-      "bytes": 189539
+      "bytes": 189516
     },
     {
       "name": "ambient_1280x800_light_motion_t01200.png",
@@ -204,11 +204,11 @@
     },
     {
       "name": "ambient_1280x800_light_motion_t03590.png",
-      "bytes": 170901
+      "bytes": 170890
     },
     {
       "name": "ambient_1280x800_light_motion_t09000.png",
-      "bytes": 173637
+      "bytes": 173648
     }
   ]
 }

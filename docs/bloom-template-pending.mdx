@@ -54,9 +54,12 @@ Kept, invisible: cursor pagination (`onScroll`) and prefetch on hover (`onPrefet
 | Dictation bar (cancel / stop / send while recording) | the pill's own mic (`listening`); today it records and transcribes into the draft |
 | Drop-a-file overlay | no Bloom slot yet (paste still works) |
 
-Still Alia's: the attachment strip above the pill, shown only while something is
-attached — `ComposerPill` has no attachment slot. Bloom's `ComposerAttachments` is
-the full panel composer, not the pill.
+The composer is Bloom's `ComposerPanel` rather than the template's pill: its
+model picker (Alia's modes, the catalogue's models and this device's, each a
+rail group), the effort chip where a level can be sent, the mode selector (Chat,
+Agent, Deep research — the panel's permission pill), the attachment tiles with
+real read progress, and the chat's project as the status tab. A file that could
+not be read is a toast; the tiles have no error state.
 
 ## Thread
 
@@ -83,8 +86,9 @@ Still Alia's, pending a Bloom equivalent: `FailedTurnCard` (retry),
 - **Logo:** Alia passes `logo` (mark + "Alia") as well as `account`; Bloom puts the
   account switcher on its own row under it.
 - **Signed out:** the account is "Guest" and the plan card "Free Plan"; both sign in.
-- **Breadcrumb and status bar folder:** the chat's folder as the sidebar files it,
-  its project or "Recent"; choosing another in the status bar moves the chat there.
+- **Breadcrumb and status tab:** the chat's folder as the sidebar files it, its
+  project or "Recent". Moving a chat to another project comes back through the
+  tree's item `actions`.
 - **Effort:** the model menu shows the effort slider only for a mode that can send
   a level (`packages/api/src/lib/reasoning-effort.ts`: a level is offered only
   where it can be sent). "Auto" offers none, so its menu has no slider.
