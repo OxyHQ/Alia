@@ -14,7 +14,7 @@ import type { ModelPublisher } from './model-publishers';
 import { getModelCapabilities, getModelPricing } from './model-capabilities-data';
 
 // Helper to create a model mapping with all required fields
-export function createMapping(
+function createMapping(
   provider: string,
   publisher: ModelPublisher,
   model: string,

@@ -5,23 +5,12 @@
  * Import from this barrel module for all error-related functionality.
  */
 
-// Error codes, types, and AliaError class
-export {
-  AliaError,
-  AliaErrorCode,
-  isAliaError,
-  type AliaErrorParams,
-  type FailoverReason,
-} from './error-codes';
-
 // Failover classification and conversion
 export {
   classifyError,
   getErrorMessage,
   getStatusCode,
-  isTimeoutError,
   toAliaError,
-  getRetryAfterHeader,
 } from './failover-error';
 
 // Sanitization and formatting (user-facing)

@@ -174,12 +174,7 @@ vi.mock('../../../lib/errors/index.js', () => ({
     error: { code: e.code, message: e.userMessage, retryable: e.retryable },
   })),
   sanitizeMessage: vi.fn((msg: string) => msg),
-  AliaError: class AliaError extends Error { code = ''; retryable = false; },
-  AliaErrorCode: {},
   classifyError: vi.fn(() => 'unknown'),
-  isAliaError: vi.fn(() => false),
-  isTimeoutError: vi.fn(() => false),
-  getRetryAfterHeader: vi.fn(() => undefined),
 }));
 
 vi.mock('../../../lib/gateway-client.js', () => ({

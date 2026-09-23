@@ -595,7 +595,11 @@ describe('the billing path audit matches the tree it describes (#139 ws12)', () 
     // `plans.model_ids`. Read off `derived`, which is the scan of the tree,
     // rather than incremented — the number this file exists to protect is a
     // measurement, and arithmetic on it is how a plausible wrong one lands.
-    expect(derived.length).toBe(27);
+    //
+    // 27 -> 24: `insertCreditPackage`, `updateCreditPackageByPackageId` and
+    // `deleteCreditPackageByPackageId` had no caller outside their own test and
+    // were deleted; the seed is the only writer of `credit_packages`.
+    expect(derived.length).toBe(24);
     expect(audit.tables.length).toBe(7);
   });
 
@@ -614,7 +618,8 @@ describe('the billing path audit matches the tree it describes (#139 ws12)', () 
     // have none, so neither an empty caller map nor a scanner matching
     // everything would pass.
     expect(audited.filter((w) => w.reachable).length).toBeGreaterThan(0);
-    expect(audited.filter((w) => !w.reachable).length).toBe(12);
+    // 12 -> 9 when the three unreachable credit_packages writers were deleted.
+    expect(audited.filter((w) => !w.reachable).length).toBe(9);
   });
 
   it('every writer is classified, from the vocabulary the audit declares', () => {

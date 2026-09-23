@@ -16,19 +16,9 @@ const RPM_LIMITS: Record<string, number> = {
   enterprise: -1, // unlimited
 };
 
-// Cost/day caps per subscription tier (in credits)
-// All tiers unlimited — credits are the sole usage gate.
-const COST_DAY_CAPS: Record<string, number> = {
-  free: -1,
-  pro: -1,
-  pro_plus: -1,
-  business: -1,
-  enterprise: -1,
-};
-
-export interface LimitCheckResult {
+interface LimitCheckResult {
   allowed: boolean;
-  limitType?: 'rpm' | 'daily_cost';
+  limitType?: 'rpm';
   current?: number;
   limit?: number;
   resetInSeconds?: number;
@@ -88,84 +78,9 @@ export async function checkLimit(userId: string, tier: string): Promise<LimitChe
       };
     }
 
-    // Check daily cost cap
-    const costCap = COST_DAY_CAPS[tier] ?? COST_DAY_CAPS.free;
-    if (costCap > 0) {
-      const costKey = `rl:user:${userId}:cost`;
-      const costStr = await redis.get(costKey);
-      const costToday = parseFloat(costStr || '0');
-
-      if (costToday >= costCap) {
-        const now_ = new Date();
-        const midnight = new Date(now_.getFullYear(), now_.getMonth(), now_.getDate() + 1);
-        const resetInSeconds = Math.ceil((midnight.getTime() - now_.getTime()) / 1000);
-        return {
-          allowed: false,
-          limitType: 'daily_cost',
-          current: costToday,
-          limit: costCap,
-          resetInSeconds,
-        };
-      }
-    }
-
     return { allowed: true };
   } catch (err) {
     log.rateLimit.error({ err }, 'Redis rate limit check failed, allowing request');
     return { allowed: true }; // Fail-open
   }
-}
-
-/**
- * Increment the daily cost counter for a user.
- * Called from finalizeCredits after a request completes.
- */
-export async function incrementDailyCost(userId: string, credits: number): Promise<void> {
-  const redis = getRedisClient();
-  if (!redis) return;
-
-  try {
-    const key = `rl:user:${userId}:cost`;
-    await redis.incrbyfloat(key, credits);
-    // Expire at midnight — set TTL to max 24 hours
-    const now = new Date();
-    const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-    const ttl = Math.ceil((midnight.getTime() - now.getTime()) / 1000);
-    await redis.expire(key, ttl);
-  } catch (err) {
-    log.rateLimit.error({ err }, 'Failed to increment daily cost in Redis');
-  }
-}
-
-/**
- * Get current daily cost for spending alerts.
- */
-export async function getDailyCost(userId: string): Promise<{ costToday: number; cap: number }> {
-  const redis = getRedisClient();
-  if (!redis) return { costToday: 0, cap: 0 };
-
-  try {
-    const costStr = await redis.get(`rl:user:${userId}:cost`);
-    return { costToday: parseFloat(costStr || '0'), cap: 0 };
-  } catch {
-    return { costToday: 0, cap: 0 };
-  }
-}
-
-/**
- * Get the daily cost cap for a tier.
- */
-export function getDailyCostCap(tier: string): number {
-  return COST_DAY_CAPS[tier] ?? COST_DAY_CAPS.free;
-}
-
-/**
- * Check if user is approaching their daily cost cap (>80%).
- */
-export async function isApproachingDailyCap(userId: string, tier: string): Promise<boolean> {
-  const cap = COST_DAY_CAPS[tier] ?? COST_DAY_CAPS.free;
-  if (cap <= 0) return false;
-
-  const { costToday } = await getDailyCost(userId);
-  return costToday >= cap * 0.8;
 }

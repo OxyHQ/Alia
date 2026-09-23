@@ -640,7 +640,7 @@ describe('the frame classifier recognises every shape the route writes', () => {
     [
       `data: {"choices":[{"index":0,"delta":{"content":"hi"},"finish_reason":null}]}\n\n`,
       'sse:chunk:content',
-      'lib/streaming-helpers.ts:165 writeTextChunk',
+      'lib/streaming-helpers.ts:47 writeTextChunk',
     ],
     [
       `data: {"choices":[{"index":0,"delta":{"tool_calls":[]},"finish_reason":null}]}\n\n`,
@@ -650,7 +650,7 @@ describe('the frame classifier recognises every shape the route writes', () => {
     [
       `data: {"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}\n\n`,
       'sse:chunk:finish(stop)',
-      'lib/streaming-helpers.ts:173 writeStopChunk',
+      'lib/streaming-helpers.ts:55 writeStopChunk',
     ],
     [
       `data: {"choices":[],"usage":{"total_tokens":16}}\n\n`,

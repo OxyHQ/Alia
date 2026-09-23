@@ -152,8 +152,6 @@ const EXEMPT: Readonly<Record<string, string>> = {
     '`k` comes from `Object.keys(labels)`, so it is an OWN key of the object being read, by construction rather than by check.',
   'packages/api/src/lib/sliding-window-limiter.ts RPM_LIMITS[tier]':
     'Key is produced by `getUserTier`, whose every return is a string LITERAL — measured by the assertion below, not assumed.',
-  'packages/api/src/lib/sliding-window-limiter.ts COST_DAY_CAPS[tier]':
-    'Same producer as `RPM_LIMITS` above, measured by the same assertion.',
   'packages/api/src/middleware/api-key-rate-limit.ts TIER_RATE_LIMITS[tier]':
     'Key is produced by `getUserTier` in this same file, whose returns are all literals — the assertion below reads it.',
 };
@@ -168,8 +166,12 @@ const EXEMPT: Readonly<Record<string, string>> = {
  * one rather than being wired into the survivor: its `requiredPlan` vocabulary
  * is a never-exercised first draft of the capability grants being designed on
  * top of that assembler.
+ *
+ * 6 -> 5. The daily cost cap in `lib/sliding-window-limiter.ts` is DELETED (every
+ * tier was unlimited and nothing incremented the counter), and its
+ * `COST_DAY_CAPS[tier]` read with it.
  */
-const EXEMPT_COUNT = 6;
+const EXEMPT_COUNT = 5;
 
 describe('no lookup table answers an untrusted key from Object.prototype', () => {
   const reads = tableReads();
@@ -185,8 +187,9 @@ describe('no lookup table answers an untrusted key from Object.prototype', () =>
     // 19 -> 17: `lib/tools/descriptions/tool-specs.ts` and
     // `scripts/provider-catalogues.ts` are deleted (no production importer), and
     // their guarded `AGENT_TOOL_SPECS[toolName]` / `CATALOGUE_PATHS[provider]`
-    // reads with them.
-    expect(reads.length).toBeGreaterThanOrEqual(17);
+    // reads with them. 17 -> 16: the never-enforced daily cost cap left
+    // `sliding-window-limiter.ts`, and its `COST_DAY_CAPS[tier]` read with it.
+    expect(reads.length).toBeGreaterThanOrEqual(16);
     expect(reads.filter((r) => r.guarded).length).toBeGreaterThanOrEqual(5);
     expect(reads.filter((r) => !r.guarded).length).toBeGreaterThanOrEqual(1);
 
