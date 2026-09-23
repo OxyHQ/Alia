@@ -147,6 +147,27 @@ expect rather than repairing it.
   independently paginated result sets breaks `limit`/`offset` the same way —
   ask for ten, receive two, with no way to ask for the rest.
 
+## Who pays for an agent's turn
+
+The payer is chosen once, before anything is reserved, and one reservation
+carries exactly one account (`lib/agent/turn-funding.ts`).
+
+- **Somebody present asked for it — they pay.** A hire (`session-handoff.ts`)
+  is paid by the person hiring; an agent asked inside another turn
+  (`tools/agent-turn.ts`) is paid by whoever funds that outer turn.
+- **Nobody present asked — the agent's own Telegram bot.** `reserveAgentTurn`
+  tries the agent's own account (`agents.oxy_account_id`) first, then the bot
+  owner's, but only if that owner turned on "Pay for its replies with my
+  credits" (`bots.owner_pays_agent_turns`, writable only by the bot's owner
+  through `PATCH /bots/:id`). Otherwise the bot tells the person it is not
+  available, and says whether that is a missing permission or missing credit.
+
+An agent's account is never provisioned with the free allowance: its balance
+arrives only by an explicit transfer from its owner, so N agents never become
+300N free credits a day. No transfer path exists yet, so in practice the owner
+pays when they consented. Bots bound to an agent before migration 0071 were set
+to consent, because their owners were already paying for every turn.
+
 ## Talking to one is a durable execution thread
 
 ADR 0009 supersedes the pair-view model below. `agent_threads` is now the

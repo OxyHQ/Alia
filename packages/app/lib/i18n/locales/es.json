@@ -706,7 +706,9 @@
       "removed": "Bot de Telegram eliminado",
       "errorAlreadyRegistered": "Este bot de Telegram ya está registrado",
       "errorInvalidToken": "Token del bot no válido",
-      "errorGeneric": "Algo salió mal. Inténtalo de nuevo."
+      "errorGeneric": "Algo salió mal. Inténtalo de nuevo.",
+      "ownerPaysLabel": "Pagar sus respuestas con mis créditos",
+      "ownerPaysHint": "Si está activado, las respuestas de este bot se cobran de tus créditos. Si está desactivado, el bot avisa de que no está disponible."
     },
     "namePlaceholder": "Nombre del agente",
     "colorLabel": "Color",

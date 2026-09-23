@@ -52,6 +52,8 @@ export interface BotRow {
   status: BotStatus;
   userId: string | null;
   agentId: string | null;
+  /** The owner's consent to fund the agent's turns. See `schema/bots.ts`. */
+  ownerPaysAgentTurns: boolean;
   defaultModel: string | null;
   totalUsers: number;
   totalMessages: number;
@@ -76,6 +78,7 @@ const BOT_COLUMNS = {
   status: bots.status,
   userId: bots.userId,
   agentId: bots.agentId,
+  ownerPaysAgentTurns: bots.ownerPaysAgentTurns,
   defaultModel: bots.defaultModel,
   totalUsers: bots.totalUsers,
   totalMessages: bots.totalMessages,
@@ -275,6 +278,28 @@ export async function setBotAgent(
   const [row] = await db
     .update(bots)
     .set({ agentId })
+    .where(and(eq(bots.id, id), eq(bots.userId, userId)))
+    .returning(BOT_COLUMNS);
+
+  return row ? withLegacyId(row) : null;
+}
+
+/**
+ * Grant or withdraw the owner's consent to pay for this bot's agent turns.
+ *
+ * Scoped to `user_id` exactly as {@link setBotAgent} is: the consent commits
+ * THIS account's credits, so no other account can write it, and a system bot
+ * (no owner) can never match.
+ */
+export async function setBotOwnerPaysAgentTurns(
+  db: ApiDatabase,
+  id: string,
+  userId: string,
+  ownerPaysAgentTurns: boolean,
+): Promise<BotRow | null> {
+  const [row] = await db
+    .update(bots)
+    .set({ ownerPaysAgentTurns })
     .where(and(eq(bots.id, id), eq(bots.userId, userId)))
     .returning(BOT_COLUMNS);
 

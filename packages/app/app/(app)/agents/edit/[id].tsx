@@ -288,7 +288,7 @@ function AgentEditor({ agent }: { agent: Agent }) {
   const [sidebarTab, setSidebarTab] = useState<SidebarTab>("resources");
 
   // Telegram bot binding for this agent
-  const { bots: agentBots, registerBot, removeBot } = useAgentBots(agent._id);
+  const { bots: agentBots, registerBot, removeBot, setOwnerPaysAgentTurns } = useAgentBots(agent._id);
   const [showBotDialog, setShowBotDialog] = useState(false);
   const [botToken, setBotToken] = useState("");
   const [connectingBot, setConnectingBot] = useState(false);
@@ -561,6 +561,17 @@ function AgentEditor({ agent }: { agent: Agent }) {
       setConnectingBot(false);
     }
   }, [botToken, connectingBot, registerBot, t]);
+
+  const handleOwnerPaysToggle = useCallback(
+    async (bot: AgentBot, next: boolean) => {
+      try {
+        await setOwnerPaysAgentTurns(bot._id, next);
+      } catch {
+        toast.error(t("agents.telegramBot.errorGeneric"));
+      }
+    },
+    [setOwnerPaysAgentTurns, t]
+  );
 
   const handleRemoveBot = useCallback(
     async (bot: AgentBot) => {
@@ -898,40 +909,57 @@ function AgentEditor({ agent }: { agent: Agent }) {
               ) : (
                 <View className="gap-1">
                   {agentBots.map((bot) => (
-                    <View
-                      key={bot._id}
-                      className="flex-row items-center gap-2 py-1.5"
-                    >
+                    <View key={bot._id} className="gap-1">
                       <View
-                        className="p-1.5 rounded-lg"
-                        style={{ backgroundColor: "#0088CC15" }}
+                        className="flex-row items-center gap-2 py-1.5"
                       >
-                        <Send size={14} color="#0088CC" />
-                      </View>
-                      <View className="flex-1 flex-row items-center gap-2">
-                        <Text
-                          className="text-sm text-foreground"
-                          numberOfLines={1}
-                        >
-                          {bot.username ? `@${bot.username}` : bot.name}
-                        </Text>
                         <View
-                          className={cn(
-                            "w-2 h-2 rounded-full",
-                            bot.status === "active"
-                              ? "bg-green-500"
-                              : bot.status === "error"
-                                ? "bg-red-500"
-                                : "bg-gray-400"
-                          )}
+                          className="p-1.5 rounded-lg"
+                          style={{ backgroundColor: "#0088CC15" }}
+                        >
+                          <Send size={14} color="#0088CC" />
+                        </View>
+                        <View className="flex-1 flex-row items-center gap-2">
+                          <Text
+                            className="text-sm text-foreground"
+                            numberOfLines={1}
+                          >
+                            {bot.username ? `@${bot.username}` : bot.name}
+                          </Text>
+                          <View
+                            className={cn(
+                              "w-2 h-2 rounded-full",
+                              bot.status === "active"
+                                ? "bg-green-500"
+                                : bot.status === "error"
+                                  ? "bg-red-500"
+                                  : "bg-gray-400"
+                            )}
+                          />
+                        </View>
+                        <Pressable
+                          onPress={() => handleRemoveBot(bot)}
+                          className="active:opacity-70 p-1"
+                        >
+                          <Trash2 size={14} className="text-muted-foreground" />
+                        </Pressable>
+                      </View>
+                      {/* Who pays when the agent's own balance runs out. */}
+                      <View className="flex-row items-center justify-between pl-8">
+                        <View className="flex-1 pr-4">
+                          <Text className="text-[13px] text-foreground">
+                            {t("agents.telegramBot.ownerPaysLabel")}
+                          </Text>
+                          <Text className="text-xs text-muted-foreground mt-0.5">
+                            {t("agents.telegramBot.ownerPaysHint")}
+                          </Text>
+                        </View>
+                        <Switch
+                          accessibilityLabel={t("agents.telegramBot.ownerPaysLabel")}
+                          value={bot.ownerPaysAgentTurns === true}
+                          onValueChange={(next) => handleOwnerPaysToggle(bot, next)}
                         />
                       </View>
-                      <Pressable
-                        onPress={() => handleRemoveBot(bot)}
-                        className="active:opacity-70 p-1"
-                      >
-                        <Trash2 size={14} className="text-muted-foreground" />
-                      </Pressable>
                     </View>
                   ))}
                 </View>

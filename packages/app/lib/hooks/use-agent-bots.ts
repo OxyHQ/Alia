@@ -12,6 +12,12 @@ export interface AgentBot {
   status: 'active' | 'inactive' | 'error';
   userId?: string;
   agentId?: string;
+  /**
+   * Whether the owner agreed to pay for this agent's turns on this bot once the
+   * agent's own balance runs out. Off, the bot tells people it is not
+   * available rather than charging anyone.
+   */
+  ownerPaysAgentTurns?: boolean;
 }
 
 /**
@@ -63,11 +69,28 @@ export function useAgentBots(agentId: string | undefined) {
     [fetchAll],
   );
 
+  const setOwnerPaysAgentTurns = useCallback(
+    async (botId: string, ownerPaysAgentTurns: boolean) => {
+      // Optimistic, and put back if the server refuses.
+      setBots((prev) => prev.map((b) => (b._id === botId ? { ...b, ownerPaysAgentTurns } : b)));
+      try {
+        await apiClient.patch(`/bots/${botId}`, { ownerPaysAgentTurns });
+      } catch (err) {
+        setBots((prev) =>
+          prev.map((b) => (b._id === botId ? { ...b, ownerPaysAgentTurns: !ownerPaysAgentTurns } : b)),
+        );
+        throw err;
+      }
+    },
+    [],
+  );
+
   return {
     bots,
     loading,
     registerBot,
     removeBot,
+    setOwnerPaysAgentTurns,
     refresh: fetchAll,
   };
 }
