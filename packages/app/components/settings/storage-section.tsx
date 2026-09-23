@@ -26,7 +26,7 @@ import { useOxy } from '@oxy.so/services';
 import * as Clipboard from 'expo-clipboard';
 import * as Linking from 'expo-linking';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Platform } from 'react-native';
+import { Platform, View } from 'react-native';
 
 /** The Library API's multer limit (`packages/api/src/routes/library.ts`). */
 const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
@@ -221,10 +221,10 @@ export function StorageSection() {
   if (loading && files.length === 0) {
     // The page's own geometry, shimmering: the dropzone, then the file table.
     return (
-      <Skeleton.Col style={{ gap: 16 }}>
+      <View className="flex-1 gap-4">
         <Skeleton.Box width="100%" height={164} borderRadius={16} />
         <Skeleton.Box width="100%" height={360} borderRadius={16} />
-      </Skeleton.Col>
+      </View>
     );
   }
 

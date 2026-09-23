@@ -5,6 +5,8 @@ import apiClient from '@/lib/api/client';
 import { errorMessage as getErrorMessage } from '@/lib/errors/error-utils';
 import { useTranslation } from '@/lib/hooks/use-translation';
 import { Button } from '@oxy.so/bloom/button';
+import { EmptyState } from '@oxy.so/bloom/empty-state';
+import { RiMailCheckLine } from '@oxy.so/bloom/icons/RiMailCheckLine';
 import { TextFieldInput } from '@oxy.so/bloom/text-field';
 import { toast } from '@oxy.so/bloom/toast';
 import { Muted, Text } from '@oxy.so/bloom/typography';
@@ -58,42 +60,32 @@ export default function ForgotPasswordScreen() {
 
       {sent ? (
         // Success state
-        <View style={{ gap: 16, alignItems: 'center' }}>
-          <Text variant="title-1-bold" style={{ textAlign: 'center' }}>
-            {t('forgotPassword.checkEmail')}
-          </Text>
-          <Muted style={{ textAlign: 'center' }}>
-            {t('forgotPassword.sentInstructions')}
-            {'\n'}
-            <Text variant="body-medium">{email}</Text>
-          </Muted>
-          <Button
-            tone="action"
-            style={{ alignSelf: 'stretch' }}
-            onPress={() => router.back()}
-          >
-            {t('forgotPassword.returnToSignIn')}
-          </Button>
-          <Button
-            tone="accent"
-            appearance="plain"
-            onPress={() => {
+        <EmptyState
+          icon={RiMailCheckLine}
+          media="circle"
+          title={t('forgotPassword.checkEmail')}
+          description={`${t('forgotPassword.sentInstructions')} ${email}`}
+          action={{
+            label: t('forgotPassword.returnToSignIn'),
+            onPress: () => router.back(),
+          }}
+          secondaryAction={{
+            label: t('forgotPassword.tryAnotherEmail'),
+            onPress: () => {
               setSent(false);
               setEmail('');
-            }}
-          >
-            {t('forgotPassword.tryAnotherEmail')}
-          </Button>
-        </View>
+            },
+          }}
+        />
       ) : (
         // Form state
-        <View style={{ gap: 24 }}>
-          <View style={{ gap: 8 }}>
+        <View className="gap-6">
+          <View className="gap-2">
             <Text variant="title-1-bold">{t('forgotPassword.title')}</Text>
             <Muted>{t('forgotPassword.subtitle')}</Muted>
           </View>
 
-          <View style={{ gap: 12 }}>
+          <View className="gap-3">
             <AuthError message={error} />
 
             <TextFieldInput

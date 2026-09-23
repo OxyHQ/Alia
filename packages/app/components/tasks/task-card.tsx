@@ -17,6 +17,7 @@ import type { AccentTone } from '@oxy.so/bloom/theme';
 import { Muted } from '@oxy.so/bloom/typography';
 import React, { useEffect, useMemo, useState } from 'react';
 import Animated, { FadeIn } from 'react-native-reanimated';
+import { View } from 'react-native';
 import { AgentMarkRow } from './agent-mark-row';
 import { TaskTimelineStep } from './task-timeline-step';
 
@@ -170,21 +171,23 @@ export const TaskCard = React.memo(function TaskCard({
         )}
 
         {hasTimeline && (
-          <CardFooter style={{ justifyContent: 'space-between' }}>
-            <Muted>
-              {completedCount}/{totalCount} steps completed
-            </Muted>
-            {needsCollapse && (
-              <Button
-                tone="neutral"
-                appearance="plain"
-                size="xs"
-                leadingIcon={expanded ? RiArrowUpSLine : RiArrowDownSLine}
-                onPress={() => setExpanded(!expanded)}
-              >
-                {expanded ? 'Show less' : `Show all ${totalCount} steps`}
-              </Button>
-            )}
+          <CardFooter>
+            <View className="flex-1 flex-row items-center justify-between gap-2">
+              <Muted>
+                {completedCount}/{totalCount} steps completed
+              </Muted>
+              {needsCollapse && (
+                <Button
+                  tone="neutral"
+                  appearance="plain"
+                  size="xs"
+                  leadingIcon={expanded ? RiArrowUpSLine : RiArrowDownSLine}
+                  onPress={() => setExpanded(!expanded)}
+                >
+                  {expanded ? 'Show less' : `Show all ${totalCount} steps`}
+                </Button>
+              )}
+            </View>
           </CardFooter>
         )}
       </Card>

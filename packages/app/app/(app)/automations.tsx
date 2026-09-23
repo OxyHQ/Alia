@@ -10,7 +10,7 @@ import { toast } from '@oxy.so/bloom/toast';
 import { Muted, Text } from '@oxy.so/bloom/typography';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { ScrollView } from 'react-native';
+import { ScrollView, View } from 'react-native';
 
 /**
  * Scheduling a task, in words.
@@ -56,10 +56,16 @@ export default function AutomationsScreen() {
       keyboardShouldPersistTaps="handled"
       contentContainerClassName="w-full max-w-[640px] self-center gap-6 px-4 pb-12 pt-8"
     >
-      <Text variant="title-2-semibold" className="text-center">
-        {t('pages.automations.heading')}
-      </Text>
-      <Muted className="text-center">{t('pages.automations.description')}</Muted>
+      {/* A `className` on Bloom's Text REPLACES its variant, so the one-line
+          heading is centred by its wrapper and keeps title-2-semibold. The
+          description wraps, so it needs `text-center` itself; Muted's own scale
+          (14/20, muted foreground) is spelled out beside it for the same reason. */}
+      <View className="items-center">
+        <Text variant="title-2-semibold">{t('pages.automations.heading')}</Text>
+      </View>
+      <Muted className="text-center text-sm leading-5 text-muted-foreground">
+        {t('pages.automations.description')}
+      </Muted>
 
       <Composer
         value={prompt}

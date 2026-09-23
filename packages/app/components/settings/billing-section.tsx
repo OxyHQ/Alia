@@ -25,6 +25,7 @@ import { toast } from '@oxy.so/bloom/toast';
 import * as Linking from 'expo-linking';
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
+import { View } from 'react-native';
 import { errorMessage as getErrorMessage } from '../../lib/errors/error-utils';
 
 /** `$12.00` from integer cents. */
@@ -167,10 +168,10 @@ export function BillingSection({ success }: BillingSectionProps) {
   if (isLoading) {
     // The page's own geometry, shimmering: the plan card, then a card of rows.
     return (
-      <Skeleton.Col style={{ gap: 24 }}>
+      <View className="flex-1 gap-6">
         <Skeleton.Box width="100%" height={132} borderRadius={16} />
         <Skeleton.Box width="100%" height={156} borderRadius={16} />
-      </Skeleton.Col>
+      </View>
     );
   }
 

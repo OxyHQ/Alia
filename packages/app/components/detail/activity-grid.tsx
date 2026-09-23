@@ -51,7 +51,7 @@ export function ActivityGrid({ agentId, weeks: weeksProp }: ActivityGridProps) {
   }
 
   return (
-    <View style={{ gap: 6 }}>
+    <View className="gap-1.5">
       <Muted>
         {totalSessions} interaction{totalSessions !== 1 ? 's' : ''} in the last{' '}
         {weeks} weeks

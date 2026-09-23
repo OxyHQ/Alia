@@ -128,7 +128,7 @@ export function AutomationCard({
       />
       <Item density="compact">
         {/* Stacking only: the badges wrap in a row. */}
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+        <View className="flex-row flex-wrap gap-2">
           <StatusBadge label={lifecycle.label} tone={lifecycle.tone} />
           {compact ? (
             <StatusBadge label="Automation" />
@@ -171,50 +171,53 @@ export function AutomationCard({
         />
       ) : null}
 
-      <CardFooter style={{ justifyContent: 'flex-start', flexWrap: 'wrap' }}>
-        {canRunNow(automation) ? (
+      <CardFooter>
+        {/* The actions read from the start and wrap; history sits at the end. */}
+        <View className="flex-1 flex-row flex-wrap items-center gap-2">
+          {canRunNow(automation) ? (
+            <Button
+              tone="action"
+              appearance="subtle"
+              size="sm"
+              leadingIcon={RiPlayLine}
+              loading={busy}
+              accessibilityRole="button"
+              accessibilityLabel={`Run ${title}`}
+              disabled={controlsDisabled || !automation.enabled}
+              onPress={() => onRun(automation)}
+            >
+              Run now
+            </Button>
+          ) : null}
+          {automation.enabled ? (
+            <Button
+              tone="danger"
+              appearance="plain"
+              size="sm"
+              leadingIcon={RiStopFill}
+              accessibilityRole="button"
+              accessibilityLabel={`Stop ${title}`}
+              disabled={controlsDisabled}
+              onPress={() => onStop(automation)}
+            >
+              {automation.legacyTriggerId ? 'Stop' : 'Stop and revoke'}
+            </Button>
+          ) : compact ? null : (
+            <StatusBadge label="Stopped" />
+          )}
           <Button
-            tone="action"
-            appearance="subtle"
-            size="sm"
-            leadingIcon={RiPlayLine}
-            loading={busy}
-            accessibilityRole="button"
-            accessibilityLabel={`Run ${title}`}
-            disabled={controlsDisabled || !automation.enabled}
-            onPress={() => onRun(automation)}
-          >
-            Run now
-          </Button>
-        ) : null}
-        {automation.enabled ? (
-          <Button
-            tone="danger"
+            tone="neutral"
             appearance="plain"
             size="sm"
-            leadingIcon={RiStopFill}
+            className="ml-auto"
             accessibilityRole="button"
-            accessibilityLabel={`Stop ${title}`}
+            accessibilityLabel={`View history for ${title}`}
             disabled={controlsDisabled}
-            onPress={() => onStop(automation)}
+            onPress={() => onViewHistory(automation)}
           >
-            {automation.legacyTriggerId ? 'Stop' : 'Stop and revoke'}
+            {compact ? 'History' : 'View history'}
           </Button>
-        ) : compact ? null : (
-          <StatusBadge label="Stopped" />
-        )}
-        <Button
-          tone="neutral"
-          appearance="plain"
-          size="sm"
-          style={{ marginLeft: 'auto' }}
-          accessibilityRole="button"
-          accessibilityLabel={`View history for ${title}`}
-          disabled={controlsDisabled}
-          onPress={() => onViewHistory(automation)}
-        >
-          {compact ? 'History' : 'View history'}
-        </Button>
+        </View>
       </CardFooter>
     </Card>
   );

@@ -149,17 +149,12 @@ export default function LibraryScreen() {
 
   const listHeader = useMemo(
     () => (
-      <View style={{ gap: 12, paddingBottom: 8 }}>
+      <View className="gap-3 pb-2">
         {/* The page's one-line description and its action. */}
-        <View
-          style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: 12,
-          }}
-        >
-          <Muted style={{ flex: 1 }}>{t('library.subtitle')}</Muted>
+        <View className="flex-row items-center justify-between gap-3">
+          <View className="flex-1">
+            <Muted>{t('library.subtitle')}</Muted>
+          </View>
           <DropdownMenu>
             <DropdownMenuTrigger label={t('library.addFiles')} asChild>
               {/* The trigger IS the button, and it is named (#536). */}
@@ -220,17 +215,21 @@ export default function LibraryScreen() {
         ) : null}
 
         {loading && files.length === 0 ? (
-          <Skeleton.Col style={{ gap: 16, paddingTop: 4 }}>
+          <View className="gap-4 pt-1">
             {Array.from({ length: 5 }).map((_, i) => (
-              <Skeleton.Row key={i} style={{ gap: 12, alignItems: 'center' }}>
+              <View key={i} className="flex-row items-center gap-3">
                 <Skeleton.Circle size={36} />
-                <Skeleton.Col style={{ flex: 1, gap: 6 }}>
-                  <Skeleton.Text style={{ width: '60%' }} />
-                  <Skeleton.Text style={{ width: '35%' }} />
-                </Skeleton.Col>
-              </Skeleton.Row>
+                <View className="flex-1 gap-1.5">
+                  <View className="w-3/5 flex-row">
+                    <Skeleton.Text />
+                  </View>
+                  <View className="w-[35%] flex-row">
+                    <Skeleton.Text />
+                  </View>
+                </View>
+              </View>
             ))}
-          </Skeleton.Col>
+          </View>
         ) : null}
       </View>
     ),
@@ -270,11 +269,7 @@ export default function LibraryScreen() {
       ListHeaderComponent={listHeader}
       ListEmptyComponent={listEmpty}
       showsVerticalScrollIndicator={false}
-      contentContainerStyle={{
-        paddingHorizontal: 16,
-        paddingTop: 16,
-        paddingBottom: 24,
-      }}
+      contentContainerClassName="px-4 pb-6 pt-4"
       refreshControl={
         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
       }

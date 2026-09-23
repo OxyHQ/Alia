@@ -27,7 +27,7 @@ import { useAuth, useOxy } from '@oxy.so/services';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import Head from 'expo-router/head';
 import { useCallback, useEffect, useState } from 'react';
-import { Linking, Platform } from 'react-native';
+import { Linking, Platform, View } from 'react-native';
 import { io as socketIO } from 'socket.io-client';
 
 type AppType = string;
@@ -339,10 +339,10 @@ export default function AuthorizeScreen() {
         {status === 'authorize' && (
           <Card appearance="outline">
             <CardHeader>
-              <CardTitle style={{ textAlign: 'center' }}>
+              <CardTitle>
                 {t('authorize.authorizeApp', { app: appConfig.displayName })}
               </CardTitle>
-              <CardDescription style={{ textAlign: 'center' }}>
+              <CardDescription>
                 {t('authorize.appWantsAccess', {
                   app: appConfig.displayName,
                 })}
@@ -367,18 +367,20 @@ export default function AuthorizeScreen() {
               ))}
               <Divider spacing={8} />
             </CardBody>
-            <CardFooter style={{ flexDirection: 'column', alignItems: 'stretch' }}>
-              <Button tone="action" size="lg" onPress={handleOAuthAuthorize}>
-                {t('common.authorize')}
-              </Button>
-              <Button
-                tone="neutral"
-                appearance="subtle"
-                size="lg"
-                onPress={handleCancel}
-              >
-                {t('common.cancel')}
-              </Button>
+            <CardFooter>
+              <View className="flex-1 gap-2">
+                <Button tone="action" size="lg" onPress={handleOAuthAuthorize}>
+                  {t('common.authorize')}
+                </Button>
+                <Button
+                  tone="neutral"
+                  appearance="subtle"
+                  size="lg"
+                  onPress={handleCancel}
+                >
+                  {t('common.cancel')}
+                </Button>
+              </View>
             </CardFooter>
           </Card>
         )}
@@ -421,16 +423,16 @@ export default function AuthorizeScreen() {
             }
             footer={
               redirectUrl ? (
-                <Muted selectable style={{ textAlign: 'center' }}>
+                <Muted selectable className="text-center text-sm leading-5 text-muted-foreground">
                   {redirectUrl}
                 </Muted>
               ) : appConfig.isChannel ? (
-                <Muted style={{ textAlign: 'center' }}>
+                <Muted className="text-center text-sm leading-5 text-muted-foreground">
                   You can now return to {appConfig.displayName} and start
                   chatting with Alia!
                 </Muted>
               ) : (
-                <Muted style={{ textAlign: 'center' }}>
+                <Muted className="text-center text-sm leading-5 text-muted-foreground">
                   If not redirected automatically, you can close this window.
                 </Muted>
               )

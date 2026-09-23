@@ -20,12 +20,7 @@ import { TextFieldInput } from '@oxy.so/bloom/text-field';
 import { Textarea } from '@oxy.so/bloom/textarea';
 import { toast } from '@oxy.so/bloom/toast';
 import { useState } from 'react';
-import { ScrollView, useWindowDimensions, View } from 'react-native';
-
-/** Stacking only: the dialog's fields, one under the other. */
-const BODY = { gap: 20, paddingBottom: 12 } as const;
-/** Stacking only: two fields side by side. */
-const ROW = { flexDirection: 'row', gap: 8 } as const;
+import { ScrollView, View } from 'react-native';
 
 interface AgentOption {
   id: string;
@@ -90,7 +85,6 @@ export function AutomationEditor({
   onClose,
   onSave,
 }: AutomationEditorProps) {
-  const { height: windowHeight } = useWindowDimensions();
   const initial = createAutomationEditDraft(automation);
   const initialSchedule =
     automation.trigger.type === 'schedule'
@@ -180,8 +174,8 @@ export function AutomationEditor({
         ]}
       >
         <ScrollView
-          style={{ maxHeight: windowHeight * 0.8 }}
-          contentContainerStyle={BODY}
+          className="max-h-[80vh]"
+          contentContainerClassName="gap-5 pb-3"
         >
           <SettingsListGroup>
             <SettingsListItem
@@ -252,25 +246,30 @@ export function AutomationEditor({
             </ChipRow>
           </Field>
 
-          <View style={ROW}>
-            <Field label="Time" style={{ flex: 1 }}>
-              <TextFieldInput
-                label="Task time"
-                value={time}
-                onChangeText={setTime}
-                placeholder="09:00"
-                accessibilityLabel="Task time"
-              />
-            </Field>
-            <Field label="Timezone" style={{ flex: 2 }}>
-              <TextFieldInput
-                label="Task timezone"
-                placeholder={null}
-                value={timezone}
-                onChangeText={setTimezone}
-                accessibilityLabel="Task timezone"
-              />
-            </Field>
+          {/* Two fields side by side, the timezone twice the time's width. */}
+          <View className="flex-row gap-2">
+            <View className="flex-1">
+              <Field label="Time">
+                <TextFieldInput
+                  label="Task time"
+                  value={time}
+                  onChangeText={setTime}
+                  placeholder="09:00"
+                  accessibilityLabel="Task time"
+                />
+              </Field>
+            </View>
+            <View className="flex-[2]">
+              <Field label="Timezone">
+                <TextFieldInput
+                  label="Task timezone"
+                  placeholder={null}
+                  value={timezone}
+                  onChangeText={setTimezone}
+                  accessibilityLabel="Task timezone"
+                />
+              </Field>
+            </View>
           </View>
 
           <Field label="Responsible agent" multiple>

@@ -19,19 +19,6 @@ import { ScrollView, View } from 'react-native';
  * skill from changing under the person using it.
  */
 
-/** Stacking only: the column the page reads in. */
-const CONTENT = {
-  width: '100%',
-  maxWidth: 768,
-  alignSelf: 'center',
-  paddingHorizontal: 16,
-  paddingTop: 16,
-  paddingBottom: 48,
-  gap: 16,
-} as const;
-/** Stacking only: a row of actions. */
-const ACTIONS = { flexDirection: 'row', alignItems: 'center', gap: 8 } as const;
-
 export default function ImportSkillScreen() {
   const router = useRouter();
   const { t } = useTranslation();
@@ -61,9 +48,9 @@ export default function ImportSkillScreen() {
     <ScrollView
       showsVerticalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"
-      contentContainerStyle={CONTENT}
+      contentContainerClassName="w-full max-w-[768px] self-center gap-4 px-4 pb-12 pt-4"
     >
-      <View style={ACTIONS}>
+      <View className="flex-row items-center gap-2">
         <Button
           tone="neutral"
           appearance="plain"
@@ -87,7 +74,7 @@ export default function ImportSkillScreen() {
         editable={!importSkill.isPending}
       />
 
-      <View style={ACTIONS}>
+      <View className="flex-row items-center gap-2">
         <Button
           tone="action"
           leadingIcon={RiDownloadLine}

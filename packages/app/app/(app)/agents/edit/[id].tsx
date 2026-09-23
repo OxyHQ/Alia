@@ -212,19 +212,11 @@ export default function EditAgentScreen() {
   if (isError) {
     const notFound = errorStatus(error) === 404;
     return (
-      <View
-        style={{
-          flex: 1,
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: 24,
-          gap: 12,
-        }}
-      >
-        <Text variant="headline-semibold" style={{ textAlign: 'center' }}>
+      <View className="flex-1 items-center justify-center gap-3 p-6">
+        <Text className="text-center text-base font-semibold leading-[22px] text-foreground">
           {notFound ? t('agents.notFound') : t('agents.loadFailed')}
         </Text>
-        <Muted style={{ textAlign: 'center' }}>
+        <Muted className="text-center text-sm text-muted-foreground">
           {notFound
             ? t('agents.notFoundDetail')
             : getErrorMessage(error, t('agents.loadFailed'))}
@@ -258,7 +250,9 @@ export default function EditAgentScreen() {
   // until it has — or the fetch is in flight. Both are a wait, and the same one
   // to the person looking at it.
   return (
-    <Loading variant="spinner" text={t('common.loading')} style={{ flex: 1 }} />
+    <View className="flex-1 items-center justify-center">
+      <Loading variant="spinner" text={t('common.loading')} />
+    </View>
   );
 }
 
@@ -667,7 +661,7 @@ function AgentEditor({ agent }: { agent: Agent }) {
 
   // The side column: resources and settings, switched by Bloom's tab strip.
   const sidebarContent = (
-    <View style={{ flex: 1 }}>
+    <View className="flex-1">
       <Tabs
         value={sidebarTab}
         onValueChange={(next) => setSidebarTab(next as SidebarTab)}
@@ -678,8 +672,8 @@ function AgentEditor({ agent }: { agent: Agent }) {
       </Tabs>
 
       <ScrollView
-        style={{ flex: 1 }}
-        contentContainerStyle={{ padding: 16, gap: 16 }}
+        className="flex-1"
+        contentContainerClassName="gap-4 p-4"
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
@@ -724,7 +718,7 @@ function AgentEditor({ agent }: { agent: Agent }) {
               scrollable={false}
               contentPadding={0}
             >
-              <View style={{ paddingHorizontal: 16, paddingBottom: 8 }}>
+              <View className="px-4 pb-2">
                 <Search
                   label="Search skills..."
                   value={skillSearch}
@@ -734,9 +728,7 @@ function AgentEditor({ agent }: { agent: Agent }) {
                 />
               </View>
               <ScrollView
-                style={
-                  isLargeScreen ? { maxHeight: 300 } : { flex: 1 }
-                }
+                className={isLargeScreen ? 'max-h-[300px]' : 'flex-1'}
               >
                 {allSkills
                   .filter(
@@ -821,7 +813,7 @@ function AgentEditor({ agent }: { agent: Agent }) {
               scrollable={false}
               contentPadding={0}
             >
-              <View style={{ paddingHorizontal: 16, paddingBottom: 8 }}>
+              <View className="px-4 pb-2">
                 <Search
                   label="Search library..."
                   value={knowledgeSearch}
@@ -831,9 +823,7 @@ function AgentEditor({ agent }: { agent: Agent }) {
                 />
               </View>
               <ScrollView
-                style={
-                  isLargeScreen ? { maxHeight: 300 } : { flex: 1 }
-                }
+                className={isLargeScreen ? 'max-h-[300px]' : 'flex-1'}
               >
                 {libraryFiles
                   .filter(
@@ -869,7 +859,7 @@ function AgentEditor({ agent }: { agent: Agent }) {
                     />
                   ))}
                 {libraryFiles.length === 0 && (
-                  <Muted style={{ textAlign: 'center', padding: 16 }}>
+                  <Muted className="p-4 text-center text-sm text-muted-foreground">
                     No files in library. Upload files on the Library screen.
                   </Muted>
                 )}
@@ -879,7 +869,7 @@ function AgentEditor({ agent }: { agent: Agent }) {
         ) : (
           <>
             {/* Category */}
-            <View style={{ gap: 6 }}>
+            <View className="gap-1.5">
               <Label>Category</Label>
               <ChipRow role="radiogroup" accessibilityLabel="Category">
                 {CATEGORIES.map((cat) => (
@@ -897,7 +887,7 @@ function AgentEditor({ agent }: { agent: Agent }) {
             </View>
 
             {/* Tagline */}
-            <View style={{ gap: 6 }}>
+            <View className="gap-1.5">
               <Label>Tagline</Label>
               <Input
                 label="Short description"
@@ -908,7 +898,7 @@ function AgentEditor({ agent }: { agent: Agent }) {
             </View>
 
             {/* Description */}
-            <View style={{ gap: 6 }}>
+            <View className="gap-1.5">
               <Label>Description</Label>
               <Textarea
                 value={description}
@@ -919,7 +909,7 @@ function AgentEditor({ agent }: { agent: Agent }) {
             </View>
 
             {/* Price */}
-            <View style={{ gap: 6 }}>
+            <View className="gap-1.5">
               <Label>Price per use (USD)</Label>
               <Input
                 label="Free (leave empty)"
@@ -962,13 +952,7 @@ function AgentEditor({ agent }: { agent: Agent }) {
                   icon={<RiSendPlaneLine size="md" />}
                   title={bot.username ? `@${bot.username}` : bot.name}
                   rightElement={
-                    <View
-                      style={{
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                        gap: 8,
-                      }}
-                    >
+                    <View className="flex-row items-center gap-2">
                       <Badge
                         dot
                         color={
@@ -1024,7 +1008,7 @@ function AgentEditor({ agent }: { agent: Agent }) {
           },
         ]}
       >
-        <View style={{ gap: 6 }}>
+        <View className="gap-1.5">
           <Label>{t('agents.telegramBot.tokenLabel')}</Label>
           <Input
             label={t('agents.telegramBot.tokenPlaceholder')}
@@ -1041,20 +1025,11 @@ function AgentEditor({ agent }: { agent: Agent }) {
   );
 
   return (
-    <View style={{ flex: 1, flexDirection: 'row' }}>
+    <View className="flex-1 flex-row">
       {/* Main column */}
-      <View style={{ flex: 1 }}>
+      <View className="flex-1">
         {/* Page actions */}
-        <View
-          style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            flexWrap: 'wrap',
-            gap: 8,
-            paddingHorizontal: 16,
-            paddingTop: 16,
-          }}
-        >
+        <View className="flex-row flex-wrap items-center gap-2 px-4 pt-4">
           <Button
             size="sm"
             tone="neutral"
@@ -1078,7 +1053,7 @@ function AgentEditor({ agent }: { agent: Agent }) {
               content={archetype.replace('_', ' ')}
             />
           )}
-          <View style={{ flex: 1 }} />
+          <View className="flex-1" />
           {!isLargeScreen && (
             <Button
               size="sm"
@@ -1116,8 +1091,8 @@ function AgentEditor({ agent }: { agent: Agent }) {
 
         {/* Main editor */}
         <ScrollView
-          style={{ flex: 1 }}
-          contentContainerStyle={{ padding: 16, paddingBottom: 60, gap: 24 }}
+          className="flex-1"
+          contentContainerClassName="gap-6 p-4 pb-[60px]"
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
@@ -1125,9 +1100,9 @@ function AgentEditor({ agent }: { agent: Agent }) {
               to Oxy rather than to the agent row. The handle was PROPOSED at
               creation and may carry a collision suffix nobody chose, so it is
               editable here rather than permanent. */}
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+          <View className="flex-row items-center gap-3">
             <IdentityMark size={48} color={agentTint(identity.color, colors)} />
-            <View style={{ flex: 1, gap: 8 }}>
+            <View className="flex-1 gap-2">
               <Input
                 label={t('agents.namePlaceholder')}
                 value={identity.name}
@@ -1151,9 +1126,12 @@ function AgentEditor({ agent }: { agent: Agent }) {
               will STORE: the fifty-two presets the `users_color_check`
               constraint omits were a 400 on a swatch the person had just
               picked. */}
-          <View style={{ gap: 6 }}>
+          <View className="gap-1.5">
             <Label>{t('agents.colorLabel')}</Label>
-            <ChipRow role="radiogroup" accessibilityLabel={t('agents.colorLabel')}>
+            <ChipRow
+              role="radiogroup"
+              accessibilityLabel={t('agents.colorLabel')}
+            >
               {AGENT_SWATCHES.map((preset) => (
                 <Chip
                   key={preset}
@@ -1184,11 +1162,11 @@ function AgentEditor({ agent }: { agent: Agent }) {
 
           {/* Archetype-specific configuration */}
           {archetype === 'status_update' && (
-            <View style={{ gap: 16 }}>
+            <View className="gap-4">
               <Text variant="headline-semibold">Report Configuration</Text>
 
               {/* Report Template */}
-              <View style={{ gap: 6 }}>
+              <View className="gap-1.5">
                 <Label>Report Template</Label>
                 <Textarea
                   value={archetypeConfig.reportTemplate || ''}
@@ -1207,35 +1185,38 @@ function AgentEditor({ agent }: { agent: Agent }) {
               </View>
 
               {/* Schedule */}
-              <View style={{ gap: 6 }}>
+              <View className="gap-1.5">
                 <Label>Schedule</Label>
-                <SegmentedControl
-                  label="Schedule"
-                  type="radio"
-                  value={archetypeConfig.schedule?.type || 'daily'}
-                  onValueChange={(val) => {
-                    const type =
-                      val === 'interval'
-                        ? 'interval'
-                        : val === 'cron'
-                          ? 'cron'
-                          : 'daily';
-                    editDraft({
-                      archetypeConfig: {
-                        ...archetypeConfig,
-                        schedule: { ...archetypeConfig.schedule, type },
-                      },
-                    });
-                  }}
-                  style={{ alignSelf: 'flex-start' }}
-                >
-                  <SegmentedControlItem value="daily">
-                    <SegmentedControlItemText>Daily</SegmentedControlItemText>
-                  </SegmentedControlItem>
-                  <SegmentedControlItem value="interval">
-                    <SegmentedControlItemText>Interval</SegmentedControlItemText>
-                  </SegmentedControlItem>
-                </SegmentedControl>
+                <View className="self-start">
+                  <SegmentedControl
+                    label="Schedule"
+                    type="radio"
+                    value={archetypeConfig.schedule?.type || 'daily'}
+                    onValueChange={(val) => {
+                      const type =
+                        val === 'interval'
+                          ? 'interval'
+                          : val === 'cron'
+                            ? 'cron'
+                            : 'daily';
+                      editDraft({
+                        archetypeConfig: {
+                          ...archetypeConfig,
+                          schedule: { ...archetypeConfig.schedule, type },
+                        },
+                      });
+                    }}
+                  >
+                    <SegmentedControlItem value="daily">
+                      <SegmentedControlItemText>Daily</SegmentedControlItemText>
+                    </SegmentedControlItem>
+                    <SegmentedControlItem value="interval">
+                      <SegmentedControlItemText>
+                        Interval
+                      </SegmentedControlItemText>
+                    </SegmentedControlItem>
+                  </SegmentedControl>
+                </View>
                 {(archetypeConfig.schedule?.type || 'daily') === 'daily' && (
                   <Input
                     label="09:00"
@@ -1258,9 +1239,9 @@ function AgentEditor({ agent }: { agent: Agent }) {
               </View>
 
               {/* Delivery Channels */}
-              <View style={{ gap: 6 }}>
+              <View className="gap-1.5">
                 <Label>Delivery Channels</Label>
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                <View className="flex-row flex-wrap gap-2">
                   {['in_app', 'telegram', 'discord', 'slack', 'email'].map(
                     (channel) => (
                       <Chip
@@ -1269,7 +1250,9 @@ function AgentEditor({ agent }: { agent: Agent }) {
                         selected={(
                           archetypeConfig.deliveryChannels || []
                         ).includes(channel)}
-                        onPress={() => toggleChannel('deliveryChannels', channel)}
+                        onPress={() =>
+                          toggleChannel('deliveryChannels', channel)
+                        }
                       >
                         {channel.replace('_', ' ')}
                       </Chip>
@@ -1302,7 +1285,7 @@ function AgentEditor({ agent }: { agent: Agent }) {
           )}
 
           {archetype === 'qa' && (
-            <View style={{ gap: 16 }}>
+            <View className="gap-4">
               <Text variant="headline-semibold">Q&A Configuration</Text>
 
               {/* No "Knowledge Sources" picker. It wrote four hardcoded names
@@ -1335,13 +1318,13 @@ function AgentEditor({ agent }: { agent: Agent }) {
           )}
 
           {archetype === 'task_router' && (
-            <View style={{ gap: 16 }}>
+            <View className="gap-4">
               <Text variant="headline-semibold">Routing Configuration</Text>
 
               {/* Inbound Channels */}
-              <View style={{ gap: 6 }}>
+              <View className="gap-1.5">
                 <Label>Inbound Channels</Label>
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                <View className="flex-row flex-wrap gap-2">
                   {[
                     'email',
                     'slack',
@@ -1353,9 +1336,9 @@ function AgentEditor({ agent }: { agent: Agent }) {
                     <Chip
                       key={channel}
                       size="xl"
-                      selected={(archetypeConfig.inboundChannels || []).includes(
-                        channel,
-                      )}
+                      selected={(
+                        archetypeConfig.inboundChannels || []
+                      ).includes(channel)}
                       onPress={() => toggleChannel('inboundChannels', channel)}
                     >
                       {channel}
@@ -1365,14 +1348,8 @@ function AgentEditor({ agent }: { agent: Agent }) {
               </View>
 
               {/* Routing Rules */}
-              <View style={{ gap: 8 }}>
-                <View
-                  style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                  }}
-                >
+              <View className="gap-2">
+                <View className="flex-row items-center justify-between">
                   <Label>Routing Rules</Label>
                   <Button
                     size="xs"
@@ -1399,89 +1376,95 @@ function AgentEditor({ agent }: { agent: Agent }) {
                 </View>
                 {(archetypeConfig.routingRules || []).map((rule, index) => (
                   <Card key={index} appearance="subtle">
-                    <CardBody style={{ gap: 8, paddingVertical: 12 }}>
-                      <Input
-                        label="When the task is about..."
-                        value={rule.condition}
-                        onChangeText={(text) =>
-                          editRoutingRule(index, { condition: text })
-                        }
-                        placeholder="When the task is about..."
-                      />
-                      <View
-                        style={{
-                          flexDirection: 'row',
-                          alignItems: 'center',
-                          gap: 8,
-                        }}
-                      >
-                        <SegmentedControl
-                          label="Priority"
-                          type="radio"
-                          size="sm"
-                          value={rule.priority}
-                          onValueChange={(val) => {
-                            const priority =
-                              val === 'low'
-                                ? 'low'
-                                : val === 'high'
-                                  ? 'high'
-                                  : val === 'urgent'
-                                    ? 'urgent'
-                                    : 'medium';
-                            editRoutingRule(index, { priority });
-                          }}
-                        >
-                          <SegmentedControlItem value="low">
-                            <SegmentedControlItemText>Low</SegmentedControlItemText>
-                          </SegmentedControlItem>
-                          <SegmentedControlItem value="medium">
-                            <SegmentedControlItemText>Med</SegmentedControlItemText>
-                          </SegmentedControlItem>
-                          <SegmentedControlItem value="high">
-                            <SegmentedControlItemText>High</SegmentedControlItemText>
-                          </SegmentedControlItem>
-                          <SegmentedControlItem value="urgent">
-                            <SegmentedControlItemText>Urgent</SegmentedControlItemText>
-                          </SegmentedControlItem>
-                        </SegmentedControl>
-                        <View style={{ flex: 1 }} />
-                        <Button
-                          size="xs"
-                          tone="neutral"
-                          appearance="plain"
-                          icon={RiCloseLine}
-                          accessibilityLabel={t('pages.agents.removeRoutingRule')}
-                          onPress={() => {
-                            const rules = (
-                              archetypeConfig.routingRules || []
-                            ).filter((_, i) => i !== index);
-                            editDraft({
-                              archetypeConfig: {
-                                ...archetypeConfig,
-                                routingRules: rules,
-                              },
-                            });
-                          }}
+                    <CardBody>
+                      <View className="gap-2 py-1">
+                        <Input
+                          label="When the task is about..."
+                          value={rule.condition}
+                          onChangeText={(text) =>
+                            editRoutingRule(index, { condition: text })
+                          }
+                          placeholder="When the task is about..."
+                        />
+                        <View className="flex-row items-center gap-2">
+                          <SegmentedControl
+                            label="Priority"
+                            type="radio"
+                            size="sm"
+                            value={rule.priority}
+                            onValueChange={(val) => {
+                              const priority =
+                                val === 'low'
+                                  ? 'low'
+                                  : val === 'high'
+                                    ? 'high'
+                                    : val === 'urgent'
+                                      ? 'urgent'
+                                      : 'medium';
+                              editRoutingRule(index, { priority });
+                            }}
+                          >
+                            <SegmentedControlItem value="low">
+                              <SegmentedControlItemText>
+                                Low
+                              </SegmentedControlItemText>
+                            </SegmentedControlItem>
+                            <SegmentedControlItem value="medium">
+                              <SegmentedControlItemText>
+                                Med
+                              </SegmentedControlItemText>
+                            </SegmentedControlItem>
+                            <SegmentedControlItem value="high">
+                              <SegmentedControlItemText>
+                                High
+                              </SegmentedControlItemText>
+                            </SegmentedControlItem>
+                            <SegmentedControlItem value="urgent">
+                              <SegmentedControlItemText>
+                                Urgent
+                              </SegmentedControlItemText>
+                            </SegmentedControlItem>
+                          </SegmentedControl>
+                          <View className="flex-1" />
+                          <Button
+                            size="xs"
+                            tone="neutral"
+                            appearance="plain"
+                            icon={RiCloseLine}
+                            accessibilityLabel={t(
+                              'pages.agents.removeRoutingRule',
+                            )}
+                            onPress={() => {
+                              const rules = (
+                                archetypeConfig.routingRules || []
+                              ).filter((_, i) => i !== index);
+                              editDraft({
+                                archetypeConfig: {
+                                  ...archetypeConfig,
+                                  routingRules: rules,
+                                },
+                              });
+                            }}
+                          />
+                        </View>
+                        <Input
+                          label="Route to (name)"
+                          value={rule.assignTo?.name || ''}
+                          onChangeText={(text) =>
+                            editRoutingRule(index, {
+                              assignTo: { ...rule.assignTo, name: text },
+                            })
+                          }
+                          placeholder="Route to (name)"
                         />
                       </View>
-                      <Input
-                        label="Route to (name)"
-                        value={rule.assignTo?.name || ''}
-                        onChangeText={(text) =>
-                          editRoutingRule(index, {
-                            assignTo: { ...rule.assignTo, name: text },
-                          })
-                        }
-                        placeholder="Route to (name)"
-                      />
                     </CardBody>
                   </Card>
                 ))}
               </View>
 
               {/* Escalation Timeout */}
-              <View style={{ gap: 6 }}>
+              <View className="gap-1.5">
                 <Label>Escalation Timeout (minutes)</Label>
                 <Input
                   label="60"
@@ -1508,7 +1491,7 @@ function AgentEditor({ agent }: { agent: Agent }) {
       {isLargeScreen ? (
         <>
           <Divider vertical />
-          <View style={{ width: 320 }}>{sidebarContent}</View>
+          <View className="w-[320px]">{sidebarContent}</View>
         </>
       ) : (
         <Dialog

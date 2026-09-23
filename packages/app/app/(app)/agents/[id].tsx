@@ -112,26 +112,28 @@ function ReportCard({ item }: { item: ReportItem }) {
   const preview = (item.result || '').slice(0, 200);
   return (
     <Card appearance="outline">
-      <CardBody style={{ gap: 8, paddingVertical: 12 }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-          <Badge
-            size="label-small"
-            variant="subtle"
-            color={isSuccess ? 'success' : 'error'}
-            content={item.status}
-          />
-          <View style={{ flex: 1 }} />
-          {item.durationMs != null && (
-            <Muted>{formatDuration(item.durationMs)}</Muted>
-          )}
-          <Muted>{formatRelativeTime(item.createdAt)}</Muted>
+      <CardBody>
+        <View className="gap-2 py-1">
+          <View className="flex-row items-center gap-3">
+            <Badge
+              size="label-small"
+              variant="subtle"
+              color={isSuccess ? 'success' : 'error'}
+              content={item.status}
+            />
+            <View className="flex-1" />
+            {item.durationMs != null && (
+              <Muted>{formatDuration(item.durationMs)}</Muted>
+            )}
+            <Muted>{formatRelativeTime(item.createdAt)}</Muted>
+          </View>
+          {preview ? (
+            <Text variant="body-regular">
+              {preview}
+              {(item.result || '').length > 200 ? '…' : ''}
+            </Text>
+          ) : null}
         </View>
-        {preview ? (
-          <Text variant="body-regular">
-            {preview}
-            {(item.result || '').length > 200 ? '…' : ''}
-          </Text>
-        ) : null}
       </CardBody>
     </Card>
   );
@@ -160,24 +162,26 @@ function RoutingLogCard({ item }: { item: RoutingLogItem }) {
     PRIORITY_TONE[priority as keyof typeof PRIORITY_TONE] ?? 'default';
   return (
     <Card appearance="outline">
-      <CardBody style={{ gap: 8, paddingVertical: 12 }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          <Badge size="label-small" variant="subtle" color={tone} content={priority} />
-          {category ? <Text variant="body-medium">{category}</Text> : null}
-          <View style={{ flex: 1 }} />
-          <Muted>{formatRelativeTime(item.createdAt)}</Muted>
-        </View>
-        {item.inboundSummary ? (
-          <Text variant="body-regular">{item.inboundSummary}</Text>
-        ) : null}
-        {item.routedTo?.name || item.status ? (
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            {item.routedTo?.name ? <Muted>→ {item.routedTo.name}</Muted> : null}
-            {item.status ? (
-              <Badge size="label-small" variant="outlined" content={item.status} />
-            ) : null}
+      <CardBody>
+        <View className="gap-2 py-1">
+          <View className="flex-row items-center gap-2">
+            <Badge size="label-small" variant="subtle" color={tone} content={priority} />
+            {category ? <Text variant="body-medium">{category}</Text> : null}
+            <View className="flex-1" />
+            <Muted>{formatRelativeTime(item.createdAt)}</Muted>
           </View>
-        ) : null}
+          {item.inboundSummary ? (
+            <Text variant="body-regular">{item.inboundSummary}</Text>
+          ) : null}
+          {item.routedTo?.name || item.status ? (
+            <View className="flex-row items-center gap-2">
+              {item.routedTo?.name ? <Muted>→ {item.routedTo.name}</Muted> : null}
+              {item.status ? (
+                <Badge size="label-small" variant="outlined" content={item.status} />
+              ) : null}
+            </View>
+          ) : null}
+        </View>
       </CardBody>
     </Card>
   );
@@ -196,14 +200,8 @@ function Section({
   children: ReactNode;
 }) {
   return (
-    <View style={{ gap: 8 }}>
-      <View
-        style={{
-          flexDirection: 'row',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-        }}
-      >
+    <View className="gap-2">
+      <View className="flex-row items-center justify-between">
         <Text variant="headline-semibold">{title}</Text>
         {action}
       </View>
@@ -215,7 +213,7 @@ function Section({
 /** Static chips in a wrapping row — capabilities, tags. */
 function ChipList({ items }: { items: string[] }) {
   return (
-    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+    <View className="flex-row flex-wrap gap-1.5">
       {items.map((item, i) => (
         <Chip key={i} size="large">
           {item}
@@ -536,7 +534,11 @@ export default function AgentDetailScreen() {
   }, [agent, t, queryClient]);
 
   if (loading) {
-    return <Loading variant="spinner" text={t('common.loading')} style={{ flex: 1 }} />;
+    return (
+      <View className="flex-1 items-center justify-center">
+        <Loading variant="spinner" text={t('common.loading')} />
+      </View>
+    );
   }
 
   if (!agent) {
@@ -552,27 +554,16 @@ export default function AgentDetailScreen() {
   const handle = agentHandle(agent);
 
   return (
-    <View style={{ flex: 1, flexDirection: isLargeScreen ? 'row' : 'column' }}>
+    <View className={isLargeScreen ? 'flex-1 flex-row' : 'flex-1 flex-col'}>
       {/* Agent details (full width on mobile) */}
-      <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
+      <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
         <View
-          style={{
-            padding: 16,
-            gap: 20,
-            width: '100%',
-            maxWidth: isLargeScreen ? 672 : undefined,
-          }}
+          className={
+            isLargeScreen ? 'w-full max-w-[672px] gap-5 p-4' : 'w-full gap-5 p-4'
+          }
         >
           {/* Page actions */}
-          <View
-            style={{
-              flexDirection: 'row',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              flexWrap: 'wrap',
-              gap: 8,
-            }}
-          >
+          <View className="flex-row flex-wrap items-center justify-between gap-2">
             <Button
               size="sm"
               tone="neutral"
@@ -645,8 +636,8 @@ export default function AgentDetailScreen() {
           </View>
 
           {/* Identity: the mark in its own colour, carrying the status dot. */}
-          <View style={{ gap: 6 }}>
-            <View style={{ alignSelf: 'flex-start' }}>
+          <View className="gap-1.5">
+            <View className="self-start">
               <Badge dot color={STATUS_TONE[agent.status]} placement="bottom-right">
                 <IdentityMark
                   size={80}
@@ -655,7 +646,7 @@ export default function AgentDetailScreen() {
                 />
               </Badge>
             </View>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <View className="flex-row items-center gap-2">
               <Text variant="title-3-semibold">{agentDisplayName(agent)}</Text>
               <Badge
                 size="label-small"
@@ -679,7 +670,7 @@ export default function AgentDetailScreen() {
             {agent.tagline ? (
               <Text variant="body-regular">{agent.tagline}</Text>
             ) : null}
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+            <View className="flex-row items-center gap-3">
               <Rating value={agent.rating} count={agent.reviewCount} size="small" />
               <Muted>
                 {formatCount(agent.hireCount)} {t('agents.hires')} ·{' '}
@@ -746,7 +737,7 @@ export default function AgentDetailScreen() {
             ) : reports.length === 0 ? (
               <EmptyState variant="compact" title="No reports yet" />
             ) : (
-              <View style={{ gap: 8 }}>
+              <View className="gap-2">
                 {reports.map((item) => (
                   <ReportCard key={item._id} item={item} />
                 ))}
@@ -761,7 +752,7 @@ export default function AgentDetailScreen() {
             ) : routingLogs.length === 0 ? (
               <EmptyState variant="compact" title="No routing activity yet" />
             ) : (
-              <View style={{ gap: 8 }}>
+              <View className="gap-2">
                 {routingLogs.map((item) => (
                   <RoutingLogCard key={item._id} item={item} />
                 ))}
@@ -847,43 +838,39 @@ export default function AgentDetailScreen() {
               >
                 {showReviewForm && (
                   <Card appearance="outline">
-                    <CardBody style={{ gap: 12, paddingVertical: 12 }}>
-                      <RatingInput
-                        value={reviewRating || null}
-                        onChange={setReviewRating}
-                        accessibilityLabel={t('agents.reviews')}
-                      />
-                      <Textarea
-                        value={reviewComment}
-                        onValueChange={setReviewComment}
-                        placeholder={t('agents.reviewPlaceholder')}
-                        rows={3}
-                        autoResize
-                      />
-                      <View
-                        style={{
-                          flexDirection: 'row',
-                          justifyContent: 'flex-end',
-                          gap: 8,
-                        }}
-                      >
-                        <Button
-                          size="sm"
-                          tone="neutral"
-                          appearance="plain"
-                          onPress={() => setShowReviewForm(false)}
-                        >
-                          {t('common.cancel')}
-                        </Button>
-                        <Button
-                          size="sm"
-                          tone="action"
-                          onPress={handleSubmitReview}
-                          disabled={!reviewRating}
-                          loading={submittingReview}
-                        >
-                          {t('agents.writeReview')}
-                        </Button>
+                    <CardBody>
+                      <View className="gap-3 py-1">
+                        <RatingInput
+                          value={reviewRating || null}
+                          onChange={setReviewRating}
+                          accessibilityLabel={t('agents.reviews')}
+                        />
+                        <Textarea
+                          value={reviewComment}
+                          onValueChange={setReviewComment}
+                          placeholder={t('agents.reviewPlaceholder')}
+                          rows={3}
+                          autoResize
+                        />
+                        <View className="flex-row justify-end gap-2">
+                          <Button
+                            size="sm"
+                            tone="neutral"
+                            appearance="plain"
+                            onPress={() => setShowReviewForm(false)}
+                          >
+                            {t('common.cancel')}
+                          </Button>
+                          <Button
+                            size="sm"
+                            tone="action"
+                            onPress={handleSubmitReview}
+                            disabled={!reviewRating}
+                            loading={submittingReview}
+                          >
+                            {t('agents.writeReview')}
+                          </Button>
+                        </View>
                       </View>
                     </CardBody>
                   </Card>
@@ -892,21 +879,15 @@ export default function AgentDetailScreen() {
                 {reviews.length === 0 && !showReviewForm ? (
                   <Muted>{t('agents.noReviews')}</Muted>
                 ) : (
-                  <View style={{ gap: 12 }}>
+                  <View className="gap-3">
                     {reviews.map((review: any) => (
-                      <View key={review._id} style={{ gap: 4 }}>
-                        <View
-                          style={{
-                            flexDirection: 'row',
-                            alignItems: 'center',
-                            gap: 8,
-                          }}
-                        >
+                      <View key={review._id} className="gap-1">
+                        <View className="flex-row items-center gap-2">
                           <Text variant="body-medium">
                             {review.userId?.username || 'User'}
                           </Text>
                           <Rating value={review.rating} size="small" />
-                          <View style={{ flex: 1 }} />
+                          <View className="flex-1" />
                           {user && review.userId?._id === user.id && (
                             <Button
                               size="xs"
@@ -932,7 +913,7 @@ export default function AgentDetailScreen() {
                 <>
                   <Divider />
                   <Section title={t('agents.activity')}>
-                    <View style={{ height: 300 }}>
+                    <View className="h-[300px]">
                       <AgentTerminal agentId={agent._id} />
                     </View>
                   </Section>
@@ -945,12 +926,12 @@ export default function AgentDetailScreen() {
 
       {/* Activity terminal beside the details — desktop only */}
       {isLargeScreen && (
-        <View style={{ flex: 1, padding: 16, gap: 8 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+        <View className="flex-1 gap-2 p-4">
+          <View className="flex-row items-center gap-2">
             <Badge dot color="success" />
             <Text variant="headline-semibold">{t('agents.activity')}</Text>
           </View>
-          <View style={{ flex: 1 }}>
+          <View className="flex-1">
             <AgentTerminal agentId={agent._id} />
           </View>
         </View>

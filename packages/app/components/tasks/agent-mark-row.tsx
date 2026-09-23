@@ -25,9 +25,6 @@ interface AgentMarkRowProps {
 
 const MAX_VISIBLE = 3;
 
-/** Stacking only: marks and their label in one row. */
-const ROW = { flexDirection: 'row', alignItems: 'center', gap: 8 } as const;
-
 export const AgentMarkRow = React.memo(function AgentMarkRow({
   agents,
   size = 28,
@@ -42,7 +39,7 @@ export const AgentMarkRow = React.memo(function AgentMarkRow({
   if (agents.length === 1) {
     const agent = agents[0];
     return (
-      <View style={ROW}>
+      <View className="flex-row items-center gap-2">
         <IdentityMark
           size={size}
           color={agentTint(agent.color, colors)}
@@ -56,7 +53,7 @@ export const AgentMarkRow = React.memo(function AgentMarkRow({
   }
 
   return (
-    <View style={ROW}>
+    <View className="flex-row items-center gap-2">
       {/* Spaced, not overlapped. The avatar-stack idiom leans on each face being
           an opaque disc that hides the edge of the one behind it; a mark is the
           bare flower, so a negative margin just tangles two of them into a shape

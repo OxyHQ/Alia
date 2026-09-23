@@ -16,7 +16,7 @@ import { confirm } from '@oxy.so/bloom/surfaces';
 import { TextFieldInput, TextFieldLabel } from '@oxy.so/bloom/text-field';
 import { toast } from '@oxy.so/bloom/toast';
 import { useState } from 'react';
-import { Linking, Platform, StyleSheet, View } from 'react-native';
+import { Linking, Platform, View } from 'react-native';
 import { useAliaSettings } from './settings-context';
 
 // A tool name implies write access when it reads as a mutation verb.
@@ -328,7 +328,7 @@ export function ConnectorDetailSection() {
           },
         ]}
       >
-        <View style={styles.fields}>
+        <View className="gap-3">
           {entry.requiredEnv.map((envKey) => (
             <View key={envKey}>
               <TextFieldLabel>{envKey}</TextFieldLabel>
@@ -352,8 +352,3 @@ export function ConnectorDetailSection() {
     </>
   );
 }
-
-const styles = StyleSheet.create({
-  // Dialog form fields, 12 apart.
-  fields: { gap: 12 },
-});

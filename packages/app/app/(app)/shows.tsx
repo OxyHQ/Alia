@@ -85,13 +85,15 @@ function SeriesRow({
         title={series.title}
         subtitle={
           <>
-            <Text variant="body-2-regular" numberOfLines={1} style={{ color: colors.textSecondary }}>
+            <Text
+              numberOfLines={1}
+              className="text-[13px] leading-[18px] text-muted-foreground"
+            >
               {byline}
             </Text>
             <Text
-              variant="caption-1-regular"
               numberOfLines={1}
-              style={{ color: colors.textSecondary, textTransform: 'capitalize' }}
+              className="text-xs capitalize text-muted-foreground"
             >
               {formatEpisodeCount(episodeCount)} · {series.format}
             </Text>
@@ -99,7 +101,7 @@ function SeriesRow({
         }
         trailing={
           // Stacking only: the visibility badge beside the chevron.
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <View className="flex-row items-center gap-2">
             <Badge
               size="label-small"
               variant="subtle"
@@ -166,29 +168,17 @@ export default function ShowsScreen() {
   return (
     <>
       <FlatList
-        style={{ flex: 1 }}
+        className="flex-1"
         data={loading && series.length === 0 ? [] : series}
         renderItem={renderItem}
         keyExtractor={(item) => item.id}
-        contentContainerStyle={{
-          paddingHorizontal: 16,
-          paddingTop: 16,
-          paddingBottom: 24,
-          gap: 12,
-        }}
+        contentContainerClassName="gap-3 px-4 pb-6 pt-4"
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={
           // Stacking only: the top row, the error and the placeholders.
-          <View style={{ gap: 12 }}>
-            <View
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: 12,
-              }}
-            >
-              <Muted style={{ flex: 1 }}>
+          <View className="gap-3">
+            <View className="flex-row items-center justify-between gap-3">
+              <Muted className="flex-1 text-sm text-muted-foreground">
                 Podcasts Alia writes, voices and publishes to Syra.
               </Muted>
               <Button
@@ -204,18 +194,20 @@ export default function ShowsScreen() {
             {error ? <Admonition type="error">{error}</Admonition> : null}
 
             {loading && series.length === 0 ? (
-              <Skeleton.Col style={{ gap: 16, paddingTop: 4 }}>
+              // Bars sized as the text they stand for: a 16px title line and
+              // two 12px ones, each bar 0.7 of its line.
+              <View className="gap-4 pt-1">
                 {[1, 2, 3].map((key) => (
-                  <Skeleton.Row key={key} style={{ gap: 16, alignItems: 'center' }}>
+                  <View key={key} className="flex-row items-center gap-4">
                     <Skeleton.Box width={64} height={64} borderRadius={12} />
-                    <Skeleton.Col style={{ flex: 1, gap: 8 }}>
-                      <Skeleton.Text style={{ width: '66%', lineHeight: 16 }} />
-                      <Skeleton.Text style={{ width: '50%', lineHeight: 12 }} />
-                      <Skeleton.Text style={{ width: '33%', lineHeight: 12 }} />
-                    </Skeleton.Col>
-                  </Skeleton.Row>
+                    <View className="flex-1 gap-3">
+                      <Skeleton.Box width="66%" height={11} />
+                      <Skeleton.Box width="50%" height={8} />
+                      <Skeleton.Box width="33%" height={8} />
+                    </View>
+                  </View>
                 ))}
-              </Skeleton.Col>
+              </View>
             ) : null}
           </View>
         }
