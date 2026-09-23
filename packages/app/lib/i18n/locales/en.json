@@ -1566,5 +1566,100 @@
       "one": "1 file",
       "other": "{{count}} files"
     }
+  },
+  "pages": {
+    "automations": {
+      "heading": "What should Alia do later?",
+      "description": "Describe the work and when it should happen. Alia will ask only for details that are genuinely missing before saving the task.",
+      "placeholder": "Schedule a task",
+      "startFailed": "Could not start scheduling. Your description is still here.",
+      "suggestionsTitle": "Try a task",
+      "suggestions": {
+        "brief": {
+          "title": "Start my day informed",
+          "prompt": "Every weekday at 8:00 AM, give me a short brief of what matters for my work."
+        },
+        "remind": {
+          "title": "Remember something once",
+          "prompt": "Tomorrow at 10:00 AM, remind me to follow up on the project."
+        },
+        "topic": {
+          "title": "Keep up with a topic",
+          "prompt": "Every Monday at 9:00 AM, research the latest developments in a topic I choose and summarize them."
+        },
+        "review": {
+          "title": "Prepare a weekly review",
+          "prompt": "Every Friday afternoon, help me review the week and plan the next one."
+        }
+      },
+      "notStarted": "Not started",
+      "unknownTime": "Unknown time",
+      "historyLoadFailed": "Could not load this automation history.",
+      "notFound": "Automation not found.",
+      "saved": "Automation updated and authority revalidated",
+      "savedRevocationFailed": {
+        "one": "Saved, but 1 old authorization could not be revoked",
+        "other": "Saved, but %{count} old authorizations could not be revoked"
+      },
+      "saveFailed": "Failed to update automation",
+      "active": "Active",
+      "stopped": "Stopped",
+      "legacy": "Legacy transition",
+      "actors": "Actors: %{actors}",
+      "usesConnectedApps": "Uses approved connected apps",
+      "runHistory": "Run history",
+      "runCount": {
+        "one": "1 run",
+        "other": "%{count} runs"
+      },
+      "noRuns": "No runs recorded yet.",
+      "showMore": "Show more"
+    },
+    "skills": {
+      "installSkill": "Install %{name}",
+      "installedSkill": "%{name} is installed"
+    },
+    "tasks": {
+      "view": "Task view",
+      "typeFilter": "Filter by type"
+    },
+    "library": {
+      "categories": "File categories",
+      "resultCount": {
+        "one": "1 file",
+        "other": "{{count}} files"
+      }
+    },
+    "notifications": {
+      "unread": {
+        "one": "1 unread",
+        "other": "{{count}} unread"
+      },
+      "markAllRead": "Mark all read",
+      "emptyTitle": "No notifications yet",
+      "emptyDescription": "Set up triggers and routines to get proactive updates from Alia.",
+      "dismiss": "Dismiss notification"
+    },
+    "agents": {
+      "teams": "Teams",
+      "categories": "Categories",
+      "back": "Back",
+      "teamsTitle": "Agent teams",
+      "teamsDescription": "Durable groups with one coordinator",
+      "teamsEmpty": "No teams yet",
+      "teamsEmptyDetail": "Import an alia.team package through the API.",
+      "noPlaybook": "No playbook yet",
+      "agentType": "Agent type",
+      "sessionTitle": "Session activity",
+      "sessionSteps": "%{count} steps",
+      "sessionEvents": "%{count} events",
+      "sessionThreats": "%{count} threats",
+      "sessionErrors": "%{count} errors",
+      "sessionEmpty": "No activity recorded",
+      "agentActions": "Agent actions",
+      "moreActions": "More actions",
+      "addRoutingRule": "Add routing rule",
+      "removeRoutingRule": "Remove routing rule"
+    }
   }
 }

@@ -1,21 +1,31 @@
 import { AgentCard } from '@/components/agent-card';
-import { DrawerToggle } from '@/components/ui/drawer-toggle';
 import { agentIdentityMatches } from '@/lib/agents/identity';
 import { useAgentCatalogue } from '@/lib/hooks/use-agents';
 import { useIsLargeScreen } from '@/lib/hooks/use-is-large-screen';
 import { useTranslation } from '@/lib/hooks/use-translation';
-import { cn } from '@/lib/utils';
 import { Button } from '@oxy.so/bloom/button';
-import { ContentPanel } from '@oxy.so/bloom/content-panel';
+import { Card, CardBody } from '@oxy.so/bloom/card';
+import { Chip, ChipRow } from '@oxy.so/bloom/chip';
+import { EmptyState } from '@oxy.so/bloom/empty-state';
+import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
+import { RiRobot2Line } from '@oxy.so/bloom/icons/RiRobot2Line';
+import { RiTeamLine } from '@oxy.so/bloom/icons/RiTeamLine';
 import { Search } from '@oxy.so/bloom/search';
 import * as Skeleton from '@oxy.so/bloom/skeleton';
-import { Text } from '@oxy.so/bloom/typography';
+import { Muted, Text } from '@oxy.so/bloom/typography';
 import { FlashList } from '@shopify/flash-list';
 import { useRouter } from 'expo-router';
-import { Plus, Users } from 'lucide-react-native';
 import { useCallback, useMemo, useState } from 'react';
-import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
+import { RefreshControl, ScrollView, View } from 'react-native';
 
+/** The page's side gutter, the same 16 the layout's breadcrumb sits on. */
+const GUTTER = 16;
+
+/**
+ * The agent catalogue. Plain content on the layout's surface: the layout draws
+ * the page, its corners, the menu button and the "Agents" crumb, so this page
+ * starts at its description and actions.
+ */
 export default function AgentsScreen() {
   const { t } = useTranslation();
   const { data, isPending: loading, refetch } = useAgentCatalogue();
@@ -105,51 +115,46 @@ export default function AgentsScreen() {
 
   // ── Split header into smaller memos to avoid re-rendering everything ──
 
+  /** The description, and the page's two actions beside it. */
   const headerTop = useMemo(
     () => (
-      <View className="px-5 pt-6 pb-1">
-        <View className="flex-row items-center justify-between">
-          {/* The drawer opener sits first, as on every top-level page (#532). */}
-          <View className="flex-row items-center gap-2">
-            <DrawerToggle />
-            <Text className="text-2xl font-bold text-foreground">
-              {t('agents.title')}
-            </Text>
-          </View>
-          <View className="flex-row gap-2">
-            <Button
-              onPress={handleTeams}
-              size="icon"
-              variant="secondary"
-              className="rounded-full h-8 w-8"
-              icon={
-                <>
-                  <Users size={16} className="text-foreground" />
-                </>
-              }
-            />
-            <Button
-              onPress={handleCreateAgent}
-              size="icon"
-              className="rounded-full h-8 w-8"
-              icon={
-                <>
-                  <Plus size={16} className="text-primary-foreground" />
-                </>
-              }
-            />
-          </View>
+      <View
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: 12,
+          paddingTop: 16,
+        }}
+      >
+        <Muted style={{ flexShrink: 1 }}>{t('agents.subtitle')}</Muted>
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          <Button
+            size="sm"
+            tone="neutral"
+            appearance="subtle"
+            leadingIcon={RiTeamLine}
+            onPress={handleTeams}
+          >
+            {t('pages.agents.teams')}
+          </Button>
+          <Button
+            size="sm"
+            tone="action"
+            leadingIcon={RiAddLine}
+            onPress={handleCreateAgent}
+          >
+            {t('agents.createAgent')}
+          </Button>
         </View>
-        <Text className="text-[13px] text-muted-foreground mt-0.5">
-          {t('agents.subtitle')}
-        </Text>
       </View>
     ),
     [t, handleCreateAgent, handleTeams],
   );
 
   const searchBar = (
-    <View className="px-5 pt-3 pb-2">
+    <View style={{ paddingTop: 16 }}>
       <Search
         label={t('agents.searchPlaceholder')}
         value={searchQuery}
@@ -161,48 +166,32 @@ export default function AgentsScreen() {
 
   const categoryChips = useMemo(
     () => (
-      <View className="py-2">
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ paddingHorizontal: 20 }}
-        >
-          <View className="flex-row gap-1.5">
-            {categories.map((category) => {
-              const isActive =
-                selectedCategory === category ||
-                (!selectedCategory && category === t('common.all'));
-              return (
-                <Pressable
-                  key={category}
-                  onPress={() =>
-                    setSelectedCategory(
-                      category === t('common.all') ? null : category,
-                    )
-                  }
-                  className="active:opacity-70"
-                >
-                  <View
-                    className={cn(
-                      'px-3 py-1 rounded-full',
-                      isActive ? 'bg-foreground' : 'bg-muted/70',
-                    )}
-                  >
-                    <Text
-                      className={cn(
-                        'text-xs font-medium',
-                        isActive ? 'text-background' : 'text-muted-foreground',
-                      )}
-                    >
-                      {category}
-                    </Text>
-                  </View>
-                </Pressable>
-              );
-            })}
-          </View>
-        </ScrollView>
-      </View>
+      <ChipRow
+        role="radiogroup"
+        accessibilityLabel={t('pages.agents.categories')}
+        style={{ paddingVertical: 12 }}
+      >
+        {categories.map((category) => {
+          const isActive =
+            selectedCategory === category ||
+            (!selectedCategory && category === t('common.all'));
+          return (
+            <Chip
+              key={category}
+              size="xl"
+              role="radio"
+              selected={isActive}
+              onPress={() =>
+                setSelectedCategory(
+                  category === t('common.all') ? null : category,
+                )
+              }
+            >
+              {category}
+            </Chip>
+          );
+        })}
+      </ChipRow>
     ),
     [categories, selectedCategory, t],
   );
@@ -211,16 +200,12 @@ export default function AgentsScreen() {
     if (searchQuery || selectedCategory || featuredAgents.length === 0)
       return null;
     return (
-      <View className="mt-2 mb-4">
-        <View className="px-5 mb-2">
-          <Text className="text-[11px] font-semibold text-muted-foreground tracking-wider uppercase">
-            {t('agents.featured')}
-          </Text>
-        </View>
+      <View style={{ gap: 8, paddingBottom: 16 }}>
+        <Text variant="headline-semibold">{t('agents.featured')}</Text>
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ paddingHorizontal: 20, gap: 10 }}
+          contentContainerStyle={{ gap: 12 }}
         >
           {featuredAgents.map((agent) => (
             <AgentCard
@@ -246,96 +231,81 @@ export default function AgentsScreen() {
 
   const sectionTitle = useMemo(
     () => (
-      <View className="px-5">
-        {searchQuery || selectedCategory ? (
-          <View className="mb-2">
-            <Text className="text-[11px] font-semibold text-muted-foreground tracking-wider uppercase">
-              {filteredAgents.length}{' '}
-              {filteredAgents.length === 1 ? 'agent' : 'agents'}
-            </Text>
-          </View>
-        ) : (
-          <View className="mb-2">
-            <Text className="text-[11px] font-semibold text-muted-foreground tracking-wider uppercase">
-              {t('common.all')}
-            </Text>
-          </View>
-        )}
-      </View>
+      <Text variant="headline-semibold" style={{ paddingBottom: 6 }}>
+        {searchQuery || selectedCategory
+          ? `${filteredAgents.length} ${filteredAgents.length === 1 ? 'agent' : 'agents'}`
+          : t('common.all')}
+      </Text>
     ),
     [searchQuery, selectedCategory, filteredAgents.length, t],
   );
 
+  /** Cards shaped like `AgentCard`, while the catalogue is on its way. */
   const loadingSkeleton = useMemo(() => {
     if (!loading || agents.length > 0) return null;
     return (
-      <View className="px-5">
-        <View className="flex-row flex-wrap" style={{ margin: -6 }}>
-          {Array.from({ length: 6 }).map((_, i) => (
-            <View
-              key={i}
-              style={{
-                width: isLargeScreen ? '33.33%' : '50%',
-                padding: 6,
-              }}
-            >
-              <View className="bg-muted/50 rounded-xl p-3 gap-2.5">
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', margin: -6 }}>
+        {Array.from({ length: 6 }).map((_, i) => (
+          <View
+            key={i}
+            style={{ width: isLargeScreen ? '33.33%' : '50%', padding: 6 }}
+          >
+            <Card appearance="outline">
+              <CardBody style={{ gap: 10, paddingVertical: 16 }}>
                 <Skeleton.Circle size={40} />
-                <Skeleton.Box width="70%" height={14} borderRadius={8} />
-                <Skeleton.Box width="90%" height={10} borderRadius={6} />
-                <Skeleton.Box width="50%" height={10} borderRadius={6} />
-              </View>
-            </View>
-          ))}
-        </View>
+                <Skeleton.Box width="70%" height={14} />
+                <Skeleton.Box width="90%" height={10} />
+                <Skeleton.Box width="50%" height={10} />
+              </CardBody>
+            </Card>
+          </View>
+        ))}
       </View>
     );
   }, [loading, agents.length, isLargeScreen]);
 
   const listHeader = (
-    <>
+    <View style={{ paddingHorizontal: 6 }}>
       {headerTop}
       {searchBar}
       {categoryChips}
       {featuredSection}
       {sectionTitle}
       {loadingSkeleton}
-    </>
+    </View>
   );
 
   const listEmpty = useMemo(() => {
     if (loading) return null;
     return (
-      <View className="items-center justify-center py-16 px-5">
-        <Text className="text-sm font-medium text-foreground">
-          {t('agents.noAgents')}
-        </Text>
-        <Text className="text-xs text-muted-foreground text-center mt-1">
-          {searchQuery
+      <EmptyState
+        icon={RiRobot2Line}
+        title={t('agents.noAgents')}
+        description={
+          searchQuery
             ? t('common.tryDifferentSearch')
-            : t('agents.createComingSoon')}
-        </Text>
-      </View>
+            : t('agents.createComingSoon')
+        }
+      />
     );
   }, [loading, t, searchQuery]);
 
   return (
-    <ContentPanel surfaceClassName="bg-background">
-      <View className="flex-1 bg-background">
-        <FlashList
-          key={numColumns}
-          data={loading && agents.length === 0 ? [] : filteredAgents}
-          numColumns={numColumns}
-          renderItem={renderItem}
-          ListHeaderComponent={listHeader}
-          ListEmptyComponent={listEmpty}
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingHorizontal: 14, paddingBottom: 24 }}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-          }
-        />
-      </View>
-    </ContentPanel>
+    <FlashList
+      key={numColumns}
+      data={loading && agents.length === 0 ? [] : filteredAgents}
+      numColumns={numColumns}
+      renderItem={renderItem}
+      ListHeaderComponent={listHeader}
+      ListEmptyComponent={listEmpty}
+      showsVerticalScrollIndicator={false}
+      contentContainerStyle={{
+        paddingHorizontal: GUTTER - 6,
+        paddingBottom: 24,
+      }}
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+      }
+    />
   );
 }

@@ -22,45 +22,58 @@
  * is a real state and not a loading step.
  */
 
-import React from 'react';
-import { View } from 'react-native';
-import { Image } from 'expo-image';
-import { Mic } from 'lucide-react-native';
 import { SYRA_API_URL } from '@/lib/config';
-import { cn } from '@/lib/utils';
+import { Card, type CardRadius } from '@oxy.so/bloom/card';
+import { RiMic2Line } from '@oxy.so/bloom/icons/RiMic2Line';
+import { useTheme } from '@oxy.so/bloom/theme';
+import { Image } from 'expo-image';
 
 interface ShowArtworkProps {
   /** Syra's image id, or `null` when this show has no cover. */
   assetId: string | null | undefined;
   /** The show's title — the artwork's accessible label. */
   title: string;
-  /** Size and corner radius, e.g. `h-16 w-16 rounded-xl`. */
-  className: string;
+  /** The square's side, in px. */
+  size: number;
+  /** The tile's corner, as a rung of Bloom's radius scale. */
+  radius: CardRadius;
   /** The placeholder glyph, sized for the box the caller asked for. */
   iconSize: number;
 }
 
-export function ShowArtwork({ assetId, title, className, iconSize }: ShowArtworkProps) {
-  if (assetId === null || assetId === undefined || assetId === '') {
-    return (
-      <View
-        accessibilityRole="image"
-        accessibilityLabel={`${title} has no cover art`}
-        className={cn('shrink-0 items-center justify-center bg-muted', className)}
-      >
-        <Mic size={iconSize} className="text-muted-foreground" />
-      </View>
-    );
-  }
+/**
+ * The tile is Bloom's `Card` (subtle: the fill for a surface sitting on the
+ * page), so its colour and corner come from the one place Bloom decides them.
+ */
+export function ShowArtwork({ assetId, title, size, radius, iconSize }: ShowArtworkProps) {
+  const { colors } = useTheme();
+  const hasCover = !(assetId === null || assetId === undefined || assetId === '');
 
   return (
-    <Image
-      accessibilityRole="image"
-      accessibilityLabel={`${title} cover art`}
-      source={{ uri: `${SYRA_API_URL}/api/images/${assetId}` }}
-      className={cn('shrink-0 bg-muted', className)}
-      contentFit="cover"
-      transition={150}
-    />
+    <Card
+      appearance="subtle"
+      radius={radius}
+      accessibilityLabel={hasCover ? undefined : `${title} has no cover art`}
+      style={{
+        width: size,
+        height: size,
+        flexShrink: 0,
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      {hasCover ? (
+        <Image
+          accessibilityRole="image"
+          accessibilityLabel={`${title} cover art`}
+          source={{ uri: `${SYRA_API_URL}/api/images/${assetId}` }}
+          style={{ width: size, height: size }}
+          contentFit="cover"
+          transition={150}
+        />
+      ) : (
+        <RiMic2Line width={iconSize} height={iconSize} fill={colors.textSecondary} />
+      )}
+    </Card>
   );
 }

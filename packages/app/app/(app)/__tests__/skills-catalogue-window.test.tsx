@@ -138,25 +138,14 @@ vi.mock('expo-linear-gradient', async () => {
       ReactModule.createElement('LinearGradient', props, children),
   };
 });
-vi.mock('@oxy.so/bloom/content-panel', async () => {
-  const ReactModule = await import('react');
-  return {
-    ContentPanel: ({
-      children,
-      ...props
-    }: React.PropsWithChildren<Record<string, unknown>>) =>
-      ReactModule.createElement('ContentPanel', props, children),
-  };
-});
 vi.mock('@oxy.so/bloom/typography', async () => {
   const ReactModule = await import('react');
-  return {
-    Text: ({
-      children,
-      ...props
-    }: React.PropsWithChildren<Record<string, unknown>>) =>
-      ReactModule.createElement('Text', props, children),
-  };
+  const text = ({
+    children,
+    ...props
+  }: React.PropsWithChildren<Record<string, unknown>>) =>
+    ReactModule.createElement('Text', props, children);
+  return { Text: text, Muted: text };
 });
 vi.mock('@oxy.so/bloom/button', async () => {
   const ReactModule = await import('react');
@@ -174,11 +163,44 @@ vi.mock('@oxy.so/bloom/button', async () => {
       ),
   };
 });
-vi.mock('@oxy.so/bloom/text-field', async () => {
+// The search box is Bloom's `Search`; the test types into it as `Input`.
+vi.mock('@oxy.so/bloom/search', async () => {
   const ReactModule = await import('react');
   return {
-    TextFieldInput: (props: Record<string, unknown>) =>
+    Search: (props: Record<string, unknown>) =>
       ReactModule.createElement('Input', props),
+  };
+});
+// An empty or failed catalogue is Bloom's `EmptyState`: its title as text, its
+// action as a button, which is what the retry test presses.
+vi.mock('@oxy.so/bloom/empty-state', async () => {
+  const ReactModule = await import('react');
+  type Action = { label: string; onPress?: () => void };
+  return {
+    EmptyState: ({
+      title,
+      description,
+      action,
+    }: {
+      title?: string;
+      description?: string;
+      action?: Action;
+    }) =>
+      ReactModule.createElement(
+        'EmptyState',
+        null,
+        title ? ReactModule.createElement('Text', null, title) : null,
+        description
+          ? ReactModule.createElement('Text', null, description)
+          : null,
+        action
+          ? ReactModule.createElement(
+              'Button',
+              { onPress: action.onPress },
+              ReactModule.createElement('Text', null, action.label),
+            )
+          : null,
+      ),
   };
 });
 vi.mock('@oxy.so/bloom/skeleton', async () => {
@@ -192,19 +214,11 @@ vi.mock('@oxy.so/bloom/skeleton', async () => {
     Text: shape('Skeleton'),
   };
 });
-vi.mock('@/components/ui/drawer-toggle', async () => {
-  const ReactModule = await import('react');
-  return {
-    DrawerToggle: (props: Record<string, unknown>) =>
-      ReactModule.createElement('DrawerToggle', props),
-  };
-});
-vi.mock('lucide-react-native', async () => {
-  const ReactModule = await import('react');
-  const glyph = (props: Record<string, unknown>) =>
-    ReactModule.createElement('Glyph', props);
-  return { Check: glyph, Download: glyph, Plus: glyph, Search: glyph };
-});
+vi.mock('@oxy.so/bloom/icons/RiAddLine', () => ({ RiAddLine: () => null }));
+vi.mock('@oxy.so/bloom/icons/RiCheckLine', () => ({ RiCheckLine: () => null }));
+vi.mock('@oxy.so/bloom/icons/RiDownloadLine', () => ({
+  RiDownloadLine: () => null,
+}));
 vi.mock('@/lib/useColorScheme', () => ({
   useColorScheme: () => ({ isDarkColorScheme: false, colors: {} }),
 }));

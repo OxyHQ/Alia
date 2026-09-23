@@ -8,30 +8,31 @@ import { API_ROUTES } from '@/lib/api/routes';
 import { errorMessage as getErrorMessage } from '@/lib/errors/error-utils';
 import { useCreateAgent } from '@/lib/hooks/use-agents';
 import { useTranslation } from '@/lib/hooks/use-translation';
-import { ContentPanel } from '@oxy.so/bloom/content-panel';
+import type { BloomIconComponent } from '@oxy.so/bloom/icons';
+import { RiBarChartHorizontalLine } from '@oxy.so/bloom/icons/RiBarChartHorizontalLine';
+import { RiCheckLine } from '@oxy.so/bloom/icons/RiCheckLine';
+import { RiQuestionLine } from '@oxy.so/bloom/icons/RiQuestionLine';
+import { RiRouteLine } from '@oxy.so/bloom/icons/RiRouteLine';
+import { RiSparklingLine } from '@oxy.so/bloom/icons/RiSparklingLine';
+import { Item } from '@oxy.so/bloom/item';
+import { Loading } from '@oxy.so/bloom/loading';
 import { toast } from '@oxy.so/bloom/toast';
-import { Text } from '@oxy.so/bloom/typography';
+import { Muted, Text } from '@oxy.so/bloom/typography';
 import {
   SELECTABLE_ACCOUNT_CATEGORY_IDS,
   type AccountCategoryId,
 } from '@oxy.so/core';
 import { useOxy } from '@oxy.so/services';
 import { useRouter } from 'expo-router';
-import {
-  BarChart3,
-  GitBranch,
-  MessageCircleQuestion,
-  Sparkles,
-} from 'lucide-react-native';
-import React, { useCallback, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
+import { useCallback, useState } from 'react';
+import { ScrollView, View } from 'react-native';
 type Archetype = 'general' | 'qa' | 'task_router' | 'status_update';
 
 interface ArchetypeOption {
   value: Archetype;
   label: string;
   description: string;
-  Icon: React.ComponentType<{ size: number; className?: string }>;
+  Icon: BloomIconComponent;
 }
 
 /** Whether a value IS one of Oxy's offered categories. See the note at the call site. */
@@ -45,25 +46,25 @@ const ARCHETYPE_OPTIONS: ArchetypeOption[] = [
     value: 'general',
     label: 'General',
     description: 'Build any custom agent',
-    Icon: Sparkles,
+    Icon: RiSparklingLine,
   },
   {
     value: 'qa',
     label: 'Q&A',
     description: 'Answers questions from your knowledge',
-    Icon: MessageCircleQuestion,
+    Icon: RiQuestionLine,
   },
   {
     value: 'task_router',
     label: 'Task Router',
     description: 'Triages and routes incoming tasks',
-    Icon: GitBranch,
+    Icon: RiRouteLine,
   },
   {
     value: 'status_update',
     label: 'Status Update',
     description: 'Generates scheduled reports',
-    Icon: BarChart3,
+    Icon: RiBarChartHorizontalLine,
   },
 ];
 
@@ -183,90 +184,63 @@ export default function CreateAgentScreen() {
   }, [inputValue, generating, createAgent.mutateAsync, router, t, selectedArchetype]);
 
   if (generating) {
-    return (
-      <View className="flex-1 bg-background items-center justify-center gap-4">
-        <ActivityIndicator size="large" />
-        <Text className="text-base text-muted-foreground">
-          {t("agents.generating")}
-        </Text>
-      </View>
-    );
+    return <Loading variant="spinner" size="lg" text={t("agents.generating")} style={{ flex: 1 }} />;
   }
 
   return (
-    <ContentPanel surfaceClassName="bg-background">
-      <ScrollView
-        className="flex-1 bg-background"
-        contentContainerClassName="items-center justify-center px-5 py-10 min-h-full"
-        keyboardShouldPersistTaps="handled"
-      >
-        <View className="w-full max-w-2xl gap-6">
-          {/* Title */}
-          <Text className="text-2xl font-semibold text-foreground text-center">
-            {t("agents.createTitle")}
-          </Text>
+    <ScrollView
+      contentContainerStyle={{
+        flexGrow: 1,
+        alignItems: "center",
+        justifyContent: "center",
+        paddingHorizontal: 16,
+        paddingVertical: 40,
+      }}
+      keyboardShouldPersistTaps="handled"
+    >
+      <View style={{ width: "100%", maxWidth: 672, gap: 24 }}>
+        <Text variant="title-3-semibold" style={{ textAlign: "center" }}>
+          {t("agents.createTitle")}
+        </Text>
 
-          {/* Archetype Picker */}
-          <View className="gap-2">
-            <Text className="text-sm font-medium text-muted-foreground">
-              Agent type
-            </Text>
-            <View className="flex-row flex-wrap gap-3">
-              {ARCHETYPE_OPTIONS.map((option) => {
-                const isSelected = selectedArchetype === option.value;
-                return (
-                  <Pressable
-                    key={option.value}
-                    onPress={() => setSelectedArchetype(option.value)}
-                    className={`flex-1 min-w-[45%] rounded-xl border p-4 gap-2 ${
-                      isSelected
-                        ? "bg-primary/10 border-primary"
-                        : "bg-card border-border"
-                    }`}
-                  >
-                    <option.Icon
-                      size={20}
-                      className={isSelected ? "text-primary" : "text-muted-foreground"}
-                    />
-                    <Text
-                      className={`text-sm font-semibold ${
-                        isSelected ? "text-primary" : "text-foreground"
-                      }`}
-                    >
-                      {option.label}
-                    </Text>
-                    <Text className="text-xs text-muted-foreground leading-4">
-                      {option.description}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
+        {/* Archetype picker: one radio row per archetype. */}
+        <View style={{ gap: 8 }}>
+          <Muted>{t("pages.agents.agentType")}</Muted>
+          <View accessibilityRole="radiogroup" accessibilityLabel={t("pages.agents.agentType")}>
+            {ARCHETYPE_OPTIONS.map((option) => (
+              <Item
+                key={option.value}
+                role="radio"
+                selected={selectedArchetype === option.value}
+                onPress={() => setSelectedArchetype(option.value)}
+                leading={<option.Icon width={20} height={20} />}
+                trailing={
+                  selectedArchetype === option.value ? <RiCheckLine size="md" /> : null
+                }
+                title={option.label}
+                subtitle={option.description}
+              />
+            ))}
           </View>
-
-          {/*
-            The simple composer: a field, a send control and a suggestion list.
-            No attachments and no model chip — `models` is omitted, which is how
-            Bloom's pill is told to draw none. `busy` and `disabled` carry the
-            same flag on purpose: there is no stream to cancel here, so
-            generating greys send rather than offering a stop, and with no
-            `onStop` Bloom draws no stop control at all.
-
-            It gains a growing field and a dictate button it did not have, both
-            of which come with the pill and neither of which this screen has to
-            ask for.
-          */}
-          <Composer
-            value={inputValue}
-            onValueChange={setInputValue}
-            onSubmit={handleGenerate}
-            busy={generating}
-            disabled={generating}
-            placeholder={t("agents.createPlaceholder")}
-          />
         </View>
-      </ScrollView>
-    </ContentPanel>
 
+        {/*
+          The simple composer: a field, a send control and a suggestion list.
+          No attachments and no model chip — `models` is omitted, which is how
+          Bloom's pill is told to draw none. `busy` and `disabled` carry the
+          same flag on purpose: there is no stream to cancel here, so
+          generating greys send rather than offering a stop, and with no
+          `onStop` Bloom draws no stop control at all.
+        */}
+        <Composer
+          value={inputValue}
+          onValueChange={setInputValue}
+          onSubmit={handleGenerate}
+          busy={generating}
+          disabled={generating}
+          placeholder={t("agents.createPlaceholder")}
+        />
+      </View>
+    </ScrollView>
   );
 }

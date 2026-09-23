@@ -9,16 +9,24 @@ import {
   type ShowEpisode,
   type ShowEpisodeStatus,
 } from '@/lib/stores/show-store';
-import { useColorScheme } from '@/lib/useColorScheme';
 import {
   formatEpisodeDate,
   formatEpisodeDuration,
   joinEpisodeMeta,
 } from '@/lib/utils/show-format';
+import { Admonition } from '@oxy.so/bloom/admonition';
+import { Button } from '@oxy.so/bloom/button';
+import { RiDeleteBinLine } from '@oxy.so/bloom/icons/RiDeleteBinLine';
+import { RiErrorWarningLine } from '@oxy.so/bloom/icons/RiErrorWarningLine';
+import { RiPauseFill } from '@oxy.so/bloom/icons/RiPauseFill';
+import { RiPlayFill } from '@oxy.so/bloom/icons/RiPlayFill';
+import { Item } from '@oxy.so/bloom/item';
+import { Loading } from '@oxy.so/bloom/loading';
+import { Meter } from '@oxy.so/bloom/stat-bar';
+import { useTheme } from '@oxy.so/bloom/theme';
 import { Text } from '@oxy.so/bloom/typography';
-import { AlertCircle, Pause, Play, Trash2 } from 'lucide-react-native';
 import { useCallback } from 'react';
-import { ActivityIndicator, Pressable, View } from 'react-native';
+import { View } from 'react-native';
 /**
  * One episode, in the shape Syra gives an episode.
  *
@@ -87,7 +95,7 @@ interface EpisodeRowProps {
 }
 
 export function EpisodeRow({ episode, onDelete }: EpisodeRowProps) {
-  const { colors } = useColorScheme();
+  const { colors } = useTheme();
   const { state, problem, toggle } = useEpisodeAudio(episode.syraEpisodeId);
   /**
    * The step text and the segment counter exist only on the live event. The
@@ -170,37 +178,87 @@ export function EpisodeRow({ episode, onDelete }: EpisodeRowProps) {
   /** What the episode is about: its recap once written, its topic until then. */
   const summary = episode.recap?.trim() || episode.topic;
 
+  const progress = Math.max(2, Math.min(100, episode.progress));
+
+  /**
+   * The right edge is where the play control lives on Syra, so it is where
+   * an episode's readiness is legible: the control itself when there is
+   * something to hear, the work still happening when there is not.
+   */
+  const readiness = isPlayable ? (
+    <Button
+      tone="neutral"
+      appearance="outline"
+      size="md"
+      icon={isPlaying ? RiPauseFill : RiPlayFill}
+      loading={state === 'loading'}
+      disabled={state === 'loading'}
+      onPress={toggle}
+      accessibilityRole="button"
+      accessibilityLabel={isPlaying ? `Pause ${name}` : `Play ${name}`}
+    />
+  ) : isGenerating ? (
+    <Loading variant="spinner" size="sm" />
+  ) : episode.status === 'failed' ? (
+    <RiErrorWarningLine width={18} height={18} fill={colors.error} />
+  ) : null;
+
   return (
-    <View className="group flex-row items-start gap-3 rounded-xl px-2 py-2.5 web:transition-colors web:hover:bg-muted/40">
-      <View className="min-w-0 flex-1 gap-1">
-        <Text className="text-[15px] font-semibold leading-5 text-foreground" numberOfLines={2}>
+    <Item
+      role="listitem"
+      trailing={
+        // Stacking only: the delete and readiness controls side by side.
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+          {/*
+            The qualifier is load-bearing, not padding, and it had to change
+            when the action did. This used to say "from Alia" because the
+            recording survived on Syra; it now deletes there first and here
+            second, so a label that still said "from Alia" would UNDERSTATE
+            what a screen reader announces before someone presses it.
+            "everywhere" is the whole promise.
+          */}
+          <Button
+            tone="neutral"
+            appearance="plain"
+            size="sm"
+            icon={RiDeleteBinLine}
+            onPress={handleDelete}
+            accessibilityRole="button"
+            accessibilityLabel={`Delete ${name} everywhere`}
+          />
+          {readiness}
+        </View>
+      }
+    >
+      {/* Stacking only: the title block, with what the episode is about under it. */}
+      <View style={{ minWidth: 0, flex: 1, gap: 4 }}>
+        <Text variant="headline-semibold" numberOfLines={2}>
           {name}
         </Text>
-
-        <Text className="text-xs text-muted-foreground" numberOfLines={1}>
+        <Text variant="caption-1-regular" numberOfLines={1} style={{ color: colors.textSecondary }}>
           {meta}
         </Text>
-
         {summary ? (
-          <Text className="text-xs leading-4 text-muted-foreground/80" numberOfLines={2}>
+          <Text variant="caption-1-regular" numberOfLines={2} style={{ color: colors.textSecondary }}>
             {summary}
           </Text>
         ) : null}
 
         {isGenerating ? (
-          <View className="gap-1 pt-1">
-            <View className="h-[3px] overflow-hidden rounded-full bg-border">
-              <View
-                className="h-full rounded-full bg-primary"
-                style={{ width: `${Math.max(2, Math.min(100, episode.progress))}%` }}
-              />
-            </View>
-            <View className="flex-row items-center justify-between gap-2">
-              <Text className="text-[11px] text-muted-foreground" numberOfLines={1}>
+          <View style={{ gap: 4, paddingTop: 4 }}>
+            <Meter
+              value={progress}
+              max={100}
+              height={3}
+              accessibilityLabel={`${name} progress`}
+              valueText={`${progress}%`}
+            />
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 8 }}>
+              <Text variant="caption-2-regular" numberOfLines={1} style={{ color: colors.textSecondary }}>
                 {live?.currentStep || STEP_LABEL[episode.status]}
               </Text>
               {live?.segmentIndex !== undefined && live.totalSegments !== undefined ? (
-                <Text className="text-[11px] text-muted-foreground">
+                <Text variant="caption-2-regular" style={{ color: colors.textSecondary }}>
                   Segment {live.segmentIndex}/{live.totalSegments}
                 </Text>
               ) : null}
@@ -209,56 +267,9 @@ export function EpisodeRow({ episode, onDelete }: EpisodeRowProps) {
         ) : null}
 
         {episode.status === 'failed' && episode.error ? (
-          <View className="mt-1 rounded-lg bg-destructive/10 px-2 py-1.5">
-            <Text className="text-xs text-destructive">{episode.error}</Text>
-          </View>
+          <Admonition type="error">{episode.error}</Admonition>
         ) : null}
       </View>
-
-      {/*
-        The qualifier is load-bearing, not padding, and it had to change when
-        the action did. This used to say "from Alia" because the recording
-        survived on Syra; it now deletes there first and here second, so a
-        label that still said "from Alia" would UNDERSTATE what a screen reader
-        announces before someone presses it. "everywhere" is the whole promise.
-      */}
-      <Pressable
-        onPress={handleDelete}
-        accessibilityRole="button"
-        accessibilityLabel={`Delete ${name} everywhere`}
-        className="h-8 w-8 items-center justify-center rounded-full active:opacity-70 web:opacity-0 web:transition-opacity web:group-hover:opacity-100"
-      >
-        <Trash2 size={15} className="text-muted-foreground" />
-      </Pressable>
-
-      {/*
-        The right edge is where the play control lives on Syra, so it is where
-        an episode's readiness is legible: the control itself when there is
-        something to hear, the work still happening when there is not.
-      */}
-      <View className="h-10 w-10 items-center justify-center">
-        {isPlayable ? (
-          <Pressable
-            onPress={toggle}
-            disabled={state === 'loading'}
-            accessibilityRole="button"
-            accessibilityLabel={isPlaying ? `Pause ${name}` : `Play ${name}`}
-            className="h-10 w-10 items-center justify-center rounded-full border border-border active:opacity-70 web:hover:bg-muted"
-          >
-            {state === 'loading' ? (
-              <ActivityIndicator size="small" color={colors.foreground} />
-            ) : isPlaying ? (
-              <Pause size={18} className="text-foreground" fill="currentColor" />
-            ) : (
-              <Play size={18} className="text-foreground" fill="currentColor" />
-            )}
-          </Pressable>
-        ) : isGenerating ? (
-          <ActivityIndicator size="small" color={colors.mutedForeground} />
-        ) : episode.status === 'failed' ? (
-          <AlertCircle size={18} className="text-destructive" />
-        ) : null}
-      </View>
-    </View>
+    </Item>
   );
 }

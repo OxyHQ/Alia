@@ -6,16 +6,24 @@ import {
 } from '@/lib/hooks/use-skills';
 import { useTranslation } from '@/lib/hooks/use-translation';
 import { Button } from '@oxy.so/bloom/button';
-import { Label } from '@oxy.so/bloom/label';
+import { EmptyState } from '@oxy.so/bloom/empty-state';
+import { Field } from '@oxy.so/bloom/field';
+import { RiArrowLeftLine } from '@oxy.so/bloom/icons/RiArrowLeftLine';
+import { RiDeleteBinLine } from '@oxy.so/bloom/icons/RiDeleteBinLine';
+import { Loading } from '@oxy.so/bloom/loading';
+import {
+  SettingsListGroup,
+  SettingsListItem,
+} from '@oxy.so/bloom/settings-list';
 import { Switch } from '@oxy.so/bloom/switch';
-import { TextFieldInput as Input } from '@oxy.so/bloom/text-field';
+import { TextFieldInput } from '@oxy.so/bloom/text-field';
 import { Textarea } from '@oxy.so/bloom/textarea';
+import { useTheme } from '@oxy.so/bloom/theme';
 import { toast } from '@oxy.so/bloom/toast';
 import { Text } from '@oxy.so/bloom/typography';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ArrowLeft, Trash2 } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
+import { ScrollView, View } from 'react-native';
 
 /**
  * Editing a skill.
@@ -32,10 +40,30 @@ import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
  * changing it makes a different skill rather than editing this one.
  */
 
+/** Stacking only: the column the page reads in. */
+const CONTENT = {
+  width: '100%',
+  maxWidth: 768,
+  alignSelf: 'center',
+  paddingHorizontal: 16,
+  paddingTop: 16,
+  paddingBottom: 48,
+  gap: 16,
+} as const;
+/** Stacking only: the top row, back on one side and saving on the other. */
+const ACTIONS = {
+  flexDirection: 'row',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  gap: 8,
+} as const;
+const ROW = { flexDirection: 'row', gap: 8 } as const;
+
 export default function EditSkillScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { t } = useTranslation();
+  const { colors } = useTheme();
 
   const detail = useSkill(id);
   const patch = useUpdateSkill();
@@ -75,15 +103,16 @@ export default function EditSkillScreen() {
     setLoaded(true);
   }, [detail.data, loaded]);
 
-  if (detail.isLoading || !detail.data) {
+  if (detail.isLoading) {
+    return <Loading variant="spinner" />;
+  }
+
+  if (!detail.data) {
     return (
-      <View className="flex-1 bg-background items-center justify-center">
-        {detail.isLoading ? (
-          <ActivityIndicator />
-        ) : (
-          <Text className="text-muted-foreground">{t('skills.notFound')}</Text>
-        )}
-      </View>
+      <EmptyState
+        title={t('skills.notFound')}
+        action={{ label: t('common.back'), onPress: () => router.back() }}
+      />
     );
   }
 
@@ -146,19 +175,25 @@ export default function EditSkillScreen() {
   };
 
   return (
-    <View className="flex-1 bg-background">
-      <View className="flex-row items-center justify-between px-4 pt-4">
-        <Pressable
+    <ScrollView
+      showsVerticalScrollIndicator={false}
+      keyboardShouldPersistTaps="handled"
+      contentContainerStyle={CONTENT}
+    >
+      <View style={ACTIONS}>
+        <Button
+          tone="neutral"
+          appearance="plain"
+          size="sm"
+          icon={RiArrowLeftLine}
+          accessibilityLabel={t('common.back')}
           onPress={() => router.back()}
-          className="h-9 w-9 items-center justify-center rounded-full active:bg-muted"
-        >
-          <ArrowLeft size={18} className="text-foreground" />
-        </Pressable>
-        <View className="flex-row gap-2">
+        />
+        <View style={ROW}>
           <Button
             size="sm"
-            variant="secondary"
-            className="rounded-full"
+            tone="neutral"
+            appearance="subtle"
             disabled={patch.isPending}
             onPress={savePresentation}
           >
@@ -166,7 +201,7 @@ export default function EditSkillScreen() {
           </Button>
           <Button
             size="sm"
-            className="rounded-full"
+            tone="action"
             disabled={!documentChanged || newVersion.isPending}
             onPress={saveVersion}
           >
@@ -175,122 +210,102 @@ export default function EditSkillScreen() {
         </View>
       </View>
 
-      <ScrollView
-        className="flex-1 px-5"
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-      >
-        <View className="gap-4 pt-4 pb-10">
-          <View className="gap-1.5">
-            <Label>{t('skills.nameLabel')}</Label>
-            <Text className="text-[13px] text-foreground">{skill.name}</Text>
-            <Text className="text-[11px] text-muted-foreground">
-              {t('skills.nameHint')}
-            </Text>
-          </View>
+      <Field label={t('skills.nameLabel')} description={t('skills.nameHint')}>
+        <Text variant="body-regular" selectable>
+          {skill.name}
+        </Text>
+      </Field>
 
-          <View className="gap-1.5">
-            <Label>{t('skills.displayNameLabel')}</Label>
-            <Input
-              label="Value"
-              value={displayName}
-              onChangeText={setDisplayName}
-            />
-          </View>
+      <Field label={t('skills.displayNameLabel')}>
+        <TextFieldInput
+          label={t('skills.displayNameLabel')}
+          placeholder={null}
+          value={displayName}
+          onChangeText={setDisplayName}
+        />
+      </Field>
 
-          <View className="gap-1.5">
-            <Label>{t('skills.descriptionLabel')}</Label>
-            <Textarea
-              accessibilityLabel={t('skills.descriptionLabel')}
-              value={description}
-              onChangeText={setDescription}
-              autoResize
-              rows={5}
-            />
-            <Text className="text-[11px] text-muted-foreground">
-              {t('skills.descriptionHint')}
-            </Text>
-            <Text className="text-[11px] text-muted-foreground">
-              {description.length} / 1024
-            </Text>
-          </View>
+      {/* The server refuses a description over 1024 characters, so the field
+          stops there and counts toward it. */}
+      <Textarea
+        label={t('skills.descriptionLabel')}
+        hint={t('skills.descriptionHint')}
+        value={description}
+        onChangeText={setDescription}
+        autoResize
+        rows={5}
+        maxLength={1024}
+        showCount
+      />
 
-          <View className="gap-1.5">
-            <Label>{t('skills.bodyLabel')}</Label>
-            <Textarea
-              accessibilityLabel={t('skills.bodyLabel')}
-              value={body}
-              onChangeText={setBody}
-              autoResize
-              rows={13}
-            />
-            <Text className="text-[11px] text-muted-foreground">
-              {t('skills.bodyHint')}
-            </Text>
-          </View>
+      <Textarea
+        label={t('skills.bodyLabel')}
+        hint={t('skills.bodyHint')}
+        value={body}
+        onChangeText={setBody}
+        autoResize
+        rows={13}
+      />
 
-          <View className="gap-1.5">
-            <Label>{t('skills.licenseLabel')}</Label>
-            <Input
-              label="Apache-2.0"
-              value={license}
-              onChangeText={setLicense}
-              placeholder="Apache-2.0"
-              autoCapitalize="none"
-            />
-          </View>
+      <Field label={t('skills.licenseLabel')}>
+        <TextFieldInput
+          label={t('skills.licenseLabel')}
+          value={license}
+          onChangeText={setLicense}
+          placeholder="Apache-2.0"
+          autoCapitalize="none"
+        />
+      </Field>
 
-          <View className="gap-1.5">
-            <Label>{t('skills.compatibilityLabel')}</Label>
-            <Input
-              label="Value"
-              value={compatibility}
-              onChangeText={setCompatibility}
-            />
-          </View>
+      <Field label={t('skills.compatibilityLabel')}>
+        <TextFieldInput
+          label={t('skills.compatibilityLabel')}
+          placeholder={null}
+          value={compatibility}
+          onChangeText={setCompatibility}
+        />
+      </Field>
 
-          <View className="gap-1.5">
-            <Label>{t('skills.allowedToolsLabel')}</Label>
-            <Input
-              label="Value"
-              value={allowedTools}
-              onChangeText={setAllowedTools}
-              autoCapitalize="none"
-            />
-          </View>
+      <Field label={t('skills.allowedToolsLabel')}>
+        <TextFieldInput
+          label={t('skills.allowedToolsLabel')}
+          placeholder={null}
+          value={allowedTools}
+          onChangeText={setAllowedTools}
+          autoCapitalize="none"
+        />
+      </Field>
 
-          <View className="flex-row items-center justify-between">
-            <View className="flex-1 pr-4">
-              <Text className="text-[14px] text-foreground">
-                {t('skills.publish')}
-              </Text>
-              <Text className="text-[12px] text-muted-foreground mt-0.5">
-                {t('skills.publishHint')}
-              </Text>
-            </View>
+      <SettingsListGroup>
+        <SettingsListItem
+          title={t('skills.publish')}
+          description={t('skills.publishHint')}
+          rightElement={
             <Switch
               accessibilityLabel={t('skills.publish')}
               value={isPublic}
               onValueChange={setIsPublic}
             />
-          </View>
+          }
+        />
+      </SettingsListGroup>
 
-          <Pressable
-            className="flex-row items-center gap-2 py-3 active:opacity-70"
-            onPress={() =>
-              confirmingDelete ? void handleDelete() : setConfirmingDelete(true)
-            }
-            disabled={remove.isPending}
-          >
-            <Trash2 size={14} className="text-destructive" />
-            <Text className="text-[13px] text-destructive flex-1">
-              {confirmingDelete
-                ? t('skills.deleteSkillConfirm')
-                : t('skills.deleteSkill')}
-            </Text>
-          </Pressable>
-        </View>
-      </ScrollView>
-    </View>
+      <SettingsListGroup>
+        <SettingsListItem
+          icon={<RiDeleteBinLine width={18} height={18} fill={colors.error} />}
+          title={
+            confirmingDelete
+              ? t('skills.deleteSkillConfirm')
+              : t('skills.deleteSkill')
+          }
+          destructive
+          showChevron={false}
+          disabled={remove.isPending}
+          onPress={() =>
+            confirmingDelete ? void handleDelete() : setConfirmingDelete(true)
+          }
+        />
+      </SettingsListGroup>
+    </ScrollView>
   );
 }

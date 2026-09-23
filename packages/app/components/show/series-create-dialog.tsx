@@ -17,59 +17,67 @@ import {
   type ShowFormat,
   type ShowVisibility,
 } from '@/lib/stores/show-store';
-import { cn } from '@/lib/utils';
-import { Button } from '@oxy.so/bloom/button';
+import { Chip, ChipRow } from '@oxy.so/bloom/chip';
 import { Dialog } from '@oxy.so/bloom/dialog';
-import { TextFieldInput as Input } from '@oxy.so/bloom/text-field';
-import { toast } from '@oxy.so/bloom/toast';
-import { Text } from '@oxy.so/bloom/typography';
+import type { BloomIconComponent } from '@oxy.so/bloom/icons';
+import { RiBookOpenLine } from '@oxy.so/bloom/icons/RiBookOpenLine';
+import { RiChat3Line } from '@oxy.so/bloom/icons/RiChat3Line';
+import { RiGlobalLine } from '@oxy.so/bloom/icons/RiGlobalLine';
+import { RiLink } from '@oxy.so/bloom/icons/RiLink';
+import { RiLockLine } from '@oxy.so/bloom/icons/RiLockLine';
+import { RiMic2Line } from '@oxy.so/bloom/icons/RiMic2Line';
+import { RiNewspaperLine } from '@oxy.so/bloom/icons/RiNewspaperLine';
+import { RiQuestionLine } from '@oxy.so/bloom/icons/RiQuestionLine';
 import {
-  BookOpen,
-  Globe,
-  HelpCircle,
-  Link2,
-  Lock,
-  MessageSquare,
-  Mic,
-  Newspaper,
-} from 'lucide-react-native';
+  SegmentedControl,
+  SegmentedControlItem,
+  SegmentedControlItemText,
+} from '@oxy.so/bloom/segmented-control';
+import {
+  TextFieldHint,
+  TextFieldInput,
+  TextFieldLabel,
+} from '@oxy.so/bloom/text-field';
+import { Textarea } from '@oxy.so/bloom/textarea';
+import { useTheme } from '@oxy.so/bloom/theme';
+import { toast } from '@oxy.so/bloom/toast';
 import { useCallback, useState } from 'react';
 import { ScrollView, View } from 'react-native';
 
 const FORMATS: Array<{
   id: ShowFormat;
   label: string;
-  icon: typeof Mic;
+  icon: BloomIconComponent;
   description: string;
 }> = [
   {
     id: 'podcast',
     label: 'Podcast',
-    icon: Mic,
+    icon: RiMic2Line,
     description: 'Casual conversation between two hosts',
   },
   {
     id: 'news',
     label: 'News',
-    icon: Newspaper,
+    icon: RiNewspaperLine,
     description: 'Professional news broadcast',
   },
   {
     id: 'debate',
     label: 'Debate',
-    icon: MessageSquare,
+    icon: RiChat3Line,
     description: 'Two sides, one moderator',
   },
   {
     id: 'interview',
     label: 'Interview',
-    icon: HelpCircle,
+    icon: RiQuestionLine,
     description: 'A host interviews a guest',
   },
   {
     id: 'explainer',
     label: 'Explainer',
-    icon: BookOpen,
+    icon: RiBookOpenLine,
     description: 'A single narrator explains a topic',
   },
 ];
@@ -83,25 +91,25 @@ const FORMATS: Array<{
 const VISIBILITIES: Array<{
   id: ShowVisibility;
   label: string;
-  icon: typeof Lock;
+  icon: BloomIconComponent;
   description: string;
 }> = [
   {
     id: 'private',
     label: 'Private',
-    icon: Lock,
+    icon: RiLockLine,
     description: 'Only you can listen',
   },
   {
     id: 'unlisted',
     label: 'Unlisted',
-    icon: Link2,
+    icon: RiLink,
     description: 'Anyone with the link',
   },
   {
     id: 'public',
     label: 'Public',
-    icon: Globe,
+    icon: RiGlobalLine,
     description: 'Listed on Syra for everyone',
   },
 ];
@@ -117,6 +125,7 @@ export function SeriesCreateDialog({
   onOpenChange,
   onCreated,
 }: SeriesCreateDialogProps) {
+  const { colors } = useTheme();
   const preferences = useShowStore((s) => s.preferences);
   const createSeries = useShowStore((s) => s.createSeries);
 
@@ -190,117 +199,75 @@ export function SeriesCreateDialog({
         },
       ]}
     >
-      <ScrollView className="max-h-96" showsVerticalScrollIndicator={false}>
-        <View className="gap-4 py-2">
-          <View className="gap-1.5">
-            <Text className="text-sm font-medium text-foreground">Name</Text>
-            <Input
-              label="The Wednesday Digest"
+      {/* Stacking only: the form's fields, in a scroller capped at 384. */}
+      <ScrollView style={{ maxHeight: 384 }} showsVerticalScrollIndicator={false}>
+        <View style={{ gap: 16, paddingVertical: 8 }}>
+          <View>
+            <TextFieldLabel>Name</TextFieldLabel>
+            <TextFieldInput
+              label="Name"
               value={title}
               onChangeText={setTitle}
               placeholder="The Wednesday Digest"
             />
           </View>
 
-          <View className="gap-1.5">
-            <Text className="text-sm font-medium text-foreground">
-              What is it about?
-            </Text>
-            <Input
-              label="A weekly look at what I have been reading, in plain language."
-              value={brief}
-              onChangeText={setBrief}
-              placeholder="A weekly look at what I have been reading, in plain language."
-              multiline
-              numberOfLines={3}
-              className="min-h-[80px]"
-            />
-            <Text className="text-xs text-muted-foreground">
-              This is the only thing an episode is written from, and — unless
-              you say otherwise for one — the only thing its subject is chosen
-              from. Describe the show and the ground it covers, not one episode:
-              a line or two gives a show with nothing to vary along.
-            </Text>
-          </View>
+          {/*
+            The brief stays a form field rather than the chat composer: it is
+            one of four inputs submitted together by the dialog's own "Create
+            show" action, and the composer would add a second send button.
+          */}
+          <Textarea
+            label="What is it about?"
+            value={brief}
+            onChangeText={setBrief}
+            placeholder="A weekly look at what I have been reading, in plain language."
+            rows={3}
+            hint="This is the only thing an episode is written from, and — unless you say otherwise for one — the only thing its subject is chosen from. Describe the show and the ground it covers, not one episode: a line or two gives a show with nothing to vary along."
+          />
 
-          <View className="gap-1.5">
-            <Text className="text-sm font-medium text-foreground">Format</Text>
-            <View className="flex-row flex-wrap gap-2">
+          <View>
+            <TextFieldLabel>Format</TextFieldLabel>
+            <ChipRow role="radiogroup" accessibilityLabel="Format">
               {FORMATS.map((option) => {
                 const Icon = option.icon;
                 const selected = chosenFormat === option.id;
                 return (
-                  <Button
+                  <Chip
                     key={option.id}
-                    variant={selected ? 'primary' : 'secondary'}
-                    size="sm"
-                    className={cn(
-                      'flex-row items-center gap-1.5',
-                      selected && 'border-primary',
-                    )}
+                    size="xl"
+                    role="radio"
+                    selected={selected}
                     onPress={() => setFormat(option.id)}
-                    leading={
-                      <>
-                        <Icon
-                          size={14}
-                          className={
-                            selected
-                              ? 'text-primary-foreground'
-                              : 'text-muted-foreground'
-                          }
-                        />
-                      </>
-                    }
+                    startIcon={<Icon fill={colors.textSecondary} />}
                   >
                     {option.label}
-                  </Button>
+                  </Chip>
                 );
               })}
-            </View>
-            <Text className="text-xs text-muted-foreground">
+            </ChipRow>
+            <TextFieldHint>
               {FORMATS.find((f) => f.id === chosenFormat)?.description}
-            </Text>
+            </TextFieldHint>
           </View>
 
-          <View className="gap-1.5">
-            <Text className="text-sm font-medium text-foreground">
-              Who can listen?
-            </Text>
-            <View className="flex-row flex-wrap gap-2">
-              {VISIBILITIES.map((option) => {
-                const Icon = option.icon;
-                const selected = chosenVisibility === option.id;
-                return (
-                  <Button
-                    key={option.id}
-                    variant={selected ? 'primary' : 'secondary'}
-                    size="sm"
-                    className={cn(
-                      'flex-row items-center gap-1.5',
-                      selected && 'border-primary',
-                    )}
-                    onPress={() => setVisibility(option.id)}
-                    leading={
-                      <>
-                        <Icon
-                          size={14}
-                          className={
-                            selected
-                              ? 'text-primary-foreground'
-                              : 'text-muted-foreground'
-                          }
-                        />
-                      </>
-                    }
-                  >
-                    {option.label}
-                  </Button>
-                );
-              })}
-            </View>
-            <Text className="text-xs text-muted-foreground">
+          <View>
+            <TextFieldLabel>Who can listen?</TextFieldLabel>
+            <SegmentedControl
+              label="Who can listen?"
+              type="radio"
+              value={chosenVisibility}
+              onValueChange={(value) => setVisibility(value as ShowVisibility)}
+            >
+              {VISIBILITIES.map((option) => (
+                <SegmentedControlItem key={option.id} value={option.id}>
+                  <SegmentedControlItemText>{option.label}</SegmentedControlItemText>
+                </SegmentedControlItem>
+              ))}
+            </SegmentedControl>
+            <TextFieldHint>
               {VISIBILITIES.find((v) => v.id === chosenVisibility)?.description}
-            </Text>
+            </TextFieldHint>
           </View>
         </View>
       </ScrollView>

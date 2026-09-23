@@ -32,14 +32,17 @@ vi.mock('react-native', async () => {
       select: (spec: Record<string, unknown>) => spec.web,
     },
     View: host('View'),
-    Pressable: host('Pressable'),
-    ActivityIndicator: host('ActivityIndicator'),
   };
 });
 vi.mock('@oxy.so/bloom/typography', async () => {
   const ReactModule = await import('react');
   return {
     Text: ({
+      children,
+      ...props
+    }: React.PropsWithChildren<Record<string, unknown>>) =>
+      ReactModule.createElement('Text', props, children),
+    Muted: ({
       children,
       ...props
     }: React.PropsWithChildren<Record<string, unknown>>) =>
@@ -53,23 +56,70 @@ vi.mock('@oxy.so/bloom/switch', async () => {
       ReactModule.createElement('Switch', props),
   };
 });
-vi.mock('lucide-react-native', async () => {
+/**
+ * The Bloom parts the card is built from, as named hosts. Anything that draws
+ * words renders a `Text` host, so the reading order below is the card's own.
+ */
+vi.mock('@oxy.so/bloom/card', async () => {
   const ReactModule = await import('react');
-  const glyph = (props: Record<string, unknown>) =>
-    ReactModule.createElement('Glyph', props);
+  const host =
+    (name: string) =>
+    ({
+      children,
+      ...props
+    }: React.PropsWithChildren<Record<string, unknown>>) =>
+      ReactModule.createElement(name, props, children);
   return {
-    Clock: glyph,
-    Play: glyph,
-    ShieldCheck: glyph,
-    Square: glyph,
-    Users: glyph,
+    Card: host('Card'),
+    CardFooter: host('CardFooter'),
+    CardTitle: host('Text'),
+    CardDescription: host('Text'),
   };
 });
-vi.mock('@/lib/useColorScheme', () => ({
-  useColorScheme: () => ({
-    colors: { mutedForeground: 'grey', primary: 'blue' },
-  }),
+vi.mock('@oxy.so/bloom/item', async () => {
+  const ReactModule = await import('react');
+  return {
+    Item: ({
+      leading,
+      title,
+      subtitle,
+      trailing,
+      children,
+    }: Record<string, React.ReactNode>) =>
+      ReactModule.createElement(
+        'Item',
+        null,
+        leading,
+        children ?? title,
+        subtitle,
+        trailing,
+      ),
+  };
+});
+vi.mock('@oxy.so/bloom/badge', async () => {
+  const ReactModule = await import('react');
+  return {
+    Badge: ({ content, ...props }: Record<string, unknown>) =>
+      ReactModule.createElement('Text', props, content as React.ReactNode),
+  };
+});
+vi.mock('@oxy.so/bloom/button', async () => {
+  const ReactModule = await import('react');
+  return {
+    Button: ({
+      children,
+      ...props
+    }: React.PropsWithChildren<Record<string, unknown>>) =>
+      ReactModule.createElement('Button', props, children),
+  };
+});
+vi.mock('@oxy.so/bloom/theme', () => ({
+  useTheme: () => ({ colors: { textSecondary: 'grey' } }),
 }));
+vi.mock('@oxy.so/bloom/icons/RiPlayLine', () => ({ RiPlayLine: () => null }));
+vi.mock('@oxy.so/bloom/icons/RiStopFill', () => ({ RiStopFill: () => null }));
+vi.mock('@oxy.so/bloom/icons/RiTimeLine', () => ({ RiTimeLine: () => null }));
+vi.mock('@oxy.so/bloom/icons/RiUserLine', () => ({ RiUserLine: () => null }));
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 

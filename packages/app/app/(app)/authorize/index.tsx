@@ -4,23 +4,30 @@ import apiClient, { getSocketToken } from '@/lib/api/client';
 import config from '@/lib/config';
 import { errorMessage as getErrorMessage } from '@/lib/errors/error-utils';
 import { useTranslation } from '@/lib/hooks/use-translation';
-import { useColorScheme } from '@/lib/useColorScheme';
 import { Button } from '@oxy.so/bloom/button';
 import {
   Card,
   CardBody,
   CardDescription,
+  CardFooter,
   CardHeader,
   CardTitle,
 } from '@oxy.so/bloom/card';
-import { ContentPanel } from '@oxy.so/bloom/content-panel';
 import { Divider } from '@oxy.so/bloom/divider';
-import { Text } from '@oxy.so/bloom/typography';
+import { EmptyState } from '@oxy.so/bloom/empty-state';
+import { RiCheckboxCircleLine } from '@oxy.so/bloom/icons/RiCheckboxCircleLine';
+import { RiCheckLine } from '@oxy.so/bloom/icons/RiCheckLine';
+import { RiCloseCircleLine } from '@oxy.so/bloom/icons/RiCloseCircleLine';
+import { RiLockLine } from '@oxy.so/bloom/icons/RiLockLine';
+import { Item } from '@oxy.so/bloom/item';
+import { Loading } from '@oxy.so/bloom/loading';
+import { useTheme } from '@oxy.so/bloom/theme';
+import { Muted } from '@oxy.so/bloom/typography';
 import { useAuth, useOxy } from '@oxy.so/services';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import Head from 'expo-router/head';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Linking, Platform, View } from 'react-native';
+import { Linking, Platform } from 'react-native';
 import { io as socketIO } from 'socket.io-client';
 
 type AppType = string;
@@ -76,7 +83,7 @@ export default function AuthorizeScreen() {
   const { isAuthenticated, isLoading: authLoading, signIn } = useAuth();
   const { isAuthenticated: isOxyAuth } = useOxy();
   const { t } = useTranslation();
-  const { colors } = useColorScheme();
+  const { colors } = useTheme();
 
   // Determine app type from params
   const app = (params.app as AppType) || 'codea';
@@ -278,236 +285,173 @@ export default function AuthorizeScreen() {
     return (
       <AuthContainer>
         <AuthLogo />
-        <View className="items-center py-8">
-          <ActivityIndicator size="large" color={colors.primary} />
-          <Text className="text-muted-foreground mt-4">
-            {t('common.loading')}
-          </Text>
-        </View>
+        <Loading text={t('common.loading')} />
       </AuthContainer>
     );
   }
 
-  return (
-    <ContentPanel surfaceClassName="bg-background">
-      <>
-        <Head>
-          <title>
-            {t('authorize.authorizeApp', { app: appConfig.displayName })}
-          </title>
-          <meta
-            name="description"
-            content={t('authorize.appWantsAccess', {
-              app: appConfig.displayName,
-            })}
-          />
-          <meta name="robots" content="noindex, nofollow" />
-        </Head>
-        <AuthContainer>
-          <AuthLogo />
+  const openRedirect = () => {
+    if (Platform.OS === 'web') {
+      const link = document.createElement('a');
+      link.href = redirectUrl;
+      link.click();
+    } else {
+      Linking.openURL(redirectUrl);
+    }
+  };
 
-          {status === 'authorize' && (
-            <Card>
-              <CardHeader>
-                <CardTitle style={{ textAlign: 'center' }}>
-                  {t('authorize.authorizeApp', { app: appConfig.displayName })}
-                </CardTitle>
-                <CardDescription style={{ textAlign: 'center' }}>
-                  {t('authorize.appWantsAccess', {
+  const requestNewLink = () => {
+    const botUsername =
+      process.env.EXPO_PUBLIC_TELEGRAM_BOT_USERNAME || 'alia_onlbot';
+    const botUrl = `https://t.me/${botUsername}?start=link`;
+    if (Platform.OS === 'web') {
+      window.open(botUrl, '_blank');
+    } else {
+      Linking.openURL(botUrl);
+    }
+  };
+
+  const retry = () => {
+    if (appConfig.isChannel || channel) {
+      handleChannelAuth();
+    } else {
+      setStatus('authorize');
+    }
+  };
+
+  return (
+    <>
+      <Head>
+        <title>
+          {t('authorize.authorizeApp', { app: appConfig.displayName })}
+        </title>
+        <meta
+          name="description"
+          content={t('authorize.appWantsAccess', {
+            app: appConfig.displayName,
+          })}
+        />
+        <meta name="robots" content="noindex, nofollow" />
+      </Head>
+      <AuthContainer>
+        <AuthLogo />
+
+        {status === 'authorize' && (
+          <Card appearance="outline">
+            <CardHeader>
+              <CardTitle style={{ textAlign: 'center' }}>
+                {t('authorize.authorizeApp', { app: appConfig.displayName })}
+              </CardTitle>
+              <CardDescription style={{ textAlign: 'center' }}>
+                {t('authorize.appWantsAccess', {
+                  app: appConfig.displayName,
+                })}
+              </CardDescription>
+            </CardHeader>
+            <CardBody>
+              <Muted>
+                {t('authorize.willAllow', { app: appConfig.displayName })}
+              </Muted>
+              {appConfig.permissionKeys.map((key) => (
+                <Item
+                  key={key}
+                  role="listitem"
+                  density="compact"
+                  leading={
+                    <RiCheckLine width={16} height={16} fill={colors.success} />
+                  }
+                  title={t(`authorize.${key}`, {
                     app: appConfig.displayName,
                   })}
-                </CardDescription>
-              </CardHeader>
-              <CardBody>
-                <View className="gap-4">
-                  <View className="gap-2">
-                    <Text className="text-sm text-muted-foreground font-medium">
-                      {t('authorize.willAllow', { app: appConfig.displayName })}
-                    </Text>
-                    <View className="gap-2 pl-1">
-                      {/*
-                        `text-foreground` is stated here now. The wrapper's
-                        `CardContent` pushed `text-surface-foreground` down
-                        through a `TextClassContext`, and this permission list
-                        was the ONE reader of it anywhere in the app — a context
-                        with a single consumer is a coupling, not an adaptation.
-                      */}
-                      {appConfig.permissionKeys.map((key, index) => (
-                        <Text key={index} className="text-sm text-foreground">
-                          •{' '}
-                          {t(`authorize.${key}`, {
-                            app: appConfig.displayName,
-                          })}
-                        </Text>
-                      ))}
-                    </View>
-                  </View>
+                />
+              ))}
+              <Divider spacing={8} />
+            </CardBody>
+            <CardFooter style={{ flexDirection: 'column', alignItems: 'stretch' }}>
+              <Button tone="action" size="lg" onPress={handleOAuthAuthorize}>
+                {t('common.authorize')}
+              </Button>
+              <Button
+                tone="neutral"
+                appearance="subtle"
+                size="lg"
+                onPress={handleCancel}
+              >
+                {t('common.cancel')}
+              </Button>
+            </CardFooter>
+          </Card>
+        )}
 
-                  {/*
-                    Bloom calls it a Divider. The wrapper this replaces was a
-                    `@rn-primitives/separator` root with `bg-border` and a
-                    hairline, on one screen, for one rule — and `my-2` is the
-                    `spacing` prop, so nothing is lost in the rename back.
-                  */}
-                  <Divider spacing={8} />
+        {status === 'authorizing' && (
+          <EmptyState
+            illustration={<Loading />}
+            title={
+              appConfig.isChannel
+                ? t('authorize.linkingAccount')
+                : t('authorize.authorizing')
+            }
+            description={t('authorize.pleaseWait')}
+          />
+        )}
 
-                  <View className="gap-3">
-                    <Button onPress={handleOAuthAuthorize} size="lg">
-                      {t('common.authorize')}
-                    </Button>
+        {status === 'needLogin' && (
+          <EmptyState
+            icon={RiLockLine}
+            media="circle"
+            title={t('authorize.authRequired')}
+            description={message}
+          />
+        )}
 
-                    <Button
-                      onPress={handleCancel}
-                      variant="secondary"
-                      size="lg"
-                    >
-                      {t('common.cancel')}
-                    </Button>
-                  </View>
-                </View>
-              </CardBody>
-            </Card>
-          )}
+        {status === 'success' && (
+          <EmptyState
+            icon={RiCheckboxCircleLine}
+            media="circle"
+            title={
+              appConfig.isChannel
+                ? t('authorize.linked')
+                : t('authorize.authorized')
+            }
+            description={message}
+            action={
+              redirectUrl
+                ? { label: t('authorize.openAppManually'), onPress: openRedirect }
+                : undefined
+            }
+            footer={
+              redirectUrl ? (
+                <Muted selectable style={{ textAlign: 'center' }}>
+                  {redirectUrl}
+                </Muted>
+              ) : appConfig.isChannel ? (
+                <Muted style={{ textAlign: 'center' }}>
+                  You can now return to {appConfig.displayName} and start
+                  chatting with Alia!
+                </Muted>
+              ) : (
+                <Muted style={{ textAlign: 'center' }}>
+                  If not redirected automatically, you can close this window.
+                </Muted>
+              )
+            }
+          />
+        )}
 
-          {status === 'authorizing' && (
-            <Card>
-              <CardBody>
-                <View className="items-center py-4 gap-3">
-                  <ActivityIndicator size="large" color={colors.primary} />
-                  <Text className="text-xl font-semibold text-foreground">
-                    {appConfig.isChannel
-                      ? t('authorize.linkingAccount')
-                      : t('authorize.authorizing')}
-                  </Text>
-                  <Text className="text-muted-foreground text-center">
-                    {t('authorize.pleaseWait')}
-                  </Text>
-                </View>
-              </CardBody>
-            </Card>
-          )}
-
-          {status === 'needLogin' && (
-            <Card>
-              <CardBody>
-                <View className="items-center py-4 gap-3">
-                  <Text className="text-4xl">🔐</Text>
-                  <View className="gap-2 items-center">
-                    <Text className="text-xl font-semibold text-foreground">
-                      {t('authorize.authRequired')}
-                    </Text>
-                    <Text className="text-muted-foreground text-center">
-                      {message}
-                    </Text>
-                  </View>
-                </View>
-              </CardBody>
-            </Card>
-          )}
-
-          {status === 'success' && (
-            <Card>
-              <CardBody>
-                <View className="items-center py-4 gap-4">
-                  <Text className="text-4xl">✅</Text>
-                  <View className="gap-2 items-center">
-                    <Text className="text-xl font-semibold text-foreground">
-                      {appConfig.isChannel
-                        ? t('authorize.linked')
-                        : t('authorize.authorized')}
-                    </Text>
-                    <Text className="text-muted-foreground text-center">
-                      {message}
-                    </Text>
-                  </View>
-                  {redirectUrl ? (
-                    <>
-                      <Button
-                        onPress={() => {
-                          if (Platform.OS === 'web') {
-                            const link = document.createElement('a');
-                            link.href = redirectUrl;
-                            link.click();
-                          } else {
-                            Linking.openURL(redirectUrl);
-                          }
-                        }}
-                        size="lg"
-                      >
-                        {t('authorize.openAppManually')}
-                      </Button>
-                      <Text className="text-xs text-muted-foreground text-center select-all">
-                        {redirectUrl}
-                      </Text>
-                    </>
-                  ) : appConfig.isChannel ? (
-                    <Text className="text-xs text-muted-foreground text-center">
-                      You can now return to {appConfig.displayName} and start
-                      chatting with Alia!
-                    </Text>
-                  ) : (
-                    <Text className="text-xs text-muted-foreground text-center">
-                      If not redirected automatically, you can close this
-                      window.
-                    </Text>
-                  )}
-                </View>
-              </CardBody>
-            </Card>
-          )}
-
-          {status === 'error' && (
-            <Card>
-              <CardBody>
-                <View className="items-center py-4 gap-4">
-                  <Text className="text-4xl">❌</Text>
-                  <View className="gap-2 items-center">
-                    <Text className="text-xl font-semibold text-foreground">
-                      {appConfig.isChannel
-                        ? 'Link Failed'
-                        : 'Authorization Failed'}
-                    </Text>
-                    <Text className="text-muted-foreground text-center">
-                      {message}
-                    </Text>
-                  </View>
-                  {message.includes('expired') ? (
-                    <Button
-                      onPress={() => {
-                        const botUsername =
-                          process.env.EXPO_PUBLIC_TELEGRAM_BOT_USERNAME ||
-                          'alia_onlbot';
-                        const botUrl = `https://t.me/${botUsername}?start=link`;
-                        if (Platform.OS === 'web') {
-                          window.open(botUrl, '_blank');
-                        } else {
-                          Linking.openURL(botUrl);
-                        }
-                      }}
-                      size="lg"
-                    >
-                      Request New Link
-                    </Button>
-                  ) : (
-                    <Button
-                      onPress={() => {
-                        if (appConfig.isChannel || channel) {
-                          handleChannelAuth();
-                        } else {
-                          setStatus('authorize');
-                        }
-                      }}
-                      size="lg"
-                    >
-                      Try Again
-                    </Button>
-                  )}
-                </View>
-              </CardBody>
-            </Card>
-          )}
-        </AuthContainer>
-      </>
-    </ContentPanel>
+        {status === 'error' && (
+          <EmptyState
+            icon={RiCloseCircleLine}
+            media="circle"
+            title={appConfig.isChannel ? 'Link Failed' : 'Authorization Failed'}
+            description={message}
+            action={
+              message.includes('expired')
+                ? { label: 'Request New Link', onPress: requestNewLink }
+                : { label: 'Try Again', onPress: retry }
+            }
+          />
+        )}
+      </AuthContainer>
+    </>
   );
 }

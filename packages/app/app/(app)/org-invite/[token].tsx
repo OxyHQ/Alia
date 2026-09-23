@@ -5,15 +5,16 @@ import {
   useAcceptOrgInvite,
   useOrgInviteInfo,
 } from '@/lib/hooks/use-organization-invites';
-import { Button } from '@oxy.so/bloom/button';
-import { ContentPanel } from '@oxy.so/bloom/content-panel';
-import { Text } from '@oxy.so/bloom/typography';
+import { EmptyState } from '@oxy.so/bloom/empty-state';
+import { RiArrowRightLine } from '@oxy.so/bloom/icons/RiArrowRightLine';
+import { RiErrorWarningLine } from '@oxy.so/bloom/icons/RiErrorWarningLine';
+import { RiLoginBoxLine } from '@oxy.so/bloom/icons/RiLoginBoxLine';
+import { RiTeamLine } from '@oxy.so/bloom/icons/RiTeamLine';
+import { Loading } from '@oxy.so/bloom/loading';
 import { useAuth } from '@oxy.so/services';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import Head from 'expo-router/head';
-import { AlertCircle, ArrowRight, LogIn, Users } from 'lucide-react-native';
 import React, { useState } from 'react';
-import { View } from 'react-native';
 
 export default function OrgInviteScreen() {
   const { token } = useLocalSearchParams<{ token: string }>();
@@ -45,9 +46,7 @@ export default function OrgInviteScreen() {
     return (
       <AuthContainer>
         <AuthLogo />
-        <View className="items-center justify-center py-8">
-          <Text className="text-muted-foreground">Loading...</Text>
-        </View>
+        <Loading text="Loading..." />
       </AuthContainer>
     );
   }
@@ -60,29 +59,17 @@ export default function OrgInviteScreen() {
           <title>Invalid Invite - Alia</title>
         </Head>
         <AuthContainer>
-          <View className="items-center gap-6">
-            <View className="h-20 w-20 items-center justify-center rounded-full bg-destructive/10">
-              <AlertCircle size={40} className="text-destructive" />
-            </View>
-            <Text className="text-2xl font-bold text-foreground text-center">
-              Invite not found
-            </Text>
-            <Text className="text-base text-muted-foreground text-center">
-              This invitation link is invalid, expired, or has already been
-              used.
-            </Text>
-            <Button
-              onPress={() => router.replace('/(app)')}
-              className="w-full h-12 rounded-full"
-              leading={
-                <>
-                  <ArrowRight size={18} className="text-primary-foreground" />
-                </>
-              }
-            >
-              Go to Alia
-            </Button>
-          </View>
+          <EmptyState
+            icon={RiErrorWarningLine}
+            media="circle"
+            title="Invite not found"
+            description="This invitation link is invalid, expired, or has already been used."
+            action={{
+              label: 'Go to Alia',
+              icon: RiArrowRightLine,
+              onPress: () => router.replace('/(app)'),
+            }}
+          />
         </AuthContainer>
       </>
     );
@@ -100,80 +87,45 @@ export default function OrgInviteScreen() {
           />
         </Head>
         <AuthContainer>
-          <View className="items-center gap-6">
-            <View className="h-20 w-20 items-center justify-center rounded-full bg-primary/10">
-              <Users size={40} className="text-primary" />
-            </View>
-
-            {accepted ? (
-              <>
-                <Text className="text-2xl font-bold text-foreground text-center">
-                  You've joined {orgName}!
-                </Text>
-                <Text className="text-base text-muted-foreground text-center">
-                  You're now a {role} of {orgName}.
-                </Text>
-                <Button
-                  onPress={() => router.replace('/(app)')}
-                  className="w-full h-12 rounded-full"
-                  leading={
-                    <>
-                      <ArrowRight
-                        size={18}
-                        className="text-primary-foreground"
-                      />
-                    </>
-                  }
-                >
-                  Continue
-                </Button>
-              </>
-            ) : error ? (
-              <>
-                <Text className="text-2xl font-bold text-foreground text-center">
-                  Couldn't join
-                </Text>
-                <Text className="text-base text-muted-foreground text-center">
-                  {error}
-                </Text>
-                <Button
-                  onPress={() => router.replace('/(app)')}
-                  className="w-full h-12 rounded-full"
-                  leading={
-                    <>
-                      <ArrowRight
-                        size={18}
-                        className="text-primary-foreground"
-                      />
-                    </>
-                  }
-                >
-                  Go to Alia
-                </Button>
-              </>
-            ) : (
-              <>
-                <Text className="text-2xl font-bold text-foreground text-center">
-                  Join {orgName}
-                </Text>
-                <Text className="text-base text-muted-foreground text-center">
-                  You've been invited to join as a {role}.
-                </Text>
-                <Button
-                  onPress={handleAccept}
-                  disabled={acceptMutation.isPending}
-                  className="w-full h-12 rounded-full"
-                  leading={
-                    <>
-                      <Users size={18} className="text-primary-foreground" />
-                    </>
-                  }
-                >
-                  {acceptMutation.isPending ? 'Joining...' : 'Accept & Join'}
-                </Button>
-              </>
-            )}
-          </View>
+          {accepted ? (
+            <EmptyState
+              icon={RiTeamLine}
+              media="circle"
+              title={`You've joined ${orgName}!`}
+              description={`You're now a ${role} of ${orgName}.`}
+              action={{
+                label: 'Continue',
+                icon: RiArrowRightLine,
+                onPress: () => router.replace('/(app)'),
+              }}
+            />
+          ) : error ? (
+            <EmptyState
+              icon={RiTeamLine}
+              media="circle"
+              title="Couldn't join"
+              description={error}
+              action={{
+                label: 'Go to Alia',
+                icon: RiArrowRightLine,
+                onPress: () => router.replace('/(app)'),
+              }}
+            />
+          ) : (
+            <EmptyState
+              icon={RiTeamLine}
+              media="circle"
+              title={`Join ${orgName}`}
+              description={`You've been invited to join as a ${role}.`}
+              action={{
+                label: acceptMutation.isPending ? 'Joining...' : 'Accept & Join',
+                icon: RiTeamLine,
+                onPress: handleAccept,
+                disabled: acceptMutation.isPending,
+                loading: acceptMutation.isPending,
+              }}
+            />
+          )}
         </AuthContainer>
       </>
     );
@@ -181,57 +133,29 @@ export default function OrgInviteScreen() {
 
   // Not authenticated: prompt to sign in
   return (
-    <ContentPanel surfaceClassName="bg-background">
-      <>
-        <Head>
-          <title>Join {orgName} - Alia</title>
-          <meta
-            name="description"
-            content={`Sign in to join ${orgName} on Alia.`}
-          />
-        </Head>
-        <AuthContainer>
-          <View className="items-center gap-6">
-            <View className="h-20 w-20 items-center justify-center rounded-full bg-primary/10">
-              <Users size={40} className="text-primary" />
-            </View>
-
-            <Text className="text-2xl font-bold text-foreground text-center">
-              Join {orgName}
-            </Text>
-            <Text className="text-base text-muted-foreground text-center">
-              Sign in or create an account to join {orgName} as a {role}.
-            </Text>
-
-            <View className="w-full gap-3">
-              <Button
-                onPress={() => signIn().catch(() => {})}
-                className="w-full h-12 rounded-full"
-                leading={
-                  <>
-                    <Users size={18} className="text-primary-foreground" />
-                  </>
-                }
-              >
-                Sign up & join
-              </Button>
-
-              <Button
-                variant="secondary"
-                onPress={() => signIn().catch(() => {})}
-                className="w-full h-12 rounded-full"
-                leading={
-                  <>
-                    <LogIn size={18} className="text-foreground" />
-                  </>
-                }
-              >
-                Already have an account? Sign in
-              </Button>
-            </View>
-          </View>
-        </AuthContainer>
-      </>
-    </ContentPanel>
+    <>
+      <Head>
+        <title>Join {orgName} - Alia</title>
+        <meta name="description" content={`Sign in to join ${orgName} on Alia.`} />
+      </Head>
+      <AuthContainer>
+        <EmptyState
+          icon={RiTeamLine}
+          media="circle"
+          title={`Join ${orgName}`}
+          description={`Sign in or create an account to join ${orgName} as a ${role}.`}
+          action={{
+            label: 'Sign up & join',
+            icon: RiTeamLine,
+            onPress: () => signIn().catch(() => {}),
+          }}
+          secondaryAction={{
+            label: 'Already have an account? Sign in',
+            icon: RiLoginBoxLine,
+            onPress: () => signIn().catch(() => {}),
+          }}
+        />
+      </AuthContainer>
+    </>
   );
 }

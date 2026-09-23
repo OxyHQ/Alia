@@ -7,15 +7,25 @@ import type {
   AutomationDefinition,
   AutomationUpdateInput,
 } from '@/lib/automations/types';
+import { Admonition } from '@oxy.so/bloom/admonition';
+import { Chip, ChipRow } from '@oxy.so/bloom/chip';
 import { Dialog } from '@oxy.so/bloom/dialog';
-import { Label } from '@oxy.so/bloom/label';
+import { Field } from '@oxy.so/bloom/field';
+import {
+  SettingsListGroup,
+  SettingsListItem,
+} from '@oxy.so/bloom/settings-list';
 import { Switch } from '@oxy.so/bloom/switch';
-import { TextFieldInput as Input } from '@oxy.so/bloom/text-field';
+import { TextFieldInput } from '@oxy.so/bloom/text-field';
 import { Textarea } from '@oxy.so/bloom/textarea';
 import { toast } from '@oxy.so/bloom/toast';
-import { Text } from '@oxy.so/bloom/typography';
 import { useState } from 'react';
-import { Pressable, ScrollView, View } from 'react-native';
+import { ScrollView, useWindowDimensions, View } from 'react-native';
+
+/** Stacking only: the dialog's fields, one under the other. */
+const BODY = { gap: 20, paddingBottom: 12 } as const;
+/** Stacking only: two fields side by side. */
+const ROW = { flexDirection: 'row', gap: 8 } as const;
 
 interface AgentOption {
   id: string;
@@ -80,6 +90,7 @@ export function AutomationEditor({
   onClose,
   onSave,
 }: AutomationEditorProps) {
+  const { height: windowHeight } = useWindowDimensions();
   const initial = createAutomationEditDraft(automation);
   const initialSchedule =
     automation.trigger.type === 'schedule'
@@ -169,68 +180,63 @@ export function AutomationEditor({
         ]}
       >
         <ScrollView
-          className="max-h-[80vh]"
-          contentContainerClassName="gap-5 pb-3"
+          style={{ maxHeight: windowHeight * 0.8 }}
+          contentContainerStyle={BODY}
         >
-          <View className="flex-row items-center justify-between rounded-2xl bg-muted px-4 py-3">
-            <View className="flex-1">
-              <Text className="text-sm font-medium text-foreground">
-                Status
-              </Text>
-              <Text className="mt-0.5 text-xs text-muted-foreground">
-                {enabled ? 'Scheduled' : 'Paused · Next run: Not scheduled'}
-              </Text>
-            </View>
-            <Switch
-              value={enabled}
-              onValueChange={setEnabled}
-              accessibilityLabel="Task active"
+          <SettingsListGroup>
+            <SettingsListItem
+              title="Status"
+              description={
+                enabled ? 'Scheduled' : 'Paused · Next run: Not scheduled'
+              }
+              rightElement={
+                <Switch
+                  value={enabled}
+                  onValueChange={setEnabled}
+                  accessibilityLabel="Task active"
+                />
+              }
             />
-          </View>
+          </SettingsListGroup>
 
-          <View className="gap-2">
-            <Label>Title</Label>
-            <Input
+          <Field label="Title">
+            <TextFieldInput
               label="Task title"
+              placeholder={null}
               value={title}
               onChangeText={setTitle}
               accessibilityLabel="Task title"
             />
-          </View>
+          </Field>
 
-          <View className="gap-2">
-            <Label>Instructions</Label>
-            <Textarea
-              value={instructions}
-              onChangeText={setInstructions}
-              accessibilityLabel="Task instructions"
-              autoResize
-              rows={6}
-            />
-          </View>
+          <Textarea
+            label="Instructions"
+            value={instructions}
+            onChangeText={setInstructions}
+            accessibilityLabel="Task instructions"
+            autoResize
+            rows={6}
+          />
 
-          <View className="gap-3 rounded-2xl border border-border p-4">
-            <View>
-              <Text className="text-sm font-medium text-foreground">
-                Repeat
-              </Text>
-              <Text className="mt-1 text-xs text-muted-foreground">
-                {automation.trigger.type === 'schedule'
-                  ? cronLabel(
-                      scheduleCron(time, days) ?? automation.trigger.cron ?? '',
-                    )
-                  : 'Weekly'}
-              </Text>
-            </View>
-            <View className="flex-row gap-2">
+          <Field
+            label="Repeat"
+            description={
+              automation.trigger.type === 'schedule'
+                ? cronLabel(
+                    scheduleCron(time, days) ?? automation.trigger.cron ?? '',
+                  )
+                : 'Weekly'
+            }
+            multiple
+          >
+            <ChipRow>
               {DAYS.map((day, index) => {
                 const selected = days.includes(day.value);
                 return (
-                  <Pressable
+                  <Chip
                     key={`${day.value}-${index}`}
-                    accessibilityRole="checkbox"
                     accessibilityLabel={`Day ${day.value}`}
-                    accessibilityState={{ checked: selected }}
+                    selected={selected}
                     onPress={() =>
                       setDays((current) =>
                         selected
@@ -238,78 +244,56 @@ export function AutomationEditor({
                           : [...current, day.value],
                       )
                     }
-                    className={`h-9 w-9 items-center justify-center rounded-full ${
-                      selected ? 'bg-foreground' : 'bg-muted'
-                    }`}
                   >
-                    <Text
-                      className={
-                        selected
-                          ? 'text-xs font-medium text-background'
-                          : 'text-xs text-foreground'
-                      }
-                    >
-                      {day.label}
-                    </Text>
-                  </Pressable>
+                    {day.label}
+                  </Chip>
                 );
               })}
-            </View>
-            <View className="flex-row gap-2">
-              <View className="flex-1 gap-2">
-                <Label>Time</Label>
-                <Input
-                  label="Task time"
-                  value={time}
-                  onChangeText={setTime}
-                  placeholder="09:00"
-                  accessibilityLabel="Task time"
-                />
-              </View>
-              <View className="flex-[2] gap-2">
-                <Label>Timezone</Label>
-                <Input
-                  label="Task timezone"
-                  value={timezone}
-                  onChangeText={setTimezone}
-                  accessibilityLabel="Task timezone"
-                />
-              </View>
-            </View>
+            </ChipRow>
+          </Field>
+
+          <View style={ROW}>
+            <Field label="Time" style={{ flex: 1 }}>
+              <TextFieldInput
+                label="Task time"
+                value={time}
+                onChangeText={setTime}
+                placeholder="09:00"
+                accessibilityLabel="Task time"
+              />
+            </Field>
+            <Field label="Timezone" style={{ flex: 2 }}>
+              <TextFieldInput
+                label="Task timezone"
+                placeholder={null}
+                value={timezone}
+                onChangeText={setTimezone}
+                accessibilityLabel="Task timezone"
+              />
+            </Field>
           </View>
 
-          <View className="gap-2">
-            <Label>Responsible agent</Label>
-            <View className="flex-row flex-wrap gap-2">
+          <Field label="Responsible agent" multiple>
+            <ChipRow>
               {agents.map((agent) => (
-                <Pressable
+                <Chip
                   key={agent.id}
-                  accessibilityRole="radio"
-                  accessibilityState={{ checked: agent.id === agentId }}
+                  role="radio"
+                  selected={agent.id === agentId}
                   onPress={() => setAgentId(agent.id)}
-                  className={`rounded-xl border px-3 py-2 ${
-                    agent.id === agentId
-                      ? 'border-foreground bg-muted'
-                      : 'border-border'
-                  }`}
                 >
-                  <Text className="text-sm text-foreground">{agent.label}</Text>
-                </Pressable>
+                  {agent.label}
+                </Chip>
               ))}
-            </View>
-          </View>
+            </ChipRow>
+          </Field>
 
           {automation.actions.length > 0 ? (
-            <View className="rounded-2xl bg-muted px-4 py-3">
-              <Text className="text-sm font-medium text-foreground">
-                Connected work
-              </Text>
-              <Text className="mt-1 text-xs leading-5 text-muted-foreground">
-                This task can use the connections you approved. Exact
-                identifiers and authority remain protected by Oxy and are not
-                editable here.
-              </Text>
-            </View>
+            <Admonition type="info">
+              Connected work: this task can use the connections you approved. Exact
+              identifiers and authority remain protected by Oxy and are not
+              editable here.
+            </Admonition>
           ) : null}
         </ScrollView>
       </Dialog>
