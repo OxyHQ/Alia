@@ -127,7 +127,7 @@ const res = await fetch('https://api.alia.onl/v1/chat/completions', {
 // SSE stream — see "Chat runtime" for the event contract.
 ```
 
-The bearer is an Oxy credential: a user session or service token today (`packages/api/src/middleware/auth.ts`), an application key from Oxy Console once that path is built. Existing `alia_sk_*` keys still authenticate and are being retired — see [developer access](./developers-portal.md).
+The bearer is an Oxy credential: a user session or service token today (`packages/api/src/middleware/auth.ts`), an application key from Oxy Console once that path is built. The `alia_sk_*` keys are retired and refused — see [developer access](./developers-portal.md).
 
 ## Core concepts
 
@@ -191,9 +191,7 @@ resources, actions, data flow, limits, autonomy and `observe | execute` mode. Th
 `trigger-engine.ts` scheduler reads only enabled structured schedule definitions.
 Structured decisions and runs use `automation_runs` and `automation_steps`.
 
-Legacy trigger rows and their `trigger_executions` remain available through historical
-GET routes. They are not scheduled or dispatched; every legacy write or execution route
-returns `410 Gone` and points callers to `/automations`.
+The legacy trigger model, its `/triggers` routes and its tables are gone.
 
 ## Guides
 

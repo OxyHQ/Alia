@@ -39,7 +39,6 @@ All payloads include `eventVersion: 1`.
 ### Automations UI
 
 `app/(app)/automations.tsx` reads and writes the normalized `/automations` API.
-Legacy `/triggers` writes return `410 Gone`.
 
 ## Main Routes
 

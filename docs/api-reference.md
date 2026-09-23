@@ -18,7 +18,7 @@ Oxy Console. The page is organised by mount, because one handler sits behind two
   the OpenAI-shaped entry to the same runtime, with public CORS. The section below still
   carries ADR 0004's window text and is read with ADR 0010's amendment: the routes are
   frozen at their current list, not removed.
-- **[Already removed](#already-removed-410-gone)** — four endpoints returning `410 Gone`.
+- **[Already removed](#already-removed-410-gone)** — two endpoints returning `410 Gone`, and the routes deleted outright by the clean cut.
 
 Routes are mounted in `packages/api/src/index.ts:221` through `:257`.
 
@@ -27,7 +27,7 @@ Routes are mounted in `packages/api/src/index.ts:221` through `:257`.
 | Credential | Where it works |
 |---|---|
 | `Authorization: Bearer <session-token>` | Everywhere. Issued by Oxy, verified by `packages/api/src/middleware/auth.ts` |
-| `Authorization: Bearer alia_sk_<key>` | `/v1/*` and `/codea/*` only. Inside the compatibility window — see [developer access](./developers-portal.md) |
+| `Authorization: Bearer alia_sk_<key>` | **Nowhere.** Retired: refused `401 credential_retired` — see [developer access](./developers-portal.md) |
 | Oxy Console application key (`oxy_sk_*`) | **Not yet.** It is not a JWT, so `oxy.auth()` in `@oxy.so/core` refuses it `401 INVALID_TOKEN_FORMAT`; the lane is built in the Oxy API first (OxyHQ/oxy#972), then `@oxy.so/core/server`, then adopted here — ADR 0010 § 2 |
 | Oxy service token | `/internal/trigger` via `oxyServiceAuth`; `/alia/chat` and `/v1/*` through `authenticateTokenOrApiKey` only when `X-Oxy-User-Id` names an exact grant-verified delegation; on the two chat surfaces also with an `X-Oxy-Requester-Assertion` that Oxy minted for the presenting product and consumes live (`authenticateRequesterAssertion`, OxyHQServices ADR 0025) — see [agents](./agents.md#product-bound-agents) |
 | `x-channel-bot-secret` + `x-oxy-user-id` | Registered channel bots. Validated by `authenticateChannelBotSecret` (`packages/api/src/middleware/auth.ts`), which `authenticateTokenOrApiKey` dispatches to — so it works on `/alia/chat` as well as `/v1/*`. `routes/v1.ts:35` holds a second, pre-auth copy that matches against `listChannels()` rather than `getConfiguredChannels()` |
@@ -126,18 +126,14 @@ earlier revisions of this page had both wrong:
 | `/tools` | `routes/tools-proxy.ts`, proxied to the integrations service |
 | `/mcp` | `routes/mcp.ts` |
 
-### Triggers and structured automations
+### Structured automations
 
-`/automations` is the only control plane for new or active proactive work. It stores
-explicit actors, resources, actions, data flow and autonomy, and is the only source read
-by the elected scheduler. `/triggers` exposes historical legacy rows and executions only.
+`/automations` is the only control plane for proactive work. It stores explicit actors,
+resources, actions, data flow and autonomy, and is the only source read by the elected
+scheduler. The legacy `/triggers` routes were deleted with their tables.
 
 | Route | Purpose |
 |---|---|
-| `GET /triggers` | List the caller's triggers |
-| `GET /triggers/:id/executions` | Execution history |
-| `POST/PATCH/DELETE /triggers/*` | Retired; returns `410 Gone` and points to `/automations` |
-| `POST /triggers/webhook/:token` | Retired; returns `410 Gone` without executing |
 | `GET /automations` | List structured definitions |
 | `POST /automations` | Create an observe/execute definition and receipt |
 | `PATCH /automations/:id` | Edit objective, trigger, actor assignment, resources, data flow, autonomy, limits, or enabled state; execution authority is revalidated |
@@ -179,16 +175,7 @@ routes mounted at `packages/api/src/index.ts:194`.
 
 **Socket.IO.** Connect at the API origin, emit `subscribe-notifications` with the user id,
 and listen for `notification`, `alia.approval_request` and `alia.approval_result`. The same
-channel emits cache-invalidation events for conversation, trigger and notification lists.
-
-### Codea
-
-| Route | Purpose |
-|---|---|
-| `GET /codea/user` | Entitlement payload |
-| `GET /codea/token` | Token and quota metadata |
-| `GET /codea/mcp_registry` | MCP policy metadata |
-| `GET /codea/me` | Current user summary |
+channel emits cache-invalidation events for conversation and notification lists.
 
 ### Catalogue and analytics
 
@@ -196,12 +183,8 @@ channel emits cache-invalidation events for conversation, trigger and notificati
 |---|---|
 | `GET /catalogue` | The truthful catalogue: routing profiles keyed `profile:*` and individually selectable models keyed `<publisher>/<model>`, each carrying its real kind (`routes/catalogue.ts`) |
 | `GET /catalogue/modes` | The product modes a person picks between (`routes/catalogue.ts`) |
-| `GET /external-models`, `/external-models/organizations`, `/external-models/:modelId` | The external-model leaderboard (`routes/external-models.ts`) |
 | `/analytics` | Product analytics |
 | `/audit`, `/reports` | Audit trail and user reports |
-
-The external-model leaderboard is inventoried separately under workstream 10 of #139; its
-destination is not decided by this page.
 
 ### Health
 
@@ -217,15 +200,10 @@ dependency a readiness answer turns on.
 
 ### Moving to Oxy
 
-Two mounts are in the product runtime today and are Oxy's under the ADRs:
+One mount is in the product runtime today and is Oxy's under the ADRs (the other,
+`/developer`, was deleted with the `alia_sk_*` keys — see
+[developer access](./developers-portal.md)):
 
-- **`/developer`** — applications and `alia_sk_*` credentials. ADR 0001 and ADR 0004 assign
-  developer identity to Oxy. Creation is already closed: `POST /developer/apps`,
-  `POST /developer/apps/:appId/keys` and the three `/auth` routes that were the second
-  minting path (`/authorize/codea`, `/authorize/cowork`, `/token`) all answer `410 Gone`
-  with `"error": "issuance_closed"`. Reading, updating and revoking an existing credential
-  stay. See [developer access](./developers-portal.md) for the routes, what still works,
-  and the removal gate. Workstream 11 of #139.
 - **`/billing`** — Stripe checkout, subscriptions and the financial record. ADR 0005 keeps
   entitlements in Alia as a low-latency read model and moves balances, payments, invoices,
   transactions and the ledger to Oxy. `/credits` stays as an entitlement read.
@@ -239,8 +217,8 @@ Two mounts are in the product runtime today and are Oxy's under the ADRs:
 records the decision: `api.alia.onl/v1/*` is Alia's **permanent** product API under an
 OpenAI-compatible request shape — the same handler as `/alia/chat` — authenticating
 through Oxy, issuing no Alia credentials of its own and settling no provider billing in
-Alia. It does not sunset; what retires, on its own gate, is the `alia_sk_*` credential
-path. ADR 0004 §3, which read this surface as a bounded compatibility window, is amended
+Alia. It does not sunset; what retired is the `alia_sk_*` credential path, which is gone.
+ADR 0004 §3, which read this surface as a bounded compatibility window, is amended
 by ADR 0010.
 
 Routes mounted in `packages/api/src/routes/v1.ts`:
@@ -249,12 +227,12 @@ Routes mounted in `packages/api/src/routes/v1.ts`:
 |---|---|---|
 | `GET /v1/` | `:20` | none |
 | `GET /v1/models`, `GET /v1/models/:modelId` | `:28` | none — mounted ahead of the auth middleware |
-| `GET /v1/me` | `:68` | session or key |
-| `POST /v1/chat/completions` | `:127` | session or key |
-| `/v1/responses` | `:130` | session or key |
-| `/v1/voice` | `:133` | session or key |
-| `/v1/audio` | `:136` | session or key |
-| `/v1/images` | `:139` | session or key |
+| `GET /v1/me` | `:68` | Oxy session or service token |
+| `POST /v1/chat/completions` | `:127` | Oxy session or service token |
+| `/v1/responses` | `:130` | Oxy session or service token |
+| `/v1/voice` | `:133` | Oxy session or service token |
+| `/v1/audio` | `:136` | Oxy session or service token |
+| `/v1/images` | `:139` | Oxy session or service token |
 
 **What still works.** These routes are served with their existing request and response
 shapes. Product `alia.*` SSE events may still appear on them, because this surface is the
@@ -381,19 +359,20 @@ entitlement, annotated per entry on `GET /catalogue`.
 
 ## Already removed (`410 Gone`)
 
-Four endpoints answer `410` with a message naming the replacement. There is no
-compatibility shim, and this is the pattern compatibility-window removals will follow
-rather than deleting a route and returning a bare `404`.
+Two endpoints answer `410` with a message naming the replacement. There is no
+compatibility shim.
 
 | Endpoint | Handler | Message |
 |---|---|---|
 | `POST /v1/resolve-model` | `routes/v1.ts:109` | "Use /v1/chat/completions with Kaana routing profile IDs. Direct model resolution is internal-only." |
 | `POST /v1/report-usage` | `routes/v1.ts:120` | "Usage is tracked automatically by Alia runtime." |
-| `POST /codea/resolve-model` | `routes/codea.ts:235` | Same as `/v1/resolve-model` |
-| `POST /codea/report-usage` | `routes/codea.ts:246` | Same as `/v1/report-usage` |
 
-The two `/codea` routes still run `authenticateApiKey` and the per-key rate limit before
-answering `410`, so an unauthenticated caller gets a `401` rather than the `410`.
+**Deleted outright (`404`)** by the owner's clean cut, with no `410` stub: every
+`/developer/*` route, every `/codea/*` route (including the two former `410`s), the
+`/auth/authorize/codea`, `/auth/authorize/cowork` and `/auth/token` refusals, every
+`/triggers/*` route, `GET /agents/:id/reports`, `GET /agents/:id/routing-logs`,
+`GET /agents/:id/routing-stats`, `GET /external-models*` and
+`GET`/`DELETE /api/sessions/:conversationId`.
 
 ---
 

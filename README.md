@@ -82,8 +82,8 @@ Three roles, none a subset of another
 
 For raw model access use Kaana through Oxy (`api.oxy.so/v1`); for the assistant use
 Alia's API. In both cases the key comes from Oxy Console — Alia issues none. Today Alia's
-API authenticates an Oxy user session or service token and, deprecated, an existing
-`alia_sk_*` key; the Oxy Console application-key path is not built yet (ADR 0010 § 2).
+API authenticates an Oxy user session or service token; the retired `alia_sk_*` keys are
+refused, and the Oxy Console application-key path is not built yet (ADR 0010 § 2).
 
 Hosted inference follows `Alia -> Oxy -> Kaana` through the published
 `OxyInferenceClient`. Alia stores no upstream provider credential, constructs no
@@ -115,9 +115,8 @@ and Kaana credential-runtime rollout gates. The
 the separate long-context refusal and its verified serving backport.
 
 `/automations` is the normalized scheduling and control API for explicit actors,
-resources, actions, data flow and autonomy. `/triggers` remains available for legacy
-routines, and both row types use the same elected scheduler rather than competing
-runtimes. There is no backward-compatible model resolution endpoint —
+resources, actions, data flow and autonomy, run by one elected scheduler. The legacy
+`/triggers` model is gone. There is no backward-compatible model resolution endpoint —
 `POST /v1/resolve-model` and `POST /v1/report-usage` return `410 Gone`.
 
 ## Storage
@@ -267,7 +266,7 @@ bun run web    # or ios, or android
 | [Proactive intelligence](docs/proactive-intelligence.md) | Acting unprompted |
 | [Integrations](docs/integrations.mdx) | Channels and messaging |
 | [Oxy auth](docs/oxyhq-auth.md) | Identity and sessions |
-| [Developer access](docs/developers-portal.md) | `alia_sk_*` keys and their sunset |
+| [Developer access](docs/developers-portal.md) | Credentials for Alia's API; `alia_sk_*` is retired |
 | [Dependency updates](docs/dependencies.md) | Reviewable Oxy updates and Doctor |
 | [Deployment](docs/deployment.md) | Shipping it |
 

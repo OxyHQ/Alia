@@ -265,12 +265,12 @@ healthy and still receives traffic. Moving the target group to `/health/ready` i
 3. `GET /v1/models` returns the intentional empty OpenAI-compatible list, and
    `GET /catalogue` lists only the reviewed Kaana product-routing profiles and
    concrete model references.
-4. Automation create and manual run work via `/automations`; legacy `/triggers` rows are
-   still reconciled by the same scheduler.
+4. Automation create and manual run work via `/automations`.
 5. `POST /webhooks/oxy` accepts a normalized event from an authorized Oxy service and
    deduplicates on `(appId, eventId)`; `POST /webhooks/oxy/:serviceId` returns `410`.
-6. The four removed endpoints return `410`: `/v1/resolve-model`, `/v1/report-usage`,
-   `/codea/resolve-model`, `/codea/report-usage`.
+6. The two removed model-resolution endpoints return `410`: `/v1/resolve-model`,
+   `/v1/report-usage`. The whole `/codea` router is gone (it served only the retired
+   `alia_sk_*` keys) and answers `404`.
 
 ## Rollback
 
@@ -295,8 +295,8 @@ healthy and still receives traffic. Moving the target group to `/health/ready` i
 
 ### Auditing a change to model or routing configuration
 
-Every write to `routing_profiles`, `routing_profile_provider_mappings`, `model_configs`
-or `external_models` emits a structured record on the `config-audit`
+Every write to `plans.model_ids` (the one configuration table left since the model
+catalogue tables were dropped) emits a structured record on the `config-audit`
 subsystem, from inside the repository function rather than from a caller — so any future
 caller is audited without being changed
 (`packages/api/src/lib/security/config-audit.ts`). In CloudWatch:
