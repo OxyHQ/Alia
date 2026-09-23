@@ -9,7 +9,7 @@ import { IdentityMark } from '@alia.onl/sdk';
 import { Button } from '@oxy.so/bloom/button';
 import { Text } from '@oxy.so/bloom/typography';
 import { useAuth } from '@oxy.so/services';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import {
   Platform,
   View,
@@ -74,12 +74,24 @@ function Caret({ done }: { done: boolean }) {
  * can rise into view, and `onDismissed` once the exit has finished playing, so
  * the parent can unmount it.
  */
+/**
+ * The two halves the chat container places: its `background` slot takes the
+ * ambient field, its content area the words and the buttons. The intro draws
+ * no surface of its own; the container is the surface.
+ */
+export interface WelcomeIntroSlots {
+  background: ReactNode;
+  content: ReactNode;
+}
+
 export function WelcomeIntro({
   onExitStart,
   onDismissed,
+  children,
 }: {
-  onExitStart: () => void;
+  onExitStart?: () => void;
   onDismissed: () => void;
+  children: (slots: WelcomeIntroSlots) => ReactNode;
 }) {
   const { t } = useTranslation();
   const { isDarkColorScheme } = useColorScheme();
@@ -139,7 +151,7 @@ export function WelcomeIntro({
     // Recorded the moment the exit begins, so a reload mid-animation does not
     // replay the intro.
     setExiting(true);
-    onExitStart();
+    onExitStart?.();
 
     ctaFall.value = withDelay(
       FALL_CTA.delay,
@@ -251,20 +263,22 @@ export function WelcomeIntro({
         }
       : undefined;
 
-  return (
+  const background = (
+    <AmbientField
+      entrance
+      exiting={exiting}
+      isDarkMode={isDarkColorScheme}
+      pointerX={pointerX}
+      pointerY={pointerY}
+    />
+  );
+
+  const content = (
     <View
-      className="flex-1 items-center justify-center overflow-hidden rounded-2xl bg-background px-7 py-6"
+      className="flex-1 items-center justify-center px-7 py-6"
       onLayout={handleStageLayout}
       onPointerMove={handlePointerMove}
     >
-      <AmbientField
-        entrance
-        exiting={exiting}
-        isDarkMode={isDarkColorScheme}
-        pointerX={pointerX}
-        pointerY={pointerY}
-      />
-
       <View className="w-full max-w-[640px] items-center gap-3">
         <Animated.View className="max-w-[560px] items-center gap-4">
           <Animated.View style={markStyle}>
@@ -314,4 +328,6 @@ export function WelcomeIntro({
       </View>
     </View>
   );
+
+  return <>{children({ background, content })}</>;
 }

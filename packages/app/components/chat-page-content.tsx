@@ -1,5 +1,6 @@
 import { ChatInterface } from '@/components/chat-interface';
 import { ChatWorkspace } from '@/components/chat/chat-workspace';
+import type { WelcomeIntroSlots } from '@/components/welcome-intro';
 import { useComposerAddMenu } from '@/components/chat/composer/add-menu';
 import { Composer } from '@/components/chat/composer/composer';
 import { useComposerLineup } from '@/components/chat/composer/model-lineup';
@@ -132,6 +133,12 @@ interface ChatPageContentProps {
    */
   failedTurn?: FailedTurn | null;
   onRetryTurn?: () => void;
+  /**
+   * The signed-out welcome, in place of the conversation: its field in the
+   * container's background slot and its words in the content area, with no
+   * composer until it is answered.
+   */
+  intro?: WelcomeIntroSlots;
 }
 
 export const ChatPageContent = ({
@@ -161,6 +168,7 @@ export const ChatPageContent = ({
   focusCursor,
   failedTurn,
   onRetryTurn,
+  intro,
 }: ChatPageContentProps) => {
   const attachments = useStore((state) => state.attachments);
   const addAttachment = useStore((state) => state.addAttachment);
@@ -389,6 +397,17 @@ export const ChatPageContent = ({
   // entitlement gate, which survives as an intercepted change rather than a
   // row that refuses itself. See `model-lineup.ts`.
   const lineup = useComposerLineup(selectedModel, onModelChange);
+
+  if (intro) {
+    return (
+      <ChatWorkspace
+        header={<AiChatMobileHeader title="Alia" />}
+        background={intro.background}
+      >
+        {intro.content}
+      </ChatWorkspace>
+    );
+  }
 
   return (
     <ChatWorkspace

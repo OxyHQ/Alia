@@ -22,6 +22,8 @@ export interface ChatWorkspaceProps {
   onMore?: () => void;
   onProjectPress?: () => void;
   actions?: React.ReactNode;
+  /** A layer under the turns, clipped to the container (the welcome's field). */
+  background?: React.ReactNode;
 }
 
 export function ChatWorkspace({
@@ -36,6 +38,7 @@ export function ChatWorkspace({
   onMore,
   onProjectPress,
   actions,
+  background,
 }: ChatWorkspaceProps) {
   return (
     <KeyboardAvoidingView
@@ -53,6 +56,7 @@ export function ChatWorkspace({
         onMore={onMore}
         onProjectPress={onProjectPress}
         actions={actions}
+        background={background}
         style={{ flex: 1 }}
       >
         {children}
