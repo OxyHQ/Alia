@@ -2,7 +2,7 @@ import React, { useCallback, useMemo } from "react";
 import { Image } from "expo-image";
 import { RiCameraLine } from "@oxy.so/bloom/icons/RiCameraLine";
 import { RiImageLine } from "@oxy.so/bloom/icons/RiImageLine";
-import { RiFileTextLine } from "@oxy.so/bloom/icons/RiFileTextLine";
+import { RiAttachment2 } from "@oxy.so/bloom/icons/RiAttachment2";
 import { RiEarthLine } from "@oxy.so/bloom/icons/RiEarthLine";
 import { RiSearchLine } from "@oxy.so/bloom/icons/RiSearchLine";
 import { RiEyeOffLine } from "@oxy.so/bloom/icons/RiEyeOffLine";
@@ -151,38 +151,46 @@ export function useComposerAddMenu(options: ComposerAddMenuOptions): ComposerAdd
 
   const groups = useMemo<ComposerPanelAddMenuGroup[]>(() => {
     const built: ComposerPanelAddMenuGroup[] = [];
-    if (canAttach) {
-      built.push({
-        label: t("composer.addGroup"),
-        rows: [
-          { id: ROW.camera, label: t("composer.camera"), icon: RiCameraLine },
-          { id: ROW.photos, label: t("composer.photos"), icon: RiImageLine },
-          { id: ROW.files, label: t("composer.files"), icon: RiFileTextLine },
-        ],
-      });
-    }
+    // The template's two groups: "Add" (attachments, then rows with a
+    // description) and a second group of 24px rows with a description each.
     built.push(
       {
-        label: t("composer.capabilitiesGroup"),
+        label: t("composer.addGroup"),
         rows: [
+          ...(canAttach
+            ? [
+                { id: ROW.camera, label: t("composer.camera"), icon: RiCameraLine },
+                { id: ROW.photos, label: t("composer.photos"), icon: RiImageLine },
+                { id: ROW.files, label: t("composer.files"), icon: RiAttachment2 },
+              ]
+            : []),
           {
             id: ROW.webSearch,
             label: t("modes.searchLabel"),
+            description: t("composer.searchDescription"),
             icon: RiEarthLine,
             checked: webSearch,
           },
           {
             id: ROW.deepResearch,
             label: t("modes.deepResearchLabel"),
+            description: t("composer.deepResearchDescription"),
             icon: RiSearchLine,
             checked: modes.deepResearch,
           },
+        ],
+      },
+      {
+        label: t("composer.capabilitiesGroup"),
+        rows: [
           ...(offerGhost
             ? [
                 {
                   id: ROW.ghost,
                   label: t("modes.ghostLabel"),
+                  description: t("composer.ghostDescription"),
                   icon: RiEyeOffLine,
+                  iconSize: 24 as const,
                   checked: modes.ghost,
                 },
               ]
@@ -190,13 +198,20 @@ export function useComposerAddMenu(options: ComposerAddMenuOptions): ComposerAdd
           {
             id: ROW.agent,
             label: t("modes.agentLabel"),
+            description: t("composer.agentDescription"),
             icon: RiRobot2Line,
+            iconSize: 24 as const,
             checked: modes.agent,
           },
-          // Canvas OPENS a panel; it is not on or off. So it carries no
-          // `checked` at all — `false` would draw it as a switch nobody has
-          // turned on yet, and promise a state it does not have.
-          { id: ROW.canvas, label: t("composer.canvas"), icon: RiPencilLine },
+          // Canvas OPENS a panel; it is not on or off, so it carries no
+          // `checked` at all.
+          {
+            id: ROW.canvas,
+            label: t("composer.canvas"),
+            description: t("composer.canvasDescription"),
+            icon: RiPencilLine,
+            iconSize: 24 as const,
+          },
         ],
       },
     );

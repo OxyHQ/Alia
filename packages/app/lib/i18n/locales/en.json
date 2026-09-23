@@ -263,7 +263,8 @@
     "shows": "Shows",
     "freePlan": "Free Plan",
     "signIn": "Sign in",
-    "newConversation": "New conversation"
+    "newConversation": "New conversation",
+    "guest": "Guest"
   },
   "billing": {
     "title": "Billing",
@@ -1300,9 +1301,24 @@
     "capabilitiesGroup": "Capabilities",
     "appsGroup": "Apps",
     "canvas": "Canvas",
-    "connectorTools": "%{count} tools"
+    "connectorTools": "%{count} tools",
+    "searchDescription": "Look things up on the web",
+    "deepResearchDescription": "Go deep on a topic",
+    "ghostDescription": "Don't save this chat",
+    "agentDescription": "Work through longer tasks",
+    "canvasDescription": "Write and edit files"
   },
   "panel": {
-    "resize": "Resize panel"
+    "resize": "Resize panel",
+    "code": "Canvas",
+    "gallery": "Gallery",
+    "credits": "Credits",
+    "agent": "Agent",
+    "new": "New",
+    "emptyCanvas": "// Files Alia writes in this chat appear here.",
+    "files": {
+      "one": "1 file",
+      "other": "{{count}} files"
+    }
   }
 }

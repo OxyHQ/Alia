@@ -237,7 +237,8 @@
     "shows": "Shows",
     "freePlan": "Plan gratuito",
     "signIn": "Iniciar sesión",
-    "newConversation": "Nueva conversación"
+    "newConversation": "Nueva conversación",
+    "guest": "Invitado"
   },
   "billing": {
     "title": "Facturación",
@@ -1264,9 +1265,24 @@
     "capabilitiesGroup": "Capacidades",
     "appsGroup": "Apps",
     "canvas": "Lienzo",
-    "connectorTools": "%{count} herramientas"
+    "connectorTools": "%{count} herramientas",
+    "searchDescription": "Buscar en la web",
+    "deepResearchDescription": "A fondo en un tema",
+    "ghostDescription": "No guardar este chat",
+    "agentDescription": "Trabajar en tareas largas",
+    "canvasDescription": "Escribir y editar archivos"
   },
   "panel": {
-    "resize": "Redimensionar el panel"
+    "resize": "Redimensionar el panel",
+    "code": "Canvas",
+    "gallery": "Galería",
+    "credits": "Créditos",
+    "agent": "Agente",
+    "new": "Nuevo",
+    "emptyCanvas": "// Los archivos que Alia escriba en este chat aparecerán aquí.",
+    "files": {
+      "one": "1 archivo",
+      "other": "{{count}} archivos"
+    }
   }
 }
