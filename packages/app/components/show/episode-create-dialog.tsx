@@ -17,9 +17,14 @@
 
 import { useShowStore } from '@/lib/stores/show-store';
 import { Dialog } from '@oxy.so/bloom/dialog';
-import { TextFieldInput as Input } from '@oxy.so/bloom/text-field';
+import {
+  TextFieldHint,
+  TextFieldInput,
+  TextFieldLabel,
+} from '@oxy.so/bloom/text-field';
+import { Textarea } from '@oxy.so/bloom/textarea';
 import { toast } from '@oxy.so/bloom/toast';
-import { Text } from '@oxy.so/bloom/typography';
+import { Muted } from '@oxy.so/bloom/typography';
 import { useCallback, useState } from 'react';
 import { ScrollView, View } from 'react-native';
 
@@ -112,58 +117,48 @@ export function EpisodeCreateDialog({
         },
       ]}
     >
-      <ScrollView className="max-h-96" showsVerticalScrollIndicator={false}>
-        <View className="gap-4 py-2">
-          <View className="gap-1.5">
-            <Text className="text-sm font-medium text-foreground">
-              Anything specific this time?
-            </Text>
-            <Input
-              label="Leave blank and the show picks something it has not covered."
-              value={topic}
-              onChangeText={setTopic}
-              placeholder="Leave blank and the show picks something it has not covered."
-              multiline
-              numberOfLines={3}
-              className="min-h-[80px]"
-            />
-          </View>
+      {/*
+        Stacking only: the form's fields, in a scroller capped at 384. The topic
+        and notes stay form fields rather than the chat composer — they are
+        optional overrides submitted together by the dialog's "Record it"
+        action, and the composer would add a second send button.
+      */}
+      <ScrollView style={{ maxHeight: 384 }} showsVerticalScrollIndicator={false}>
+        <View style={{ gap: 16, paddingVertical: 8 }}>
+          <Textarea
+            label="Anything specific this time?"
+            value={topic}
+            onChangeText={setTopic}
+            placeholder="Leave blank and the show picks something it has not covered."
+            rows={3}
+          />
 
-          <View className="gap-1.5">
-            <Text className="text-sm font-medium text-foreground">
-              Source material (optional)
-            </Text>
-            <Input
-              label="Paste articles, notes or talking points to work from..."
-              value={notes}
-              onChangeText={setNotes}
-              placeholder="Paste articles, notes or talking points to work from..."
-              multiline
-              numberOfLines={4}
-              className="min-h-[100px]"
-            />
-          </View>
+          <Textarea
+            label="Source material (optional)"
+            value={notes}
+            onChangeText={setNotes}
+            placeholder="Paste articles, notes or talking points to work from..."
+            rows={4}
+          />
 
-          <View className="gap-1.5">
-            <Text className="text-sm font-medium text-foreground">
-              Name (optional)
-            </Text>
-            <Input
-              label="Leave blank and it is named once it is written"
+          <View>
+            <TextFieldLabel>Name (optional)</TextFieldLabel>
+            <TextFieldInput
+              label="Name (optional)"
               value={title}
               onChangeText={setTitle}
               placeholder="Leave blank and it is named once it is written"
             />
-            <Text className="text-xs text-muted-foreground">
+            <TextFieldHint>
               This is the name listeners see. Left blank, the script names the
               episode after what it turned out to say.
-            </Text>
+            </TextFieldHint>
           </View>
 
-          <Text className="text-xs text-muted-foreground">
+          <Muted>
             Either way the script knows what every earlier episode covered, so
             it will not repeat one.
-          </Text>
+          </Muted>
         </View>
       </ScrollView>
     </Dialog>

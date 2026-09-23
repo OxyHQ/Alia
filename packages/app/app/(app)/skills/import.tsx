@@ -1,13 +1,14 @@
 import { useImportSkill } from '@/lib/hooks/use-skills';
 import { useTranslation } from '@/lib/hooks/use-translation';
 import { Button } from '@oxy.so/bloom/button';
-import { TextFieldInput as Input } from '@oxy.so/bloom/text-field';
+import { RiArrowLeftLine } from '@oxy.so/bloom/icons/RiArrowLeftLine';
+import { RiDownloadLine } from '@oxy.so/bloom/icons/RiDownloadLine';
+import { TextFieldInput } from '@oxy.so/bloom/text-field';
 import { toast } from '@oxy.so/bloom/toast';
-import { Text } from '@oxy.so/bloom/typography';
+import { Muted, Text } from '@oxy.so/bloom/typography';
 import { useRouter } from 'expo-router';
-import { ArrowLeft, Download } from 'lucide-react-native';
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
+import { ScrollView, View } from 'react-native';
 
 /**
  * Importing a skill from a public repository.
@@ -17,6 +18,19 @@ import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
  * import is pinned to the commit it resolved, which is what stops an installed
  * skill from changing under the person using it.
  */
+
+/** Stacking only: the column the page reads in. */
+const CONTENT = {
+  width: '100%',
+  maxWidth: 768,
+  alignSelf: 'center',
+  paddingHorizontal: 16,
+  paddingTop: 16,
+  paddingBottom: 48,
+  gap: 16,
+} as const;
+/** Stacking only: a row of actions. */
+const ACTIONS = { flexDirection: 'row', alignItems: 'center', gap: 8 } as const;
 
 export default function ImportSkillScreen() {
   const router = useRouter();
@@ -44,56 +58,48 @@ export default function ImportSkillScreen() {
   };
 
   return (
-    <View className="flex-1 bg-background">
-      <View className="flex-row items-center px-4 pt-4">
-        <Pressable
+    <ScrollView
+      showsVerticalScrollIndicator={false}
+      keyboardShouldPersistTaps="handled"
+      contentContainerStyle={CONTENT}
+    >
+      <View style={ACTIONS}>
+        <Button
+          tone="neutral"
+          appearance="plain"
+          size="sm"
+          icon={RiArrowLeftLine}
+          accessibilityLabel={t('common.back')}
           onPress={() => router.back()}
-          className="h-9 w-9 items-center justify-center rounded-full active:bg-muted"
-        >
-          <ArrowLeft size={18} className="text-foreground" />
-        </Pressable>
+        />
       </View>
 
-      <ScrollView className="flex-1 px-5" showsVerticalScrollIndicator={false}>
-        <Text className="text-2xl font-bold text-foreground mt-2">
-          {t('skills.importTitle')}
-        </Text>
-        <Text className="text-[13px] text-muted-foreground mt-1">
-          {t('skills.importSubtitle')}
-        </Text>
+      <Text variant="title-2-semibold">{t('skills.importTitle')}</Text>
+      <Muted>{t('skills.importSubtitle')}</Muted>
 
-        <Input
-          label={t('skills.importPlaceholder')}
-          value={source}
-          onChangeText={setSource}
-          placeholder={t('skills.importPlaceholder')}
-          autoCapitalize="none"
-          autoCorrect={false}
-          className="mt-5"
-          editable={!importSkill.isPending}
-        />
+      <TextFieldInput
+        label={t('skills.importPlaceholder')}
+        value={source}
+        onChangeText={setSource}
+        placeholder={t('skills.importPlaceholder')}
+        autoCapitalize="none"
+        autoCorrect={false}
+        editable={!importSkill.isPending}
+      />
 
+      <View style={ACTIONS}>
         <Button
-          className="mt-4 rounded-full"
+          tone="action"
+          leadingIcon={RiDownloadLine}
+          loading={importSkill.isPending}
           disabled={importSkill.isPending || !source.trim()}
-          onPress={handleImport}
+          onPress={() => void handleImport()}
         >
-          {importSkill.isPending ? (
-            <ActivityIndicator size="small" />
-          ) : (
-            <>
-              <Download size={14} className="text-primary-foreground" />
-              <Text className="ml-1.5">{t('skills.import')}</Text>
-            </>
-          )}
+          {t('skills.import')}
         </Button>
+      </View>
 
-        {importSkill.isPending ? (
-          <Text className="text-[12px] text-muted-foreground mt-2 text-center">
-            {t('skills.importing')}
-          </Text>
-        ) : null}
-      </ScrollView>
-    </View>
+      {importSkill.isPending ? <Muted>{t('skills.importing')}</Muted> : null}
+    </ScrollView>
   );
 }

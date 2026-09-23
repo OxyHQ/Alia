@@ -1,14 +1,14 @@
+import { Composer } from '@/components/chat/composer/composer';
 import { useCreateSkill, useGenerateSkillDraft } from '@/lib/hooks/use-skills';
 import { useTranslation } from '@/lib/hooks/use-translation';
 import { useI18nStore } from '@/lib/stores/i18n-store';
 import { Button } from '@oxy.so/bloom/button';
-import { Textarea } from '@oxy.so/bloom/textarea';
+import { RiArrowLeftLine } from '@oxy.so/bloom/icons/RiArrowLeftLine';
 import { toast } from '@oxy.so/bloom/toast';
-import { Text } from '@oxy.so/bloom/typography';
+import { Muted, Text } from '@oxy.so/bloom/typography';
 import { useRouter } from 'expo-router';
-import { ArrowLeft, Sparkles } from 'lucide-react-native';
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
+import { ScrollView, View } from 'react-native';
 /**
  * Writing a skill, starting from a sentence.
  *
@@ -17,6 +17,19 @@ import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
  * invent a dozen fields the format has no place for, which is what the previous
  * version of this screen produced: thirteen values, of which one was ever read.
  */
+
+/** Stacking only: the column the page reads in. */
+const CONTENT = {
+  width: '100%',
+  maxWidth: 768,
+  alignSelf: 'center',
+  paddingHorizontal: 16,
+  paddingTop: 16,
+  paddingBottom: 48,
+  gap: 16,
+} as const;
+/** Stacking only: the top row of actions. */
+const ACTIONS = { flexDirection: 'row', alignItems: 'center', gap: 8 } as const;
 
 export default function CreateSkillScreen() {
   const router = useRouter();
@@ -42,40 +55,37 @@ export default function CreateSkillScreen() {
   };
 
   return (
-    <View className="flex-1 bg-background">
-      <View className="flex-row items-center px-4 pt-4">
-        <Pressable onPress={() => router.back()} className="h-9 w-9 items-center justify-center rounded-full active:bg-muted">
-          <ArrowLeft size={18} className="text-foreground" />
-        </Pressable>
+    <ScrollView
+      showsVerticalScrollIndicator={false}
+      keyboardShouldPersistTaps="handled"
+      contentContainerStyle={CONTENT}
+    >
+      <View style={ACTIONS}>
+        <Button
+          tone="neutral"
+          appearance="plain"
+          size="sm"
+          icon={RiArrowLeftLine}
+          accessibilityLabel={t('common.back')}
+          onPress={() => router.back()}
+        />
       </View>
 
-      <ScrollView className="flex-1 px-5" showsVerticalScrollIndicator={false}>
-        <Text className="text-2xl font-bold text-foreground mt-2">{t('skills.createTitle')}</Text>
-        <Text className="text-[13px] text-muted-foreground mt-1">{t('skills.createSubtitle')}</Text>
+      <Text variant="title-2-semibold">{t('skills.createTitle')}</Text>
+      <Muted>{t('skills.createSubtitle')}</Muted>
 
-        <Textarea
-          value={prompt}
-          onChangeText={setPrompt}
-          placeholder={t('skills.createPlaceholder')}
-          style={{ marginTop: 20 }}
-          autoResize
-          rows={7}
-          editable={!busy}
-        />
+      {/* The chat's own composer: describing a skill is the same gesture as
+          asking Alia anything. The ten-character floor stays in the handler. */}
+      <Composer
+        value={prompt}
+        onValueChange={setPrompt}
+        onSubmit={() => void handleCreate()}
+        busy={busy}
+        disabled={busy}
+        placeholder={t('skills.createPlaceholder')}
+      />
 
-        <Button className="mt-4 rounded-full" disabled={busy || prompt.trim().length < 10} onPress={handleCreate}>
-          {busy ? (
-            <ActivityIndicator size="small" />
-          ) : (
-            <>
-              <Sparkles size={14} className="text-primary-foreground" />
-              <Text className="ml-1.5">{t('skills.generate')}</Text>
-            </>
-          )}
-        </Button>
-
-        {busy ? <Text className="text-[12px] text-muted-foreground mt-2 text-center">{t('skills.generating')}</Text> : null}
-      </ScrollView>
-    </View>
+      {busy ? <Muted>{t('skills.generating')}</Muted> : null}
+    </ScrollView>
   );
 }

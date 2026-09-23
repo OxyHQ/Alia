@@ -1,6 +1,5 @@
 import { AutomationCard } from '@/components/automations/automation-card';
 import { TaskCard } from '@/components/tasks/task-card';
-import { DrawerToggle } from '@/components/ui/drawer-toggle';
 import type { AutomationDefinition } from '@/lib/automations/types';
 import {
   unifiedWorkItems,
@@ -23,20 +22,30 @@ import {
   type TaskSession,
 } from '@/lib/hooks/use-tasks';
 import { useTranslation } from '@/lib/hooks/use-translation';
-import { useColorScheme } from '@/lib/useColorScheme';
-import { Button } from '@oxy.so/bloom/button';
-import { ContentPanel } from '@oxy.so/bloom/content-panel';
-import { toast } from '@oxy.so/bloom/toast';
-import { Text } from '@oxy.so/bloom/typography';
-import { useRouter } from 'expo-router';
-import { Inbox, ListTodo } from 'lucide-react-native';
-import { useCallback, useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
-  FlatList,
-  RefreshControl,
-  View,
-} from 'react-native';
+  AdmonitionButton,
+  AdmonitionContent,
+  AdmonitionIcon,
+  AdmonitionRoot,
+  AdmonitionRow,
+  AdmonitionText,
+} from '@oxy.so/bloom/admonition';
+import { Badge } from '@oxy.so/bloom/badge';
+import { Button } from '@oxy.so/bloom/button';
+import { Chip, ChipRow } from '@oxy.so/bloom/chip';
+import { Divider } from '@oxy.so/bloom/divider';
+import { EmptyState } from '@oxy.so/bloom/empty-state';
+import { RiInbox2Line } from '@oxy.so/bloom/icons/RiInbox2Line';
+import { Loading } from '@oxy.so/bloom/loading';
+import {
+  SegmentedControl,
+  SegmentedControlItem,
+  SegmentedControlItemText,
+} from '@oxy.so/bloom/segmented-control';
+import { toast } from '@oxy.so/bloom/toast';
+import { useRouter } from 'expo-router';
+import { useCallback, useMemo, useState } from 'react';
+import { FlatList, RefreshControl, View } from 'react-native';
 
 /**
  * The one place work is seen and managed (#537).
@@ -65,7 +74,7 @@ function ActiveTaskCard({
 }
 
 function TaskSeparator() {
-  return <View className="h-px bg-border my-6" />;
+  return <Divider />;
 }
 
 const TYPE_FILTERS: ReadonlyArray<{ value: WorkTypeFilter; key: string }> = [
@@ -75,7 +84,6 @@ const TYPE_FILTERS: ReadonlyArray<{ value: WorkTypeFilter; key: string }> = [
 ];
 
 export default function TasksPage() {
-  const { colors } = useColorScheme();
   const { t } = useTranslation();
   const router = useRouter();
   const [tab, setTab] = useState<WorkTab>('active');
@@ -300,127 +308,129 @@ export default function TasksPage() {
   );
 
   const ListEmpty = isLoading ? (
-    <View className="items-center justify-center py-16">
-      <ActivityIndicator size="small" color={colors.mutedForeground} />
-    </View>
+    <Loading variant="spinner" size="sm" style={{ paddingVertical: 48 }} />
   ) : isError && items.length === 0 ? null : (
-    <View className="items-center justify-center py-16 gap-3">
-      <Inbox size={40} color={colors.mutedForeground} />
-      <Text className="text-sm text-muted-foreground text-center px-8">
-        {tab === 'active' ? t('tasks.emptyActive') : t('tasks.emptyHistory')}
-      </Text>
-      {tab === 'active' && (
-        <Text className="text-xs text-muted-foreground text-center px-8">
-          {t('tasks.emptyActiveHint')}
-        </Text>
-      )}
-    </View>
+    <EmptyState
+      icon={RiInbox2Line}
+      title={
+        tab === 'active' ? t('tasks.emptyActive') : t('tasks.emptyHistory')
+      }
+      description={tab === 'active' ? t('tasks.emptyActiveHint') : undefined}
+    />
   );
 
-  const ListHeader = isError ? (
-    <View className="mb-6 rounded-2xl border border-border bg-surface p-4 gap-3 items-start">
-      <Text className="text-sm text-muted-foreground" selectable>
-        {t('tasks.loadError')}
-      </Text>
-      <Button variant="secondary" size="sm" onPress={() => void onRefresh()}>
-        {t('tasks.retry')}
-      </Button>
+  const ListHeader = (
+    // Stacking only: the view switch, the type filter and the error block.
+    <View style={{ gap: 12, paddingBottom: 4 }}>
+      <View
+        style={{
+          flexDirection: 'row',
+          flexWrap: 'wrap',
+          alignItems: 'center',
+          gap: 12,
+        }}
+      >
+        <SegmentedControl
+          label={t('pages.tasks.view')}
+          type="tabs"
+          value={tab}
+          onValueChange={setTab}
+        >
+          <SegmentedControlItem value="active">
+            <SegmentedControlItemText>
+              {t('tasks.active')}
+            </SegmentedControlItemText>
+          </SegmentedControlItem>
+          <SegmentedControlItem value="history">
+            <SegmentedControlItemText>
+              {t('tasks.history')}
+            </SegmentedControlItemText>
+          </SegmentedControlItem>
+        </SegmentedControl>
+        {/* The badge counts the unified active list, whichever tab is shown. */}
+        {activeCount > 0 ? (
+          <Badge
+            size="label-small"
+            variant="solid"
+            color="primary"
+            content={t('tasks.activeCount', { count: activeCount })}
+          />
+        ) : null}
+
+        {/* Type filter: narrows the unified list, never replaces it. */}
+        <ChipRow
+          role="radiogroup"
+          accessibilityLabel={t('pages.tasks.typeFilter')}
+        >
+          {TYPE_FILTERS.map((filter) => (
+            <Chip
+              key={filter.value}
+              size="xl"
+              role="radio"
+              accessibilityLabel={t(filter.key)}
+              selected={typeFilter === filter.value}
+              onPress={() => setTypeFilter(filter.value)}
+            >
+              {t(filter.key)}
+            </Chip>
+          ))}
+        </ChipRow>
+      </View>
+
+      {isError ? (
+        <AdmonitionRoot type="error">
+          <AdmonitionRow>
+            <AdmonitionIcon />
+            <AdmonitionContent>
+              <AdmonitionText>{t('tasks.loadError')}</AdmonitionText>
+              <AdmonitionButton
+                tone="neutral"
+                appearance="subtle"
+                onPress={() => void onRefresh()}
+              >
+                {t('tasks.retry')}
+              </AdmonitionButton>
+            </AdmonitionContent>
+          </AdmonitionRow>
+        </AdmonitionRoot>
+      ) : null}
     </View>
-  ) : null;
+  );
 
   const ListFooter =
     tab === 'history' &&
     taskHistory.data &&
     taskHistory.data.total > historyPage * 20 ? (
-      <View className="items-center py-6">
-        <Button
-          variant="ghost"
-          size="sm"
-          onPress={() => setHistoryPage((p) => p + 1)}
-        >
-          {t('tasks.loadMore')}
-        </Button>
-      </View>
+      <Button
+        tone="neutral"
+        appearance="subtle"
+        size="sm"
+        style={{ alignSelf: 'center', marginTop: 12 }}
+        onPress={() => setHistoryPage((p) => p + 1)}
+      >
+        {t('tasks.loadMore')}
+      </Button>
     ) : null;
 
   return (
-    <ContentPanel surfaceClassName="bg-background">
-      <View className="flex-1 bg-background">
-        {/* Header */}
-        <View className="px-5 pt-4 pb-2 border-b border-border">
-          <View className="flex-row items-center gap-2 mb-3">
-            <DrawerToggle className="-ml-2" />
-            <ListTodo size={20} color={colors.foreground} />
-            <Text className="text-lg font-semibold text-foreground">
-              {t('tasks.title')}
-            </Text>
-            {activeCount > 0 && (
-              <View className="bg-primary rounded-full px-2 py-0.5 ml-1">
-                <Text className="text-[10px] font-medium text-primary-foreground">
-                  {t('tasks.activeCount', { count: activeCount })}
-                </Text>
-              </View>
-            )}
-          </View>
-
-          {/* Tabs */}
-          <View className="flex-row flex-wrap items-center gap-2">
-            <Button
-              variant={tab === 'active' ? 'primary' : 'secondary'}
-              size="sm"
-              className="rounded-full"
-              accessibilityRole="button"
-              pressed={tab === 'active'}
-              onPress={() => setTab('active')}
-            >
-              {t('tasks.active')}
-            </Button>
-            <Button
-              variant={tab === 'history' ? 'primary' : 'secondary'}
-              size="sm"
-              className="rounded-full"
-              accessibilityRole="button"
-              pressed={tab === 'history'}
-              onPress={() => setTab('history')}
-            >
-              {t('tasks.history')}
-            </Button>
-
-            {/* Type filter: narrows the unified list, never replaces it. */}
-            <View className="flex-row items-center gap-1 ml-auto">
-              {TYPE_FILTERS.map((filter) => (
-                <Button
-                  key={filter.value}
-                  variant="ghost"
-                  size="sm"
-                  className={`rounded-full ${typeFilter === filter.value ? 'bg-muted' : ''}`}
-                  accessibilityRole="button"
-                  accessibilityLabel={t(filter.key)}
-                  pressed={typeFilter === filter.value}
-                  onPress={() => setTypeFilter(filter.value)}
-                >
-                  {t(filter.key)}
-                </Button>
-              ))}
-            </View>
-          </View>
-        </View>
-
-        {/* Unified work list */}
-        <FlatList
-          data={items}
-          keyExtractor={keyExtractor}
-          renderItem={renderItem}
-          ItemSeparatorComponent={TaskSeparator}
-          contentContainerStyle={{ paddingHorizontal: 20, paddingVertical: 24 }}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-          }
-          ListHeaderComponent={ListHeader}
-          ListEmptyComponent={ListEmpty}
-          ListFooterComponent={ListFooter}
-        />
-      </View>
-    </ContentPanel>
+    <FlatList
+      style={{ flex: 1 }}
+      data={items}
+      keyExtractor={keyExtractor}
+      renderItem={renderItem}
+      ItemSeparatorComponent={TaskSeparator}
+      contentContainerStyle={{
+        paddingHorizontal: 16,
+        paddingTop: 16,
+        paddingBottom: 24,
+        gap: 12,
+      }}
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+      }
+      ListHeaderComponent={ListHeader}
+      ListEmptyComponent={ListEmpty}
+      ListFooterComponent={ListFooter}
+    />
   );
 }

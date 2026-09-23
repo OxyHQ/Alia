@@ -1,7 +1,8 @@
 import { agentTint } from '@/lib/agents/agent-color';
 import { useColorScheme } from '@/lib/useColorScheme';
 import { IdentityMark } from '@alia.onl/sdk';
-import { Text } from '@oxy.so/bloom/typography';
+import { Badge } from '@oxy.so/bloom/badge';
+import { Muted, Text } from '@oxy.so/bloom/typography';
 import React from 'react';
 import { View } from 'react-native';
 /**
@@ -24,6 +25,9 @@ interface AgentMarkRowProps {
 
 const MAX_VISIBLE = 3;
 
+/** Stacking only: marks and their label in one row. */
+const ROW = { flexDirection: 'row', alignItems: 'center', gap: 8 } as const;
+
 export const AgentMarkRow = React.memo(function AgentMarkRow({
   agents,
   size = 28,
@@ -38,13 +42,13 @@ export const AgentMarkRow = React.memo(function AgentMarkRow({
   if (agents.length === 1) {
     const agent = agents[0];
     return (
-      <View className="flex-row items-center gap-2">
+      <View style={ROW}>
         <IdentityMark
           size={size}
           color={agentTint(agent.color, colors)}
           accessibilityLabel={agent.name}
         />
-        <Text className="text-sm font-medium text-foreground" numberOfLines={1}>
+        <Text variant="body-medium" numberOfLines={1}>
           {agent.name}
         </Text>
       </View>
@@ -52,11 +56,11 @@ export const AgentMarkRow = React.memo(function AgentMarkRow({
   }
 
   return (
-    <View className="flex-row items-center gap-1">
+    <View style={ROW}>
       {/* Spaced, not overlapped. The avatar-stack idiom leans on each face being
           an opaque disc that hides the edge of the one behind it; a mark is the
           bare flower, so a negative margin just tangles two of them into a shape
-          that is neither. The ring those discs needed goes with it. */}
+          that is neither. */}
       {visible.map((agent) => (
         <IdentityMark
           key={agent._id}
@@ -65,20 +69,10 @@ export const AgentMarkRow = React.memo(function AgentMarkRow({
           accessibilityLabel={agent.name}
         />
       ))}
-      {/* The counter is a chip rather than a face, so it keeps its own disc. */}
       {overflow > 0 && (
-        <View
-          style={{ width: size, height: size }}
-          className="rounded-full bg-muted items-center justify-center"
-        >
-          <Text className="text-[10px] font-medium text-muted-foreground">
-            +{overflow}
-          </Text>
-        </View>
+        <Badge size="large" variant="subtle" content={`+${overflow}`} />
       )}
-      <Text className="text-xs text-muted-foreground ml-2">
-        {agents.length} agents
-      </Text>
+      <Muted>{agents.length} agents</Muted>
     </View>
   );
 });

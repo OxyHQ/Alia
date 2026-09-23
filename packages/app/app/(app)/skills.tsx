@@ -1,4 +1,3 @@
-import { DrawerToggle } from '@/components/ui/drawer-toggle';
 import { SkillCover } from '@/components/ui/skill-cover';
 import {
   useInstallSkill,
@@ -9,13 +8,15 @@ import {
 } from '@/lib/hooks/use-skills';
 import { useTranslation } from '@/lib/hooks/use-translation';
 import { Button } from '@oxy.so/bloom/button';
-import { ContentPanel } from '@oxy.so/bloom/content-panel';
+import { EmptyState } from '@oxy.so/bloom/empty-state';
+import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
+import { RiCheckLine } from '@oxy.so/bloom/icons/RiCheckLine';
+import { RiDownloadLine } from '@oxy.so/bloom/icons/RiDownloadLine';
+import { Search } from '@oxy.so/bloom/search';
 import * as Skeleton from '@oxy.so/bloom/skeleton';
-import { TextFieldInput as Input } from '@oxy.so/bloom/text-field';
-import { Text } from '@oxy.so/bloom/typography';
+import { Muted, Text } from '@oxy.so/bloom/typography';
 import { FlashList } from '@shopify/flash-list';
 import { useRouter } from 'expo-router';
-import { Check, Download, Plus, Search } from 'lucide-react-native';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
 
@@ -42,6 +43,19 @@ const SHELF_HEIGHT = BOOK_WIDTH * 1.5 + 6 + 28;
 const SHELF_DRAW_DISTANCE = (BOOK_WIDTH + BOOK_GAP) * 2;
 /** Typing pauses this long before a keystroke becomes a request. */
 const SEARCH_DEBOUNCE_MS = 250;
+
+/** Stacking only: the page's side gutter, shared by the header and the shelves. */
+const GUTTER = { paddingHorizontal: 16 } as const;
+/** Stacking only: the header block above the shelves. */
+const HEADER = { ...GUTTER, paddingTop: 16, gap: 12 } as const;
+/** Stacking only: the header's action row. */
+const ACTIONS = { flexDirection: 'row', justifyContent: 'flex-end', gap: 8 } as const;
+/** Stacking only: one shelf, its title above its books. */
+const SECTION = { gap: 8 } as const;
+/** Stacking only: the shelves, one under the other. */
+const SHELVES = { paddingTop: 20, paddingBottom: 32, gap: 20 } as const;
+/** Stacking only: a book, its cover over its install button. */
+const BOOK = { width: BOOK_WIDTH, marginRight: BOOK_GAP, gap: 6, alignItems: 'center' } as const;
 
 /**
  * The server's `query` filter, applied locally to the installed shelf: an
@@ -70,9 +84,17 @@ function SkillBook({
   onPress: () => void;
   onInstall: () => void;
 }) {
+  const { t } = useTranslation();
   return (
-    <View style={{ width: BOOK_WIDTH, marginRight: BOOK_GAP }}>
-      <Pressable onPress={onPress} className="active:opacity-80">
+    <View style={BOOK}>
+      {/* The cover is the skill's own artwork, not a control, so the press
+          around it is a bare `Pressable`: Bloom's `PressableScale` animates
+          through reanimated, which the shelf must not load (#545). */}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={skill.displayName}
+        onPress={onPress}
+      >
         <SkillCover
           seed={skill.name}
           width={BOOK_WIDTH}
@@ -83,18 +105,18 @@ function SkillBook({
         />
       </Pressable>
       <Button
-        size="sm"
-        variant={installed ? 'secondary' : 'outline'}
-        className="mt-1.5 h-7 rounded-full"
+        size="xs"
+        tone="neutral"
+        appearance={installed ? 'plain' : 'subtle'}
+        icon={installed ? RiCheckLine : RiDownloadLine}
+        accessibilityLabel={
+          installed
+            ? t('pages.skills.installedSkill', { name: skill.displayName })
+            : t('pages.skills.installSkill', { name: skill.displayName })
+        }
         disabled={installed}
         onPress={onInstall}
-      >
-        {installed ? (
-          <Check size={12} className="text-muted-foreground" />
-        ) : (
-          <Download size={12} className="text-foreground" />
-        )}
-      </Button>
+      />
     </View>
   );
 }
@@ -129,30 +151,26 @@ function Shelf({
 
   if (skills.length === 0) return null;
   return (
-    <ContentPanel surfaceClassName="bg-background">
-      <View className="mb-5">
-        <View className="px-5 mb-2">
-          <Text className="text-[11px] font-semibold text-muted-foreground tracking-wider uppercase">
-            {title}
-          </Text>
-        </View>
-        {/* A horizontal list needs its height from outside; the books are all one size. */}
-        <View style={{ height: SHELF_HEIGHT }}>
-          <FlashList
-            horizontal
-            data={skills}
-            keyExtractor={(skill) => skill._id}
-            renderItem={renderItem}
-            extraData={installedIds}
-            drawDistance={SHELF_DRAW_DISTANCE}
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ paddingHorizontal: 20 }}
-            onEndReached={onEndReached}
-            onEndReachedThreshold={0.5}
-          />
-        </View>
+    <View style={SECTION}>
+      <Text variant="headline-semibold" style={GUTTER}>
+        {title}
+      </Text>
+      {/* A horizontal list needs its height from outside; the books are all one size. */}
+      <View style={{ height: SHELF_HEIGHT }}>
+        <FlashList
+          horizontal
+          data={skills}
+          keyExtractor={(skill) => skill._id}
+          renderItem={renderItem}
+          extraData={installedIds}
+          drawDistance={SHELF_DRAW_DISTANCE}
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={GUTTER}
+          onEndReached={onEndReached}
+          onEndReachedThreshold={0.5}
+        />
       </View>
-    </ContentPanel>
+    </View>
   );
 }
 
@@ -231,165 +249,136 @@ export default function SkillsScreen() {
   const nothingToShow = skills.length === 0 && installedShelf.length === 0;
 
   return (
-    <View className="flex-1 bg-background">
-      <ScrollView
-        className="flex-1"
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl
-            refreshing={
-              catalogue.isFetching &&
-              !catalogue.isLoading &&
-              !catalogue.isFetchingNextPage
-            }
-            onRefresh={() => {
-              void catalogue.refetch();
-              void installed.refetch();
-            }}
-          />
-        }
-      >
-        <View className="px-5 pt-6 pb-4">
-          <View className="flex-row items-center justify-between">
-            {/* The drawer opener sits first, as on every top-level page (#532). */}
-            <View className="flex-row items-center gap-2">
-              <DrawerToggle />
-              <Text className="text-2xl font-bold text-foreground">
-                {t('skills.title')}
-              </Text>
-            </View>
-            <View className="flex-row gap-2">
-              <Button
-                size="icon"
-                variant="secondary"
-                className="rounded-full h-8 w-8"
-                onPress={() => router.push('/(app)/skills/import')}
-                icon={
-                  <>
-                    <Download size={16} className="text-foreground" />
-                  </>
-                }
-              />
-              <Button
-                size="icon"
-                className="rounded-full h-8 w-8"
-                onPress={() => router.push('/(app)/skills/create')}
-                icon={
-                  <>
-                    <Plus size={16} className="text-primary-foreground" />
-                  </>
-                }
-              />
-            </View>
-          </View>
-          <Text className="text-[13px] text-muted-foreground mt-0.5">
-            {t('skills.subtitle')}
-          </Text>
-
-          <View className="mt-3 flex-row items-center gap-2 rounded-full border border-border px-3">
-            <Search size={14} className="text-muted-foreground" />
-            <Input
-              label={t('skills.searchPlaceholder')}
-              value={search}
-              onChangeText={setSearch}
-              placeholder={t('skills.searchPlaceholder')}
-              className="flex-1 border-0 bg-transparent px-0"
-            />
-          </View>
+    <ScrollView
+      showsVerticalScrollIndicator={false}
+      keyboardShouldPersistTaps="handled"
+      refreshControl={
+        <RefreshControl
+          refreshing={
+            catalogue.isFetching &&
+            !catalogue.isLoading &&
+            !catalogue.isFetchingNextPage
+          }
+          onRefresh={() => {
+            void catalogue.refetch();
+            void installed.refetch();
+          }}
+        />
+      }
+    >
+      <View style={HEADER}>
+        <View style={ACTIONS}>
+          <Button
+            tone="neutral"
+            appearance="subtle"
+            size="sm"
+            leadingIcon={RiDownloadLine}
+            onPress={() => router.push('/(app)/skills/import')}
+          >
+            {t('skills.import')}
+          </Button>
+          <Button
+            tone="action"
+            size="sm"
+            leadingIcon={RiAddLine}
+            onPress={() => router.push('/(app)/skills/create')}
+          >
+            {t('common.create')}
+          </Button>
         </View>
+        <Muted>{t('skills.subtitle')}</Muted>
+        <Search
+          label={t('skills.searchPlaceholder')}
+          value={search}
+          onChangeText={setSearch}
+          onClearText={() => setSearch('')}
+        />
+      </View>
 
-        {catalogue.isLoading ? (
-          <View className="mb-5">
-            <View className="px-5 mb-2">
-              <Skeleton.Box width={80} height={10} borderRadius={6} />
-            </View>
+      {catalogue.isLoading ? (
+        <View style={SHELVES}>
+          <View style={SECTION}>
+            <Skeleton.Text style={{ width: 120, marginHorizontal: 16 }} />
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
-              contentContainerStyle={{ paddingHorizontal: 20, gap: 10 }}
+              contentContainerStyle={[GUTTER, { gap: BOOK_GAP }]}
             >
               {Array.from({ length: 4 }).map((_, index) => (
                 <Skeleton.Box
                   key={index}
                   width={BOOK_WIDTH}
                   height={BOOK_WIDTH * 1.5}
-                  borderRadius={8}
                 />
               ))}
             </ScrollView>
           </View>
-        ) : (
-          <>
-            <Shelf
-              title={t('skills.installed')}
-              skills={installedShelf}
-              installedIds={installedIds}
-              onPressSkill={openSkill}
-              onInstall={installSkill}
-            />
-            <Shelf
-              title={t('skills.official')}
-              skills={official}
-              installedIds={installedIds}
-              onPressSkill={openSkill}
-              onInstall={installSkill}
-              onEndReached={loadMore}
-            />
-            <Shelf
-              title={t('skills.community')}
-              skills={community}
-              installedIds={installedIds}
-              onPressSkill={openSkill}
-              onInstall={installSkill}
-              onEndReached={loadMore}
-            />
+        </View>
+      ) : (
+        <View style={SHELVES}>
+          <Shelf
+            title={t('skills.installed')}
+            skills={installedShelf}
+            installedIds={installedIds}
+            onPressSkill={openSkill}
+            onInstall={installSkill}
+          />
+          <Shelf
+            title={t('skills.official')}
+            skills={official}
+            installedIds={installedIds}
+            onPressSkill={openSkill}
+            onInstall={installSkill}
+            onEndReached={loadMore}
+          />
+          <Shelf
+            title={t('skills.community')}
+            skills={community}
+            installedIds={installedIds}
+            onPressSkill={openSkill}
+            onInstall={installSkill}
+            onEndReached={loadMore}
+          />
 
-            {/* A failed request is said out loud, with the way back. A blank
-                catalogue after a search that errored reads as "no results". */}
-            {catalogue.isError ? (
-              <View className="px-5 py-6 items-center gap-3">
-                <Text className="text-[13px] text-muted-foreground text-center">
-                  {t('skills.loadFailed')}
-                </Text>
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  className="rounded-full"
-                  onPress={() => void catalogue.refetch()}
-                >
-                  {t('common.tryAgain')}
-                </Button>
-              </View>
-            ) : null}
+          {/* A failed request is said out loud, with the way back. A blank
+              catalogue after a search that errored reads as "no results". */}
+          {catalogue.isError ? (
+            <EmptyState
+              variant="compact"
+              title={t('skills.loadFailed')}
+              action={{
+                label: t('common.tryAgain'),
+                onPress: () => void catalogue.refetch(),
+              }}
+            />
+          ) : null}
 
-            {/* An empty catalogue is a real state — a fresh database before the
-                registry sync has run — and saying so beats a blank screen. */}
-            {nothingToShow && !catalogue.isError ? (
-              <View className="px-5 py-10 items-center">
-                <Text className="text-[13px] text-muted-foreground text-center">
-                  {query ? t('skills.noResults') : t('skills.empty')}
-                </Text>
-              </View>
-            ) : null}
+          {/* An empty catalogue is a real state — a fresh database before the
+              registry sync has run — and saying so beats a blank screen. */}
+          {nothingToShow && !catalogue.isError ? (
+            <EmptyState
+              title={query ? t('skills.noResults') : t('skills.empty')}
+            />
+          ) : null}
 
-            {/* The shelves ask for more as they are scrolled; this is the same
-                request for anybody who would rather press than scroll. */}
-            {catalogue.hasNextPage ? (
-              <View className="px-5 pb-6 items-center">
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  className="rounded-full"
-                  disabled={catalogue.isFetchingNextPage}
-                  onPress={loadMore}
-                >
-                  {t('skills.loadMore')}
-                </Button>
-              </View>
-            ) : null}
-          </>
-        )}
-      </ScrollView>
-    </View>
+          {/* The shelves ask for more as they are scrolled; this is the same
+              request for anybody who would rather press than scroll. */}
+          {catalogue.hasNextPage ? (
+            <View style={GUTTER}>
+              <Button
+                tone="neutral"
+                appearance="subtle"
+                size="sm"
+                loading={catalogue.isFetchingNextPage}
+                disabled={catalogue.isFetchingNextPage}
+                onPress={loadMore}
+              >
+                {t('skills.loadMore')}
+              </Button>
+            </View>
+          ) : null}
+        </View>
+      )}
+    </ScrollView>
   );
 }

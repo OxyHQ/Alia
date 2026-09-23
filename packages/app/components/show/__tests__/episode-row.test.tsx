@@ -39,22 +39,85 @@ vi.mock('react-native', async () => {
       ReactModule.createElement(name, props, children);
 
   return {
-    ActivityIndicator: host('ActivityIndicator'),
-    Pressable: host('Pressable'),
+    Platform: { OS: 'web', select: (spec: Record<string, unknown>) => spec.web },
     View: host('View'),
   };
 });
 
-vi.mock('lucide-react-native', async () => {
+/** Each glyph as a host named for what it shows. */
+vi.mock('@oxy.so/bloom/icons/RiPlayFill', async () => {
   const ReactModule = await import('react');
-  const icon = (name: string) => (props: Record<string, unknown>) =>
-    ReactModule.createElement(name, props);
-
+  return { RiPlayFill: () => ReactModule.createElement('Play') };
+});
+vi.mock('@oxy.so/bloom/icons/RiPauseFill', async () => {
+  const ReactModule = await import('react');
+  return { RiPauseFill: () => ReactModule.createElement('Pause') };
+});
+vi.mock('@oxy.so/bloom/icons/RiErrorWarningLine', async () => {
+  const ReactModule = await import('react');
   return {
-    AlertCircle: icon('AlertCircle'),
-    Pause: icon('Pause'),
-    Play: icon('Play'),
-    Trash2: icon('Trash2'),
+    RiErrorWarningLine: () => ReactModule.createElement('AlertCircle'),
+  };
+});
+vi.mock('@oxy.so/bloom/icons/RiDeleteBinLine', async () => {
+  const ReactModule = await import('react');
+  return { RiDeleteBinLine: () => ReactModule.createElement('Trash2') };
+});
+
+/** A host that draws its icon, so which glyph a control shows is readable. */
+vi.mock('@oxy.so/bloom/button', async () => {
+  const ReactModule = await import('react');
+  return {
+    Button: ({
+      children,
+      icon,
+      ...props
+    }: React.PropsWithChildren<{ icon?: React.ComponentType }>) =>
+      ReactModule.createElement(
+        'Button',
+        props,
+        icon ? ReactModule.createElement(icon) : null,
+        children,
+      ),
+  };
+});
+
+vi.mock('@oxy.so/bloom/item', async () => {
+  const ReactModule = await import('react');
+  return {
+    Item: ({
+      children,
+      trailing,
+    }: React.PropsWithChildren<{ trailing?: React.ReactNode }>) =>
+      ReactModule.createElement('Item', null, children, trailing),
+  };
+});
+
+vi.mock('@oxy.so/bloom/admonition', async () => {
+  const ReactModule = await import('react');
+  return {
+    Admonition: ({ children }: React.PropsWithChildren) =>
+      ReactModule.createElement(
+        'Admonition',
+        null,
+        ReactModule.createElement('Text', null, children),
+      ),
+  };
+});
+
+vi.mock('@oxy.so/bloom/loading', async () => {
+  const ReactModule = await import('react');
+  return {
+    Loading: (props: Record<string, unknown>) =>
+      ReactModule.createElement('ActivityIndicator', props),
+  };
+});
+
+vi.mock('@oxy.so/bloom/stat-bar', async () => {
+  const ReactModule = await import('react');
+  return {
+    Meter: (props: Record<string, unknown>) =>
+      ReactModule.createElement('Meter', props),
   };
 });
 
@@ -69,9 +132,9 @@ vi.mock('@oxy.so/bloom/typography', async () => {
   };
 });
 
-vi.mock('@/lib/useColorScheme', () => ({
-  useColorScheme: () => ({
-    colors: { foreground: '#000', mutedForeground: '#888' },
+vi.mock('@oxy.so/bloom/theme', () => ({
+  useTheme: () => ({
+    colors: { textSecondary: '#888', error: 'red' },
   }),
 }));
 
@@ -183,7 +246,7 @@ describe('EpisodeRow', () => {
     expect(nodes(root, 'Play')).toHaveLength(1);
     expect(nodes(root, 'Pause')).toHaveLength(0);
 
-    const play = nodes(root, 'Pressable').find(
+    const play = nodes(root, 'Button').find(
       (node) => node.props.accessibilityLabel === `Play ${BASE.title}`,
     );
     expect(play).toBeDefined();
@@ -303,10 +366,9 @@ describe('EpisodeRow', () => {
     });
 
     expect(lines(root)).toContain('Writing the script');
-    const bar = nodes(root, 'View').find((node) =>
-      String(node.props.className ?? '').includes('bg-primary'),
-    );
-    expect(bar?.props.style).toEqual({ width: '25%' });
+    const [bar] = nodes(root, 'Meter');
+    expect(bar?.props.value).toBe(25);
+    expect(bar?.props.max).toBe(100);
   });
 
   it('says why a failed episode failed', () => {
@@ -436,9 +498,9 @@ describe('EpisodeRow', () => {
     });
   });
 
-  it('keeps the remove action reachable on native and hover-revealed on web', () => {
+  it('keeps the remove action reachable, and named for what it destroys', () => {
     const root = renderRow(BASE);
-    const remove = nodes(root, 'Pressable').find(
+    const remove = nodes(root, 'Button').find(
       (node) =>
         node.props.accessibilityLabel === `Delete ${BASE.title} everywhere`,
     );
@@ -449,11 +511,9 @@ describe('EpisodeRow', () => {
     // understated label is as wrong as an overstated one, in the other
     // direction, and this is the surface that catches either.
     expect(remove).toBeDefined();
-    // Web-scoped, so the control never disappears on a device with no pointer.
-    expect(String(remove?.props.className)).toContain('web:opacity-0');
-    expect(String(remove?.props.className)).toContain(
-      'web:group-hover:opacity-100',
-    );
+    // Always drawn — not hidden behind a hover — so it is there on a device
+    // with no pointer, and it is the bin glyph.
+    expect(remove ? nodes(remove, 'Trash2') : []).toHaveLength(1);
 
     act(() => remove?.props.onPress());
     expect(onDelete).toHaveBeenCalledWith('episode-1');

@@ -1530,5 +1530,100 @@
       "one": "1 archivo",
       "other": "{{count}} archivos"
     }
+  },
+  "pages": {
+    "automations": {
+      "heading": "¿Qué debería hacer Alia más tarde?",
+      "description": "Describe el trabajo y cuándo debe hacerse. Alia solo te preguntará los detalles que realmente falten antes de guardar la tarea.",
+      "placeholder": "Programa una tarea",
+      "startFailed": "No se pudo empezar a programar. Tu descripción sigue aquí.",
+      "suggestionsTitle": "Prueba una tarea",
+      "suggestions": {
+        "brief": {
+          "title": "Empezar el día informado",
+          "prompt": "Cada día laborable a las 8:00, dame un breve resumen de lo que importa para mi trabajo."
+        },
+        "remind": {
+          "title": "Recordar algo una vez",
+          "prompt": "Mañana a las 10:00, recuérdame hacer seguimiento del proyecto."
+        },
+        "topic": {
+          "title": "Seguir un tema",
+          "prompt": "Cada lunes a las 9:00, investiga las últimas novedades de un tema que elija y resúmelas."
+        },
+        "review": {
+          "title": "Preparar un repaso semanal",
+          "prompt": "Cada viernes por la tarde, ayúdame a repasar la semana y planificar la siguiente."
+        }
+      },
+      "notStarted": "Sin empezar",
+      "unknownTime": "Hora desconocida",
+      "historyLoadFailed": "No se pudo cargar el historial de esta automatización.",
+      "notFound": "Automatización no encontrada.",
+      "saved": "Automatización actualizada y autoridad revalidada",
+      "savedRevocationFailed": {
+        "one": "Guardado, pero no se pudo revocar 1 autorización antigua",
+        "other": "Guardado, pero no se pudieron revocar %{count} autorizaciones antiguas"
+      },
+      "saveFailed": "No se pudo actualizar la automatización",
+      "active": "Activa",
+      "stopped": "Detenida",
+      "legacy": "Transición heredada",
+      "actors": "Actores: %{actors}",
+      "usesConnectedApps": "Usa apps conectadas aprobadas",
+      "runHistory": "Historial de ejecuciones",
+      "runCount": {
+        "one": "1 ejecución",
+        "other": "%{count} ejecuciones"
+      },
+      "noRuns": "Aún no hay ejecuciones registradas.",
+      "showMore": "Mostrar más"
+    },
+    "skills": {
+      "installSkill": "Instalar %{name}",
+      "installedSkill": "%{name} está instalada"
+    },
+    "tasks": {
+      "view": "Vista de tareas",
+      "typeFilter": "Filtrar por tipo"
+    },
+    "library": {
+      "categories": "Categorías de archivos",
+      "resultCount": {
+        "one": "1 archivo",
+        "other": "{{count}} archivos"
+      }
+    },
+    "notifications": {
+      "unread": {
+        "one": "1 sin leer",
+        "other": "{{count}} sin leer"
+      },
+      "markAllRead": "Marcar todo como leído",
+      "emptyTitle": "Aún no hay notificaciones",
+      "emptyDescription": "Configura disparadores y rutinas para recibir novedades proactivas de Alia.",
+      "dismiss": "Descartar notificación"
+    },
+    "agents": {
+      "teams": "Equipos",
+      "categories": "Categorías",
+      "back": "Atrás",
+      "teamsTitle": "Equipos de agentes",
+      "teamsDescription": "Grupos duraderos con un coordinador",
+      "teamsEmpty": "Aún no hay equipos",
+      "teamsEmptyDetail": "Importa un paquete alia.team a través de la API.",
+      "noPlaybook": "Aún sin guía",
+      "agentType": "Tipo de agente",
+      "sessionTitle": "Actividad de la sesión",
+      "sessionSteps": "%{count} pasos",
+      "sessionEvents": "%{count} eventos",
+      "sessionThreats": "%{count} amenazas",
+      "sessionErrors": "%{count} errores",
+      "sessionEmpty": "No hay actividad registrada",
+      "agentActions": "Acciones del agente",
+      "moreActions": "Más acciones",
+      "addRoutingRule": "Añadir regla de enrutamiento",
+      "removeRoutingRule": "Quitar regla de enrutamiento"
+    }
   }
 }

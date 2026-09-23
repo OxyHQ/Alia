@@ -37,35 +37,51 @@ vi.mock('react-native', async () => {
       ReactModule.createElement(name, props, children);
 
   return {
-    ActivityIndicator: host('ActivityIndicator'),
-    Pressable: host('Pressable'),
     ScrollView: host('ScrollView'),
     View: host('View'),
   };
 });
 
-vi.mock('lucide-react-native', async () => {
-  const ReactModule = await import('react');
-  const icon = (name: string) => (props: Record<string, unknown>) =>
-    ReactModule.createElement(name, props);
+/**
+ * The create screen's Bloom leaves, as host elements carrying their props. None
+ * of them is under test here — what is under test is which account the
+ * composer's submit mints — and each is a real React Native tree this runner
+ * cannot parse under the `react-native` double above.
+ */
+vi.mock('@oxy.so/bloom/icons/RiSparklingLine', () => ({ RiSparklingLine: () => null }));
+vi.mock('@oxy.so/bloom/icons/RiQuestionLine', () => ({ RiQuestionLine: () => null }));
+vi.mock('@oxy.so/bloom/icons/RiRouteLine', () => ({ RiRouteLine: () => null }));
+vi.mock('@oxy.so/bloom/icons/RiCheckLine', () => ({ RiCheckLine: () => null }));
+vi.mock('@oxy.so/bloom/icons/RiBarChartHorizontalLine', () => ({
+  RiBarChartHorizontalLine: () => null,
+}));
 
+vi.mock('@oxy.so/bloom/item', async () => {
+  const ReactModule = await import('react');
   return {
-    BarChart3: icon('BarChart3'),
-    GitBranch: icon('GitBranch'),
-    MessageCircleQuestion: icon('MessageCircleQuestion'),
-    Sparkles: icon('Sparkles'),
+    Item: (props: Record<string, unknown>) =>
+      ReactModule.createElement('Item', props),
+  };
+});
+
+vi.mock('@oxy.so/bloom/loading', async () => {
+  const ReactModule = await import('react');
+  return {
+    Loading: (props: Record<string, unknown>) =>
+      ReactModule.createElement('Loading', props),
   };
 });
 
 vi.mock('@oxy.so/bloom/typography', async () => {
   const ReactModule = await import('react');
-  return {
-    Text: ({
+  const text =
+    (name: string) =>
+    ({
       children,
       ...props
     }: React.PropsWithChildren<Record<string, unknown>>) =>
-      ReactModule.createElement('Text', props, children),
-  };
+      ReactModule.createElement(name, props, children);
+  return { Text: text('Text'), Muted: text('Muted') };
 });
 
 vi.mock('@/components/chat/composer/composer', async () => {
@@ -73,17 +89,6 @@ vi.mock('@/components/chat/composer/composer', async () => {
   return {
     Composer: (props: Record<string, unknown>) =>
       ReactModule.createElement('Composer', props),
-  };
-});
-
-vi.mock('@oxy.so/bloom/content-panel', async () => {
-  const ReactModule = await import('react');
-  return {
-    ContentPanel: ({
-      children,
-      ...props
-    }: React.PropsWithChildren<Record<string, unknown>>) =>
-      ReactModule.createElement('ContentPanel', props, children),
   };
 });
 

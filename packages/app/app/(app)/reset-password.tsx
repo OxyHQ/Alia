@@ -4,14 +4,14 @@ import { AuthLogo } from '@/components/auth/auth-logo';
 import apiClient from '@/lib/api/client';
 import { errorMessage as getErrorMessage } from '@/lib/errors/error-utils';
 import { useTranslation } from '@/lib/hooks/use-translation';
-import { Button as AuthButton } from '@oxy.so/bloom/button';
-import { ContentPanel } from '@oxy.so/bloom/content-panel';
-import { TextFieldInput as AuthInput } from '@oxy.so/bloom/text-field';
+import { Button } from '@oxy.so/bloom/button';
+import { TextFieldInput } from '@oxy.so/bloom/text-field';
 import { toast } from '@oxy.so/bloom/toast';
+import { Muted, Text } from '@oxy.so/bloom/typography';
 import { useAuth } from '@oxy.so/services';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Text, View } from 'react-native';
+import { View } from 'react-native';
 
 export default function ResetPasswordScreen() {
   const { t } = useTranslation();
@@ -79,59 +79,51 @@ export default function ResetPasswordScreen() {
   };
 
   return (
-    <ContentPanel surfaceClassName="bg-background">
-      <AuthContainer>
-        <AuthLogo />
+    <AuthContainer>
+      <AuthLogo />
 
-        {/* Header */}
-        <View className="space-y-2 mb-6">
-          <Text className="text-3xl font-bold text-foreground tracking-tight">
-            {t('resetPassword.title')}
-          </Text>
-          <Text className="text-base text-muted-foreground">
-            {t('resetPassword.subtitle')}
-          </Text>
-        </View>
+      <View style={{ gap: 8 }}>
+        <Text variant="title-1-bold">{t('resetPassword.title')}</Text>
+        <Muted>{t('resetPassword.subtitle')}</Muted>
+      </View>
 
-        {/* Form */}
-        <View className="gap-3">
-          <AuthError message={error} />
+      <View style={{ gap: 12 }}>
+        <AuthError message={error} />
 
-          <AuthInput
-            label="Password"
-            placeholder={t('resetPassword.newPasswordPlaceholder')}
-            value={password}
-            onChangeText={(text) => {
-              setPassword(text);
-              setError('');
-            }}
-            secureTextEntry
-            editable={!loading && !!token}
-          />
+        <TextFieldInput
+          label={t('resetPassword.newPasswordPlaceholder')}
+          placeholder={t('resetPassword.newPasswordPlaceholder')}
+          value={password}
+          onChangeText={(text) => {
+            setPassword(text);
+            setError('');
+          }}
+          secureTextEntry
+          editable={!loading && !!token}
+        />
 
-          <AuthInput
-            label="Password"
-            placeholder={t('resetPassword.confirmPasswordPlaceholder')}
-            value={confirmPassword}
-            onChangeText={(text) => {
-              setConfirmPassword(text);
-              setError('');
-            }}
-            secureTextEntry
-            editable={!loading && !!token}
-            onSubmitEditing={handleResetPassword}
-          />
+        <TextFieldInput
+          label={t('resetPassword.confirmPasswordPlaceholder')}
+          placeholder={t('resetPassword.confirmPasswordPlaceholder')}
+          value={confirmPassword}
+          onChangeText={(text) => {
+            setConfirmPassword(text);
+            setError('');
+          }}
+          secureTextEntry
+          editable={!loading && !!token}
+          onSubmitEditing={handleResetPassword}
+        />
 
-          <AuthButton
-            onPress={handleResetPassword}
-            disabled={loading || !password || !confirmPassword || !token}
-            loading={loading}
-            className="mt-3"
-          >
-            {t('resetPassword.resetButton')}
-          </AuthButton>
-        </View>
-      </AuthContainer>
-    </ContentPanel>
+        <Button
+          tone="action"
+          onPress={handleResetPassword}
+          disabled={loading || !password || !confirmPassword || !token}
+          loading={loading}
+        >
+          {t('resetPassword.resetButton')}
+        </Button>
+      </View>
+    </AuthContainer>
   );
 }

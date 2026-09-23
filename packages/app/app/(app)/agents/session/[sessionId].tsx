@@ -1,49 +1,41 @@
 import apiClient from '@/lib/api/client';
-import { useColorScheme } from '@/lib/useColorScheme';
-import { cn } from '@/lib/utils';
-import { ContentPanel } from '@oxy.so/bloom/content-panel';
-import { Text } from '@oxy.so/bloom/typography';
+import { useTranslation } from '@/lib/hooks/use-translation';
+import type { AccentTone } from '@oxy.so/bloom/theme';
+import { Badge } from '@oxy.so/bloom/badge';
+import { Button } from '@oxy.so/bloom/button';
+import { Card, CardBody } from '@oxy.so/bloom/card';
+import { Pre } from '@oxy.so/bloom/code';
+import { Divider } from '@oxy.so/bloom/divider';
+import { EmptyState } from '@oxy.so/bloom/empty-state';
+import type { BloomIconComponent } from '@oxy.so/bloom/icons';
+import { RiAlertLine } from '@oxy.so/bloom/icons/RiAlertLine';
+import { RiArrowDownSLine } from '@oxy.so/bloom/icons/RiArrowDownSLine';
+import { RiArrowLeftLine } from '@oxy.so/bloom/icons/RiArrowLeftLine';
+import { RiArrowUpSLine } from '@oxy.so/bloom/icons/RiArrowUpSLine';
+import { RiChat3Line } from '@oxy.so/bloom/icons/RiChat3Line';
+import { RiCheckboxCircleLine } from '@oxy.so/bloom/icons/RiCheckboxCircleLine';
+import { RiCloseCircleLine } from '@oxy.so/bloom/icons/RiCloseCircleLine';
+import { RiEditLine } from '@oxy.so/bloom/icons/RiEditLine';
+import { RiGlobalLine } from '@oxy.so/bloom/icons/RiGlobalLine';
+import { RiHistoryLine } from '@oxy.so/bloom/icons/RiHistoryLine';
+import { RiLightbulbLine } from '@oxy.so/bloom/icons/RiLightbulbLine';
+import { RiShieldLine } from '@oxy.so/bloom/icons/RiShieldLine';
+import { RiTerminalBoxLine } from '@oxy.so/bloom/icons/RiTerminalBoxLine';
+import { RiTimeLine } from '@oxy.so/bloom/icons/RiTimeLine';
+import { Loading } from '@oxy.so/bloom/loading';
+import { Muted, Text } from '@oxy.so/bloom/typography';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import {
-  AlertTriangle,
-  ArrowLeft,
-  Brain,
-  CheckCircle2,
-  ChevronDown,
-  ChevronUp,
-  Clock,
-  FileEdit,
-  Globe,
-  MessageSquare,
-  ShieldAlert,
-  ShieldX,
-  Terminal,
-  XCircle,
-} from 'lucide-react-native';
 import React, { useCallback, useEffect, useState } from 'react';
-import {
-  ActivityIndicator,
-  FlatList,
-  Pressable,
-  RefreshControl,
-  View,
-} from 'react-native';
+import { FlatList, RefreshControl, View } from 'react-native';
+
 /**
  * Agent Session Activity — Timeline view of all agent actions in a session.
  *
  * Shows a chronological feed of tool calls, observations, errors, threats,
- * and model responses. Entries can be expanded for full details.
+ * and model responses. Entries can be expanded for full details. Plain content
+ * on the layout's surface: every entry is a Bloom `Card`, every label a Bloom
+ * `Badge`.
  */
-
-
-
-
-
-
-
-
-
-
 
 interface EventEntry {
   _id: string;
@@ -73,37 +65,47 @@ interface SessionInfo {
   };
 }
 
-const EVENT_ICONS: Record<string, React.ComponentType<any>> = {
-  action: Terminal,
-  observation: MessageSquare,
-  error: XCircle,
-  system_message: AlertTriangle,
-  thinking: Brain,
-  response: MessageSquare,
-  complete: CheckCircle2,
-  threat_detected: ShieldAlert,
-  user_message: MessageSquare,
-  plan_update: FileEdit,
-  plan_progress: FileEdit,
-  file_change: FileEdit,
-  source_found: Globe,
+/** Each event type's glyph, drawn inside its `Badge`. */
+const EVENT_ICONS: Record<string, BloomIconComponent> = {
+  action: RiTerminalBoxLine,
+  observation: RiChat3Line,
+  error: RiCloseCircleLine,
+  system_message: RiAlertLine,
+  thinking: RiLightbulbLine,
+  response: RiChat3Line,
+  complete: RiCheckboxCircleLine,
+  threat_detected: RiShieldLine,
+  user_message: RiChat3Line,
+  plan_update: RiEditLine,
+  plan_progress: RiEditLine,
+  file_change: RiEditLine,
+  source_found: RiGlobalLine,
 };
 
-const EVENT_COLORS: Record<string, string> = {
-  action: "text-blue-500",
-  observation: "text-green-500",
-  error: "text-red-500",
-  system_message: "text-yellow-500",
-  thinking: "text-purple-500",
-  response: "text-foreground",
-  complete: "text-green-600",
-  threat_detected: "text-red-600",
-  user_message: "text-foreground",
-  plan_update: "text-indigo-500",
-  plan_progress: "text-indigo-500",
-  file_change: "text-orange-500",
-  source_found: "text-cyan-500",
+/** Each event type's tone, from Bloom's accent recipe. */
+const EVENT_TONES: Record<string, AccentTone> = {
+  action: 'info',
+  observation: 'success',
+  error: 'error',
+  system_message: 'warning',
+  thinking: 'tertiary',
+  response: 'default',
+  complete: 'success',
+  threat_detected: 'error',
+  user_message: 'default',
+  plan_update: 'primary',
+  plan_progress: 'primary',
+  file_change: 'warning',
+  source_found: 'info',
 };
+
+/** The session's status, as a badge tone. */
+function statusTone(status: string): AccentTone {
+  if (status === 'completed') return 'success';
+  if (status === 'failed') return 'error';
+  if (status === 'running') return 'info';
+  return 'default';
+}
 
 function formatTimestamp(ts: number): string {
   const date = new Date(ts);
@@ -118,74 +120,59 @@ function formatDuration(ms?: number): string {
 
 function EventCard({ entry }: { entry: EventEntry }) {
   const [expanded, setExpanded] = useState(false);
-  const Icon = EVENT_ICONS[entry.type] || MessageSquare;
-  const color = EVENT_COLORS[entry.type] || "text-muted-foreground";
 
   const isThreat = entry.type === "threat_detected" || entry.content?.includes("THREAT");
   const isError = entry.type === "error";
 
   return (
-    <Pressable
+    <Card
+      appearance="outline"
+      tone={isThreat || isError ? 'danger' : undefined}
       onPress={() => setExpanded(!expanded)}
-      className={cn(
-        "mx-4 mb-2 p-3 rounded-lg border",
-        isThreat ? "border-red-500/30 bg-red-500/5" :
-        isError ? "border-red-500/20 bg-red-500/5" :
-        "border-border bg-card"
-      )}
+      accessibilityLabel={entry.type.replace(/_/g, " ")}
     >
-      <View className="flex-row items-start gap-2">
-        <Icon size={14} className={cn(color, "mt-0.5")} />
-        <View className="flex-1">
-          <View className="flex-row items-center justify-between">
-            <View className="flex-row items-center gap-2 flex-1">
-              <Text className={cn("text-xs font-semibold uppercase", color)}>
-                {entry.type.replace(/_/g, " ")}
-              </Text>
-              {entry.metadata?.toolName && (
-                <Text className="text-xs text-muted-foreground">
-                  {entry.metadata.toolName}
-                </Text>
-              )}
-            </View>
-            <View className="flex-row items-center gap-1">
-              {entry.metadata?.durationMs && (
-                <Text className="text-xs text-muted-foreground">
-                  {formatDuration(entry.metadata.durationMs)}
-                </Text>
-              )}
-              <Text className="text-xs text-muted-foreground">
-                {formatTimestamp(entry.timestamp)}
-              </Text>
-              {expanded ? (
-                <ChevronUp size={12} className="text-muted-foreground" />
-              ) : (
-                <ChevronDown size={12} className="text-muted-foreground" />
-              )}
-            </View>
-          </View>
-
-          <Text className="text-sm text-foreground mt-1" numberOfLines={expanded ? undefined : 2}>
-            {entry.content}
-          </Text>
-
-          {expanded && entry.metadata?.args && (
-            <View className="mt-2 p-2 rounded bg-muted">
-              <Text className="text-xs font-mono text-muted-foreground">
-                {JSON.stringify(entry.metadata.args, null, 2)}
-              </Text>
-            </View>
+      <CardBody style={{ gap: 6, paddingVertical: 12 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <Badge
+            size="label-small"
+            variant="subtle"
+            color={EVENT_TONES[entry.type] ?? 'default'}
+            icon={EVENT_ICONS[entry.type] ?? RiChat3Line}
+            content={entry.type.replace(/_/g, " ")}
+          />
+          {entry.metadata?.toolName && (
+            <Muted numberOfLines={1} style={{ flexShrink: 1 }}>
+              {entry.metadata.toolName}
+            </Muted>
+          )}
+          <View style={{ flex: 1 }} />
+          {entry.metadata?.durationMs && (
+            <Muted>{formatDuration(entry.metadata.durationMs)}</Muted>
+          )}
+          <Muted>{formatTimestamp(entry.timestamp)}</Muted>
+          {expanded ? (
+            <RiArrowUpSLine size="sm" />
+          ) : (
+            <RiArrowDownSLine size="sm" />
           )}
         </View>
-      </View>
-    </Pressable>
+
+        <Text variant="body-regular" numberOfLines={expanded ? undefined : 2}>
+          {entry.content}
+        </Text>
+
+        {expanded && entry.metadata?.args && (
+          <Pre>{JSON.stringify(entry.metadata.args, null, 2)}</Pre>
+        )}
+      </CardBody>
+    </Card>
   );
 }
 
 export default function SessionActivityScreen() {
   const { sessionId } = useLocalSearchParams<{ sessionId: string }>();
   const router = useRouter();
-  const { colors } = useColorScheme();
+  const { t } = useTranslation();
 
   const [entries, setEntries] = useState<EventEntry[]>([]);
   const [session, setSession] = useState<SessionInfo | null>(null);
@@ -216,95 +203,73 @@ export default function SessionActivityScreen() {
     loadActivity();
   }, [loadActivity]);
 
-  const statusColor =
-    session?.status === "completed" ? "text-green-500" :
-    session?.status === "failed" ? "text-red-500" :
-    session?.status === "running" ? "text-blue-500" :
-    "text-muted-foreground";
-
   const threatCount = entries.filter(
     (e) => e.type === "threat_detected" || e.content?.includes("THREAT")
   ).length;
   const errorCount = entries.filter((e) => e.type === "error").length;
 
   return (
-    <ContentPanel surfaceClassName="bg-background">
-      <View className="flex-1 bg-background">
-        {/* Header */}
-        <View className="flex-row items-center gap-3 px-4 py-3 border-b border-border">
-          <Pressable onPress={() => router.back()} className="active:opacity-70">
-            <ArrowLeft size={20} className="text-foreground" />
-          </Pressable>
-          <View className="flex-1">
-            <Text className="text-base font-semibold text-foreground">
-              Session Activity
-            </Text>
-            {session && (
-              <Text className="text-xs text-muted-foreground" numberOfLines={1}>
-                {session.task}
-              </Text>
-            )}
-          </View>
-          {session && (
-            <Text className={cn("text-xs font-semibold uppercase", statusColor)}>
-              {session.status}
-            </Text>
-          )}
+    <View style={{ flex: 1 }}>
+      {/* The back action, what this session was asked to do, and its status. */}
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingTop: 16 }}>
+        <Button
+          size="sm"
+          tone="neutral"
+          appearance="plain"
+          icon={RiArrowLeftLine}
+          accessibilityLabel={t('pages.agents.back')}
+          onPress={() => router.back()}
+        />
+        <View style={{ flex: 1 }}>
+          <Text variant="headline-semibold">{t('pages.agents.sessionTitle')}</Text>
+          {session && <Muted numberOfLines={1}>{session.task}</Muted>}
         </View>
-
-        {/* Stats bar */}
         {session && (
-          <View className="flex-row items-center gap-4 px-4 py-2 border-b border-border">
-            <View className="flex-row items-center gap-1">
-              <Clock size={12} className="text-muted-foreground" />
-              <Text className="text-xs text-muted-foreground">
-                {session.stats.totalSteps} steps
-              </Text>
-            </View>
-            <Text className="text-xs text-muted-foreground">
-              {entries.length} events
-            </Text>
-            {threatCount > 0 && (
-              <View className="flex-row items-center gap-1">
-                <ShieldX size={12} className="text-red-500" />
-                <Text className="text-xs text-red-500">
-                  {threatCount} threats
-                </Text>
-              </View>
-            )}
-            {errorCount > 0 && (
-              <View className="flex-row items-center gap-1">
-                <XCircle size={12} className="text-red-500" />
-                <Text className="text-xs text-red-500">
-                  {errorCount} errors
-                </Text>
-              </View>
-            )}
-          </View>
-        )}
-
-        {/* Activity timeline */}
-        {loading ? (
-          <View className="flex-1 items-center justify-center">
-            <ActivityIndicator color={colors.foreground} />
-          </View>
-        ) : (
-          <FlatList
-            data={entries}
-            keyExtractor={(item) => item._id || String(item.seq)}
-            renderItem={({ item }) => <EventCard entry={item} />}
-            contentContainerStyle={{ paddingVertical: 12 }}
-            refreshControl={
-              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-            }
-            ListEmptyComponent={
-              <View className="flex-1 items-center justify-center py-20">
-                <Text className="text-muted-foreground">No activity recorded</Text>
-              </View>
-            }
+          <Badge
+            size="label-small"
+            variant="subtle"
+            color={statusTone(session.status)}
+            content={session.status}
           />
         )}
       </View>
-    </ContentPanel>
+
+      {/* Stats */}
+      {session && (
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingTop: 12 }}>
+          <Badge size="label-small" variant="subtle" icon={RiTimeLine} content={t('pages.agents.sessionSteps', { count: session.stats.totalSteps })} />
+          <Badge size="label-small" variant="subtle" icon={RiHistoryLine} content={t('pages.agents.sessionEvents', { count: entries.length })} />
+          {threatCount > 0 && (
+            <Badge size="label-small" variant="subtle" color="error" icon={RiShieldLine} content={t('pages.agents.sessionThreats', { count: threatCount })} />
+          )}
+          {errorCount > 0 && (
+            <Badge size="label-small" variant="subtle" color="error" icon={RiCloseCircleLine} content={t('pages.agents.sessionErrors', { count: errorCount })} />
+          )}
+        </View>
+      )}
+
+      <Divider spacing={12} />
+
+      {/* Activity timeline */}
+      {loading ? (
+        <Loading variant="spinner" style={{ flex: 1 }} />
+      ) : (
+        <FlatList
+          data={entries}
+          keyExtractor={(item) => item._id || String(item.seq)}
+          renderItem={({ item }) => <EventCard entry={item} />}
+          contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 16, gap: 8 }}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
+          ListEmptyComponent={
+            <EmptyState
+              icon={RiHistoryLine}
+              title={t('pages.agents.sessionEmpty')}
+            />
+          }
+        />
+      )}
+    </View>
   );
 }

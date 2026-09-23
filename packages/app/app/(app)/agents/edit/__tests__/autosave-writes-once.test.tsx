@@ -98,8 +98,6 @@ vi.mock('react-native', async () => {
     },
     View: host('View'),
     ScrollView: host('ScrollView'),
-    Pressable: host('Pressable'),
-    TextInput: host('TextInput'),
   };
 });
 
@@ -123,6 +121,13 @@ vi.mock('@oxy.so/bloom/text-field', async () => {
   return {
     TextFieldInput: (props: Record<string, unknown>) =>
       ReactModule.createElement('Input', props),
+    TextField: ({
+      children,
+      ...props
+    }: React.PropsWithChildren<Record<string, unknown>>) =>
+      ReactModule.createElement('TextField', props, children),
+    TextFieldIcon: (props: Record<string, unknown>) =>
+      ReactModule.createElement('TextFieldIcon', props),
   };
 });
 vi.mock('@oxy.so/bloom/switch', async () => {
@@ -144,13 +149,13 @@ vi.mock('@oxy.so/bloom/label', async () => {
 });
 vi.mock('@oxy.so/bloom/typography', async () => {
   const ReactModule = await import('react');
-  return {
-    Text: ({
-      children,
-      ...props
-    }: React.PropsWithChildren<Record<string, unknown>>) =>
-      ReactModule.createElement('Text', props, children),
-  };
+  // `Muted` is the same text in the secondary tone, so it renders as a Text.
+  const text = ({
+    children,
+    ...props
+  }: React.PropsWithChildren<Record<string, unknown>>) =>
+    ReactModule.createElement('Text', props, children);
+  return { Text: text, Muted: text };
 });
 vi.mock('@oxy.so/bloom/button', async () => {
   const ReactModule = await import('react');
@@ -160,41 +165,6 @@ vi.mock('@oxy.so/bloom/button', async () => {
       ...props
     }: React.PropsWithChildren<Record<string, unknown>>) =>
       ReactModule.createElement('Button', props, children),
-  };
-});
-vi.mock('@/components/ui/toggle-group', async () => {
-  const ReactModule = await import('react');
-  return {
-    ToggleGroup: ({
-      children,
-      ...props
-    }: React.PropsWithChildren<Record<string, unknown>>) =>
-      ReactModule.createElement('ToggleGroup', props, children),
-    ToggleGroupItem: ({
-      children,
-      ...props
-    }: React.PropsWithChildren<Record<string, unknown>>) =>
-      ReactModule.createElement('ToggleGroupItem', props, children),
-  };
-});
-vi.mock('@/components/ui/panel', async () => {
-  const ReactModule = await import('react');
-  return {
-    Panel: ({
-      children,
-      ...props
-    }: React.PropsWithChildren<Record<string, unknown>>) =>
-      ReactModule.createElement('Panel', props, children),
-  };
-});
-vi.mock('@/components/ui/color-picker', async () => {
-  const ReactModule = await import('react');
-  return {
-    ColorPicker: ({
-      renderSwatch: _renderSwatch,
-      ...props
-    }: Record<string, unknown>) =>
-      ReactModule.createElement('ColorPicker', props),
   };
 });
 vi.mock('@oxy.so/bloom/dropdown-menu', async () => {
@@ -266,16 +236,6 @@ vi.mock('@oxy.so/bloom/settings-list', async () => {
       ReactModule.createElement('SettingsListItem', props),
   };
 });
-vi.mock('@oxy.so/bloom/content-panel', async () => {
-  const ReactModule = await import('react');
-  return {
-    ContentPanel: ({
-      children,
-      ...props
-    }: React.PropsWithChildren<Record<string, unknown>>) =>
-      ReactModule.createElement('ContentPanel', props, children),
-  };
-});
 vi.mock('@alia.onl/sdk', async () => {
   const ReactModule = await import('react');
   return {
@@ -283,30 +243,93 @@ vi.mock('@alia.onl/sdk', async () => {
       ReactModule.createElement('IdentityMark', props),
   };
 });
-vi.mock('lucide-react-native', async () => {
+/**
+ * The rest of the editor's Bloom leaves, as host elements carrying their props.
+ * Like the ones above, none is under test: the screen's writes are.
+ */
+vi.mock('@oxy.so/bloom/badge', async () => {
   const ReactModule = await import('react');
-  const glyph = (props: Record<string, unknown>) =>
-    ReactModule.createElement('Glyph', props);
-  const names = [
-    'ArrowLeft',
-    'X',
-    'Plus',
-    'Ellipsis',
-    'Settings',
-    'ChevronRight',
-    'Search',
-    'FileText',
-    'Globe',
-    'Terminal',
-    'FileDown',
-    'FolderOpen',
-    'Image',
-    'Brain',
-    'Users',
-    'Send',
-    'Trash2',
-  ];
-  return Object.fromEntries(names.map((name) => [name, glyph]));
+  return {
+    Badge: (props: Record<string, unknown>) =>
+      ReactModule.createElement('Badge', props),
+  };
+});
+vi.mock('@oxy.so/bloom/card', async () => {
+  const ReactModule = await import('react');
+  const host =
+    (name: string) =>
+    ({
+      children,
+      ...props
+    }: React.PropsWithChildren<Record<string, unknown>>) =>
+      ReactModule.createElement(name, props, children);
+  return { Card: host('Card'), CardBody: host('CardBody') };
+});
+vi.mock('@oxy.so/bloom/chip', async () => {
+  const ReactModule = await import('react');
+  const host =
+    (name: string) =>
+    ({
+      children,
+      ...props
+    }: React.PropsWithChildren<Record<string, unknown>>) =>
+      ReactModule.createElement(name, props, children);
+  return { Chip: host('Chip'), ChipRow: host('ChipRow') };
+});
+vi.mock('@oxy.so/bloom/divider', async () => {
+  const ReactModule = await import('react');
+  return {
+    Divider: (props: Record<string, unknown>) =>
+      ReactModule.createElement('Divider', props),
+  };
+});
+vi.mock('@oxy.so/bloom/loading', async () => {
+  const ReactModule = await import('react');
+  // The label as a Text node, so "what the screen says" reads it like any other.
+  return {
+    Loading: ({ text }: { text?: string }) =>
+      ReactModule.createElement('Text', null, text),
+  };
+});
+vi.mock('@oxy.so/bloom/segmented-control', async () => {
+  const ReactModule = await import('react');
+  const host =
+    (name: string) =>
+    ({
+      children,
+      ...props
+    }: React.PropsWithChildren<Record<string, unknown>>) =>
+      ReactModule.createElement(name, props, children);
+  return {
+    SegmentedControl: host('SegmentedControl'),
+    SegmentedControlItem: host('SegmentedControlItem'),
+    SegmentedControlItemText: host('SegmentedControlItemText'),
+  };
+});
+vi.mock('@oxy.so/bloom/tabs', async () => {
+  const ReactModule = await import('react');
+  const host =
+    (name: string) =>
+    ({
+      children,
+      ...props
+    }: React.PropsWithChildren<Record<string, unknown>>) =>
+      ReactModule.createElement(name, props, children);
+  return { Tabs: host('Tabs'), TabsTrigger: host('TabsTrigger') };
+});
+vi.mock('@oxy.so/bloom/icons', () => {
+  const glyph = () => null;
+  return {
+    RiAddLine: glyph,
+    RiArrowLeftLine: glyph,
+    RiAtLine: glyph,
+    RiCloseLine: glyph,
+    RiDeleteBinLine: glyph,
+    RiFileTextLine: glyph,
+    RiMore2Line: glyph,
+    RiSendPlaneLine: glyph,
+    RiSettings3Line: glyph,
+  };
 });
 vi.mock('@/components/agent-capability-toggles', async () => {
   const ReactModule = await import('react');
@@ -512,11 +535,10 @@ async function letTimePass(seconds: number): Promise<void> {
 function systemPromptBox(renderer: ReactTestRenderer): {
   onChangeText: (text: string) => void;
 } {
-  // It is a bare `TextInput` now, not a Textarea with `variant="ghost"`:
-  // the shell-less writing surface stopped pretending to be a field when the
-  // `components/ui` layer was retired. The testID is how it stays findable.
+  // Bloom's `Textarea`, like the other multiline fields on the screen; the
+  // testID is how this one stays findable among them.
   const boxes = renderer.root.findAllByType(
-    'TextInput' as unknown as React.ComponentType,
+    'Textarea' as unknown as React.ComponentType,
   );
   const box = boxes.find((node) => node.props.testID === 'agent-system-prompt');
   if (box === undefined)
@@ -728,4 +750,3 @@ describe('one save is one toast', () => {
   });
 });
 
-vi.mock('@oxy.so/bloom/icons', () => ({ RiDeleteBinLine: () => null }));

@@ -1,9 +1,6 @@
 import { AgentTerminal } from '@/components/agent-terminal';
+import { Composer } from '@/components/chat/composer/composer';
 import { ActivityGrid } from '@/components/detail/activity-grid';
-import { PillList } from '@/components/detail/pill-list';
-import { SectionLabel } from '@/components/detail/section-label';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@oxy.so/bloom/dropdown-menu';
-import { RiAlertLine, RiBookmarkFill, RiBookmarkLine } from '@oxy.so/bloom/icons';
 import { agentTint } from '@/lib/agents/agent-color';
 import { agentDisplayName, agentHandle } from '@/lib/agents/identity';
 import apiClient from '@/lib/api/client';
@@ -22,79 +19,62 @@ import { useTranslation } from '@/lib/hooks/use-translation';
 import { useAgentFavoritesStore } from '@/lib/stores/agent-favorites-store';
 import type { Agent } from '@/lib/types/agents';
 import { useColorScheme } from '@/lib/useColorScheme';
-import { cn } from '@/lib/utils';
 import { IdentityMark } from '@alia.onl/sdk';
-import { ContentPanel } from '@oxy.so/bloom/content-panel';
+import { Badge } from '@oxy.so/bloom/badge';
+import { Button } from '@oxy.so/bloom/button';
+import { ButtonGroup, ButtonGroupItem } from '@oxy.so/bloom/button-group';
+import { Card, CardBody } from '@oxy.so/bloom/card';
+import { Chip } from '@oxy.so/bloom/chip';
+import { Divider } from '@oxy.so/bloom/divider';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@oxy.so/bloom/dropdown-menu';
+import { EmptyState } from '@oxy.so/bloom/empty-state';
+import { RiAlertLine, RiBookmarkFill, RiBookmarkLine } from '@oxy.so/bloom/icons';
+import { RiArrowLeftLine } from '@oxy.so/bloom/icons/RiArrowLeftLine';
+import { RiDeleteBinLine } from '@oxy.so/bloom/icons/RiDeleteBinLine';
+import { RiMore2Line } from '@oxy.so/bloom/icons/RiMore2Line';
+import { RiRobot2Line } from '@oxy.so/bloom/icons/RiRobot2Line';
+import { RiShare2Line } from '@oxy.so/bloom/icons/RiShare2Line';
+import { Loading } from '@oxy.so/bloom/loading';
+import { Rating, RatingInput } from '@oxy.so/bloom/rating';
+import {
+  SettingsListGroup,
+  SettingsListItem,
+} from '@oxy.so/bloom/settings-list';
 import { confirm } from '@oxy.so/bloom/surfaces';
 import { Switch } from '@oxy.so/bloom/switch';
+import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
+import { Textarea } from '@oxy.so/bloom/textarea';
 import { toast } from '@oxy.so/bloom/toast';
-import { Text } from '@oxy.so/bloom/typography';
+import { Muted, Text } from '@oxy.so/bloom/typography';
 import { useOxy } from '@oxy.so/services';
 import { useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import {
-  ArrowLeft,
-  Ellipsis,
-  Send,
-  Share2,
-  Star,
-  Trash2,
-} from 'lucide-react-native';
-import { useCallback, useEffect, useState } from 'react';
-import {
-  ActivityIndicator,
-  Pressable,
-  ScrollView,
-  Share,
-  TextInput,
-  View,
-} from 'react-native';
+import { type ReactNode, useCallback, useEffect, useState } from 'react';
+import { ScrollView, Share, View } from 'react-native';
 
-const STATUS_COLORS: Record<string, string> = {
-  active: 'bg-green-500',
-  idle: 'bg-yellow-500',
-  offline: 'bg-gray-400',
-};
+/** The agent's status, as the tone of Bloom's status dot and badge. */
+const STATUS_TONE = {
+  active: 'success',
+  idle: 'warning',
+  offline: 'default',
+} as const;
 
-const STATUS_TEXT_COLORS: Record<string, string> = {
-  active: 'text-green-500',
-  idle: 'text-yellow-500',
-  offline: 'text-gray-400',
-};
+/** A routing log's priority, as a badge tone. */
+const PRIORITY_TONE = {
+  urgent: 'error',
+  high: 'warning',
+  medium: 'info',
+  low: 'success',
+} as const;
 
 function formatCount(n: number): string {
   if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
   return String(n);
-}
-
-function StarRatingInput({
-  value,
-  onChange,
-}: {
-  value: number;
-  onChange: (v: number) => void;
-}) {
-  return (
-    <ContentPanel surfaceClassName="bg-background">
-      <View className="flex-row gap-1">
-        {[1, 2, 3, 4, 5].map((star) => (
-          <Pressable
-            key={star}
-            onPress={() => onChange(star)}
-            className="p-0.5"
-          >
-            <Star
-              size={20}
-              className={
-                star <= value ? 'text-amber-500' : 'text-muted-foreground/30'
-              }
-              fill={star <= value ? '#f59e0b' : 'transparent'}
-            />
-          </Pressable>
-        ))}
-      </View>
-    </ContentPanel>
-  );
 }
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
@@ -131,41 +111,29 @@ function ReportCard({ item }: { item: ReportItem }) {
   const isSuccess = item.status === 'success';
   const preview = (item.result || '').slice(0, 200);
   return (
-    <View className="rounded-2xl bg-surface border border-border p-4 mb-3">
-      <View className="flex-row items-center justify-between mb-2">
-        <View
-          className={cn(
-            'px-2 py-0.5 rounded-full',
-            isSuccess ? 'bg-green-500/10' : 'bg-red-500/10',
-          )}
-        >
-          <Text
-            className={cn(
-              'text-[11px] font-semibold',
-              isSuccess ? 'text-green-600' : 'text-red-500',
-            )}
-          >
-            {item.status}
-          </Text>
-        </View>
-        <View className="flex-row items-center gap-3">
+    <Card appearance="outline">
+      <CardBody style={{ gap: 8, paddingVertical: 12 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+          <Badge
+            size="label-small"
+            variant="subtle"
+            color={isSuccess ? 'success' : 'error'}
+            content={item.status}
+          />
+          <View style={{ flex: 1 }} />
           {item.durationMs != null && (
-            <Text className="text-[11px] text-muted-foreground">
-              {formatDuration(item.durationMs)}
-            </Text>
+            <Muted>{formatDuration(item.durationMs)}</Muted>
           )}
-          <Text className="text-[11px] text-muted-foreground">
-            {formatRelativeTime(item.createdAt)}
-          </Text>
+          <Muted>{formatRelativeTime(item.createdAt)}</Muted>
         </View>
-      </View>
-      {preview ? (
-        <Text className="text-[13px] text-foreground/80 leading-[18px]">
-          {preview}
-          {(item.result || '').length > 200 ? '…' : ''}
-        </Text>
-      ) : null}
-    </View>
+        {preview ? (
+          <Text variant="body-regular">
+            {preview}
+            {(item.result || '').length > 200 ? '…' : ''}
+          </Text>
+        ) : null}
+      </CardBody>
+    </Card>
   );
 }
 
@@ -185,103 +153,73 @@ interface RoutingLogItem {
   createdAt: string;
 }
 
-const PRIORITY_COLORS: Record<string, string> = {
-  urgent: 'bg-red-500',
-  high: 'bg-orange-500',
-  medium: 'bg-yellow-500',
-  low: 'bg-green-500',
-};
-
-const PRIORITY_TEXT_COLORS: Record<string, string> = {
-  urgent: 'text-red-500',
-  high: 'text-orange-500',
-  medium: 'text-yellow-500',
-  low: 'text-green-500',
-};
-
 function RoutingLogCard({ item }: { item: RoutingLogItem }) {
   const priority = item.classification?.priority ?? 'medium';
   const category = item.classification?.category;
-  const dotColor = PRIORITY_COLORS[priority] ?? 'bg-gray-400';
-  const textColor = PRIORITY_TEXT_COLORS[priority] ?? 'text-gray-400';
+  const tone =
+    PRIORITY_TONE[priority as keyof typeof PRIORITY_TONE] ?? 'default';
   return (
-    <View className="rounded-2xl bg-surface border border-border p-4 mb-3">
-      <View className="flex-row items-center justify-between mb-1.5">
-        <View className="flex-row items-center gap-2">
-          <View className={cn('w-2 h-2 rounded-full', dotColor)} />
-          {category ? (
-            <Text className="text-[12px] font-medium text-foreground">
-              {category}
-            </Text>
-          ) : null}
-          <Text
-            className={cn('text-[11px] font-semibold capitalize', textColor)}
-          >
-            {priority}
-          </Text>
+    <Card appearance="outline">
+      <CardBody style={{ gap: 8, paddingVertical: 12 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <Badge size="label-small" variant="subtle" color={tone} content={priority} />
+          {category ? <Text variant="body-medium">{category}</Text> : null}
+          <View style={{ flex: 1 }} />
+          <Muted>{formatRelativeTime(item.createdAt)}</Muted>
         </View>
-        <Text className="text-[11px] text-muted-foreground">
-          {formatRelativeTime(item.createdAt)}
-        </Text>
-      </View>
-      {item.inboundSummary ? (
-        <Text className="text-[13px] text-foreground/80 leading-[18px] mb-1.5">
-          {item.inboundSummary}
-        </Text>
-      ) : null}
-      <View className="flex-row items-center gap-2">
-        {item.routedTo?.name ? (
-          <Text className="text-[12px] text-muted-foreground">
-            → {item.routedTo.name}
-          </Text>
+        {item.inboundSummary ? (
+          <Text variant="body-regular">{item.inboundSummary}</Text>
         ) : null}
-        {item.status ? (
-          <View className="px-1.5 py-0.5 rounded bg-muted/50">
-            <Text className="text-[10px] text-muted-foreground">
-              {item.status}
-            </Text>
+        {item.routedTo?.name || item.status ? (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            {item.routedTo?.name ? <Muted>→ {item.routedTo.name}</Muted> : null}
+            {item.status ? (
+              <Badge size="label-small" variant="outlined" content={item.status} />
+            ) : null}
           </View>
         ) : null}
+      </CardBody>
+    </Card>
+  );
+}
+
+type DetailTab = 'overview' | 'reports' | 'routing';
+
+/** A section of the overview: its heading, then its content. */
+function Section({
+  title,
+  action,
+  children,
+}: {
+  title: string;
+  action?: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <View style={{ gap: 8 }}>
+      <View
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+        }}
+      >
+        <Text variant="headline-semibold">{title}</Text>
+        {action}
       </View>
+      {children}
     </View>
   );
 }
 
-// ─── Detail Tab Bar ─────────────────────────────────────────────────────────
-
-type DetailTab = 'overview' | 'reports' | 'routing';
-
-function DetailTabBar({
-  tabs,
-  active,
-  onChange,
-}: {
-  tabs: { key: DetailTab; label: string }[];
-  active: DetailTab;
-  onChange: (t: DetailTab) => void;
-}) {
+/** Static chips in a wrapping row — capabilities, tags. */
+function ChipList({ items }: { items: string[] }) {
   return (
-    <View className="flex-row border-b border-border mb-5">
-      {tabs.map((tab) => (
-        <Pressable
-          key={tab.key}
-          onPress={() => onChange(tab.key)}
-          className="mr-5 pb-2.5 active:opacity-70"
-        >
-          <Text
-            className={cn(
-              'text-[13px] font-medium',
-              active === tab.key
-                ? 'text-foreground border-b-2 border-primary'
-                : 'text-muted-foreground',
-            )}
-          >
-            {tab.label}
-          </Text>
-          {active === tab.key && (
-            <View className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary rounded-full" />
-          )}
-        </Pressable>
+    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+      {items.map((item, i) => (
+        <Chip key={i} size="large">
+          {item}
+        </Chip>
       ))}
     </View>
   );
@@ -598,603 +536,425 @@ export default function AgentDetailScreen() {
   }, [agent, t, queryClient]);
 
   if (loading) {
-    return (
-      <View className="flex-1 bg-background items-center justify-center">
-        <Text className="text-muted-foreground">{t('common.loading')}</Text>
-      </View>
-    );
+    return <Loading variant="spinner" text={t('common.loading')} style={{ flex: 1 }} />;
   }
 
   if (!agent) {
     return (
-      <View className="flex-1 bg-background items-center justify-center">
-        <Text className="text-muted-foreground">{t('agents.notFound')}</Text>
-      </View>
+      <EmptyState
+        icon={RiRobot2Line}
+        title={t('agents.notFound')}
+        action={{ label: t('agents.backToAgents'), onPress: () => router.back() }}
+      />
     );
   }
 
+  const handle = agentHandle(agent);
+
   return (
-    <View className="flex-1 bg-background">
-      {/* Header */}
-      <View className="px-4 py-2.5 z-10 flex-row items-center gap-3 border-b border-border">
-        <Pressable
-          onPress={() => router.back()}
-          className="active:opacity-70 p-1"
+    <View style={{ flex: 1, flexDirection: isLargeScreen ? 'row' : 'column' }}>
+      {/* Agent details (full width on mobile) */}
+      <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
+        <View
+          style={{
+            padding: 16,
+            gap: 20,
+            width: '100%',
+            maxWidth: isLargeScreen ? 672 : undefined,
+          }}
         >
-          <ArrowLeft size={20} className="text-foreground" />
-        </Pressable>
-        {isLargeScreen && (
-          <Text
-            className="text-sm font-medium text-foreground"
-            numberOfLines={1}
-          >
-            {agent.name}
-          </Text>
-        )}
-      </View>
-
-      {/* Content area: side-by-side on desktop, stacked on mobile */}
-      <View className={cn('flex-1', isLargeScreen && 'flex-row')}>
-        {/* Left panel (or full-width on mobile): agent details */}
-        <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
+          {/* Page actions */}
           <View
-            className={cn('px-5 pb-6 pt-4', isLargeScreen && 'px-6 max-w-2xl')}
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: 8,
+            }}
           >
-            {/* The agent's mark, in its own color */}
-            <View className="relative self-start">
-              <IdentityMark
-                size={80}
-                color={agentTint(agent.color, colors)}
-                accessibilityLabel={agentDisplayName(agent)}
-              />
-              <View
-                className={cn(
-                  'absolute bottom-1 right-1 w-4 h-4 rounded-full border-2 border-background',
-                  STATUS_COLORS[agent.status],
-                )}
-              />
-            </View>
-
-            {/* Name + Verified + Status */}
-            <View className="mt-3">
-              <View className="flex-row items-center gap-1.5">
-                <Text className="text-xl font-bold text-foreground">
-                  {agentDisplayName(agent)}
-                </Text>
-                <View
-                  className={cn(
-                    'px-2 py-0.5 rounded-full ml-1',
-                    agent.status === 'active'
-                      ? 'bg-green-500/15'
-                      : agent.status === 'idle'
-                        ? 'bg-yellow-500/15'
-                        : 'bg-gray-500/15',
-                  )}
-                >
-                  <Text
-                    className={cn(
-                      'text-[10px] font-semibold',
-                      STATUS_TEXT_COLORS[agent.status],
-                    )}
-                  >
-                    {t(
-                      `agents.status${agent.status.charAt(0).toUpperCase() + agent.status.slice(1)}`,
-                    )}
-                  </Text>
-                </View>
-              </View>
-
-              {/* Handle + Author — both read from Oxy, both absent when it
-                  could not resolve the account. Each is rendered only when it
-                  has a value, so an unresolved agent shows a name and a tagline
-                  rather than a row of separators around nothing. */}
-              <View className="flex-row items-center gap-1 mt-0.5">
-                {agentHandle(agent) !== '' && (
-                  <Text className="text-[13px] text-muted-foreground">
-                    @{agentHandle(agent)}
-                  </Text>
-                )}
-                {agentHandle(agent) !== '' && agent.authorName !== null && (
-                  <Text className="text-[13px] text-muted-foreground mx-1">
-                    ·
-                  </Text>
-                )}
-                {agent.authorName !== null && (
-                  <Text className="text-[13px] text-muted-foreground">
-                    {agent.authorName}
-                  </Text>
-                )}
-              </View>
-            </View>
-
-            {/* Tagline */}
-            {agent.tagline && (
-              <Text className="text-[14px] text-muted-foreground leading-5 mt-2">
-                {agent.tagline}
-              </Text>
-            )}
-
-            {/* Stats Row */}
-            <View className="flex-row items-center gap-4 mt-3 mb-4">
-              <View className="flex-row items-center gap-1">
-                <Star size={13} className="text-amber-500" fill="#f59e0b" />
-                <Text className="text-[13px] font-bold text-foreground">
-                  {agent.rating}
-                </Text>
-                <Text className="text-[11px] text-muted-foreground">
-                  ({agent.reviewCount})
-                </Text>
-              </View>
-              <Text className="text-[11px] text-muted-foreground">·</Text>
-              <Text className="text-[12px] text-muted-foreground">
-                {formatCount(agent.hireCount)} {t('agents.hires')}
-              </Text>
-              <Text className="text-[11px] text-muted-foreground">·</Text>
-              <Text className="text-[12px] text-muted-foreground">
-                {formatCount(agent.usageCount)} {t('agents.uses')}
-              </Text>
-            </View>
-
-            {/* Owner Controls */}
-            {isOwner && (
-              <View className="flex-row items-center justify-between bg-muted/50 rounded-xl px-4 py-3 mb-4">
-                <View>
-                  <Text className="text-[13px] font-semibold text-foreground">
-                    {agent.status === 'active' ? 'Active' : 'Paused'}
-                  </Text>
-                  <Text className="text-[11px] text-muted-foreground">
-                    {agent.status === 'active'
-                      ? 'Accepting hires'
-                      : 'Not accepting hires'}
-                  </Text>
-                </View>
-                <Switch
-                  accessibilityLabel="Accepting hires"
-                  value={agent.status === 'active'}
-                  onValueChange={(on) =>
-                    handleStatusToggle(on ? 'active' : 'idle')
+            <Button
+              size="sm"
+              tone="neutral"
+              appearance="plain"
+              icon={RiArrowLeftLine}
+              accessibilityLabel={t('pages.agents.back')}
+              onPress={() => router.back()}
+            />
+            <ButtonGroup accessibilityLabel={t('pages.agents.agentActions')}>
+              {isOwner ? (
+                <ButtonGroupItem
+                  onPress={() =>
+                    router.push({
+                      pathname: '/(app)/agents/edit/[id]',
+                      params: { id: agent._id },
+                    })
                   }
-                />
-              </View>
-            )}
-
-            {/* Action Buttons — shadcn button group */}
-            <View className="flex-row self-start rounded-md border border-border overflow-hidden mb-4">
-              {isOwner && (
-                <>
-                  <Pressable
-                    onPress={() =>
-                      router.push({
-                        pathname: '/(app)/agents/edit/[id]',
-                        params: { id: agent._id },
-                      })
-                    }
-                    className="items-center justify-center px-3.5 py-2 active:bg-muted"
-                  >
-                    <Text className="text-[13px] font-medium text-foreground">
-                      {t('agents.edit')}
-                    </Text>
-                  </Pressable>
-                  <View className="w-px bg-border" />
-                </>
-              )}
-              <Pressable
-                onPress={handleChat}
-                className="items-center justify-center px-3.5 py-2 active:bg-muted"
-              >
-                <Text className="text-[13px] font-medium text-foreground">
-                  {t('agents.chat')}
-                </Text>
-              </Pressable>
-              <View className="w-px bg-border" />
-              <Pressable
-                onPress={handleHirePress}
-                className="items-center justify-center px-3.5 py-2 active:bg-muted"
-              >
-                <Text className="text-[13px] font-medium text-foreground">
-                  {agent.price != null
-                    ? `${t('agents.startTask')} · ${agent.price} credits`
-                    : t('agents.startTask')}
-                </Text>
-              </Pressable>
-              <View className="w-px bg-border" />
-              <Pressable
+                >
+                  {t('agents.edit')}
+                </ButtonGroupItem>
+              ) : null}
+              <ButtonGroupItem onPress={handleChat}>
+                {t('agents.chat')}
+              </ButtonGroupItem>
+              <ButtonGroupItem onPress={handleHirePress}>
+                {agent.price != null
+                  ? `${t('agents.startTask')} · ${agent.price} credits`
+                  : t('agents.startTask')}
+              </ButtonGroupItem>
+              <ButtonGroupItem
+                iconOnly
+                leadingIcon={RiShare2Line}
+                accessibilityLabel={t('agents.share')}
                 onPress={handleShare}
-                className="items-center justify-center px-3 py-2 active:bg-muted"
-              >
-                <Share2 size={15} className="text-foreground" />
-              </Pressable>
-              <View className="w-px bg-border" />
+              />
               <DropdownMenu>
                 <DropdownMenuTrigger label="Actions" asChild>
-                  <Pressable className="items-center justify-center px-2.5 py-2">
-                    <Ellipsis size={16} className="text-foreground" />
-                  </Pressable>
+                  <ButtonGroupItem
+                    iconOnly
+                    leadingIcon={RiMore2Line}
+                    accessibilityLabel={t('pages.agents.moreActions')}
+                  />
                 </DropdownMenuTrigger>
                 <DropdownMenuContent>
-                  <DropdownMenuItem key="bookmark" onPress={handleBookmark} leading={bookmarked ? <RiBookmarkFill size="sm" /> : <RiBookmarkLine size="sm" />}>
-
-                      {bookmarked
-                        ? t('agents.removeBookmark')
-                        : t('agents.bookmark')}
-
+                  <DropdownMenuItem
+                    key="bookmark"
+                    onPress={handleBookmark}
+                    leading={
+                      bookmarked ? (
+                        <RiBookmarkFill size="sm" />
+                      ) : (
+                        <RiBookmarkLine size="sm" />
+                      )
+                    }
+                  >
+                    {bookmarked
+                      ? t('agents.removeBookmark')
+                      : t('agents.bookmark')}
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     key="report"
                     onPress={() => toast.info(t('agents.reportSubmitted'))}
-                   leading={<RiAlertLine size="sm" />}>
-
-                      {t('agents.report')}
-
+                    leading={<RiAlertLine size="sm" />}
+                  >
+                    {t('agents.report')}
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
-            </View>
+            </ButtonGroup>
+          </View>
 
-            {/* Hire Task Input */}
-            {showHireInput && (
-              <View className="mb-5 bg-muted/30 rounded-xl px-3 py-2 border border-border">
-                <TextInput
-                  value={taskInput}
-                  onChangeText={setTaskInput}
-                  placeholder={t('agents.taskPlaceholder')}
-                  placeholderTextColor={colors.mutedForeground}
-                  editable={!hiring}
-                  multiline
-                  numberOfLines={3}
-                  style={{
-                    color: '#fff',
-                    fontSize: 14,
-                    paddingVertical: 8,
-                    minHeight: 72,
-                    textAlignVertical: 'top',
-                  }}
+          {/* Identity: the mark in its own colour, carrying the status dot. */}
+          <View style={{ gap: 6 }}>
+            <View style={{ alignSelf: 'flex-start' }}>
+              <Badge dot color={STATUS_TONE[agent.status]} placement="bottom-right">
+                <IdentityMark
+                  size={80}
+                  color={agentTint(agent.color, colors)}
+                  accessibilityLabel={agentDisplayName(agent)}
                 />
-                <View className="flex-row justify-end mt-1">
-                  <Pressable
-                    onPress={handleHireSubmit}
-                    disabled={hiring || !taskInput.trim()}
-                    className="p-2 active:opacity-70"
-                  >
-                    <Send
-                      size={18}
-                      className={
-                        taskInput.trim()
-                          ? 'text-primary'
-                          : 'text-muted-foreground'
-                      }
-                    />
-                  </Pressable>
-                </View>
-              </View>
-            )}
-
-            {/* Archetype Tab Bar */}
-            {(agent.archetype === 'status_update' ||
-              agent.archetype === 'task_router') && (
-              <DetailTabBar
-                tabs={[
-                  { key: 'overview' as const, label: 'Overview' },
-                  ...(agent.archetype === 'status_update'
-                    ? [{ key: 'reports' as const, label: 'Reports' }]
-                    : [{ key: 'routing' as const, label: 'Routing' }]),
-                ]}
-                active={detailTab}
-                onChange={setDetailTab}
+              </Badge>
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Text variant="title-3-semibold">{agentDisplayName(agent)}</Text>
+              <Badge
+                size="label-small"
+                variant="subtle"
+                color={STATUS_TONE[agent.status]}
+                content={t(
+                  `agents.status${agent.status.charAt(0).toUpperCase() + agent.status.slice(1)}`,
+                )}
               />
+            </View>
+            {/* Handle + Author — both read from Oxy, both absent when it could
+                not resolve the account, so an unresolved agent shows no row of
+                separators around nothing. */}
+            {(handle !== '' || agent.authorName !== null) && (
+              <Muted>
+                {[handle !== '' ? `@${handle}` : null, agent.authorName]
+                  .filter((part) => part !== null)
+                  .join(' · ')}
+              </Muted>
             )}
-
-            {/* Reports Tab Content */}
-            {detailTab === 'reports' && agent.archetype === 'status_update' && (
-              <View className="mb-5">
-                {reportsLoading ? (
-                  <ActivityIndicator
-                    size="small"
-                    color={colors.primary}
-                    style={{ marginVertical: 24 }}
-                  />
-                ) : reports.length === 0 ? (
-                  <View className="items-center py-10">
-                    <Text className="text-[14px] text-muted-foreground">
-                      No reports yet
-                    </Text>
-                  </View>
-                ) : (
-                  <View>
-                    {reports.map((item) => (
-                      <ReportCard key={item._id} item={item} />
-                    ))}
-                  </View>
-                )}
-              </View>
-            )}
-
-            {/* Routing Tab Content */}
-            {detailTab === 'routing' && agent.archetype === 'task_router' && (
-              <View className="mb-5">
-                {routingLoading ? (
-                  <ActivityIndicator
-                    size="small"
-                    color={colors.primary}
-                    style={{ marginVertical: 24 }}
-                  />
-                ) : routingLogs.length === 0 ? (
-                  <View className="items-center py-10">
-                    <Text className="text-[14px] text-muted-foreground">
-                      No routing activity yet
-                    </Text>
-                  </View>
-                ) : (
-                  <View>
-                    {routingLogs.map((item) => (
-                      <RoutingLogCard key={item._id} item={item} />
-                    ))}
-                  </View>
-                )}
-              </View>
-            )}
-
-            {/* Overview Tab Content (shown for all archetypes when overview is active) */}
-            {detailTab === 'overview' && (
-              <>
-                {agentThreads.length > 0 && (
-                  <View className="mb-5">
-                    <SectionLabel>{t('agents.threads')}</SectionLabel>
-                    <View className="mt-2 gap-2">
-                      {agentThreads.slice(0, 8).map((thread) => (
-                        <Pressable
-                          key={thread.id}
-                          onPress={() => {
-                            const handle = agentHandle(agent);
-                            if (handle)
-                              router.push({
-                                pathname: '/(app)/[username]',
-                                params: {
-                                  username: `@${handle}`,
-                                  threadId: thread.id,
-                                },
-                              });
-                          }}
-                          className="flex-row items-center justify-between rounded-xl border border-border px-3 py-2.5 active:bg-muted"
-                        >
-                          <View className="flex-1 mr-3">
-                            <Text
-                              className="text-[13px] font-medium text-foreground"
-                              numberOfLines={1}
-                            >
-                              {thread.title}
-                            </Text>
-                            <Text className="text-[11px] text-muted-foreground mt-0.5">
-                              {thread.executionTarget === 'cowork'
-                                ? 'Cowork'
-                                : 'Sandbox'}{' '}
-                              · {thread.status}
-                            </Text>
-                          </View>
-                          <Text className="text-[11px] text-muted-foreground">
-                            {formatRelativeTime(thread.updatedAt)}
-                          </Text>
-                        </Pressable>
-                      ))}
-                    </View>
-                  </View>
-                )}
-
-                {/* Activity Grid */}
-                <View className="mb-5">
-                  <SectionLabel>{t('agents.activity')}</SectionLabel>
-                  <View className="mt-2">
-                    <ActivityGrid agentId={agent._id} />
-                  </View>
-                </View>
-
-                {/* Divider */}
-                <View className="h-px bg-border mx-0 mb-5" />
-
-                {/* About / Description */}
-                <View className="mb-5">
-                  <SectionLabel>{t('agents.about')}</SectionLabel>
-                  <Text className="text-[14px] text-foreground leading-5 mt-1">
-                    {agent.description}
-                  </Text>
-                </View>
-
-                {/* Capabilities — the families this agent was granted, by their
-                    own labels. It used to render `agent.capabilities`, which
-                    held raw tool ids (`web-browsing`, `agent-delegation`) that
-                    named nothing the agent could actually do. A connector grant
-                    (`mcp:<id>`) is deliberately not shown here: the id is
-                    meaningless to a reader and the connector belongs to the
-                    owner, not to this public listing. */}
-                {grantedFamilyLabels.length > 0 && (
-                  <>
-                    <View className="h-px bg-border mx-0 mb-5" />
-                    <View className="mb-5">
-                      <SectionLabel>{t('agents.capabilities')}</SectionLabel>
-                      <PillList items={grantedFamilyLabels} />
-                    </View>
-                  </>
-                )}
-
-                {/* Tags */}
-                {agent.tags.length > 0 && (
-                  <>
-                    <View className="h-px bg-border mx-0 mb-5" />
-                    <View className="mb-5">
-                      <SectionLabel>{t('agents.tags')}</SectionLabel>
-                      <PillList items={agent.tags} />
-                    </View>
-                  </>
-                )}
-
-                {/* Reviews */}
-                <View className="h-px bg-border mx-0 mb-5" />
-                <View className="mb-5">
-                  <View className="flex-row items-center justify-between mb-3">
-                    <SectionLabel>{t('agents.reviews')}</SectionLabel>
-                    {user && !isOwner && !showReviewForm && (
-                      <Pressable
-                        onPress={() => setShowReviewForm(true)}
-                        className="active:opacity-70"
-                      >
-                        <Text className="text-[12px] font-medium text-primary">
-                          {userReview
-                            ? t('agents.editReview')
-                            : t('agents.writeReview')}
-                        </Text>
-                      </Pressable>
-                    )}
-                  </View>
-
-                  {/* Review Form */}
-                  {showReviewForm && (
-                    <View className="bg-muted/30 rounded-xl px-4 py-3 border border-border mb-4">
-                      <View className="mb-3">
-                        <StarRatingInput
-                          value={reviewRating}
-                          onChange={setReviewRating}
-                        />
-                      </View>
-                      <TextInput
-                        value={reviewComment}
-                        onChangeText={setReviewComment}
-                        placeholder={t('agents.reviewPlaceholder')}
-                        placeholderTextColor={colors.mutedForeground}
-                        multiline
-                        numberOfLines={3}
-                        style={{
-                          color: '#fff',
-                          fontSize: 14,
-                          paddingVertical: 8,
-                          minHeight: 60,
-                          textAlignVertical: 'top',
-                        }}
-                      />
-                      <View className="flex-row justify-end gap-2 mt-2">
-                        <Pressable
-                          onPress={() => setShowReviewForm(false)}
-                          className="px-3 py-1.5 active:opacity-70"
-                        >
-                          <Text className="text-[13px] text-muted-foreground">
-                            {t('common.cancel')}
-                          </Text>
-                        </Pressable>
-                        <Pressable
-                          onPress={handleSubmitReview}
-                          disabled={!reviewRating || submittingReview}
-                          className={cn(
-                            'px-3 py-1.5 rounded-md active:opacity-70',
-                            reviewRating ? 'bg-primary' : 'bg-muted',
-                          )}
-                        >
-                          <Text
-                            className={cn(
-                              'text-[13px] font-medium',
-                              reviewRating
-                                ? 'text-primary-foreground'
-                                : 'text-muted-foreground',
-                            )}
-                          >
-                            {submittingReview ? '...' : t('agents.writeReview')}
-                          </Text>
-                        </Pressable>
-                      </View>
-                    </View>
-                  )}
-
-                  {/* Reviews List */}
-                  {reviews.length === 0 && !showReviewForm ? (
-                    <Text className="text-[13px] text-muted-foreground">
-                      {t('agents.noReviews')}
-                    </Text>
-                  ) : (
-                    <View className="gap-3">
-                      {reviews.map((review: any) => (
-                        <View key={review._id} className="gap-1">
-                          <View className="flex-row items-center justify-between">
-                            <View className="flex-row items-center gap-2">
-                              <Text className="text-[13px] font-medium text-foreground">
-                                {review.userId?.username || 'User'}
-                              </Text>
-                              <View className="flex-row">
-                                {[1, 2, 3, 4, 5].map((star) => (
-                                  <Star
-                                    key={star}
-                                    size={10}
-                                    className={
-                                      star <= review.rating
-                                        ? 'text-amber-500'
-                                        : 'text-muted-foreground/20'
-                                    }
-                                    fill={
-                                      star <= review.rating
-                                        ? '#f59e0b'
-                                        : 'transparent'
-                                    }
-                                  />
-                                ))}
-                              </View>
-                            </View>
-                            {user && review.userId?._id === user.id && (
-                              <Pressable
-                                onPress={handleDeleteReview}
-                                className="p-1 active:opacity-70"
-                              >
-                                <Trash2
-                                  size={12}
-                                  className="text-muted-foreground"
-                                />
-                              </Pressable>
-                            )}
-                          </View>
-                          {review.comment ? (
-                            <Text className="text-[13px] text-foreground/80 leading-[18px]">
-                              {review.comment}
-                            </Text>
-                          ) : null}
-                        </View>
-                      ))}
-                    </View>
-                  )}
-                </View>
-
-                {/* Activity Terminal — mobile only */}
-                {!isLargeScreen && (
-                  <>
-                    <View className="h-px bg-border mx-0 mb-5" />
-                    <View className="mb-5">
-                      <SectionLabel>{t('agents.activity')}</SectionLabel>
-                      <View
-                        style={{ height: 300 }}
-                        className="rounded-lg overflow-hidden mt-2"
-                      >
-                        <AgentTerminal agentId={agent._id} />
-                      </View>
-                    </View>
-                  </>
-                )}
-              </>
-            )}
-          </View>
-        </ScrollView>
-
-        {/* Right panel: terminal — desktop only */}
-        {isLargeScreen && (
-          <View className="flex-1 p-4 pl-0">
-            <View className="flex-1 bg-[#0d0d0d] rounded-xl overflow-hidden border border-border">
-              <View className="px-4 py-2.5 flex-row items-center gap-2 border-b border-white/5">
-                <View className="w-2 h-2 rounded-full bg-green-500" />
-                <Text className="text-xs font-medium text-[#808080]">
-                  {t('agents.activity')}
-                </Text>
-              </View>
-              <View className="flex-1">
-                <AgentTerminal agentId={agent._id} />
-              </View>
+            {agent.tagline ? (
+              <Text variant="body-regular">{agent.tagline}</Text>
+            ) : null}
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+              <Rating value={agent.rating} count={agent.reviewCount} size="small" />
+              <Muted>
+                {formatCount(agent.hireCount)} {t('agents.hires')} ·{' '}
+                {formatCount(agent.usageCount)} {t('agents.uses')}
+              </Muted>
             </View>
           </View>
-        )}
-      </View>
+
+          {/* Owner controls */}
+          {isOwner && (
+            <SettingsListGroup>
+              <SettingsListItem
+                title={agent.status === 'active' ? 'Active' : 'Paused'}
+                description={
+                  agent.status === 'active'
+                    ? 'Accepting hires'
+                    : 'Not accepting hires'
+                }
+                rightElement={
+                  <Switch
+                    accessibilityLabel="Accepting hires"
+                    value={agent.status === 'active'}
+                    onValueChange={(on) =>
+                      handleStatusToggle(on ? 'active' : 'idle')
+                    }
+                  />
+                }
+              />
+            </SettingsListGroup>
+          )}
+
+          {/* The task for this agent, written in the app's composer. */}
+          {showHireInput && (
+            <Composer
+              value={taskInput}
+              onValueChange={setTaskInput}
+              onSubmit={handleHireSubmit}
+              busy={hiring}
+              disabled={hiring}
+              placeholder={t('agents.taskPlaceholder')}
+            />
+          )}
+
+          {/* Archetype tabs */}
+          {(agent.archetype === 'status_update' ||
+            agent.archetype === 'task_router') && (
+            <Tabs
+              value={detailTab}
+              onValueChange={(next) => setDetailTab(next as DetailTab)}
+            >
+              <TabsTrigger value="overview" label="Overview" />
+              {agent.archetype === 'status_update' ? (
+                <TabsTrigger value="reports" label="Reports" />
+              ) : (
+                <TabsTrigger value="routing" label="Routing" />
+              )}
+            </Tabs>
+          )}
+
+          {/* Reports */}
+          {detailTab === 'reports' && agent.archetype === 'status_update' && (
+            reportsLoading ? (
+              <Loading variant="spinner" size="sm" />
+            ) : reports.length === 0 ? (
+              <EmptyState variant="compact" title="No reports yet" />
+            ) : (
+              <View style={{ gap: 8 }}>
+                {reports.map((item) => (
+                  <ReportCard key={item._id} item={item} />
+                ))}
+              </View>
+            )
+          )}
+
+          {/* Routing */}
+          {detailTab === 'routing' && agent.archetype === 'task_router' && (
+            routingLoading ? (
+              <Loading variant="spinner" size="sm" />
+            ) : routingLogs.length === 0 ? (
+              <EmptyState variant="compact" title="No routing activity yet" />
+            ) : (
+              <View style={{ gap: 8 }}>
+                {routingLogs.map((item) => (
+                  <RoutingLogCard key={item._id} item={item} />
+                ))}
+              </View>
+            )
+          )}
+
+          {/* Overview (every archetype, while the overview is active) */}
+          {detailTab === 'overview' && (
+            <>
+              {agentThreads.length > 0 && (
+                <SettingsListGroup title={t('agents.threads')}>
+                  {agentThreads.slice(0, 8).map((thread) => (
+                    <SettingsListItem
+                      key={thread.id}
+                      title={thread.title}
+                      titleNumberOfLines={1}
+                      description={`${thread.executionTarget === 'cowork' ? 'Cowork' : 'Sandbox'} · ${thread.status}`}
+                      value={formatRelativeTime(thread.updatedAt)}
+                      onPress={() => {
+                        if (handle)
+                          router.push({
+                            pathname: '/(app)/[username]',
+                            params: {
+                              username: `@${handle}`,
+                              threadId: thread.id,
+                            },
+                          });
+                      }}
+                    />
+                  ))}
+                </SettingsListGroup>
+              )}
+
+              <Section title={t('agents.activity')}>
+                <ActivityGrid agentId={agent._id} />
+              </Section>
+
+              <Divider />
+
+              <Section title={t('agents.about')}>
+                <Text variant="body-regular">{agent.description}</Text>
+              </Section>
+
+              {/* Capabilities — the families this agent was granted, by their
+                  own labels. A connector grant (`mcp:<id>`) is deliberately not
+                  shown: the id is meaningless to a reader and the connector
+                  belongs to the owner, not to this public listing. */}
+              {grantedFamilyLabels.length > 0 && (
+                <>
+                  <Divider />
+                  <Section title={t('agents.capabilities')}>
+                    <ChipList items={grantedFamilyLabels} />
+                  </Section>
+                </>
+              )}
+
+              {agent.tags.length > 0 && (
+                <>
+                  <Divider />
+                  <Section title={t('agents.tags')}>
+                    <ChipList items={agent.tags} />
+                  </Section>
+                </>
+              )}
+
+              <Divider />
+              <Section
+                title={t('agents.reviews')}
+                action={
+                  user && !isOwner && !showReviewForm ? (
+                    <Button
+                      size="sm"
+                      appearance="plain"
+                      onPress={() => setShowReviewForm(true)}
+                    >
+                      {userReview
+                        ? t('agents.editReview')
+                        : t('agents.writeReview')}
+                    </Button>
+                  ) : null
+                }
+              >
+                {showReviewForm && (
+                  <Card appearance="outline">
+                    <CardBody style={{ gap: 12, paddingVertical: 12 }}>
+                      <RatingInput
+                        value={reviewRating || null}
+                        onChange={setReviewRating}
+                        accessibilityLabel={t('agents.reviews')}
+                      />
+                      <Textarea
+                        value={reviewComment}
+                        onValueChange={setReviewComment}
+                        placeholder={t('agents.reviewPlaceholder')}
+                        rows={3}
+                        autoResize
+                      />
+                      <View
+                        style={{
+                          flexDirection: 'row',
+                          justifyContent: 'flex-end',
+                          gap: 8,
+                        }}
+                      >
+                        <Button
+                          size="sm"
+                          tone="neutral"
+                          appearance="plain"
+                          onPress={() => setShowReviewForm(false)}
+                        >
+                          {t('common.cancel')}
+                        </Button>
+                        <Button
+                          size="sm"
+                          tone="action"
+                          onPress={handleSubmitReview}
+                          disabled={!reviewRating}
+                          loading={submittingReview}
+                        >
+                          {t('agents.writeReview')}
+                        </Button>
+                      </View>
+                    </CardBody>
+                  </Card>
+                )}
+
+                {reviews.length === 0 && !showReviewForm ? (
+                  <Muted>{t('agents.noReviews')}</Muted>
+                ) : (
+                  <View style={{ gap: 12 }}>
+                    {reviews.map((review: any) => (
+                      <View key={review._id} style={{ gap: 4 }}>
+                        <View
+                          style={{
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            gap: 8,
+                          }}
+                        >
+                          <Text variant="body-medium">
+                            {review.userId?.username || 'User'}
+                          </Text>
+                          <Rating value={review.rating} size="small" />
+                          <View style={{ flex: 1 }} />
+                          {user && review.userId?._id === user.id && (
+                            <Button
+                              size="xs"
+                              tone="neutral"
+                              appearance="plain"
+                              icon={RiDeleteBinLine}
+                              accessibilityLabel={t('agents.deleteReview')}
+                              onPress={handleDeleteReview}
+                            />
+                          )}
+                        </View>
+                        {review.comment ? (
+                          <Text variant="body-regular">{review.comment}</Text>
+                        ) : null}
+                      </View>
+                    ))}
+                  </View>
+                )}
+              </Section>
+
+              {/* Activity terminal — mobile only; desktop has it beside. */}
+              {!isLargeScreen && (
+                <>
+                  <Divider />
+                  <Section title={t('agents.activity')}>
+                    <View style={{ height: 300 }}>
+                      <AgentTerminal agentId={agent._id} />
+                    </View>
+                  </Section>
+                </>
+              )}
+            </>
+          )}
+        </View>
+      </ScrollView>
+
+      {/* Activity terminal beside the details — desktop only */}
+      {isLargeScreen && (
+        <View style={{ flex: 1, padding: 16, gap: 8 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <Badge dot color="success" />
+            <Text variant="headline-semibold">{t('agents.activity')}</Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <AgentTerminal agentId={agent._id} />
+          </View>
+        </View>
+      )}
     </View>
   );
 }

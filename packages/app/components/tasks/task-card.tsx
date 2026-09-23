@@ -1,19 +1,25 @@
 import { agentDisplayName } from '@/lib/agents/identity';
 import type { AgentActivityState } from '@/lib/hooks/use-agent-activity';
 import type { TaskAgentRef, TaskSession } from '@/lib/hooks/use-tasks';
-import {
-  formatDuration,
-  getStatusConfig,
-  getToolPillLabel,
-} from '@/lib/task-utils';
-import { useColorScheme } from '@/lib/useColorScheme';
-import { Text } from '@oxy.so/bloom/typography';
-import { ChevronDown, ChevronUp, Loader } from 'lucide-react-native';
+import { formatDuration, getToolPillLabel } from '@/lib/task-utils';
+import { Badge, type BadgeIcon } from '@oxy.so/bloom/badge';
+import { Button } from '@oxy.so/bloom/button';
+import { Card, CardFooter } from '@oxy.so/bloom/card';
+import { RiArrowDownSLine } from '@oxy.so/bloom/icons/RiArrowDownSLine';
+import { RiArrowUpSLine } from '@oxy.so/bloom/icons/RiArrowUpSLine';
+import { RiCheckboxCircleLine } from '@oxy.so/bloom/icons/RiCheckboxCircleLine';
+import { RiCloseCircleLine } from '@oxy.so/bloom/icons/RiCloseCircleLine';
+import { RiForbidLine } from '@oxy.so/bloom/icons/RiForbidLine';
+import { RiLoader4Line } from '@oxy.so/bloom/icons/RiLoader4Line';
+import { RiTimeLine } from '@oxy.so/bloom/icons/RiTimeLine';
+import { Item } from '@oxy.so/bloom/item';
+import type { AccentTone } from '@oxy.so/bloom/theme';
+import { Muted } from '@oxy.so/bloom/typography';
 import React, { useEffect, useMemo, useState } from 'react';
-import { Pressable, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { AgentMarkRow } from './agent-mark-row';
 import { TaskTimelineStep } from './task-timeline-step';
+
 interface TaskCardProps {
   task: TaskSession;
   activity?: AgentActivityState | null;
@@ -22,13 +28,28 @@ interface TaskCardProps {
 
 const COLLAPSED_STEP_COUNT = 5;
 
+/** A session's status as a Bloom badge: its word, its tone and its mark. */
+const STATUS: Record<
+  TaskSession['status'],
+  { label: string; tone: AccentTone; icon: BadgeIcon }
+> = {
+  queued: { label: 'Queued', tone: 'default', icon: RiTimeLine },
+  running: { label: 'Running', tone: 'info', icon: RiLoader4Line },
+  completed: {
+    label: 'Completed',
+    tone: 'success',
+    icon: RiCheckboxCircleLine,
+  },
+  failed: { label: 'Failed', tone: 'error', icon: RiCloseCircleLine },
+  cancelled: { label: 'Cancelled', tone: 'default', icon: RiForbidLine },
+};
+
 export const TaskCard = React.memo(function TaskCard({
   task,
   activity,
   onPress,
 }: TaskCardProps) {
-  const { colors } = useColorScheme();
-  const statusConfig = useMemo(() => getStatusConfig(task.status, colors), [task.status, colors]);
+  const status = STATUS[task.status];
   const [expanded, setExpanded] = useState(false);
   const [elapsed, setElapsed] = useState('');
 
@@ -36,10 +57,12 @@ export const TaskCard = React.memo(function TaskCard({
   useEffect(() => {
     const startedAt = task.stats.startedAt;
     if (task.status !== 'running' || !startedAt) {
-      if (startedAt) setElapsed(formatDuration(Date.now() - new Date(startedAt).getTime()));
+      if (startedAt)
+        setElapsed(formatDuration(Date.now() - new Date(startedAt).getTime()));
       return;
     }
-    const update = () => setElapsed(formatDuration(Date.now() - new Date(startedAt).getTime()));
+    const update = () =>
+      setElapsed(formatDuration(Date.now() - new Date(startedAt).getTime()));
     update();
     const interval = setInterval(update, 1000);
     return () => clearInterval(interval);
@@ -51,17 +74,22 @@ export const TaskCard = React.memo(function TaskCard({
     return task.plan?.items ?? [];
   }, [activity?.plan?.items, task.plan?.items]);
 
-  const completedCount = planItems.filter(i => i.status === 'completed').length;
+  const completedCount = planItems.filter(
+    (i) => i.status === 'completed',
+  ).length;
   const totalCount = planItems.length;
   const hasTimeline = totalCount > 0;
   const needsCollapse = totalCount > COLLAPSED_STEP_COUNT;
-  const visibleItems = needsCollapse && !expanded
-    ? planItems.slice(0, COLLAPSED_STEP_COUNT)
-    : planItems;
+  const visibleItems =
+    needsCollapse && !expanded
+      ? planItems.slice(0, COLLAPSED_STEP_COUNT)
+      : planItems;
 
   // Current tool info for the in-progress step
   const currentToolName = activity?.currentAction?.toolName ?? null;
-  const currentToolLabel = currentToolName ? getToolPillLabel(currentToolName) : null;
+  const currentToolLabel = currentToolName
+    ? getToolPillLabel(currentToolName)
+    : null;
 
   // Build the agents list for the mark row
   const agents = useMemo(() => {
@@ -83,84 +111,83 @@ export const TaskCard = React.memo(function TaskCard({
 
   return (
     <Animated.View entering={FadeIn.duration(300)}>
-      <Pressable onPress={onPress} className="active:opacity-70">
-        {/* Header: agent marks + status badge + elapsed time */}
-        <View className="flex-row items-center justify-between mb-2">
-          <AgentMarkRow agents={agents} />
-          <View className="flex-row items-center gap-2">
-            {elapsed ? (
-              <Text className="text-xs text-muted-foreground">{elapsed}</Text>
-            ) : null}
-            <View className="flex-row items-center gap-1 bg-muted/50 rounded-full px-2 py-0.5">
-              {statusConfig.icon}
-              <Text className="text-[10px] font-medium" style={{ color: statusConfig.color }}>
-                {statusConfig.label}
-              </Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Task description */}
-        <Text className="text-sm text-muted-foreground mb-3" numberOfLines={2}>
-          {task.task}
-        </Text>
-
-        {/* Timeline steps — matches thought-panel StepsTab pattern */}
-        {hasTimeline && (
-          <View className="gap-0">
-            {visibleItems.map((item, i) => (
-              <TaskTimelineStep
-                key={item.id}
-                item={item}
-                isLast={i === visibleItems.length - 1 && (expanded || !needsCollapse)}
-                toolName={item.status === 'in_progress' ? currentToolName : null}
-                toolLabel={item.status === 'in_progress' ? currentToolLabel : null}
+      <Card appearance="outline" onPress={onPress} accessibilityRole="button">
+        {/* Header: agent marks, elapsed time and the status badge */}
+        <Item
+          title={<AgentMarkRow agents={agents} />}
+          subtitle={<Muted numberOfLines={2}>{task.task}</Muted>}
+          trailing={
+            <>
+              {elapsed ? <Muted>{elapsed}</Muted> : null}
+              <Badge
+                size="label-small"
+                variant="subtle"
+                color={status.tone}
+                icon={status.icon}
+                content={status.label}
               />
-            ))}
-
-            {needsCollapse && (
-              <Pressable
-                onPress={() => setExpanded(!expanded)}
-                className="flex-row items-center gap-1.5 mt-1"
-                style={{ marginLeft: 26 }}
-              >
-                {expanded ? (
-                  <ChevronUp size={12} color={colors.mutedForeground} />
-                ) : (
-                  <ChevronDown size={12} color={colors.mutedForeground} />
-                )}
-                <Text className="text-xs text-muted-foreground">
-                  {expanded ? 'Show less' : `Show all ${totalCount} steps`}
-                </Text>
-              </Pressable>
-            )}
-          </View>
-        )}
+            </>
+          }
+        />
+        {hasTimeline &&
+          visibleItems.map((item, i) => (
+            <TaskTimelineStep
+              key={item.id}
+              item={item}
+              isLast={
+                i === visibleItems.length - 1 && (expanded || !needsCollapse)
+              }
+              toolName={item.status === 'in_progress' ? currentToolName : null}
+              toolLabel={
+                item.status === 'in_progress' ? currentToolLabel : null
+              }
+            />
+          ))}
 
         {/* Current action (when no plan yet) */}
-        {!hasTimeline && activity?.currentAction && task.status === 'running' && (
-          <View className="flex-row items-center gap-2 bg-muted/40 rounded-full px-3 py-1.5 self-start">
-            <Loader size={12} color={colors.mutedForeground} />
-            <Text className="text-xs text-muted-foreground" numberOfLines={1}>
-              {getToolPillLabel(activity.currentAction.toolName)}
-            </Text>
-          </View>
-        )}
+        {!hasTimeline &&
+          activity?.currentAction &&
+          task.status === 'running' && (
+            <Item
+              density="compact"
+              title={
+                <Badge
+                  size="label-medium"
+                  variant="subtle"
+                  icon={RiLoader4Line}
+                  content={getToolPillLabel(activity.currentAction.toolName)}
+                />
+              }
+            />
+          )}
 
         {/* Result preview for completed tasks */}
         {task.result && task.status === 'completed' && !hasTimeline && (
-          <Text className="text-xs text-muted-foreground" numberOfLines={2}>
-            {task.result}
-          </Text>
+          <Item
+            density="compact"
+            title={<Muted numberOfLines={2}>{task.result}</Muted>}
+          />
         )}
 
-        {/* Footer: step count */}
         {hasTimeline && (
-          <Text className="text-xs text-muted-foreground mt-2" style={{ marginLeft: 26 }}>
-            {completedCount}/{totalCount} steps completed
-          </Text>
+          <CardFooter style={{ justifyContent: 'space-between' }}>
+            <Muted>
+              {completedCount}/{totalCount} steps completed
+            </Muted>
+            {needsCollapse && (
+              <Button
+                tone="neutral"
+                appearance="plain"
+                size="xs"
+                leadingIcon={expanded ? RiArrowUpSLine : RiArrowDownSLine}
+                onPress={() => setExpanded(!expanded)}
+              >
+                {expanded ? 'Show less' : `Show all ${totalCount} steps`}
+              </Button>
+            )}
+          </CardFooter>
         )}
-      </Pressable>
+      </Card>
     </Animated.View>
   );
 });

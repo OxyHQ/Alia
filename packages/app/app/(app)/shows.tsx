@@ -14,39 +14,39 @@
 
 import { SeriesCreateDialog } from '@/components/show/series-create-dialog';
 import { ShowArtwork } from '@/components/show/show-artwork';
-import { DrawerToggle } from '@/components/ui/drawer-toggle';
 import { useShowProgress } from '@/lib/hooks/use-show-progress';
 import {
   useShowStore,
   type ShowSeries,
   type ShowVisibility,
 } from '@/lib/stores/show-store';
-import { useColorScheme } from '@/lib/useColorScheme';
 import { formatEpisodeCount } from '@/lib/utils/show-format';
+import { Admonition } from '@oxy.so/bloom/admonition';
+import { Badge, type BadgeIcon } from '@oxy.so/bloom/badge';
 import { Button } from '@oxy.so/bloom/button';
-import { ContentPanel } from '@oxy.so/bloom/content-panel';
+import { Card } from '@oxy.so/bloom/card';
+import { EmptyState } from '@oxy.so/bloom/empty-state';
+import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
+import { RiArrowRightSLine } from '@oxy.so/bloom/icons/RiArrowRightSLine';
+import { RiGlobalLine } from '@oxy.so/bloom/icons/RiGlobalLine';
+import { RiLink } from '@oxy.so/bloom/icons/RiLink';
+import { RiLockLine } from '@oxy.so/bloom/icons/RiLockLine';
+import { RiMic2Line } from '@oxy.so/bloom/icons/RiMic2Line';
+import { Item } from '@oxy.so/bloom/item';
 import * as Skeleton from '@oxy.so/bloom/skeleton';
-import { Text } from '@oxy.so/bloom/typography';
+import { useTheme } from '@oxy.so/bloom/theme';
+import { Muted, Text } from '@oxy.so/bloom/typography';
 import { useAuth } from '@oxy.so/services';
 import { useRouter } from 'expo-router';
-import {
-  ChevronRight,
-  Globe,
-  Link2,
-  Lock,
-  Mic,
-  Plus,
-} from 'lucide-react-native';
 import { useCallback, useEffect, useState } from 'react';
-import { FlatList, Pressable, RefreshControl, View } from 'react-native';
+import { FlatList, RefreshControl, View } from 'react-native';
 
 /** Who can hear it, as an icon and a word. */
-const VISIBILITY: Record<ShowVisibility, { label: string; icon: typeof Lock }> =
-  {
-    private: { label: 'Private', icon: Lock },
-    unlisted: { label: 'Unlisted', icon: Link2 },
-    public: { label: 'Public', icon: Globe },
-  };
+const VISIBILITY: Record<ShowVisibility, { label: string; icon: BadgeIcon }> = {
+  private: { label: 'Private', icon: RiLockLine },
+  unlisted: { label: 'Unlisted', icon: RiLink },
+  public: { label: 'Public', icon: RiGlobalLine },
+};
 
 function SeriesRow({
   series,
@@ -55,8 +55,8 @@ function SeriesRow({
   series: ShowSeries;
   onOpen: (id: string) => void;
 }) {
+  const { colors } = useTheme();
   const visibility = VISIBILITY[series.visibility];
-  const VisibilityIcon = visibility.icon;
   // `nextEpisodeNumber` counts from 1, so it is one past however many have been
   // started — which is what a person means by "how many episodes".
   const episodeCount = series.nextEpisodeNumber - 1;
@@ -66,49 +66,51 @@ function SeriesRow({
     series.speakers.map((speaker) => speaker.name).join(', ') || series.brief;
 
   return (
-    <Pressable
+    <Card
+      appearance="outline"
       onPress={() => onOpen(series.id)}
       accessibilityRole="button"
       accessibilityLabel={`Open ${series.title}`}
-      className="flex-row items-center gap-4 rounded-2xl border border-border bg-card p-3 active:opacity-80 web:transition-colors web:hover:bg-muted/40"
     >
-      <ShowArtwork
-        assetId={series.coverImageAssetId}
+      <Item
+        leading={
+          <ShowArtwork
+            assetId={series.coverImageAssetId}
+            title={series.title}
+            size={64}
+            radius="radius-12"
+            iconSize={26}
+          />
+        }
         title={series.title}
-        className="h-16 w-16 rounded-xl"
-        iconSize={26}
-      />
-
-      <View className="min-w-0 flex-1 gap-0.5">
-        <View className="flex-row items-center gap-2">
-          <Text
-            className="flex-1 text-base font-semibold text-foreground"
-            numberOfLines={1}
-          >
-            {series.title}
-          </Text>
-          <View className="flex-row items-center gap-1 rounded-full bg-muted px-2 py-0.5">
-            <VisibilityIcon size={10} className="text-muted-foreground" />
-            <Text className="text-[10px] font-medium text-muted-foreground">
-              {visibility.label}
+        subtitle={
+          <>
+            <Text variant="body-2-regular" numberOfLines={1} style={{ color: colors.textSecondary }}>
+              {byline}
             </Text>
+            <Text
+              variant="caption-1-regular"
+              numberOfLines={1}
+              style={{ color: colors.textSecondary, textTransform: 'capitalize' }}
+            >
+              {formatEpisodeCount(episodeCount)} · {series.format}
+            </Text>
+          </>
+        }
+        trailing={
+          // Stacking only: the visibility badge beside the chevron.
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <Badge
+              size="label-small"
+              variant="subtle"
+              icon={visibility.icon}
+              content={visibility.label}
+            />
+            <RiArrowRightSLine width={20} height={20} fill={colors.textSecondary} />
           </View>
-        </View>
-
-        <Text className="text-sm text-muted-foreground" numberOfLines={1}>
-          {byline}
-        </Text>
-
-        <Text
-          className="text-xs capitalize text-muted-foreground"
-          numberOfLines={1}
-        >
-          {formatEpisodeCount(episodeCount)} · {series.format}
-        </Text>
-      </View>
-
-      <ChevronRight size={20} className="text-muted-foreground" />
-    </Pressable>
+        }
+      />
+    </Card>
   );
 }
 
@@ -120,7 +122,7 @@ export default function ShowsScreen() {
   const fetchSeries = useShowStore((s) => s.fetchSeries);
   const fetchPreferences = useShowStore((s) => s.fetchPreferences);
   const { isAuthenticated } = useAuth();
-  const { colors } = useColorScheme();
+  const { colors } = useTheme();
 
   // One listener for the whole feature, on the shared notifications socket, so
   // an episode started here keeps reporting while the user is on the list.
@@ -148,131 +150,100 @@ export default function ShowsScreen() {
 
   const renderItem = useCallback(
     ({ item }: { item: ShowSeries }) => (
-      <View className="pb-3">
-        <SeriesRow series={item} onOpen={openSeries} />
-      </View>
+      <SeriesRow series={item} onOpen={openSeries} />
     ),
     [openSeries],
   );
 
   const isEmpty = !loading && series.length === 0;
+  const startShow = () => setCreateOpen(true);
 
+  /*
+   * No surface, no title and no menu button: the layout's `AiChatContainer`
+   * draws the page, its "Shows" crumb and the mobile header. The page is its
+   * description, its one action, and the list.
+   */
   return (
-    <ContentPanel surfaceClassName="bg-background">
-      <View className="flex-1 bg-background">
-        <FlatList
-          data={loading && series.length === 0 ? [] : series}
-          renderItem={renderItem}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }}
-          showsVerticalScrollIndicator={false}
-          ListHeaderComponent={
-            <View className="pb-3 pt-6">
-              <View className="flex-row items-center justify-between gap-3">
-                {/* The drawer opener sits first, as on every top-level page (#532). */}
-                <View className="flex-row items-center gap-2">
-                  <DrawerToggle />
-                  <Text className="text-2xl font-bold text-foreground">
-                    Shows
-                  </Text>
-                </View>
-                <Button
-                  size="sm"
-                  className="flex-row items-center gap-1.5 rounded-full"
-                  onPress={() => setCreateOpen(true)}
-                  leading={
-                    <>
-                      <Plus size={14} className="text-primary-foreground" />
-                    </>
-                  }
-                >
-                  New
-                </Button>
-              </View>
-              <Text className="mt-0.5 text-[13px] text-muted-foreground">
+    <>
+      <FlatList
+        style={{ flex: 1 }}
+        data={loading && series.length === 0 ? [] : series}
+        renderItem={renderItem}
+        keyExtractor={(item) => item.id}
+        contentContainerStyle={{
+          paddingHorizontal: 16,
+          paddingTop: 16,
+          paddingBottom: 24,
+          gap: 12,
+        }}
+        showsVerticalScrollIndicator={false}
+        ListHeaderComponent={
+          // Stacking only: the top row, the error and the placeholders.
+          <View style={{ gap: 12 }}>
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 12,
+              }}
+            >
+              <Muted style={{ flex: 1 }}>
                 Podcasts Alia writes, voices and publishes to Syra.
-              </Text>
-
-              {error ? (
-                <View className="mt-3 rounded-lg bg-destructive/10 p-2">
-                  <Text className="text-xs text-destructive">{error}</Text>
-                </View>
-              ) : null}
-
-              {loading && series.length === 0 ? (
-                <View className="gap-3 pt-4">
-                  {[1, 2, 3].map((key) => (
-                    <View
-                      key={key}
-                      className="flex-row items-center gap-4 rounded-2xl border border-border p-3"
-                    >
-                      <Skeleton.Box width={64} height={64} borderRadius={12} />
-                      <View className="flex-1 gap-2">
-                        <Skeleton.Box
-                          width="66.6667%"
-                          height={16}
-                          borderRadius={4}
-                        />
-                        <Skeleton.Box
-                          width="50%"
-                          height={12}
-                          borderRadius={4}
-                        />
-                        <Skeleton.Box
-                          width="33.3333%"
-                          height={12}
-                          borderRadius={4}
-                        />
-                      </View>
-                    </View>
-                  ))}
-                </View>
-              ) : null}
+              </Muted>
+              <Button
+                tone="action"
+                size="sm"
+                leadingIcon={RiAddLine}
+                onPress={startShow}
+              >
+                New
+              </Button>
             </View>
-          }
-          ListEmptyComponent={
-            isEmpty ? (
-              <View className="items-center gap-4 px-4 py-16">
-                <View className="h-20 w-20 items-center justify-center rounded-2xl bg-muted">
-                  <Mic size={32} className="text-muted-foreground" />
-                </View>
-                <Text className="text-center text-lg font-semibold text-foreground">
-                  No shows yet
-                </Text>
-                <Text className="text-center text-sm text-muted-foreground">
-                  Start a show and Alia will write, voice and publish each
-                  episode to Syra — where it becomes a real podcast you can
-                  share or keep to yourself.
-                </Text>
-                <Button
-                  onPress={() => setCreateOpen(true)}
-                  className="flex-row items-center gap-1.5 rounded-full"
-                  leading={
-                    <>
-                      <Plus size={14} className="text-primary-foreground" />
-                    </>
-                  }
-                >
-                  Start a show
-                </Button>
-              </View>
-            ) : null
-          }
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              tintColor={colors.primary}
+
+            {error ? <Admonition type="error">{error}</Admonition> : null}
+
+            {loading && series.length === 0 ? (
+              <Skeleton.Col style={{ gap: 16, paddingTop: 4 }}>
+                {[1, 2, 3].map((key) => (
+                  <Skeleton.Row key={key} style={{ gap: 16, alignItems: 'center' }}>
+                    <Skeleton.Box width={64} height={64} borderRadius={12} />
+                    <Skeleton.Col style={{ flex: 1, gap: 8 }}>
+                      <Skeleton.Text style={{ width: '66%', lineHeight: 16 }} />
+                      <Skeleton.Text style={{ width: '50%', lineHeight: 12 }} />
+                      <Skeleton.Text style={{ width: '33%', lineHeight: 12 }} />
+                    </Skeleton.Col>
+                  </Skeleton.Row>
+                ))}
+              </Skeleton.Col>
+            ) : null}
+          </View>
+        }
+        ListEmptyComponent={
+          isEmpty ? (
+            <EmptyState
+              icon={RiMic2Line}
+              media="circle"
+              title="No shows yet"
+              description="Start a show and Alia will write, voice and publish each episode to Syra — where it becomes a real podcast you can share or keep to yourself."
+              action={{ label: 'Start a show', icon: RiAddLine, onPress: startShow }}
             />
-          }
-        />
-      </View>
+          ) : null
+        }
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.primary}
+          />
+        }
+      />
 
       <SeriesCreateDialog
         open={createOpen}
         onOpenChange={setCreateOpen}
         onCreated={openSeries}
       />
-    </ContentPanel>
+    </>
   );
 }

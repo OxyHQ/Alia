@@ -1,44 +1,9 @@
-import { ColorPicker } from '@/components/ui/color-picker';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@oxy.so/bloom/dropdown-menu';
-import { RiDeleteBinLine } from '@oxy.so/bloom/icons';
-import { Panel } from '@/components/ui/panel';
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
-import { AGENT_SWATCHES } from '@/lib/constants/agent-colors';
-import { useIsLargeScreen } from '@/lib/hooks/use-is-large-screen';
-import { asTextStyle } from '@/lib/types/webStyles';
-import { IdentityMark } from '@alia.onl/sdk';
-import { Button, GhostButton } from '@oxy.so/bloom/button';
-import { Dialog } from '@oxy.so/bloom/dialog';
-import { Item } from '@oxy.so/bloom/item';
-import { Label } from '@oxy.so/bloom/label';
-import { Search } from '@oxy.so/bloom/search';
-import {
-  SettingsListGroup,
-  SettingsListItem,
-} from '@oxy.so/bloom/settings-list';
-import { Switch } from '@oxy.so/bloom/switch';
-import { TextFieldInput as Input } from '@oxy.so/bloom/text-field';
-import { Textarea } from '@oxy.so/bloom/textarea';
-import { Text } from '@oxy.so/bloom/typography';
-import {
-  ArrowLeft,
-  ChevronRight,
-  Ellipsis,
-  FileText,
-  Plus,
-  Send,
-  Settings,
-  Trash2,
-  X,
-} from 'lucide-react-native';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { Platform, Pressable, ScrollView, TextInput, View } from 'react-native';
-
 import { AgentCapabilityToggles } from '@/components/agent-capability-toggles';
 import { AgentConnectorGrants } from '@/components/agent-connector-grants';
 import { agentTint } from '@/lib/agents/agent-color';
 import apiClient from '@/lib/api/client';
 import { API_ROUTES } from '@/lib/api/routes';
+import { AGENT_SWATCHES } from '@/lib/constants/agent-colors';
 import type { GrantableConnector } from '@/lib/constants/capability-families';
 import {
   errorStatus,
@@ -50,6 +15,7 @@ import {
   useDeleteAgent,
   useUpdateAgent,
 } from '@/lib/hooks/use-agents';
+import { useIsLargeScreen } from '@/lib/hooks/use-is-large-screen';
 import { useTranslation } from '@/lib/hooks/use-translation';
 import { useLibraryStore } from '@/lib/stores/library-store';
 import type {
@@ -58,12 +24,58 @@ import type {
   ArchetypeConfig,
 } from '@/lib/types/agents';
 import { useColorScheme } from '@/lib/useColorScheme';
-import { cn } from '@/lib/utils';
-import { ContentPanel } from '@oxy.so/bloom/content-panel';
+import { IdentityMark } from '@alia.onl/sdk';
+import { Badge } from '@oxy.so/bloom/badge';
+import { Button } from '@oxy.so/bloom/button';
+import { Card, CardBody } from '@oxy.so/bloom/card';
+import { Chip, ChipRow } from '@oxy.so/bloom/chip';
+import { Dialog } from '@oxy.so/bloom/dialog';
+import { Divider } from '@oxy.so/bloom/divider';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@oxy.so/bloom/dropdown-menu';
+import {
+  RiAddLine,
+  RiArrowLeftLine,
+  RiAtLine,
+  RiCloseLine,
+  RiDeleteBinLine,
+  RiFileTextLine,
+  RiMore2Line,
+  RiSendPlaneLine,
+  RiSettings3Line,
+} from '@oxy.so/bloom/icons';
+import { Item } from '@oxy.so/bloom/item';
+import { Label } from '@oxy.so/bloom/label';
+import { Loading } from '@oxy.so/bloom/loading';
+import { Search } from '@oxy.so/bloom/search';
+import {
+  SegmentedControl,
+  SegmentedControlItem,
+  SegmentedControlItemText,
+} from '@oxy.so/bloom/segmented-control';
+import {
+  SettingsListGroup,
+  SettingsListItem,
+} from '@oxy.so/bloom/settings-list';
 import { confirm } from '@oxy.so/bloom/surfaces';
+import { Switch } from '@oxy.so/bloom/switch';
+import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
+import {
+  TextField,
+  TextFieldIcon,
+  TextFieldInput as Input,
+} from '@oxy.so/bloom/text-field';
+import { Textarea } from '@oxy.so/bloom/textarea';
 import { toast } from '@oxy.so/bloom/toast';
+import { Muted, Text } from '@oxy.so/bloom/typography';
 import { useOxy } from '@oxy.so/services';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { ScrollView, View } from 'react-native';
 
 type LinkedSkill = {
   _id: string;
@@ -200,18 +212,27 @@ export default function EditAgentScreen() {
   if (isError) {
     const notFound = errorStatus(error) === 404;
     return (
-      <View className="flex-1 bg-background items-center justify-center px-6 gap-3">
-        <Text className="text-base font-medium text-foreground text-center">
+      <View
+        style={{
+          flex: 1,
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: 24,
+          gap: 12,
+        }}
+      >
+        <Text variant="headline-semibold" style={{ textAlign: 'center' }}>
           {notFound ? t('agents.notFound') : t('agents.loadFailed')}
         </Text>
-        <Text className="text-sm text-muted-foreground text-center">
+        <Muted style={{ textAlign: 'center' }}>
           {notFound
             ? t('agents.notFoundDetail')
             : getErrorMessage(error, t('agents.loadFailed'))}
-        </Text>
+        </Muted>
         {notFound ? (
           <Button
-            variant="secondary"
+            tone="neutral"
+            appearance="subtle"
             accessibilityRole="button"
             accessibilityLabel={t('agents.backToAgents')}
             onPress={() => router.replace('/(app)/agents')}
@@ -220,7 +241,8 @@ export default function EditAgentScreen() {
           </Button>
         ) : (
           <Button
-            variant="secondary"
+            tone="neutral"
+            appearance="subtle"
             accessibilityRole="button"
             accessibilityLabel={t('agents.retry')}
             onPress={() => void refetch()}
@@ -236,9 +258,7 @@ export default function EditAgentScreen() {
   // until it has — or the fetch is in flight. Both are a wait, and the same one
   // to the person looking at it.
   return (
-    <View className="flex-1 bg-background items-center justify-center">
-      <Text className="text-muted-foreground">{t('common.loading')}</Text>
-    </View>
+    <Loading variant="spinner" text={t('common.loading')} style={{ flex: 1 }} />
   );
 }
 
@@ -619,106 +639,77 @@ function AgentEditor({ agent }: { agent: Agent }) {
     [removeBot, t],
   );
 
-  // Sidebar content
-  const sidebarContent = (
-    <View className="flex-1 bg-background">
-      {/* Sidebar Header */}
-      <View className="flex-row items-center justify-between px-4 py-3 border-b border-border">
-        <Text className="text-base font-semibold text-foreground">
-          {sidebarTab === 'resources'
-            ? t('agents.resources')
-            : t('agents.settings')}
-        </Text>
-        {!isLargeScreen && (
-          <Pressable
-            className="p-1 rounded-lg active:opacity-70"
-            onPress={() => setShowPanel(false)}
-          >
-            <X size={20} className="text-muted-foreground" />
-          </Pressable>
-        )}
-      </View>
+  /** A routing rule's fields, rewritten into the draft as one edit. */
+  const editRoutingRule = (
+    index: number,
+    patch: Partial<NonNullable<ArchetypeConfig['routingRules']>[number]>,
+  ): void => {
+    const rules = [...(archetypeConfig.routingRules || [])];
+    rules[index] = { ...rules[index], ...patch };
+    editDraft({ archetypeConfig: { ...archetypeConfig, routingRules: rules } });
+  };
 
-      {/* Tabs */}
-      <View className="flex-row border-b border-border">
-        <Pressable
-          onPress={() => setSidebarTab('resources')}
-          className={cn(
-            'flex-1 py-2.5 items-center',
-            sidebarTab === 'resources' && 'border-b-2 border-primary',
-          )}
-        >
-          <Text
-            className={cn(
-              'text-sm font-medium',
-              sidebarTab === 'resources'
-                ? 'text-foreground'
-                : 'text-muted-foreground',
-            )}
-          >
-            {t('agents.resources')}
-          </Text>
-        </Pressable>
-        <Pressable
-          onPress={() => setSidebarTab('settings')}
-          className={cn(
-            'flex-1 py-2.5 items-center',
-            sidebarTab === 'settings' && 'border-b-2 border-primary',
-          )}
-        >
-          <Text
-            className={cn(
-              'text-sm font-medium',
-              sidebarTab === 'settings'
-                ? 'text-foreground'
-                : 'text-muted-foreground',
-            )}
-          >
-            {t('agents.settings')}
-          </Text>
-        </Pressable>
-      </View>
+  /** One channel on or off in a multi-select list of the archetype config. */
+  const toggleChannel = (
+    key: 'deliveryChannels' | 'inboundChannels',
+    channel: string,
+  ): void => {
+    const channels = archetypeConfig[key] || [];
+    editDraft({
+      archetypeConfig: {
+        ...archetypeConfig,
+        [key]: channels.includes(channel)
+          ? channels.filter((c: string) => c !== channel)
+          : [...channels, channel],
+      },
+    });
+  };
+
+  // The side column: resources and settings, switched by Bloom's tab strip.
+  const sidebarContent = (
+    <View style={{ flex: 1 }}>
+      <Tabs
+        value={sidebarTab}
+        onValueChange={(next) => setSidebarTab(next as SidebarTab)}
+        fullWidth
+      >
+        <TabsTrigger value="resources" label={t('agents.resources')} />
+        <TabsTrigger value="settings" label={t('agents.settings')} />
+      </Tabs>
 
       <ScrollView
-        className="flex-1"
+        style={{ flex: 1 }}
+        contentContainerStyle={{ padding: 16, gap: 16 }}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
-        /* The resources tab is one scrolling column of grouped sections;
-           the settings tab keeps its fixed-height layout on large screens. */
-        scrollEnabled={sidebarTab === 'resources' || !isLargeScreen}
-        contentContainerStyle={
-          sidebarTab === 'settings' && isLargeScreen ? { flex: 1 } : undefined
-        }
       >
         {sidebarTab === 'resources' ? (
-          <View className="px-4 pt-4">
+          <>
             {/* Skills */}
             <SettingsListGroup title={t('agents.skills')}>
               {skills.map((skill) => (
                 <SettingsListItem
                   key={skill._id}
-                  icon={
-                    <Text className="text-base">
-                      {skill.icon ?? '\u{1F9E9}'}
-                    </Text>
-                  }
+                  icon={<Text>{skill.icon ?? '\u{1F9E9}'}</Text>}
                   title={skill.displayName}
                   rightElement={
-                    <GhostButton
-                      size="small"
+                    <Button
+                      size="xs"
+                      tone="neutral"
+                      appearance="plain"
+                      icon={RiCloseLine}
                       accessibilityLabel={`${t('agents.removeSkill')}: ${skill.displayName}`}
                       onPress={() =>
                         editDraft({
                           skills: skills.filter((s) => s._id !== skill._id),
                         })
                       }
-                      icon={<X size={14} className="text-muted-foreground" />}
                     />
                   }
                 />
               ))}
               <SettingsListItem
-                icon={<Plus size={18} className="text-muted-foreground" />}
+                icon={<RiAddLine size="md" />}
                 title={t('agents.addSkill')}
                 onPress={() => setShowSkillPicker(true)}
                 showChevron={false}
@@ -733,7 +724,7 @@ function AgentEditor({ agent }: { agent: Agent }) {
               scrollable={false}
               contentPadding={0}
             >
-              <View className="mx-4 mb-2">
+              <View style={{ paddingHorizontal: 16, paddingBottom: 8 }}>
                 <Search
                   label="Search skills..."
                   value={skillSearch}
@@ -743,8 +734,9 @@ function AgentEditor({ agent }: { agent: Agent }) {
                 />
               </View>
               <ScrollView
-                style={{ maxHeight: isLargeScreen ? 300 : undefined }}
-                className={cn(!isLargeScreen && 'flex-1')}
+                style={
+                  isLargeScreen ? { maxHeight: 300 } : { flex: 1 }
+                }
               >
                 {allSkills
                   .filter(
@@ -759,16 +751,13 @@ function AgentEditor({ agent }: { agent: Agent }) {
                   .map((skill) => (
                     <Item
                       key={skill._id}
+                      role="option"
                       onPress={() => {
                         editDraft({ skills: [...skills, skill] });
                         setShowSkillPicker(false);
                         setSkillSearch('');
                       }}
-                      leading={
-                        <Text className="text-base">
-                          {skill.icon ?? '\u{1F9E9}'}
-                        </Text>
-                      }
+                      leading={<Text>{skill.icon ?? '\u{1F9E9}'}</Text>}
                       title={skill.displayName}
                     />
                   ))}
@@ -796,13 +785,14 @@ function AgentEditor({ agent }: { agent: Agent }) {
               {knowledge.map((file) => (
                 <SettingsListItem
                   key={file._id}
-                  icon={
-                    <FileText size={18} className="text-muted-foreground" />
-                  }
+                  icon={<RiFileTextLine size="md" />}
                   title={file.name}
                   rightElement={
-                    <GhostButton
-                      size="small"
+                    <Button
+                      size="xs"
+                      tone="neutral"
+                      appearance="plain"
+                      icon={RiCloseLine}
                       accessibilityLabel={`${t('agents.removeKnowledge')}: ${file.name}`}
                       onPress={() =>
                         editDraft({
@@ -811,13 +801,12 @@ function AgentEditor({ agent }: { agent: Agent }) {
                           ),
                         })
                       }
-                      icon={<X size={14} className="text-muted-foreground" />}
                     />
                   }
                 />
               ))}
               <SettingsListItem
-                icon={<Plus size={18} className="text-muted-foreground" />}
+                icon={<RiAddLine size="md" />}
                 title={t('agents.addKnowledge')}
                 onPress={() => setShowKnowledgePicker(true)}
                 showChevron={false}
@@ -832,7 +821,7 @@ function AgentEditor({ agent }: { agent: Agent }) {
               scrollable={false}
               contentPadding={0}
             >
-              <View className="mx-4 mb-2">
+              <View style={{ paddingHorizontal: 16, paddingBottom: 8 }}>
                 <Search
                   label="Search library..."
                   value={knowledgeSearch}
@@ -842,8 +831,9 @@ function AgentEditor({ agent }: { agent: Agent }) {
                 />
               </View>
               <ScrollView
-                style={{ maxHeight: isLargeScreen ? 300 : undefined }}
-                className={cn(!isLargeScreen && 'flex-1')}
+                style={
+                  isLargeScreen ? { maxHeight: 300 } : { flex: 1 }
+                }
               >
                 {libraryFiles
                   .filter(
@@ -857,6 +847,7 @@ function AgentEditor({ agent }: { agent: Agent }) {
                   .map((file) => (
                     <Item
                       key={file._id}
+                      role="option"
                       onPress={() => {
                         editDraft({
                           knowledge: [
@@ -873,52 +864,51 @@ function AgentEditor({ agent }: { agent: Agent }) {
                         setShowKnowledgePicker(false);
                         setKnowledgeSearch('');
                       }}
-                      leading={
-                        <FileText size={14} className="text-muted-foreground" />
-                      }
+                      leading={<RiFileTextLine size="sm" />}
                       title={file.name}
                     />
                   ))}
                 {libraryFiles.length === 0 && (
-                  <Text className="text-xs text-muted-foreground px-4 py-3 text-center">
+                  <Muted style={{ textAlign: 'center', padding: 16 }}>
                     No files in library. Upload files on the Library screen.
-                  </Text>
+                  </Muted>
                 )}
               </ScrollView>
             </Dialog>
-          </View>
+          </>
         ) : (
-          <View className="p-4 gap-4">
+          <>
             {/* Category */}
-            <View className="gap-1.5">
+            <View style={{ gap: 6 }}>
               <Label>Category</Label>
-              <ToggleGroup
-                type="single"
-                value={category}
-                onValueChange={(val) => editDraft({ category: val as string })}
-              >
+              <ChipRow role="radiogroup" accessibilityLabel="Category">
                 {CATEGORIES.map((cat) => (
-                  <ToggleGroupItem key={cat} value={cat}>
+                  <Chip
+                    key={cat}
+                    size="xl"
+                    role="radio"
+                    selected={category === cat}
+                    onPress={() => editDraft({ category: cat })}
+                  >
                     {cat}
-                  </ToggleGroupItem>
+                  </Chip>
                 ))}
-              </ToggleGroup>
+              </ChipRow>
             </View>
 
             {/* Tagline */}
-            <View className="gap-1.5">
+            <View style={{ gap: 6 }}>
               <Label>Tagline</Label>
               <Input
                 label="Short description"
                 value={tagline}
                 onChangeText={(text) => editDraft({ tagline: text })}
                 placeholder="Short description"
-                placeholderTextColor={colors.mutedForeground}
               />
             </View>
 
             {/* Description */}
-            <View className="gap-1.5">
+            <View style={{ gap: 6 }}>
               <Label>Description</Label>
               <Textarea
                 value={description}
@@ -929,105 +919,86 @@ function AgentEditor({ agent }: { agent: Agent }) {
             </View>
 
             {/* Price */}
-            <View className="gap-1.5">
+            <View style={{ gap: 6 }}>
               <Label>Price per use (USD)</Label>
               <Input
                 label="Free (leave empty)"
                 value={price}
                 onChangeText={(text) => editDraft({ price: text })}
                 placeholder="Free (leave empty)"
-                placeholderTextColor={colors.mutedForeground}
                 keyboardType="decimal-pad"
               />
             </View>
 
             {/* Who may use it — a different question from whether it is listed. */}
-            <View className="flex-row items-center justify-between">
-              <View className="flex-1 pr-4">
-                <Label>{t('agents.accessPublic')}</Label>
-                <Text className="text-[13px] text-muted-foreground mt-0.5">
-                  {t('agents.accessPublicHint')}
-                </Text>
-              </View>
-              <Switch
-                accessibilityLabel={t('agents.accessPublic')}
-                value={access === 'public'}
-                onValueChange={(next) =>
-                  editDraft({ access: next ? 'public' : 'private' })
+            <SettingsListGroup>
+              <SettingsListItem
+                title={t('agents.accessPublic')}
+                description={t('agents.accessPublicHint')}
+                rightElement={
+                  <Switch
+                    accessibilityLabel={t('agents.accessPublic')}
+                    value={access === 'public'}
+                    onValueChange={(next) =>
+                      editDraft({ access: next ? 'public' : 'private' })
+                    }
+                  />
                 }
               />
-            </View>
+            </SettingsListGroup>
 
             {/* Telegram bot */}
-            <View className="gap-2 pt-2 border-t border-border">
-              <View className="flex-row items-center gap-2 pt-2">
-                <Send size={16} className="text-foreground" />
-                <Text className="text-sm font-semibold text-foreground">
-                  {t('agents.telegramBot.title')}
-                </Text>
-              </View>
-
-              {agentBots.length === 0 ? (
-                <Text className="text-xs text-muted-foreground">
-                  {t('agents.telegramBot.empty')}
-                </Text>
-              ) : (
-                <View className="gap-1">
-                  {agentBots.map((bot) => (
+            <SettingsListGroup
+              title={t('agents.telegramBot.title')}
+              footer={
+                agentBots.length === 0
+                  ? t('agents.telegramBot.empty')
+                  : undefined
+              }
+            >
+              {agentBots.map((bot) => (
+                <SettingsListItem
+                  key={bot._id}
+                  icon={<RiSendPlaneLine size="md" />}
+                  title={bot.username ? `@${bot.username}` : bot.name}
+                  rightElement={
                     <View
-                      key={bot._id}
-                      className="flex-row items-center gap-2 py-1.5"
+                      style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        gap: 8,
+                      }}
                     >
-                      <View
-                        className="p-1.5 rounded-lg"
-                        style={{ backgroundColor: '#0088CC15' }}
-                      >
-                        <Send size={14} color="#0088CC" />
-                      </View>
-                      <View className="flex-1 flex-row items-center gap-2">
-                        <Text
-                          className="text-sm text-foreground"
-                          numberOfLines={1}
-                        >
-                          {bot.username ? `@${bot.username}` : bot.name}
-                        </Text>
-                        <View
-                          className={cn(
-                            'w-2 h-2 rounded-full',
-                            bot.status === 'active'
-                              ? 'bg-green-500'
-                              : bot.status === 'error'
-                                ? 'bg-red-500'
-                                : 'bg-gray-400',
-                          )}
-                        />
-                      </View>
-                      <Pressable
+                      <Badge
+                        dot
+                        color={
+                          bot.status === 'active'
+                            ? 'success'
+                            : bot.status === 'error'
+                              ? 'error'
+                              : 'default'
+                        }
+                      />
+                      <Button
+                        size="xs"
+                        tone="neutral"
+                        appearance="plain"
+                        icon={RiDeleteBinLine}
+                        accessibilityLabel={t('agents.telegramBot.remove')}
                         onPress={() => handleRemoveBot(bot)}
-                        className="active:opacity-70 p-1"
-                      >
-                        <Trash2 size={14} className="text-muted-foreground" />
-                      </Pressable>
+                      />
                     </View>
-                  ))}
-                </View>
-              )}
-
-              <Button
-                variant="secondary"
-                size="sm"
-                className="self-start"
+                  }
+                />
+              ))}
+              <SettingsListItem
+                icon={<RiAddLine size="md" />}
+                title={t('agents.telegramBot.connect')}
                 onPress={() => setShowBotDialog(true)}
-                leading={
-                  <>
-                    <Plus size={14} className="text-foreground" />
-                  </>
-                }
-              >
-                {t('agents.telegramBot.connect')}
-              </Button>
-            </View>
-          </View>
+                showChevron={false}
+              />
+            </SettingsListGroup>
+          </>
         )}
       </ScrollView>
 
@@ -1053,14 +1024,13 @@ function AgentEditor({ agent }: { agent: Agent }) {
           },
         ]}
       >
-        <View className="gap-1.5">
+        <View style={{ gap: 6 }}>
           <Label>{t('agents.telegramBot.tokenLabel')}</Label>
           <Input
             label={t('agents.telegramBot.tokenPlaceholder')}
             value={botToken}
             onChangeText={setBotToken}
             placeholder={t('agents.telegramBot.tokenPlaceholder')}
-            placeholderTextColor={colors.mutedForeground}
             secureTextEntry
             autoCapitalize="none"
             autoCorrect={false}
@@ -1071,457 +1041,384 @@ function AgentEditor({ agent }: { agent: Agent }) {
   );
 
   return (
-    <ContentPanel surfaceClassName="bg-background">
-      <View className="flex-1 bg-background flex-row">
-        {/* Main Content */}
-        <View className="flex-1">
-          {/* Header */}
-          <View className="flex-row items-center justify-between px-4 py-3 border-b border-border">
-            <View className="flex-row items-center gap-3">
-              <Pressable
-                onPress={() => router.back()}
-                className="active:opacity-70"
-              >
-                <ArrowLeft size={20} className="text-foreground" />
-              </Pressable>
-              <Text className="text-sm font-medium text-foreground">
-                {t('agents.instructions')}
-              </Text>
-              <ChevronRight size={14} className="text-muted-foreground" />
-              <View
-                className={cn(
-                  'px-2 py-0.5 rounded-full',
-                  isPublished ? 'bg-green-500/15' : 'bg-muted',
-                )}
-              >
-                <Text
-                  className={cn(
-                    'text-xs font-medium',
-                    isPublished ? 'text-green-500' : 'text-muted-foreground',
-                  )}
-                >
-                  {isPublished ? t('agents.published') : t('agents.draft')}
-                </Text>
-              </View>
-              {archetype !== 'general' && (
-                <View className="px-2 py-0.5 rounded-full bg-blue-500/15">
-                  <Text className="text-xs font-medium text-blue-500 capitalize">
-                    {archetype.replace('_', ' ')}
-                  </Text>
-                </View>
-              )}
-            </View>
-            <View className="flex-row items-center gap-2">
-              {!isLargeScreen && (
-                <Pressable
-                  onPress={() => setShowPanel(true)}
-                  className="p-2 active:opacity-70"
-                >
-                  <Settings size={18} className="text-foreground" />
-                </Pressable>
-              )}
-              <DropdownMenu>
-                <DropdownMenuTrigger label="Actions" asChild>
-                  <Pressable className="p-2">
-                    <Ellipsis size={18} className="text-foreground" />
-                  </Pressable>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent>
-                  <DropdownMenuItem key="delete" onPress={handleDelete} leading={<RiDeleteBinLine size="sm" />}>
-
-                      {t('agents.deleteAgent')}
-
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+    <View style={{ flex: 1, flexDirection: 'row' }}>
+      {/* Main column */}
+      <View style={{ flex: 1 }}>
+        {/* Page actions */}
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: 8,
+            paddingHorizontal: 16,
+            paddingTop: 16,
+          }}
+        >
+          <Button
+            size="sm"
+            tone="neutral"
+            appearance="plain"
+            icon={RiArrowLeftLine}
+            accessibilityLabel={t('pages.agents.back')}
+            onPress={() => router.back()}
+          />
+          <Text variant="headline-semibold">{t('agents.instructions')}</Text>
+          <Badge
+            size="label-small"
+            variant="subtle"
+            color={isPublished ? 'success' : 'default'}
+            content={isPublished ? t('agents.published') : t('agents.draft')}
+          />
+          {archetype !== 'general' && (
+            <Badge
+              size="label-small"
+              variant="subtle"
+              color="info"
+              content={archetype.replace('_', ' ')}
+            />
+          )}
+          <View style={{ flex: 1 }} />
+          {!isLargeScreen && (
+            <Button
+              size="sm"
+              tone="neutral"
+              appearance="plain"
+              icon={RiSettings3Line}
+              accessibilityLabel={t('agents.settings')}
+              onPress={() => setShowPanel(true)}
+            />
+          )}
+          <DropdownMenu>
+            <DropdownMenuTrigger label="Actions" asChild>
               <Button
-                onPress={handlePublishToggle}
-                className="h-8 px-4 rounded-full"
+                size="sm"
+                tone="neutral"
+                appearance="plain"
+                icon={RiMore2Line}
+                accessibilityLabel={t('pages.agents.moreActions')}
+              />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuItem
+                key="delete"
+                onPress={handleDelete}
+                leading={<RiDeleteBinLine size="sm" />}
               >
-                {isPublished ? t('agents.unpublish') : t('agents.publish')}
-              </Button>
+                {t('agents.deleteAgent')}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <Button size="sm" tone="action" onPress={handlePublishToggle}>
+            {isPublished ? t('agents.unpublish') : t('agents.publish')}
+          </Button>
+        </View>
+
+        {/* Main editor */}
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={{ padding: 16, paddingBottom: 60, gap: 24 }}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* Mark + Name + Handle — all three are the bot ACCOUNT's, saved
+              to Oxy rather than to the agent row. The handle was PROPOSED at
+              creation and may carry a collision suffix nobody chose, so it is
+              editable here rather than permanent. */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+            <IdentityMark size={48} color={agentTint(identity.color, colors)} />
+            <View style={{ flex: 1, gap: 8 }}>
+              <Input
+                label={t('agents.namePlaceholder')}
+                value={identity.name}
+                onChangeText={(text) => editIdentity({ name: text })}
+              />
+              <TextField>
+                <TextFieldIcon icon={RiAtLine} />
+                <Input
+                  label={t('agents.handlePlaceholder')}
+                  value={identity.handle}
+                  onChangeText={(text) => editIdentity({ handle: text })}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+              </TextField>
             </View>
           </View>
 
-          {/* Main Editor */}
-          <ScrollView
-            className="flex-1"
-            contentContainerStyle={{ padding: 20, paddingBottom: 60 }}
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-          >
-            {/* Mark + Name + Handle — all three are the bot ACCOUNT's, saved
-                to Oxy rather than to the agent row. */}
-            <View className="flex-row items-center gap-3 mb-6">
-              <IdentityMark
-                size={40}
-                color={agentTint(identity.color, colors)}
-              />
-              <View className="flex-1">
-                <TextInput
-                  value={identity.name}
-                  onChangeText={(text) => editIdentity({ name: text })}
-                  placeholder={t('agents.namePlaceholder')}
-                  placeholderTextColor={colors.mutedForeground}
-                  className="text-foreground"
-                  style={{
-                    fontSize: 24,
-                    fontWeight: '700',
-                    padding: 0,
-                  }}
+          {/* The colour is the agent's whole likeness, so each choice shows
+              the MARK rather than a dot standing for one. Only the colours Oxy
+              will STORE: the fifty-two presets the `users_color_check`
+              constraint omits were a 400 on a swatch the person had just
+              picked. */}
+          <View style={{ gap: 6 }}>
+            <Label>{t('agents.colorLabel')}</Label>
+            <ChipRow role="radiogroup" accessibilityLabel={t('agents.colorLabel')}>
+              {AGENT_SWATCHES.map((preset) => (
+                <Chip
+                  key={preset}
+                  size="xl"
+                  role="radio"
+                  selected={identity.color === preset}
+                  onPress={() => editIdentity({ color: preset })}
+                  startIcon={
+                    <IdentityMark size={18} color={agentTint(preset, colors)} />
+                  }
+                >
+                  {preset}
+                </Chip>
+              ))}
+            </ChipRow>
+          </View>
+
+          {/* System prompt / instructions: the page-sized writing surface. */}
+          <Textarea
+            testID="agent-system-prompt"
+            accessibilityLabel={t('agents.systemPromptPlaceholder')}
+            value={systemPrompt}
+            onChangeText={(text) => editDraft({ systemPrompt: text })}
+            placeholder={t('agents.systemPromptPlaceholder')}
+            rows={14}
+            autoResize
+          />
+
+          {/* Archetype-specific configuration */}
+          {archetype === 'status_update' && (
+            <View style={{ gap: 16 }}>
+              <Text variant="headline-semibold">Report Configuration</Text>
+
+              {/* Report Template */}
+              <View style={{ gap: 6 }}>
+                <Label>Report Template</Label>
+                <Textarea
+                  value={archetypeConfig.reportTemplate || ''}
+                  onChangeText={(text) =>
+                    editDraft({
+                      archetypeConfig: {
+                        ...archetypeConfig,
+                        reportTemplate: text,
+                      },
+                    })
+                  }
+                  placeholder="## Daily Standup\n### What happened\n### Key metrics\n### Action items"
+                  autoResize
+                  rows={6}
                 />
-                {/* The handle was PROPOSED at creation and may carry a
-                    collision suffix nobody chose, so it is editable here
-                    rather than permanent. */}
-                <View className="flex-row items-center">
-                  <Text className="text-[15px] text-muted-foreground">@</Text>
-                  <TextInput
-                    value={identity.handle}
-                    onChangeText={(text) => editIdentity({ handle: text })}
-                    placeholder={t('agents.handlePlaceholder')}
-                    placeholderTextColor={colors.mutedForeground}
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    className="text-muted-foreground flex-1"
-                    style={{ fontSize: 15, padding: 0 }}
-                  />
-                </View>
               </View>
-            </View>
 
-            {/* The colour is the agent's whole likeness, so the picker offers
-                the MARK rather than a dot standing for one. Only the colours
-                Oxy will STORE: this offered all sixty-one of Bloom's free
-                presets, and the fifty-two the `users_color_check` constraint
-                omits were a 400 on a swatch the person had just picked. */}
-            <View className="mb-6">
-              <ColorPicker
-                colors={AGENT_SWATCHES}
-                selected={identity.color ?? ''}
-                onSelect={(preset) => editIdentity({ color: preset })}
-                label={t('agents.colorLabel')}
-                renderSwatch={(preset) => (
-                  <IdentityMark size={28} color={agentTint(preset, colors)} />
-                )}
-              />
-            </View>
-
-            {/* System Prompt / Instructions.
-
-                A raw `TextInput`, and deliberately so. This is not a field: it
-                is a page-sized writing surface with no shell, no label and no
-                border, sitting directly on the editor's own column — which is
-                what the retired wrapper's `variant="ghost"` meant. Bloom's
-                `Textarea` always paints its filled shell and inset ring (the
-                view that draws them takes no style from the caller), so
-                composing it here would mean covering its chrome with more
-                chrome. The public API for "an editable region I paint myself"
-                is React Native's own input, not a second design system.
-
-                `fieldSizing: content` is the web's native grow-and-shrink; on
-                native `scrollEnabled={false}` plus `minHeight` is the same
-                behaviour. */}
-            <TextInput
-              testID="agent-system-prompt"
-              accessibilityLabel={t('agents.systemPromptPlaceholder')}
-              value={systemPrompt}
-              onChangeText={(text) => editDraft({ systemPrompt: text })}
-              placeholder={t('agents.systemPromptPlaceholder')}
-              placeholderTextColor={colors.mutedForeground}
-              multiline
-              scrollEnabled={false}
-              textAlignVertical="top"
-              className="font-sans text-foreground web:select-text"
-              style={[
-                { fontSize: 15, lineHeight: 22, minHeight: 300 },
-                Platform.OS === 'web'
-                  ? asTextStyle({ fieldSizing: 'content' })
-                  : undefined,
-              ]}
-            />
-
-            {/* Archetype-specific configuration */}
-            {archetype === 'status_update' && (
-              <View className="mt-6 gap-4">
-                <Text className="text-lg font-semibold text-foreground">
-                  Report Configuration
-                </Text>
-
-                {/* Report Template */}
-                <View className="gap-1.5">
-                  <Label>Report Template</Label>
-                  <Textarea
-                    value={archetypeConfig.reportTemplate || ''}
+              {/* Schedule */}
+              <View style={{ gap: 6 }}>
+                <Label>Schedule</Label>
+                <SegmentedControl
+                  label="Schedule"
+                  type="radio"
+                  value={archetypeConfig.schedule?.type || 'daily'}
+                  onValueChange={(val) => {
+                    const type =
+                      val === 'interval'
+                        ? 'interval'
+                        : val === 'cron'
+                          ? 'cron'
+                          : 'daily';
+                    editDraft({
+                      archetypeConfig: {
+                        ...archetypeConfig,
+                        schedule: { ...archetypeConfig.schedule, type },
+                      },
+                    });
+                  }}
+                  style={{ alignSelf: 'flex-start' }}
+                >
+                  <SegmentedControlItem value="daily">
+                    <SegmentedControlItemText>Daily</SegmentedControlItemText>
+                  </SegmentedControlItem>
+                  <SegmentedControlItem value="interval">
+                    <SegmentedControlItemText>Interval</SegmentedControlItemText>
+                  </SegmentedControlItem>
+                </SegmentedControl>
+                {(archetypeConfig.schedule?.type || 'daily') === 'daily' && (
+                  <Input
+                    label="09:00"
+                    value={archetypeConfig.schedule?.time || '09:00'}
                     onChangeText={(text) =>
                       editDraft({
                         archetypeConfig: {
                           ...archetypeConfig,
-                          reportTemplate: text,
+                          schedule: {
+                            ...archetypeConfig.schedule,
+                            type: archetypeConfig.schedule?.type ?? 'daily',
+                            time: text,
+                          },
                         },
                       })
                     }
-                    placeholder="## Daily Standup\n### What happened\n### Key metrics\n### Action items"
-                    autoResize
-                    rows={6}
+                    placeholder="09:00"
                   />
-                </View>
+                )}
+              </View>
 
-                {/* Schedule */}
-                <View className="gap-1.5">
-                  <Label>Schedule</Label>
-                  <View className="flex-row gap-2">
-                    <ToggleGroup
-                      type="single"
-                      value={archetypeConfig.schedule?.type || 'daily'}
-                      onValueChange={(val) => {
-                        const type =
-                          val === 'interval'
-                            ? 'interval'
-                            : val === 'cron'
-                              ? 'cron'
-                              : 'daily';
+              {/* Delivery Channels */}
+              <View style={{ gap: 6 }}>
+                <Label>Delivery Channels</Label>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                  {['in_app', 'telegram', 'discord', 'slack', 'email'].map(
+                    (channel) => (
+                      <Chip
+                        key={channel}
+                        size="xl"
+                        selected={(
+                          archetypeConfig.deliveryChannels || []
+                        ).includes(channel)}
+                        onPress={() => toggleChannel('deliveryChannels', channel)}
+                      >
+                        {channel.replace('_', ' ')}
+                      </Chip>
+                    ),
+                  )}
+                </View>
+              </View>
+
+              {/* Compare with Previous */}
+              <SettingsListGroup>
+                <SettingsListItem
+                  title="Compare with previous report"
+                  rightElement={
+                    <Switch
+                      accessibilityLabel="Compare with previous report"
+                      value={archetypeConfig.compareWithPrevious || false}
+                      onValueChange={(val) =>
                         editDraft({
                           archetypeConfig: {
                             ...archetypeConfig,
-                            schedule: { ...archetypeConfig.schedule, type },
-                          },
-                        });
-                      }}
-                    >
-                      <ToggleGroupItem value="daily">Daily</ToggleGroupItem>
-                      <ToggleGroupItem value="interval">
-                        Interval
-                      </ToggleGroupItem>
-                    </ToggleGroup>
-                  </View>
-                  {(archetypeConfig.schedule?.type || 'daily') === 'daily' && (
-                    <Input
-                      label="09:00"
-                      value={archetypeConfig.schedule?.time || '09:00'}
-                      onChangeText={(text) =>
-                        editDraft({
-                          archetypeConfig: {
-                            ...archetypeConfig,
-                            schedule: {
-                              ...archetypeConfig.schedule,
-                              type: archetypeConfig.schedule?.type ?? 'daily',
-                              time: text,
-                            },
+                            compareWithPrevious: val,
                           },
                         })
                       }
-                      placeholder="09:00"
-                      placeholderTextColor={colors.mutedForeground}
                     />
-                  )}
-                </View>
+                  }
+                />
+              </SettingsListGroup>
+            </View>
+          )}
 
-                {/* Delivery Channels */}
-                <View className="gap-1.5">
-                  <Label>Delivery Channels</Label>
-                  <View className="flex-row flex-wrap gap-2">
-                    {['in_app', 'telegram', 'discord', 'slack', 'email'].map(
-                      (channel) => {
-                        const channels = archetypeConfig.deliveryChannels || [];
-                        const isActive = channels.includes(channel);
-                        return (
-                          <Pressable
-                            key={channel}
-                            onPress={() => {
-                              editDraft({
-                                archetypeConfig: {
-                                  ...archetypeConfig,
-                                  deliveryChannels: isActive
-                                    ? channels.filter(
-                                        (c: string) => c !== channel,
-                                      )
-                                    : [...channels, channel],
-                                },
-                              });
-                            }}
-                            className={cn(
-                              'px-3 py-1.5 rounded-full border',
-                              isActive
-                                ? 'bg-primary/10 border-primary'
-                                : 'border-border',
-                            )}
-                          >
-                            <Text
-                              className={cn(
-                                'text-xs font-medium capitalize',
-                                isActive
-                                  ? 'text-primary'
-                                  : 'text-muted-foreground',
-                              )}
-                            >
-                              {channel.replace('_', ' ')}
-                            </Text>
-                          </Pressable>
-                        );
-                      },
-                    )}
-                  </View>
-                </View>
+          {archetype === 'qa' && (
+            <View style={{ gap: 16 }}>
+              <Text variant="headline-semibold">Q&A Configuration</Text>
 
-                {/* Compare with Previous */}
-                <View className="flex-row items-center justify-between">
-                  <Label>Compare with previous report</Label>
-                  <Switch
-                    accessibilityLabel="Compare with previous report"
-                    value={archetypeConfig.compareWithPrevious || false}
-                    onValueChange={(val) =>
-                      editDraft({
-                        archetypeConfig: {
-                          ...archetypeConfig,
-                          compareWithPrevious: val,
-                        },
-                      })
-                    }
-                  />
-                </View>
-              </View>
-            )}
+              {/* No "Knowledge Sources" picker. It wrote four hardcoded names
+                  into `archetypeConfig.knowledgeSources`, the third of the
+                  three capability vocabularies, and its only consumer spliced
+                  them into the Q&A prompt as PROSE. What an agent can actually
+                  reach is the Connectors section. */}
 
-            {archetype === 'qa' && (
-              <View className="mt-6 gap-4">
-                <Text className="text-lg font-semibold text-foreground">
-                  Q&A Configuration
-                </Text>
-
-                {/* No "Knowledge Sources" picker. It wrote four hardcoded names
-                    — `github`, `notion`, `linear`, `google_calendar` — into
-                    `archetypeConfig.knowledgeSources`, the third of the three
-                    capability vocabularies, and its only consumer spliced them
-                    into the Q&A prompt as PROSE. It named sources the agent
-                    might never have been able to reach, and two of the four are
-                    not integrations any more at all. What an agent can actually
-                    reach is the Connectors section above. */}
-
-                {/* Cite Sources */}
-                <View className="flex-row items-center justify-between">
-                  <Label>Cite sources in answers</Label>
-                  <Switch
-                    accessibilityLabel="Cite sources in answers"
-                    value={archetypeConfig.citeSources !== false}
-                    onValueChange={(val) =>
-                      editDraft({
-                        archetypeConfig: {
-                          ...archetypeConfig,
-                          citeSources: val,
-                        },
-                      })
-                    }
-                  />
-                </View>
-              </View>
-            )}
-
-            {archetype === 'task_router' && (
-              <View className="mt-6 gap-4">
-                <Text className="text-lg font-semibold text-foreground">
-                  Routing Configuration
-                </Text>
-
-                {/* Inbound Channels */}
-                <View className="gap-1.5">
-                  <Label>Inbound Channels</Label>
-                  <View className="flex-row flex-wrap gap-2">
-                    {[
-                      'email',
-                      'slack',
-                      'discord',
-                      'webhook',
-                      'github',
-                      'linear',
-                    ].map((channel) => {
-                      const channels = archetypeConfig.inboundChannels || [];
-                      const isActive = channels.includes(channel);
-                      return (
-                        <Pressable
-                          key={channel}
-                          onPress={() => {
-                            editDraft({
-                              archetypeConfig: {
-                                ...archetypeConfig,
-                                inboundChannels: isActive
-                                  ? channels.filter(
-                                      (c: string) => c !== channel,
-                                    )
-                                  : [...channels, channel],
-                              },
-                            });
-                          }}
-                          className={cn(
-                            'px-3 py-1.5 rounded-full border',
-                            isActive
-                              ? 'bg-primary/10 border-primary'
-                              : 'border-border',
-                          )}
-                        >
-                          <Text
-                            className={cn(
-                              'text-xs font-medium capitalize',
-                              isActive
-                                ? 'text-primary'
-                                : 'text-muted-foreground',
-                            )}
-                          >
-                            {channel}
-                          </Text>
-                        </Pressable>
-                      );
-                    })}
-                  </View>
-                </View>
-
-                {/* Routing Rules */}
-                <View className="gap-2">
-                  <View className="flex-row items-center justify-between">
-                    <Label>Routing Rules</Label>
-                    <Pressable
-                      onPress={() => {
+              {/* Cite Sources */}
+              <SettingsListGroup>
+                <SettingsListItem
+                  title="Cite sources in answers"
+                  rightElement={
+                    <Switch
+                      accessibilityLabel="Cite sources in answers"
+                      value={archetypeConfig.citeSources !== false}
+                      onValueChange={(val) =>
                         editDraft({
                           archetypeConfig: {
                             ...archetypeConfig,
-                            routingRules: [
-                              ...(archetypeConfig.routingRules || []),
-                              {
-                                condition: '',
-                                priority: 'medium',
-                                assignTo: { type: 'user', id: '', name: '' },
-                              },
-                            ],
+                            citeSources: val,
                           },
-                        });
-                      }}
-                      className="active:opacity-70"
+                        })
+                      }
+                    />
+                  }
+                />
+              </SettingsListGroup>
+            </View>
+          )}
+
+          {archetype === 'task_router' && (
+            <View style={{ gap: 16 }}>
+              <Text variant="headline-semibold">Routing Configuration</Text>
+
+              {/* Inbound Channels */}
+              <View style={{ gap: 6 }}>
+                <Label>Inbound Channels</Label>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                  {[
+                    'email',
+                    'slack',
+                    'discord',
+                    'webhook',
+                    'github',
+                    'linear',
+                  ].map((channel) => (
+                    <Chip
+                      key={channel}
+                      size="xl"
+                      selected={(archetypeConfig.inboundChannels || []).includes(
+                        channel,
+                      )}
+                      onPress={() => toggleChannel('inboundChannels', channel)}
                     >
-                      <Plus size={16} className="text-muted-foreground" />
-                    </Pressable>
-                  </View>
-                  {(archetypeConfig.routingRules || []).map((rule, index) => (
-                    <View key={index} className="rounded-xl bg-muted p-3 gap-2">
+                      {channel}
+                    </Chip>
+                  ))}
+                </View>
+              </View>
+
+              {/* Routing Rules */}
+              <View style={{ gap: 8 }}>
+                <View
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                  }}
+                >
+                  <Label>Routing Rules</Label>
+                  <Button
+                    size="xs"
+                    tone="neutral"
+                    appearance="plain"
+                    icon={RiAddLine}
+                    accessibilityLabel={t('pages.agents.addRoutingRule')}
+                    onPress={() => {
+                      editDraft({
+                        archetypeConfig: {
+                          ...archetypeConfig,
+                          routingRules: [
+                            ...(archetypeConfig.routingRules || []),
+                            {
+                              condition: '',
+                              priority: 'medium',
+                              assignTo: { type: 'user', id: '', name: '' },
+                            },
+                          ],
+                        },
+                      });
+                    }}
+                  />
+                </View>
+                {(archetypeConfig.routingRules || []).map((rule, index) => (
+                  <Card key={index} appearance="subtle">
+                    <CardBody style={{ gap: 8, paddingVertical: 12 }}>
                       <Input
                         label="When the task is about..."
                         value={rule.condition}
-                        onChangeText={(text) => {
-                          const rules = [
-                            ...(archetypeConfig.routingRules || []),
-                          ];
-                          rules[index] = { ...rules[index], condition: text };
-                          editDraft({
-                            archetypeConfig: {
-                              ...archetypeConfig,
-                              routingRules: rules,
-                            },
-                          });
-                        }}
+                        onChangeText={(text) =>
+                          editRoutingRule(index, { condition: text })
+                        }
                         placeholder="When the task is about..."
-                        placeholderTextColor={colors.mutedForeground}
                       />
-                      <View className="flex-row gap-2 items-center">
-                        <ToggleGroup
-                          type="single"
+                      <View
+                        style={{
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          gap: 8,
+                        }}
+                      >
+                        <SegmentedControl
+                          label="Priority"
+                          type="radio"
+                          size="sm"
                           value={rule.priority}
                           onValueChange={(val) => {
                             const priority =
@@ -1532,26 +1429,29 @@ function AgentEditor({ agent }: { agent: Agent }) {
                                   : val === 'urgent'
                                     ? 'urgent'
                                     : 'medium';
-                            const rules = [
-                              ...(archetypeConfig.routingRules || []),
-                            ];
-                            rules[index] = { ...rules[index], priority };
-                            editDraft({
-                              archetypeConfig: {
-                                ...archetypeConfig,
-                                routingRules: rules,
-                              },
-                            });
+                            editRoutingRule(index, { priority });
                           }}
                         >
-                          <ToggleGroupItem value="low">Low</ToggleGroupItem>
-                          <ToggleGroupItem value="medium">Med</ToggleGroupItem>
-                          <ToggleGroupItem value="high">High</ToggleGroupItem>
-                          <ToggleGroupItem value="urgent">
-                            Urgent
-                          </ToggleGroupItem>
-                        </ToggleGroup>
-                        <Pressable
+                          <SegmentedControlItem value="low">
+                            <SegmentedControlItemText>Low</SegmentedControlItemText>
+                          </SegmentedControlItem>
+                          <SegmentedControlItem value="medium">
+                            <SegmentedControlItemText>Med</SegmentedControlItemText>
+                          </SegmentedControlItem>
+                          <SegmentedControlItem value="high">
+                            <SegmentedControlItemText>High</SegmentedControlItemText>
+                          </SegmentedControlItem>
+                          <SegmentedControlItem value="urgent">
+                            <SegmentedControlItemText>Urgent</SegmentedControlItemText>
+                          </SegmentedControlItem>
+                        </SegmentedControl>
+                        <View style={{ flex: 1 }} />
+                        <Button
+                          size="xs"
+                          tone="neutral"
+                          appearance="plain"
+                          icon={RiCloseLine}
+                          accessibilityLabel={t('pages.agents.removeRoutingRule')}
                           onPress={() => {
                             const rules = (
                               archetypeConfig.routingRules || []
@@ -1563,84 +1463,66 @@ function AgentEditor({ agent }: { agent: Agent }) {
                               },
                             });
                           }}
-                          className="active:opacity-70 ml-auto"
-                        >
-                          <X size={14} className="text-muted-foreground" />
-                        </Pressable>
+                        />
                       </View>
                       <Input
                         label="Route to (name)"
                         value={rule.assignTo?.name || ''}
-                        onChangeText={(text) => {
-                          const rules = [
-                            ...(archetypeConfig.routingRules || []),
-                          ];
-                          rules[index] = {
-                            ...rules[index],
-                            assignTo: { ...rules[index].assignTo, name: text },
-                          };
-                          editDraft({
-                            archetypeConfig: {
-                              ...archetypeConfig,
-                              routingRules: rules,
-                            },
-                          });
-                        }}
+                        onChangeText={(text) =>
+                          editRoutingRule(index, {
+                            assignTo: { ...rule.assignTo, name: text },
+                          })
+                        }
                         placeholder="Route to (name)"
-                        placeholderTextColor={colors.mutedForeground}
                       />
-                    </View>
-                  ))}
-                </View>
-
-                {/* Escalation Timeout */}
-                <View className="gap-1.5">
-                  <Label>Escalation Timeout (minutes)</Label>
-                  <Input
-                    label="60"
-                    value={String(
-                      archetypeConfig.escalationTimeoutMinutes || '',
-                    )}
-                    onChangeText={(text) => {
-                      const num = parseInt(text, 10);
-                      editDraft({
-                        archetypeConfig: {
-                          ...archetypeConfig,
-                          escalationTimeoutMinutes: isNaN(num)
-                            ? undefined
-                            : num,
-                        },
-                      });
-                    }}
-                    placeholder="60"
-                    placeholderTextColor={colors.mutedForeground}
-                    keyboardType="number-pad"
-                  />
-                </View>
+                    </CardBody>
+                  </Card>
+                ))}
               </View>
-            )}
-          </ScrollView>
-        </View>
 
-        {/* Right Sidebar - Desktop: inline, Mobile: Panel modal */}
-        {isLargeScreen ? (
-          <View
-            style={{ width: 320 }}
-            className="border-l border-border bg-background"
-          >
-            {sidebarContent}
-          </View>
-        ) : (
-          <Panel
-            open={showPanel}
-            onClose={() => setShowPanel(false)}
-            side="right"
-            width={320}
-          >
-            {sidebarContent}
-          </Panel>
-        )}
+              {/* Escalation Timeout */}
+              <View style={{ gap: 6 }}>
+                <Label>Escalation Timeout (minutes)</Label>
+                <Input
+                  label="60"
+                  value={String(archetypeConfig.escalationTimeoutMinutes || '')}
+                  onChangeText={(text) => {
+                    const num = parseInt(text, 10);
+                    editDraft({
+                      archetypeConfig: {
+                        ...archetypeConfig,
+                        escalationTimeoutMinutes: isNaN(num) ? undefined : num,
+                      },
+                    });
+                  }}
+                  placeholder="60"
+                  keyboardType="number-pad"
+                />
+              </View>
+            </View>
+          )}
+        </ScrollView>
       </View>
-    </ContentPanel>
+
+      {/* The side column — inline from the large breakpoint, a side sheet below it. */}
+      {isLargeScreen ? (
+        <>
+          <Divider vertical />
+          <View style={{ width: 320 }}>{sidebarContent}</View>
+        </>
+      ) : (
+        <Dialog
+          open={showPanel}
+          onClose={() => setShowPanel(false)}
+          placement="right"
+          width={320}
+          title={t('agents.settings')}
+          contentPadding={0}
+          scrollable={false}
+        >
+          {sidebarContent}
+        </Dialog>
+      )}
+    </View>
   );
 }

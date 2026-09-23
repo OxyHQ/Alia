@@ -1,96 +1,97 @@
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@oxy.so/bloom/dropdown-menu';
-import { RiDeleteBinLine } from '@oxy.so/bloom/icons';
 import { LibraryFile } from '@/lib/stores/library-store';
 import { formatFileSize } from '@/lib/utils';
-import { Text } from '@oxy.so/bloom/typography';
-import { Image } from 'expo-image';
+import { Avatar } from '@oxy.so/bloom/avatar';
+import { Button } from '@oxy.so/bloom/button';
 import {
-  File,
-  FileText,
-  Image as ImageIcon,
-  MoreHorizontal,
-} from 'lucide-react-native';
-import { Pressable, View } from 'react-native';
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@oxy.so/bloom/dropdown-menu';
+import { RiDeleteBinLine } from '@oxy.so/bloom/icons/RiDeleteBinLine';
+import { RiFilePaper2Line } from '@oxy.so/bloom/icons/RiFilePaper2Line';
+import { RiFileTextLine } from '@oxy.so/bloom/icons/RiFileTextLine';
+import { RiImageLine } from '@oxy.so/bloom/icons/RiImageLine';
+import { RiMoreFill } from '@oxy.so/bloom/icons/RiMoreFill';
+import { Item } from '@oxy.so/bloom/item';
+
 interface FileCardProps {
   file: LibraryFile;
   onPress?: (file: LibraryFile) => void;
   onDelete?: (file: LibraryFile) => void;
 }
 
+/** The glyph a file without a thumbnail is drawn with, by category. */
+function categoryIcon(category: LibraryFile['category']) {
+  if (category === 'images') return <RiImageLine size="sm" />;
+  if (category === 'documents') return <RiFileTextLine size="sm" />;
+  return <RiFilePaper2Line size="sm" />;
+}
+
+function formatDate(date: Date): string {
+  const now = new Date();
+  const diff = now.getTime() - date.getTime();
+  const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+
+  if (days === 0) return 'Today';
+  if (days === 1) return 'Yesterday';
+  if (days < 7) return `${days}d ago`;
+
+  return date.toLocaleDateString();
+}
+
+/** One Library file: a Bloom `Item` row with its thumbnail and its menu. */
 export function FileCard({ file, onPress, onDelete }: FileCardProps) {
-  const getFileIcon = () => {
-    if (file.category === 'images') {
-      return <ImageIcon size={16} className="text-blue-500" />;
-    } else if (file.category === 'documents') {
-      return <FileText size={16} className="text-green-500" />;
-    } else {
-      return <File size={16} className="text-muted-foreground" />;
-    }
-  };
-
-  const formatDate = (date: Date): string => {
-    const now = new Date();
-    const diff = now.getTime() - date.getTime();
-    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-
-    if (days === 0) return 'Today';
-    if (days === 1) return 'Yesterday';
-    if (days < 7) return `${days}d ago`;
-
-    return date.toLocaleDateString();
-  };
-
   const subtitle = [
     file.type.split('/').pop()?.toUpperCase(),
     file.size > 0 ? formatFileSize(file.size) : null,
     formatDate(file.createdAt),
-  ].filter(Boolean).join(' \u00B7 ');
+  ]
+    .filter(Boolean)
+    .join(' · ');
 
   return (
-    <Pressable
+    <Item
+      role="listitem"
       onPress={() => onPress?.(file)}
-      className="active:opacity-70"
-    >
-      <View className="flex-row items-center py-2.5 gap-3">
-        {/* Thumbnail / Icon */}
-        <View className="w-9 h-9 rounded-full bg-muted items-center justify-center overflow-hidden">
-          {file.category === 'images' && file.thumbnail ? (
-            <Image
-              source={{ uri: file.thumbnail }}
-              className="w-9 h-9"
-              contentFit="cover"
-              transition={200}
-            />
-          ) : (
-            getFileIcon()
-          )}
-        </View>
-
-        {/* Content */}
-        <View className="flex-1">
-          <Text className="text-[14px] font-semibold text-foreground" numberOfLines={1}>
-            {file.name}
-          </Text>
-          <Text className="text-xs text-muted-foreground" numberOfLines={1}>
-            {subtitle}
-          </Text>
-        </View>
-
-        {/* Actions */}
+      leading={
+        <Avatar
+          size={36}
+          source={
+            file.category === 'images' && file.thumbnail
+              ? file.thumbnail
+              : null
+          }
+          color="neutral"
+          placeholderIcon={categoryIcon(file.category)}
+          alt={file.name}
+        />
+      }
+      title={file.name}
+      subtitle={subtitle}
+      trailing={
         <DropdownMenu>
           <DropdownMenuTrigger label="Actions" asChild>
-            <Pressable className="h-8 w-8 items-center justify-center rounded-full active:bg-muted/70">
-              <MoreHorizontal size={14} className="text-muted-foreground" />
-            </Pressable>
+            <Button
+              icon={RiMoreFill}
+              size="sm"
+              tone="neutral"
+              appearance="plain"
+              accessibilityLabel={`Actions for ${file.name}`}
+            />
           </DropdownMenuTrigger>
           <DropdownMenuContent>
-            <DropdownMenuItem key="delete" tone="danger" onPress={() => onDelete?.(file)} leading={<RiDeleteBinLine size="sm" />}>
-
+            <DropdownMenuItem
+              key="delete"
+              tone="danger"
+              onPress={() => onDelete?.(file)}
+              leading={<RiDeleteBinLine size="sm" />}
+            >
               Delete
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
-      </View>
-    </Pressable>
+      }
+    />
   );
 }

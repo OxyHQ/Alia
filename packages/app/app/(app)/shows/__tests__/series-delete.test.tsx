@@ -103,52 +103,79 @@ vi.mock('react-native', async () => {
 
   return {
     View: host('View'),
-    Pressable: host('Pressable'),
     FlatList,
     RefreshControl: host('RefreshControl'),
     Linking: { openURL: vi.fn() },
-    StyleSheet: { absoluteFill: {}, create: (styles: unknown) => styles },
-  };
-});
-
-vi.mock('expo-linear-gradient', async () => {
-  const ReactModule = await import('react');
-  return {
-    LinearGradient: ({ children }: React.PropsWithChildren) =>
-      ReactModule.createElement('LinearGradient', null, children),
   };
 });
 
 /**
- * Named one by one, NOT via a `Proxy` — a proxy that answers every key also
- * answers `then`, which makes the module namespace thenable and hangs
- * `await import()` forever rather than failing.
+ * The glyphs, one subpath each, named one by one — NOT via a `Proxy`: a proxy
+ * that answers every key also answers `then`, which makes the module namespace
+ * thenable and hangs `await import()` forever rather than failing.
  */
-vi.mock('lucide-react-native', async () => {
-  const ReactModule = await import('react');
-  const icon = (name: string) => (props: Record<string, unknown>) =>
-    ReactModule.createElement(name, props);
-
-  return {
-    Plus: icon('Plus'),
-    Trash2: icon('Trash2'),
-    ChevronLeft: icon('ChevronLeft'),
-    ExternalLink: icon('ExternalLink'),
-    Lock: icon('Lock'),
-    Link2: icon('Link2'),
-    Globe: icon('Globe'),
-    Pencil: icon('Pencil'),
-  };
-});
+vi.mock('@oxy.so/bloom/icons/RiAddLine', () => ({ RiAddLine: () => null }));
+vi.mock('@oxy.so/bloom/icons/RiArrowLeftSLine', () => ({ RiArrowLeftSLine: () => null }));
+vi.mock('@oxy.so/bloom/icons/RiDeleteBinLine', () => ({ RiDeleteBinLine: () => null }));
+vi.mock('@oxy.so/bloom/icons/RiExternalLinkLine', () => ({ RiExternalLinkLine: () => null }));
+vi.mock('@oxy.so/bloom/icons/RiGlobalLine', () => ({ RiGlobalLine: () => null }));
+vi.mock('@oxy.so/bloom/icons/RiLink', () => ({ RiLink: () => null }));
+vi.mock('@oxy.so/bloom/icons/RiLockLine', () => ({ RiLockLine: () => null }));
+vi.mock('@oxy.so/bloom/icons/RiPencilLine', () => ({ RiPencilLine: () => null }));
 
 vi.mock('@oxy.so/bloom/typography', async () => {
   const ReactModule = await import('react');
+  const text = ({
+    children,
+    ...props
+  }: React.PropsWithChildren<Record<string, unknown>>) =>
+    ReactModule.createElement('Text', props, children);
+  return { Text: text, H5: text, Muted: text };
+});
+
+vi.mock('@oxy.so/bloom/badge', async () => {
+  const ReactModule = await import('react');
   return {
-    Text: ({
-      children,
-      ...props
-    }: React.PropsWithChildren<Record<string, unknown>>) =>
-      ReactModule.createElement('Text', props, children),
+    Badge: (props: Record<string, unknown>) =>
+      ReactModule.createElement('Badge', props),
+  };
+});
+
+vi.mock('@oxy.so/bloom/item', async () => {
+  const ReactModule = await import('react');
+  return {
+    Item: (props: Record<string, unknown>) =>
+      ReactModule.createElement('Item', props),
+  };
+});
+
+/** The empty state's actions, drawn as buttons so they can be pressed. */
+vi.mock('@oxy.so/bloom/empty-state', async () => {
+  const ReactModule = await import('react');
+  type Action = { label: string; onPress?: () => void; accessibilityLabel?: string };
+  return {
+    EmptyState: ({
+      title,
+      action,
+      secondaryAction,
+    }: {
+      title?: string;
+      action?: Action;
+      secondaryAction?: Action;
+    }) =>
+      ReactModule.createElement(
+        'EmptyState',
+        { title },
+        [action, secondaryAction]
+          .filter((entry): entry is Action => entry !== undefined)
+          .map((entry) =>
+            ReactModule.createElement('Button', {
+              key: entry.label,
+              accessibilityLabel: entry.accessibilityLabel ?? entry.label,
+              onPress: entry.onPress,
+            }),
+          ),
+      ),
   };
 });
 
@@ -172,23 +199,21 @@ vi.mock('@oxy.so/bloom/skeleton', async () => {
   const ReactModule = await import('react');
   const shape = (name: string) => (props: Record<string, unknown>) =>
     ReactModule.createElement(name, props);
+  const group = ({ children }: React.PropsWithChildren) =>
+    ReactModule.createElement('SkeletonGroup', null, children);
   return {
     Box: shape('Skeleton'),
     Circle: shape('Skeleton'),
     Pill: shape('Skeleton'),
     Text: shape('Skeleton'),
+    Col: group,
+    Row: group,
   };
 });
 
-vi.mock('@oxy.so/bloom/content-panel', async () => {
-  const ReactModule = await import('react');
-  return {
-    ContentPanel: ({ children }: React.PropsWithChildren) =>
-      ReactModule.createElement('ContentPanel', null, children),
-  };
-});
-
-vi.mock('@oxy.so/bloom/theme', () => ({ withAlpha: (color: string) => color }));
+vi.mock('@oxy.so/bloom/theme', () => ({
+  useTheme: () => ({ colors: { primary: '#000', textSecondary: '#888' } }),
+}));
 
 vi.mock('@/components/show/show-artwork', async () => {
   const ReactModule = await import('react');
@@ -221,12 +246,6 @@ vi.mock('@/components/show/episode-row', async () => {
 
 vi.mock('@/lib/hooks/use-show-progress', () => ({
   useShowProgress: () => undefined,
-}));
-
-vi.mock('@/lib/useColorScheme', () => ({
-  useColorScheme: () => ({
-    colors: { primary: '#000', background: '#fff', foreground: '#000' },
-  }),
 }));
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
@@ -291,7 +310,7 @@ function byLabel(
 }
 
 function pressRemoveShow(rendered: ReactTestRenderer): Promise<void> {
-  const control = byLabel(rendered, 'Pressable', 'Remove this show from Alia');
+  const control = byLabel(rendered, 'Button', 'Remove this show from Alia');
   return act(async () => {
     await control.props.onPress();
   });

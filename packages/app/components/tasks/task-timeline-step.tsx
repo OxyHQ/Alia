@@ -1,19 +1,14 @@
-import { LottieLoader } from '@/components/lottie-loader';
 import type { PlanItem } from '@/lib/hooks/use-agent-activity';
-import { getToolIcon } from '@/lib/tool-registry';
+import { Badge } from '@oxy.so/bloom/badge';
+import { RiCheckboxBlankCircleLine } from '@oxy.so/bloom/icons/RiCheckboxBlankCircleLine';
+import { RiCheckboxCircleFill } from '@oxy.so/bloom/icons/RiCheckboxCircleFill';
+import { RiErrorWarningFill } from '@oxy.so/bloom/icons/RiErrorWarningFill';
+import { Item } from '@oxy.so/bloom/item';
+import { Loading } from '@oxy.so/bloom/loading';
 import { useTheme } from '@oxy.so/bloom/theme';
-import { Text } from '@oxy.so/bloom/typography';
-import { AlertCircle, CheckCircle2, Circle } from 'lucide-react-native';
-import React, { useEffect } from 'react';
-import { View } from 'react-native';
-import Animated, {
-  FadeIn,
-  useAnimatedStyle,
-  useSharedValue,
-  withRepeat,
-  withSequence,
-  withTiming,
-} from 'react-native-reanimated';
+import { Muted, Text } from '@oxy.so/bloom/typography';
+import React from 'react';
+
 interface TaskTimelineStepProps {
   item: PlanItem;
   isLast: boolean;
@@ -21,97 +16,51 @@ interface TaskTimelineStepProps {
   toolLabel?: string | null;
 }
 
-function PulsingDot({ color }: { color: string }) {
-  const opacity = useSharedValue(1);
-  useEffect(() => {
-    opacity.value = withRepeat(
-      withSequence(
-        withTiming(0.3, { duration: 800 }),
-        withTiming(1, { duration: 800 }),
-      ),
-      -1,
-      false,
-    );
-  }, [opacity]);
-  const style = useAnimatedStyle(() => ({ opacity: opacity.value }));
-  return (
-    <Animated.View
-      style={[{ width: 8, height: 8, borderRadius: 4, backgroundColor: color }, style]}
-    />
-  );
-}
-
-function StepIcon({ item, toolName }: { item: PlanItem; toolName?: string | null }) {
+/** A step's state, as a 16px mark in the colour that state reads in. */
+function StepIcon({ item }: { item: PlanItem }) {
   const { colors } = useTheme();
+  const size = { width: 16, height: 16 };
   if (item.status === 'completed') {
-    return <CheckCircle2 size={14} color={colors.success} />;
+    return <RiCheckboxCircleFill {...size} fill={colors.success} />;
   }
   if (item.status === 'in_progress') {
-    if (toolName) {
-      return <LottieLoader width={14} height={14} />;
-    }
-    return <PulsingDot color={colors.warning} />;
+    return <Loading variant="spinner" iconSize={14} color={colors.warning} />;
   }
   if (item.status === 'blocked') {
-    return <AlertCircle size={14} color={colors.error} />;
+    return <RiErrorWarningFill {...size} fill={colors.error} />;
   }
-  return <Circle size={14} className="text-muted-foreground/30" />;
+  return <RiCheckboxBlankCircleLine {...size} fill={colors.textTertiary} />;
 }
 
+/**
+ * One step of a task's plan: a Bloom `Item` with the step's state as its
+ * leading mark and, while it is the step in progress, the tool it is using as a
+ * badge underneath.
+ */
 export const TaskTimelineStep = React.memo(function TaskTimelineStep({
   item,
-  isLast,
-  toolName,
   toolLabel,
 }: TaskTimelineStepProps) {
   const isActive = item.status === 'in_progress';
   const isDone = item.status === 'completed';
 
   return (
-    <Animated.View entering={FadeIn.duration(200)} className="flex-row">
-      {/* Timeline column */}
-      <View className="items-center" style={{ width: 24 }}>
-        <View className="h-3" />
-        <View className="items-center justify-center" style={{ width: 20, height: 20 }}>
-          <StepIcon item={item} toolName={toolName} />
-        </View>
-        {!isLast && (
-          <View
-            className="flex-1 border-l border-border"
-            style={{ minHeight: 16 }}
-          />
-        )}
-      </View>
-
-      {/* Content column */}
-      <View className="flex-1 pl-2 pb-3" style={{ paddingTop: 12 }}>
-        <Text
-          className={`text-sm ${
-            isDone
-              ? 'text-foreground font-medium'
-              : isActive
-                ? 'text-foreground font-medium'
-                : 'text-muted-foreground'
-          }`}
-        >
-          {item.text}
-        </Text>
-
-        {/* Tool pill for active step */}
-        {isActive && toolLabel && (
-          <View className="flex-row flex-wrap gap-1.5 mt-1.5">
-            <View className="rounded-full bg-muted px-2.5 py-1 flex-row items-center gap-1">
-              {toolName && React.createElement(getToolIcon(toolName), {
-                size: 10,
-                className: 'text-muted-foreground',
-              })}
-              <Text className="text-[10px] text-muted-foreground">
-                {toolLabel}
-              </Text>
-            </View>
-          </View>
-        )}
-      </View>
-    </Animated.View>
+    <Item
+      density="compact"
+      role="listitem"
+      leading={<StepIcon item={item} />}
+      title={
+        isDone || isActive ? (
+          <Text variant="body-medium">{item.text}</Text>
+        ) : (
+          <Muted>{item.text}</Muted>
+        )
+      }
+      subtitle={
+        isActive && toolLabel ? (
+          <Badge size="label-small" variant="subtle" content={toolLabel} />
+        ) : undefined
+      }
+    />
   );
 });
