@@ -34,9 +34,8 @@
  * ## What is deliberately NOT here
  *
  * Seeding. `scripts/seed.ts` owns it at the deploy boundary, for the reasons
- * that file sets out; `seedBots()` used to be called from here and is now
- * called from nowhere, which `db/__tests__/seedWiring.test.ts` records as a
- * named exemption rather than an accident.
+ * that file sets out, and `db/__tests__/seedWiring.test.ts` asserts no seeder
+ * is called from here.
  */
 
 import { getDb } from '../db/index.js';

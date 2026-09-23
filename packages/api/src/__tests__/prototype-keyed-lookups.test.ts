@@ -182,7 +182,11 @@ describe('no lookup table answers an untrusted key from Object.prototype', () =>
     // the routing-catalogue seed, and its guarded `MODEL_DISPLAY_NAMES[modelId]`
     // read with it. The floor moves in the commit that removed the site, which
     // is the only way it is allowed to move.
-    expect(reads.length).toBeGreaterThanOrEqual(19);
+    // 19 -> 17: `lib/tools/descriptions/tool-specs.ts` and
+    // `scripts/provider-catalogues.ts` are deleted (no production importer), and
+    // their guarded `AGENT_TOOL_SPECS[toolName]` / `CATALOGUE_PATHS[provider]`
+    // reads with them.
+    expect(reads.length).toBeGreaterThanOrEqual(17);
     expect(reads.filter((r) => r.guarded).length).toBeGreaterThanOrEqual(5);
     expect(reads.filter((r) => !r.guarded).length).toBeGreaterThanOrEqual(1);
 
@@ -267,22 +271,5 @@ describe('every fixed accessor refuses an inherited name', () => {
     // above are not a special case bolted on beside a different behaviour.
     expect(isRoutingProfile('not-a-model')).toBe(false);
     expect(getRoutingProfile('not-a-model')).toBeNull();
-  });
-
-  it('a tool named after an inherited property does not throw when described', async () => {
-    const { enhanceDescription } = await import('../lib/tools/descriptions/tool-specs.js');
-
-    for (const name of INHERITED) {
-      // `enhanceDescription` read `spec.whenToUse.length` off a function and
-      // threw. A tool name arrives from an MCP server or an Oxy service
-      // manifest, so it is third-party input.
-      expect(() => enhanceDescription(name, 'base'), name).not.toThrow();
-      expect(enhanceDescription(name, 'base'), name).toBe('base');
-    }
-
-    // The control: a name the specs DO cover is still enhanced, so the four
-    // assertions above are absences rather than a function that returns its
-    // argument for everything.
-    expect(enhanceDescription('shell_exec', 'base')).not.toBe('base');
   });
 });

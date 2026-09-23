@@ -325,11 +325,9 @@ describe('the customer charge and the upstream cost share no reader (#139 ws12)'
    * DISAPPEARS fails too, so removing a reader has to be recorded here rather
    * than quietly narrowing what the disjointness below is about.
    */
-  const COST_READERS = [
-    `${API_SRC}/db/schema/usage.ts`,
-    `${API_SRC}/db/usage/costEntryRepository.ts`,
-    `${API_SRC}/lib/cost-tracker.ts`,
-  ];
+  // Only the schema: the `cost_entries` repository and `lib/cost-tracker.ts`
+  // had no production caller and were deleted, so nothing reads the estimate.
+  const COST_READERS = [`${API_SRC}/db/schema/usage.ts`];
 
   const CHARGE_WRITERS = [
     `${API_SRC}/lib/credit-anomaly.ts`,
@@ -368,9 +366,9 @@ describe('the customer charge and the upstream cost share no reader (#139 ws12)'
   it('the frozen lists are not empty, and each is what its name says', () => {
     // A vacuity floor for both lists, plus one membership fact per list that a
     // wholesale replacement would break.
-    expect(COST_READERS.length).toBeGreaterThanOrEqual(3);
+    expect(COST_READERS.length).toBeGreaterThanOrEqual(1);
     expect(CHARGE_WRITERS.length).toBeGreaterThan(3);
-    expect(COST_READERS).toContain(`${API_SRC}/lib/cost-tracker.ts`);
+    expect(COST_READERS).toContain(`${API_SRC}/db/schema/usage.ts`);
     expect(CHARGE_WRITERS).toContain(`${API_SRC}/routes/billing.ts`);
   });
 
@@ -666,11 +664,10 @@ describe('the billing path audit matches the tree it describes (#139 ws12)', () 
  * ## re-read
  *
  * `epic-139-status.json` L475 states that free usage "does write a `cost_entries`
- * row, so cost attribution exists". It does not. `recordCost` has **no caller
- * anywhere in this package** — `cost-tracker.ts` says so in its own file comment
- * and the census below re-derives it — so the token-metered paths produce no
- * cost record at all. The last assertion in this block pins that zero, so the
- * day somebody wires the ledger up they are sent back here.
+ * row, so cost attribution exists". It does not. Nothing in this package writes
+ * `cost_entries`: `recordCost` never had a caller, and it was deleted together
+ * with its repository. The last assertion in this block pins that, so the day
+ * somebody wires a ledger up they are sent back here.
  *
  * The one settlement that DOES write a cost record is the voice session, and it
  * is the one place a `CreditReservation` and the serving provider coexist. That
@@ -717,24 +714,19 @@ describe('a cost record says which balance funded it (#139 ws12)', () => {
     );
   });
 
-  it('the token-metered ledger still has no writer, and this is the count that says so', () => {
-    // Not an aspiration: a measurement, frozen. `recordCost` is the only writer
-    // of `cost_entries`, and outside its own module and its test nothing calls
-    // it — so ADR 0005's cost attribution does NOT yet hold for chat, images or
-    // audio. Wiring it up turns this red, which is the point.
-    const callers = trackedSources(API_SRC)
-      .filter((f) => !isTestFile(f) && f !== `${API_SRC}/lib/cost-tracker.ts`)
-      .filter((f) => symbols(parse(f)).has('recordCost'))
+  it('the token-metered ledger still has no writer, and this is the census that says so', () => {
+    // Not an aspiration: a measurement, frozen. No shipped module names the
+    // `cost_entries` table object, so ADR 0005's cost attribution does NOT yet
+    // hold for chat, images or audio. Wiring a writer up turns this red, which
+    // is the point.
+    const writers = trackedSources(API_SRC)
+      .filter((f) => !isTestFile(f) && f !== `${API_SRC}/db/schema/usage.ts`)
+      .filter((f) => symbols(parse(f)).has('costEntries'))
       .sort();
-    expect(callers, 'recordCost gained a caller — update this gate and the audit').toEqual([]);
+    expect(writers, 'cost_entries gained a reader or writer — update this gate and the audit').toEqual([]);
 
-    // The positive control: the same scan finds the function where it IS.
-    expect(symbols(parse(`${API_SRC}/lib/cost-tracker.ts`))).toContain('recordCost');
-    // And `recordCost` really does take a funding source, so the day it is wired
-    // in the attribution comes with it rather than being added afterwards.
-    expect(readFileSync(path.join(REPO_ROOT, API_SRC, 'lib/cost-tracker.ts'), 'utf8')).toContain(
-      'grantKind: CreditFundingSource | null,',
-    );
+    // The positive control: the same scan finds the table where it IS declared.
+    expect(symbols(parse(`${API_SRC}/db/schema/usage.ts`))).toContain('costEntries');
   });
 });
 
