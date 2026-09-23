@@ -305,21 +305,19 @@ describe('the census reads what it claims to read', () => {
     // Every floor here is a vacuity guard: a wrong prefix, an empty index or a
     // failed parse produces the same clean result as a package with no leaks.
     expect(sources.length).toBeGreaterThan(400);
-    // 850 -> 800: the agent sandbox left (container manager and pool, the
-    // terminal session, workspace memory, the container and workspace-file
-    // routes, the skill-script runner), and their log calls with it (809 after).
-    // 850 -> 800: the owner's clean cut deleted the developer-key routes,
-    // `routes/codea.ts`, the ZeroEval sync and the legacy trigger routes, and
-    // their log calls with them (about 880 before, 818 after).
-    expect(calls.length).toBeGreaterThan(800);
+    // 850 -> 750: the clean cut deleted the agent sandbox (container manager
+    // and pool, terminal session, workspace memory, container and
+    // workspace-file routes, the skill-script runner), the developer-key
+    // routes, `routes/codea.ts`, the ZeroEval sync and the legacy trigger
+    // routes, and their log calls with them (769 after).
+    expect(calls.length).toBeGreaterThan(750);
     // 1_300 -> 1_250: `internal/providers/lib/seed-model-configs.ts` is deleted
     // with the routing-catalogue seed, and its fifteen logged properties with it
     // (1,307 before, 1,292 after). The floor moves in the change that removed
     // the sites, which is the only way it is allowed to move.
-    // 1_250 -> 1_150: the same sandbox removal as the call floor above took
-    // its logged properties with it (1,177 after).
-    // 1_250 -> 1_150: the same clean cut (1,213 after).
-    expect(properties.length).toBeGreaterThan(1_150);
+    // 1_250 -> 1_100: the same clean cut as the call floor above took their
+    // logged properties with it (1,136 after).
+    expect(properties.length).toBeGreaterThan(1_100);
     expect(sources.map((entry) => entry.file)).toContain(`${PACKAGE_PREFIX}/lib/chat/stream-runner.ts`);
   });
 

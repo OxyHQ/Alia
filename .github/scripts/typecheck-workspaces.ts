@@ -152,7 +152,7 @@ function main(): void {
   // Exact counts. Each list may only change in a diff that also changes the
   // number beside it, which is the review this gate exists to force.
   const counts: readonly [string, number, number][] = [
-    ['workspaces', workspaces.length, 11],
+    ['workspaces', workspaces.length, 10],
     ['CHECKED_ELSEWHERE', Object.keys(CHECKED_ELSEWHERE).length, 4],
     ['EXCLUDED', Object.keys(EXCLUDED).length, 0],
     ['NO_TYPECHECK', Object.keys(NO_TYPECHECK).length, 2],
