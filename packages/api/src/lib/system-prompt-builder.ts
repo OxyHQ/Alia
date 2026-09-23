@@ -44,6 +44,8 @@ const EXTENDED_REASONING_PROMPT = 'extended-reasoning';
 import { log } from './logger.js';
 import { agentPromptName, type HydratedAgent } from './agent-identity.js';
 import { readCapabilityGrants } from '../domain/capability-grants.js';
+import type { IWritingStyleProfile } from '../domain/writing-style.js';
+import { formatStyleForPrompt } from './style/style-prompt.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -53,6 +55,14 @@ export interface UserMemoryData {
   memories?: Array<{ title: string; summary: string }>;
   preferences?: Record<string, any>;
   context?: Record<string, any>;
+  /**
+   * The person's memory settings. Only `recallEnabled` is read here — the
+   * switch the app labels "Use in AI responses" — and only for the writing
+   * style; see layer 7b.
+   */
+  settings?: { recallEnabled?: boolean };
+  /** The learned writing-style profile (`user_memories.writing_style`). */
+  writingStyle?: IWritingStyleProfile | null;
 }
 
 export interface OxyUserProfile {
@@ -126,7 +136,8 @@ export class SystemPromptBuilder {
    *   6. User profile & communication tools hint
    *   7. Oxy service description + context
    *   8. Agent mode hint
-   *   9. User memory (facts, preferences, context)
+   *   9. User memory (facts, preferences, context), then the person's
+   *      learned writing style
    *  10. Skills index (name and description of each installed skill)
    */
   static async build(opts: SystemPromptOptions): Promise<string> {
@@ -279,6 +290,39 @@ export class SystemPromptBuilder {
           systemMessage += '\n### Context:\n' + ctx.join('\n');
         }
       }
+    }
+
+    /**
+     * 7b. The person's learned writing style.
+     *
+     * `style-learning-hook.ts` has built this profile after every chat since it
+     * was written, and `routes/writing-style.ts` lets the person read, edit and
+     * reset it — but nothing ever put it in front of the model, so the whole
+     * feature was a settings screen describing something that did nothing.
+     *
+     * Gated exactly as the memory above is — a direct session, and an agent only
+     * with the `memory` grant — because it IS memory: something learned about a
+     * person from their own messages. A developer key or a product service
+     * token acting for somebody never receives it, for the same reason they
+     * never receive the facts.
+     *
+     * And additionally on `recallEnabled`, the switch the app shows as "Use in
+     * AI responses": a person who turned that off asked for what Alia learned
+     * about them to stay out of its answers, and a style profile is exactly
+     * that. Not gated on `autoSaveEnabled`, which governs what is SAVED, not
+     * what is read.
+     *
+     * The block bounds its own size (`STYLE_PROMPT_MAX_CHARS`) and is empty for
+     * a profile that is not ready yet, so an empty string adds nothing.
+     */
+    if (
+      mayReadMemory
+      && isDirectUserSession
+      && userMemory
+      && userMemory.settings?.recallEnabled !== false
+    ) {
+      const style = formatStyleForPrompt(userMemory.writingStyle ?? null);
+      if (style !== '') systemMessage += `\n\n${style}`;
     }
 
     // 8. Skills.

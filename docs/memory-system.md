@@ -33,6 +33,18 @@ Main routes:
 - `POST /memory/import/validate`
 - `POST /memory/import`
 
+### Writing style
+
+`user_memories.writing_style` is learned after every chat by
+`lib/hooks/built-in/style-learning-hook.ts` and read, edited and reset through
+`/writing-style`. Once the profile is ready (`STYLE_MIN_MESSAGES`),
+`SystemPromptBuilder` appends `formatStyleForPrompt`'s block to the system
+message under the same gate as the rest of the memory — a direct session, and an
+agent only with the `memory` grant — and additionally only while
+`settings.recallEnabled` ("Use in AI responses") is on. The block is bounded by
+`STYLE_PROMPT_MAX_CHARS` and tells the model to use the style only when writing
+AS the person, never for Alia's own replies.
+
 ## 2) Context Graph (Autonomy)
 
 Models:
