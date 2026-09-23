@@ -51,6 +51,8 @@ vi.mock('@oxy.so/bloom/toast', () => ({
 vi.mock('@oxy.so/bloom/surfaces', () => ({ confirm: confirmSurface }));
 
 vi.mock('expo-router', () => ({
+  // The header is the layout's; the page only declares it.
+  Stack: { Screen: () => null },
   useLocalSearchParams: () => ({ id: 'series-abc' }),
   useRouter: () => ({ back: routerBack, push: vi.fn() }),
 }));

@@ -27,6 +27,7 @@ import { useColorScheme } from '@/lib/useColorScheme';
 import { IdentityMark } from '@alia.onl/sdk';
 import { Badge } from '@oxy.so/bloom/badge';
 import { Button } from '@oxy.so/bloom/button';
+import { ButtonGroup, ButtonGroupItem } from '@oxy.so/bloom/button-group';
 import { Card, CardBody } from '@oxy.so/bloom/card';
 import { Chip, ChipRow } from '@oxy.so/bloom/chip';
 import { Dialog } from '@oxy.so/bloom/dialog';
@@ -39,7 +40,6 @@ import {
 } from '@oxy.so/bloom/dropdown-menu';
 import {
   RiAddLine,
-  RiArrowLeftLine,
   RiAtLine,
   RiCloseLine,
   RiDeleteBinLine,
@@ -73,7 +73,7 @@ import { Textarea } from '@oxy.so/bloom/textarea';
 import { toast } from '@oxy.so/bloom/toast';
 import { Muted, Text } from '@oxy.so/bloom/typography';
 import { useOxy } from '@oxy.so/services';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ScrollView, View } from 'react-native';
 
@@ -213,6 +213,7 @@ export default function EditAgentScreen() {
     const notFound = errorStatus(error) === 404;
     return (
       <View className="flex-1 items-center justify-center gap-3 p-6">
+        <Stack.Screen options={{ headerBackVisible: true }} />
         <Text className="text-center text-base font-semibold leading-[22px] text-foreground">
           {notFound ? t('agents.notFound') : t('agents.loadFailed')}
         </Text>
@@ -251,6 +252,7 @@ export default function EditAgentScreen() {
   // to the person looking at it.
   return (
     <View className="flex-1 items-center justify-center">
+      <Stack.Screen options={{ headerBackVisible: true }} />
       <Loading variant="spinner" text={t('common.loading')} />
     </View>
   );
@@ -1028,66 +1030,49 @@ function AgentEditor({ agent }: { agent: Agent }) {
     <View className="flex-1 flex-row">
       {/* Main column */}
       <View className="flex-1">
-        {/* Page actions */}
-        <View className="flex-row flex-wrap items-center gap-2 px-4 pt-4">
-          <Button
-            size="sm"
-            tone="neutral"
-            appearance="plain"
-            icon={RiArrowLeftLine}
-            accessibilityLabel={t('pages.agents.back')}
-            onPress={() => router.back()}
-          />
-          <Text variant="headline-semibold">{t('agents.instructions')}</Text>
-          <Badge
-            size="label-small"
-            variant="subtle"
-            color={isPublished ? 'success' : 'default'}
-            content={isPublished ? t('agents.published') : t('agents.draft')}
-          />
-          {archetype !== 'general' && (
-            <Badge
-              size="label-small"
-              variant="subtle"
-              color="info"
-              content={archetype.replace('_', ' ')}
-            />
-          )}
-          <View className="flex-1" />
-          {!isLargeScreen && (
-            <Button
-              size="sm"
-              tone="neutral"
-              appearance="plain"
-              icon={RiSettings3Line}
-              accessibilityLabel={t('agents.settings')}
-              onPress={() => setShowPanel(true)}
-            />
-          )}
-          <DropdownMenu>
-            <DropdownMenuTrigger label="Actions" asChild>
-              <Button
-                size="sm"
-                tone="neutral"
-                appearance="plain"
-                icon={RiMore2Line}
-                accessibilityLabel={t('pages.agents.moreActions')}
-              />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent>
-              <DropdownMenuItem
-                key="delete"
-                onPress={handleDelete}
-                leading={<RiDeleteBinLine size="sm" />}
-              >
-                {t('agents.deleteAgent')}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-          <Button size="sm" tone="action" onPress={handlePublishToggle}>
-            {isPublished ? t('agents.unpublish') : t('agents.publish')}
-          </Button>
-        </View>
+        <Stack.Screen
+          options={{
+            title: t('agents.instructions'),
+            headerBackVisible: true,
+            headerRight: () => (
+              <>
+                <ButtonGroup
+                  accessibilityLabel={t('pages.agents.agentActions')}
+                >
+                  {!isLargeScreen && (
+                    <ButtonGroupItem
+                      iconOnly
+                      leadingIcon={RiSettings3Line}
+                      accessibilityLabel={t('agents.settings')}
+                      onPress={() => setShowPanel(true)}
+                    />
+                  )}
+                  <DropdownMenu>
+                    <DropdownMenuTrigger label="Actions" asChild>
+                      <ButtonGroupItem
+                        iconOnly
+                        leadingIcon={RiMore2Line}
+                        accessibilityLabel={t('pages.agents.moreActions')}
+                      />
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent>
+                      <DropdownMenuItem
+                        key="delete"
+                        onPress={handleDelete}
+                        leading={<RiDeleteBinLine size="sm" />}
+                      >
+                        {t('agents.deleteAgent')}
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </ButtonGroup>
+                <Button size="md" tone="action" onPress={handlePublishToggle}>
+                  {isPublished ? t('agents.unpublish') : t('agents.publish')}
+                </Button>
+              </>
+            ),
+          }}
+        />
 
         {/* Main editor */}
         <ScrollView
@@ -1096,6 +1081,24 @@ function AgentEditor({ agent }: { agent: Agent }) {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
+          {/* Where the agent stands: published or a draft, and its kind. */}
+          <View className="flex-row flex-wrap items-center gap-2">
+            <Badge
+              size="label-small"
+              variant="subtle"
+              color={isPublished ? 'success' : 'default'}
+              content={isPublished ? t('agents.published') : t('agents.draft')}
+            />
+            {archetype !== 'general' && (
+              <Badge
+                size="label-small"
+                variant="subtle"
+                color="info"
+                content={archetype.replace('_', ' ')}
+              />
+            )}
+          </View>
+
           {/* Mark + Name + Handle — all three are the bot ACCOUNT's, saved
               to Oxy rather than to the agent row. The handle was PROPOSED at
               creation and may carry a collision suffix nobody chose, so it is

@@ -35,7 +35,6 @@ import { Badge, type BadgeIcon } from '@oxy.so/bloom/badge';
 import { Button } from '@oxy.so/bloom/button';
 import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
-import { RiArrowLeftSLine } from '@oxy.so/bloom/icons/RiArrowLeftSLine';
 import { RiDeleteBinLine } from '@oxy.so/bloom/icons/RiDeleteBinLine';
 import { RiExternalLinkLine } from '@oxy.so/bloom/icons/RiExternalLinkLine';
 import { RiGlobalLine } from '@oxy.so/bloom/icons/RiGlobalLine';
@@ -48,7 +47,7 @@ import { confirm } from '@oxy.so/bloom/surfaces';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { toast } from '@oxy.so/bloom/toast';
 import { H5, Muted, Text } from '@oxy.so/bloom/typography';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { FlatList, Linking, RefreshControl, View } from 'react-native';
 
@@ -213,6 +212,7 @@ export default function SeriesDetailScreen() {
   if (!series) {
     return (
       <View className="flex-1 gap-4 p-4">
+        <Stack.Screen options={{ headerBackVisible: true }} />
         <View className="flex-row gap-4">
           <Skeleton.Box width={112} height={112} borderRadius={16} />
           <View className="flex-1 justify-center gap-2">
@@ -241,18 +241,6 @@ export default function SeriesDetailScreen() {
   const header = (
     // Stacking only: the hero, the description, the hosts and the heading.
     <View className="gap-5 pb-1">
-      <View className="items-start">
-        <Button
-          tone="neutral"
-          appearance="plain"
-          size="sm"
-          icon={RiArrowLeftSLine}
-          onPress={() => router.back()}
-          accessibilityRole="button"
-          accessibilityLabel="Back to shows"
-        />
-      </View>
-
       <View className="flex-row gap-4">
         <ShowArtwork
           assetId={series.coverImageAssetId}
@@ -327,7 +315,9 @@ export default function SeriesDetailScreen() {
       </View>
 
       <View className="items-start gap-1">
-        <Muted numberOfLines={descriptionExpanded || !isClampable ? undefined : 3}>
+        <Muted
+          numberOfLines={descriptionExpanded || !isClampable ? undefined : 3}
+        >
           {description}
         </Muted>
         {isClampable ? (
@@ -377,6 +367,9 @@ export default function SeriesDetailScreen() {
 
   return (
     <>
+      <Stack.Screen
+        options={{ title: series.title, headerBackVisible: true }}
+      />
       <FlatList
         className="flex-1"
         data={episodes}

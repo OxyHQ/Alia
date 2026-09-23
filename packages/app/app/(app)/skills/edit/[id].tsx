@@ -6,9 +6,9 @@ import {
 } from '@/lib/hooks/use-skills';
 import { useTranslation } from '@/lib/hooks/use-translation';
 import { Button } from '@oxy.so/bloom/button';
+import { ButtonGroup, ButtonGroupItem } from '@oxy.so/bloom/button-group';
 import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { Field } from '@oxy.so/bloom/field';
-import { RiArrowLeftLine } from '@oxy.so/bloom/icons/RiArrowLeftLine';
 import { RiDeleteBinLine } from '@oxy.so/bloom/icons/RiDeleteBinLine';
 import { Loading } from '@oxy.so/bloom/loading';
 import {
@@ -21,9 +21,9 @@ import { Textarea } from '@oxy.so/bloom/textarea';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { toast } from '@oxy.so/bloom/toast';
 import { Text } from '@oxy.so/bloom/typography';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ScrollView, View } from 'react-native';
+import { ScrollView } from 'react-native';
 
 /**
  * Editing a skill.
@@ -85,15 +85,23 @@ export default function EditSkillScreen() {
   }, [detail.data, loaded]);
 
   if (detail.isLoading) {
-    return <Loading variant="spinner" />;
+    return (
+      <>
+        <Stack.Screen options={{ headerBackVisible: true }} />
+        <Loading variant="spinner" />
+      </>
+    );
   }
 
   if (!detail.data) {
     return (
-      <EmptyState
-        title={t('skills.notFound')}
-        action={{ label: t('common.back'), onPress: () => router.back() }}
-      />
+      <>
+        <Stack.Screen options={{ headerBackVisible: true }} />
+        <EmptyState
+          title={t('skills.notFound')}
+          action={{ label: t('common.back'), onPress: () => router.back() }}
+        />
+      </>
     );
   }
 
@@ -156,137 +164,137 @@ export default function EditSkillScreen() {
   };
 
   return (
-    <ScrollView
-      showsVerticalScrollIndicator={false}
-      keyboardShouldPersistTaps="handled"
-      contentContainerClassName="w-full max-w-[768px] self-center gap-4 px-4 pb-12 pt-4"
-    >
-      <View className="flex-row items-center justify-between gap-2">
-        <Button
-          tone="neutral"
-          appearance="plain"
-          size="sm"
-          icon={RiArrowLeftLine}
-          accessibilityLabel={t('common.back')}
-          onPress={() => router.back()}
-        />
-        <View className="flex-row gap-2">
-          <Button
-            size="sm"
-            tone="neutral"
-            appearance="subtle"
-            disabled={patch.isPending}
-            onPress={savePresentation}
-          >
-            {t('skills.save')}
-          </Button>
-          <Button
-            size="sm"
-            tone="action"
-            disabled={!documentChanged || newVersion.isPending}
-            onPress={saveVersion}
-          >
-            {t('skills.saveVersion')}
-          </Button>
-        </View>
-      </View>
+    <>
+      <Stack.Screen
+        options={{
+          title: skill.displayName,
+          headerBackVisible: true,
+          headerRight: () => (
+            <>
+              <ButtonGroup accessibilityLabel={t('skills.save')}>
+                <ButtonGroupItem
+                  disabled={patch.isPending}
+                  onPress={savePresentation}
+                >
+                  {t('skills.save')}
+                </ButtonGroupItem>
+              </ButtonGroup>
+              <Button
+                size="md"
+                tone="action"
+                disabled={!documentChanged || newVersion.isPending}
+                onPress={saveVersion}
+              >
+                {t('skills.saveVersion')}
+              </Button>
+            </>
+          ),
+        }}
+      />
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        contentContainerClassName="w-full max-w-[768px] self-center gap-4 px-4 pb-12 pt-4"
+      >
+        <Field label={t('skills.nameLabel')} description={t('skills.nameHint')}>
+          <Text variant="body-regular" selectable>
+            {skill.name}
+          </Text>
+        </Field>
 
-      <Field label={t('skills.nameLabel')} description={t('skills.nameHint')}>
-        <Text variant="body-regular" selectable>
-          {skill.name}
-        </Text>
-      </Field>
+        <Field label={t('skills.displayNameLabel')}>
+          <TextFieldInput
+            label={t('skills.displayNameLabel')}
+            placeholder={null}
+            value={displayName}
+            onChangeText={setDisplayName}
+          />
+        </Field>
 
-      <Field label={t('skills.displayNameLabel')}>
-        <TextFieldInput
-          label={t('skills.displayNameLabel')}
-          placeholder={null}
-          value={displayName}
-          onChangeText={setDisplayName}
-        />
-      </Field>
-
-      {/* The server refuses a description over 1024 characters, so the field
+        {/* The server refuses a description over 1024 characters, so the field
           stops there and counts toward it. */}
-      <Textarea
-        label={t('skills.descriptionLabel')}
-        hint={t('skills.descriptionHint')}
-        value={description}
-        onChangeText={setDescription}
-        autoResize
-        rows={5}
-        maxLength={1024}
-        showCount
-      />
-
-      <Textarea
-        label={t('skills.bodyLabel')}
-        hint={t('skills.bodyHint')}
-        value={body}
-        onChangeText={setBody}
-        autoResize
-        rows={13}
-      />
-
-      <Field label={t('skills.licenseLabel')}>
-        <TextFieldInput
-          label={t('skills.licenseLabel')}
-          value={license}
-          onChangeText={setLicense}
-          placeholder="Apache-2.0"
-          autoCapitalize="none"
+        <Textarea
+          label={t('skills.descriptionLabel')}
+          hint={t('skills.descriptionHint')}
+          value={description}
+          onChangeText={setDescription}
+          autoResize
+          rows={5}
+          maxLength={1024}
+          showCount
         />
-      </Field>
 
-      <Field label={t('skills.compatibilityLabel')}>
-        <TextFieldInput
-          label={t('skills.compatibilityLabel')}
-          placeholder={null}
-          value={compatibility}
-          onChangeText={setCompatibility}
+        <Textarea
+          label={t('skills.bodyLabel')}
+          hint={t('skills.bodyHint')}
+          value={body}
+          onChangeText={setBody}
+          autoResize
+          rows={13}
         />
-      </Field>
 
-      <Field label={t('skills.allowedToolsLabel')}>
-        <TextFieldInput
-          label={t('skills.allowedToolsLabel')}
-          placeholder={null}
-          value={allowedTools}
-          onChangeText={setAllowedTools}
-          autoCapitalize="none"
-        />
-      </Field>
+        <Field label={t('skills.licenseLabel')}>
+          <TextFieldInput
+            label={t('skills.licenseLabel')}
+            value={license}
+            onChangeText={setLicense}
+            placeholder="Apache-2.0"
+            autoCapitalize="none"
+          />
+        </Field>
 
-      <SettingsListGroup>
-        <SettingsListItem
-          title={t('skills.publish')}
-          description={t('skills.publishHint')}
-          rightElement={
-            <Switch
-              accessibilityLabel={t('skills.publish')}
-              value={isPublic}
-              onValueChange={setIsPublic}
-            />
-          }
-        />
-      </SettingsListGroup>
+        <Field label={t('skills.compatibilityLabel')}>
+          <TextFieldInput
+            label={t('skills.compatibilityLabel')}
+            placeholder={null}
+            value={compatibility}
+            onChangeText={setCompatibility}
+          />
+        </Field>
 
-      <SettingsListGroup>
-        <SettingsListItem
-          icon={<RiDeleteBinLine width={18} height={18} fill={colors.error} />}
-          title={
-            confirmingDelete
-              ? t('skills.deleteSkillConfirm')
-              : t('skills.deleteSkill')
-          }
-          destructive
-          showChevron={false}
-          disabled={remove.isPending}
-          onPress={() =>
-            confirmingDelete ? void handleDelete() : setConfirmingDelete(true)
-          }
-        />
-      </SettingsListGroup>
-    </ScrollView>
+        <Field label={t('skills.allowedToolsLabel')}>
+          <TextFieldInput
+            label={t('skills.allowedToolsLabel')}
+            placeholder={null}
+            value={allowedTools}
+            onChangeText={setAllowedTools}
+            autoCapitalize="none"
+          />
+        </Field>
+
+        <SettingsListGroup>
+          <SettingsListItem
+            title={t('skills.publish')}
+            description={t('skills.publishHint')}
+            rightElement={
+              <Switch
+                accessibilityLabel={t('skills.publish')}
+                value={isPublic}
+                onValueChange={setIsPublic}
+              />
+            }
+          />
+        </SettingsListGroup>
+
+        <SettingsListGroup>
+          <SettingsListItem
+            icon={
+              <RiDeleteBinLine width={18} height={18} fill={colors.error} />
+            }
+            title={
+              confirmingDelete
+                ? t('skills.deleteSkillConfirm')
+                : t('skills.deleteSkill')
+            }
+            destructive
+            showChevron={false}
+            disabled={remove.isPending}
+            onPress={() =>
+              confirmingDelete ? void handleDelete() : setConfirmingDelete(true)
+            }
+          />
+        </SettingsListGroup>
+      </ScrollView>
+    </>
   );
 }

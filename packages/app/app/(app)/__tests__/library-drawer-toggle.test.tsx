@@ -46,6 +46,15 @@ vi.mock('@oxy.so/bloom/ai-chat', () => ({
 }));
 
 vi.mock('expo-router', () => ({
+  // The page's header is declared through the router and drawn by the layout;
+  // rendering its actions here keeps them under test with the page.
+  Stack: {
+    Screen: ({
+      options,
+    }: {
+      options?: { headerRight?: (props: { canGoBack: boolean }) => unknown };
+    }) => options?.headerRight?.({ canGoBack: false }) ?? null,
+  },
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn() }),
 }));
 
@@ -173,13 +182,6 @@ vi.mock('@oxy.so/bloom/skeleton', async () => {
     Text: shape('Skeleton'),
     Row: shape('Skeleton'),
     Col: shape('Skeleton'),
-  };
-});
-vi.mock('@/components/ui/icons/menu-icon', async () => {
-  const ReactModule = await import('react');
-  return {
-    MenuIcon: (props: Record<string, unknown>) =>
-      ReactModule.createElement('MenuIcon', props),
   };
 });
 vi.mock('@oxy.so/bloom/dropdown-menu', async () => {
@@ -503,13 +505,14 @@ describe('the same opener on every top-level page', () => {
   /**
    * The other half of the pages above: the layout really does give every
    * non-chat route the opener. `screenLayout` wraps it in `AiChatContainer`
-   * with `AiChatMobileHeader` as its header, and only the chat routes (which
-   * compose their own container) are let through bare.
+   * with `ShellPageHeader` (Bloom's `PageHeader` carrying the phone's menu
+   * button) as its header, and only the chat routes (which compose their own
+   * container) are let through bare.
    */
   it("wraps every non-chat route in the container whose header has the opener", () => {
     const layout = page('_layout');
     expect(layout).toContain('screenLayout={screenLayout}');
-    expect(layout).toMatch(/<AiChatContainer[\s\S]*header=\{<AiChatMobileHeader/);
+    expect(layout).toMatch(/<AiChatContainer[\s\S]*header=\{\s*<ShellPageHeader/);
     expect(layout).toMatch(/PAGE_TITLES[\s\S]*library: 'sidebar\.library'/);
     expect(layout).toMatch(/shows: 'sidebar\.shows'/);
   });

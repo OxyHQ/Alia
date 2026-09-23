@@ -33,8 +33,11 @@ import {
   DropdownMenuTrigger,
 } from '@oxy.so/bloom/dropdown-menu';
 import { EmptyState } from '@oxy.so/bloom/empty-state';
-import { RiAlertLine, RiBookmarkFill, RiBookmarkLine } from '@oxy.so/bloom/icons';
-import { RiArrowLeftLine } from '@oxy.so/bloom/icons/RiArrowLeftLine';
+import {
+  RiAlertLine,
+  RiBookmarkFill,
+  RiBookmarkLine,
+} from '@oxy.so/bloom/icons';
 import { RiDeleteBinLine } from '@oxy.so/bloom/icons/RiDeleteBinLine';
 import { RiMore2Line } from '@oxy.so/bloom/icons/RiMore2Line';
 import { RiRobot2Line } from '@oxy.so/bloom/icons/RiRobot2Line';
@@ -53,7 +56,7 @@ import { toast } from '@oxy.so/bloom/toast';
 import { Muted, Text } from '@oxy.so/bloom/typography';
 import { useOxy } from '@oxy.so/services';
 import { useQueryClient } from '@tanstack/react-query';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { type ReactNode, useCallback, useEffect, useState } from 'react';
 import { ScrollView, Share, View } from 'react-native';
 
@@ -165,7 +168,12 @@ function RoutingLogCard({ item }: { item: RoutingLogItem }) {
       <CardBody>
         <View className="gap-2 py-1">
           <View className="flex-row items-center gap-2">
-            <Badge size="label-small" variant="subtle" color={tone} content={priority} />
+            <Badge
+              size="label-small"
+              variant="subtle"
+              color={tone}
+              content={priority}
+            />
             {category ? <Text variant="body-medium">{category}</Text> : null}
             <View className="flex-1" />
             <Muted>{formatRelativeTime(item.createdAt)}</Muted>
@@ -175,9 +183,15 @@ function RoutingLogCard({ item }: { item: RoutingLogItem }) {
           ) : null}
           {item.routedTo?.name || item.status ? (
             <View className="flex-row items-center gap-2">
-              {item.routedTo?.name ? <Muted>→ {item.routedTo.name}</Muted> : null}
+              {item.routedTo?.name ? (
+                <Muted>→ {item.routedTo.name}</Muted>
+              ) : null}
               {item.status ? (
-                <Badge size="label-small" variant="outlined" content={item.status} />
+                <Badge
+                  size="label-small"
+                  variant="outlined"
+                  content={item.status}
+                />
               ) : null}
             </View>
           ) : null}
@@ -536,6 +550,7 @@ export default function AgentDetailScreen() {
   if (loading) {
     return (
       <View className="flex-1 items-center justify-center">
+        <Stack.Screen options={{ headerBackVisible: true }} />
         <Loading variant="spinner" text={t('common.loading')} />
       </View>
     );
@@ -543,11 +558,17 @@ export default function AgentDetailScreen() {
 
   if (!agent) {
     return (
-      <EmptyState
-        icon={RiRobot2Line}
-        title={t('agents.notFound')}
-        action={{ label: t('agents.backToAgents'), onPress: () => router.back() }}
-      />
+      <>
+        <Stack.Screen options={{ headerBackVisible: true }} />
+        <EmptyState
+          icon={RiRobot2Line}
+          title={t('agents.notFound')}
+          action={{
+            label: t('agents.backToAgents'),
+            onPress: () => router.back(),
+          }}
+        />
+      </>
     );
   }
 
@@ -555,23 +576,11 @@ export default function AgentDetailScreen() {
 
   return (
     <View className={isLargeScreen ? 'flex-1 flex-row' : 'flex-1 flex-col'}>
-      {/* Agent details (full width on mobile) */}
-      <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
-        <View
-          className={
-            isLargeScreen ? 'w-full max-w-[672px] gap-5 p-4' : 'w-full gap-5 p-4'
-          }
-        >
-          {/* Page actions */}
-          <View className="flex-row flex-wrap items-center justify-between gap-2">
-            <Button
-              size="sm"
-              tone="neutral"
-              appearance="plain"
-              icon={RiArrowLeftLine}
-              accessibilityLabel={t('pages.agents.back')}
-              onPress={() => router.back()}
-            />
+      <Stack.Screen
+        options={{
+          title: agentDisplayName(agent),
+          headerBackVisible: true,
+          headerRight: () => (
             <ButtonGroup accessibilityLabel={t('pages.agents.agentActions')}>
               {isOwner ? (
                 <ButtonGroupItem
@@ -633,12 +642,26 @@ export default function AgentDetailScreen() {
                 </DropdownMenuContent>
               </DropdownMenu>
             </ButtonGroup>
-          </View>
-
+          ),
+        }}
+      />
+      {/* Agent details (full width on mobile) */}
+      <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
+        <View
+          className={
+            isLargeScreen
+              ? 'w-full max-w-[672px] gap-5 p-4'
+              : 'w-full gap-5 p-4'
+          }
+        >
           {/* Identity: the mark in its own colour, carrying the status dot. */}
           <View className="gap-1.5">
             <View className="self-start">
-              <Badge dot color={STATUS_TONE[agent.status]} placement="bottom-right">
+              <Badge
+                dot
+                color={STATUS_TONE[agent.status]}
+                placement="bottom-right"
+              >
                 <IdentityMark
                   size={80}
                   color={agentTint(agent.color, colors)}
@@ -671,7 +694,11 @@ export default function AgentDetailScreen() {
               <Text variant="body-regular">{agent.tagline}</Text>
             ) : null}
             <View className="flex-row items-center gap-3">
-              <Rating value={agent.rating} count={agent.reviewCount} size="small" />
+              <Rating
+                value={agent.rating}
+                count={agent.reviewCount}
+                size="small"
+              />
               <Muted>
                 {formatCount(agent.hireCount)} {t('agents.hires')} ·{' '}
                 {formatCount(agent.usageCount)} {t('agents.uses')}
@@ -731,8 +758,9 @@ export default function AgentDetailScreen() {
           )}
 
           {/* Reports */}
-          {detailTab === 'reports' && agent.archetype === 'status_update' && (
-            reportsLoading ? (
+          {detailTab === 'reports' &&
+            agent.archetype === 'status_update' &&
+            (reportsLoading ? (
               <Loading variant="spinner" size="sm" />
             ) : reports.length === 0 ? (
               <EmptyState variant="compact" title="No reports yet" />
@@ -742,12 +770,12 @@ export default function AgentDetailScreen() {
                   <ReportCard key={item._id} item={item} />
                 ))}
               </View>
-            )
-          )}
+            ))}
 
           {/* Routing */}
-          {detailTab === 'routing' && agent.archetype === 'task_router' && (
-            routingLoading ? (
+          {detailTab === 'routing' &&
+            agent.archetype === 'task_router' &&
+            (routingLoading ? (
               <Loading variant="spinner" size="sm" />
             ) : routingLogs.length === 0 ? (
               <EmptyState variant="compact" title="No routing activity yet" />
@@ -757,8 +785,7 @@ export default function AgentDetailScreen() {
                   <RoutingLogCard key={item._id} item={item} />
                 ))}
               </View>
-            )
-          )}
+            ))}
 
           {/* Overview (every archetype, while the overview is active) */}
           {detailTab === 'overview' && (

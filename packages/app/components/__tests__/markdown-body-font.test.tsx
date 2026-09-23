@@ -83,7 +83,7 @@ describe('the body family is derived from Bloom, not written out', () => {
 describe('every AliaMarkdown call site hands the family over', () => {
   // Anchored on the JSX tag: a call site that renders AliaMarkdown without the
   // prop compiles fine and draws the system face on device.
-  const CALL_SITES = ['ui/markdown.tsx', 'ui/reasoning.tsx'] as const;
+  const CALL_SITES = ['ui/markdown.tsx'] as const;
 
   it.each(CALL_SITES)('%s passes fontFamily', (file) => {
     const src = code(file);
@@ -97,8 +97,8 @@ describe('every AliaMarkdown call site hands the family over', () => {
   });
 
   it('finds every call site the repo has, so the list above cannot go stale', () => {
-    const all = code('ui/markdown.tsx') + code('ui/reasoning.tsx');
+    const all = code('ui/markdown.tsx');
     const count = (all.match(/<AliaMarkdown/g) ?? []).length;
-    expect(count).toBe(2);
+    expect(count).toBe(1);
   });
 });

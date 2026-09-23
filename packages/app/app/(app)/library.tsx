@@ -21,6 +21,7 @@ import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { toast } from '@oxy.so/bloom/toast';
 import { Muted } from '@oxy.so/bloom/typography';
 import { FlashList } from '@shopify/flash-list';
+import { Stack } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { RefreshControl, View } from 'react-native';
 
@@ -150,42 +151,8 @@ export default function LibraryScreen() {
   const listHeader = useMemo(
     () => (
       <View className="gap-3 pb-2">
-        {/* The page's one-line description and its action. */}
-        <View className="flex-row items-center justify-between gap-3">
-          <View className="flex-1">
-            <Muted>{t('library.subtitle')}</Muted>
-          </View>
-          <DropdownMenu>
-            <DropdownMenuTrigger label={t('library.addFiles')} asChild>
-              {/* The trigger IS the button, and it is named (#536). */}
-              <Button
-                tone="action"
-                size="sm"
-                leadingIcon={RiAddLine}
-                accessibilityRole="button"
-                accessibilityLabel={t('library.addFiles')}
-              >
-                {t('library.addFiles')}
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent>
-              <DropdownMenuItem
-                key="photos"
-                onPress={handleUploadImage}
-                leading={<RiImageLine size="sm" />}
-              >
-                {t('library.addImages')}
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                key="document"
-                onPress={handleUploadDocument}
-                leading={<RiFileTextLine size="sm" />}
-              >
-                {t('library.uploadFiles')}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </View>
+        {/* The page's one-line description; its action is in the header. */}
+        <Muted>{t('library.subtitle')}</Muted>
 
         <Search
           label={t('library.searchPlaceholder')}
@@ -194,7 +161,10 @@ export default function LibraryScreen() {
           onClearText={() => setSearchQuery('')}
         />
 
-        <ChipRow role="radiogroup" accessibilityLabel={t('pages.library.categories')}>
+        <ChipRow
+          role="radiogroup"
+          accessibilityLabel={t('pages.library.categories')}
+        >
           {categories.map((category) => (
             <Chip
               key={category.label}
@@ -242,8 +212,6 @@ export default function LibraryScreen() {
       isFiltered,
       loading,
       files,
-      handleUploadImage,
-      handleUploadDocument,
     ],
   );
 
@@ -263,16 +231,54 @@ export default function LibraryScreen() {
   }, [loading, t, searchQuery]);
 
   return (
-    <FlashList
-      data={loading && files.length === 0 ? [] : filteredFiles}
-      renderItem={renderItem}
-      ListHeaderComponent={listHeader}
-      ListEmptyComponent={listEmpty}
-      showsVerticalScrollIndicator={false}
-      contentContainerClassName="px-4 pb-6 pt-4"
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-      }
-    />
+    <>
+      <Stack.Screen
+        options={{
+          headerRight: () => (
+            <DropdownMenu>
+              <DropdownMenuTrigger label={t('library.addFiles')} asChild>
+                {/* The trigger IS the button, and it is named (#536). */}
+                <Button
+                  tone="action"
+                  size="md"
+                  leadingIcon={RiAddLine}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('library.addFiles')}
+                >
+                  {t('library.addFiles')}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                <DropdownMenuItem
+                  key="photos"
+                  onPress={handleUploadImage}
+                  leading={<RiImageLine size="sm" />}
+                >
+                  {t('library.addImages')}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  key="document"
+                  onPress={handleUploadDocument}
+                  leading={<RiFileTextLine size="sm" />}
+                >
+                  {t('library.uploadFiles')}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ),
+        }}
+      />
+      <FlashList
+        data={loading && files.length === 0 ? [] : filteredFiles}
+        renderItem={renderItem}
+        ListHeaderComponent={listHeader}
+        ListEmptyComponent={listEmpty}
+        showsVerticalScrollIndicator={false}
+        contentContainerClassName="px-4 pb-6 pt-4"
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+      />
+    </>
   );
 }

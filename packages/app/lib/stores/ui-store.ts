@@ -71,6 +71,8 @@ interface UIState {
   canvasArtifacts: CanvasArtifact[];
   activeAgentSessionId: string | null;
   activeAgentId: string | null;
+  /** The conversation whose turn opened the active agent session, when one did. */
+  activeAgentConversationId: string | null;
   /**
    * Whether the intro screen has been answered on this device — by signing in
    * or by choosing to continue without an account. Persisted, so the home
@@ -95,7 +97,7 @@ interface UIState {
    * dropped, which is what keeps a second mounted chat from blanking the panel.
    */
   syncThoughtScope: (scope: ThoughtScope) => void;
-  openAgentPanel: (sessionId: string, agentId: string) => void;
+  openAgentPanel: (sessionId: string, agentId: string, conversationId?: string | null) => void;
   setShortcutsDialogOpen: (open: boolean) => void;
   toggleShortcutsDialog: () => void;
   addCanvasArtifact: (artifact: CanvasArtifact) => void;
@@ -143,6 +145,7 @@ export const useUIStore = create<UIState>()(
   canvasArtifacts: [],
   activeAgentSessionId: null,
   activeAgentId: null,
+  activeAgentConversationId: null,
   rightPanelWidth: RIGHT_PANEL_DEFAULT_WIDTH,
 
   toggleSidebar: () =>
@@ -177,8 +180,13 @@ export const useUIStore = create<UIState>()(
     set({ thoughtScope: scope });
   },
 
-  openAgentPanel: (sessionId, agentId) =>
-    set({ rightPanel: 'agent', activeAgentSessionId: sessionId, activeAgentId: agentId }),
+  openAgentPanel: (sessionId, agentId, conversationId = null) =>
+    set({
+      rightPanel: 'agent',
+      activeAgentSessionId: sessionId,
+      activeAgentId: agentId,
+      activeAgentConversationId: conversationId,
+    }),
 
   setShortcutsDialogOpen: (open) =>
     set({ shortcutsDialogOpen: open }),

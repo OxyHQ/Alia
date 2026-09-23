@@ -1,4 +1,8 @@
 import { NavRegion } from '@/components/app-shell/nav-region';
+import {
+  ShellPageHeader,
+  type PageHeaderOptions,
+} from '@/components/app-shell/page-chrome';
 import { ShellNavProvider } from '@/components/app-shell/shell-nav';
 import { CommandPalette } from '@/components/command-palette';
 import { AppErrorBoundary } from '@/components/error-boundary';
@@ -16,13 +20,9 @@ import { useFoldersStore } from '@/lib/stores/folders-store';
 import { usePinnedStore } from '@/lib/stores/pinned-store';
 import { useProjectsStore } from '@/lib/stores/projects-store';
 import { useUIStore } from '@/lib/stores/ui-store';
-import {
-  AiChatContainer,
-  AiChatMobileHeader,
-  AiChatShell,
-} from '@oxy.so/bloom/ai-chat';
+import { AiChatContainer, AiChatShell } from '@oxy.so/bloom/ai-chat';
 import { useOxy } from '@oxy.so/services';
-import { Stack } from 'expo-router';
+import { Stack, useRouter, type Href } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -50,6 +50,7 @@ const PAGE_TITLES: Record<string, string> = {
 
 export default function AppLayout() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const loadProjects = useProjectsStore((state) => state.loadProjects);
   const loadFolders = useFoldersStore((state) => state.loadFolders);
   const loadFavorites = useFavoritesStore((state) => state.loadFavorites);
@@ -124,24 +125,48 @@ export default function AppLayout() {
 
   /**
    * Every page stands on the layout's surface: Bloom's `AiChatContainer`, with
-   * its mobile header and the page's crumb. A page draws no background and no
-   * corner of its own. The chat routes compose the same container themselves,
-   * because theirs carries the composer.
+   * Bloom's `PageHeader` as its header and no breadcrumb. A page draws no
+   * background and no corner of its own. The chat routes compose the same
+   * container themselves, because theirs carries the composer.
+   *
+   * The header is the PAGE's: it declares its title, its back and its actions
+   * with `<Stack.Screen options={…} />` (see `components/app-shell/page-chrome.tsx`),
+   * and this reads them back. A page that declares nothing gets its section's
+   * name.
    */
   const screenLayout = ({
     route,
+    options,
     children,
   }: {
     route: { name: string };
+    options: PageHeaderOptions;
     children: React.ReactElement;
   }) => {
-    if (CHAT_ROUTES.has(route.name)) return children;
+    // A local visual fixture (`__*.tsx`, never committed) mounts a chat
+    // screen, which composes its own container like the chat routes do.
+    if (CHAT_ROUTES.has(route.name) || route.name.startsWith('__')) return children;
     const section = route.name.split('/')[0];
-    const title = PAGE_TITLES[section] ? i18n.t(PAGE_TITLES[section]) : undefined;
+    const title =
+      options.title ??
+      (PAGE_TITLES[section] ? i18n.t(PAGE_TITLES[section]) : undefined);
+    const onBack = options.headerBackVisible
+      ? () => {
+          // Straight into a detail page there is nothing behind it; its
+          // section is the way back rather than a press that does nothing.
+          if (router.canGoBack()) router.back();
+          else router.replace(`/${section}` as Href);
+        }
+      : undefined;
     return (
       <AiChatContainer
-        header={<AiChatMobileHeader title={title ?? 'Alia'} />}
-        title={title}
+        header={
+          <ShellPageHeader
+            title={title}
+            onBack={onBack}
+            actions={options.headerRight?.({ canGoBack: onBack !== undefined })}
+          />
+        }
       >
         {children}
       </AiChatContainer>

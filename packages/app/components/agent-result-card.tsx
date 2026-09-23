@@ -1,41 +1,27 @@
 import { WorkspaceBrowser } from '@/components/workspace-browser';
-import type {
-  AgentActivityState,
-  PlanItem,
-} from '@/lib/hooks/use-agent-activity';
-import { useColorScheme } from '@/lib/useColorScheme';
-import { useTheme, withAlpha } from '@oxy.so/bloom/theme';
-import { Text } from '@oxy.so/bloom/typography';
-import {
-  AlertTriangle,
-  CheckCircle,
-  ChevronDown,
-  ChevronUp,
-  Clock,
-  Coins,
-  FolderTree,
-  Layers,
-  XCircle,
-} from 'lucide-react-native';
+import type { AgentActivityState, PlanItem } from '@/lib/hooks/use-agent-activity';
+import { useTranslation } from '@/lib/hooks/use-translation';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@oxy.so/bloom/accordion';
+import { Admonition } from '@oxy.so/bloom/admonition';
+import { Badge } from '@oxy.so/bloom/badge';
+import { Card, CardBody, CardHeader } from '@oxy.so/bloom/card';
+import { RiAlertLine } from '@oxy.so/bloom/icons/RiAlertLine';
+import { RiCheckboxCircleLine } from '@oxy.so/bloom/icons/RiCheckboxCircleLine';
+import { RiCloseCircleLine } from '@oxy.so/bloom/icons/RiCloseCircleLine';
+import { Item } from '@oxy.so/bloom/item';
+import { Muted, Text } from '@oxy.so/bloom/typography';
 import React, { useState } from 'react';
-import { Pressable, View } from 'react-native';
-import Animated, { FadeIn } from 'react-native-reanimated';
+import { View } from 'react-native';
+
 /**
- * AgentResultCard — Rich summary card shown in chat when an agent completes a task.
+ * AgentResultCard — the summary an agent run leaves in the chat when it ends.
  *
- * Displays: title, agent info, duration, step count, plan summary, deliverable files.
- * Includes a "View Files" toggle that expands the WorkspaceBrowser inline.
+ * A Bloom `Card`: the outcome as a `Badge` beside the heading, the run's
+ * numbers in one secondary line, an error as an `Admonition`, and the plan and
+ * the workspace's files as two `Accordion` sections. The file browser mounts
+ * only while its section is open — it fetches the session's files, and a
+ * closed section asks for nothing.
  */
-
-
-
-
-
-
-
-
-
-
 
 interface AgentResultCardProps {
   activity: AgentActivityState;
@@ -43,47 +29,30 @@ interface AgentResultCardProps {
   agentName?: string;
 }
 
-function formatDuration(startedAt: number | null): string {
+/** `42s`, `3m 5s`, `1h 2m` — how long the run took. */
+export function formatRunDuration(startedAt: number | null, now: number): string {
   if (!startedAt) return '--';
-  const ms = Date.now() - startedAt;
-  const seconds = Math.floor(ms / 1000);
+  const seconds = Math.max(0, Math.floor((now - startedAt) / 1000));
   if (seconds < 60) return `${seconds}s`;
   const minutes = Math.floor(seconds / 60);
   if (minutes < 60) return `${minutes}m ${seconds % 60}s`;
-  const hours = Math.floor(minutes / 60);
-  return `${hours}h ${minutes % 60}m`;
+  return `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
 }
 
-function CompletedPlanSummary({ items }: { items: PlanItem[] }) {
-  const { colors } = useTheme();
-  const completed = items.filter(i => i.status === 'completed').length;
-  const total = items.length;
+const PLAN_ICON = {
+  completed: RiCheckboxCircleLine,
+  blocked: RiAlertLine,
+} as const;
 
+function PlanItemRow({ item }: { item: PlanItem }) {
+  const Icon = PLAN_ICON[item.status as keyof typeof PLAN_ICON] ?? RiCloseCircleLine;
   return (
-    <View className="gap-1">
-      {items.map(item => (
-        <View key={item.id} className="flex-row items-start gap-2">
-          {item.status === 'completed' ? (
-            <CheckCircle size={12} color={colors.success} style={{ marginTop: 2 }} />
-          ) : item.status === 'blocked' ? (
-            <AlertTriangle size={12} color={colors.warning} style={{ marginTop: 2 }} />
-          ) : (
-            <XCircle size={12} color={colors.textSecondary} style={{ marginTop: 2 }} />
-          )}
-          <Text
-            className={`text-xs flex-1 ${item.status === 'completed' ? 'text-muted-foreground' : 'text-foreground'}`}
-            numberOfLines={1}
-          >
-            {item.text}
-          </Text>
-        </View>
-      ))}
-      {total > 0 && (
-        <Text className="text-[10px] text-muted-foreground mt-1">
-          {completed}/{total} steps completed
-        </Text>
-      )}
-    </View>
+    <Item
+      density="compact"
+      role="listitem"
+      leading={<Icon size="sm" />}
+      title={item.text}
+    />
   );
 }
 
@@ -92,116 +61,70 @@ export const AgentResultCard = React.memo(function AgentResultCard({
   sessionId,
   agentName,
 }: AgentResultCardProps) {
-  const { colors } = useColorScheme();
-  const { colors: themeColors } = useTheme();
-  const [showPlan, setShowPlan] = useState(false);
-  const [showFiles, setShowFiles] = useState(false);
+  const { t } = useTranslation();
+  const [open, setOpen] = useState<string[]>([]);
+  // Measured once, when the card first draws the finished run.
+  const [now] = useState(() => Date.now());
 
   const { plan, isComplete, hasError, lastError, eventCount, startedAt } = activity;
   const isSuccess = isComplete && !hasError;
-  const duration = formatDuration(startedAt);
 
-  const statusColor = isSuccess ? themeColors.success : hasError ? themeColors.error : themeColors.textSecondary;
-  const StatusIcon = isSuccess ? CheckCircle : hasError ? XCircle : Clock;
-  const statusLabel = isSuccess ? 'Completed' : hasError ? 'Failed' : 'Unknown';
+  const stats = [
+    formatRunDuration(startedAt, now),
+    t('chat.agentRun.steps', { count: String(eventCount) }),
+    plan ? t('chat.agentRun.planItems', { done: String(plan.completed), total: String(plan.total) }) : null,
+    activity.creditsCharged != null
+      ? t('chat.agentRun.credits', { count: String(activity.creditsCharged) })
+      : null,
+  ].filter((part): part is string => part !== null);
 
   return (
-    <Animated.View
-      entering={FadeIn.duration(300)}
-      className="rounded-xl border border-border bg-background overflow-hidden my-2"
-    >
-      {/* Status banner */}
-      <View
-        className="flex-row items-center gap-2 px-3 py-2.5"
-        style={{ backgroundColor: withAlpha(statusColor, 0.08) }}
-      >
-        <StatusIcon size={16} color={statusColor} />
-        <View className="flex-1">
-          <Text className="text-sm font-semibold text-foreground">
-            {isSuccess ? 'Task Complete' : 'Task Failed'}
-          </Text>
-          {agentName && (
-            <Text className="text-[10px] text-muted-foreground">
-              by {agentName}
+    <Card>
+      <CardHeader>
+        <View className="flex-row items-center gap-2">
+          <Badge
+            variant="subtle"
+            color={isSuccess ? 'success' : hasError ? 'error' : 'default'}
+            content={t(isSuccess ? 'chat.agentRun.completed' : hasError ? 'chat.agentRun.failed' : 'chat.agentRun.unknown')}
+          />
+          <View className="min-w-0 flex-1">
+            <Text variant="headline-semibold">
+              {t(isSuccess ? 'chat.agentRun.taskComplete' : 'chat.agentRun.taskFailed')}
             </Text>
-          )}
-        </View>
-      </View>
-
-      {/* Stats row */}
-      <View className="flex-row items-center gap-4 px-3 py-2 border-b border-border">
-        <View className="flex-row items-center gap-1">
-          <Clock size={12} color={colors.mutedForeground} />
-          <Text className="text-xs text-muted-foreground">{duration}</Text>
-        </View>
-        <View className="flex-row items-center gap-1">
-          <Layers size={12} color={colors.mutedForeground} />
-          <Text className="text-xs text-muted-foreground">{eventCount} steps</Text>
-        </View>
-        {plan && (
-          <Text className="text-xs text-muted-foreground">
-            {plan.completed}/{plan.total} plan items
-          </Text>
-        )}
-        {activity.creditsCharged != null && (
-          <View className="flex-row items-center gap-1">
-            <Coins size={12} color={colors.mutedForeground} />
-            <Text className="text-xs text-muted-foreground">{activity.creditsCharged} credits</Text>
+            {agentName ? <Muted>{t('chat.agentRun.by', { name: agentName })}</Muted> : null}
           </View>
-        )}
-      </View>
-
-      {/* Error message */}
-      {hasError && lastError && (
-        <View className="px-3 py-2 border-b border-border">
-          <Text className="text-xs text-red-400" numberOfLines={3}>
-            {lastError}
-          </Text>
         </View>
-      )}
+      </CardHeader>
+      <CardBody>
+        <View className="gap-3">
+          <Muted>{stats.join(' · ')}</Muted>
 
-      {/* Plan summary (collapsible) */}
-      {plan && plan.items.length > 0 && (
-        <View className="border-b border-border">
-          <Pressable
-            onPress={() => setShowPlan(!showPlan)}
-            className="flex-row items-center justify-between px-3 py-2 active:bg-muted/50"
+          {hasError && lastError ? <Admonition type="error">{lastError}</Admonition> : null}
+
+          <Accordion
+            type="multiple"
+            value={open}
+            onValueChange={(next) => setOpen(Array.isArray(next) ? next : next ? [next] : [])}
           >
-            <Text className="text-xs font-medium text-foreground">Plan Summary</Text>
-            {showPlan
-              ? <ChevronUp size={14} color={colors.mutedForeground} />
-              : <ChevronDown size={14} color={colors.mutedForeground} />
-            }
-          </Pressable>
-          {showPlan && (
-            <View className="px-3 pb-2">
-              <CompletedPlanSummary items={plan.items} />
-            </View>
-          )}
+            {plan && plan.items.length > 0 ? (
+              <AccordionItem value="plan">
+                <AccordionTrigger>{t('chat.agentRun.planSummary')}</AccordionTrigger>
+                <AccordionContent>
+                  {plan.items.map((item) => (
+                    <PlanItemRow key={item.id} item={item} />
+                  ))}
+                </AccordionContent>
+              </AccordionItem>
+            ) : null}
+            <AccordionItem value="files">
+              <AccordionTrigger>{t('chat.agentRun.files')}</AccordionTrigger>
+              <AccordionContent>
+                {open.includes('files') ? <WorkspaceBrowser sessionId={sessionId} /> : null}
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
         </View>
-      )}
-
-      {/* Files toggle */}
-      <View>
-        <Pressable
-          onPress={() => setShowFiles(!showFiles)}
-          className="flex-row items-center justify-between px-3 py-2 active:bg-muted/50"
-        >
-          <View className="flex-row items-center gap-2">
-            <FolderTree size={14} color={colors.primary} />
-            <Text className="text-xs font-medium text-foreground">Workspace Files</Text>
-          </View>
-          {showFiles
-            ? <ChevronUp size={14} color={colors.mutedForeground} />
-            : <ChevronDown size={14} color={colors.mutedForeground} />
-          }
-        </Pressable>
-        {showFiles && (
-          <View className="px-2 pb-2">
-            <WorkspaceBrowser sessionId={sessionId} />
-          </View>
-        )}
-      </View>
-    </Animated.View>
+      </CardBody>
+    </Card>
   );
 });

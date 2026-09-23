@@ -1,13 +1,21 @@
+import { ChatHeaderActions } from '@/components/chat/chat-header-actions';
 import { ChatPageContent } from '@/components/chat-page-content';
 import { ThreadSearch } from '@/components/thread-search';
 import { UsageLimitDialog } from '@/components/usage-limit-dialog';
+import { deliverMarkdownFile } from '@/lib/conversation-share';
+import {
+  buildConversationMarkdown,
+  exportFilename,
+} from '@/lib/conversation-export';
 import { UsageLimitError } from '@/lib/errors/usage-limit-error';
 import { queryKeys } from '@/lib/hooks/query-keys';
 import { resolveSelection, useCatalogue } from '@/lib/hooks/use-catalogue';
 import { useChatConversation } from '@/lib/hooks/use-chat-conversation';
+import { useAgentActivity } from '@/lib/hooks/use-agent-activity';
 import {
   useConversation,
   useCreateConversation,
+  useDeleteConversation,
   useSaveConversation,
 } from '@/lib/hooks/use-conversations';
 import { useProductModes } from '@/lib/hooks/use-product-modes';
@@ -22,8 +30,12 @@ import { useTranslation } from '@/lib/hooks/use-translation';
 import { useVoiceMode } from '@/lib/hooks/use-voice-mode';
 import { type Attachment } from '@/lib/stores/global-store';
 import { useModelStore } from '@/lib/stores/model-store';
+import { useUIStore } from '@/lib/stores/ui-store';
 import type { Message } from '@/types/chat';
 import { Button } from '@oxy.so/bloom/button';
+import { confirm } from '@oxy.so/bloom/surfaces';
+import { toast } from '@oxy.so/bloom/toast';
+import { useRouter } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { View } from 'react-native';
@@ -156,6 +168,7 @@ export const ConversationScreen = ({
   }, []);
 
   const handleBackToLatest = useCallback(() => setJumpedTo(null), []);
+  const handleSearchOpen = useCallback(() => setSearchOpen(true), []);
   const handleSearchClose = useCallback(() => setSearchOpen(false), []);
 
   const saveConversation = useSaveConversation();
@@ -203,6 +216,89 @@ export const ConversationScreen = ({
     queryClient,
     dismissSuggestedNewConversation,
   ]);
+
+  /**
+   * The messages, for the export — behind a ref so `handleExport` is built
+   * once: the header's menu is memoised against this screen, which re-renders
+   * per streamed token, and still sees the thread as it is when chosen.
+   */
+  const messagesRef = useRef<Message[]>(messages);
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+
+  /**
+   * Export the conversation as a Markdown document. The title is read out of
+   * the query cache at the moment of the export: the `alia.title` frame writes
+   * the generated title into the same key, so this sees it without a
+   * subscription of its own.
+   */
+  const handleExport = useCallback(() => {
+    const cached = queryClient.getQueryData<{ title?: string }>(
+      queryKeys.conversations.detail(conversationId),
+    );
+    const title = cached?.title?.trim() || agentName || t('chat.newChat');
+    const exportedAt = new Date();
+    const markdown = buildConversationMarkdown({
+      title,
+      messages: messagesRef.current,
+      exportedAt,
+      assistantName: agentName,
+      userLabel: t('chat.searchThreadYou'),
+    });
+    deliverMarkdownFile(exportFilename(title, exportedAt), markdown, title).catch(
+      () => {
+        toast.error(t('chat.exportFailed'));
+      },
+    );
+  }, [queryClient, conversationId, agentName, t]);
+
+  /**
+   * Delete this conversation, once the person has confirmed it, and go home.
+   *
+   * Only on `/c/:id`: an agent's thread is a view over several conversations,
+   * and deleting the one on screen would quietly put the previous stretch in
+   * its place rather than remove "the chat". A refusal is already reported by
+   * the mutation's own toast.
+   */
+  const deleteConversation = useDeleteConversation();
+  const router = useRouter();
+  const handleDelete = useCallback(async () => {
+    const ok = await confirm({
+      title: t('chat.deleteConversationTitle'),
+      description: t('chat.deleteConversationDescription'),
+      confirmLabel: t('chat.deleteConversationConfirm'),
+      cancelLabel: t('common.cancel'),
+      destructive: true,
+    });
+    if (!ok) return;
+    try {
+      await deleteConversation.mutateAsync(conversationId);
+      router.replace('/');
+    } catch {
+      // Reported by `useDeleteConversation`'s own error toast.
+    }
+  }, [t, deleteConversation, conversationId, router]);
+
+  const headerActions = (
+    <ChatHeaderActions
+      onSearch={threadHandle === undefined ? undefined : handleSearchOpen}
+      onExport={handleExport}
+      onDelete={threadHandle === undefined ? handleDelete : undefined}
+    />
+  );
+
+  /**
+   * The agent run this conversation started, if it started one: the session
+   * the `alia.agent_turn` frame opened, only while that frame came from THIS
+   * conversation — the store holds one session for the whole app, and a
+   * second mounted chat must not draw another chat's run.
+   */
+  const activeAgentSessionId = useUIStore((s) =>
+    s.activeAgentConversationId === conversationId ? s.activeAgentSessionId : null,
+  );
+  const activeAgentId = useUIStore((s) => s.activeAgentId);
+  const agentActivity = useAgentActivity(activeAgentSessionId, activeAgentId);
 
   // Save voice transcripts when voice mode ends
   const handleVoiceDeactivate = useCallback(() => {
@@ -263,7 +359,6 @@ export const ConversationScreen = ({
 
   return (
     <>
-      <>
         <ChatPageContent
           selectedModel={selectedModel}
           onModelChange={setConversationModel}
@@ -295,6 +390,9 @@ export const ConversationScreen = ({
           focusCursor={jumpedTo}
           failedTurn={failedTurn}
           onRetryTurn={retryFailedTurn}
+          headerActions={headerActions}
+          agentActivity={activeAgentSessionId === null ? null : agentActivity}
+          agentSessionId={activeAgentSessionId}
         />
         {!jumped ? null : (
           <View
@@ -305,7 +403,6 @@ export const ConversationScreen = ({
               variant="secondary"
               size="sm"
               onPress={handleBackToLatest}
-              className="rounded-full"
             >
               {t('chat.backToLatest')}
             </Button>
@@ -319,7 +416,6 @@ export const ConversationScreen = ({
           />
         )}
         <UsageLimitDialog error={usageLimitError} onDismiss={clearError} />
-      </>
     </>
   );
 };

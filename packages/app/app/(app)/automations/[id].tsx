@@ -19,8 +19,8 @@ import { useMyAgents } from '@/lib/hooks/use-my-agents';
 import { useTranslation } from '@/lib/hooks/use-translation';
 import { Badge } from '@oxy.so/bloom/badge';
 import { Button } from '@oxy.so/bloom/button';
+import { ButtonGroup, ButtonGroupItem } from '@oxy.so/bloom/button-group';
 import { EmptyState } from '@oxy.so/bloom/empty-state';
-import { RiArrowLeftLine } from '@oxy.so/bloom/icons/RiArrowLeftLine';
 import { RiPencilLine } from '@oxy.so/bloom/icons/RiPencilLine';
 import { Loading } from '@oxy.so/bloom/loading';
 import {
@@ -29,7 +29,7 @@ import {
 } from '@oxy.so/bloom/settings-list';
 import { toast } from '@oxy.so/bloom/toast';
 import { Muted, Text } from '@oxy.so/bloom/typography';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import { ScrollView, View } from 'react-native';
 
@@ -91,29 +91,43 @@ export default function AutomationHistoryScreen() {
       : date.toLocaleString();
   };
 
+  /** The header while there is no automation to name: just the way back. */
+  const backOnly = <Stack.Screen options={{ headerBackVisible: true }} />;
+
   if (overview.isLoading || runs.isLoading) {
-    return <Loading variant="spinner" />;
+    return (
+      <>
+        {backOnly}
+        <Loading variant="spinner" />
+      </>
+    );
   }
 
   if (overview.isError || runs.isError) {
     return (
-      <EmptyState
-        title={t('pages.automations.historyLoadFailed')}
-        action={{
-          label: t('common.tryAgain'),
-          onPress: () =>
-            void Promise.all([overview.refetch(), runs.refetch()]),
-        }}
-      />
+      <>
+        {backOnly}
+        <EmptyState
+          title={t('pages.automations.historyLoadFailed')}
+          action={{
+            label: t('common.tryAgain'),
+            onPress: () =>
+              void Promise.all([overview.refetch(), runs.refetch()]),
+          }}
+        />
+      </>
     );
   }
 
   if (!automation) {
     return (
-      <EmptyState
-        title={t('pages.automations.notFound')}
-        action={{ label: t('common.back'), onPress: () => router.back() }}
-      />
+      <>
+        {backOnly}
+        <EmptyState
+          title={t('pages.automations.notFound')}
+          action={{ label: t('common.back'), onPress: () => router.back() }}
+        />
+      </>
     );
   }
 
@@ -142,32 +156,28 @@ export default function AutomationHistoryScreen() {
 
   return (
     <>
+      <Stack.Screen
+        options={{
+          title: automationTitle(automation),
+          headerBackVisible: true,
+          headerRight: !automation.legacyTriggerId
+            ? () => (
+                <ButtonGroup accessibilityLabel={t('common.edit')}>
+                  <ButtonGroupItem
+                    iconOnly
+                    leadingIcon={RiPencilLine}
+                    accessibilityLabel={t('common.edit')}
+                    onPress={() => setEditorOpen(true)}
+                  />
+                </ButtonGroup>
+              )
+            : undefined,
+        }}
+      />
       <ScrollView
         contentInsetAdjustmentBehavior="automatic"
         contentContainerClassName="w-full max-w-[768px] self-center gap-5 p-4"
       >
-        <View className={`${ROW} justify-between`}>
-          <Button
-            tone="neutral"
-            appearance="plain"
-            size="sm"
-            icon={RiArrowLeftLine}
-            accessibilityLabel={t('common.back')}
-            onPress={() => router.back()}
-          />
-          {!automation.legacyTriggerId ? (
-            <Button
-              tone="neutral"
-              appearance="subtle"
-              size="sm"
-              leadingIcon={RiPencilLine}
-              onPress={() => setEditorOpen(true)}
-            >
-              {t('common.edit')}
-            </Button>
-          ) : null}
-        </View>
-
         <View className="gap-2">
           {/* The heading is the name; the objective (a legacy trigger's prompt) reads under it (#534). */}
           <Text variant="title-2-semibold" selectable>

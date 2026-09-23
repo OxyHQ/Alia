@@ -8,6 +8,7 @@ import {
 } from '@/lib/hooks/use-skills';
 import { useTranslation } from '@/lib/hooks/use-translation';
 import { Button } from '@oxy.so/bloom/button';
+import { ButtonGroup, ButtonGroupItem } from '@oxy.so/bloom/button-group';
 import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
 import { RiCheckLine } from '@oxy.so/bloom/icons/RiCheckLine';
@@ -16,7 +17,7 @@ import { Search } from '@oxy.so/bloom/search';
 import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { Muted, Text } from '@oxy.so/bloom/typography';
 import { FlashList } from '@shopify/flash-list';
-import { useRouter } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
 
@@ -242,138 +243,145 @@ export default function SkillsScreen() {
   const nothingToShow = skills.length === 0 && installedShelf.length === 0;
 
   return (
-    <ScrollView
-      showsVerticalScrollIndicator={false}
-      keyboardShouldPersistTaps="handled"
-      refreshControl={
-        <RefreshControl
-          refreshing={
-            catalogue.isFetching &&
-            !catalogue.isLoading &&
-            !catalogue.isFetchingNextPage
-          }
-          onRefresh={() => {
-            void catalogue.refetch();
-            void installed.refetch();
-          }}
-        />
-      }
-    >
-      <View className="gap-3 px-4 pt-4">
-        <View className="flex-row justify-end gap-2">
-          <Button
-            tone="neutral"
-            appearance="subtle"
-            size="sm"
-            leadingIcon={RiDownloadLine}
-            onPress={() => router.push('/(app)/skills/import')}
-          >
-            {t('skills.import')}
-          </Button>
-          <Button
-            tone="action"
-            size="sm"
-            leadingIcon={RiAddLine}
-            onPress={() => router.push('/(app)/skills/create')}
-          >
-            {t('common.create')}
-          </Button>
-        </View>
-        <Muted>{t('skills.subtitle')}</Muted>
-        <Search
-          label={t('skills.searchPlaceholder')}
-          value={search}
-          onChangeText={setSearch}
-          onClearText={() => setSearch('')}
-        />
-      </View>
-
-      {catalogue.isLoading ? (
-        <View className="gap-5 pb-8 pt-5">
-          <View className="gap-2">
-            <View className="ml-4 w-[120px] flex-row">
-              <Skeleton.Text />
-            </View>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerClassName="gap-[10px] px-4"
-            >
-              {Array.from({ length: 4 }).map((_, index) => (
-                <Skeleton.Box
-                  key={index}
-                  width={BOOK_WIDTH}
-                  height={BOOK_WIDTH * 1.5}
-                />
-              ))}
-            </ScrollView>
-          </View>
-        </View>
-      ) : (
-        <View className="gap-5 pb-8 pt-5">
-          <Shelf
-            title={t('skills.installed')}
-            skills={installedShelf}
-            installedIds={installedIds}
-            onPressSkill={openSkill}
-            onInstall={installSkill}
-          />
-          <Shelf
-            title={t('skills.official')}
-            skills={official}
-            installedIds={installedIds}
-            onPressSkill={openSkill}
-            onInstall={installSkill}
-            onEndReached={loadMore}
-          />
-          <Shelf
-            title={t('skills.community')}
-            skills={community}
-            installedIds={installedIds}
-            onPressSkill={openSkill}
-            onInstall={installSkill}
-            onEndReached={loadMore}
-          />
-
-          {/* A failed request is said out loud, with the way back. A blank
-              catalogue after a search that errored reads as "no results". */}
-          {catalogue.isError ? (
-            <EmptyState
-              variant="compact"
-              title={t('skills.loadFailed')}
-              action={{
-                label: t('common.tryAgain'),
-                onPress: () => void catalogue.refetch(),
-              }}
-            />
-          ) : null}
-
-          {/* An empty catalogue is a real state — a fresh database before the
-              registry sync has run — and saying so beats a blank screen. */}
-          {nothingToShow && !catalogue.isError ? (
-            <EmptyState
-              title={query ? t('skills.noResults') : t('skills.empty')}
-            />
-          ) : null}
-
-          {/* The shelves ask for more as they are scrolled; this is the same
-              request for anybody who would rather press than scroll. */}
-          {catalogue.hasNextPage ? (
-            <View className="px-4">
+    <>
+      <Stack.Screen
+        options={{
+          headerRight: () => (
+            <>
+              <ButtonGroup accessibilityLabel={t('skills.import')}>
+                <ButtonGroupItem
+                  leadingIcon={RiDownloadLine}
+                  onPress={() => router.push('/(app)/skills/import')}
+                >
+                  {t('skills.import')}
+                </ButtonGroupItem>
+              </ButtonGroup>
               <Button
-                tone="neutral"
-                appearance="subtle"
-                size="sm"
-                loading={catalogue.isFetchingNextPage}
-                disabled={catalogue.isFetchingNextPage}
-                onPress={loadMore}
+                tone="action"
+                size="md"
+                leadingIcon={RiAddLine}
+                onPress={() => router.push('/(app)/skills/create')}
               >
-                {t('skills.loadMore')}
+                {t('common.create')}
               </Button>
-            </View>
-          ) : null}
+            </>
+          ),
+        }}
+      />
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        refreshControl={
+          <RefreshControl
+            refreshing={
+              catalogue.isFetching &&
+              !catalogue.isLoading &&
+              !catalogue.isFetchingNextPage
+            }
+            onRefresh={() => {
+              void catalogue.refetch();
+              void installed.refetch();
+            }}
+          />
+        }
+      >
+        <View className="gap-3 px-4 pt-4">
+          <Muted>{t('skills.subtitle')}</Muted>
+          <Search
+            label={t('skills.searchPlaceholder')}
+            value={search}
+            onChangeText={setSearch}
+            onClearText={() => setSearch('')}
+          />
         </View>
-      )}
-    </ScrollView>
+
+        {catalogue.isLoading ? (
+          <View className="gap-5 pb-8 pt-5">
+            <View className="gap-2">
+              <View className="ml-4 w-[120px] flex-row">
+                <Skeleton.Text />
+              </View>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerClassName="gap-[10px] px-4"
+              >
+                {Array.from({ length: 4 }).map((_, index) => (
+                  <Skeleton.Box
+                    key={index}
+                    width={BOOK_WIDTH}
+                    height={BOOK_WIDTH * 1.5}
+                  />
+                ))}
+              </ScrollView>
+            </View>
+          </View>
+        ) : (
+          <View className="gap-5 pb-8 pt-5">
+            <Shelf
+              title={t('skills.installed')}
+              skills={installedShelf}
+              installedIds={installedIds}
+              onPressSkill={openSkill}
+              onInstall={installSkill}
+            />
+            <Shelf
+              title={t('skills.official')}
+              skills={official}
+              installedIds={installedIds}
+              onPressSkill={openSkill}
+              onInstall={installSkill}
+              onEndReached={loadMore}
+            />
+            <Shelf
+              title={t('skills.community')}
+              skills={community}
+              installedIds={installedIds}
+              onPressSkill={openSkill}
+              onInstall={installSkill}
+              onEndReached={loadMore}
+            />
+
+            {/* A failed request is said out loud, with the way back. A blank
+              catalogue after a search that errored reads as "no results". */}
+            {catalogue.isError ? (
+              <EmptyState
+                variant="compact"
+                title={t('skills.loadFailed')}
+                action={{
+                  label: t('common.tryAgain'),
+                  onPress: () => void catalogue.refetch(),
+                }}
+              />
+            ) : null}
+
+            {/* An empty catalogue is a real state — a fresh database before the
+              registry sync has run — and saying so beats a blank screen. */}
+            {nothingToShow && !catalogue.isError ? (
+              <EmptyState
+                title={query ? t('skills.noResults') : t('skills.empty')}
+              />
+            ) : null}
+
+            {/* The shelves ask for more as they are scrolled; this is the same
+              request for anybody who would rather press than scroll. */}
+            {catalogue.hasNextPage ? (
+              <View className="px-4">
+                <Button
+                  tone="neutral"
+                  appearance="subtle"
+                  size="sm"
+                  loading={catalogue.isFetchingNextPage}
+                  disabled={catalogue.isFetchingNextPage}
+                  onPress={loadMore}
+                >
+                  {t('skills.loadMore')}
+                </Button>
+              </View>
+            ) : null}
+          </View>
+        )}
+      </ScrollView>
+    </>
   );
 }

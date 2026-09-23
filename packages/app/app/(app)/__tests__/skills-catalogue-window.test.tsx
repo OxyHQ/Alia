@@ -59,7 +59,17 @@ vi.mock('@/lib/hooks/use-skills', () => ({
   useInstallSkill: () => hooks.install,
 }));
 
+vi.mock('@oxy.so/bloom/button-group', async () => {
+  const ReactModule = await import('react');
+  const host =
+    (name: string) =>
+    ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
+      ReactModule.createElement(name, props, children);
+  return { ButtonGroup: host('ButtonGroup'), ButtonGroupItem: host('ButtonGroupItem') };
+});
 vi.mock('expo-router', () => ({
+  // The header is the layout's; the page only declares it.
+  Stack: { Screen: () => null },
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn() }),
 }));
 vi.mock('react-native', async () => {

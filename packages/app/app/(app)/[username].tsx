@@ -1,9 +1,13 @@
+import { ChatWorkspace } from '@/components/chat/chat-workspace';
 import { ConversationScreen } from '@/components/conversation-screen';
 import { agentColorPreset } from '@/lib/agents/agent-color';
 import { useAgentThread } from '@/lib/hooks/use-agent-thread';
 import { useTranslation } from '@/lib/hooks/use-translation';
+import { AiChatMobileHeader } from '@oxy.so/bloom/ai-chat';
+import { EmptyState } from '@oxy.so/bloom/empty-state';
+import { RiRobot2Line } from '@oxy.so/bloom/icons/RiRobot2Line';
+import { Loading } from '@oxy.so/bloom/loading';
 import { BloomColorScope } from '@oxy.so/bloom/theme';
-import { Text } from '@oxy.so/bloom/typography';
 import { useLocalSearchParams } from 'expo-router';
 import { View } from 'react-native';
 
@@ -66,23 +70,25 @@ const AgentThreadPage = () => {
    * distinguished "not found" from "we couldn't ask" would leak the same fact
    * whenever the second only ever happens for one of them.
    */
+  // Both inside the chat's own frame: this is a chat route, so no layout
+  // container wraps it, and a phone still needs the menu to leave.
   if (isError) {
     return (
-      <>
-        <View className="flex-1 items-center justify-center">
-          <Text className="text-muted-foreground">{t('agents.notFound')}</Text>
+      <ChatWorkspace header={<AiChatMobileHeader title="Alia" />}>
+        <View className="flex-1 justify-center">
+          <EmptyState icon={RiRobot2Line} title={t('agents.notFound')} />
         </View>
-      </>
+      </ChatWorkspace>
     );
   }
 
   if (isPending || thread === undefined) {
     return (
-      <>
+      <ChatWorkspace header={<AiChatMobileHeader title="Alia" />}>
         <View className="flex-1 items-center justify-center">
-          <Text className="text-muted-foreground">{t('common.loading')}</Text>
+          <Loading variant="spinner" text={t('common.loading')} />
         </View>
-      </>
+      </ChatWorkspace>
     );
   }
 
@@ -142,7 +148,7 @@ const AgentThreadPage = () => {
    */
   return (
     <BloomColorScope colorPreset={agentColorPreset(thread.agent.color)} asChild>
-      <View className="flex-1 bg-background web:z-auto">
+      <View className="flex-1 web:z-auto">
         <ConversationScreen
           conversationId={thread.conversationId}
           agentId={thread.agent._id}

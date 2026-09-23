@@ -754,7 +754,11 @@ export function useStreamingChat(apiUrl: string, conversationId?: string, reason
                 case 'alia.agent_turn': {
                   if (parsed.turnId) {
                     const { useUIStore } = await import('@/lib/stores/ui-store');
-                    useUIStore.getState().openAgentPanel(String(parsed.turnId), String(parsed.agentId ?? agentId ?? ''));
+                    useUIStore.getState().openAgentPanel(
+                      String(parsed.turnId),
+                      String(parsed.agentId ?? agentId ?? ''),
+                      conversationId ?? null,
+                    );
                   }
                   continue;
                 }
