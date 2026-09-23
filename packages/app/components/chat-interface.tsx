@@ -4,7 +4,13 @@ import { FailedTurnCard } from '@/components/chat/failed-turn-card';
 import { MessageBlockBoundary } from '@/components/chat/message-block-boundary';
 import type { FailedTurn } from '@/components/chat/turn-failure';
 import { getToolPillLabel } from '@/lib/task-utils';
+import { isWebInvocation, taskListLog, webSearchLog } from '@/lib/chat/work-log';
+import { useAtBottom } from '@/lib/hooks/use-at-bottom';
+import { daySeparators } from '@/lib/message-days';
 import { AgentProgress } from '@oxy.so/bloom/agent-progress';
+import { ChatDateHeader, ScrollToBottomButton } from '@oxy.so/bloom/chat-screen';
+import { TaskList } from '@oxy.so/bloom/task-list';
+import { WebSearch } from '@oxy.so/bloom/web-search';
 import { NewConversationOffer } from '@/components/new-conversation-offer';
 import { bloomMarkdown } from '@/components/chat/bloom-markdown';
 import { agentTint } from '@/lib/agents/agent-color';
@@ -304,6 +310,24 @@ const MessageRow = React.memo(function MessageRow({
       : [];
   /** The template swaps the steps for the reply once the turn is done. */
   const turnWorking = isLoading && isLastAlia && m.isStreaming === true;
+  /**
+   * Where the turn went — searches, page visits, research — as a `WebSearch`
+   * trail with its sources, and everything else it did as a `TaskList`. Both
+   * are driven by `revealed` from the calls that have really arrived
+   * (`lib/chat/work-log.ts`), never by their own demo ticker.
+   */
+  const webLog =
+    m.role === 'assistant'
+      ? webSearchLog(workInvocations, m.researchProgress, rowT)
+      : null;
+  const taskInvocations = workInvocations.filter((t) => !isWebInvocation(t));
+  const taskLog =
+    taskInvocations.length === 0 || turnWorking
+      ? null
+      : taskListLog(taskInvocations, false, rowT);
+  const hasWorkLog =
+    (webLog !== null && webLog.steps.length > 0) ||
+    (workInvocations.length > 0 && !turnWorking);
 
   return (
     /**
@@ -335,12 +359,13 @@ const MessageRow = React.memo(function MessageRow({
         })()}
 
       {/* The template's steps: Bloom's AgentProgress, driven by the tool
-          calls as the runtime reports them. */}
-      {workInvocations.length === 0 || !turnWorking ? null : (
+          calls as the runtime reports them. Web calls are left to the
+          WebSearch trail inside the turn, which streams them itself. */}
+      {taskInvocations.length === 0 || !turnWorking ? null : (
         <AgentProgress
-          steps={workInvocations.map((t) => getToolPillLabel(t.toolName))}
+          steps={taskInvocations.map((t) => getToolPillLabel(t.toolName))}
           completedCount={
-            workInvocations.filter((t) => t.state === 'result').length
+            taskInvocations.filter((t) => t.state === 'result').length
           }
         />
       )}
@@ -351,6 +376,7 @@ const MessageRow = React.memo(function MessageRow({
           indicator's until its first token arrives. */}
       {(messageText.length > 0 ||
         messageImages.length > 0 ||
+        (m.role === 'assistant' && hasWorkLog) ||
         (m.isStreaming && m.source === 'voice')) && (
         <View
           key="message-content"
@@ -374,7 +400,7 @@ const MessageRow = React.memo(function MessageRow({
                   row (like / dislike / copy). */}
               <AiChatAssistantMessage
                 animate={isNewMessage}
-                feedback={!m.isStreaming}
+                feedback={!m.isStreaming && messageText.length > 0}
                 feedbackProps={{
                   onLike: () => handleVote(m.id, 'up', chatId?.id),
                   onDislike: () => handleVote(m.id, 'down', chatId?.id),
@@ -390,6 +416,22 @@ const MessageRow = React.memo(function MessageRow({
                         })
                       : rowT('thought.worked')}
                   </AiChatMessageLine>
+                )}
+                {taskLog === null ? null : (
+                  <TaskList
+                    tasks={taskLog.tasks}
+                    revealed={taskLog.revealed}
+                    collapseOnComplete="all"
+                    working={false}
+                  />
+                )}
+                {webLog === null || webLog.steps.length === 0 ? null : (
+                  <WebSearch
+                    steps={webLog.steps}
+                    revealed={webLog.revealed}
+                    working={turnWorking ? rowT('chat.working') : false}
+                    labels={{ sources: rowT('chat.sources') }}
+                  />
                 )}
                 {m.source === 'voice' ? (
                   <AiChatMessageLine>
@@ -463,7 +505,7 @@ export const ChatInterface = React.memo(function ChatInterface({
   failedTurn,
   onRetryTurn,
 }: ChatInterfaceProps) {
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
   /** This screen's votes, read to decide whether a press casts or retracts one. */
   const votesRef = useRef<Record<string, 'up' | 'down'>>({});
   const voteInFlightRef = useRef<Set<string>>(new Set());
@@ -540,6 +582,43 @@ export const ChatInterface = React.memo(function ChatInterface({
     }
     return byConversation;
   }, [history]);
+
+  /**
+   * The day each message starts, when it starts a new one: Bloom's inline
+   * `ChatDateHeader` above it, with the label pre-formatted here as the
+   * component asks — the app owns the locale and the timezone.
+   */
+  const dayLabels = useMemo(() => {
+    const labels = new Map<string, string>();
+    for (const separator of daySeparators(filteredMessages, new Date(), locale)) {
+      const { label } = separator;
+      labels.set(
+        separator.messageId,
+        label.kind === 'today'
+          ? t('chat.today')
+          : label.kind === 'yesterday'
+            ? t('chat.yesterday')
+            : label.text,
+      );
+    }
+    return labels;
+  }, [filteredMessages, locale, t]);
+
+  /**
+   * Whether the reader has left the end, for Bloom's jump button. The
+   * screen's own `onScroll`, if it passed one, still hears every event.
+   */
+  const { isAtBottom, onScroll: onScrollAtBottom } = useAtBottom(AT_BOTTOM_THRESHOLD);
+  const handleScroll = useCallback(
+    (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+      onScrollAtBottom(e);
+      onScroll?.(e);
+    },
+    [onScrollAtBottom, onScroll],
+  );
+  const handleJumpToEnd = useCallback(() => {
+    threadRef.current?.scrollToEnd({ animated: false });
+  }, [threadRef]);
 
   const lastAliaIndex = useMemo(
     () =>
@@ -687,9 +766,13 @@ export const ChatInterface = React.memo(function ChatInterface({
     // work; both are primitives so the memoised row below holds. Looked up
     // rather than computed: see `timingsByMessage`.
     const timing = timingsByMessage.get(m.id) ?? EMPTY_TIMING;
+    const dayLabel = dayLabels.get(m.id);
 
     return (
       <React.Fragment key={m.id || `msg-${index}`}>
+        {dayLabel === undefined ? null : (
+          <ChatDateHeader label={dayLabel} placement="inline" />
+        )}
         <MessageRow
           m={m}
           index={index}
@@ -755,103 +838,115 @@ export const ChatInterface = React.memo(function ChatInterface({
    * family imports no keyboard controller at all.
    */
   return (
-    <AiChatThread
-      ref={threadRef}
-      followAnimated={false}
-      followThreshold={AT_BOTTOM_THRESHOLD}
-      onStartReached={onLoadHistory}
-      onStartReachedThreshold={NEAR_TOP}
-      maintainStartPosition={onLoadHistory !== undefined}
-      onScroll={onScroll}
-    >
-      <View className="w-full">
-        {!filteredMessages.length && conversationLoading ? (
-            <View className="gap-5 py-4">
-              <View className="items-end">
-                <Skeleton.Box width="65%" height={48} borderRadius={24} />
-              </View>
-              <View className="items-start gap-2.5">
-                <Skeleton.Box width="80%" height={14} borderRadius={8} />
-                <Skeleton.Box width="70%" height={14} borderRadius={8} />
-                <Skeleton.Box width="45%" height={14} borderRadius={8} />
-              </View>
-              <View className="items-end">
-                <Skeleton.Box width="50%" height={40} borderRadius={24} />
-              </View>
-              <View className="items-start gap-2.5">
-                <Skeleton.Box width="85%" height={14} borderRadius={8} />
-                <Skeleton.Box width="60%" height={14} borderRadius={8} />
-              </View>
-            </View>
-        ) : null}
-
-        <View style={{ position: 'relative' }}>
-          {/* The history, MEASURED as one block. Its height is what the scroll
-                anchor is restored against, and a block is what react-native-web
-                will report a change for — a marker between the two lists never
-                changes size, so its move goes unobserved and the reader is left
-                looking at the wrong message. */}
-          {history.length === 0 && !isLoadingHistory ? null : (
-            <View onLayout={handleHistoryLayout}>
-              {/* Inside the measured block on purpose: it appears when a page
-                    is asked for and vanishes when it lands, and both of those
-                    are height changes the anchor has to account for. Left
-                    outside, its arrival and departure would displace the reader
-                    by its own height, twice, with nothing to correct it. */}
-              {!isLoadingHistory ? null : (
-                <View className="items-center py-4">
-                  <Text className="text-xs text-muted-foreground">
-                    {t('chat.loadingHistory')}
-                  </Text>
+    <View className="flex-1">
+      <AiChatThread
+        ref={threadRef}
+        followAnimated={false}
+        followThreshold={AT_BOTTOM_THRESHOLD}
+        onStartReached={onLoadHistory}
+        onStartReachedThreshold={NEAR_TOP}
+        maintainStartPosition={onLoadHistory !== undefined}
+        onScroll={handleScroll}
+      >
+        {/* Bloom's transcript column (`AgentChat`): 768 at most, centred. */}
+        <View className="w-full max-w-[768px] self-center">
+          {!filteredMessages.length && conversationLoading ? (
+              <View className="gap-5 py-4">
+                <View className="items-end">
+                  <Skeleton.Box width="65%" height={48} borderRadius={24} />
                 </View>
-              )}
-              {history.map((m, index) => renderMessage(m, index))}
-            </View>
+                <View className="items-start gap-2.5">
+                  <Skeleton.Box width="80%" height={14} borderRadius={8} />
+                  <Skeleton.Box width="70%" height={14} borderRadius={8} />
+                  <Skeleton.Box width="45%" height={14} borderRadius={8} />
+                </View>
+                <View className="items-end">
+                  <Skeleton.Box width="50%" height={40} borderRadius={24} />
+                </View>
+                <View className="items-start gap-2.5">
+                  <Skeleton.Box width="85%" height={14} borderRadius={8} />
+                  <Skeleton.Box width="60%" height={14} borderRadius={8} />
+                </View>
+              </View>
+          ) : null}
+
+          <View style={{ position: 'relative' }}>
+            {/* The history, MEASURED as one block. Its height is what the scroll
+                  anchor is restored against, and a block is what react-native-web
+                  will report a change for — a marker between the two lists never
+                  changes size, so its move goes unobserved and the reader is left
+                  looking at the wrong message. */}
+            {history.length === 0 && !isLoadingHistory ? null : (
+              <View onLayout={handleHistoryLayout}>
+                {/* Inside the measured block on purpose: it appears when a page
+                      is asked for and vanishes when it lands, and both of those
+                      are height changes the anchor has to account for. Left
+                      outside, its arrival and departure would displace the reader
+                      by its own height, twice, with nothing to correct it. */}
+                {!isLoadingHistory ? null : (
+                  <View className="items-center py-4">
+                    <Text className="text-xs text-muted-foreground">
+                      {t('chat.loadingHistory')}
+                    </Text>
+                  </View>
+                )}
+                {history.map((m, index) => renderMessage(m, index))}
+              </View>
+            )}
+
+            {liveMessages.map((m, index) =>
+              renderMessage(m, history.length + index),
+            )}
+          </View>
+
+          {/* Agent execution — in-progress card or completed result card */}
+          {agentActivity &&
+            agentActivity.eventCount > 0 &&
+            (agentActivity.isComplete && agentSessionId ? (
+              <AgentResultCard
+                activity={agentActivity}
+                sessionId={agentSessionId}
+              />
+            ) : (
+              <AgentTaskCard activity={agentActivity} />
+            ))}
+
+          {/* The agent's offer to start the next stretch fresh. Last in the
+                list on purpose: it must not cover what is being read, and
+                ignoring it has to leave the thread exactly as it was. */}
+          {suggestedNewConversation === null ||
+          suggestedNewConversation === undefined ? null : (
+            <NewConversationOffer
+              reason={suggestedNewConversation}
+              onAccept={onAcceptNewConversation ?? (() => {})}
+              onDismiss={onDismissNewConversation ?? (() => {})}
+            />
           )}
 
-          {liveMessages.map((m, index) =>
-            renderMessage(m, history.length + index),
-          )}
+          {/* Standalone waiting indicator for voice mode — shows when AI is thinking
+                but there's no pending assistant message yet (e.g. right after user speaks) */}
+          {voiceAgentState === 'thinking' &&
+            !isLoading &&
+            (messages.length === 0 ||
+              messages[messages.length - 1]?.role !== 'assistant') && (
+              <AgentThinking
+                variant="wave"
+                label={t('chat.thinking')}
+                showTimer={false}
+              />
+            )}
         </View>
-
-        {/* Agent execution — in-progress card or completed result card */}
-        {agentActivity &&
-          agentActivity.eventCount > 0 &&
-          (agentActivity.isComplete && agentSessionId ? (
-            <AgentResultCard
-              activity={agentActivity}
-              sessionId={agentSessionId}
-            />
-          ) : (
-            <AgentTaskCard activity={agentActivity} />
-          ))}
-
-        {/* The agent's offer to start the next stretch fresh. Last in the
-              list on purpose: it must not cover what is being read, and
-              ignoring it has to leave the thread exactly as it was. */}
-        {suggestedNewConversation === null ||
-        suggestedNewConversation === undefined ? null : (
-          <NewConversationOffer
-            reason={suggestedNewConversation}
-            onAccept={onAcceptNewConversation ?? (() => {})}
-            onDismiss={onDismissNewConversation ?? (() => {})}
-          />
-        )}
-
-        {/* Standalone waiting indicator for voice mode — shows when AI is thinking
-              but there's no pending assistant message yet (e.g. right after user speaks) */}
-        {voiceAgentState === 'thinking' &&
-          !isLoading &&
-          (messages.length === 0 ||
-            messages[messages.length - 1]?.role !== 'assistant') && (
-            <AgentThinking
-              variant="wave"
-              label={t('chat.thinking')}
-              showTimer={false}
-            />
-          )}
+        <View style={bottomSpacerStyle} />
+      </AiChatThread>
+      {/* Bloom's jump to the newest turn, floating over the thread's corner
+          as the Chat Screen docs place it; unmounted while at the end. */}
+      <View pointerEvents="box-none" className="absolute right-4 bottom-4 gap-2.5">
+        <ScrollToBottomButton
+          visible={!isAtBottom}
+          onPress={handleJumpToEnd}
+          accessibilityLabel={t('chat.bloom.scrollToLatest')}
+        />
       </View>
-      <View style={bottomSpacerStyle} />
-    </AiChatThread>
+    </View>
   );
 });

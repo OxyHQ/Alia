@@ -1,6 +1,6 @@
 import { AgentPanel } from '@/components/agent-panel';
 import { CanvasComponent } from '@/components/canvas/canvas-component';
-import { CreditsPanel } from '@/components/credits-panel';
+import { CreditsLimits } from '@/components/credits-limits';
 import { ThoughtPanel } from '@/components/thought-panel';
 import { useTranslation } from '@/lib/hooks/use-translation';
 import { useLibraryStore } from '@/lib/stores/library-store';
@@ -79,7 +79,7 @@ export function WorkspacePanel({ width }: { width: number | '100%' }) {
     case 'agent':
       return (
         <View style={{ width, minHeight: 0, height: '100%' }}>
-          {kind === 'thought' ? <ThoughtPanel /> : kind === 'credits' ? <CreditsPanel /> : <AgentPanel />}
+          {kind === 'thought' ? <ThoughtPanel /> : kind === 'credits' ? <CreditsLimits /> : <AgentPanel />}
         </View>
       );
     case 'gallery':

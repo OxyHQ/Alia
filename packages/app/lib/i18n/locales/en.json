@@ -600,7 +600,40 @@
     "turnInterrupted": "Alia was interrupted before finishing.",
     "turnFailedRetryHint": "Try again.",
     "retry": "Retry",
-    "exportFailed": "Couldn't export this conversation."
+    "exportFailed": "Couldn't export this conversation.",
+    "bloom": {
+      "searchedWeb": "Searched the web for",
+      "visited": "Visited",
+      "researched": "Researched",
+      "researching": "Researching",
+      "resultCount": {
+        "one": "1 result",
+        "other": "{{count}} results"
+      },
+      "searchCount": {
+        "one": "1 search",
+        "other": "{{count}} searches"
+      },
+      "sourceCount": {
+        "one": "1 source",
+        "other": "{{count}} sources"
+      },
+      "createdFile": "Created",
+      "writingFile": "Writing",
+      "taskInput": "With",
+      "taskFailed": "Returned an error",
+      "taskStopped": "Didn't finish",
+      "scrollToLatest": "Scroll to latest messages",
+      "limits": {
+        "dailyFree": "Daily free credits",
+        "resetsInHours": "Resets in {{hours}} hr {{minutes}} min",
+        "resetsInMinutes": "Resets in {{minutes}} min",
+        "resetsSoon": "Resets soon",
+        "resetsDaily": "Resets every 24 hours",
+        "planUsage": "Plan usage limits",
+        "close": "Close credits panel"
+      }
+    }
   },
   "credits": {
     "title": "Credits",
