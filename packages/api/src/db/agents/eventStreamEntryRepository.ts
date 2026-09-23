@@ -25,9 +25,9 @@
  * other failure propagate to the retry path that exists for it.
  */
 
-import { and, asc, desc, eq, gte, inArray, lt, lte, or, sql, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, inArray, lte, or, sql, type SQL } from 'drizzle-orm';
 import type { Executor } from '../index';
-import { eventStreamEntries } from '../schema/containers';
+import { eventStreamEntries } from '../schema/event-stream-entries';
 import type { EventStreamEntryType } from '../../domain/event-stream-entry';
 
 type EventStreamEntryRow = typeof eventStreamEntries.$inferSelect;
@@ -170,33 +170,6 @@ export async function listSessionEntriesOfType(
     .where(and(eq(eventStreamEntries.sessionId, sessionId), eq(eventStreamEntries.type, type)))
     .orderBy(asc(eventStreamEntries.seq));
   return rows.map(toRecord);
-}
-
-/**
- * Mark every entry of a session below `seq` archived. Returns the count.
- *
- * `rowCount` here really is a MODIFIED count and not merely a matched one,
- * because `archived = false` is in the predicate — an entry already archived
- * does not match, so re-running compaction reports zero rather than reporting
- * the whole prefix again.
- */
-export async function archiveEventStreamEntriesBelow(
-  db: Executor,
-  sessionId: string,
-  seq: number,
-): Promise<number> {
-  const updated = await db
-    .update(eventStreamEntries)
-    .set({ archived: true })
-    .where(
-      and(
-        eq(eventStreamEntries.sessionId, sessionId),
-        lt(eventStreamEntries.seq, seq),
-        eq(eventStreamEntries.archived, false),
-      ),
-    )
-    .returning({ id: eventStreamEntries.id });
-  return updated.length;
 }
 
 /* ------------------------------ the audit ------------------------------ */

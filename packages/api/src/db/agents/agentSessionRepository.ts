@@ -1,15 +1,11 @@
 /**
- * Agent sessions and the resources they claim, on Postgres.
- *
- * `agent_sessions` and `agent_session_resources` move together for the reason
- * the schema states: the resources WERE the session document, an embedded array,
- * so every writer of one is a writer of the other and the child cascades.
+ * Agent sessions, on Postgres.
  *
  * ## The runner mutates a DOCUMENT; this file exposes STATEMENTS
  *
  * `lib/agent/runner.ts` was written against a hydrated Mongoose document — it
- * assigns `session.status`, `session.stats.totalSteps`, pushes onto
- * `session.resources` and calls `save()` eleven times across one run. That
+ * assigns `session.status`, `session.stats.totalSteps` and calls `save()`
+ * eleven times across one run. That
  * surface has no Postgres counterpart, and reproducing it (a dirty-tracking
  * wrapper that diffs and flushes) would be a second ORM.
  *
@@ -51,7 +47,6 @@
 import { and, asc, desc, eq, gte, inArray, lt, lte, sql, type SQL } from 'drizzle-orm';
 import type { Executor } from '../index';
 import {
-  agentSessionResources,
   agentSessions,
   type AgentSessionEventStreamEntry,
   type AgentSessionMessage,
@@ -59,14 +54,9 @@ import {
 } from '../schema/agent-sessions';
 import { agents } from '../schema/agents';
 import { fundingSourceOf, type CreditFundingSource } from '../../domain/credit-funding';
-import type {
-  AgentSessionResourceStatus,
-  AgentSessionResourceType,
-  AgentSessionStatus,
-} from '../../domain/agent-session';
+import type { AgentSessionStatus } from '../../domain/agent-session';
 
 type AgentSessionRow = typeof agentSessions.$inferSelect;
-type AgentSessionResourceRow = typeof agentSessionResources.$inferSelect;
 
 /** The plan, as `TodoManager.toJSON()` produces it and `loadFromPersisted` takes it. */
 export interface AgentSessionPlan {
@@ -113,17 +103,6 @@ export interface AgentSessionConfig {
   maxSteps: number;
   maxTokens: number;
   maxVMs: number;
-}
-
-/** A VM or container the session claimed. */
-export interface AgentSessionResource {
-  _id: string;
-  type: AgentSessionResourceType;
-  resourceId: string;
-  ip: string | null;
-  previewUrl: string | null;
-  status: AgentSessionResourceStatus;
-  createdAt: Date;
 }
 
 /** A session in the shape the API and the runner have always seen. */
@@ -247,18 +226,6 @@ export function toAgentSessionRecord(row: AgentSessionRow): AgentSessionRecord {
     depth: row.depth,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
-  };
-}
-
-function toResource(row: AgentSessionResourceRow): AgentSessionResource {
-  return {
-    _id: row.id,
-    type: row.type as AgentSessionResourceType,
-    resourceId: row.resourceId,
-    ip: row.ip,
-    previewUrl: row.previewUrl,
-    status: row.status as AgentSessionResourceStatus,
-    createdAt: row.createdAt,
   };
 }
 
@@ -862,194 +829,4 @@ export async function cancelUnsettledAgentSession(
     )
     .returning({ id: agentSessions.id });
   return updated.length > 0;
-}
-
-/* ---------------------------- resources ---------------------------- */
-
-export async function listAgentSessionResources(
-  db: Executor,
-  sessionId: string,
-): Promise<AgentSessionResource[]> {
-  const rows = await db
-    .select()
-    .from(agentSessionResources)
-    .where(eq(agentSessionResources.sessionId, sessionId))
-    .orderBy(asc(agentSessionResources.createdAt));
-  return rows.map(toResource);
-}
-
-/**
- * Claim a resource for a session, once.
- *
- * `runner.ts` and `tools.ts` both checked `resources.some(...)` before pushing,
- * which is a read-then-write two concurrent tool calls can both pass — Mongo
- * could not index inside a sub-document array, so that check was the only guard
- * there was. `ON CONFLICT DO NOTHING` makes it structural, and RETURNING
- * distinguishes "inserted" from "already there" without a second read.
- *
- * A real infrastructure failure still propagates, which is the reason this is
- * not a `catch` around a duplicate-key error: Postgres cannot tell a duplicate
- * from a dropped connection inside a `catch`.
- */
-export async function claimAgentSessionResource(
-  db: Executor,
-  sessionId: string,
-  resource: { type: AgentSessionResourceType; resourceId: string; ip?: string },
-): Promise<AgentSessionResource | null> {
-  const [row] = await db
-    .insert(agentSessionResources)
-    .values({
-      sessionId,
-      type: resource.type,
-      resourceId: resource.resourceId,
-      ip: resource.ip ?? null,
-    })
-    .onConflictDoNothing({
-      target: [agentSessionResources.sessionId, agentSessionResources.resourceId],
-    })
-    .returning();
-  return row ? toResource(row) : null;
-}
-
-/**
- * How many resources of a session are still active — the `maxVMs` gate.
- *
- * A COUNT rather than a filter over an in-memory list, which is what the
- * hydrated document gave `tools.ts`: that list was read once when the session was
- * loaded and never refreshed, so two tool calls in one run both saw the count
- * from before either of them created anything and both passed the limit.
- */
-export async function countActiveAgentSessionResources(
-  db: Executor,
-  sessionId: string,
-): Promise<number> {
-  const [row] = await db
-    .select({ total: sql<number>`count(*)::int` })
-    .from(agentSessionResources)
-    .where(
-      and(
-        eq(agentSessionResources.sessionId, sessionId),
-        eq(agentSessionResources.status, 'active'),
-      ),
-    );
-  return row?.total ?? 0;
-}
-
-/**
- * Is this container active in THIS session? A boolean, never the row.
- *
- * Eight tools ask it before touching a container, and every one of them was
- * asking "did my own session claim this id" — which is the only thing standing
- * between a tool call and another session's sandbox, since the container id
- * comes from the model.
- */
-export async function agentSessionHasActiveResource(
-  db: Executor,
-  sessionId: string,
-  resourceId: string,
-): Promise<boolean> {
-  const [row] = await db
-    .select({ ok: sql<number>`1` })
-    .from(agentSessionResources)
-    .where(
-      and(
-        eq(agentSessionResources.sessionId, sessionId),
-        eq(agentSessionResources.resourceId, resourceId),
-        eq(agentSessionResources.status, 'active'),
-      ),
-    )
-    .limit(1);
-  return row !== undefined;
-}
-
-/** Mark one claimed resource destroyed. Returns whether a row matched. */
-export async function markAgentSessionResourceDestroyed(
-  db: Executor,
-  sessionId: string,
-  resourceId: string,
-): Promise<boolean> {
-  const updated = await db
-    .update(agentSessionResources)
-    .set({ status: 'destroyed' })
-    .where(
-      and(
-        eq(agentSessionResources.sessionId, sessionId),
-        eq(agentSessionResources.resourceId, resourceId),
-      ),
-    )
-    .returning({ id: agentSessionResources.id });
-  return updated.length > 0;
-}
-
-/** Record the public preview URL a port exposure produced. */
-export async function setAgentSessionResourcePreviewUrl(
-  db: Executor,
-  sessionId: string,
-  resourceId: string,
-  previewUrl: string,
-): Promise<boolean> {
-  const updated = await db
-    .update(agentSessionResources)
-    .set({ previewUrl })
-    .where(
-      and(
-        eq(agentSessionResources.sessionId, sessionId),
-        eq(agentSessionResources.resourceId, resourceId),
-      ),
-    )
-    .returning({ id: agentSessionResources.id });
-  return updated.length > 0;
-}
-
-/**
- * Destroy every still-active resource of a session, in one statement.
- *
- * Returns the resource ids it changed, so the caller can tell the sandbox
- * provider about exactly those — `cleanupSessionResources` used to iterate the
- * embedded array and set each element, which cannot express "only the ones that
- * were active when I asked".
- */
-export async function markAllAgentSessionResourcesDestroyed(
-  db: Executor,
-  sessionId: string,
-): Promise<string[]> {
-  const updated = await db
-    .update(agentSessionResources)
-    .set({ status: 'destroyed' })
-    .where(
-      and(
-        eq(agentSessionResources.sessionId, sessionId),
-        eq(agentSessionResources.status, 'active'),
-      ),
-    )
-    .returning({ resourceId: agentSessionResources.resourceId });
-  return updated.map((row) => row.resourceId);
-}
-
-/**
- * The container a session's workspace lives in.
- *
- * `routes/agents/files.ts` wants the one container it can serve files from, and
- * took the first resource whose status was `active` or `idle` — `idle` is not a
- * value `agent_session_resources.status` can hold (the CHECK admits `active` and
- * `destroyed` only), so that half of the predicate matched nothing and is not
- * carried. Recorded rather than silently dropped: it reads like a narrowing.
- */
-export async function findAgentSessionContainerId(
-  db: Executor,
-  sessionId: string,
-): Promise<string | null> {
-  const [row] = await db
-    .select({ resourceId: agentSessionResources.resourceId })
-    .from(agentSessionResources)
-    .where(
-      and(
-        eq(agentSessionResources.sessionId, sessionId),
-        eq(agentSessionResources.type, 'container'),
-        eq(agentSessionResources.status, 'active'),
-      ),
-    )
-    .orderBy(asc(agentSessionResources.createdAt))
-    .limit(1);
-  return row?.resourceId ?? null;
 }

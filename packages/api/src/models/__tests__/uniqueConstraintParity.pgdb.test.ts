@@ -543,11 +543,9 @@ const MODELS_RETIRED_WITHOUT_UNIQUES: readonly string[] = [
   'Trigger',
   'TriggerExecution',
   'UserCredits',
-  // `Container.containerId` is the lookup key every writer uses and is declared
-  // `index: true` only — two independent creation paths write it, so the port
-  // kept it a plain index rather than tightening a column nobody has audited
-  // for duplicates. `containers.pgdb.test.ts` asserts the duplicate is PERMITTED
-  // so that adding the constraint later is a deliberate change, not a silent one.
+  // `Container.containerId` was declared `index: true` only, so the port kept
+  // it a plain index. The `containers` table itself was later dropped with the
+  // agent sandbox (`0073_drop_sandbox_containers`).
   'Container',
   'LearningRule',
   'RollbackRecord',
@@ -660,6 +658,14 @@ const UNIQUES_REMOVED_WITH_CAPABILITY: readonly UniqueRemovedWithCapability[] = 
     constraint: 'canvas_sessions_oxy_user_conversation_id_key',
     removedBy: '0070_clean_cut_dormant_tables',
     reason: 'The table never had a writer; its read and delete paths were removed and the table dropped.',
+  },
+  {
+    model: 'ContainerTemplate',
+    table: 'container_templates',
+    constraint: 'container_templates_snapshot_tag_key',
+    removedBy: '0073_drop_sandbox_containers',
+    reason:
+      'The agent sandbox never ran in production. Its snapshot table left with it, so the snapshot-tag uniqueness goes too.',
   },
 ];
 
@@ -1330,7 +1336,9 @@ describe('the ratchet', () => {
       'UNIQUES_REMOVED_WITH_CAPABILITY excuses a previously ported uniqueness only ' +
         'when its whole owning capability deliberately leaves Alia. Audit every new ' +
         'entry and pin the new count rather than letting this become a gap bucket.',
-    ).toBe(6);
+      // 6 -> 7: `container_templates_snapshot_tag_key` left with the agent
+      // sandbox in 0073_drop_sandbox_containers.
+    ).toBe(7);
   });
 
   /**

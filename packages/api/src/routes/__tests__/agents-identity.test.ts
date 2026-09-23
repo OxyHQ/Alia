@@ -150,7 +150,6 @@ const AGENT_ROW = {
   status: 'active',
   allowHiring: false,
   systemPrompt: null,
-  preferredImage: null,
   scheduleInterval: null,
   archetype: 'general',
   archetypeConfig: null,

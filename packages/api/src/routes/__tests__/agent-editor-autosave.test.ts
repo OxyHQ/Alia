@@ -126,7 +126,6 @@ const AGENT_ROW = {
   status: 'active',
   access: 'private',
   systemPrompt: null,
-  preferredImage: null,
   scheduleInterval: null,
   archetype: 'general',
   archetypeConfig: null,

@@ -1,19 +1,15 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { eq, sql } from 'drizzle-orm';
 import { closePostgres, connectPostgres, type ApiDatabase } from '../index';
-import { agentSessionResources, agentSessions } from '../schema/agent-sessions';
+import { agentSessions } from '../schema/agent-sessions';
 import { createAgent, deleteAgent } from '../agents/agentRepository';
 import {
   accountHasSessionWithAgent,
-  agentSessionHasActiveResource,
   agentSessionIsOwnedBy,
   cancelUnsettledAgentSession,
-  claimAgentSessionResource,
-  countActiveAgentSessionResources,
   countAgentSessionsByDay,
   createAgentSession,
   findAgentSessionById,
-  findAgentSessionContainerId,
   findAgentSessionOwnedBy,
   findAgentSessionStatus,
   findLatestAgentSessionOwnedBy,
@@ -23,9 +19,6 @@ import {
   listAgentSessionsForOwner,
   listChildAgentSessions,
   listUnfinishedAgentSessions,
-  markAgentSessionResourceDestroyed,
-  markAllAgentSessionResourcesDestroyed,
-  setAgentSessionResourcePreviewUrl,
   updateAgentSession,
 } from '../agents/agentSessionRepository';
 
@@ -180,119 +173,6 @@ describe('cancelling a session that may already have settled', () => {
     const session = await seedSession(await seedAgent(), { status: 'running' });
     expect(await cancelUnsettledAgentSession(db, session._id, 'timeout')).toBe(true);
     expect(await findAgentSessionStatus(db, session._id)).toBe('cancelled');
-  });
-});
-
-describe('the resources a session claims', () => {
-  it('claims a container once, whichever tool call gets there first', async () => {
-    const session = await seedSession(await seedAgent());
-
-    const first = await claimAgentSessionResource(db, session._id, {
-      type: 'container',
-      resourceId: 'docker-1',
-    });
-    const second = await claimAgentSessionResource(db, session._id, {
-      type: 'container',
-      resourceId: 'docker-1',
-    });
-
-    // `RETURNING` on a DO NOTHING is empty, which is what distinguishes
-    // "inserted" from "already there" without a second read.
-    expect(first).not.toBeNull();
-    expect(second).toBeNull();
-    expect(await countActiveAgentSessionResources(db, session._id)).toBe(1);
-  });
-
-  /**
-   * The `maxVMs` gate. The hydrated document handed `tools.ts` an array loaded
-   * when the session was, so two creations in one run both saw the count from
-   * before either of them — this asserts the gate reads the table.
-   */
-  it('counts what is there NOW, not what was there at load', async () => {
-    const session = await seedSession(await seedAgent());
-    expect(await countActiveAgentSessionResources(db, session._id)).toBe(0);
-    await claimAgentSessionResource(db, session._id, { type: 'container', resourceId: 'a' });
-    expect(await countActiveAgentSessionResources(db, session._id)).toBe(1);
-    await claimAgentSessionResource(db, session._id, { type: 'container', resourceId: 'b' });
-    expect(await countActiveAgentSessionResources(db, session._id)).toBe(2);
-    await markAgentSessionResourceDestroyed(db, session._id, 'a');
-    expect(await countActiveAgentSessionResources(db, session._id)).toBe(1);
-  });
-
-  /**
-   * The container id an agent tool passes comes from the MODEL. This predicate
-   * is the only thing between it and another session's sandbox.
-   */
-  it('does not see another session’s container', async () => {
-    const agentId = await seedAgent();
-    const mine = await seedSession(agentId);
-    const theirs = await seedSession(agentId, { oxyUserId: OTHER });
-    await claimAgentSessionResource(db, theirs._id, { type: 'container', resourceId: 'theirs-1' });
-
-    expect(await agentSessionHasActiveResource(db, theirs._id, 'theirs-1')).toBe(true);
-    expect(await agentSessionHasActiveResource(db, mine._id, 'theirs-1')).toBe(false);
-  });
-
-  it('does not see a destroyed container of its own', async () => {
-    const session = await seedSession(await seedAgent());
-    await claimAgentSessionResource(db, session._id, { type: 'container', resourceId: 'gone' });
-    await markAgentSessionResourceDestroyed(db, session._id, 'gone');
-    expect(await agentSessionHasActiveResource(db, session._id, 'gone')).toBe(false);
-  });
-
-  /**
-   * Cleanup returns exactly the ids it changed, so the caller destroys those and
-   * not a stale list. A second cleanup returns nothing rather than asking the
-   * sandbox provider to destroy the same containers again.
-   */
-  it('claims the active ones for destruction, once', async () => {
-    const session = await seedSession(await seedAgent());
-    await claimAgentSessionResource(db, session._id, { type: 'container', resourceId: 'x' });
-    await claimAgentSessionResource(db, session._id, { type: 'container', resourceId: 'y' });
-    await markAgentSessionResourceDestroyed(db, session._id, 'y');
-
-    expect(await markAllAgentSessionResourcesDestroyed(db, session._id)).toEqual(['x']);
-    expect(await markAllAgentSessionResourcesDestroyed(db, session._id)).toEqual([]);
-  });
-
-  it('records a preview URL against the claimed resource', async () => {
-    const session = await seedSession(await seedAgent());
-    await claimAgentSessionResource(db, session._id, { type: 'container', resourceId: 'p' });
-    expect(
-      await setAgentSessionResourcePreviewUrl(db, session._id, 'p', 'https://preview.example'),
-    ).toBe(true);
-
-    const [row] = await db
-      .select({ previewUrl: agentSessionResources.previewUrl })
-      .from(agentSessionResources)
-      .where(eq(agentSessionResources.sessionId, session._id));
-    expect(row.previewUrl).toBe('https://preview.example');
-  });
-
-  /**
-   * `routes/agents/files.ts` serves workspace files out of whichever container
-   * this returns. A destroyed one must not be it.
-   */
-  it('resolves only an ACTIVE container for the file routes', async () => {
-    const session = await seedSession(await seedAgent());
-    await claimAgentSessionResource(db, session._id, { type: 'container', resourceId: 'dead' });
-    await markAgentSessionResourceDestroyed(db, session._id, 'dead');
-    expect(await findAgentSessionContainerId(db, session._id)).toBeNull();
-
-    await claimAgentSessionResource(db, session._id, { type: 'container', resourceId: 'live' });
-    expect(await findAgentSessionContainerId(db, session._id)).toBe('live');
-  });
-
-  it('goes with the session, because the rows WERE the session document', async () => {
-    const session = await seedSession(await seedAgent());
-    await claimAgentSessionResource(db, session._id, { type: 'container', resourceId: 'c' });
-    await db.delete(agentSessions).where(eq(agentSessions.id, session._id));
-
-    const [remaining] = await db
-      .select({ total: sql<number>`count(*)::int` })
-      .from(agentSessionResources)
-      .where(eq(agentSessionResources.sessionId, session._id));
-    expect(remaining.total).toBe(0);
   });
 });
 

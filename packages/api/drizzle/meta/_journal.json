@@ -512,6 +512,13 @@
       "when": 1790199835209,
       "tag": "0072_owner_pays_agent_turns",
       "breakpoints": true
+    },
+    {
+      "idx": 73,
+      "version": "7",
+      "when": 1790200041626,
+      "tag": "0073_drop_sandbox_containers",
+      "breakpoints": true
     }
   ]
 }

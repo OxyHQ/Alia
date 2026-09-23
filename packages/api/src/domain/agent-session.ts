@@ -24,7 +24,3 @@ export const AGENT_SESSION_STATUSES = [
   'cancelled',
 ] as const;
 export type AgentSessionStatus = (typeof AGENT_SESSION_STATUSES)[number];
-export const AGENT_SESSION_RESOURCE_TYPES = ['vm', 'container'] as const;
-export type AgentSessionResourceType = (typeof AGENT_SESSION_RESOURCE_TYPES)[number];
-export const AGENT_SESSION_RESOURCE_STATUSES = ['active', 'destroyed'] as const;
-export type AgentSessionResourceStatus = (typeof AGENT_SESSION_RESOURCE_STATUSES)[number];
