@@ -9,7 +9,7 @@ import {
 } from '@oxy.so/expo-splash';
 import { OxyProvider, useOxy } from '@oxy.so/services';
 import * as Linking from 'expo-linking';
-import { Stack, ThemeProvider } from 'expo-router';
+import { Slot, Stack, ThemeProvider } from 'expo-router';
 import { useMemo, useRef } from 'react';
 import { Platform } from 'react-native';
 
@@ -81,16 +81,22 @@ function AppContent() {
     <ThemeProvider value={navigationTheme}>
     <AuthSetup>
       <KeyboardProvider>
-        <Stack
-          screenOptions={{
-            contentStyle: {
-              backgroundColor: colors.background,
-            },
-          }}
-        >
-          <Stack.Screen name="(app)" options={{ headerShown: false }} />
-          <Stack.Screen name="(biglayout)" options={{ headerShown: false }} />
-        </Stack>
+        {/* Web scrolls the document: native-stack's web scene is absolutely
+            positioned, which would pin every page to one screen. */}
+        {Platform.OS === 'web' ? (
+          <Slot />
+        ) : (
+          <Stack
+            screenOptions={{
+              contentStyle: {
+                backgroundColor: colors.background,
+              },
+            }}
+          >
+            <Stack.Screen name="(app)" options={{ headerShown: false }} />
+            <Stack.Screen name="(biglayout)" options={{ headerShown: false }} />
+          </Stack>
+        )}
       </KeyboardProvider>
       {/* Neither a <ToastOutlet /> nor a <SurfaceHost /> here, for the same
           reason: OxyProvider mounts both (its <SurfaceProvider> renders the

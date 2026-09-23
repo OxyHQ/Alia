@@ -22,8 +22,10 @@ import { useProjectsStore } from '@/lib/stores/projects-store';
 import { useUIStore } from '@/lib/stores/ui-store';
 import { AiChatContainer, AiChatShell } from '@oxy.so/bloom/ai-chat';
 import { useOxy } from '@oxy.so/services';
-import { Stack, useRouter, type Href } from 'expo-router';
+import { useScrollRestoration } from '@oxy.so/bloom/scroll';
+import { Navigator, Stack, usePathname, useRouter, type Href } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
+import { Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // Routes that handle their own top safe area insets
@@ -36,6 +38,12 @@ const SELF_INSET_ROUTES = new Set([
 
 /** Routes that compose their own `AiChatContainer` (theirs holds the composer). */
 const CHAT_ROUTES = new Set(['index', 'c/[id]/index', '[username]']);
+
+/**
+ * A chat route — or a local visual fixture (`__*.tsx`, never committed), which
+ * mounts a chat screen and composes its own container the same way.
+ */
+const isChatRoute = (name: string) => CHAT_ROUTES.has(name) || name.startsWith('__');
 
 /** The crumb each page's section gets. */
 const PAGE_TITLES: Record<string, string> = {
@@ -134,18 +142,8 @@ export default function AppLayout() {
    * and this reads them back. A page that declares nothing gets its section's
    * name.
    */
-  const screenLayout = ({
-    route,
-    options,
-    children,
-  }: {
-    route: { name: string };
-    options: PageHeaderOptions;
-    children: React.ReactElement;
-  }) => {
-    // A local visual fixture (`__*.tsx`, never committed) mounts a chat
-    // screen, which composes its own container like the chat routes do.
-    if (CHAT_ROUTES.has(route.name) || route.name.startsWith('__')) return children;
+  const screenLayout = ({ route, options, children }: ScreenLayoutProps) => {
+    if (isChatRoute(route.name)) return children;
     const section = route.name.split('/')[0];
     const title =
       options.title ??
@@ -177,6 +175,8 @@ export default function AppLayout() {
     <AppErrorBoundary>
       <AliaSettingsProvider>
         <AiChatShell
+          // The page scrolls the document, as every Oxy web app does.
+          scroll="document"
           sidebar={sidebar}
           mobileSidebar={mobileSidebar}
           labels={shellLabels}
@@ -194,12 +194,22 @@ export default function AppLayout() {
           panel={(width) => <WorkspacePanel width={width} />}
         >
           <ShellNavProvider>
-            <Stack screenOptions={screenOptions} screenLayout={screenLayout}>
-              <Stack.Screen
-                name="c/[id]/index"
-                options={{ title: i18n.t('nav.chat') }}
-              />
-            </Stack>
+            {Platform.OS === 'web' ? (
+              // The page flows in the document, which is what scrolls on web;
+              // native-stack's web scene is absolutely positioned and would
+              // pin it to one screen.
+              <Navigator screenOptions={screenOptions}>
+                <Navigator.Screen name="c/[id]/index" options={{ title: i18n.t('nav.chat') }} />
+                <FocusedPage layout={screenLayout} />
+              </Navigator>
+            ) : (
+              <Stack screenOptions={screenOptions} screenLayout={screenLayout}>
+                <Stack.Screen
+                  name="c/[id]/index"
+                  options={{ title: i18n.t('nav.chat') }}
+                />
+              </Stack>
+            )}
           </ShellNavProvider>
         </AiChatShell>
         <CommandPalette />
@@ -207,4 +217,32 @@ export default function AppLayout() {
       </AliaSettingsProvider>
     </AppErrorBoundary>
   );
+}
+
+interface ScreenLayoutProps {
+  route: { name: string };
+  options: PageHeaderOptions;
+  children: React.ReactElement;
+}
+
+/**
+ * Web: the focused page, through the same `screenLayout` the native stack
+ * wraps each screen in, so a page's header and surface do not depend on which
+ * navigator shows it.
+ *
+ * Every page shares the one document scroll, so a page opens at the top — or
+ * where the reader left it, if they have been here — instead of at whatever
+ * offset the last page left. A chat opens at its newest turn, which its thread
+ * does itself.
+ */
+function FocusedPage({ layout }: { layout: (props: ScreenLayoutProps) => React.ReactNode }) {
+  const { state, descriptors } = Navigator.useContext();
+  const descriptor = descriptors[state.routes[state.index].key];
+  const pathname = usePathname();
+  useScrollRestoration('window', { enabled: !isChatRoute(descriptor.route.name), key: pathname });
+  return layout({
+    route: descriptor.route,
+    options: descriptor.options as PageHeaderOptions,
+    children: descriptor.render(),
+  });
 }
