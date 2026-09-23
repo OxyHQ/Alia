@@ -152,8 +152,6 @@ const EXEMPT: Readonly<Record<string, string>> = {
     '`k` comes from `Object.keys(labels)`, so it is an OWN key of the object being read, by construction rather than by check.',
   'packages/api/src/lib/sliding-window-limiter.ts RPM_LIMITS[tier]':
     'Key is produced by `getUserTier`, whose every return is a string LITERAL — measured by the assertion below, not assumed.',
-  'packages/api/src/lib/sliding-window-limiter.ts COST_DAY_CAPS[tier]':
-    'Same producer as `RPM_LIMITS` above, measured by the same assertion.',
   'packages/api/src/middleware/api-key-rate-limit.ts TIER_RATE_LIMITS[tier]':
     'Key is produced by `getUserTier` in this same file, whose returns are all literals — the assertion below reads it.',
 };
@@ -168,8 +166,12 @@ const EXEMPT: Readonly<Record<string, string>> = {
  * one rather than being wired into the survivor: its `requiredPlan` vocabulary
  * is a never-exercised first draft of the capability grants being designed on
  * top of that assembler.
+ *
+ * 6 -> 5. The daily cost cap in `lib/sliding-window-limiter.ts` is DELETED (every
+ * tier was unlimited and nothing incremented the counter), and its
+ * `COST_DAY_CAPS[tier]` read with it.
  */
-const EXEMPT_COUNT = 6;
+const EXEMPT_COUNT = 5;
 
 describe('no lookup table answers an untrusted key from Object.prototype', () => {
   const reads = tableReads();
@@ -182,7 +184,12 @@ describe('no lookup table answers an untrusted key from Object.prototype', () =>
     // the routing-catalogue seed, and its guarded `MODEL_DISPLAY_NAMES[modelId]`
     // read with it. The floor moves in the commit that removed the site, which
     // is the only way it is allowed to move.
-    expect(reads.length).toBeGreaterThanOrEqual(19);
+    // 19 -> 17: `lib/tools/descriptions/tool-specs.ts` and
+    // `scripts/provider-catalogues.ts` are deleted (no production importer), and
+    // their guarded `AGENT_TOOL_SPECS[toolName]` / `CATALOGUE_PATHS[provider]`
+    // reads with them. 17 -> 16: the never-enforced daily cost cap left
+    // `sliding-window-limiter.ts`, and its `COST_DAY_CAPS[tier]` read with it.
+    expect(reads.length).toBeGreaterThanOrEqual(16);
     expect(reads.filter((r) => r.guarded).length).toBeGreaterThanOrEqual(5);
     expect(reads.filter((r) => !r.guarded).length).toBeGreaterThanOrEqual(1);
 
@@ -267,22 +274,5 @@ describe('every fixed accessor refuses an inherited name', () => {
     // above are not a special case bolted on beside a different behaviour.
     expect(isRoutingProfile('not-a-model')).toBe(false);
     expect(getRoutingProfile('not-a-model')).toBeNull();
-  });
-
-  it('a tool named after an inherited property does not throw when described', async () => {
-    const { enhanceDescription } = await import('../lib/tools/descriptions/tool-specs.js');
-
-    for (const name of INHERITED) {
-      // `enhanceDescription` read `spec.whenToUse.length` off a function and
-      // threw. A tool name arrives from an MCP server or an Oxy service
-      // manifest, so it is third-party input.
-      expect(() => enhanceDescription(name, 'base'), name).not.toThrow();
-      expect(enhanceDescription(name, 'base'), name).toBe('base');
-    }
-
-    // The control: a name the specs DO cover is still enhanced, so the four
-    // assertions above are absences rather than a function that returns its
-    // argument for everything.
-    expect(enhanceDescription('shell_exec', 'base')).not.toBe('base');
   });
 });

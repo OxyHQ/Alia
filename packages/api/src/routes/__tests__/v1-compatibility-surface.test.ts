@@ -578,13 +578,16 @@ describe('the compatibility surface accepts no new credential (#139 ws6, ADR 000
  *
  * Two names, and the boundary between them and Alia's own billing is the
  * distinction ADR 0005 draws: `user_credits`, `transactions` and `subscriptions`
- * are Alia charging its users, which stays; these four are Alia accounting for
+ * are Alia charging its users, which stays; these two are Alia accounting for
  * what it owes upstream, which under ADR 0004 condition 3 moves to Kaana and the
  * Oxy ledger.
  *
- *  - `insertCostEntry` is the only statement that writes `cost_entries`, whose
+ *  - `insertCostEntry` was the only statement that wrote `cost_entries`, whose
  *    columns are `actual_provider`, `actual_model_id` and `cost_usd`;
- *  - `recordCost` is its only wrapper.
+ *  - `recordCost` was its only wrapper.
+ *
+ * Neither ever had a production caller, and both were deleted. The names stay
+ * here so that neither can come back under the same name unnoticed.
  *
  * Provider-account health and key spend no longer exist in this service: Kaana
  * owns provider credentials and their operational state.
@@ -639,8 +642,8 @@ describe('the compatibility surface reintroduces no provider billing (#139 ws6, 
      * POSITIVE: `recordApiKeyUsage` is called by `middleware/auth.ts`, so the
      * pattern and the corpus both work on a real call site.
      *
-     * NEGATIVE: THIS FILE names all four provider-cost writers, in prose, and
-     * calls none of them. A census over raw text would report it as four call
+     * NEGATIVE: THIS FILE names both provider-cost writers, in prose, and
+     * calls none of them. A census over raw text would report it as two call
      * sites — and the whole guard below would then be reporting itself.
      */
     expect(namesCallTo('recordApiKeyUsage', ['middleware/auth.ts'])).toEqual(['middleware/auth.ts']);
@@ -652,20 +655,13 @@ describe('the compatibility surface reintroduces no provider billing (#139 ws6, 
     }
   });
 
-  it('names the two remaining cost writers, so the list cannot shrink or hold a typo', () => {
+  it('names the two retired cost writers, so the list cannot shrink or hold a typo', () => {
     /**
      * The list's own exact-count assertion, and the reason it needs one: every
-     * assertion below iterates it, so an emptied list makes them all pass, and a
-     * misspelled entry is an emptied slot that still looks occupied.
+     * assertion below iterates it, so an emptied list makes them all pass.
      */
     expect(PROVIDER_COST_WRITERS).toHaveLength(2);
     expect(new Set(PROVIDER_COST_WRITERS).size).toBe(PROVIDER_COST_WRITERS.length);
-
-    const shipped = shippedModules();
-    const undeclared = PROVIDER_COST_WRITERS.filter(
-      (writer) => !shipped.some((module) => new RegExp(`export async function ${writer}\\b`).test(code(module))),
-    );
-    expect(undeclared).toEqual([]);
   });
 
   it('no route module writes provider cost', () => {
@@ -685,29 +681,23 @@ describe('the compatibility surface reintroduces no provider billing (#139 ws6, 
     expect(offenders).toEqual([]);
   });
 
-  it('the cost_entries table has one writer and it has no caller', () => {
+  it('no shipped module declares or calls a cost writer', () => {
     /**
      * The stronger fact behind the route-scoped claim, and the reason that one
      * is not the whole guard: Alia records no provider cost ANYWHERE today, so
      * ADR 0004 condition 3 is currently true rather than merely unenforced, and
      * a reintroduction has to break this to happen.
      *
-     * Frozen as an exact map rather than as an empty set, because
-     * `namesCallTo` matches a declaration as well as a call — which is the
-     * honest thing for it to do here, since a route module DECLARING one of
-     * these would be exactly as bad as calling one.
+     * `namesCallTo` matches a declaration as well as a call, which is the honest
+     * thing for it to do here: declaring one of these again would be exactly as
+     * bad as calling one.
      */
     const shipped = shippedModules();
     expect(shipped.length).toBeGreaterThan(400);
 
-    expect(namesCallTo('insertCostEntry', shipped)).toEqual([
-      // Declares it: the only statement that writes `cost_entries`.
-      'db/usage/costEntryRepository.ts',
-      // Its only wrapper.
-      'lib/cost-tracker.ts',
-    ]);
-    // Declares `recordCost` and is the only module that names it: no caller.
-    expect(namesCallTo('recordCost', shipped)).toEqual(['lib/cost-tracker.ts']);
+    for (const writer of PROVIDER_COST_WRITERS) {
+      expect(namesCallTo(writer, shipped), writer).toEqual([]);
+    }
   });
 });
 
@@ -716,8 +706,7 @@ describe('the compatibility surface reintroduces no provider billing (#139 ws6, 
  *
  * Over comment-stripped source, so this repository's prose about a writer is
  * not counted as a use of it. That distinction is not theoretical: this file
- * names every writer below in a comment, and `lib/cost-tracker.ts` discusses
- * `recordCost` in its own header.
+ * names every writer above in a comment.
  */
 function namesCallTo(name: string, modules: readonly string[]): string[] {
   const pattern = new RegExp(`\\b${name}\\s*\\(`);

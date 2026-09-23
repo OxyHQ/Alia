@@ -250,6 +250,7 @@
   },
   "dependencies": {
     "@oxy.so/core": "^1.7.0",
+    "jwt-decode": "^4.0.0",
     "openai": "^6.46.0"
   },
   "devDependencies": {

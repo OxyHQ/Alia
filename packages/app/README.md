@@ -5,7 +5,7 @@ Expo app for web, iOS, and Android.
 ## Current Focus
 
 - Unified streaming chat client for the shared autonomy runtime.
-- Trigger management UI (backed by `/triggers`).
+- Automations UI (backed by `/automations`).
 - Agent activity + approval actions in real time.
 - Memory, settings, billing, and organization features.
 
@@ -13,7 +13,8 @@ Expo app for web, iOS, and Android.
 
 ### Chat Streaming
 
-`useStreamingChat` consumes named SSE events from `/v1/chat/completions`:
+`useStreamingChat` consumes named SSE events from `/alia/chat`, Alia's product
+runtime (`/v1/chat/completions` is the same handler, kept for other callers):
 
 - `alia.reasoning`
 - `alia.tool_result`
@@ -35,9 +36,10 @@ All payloads include `eventVersion: 1`.
 - Approve/deny actions
 - Socket emission via `agent-approval-response`
 
-### Trigger UI
+### Automations UI
 
-Screen path remains `app/(app)/automations.tsx`, but the data source is now `/triggers` only.
+`app/(app)/automations.tsx` reads and writes the normalized `/automations` API.
+Legacy `/triggers` writes return `410 Gone`.
 
 ## Main Routes
 
@@ -45,7 +47,7 @@ Screen path remains `app/(app)/automations.tsx`, but the data source is now `/tr
 - `app/(app)/c/[id].tsx` - conversation view
 - `app/(app)/agents.tsx` - agent directory
 - `app/(app)/agents/[id].tsx` - agent detail/activity
-- `app/(app)/automations.tsx` - trigger list and controls
+- `app/(app)/automations.tsx` - automation list and controls
 - `app/(app)/notifications.tsx` - notification feed
 - `app/(app)/settings/*` - settings area
 
@@ -56,7 +58,7 @@ Screen path remains `app/(app)/automations.tsx`, but the data source is now `/tr
 bun run dev:app
 
 # from packages/app
-npm start
+bun run start
 ```
 
 Platform targets:
@@ -77,5 +79,4 @@ Expected production API:
 
 ## Notes
 
-- No `/automations` API calls remain in the app client.
 - Public hosted selection uses Kaana routing-profile IDs only.

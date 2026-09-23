@@ -1620,7 +1620,8 @@
       ],
       "removalGate": "Second of the three direct internal/providers importers outside gateway-client.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/lib/cost-tracker.ts:17-25 (nothing calls recordCost), :39"
+      "evidence": "packages/api/src/lib/cost-tracker.ts:17-25 (nothing calls recordCost), :39",
+      "removedIn": "chore/corte-api"
     },
     {
       "id": "cowork-built-bundle-endpoint",
@@ -5122,7 +5123,8 @@
       "dependsOn": [],
       "removalGate": "UNDECIDED — MEASURED DEAD as a contract: `lib/chat-events.ts` has ZERO importers and `AliaChatEventName` occurs exactly once repo-wide, at its own definition (positive control: lib/sse-emitter.ts has 2 importers). The declared union therefore constrains NOTHING — it is not merely out of step with the emitters, it is unenforced. Either wire it into the emitter and the app, or delete it; \"reconcile the union before the port\" reads as if it were load-bearing.  || inventory gate, kept for the record: Fix the union to match reality BEFORE the port, or the port will faithfully reproduce a type that describes neither the emitter nor the consumer.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/lib/chat-events.ts:3-12; packages/api/src/lib/chat/stream-runner.ts:258"
+      "evidence": "packages/api/src/lib/chat-events.ts:3-12; packages/api/src/lib/chat/stream-runner.ts:258",
+      "removedIn": "chore/corte-api"
     },
     {
       "id": "sse-openai-chunk-frame",

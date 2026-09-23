@@ -1,5 +1,4 @@
-export { registerHook, runBeforeChatHooks, runAfterChatHooks } from './hook-runner.js';
-export type { ChatHook, ChatHookContext, AfterChatContext } from './types.js';
+export { runBeforeChatHooks, runAfterChatHooks } from './hook-runner.js';
 
 // Register built-in hooks (side-effect imports)
 import './built-in/analytics-hook.js';
