@@ -1,8 +1,8 @@
 import {
-  BackButton,
   BillingToggle,
   PageFooter,
   PlanGrid,
+  SubscribeHeader,
   type BillingPeriod,
   type PricingTier,
 } from '@/components/subscribe-shared';
@@ -16,21 +16,19 @@ import {
   type SubscriptionPlan,
 } from '@/lib/hooks/use-billing';
 import { useTranslation } from '@/lib/hooks/use-translation';
-import { useColorScheme } from '@/lib/useColorScheme';
+import { Card, CardBody } from '@oxy.so/bloom/card';
+import { EmptyState } from '@oxy.so/bloom/empty-state';
+import { RiErrorWarningLine } from '@oxy.so/bloom/icons/RiErrorWarningLine';
+import { Loading } from '@oxy.so/bloom/loading';
+import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
 import { confirm } from '@oxy.so/bloom/surfaces';
 import { toast } from '@oxy.so/bloom/toast';
-import { Text } from '@oxy.so/bloom/typography';
+import { Muted, Text } from '@oxy.so/bloom/typography';
 import { useAuth } from '@oxy.so/services';
 import * as Linking from 'expo-linking';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import {
-  ActivityIndicator,
-  Platform,
-  ScrollView,
-  useWindowDimensions,
-  View,
-} from 'react-native';
+import { Platform, useWindowDimensions, View } from 'react-native';
 import { errorMessage as getErrorMessage } from '../../lib/errors/error-utils';
 const MONO_FONT = Platform.select({ ios: 'Menlo', android: 'monospace', default: 'monospace' });
 
@@ -64,7 +62,6 @@ export default function CodeaSubscribeScreen() {
   const { width } = useWindowDimensions();
   const isWideLayout = width >= 600;
   const { t } = useTranslation();
-  const { colors } = useColorScheme();
 
   const [billingPeriod, setBillingPeriod] = useState<BillingPeriod>('monthly');
   const [loadingPlanId, setLoadingPlanId] = useState<string>();
@@ -206,13 +203,11 @@ export default function CodeaSubscribeScreen() {
   };
 
   return (
-    <View className="flex-1">
-      <ScrollView className="flex-1 bg-background">
+    <Screen header={<SubscribeHeader t={t} />}>
+      <ScreenScrollView>
         {/* ── Editor-style hero (token-driven surface) ──────────── */}
         <View className="bg-muted">
           <View className="w-full max-w-[800px] mx-auto px-6 pt-6 pb-8">
-            <BackButton t={t} />
-
             <View className="items-center gap-5 mt-2">
               {/* Decorative code snippet — intentionally fixed-dark: it is a
                   product mockup (like a terminal screenshot), so its surface
@@ -267,13 +262,11 @@ export default function CodeaSubscribeScreen() {
         {/* ── Plans + footer ──────────────────────────────────── */}
         <View className="w-full max-w-[800px] mx-auto">
           {plansLoading && tiers.length === 0 ? (
-            <View className="items-center justify-center py-16">
-              <ActivityIndicator size="large" color={colors.primary} />
+            <View className="py-16">
+              <Loading size="large" />
             </View>
           ) : plansError ? (
-            <View className="items-center justify-center py-16 gap-2">
-              <Text className="text-sm text-muted-foreground">{t('subscribe.loadError')}</Text>
-            </View>
+            <EmptyState variant="compact" icon={RiErrorWarningLine} title={t('subscribe.loadError')} />
           ) : (
             <PlanGrid
               tiers={tiers}
@@ -293,15 +286,17 @@ export default function CodeaSubscribeScreen() {
           )}
 
           {/* Shared credits note */}
-          <View className="mx-4 mt-6 p-4 rounded-xl items-center bg-muted/50">
-            <Text className="text-xs text-center text-muted-foreground">
-              {t('subscribe.sharedCredits')}
-            </Text>
+          <View className="mx-4 mt-6">
+            <Card appearance="subtle">
+              <CardBody>
+                <Muted>{t('subscribe.sharedCredits')}</Muted>
+              </CardBody>
+            </Card>
           </View>
 
           <PageFooter t={t} />
         </View>
-      </ScrollView>
-    </View>
+      </ScreenScrollView>
+    </Screen>
   );
 }

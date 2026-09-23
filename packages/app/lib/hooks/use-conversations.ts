@@ -417,6 +417,30 @@ export function useSaveConversation() {
   });
 }
 
+/**
+ * Rename a conversation.
+ *
+ * The API has no title-only route: `POST /conversations` writes the title AND
+ * replaces the messages. So the full thread is read fresh first (`staleTime:
+ * 0` — the sidebar seeds the detail cache from the list with no messages, and
+ * saving that seed would empty the thread) and saved back with the new title.
+ */
+export function useRenameConversation() {
+  const queryClient = useQueryClient();
+  const save = useSaveConversation();
+
+  return useMutation({
+    mutationFn: async ({ id, title }: { id: string; title: string }) => {
+      const conversation = await queryClient.fetchQuery({
+        queryKey: queryKeys.conversations.detail(id),
+        queryFn: () => fetchConversation(id),
+        staleTime: 0,
+      });
+      return save.mutateAsync({ id, messages: conversation.messages, title });
+    },
+  });
+}
+
 // Delete conversation mutation
 export function useDeleteConversation() {
   const queryClient = useQueryClient();

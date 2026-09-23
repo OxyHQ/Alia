@@ -128,8 +128,9 @@ describe("a routing profile is presented in the product's words, never as a mode
 });
 
 describe("the picker consumes the endpoint (a call, not a mention)", () => {
+  // The composer's model lineup is the picker now; `model-selector.tsx` is gone.
   const selector = readFileSync(
-    fileURLToPath(new URL("../../../components/model-selector.tsx", import.meta.url)),
+    fileURLToPath(new URL("../../../components/chat/composer/model-lineup.ts", import.meta.url)),
     "utf8",
   );
 
