@@ -1,3 +1,4 @@
+import { inspect } from 'node:util';
 import { pathToFileURL } from 'node:url';
 import { readTargetDatabase } from '@oxy.so/db/migrate';
 import { eq } from 'drizzle-orm';
@@ -99,7 +100,10 @@ async function main(): Promise<void> {
 if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) {
   main()
     .catch((error: unknown) => {
-      process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
+      // `inspect`, not `String()`: a dependency can reject with a plain object,
+      // and `String()` of one printed only `[object Object]` for the readiness
+      // failure of 2026-09-24, hiding which dependency refused and why.
+      process.stderr.write(`${error instanceof Error ? error.message : inspect(error, { depth: 4 })}\n`);
       process.exitCode = 1;
     })
     .finally(closePostgres);
