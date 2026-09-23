@@ -238,8 +238,13 @@ interface MatrixRow {
  * The `alia_sk_*` developer keys are retired outright: `lib/api-key-crypto.ts`
  * and `routes/codea.ts` (three rows), whose every route authenticated with one
  * of those keys and nothing else, are deleted.
+ *
+ * ## 121 -> 144: `corte-db-console`
+ *
+ * `packages/alia-console`, the developer portal for those keys, is deleted
+ * whole: twenty-three rows named its screens, hooks and documentation pages.
  */
-const REMOVED_ROW_COUNT = 121;
+const REMOVED_ROW_COUNT = 144;
 
 const OWNERS = new Set(['alia', 'oxy', 'kaana', 'delete']);
 const REACHABLE = new Set(['live', 'dead', 'unverified', 'loaded-not-invoked']);

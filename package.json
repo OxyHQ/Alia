@@ -1,7 +1,7 @@
 {
   "name": "alia-monorepo",
   "version": "1.0.0",
-  "description": "Monorepo para Alia - plataforma de IA con app (web+mobile), API y panel admin",
+  "description": "Monorepo para Alia - plataforma de IA con app (web+mobile) y API",
   "private": true,
   "trustedDependencies": [
     "@shopify/react-native-skia"
@@ -13,7 +13,6 @@
     "packages/alia-server",
     "packages/alia-canvas",
     "packages/integrations",
-    "packages/alia-console",
     "packages/alia-codea",
     "packages/alia-codea/webview-ui",
     "packages/alia-cowork",
@@ -24,7 +23,6 @@
     "dev": "bun run --filter '*' dev",
     "dev:app": "bun run --filter @alia/app dev -- --clear --tunnel",
     "dev:api": "bun run --filter @alia/api dev",
-    "dev:admin": "bun run --filter alia-console dev",
     "dev:canvas": "bun run --filter alia-canvas dev",
     "dev:integrations": "bun run --filter @alia/integrations dev",
     "dev:codea": "bun run --filter alia-codea dev",
@@ -32,12 +30,10 @@
     "build": "bun run --filter '*' build",
     "build:app": "bun run --filter @alia/app build",
     "build:api": "bun run --filter @alia/api build",
-    "build:admin": "bun run --filter alia-console build",
     "build:canvas": "bun run --filter alia-canvas build",
     "build:integrations": "bun run --filter @alia/integrations build",
     "start:app": "bun run --filter @alia/app start",
     "start:api": "bun run --filter @alia/api start",
-    "start:admin": "bun run --filter alia-console start",
     "start:canvas": "bun run --filter alia-canvas preview",
     "start:integrations": "bun run --filter @alia/integrations start",
     "lint": "bun run --filter '*' lint",

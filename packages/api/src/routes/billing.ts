@@ -397,7 +397,7 @@ router.post('/checkout/subscription', authenticateToken, async (req: Request, re
  * The Postgres port changed this response shape and nothing noticed, because
  * almost every account is on the free floor and gets `null` here. The row it
  * started returning is flat — `planSnapshotName`, `planSnapshotPrice` — while
- * `packages/app` and `packages/alia-console` both read `subscription.plan.name`
+ * `packages/app` (and the since-retired developer console) read `subscription.plan.name`
  * and `subscription.plan.planId`. So a paying account rendered a blank plan on
  * the settings screen, an unmarked tier on the plans screen, and a TypeError in
  * `credits-panel.tsx`, which reaches `.plan.name` without a guard.

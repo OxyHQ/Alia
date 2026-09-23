@@ -1262,7 +1262,8 @@
       "dependsOn": [],
       "removalGate": "Whatever host absorbs the console screens provides the equivalent client. Note it sets withCredentials: true (:11) despite the Oxy session model being device-first and zero-cookie — worth checking during the move, though it is not a provider-decoupling concern.",
       "provenance": "inventory-frontend-admin",
-      "evidence": "packages/alia-console/src/lib/api/client.ts:5-12,29-45,48-72; packages/alia-console/src/lib/config.ts:2"
+      "evidence": "packages/alia-console/src/lib/api/client.ts:5-12,29-45,48-72; packages/alia-console/src/lib/config.ts:2",
+      "removedIn": "corte-db-console"
     },
     {
       "id": "console-hook-models-stats",
@@ -1278,7 +1279,8 @@
       ],
       "removalGate": "Keep. This hook plus its DTO is the contract that keeps the console's two model screens abstraction-safe — treat the absence of a provider field in ModelStats as a load-bearing invariant and gate it, since nothing today would fail if a provider field were added.",
       "provenance": "inventory-frontend-admin",
-      "evidence": "packages/alia-console/src/hooks/use-developer.ts:327-359"
+      "evidence": "packages/alia-console/src/hooks/use-developer.ts:327-359",
+      "removedIn": "corte-db-console"
     },
     {
       "id": "console-playground-consumer",
@@ -1295,7 +1297,8 @@
       ],
       "removalGate": "Breaks the moment /v1 loses origin:'*' CORS, because console.alia.onl is a different origin from api.alia.onl.",
       "provenance": "inventory-product-api",
-      "evidence": "packages/alia-console/src/routes/_layout/playground.tsx:141"
+      "evidence": "packages/alia-console/src/routes/_layout/playground.tsx:141",
+      "removedIn": "corte-db-console"
     },
     {
       "id": "console-screen-app-detail",
@@ -1311,7 +1314,8 @@
       ],
       "removalGate": "Oxy Console owns first-party key issuance. The key here is an ALIA-issued customer credential (alia_sk_*), not an upstream provider key — so it is in scope for a normal developer console and must not be conflated with ga-screen-keys.",
       "provenance": "inventory-frontend-admin",
-      "evidence": "packages/alia-console/src/routes/_layout/apps/$appId/index.tsx:38,46-48,92 (copy to clipboard),:222 (renders key.keyPrefix)"
+      "evidence": "packages/alia-console/src/routes/_layout/apps/$appId/index.tsx:38,46-48,92 (copy to clipboard),:222 (renders key.keyPrefix)",
+      "removedIn": "corte-db-console"
     },
     {
       "id": "console-screen-app-settings",
@@ -1327,7 +1331,8 @@
       ],
       "removalGate": "Moves with the apps list.",
       "provenance": "inventory-frontend-admin",
-      "evidence": "packages/alia-console/src/routes/_layout/apps/$appId/settings.tsx:13,20-21"
+      "evidence": "packages/alia-console/src/routes/_layout/apps/$appId/settings.tsx:13,20-21",
+      "removedIn": "corte-db-console"
     },
     {
       "id": "console-screen-app-usage",
@@ -1343,7 +1348,8 @@
       ],
       "removalGate": "Moves with the apps list.",
       "provenance": "inventory-frontend-admin",
-      "evidence": "packages/alia-console/src/routes/_layout/apps/$appId/usage.tsx:8,22-23"
+      "evidence": "packages/alia-console/src/routes/_layout/apps/$appId/usage.tsx:8,22-23",
+      "removedIn": "corte-db-console"
     },
     {
       "id": "console-screen-apps-index",
@@ -1359,7 +1365,8 @@
       ],
       "removalGate": "Oxy Console owns developer app registration. Nothing provider-aware.",
       "provenance": "inventory-frontend-admin",
-      "evidence": "packages/alia-console/src/routes/_layout/apps/index.tsx:49,55-57"
+      "evidence": "packages/alia-console/src/routes/_layout/apps/index.tsx:49,55-57",
+      "removedIn": "corte-db-console"
     },
     {
       "id": "console-screen-billing",
@@ -1377,7 +1384,8 @@
       ],
       "removalGate": "Oxy Console owns billing for Oxy products AND the plans/packages this screen reads are administered somewhere (see ga-screen-plans, ga-screen-credit-packages). Note the coupling: the ADMIN side of these same objects currently lives in the gateway admin, so the two must be planned together or the read side outlives its editor.",
       "provenance": "inventory-frontend-admin",
-      "evidence": "packages/alia-console/src/routes/_layout/billing.tsx:39-45 (useSubscription('alia'), useSubscriptionPlans('alia'))"
+      "evidence": "packages/alia-console/src/routes/_layout/billing.tsx:39-45 (useSubscription('alia'), useSubscriptionPlans('alia'))",
+      "removedIn": "corte-db-console"
     },
     {
       "id": "console-screen-dashboard",
@@ -1393,7 +1401,8 @@
       ],
       "removalGate": "Oxy Console has a developer landing surface. Nothing here is provider-aware, so this is a relocation for consistency, not a decoupling requirement — it can move last.",
       "provenance": "inventory-frontend-admin",
-      "evidence": "packages/alia-console/src/routes/_layout/dashboard.tsx:17-18; packages/alia-console/src/hooks/use-developer.ts:314; packages/alia-console/src/hooks/use-billing.ts:88"
+      "evidence": "packages/alia-console/src/routes/_layout/dashboard.tsx:17-18; packages/alia-console/src/hooks/use-developer.ts:314; packages/alia-console/src/hooks/use-billing.ts:88",
+      "removedIn": "corte-db-console"
     },
     {
       "id": "console-screen-docs-authentication",
@@ -1407,7 +1416,8 @@
       "dependsOn": [],
       "removalGate": "Keep.",
       "provenance": "inventory-frontend-admin",
-      "evidence": "packages/alia-console/src/routes/_layout/documentation/authentication.tsx:90"
+      "evidence": "packages/alia-console/src/routes/_layout/documentation/authentication.tsx:90",
+      "removedIn": "corte-db-console"
     },
     {
       "id": "console-screen-docs-chat-completions",
@@ -1421,7 +1431,8 @@
       "dependsOn": [],
       "removalGate": "Keep.",
       "provenance": "inventory-frontend-admin",
-      "evidence": "packages/alia-console/src/routes/_layout/documentation/chat-completions.tsx:109,160,186,219"
+      "evidence": "packages/alia-console/src/routes/_layout/documentation/chat-completions.tsx:109,160,186,219",
+      "removedIn": "corte-db-console"
     },
     {
       "id": "console-screen-docs-index",
@@ -1435,7 +1446,8 @@
       "dependsOn": [],
       "removalGate": "Keep with the docs set.",
       "provenance": "inventory-frontend-admin",
-      "evidence": "packages/alia-console/src/routes/_layout/documentation/index.tsx:14"
+      "evidence": "packages/alia-console/src/routes/_layout/documentation/index.tsx:14",
+      "removedIn": "corte-db-console"
     },
     {
       "id": "console-screen-docs-models",
@@ -1451,7 +1463,8 @@
       ],
       "removalGate": "Keep the screen, but this is a real defect to fix during the epic: it duplicates the catalog rather than reading GET /models/stats like its sibling /models screen does, so it is already stale by eight aliases and will silently drift further as kaana takes over the catalog.",
       "provenance": "inventory-frontend-admin",
-      "evidence": "packages/alia-console/src/routes/_layout/documentation/models.tsx:13,23,33,43 vs the 12 aliases in packages/api/src/internal/providers/lib/alia-models.ts:62-212"
+      "evidence": "packages/alia-console/src/routes/_layout/documentation/models.tsx:13,23,33,43 vs the 12 aliases in packages/api/src/internal/providers/lib/alia-models.ts:62-212",
+      "removedIn": "corte-db-console"
     },
     {
       "id": "console-screen-docs-quickstart",
@@ -1465,7 +1478,8 @@
       "dependsOn": [],
       "removalGate": "Keep.",
       "provenance": "inventory-frontend-admin",
-      "evidence": "packages/alia-console/src/routes/_layout/documentation/quickstart.tsx:127,162; :76,81,95"
+      "evidence": "packages/alia-console/src/routes/_layout/documentation/quickstart.tsx:127,162; :76,81,95",
+      "removedIn": "corte-db-console"
     },
     {
       "id": "console-screen-docs-sdks",
@@ -1479,7 +1493,8 @@
       "dependsOn": [],
       "removalGate": "Keep, but have a human rule on it explicitly. Every occurrence is about the CLIENT LIBRARY and the wire format ('point the OpenAI SDK at api.alia.onl'), which is a legitimate and commercially useful compatibility claim — it says nothing about who serves inference. It is nonetheless the page most likely to be read as a provider disclosure, so it deserves a decision on the record rather than a silent pass.",
       "provenance": "inventory-frontend-admin",
-      "evidence": "packages/alia-console/src/routes/_layout/documentation/sdks.tsx:67,69,71,76,92,96,120,122,146,149,196,198,223,226,258"
+      "evidence": "packages/alia-console/src/routes/_layout/documentation/sdks.tsx:67,69,71,76,92,96,120,122,146,149,196,198,223,226,258",
+      "removedIn": "corte-db-console"
     },
     {
       "id": "console-screen-examples",
@@ -1493,7 +1508,8 @@
       "dependsOn": [],
       "removalGate": "Keep — it documents the Alia public API. It does name the OpenAI SDK as a client library (:47,63,120), which is a wire-format compatibility claim about the CLIENT, not a statement about who serves inference. Judgment call flagged, not a violation.",
       "provenance": "inventory-frontend-admin",
-      "evidence": "packages/alia-console/src/routes/_layout/examples.tsx:37,55,71,83,96,146,176 (route:auto); :47,63,120 (openai SDK)"
+      "evidence": "packages/alia-console/src/routes/_layout/examples.tsx:37,55,71,83,96,146,176 (route:auto); :47,63,120 (openai SDK)",
+      "removedIn": "corte-db-console"
     },
     {
       "id": "console-screen-index-redirect",
@@ -1509,7 +1525,8 @@
       ],
       "removalGate": "Moves with the dashboard. Listed for completeness so the console screen count reconciles against the route tree.",
       "provenance": "inventory-frontend-admin",
-      "evidence": "packages/alia-console/src/routes/index.tsx:3"
+      "evidence": "packages/alia-console/src/routes/index.tsx:3",
+      "removedIn": "corte-db-console"
     },
     {
       "id": "console-screen-key-detail",
@@ -1525,7 +1542,8 @@
       ],
       "removalGate": "Moves with the apps list. Explicitly NOT a provider secret: the value shown is the caller's own Alia key prefix, and the base URL is api.alia.onl/v1. The clipboard action copies the PREFIX only, not a full key.",
       "provenance": "inventory-frontend-admin",
-      "evidence": "packages/alia-console/src/routes/_layout/apps/$appId/keys/$keyId.tsx:52-55, :91, :161-162"
+      "evidence": "packages/alia-console/src/routes/_layout/apps/$appId/keys/$keyId.tsx:52-55, :91, :161-162",
+      "removedIn": "corte-db-console"
     },
     {
       "id": "console-screen-models",
@@ -1541,7 +1559,8 @@
       ],
       "removalGate": "Keep. This is the correct pattern for the whole epic: an Alia-branded catalog with health metrics and zero provider identity, entirely driven by GET /models/stats. Preserve that contract — the moment /models/stats gains a provider field this screen leaks it.",
       "provenance": "inventory-frontend-admin",
-      "evidence": "packages/alia-console/src/routes/_layout/models.tsx:13,44-127; packages/alia-console/src/hooks/use-developer.ts:327-345 (ModelStats has no provider field)"
+      "evidence": "packages/alia-console/src/routes/_layout/models.tsx:13,44-127; packages/alia-console/src/hooks/use-developer.ts:327-345 (ModelStats has no provider field)",
+      "removedIn": "corte-db-console"
     },
     {
       "id": "console-screen-playground",
@@ -1557,7 +1576,8 @@
       ],
       "removalGate": "Keep as an Alia product surface wherever the console lands — it exercises the public Alia inference API and must keep showing Alia aliases only. The one hard-coded default (:103) should read from the fetched list instead.",
       "provenance": "inventory-frontend-admin",
-      "evidence": "packages/alia-console/src/routes/_layout/playground.tsx:89,103,141"
+      "evidence": "packages/alia-console/src/routes/_layout/playground.tsx:89,103,141",
+      "removedIn": "corte-db-console"
     },
     {
       "id": "console-screen-settings-workspace",
@@ -1573,7 +1593,8 @@
       ],
       "removalGate": "Oxy Console owns organizations and membership. Strongest move candidate in the console: it is already a pure Oxy-org CRUD screen that happens to be hosted in Alia, and the X-Workspace-Id header it drives is set globally in the console's API client.",
       "provenance": "inventory-frontend-admin",
-      "evidence": "packages/alia-console/src/routes/_layout/settings/workspace.tsx:62,79-95; packages/alia-console/src/hooks/use-workspace.ts:85,90,242,263,282,298,316,330,343; packages/alia-console/src/lib/api/client.ts:37-39"
+      "evidence": "packages/alia-console/src/routes/_layout/settings/workspace.tsx:62,79-95; packages/alia-console/src/hooks/use-workspace.ts:85,90,242,263,282,298,316,330,343; packages/alia-console/src/lib/api/client.ts:37-39",
+      "removedIn": "corte-db-console"
     },
     {
       "id": "console-screen-usage",
@@ -1589,7 +1610,8 @@
       ],
       "removalGate": "Oxy Console serves developer usage for Alia-issued keys. Distinct from ga-screen-usage (upstream COGS) — do not merge the two.",
       "provenance": "inventory-frontend-admin",
-      "evidence": "packages/alia-console/src/routes/_layout/usage.tsx:19; packages/alia-console/src/hooks/use-developer.ts:268"
+      "evidence": "packages/alia-console/src/routes/_layout/usage.tsx:19; packages/alia-console/src/hooks/use-developer.ts:268",
+      "removedIn": "corte-db-console"
     },
     {
       "id": "cost-calculator",
@@ -2335,7 +2357,8 @@
       ],
       "removalGate": "These pages are React components, not markdown, so a docs-only sweep of docs/** MISSES all 31 mentions. Include packages/alia-console/src/routes/_layout/ in every docs audit.",
       "provenance": "inventory-product-api",
-      "evidence": "packages/alia-console/src/routes/_layout/documentation/models.tsx:13,23,33,43,171,178,185,186; .../examples.tsx:30,79,89; .../documentation/sdks.tsx:169"
+      "evidence": "packages/alia-console/src/routes/_layout/documentation/models.tsx:13,23,33,43,171,178,185,186; .../examples.tsx:30,79,89; .../documentation/sdks.tsx:169",
+      "removedIn": "corte-db-console"
     },
     {
       "id": "doc-deployment-smoke-list",
