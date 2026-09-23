@@ -845,8 +845,8 @@ export const ChatInterface = React.memo(function ChatInterface({
    */
   const chromeInsets = useAiChatChromeInsets();
   /**
-   * Nothing said yet and nothing on its way: Alia's greeting, resting at the
-   * foot of the transcript's 768 column over the composer.
+   * Nothing said yet and nothing on its way: Alia's greeting, centred in the
+   * space the composer leaves, as it has always been.
    */
   const isEmpty =
     filteredMessages.length === 0 &&
@@ -857,7 +857,7 @@ export const ChatInterface = React.memo(function ChatInterface({
   if (isEmpty) {
     return (
       // Above the floating composer: the container measures it for us.
-      <View className="flex-1 justify-end px-4" style={{ paddingBottom: chromeInsets?.bottom ?? 0 }}>
+      <View className="flex-1 justify-center px-4" style={{ paddingBottom: chromeInsets?.bottom ?? 0 }}>
         <View className="w-full max-w-[768px] self-center">
           <WelcomeMessage />
         </View>
