@@ -114,7 +114,6 @@ type Message = {
   toolInvocations?: ToolInvocation[];
   // Voice fields
   source?: 'text' | 'voice';
-  speaker?: 'primary' | 'cohost';
   isStreaming?: boolean;
   // Plan preview + research progress
   pendingPlan?: PendingPlan;
@@ -206,13 +205,9 @@ type ChatInterfaceProps = {
  */
 const NO_HISTORY: ThreadMessage[] = [];
 
-/** True for Alia's own assistant messages (excludes delegated agents and voice cohosts). */
+/** True for Alia's own assistant messages (excludes delegated agents). */
 function isAliaOwnedMessage(m: Message): boolean {
-  return (
-    m.role === 'assistant' &&
-    !m.agentInfo &&
-    !(m.source === 'voice' && m.speaker === 'cohost')
-  );
+  return m.role === 'assistant' && !m.agentInfo;
 }
 
 // Raw text extraction without the tag-stripping regex passes — cheap enough
@@ -502,7 +497,7 @@ const MessageRow = React.memo(function MessageRow({
             <DropdownMenu.Trigger asChild>
             <Pressable className="group">
             <View className="flex-col items-start">
-              {/* Agent identity or cohost label (Alia face is floating) */}
+              {/* Agent identity (Alia face is floating) */}
               {m.agentInfo ? (
                 <View className="flex-row items-center gap-2 mb-0.5">
                   <IdentityMark
@@ -514,8 +509,6 @@ const MessageRow = React.memo(function MessageRow({
                     {m.agentInfo.name}
                   </Text>
                 </View>
-              ) : m.source === 'voice' && m.speaker === 'cohost' ? (
-                <Text className="text-xs text-indigo-400 mb-0.5">Cohost</Text>
               ) : null}
               {/* The reply, as Bloom composes one: a container that fades in
                   while its blocks rise and un-blur 180ms apart.

@@ -2,7 +2,7 @@
  * User Context Builder
  *
  * Shared utility for building user context (name, memory, preferences, language)
- * from Oxy user data and UserMemory. Used by both chat-completions and voice realtime.
+ * from Oxy user data and UserMemory. Used by `routes/internal.ts`.
  */
 
 import { oxyClient } from '../middleware/auth.js';

@@ -6,8 +6,8 @@
  * ## The shape of the policy, and why it is a deny list
  *
  * Default-deny with an allow list is the stronger construction and it is the
- * wrong one here. Alia's product runtime legitimately contacts Oxy, LiveKit,
- * Telegram, Slack, Discord, GitHub, Google, S3, Stripe, Redis, the integrations
+ * wrong one here. Alia's product runtime legitimately contacts Oxy, Telegram,
+ * Slack, Discord, GitHub, Google, S3, Stripe, Redis, the integrations
  * service and whatever MCP endpoint an operator configures — several of them
  * from configuration rather than from a literal, so an allow list could not be
  * complete by construction and its cheapest green, the day a tool broke in

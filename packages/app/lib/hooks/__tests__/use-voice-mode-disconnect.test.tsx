@@ -54,17 +54,11 @@ vi.mock('@/lib/hooks/use-voice-room', () => ({
       turnError: room.turnError,
       messages: [],
       isMuted: false,
-      cohostActive: false,
-      currentSpeaker: null,
-      roundComplete: false,
       isConnected: room.roomState === 'connected',
       room: null,
       connect: () => { room.connectCalls += 1; },
       disconnect: () => { room.disconnectCalls += 1; },
       toggleMute: vi.fn(),
-      enableCohost: vi.fn(),
-      disableCohost: vi.fn(),
-      continueCohost: vi.fn(),
     };
   },
 }));

@@ -125,9 +125,8 @@ export class UnpricedModelError extends Error {
  * ## An ABSENT identifier and an UNKNOWN one are different facts
  *
  * `undefined` means the caller priced the turn itself and is saying so.
- * `routes/v1/images.ts`, both handlers in `routes/v1/audio.ts`, the transcribe
- * path in `routes/v1/voice.ts`, `lib/chat-modes/deep-research-handler.ts` and
- * `lib/agent/runner.ts` each compute their own token count from their own
+ * `routes/v1/images.ts`, both handlers in `routes/v1/audio.ts`,
+ * `lib/chat-modes/deep-research-handler.ts` and `lib/agent/runner.ts` each compute their own token count from their own
  * formula and settle it at the base rate deliberately. For them 1 is the
  * answer, not a fallback, which is why this case is kept and not folded in
  * below.
@@ -157,9 +156,8 @@ export class UnpricedModelError extends Error {
  *
  * ## It throws BEFORE any balance moves, and callers rely on that
  *
- * Every route into this function goes through `calculateCreditsFromTokens` or
- * `calculateCreditsFromMinutes`, both of which resolve the multiplier before
- * `_adjustReservation` touches a row. So a throw leaves the reservation exactly
+ * Every route into this function goes through `calculateCreditsFromTokens`,
+ * which resolves the multiplier before `_adjustReservation` touches a row. So a throw leaves the reservation exactly
  * as it was found — never half-settled — and each caller's existing release
  * point gives it back: the chat path leaves `creditsSettled` false and
  * `routes/v1/chat-completions.ts` refunds, while both webhook handlers refund
@@ -275,7 +273,7 @@ export async function reserveCredits(
 }
 
 /**
- * Shared credit adjustment logic used by both finalizeCredits and finalizeVoiceCredits.
+ * Shared credit adjustment logic used by both finalizeCredits and finalizeFixedCredits.
  * Handles refund-if-over or charge-if-under relative to the initial reservation.
  */
 async function _adjustReservation(
@@ -291,9 +289,7 @@ async function _adjustReservation(
   let updatedCredits: UserCreditsRow | null;
 
   if (creditAdjustment > 0) {
-    // To the bucket that funded the reservation — see `refundBucket`. A voice
-    // call reserves 50 credits a minute and settles a fraction of that, so this
-    // is the path that moved the most purchased credit into `free`.
+    // To the bucket that funded the reservation — see `refundBucket`.
     const bucket = refundBucket(reservation);
     updatedCredits = await addCreditsToBalance(getDb(), reservation.userId, creditAdjustment, bucket);
     if (updatedCredits) {
@@ -362,9 +358,8 @@ export async function finalizeCredits(
  *
  * ## Why this exists, rather than another conversion
  *
- * `finalizeCredits` takes tokens and `finalizeVoiceCredits` takes minutes,
- * because those are the units a chat turn and a voice call are measured in. A
- * generated show is measured in neither: it is priced from the DURATION of the
+ * `finalizeCredits` takes tokens, because that is the unit a chat turn is
+ * measured in. A generated show is not: it is priced from the DURATION of the
  * audio it produced, by a formula that belongs to the show module.
  *
  * Before this existed, the show pipeline bridged the gap by inventing a token
@@ -398,8 +393,7 @@ export async function finalizeCredits(
  * different one, and the two disagreed for as long as that code existed because
  * nothing ever compared them.
  *
- * `label` names the domain in the ledger logs, exactly as `'chat'` and
- * `'voice'` do.
+ * `label` names the domain in the ledger logs, exactly as `'chat'` does.
  */
 export async function finalizeFixedCredits(
   reservation: CreditReservation,
@@ -409,10 +403,10 @@ export async function finalizeFixedCredits(
   /**
    * Floored at the minimum and rounded UP, here rather than in the caller.
    *
-   * `calculateCreditsFromTokens` and `calculateCreditsFromMinutes` both end on
+   * `calculateCreditsFromTokens` ends on
    * `Math.max(Math.ceil(…), MIN_CREDITS_PER_REQUEST)`, so a caller reaching
    * `_adjustReservation` without it would be the one billing path that can
-   * charge a fraction of a credit, or zero. Doing it here keeps the three
+   * charge a fraction of a credit, or zero. Doing it here keeps the two
    * finalizers agreeing about what a settled charge can be.
    */
   const chargeable = Math.max(Math.ceil(credits), CREDITS_CONFIG.MIN_CREDITS_PER_REQUEST);
@@ -503,94 +497,5 @@ export async function getUserCredits(userId: string): Promise<{ free: number; pa
   } catch (error) {
     log.credits.error({ err: error }, 'Error getting user credits');
     return null;
-  }
-}
-
-// ============== VOICE (TIME-BASED) BILLING ==============
-
-/**
- * Calculate credits needed based on minutes and cost per minute
- * Used for voice/realtime API calls that are billed per minute
- *
- * @param minutes - Total minutes of voice call
- * @param routingProfileId - The Kaana routing profile being used
- * @param costPerMinute - Provider's cost per minute (e.g., 0.05 for Grok)
- * @returns Credits to charge
- */
-export async function calculateCreditsFromMinutes(
-  minutes: number,
-  routingProfileId: string,
-  costPerMinute: number
-): Promise<number> {
-  if (minutes === 0) {
-    return CREDITS_CONFIG.MIN_CREDITS_PER_REQUEST;
-  }
-
-  const multiplier = await getCreditMultiplier(routingProfileId);
-
-  // Convert to credits: $1 = 1000 credits
-  // Example: $0.05/min * 1000 = 50 credits/min
-  const baseCredits = Math.ceil(minutes * costPerMinute * 1000);
-  const calculatedCredits = Math.ceil(baseCredits * multiplier);
-
-  log.credits.info({ minutes: minutes.toFixed(2), costPerMinute, multiplier, calculatedCredits }, 'Voice credits calculated');
-
-  return Math.max(calculatedCredits, CREDITS_CONFIG.MIN_CREDITS_PER_REQUEST);
-}
-
-/**
- * Reserve credits for a voice call (time-based)
- * Reserves credits for an estimated duration
- *
- * @param userId - User ID
- * @param estimatedMinutes - Estimated call duration in minutes
- * @param routingProfileId - The Kaana routing profile being used
- * @param costPerMinute - Provider's cost per minute
- * @returns Credit reservation or null if insufficient
- */
-export async function reserveVoiceCredits(
-  userId: string,
-  estimatedMinutes: number = 1,
-  routingProfileId: string = 'route:voice',
-  costPerMinute: number = 0.05
-): Promise<CreditReservation | null> {
-  const estimatedCredits = await calculateCreditsFromMinutes(
-    estimatedMinutes,
-    routingProfileId,
-    costPerMinute
-  );
-
-  log.credits.info({ estimatedCredits, estimatedMinutes }, 'Reserving credits for voice call');
-
-  return reserveCredits(userId, estimatedCredits);
-}
-
-/**
- * Finalize voice call credits based on actual duration
- * Adjusts the reservation based on actual time used
- *
- * @param reservation - The initial credit reservation
- * @param actualMinutes - Actual call duration in minutes
- * @param routingProfileId - The Kaana routing profile used
- * @param costPerMinute - Provider's cost per minute
- * @returns Credits charged and remaining
- */
-export async function finalizeVoiceCredits(
-  reservation: CreditReservation,
-  actualMinutes: number,
-  routingProfileId: string,
-  costPerMinute: number
-): Promise<{ creditsCharged: number; creditsRemaining: number }> {
-  try {
-    const actualCreditsNeeded = await calculateCreditsFromMinutes(
-      actualMinutes,
-      routingProfileId,
-      costPerMinute
-    );
-    log.credits.info({ duration: actualMinutes.toFixed(2), costPerMinute }, 'Voice call duration');
-    return await _adjustReservation(reservation, actualCreditsNeeded, 'voice');
-  } catch (error) {
-    log.credits.error({ err: error }, 'Error finalizing voice credits');
-    throw error;
   }
 }

@@ -79,7 +79,7 @@ export interface Surface extends SurfaceCapability {
  * because every entry answers in text.
  */
 export const SURFACE_CAPABILITIES: Readonly<Record<string, SurfaceCapability>> = {
-  /** `packages/app` — the Expo client, web and native. Voice through LiveKit. */
+  /** `packages/app` — the Expo client, web and native. Voice is recognized on the device. */
   chat: { workspace: 'packages/app', modalities: ['text', 'image', 'audio'] },
   /** `packages/alia-chat`, published as `@alia.onl/sdk` and embedded by third parties. */
   embedded: { workspace: 'packages/alia-chat', modalities: ['text', 'image', 'audio'] },
