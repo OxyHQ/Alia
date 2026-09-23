@@ -6,6 +6,7 @@ import { errorMessage } from '../lib/utils';
 import { create } from 'zustand';
 import { createAudioLevelMeter } from '../lib/audio-level';
 import { PREFERRED_VOICE_MODEL_ID } from '../lib/config';
+import { requestSpeechClip } from '../lib/speech-synthesis';
 
 const API_URL = process.env.EXPO_PUBLIC_ALIA_API_URL ?? 'https://api.alia.onl';
 
@@ -283,34 +284,18 @@ export function useTTS(options: UseTTSOptions = {}) {
           throw new Error('Not authenticated');
         }
 
-        const response = await fetch(`${apiUrl}/v1/audio/speech`, {
-          method: 'POST',
+        const audioUrl = await requestSpeechClip({
+          apiUrl,
+          token,
+          model: voiceModel,
+          input: text,
+          voice: getTTSVoice(),
+          speed: getTTSSpeed(),
+          conversationId,
+          messageId,
           signal: controller.signal,
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            model: voiceModel,
-            input: text,
-            voice: getTTSVoice(),
-            speed: getTTSSpeed(),
-            conversationId,
-            messageId,
-          }),
         });
-
-        if (!response.ok) {
-          if (response.status === 504) {
-            throw new Error('Request timed out — please try again');
-          }
-          const errData = await response.json().catch(() => ({}));
-          throw new Error(errData.error?.message || errData.error || 'TTS failed');
-        }
-
-        const data = await response.json();
-        controller.signal.throwIfAborted();
-        playFromUrl(data.audioUrl, messageId, controller.signal);
+        playFromUrl(audioUrl, messageId, controller.signal);
       };
 
       /**

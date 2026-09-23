@@ -18,6 +18,43 @@ unchanged — with a minimal relay. The `apiUrl` option's JSDoc says the same in
 short. Issue #244 records the two other shapes and why neither is available
 yet.
 
+## 8.0.0
+
+### Voice runs on the device
+
+Dictation and voice calls work again. Both used Alia endpoints that called
+speech providers directly — `POST /v1/voice/transcribe` and a LiveKit room from
+`POST /v1/voice/token` — and both have been refusing since Alia's inference
+moved behind Oxy, which serves chat and speech synthesis but no transcription or
+realtime session. Those endpoints are removed from the API.
+
+- **`useSpeechToText`** recognizes on the device (Web Speech API on web,
+  `expo-speech-recognition` on iOS/Android). Its shape is unchanged —
+  `startRecording`, `stopAndTranscribe`, `cancel`, the three states,
+  `useSTTStore` metering — and it gains `lang` and `isSupported`. `apiUrl` and
+  `accessToken` are accepted and ignored.
+- **`useVoiceRoom`** is a turn loop: on-device listening with end-of-utterance
+  detection, each utterance sent through the chat path (`sendTurn`, by default
+  `createAliaVoiceTurnSender`, which posts `/v1/chat/completions` with
+  `responseMode: 'voice'`), the answer spoken sentence by sentence through
+  `/v1/audio/speech`, and barge-in. `connect`, `disconnect`, `roomState`,
+  `agentState`, `messages`, `isMuted`, `toggleMute` and `error` keep their
+  meaning; it adds `turnError` and the options `sendTurn`, `chatModel`, `lang`,
+  `endOfUtteranceMs` and `bargeIn`.
+- The call asks `/v1/audio/speech` for the product voices `male` / `female`;
+  it no longer sends upstream voice names.
+
+**Breaking:**
+
+- `livekit-client` is no longer a peer dependency; `expo-speech-recognition`
+  is a new one (the root entry's dictation reaches it on native), and a native
+  app needs a new build with its config plugin.
+- `useVoiceRoom().room` is a `VoiceLevelSource` (live capture and playback
+  levels), not a LiveKit `Room`; `useAudioLevelMonitor` takes that.
+- The cohost is retired: `cohostActive` is always `false`, `enableCohost`,
+  `disableCohost` and `continueCohost` do nothing, and `VoiceControls` draws the
+  cohost button only when handed those handlers, which are now optional.
+
 ## 7.2.8
 
 ### One Oxy runtime and a native-only notifications boundary

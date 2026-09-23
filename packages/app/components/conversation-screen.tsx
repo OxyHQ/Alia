@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useStore, type Attachment } from "@/lib/stores/global-store";
 import { useChatConversation } from "@/lib/hooks/use-chat-conversation";
-import { useCreateConversation, useSaveConversation, type Conversation } from "@/lib/hooks/use-conversations";
+import { useCreateConversation, type Conversation } from "@/lib/hooks/use-conversations";
 import { buildConversationMarkdown, exportFilename } from "@/lib/conversation-export";
 import { deliverMarkdownFile } from "@/lib/conversation-share";
 import { toast } from "@oxy.so/bloom/toast";
@@ -109,7 +109,6 @@ export const ConversationScreen = ({
     stopGeneration,
     clearConversation,
     clearError,
-    setMessages,
     approvePlan,
     rejectPlan,
     suggestedNewConversation,
@@ -162,7 +161,6 @@ export const ConversationScreen = ({
   const handleSearchPress = useCallback(() => setSearchOpen(true), []);
   const handleSearchClose = useCallback(() => setSearchOpen(false), []);
 
-  const saveConversation = useSaveConversation();
   const createConversation = useCreateConversation();
   const queryClient = useQueryClient();
 
@@ -227,13 +225,6 @@ export const ConversationScreen = ({
     });
   }, [agentId, threadHandle, createConversation, queryClient, dismissSuggestedNewConversation]);
 
-  // Save voice transcripts when voice mode ends
-  const handleVoiceDeactivate = useCallback(() => {
-    if (conversationId && messages.length > 0) {
-      saveConversation.mutate({ id: conversationId, messages });
-    }
-  }, [conversationId, messages, saveConversation]);
-
   /**
    * Writing is done in the present, so it ends a jump.
    *
@@ -251,7 +242,12 @@ export const ConversationScreen = ({
     return sendMessage(value, attachments, options);
   }, [sendMessage]);
 
-  const voice = useVoiceMode({ chatMessages: messages, setMessages, conversationId, agentId, onDeactivate: handleVoiceDeactivate });
+  /**
+   * A call speaks through this conversation's own send, so its turns are
+   * ordinary turns of it — persisted by the server as they happen, which is
+   * why nothing is saved when the call ends.
+   */
+  const voice = useVoiceMode({ sendMessage: handleSubmit, stopGeneration });
 
   // Auto-activate voice when navigated with startVoice (once only)
   const voiceAutoStartedRef = useRef(false);
