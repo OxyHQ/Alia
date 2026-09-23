@@ -32,7 +32,7 @@
     "@livekit/react-native-webrtc": "^144.1.1",
     "@lottiefiles/dotlottie-react": "0.19.16",
     "@oxy.so/app-preset": "^2.0.1",
-    "@oxy.so/bloom": "^4.7.0",
+    "@oxy.so/bloom": "^4.8.0",
     "@oxy.so/contracts": "^1.3.0",
     "@oxy.so/core": "^1.7.3",
     "@oxy.so/expo-splash": "^1.0.0",
