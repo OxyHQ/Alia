@@ -57,7 +57,9 @@ export function ChatWorkspace({
         onProjectPress={onProjectPress}
         actions={actions}
         background={background}
-        style={{ flex: 1 }}
+        // Alia's conversation fills the card and scrolls behind the header
+        // and the composer, which float over it.
+        floatingChrome
       >
         {children}
       </AiChatContainer>
