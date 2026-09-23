@@ -43,14 +43,12 @@ Codea uses the same unified chat runtime as app and Cowork:
 
 ### Prerequisites
 
-You'll need an Alia API key to use this extension. Get yours at [alia.onl](https://alia.onl).
+You need an Oxy account. Codea signs in with Oxy in the browser; there are no Alia API keys to create or paste.
 
 ### Installation
 
 1. Install the extension from the [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=oxy.alia-codea)
-2. Open VS Code Settings (`Cmd/Ctrl + ,`)
-3. Search for "Codea"
-4. Enter your Alia API key in `codea.apiKey` (it should start with `alia_sk_`)
+2. Run **Codea: Sign In** from the Command Palette and finish signing in with Oxy in the browser
 
 ### Quick Start
 
@@ -60,7 +58,6 @@ Press `Ctrl+Shift+A` (or `Cmd+Shift+A` on Mac) to open Codea Chat and start codi
 
 | Setting | Description | Default |
 |---------|-------------|---------|
-| `codea.apiKey` | Your Alia API key (starts with `alia_sk_`) | - |
 | `codea.apiBaseUrl` | API base URL | `https://api.alia.onl` |
 | `codea.model` | Product mode for completions | `mode:code` |
 | `codea.maxTokens` | Maximum tokens in response | `4096` |
@@ -87,7 +84,7 @@ Access these commands via the Command Palette (`Cmd/Ctrl + Shift + P`):
 ## Privacy & Security
 
 - Your code is sent to Alia's servers for processing
-- API keys are stored securely in VS Code's secret storage
+- Your Oxy session is stored in VS Code's secret storage
 - See [Alia's Privacy Policy](https://alia.onl/privacy) for details
 
 ## Support
