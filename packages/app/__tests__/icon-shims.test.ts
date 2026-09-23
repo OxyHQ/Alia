@@ -24,7 +24,9 @@ describe('web icon-barrel shims', () => {
   it('lucide shim matches what the source imports', () => {
     const scan = scanLucideImports();
     expect(scan.namespaceImports).toEqual([]);
-    expect(scan.icons.length).toBeGreaterThan(100);
+    // A floor that proves the scan found the source at all, not a target: the
+    // count only falls as screens move to Bloom's Remix icons.
+    expect(scan.icons.length).toBeGreaterThan(50);
     // Byte-comparing against a fresh render catches a missing icon, a stale
     // icon and a hand edit in one assertion.
     expect(readFileSync(LUCIDE_SHIM, 'utf8')).toBe(renderLucideShim(scan));

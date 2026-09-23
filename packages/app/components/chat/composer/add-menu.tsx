@@ -4,9 +4,7 @@ import { RiCameraLine } from "@oxy.so/bloom/icons/RiCameraLine";
 import { RiImageLine } from "@oxy.so/bloom/icons/RiImageLine";
 import { RiAttachment2 } from "@oxy.so/bloom/icons/RiAttachment2";
 import { RiEarthLine } from "@oxy.so/bloom/icons/RiEarthLine";
-import { RiSearchLine } from "@oxy.so/bloom/icons/RiSearchLine";
 import { RiEyeOffLine } from "@oxy.so/bloom/icons/RiEyeOffLine";
-import { RiRobot2Line } from "@oxy.so/bloom/icons/RiRobot2Line";
 import { RiPencilLine } from "@oxy.so/bloom/icons/RiPencilLine";
 import { RiBookOpenLine } from "@oxy.so/bloom/icons/RiBookOpenLine";
 import { RiPlugLine } from "@oxy.so/bloom/icons/RiPlugLine";
@@ -63,9 +61,7 @@ const ROW = {
   photos: "add:photos",
   files: "add:files",
   webSearch: "cap:web-search",
-  deepResearch: "cap:deep-research",
   ghost: "cap:ghost",
-  agent: "cap:agent",
   canvas: "cap:canvas",
 } as const;
 
@@ -171,13 +167,6 @@ export function useComposerAddMenu(options: ComposerAddMenuOptions): ComposerAdd
             icon: RiEarthLine,
             checked: webSearch,
           },
-          {
-            id: ROW.deepResearch,
-            label: t("modes.deepResearchLabel"),
-            description: t("composer.deepResearchDescription"),
-            icon: RiSearchLine,
-            checked: modes.deepResearch,
-          },
         ],
       },
       {
@@ -195,14 +184,6 @@ export function useComposerAddMenu(options: ComposerAddMenuOptions): ComposerAdd
                 },
               ]
             : []),
-          {
-            id: ROW.agent,
-            label: t("modes.agentLabel"),
-            description: t("composer.agentDescription"),
-            icon: RiRobot2Line,
-            iconSize: 24 as const,
-            checked: modes.agent,
-          },
           // Canvas OPENS a panel; it is not on or off, so it carries no
           // `checked` at all.
           {
@@ -307,14 +288,8 @@ export function useComposerAddMenu(options: ComposerAddMenuOptions): ComposerAdd
         case ROW.webSearch:
           onToggleWebSearch();
           return;
-        case ROW.deepResearch:
-          toggleMode("deepResearch");
-          return;
         case ROW.ghost:
           toggleMode("ghost");
-          return;
-        case ROW.agent:
-          toggleMode("agent");
           return;
         case ROW.canvas:
           onOpenCanvas();

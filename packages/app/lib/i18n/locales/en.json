@@ -1537,7 +1537,22 @@
     "deepResearchDescription": "Go deep on a topic",
     "ghostDescription": "Don't save this chat",
     "agentDescription": "Work through longer tasks",
-    "canvasDescription": "Write and edit files"
+    "canvasDescription": "Write and edit files",
+    "modes": "Mode",
+    "removeShort": "Remove",
+    "models": "Models",
+    "quickSearch": "Quick Search",
+    "searchModels": "Search models",
+    "noModels": "No models match",
+    "providers": "Providers",
+    "effort": "Effort",
+    "faster": "Faster",
+    "smarter": "Smarter",
+    "modelsGroup": "Models",
+    "deviceGroup": "This device",
+    "modeChat": "Chat",
+    "modeChatDescription": "Answers, and uses tools when it helps",
+    "placeholder": "Ask Alia anything"
   },
   "panel": {
     "resize": "Resize panel",

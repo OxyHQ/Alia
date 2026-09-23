@@ -28,7 +28,10 @@ import {
   AiChatMobileHeader,
   type AiChatThreadHandle,
 } from '@oxy.so/bloom/ai-chat';
-import { ComposerStatusBar } from '@oxy.so/bloom/composer-panel';
+import { ComposerPanelStatusTab } from '@oxy.so/bloom/composer-panel';
+import { RiChat3Line } from '@oxy.so/bloom/icons/RiChat3Line';
+import { RiRobot2Line } from '@oxy.so/bloom/icons/RiRobot2Line';
+import { RiSearchLine } from '@oxy.so/bloom/icons/RiSearchLine';
 import { toast } from '@oxy.so/bloom/toast';
 import { useAuth } from '@oxy.so/services';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -232,41 +235,14 @@ export const ChatPageContent = ({
   const insets = useSafeAreaInsets();
   /**
    * The chat's folder, as the sidebar's tree files it: its project, or
-   * "Recent". It is the template's breadcrumb crumb and the status bar's
-   * folder menu, where choosing another moves the chat there.
+   * "Recent". It is the breadcrumb's crumb and the composer's status tab.
    */
   const projects = useProjectsStore((state) => state.projects);
-  const addConversationToProject = useProjectsStore(
-    (state) => state.addConversationToProject,
-  );
-  const removeConversationFromProject = useProjectsStore(
-    (state) => state.removeConversationFromProject,
-  );
   const recentLabel = t('sidebar.recent');
   const projectName = conversationId
     ? (projects.find((p) => p.conversationIds.includes(conversationId))?.name ??
       recentLabel)
     : undefined;
-  const folders = useMemo(
-    () => [
-      { prefix: '', name: recentLabel },
-      ...projects.map((p) => ({ prefix: '', name: p.name })),
-    ],
-    [projects, recentLabel],
-  );
-  const handleFolderChange = useCallback(
-    async (name: string) => {
-      if (!conversationId) return;
-      for (const project of projects) {
-        if (project.conversationIds.includes(conversationId)) {
-          await removeConversationFromProject(project.id, conversationId);
-        }
-      }
-      const target = projects.find((p) => p.name === name);
-      if (target) await addConversationToProject(target.id, conversationId);
-    },
-    [conversationId, projects, addConversationToProject, removeConversationFromProject],
-  );
 
   const isMainScreen = messages.length === 0;
 
@@ -363,6 +339,32 @@ export const ChatPageContent = ({
     [],
   );
 
+  /**
+   * The panel's mode selector: how Alia works on this turn. The three are
+   * the capability flags that already existed (agent, deep research), made
+   * exclusive here because a turn is one or the other; the plan gate and the
+   * toasts stay in `toggleMode`.
+   */
+  const chatModes = useMemo(
+    () => [
+      { id: 'chat', label: t('composer.modeChat'), description: t('composer.modeChatDescription'), icon: RiChat3Line },
+      { id: 'agent', label: t('modes.agentLabel'), description: t('composer.agentDescription'), icon: RiRobot2Line },
+      { id: 'research', label: t('modes.deepResearchLabel'), description: t('composer.deepResearchDescription'), icon: RiSearchLine },
+    ],
+    [t],
+  );
+  const chatMode = modeActive.agent ? 'agent' : modeActive.deepResearch ? 'research' : 'chat';
+  const handleModeChange = useCallback(
+    (next: string) => {
+      if (next === chatMode) return;
+      if (modeActive.agent) toggleMode('agent');
+      if (modeActive.deepResearch) toggleMode('deepResearch');
+      if (next === 'agent') toggleMode('agent');
+      if (next === 'research') toggleMode('deepResearch');
+    },
+    [chatMode, modeActive, toggleMode],
+  );
+
   const addMenu = useComposerAddMenu({
     addAttachment,
     // Nothing may be attached to a turn already streaming, or to a composer
@@ -428,29 +430,26 @@ export const ChatPageContent = ({
               onAddAttachment={addAttachment}
               onRemoveAttachment={removeAttachment}
               placeholder={
-                disabled ? t('usageLimit.inputDisabledPlaceholder') : undefined
+                disabled ? t('usageLimit.inputDisabledPlaceholder') : t('composer.placeholder')
               }
-              models={lineup.models}
+              providers={lineup.providers}
               model={lineup.model}
               onModelChange={lineup.onModelChange}
               effortLevels={lineup.effortLevels}
               effort={lineup.effort}
               onEffortChange={lineup.onEffortChange}
+              modes={chatModes}
+              mode={chatMode}
+              onModeChange={handleModeChange}
               addMenu={addMenu.groups}
               onAddMenuSelect={addMenu.onSelect}
+              status={
+                projectName ? (
+                  <ComposerPanelStatusTab project={projectName} />
+                ) : undefined
+              }
             />
-            <View
-              style={{ paddingLeft: 6, paddingRight: 6, paddingBottom: insets.bottom }}
-            >
-              <ComposerStatusBar
-                folders={conversationId ? folders : undefined}
-                folder={projectName}
-                onFolderChange={(name) => void handleFolderChange(name)}
-                labels={{ folders: t('sidebar.projects') }}
-                mode={modeActive.agent ? t('modes.agentLabel') : 'Chat'}
-                onModePress={() => toggleMode('agent')}
-              />
-            </View>
+            {insets.bottom > 0 ? <View style={{ height: insets.bottom }} /> : null}
           </>
         )
       }

@@ -39,6 +39,7 @@ const catalogue = vi.hoisted(() => ({ data: undefined as unknown }));
  * fails with `Flow is not supported`, pointing at the import rather than at
  * the package.
  */
+vi.mock('../provider-marks', () => ({ AliaMark: () => null, ModelsMark: () => null, DeviceMark: () => null }));
 vi.mock('react-native', () => ({
   Platform: { OS: 'web', select: (spec: Record<string, unknown>) => spec.web ?? spec.default },
   StyleSheet: { create: <T,>(styles: T) => styles },
@@ -180,6 +181,16 @@ describe('the lineup', () => {
     // A device model names its device: a phone can be offered a model running
     // on a laptop, and "which one" is the whole question then.
     expect(lineup.models[2].name).toBe('Llama · Desk');
+  });
+
+  it('groups the rail by Alia\'s own sections, never by an operator', () => {
+    catalogue.data = [entry({ id: 'model:fast', displayName: 'Fast' })];
+    const { lineup } = run('mode:auto');
+    expect(lineup.providers.map((p) => [p.id, p.models.map((m) => m.id)])).toEqual([
+      ['alia', ['mode:auto']],
+      ['models', ['model:fast']],
+      ['device', ['local:llama']],
+    ]);
   });
 
   it('drops what the catalogue says it cannot serve', () => {

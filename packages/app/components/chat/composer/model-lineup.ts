@@ -1,7 +1,7 @@
 import { useCallback, useMemo } from "react";
 import { useRouter } from "expo-router";
 import { toast } from "@oxy.so/bloom/toast";
-import type { ModelPickerModel } from "@oxy.so/bloom/composer-panel";
+import type { ModelPickerModel, ModelPickerProvider } from "@oxy.so/bloom/composer-panel";
 import { useTranslation } from "@/lib/hooks/use-translation";
 import {
   AUTOMATIC_SELECTION_ID,
@@ -18,6 +18,7 @@ import {
 } from "@/lib/hooks/use-product-modes";
 import { useLocalModelOptions } from "@/lib/hooks/use-local-runtimes";
 import { effortFor, useModelStore } from "@/lib/stores/model-store";
+import { AliaMark, DeviceMark, ModelsMark } from "./provider-marks";
 
 /**
  * Alia's catalogue, in the shape Bloom's model menu takes.
@@ -66,6 +67,12 @@ import { effortFor, useModelStore } from "@/lib/stores/model-store";
 export interface ComposerLineup {
   /** The lineup, or empty — which is how the pill is told to draw no model chip. */
   readonly models: readonly ModelPickerModel[];
+  /**
+   * The same rows, grouped for `ComposerPanel`'s provider rail: Alia's own
+   * modes, the concrete models, then this account's machines. The groups are
+   * Alia's, never an upstream operator's (README § producto).
+   */
+  readonly providers: readonly ModelPickerProvider[];
   /** The id the chip shows as chosen. */
   readonly model: string;
   /** A row was pressed. May decline, and declines by not changing the value. */
@@ -127,19 +134,19 @@ export function useComposerLineup(
    * is what is left of the grouping — see the note in the composer's own file
    * about what that costs.
    */
-  const models = useMemo<ModelPickerModel[]>(() => {
+  const providers = useMemo<ModelPickerProvider[]>(() => {
     const offered = (entries ?? []).filter(
       (entry) => entry.chatVisible && !entry.unavailable,
     );
-    const rows: ModelPickerModel[] = [
+    const named = (entry: CatalogueEntry) =>
+      `${entry.entitled === false ? "🔒 " : ""}${presentation(entry, modes).label}`;
+
+    const aliaModes: ModelPickerModel[] = [
       {
         id: AUTOMATIC_SELECTION_ID,
         name: automaticMode?.label ?? t("models.automatic.label"),
       },
     ];
-    const named = (entry: CatalogueEntry) =>
-      `${entry.entitled === false ? "🔒 " : ""}${presentation(entry, modes).label}`;
-
     for (const entry of offered) {
       if (
         entry.kind !== "routing_profile" ||
@@ -148,20 +155,34 @@ export function useComposerLineup(
       ) {
         continue;
       }
-      rows.push({ id: selectionIdOf(entry, modes), name: named(entry) });
+      aliaModes.push({ id: selectionIdOf(entry, modes), name: named(entry) });
     }
-    for (const entry of offered) {
-      if (entry.kind !== "model") continue;
-      rows.push({ id: selectionIdOf(entry, modes), name: named(entry) });
-    }
+    const concrete = offered
+      .filter((entry) => entry.kind === "model")
+      .map((entry) => ({ id: selectionIdOf(entry, modes), name: named(entry) }));
     // No plan gate on these: nobody's plan grants them their own machine. The
     // device is part of the name because a phone can be offered a model that
     // is running on a laptop, and "which one" is the whole question then.
-    for (const model of localModels) {
-      rows.push({ id: model.id, name: `${model.name} · ${model.deviceLabel}` });
-    }
-    return rows;
+    const local = localModels.map((model) => ({
+      id: model.id,
+      name: `${model.name} · ${model.deviceLabel}`,
+    }));
+
+    return [
+      { id: "alia", name: "Alia", logo: AliaMark, models: aliaModes },
+      ...(concrete.length
+        ? [{ id: "models", name: t("composer.modelsGroup"), logo: ModelsMark, models: concrete }]
+        : []),
+      ...(local.length
+        ? [{ id: "device", name: t("composer.deviceGroup"), logo: DeviceMark, logoSize: 18 as const, models: local }]
+        : []),
+    ];
   }, [entries, modes, automaticMode, localModels, t]);
+
+  const models = useMemo(
+    () => providers.flatMap((provider) => provider.models),
+    [providers],
+  );
 
   /**
    * Press a row.
@@ -226,6 +247,7 @@ export function useComposerLineup(
 
   return {
     models,
+    providers,
     model: selection.requestedId,
     onModelChange: handleModelChange,
     effortLevels,

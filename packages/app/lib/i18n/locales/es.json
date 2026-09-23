@@ -1501,7 +1501,22 @@
     "deepResearchDescription": "A fondo en un tema",
     "ghostDescription": "No guardar este chat",
     "agentDescription": "Trabajar en tareas largas",
-    "canvasDescription": "Escribir y editar archivos"
+    "canvasDescription": "Escribir y editar archivos",
+    "modes": "Modo",
+    "removeShort": "Quitar",
+    "models": "Modelos",
+    "quickSearch": "Búsqueda rápida",
+    "searchModels": "Buscar modelos",
+    "noModels": "Ningún modelo coincide",
+    "providers": "Proveedores",
+    "effort": "Esfuerzo",
+    "faster": "Más rápido",
+    "smarter": "Más listo",
+    "modelsGroup": "Modelos",
+    "deviceGroup": "Este dispositivo",
+    "modeChat": "Chat",
+    "modeChatDescription": "Responde y usa herramientas cuando ayuda",
+    "placeholder": "Pregúntale lo que quieras a Alia"
   },
   "panel": {
     "resize": "Redimensionar el panel",
