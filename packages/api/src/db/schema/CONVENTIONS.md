@@ -12,8 +12,12 @@ Binding for every table in this schema. Decision and reason, nothing else.
 > `external_models`, `model_configs`, `routing_profiles`,
 > `routing_profile_provider_mappings`, `developer_apps` and
 > `developer_api_keys`, plus `agents.allowed_models` and
-> `automation_definitions.legacy_trigger_id`. Where a rule below is argued from
-> one of them, the rule stands and the example is historical.
+> `automation_definitions.legacy_trigger_id`. Migration
+> `0073_drop_sandbox_containers.sql` dropped the agent sandbox's persistence —
+> the sandbox never ran in production: `containers`, `container_templates`,
+> `agent_session_resources` and `agents.preferred_image`. Where a rule below is
+> argued from one of them, the rule stands and the example is historical; the
+> audit rows that name them have nothing left to audit.
 
 `packages/integrations/src/db/schema/CONVENTIONS.md` established the toolchain on
 the smallest service. This file does NOT repeat it — read that one first. What
@@ -712,7 +716,7 @@ reason: it accumulates across every step of a session rather than being large to
 begin with. `event_stream_entries.seq` stays `integer` deliberately, because it
 counts events within ONE session and `config_max_steps` bounds it.
 
-The read trap above applies to all three, and `containers.pgdb.test.ts` and
+The read trap above applies to all three, and `eventStreamEntries.pgdb.test.ts` and
 `agentSessions.pgdb.test.ts` each assert BOTH paths — the builder returning a
 number and a raw `db.execute` returning the string — rather than only the one
 their own code happens to use.

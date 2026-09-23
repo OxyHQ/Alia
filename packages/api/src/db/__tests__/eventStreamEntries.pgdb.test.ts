@@ -2,18 +2,19 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { eq, sql } from 'drizzle-orm';
 import { constraintNameOf, isCheckViolation, isUniqueViolation } from '@oxy.so/db';
 import { closePostgres, connectPostgres, type ApiDatabase } from '../index';
-import { containers, eventStreamEntries } from '../schema/containers';
+import { eventStreamEntries } from '../schema/event-stream-entries';
 import { agentSessions } from '../schema/agent-sessions';
 
 /**
- * Batch 9d against a REAL server.
+ * Batch 9d against a REAL server: the session event log.
  *
- * Two tables reference `agent_sessions` and they get OPPOSITE deletion rules —
- * a container survives, an event does not. Both halves are asserted, because a
- * deletion rule leaves no trace in a schema diff and getting either backwards is
- * silent: cascading the container destroys the only record of a sandbox that is
- * still running, and NOT cascading the events leaves the biggest table in the
- * batch growing without bound.
+ * The deletion rule is asserted because it leaves no trace in a schema diff and
+ * getting it backwards is silent: NOT cascading the events leaves the biggest
+ * agent table growing without bound.
+ *
+ * The batch's other table, `containers`, went with the agent sandbox in
+ * `0073_drop_sandbox_containers`; the last case here asserts it and the other
+ * sandbox-only persistence stay gone.
  */
 
 let db: ApiDatabase;
@@ -31,102 +32,6 @@ afterAll(async () => {
 function sessionValues(id: string) {
   return { id, agentId: 'ag-ctr', oxyUserId: 'oxy-user-ctr', task: 'run something' };
 }
-
-function containerValues(overrides: Partial<typeof containers.$inferInsert> = {}) {
-  return {
-    containerId: `ctr-${Math.random().toString(36).slice(2, 10)}`,
-    name: 'sandbox',
-    sessionId: 'cs-1',
-    agentId: 'ag-ctr',
-    oxyUserId: 'oxy-user-ctr',
-    image: 'node:20',
-    ...overrides,
-  };
-}
-
-describe('containers', () => {
-  it('SURVIVES its session being deleted, because it is a live resource record', async () => {
-    /**
-     * The opposite answer to `agent_session_resources`, one table over, and the
-     * reason is what the row IS. That table WAS the session document, an
-     * embedded array. This one is the authority for a Docker sandbox: deleting
-     * the row does not stop the container, so a cascade would leave a sandbox
-     * running and costing money with nothing left to reap it by.
-     */
-    await db.insert(agentSessions).values(sessionValues('cs-doomed'));
-    await db
-      .insert(containers)
-      .values(containerValues({ id: 'ct-live', sessionId: 'cs-doomed', status: 'running' }));
-
-    await db.delete(agentSessions).where(eq(agentSessions.id, 'cs-doomed'));
-
-    const [row] = await db
-      .select({ id: containers.id, sessionId: containers.sessionId, status: containers.status })
-      .from(containers)
-      .where(eq(containers.id, 'ct-live'));
-    expect(row).toEqual({ id: 'ct-live', sessionId: 'cs-doomed', status: 'running' });
-  });
-
-  it('closes size and status', async () => {
-    const badSize = db.execute(sql`
-      insert into ${containers} (id, container_id, name, session_id, agent_id, oxy_user_id, image, size)
-      values ('ct-badsize', 'c1', 'n', 's', 'a', 'u', 'node:20', 'enormous')
-    `);
-    await expect(badSize).rejects.toSatisfy((error: unknown) => {
-      expect(isCheckViolation(error)).toBe(true);
-      expect(constraintNameOf(error)).toBe('containers_size_check');
-      return true;
-    });
-
-    const badStatus = db.execute(sql`
-      insert into ${containers} (id, container_id, name, session_id, agent_id, oxy_user_id, image, status)
-      values ('ct-badstatus', 'c2', 'n', 's', 'a', 'u', 'node:20', 'paused')
-    `);
-    await expect(badStatus).rejects.toSatisfy((error: unknown) => {
-      expect(isCheckViolation(error)).toBe(true);
-      expect(constraintNameOf(error)).toBe('containers_status_check');
-      return true;
-    });
-  });
-
-  it('PERMITS two rows for one container_id, because Mongoose declared no unique', async () => {
-    /**
-     * The self-defending fixture. `container_id` is the lookup key every writer
-     * uses (`terminal-session.ts:250`, `tools.ts:386` find by it alone), so a
-     * unique index looks obviously right — and Mongoose declares only
-     * `index: true`, with two independent creation paths writing the column.
-     * Adding the constraint here would fail the backfill on a duplicate nobody
-     * has counted; it is on the audit list as a candidate instead, the
-     * `triggers.schedule` treatment.
-     */
-    await db.insert(agentSessions).values(sessionValues('cs-dup'));
-    await db
-      .insert(containers)
-      .values(containerValues({ id: 'ct-dup-a', containerId: 'shared-id', sessionId: 'cs-dup' }));
-    await db
-      .insert(containers)
-      .values(containerValues({ id: 'ct-dup-b', containerId: 'shared-id', sessionId: 'cs-dup' }));
-
-    const rows = await db
-      .select({ id: containers.id })
-      .from(containers)
-      .where(eq(containers.containerId, 'shared-id'));
-    expect(rows.map((r) => r.id).sort()).toEqual(['ct-dup-a', 'ct-dup-b']);
-  });
-
-  it('defaults exposed_ports to an empty array rather than NULL', async () => {
-    await db.insert(agentSessions).values(sessionValues('cs-ports'));
-    await db
-      .insert(containers)
-      .values(containerValues({ id: 'ct-ports', sessionId: 'cs-ports' }));
-
-    const [row] = await db
-      .select({ ports: containers.exposedPorts, previewUrl: containers.previewUrl })
-      .from(containers)
-      .where(eq(containers.id, 'ct-ports'));
-    expect(row).toEqual({ ports: [], previewUrl: null });
-  });
-});
 
 describe('event_stream_entries', () => {
   it('holds an epoch-MILLISECOND timestamp, which integer cannot', async () => {
@@ -232,10 +137,8 @@ describe('event_stream_entries', () => {
   });
 
   it('GOES with its session, because it is that session\'s own log', async () => {
-    // The opposite of `containers` above, and the reason is the same question
-    // asked of a different row: an event is unreadable once its session is
-    // gone, and this is the biggest table in the batch — the one place orphans
-    // would accumulate without bound.
+    // An event is unreadable once its session is gone, and this is the biggest
+    // agent table — the one place orphans would accumulate without bound.
     await db.insert(agentSessions).values(sessionValues('cs-cascade'));
     await db.insert(eventStreamEntries).values({
       id: 'ese-doomed',
@@ -253,5 +156,22 @@ describe('event_stream_entries', () => {
       .from(eventStreamEntries)
       .where(eq(eventStreamEntries.id, 'ese-doomed'));
     expect(rows).toEqual([]);
+  });
+});
+
+describe('the agent sandbox persistence', () => {
+  it('is gone: the sandbox never ran in production, and 0073 dropped what it left', async () => {
+    const tables = await db.execute(sql`
+      select table_name from information_schema.tables
+      where table_schema = 'public'
+        and table_name in ('containers', 'container_templates', 'agent_session_resources')
+    `);
+    expect(Array.from(tables)).toEqual([]);
+
+    const columns = await db.execute(sql`
+      select column_name from information_schema.columns
+      where table_schema = 'public' and table_name = 'agents' and column_name = 'preferred_image'
+    `);
+    expect(Array.from(columns)).toEqual([]);
   });
 });

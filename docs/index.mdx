@@ -67,7 +67,7 @@ the vocabulary behind it.
      +------------------+
 ```
 
-PostgreSQL is Alia's product store. The last domains — conversations, messages, agents, organizations, containers, skills and the rest — are ported, and `packages/api` opens no MongoDB connection and registers no Mongoose model. Under [ADR 0001](./adr/0001-alia-oxy-kaana-responsibility-boundary.md), every hosted inference call crosses the published Oxy inference client and Oxy calls Kaana; only a user's explicitly connected local runtime stays outside that hop.
+PostgreSQL is Alia's product store. The last domains — conversations, messages, agents, organizations, skills and the rest — are ported, and `packages/api` opens no MongoDB connection and registers no Mongoose model. Under [ADR 0001](./adr/0001-alia-oxy-kaana-responsibility-boundary.md), every hosted inference call crosses the published Oxy inference client and Oxy calls Kaana; only a user's explicitly connected local runtime stays outside that hop.
 
 | App | Stack | Purpose |
 | --- | --- | --- |

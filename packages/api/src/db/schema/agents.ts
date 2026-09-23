@@ -4,9 +4,9 @@
  *
  * It lands SECOND, not last. Its own references are `skills` (batch 9a) and the
  * already-ported `library_files`; everything else in the batch —
- * `agent_sessions`, `agent_reviews`, `agent_teams`, `container_templates`,
- * `containers` — points AT it. Ordering by the dependency graph is what lets
- * those later tables carry real foreign keys instead of dangling ids.
+ * `agent_sessions`, `agent_reviews`, `agent_teams` — points AT it. Ordering by
+ * the dependency graph is what lets those later tables carry real foreign keys
+ * instead of dangling ids.
  *
  * ## An agent IS an Oxy `bot` account, and `oxy_account_id` is the whole seam
  *
@@ -178,7 +178,6 @@ export const agents = pgTable(
       .notNull()
       .default('private'),
     systemPrompt: text(),
-    preferredImage: text(),
     /** Exact Oxy routing-profile primary key. Null only on unreconciled legacy rows. */
     routingProfileId: text(),
     scheduleInterval: integer(),

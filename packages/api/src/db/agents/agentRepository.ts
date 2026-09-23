@@ -145,7 +145,6 @@ export interface AgentRecord {
   status: AgentStatus;
   access: AgentAccess;
   systemPrompt: string | null;
-  preferredImage: string | null;
   /** Exact Oxy routing-profile PK; null only on unreconciled legacy rows. */
   routingProfileId: string | null;
   scheduleInterval: number | null;
@@ -238,7 +237,6 @@ export function toAgentRecord(row: AgentRow): AgentRecord {
     status: row.status as AgentStatus,
     access: row.access as AgentAccess,
     systemPrompt: row.systemPrompt,
-    preferredImage: row.preferredImage,
     routingProfileId: row.routingProfileId,
     scheduleInterval: row.scheduleInterval,
     soul: toSoul(row),
