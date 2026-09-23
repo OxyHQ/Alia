@@ -558,8 +558,7 @@ export class ToolPipeline {
         ]);
     Object.assign(aliaTools, mcpTools, integrationTools, oxyServiceTools, ownAgentTools);
 
-    // Skills: `loadSkill`, `readSkillFile` and — where a sandbox exists —
-    // `runSkillScript`. Present for API-key callers too: a skill reaches the
+    // Skills: `loadSkill` and `readSkillFile`. Present for API-key callers too: a skill reaches the
     // model only through the candidate set `lib/skills/runtime.ts` already
     // resolved, so the tools carry their own authorization rather than
     // depending on the session kind.

@@ -164,7 +164,7 @@ second paid session beside the answer.
 - `POST /agents/threads/:threadId/goals` starts explicitly priced work and
   requires `Idempotency-Key`.
 - A thread stores only an opaque reviewed Oxy routing-profile ID. Tools remain
-  deny-by-default and sandbox resources are lazy.
+  deny-by-default.
 - PostgreSQL serializes admission by agent before a queued or running session
   is created, enforcing `max_concurrent_threads` across API replicas.
 - R2 approvals are durable rows. Socket.IO carries prompts and immediate

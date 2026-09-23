@@ -19,7 +19,6 @@
 import { generateText, stepCountIs, type ModelMessage } from 'ai';
 import { getDb } from '../../db/index.js';
 import {
-  claimAgentSessionResource,
   createAgentSession,
   findAgentSessionById,
   findAgentSessionStatus,
@@ -32,13 +31,12 @@ import {
   type EventStreamEntryMetadata,
 } from '../../db/agents/eventStreamEntryRepository.js';
 import { resolveOxyRoutingProfileId, getAIModel } from '../chat-core.js';
-import { cleanupSessionResources } from './session-resources.js';
 import { log } from '../logger.js';
 import { EventStream } from './event-stream.js';
 import { AgentStateMachine } from './state-machine.js';
 import { TodoManager } from './todo-manager.js';
 import { WorkspaceMemory } from './workspace-memory.js';
-import { TerminalSession, inferImage } from './terminal-session.js';
+import { TerminalSession } from './terminal-session.js';
 import { BrowserSession } from './browser-session.js';
 import { ToolPipeline } from '../tool-pipeline.js';
 import { oxyExecutionAuthorizationKey } from '../tools/oxy-services.js';
@@ -142,9 +140,7 @@ ${actionLines(agent)}
 - For multi-step tasks, create a plan with the plan action. For simple questions, respond directly.
 - Execute your plan step by step. Update the plan after each step.
 - When done, call plan with action='complete' and your final result.
-- A container is created automatically on your first shell command. You don't need to manage containers.
 - When an action fails, analyze the error and adjust. Do not repeat the same failed action.
-- Large results are automatically saved to /workspace/.alia/observations/. Use file_edit(action='read') to retrieve them.
 
 ## Budget
 - Maximum ${config.maxSteps} steps. Be efficient.
@@ -256,26 +252,7 @@ export async function runAgentSession(sessionId: string): Promise<void> {
   const stateMachine = new AgentStateMachine();
   const todoManager = new TodoManager();
   const workspaceMemory = new WorkspaceMemory();
-  const terminalSession = new TerminalSession({
-    sessionId,
-    agentId,
-    userId,
-    workspaceMemory,
-    image: inferImage(session.task, agent.preferredImage ?? undefined),
-    onContainerCreated: async (containerId: string) => {
-      // `ON CONFLICT DO NOTHING`, where this used to be a `.some()` over the
-      // in-memory array followed by a push — a read-then-write two concurrent
-      // tool calls both passed.
-      try {
-        await claimAgentSessionResource(getDb(), sessionId, {
-          type: 'container',
-          resourceId: containerId,
-        });
-      } catch (saveErr: unknown) {
-        log.agents.warn({ saveErr, sessionId, containerId }, 'Failed to persist container resource on session');
-      }
-    },
-  });
+  const terminalSession = new TerminalSession();
   const browserSession = new BrowserSession({ agentId, sessionId });
 
   // Pre-initialize browser if the task likely needs it (saves 5-15s cold start)
@@ -469,8 +446,6 @@ export async function runAgentSession(sessionId: string): Promise<void> {
           },
         });
 
-        await cleanupSessionResources(sessionId, userId);
-        await terminalSession.destroy();
         await browserSession.close();
         return;
       }
@@ -586,17 +561,15 @@ export async function runAgentSession(sessionId: string): Promise<void> {
               }
             }
 
-            // Record tool results — with workspace memory offloading + error loop detection
+            // Record tool results — with error loop detection
             if (step.toolResults.length > 0) {
               for (const tr of step.toolResults) {
                 const resultStr = typeof tr.output === 'string'
                   ? tr.output
                   : (tr.output != null ? JSON.stringify(tr.output) : '');
 
-                const offloaded = await workspaceMemory.maybeOffload(resultStr, eventStream.currentSeq());
-
                 // Secret scanning — redact API keys, tokens, passwords before logging
-                const { redacted: safeContent, matches: secretMatches } = redactSecrets(offloaded.content || '');
+                const { redacted: safeContent, matches: secretMatches } = redactSecrets(resultStr);
                 if (secretMatches.length > 0) {
                   eventStream.append('system_message',
                     `SECRET DETECTED: ${secretMatches.length} secret(s) redacted. Types: ${secretMatches.map(m => m.type).join(', ')}`,
@@ -711,7 +684,7 @@ export async function runAgentSession(sessionId: string): Promise<void> {
         }
 
         // Context compaction if event stream is large
-        await compactContext(eventStream, workspaceMemory);
+        await compactContext(eventStream);
 
         iteration++;
         if (taskCompleted) break;
@@ -745,13 +718,10 @@ export async function runAgentSession(sessionId: string): Promise<void> {
      */
     let finalStatus: 'completed' | 'cancelled' | undefined;
     if (machineState === 'CANCELLED') {
-      // Cancelled sessions should not keep idle workspaces around.
-      await terminalSession.destroy().catch(() => {});
       await browserSession.close().catch(() => {});
       finalStatus = 'cancelled';
       sessionResult = sessionResult || 'Session cancelled';
     } else {
-      await terminalSession.idle();
       await browserSession.close();
 
       if (taskCompleted) {
@@ -820,9 +790,7 @@ export async function runAgentSession(sessionId: string): Promise<void> {
     log.agents.error({ err, sessionId }, 'Agent session failed');
 
     // Cleanup resources
-    await terminalSession.destroy().catch(() => {});
     await browserSession.close().catch(() => {});
-    await cleanupSessionResources(sessionId, userId);
 
     // Refund credits on failure
     if (session.creditReservation) {

@@ -45,7 +45,6 @@ import referralsRouter from './routes/referrals.js';
 import triggersRouter from './routes/triggers.js';
 import automationsRouter from './routes/automations.js';
 import agentsRouter from './routes/agents.js';
-import containersRouter from './routes/containers.js';
 import libraryRouter from './routes/library.js';
 import showsRouter from './routes/shows.js';
 import suggestionsRouter from './routes/suggestions.js';
@@ -275,7 +274,6 @@ app.use('/webhooks/oxy', oxyServiceEventsRouter);
 app.use('/webhooks', webhooksRouter);
 app.use('/referrals', referralsRouter);
 app.use('/agents', agentsRouter);
-app.use('/containers', containersRouter);
 app.use('/library', libraryRouter);
 app.use('/shows', showsRouter);
 app.use('/suggestions', suggestionsRouter);
@@ -315,7 +313,6 @@ app.get('/', (_req, res) => {
       '/analytics',
       '/webhooks',
       '/agents',
-      '/containers',
       '/suggestions',
       '/writing-style',
       '/notifications',
@@ -406,8 +403,7 @@ server.listen(PORT, '0.0.0.0', () => {
   startExpirySweeper(isTriggerLeader);
 
   /**
-   * The trigger engine, the moderation-outbox dispatcher, both queues and the
-   * container pool.
+   * The trigger engine, the moderation-outbox dispatcher and both queues.
    *
    * These were gated on `connectDB()` resolving, which after the Mongo
    * decommission it never does, so none of them had started in production since.
@@ -463,8 +459,8 @@ const shutdown = async (signal: string) => {
       log.general.info('Socket.IO closed');
     }
 
-    // Release the leader lease, stop draining the outbox, drain the queues and
-    // tear down the container pool — the mirror of `startBackgroundServices()`,
+    // Release the leader lease, stop draining the outbox and drain the queues
+    // — the mirror of `startBackgroundServices()`,
     // and asserted to be its exact mirror in `lib/__tests__/background-services.test.ts`.
     await stopBackgroundServices();
 

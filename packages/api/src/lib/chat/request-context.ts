@@ -961,7 +961,6 @@ export async function buildChatRequestContext(
     ? await buildSkillRuntime({
         db: getDb(),
         oxyUserId: req.user.id,
-        conversationId,
         selectedNames: selectedSkillNames,
         agentSkillIds: linkedAgent
           ? (await findAgentSkills(getDb(), linkedAgent.id)).map(

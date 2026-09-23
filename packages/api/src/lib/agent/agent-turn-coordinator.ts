@@ -12,7 +12,6 @@ import { WorkspaceMemory } from './workspace-memory.js';
 import { TerminalSession } from './terminal-session.js';
 import { BrowserSession } from './browser-session.js';
 import { EventStream } from './event-stream.js';
-import { cleanupSessionResources } from './session-resources.js';
 import { withAgentAdmission } from '../../db/agents/agentRuntimeRepository.js';
 import { log } from '../logger.js';
 
@@ -57,16 +56,7 @@ export class AgentTurnCoordinator {
     const todoManager = new TodoManager();
     const workspaceMemory = new WorkspaceMemory();
     const eventStream = new EventStream({ agentId: input.agent._id, sessionId: session._id });
-    const terminalSession = new TerminalSession({
-      sessionId: session._id,
-      agentId: input.agent._id,
-      userId: input.oxyUserId,
-      workspaceMemory,
-      image: input.agent.preferredImage ?? undefined,
-      onContainerCreated: async (containerId) => {
-        eventStream.append('observation', `Sandbox ready: ${containerId}`, { toolName: 'shell' });
-      },
-    });
+    const terminalSession = new TerminalSession();
     const browserSession = new BrowserSession({ agentId: input.agent._id, sessionId: session._id });
     let completedResult: string | undefined;
     const runtime: AgentRuntimeContext = {
@@ -82,8 +72,8 @@ export class AgentTurnCoordinator {
 
     let settlement: Promise<void> | null = null;
     const settle = (status: 'completed' | 'failed', result: string): Promise<void> => {
-      // A successful inference turn is over before its disposable browser and
-      // sandbox resources have finished tearing down. Release admission first:
+      // A successful inference turn is over before its disposable browser has
+      // finished tearing down. Release admission first:
       // the client is allowed to send its next turn as soon as it receives
       // [DONE], and counting cleanup time as active work made that immediate
       // follow-up lose a race against maxConcurrentThreads=1.
@@ -100,9 +90,6 @@ export class AgentTurnCoordinator {
         });
         await browserSession.close().catch((err: unknown) => {
           log.agents.warn({ err, sessionId: session._id }, 'Failed to close agent browser session');
-        });
-        await cleanupSessionResources(session._id, input.oxyUserId).catch((err: unknown) => {
-          log.agents.warn({ err, sessionId: session._id }, 'Failed to clean up agent session resources');
         });
       })();
       return settlement;

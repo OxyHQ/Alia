@@ -92,8 +92,6 @@ REDIS_URL=rediss://...                 # BullMQ, rate limiting, Socket.IO adapte
 TOKEN_ENCRYPTION_KEY=<32-byte hex>     # see below — NOT optional for shows
 INTEGRATIONS_URL=https://...           # MCP tools and channel proxy
 INTEGRATIONS_SECRET=<32-byte hex>
-DOCKER_HOST_URL=https://...            # agent container sandbox
-DOCKER_HOST_SECRET=<32-byte hex>
 SYRA_API_URL=https://api.syra.fm       # where a show series is published
 ```
 
@@ -234,7 +232,7 @@ number in a document drifts with every edit above it):
 4. Start the expiry sweeper, which deletes rows whose retention has passed. It depends only
    on PostgreSQL.
 5. Start the background services — the trigger engine, the moderation-outbox dispatcher,
-   both queues and the container pool — unconditionally. These were gated on a MongoDB
+   and both queues — unconditionally. These were gated on a MongoDB
    connection resolving, which after the decommission it never did, so none of them had run
    in production since; the gate is gone rather than relaxed, and each one self-gates on the
    dependency it actually reads.
