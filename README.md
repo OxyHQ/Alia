@@ -160,7 +160,6 @@ workspace entry. Everything lives under `packages/`.
 |---|---|---|
 | [`packages/api`](packages/api/) | `@alia/api` | Express, drizzle + PostgreSQL |
 | [`packages/integrations`](packages/integrations/) | `@alia/integrations` | Express, drizzle + PostgreSQL, MCP client |
-| [`packages/alia-docker-host`](packages/alia-docker-host/) | `@alia/docker-host` | Express |
 
 **Surfaces**
 
@@ -212,7 +211,7 @@ More usefully, run only what you are working on:
 bun run dev:api          bun run dev:app
 bun run dev:admin        bun run dev:canvas
 bun run dev:integrations bun run dev:codea
-bun run dev:cowork       bun run dev:docker-host
+bun run dev:cowork
 ```
 
 The app has platform shortcuts at the root:
@@ -231,8 +230,8 @@ bun run web    # or ios, or android
 | Group | Scripts |
 |---|---|
 | Build all | `bun run build` |
-| Build one | `build:app`, `build:api`, `build:admin`, `build:canvas`, `build:docker-host`, `build:integrations` |
-| Start one | `start:app`, `start:api`, `start:admin`, `start:canvas`, `start:docker-host`, `start:integrations` |
+| Build one | `build:app`, `build:api`, `build:admin`, `build:canvas`, `build:integrations` |
+| Start one | `start:app`, `start:api`, `start:admin`, `start:canvas`, `start:integrations` |
 | Lint | `bun run lint`, `bun run lint:canvas` |
 
 </details>

@@ -124,7 +124,6 @@ Key groups:
   task attests its ECS role instead and carries neither, oxy ADR 0026)
 - Queue and async execution (`REDIS_URL`)
 - Integrations and channels (`INTEGRATIONS_URL`, `INTEGRATIONS_SECRET`, channel secrets)
-- Optional sandbox runtime (`DOCKER_HOST_URL`, `DOCKER_HOST_SECRET`)
 
 Upstream model credentials are not Alia configuration. Kaana owns them in its
 database; Alia must not receive them through environment variables, SSM or its own

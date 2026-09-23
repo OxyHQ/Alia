@@ -305,12 +305,17 @@ describe('the census reads what it claims to read', () => {
     // Every floor here is a vacuity guard: a wrong prefix, an empty index or a
     // failed parse produces the same clean result as a package with no leaks.
     expect(sources.length).toBeGreaterThan(400);
-    expect(calls.length).toBeGreaterThan(850);
+    // 850 -> 800: the agent sandbox left (container manager and pool, the
+    // terminal session, workspace memory, the container and workspace-file
+    // routes, the skill-script runner), and their log calls with it (809 after).
+    expect(calls.length).toBeGreaterThan(800);
     // 1_300 -> 1_250: `internal/providers/lib/seed-model-configs.ts` is deleted
     // with the routing-catalogue seed, and its fifteen logged properties with it
     // (1,307 before, 1,292 after). The floor moves in the change that removed
     // the sites, which is the only way it is allowed to move.
-    expect(properties.length).toBeGreaterThan(1_250);
+    // 1_250 -> 1_150: the same sandbox removal as the call floor above took
+    // its logged properties with it (1,177 after).
+    expect(properties.length).toBeGreaterThan(1_150);
     expect(sources.map((entry) => entry.file)).toContain(`${PACKAGE_PREFIX}/lib/chat/stream-runner.ts`);
   });
 
@@ -343,7 +348,6 @@ describe('no logger call carries message content (#139 ws15)', () => {
    * hide behind an existing `{ text: someLabel }` in the same file. The value
    * expression is what distinguishes them.
    *
-   *  - `container-pool` — `image` is a Docker image tag, four times.
    *  - `crowdsource/config` — the unrecognised value of an env var, echoed so an
    *    operator can see what they typed. Bounded, not user data.
    *  - `notification-service` — the Expo push receipt's own error message.
@@ -358,8 +362,6 @@ describe('no logger call carries message content (#139 ws15)', () => {
     `${PACKAGE_PREFIX}/lib/crowdsource/config.ts | value | candidate`,
     `${PACKAGE_PREFIX}/lib/notification-service.ts | message | message`,
     `${PACKAGE_PREFIX}/lib/observability/log-observer.ts | value | metric.value`,
-    `${PACKAGE_PREFIX}/lib/sandbox/container-pool.ts | image | image`,
-    `${PACKAGE_PREFIX}/lib/sandbox/container-pool.ts | images | this.config.warmImages`,
     `${PACKAGE_PREFIX}/routes/bots.ts | description | swData.description`,
   ];
 
@@ -373,7 +375,7 @@ describe('no logger call carries message content (#139 ws15)', () => {
   it('found some, so the equality above is not two empty lists', () => {
     // The failure this guards against: a scan that read nothing agrees with an
     // exemption list that has been emptied, and both look like success.
-    expect(found.length).toBeGreaterThanOrEqual(6);
+    expect(found.length).toBeGreaterThanOrEqual(4);
   });
 
   it('the key list itself cannot silently shrink', () => {

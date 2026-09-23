@@ -123,7 +123,6 @@ earlier revisions of this page had both wrong:
 |---|---|
 | `/agents` | `routes/agents.ts` |
 | `/skills` | `routes/skills.ts` |
-| `/containers` | `routes/containers.ts` |
 | `/tools` | `routes/tools-proxy.ts`, proxied to the integrations service |
 | `/mcp` | `routes/mcp.ts` |
 

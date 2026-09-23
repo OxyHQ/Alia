@@ -4,7 +4,6 @@ import generateRouter from './generate.js';
 import threadRouter from './thread.js';
 import hireRouter from './hire.js';
 import sessionsRouter from './sessions.js';
-import filesRouter from './files.js';
 import reviewsRouter from './reviews.js';
 import activityRouter from './activity.js';
 import threadsRouter from './threads.js';
@@ -33,8 +32,7 @@ router.use('/', memoryRouter);
 router.use('/', teamsRouter);
 router.use('/', coworkDevicesRouter);
 
-// Files and session-specific routes (sessions/:sid/...) before parameterized /:id routes
-router.use('/', filesRouter);
+// Session-specific routes (sessions/:sid/...) before parameterized /:id routes
 router.use('/', sessionsRouter);
 
 // Activity, hire, and reviews use /:id prefix

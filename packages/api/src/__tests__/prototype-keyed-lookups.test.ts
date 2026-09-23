@@ -189,7 +189,9 @@ describe('no lookup table answers an untrusted key from Object.prototype', () =>
     // their guarded `AGENT_TOOL_SPECS[toolName]` / `CATALOGUE_PATHS[provider]`
     // reads with them. 17 -> 16: the never-enforced daily cost cap left
     // `sliding-window-limiter.ts`, and its `COST_DAY_CAPS[tier]` read with it.
-    expect(reads.length).toBeGreaterThanOrEqual(16);
+    // 16 -> 15: `lib/skills/sandbox.ts` left with the agent sandbox docker host,
+    // and its guarded `INTERPRETERS[extension]` read with it.
+    expect(reads.length).toBeGreaterThanOrEqual(15);
     expect(reads.filter((r) => r.guarded).length).toBeGreaterThanOrEqual(5);
     expect(reads.filter((r) => !r.guarded).length).toBeGreaterThanOrEqual(1);
 

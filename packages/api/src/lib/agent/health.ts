@@ -2,11 +2,19 @@
  * Agent Infrastructure Health Check
  *
  * Reports which agent capabilities are available based on
- * infrastructure status (Docker, Playwright, Redis).
+ * infrastructure status.
+ *
+ * `shell` is always false: it meant a reachable sandbox docker host, and there
+ * is none — it was never configured in production and is gone.
+ *
+ * `browser` is always false too, and that is a decision left standing rather
+ * than a fact about the browser. It was derived from `shell` ("the browser runs
+ * in containers"), so it has answered false in production throughout, and
+ * `POST /agents/:id/hire` refuses with 503 when both are false. Deriving it from
+ * anything else would open hiring, which is a product change and not part of
+ * removing the sandbox.
  */
 
-import { isSandboxAvailable } from '../sandbox/index.js';
-import { checkContainerSystemHealth } from '../container-manager.js';
 import { log } from '../logger.js';
 
 export interface AgentCapabilities {
@@ -34,21 +42,6 @@ export async function getAgentCapabilities(): Promise<AgentCapabilities> {
     browser: false,
     queue: false,
   };
-
-  // Check sandbox (Docker)
-  try {
-    capabilities.shell = isSandboxAvailable() && await checkContainerSystemHealth();
-  } catch {
-    capabilities.shell = false;
-  }
-
-  // Check browser (Playwright/Stagehand)
-  try {
-    // Browser availability depends on sandbox since it runs in containers
-    capabilities.browser = capabilities.shell;
-  } catch {
-    capabilities.browser = false;
-  }
 
   // Check queue (Redis/BullMQ)
   try {

@@ -6,7 +6,6 @@ const updateAgentSession = vi.fn(async (_db: unknown, _id: string, patch: { stat
   if (patch.status) events.push(`status:${patch.status}`);
 });
 const closeBrowser = vi.fn(async () => { events.push('browser:closed'); });
-const cleanup = vi.fn(async () => { events.push('resources:cleaned'); });
 
 vi.mock('../../../db/index.js', () => ({ getDb: () => ({}) }));
 vi.mock('../../../db/chat/conversationRepository.js', () => ({ findConversation: vi.fn(async () => undefined) }));
@@ -17,7 +16,6 @@ vi.mock('../../../db/agents/agentRuntimeRepository.js', () => ({
     value: await callback({}),
   })),
 }));
-vi.mock('../session-resources.js', () => ({ cleanupSessionResources: cleanup }));
 vi.mock('../browser-session.js', () => ({ BrowserSession: class { close = closeBrowser; } }));
 vi.mock('../terminal-session.js', () => ({ TerminalSession: class {} }));
 vi.mock('../todo-manager.js', () => ({ TodoManager: class {} }));
@@ -50,7 +48,6 @@ describe('agent turn settlement', () => {
       'events:flushed',
       'status:completed',
       'browser:closed',
-      'resources:cleaned',
     ]);
   });
 
@@ -64,6 +61,6 @@ describe('agent turn settlement', () => {
     await Promise.all([turn.complete('done'), turn.complete('done')]);
 
     expect(events.filter((event) => event === 'status:completed')).toHaveLength(1);
-    expect(cleanup).toHaveBeenCalledOnce();
+    expect(closeBrowser).toHaveBeenCalledOnce();
   });
 });

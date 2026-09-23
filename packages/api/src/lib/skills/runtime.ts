@@ -11,9 +11,8 @@
  *   2. **Activation.** Either the person picked skills for this turn, in which
  *      case their bodies are prepended as instructions, or the model calls
  *      `loadSkill` after matching the index against what was asked.
- *   3. **Resources.** `readSkillFile` returns one bundled file. A script is not
- *      read at all; it is executed in the sandbox so only its output costs
- *      tokens.
+ *   3. **Resources.** `readSkillFile` returns one bundled text file. Bundled
+ *      scripts are not run: there is no sandbox to run them in.
  *
  * ## Authorization is resolved ONCE, before any tool exists
  *
@@ -46,8 +45,6 @@ import {
   listVersionFiles,
 } from '../../db/agents/skillRepository.js';
 import { log } from '../logger.js';
-import { isSandboxAvailable } from '../sandbox/index.js';
-import { runSkillScript, SkillScriptError } from './sandbox.js';
 import { truncateToolResult } from '../tools/result-truncation.js';
 
 /**
@@ -71,10 +68,6 @@ const MAX_FILE_CHARS = 20_000;
 export interface SkillRuntimeOptions {
   db: ApiDatabase;
   oxyUserId: string;
-  /** Keys the container a skill's scripts run in, when the turn has no agent session. */
-  conversationId?: string;
-  /** An agent session's container, so a skill runs beside the files that session is working on. */
-  containerId?: string;
   /**
    * Skills the person chose for this turn, by name.
    *
@@ -129,8 +122,6 @@ export async function buildSkillRuntime(opts: SkillRuntimeOptions): Promise<Skil
     oxyUserId,
     selectedNames,
     agentSkillIds = [],
-    conversationId,
-    containerId,
     includeUserInstalled = true,
   } = opts;
   if (selectedNames === null) return { ...EMPTY, agentScoped: !includeUserInstalled };
@@ -166,7 +157,7 @@ export async function buildSkillRuntime(opts: SkillRuntimeOptions): Promise<Skil
   return {
     index: renderIndex([...candidates.values()], new Set(active.map((entry) => entry.name))),
     active: renderActive(active),
-    tools: buildSkillTools({ db, oxyUserId, candidates, linkedIds, activated, conversationId, containerId }),
+    tools: buildSkillTools({ db, oxyUserId, candidates, linkedIds, activated }),
     agentScoped: !includeUserInstalled,
     candidateIds: [...candidates.values()].map((entry) => entry.skillId),
     activated: () => [...activated].map(([id, name]) => ({ id, name })),
@@ -251,58 +242,10 @@ interface ToolContext {
   candidates: Map<string, InstalledSkillMetadata>;
   linkedIds: Set<string>;
   activated: Map<string, string>;
-  conversationId?: string;
-  containerId?: string;
 }
 
 function buildSkillTools(ctx: ToolContext): ToolSet {
-  /**
-   * `runSkillScript` is WITHHELD when no sandbox is configured, rather than
-   * offered and failing.
-   *
-   * The same call the tool pipeline makes for `deepResearch` and the web tools:
-   * the model decides what to call, so a tool that is present but always errors
-   * is a tool it will keep trying. Its absence is the honest signal.
-   */
-  const scripts: ToolSet = isSandboxAvailable()
-    ? {
-        runSkillScript: tool({
-          description:
-            "Run a script bundled with a skill and get its output. Use this when a skill's instructions tell you to run one of its scripts. The script runs in a sandbox with no network access.",
-          inputSchema: z.object({
-            skill: z.string().describe('The skill name'),
-            path: z.string().describe('The script path inside the skill, e.g. scripts/extract.py'),
-            args: z.array(z.string()).optional().describe('Arguments to pass to the script'),
-          }),
-          execute: async ({ skill, path, args }) => {
-            const loaded = await resolve(ctx, skill);
-            if (!loaded) return { error: `No skill named "${skill}" is available to this user.` };
-            try {
-              const result = await runSkillScript({
-                db: ctx.db,
-                skill: loaded,
-                path,
-                args,
-                conversationId: ctx.conversationId,
-                containerId: ctx.containerId,
-              });
-              ctx.activated.set(loaded.skillId, loaded.name);
-              return {
-                exitCode: result.exitCode,
-                output: truncateToolResult(result.stdout || result.stderr, MAX_FILE_CHARS),
-              };
-            } catch (err) {
-              if (err instanceof SkillScriptError) return { error: err.message };
-              log.general.error({ err, skill, path }, 'Skill script failed to run');
-              return { error: 'The script could not be run.' };
-            }
-          },
-        }),
-      }
-    : {};
-
   return {
-    ...scripts,
     loadSkill: tool({
       description:
         'Read the full instructions of an installed skill listed under "## Skills". Call this when the user\'s request matches a skill\'s description, before doing the work.',
@@ -352,15 +295,13 @@ function buildSkillTools(ctx: ToolContext): ToolSet {
         }
         if (file.contentText === null) {
           // Binary content would arrive as a wall of base64 and teach the model
-          // nothing. A script is meant to be RUN, and an asset is meant to be
-          // used by one — both reach the model through their output, not their
-          // bytes.
+          // nothing.
           return {
             path: file.path,
             kind: file.kind,
             mime: file.mime,
             bytes: file.bytes,
-            error: 'This file is not text. Scripts are executed rather than read, and binary assets are used by them.',
+            error: 'This file is not text, so it cannot be read here.',
           };
         }
         return {

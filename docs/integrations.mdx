@@ -119,7 +119,3 @@ Historical `GET /triggers`, `GET /triggers/:id` and
 Manual execution requires `execute_on_request` or `autonomous`. Background event and
 schedule execution requires `autonomous`; `draft` and `read_only` definitions cannot
 produce effects without a future explicit approval flow.
-
-## Sandbox and Docker host
-
-`packages/alia-docker-host` provides per-conversation isolated containers for code execution and ephemeral environments. The `sandbox` tool spawns containers from `ContainerTemplate` definitions and the runtime garbage-collects idle containers after the chat closes. Use the Docker host for any tool that needs filesystem isolation, shell access, or network egress controls.
