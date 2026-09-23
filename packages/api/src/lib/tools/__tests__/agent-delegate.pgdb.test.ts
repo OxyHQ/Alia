@@ -149,7 +149,6 @@ async function seedAgent(input: {
     status: input.status ?? 'active',
     systemPrompt: 'You are the seeded agent.',
     routingProfileId: OXY_KAANA_ROUTING_PROFILE_IDS['route:instant'],
-    allowedModels: ['route:instant'],
   });
   return { id, oxyAccountId };
 }

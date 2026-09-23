@@ -2657,7 +2657,8 @@
       ],
       "removalGate": "production row count audited AND every value rotated upstream AND the six read sites above re-pointed at the kaana. The schema comment states there is NO protected-column mechanism in this service — the comment and CONVENTIONS.md are the whole of the protection.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/db/schema/providers.ts:315"
+      "evidence": "packages/api/src/db/schema/providers.ts:315",
+      "removedIn": "corte-db-migration"
     },
     {
       "id": "field-provider-keys-key-hash",
@@ -2673,7 +2674,8 @@
       ],
       "removalGate": "production row count audited. Moves with the key; a hash left behind after the key moves is a standalone oracle with no owner.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/db/schema/providers.ts:311"
+      "evidence": "packages/api/src/db/schema/providers.ts:311",
+      "removedIn": "corte-db-migration"
     },
     {
       "id": "ga-api-client",
@@ -5205,7 +5207,8 @@
       ],
       "removalGate": "production row count audited. Note the FK is ON DELETE CASCADE on BOTH sides, so dropping either parent silently empties this table — a removal here cannot be observed by a functional test.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/db/schema/providers.ts:228"
+      "evidence": "packages/api/src/db/schema/providers.ts:228",
+      "removedIn": "corte-db-migration"
     },
     {
       "id": "table-alia-models",
@@ -5222,7 +5225,8 @@
       ],
       "removalGate": "production row count audited AND getAvailableModels() (internal/providers/lib/alia-models.ts:304) re-pointed, since it is the one LIVE reader — it merges DB rows with the code catalogue to compute availability. Removing the table without that makes every model read as unavailable, which looks like an outage rather than a bug.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/db/schema/providers.ts:154"
+      "evidence": "packages/api/src/db/schema/providers.ts:154",
+      "removedIn": "corte-db-migration"
     },
     {
       "id": "table-api-key-usage",
@@ -5318,7 +5322,8 @@
       ],
       "removalGate": "production row count audited AND every live key rotated or the digest scheme preserved EXACTLY. hashDeveloperApiKey is deterministic sha256 on purpose because it is a LOOKUP key — swapping it for a randomized-IV scheme makes authentication match nothing and the symptom is a silent 401 on every request, not an error. key_hash is an exact-match oracle and is as protected as the key.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/db/schema/developers.ts:79"
+      "evidence": "packages/api/src/db/schema/developers.ts:79",
+      "removedIn": "corte-db-migration"
     },
     {
       "id": "table-developer-apps",
@@ -5334,7 +5339,8 @@
       ],
       "removalGate": "production row count audited. developer_api_keys.app_id FKs this with ON DELETE CASCADE, so deleting an app silently revokes every key under it — which is correct behaviour but means a row count of apps understates the blast radius; count keys too.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/db/schema/developers.ts:36"
+      "evidence": "packages/api/src/db/schema/developers.ts:36",
+      "removedIn": "corte-db-migration"
     },
     {
       "id": "table-external-models",
@@ -5351,7 +5357,8 @@
       ],
       "removalGate": "UNDECIDED — the two inventories disagree on the owner (data/billing says delete with the routing tables, provider-runtime says keep as an Alia feature), and issue #139 workstream 10 poses the same question as an open decision: \"Decide whether it remains an Alia research/catalogue feature, moves to Oxy's model discovery surface or is retired.\" It is NOT routing data (schema comment says so) and its public GET /external-models route is mounted and live, so it cannot be swept up with the provider tables either way. Row count on external_models plus a product decision.  || inventory gate, kept for the record: Not part of the inference runtime; do not delete with the provider tables.  || data-billing inventory adds: production row count audited AND GET /external-models confirmed to have no consumer (it is mounted at packages/api/src/index.ts and is publicly reachable, unlike the admin router).",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/db/schema/providers.ts:415-432; packages/api/src/db/schema/providers.ts:432"
+      "evidence": "packages/api/src/db/schema/providers.ts:415-432; packages/api/src/db/schema/providers.ts:432",
+      "removedIn": "corte-db-migration"
     },
     {
       "id": "table-fallback-events",
@@ -5405,7 +5412,8 @@
       ],
       "removalGate": "Before dropping, confirm the row counts and confirm nothing outside the dead admin routes writes them (the seeds that populate them have no callers). alia_models.isLegacy IS read live and must be preserved somewhere Alia-side.  || data-billing inventory adds: production row count audited AND both writers confirmed unreachable (routes/models.ts was mounted only through the unmounted internal/providers/index.ts and both were deleted in #141; seed-model-configs.ts's upsert runs only inside runStartupSeed, which has zero callers) AND the routing path confirmed to read TIER_MODEL_MAPPINGS from code rather than this table.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/db/schema/providers.ts:73, :154, :228; live read packages/api/src/internal/providers/lib/alia-models.ts:311-318; packages/api/src/db/schema/providers.ts:73"
+      "evidence": "packages/api/src/db/schema/providers.ts:73, :154, :228; live read packages/api/src/internal/providers/lib/alia-models.ts:311-318; packages/api/src/db/schema/providers.ts:73",
+      "removedIn": "corte-db-migration"
     },
     {
       "id": "table-plan-features",
@@ -5477,7 +5485,8 @@
       ],
       "removalGate": "MOST DESTRUCTIVE ITEM IN THIS INVENTORY. Count the rows and export them before any drop — these are live third-party credentials that exist nowhere else in the repo or in SSM. Migration must reach Kaana's store before the table is dropped, and rotation is the safer alternative to copying plaintext.  || data-billing inventory adds: production row count audited AND every stored credential ROTATED at the upstream provider before the row is deleted — a deleted row is not a revoked key. The only live writers today are the telemetry updates in key-manager.ts (success/failure/spend/cooldown); the CREATE path (routes/keys.ts) was unreachable because internal/providers/index.ts was unmounted, and #141 deleted both, so keys are inserted by hand and there is no longer any code path that creates one.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/db/schema/providers.ts:300-320 (key/keyHash/keyPrefix), :322-329 (rate limits), :404-411 (unique + rotation indexes); deploy secret list .github/workflows/deploy-aws.yml:66-76 contains NO provider key; packages/api/src/db/schema/providers.ts:300"
+      "evidence": "packages/api/src/db/schema/providers.ts:300-320 (key/keyHash/keyPrefix), :322-329 (rate limits), :404-411 (unique + rotation indexes); deploy secret list .github/workflows/deploy-aws.yml:66-76 contains NO provider key; packages/api/src/db/schema/providers.ts:300",
+      "removedIn": "corte-db-migration"
     },
     {
       "id": "table-subscriptions",
@@ -5696,7 +5705,8 @@
       ],
       "removalGate": "The tuple IS a live database constraint — it renders the CHECK on its column — so moving or narrowing it is a MIGRATION, in the same PR as the code change. Do not unify with PROVIDER_KEY_TIERS to make anything pass — that silently widens one of the two.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/domain/model-config.ts:11"
+      "evidence": "packages/api/src/domain/model-config.ts:11",
+      "removedIn": "corte-db-migration"
     },
     {
       "id": "tuple-model-publishers",

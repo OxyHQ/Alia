@@ -243,8 +243,14 @@ interface MatrixRow {
  *
  * `packages/alia-console`, the developer portal for those keys, is deleted
  * whole: twenty-three rows named its screens, hooks and documentation pages.
+ *
+ * ## 144 -> 154: `corte-db-migration`
+ *
+ * Migration 0070 drops the tables, so `db/schema/providers.ts`,
+ * `db/schema/developers.ts` and `domain/model-config.ts` are deleted: ten rows
+ * named a table or field declared in them.
  */
-const REMOVED_ROW_COUNT = 144;
+const REMOVED_ROW_COUNT = 154;
 
 const OWNERS = new Set(['alia', 'oxy', 'kaana', 'delete']);
 const REACHABLE = new Set(['live', 'dead', 'unverified', 'loaded-not-invoked']);

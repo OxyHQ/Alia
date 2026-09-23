@@ -150,7 +150,6 @@ async function userOwnedBot(ownerUserId: string): Promise<InboundUserBotRow> {
     status: 'active',
     systemPrompt: 'Be helpful.',
     routingProfileId: OXY_KAANA_ROUTING_PROFILE_IDS['route:instant'],
-    allowedModels: ['route:instant'],
   });
   return {
     _id: `${SUITE}-bot-${seq++}`,

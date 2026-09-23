@@ -72,7 +72,6 @@ const SINDI = {
   systemPrompt: 'You are Sindi.',
   archetype: 'general',
   archetypeConfig: null,
-  allowedModels: [],
   capabilityGrants: [],
   author: '6a50444ce8026582b949089d',
 };

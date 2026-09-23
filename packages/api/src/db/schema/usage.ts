@@ -1,98 +1,23 @@
 /**
- * What a request cost, and what it did.
+ * What a request did, and what a voice session cost.
  *
- * `cost_entries` is the per-request spend ledger; `chat_analytics` is the
- * per-request usage record. They stay separate tables because they are written
- * by different subsystems for different reasons, and merging them would couple a
- * billing figure to an analytics hook.
+ * `chat_analytics` is the per-request usage record. (`cost_entries`, a
+ * per-request provider-spend ledger that never had a writer, was dropped.)
  *
  * `voice_call_usage` is the same pair of concerns for a REALTIME VOICE session
  * rather than a completion — it is both the usage record and the billing figure,
  * because a voice call is charged by elapsed minutes rather than by tokens, so
  * there is no second subsystem to separate it from.
  *
- * None of the three carried a TTL index, so none appears in
- * `db/expiryTargets.ts`. `cost_entries` and `voice_call_usage` in particular are
- * spend history and must NOT acquire one by analogy with the short-lived tables
- * elsewhere in this schema.
+ * Neither carried a TTL index, so neither appears in `db/expiryTargets.ts`.
+ * `voice_call_usage` in particular is spend history and must NOT acquire one by
+ * analogy with the short-lived tables elsewhere in this schema.
  */
 
 import { boolean, doublePrecision, index, integer, pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
 import { createdAt, generatedId, timestamptz, updatedAt } from '@oxy.so/db';
 import { checkOneOf } from './columns';
 import { CREDIT_FUNDING_SOURCES } from '../../domain/credit-funding.js';
-
-/**
- * One request's cost, in USD.
- *
- * **`cost_usd` is `double precision`, deliberately, and this is the one place in
- * the schema where that needs defending.** Oxy's convention for money is
- * `bigint` minor units, because a price is an exact amount somebody is charged
- * and binary floating point cannot represent it. This is not that: it is a
- * derived estimate — tokens multiplied by a published per-token rate that is
- * itself a fraction of a cent — and no minor unit exists to hold it. Rounding it
- * to cents at write time would destroy the per-request figure entirely, since a
- * single completion routinely costs less than one cent.
- *
- * Two consequences that follow, and must not be forgotten when somebody reports
- * a total looking wrong: sums of many rows accumulate float error, and equality
- * comparison on this column is meaningless. Aggregate with `sum()` for display
- * and never compare a total for exactness. If per-user BILLING is ever taken
- * from this table rather than from a payment provider's own figures, that is the
- * moment to reconsider the type — not before.
- *
- * `user_id` is an Oxy account, so no foreign key.
- */
-export const costEntries = pgTable(
-  'cost_entries',
-  {
-    id: generatedId(),
-    userId: text().notNull(),
-    sessionId: text(),
-    routingProfileId: text().notNull(),
-    /**
-     * The real provider and model behind the Kaana routing profile. This is
-     * INTERNAL: it must never reach a user-facing response, an error message or
-     * a public API surface — the whole point of the alias is that a caller sees
-     * `route:auto`, not whoever served it.
-     */
-    actualProvider: text().notNull(),
-    actualModelId: text().notNull(),
-    inputTokens: integer().notNull(),
-    outputTokens: integer().notNull(),
-    totalTokens: integer().notNull(),
-    costUsd: doublePrecision().notNull(),
-    /**
-     * Which balance funded the credits the customer was charged for this
-     * request — `domain/credit-funding.ts` for what each value asserts.
-     *
-     * It is here rather than beside the balance because of what the two columns
-     * mean TOGETHER: `cost_usd` is what the request cost Alia and `grant_kind`
-     * is who paid for it, so a free-tier turn stays a row with a real cost and a
-     * label saying the customer was not billed. ADR 0005: "not billed to the
-     * customer" and "not attributed" are different statements, and only the
-     * first is ever true.
-     *
-     * **Nullable, and NULL is not "free".** It means the row was written by a
-     * path that held no credit reservation, or before this column existed. A
-     * default would invent a funding source for rows nobody measured, which is
-     * the one reading that turns an attribution gap into a false claim.
-     */
-    grantKind: text({ enum: CREDIT_FUNDING_SOURCES }),
-    savedFromCache: boolean().notNull().default(false),
-    timestamp: timestamptz().notNull(),
-    createdAt: createdAt(),
-  },
-  (t) => [
-    index('cost_entries_user_timestamp_idx').on(t.userId, t.timestamp.desc()),
-    index('cost_entries_routing_profile_timestamp_idx').on(t.routingProfileId, t.timestamp.desc()),
-    index('cost_entries_user_routing_profile_idx').on(t.userId, t.routingProfileId),
-    index('cost_entries_session_id_idx').on(t.sessionId),
-    // `col in (…)` is NULL for a NULL column and a CHECK rejects only FALSE, so
-    // this constrains the value without making the column required.
-    checkOneOf('cost_entries_grant_kind_check', t.grantKind, CREDIT_FUNDING_SOURCES),
-  ],
-);
 
 /**
  * One completion's usage, recorded by the analytics hook.
@@ -308,8 +233,8 @@ export const chatAnalytics = pgTable(
  *   stores `2.5`. An `integer` would silently truncate every call to a whole
  *   minute, and it is the BILLING quantity.
  * - **`cost_per_minute` is `double precision`.** A published per-minute rate, a
- *   fraction of a cent — `cost_entries.cost_usd`'s reasoning exactly, and not
- *   the `bigint` minor-unit convention, which applies to an amount somebody is
+ *   fraction of a cent, so a derived estimate rather than an exact amount, and
+ *   not the `bigint` minor-unit convention, which applies to an amount somebody is
  *   charged rather than to a rate.
  * - **Credits are `integer`.** A count, per CONVENTIONS.md.
  *
@@ -376,10 +301,10 @@ export const voiceCallUsage = pgTable(
      * reservation that paid for it already coexist: it is both the usage record
      * and the billing figure (see the file comment), and
      * `voice-session-manager.ts` holds the `CreditReservation` while it writes
-     * the row. `cost_entries` carries the same column and no writer yet.
+     * the row.
      *
-     * **Nullable for the same reason as `cost_entries.grant_kind`**, plus one of
-     * its own: `saveUsageRecord` reads `session.creditReservation` through an
+     * **Nullable**, because `col in (…)` is NULL for a NULL column and a CHECK
+     * rejects only FALSE, and for a reason of its own: `saveUsageRecord` reads `session.creditReservation` through an
      * optional, and inventing a funding source for a record that had none would
      * be a lie about who paid. A session cannot actually reach that state —
      * `startSession` throws on a null reservation before the session object

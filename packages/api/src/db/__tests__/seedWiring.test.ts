@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -150,8 +150,17 @@ describe('every table seeder reaches the entrypoint that runs', () => {
     const seededTables = [...seedersBlock.matchAll(/name:\s*'([a-z_]+)'/g)].map((m) => m[1]);
     // Vacuity floor on the slice: the array still names real tables.
     expect(seededTables).toContain('plans');
+    const schemaDir = path.join(PACKAGE_ROOT, 'src/db/schema');
+    const declaredTables = readdirSync(schemaDir)
+      .filter((file) => file.endsWith('.ts'))
+      .flatMap((file) =>
+        [...readFileSync(path.join(schemaDir, file), 'utf8').matchAll(/pgTable\(\s*'([a-z_]+)'/g)].map((m) => m[1]),
+      );
+    // Vacuity floor on the census: it reads real declarations.
+    expect(declaredTables).toContain('plans');
     for (const table of ['model_configs', 'routing_profiles', 'routing_profile_provider_mappings']) {
       expect(seededTables).not.toContain(table);
+      expect(declaredTables).not.toContain(table);
     }
 
     const wired = wiredSeeders();

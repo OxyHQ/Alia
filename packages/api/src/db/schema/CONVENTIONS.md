@@ -2,12 +2,18 @@
 
 Binding for every table in this schema. Decision and reason, nothing else.
 
-> Post-cutover note: references below to `provider_keys`, `provider_health`,
-> `api_usage` and `fallback_events` document immutable migration decisions only.
-> Alia has no readers, writers, sweepers or compatibility endpoints for them.
-> Migration `0061_remove_alia_provider_credentials.sql` drops `provider_keys`
-> post-rollout without reading or copying it; Kaana is the sole credential
-> custodian. The other historical telemetry tables remain non-runtime evidence.
+> Post-cutover note: many sections below reason from tables that no longer
+> exist, and those references document immutable decisions only. Migration
+> `0061_remove_alia_provider_credentials.sql` dropped `provider_keys` (Kaana is
+> the sole credential custodian). Migration `0070_clean_cut_dormant_tables.sql`
+> — the owner's clean cut, with no rollback window — dropped `provider_health`,
+> `api_usage`, `fallback_events`, `auth_health_metrics`, `routing_logs`,
+> `cost_entries`, `canvas_sessions`, `triggers`, `trigger_executions`,
+> `external_models`, `model_configs`, `routing_profiles`,
+> `routing_profile_provider_mappings`, `developer_apps` and
+> `developer_api_keys`, plus `agents.allowed_models` and
+> `automation_definitions.legacy_trigger_id`. Where a rule below is argued from
+> one of them, the rule stands and the example is historical.
 
 `packages/integrations/src/db/schema/CONVENTIONS.md` established the toolchain on
 the smallest service. This file does NOT repeat it — read that one first. What
