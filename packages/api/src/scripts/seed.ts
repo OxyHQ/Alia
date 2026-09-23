@@ -114,13 +114,11 @@ const logger = log.seed;
  * an EMPTY database it would have failed with a foreign-key violation. It never
  * did, only because it never ran.
  *
- * `model_configs`, `routing_profiles` and `routing_profile_provider_mappings` are
- * NOT seeded. Since #477 the routing catalogue is Kaana's and Alia routes by the
- * exact opaque profile ids in `config/oxy-inference-routing-profile-ids.ts`;
- * no runtime module reads those three tables, so a deploy that rewrote them was
- * writing rows for nobody. They stay in the schema until the production audit
- * that gates their DROP (#139 workstream 10) — `db/__tests__/seedWiring.test.ts`
- * pins that this script never writes them again.
+ * There is no routing catalogue to seed. Since #477 the catalogue is Kaana's
+ * and Alia routes by the exact opaque profile ids in
+ * `config/oxy-inference-routing-profile-ids.ts`; the former `model_configs`,
+ * `routing_profiles` and `routing_profile_provider_mappings` tables were
+ * dropped, and `db/__tests__/seedWiring.test.ts` pins that they stay gone.
  */
 const SEEDERS: readonly { readonly name: string; readonly run: () => Promise<unknown> }[] = [
   { name: 'features', run: seedFeatures },

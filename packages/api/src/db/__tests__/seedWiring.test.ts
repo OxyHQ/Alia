@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -135,38 +135,35 @@ describe('every table seeder reaches the entrypoint that runs', () => {
     expect(wired).toContain('seedSkills');
   });
 
-  it('never writes the routing catalogue: model_configs, routing_profiles and their mappings', () => {
+  it('never writes the routing catalogue: its tables and repositories are gone', () => {
     /**
      * Epic #139 workstream 10, *"Stop writing new rows to Alia-owned
      * `model_configs`, `alia_models`, provider mappings ..."*. Since #477 the
      * catalogue is Kaana's — Alia routes by the exact opaque profile ids in
-     * `config/oxy-inference-routing-profile-ids.ts` — and no runtime module reads
-     * these three tables, so a deploy-time seed of them wrote rows for nobody.
-     *
-     * Three readings, because each alone can be satisfied by a change that
-     * keeps the write: the `SEEDERS` array names no such table; no seeder
-     * module imports the two catalogue repositories (a seed that reached them
-     * through a helper would still be a write); and the deleted module has not
-     * come back under any name.
+     * `config/oxy-inference-routing-profile-ids.ts` — and the three tables were
+     * dropped. Three readings, because each alone can be satisfied by a change
+     * that brings the write back: the `SEEDERS` array names no such table; the
+     * schema declares none of them; and neither the catalogue repositories nor
+     * the deleted seeder module has come back under its name.
      */
     const seedersBlock = seedScript.slice(seedScript.indexOf('const SEEDERS'), seedScript.indexOf('];', seedScript.indexOf('const SEEDERS')));
     const seededTables = [...seedersBlock.matchAll(/name:\s*'([a-z_]+)'/g)].map((m) => m[1]);
     // Vacuity floor on the slice: the array still names real tables.
     expect(seededTables).toContain('plans');
-    expect(seededTables).not.toContain('model_configs');
-    expect(seededTables).not.toContain('routing_profiles');
-    expect(seededTables).not.toContain('routing_profile_provider_mappings');
+    for (const table of ['model_configs', 'routing_profiles', 'routing_profile_provider_mappings']) {
+      expect(seededTables).not.toContain(table);
+    }
 
     const wired = wiredSeeders();
     expect(wired).not.toContain('seedModelConfigs');
     expect(wired).not.toContain('seedRoutingProfiles');
 
-    const importsCatalogueRepository = seederFiles().filter((file) =>
-      /db\/providers\/(modelConfigRepository|routingProfileRepository)/.test(
-        readFileSync(path.join(PACKAGE_ROOT, file), 'utf8'),
-      ),
-    );
-    expect(importsCatalogueRepository).toEqual([]);
+    for (const file of [
+      'src/db/providers/modelConfigRepository.ts',
+      'src/db/providers/routingProfileRepository.ts',
+    ]) {
+      expect(existsSync(path.join(PACKAGE_ROOT, file)), file).toBe(false);
+    }
     expect(seederFiles().some((f) => f.endsWith('seed-model-configs.ts'))).toBe(false);
   });
 

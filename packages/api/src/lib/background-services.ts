@@ -40,7 +40,6 @@
 
 import { getDb } from '../db/index.js';
 import { failOrphanedAudioJobs } from '../db/notifications/audioJobRepository.js';
-import { syncZeroEval } from '../scripts/sync-zeroeval.js';
 import { moderationOutboxDispatcher } from './crowdsource/dispatcher.js';
 import { log } from './logger.js';
 import { reclaimOrphanedAgentSessions } from './agent/session-handoff.js';
@@ -58,8 +57,6 @@ import { startTriggerEngine, stopTriggerEngine } from './trigger-engine.js';
  * start.
  */
 export function startBackgroundServices(): void {
-  // Sync external models in background (non-blocking)
-  syncZeroEval().catch((err) => log.general.error({ err }, '[ZeroEval] Background sync error'));
   // Start trigger engine under leader election (non-blocking) — only the
   // elected instance runs the scheduler, so triggers fire once across tasks.
   startTriggerEngine();

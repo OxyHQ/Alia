@@ -13,20 +13,14 @@ import { describe, expect, it } from 'vitest';
  * ## The answer is that there is nothing to audit, and this file is the evidence
  *
  * A checkbox can be satisfied by absence, but only if the absence is measured.
- * `routes/__tests__/inference-boundary.test.ts` already holds one half of that
- * measurement: every writer in the four PROVIDER repositories (`routing_profiles`,
- * `model_configs`, `provider_keys`, `external_models`) is mapped to its caller,
- * nine have no runtime caller at all, and the rest are boot seeding, a script,
- * or automatic key health.
- *
- * This file holds the other half — the three routing-configuration surfaces that
- * map does not reach, because they are not provider repositories:
+ * The provider tables that once held routing configuration (`routing_profiles`,
+ * `model_configs`, `provider_keys`, `external_models`) have all been dropped, so
+ * what is left is three routing-configuration surfaces:
  *
  *  1. **The routing presets.** `ROUTING_PRESETS` is a `const` array. No
  *     repository, no table, no route.
- *  2. **The alias set.** `KAANA_ROUTING_PROFILES` is a `const` record. The `routing_profiles`
- *     table contributes no display flag and nothing a request
- *     routes on.
+ *  2. **The alias set.** `KAANA_ROUTING_PROFILES` is a `const` record. No
+ *     table backs it.
  *  3. **Which models a plan grants.** `plans.modelIds` IS a database column, and
  *     it is the input to `lib/plan-access.ts`, which is the gate that decides
  *     whether a request may use a model at all.
