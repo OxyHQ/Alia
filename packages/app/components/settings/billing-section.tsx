@@ -11,26 +11,26 @@ import {
 } from '@/lib/hooks/use-billing';
 import { useCredits } from '@/lib/hooks/use-credits';
 import { useTranslation } from '@/lib/hooks/use-translation';
-import { Button, Button as SettingsActionButton } from '@oxy.so/bloom/button';
+import { Button } from '@oxy.so/bloom/button';
+import { RiExternalLinkLine } from '@oxy.so/bloom/icons/RiExternalLinkLine';
 import {
-  SettingsCard,
-  SettingsRow,
-  SettingsSection,
+  SettingsGeneralPage,
+  SettingsProfilePage,
+  SettingsTextField,
   SettingsValueField,
+  type SettingsPageSection,
 } from '@oxy.so/bloom/settings-modal';
-import { TextFieldInput } from '@oxy.so/bloom/text-field';
-import { useTheme } from '@oxy.so/bloom/theme';
+import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { toast } from '@oxy.so/bloom/toast';
-import { Text } from '@oxy.so/bloom/typography';
 import * as Linking from 'expo-linking';
 import { useRouter } from 'expo-router';
-import { ExternalLink } from 'lucide-react-native';
 import { useEffect, useRef, useState } from 'react';
-import { View } from 'react-native';
 import { errorMessage as getErrorMessage } from '../../lib/errors/error-utils';
 
-/** Left padding that lines an icon-less row up with the rows that have one. */
-const ITEM_TEXT_INSET = 44;
+/** `$12.00` from integer cents. */
+function dollars(cents: number): string {
+  return `$${(cents / 100).toFixed(2)}`;
+}
 
 interface BillingSectionProps {
   success?: boolean;
@@ -51,7 +51,6 @@ export function BillingSection({ success }: BillingSectionProps) {
   const createCustomCheckoutMutation = useCreateCustomCheckout();
   const [customCredits, setCustomCredits] = useState('');
   const { t } = useTranslation();
-  const { colors } = useTheme();
 
   const toastShown = useRef(false);
 
@@ -166,215 +165,259 @@ export function BillingSection({ success }: BillingSectionProps) {
   };
 
   if (isLoading) {
+    // The page's own geometry, shimmering: the plan card, then a card of rows.
     return (
-      <View className="py-6">
-        <Text className="text-sm text-muted-foreground">
-          {t('common.loading')}
-        </Text>
-      </View>
+      <Skeleton.Col style={{ gap: 24 }}>
+        <Skeleton.Box width="100%" height={132} borderRadius={16} />
+        <Skeleton.Box width="100%" height={156} borderRadius={16} />
+      </Skeleton.Col>
     );
   }
 
   if (!creditsInfo) {
     return (
-      <View className="py-6">
-        <Text className="text-sm text-muted-foreground">
-          {t('billing.failedToLoad')}
-        </Text>
-      </View>
+      <SettingsProfilePage
+        sections={[
+          {
+            key: 'error',
+            rows: [{ key: 'error', label: t('billing.failedToLoad') }],
+          },
+        ]}
+      />
     );
   }
 
-  return (
-    <View>
-      <SettingsSection label={t('credits.credits')}>
-        <SettingsCard>
-          <SettingsRow label={t('credits.freeCredits')}>
-            <SettingsValueField>{`${freeCredits.toLocaleString()} / ${creditsInfo.freeLimit.toLocaleString()}`}</SettingsValueField>
-          </SettingsRow>
-          {creditsInfo.paidCredits > 0 ? (
-            <SettingsRow label={t('credits.paidCredits')}>
-              <SettingsValueField>
-                {creditsInfo.paidCredits.toLocaleString()}
-              </SettingsValueField>
-            </SettingsRow>
-          ) : null}
-          {creditsInfo.dailyRefresh > 0 ? (
-            <SettingsRow label={t('credits.dailyRefresh')}>
-              <SettingsValueField>{`+${creditsInfo.dailyRefresh}`}</SettingsValueField>
-            </SettingsRow>
-          ) : null}
-          {!isSubscribed ? (
-            <SettingsRow label={t('credits.upgrade')}>
-              <SettingsActionButton
-                variant="secondary"
-                size="sm"
-                onPress={() => router.push('/(biglayout)/subscribe')}
-              >
-                {t('credits.upgrade')}
-              </SettingsActionButton>
-            </SettingsRow>
-          ) : null}
-        </SettingsCard>
-      </SettingsSection>
+  const renewal = isSubscribed
+    ? subscription.cancelAtPeriodEnd
+      ? t('billing.cancelsOn', {
+          date: new Date(subscription.currentPeriodEnd).toLocaleDateString(),
+        })
+      : t('billing.renewsOn', {
+          date: new Date(subscription.currentPeriodEnd).toLocaleDateString(),
+        })
+    : undefined;
 
-      {isSubscribed ? (
-        <SettingsSection
-          label={t('billing.activeSubscription')}
-          description={
-            subscription.cancelAtPeriodEnd
-              ? t('billing.cancelsOn', {
-                  date: new Date(
-                    subscription.currentPeriodEnd,
-                  ).toLocaleDateString(),
-                })
-              : t('billing.renewsOn', {
-                  date: new Date(
-                    subscription.currentPeriodEnd,
-                  ).toLocaleDateString(),
-                })
-          }
-        >
-          <SettingsCard>
-            <SettingsRow
-              label={subscription.plan.name}
-              description={t('billing.creditsPerMonth', {
-                count: subscription.plan.creditsPerMonth.toLocaleString(),
-              })}
-            >
-              <SettingsValueField>{`$${(subscription.plan.price / 100).toFixed(2)}${t('credits.perMonth')}`}</SettingsValueField>
-            </SettingsRow>
-            {/*
-             * A complimentary plan is not billed and has no Stripe object behind
-             * it, so both management actions are refused by the API with a 400.
-             * They are not offered rather than offered-and-failing.
-             */}
-            {subscription.isComped ? null : (
-              <SettingsRow label={t('billing.changePlan')}>
-                <SettingsActionButton
-                  variant="secondary"
-                  size="sm"
-                  onPress={() => router.push('/(biglayout)/subscribe')}
-                >
-                  {t('billing.changePlan')}
-                </SettingsActionButton>
-              </SettingsRow>
-            )}
-            {!subscription.isComped && !subscription.cancelAtPeriodEnd ? (
-              <SettingsRow
-                label={
-                  cancelSubscriptionMutation.isPending
-                    ? t('billing.canceling')
-                    : t('billing.cancelSubscription')
-                }
-              >
-                <SettingsActionButton
-                  variant="secondary"
-                  size="sm"
-                  disabled={cancelSubscriptionMutation.isPending}
-                  tone="danger"
-                  onPress={handleCancelSubscription}
-                >
-                  {cancelSubscriptionMutation.isPending
-                    ? t('billing.canceling')
-                    : t('billing.cancelSubscription')}
-                </SettingsActionButton>
-              </SettingsRow>
-            ) : null}
-          </SettingsCard>
-        </SettingsSection>
-      ) : null}
-
-      {packages.length > 0 ? (
-        <SettingsSection label={t('credits.buyCredits')}>
-          <SettingsCard>
-            {packages.map((pkg) => (
-              <SettingsRow
-                key={pkg.id}
-                label={pkg.name}
-                description={t('credits.perThousand', {
-                  price: `$${(((pkg.price / pkg.credits) * 1000) / 100).toFixed(2)}`,
-                })}
-              >
-                <SettingsActionButton
-                  variant="secondary"
-                  size="sm"
-                  disabled={createCheckoutMutation.isPending}
-                  onPress={() => handlePurchaseCredits(pkg.id)}
-                >
-                  <SettingsValueField>{`$${(pkg.price / 100).toFixed(2)}`}</SettingsValueField>
-                </SettingsActionButton>
-              </SettingsRow>
-            ))}
-            <SettingsRow label={t('billing.customAmount')}>
-              <View className="flex-row items-center gap-2">
-                <TextFieldInput
-                  label={t('billing.customAmountPlaceholder')}
-                  value={customCredits}
-                  onChangeText={(text) =>
-                    setCustomCredits(text.replace(/[^0-9]/g, ''))
-                  }
-                  placeholder={t('billing.customAmountPlaceholder')}
-                  keyboardType="number-pad"
-                  className="w-28 py-1.5 px-3 rounded-lg border border-border bg-background text-sm text-foreground"
-                  placeholderTextColor={colors.textSecondary}
-                />
-                <Button
-                  variant="secondary"
-                  onPress={handleCustomPurchase}
-                  disabled={
-                    !canBuyCustom || createCustomCheckoutMutation.isPending
-                  }
-                  size="sm"
-                  className="rounded-full h-8 px-3"
-                  loading={createCustomCheckoutMutation.isPending}
-                >
-                  {customPriceCents > 0
-                    ? `$${(customPriceCents / 100).toFixed(2)}`
-                    : t('billing.buy')}
-                </Button>
-              </View>
-            </SettingsRow>
-          </SettingsCard>
-        </SettingsSection>
-      ) : null}
-
-      <SettingsSection label={t('billing.paymentMethods')}>
-        <SettingsCard>
-          <SettingsRow
-            label={
-              createPortalMutation.isPending
-                ? t('common.loading')
-                : t('billing.managePaymentMethods')
-            }
+  const plan = isSubscribed
+    ? {
+        badge: t('settings.account.currentPlan'),
+        title: `${subscription.plan.name} ${dollars(subscription.plan.price)}${t('credits.perMonth')}`,
+        description: `${t('billing.creditsPerMonth', {
+          count: subscription.plan.creditsPerMonth.toLocaleString(),
+        })} · ${renewal}`,
+        /*
+         * A complimentary plan is not billed and has no Stripe object behind
+         * it, so both management actions are refused by the API with a 400.
+         * They are not offered rather than offered-and-failing.
+         */
+        action: subscription.isComped ? undefined : (
+          <Button
+            size="sm"
+            appearance="outline"
+            tone="neutral"
+            onPress={() => router.push('/(biglayout)/subscribe')}
           >
-            <SettingsActionButton
-              variant="secondary"
-              size="sm"
-              disabled={createPortalMutation.isPending}
-              onPress={handleManagePayment}
-            >
-              <ExternalLink size={14} color={colors.textTertiary} />
-            </SettingsActionButton>
-          </SettingsRow>
-        </SettingsCard>
-      </SettingsSection>
+            {t('billing.changePlan')}
+          </Button>
+        ),
+      }
+    : {
+        badge: t('settings.account.currentPlan'),
+        title: `${t('settings.account.billing.freePlan')} ${dollars(0)}${t('credits.perMonth')}`,
+        description:
+          creditsInfo.dailyRefresh > 0
+            ? t('billing.creditsEvery24h', { count: creditsInfo.dailyRefresh })
+            : t('settings.account.billing.freePlanDescription'),
+        action: (
+          <Button
+            size="sm"
+            appearance="outline"
+            tone="neutral"
+            onPress={() => router.push('/(biglayout)/subscribe')}
+          >
+            {t('credits.upgrade')}
+          </Button>
+        ),
+      };
 
-      {transactionsData && transactionsData.transactions.length > 0 ? (
-        <SettingsSection label={t('billing.recentTransactions')}>
-          <SettingsCard>
-            {transactionsData.transactions.map((transaction) => (
-              <SettingsRow
-                key={transaction._id}
-                label={transaction.description || transaction.type}
-                description={`${new Date(transaction.createdAt).toLocaleDateString()} · $${(transaction.amount / 100).toFixed(2)}`}
-              >
-                <SettingsValueField>{`+${transaction.credits.toLocaleString()}`}</SettingsValueField>
-              </SettingsRow>
-            ))}
-          </SettingsCard>
-        </SettingsSection>
-      ) : null}
-    </View>
-  );
+  const sections: SettingsPageSection[] = [
+    {
+      key: 'credits',
+      label: t('credits.credits'),
+      rows: [
+        {
+          key: 'free',
+          label: t('credits.freeCredits'),
+          control: (
+            <SettingsValueField>{`${freeCredits.toLocaleString()} / ${creditsInfo.freeLimit.toLocaleString()}`}</SettingsValueField>
+          ),
+        },
+        ...(creditsInfo.paidCredits > 0
+          ? [
+              {
+                key: 'paid',
+                label: t('credits.paidCredits'),
+                control: (
+                  <SettingsValueField>
+                    {creditsInfo.paidCredits.toLocaleString()}
+                  </SettingsValueField>
+                ),
+              },
+            ]
+          : []),
+        ...(creditsInfo.dailyRefresh > 0
+          ? [
+              {
+                key: 'refresh',
+                label: t('credits.dailyRefresh'),
+                control: (
+                  <SettingsValueField>{`+${creditsInfo.dailyRefresh}`}</SettingsValueField>
+                ),
+              },
+            ]
+          : []),
+      ],
+    },
+  ];
+
+  if (
+    isSubscribed &&
+    !subscription.isComped &&
+    !subscription.cancelAtPeriodEnd
+  ) {
+    sections.push({
+      key: 'subscription',
+      label: t('settings.account.billing.subscription'),
+      rows: [
+        {
+          key: 'cancel',
+          label: t('billing.cancelSubscription'),
+          description: renewal,
+          control: (
+            <Button
+              size="sm"
+              appearance="outline"
+              tone="neutral"
+              disabled={cancelSubscriptionMutation.isPending}
+              loading={cancelSubscriptionMutation.isPending}
+              onPress={handleCancelSubscription}
+            >
+              {cancelSubscriptionMutation.isPending
+                ? t('billing.canceling')
+                : t('billing.cancelSubscription')}
+            </Button>
+          ),
+        },
+      ],
+    });
+  }
+
+  if (packages.length > 0) {
+    sections.push({
+      key: 'buy',
+      label: t('credits.buyCredits'),
+      description: t('credits.buyCreditsDescription'),
+      rows: [
+        ...packages.map((pkg) => ({
+          key: pkg.id,
+          label: pkg.name,
+          description: t('credits.perThousand', {
+            price: dollars((pkg.price / pkg.credits) * 1000),
+          }),
+          control: (
+            <Button
+              size="sm"
+              appearance="outline"
+              tone="neutral"
+              disabled={createCheckoutMutation.isPending}
+              onPress={() => handlePurchaseCredits(pkg.id)}
+            >
+              {dollars(pkg.price)}
+            </Button>
+          ),
+        })),
+        {
+          key: 'custom',
+          label: t('billing.customAmount'),
+          description:
+            parsedCustomCredits > 0
+              ? t('settings.account.billing.customCredits', {
+                  count: parsedCustomCredits.toLocaleString(),
+                })
+              : undefined,
+          control: (
+            <SettingsTextField
+              label={t('billing.customAmountPlaceholder')}
+              value={customCredits}
+              onCommit={(text) => setCustomCredits(text.replace(/[^0-9]/g, ''))}
+              placeholder={t('billing.customAmountPlaceholder')}
+              keyboardType="numeric"
+              autoComplete="off"
+              showSavedToast={false}
+            />
+          ),
+        },
+        {
+          key: 'custom-buy',
+          label: t('billing.buy'),
+          description:
+            customPriceCents > 0 ? dollars(customPriceCents) : undefined,
+          control: (
+            <Button
+              size="sm"
+              appearance="outline"
+              tone="neutral"
+              onPress={handleCustomPurchase}
+              disabled={!canBuyCustom || createCustomCheckoutMutation.isPending}
+              loading={createCustomCheckoutMutation.isPending}
+            >
+              {customPriceCents > 0
+                ? dollars(customPriceCents)
+                : t('billing.buy')}
+            </Button>
+          ),
+        },
+      ],
+    });
+  }
+
+  sections.push({
+    key: 'payment',
+    label: t('billing.paymentMethods'),
+    rows: [
+      {
+        key: 'portal',
+        label: t('billing.managePaymentMethods'),
+        control: (
+          <Button
+            size="sm"
+            leadingIcon={RiExternalLinkLine}
+            appearance="outline"
+            tone="neutral"
+            disabled={createPortalMutation.isPending}
+            loading={createPortalMutation.isPending}
+            onPress={handleManagePayment}
+          >
+            {t('settings.account.manage')}
+          </Button>
+        ),
+      },
+    ],
+  });
+
+  if (transactionsData && transactionsData.transactions.length > 0) {
+    sections.push({
+      key: 'transactions',
+      label: t('billing.recentTransactions'),
+      rows: transactionsData.transactions.map((transaction) => ({
+        key: transaction._id,
+        label: transaction.description || transaction.type,
+        description: `${new Date(transaction.createdAt).toLocaleDateString()} · ${dollars(transaction.amount)}`,
+        control: (
+          <SettingsValueField>{`+${transaction.credits.toLocaleString()}`}</SettingsValueField>
+        ),
+      })),
+    });
+  }
+
+  return <SettingsGeneralPage plan={plan} sections={sections} />;
 }

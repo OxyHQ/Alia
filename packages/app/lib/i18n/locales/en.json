@@ -53,7 +53,45 @@
     },
     "account": {
       "title": "Account Settings",
-      "description": "Manage your account"
+      "description": "Manage your account",
+      "currentPlan": "Current plan",
+      "manage": "Manage",
+      "billing": {
+        "freePlan": "Free",
+        "freePlanDescription": "Upgrade for more credits every month.",
+        "subscription": "Subscription",
+        "customCredits": "{{count}} credits"
+      },
+      "security": {
+        "never": "Never",
+        "severity": {
+          "info": "Info",
+          "warning": "Warning",
+          "critical": "Critical"
+        },
+        "auditSummary": "Audit summary",
+        "auditSummaryDetail": "{{sessions}} sessions · {{steps}} steps · {{threats}} threats",
+        "fromDate": "From date",
+        "toDate": "To date",
+        "exportFormat": "Export format",
+        "downloadAudit": "Download audit"
+      },
+      "storage": {
+        "signedOut": "Sign in to manage your files",
+        "signedOutDescription": "Files you upload to your Library appear here.",
+        "uploadLabel": "Upload a file",
+        "uploadPrompt": "Drag and drop to upload or",
+        "uploadPromptNative": "Tap to",
+        "uploadSelect": "select",
+        "uploadSelectNative": "select a file",
+        "uploading": "Uploading {{size}}...",
+        "uploaded": "Uploaded successfully!",
+        "unsupported": "Only {{extensions}} files are supported",
+        "tooLarge": "That file is larger than {{max}}",
+        "openFile": "Open file",
+        "copyLink": "Copy link",
+        "linkCopied": "Link copied"
+      }
     },
     "appLanguage": {
       "title": "App Language",
@@ -151,7 +189,9 @@
       "integrations": "Integrations",
       "security": "Security",
       "writingStyle": "Writing Style",
-      "localModels": "Local models"
+      "localModels": "Local models",
+      "profile": "Profile",
+      "storage": "Storage"
     },
     "accentColor": {
       "title": "App Color",
@@ -197,7 +237,201 @@
     "groups": {
       "assistant": "Assistant",
       "connections": "Connections",
-      "app": "App"
+      "app": "App",
+      "device": "This device"
+    },
+    "general": {
+      "limits": "Limits",
+      "creditsLeft": "{{count}} credits left",
+      "manageLimits": "Manage limits",
+      "currentPlan": "Current plan",
+      "freePlan": "Free",
+      "perMonth": "mo",
+      "perYear": "yr",
+      "creditsPerMonth": "{{count}} credits a month"
+    },
+    "profile": {
+      "name": "Name",
+      "username": "Username",
+      "email": "Email",
+      "oxyAccount": "Oxy account",
+      "oxyAccountDescription": "Your name, photo and sign-in are managed by Oxy",
+      "manage": "Manage",
+      "userId": "User ID",
+      "logoutAll": "Log out from all devices",
+      "logoutAllConfirm": "You will be signed out of Alia and every Oxy app on all your devices.",
+      "logout": "Log out"
+    },
+    "connections": {
+      "catalog": "Connector catalog",
+      "viewDetails": "View details",
+      "noOutput": "No output available",
+      "noTools": "No tools available",
+      "notConnected": "Not connected",
+      "toolCount": {
+        "zero": "No tools enabled",
+        "one": "1 tool enabled",
+        "other": "{{count}} tools enabled"
+      },
+      "serverStatus": {
+        "installed": "Installed",
+        "running": "Running",
+        "stopped": "Stopped",
+        "error": "Error"
+      },
+      "capability": {
+        "read": "Read",
+        "readWrite": "Read, Write"
+      },
+      "auth": {
+        "oauth": "OAuth",
+        "apiKey": "API key",
+        "none": "None"
+      },
+      "disconnect": "Disconnect",
+      "disconnectNamed": "Disconnect {{name}}",
+      "integrations": {
+        "connected": "Connected",
+        "available": "Available",
+        "empty": "No integrations connected yet.",
+        "status": {
+          "active": "Active",
+          "expired": "Expired",
+          "revoked": "Revoked",
+          "error": "Error"
+        },
+        "oauthError": "Connection was cancelled or failed",
+        "connectedToast": "{{name}} connected successfully",
+        "finishFailed": "Failed to finish connection",
+        "startFailed": "Failed to start connection",
+        "disconnectTitle": "Disconnect Integration",
+        "disconnectDescription": "Are you sure you want to disconnect this integration? You can reconnect it anytime.",
+        "disconnectedToast": "Integration disconnected",
+        "disconnectFailed": "Failed to disconnect integration"
+      },
+      "bots": {
+        "title": "System bots",
+        "description": "System bots allow others to interact with Alia and enable Alia to send messages on your behalf. To give one of your own agents a dedicated Telegram bot, open the agent and use its Telegram bot section.",
+        "empty": "No system bots available.",
+        "status": {
+          "active": "Active",
+          "inactive": "Inactive",
+          "error": "Error"
+        },
+        "linkedAs": "Linked as @{{username}}",
+        "link": "Link",
+        "unlink": "Unlink",
+        "linkUnsupported": "Linking not supported for {{platform}} yet",
+        "cannotOpen": "Cannot open {{platform}}",
+        "openFailed": "Failed to open link",
+        "unlinkedToast": "Bot unlinked",
+        "unlinkFailed": "Failed to unlink bot"
+      },
+      "accounts": {
+        "title": "Connected accounts",
+        "description": "Link your messaging accounts so Alia can read and respond on your behalf.",
+        "empty": "No accounts connected yet. Connect your first account to get started.",
+        "connectTitle": "Connect Account",
+        "status": {
+          "connected": "Connected",
+          "connecting": "Connecting",
+          "disconnected": "Disconnected",
+          "error": "Error",
+          "expired": "Expired"
+        },
+        "connectingToast": "Started connecting {{name}}",
+        "connectFailed": "Failed to connect account",
+        "disconnectTitle": "Disconnect Account",
+        "disconnectDescription": "Are you sure you want to disconnect this account? You can reconnect it anytime.",
+        "disconnectedToast": "Account disconnected",
+        "disconnectFailed": "Failed to disconnect account"
+      }
+    },
+    "assistant": {
+      "memory": {
+        "manage": "Manage",
+        "newMemoryDescription": "Start a chat telling Alia what to remember",
+        "duplicatesDescription": "Find memories that repeat each other",
+        "findDuplicates": "Find duplicates",
+        "count": {
+          "one": "1 memory",
+          "other": "{{count}} memories"
+        }
+      },
+      "writingStyle": {
+        "emptyTitle": "No style profile yet",
+        "emptyDescription": "After {{min}} messages, your writing style profile will start building automatically.",
+        "statusActive": "Profile active",
+        "statusBuilding": "Building profile",
+        "messagesAnalyzed": "{{n}} messages analyzed",
+        "aiSummary": "AI summary",
+        "overview": "Overview",
+        "formalityLabel": "Formality",
+        "vocabulary": "Vocabulary",
+        "avgSentence": "Average sentence",
+        "avgSentenceValue": "~{{n}} words",
+        "emojiLabel": "Emoji",
+        "languageLabel": "Language",
+        "capitalization": "Capitalization",
+        "patterns": "Patterns",
+        "tone": "Tone",
+        "greetings": "Greetings",
+        "closings": "Closings",
+        "signOff": "Sign-off",
+        "words": "Characteristic words",
+        "jargon": "Domain terms",
+        "otherLanguages": "Other languages",
+        "multilingual": "Multilingual messages",
+        "multilingualDescription": "You sometimes mix languages in messages",
+        "notDetected": "Not detected yet",
+        "noneDetected": "None detected",
+        "preferences": "Preferences",
+        "aiAnalysis": "AI analysis",
+        "aiAnalysisLocked": "Available after {{min}} messages ({{n}} so far)",
+        "refresh": "Refresh",
+        "refreshing": "Refreshing…",
+        "refreshed": "Style profile refreshed",
+        "refreshFailed": "Failed to refresh",
+        "refreshFailedLong": "Failed to refresh style profile",
+        "resetProfile": "Reset profile",
+        "reset": "Reset",
+        "resetTitle": "Reset Writing Style",
+        "resetDescription": "This will delete your writing style profile. Alia will start learning again from scratch.",
+        "resetDone": "Style profile reset",
+        "resetFailed": "Failed to reset style profile",
+        "updated": "Style profile updated",
+        "saveFailed": "Failed to save changes",
+        "editTitle": "Edit Style Preferences",
+        "editDescription": "Customize how Alia writes on your behalf.",
+        "signOffPlaceholder": "e.g., Best regards, Cheers",
+        "greetingPatterns": "Greeting Patterns",
+        "greetingPlaceholder": "e.g., Hey, Hi there, Hello",
+        "closingPatterns": "Closing Patterns",
+        "closingPlaceholder": "e.g., Thanks, Best, Cheers",
+        "toneDescriptors": "Tone Descriptors",
+        "tonePlaceholder": "e.g., friendly, direct, professional",
+        "commaSeparated": "Comma-separated",
+        "formality": {
+          "very_informal": "Very Informal",
+          "informal": "Informal",
+          "neutral": "Neutral",
+          "formal": "Formal",
+          "very_formal": "Very Formal"
+        },
+        "emoji": {
+          "never": "Never",
+          "rare": "Rarely",
+          "moderate": "Sometimes",
+          "frequent": "Frequently"
+        },
+        "language": {
+          "en": "English",
+          "es": "Spanish",
+          "fr": "French",
+          "pt": "Portuguese",
+          "de": "German"
+        }
+      }
     }
   },
   "nav": {
@@ -261,10 +495,7 @@
     "support": "Support",
     "tasks": "Tasks",
     "shows": "Shows",
-    "freePlan": "Free Plan",
-    "signIn": "Sign in",
-    "newConversation": "New conversation",
-    "guest": "Guest"
+    "newConversation": "New conversation"
   },
   "billing": {
     "title": "Billing",

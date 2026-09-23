@@ -1,48 +1,63 @@
 import type { Href } from "expo-router";
-import { Palette, Brain, Smartphone, Bot, Plug, HardDrive } from "lucide-react-native";
-import { CurrencyDollarIcon } from "@/components/ui/icons/currency-dollar-icon";
-import { LockShieldIcon } from "@/components/ui/icons/lock-shield-icon";
-import { PencilIcon } from "@/components/ui/icons/pencil-icon";
-import { PluginsIcon } from "@/components/ui/icons/plugins-icon";
-import { SettingsIcon } from "@/components/ui/icons/settings-icon";
-import type { IconComponent } from "@/lib/types/icon";
+import type { SettingsIcon } from "@oxy.so/bloom/settings-modal";
+import { RiSettings6Line } from "@oxy.so/bloom/icons/RiSettings6Line";
+import { RiSchoolLine } from "@oxy.so/bloom/icons/RiSchoolLine";
+import { RiBankCardLine } from "@oxy.so/bloom/icons/RiBankCardLine";
+import { RiToolsFill } from "@oxy.so/bloom/icons/RiToolsFill";
+import { RiDatabase2Line } from "@oxy.so/bloom/icons/RiDatabase2Line";
+import { RiShieldLine } from "@oxy.so/bloom/icons/RiShieldLine";
+import { RiPaletteLine } from "@oxy.so/bloom/icons/RiPaletteLine";
+import { RiLightbulbFlashLine } from "@oxy.so/bloom/icons/RiLightbulbFlashLine";
+import { RiQuillPenLine } from "@oxy.so/bloom/icons/RiQuillPenLine";
+import { RiSmartphoneLine } from "@oxy.so/bloom/icons/RiSmartphoneLine";
+import { RiRobot2Line } from "@oxy.so/bloom/icons/RiRobot2Line";
+import { RiPlugLine } from "@oxy.so/bloom/icons/RiPlugLine";
+import { RiComputerLine } from "@oxy.so/bloom/icons/RiComputerLine";
 
 export interface SettingsSection {
   id: string;
   route: Href;
-  icon: IconComponent;
+  icon: SettingsIcon;
   labelKey: string;
 }
 
-/** One source of truth for the settings nav: the menu screen and the in-panel column both read it. */
+/**
+ * The settings navigation, grouped as Bloom's settings modal story groups it:
+ * the account's own pages first (General, Profile, Billing, Tools, Storage),
+ * then what shapes the assistant, then connections, then this device.
+ */
 export const SETTINGS_GROUPS: { titleKey: string; sections: SettingsSection[] }[] = [
+  {
+    titleKey: "settings.title",
+    sections: [
+      { id: "general", route: "/(app)/settings/general", icon: RiSettings6Line, labelKey: "settings.sections.general" },
+      { id: "profile", route: "/(app)/settings/profile", icon: RiSchoolLine, labelKey: "settings.sections.profile" },
+      { id: "usage", route: "/(app)/settings/usage", icon: RiBankCardLine, labelKey: "settings.sections.billing" },
+      { id: "connectors", route: "/(app)/settings/connectors", icon: RiToolsFill, labelKey: "settings.sections.connectors" },
+      { id: "storage", route: "/(app)/settings/storage", icon: RiDatabase2Line, labelKey: "settings.sections.storage" },
+      { id: "security", route: "/(app)/settings/security", icon: RiShieldLine, labelKey: "settings.sections.security" },
+    ],
+  },
   {
     titleKey: "settings.groups.assistant",
     sections: [
-      { id: "personalization", route: "/(app)/settings/personalization", icon: Palette, labelKey: "settings.sections.personalization" },
-      { id: "memory", route: "/(app)/settings/memory", icon: Brain, labelKey: "settings.sections.memory" },
-      { id: "writing-style", route: "/(app)/settings/writing-style", icon: PencilIcon, labelKey: "settings.sections.writingStyle" },
-      // Skills live at `/(app)/skills`, not under settings. The entry that used
-      // to be here pointed at a screen whose toggle PATCHed a field the API has
-      // never had, so every switch answered 404 and rolled back.
+      { id: "personalization", route: "/(app)/settings/personalization", icon: RiPaletteLine, labelKey: "settings.sections.personalization" },
+      { id: "memory", route: "/(app)/settings/memory", icon: RiLightbulbFlashLine, labelKey: "settings.sections.memory" },
+      { id: "writing-style", route: "/(app)/settings/writing-style", icon: RiQuillPenLine, labelKey: "settings.sections.writingStyle" },
     ],
   },
   {
     titleKey: "settings.groups.connections",
     sections: [
-      { id: "accounts", route: "/(app)/settings/accounts", icon: Smartphone, labelKey: "settings.sections.accounts" },
-      { id: "bots", route: "/(app)/settings/bots", icon: Bot, labelKey: "settings.sections.bots" },
-      { id: "connectors", route: "/(app)/settings/connectors", icon: PluginsIcon, labelKey: "settings.sections.connectors" },
-      { id: "integrations", route: "/(app)/settings/integrations", icon: Plug, labelKey: "settings.sections.integrations" },
+      { id: "accounts", route: "/(app)/settings/accounts", icon: RiSmartphoneLine, labelKey: "settings.sections.accounts" },
+      { id: "bots", route: "/(app)/settings/bots", icon: RiRobot2Line, labelKey: "settings.sections.bots" },
+      { id: "integrations", route: "/(app)/settings/integrations", icon: RiPlugLine, labelKey: "settings.sections.integrations" },
     ],
   },
   {
-    titleKey: "settings.groups.app",
+    titleKey: "settings.groups.device",
     sections: [
-      { id: "general", route: "/(app)/settings/general", icon: SettingsIcon, labelKey: "settings.sections.general" },
-      { id: "local-models", route: "/(app)/settings/local-models", icon: HardDrive, labelKey: "settings.sections.localModels" },
-      { id: "usage", route: "/(app)/settings/usage", icon: CurrencyDollarIcon, labelKey: "settings.sections.billing" },
-      { id: "security", route: "/(app)/settings/security", icon: LockShieldIcon, labelKey: "settings.sections.security" },
+      { id: "local-models", route: "/(app)/settings/local-models", icon: RiComputerLine, labelKey: "settings.sections.localModels" },
     ],
   },
 ];

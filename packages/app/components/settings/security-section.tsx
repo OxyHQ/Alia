@@ -4,20 +4,20 @@ import { generateAPIUrl } from '@/lib/generate-api-url';
 import { useTranslation } from '@/lib/hooks/use-translation';
 import { useUserData } from '@/lib/hooks/use-user-data';
 import { useUserDataStore } from '@/lib/stores/user-data-store';
-import { Badge } from '@oxy.so/bloom/badge';
 import { Button } from '@oxy.so/bloom/button';
+import { RiDownload2Line } from '@oxy.so/bloom/icons/RiDownload2Line';
 import {
   SettingsGeneralPage,
   SettingsTextField,
   SettingsValueField,
+  type SettingsRowData,
 } from '@oxy.so/bloom/settings-modal';
+import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { Switch } from '@oxy.so/bloom/switch';
-import { useTheme } from '@oxy.so/bloom/theme';
 import { toast } from '@oxy.so/bloom/toast';
 import { useOxy } from '@oxy.so/services';
-import { AlertTriangle, Info, ShieldX } from 'lucide-react-native';
 import { useCallback, useEffect, useState } from 'react';
-import { Platform, Share, View } from 'react-native';
+import { Platform, Share } from 'react-native';
 import { SettingsPreferenceSelect } from './preference-select';
 
 interface ThreatEntry {
@@ -36,37 +36,19 @@ interface AuditSummary {
   threatDetections: number;
 }
 
+/** `label: null` is the "never" option, whose word is translated. */
 const TIMEOUT_OPTIONS = [
   { value: 30, label: '30s' },
   { value: 60, label: '60s' },
   { value: 120, label: '2min' },
-  { value: 0, label: 'Never' },
+  { value: 0, label: null },
 ];
-
-const SEVERITY_COLORS: Record<string, string> = {
-  info: 'text-blue-500',
-  warning: 'text-yellow-500',
-  critical: 'text-red-500',
-};
-
-const SEVERITY_BG: Record<string, string> = {
-  info: 'bg-blue-500/10',
-  warning: 'bg-yellow-500/10',
-  critical: 'bg-red-500/10',
-};
-
-const SEVERITY_ICONS: Record<string, React.ComponentType<any>> = {
-  info: Info,
-  warning: AlertTriangle,
-  critical: ShieldX,
-};
 
 export function SecuritySection() {
   const { isAuthenticated, oxyServices } = useOxy();
   const { memory } = useUserData();
   const setMemory = useUserDataStore((state) => state.setMemory);
   const { t } = useTranslation();
-  const { colors } = useTheme();
   const [saving, setSaving] = useState(false);
 
   const [requireApproval, setRequireApproval] = useState(true);
@@ -199,6 +181,27 @@ export function SecuritySection() {
     }
   };
 
+  const threatRows: SettingsRowData[] = threatsLoading
+    ? [
+        {
+          key: 'loading',
+          label: t('common.loading'),
+          control: <Skeleton.Box width={202} height={32} borderRadius={10} />,
+        },
+      ]
+    : threats.length
+      ? threats.slice(0, 10).map((threat) => ({
+          key: threat.id,
+          label: threat.agentName,
+          description: `${t(`settings.account.security.severity.${threat.severity}`)} · ${threat.description}`,
+          control: (
+            <SettingsValueField muted>
+              {new Date(threat.timestamp).toLocaleDateString()}
+            </SettingsValueField>
+          ),
+        }))
+      : [{ key: 'empty', label: t('settings.security.noThreats') }];
+
   return (
     <SettingsGeneralPage
       sections={[
@@ -213,8 +216,8 @@ export function SecuritySection() {
               control: (
                 <Switch
                   accessibilityLabel={t('settings.security.requireApproval')}
-                  value={requireApproval}
-                  onValueChange={setRequireApproval}
+                  checked={requireApproval}
+                  onCheckedChange={setRequireApproval}
                 />
               ),
             },
@@ -228,7 +231,7 @@ export function SecuritySection() {
                   onChange={(value) => setApprovalTimeout(Number(value))}
                   items={TIMEOUT_OPTIONS.map((option) => ({
                     value: String(option.value),
-                    label: option.label,
+                    label: option.label ?? t('settings.account.security.never'),
                   }))}
                 />
               ),
@@ -240,8 +243,8 @@ export function SecuritySection() {
               control: (
                 <Switch
                   accessibilityLabel={t('settings.security.autoDenyOnTimeout')}
-                  value={autoDenyOnTimeout}
-                  onValueChange={setAutoDenyOnTimeout}
+                  checked={autoDenyOnTimeout}
+                  onCheckedChange={setAutoDenyOnTimeout}
                 />
               ),
             },
@@ -251,9 +254,11 @@ export function SecuritySection() {
               control: (
                 <Button
                   size="sm"
-                  variant="secondary"
+                  appearance="outline"
+                  tone="neutral"
                   onPress={handleSave}
                   disabled={saving}
+                  loading={saving}
                 >
                   {saving ? t('settings.saving') : t('settings.saveButton')}
                 </Button>
@@ -265,38 +270,7 @@ export function SecuritySection() {
           key: 'threats',
           label: t('settings.security.threatLog'),
           description: t('settings.security.threatLogDesc'),
-          rows: threats.length
-            ? threats.slice(0, 10).map((threat) => ({
-                key: threat.id,
-                label: threat.agentName,
-                description: threat.description,
-                control: (
-                  <View className="gap-1">
-                    <Badge
-                      tone={
-                        threat.severity === 'critical'
-                          ? 'danger'
-                          : threat.severity === 'warning'
-                            ? 'warning'
-                            : 'info'
-                      }
-                    >
-                      {threat.severity}
-                    </Badge>
-                    <SettingsValueField>
-                      {new Date(threat.timestamp).toLocaleDateString()}
-                    </SettingsValueField>
-                  </View>
-                ),
-              }))
-            : [
-                {
-                  key: 'empty',
-                  label: threatsLoading
-                    ? t('common.loading')
-                    : t('settings.security.noThreats'),
-                },
-              ],
+          rows: threatRows,
         },
         {
           key: 'export',
@@ -307,17 +281,24 @@ export function SecuritySection() {
               ? [
                   {
                     key: 'summary',
-                    label: 'Audit summary',
-                    description: `${summary.totalSessions} sessions · ${summary.totalSteps} steps · ${summary.threatDetections} threats`,
+                    label: t('settings.account.security.auditSummary'),
+                    description: t(
+                      'settings.account.security.auditSummaryDetail',
+                      {
+                        sessions: summary.totalSessions,
+                        steps: summary.totalSteps,
+                        threats: summary.threatDetections,
+                      },
+                    ),
                   },
                 ]
               : []),
             {
               key: 'from',
-              label: 'From',
+              label: t('settings.security.from'),
               control: (
                 <SettingsTextField
-                  label="From date"
+                  label={t('settings.account.security.fromDate')}
                   value={fromDate}
                   onCommit={setFromDate}
                   placeholder="YYYY-MM-DD"
@@ -327,10 +308,10 @@ export function SecuritySection() {
             },
             {
               key: 'to',
-              label: 'To',
+              label: t('settings.security.to'),
               control: (
                 <SettingsTextField
-                  label="To date"
+                  label={t('settings.account.security.toDate')}
                   value={toDate}
                   onCommit={setToDate}
                   placeholder="YYYY-MM-DD"
@@ -340,10 +321,10 @@ export function SecuritySection() {
             },
             {
               key: 'format',
-              label: 'Format',
+              label: t('settings.security.format'),
               control: (
                 <SettingsPreferenceSelect
-                  label="Export format"
+                  label={t('settings.account.security.exportFormat')}
                   value={exportFormat}
                   onChange={setExportFormat}
                   items={[
@@ -355,15 +336,20 @@ export function SecuritySection() {
             },
             {
               key: 'download',
-              label: 'Download audit',
+              label: t('settings.account.security.downloadAudit'),
               control: (
                 <Button
                   size="sm"
-                  variant="secondary"
+                  leadingIcon={RiDownload2Line}
+                  appearance="outline"
+                  tone="neutral"
                   disabled={exporting}
+                  loading={exporting}
                   onPress={handleExport}
                 >
-                  {exporting ? t('common.loading') : 'Export'}
+                  {exporting
+                    ? t('settings.security.exporting')
+                    : t('settings.security.exportButton')}
                 </Button>
               ),
             },

@@ -14,7 +14,6 @@ import {
   SettingsValueField,
 } from '@oxy.so/bloom/settings-modal';
 import { Switch } from '@oxy.so/bloom/switch';
-import { useTheme } from '@oxy.so/bloom/theme';
 import { useState } from 'react';
 import { Platform } from 'react-native';
 
@@ -32,7 +31,6 @@ function isSafari(): boolean {
 
 export function LocalModelsSection() {
   const { t } = useTranslation();
-  const { colors } = useTheme();
 
   const consent = useLocalRuntimeStore((state) => state.consent);
   const endpoint = useLocalRuntimeStore((state) => state.endpoint);
@@ -86,8 +84,8 @@ export function LocalModelsSection() {
               control: (
                 <Switch
                   accessibilityLabel={t('settings.localModels.enable')}
-                  value={consent === 'granted'}
-                  onValueChange={(on) =>
+                  checked={consent === 'granted'}
+                  onCheckedChange={(on) =>
                     setConsent(on ? 'granted' : 'declined')
                   }
                 />
@@ -135,8 +133,10 @@ export function LocalModelsSection() {
                     control: (
                       <Button
                         size="sm"
-                        variant="secondary"
+                        appearance="outline"
+                        tone="neutral"
                         disabled={probe.isFetching}
+                        loading={probe.isFetching}
                         onPress={() => {
                           setEndpoint(
                             draftEndpoint.trim() || DEFAULT_LOCAL_ENDPOINT,
@@ -195,7 +195,7 @@ export function LocalModelsSection() {
                   key: model,
                   label: model,
                   control: (
-                    <SettingsValueField>
+                    <SettingsValueField muted>
                       {t('settings.localModels.free')}
                     </SettingsValueField>
                   ),

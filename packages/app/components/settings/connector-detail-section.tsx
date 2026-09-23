@@ -1,24 +1,23 @@
 import { useMcpServers } from '@/lib/hooks/use-mcp-servers';
 import { useTranslation } from '@/lib/hooks/use-translation';
-import { useColorScheme } from '@/lib/useColorScheme';
 import { Button } from '@oxy.so/bloom/button';
 import { Dialog } from '@oxy.so/bloom/dialog';
+import { RiArrowLeftLine } from '@oxy.so/bloom/icons/RiArrowLeftLine';
+import { RiDeleteBinLine } from '@oxy.so/bloom/icons/RiDeleteBinLine';
+import { RiExternalLinkLine } from '@oxy.so/bloom/icons/RiExternalLinkLine';
 import {
-  SettingsGeneralPage,
+  SettingsCard,
+  SettingsProfilePage,
+  SettingsRow,
   SettingsValueField,
 } from '@oxy.so/bloom/settings-modal';
+import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { confirm } from '@oxy.so/bloom/surfaces';
-import { TextFieldInput } from '@oxy.so/bloom/text-field';
+import { TextFieldInput, TextFieldLabel } from '@oxy.so/bloom/text-field';
 import { toast } from '@oxy.so/bloom/toast';
-import { Text } from '@oxy.so/bloom/typography';
-import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Linking, Platform, View } from 'react-native';
+import { Linking, Platform, StyleSheet, View } from 'react-native';
 import { useAliaSettings } from './settings-context';
-
-function isImageUrl(icon?: string): boolean {
-  return !!icon && /^https?:\/\//i.test(icon);
-}
 
 // A tool name implies write access when it reads as a mutation verb.
 const WRITE_VERB = /create|write|update|delete|send|post|add|remove|edit|set/i;
@@ -26,9 +25,7 @@ const WRITE_VERB = /create|write|update|delete|send|post|add|remove|edit|set/i;
 export function ConnectorDetailSection() {
   const settings = useAliaSettings();
   const { id } = settings.params;
-  const router = useRouter();
   const { t } = useTranslation();
-  const { colors } = useColorScheme();
 
   const { registry, installed, loading, install, uninstall, startOAuth } =
     useMcpServers();
@@ -122,18 +119,15 @@ export function ConnectorDetailSection() {
 
   if (loading)
     return (
-      <SettingsGeneralPage
-        sections={[
-          {
-            key: 'loading',
-            rows: [{ key: 'loading', label: t('common.loading') }],
-          },
-        ]}
-      />
+      <SettingsCard>
+        <SettingsRow label={t('common.loading')}>
+          <Skeleton.Box width={202} height={32} borderRadius={10} />
+        </SettingsRow>
+      </SettingsCard>
     );
   if (!entry)
     return (
-      <SettingsGeneralPage
+      <SettingsProfilePage
         sections={[
           {
             key: 'missing',
@@ -142,7 +136,13 @@ export function ConnectorDetailSection() {
                 key: 'missing',
                 label: t('connectors.notFound'),
                 control: (
-                  <Button variant="secondary" size="sm" onPress={goBack}>
+                  <Button
+                    size="sm"
+                    appearance="outline"
+                    tone="neutral"
+                    leadingIcon={RiArrowLeftLine}
+                    onPress={goBack}
+                  >
                     {t('connectors.back')}
                   </Button>
                 ),
@@ -162,10 +162,19 @@ export function ConnectorDetailSection() {
     !!server && (requiresOAuth ? server.status === 'running' : true);
   const tools = server?.tools ?? [];
   const hasWriteTool = tools.some((tl) => WRITE_VERB.test(tl.name));
-  const capabilities = hasWriteTool ? 'Read, Write' : 'Read';
-  const authValue = requiresOAuth ? 'OAuth' : needsEnv ? 'API key' : 'None';
-  const inputClass =
-    'border border-border rounded-lg px-3 py-2 bg-background text-foreground text-sm';
+  const capabilities = hasWriteTool
+    ? t('settings.connections.capability.readWrite')
+    : t('settings.connections.capability.read');
+  const authValue = requiresOAuth
+    ? t('settings.connections.auth.oauth')
+    : needsEnv
+      ? t('settings.connections.auth.apiKey')
+      : t('settings.connections.auth.none');
+  const statusValue = connected
+    ? t('connectors.connected')
+    : server
+      ? t(`settings.connections.serverStatus.${server.status}`)
+      : t('settings.connections.notConnected');
 
   const websiteUrl = entry.url;
   let websiteHost: string | null = null;
@@ -178,8 +187,8 @@ export function ConnectorDetailSection() {
   }
 
   return (
-    <View className="gap-4">
-      <SettingsGeneralPage
+    <>
+      <SettingsProfilePage
         sections={[
           {
             key: 'connector',
@@ -188,7 +197,13 @@ export function ConnectorDetailSection() {
                 key: 'back',
                 label: t('connectors.detailTitle'),
                 control: (
-                  <Button size="sm" variant="secondary" onPress={goBack}>
+                  <Button
+                    size="sm"
+                    appearance="outline"
+                    tone="neutral"
+                    leadingIcon={RiArrowLeftLine}
+                    onPress={goBack}
+                  >
                     {t('connectors.back')}
                   </Button>
                 ),
@@ -198,11 +213,12 @@ export function ConnectorDetailSection() {
                 label: entry.name,
                 description: entry.description,
                 control: (
-                  <View className="flex-row flex-wrap gap-2">
+                  <>
                     {!connected && (
                       <Button
                         size="sm"
-                        variant="secondary"
+                        appearance="outline"
+                        tone="neutral"
                         onPress={requiresOAuth ? handleConnect : handleInstall}
                         disabled={pending}
                       >
@@ -214,27 +230,28 @@ export function ConnectorDetailSection() {
                     {server && (
                       <Button
                         size="sm"
-                        variant="secondary"
-                        tone="danger"
+                        appearance="outline"
+                        tone="neutral"
+                        leadingIcon={RiDeleteBinLine}
                         onPress={handleUninstall}
                         disabled={pending}
                       >
                         {t('connectors.uninstall')}
                       </Button>
                     )}
-                  </View>
+                  </>
                 ),
               },
+            ],
+          },
+          {
+            key: 'information',
+            label: t('connectors.information'),
+            rows: [
               {
                 key: 'status',
                 label: t('connectors.status'),
-                control: (
-                  <SettingsValueField>
-                    {connected
-                      ? t('connectors.connected')
-                      : (server?.status ?? 'Not connected')}
-                  </SettingsValueField>
-                ),
+                control: <SettingsValueField>{statusValue}</SettingsValueField>,
               },
               {
                 key: 'capabilities',
@@ -256,7 +273,9 @@ export function ConnectorDetailSection() {
                       control: (
                         <Button
                           size="sm"
-                          variant="secondary"
+                          appearance="outline"
+                          tone="neutral"
+                          leadingIcon={RiExternalLinkLine}
                           onPress={() => Linking.openURL(websiteUrl)}
                         >
                           {websiteHost}
@@ -276,7 +295,15 @@ export function ConnectorDetailSection() {
                   label: tool.name,
                   description: tool.description,
                 }))
-              : [{ key: 'none', label: t('connectors.noSkills') }],
+              : [
+                  {
+                    key: 'none',
+                    label: t('settings.connections.noTools'),
+                    description: connected
+                      ? undefined
+                      : t('connectors.connectToSeeTools'),
+                  },
+                ],
           },
         ]}
       />
@@ -301,17 +328,13 @@ export function ConnectorDetailSection() {
           },
         ]}
       >
-        <View className="gap-3">
+        <View style={styles.fields}>
           {entry.requiredEnv.map((envKey) => (
-            <View key={envKey} className="gap-1">
-              <Text className="text-xs font-medium text-muted-foreground">
-                {envKey}
-              </Text>
+            <View key={envKey}>
+              <TextFieldLabel>{envKey}</TextFieldLabel>
               <TextFieldInput
                 label={t('connectors.enterValue', { name: envKey })}
-
                 placeholder={t('connectors.enterValue', { name: envKey })}
-                placeholderTextColor={colors.mutedForeground}
                 value={envValues[envKey] || ''}
                 onChangeText={(val) =>
                   setEnvValues((prev) => ({ ...prev, [envKey]: val }))
@@ -326,6 +349,11 @@ export function ConnectorDetailSection() {
           ))}
         </View>
       </Dialog>
-    </View>
+    </>
   );
 }
+
+const styles = StyleSheet.create({
+  // Dialog form fields, 12 apart.
+  fields: { gap: 12 },
+});

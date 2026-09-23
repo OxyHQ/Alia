@@ -5,40 +5,24 @@ import {
   PERSONALITY_STYLE_MAP,
   type PersonalityStyleId,
 } from '@/lib/personality-styles';
-import { Text } from '@oxy.so/bloom/typography';
-import type { LucideIcon } from 'lucide-react-native';
-import {
-  Coffee,
-  Flame,
-  GraduationCap,
-  Heart,
-  Lightbulb,
-  Sparkles,
-  Zap,
-} from 'lucide-react-native';
-import { useCallback, useEffect } from 'react';
-import { View } from 'react-native';
+import type { SettingsRowData } from '@oxy.so/bloom/settings-modal';
+import { useEffect } from 'react';
 import { SettingsPreferenceSelect } from './preference-select';
 
-const ICON_MAP: Record<string, LucideIcon> = {
-  Heart,
-  Zap,
-  Coffee,
-  Sparkles,
-  Lightbulb,
-  GraduationCap,
-  Flame,
-};
-
-interface PersonalityStylePickerProps {
+interface PersonalityStyleRowOptions {
   selectedStyle: string;
   onSelectStyle: (id: PersonalityStyleId) => void;
 }
 
-export function PersonalityStylePicker({
+/**
+ * The personality row, shaped like the story's "Review provider" row: the
+ * compact select on the right, and the chosen style's streamed sample phrase
+ * as the row's description.
+ */
+export function usePersonalityStyleRow({
   selectedStyle,
   onSelectStyle,
-}: PersonalityStylePickerProps) {
+}: PersonalityStyleRowOptions): SettingsRowData {
   const { t } = useTranslation();
   const { phrase, isStreaming, fetchPhrase } = usePersonalitySamplePhrase();
   const currentStyleId: PersonalityStyleId = PERSONALITY_STYLE_MAP[
@@ -47,33 +31,25 @@ export function PersonalityStylePicker({
     ? (selectedStyle as PersonalityStyleId)
     : 'alia';
 
+  // A new style fetches its sample phrase.
   useEffect(() => {
     fetchPhrase(currentStyleId);
   }, [currentStyleId, fetchPhrase]);
 
-  const handleSelect = useCallback(
-    (id: PersonalityStyleId) => {
-      onSelectStyle(id);
-      // fetchPhrase is triggered by the useEffect on currentStyleId
-    },
-    [onSelectStyle],
-  );
-
-  return (
-    <View className="gap-3">
+  return {
+    key: 'tone',
+    label: t('settings.personalityStyle.title'),
+    description: `${phrase || '…'}${isStreaming ? ' |' : ''}`,
+    control: (
       <SettingsPreferenceSelect
         label={t('settings.personalityStyle.title')}
         value={currentStyleId}
-        onChange={handleSelect}
+        onChange={onSelectStyle}
         items={PERSONALITY_STYLES.map((style) => ({
           value: style.id,
           label: style.name,
         }))}
       />
-      <Text className="text-body text-text-secondary">
-        {phrase || '…'}
-        {isStreaming ? ' |' : ''}
-      </Text>
-    </View>
-  );
+    ),
+  };
 }

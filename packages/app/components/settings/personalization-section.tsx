@@ -2,24 +2,20 @@ import { generateAPIUrl } from '@/lib/generate-api-url';
 import { useTranslation } from '@/lib/hooks/use-translation';
 import { useUserData } from '@/lib/hooks/use-user-data';
 import { useUserDataStore } from '@/lib/stores/user-data-store';
-import { Button } from '@oxy.so/bloom/button';
+import { ButtonGroup, ButtonGroupItem } from '@oxy.so/bloom/button-group';
 import {
-  SettingsProfilePage,
+  SettingsCard,
+  SettingsRow,
+  SettingsSection,
   SettingsTextField,
+  type SettingsRowData,
 } from '@oxy.so/bloom/settings-modal';
 import { Textarea } from '@oxy.so/bloom/textarea';
-import { useTheme } from '@oxy.so/bloom/theme';
 import { toast } from '@oxy.so/bloom/toast';
 import { useOxy } from '@oxy.so/services';
-import {
-  Briefcase,
-  Globe,
-  MapPin,
-  User as UserIcon,
-} from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import { View } from 'react-native';
-import { PersonalityStylePicker } from './personality-style-picker';
+import { usePersonalityStyleRow } from './personality-style-picker';
 import { SettingsPreferenceSelect } from './preference-select';
 
 const LANGUAGES = [
@@ -41,7 +37,6 @@ type FieldKey = 'occupation' | 'location' | 'bio' | 'interests';
 
 const FIELDS: {
   key: FieldKey;
-  icon: typeof Globe;
   titleKey: string;
   descriptionKey: string;
   placeholderKey: string;
@@ -49,21 +44,18 @@ const FIELDS: {
 }[] = [
   {
     key: 'occupation',
-    icon: Briefcase,
     titleKey: 'settings.occupation.title',
     descriptionKey: 'settings.occupation.description',
     placeholderKey: 'settings.occupation.placeholder',
   },
   {
     key: 'location',
-    icon: MapPin,
     titleKey: 'settings.location.title',
     descriptionKey: 'settings.location.description',
     placeholderKey: 'settings.location.placeholder',
   },
   {
     key: 'bio',
-    icon: UserIcon,
     titleKey: 'settings.aboutYou.title',
     descriptionKey: 'settings.aboutYou.description',
     placeholderKey: 'settings.aboutYou.placeholder',
@@ -71,7 +63,6 @@ const FIELDS: {
   },
   {
     key: 'interests',
-    icon: Globe,
     titleKey: 'settings.interests.title',
     descriptionKey: 'settings.interests.description',
     placeholderKey: 'settings.interests.placeholder',
@@ -85,7 +76,6 @@ export function PersonalizationSection() {
   const setMemory = useUserDataStore((state) => state.setMemory);
   const [saving, setSaving] = useState(false);
   const { t } = useTranslation();
-  const { colors } = useTheme();
 
   const [language, setLanguage] = useState('');
   const [tone, setTone] = useState('');
@@ -178,115 +168,114 @@ export function PersonalizationSection() {
     }
   };
 
+  const personalityRow = usePersonalityStyleRow({
+    selectedStyle: tone,
+    onSelectStyle: setTone,
+  });
+
+  const rows: SettingsRowData[] = [
+    {
+      key: 'language',
+      label: t('settings.aliaLanguage.title'),
+      description: t('settings.aliaLanguage.description'),
+      control: (
+        <SettingsPreferenceSelect
+          label={t('settings.aliaLanguage.title')}
+          value={language}
+          onChange={setLanguage}
+          items={LANGUAGES}
+        />
+      ),
+    },
+    {
+      key: 'voice',
+      label: t('settings.voicePreference.title'),
+      description: t('settings.voicePreference.description'),
+      control: (
+        <SettingsPreferenceSelect
+          label={t('settings.voicePreference.title')}
+          value={voice || 'female'}
+          onChange={setVoice}
+          items={[
+            { value: 'female', label: t('settings.voicePreference.female') },
+            { value: 'male', label: t('settings.voicePreference.male') },
+          ]}
+        />
+      ),
+    },
+    personalityRow,
+  ];
+
   return (
-    <SettingsProfilePage
-      sections={[
-        {
-          key: 'preferences',
-          rows: [
-            {
-              key: 'language',
-              label: t('settings.aliaLanguage.title'),
-              description: t('settings.aliaLanguage.description'),
-              control: (
-                <SettingsPreferenceSelect
-                  label={t('settings.aliaLanguage.title')}
-                  value={language}
-                  onChange={setLanguage}
-                  items={LANGUAGES}
-                />
-              ),
-            },
-            {
-              key: 'voice',
-              label: t('settings.voicePreference.title'),
-              description: t('settings.voicePreference.description'),
-              control: (
-                <SettingsPreferenceSelect
-                  label={t('settings.voicePreference.title')}
-                  value={voice || 'female'}
-                  onChange={setVoice}
-                  items={[
-                    {
-                      value: 'female',
-                      label: t('settings.voicePreference.female'),
-                    },
-                    {
-                      value: 'male',
-                      label: t('settings.voicePreference.male'),
-                    },
-                  ]}
-                />
-              ),
-            },
-          ],
-        },
-        {
-          key: 'personality',
-          rows: [
-            {
-              key: 'tone',
-              label: t('settings.personalityStyle.title'),
-              control: (
-                <PersonalityStylePicker
-                  selectedStyle={tone}
-                  onSelectStyle={setTone}
-                />
-              ),
-            },
-          ],
-        },
-        {
-          key: 'profile',
-          rows: FIELDS.map(
-            ({ key, titleKey, descriptionKey, placeholderKey, multiline }) => ({
-              key,
-              label: t(titleKey),
-              description: t(descriptionKey),
-              control: multiline ? (
-                <Textarea
-                  accessibilityLabel={t(titleKey)}
-                  placeholder={t(placeholderKey)}
-                  value={fieldValues[key]}
-                  onChangeText={fieldSetters[key]}
-                />
-              ) : (
-                <SettingsTextField
-                  label={t(titleKey)}
-                  placeholder={t(placeholderKey)}
-                  value={fieldValues[key]}
-                  onCommit={fieldSetters[key]}
-                  showSavedToast={false}
-                />
-              ),
-            }),
+    // SettingsProfilePage's own page geometry (full width, cards 24 apart),
+    // spelled out because two of its blocks are free-text sections, not rows.
+    <View style={PAGE}>
+      <SettingsCard>
+        {rows.map((row) => (
+          <SettingsRow
+            key={row.key}
+            label={row.label}
+            description={row.description}
+          >
+            {row.control}
+          </SettingsRow>
+        ))}
+      </SettingsCard>
+      <SettingsCard>
+        {FIELDS.filter((field) => !field.multiline).map(
+          ({ key, titleKey, descriptionKey, placeholderKey }) => (
+            <SettingsRow
+              key={key}
+              label={t(titleKey)}
+              description={t(descriptionKey)}
+            >
+              <SettingsTextField
+                label={t(titleKey)}
+                placeholder={t(placeholderKey)}
+                value={fieldValues[key]}
+                onCommit={fieldSetters[key]}
+                showSavedToast={false}
+              />
+            </SettingsRow>
           ),
-        },
-        {
-          key: 'save',
-          rows: [
-            {
-              key: 'save',
-              label: t('settings.saveButton'),
-              control: (
-                <View className="flex-row flex-wrap gap-2">
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onPress={handleCancel}
-                    disabled={saving}
-                  >
-                    {t('common.cancel')}
-                  </Button>
-                  <Button size="sm" onPress={handleSave} disabled={saving}>
-                    {saving ? t('settings.saving') : t('settings.saveButton')}
-                  </Button>
-                </View>
-              ),
-            },
-          ],
-        },
-      ]}
-    />
+        )}
+      </SettingsCard>
+      {FIELDS.filter((field) => field.multiline).map(
+        ({ key, titleKey, descriptionKey, placeholderKey }) => (
+          <SettingsSection
+            key={key}
+            label={t(titleKey)}
+            description={t(descriptionKey)}
+          >
+            <Textarea
+              accessibilityLabel={t(titleKey)}
+              placeholder={t(placeholderKey)}
+              value={fieldValues[key]}
+              onChangeText={fieldSetters[key]}
+              autoResize
+              rows={3}
+              maxRows={8}
+            />
+          </SettingsSection>
+        ),
+      )}
+      <SettingsCard>
+        <SettingsRow label={t('settings.saveButton')}>
+          <ButtonGroup
+            size="sm"
+            accessibilityLabel={t('settings.saveButton')}
+          >
+            <ButtonGroupItem onPress={handleCancel} disabled={saving}>
+              {t('common.cancel')}
+            </ButtonGroupItem>
+            <ButtonGroupItem onPress={handleSave} disabled={saving}>
+              {saving ? t('settings.saving') : t('settings.saveButton')}
+            </ButtonGroupItem>
+          </ButtonGroup>
+        </SettingsRow>
+      </SettingsCard>
+    </View>
   );
 }
+
+const PAGE = { width: '100%', gap: 24 } as const;

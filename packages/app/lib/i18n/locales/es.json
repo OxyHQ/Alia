@@ -53,7 +53,45 @@
     },
     "account": {
       "title": "Configuración de cuenta",
-      "description": "Administra tu cuenta"
+      "description": "Administra tu cuenta",
+      "currentPlan": "Plan actual",
+      "manage": "Gestionar",
+      "billing": {
+        "freePlan": "Gratis",
+        "freePlanDescription": "Mejora tu plan para tener más créditos cada mes.",
+        "subscription": "Suscripción",
+        "customCredits": "{{count}} créditos"
+      },
+      "security": {
+        "never": "Nunca",
+        "severity": {
+          "info": "Información",
+          "warning": "Aviso",
+          "critical": "Crítico"
+        },
+        "auditSummary": "Resumen de auditoría",
+        "auditSummaryDetail": "{{sessions}} sesiones · {{steps}} pasos · {{threats}} amenazas",
+        "fromDate": "Fecha de inicio",
+        "toDate": "Fecha de fin",
+        "exportFormat": "Formato de exportación",
+        "downloadAudit": "Descargar auditoría"
+      },
+      "storage": {
+        "signedOut": "Inicia sesión para gestionar tus archivos",
+        "signedOutDescription": "Los archivos que subas a tu Biblioteca aparecen aquí.",
+        "uploadLabel": "Subir un archivo",
+        "uploadPrompt": "Arrastra y suelta para subir o",
+        "uploadPromptNative": "Toca para",
+        "uploadSelect": "selecciona",
+        "uploadSelectNative": "seleccionar un archivo",
+        "uploading": "Subiendo {{size}}...",
+        "uploaded": "¡Subido correctamente!",
+        "unsupported": "Solo se admiten archivos {{extensions}}",
+        "tooLarge": "El archivo supera {{max}}",
+        "openFile": "Abrir archivo",
+        "copyLink": "Copiar enlace",
+        "linkCopied": "Enlace copiado"
+      }
     },
     "appLanguage": {
       "title": "Idioma de la aplicación",
@@ -126,7 +164,9 @@
       "connectors": "Conectores",
       "integrations": "Integraciones",
       "writingStyle": "Estilo de Escritura",
-      "localModels": "Modelos locales"
+      "localModels": "Modelos locales",
+      "profile": "Perfil",
+      "storage": "Almacenamiento"
     },
     "accentColor": {
       "title": "Color de la app",
@@ -172,7 +212,201 @@
     "groups": {
       "assistant": "Asistente",
       "connections": "Conexiones",
-      "app": "Aplicación"
+      "app": "Aplicación",
+      "device": "Este dispositivo"
+    },
+    "general": {
+      "limits": "Límites",
+      "creditsLeft": "Te quedan {{count}} créditos",
+      "manageLimits": "Gestionar límites",
+      "currentPlan": "Plan actual",
+      "freePlan": "Gratis",
+      "perMonth": "mes",
+      "perYear": "año",
+      "creditsPerMonth": "{{count}} créditos al mes"
+    },
+    "profile": {
+      "name": "Nombre",
+      "username": "Usuario",
+      "email": "Correo",
+      "oxyAccount": "Cuenta de Oxy",
+      "oxyAccountDescription": "Tu nombre, foto e inicio de sesión los gestiona Oxy",
+      "manage": "Gestionar",
+      "userId": "ID de usuario",
+      "logoutAll": "Cerrar sesión en todos los dispositivos",
+      "logoutAllConfirm": "Se cerrará tu sesión de Alia y de todas las apps de Oxy en todos tus dispositivos.",
+      "logout": "Cerrar sesión"
+    },
+    "connections": {
+      "catalog": "Catálogo de conectores",
+      "viewDetails": "Ver detalles",
+      "noOutput": "No hay salida disponible",
+      "noTools": "No hay herramientas disponibles",
+      "notConnected": "No conectado",
+      "toolCount": {
+        "zero": "Ninguna herramienta activada",
+        "one": "1 herramienta activada",
+        "other": "{{count}} herramientas activadas"
+      },
+      "serverStatus": {
+        "installed": "Instalado",
+        "running": "En ejecución",
+        "stopped": "Detenido",
+        "error": "Error"
+      },
+      "capability": {
+        "read": "Lectura",
+        "readWrite": "Lectura, escritura"
+      },
+      "auth": {
+        "oauth": "OAuth",
+        "apiKey": "Clave de API",
+        "none": "Ninguna"
+      },
+      "disconnect": "Desconectar",
+      "disconnectNamed": "Desconectar {{name}}",
+      "integrations": {
+        "connected": "Conectadas",
+        "available": "Disponibles",
+        "empty": "Aún no hay integraciones conectadas.",
+        "status": {
+          "active": "Activa",
+          "expired": "Caducada",
+          "revoked": "Revocada",
+          "error": "Error"
+        },
+        "oauthError": "La conexión se canceló o falló",
+        "connectedToast": "{{name}} se conectó correctamente",
+        "finishFailed": "No se pudo completar la conexión",
+        "startFailed": "No se pudo iniciar la conexión",
+        "disconnectTitle": "Desconectar integración",
+        "disconnectDescription": "¿Seguro que quieres desconectar esta integración? Puedes volver a conectarla cuando quieras.",
+        "disconnectedToast": "Integración desconectada",
+        "disconnectFailed": "No se pudo desconectar la integración"
+      },
+      "bots": {
+        "title": "Bots del sistema",
+        "description": "Los bots del sistema permiten que otras personas interactúen con Alia y que Alia envíe mensajes en tu nombre. Para dar a uno de tus agentes su propio bot de Telegram, abre el agente y usa su sección de bot de Telegram.",
+        "empty": "No hay bots del sistema disponibles.",
+        "status": {
+          "active": "Activo",
+          "inactive": "Inactivo",
+          "error": "Error"
+        },
+        "linkedAs": "Vinculado como @{{username}}",
+        "link": "Vincular",
+        "unlink": "Desvincular",
+        "linkUnsupported": "Aún no se puede vincular con {{platform}}",
+        "cannotOpen": "No se puede abrir {{platform}}",
+        "openFailed": "No se pudo abrir el enlace",
+        "unlinkedToast": "Bot desvinculado",
+        "unlinkFailed": "No se pudo desvincular el bot"
+      },
+      "accounts": {
+        "title": "Cuentas conectadas",
+        "description": "Vincula tus cuentas de mensajería para que Alia pueda leer y responder en tu nombre.",
+        "empty": "Aún no hay cuentas conectadas. Conecta tu primera cuenta para empezar.",
+        "connectTitle": "Conectar cuenta",
+        "status": {
+          "connected": "Conectada",
+          "connecting": "Conectando",
+          "disconnected": "Desconectada",
+          "error": "Error",
+          "expired": "Caducada"
+        },
+        "connectingToast": "Conectando {{name}}",
+        "connectFailed": "No se pudo conectar la cuenta",
+        "disconnectTitle": "Desconectar cuenta",
+        "disconnectDescription": "¿Seguro que quieres desconectar esta cuenta? Puedes volver a conectarla cuando quieras.",
+        "disconnectedToast": "Cuenta desconectada",
+        "disconnectFailed": "No se pudo desconectar la cuenta"
+      }
+    },
+    "assistant": {
+      "memory": {
+        "manage": "Gestionar",
+        "newMemoryDescription": "Abre un chat para decirle a Alia qué recordar",
+        "duplicatesDescription": "Busca memorias que se repiten entre sí",
+        "findDuplicates": "Buscar duplicados",
+        "count": {
+          "one": "1 memoria",
+          "other": "{{count}} memorias"
+        }
+      },
+      "writingStyle": {
+        "emptyTitle": "Aún no hay perfil de estilo",
+        "emptyDescription": "Tras {{min}} mensajes, tu perfil de estilo de escritura empezará a crearse automáticamente.",
+        "statusActive": "Perfil activo",
+        "statusBuilding": "Creando perfil",
+        "messagesAnalyzed": "{{n}} mensajes analizados",
+        "aiSummary": "Resumen de IA",
+        "overview": "Resumen",
+        "formalityLabel": "Formalidad",
+        "vocabulary": "Vocabulario",
+        "avgSentence": "Frase media",
+        "avgSentenceValue": "~{{n}} palabras",
+        "emojiLabel": "Emojis",
+        "languageLabel": "Idioma",
+        "capitalization": "Mayúsculas",
+        "patterns": "Patrones",
+        "tone": "Tono",
+        "greetings": "Saludos",
+        "closings": "Despedidas",
+        "signOff": "Firma",
+        "words": "Palabras características",
+        "jargon": "Términos del ámbito",
+        "otherLanguages": "Otros idiomas",
+        "multilingual": "Mensajes multilingües",
+        "multilingualDescription": "A veces mezclas idiomas en tus mensajes",
+        "notDetected": "Aún no detectado",
+        "noneDetected": "Ninguno detectado",
+        "preferences": "Preferencias",
+        "aiAnalysis": "Análisis con IA",
+        "aiAnalysisLocked": "Disponible tras {{min}} mensajes ({{n}} hasta ahora)",
+        "refresh": "Actualizar",
+        "refreshing": "Actualizando…",
+        "refreshed": "Perfil de estilo actualizado",
+        "refreshFailed": "No se pudo actualizar",
+        "refreshFailedLong": "No se pudo actualizar el perfil de estilo",
+        "resetProfile": "Restablecer perfil",
+        "reset": "Restablecer",
+        "resetTitle": "Restablecer estilo de escritura",
+        "resetDescription": "Se eliminará tu perfil de estilo de escritura. Alia volverá a aprender desde cero.",
+        "resetDone": "Perfil de estilo restablecido",
+        "resetFailed": "No se pudo restablecer el perfil de estilo",
+        "updated": "Perfil de estilo guardado",
+        "saveFailed": "No se pudieron guardar los cambios",
+        "editTitle": "Editar preferencias de estilo",
+        "editDescription": "Personaliza cómo escribe Alia en tu nombre.",
+        "signOffPlaceholder": "p. ej., Un saludo, Gracias",
+        "greetingPatterns": "Patrones de saludo",
+        "greetingPlaceholder": "p. ej., Hola, Buenas, Qué tal",
+        "closingPatterns": "Patrones de despedida",
+        "closingPlaceholder": "p. ej., Gracias, Un abrazo, Saludos",
+        "toneDescriptors": "Descriptores de tono",
+        "tonePlaceholder": "p. ej., cercano, directo, profesional",
+        "commaSeparated": "Separados por comas",
+        "formality": {
+          "very_informal": "Muy informal",
+          "informal": "Informal",
+          "neutral": "Neutral",
+          "formal": "Formal",
+          "very_formal": "Muy formal"
+        },
+        "emoji": {
+          "never": "Nunca",
+          "rare": "Rara vez",
+          "moderate": "A veces",
+          "frequent": "A menudo"
+        },
+        "language": {
+          "en": "Inglés",
+          "es": "Español",
+          "fr": "Francés",
+          "pt": "Portugués",
+          "de": "Alemán"
+        }
+      }
     }
   },
   "nav": {
@@ -235,10 +469,7 @@
     "support": "Soporte",
     "tasks": "Tareas",
     "shows": "Shows",
-    "freePlan": "Plan gratuito",
-    "signIn": "Iniciar sesión",
-    "newConversation": "Nueva conversación",
-    "guest": "Invitado"
+    "newConversation": "Nueva conversación"
   },
   "billing": {
     "title": "Facturación",
