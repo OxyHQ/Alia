@@ -1,6 +1,11 @@
 /**
  * Bottom voice control bar that replaces PromptInput when voice mode is active.
- * Contains status text, mute/cohost/end buttons, and "Continue" for cohost rounds.
+ * Contains status text and mute/end buttons.
+ *
+ * The cohost controls are drawn only when their handlers are passed. The
+ * cohost was a second voice in the LiveKit room; the on-device turn loop has
+ * one voice, so `useVoiceRoom` offers nothing to wire them to and the SDK's own
+ * `VoiceSession` no longer passes them.
  */
 
 import { View, Text, Pressable, ActivityIndicator, StyleSheet } from 'react-native';
@@ -14,13 +19,16 @@ interface VoiceControlsProps {
   roomState: RoomState;
   agentState: AgentState;
   isMuted: boolean;
-  cohostActive: boolean;
-  currentSpeaker: 'primary' | 'cohost' | 'user' | null;
-  roundComplete: boolean;
+  cohostActive?: boolean;
+  currentSpeaker?: 'primary' | 'cohost' | 'user' | null;
+  roundComplete?: boolean;
   onToggleMute: () => void;
-  onEnableCohost: () => void;
-  onDisableCohost: () => void;
-  onContinueCohost: () => void;
+  /** @deprecated The cohost is retired; pass nothing and no cohost button is drawn. */
+  onEnableCohost?: () => void;
+  /** @deprecated See `onEnableCohost`. */
+  onDisableCohost?: () => void;
+  /** @deprecated See `onEnableCohost`. */
+  onContinueCohost?: () => void;
   onEnd: () => void;
   /** Override theme primary color (resolved hex/hsl value, not CSS var) */
   primaryColor?: string;
@@ -49,9 +57,9 @@ export function VoiceControls({
   roomState,
   agentState,
   isMuted,
-  cohostActive,
-  currentSpeaker,
-  roundComplete,
+  cohostActive = false,
+  currentSpeaker = null,
+  roundComplete = false,
   onToggleMute,
   onEnableCohost,
   onDisableCohost,
@@ -60,6 +68,7 @@ export function VoiceControls({
   primaryColor,
 }: VoiceControlsProps) {
   const statusText = getStatusText(roomState, agentState, isMuted, cohostActive, currentSpeaker);
+  const hasCohost = onEnableCohost !== undefined && onDisableCohost !== undefined;
 
   return (
     <View style={styles.container}>
@@ -69,7 +78,7 @@ export function VoiceControls({
         </Text>
       ) : null}
 
-      {roundComplete && (
+      {roundComplete && onContinueCohost !== undefined && (
         <Pressable
           onPress={onContinueCohost}
           className="bg-primary/30"
@@ -100,6 +109,7 @@ export function VoiceControls({
             </Text>
           </View>
 
+          {hasCohost && (
           <View style={styles.buttonWrapper}>
             <Pressable
               onPress={cohostActive ? onDisableCohost : onEnableCohost}
@@ -115,6 +125,7 @@ export function VoiceControls({
               {cohostActive ? 'Solo' : 'Cohost'}
             </Text>
           </View>
+          )}
 
           <View style={styles.buttonWrapper}>
             <Pressable

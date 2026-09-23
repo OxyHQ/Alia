@@ -2,8 +2,9 @@
  * How audio becomes the ambient field's 0..1 level — one curve, one pair of
  * time constants, for every source that drives it.
  *
- * Dictation got here first and is the reference: the recorder reports dBFS,
- * `useSpeechToText` normalises it against a -60 floor, and `useAmbientWave`
+ * Dictation got here first and is the reference: the microphone's level is
+ * taken as dBFS (on web, from an analyser beside the recognizer —
+ * `speech-recognition.ts`), normalised against a -60 floor, and `useAmbientWave`
  * smooths it with a fast attack and a slow decay before it reaches
  * `AmbientField`. That is the behaviour people like, so it is the behaviour
  * everything else adopts rather than re-invents — including "read aloud", which

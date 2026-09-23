@@ -4,7 +4,8 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 /**
- * Twelve packages left the app manifest, and stay gone.
+ * Twelve packages left the app manifest, and stay gone — seventeen since the
+ * LiveKit call transport followed them.
  *
  * They were removed by an import-based audit (#608 §11) that checked
  * every manifest entry against the specifiers the source really imports AND
@@ -48,6 +49,13 @@ const REMOVED = [
   ['@babel/plugin-transform-react-', 'jsx'],
   ['es', 'build'],
   ['patch-', 'package'],
+  // The LiveKit call transport, retired when voice moved onto the device:
+  // recognition is `expo-speech-recognition`, speech is `/v1/audio/speech`.
+  ['livekit-', 'client'],
+  ['@livekit/react-', 'native'],
+  ['@livekit/react-native-', 'webrtc'],
+  ['@livekit/react-native-expo-', 'plugin'],
+  ['@config-plugins/react-native-', 'webrtc'],
 ].map((parts) => parts.join(''));
 
 /** Every source file of the app, minus the installed packages and this gate. */

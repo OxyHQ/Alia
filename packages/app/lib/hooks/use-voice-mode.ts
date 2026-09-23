@@ -1,51 +1,44 @@
 /**
- * Orchestration hook that bridges voice mode (LiveKit WebRTC) with the
- * text-based conversation. Adapts VoiceMessage objects into the unified
- * Message type and merges them into the shared message array so that
- * ChatInterface renders both text and voice messages seamlessly.
+ * Voice mode for the open conversation.
+ *
+ * A call is the conversation, spoken. Each thing the person says is sent with
+ * the screen's own `sendMessage` — the same `/alia/chat` turn a typed message
+ * is, with the conversation, the agent, the model and every tool it has — and
+ * marked `responseMode: 'voice'` so the answer is meant to be heard. So a
+ * call's turns land in the thread as ordinary messages, persisted by the server
+ * like any other, and nothing has to be merged into or saved from the screen
+ * when the call ends. The SDK's `useVoiceRoom` does the listening (on the
+ * device) and the speaking (`/v1/audio/speech`, sentence by sentence).
  */
 
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/hooks/query-keys';
-import { useVoiceRoom, type VoiceMessage, type RoomState, type AgentState } from '@/lib/hooks/use-voice-room';
-import { useAudioLevelMonitor, useAudioLevels } from '@alia.onl/sdk/voice';
+import { useVoiceRoom } from '@/lib/hooks/use-voice-room';
+import { useAudioLevelMonitor, useAudioLevels, type VoiceTurnSender } from '@alia.onl/sdk/voice';
 import { toast } from '@oxy.so/bloom/toast';
-import type { Message } from '@/lib/hooks/use-conversations';
+import type { Attachment } from '@/lib/stores/global-store';
+import type { SendOptions } from '@/lib/hooks/use-streaming-chat';
+
+/**
+ * The call ended because the turn could not be sent at all. `sendMessage` has
+ * already said so — a toast, or the usage-limit dialog — so voice mode ends the
+ * call without saying it a second time.
+ */
+const TURN_NOT_SENT = 'voice-turn-not-sent';
 
 interface UseVoiceModeOptions {
-  chatMessages: Message[];
-  setMessages: (msgs: Message[] | ((prev: Message[]) => Message[])) => void;
-  conversationId?: string;
-  /**
-   * The agent whose thread this is, when there is one.
-   *
-   * NOT `voiceRoom.agentState`, which is LiveKit's voice-agent connection state
-   * and shares nothing with this but the word.
-   */
-  agentId?: string;
+  /** The conversation's own send — `useChatConversation().sendMessage`. */
+  sendMessage: (content: string, attachments?: Attachment[], options?: SendOptions) => Promise<boolean>;
+  /** Stops the turn streaming now; how talking over an answer cancels it. */
+  stopGeneration: () => void;
   onDeactivate?: () => void;
 }
 
-/** Adapt a VoiceMessage into the canonical Message type. */
-function adaptVoiceMessage(vm: VoiceMessage): Message {
-  return {
-    id: vm.id,
-    role: vm.role,
-    content: vm.content,
-    source: 'voice',
-    speaker: vm.speaker,
-    isStreaming: vm.isStreaming,
-    toolInvocations: vm.toolInvocations,
-  };
-}
-
-export function useVoiceMode({ chatMessages, setMessages, conversationId, agentId, onDeactivate }: UseVoiceModeOptions) {
+export function useVoiceMode({ sendMessage, stopGeneration, onDeactivate }: UseVoiceModeOptions) {
   const [isVoiceActive, setIsVoiceActive] = useState(false);
   const queryClient = useQueryClient();
 
-  // Snapshot of text messages when voice mode starts (to prevent overwrites)
-  const textSnapshotRef = useRef<Message[]>([]);
   /**
    * Whether this activation ever reached a room.
    *
@@ -59,15 +52,28 @@ export function useVoiceMode({ chatMessages, setMessages, conversationId, agentI
    * messages on screen when the call began. That is a fact about the
    * TRANSCRIPT, not about the room, and it reads as zero for a call started
    * from an empty chat, which is the ordinary way to start one. Those calls
-   * could never auto-deactivate: the room dropped, the effect declined to act,
-   * and the person was left with a live voice UI over a room that was gone.
-   *
-   * This asks the room instead, so it is right for a call from zero messages
-   * and a call from a long history alike.
+   * could never auto-deactivate. This asks the room instead.
    */
   const hasConnectedRef = useRef(false);
 
-  const voiceRoom = useVoiceRoom(agentId);
+  // Read at call time: the loop calls these long after the render that built it.
+  const sendRef = useRef(sendMessage);
+  sendRef.current = sendMessage;
+  const stopRef = useRef(stopGeneration);
+  stopRef.current = stopGeneration;
+
+  const sendTurn = useCallback<VoiceTurnSender>(async ({ text, signal, onText }) => {
+    const cancel = (): void => stopRef.current();
+    signal.addEventListener('abort', cancel, { once: true });
+    try {
+      const sent = await sendRef.current(text, undefined, { responseMode: 'voice', onAnswerText: onText });
+      if (!sent && !signal.aborted) throw new Error(TURN_NOT_SENT);
+    } finally {
+      signal.removeEventListener('abort', cancel);
+    }
+  }, []);
+
+  const voiceRoom = useVoiceRoom(sendTurn);
   const { captureLevel, playbackLevel } = useAudioLevelMonitor(voiceRoom.room, voiceRoom.isConnected);
   const { waveAmplitude } = useAudioLevels({
     captureLevel,
@@ -76,25 +82,22 @@ export function useVoiceMode({ chatMessages, setMessages, conversationId, agentI
     isConnected: voiceRoom.isConnected,
   });
 
-  // Merge voice messages into the shared messages array
-  useEffect(() => {
-    if (!isVoiceActive) return;
-
-    const adapted = voiceRoom.messages.map(adaptVoiceMessage);
-    setMessages([...textSnapshotRef.current, ...adapted]);
-  }, [voiceRoom.messages, isVoiceActive, setMessages]);
-
   // Auto-deactivate on error or connection failure
   useEffect(() => {
     if (!isVoiceActive) return;
     if (voiceRoom.error) {
-      toast.error(voiceRoom.error);
+      if (voiceRoom.error !== TURN_NOT_SENT) toast.error(voiceRoom.error);
       deactivateVoice();
     } else if (voiceRoom.roomState === 'error') {
       toast.error('Voice connection failed');
       deactivateVoice();
     }
   }, [voiceRoom.error, voiceRoom.roomState, isVoiceActive]);
+
+  // A turn that went wrong without ending the call: say so, keep listening.
+  useEffect(() => {
+    if (isVoiceActive && voiceRoom.turnError) toast.error(voiceRoom.turnError);
+  }, [voiceRoom.turnError, isVoiceActive]);
 
   // Auto-deactivate on unexpected disconnection
   useEffect(() => {
@@ -104,7 +107,6 @@ export function useVoiceMode({ chatMessages, setMessages, conversationId, agentI
       return;
     }
     if (voiceRoom.roomState === 'disconnected' && hasConnectedRef.current) {
-      // Room disconnected while voice was active (network drop, session ended, etc.)
       deactivateVoice();
     }
   }, [voiceRoom.roomState, isVoiceActive]);
@@ -113,21 +115,18 @@ export function useVoiceMode({ chatMessages, setMessages, conversationId, agentI
     if (isVoiceActive || voiceRoom.roomState === 'connecting') return;
 
     hasConnectedRef.current = false;
-    textSnapshotRef.current = [...chatMessages];
     setIsVoiceActive(true);
     voiceRoom.connect();
-  }, [isVoiceActive, voiceRoom.roomState, chatMessages, voiceRoom]);
+  }, [isVoiceActive, voiceRoom.roomState, voiceRoom]);
 
   const deactivateVoice = useCallback(() => {
     voiceRoom.disconnect();
     setIsVoiceActive(false);
     hasConnectedRef.current = false;
-    textSnapshotRef.current = [];
 
-    // Invalidate credits since voice sessions consume credits
+    // Every turn and every spoken answer was billed per call.
     queryClient.invalidateQueries({ queryKey: queryKeys.credits.info });
 
-    // Trigger conversation save so voice transcripts are persisted
     onDeactivate?.();
   }, [voiceRoom, queryClient, onDeactivate]);
 
@@ -137,7 +136,7 @@ export function useVoiceMode({ chatMessages, setMessages, conversationId, agentI
     activateVoice,
     deactivateVoice,
 
-    // Voice room state (for controls & overlay)
+    // Voice loop state (for controls & overlay)
     roomState: voiceRoom.roomState,
     agentState: voiceRoom.agentState,
     isMuted: voiceRoom.isMuted,
@@ -147,7 +146,7 @@ export function useVoiceMode({ chatMessages, setMessages, conversationId, agentI
     isConnected: voiceRoom.isConnected,
     room: voiceRoom.room,
 
-    // Voice room controls
+    // Voice loop controls
     toggleMute: voiceRoom.toggleMute,
     enableCohost: voiceRoom.enableCohost,
     disableCohost: voiceRoom.disableCohost,

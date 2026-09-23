@@ -24,10 +24,38 @@ the default in Expo SDK 53+), because every icon import is a subpath.
 
 Two entry points:
 
-- `@alia.onl/sdk` — text chat, speech, catalogue, primitives. Never reaches
-  `livekit-client`.
-- `@alia.onl/sdk/voice` — `VoiceSession`, the LiveKit half. Pass it to the shell
-  as `voiceSession` to offer calls; leave it out for text-only chat.
+- `@alia.onl/sdk` — text chat, dictation, read-aloud, catalogue, primitives.
+- `@alia.onl/sdk/voice` — `VoiceSession` and `useVoiceRoom`, the voice call.
+  Pass `VoiceSession` to the shell as `voiceSession` to offer calls; leave it
+  out for text-only chat and the call is never compiled.
+
+## Speech
+
+Dictation (`useSpeechToText`) and the voice call (`useVoiceRoom`) recognize
+speech **on the device**: the Web Speech API in browsers that have it (Chromium
+and Safari — not Firefox, where `useSpeechToText().isSupported` is `false`), and
+[`expo-speech-recognition`](https://github.com/jamsch/expo-speech-recognition)
+on iOS and Android. No audio is sent to Alia; whether the platform's recognizer
+uses a network service of its own is the platform's (Chrome's does).
+
+On native, add `expo-speech-recognition` (a peer dependency, like `expo-audio`:
+the root entry's mic button reaches it) and its config plugin to your app, then
+make a new native build:
+
+```json
+["expo-speech-recognition", {
+  "microphonePermission": "Allow $(PRODUCT_NAME) to hear what you dictate and say in voice calls.",
+  "speechRecognitionPermission": "Allow $(PRODUCT_NAME) to turn your speech into text."
+}]
+```
+
+A voice call is a turn loop, not a realtime session: it listens until the
+person pauses, sends what they said through the ordinary chat path
+(`POST /v1/chat/completions` with `responseMode: "voice"`, or your own
+`sendTurn`), and speaks the answer sentence by sentence through
+`POST /v1/audio/speech` in the product voice (`male` / `female`). Talking over
+the answer interrupts it. Pass `lang` to both hooks to follow your app's
+language.
 
 ## Use
 
@@ -199,7 +227,7 @@ reason above.
 ```sh
 bun run typecheck       # tsc --noEmit
 bun run test            # vitest
-bun run check:entries   # the root entry must not reach livekit-client
+bun run check:entries   # the root entry must not reach the voice call
 ```
 
 ## Licence
