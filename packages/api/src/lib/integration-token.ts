@@ -44,6 +44,22 @@ const inflightRefreshes = new Map<string, Promise<string>>();
  * @returns The access token string
  * @throws If the integration is not found, disabled, or the token cannot be refreshed
  */
+/**
+ * The fields of an OAuth 2.0 token response this module reads (RFC 6749 §5.1,
+ * §5.2). `response.json()` is `unknown` under Node's own fetch types — the DOM
+ * lib that once made it `any` was only ever pulled in by the retired browser
+ * session — so the shape is stated rather than assumed.
+ */
+interface OAuthTokenResponse {
+  access_token?: string;
+  refresh_token?: string;
+  expires_in?: number;
+  scope?: string;
+  token_type?: string;
+  error?: string;
+  error_description?: string;
+}
+
 export async function getValidToken(userId: string, service: string): Promise<string> {
   const db = getDb();
   const integration = await findEnabledIntegrationTokens(db, userId, service);
@@ -136,7 +152,7 @@ async function refreshAndPersist(integration: IntegrationTokenRow): Promise<stri
       signal: AbortSignal.timeout(10_000),
     });
 
-    const data = await response.json();
+    const data = (await response.json()) as OAuthTokenResponse;
 
     if (!response.ok || !data.access_token) {
       // Log only error fields — never log token values

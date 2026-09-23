@@ -17,6 +17,22 @@ import {
 import { INTEGRATION_REGISTRY, type IntegrationRegistryEntry } from '../lib/integration-registry.js';
 import { log } from '../lib/logger.js';
 
+/**
+ * The fields of an OAuth 2.0 token response the token exchange reads (RFC 6749 §5.1,
+ * §5.2). `response.json()` is `unknown` under Node's own fetch types — the DOM
+ * lib that once made it `any` was only ever pulled in by the retired browser
+ * session — so the shape is stated rather than assumed.
+ */
+interface OAuthTokenResponse {
+  access_token?: string;
+  refresh_token?: string;
+  expires_in?: number;
+  scope?: string;
+  token_type?: string;
+  error?: string;
+  error_description?: string;
+}
+
 const router = express.Router();
 
 function getRegistryEntry(service: string): IntegrationRegistryEntry | undefined {
@@ -211,7 +227,7 @@ router.post('/:service/complete', authenticateToken, async (req: express.Request
       signal: AbortSignal.timeout(10_000),
     });
 
-    const tokenData = await tokenResponse.json();
+    const tokenData = (await tokenResponse.json()) as OAuthTokenResponse;
 
     if (!tokenResponse.ok || !tokenData.access_token) {
       log.general.error(
