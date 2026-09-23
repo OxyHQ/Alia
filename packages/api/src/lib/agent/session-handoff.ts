@@ -56,6 +56,18 @@ import { enqueueAgentSession } from '../task-queue.js';
 const DEFAULT_AGENT_PRICE = 15;
 
 /**
+ * The credits one hire of this agent reserves — the ONE place that is decided.
+ *
+ * Exported because a goal RECORDS its price (`agent_goals.price_credits`) before
+ * this module reserves it. The goals route wrote `agent.price ?? 0` while the
+ * reservation below charged `agent.price || 15`, so an agent with no price
+ * produced a goal that said 0 and a balance that lost 15. Both now read this.
+ */
+export function agentHirePrice(agent: { readonly price: number | null }): number {
+  return agent.price || DEFAULT_AGENT_PRICE;
+}
+
+/**
  * What KIND of act is spending these credits, which is what decides whether it
  * counts as a hire.
  *
@@ -96,7 +108,7 @@ export type AgentSessionHandoff =
   | { readonly ok: true; readonly sessionId: string; readonly queued: boolean; readonly jobId?: string }
   /**
    * `creditsNeeded` rides on the refusal so the 402 body does not need a second
-   * copy of `agent.price || DEFAULT_AGENT_PRICE` — the price that was actually
+   * copy of {@link agentHirePrice} — the price that was actually
    * asked for is reported by whoever asked for it.
    */
   | { readonly ok: false; readonly reason: 'insufficient_credits'; readonly creditsNeeded: number }
@@ -118,7 +130,7 @@ export async function startAgentSession(input: {
   readonly depth?: number;
 }): Promise<AgentSessionHandoff> {
   const { agent, userId, task, origin } = input;
-  const price = agent.price || DEFAULT_AGENT_PRICE;
+  const price = agentHirePrice(agent);
 
   /**
    * The PAYER's balance row, and only the payer's.
