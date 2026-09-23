@@ -86,8 +86,6 @@ const state = vi.hoisted(() => ({
   entitlementsThrow: false,
   allowedModelIds: [] as string[],
   userId: null as string | null,
-  /** An `alia_sk_` developer key, as `authenticateApiKey` would leave it. */
-  apiKeyId: null as string | null,
   /** A verified Oxy service token, as `oxyServiceAuth` would leave it. */
   serviceAppId: null as string | null,
   /**
@@ -129,28 +127,18 @@ vi.mock('../../lib/plan-access.js', () => ({
 
 /**
  * Stands in for the auth middleware by leaving on the request exactly what the
- * real one leaves: `req.user` for an Oxy session, `req.apiKey` for an
- * `alia_sk_` developer key, `req.serviceApp` for a verified service token. The
- * route then runs the SHIPPED `resolveCallerAudience` over it, so what is under
- * test is the real classification and not a fixture's opinion of it.
- *
- * `authenticateApiKey` sets `req.user` as well as `req.apiKey`, and this mock
- * reproduces that, because a resolver that read `req.user` first would call
- * every developer key a session — which is the bug the ordering exists to
- * avoid, and it cannot be measured against a mock that keeps them apart.
+ * real one leaves: `req.user` for an Oxy session, `req.serviceApp` for a
+ * verified service token. The route then runs the SHIPPED
+ * `resolveCallerAudience` over it, so what is under test is the real
+ * classification and not a fixture's opinion of it.
  */
 vi.mock('../../middleware/auth.js', () => ({
   optionalAuth: (req: Request, _res: Response, next: NextFunction) => {
     const typed = req as Request & {
       user?: { id: string };
-      apiKey?: { id: string; appId: string; userId: string; scopes: string[] };
       serviceApp?: { appId: string; appName: string; scopes: string[]; credentialId: string; ownerAccountId: string; environment: 'development' | 'staging' | 'production' };
     };
     if (state.userId !== null) typed.user = { id: state.userId };
-    if (state.apiKeyId !== null) {
-      typed.apiKey = { id: state.apiKeyId, appId: 'app', userId: 'key-owner', scopes: [] };
-      typed.user = { id: 'key-owner' };
-    }
     if (state.serviceAppId !== null) {
       typed.serviceApp = {
         appId: state.serviceAppId,
@@ -292,7 +280,6 @@ beforeEach(() => {
   state.entitlementsThrow = false;
   state.allowedModelIds = ['route:instant'];
   state.userId = null;
-  state.apiKeyId = null;
   state.serviceAppId = null;
   // Every fixture route is on `acme`, so the default is a deployment that can
   // serve — otherwise every other group in this file would be measuring an
@@ -685,11 +672,8 @@ describe('a route whose availability scope does not admit the caller is withheld
     expect(lite?.availability).toMatchObject({ scope: { state: 'admitted', values: ['platform_internal'] } });
   });
 
-  it('refuses a signed-in user and a developer key, not only an anonymous caller', async () => {
-    // The checkbox names *public/user credentials*, and a developer key is the
-    // sharpest of the three: `authenticateApiKey` sets `req.user` too, so a
-    // resolver that tested the session first would hand every `alia_sk_` key
-    // whatever a session may have.
+  it('refuses a signed-in user, not only an anonymous caller', async () => {
+    // The checkbox names *public/user credentials*.
     state.mappings = {
       lite: [mapping('one', {}, { availabilityScope: 'platform_internal' })],
       'v1-codea': [mapping('three')],
@@ -699,12 +683,7 @@ describe('a route whose availability scope does not admit the caller is withheld
     state.userId = 'user-1';
     const session = await get('/catalogue');
     expect((session.body.data ?? []).map((e) => e.id)).not.toContain('route:instant');
-
-    state.userId = null;
-    state.apiKeyId = 'key-1';
-    const developer = await get('/catalogue');
-    expect((developer.body.data ?? []).map((e) => e.id)).not.toContain('route:instant');
-    expect(developer.body.filters?.availability_scope).toEqual({ declared_routes: 1 });
+    expect(session.body.filters?.availability_scope).toEqual({ declared_routes: 1 });
   });
 
   it('withholds a scope it cannot evaluate rather than admitting it', async () => {

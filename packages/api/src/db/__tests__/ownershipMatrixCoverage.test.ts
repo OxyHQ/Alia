@@ -232,8 +232,14 @@ interface MatrixRow {
  * the `external_models` leaderboard mirror. Their repositories, the
  * `/external-models` route and the ZeroEval sync (three rows name the same
  * script) go with them.
+ *
+ * ## 117 -> 121: `corte-db-alia-keys`
+ *
+ * The `alia_sk_*` developer keys are retired outright: `lib/api-key-crypto.ts`
+ * and `routes/codea.ts` (three rows), whose every route authenticated with one
+ * of those keys and nothing else, are deleted.
  */
-const REMOVED_ROW_COUNT = 117;
+const REMOVED_ROW_COUNT = 121;
 
 const OWNERS = new Set(['alia', 'oxy', 'kaana', 'delete']);
 const REACHABLE = new Set(['live', 'dead', 'unverified', 'loaded-not-invoked']);

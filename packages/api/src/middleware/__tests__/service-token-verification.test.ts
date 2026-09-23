@@ -277,10 +277,10 @@ describe('every principal a request can acquire is mapped (#139 ws15)', () => {
 
   /** Files allowed to assign `req.user` / `req.userId` at all, with the count. */
   const ASSIGNING_FILES: Readonly<Record<string, number>> = {
-    // `authenticateApiKey` (a sha256 lookup of the presented key),
-    // `authenticateTelegramBot` and `authenticateChannelBotSecret`:
-    // three functions, two assignments each.
-    'packages/api/src/middleware/auth.ts': 6,
+    // `authenticateTelegramBot` and `authenticateChannelBotSecret`: two
+    // functions, two assignments each. (`authenticateApiKey` was a third,
+    // retired with the `alia_sk_*` keys.)
+    'packages/api/src/middleware/auth.ts': 4,
     // The channel-bot pre-middleware, which sets `req.user` only.
     'packages/api/src/routes/v1.ts': 1,
   };

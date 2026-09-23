@@ -303,7 +303,6 @@
       "lib/seed-comped-accounts.ts",
       "lib/show/show-pipeline.ts",
       "routes/billing.ts",
-      "routes/codea.ts",
       "routes/credits.ts",
       "routes/referrals.ts",
       "routes/shows.ts",

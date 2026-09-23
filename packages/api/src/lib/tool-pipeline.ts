@@ -118,7 +118,7 @@ export interface ForUserOptions {
   userId: string;
   accessToken?: string;
   /**
-   * The caller holds a live user SESSION — an Oxy bearer, not an `alia_sk_` key.
+   * The caller holds a live user SESSION — an Oxy bearer, not a service token.
    *
    * Governs only what needs that bearer to exist: minting an agent under the
    * caller's own Oxy tree, and the agent-mode search and delegation tools.

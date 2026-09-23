@@ -367,7 +367,7 @@ describe('every route that reaches inference is rate limited (#139 ws15)', () =>
     expect(context).toContain('if (owner === undefined || !(await userRuntimeCanServe(owner, localRuntime)))');
 
     const limiter = code('middleware/api-key-rate-limit.ts');
-    const lastBranch = limiter.indexOf('if (req.user?.id && !req.apiKey)');
+    const lastBranch = limiter.indexOf('if (req.user?.id) {');
     expect(lastBranch).toBeGreaterThan(-1);
     const tail = limiter.slice(lastBranch);
     const bodyEnd = tail.indexOf('\n}');
@@ -383,7 +383,7 @@ describe('every route that reaches inference is rate limited (#139 ws15)', () =>
     // error the limiter calls `next()`. The reservation in `request-context.ts`
     // is the control that does not.
     const limiter = code('middleware/api-key-rate-limit.ts');
-    expect(limiter).toContain('return { limited: false }; ');
-    expect(limiter).toContain('checkApiKeyRateLimits');
+    expect(limiter).toMatch(/'User rate limit check error'\);\s*return next\(\);/);
+    expect(code('lib/sliding-window-limiter.ts')).toContain('return { allowed: true }; ');
   });
 });
