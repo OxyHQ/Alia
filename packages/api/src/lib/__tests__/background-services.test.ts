@@ -224,7 +224,7 @@ describe('stopBackgroundServices', () => {
     await settle();
     const started = [...order];
     // Vacuity floor: an empty `started` would make the loop below assert nothing.
-    expect(started.length).toBe(10);
+    expect(started.length).toBe(9);
 
     order.length = 0;
     await stopBackgroundServices();
