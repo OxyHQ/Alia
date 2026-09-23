@@ -742,7 +742,9 @@
       "removed": "Telegram bot removed",
       "errorAlreadyRegistered": "This Telegram bot is already registered",
       "errorInvalidToken": "Invalid bot token",
-      "errorGeneric": "Something went wrong. Please try again."
+      "errorGeneric": "Something went wrong. Please try again.",
+      "ownerPaysLabel": "Pay for its replies with my credits",
+      "ownerPaysHint": "When on, replies from this bot are charged to your credits. When off, the bot tells people it isn't available instead."
     },
     "namePlaceholder": "Agent name",
     "colorLabel": "Colour",

@@ -18,6 +18,7 @@ import {
   logoutBotUser,
   registerBot,
   setBotAgent,
+  setBotOwnerPaysAgentTurns,
   setBotUserAuthToken,
   setBotUserConversation,
   setBotUserPreferredModel,
@@ -68,6 +69,7 @@ function serializeBot(bot: BotRow): Record<string, unknown> {
     status: bot.status,
     userId: bot.userId ?? undefined,
     agentId: bot.agentId ?? undefined,
+    ownerPaysAgentTurns: bot.ownerPaysAgentTurns,
   };
 }
 
@@ -201,7 +203,15 @@ router.get('/:id', authenticateToken, async (req: express.Request<{ id: string }
   }
 });
 
-// Bind / change / clear the agent on a user-owned bot
+/**
+ * Bind / change / clear the agent on a user-owned bot, and/or grant or withdraw
+ * the owner's consent to pay for that agent's turns.
+ *
+ * Either field may come alone; at least one must. `ownerPaysAgentTurns` is the
+ * `ownerFallbackAllowed` of `lib/agent/turn-funding.ts`, and it is written
+ * here — by the bot's owner and nobody else — because it commits the owner's
+ * credits. See `db/schema/bots.ts`.
+ */
 router.patch('/:id', authenticateToken, async (req: express.Request<{ id: string }>, res) => {
   try {
     if (!req.userId) {
@@ -214,14 +224,26 @@ router.patch('/:id', authenticateToken, async (req: express.Request<{ id: string
       return res.status(404).json({ error: 'Bot not found' });
     }
 
-    const { agentId } = req.body as { agentId?: string | null };
+    const { agentId, ownerPaysAgentTurns } = req.body as {
+      agentId?: string | null;
+      ownerPaysAgentTurns?: unknown;
+    };
+
+    if (agentId === undefined && ownerPaysAgentTurns === undefined) {
+      return res.status(400).json({ error: 'agentId or ownerPaysAgentTurns is required' });
+    }
+    if (ownerPaysAgentTurns !== undefined && typeof ownerPaysAgentTurns !== 'boolean') {
+      return res.status(400).json({ error: 'ownerPaysAgentTurns must be a boolean' });
+    }
 
     // An explicit clear writes NULL. The source assigned `undefined`, which
     // unset the field in Mongo; the same assignment through drizzle is a silent
     // no-op, so the bot would have kept answering with the old agent's prompt
     // while the UI showed it unbound.
-    let nextAgentId: string | null;
-    if (agentId === null || agentId === '') {
+    let nextAgentId: string | null | undefined;
+    if (agentId === undefined) {
+      nextAgentId = undefined;
+    } else if (agentId === null || agentId === '') {
       nextAgentId = null;
     } else if (typeof agentId === 'string') {
       const agent = await findAgentById(db, agentId);
@@ -233,10 +255,16 @@ router.patch('/:id', authenticateToken, async (req: express.Request<{ id: string
       }
       nextAgentId = agentId;
     } else {
-      return res.status(400).json({ error: 'agentId is required' });
+      return res.status(400).json({ error: 'agentId must be a string or null' });
     }
 
-    const updated = await setBotAgent(db, bot.id, req.userId, nextAgentId);
+    let updated: BotRow | null = bot;
+    if (nextAgentId !== undefined) {
+      updated = await setBotAgent(db, bot.id, req.userId, nextAgentId);
+    }
+    if (updated && typeof ownerPaysAgentTurns === 'boolean') {
+      updated = await setBotOwnerPaysAgentTurns(db, bot.id, req.userId, ownerPaysAgentTurns);
+    }
     if (!updated) {
       return res.status(404).json({ error: 'Bot not found' });
     }

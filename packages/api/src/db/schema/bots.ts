@@ -81,6 +81,24 @@ export const bots = pgTable(
     webhookSecret: text(),
     /** An `agents` row. No foreign key — that table is batch 9. */
     agentId: text(),
+    /**
+     * Whether this bot's OWNER (`user_id`) agreed to pay for its agent's turns
+     * when the agent's own balance will not cover them — the
+     * `ownerFallbackAllowed` of `lib/agent/turn-funding.ts`.
+     *
+     * On the BOT, not on the agent, because consent to be charged belongs to
+     * the account being charged. The payer of an agent-bot turn is this row's
+     * `user_id`; `agents` is writable by anyone the agent's owner grants
+     * `account:act_as`, so a flag there would let a colleague commit the bot
+     * owner's credits. Only `user_id` can change this one (`PATCH /bots/:id`).
+     *
+     * Defaults to false: an agent whose owner has neither funded it nor
+     * authorised the fallback does not run. Migration 0071 set it true for
+     * every bot already bound to an agent, because those owners were ALREADY
+     * paying for every turn, unconditionally, and switching them off without a
+     * word would silence their bots mid-conversation.
+     */
+    ownerPaysAgentTurns: boolean().notNull().default(false),
     defaultModel: text(),
     platformConfigWebhookUrl: text(),
     platformConfigPublicKey: text(),

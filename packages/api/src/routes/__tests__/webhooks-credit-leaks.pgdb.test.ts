@@ -66,6 +66,7 @@ vi.mock('../../lib/chat-core.js', () => ({
 }));
 
 import { generateText } from 'ai';
+import { sendChannelMessage } from '../../lib/channels/outbound.js';
 import { closePostgres, connectPostgres, type ApiDatabase } from '../../db/index.js';
 import { agents } from '../../db/schema/agents.js';
 import { userCredits } from '../../db/schema/billing.js';
@@ -138,11 +139,22 @@ function linkedBotUser(oxyUserId: string): BotUserRow {
   };
 }
 
-async function userOwnedBot(ownerUserId: string): Promise<InboundUserBotRow> {
+/**
+ * A user-registered bot bound to a fresh agent.
+ *
+ * `ownerPaysAgentTurns` defaults to true — the value migration 0071 gave every
+ * bot that was already bound — so the pre-existing cases below keep asserting
+ * what they always did: the owner pays. `agentAccountId` defaults to an account
+ * with NO balance row, which is what every agent has unless its owner funded it.
+ */
+async function userOwnedBot(
+  ownerUserId: string,
+  opts: { ownerPaysAgentTurns?: boolean; agentAccountId?: string } = {},
+): Promise<InboundUserBotRow> {
   const agentId = `${SUITE}-agent-${seq++}`;
   await db.insert(agents).values({
     id: agentId,
-    oxyAccountId: `${SUITE}-agent-account-${seq++}`,
+    oxyAccountId: opts.agentAccountId ?? `${SUITE}-agent-account-${seq++}`,
     tagline: 'a webhook fixture agent',
     description: 'seeded for the webhook credit suite',
     authorOxyUserId: ownerUserId,
@@ -162,6 +174,7 @@ async function userOwnedBot(ownerUserId: string): Promise<InboundUserBotRow> {
     status: 'active',
     userId: ownerUserId,
     agentId,
+    ownerPaysAgentTurns: opts.ownerPaysAgentTurns ?? true,
     defaultModel: null,
     totalUsers: 0,
     totalMessages: 0,
@@ -237,5 +250,107 @@ describe('processAgentBotMessage — a user-registered bot', () => {
     await processAgentBotMessage(await userOwnedBot(ownerId), linkedBotUser(ownerId), message, 'telegram');
 
     expect(await balanceOf(ownerId)).toEqual({ free: 100, paid: 0 });
+  });
+});
+
+/**
+ * Who pays for an agent-bot turn: `reserveAgentTurn`, wired.
+ *
+ * Every case reads BOTH balances — the agent's and the owner's — and names the
+ * one that must not have moved, for the reason `turn-funding.pgdb.test.ts`
+ * gives: a double debit looks exactly like the right answer from either side
+ * alone.
+ */
+describe('processAgentBotMessage — who pays for the agent\'s turn', () => {
+  async function rowExists(id: string): Promise<boolean> {
+    const [row] = await db.select().from(userCredits).where(eq(userCredits.id, id));
+    return row !== undefined;
+  }
+
+  it('charges the AGENT when its own (owner-funded) balance covers it, and leaves the owner alone', async () => {
+    const ownerId = await account(100, 0);
+    const agentAccountId = await account(0, 20);
+
+    await processAgentBotMessage(
+      await userOwnedBot(ownerId, { agentAccountId }),
+      linkedBotUser(ownerId),
+      message,
+      'telegram',
+    );
+
+    expect(await balanceOf(agentAccountId)).toEqual({ free: 0, paid: 19 });
+    expect(await balanceOf(ownerId)).toEqual({ free: 100, paid: 0 });
+  });
+
+  it("gives the AGENT's credit back, not the owner's, when the model call throws", async () => {
+    const ownerId = await account(100, 0);
+    const agentAccountId = await account(0, 20);
+    vi.mocked(generateText).mockRejectedValueOnce(new Error('every provider is down'));
+
+    await processAgentBotMessage(
+      await userOwnedBot(ownerId, { agentAccountId }),
+      linkedBotUser(ownerId),
+      message,
+      'telegram',
+    );
+
+    expect(await balanceOf(agentAccountId)).toEqual({ free: 0, paid: 20 });
+    expect(await balanceOf(ownerId)).toEqual({ free: 100, paid: 0 });
+  });
+
+  it('falls to the OWNER when the agent has no balance and the owner consented — and never provisions the agent', async () => {
+    const ownerId = await account(100, 0);
+    const agentAccountId = `${SUITE}-unfunded-agent-${seq++}`;
+
+    await processAgentBotMessage(
+      await userOwnedBot(ownerId, { agentAccountId, ownerPaysAgentTurns: true }),
+      linkedBotUser(ownerId),
+      message,
+      'telegram',
+    );
+
+    expect(await balanceOf(ownerId)).toEqual({ free: 99, paid: 0 });
+    // The free-credit farm stays shut: running a turn gave the agent no row.
+    expect(await rowExists(agentAccountId)).toBe(false);
+  });
+
+  it('refuses, charging NOBODY and calling no model, when the owner has not consented', async () => {
+    const ownerId = await account(100, 0);
+    const agentAccountId = await account(0, 0);
+    vi.mocked(generateText).mockClear();
+    vi.mocked(sendChannelMessage).mockClear();
+
+    await processAgentBotMessage(
+      await userOwnedBot(ownerId, { agentAccountId, ownerPaysAgentTurns: false }),
+      linkedBotUser(ownerId),
+      message,
+      'telegram',
+    );
+
+    expect(await balanceOf(ownerId)).toEqual({ free: 100, paid: 0 });
+    expect(await balanceOf(agentAccountId)).toEqual({ free: 0, paid: 0 });
+    expect(generateText).not.toHaveBeenCalled();
+    // The stranger is told it is a PERMISSION, not a balance.
+    const text = vi.mocked(sendChannelMessage).mock.calls.at(-1)?.[2];
+    expect(text).toContain('has not allowed it to use their credits');
+    expect(text).not.toContain('out of credits');
+  });
+
+  it('refuses with the out-of-credits message when neither balance covers it', async () => {
+    const ownerId = await account(0, 0);
+    vi.mocked(generateText).mockClear();
+    vi.mocked(sendChannelMessage).mockClear();
+
+    await processAgentBotMessage(
+      await userOwnedBot(ownerId, { ownerPaysAgentTurns: true }),
+      linkedBotUser(ownerId),
+      message,
+      'telegram',
+    );
+
+    expect(await balanceOf(ownerId)).toEqual({ free: 0, paid: 0 });
+    expect(generateText).not.toHaveBeenCalled();
+    const text = vi.mocked(sendChannelMessage).mock.calls.at(-1)?.[2];
+    expect(text).toContain('out of credits');
   });
 });

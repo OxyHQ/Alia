@@ -26,9 +26,9 @@
  * turns it spawns. `lib/agent/turn-funding.ts` states the rule this obeys —
  * one reservation, one subject, chosen before the debit and never changed
  * halfway. It is deliberately not `reserveAgentTurn`: that decides between an
- * agent's own balance and its owner's from a column that does not exist yet,
- * and an agent answering a question it did not initiate is not the case that
- * module was written for.
+ * agent's own balance and its owner's for a turn nobody present chose to pay
+ * for (an agent's own bot), and an agent answering a question somebody else's
+ * turn asked is paid by that somebody.
  *
  * Every exit either settles or refunds. A `finally` that has not seen the
  * settlement refunds, so a throw between `generateText` and `finalizeCredits`

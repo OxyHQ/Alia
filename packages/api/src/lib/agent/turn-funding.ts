@@ -39,8 +39,20 @@
  * ## What this module deliberately does not do
  *
  * It does not read the agent's row, its owner or its fallback permission: those
- * arrive as parameters. The column that will carry them does not exist yet, and
- * a module that reached for it could not be built or tested until it did.
+ * arrive as parameters, so the decision is testable without the rows that carry
+ * them.
+ *
+ * ## Where it is used
+ *
+ * `processAgentBotMessage` (`routes/webhooks.ts`): an agent answering a stranger
+ * on its own bot, the one turn nobody present chose to pay for. The agent
+ * account is `agents.oxy_account_id`, the owner is the bot's `user_id`, and the
+ * permission is `bots.owner_pays_agent_turns`, which only that owner can write.
+ *
+ * Deliberately NOT for a turn somebody present asked for: a hire
+ * (`session-handoff.ts`) is paid by the person hiring, and an agent asked a
+ * question inside another turn (`tools/agent-turn.ts`) is paid by whoever funds
+ * that outer turn. Those payers are chosen by the caller, not by this rule.
  *
  * It does not CREATE the agent's balance row, and the missing row is DELIBERATE
  * rather than an oversight — which is worth saying here, because the next reader
