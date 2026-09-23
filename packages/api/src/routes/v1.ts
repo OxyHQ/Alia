@@ -3,7 +3,6 @@ import type { User } from '@oxy.so/core';
 import chatCompletionsRouter from './v1/chat-completions.js';
 import responsesRouter from './v1/responses.js';
 import modelsRouter from './v1/models.js';
-import voiceRouter from './v1/voice.js';
 import audioRouter from './v1/audio.js';
 import imagesRouter from './v1/images.js';
 import { authenticateRequesterAssertion, authenticateTokenOrApiKey, oxyClient } from '../middleware/auth.js';
@@ -141,9 +140,6 @@ router.use('/chat/completions', chatCompletionsRouter);
 
 // OpenAI Responses API support (for Vercel AI SDK compatibility)
 router.use('/responses', responsesRouter);
-
-// Voice mode (LiveKit token + transcription)
-router.use('/voice', voiceRouter);
 
 // Audio (TTS + generation)
 router.use('/audio', audioRouter);

@@ -249,8 +249,15 @@ interface MatrixRow {
  * Migration 0070 drops the tables, so `db/schema/providers.ts`,
  * `db/schema/developers.ts` and `domain/model-config.ts` are deleted: ten rows
  * named a table or field declared in them.
+ *
+ * ## 154 -> 158: `voz-en-dispositivo`
+ *
+ * Voice runs on the device (`@alia.onl/sdk` 8.0.0), so `routes/v1/voice.ts` —
+ * the LiveKit token and transcription stubs that had refused every call since
+ * #477 — is deleted: four rows named the file (both routes, its gateway-client
+ * import and the transcription behaviour).
  */
-const REMOVED_ROW_COUNT = 154;
+const REMOVED_ROW_COUNT = 158;
 
 const OWNERS = new Set(['alia', 'oxy', 'kaana', 'delete']);
 const REACHABLE = new Set(['live', 'dead', 'unverified', 'loaded-not-invoked']);

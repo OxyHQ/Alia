@@ -2,8 +2,6 @@ export type KaanaUnavailableCapability =
   | 'audio_generation'
   | 'image_generation'
   | 'speech_synthesis'
-  | 'speech_transcription'
-  | 'voice_session'
   | 'embedding';
 
 /** Fail-closed, provider-neutral refusal for a modality Kaana does not expose. */

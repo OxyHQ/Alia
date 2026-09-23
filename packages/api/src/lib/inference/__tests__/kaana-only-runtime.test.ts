@@ -32,7 +32,6 @@ const HOSTED_RUNTIME_FILES = [
   'routes/v1/audio.ts',
   'routes/v1/chat-completions.ts',
   'routes/v1/images.ts',
-  'routes/v1/voice.ts',
   'routes/canvas/execute.ts',
 ] as const;
 
@@ -131,10 +130,10 @@ describe('Kaana-only hosted inference architecture', () => {
   });
 
   it('uses one stable typed refusal for unsupported hosted modalities', () => {
-    const error = kaanaCapabilityUnavailable('speech_transcription');
+    const error = kaanaCapabilityUnavailable('embedding');
     expect(error).toBeInstanceOf(KaanaCapabilityUnavailableError);
     expect(error.code).toBe('KAANA_CAPABILITY_UNAVAILABLE');
     expect(error.httpStatus).toBe(503);
-    expect(error.capability).toBe('speech_transcription');
+    expect(error.capability).toBe('embedding');
   });
 });

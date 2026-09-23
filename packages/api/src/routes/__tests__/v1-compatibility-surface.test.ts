@@ -235,6 +235,18 @@ const aliaChat = surface(aliaChatRouter, '/alia/chat');
  *
  * `/v1` therefore LOSES five routes and gains none, which is the only direction
  * ADR 0004 allows.
+ *
+ * ## 15 became 13: `POST /v1/voice/token` and `POST /v1/voice/transcribe` left
+ *
+ * Both had answered `503 KAANA_CAPABILITY_UNAVAILABLE` to every caller since
+ * #477 cut Alia over to Oxy: the first minted a LiveKit room whose realtime
+ * model called providers directly, the second posted audio to a provider's
+ * transcription API, and Oxy serves neither. Their only consumers were
+ * `@alia.onl/sdk`'s `useVoiceRoom` and `useSpeechToText`, which recognize speech
+ * on the device from 8.0.0 and send each spoken turn through
+ * `/v1/chat/completions` — so, as with `/v1/shows`, the consumer moved in the
+ * same change. They are gone (404) rather than `410`: a stub that refused every
+ * request for three weeks is not a surface anyone could have depended on.
  */
 const FROZEN_ROUTES: readonly string[] = [
   'GET /v1',
@@ -250,8 +262,6 @@ const FROZEN_ROUTES: readonly string[] = [
   'POST /v1/report-usage',
   'POST /v1/resolve-model',
   'POST /v1/responses',
-  'POST /v1/voice/token',
-  'POST /v1/voice/transcribe',
 ];
 
 describe('the compatibility surface gains no route (#139 ws6, ADR 0004)', () => {
@@ -260,7 +270,7 @@ describe('the compatibility surface gains no route (#139 ws6, ADR 0004)', () => 
     // controls. Without it, a walk that silently returned nothing would satisfy
     // "no unexpected route" perfectly.
     expect(aliaChat.map((e) => e.signature)).toEqual(['GET /alia/chat', 'POST /alia/chat']);
-    expect(v1.length).toBeGreaterThanOrEqual(15);
+    expect(v1.length).toBeGreaterThanOrEqual(13);
   });
 
   it('mounts exactly the frozen list, in both directions', () => {
@@ -269,7 +279,7 @@ describe('the compatibility surface gains no route (#139 ws6, ADR 0004)', () => 
     // removal is what the compatibility window gates and an unrecorded removal
     // is the other way this list stops describing the surface.
     expect(v1.map((e) => e.signature)).toEqual([...FROZEN_ROUTES].sort());
-    expect(FROZEN_ROUTES).toHaveLength(15);
+    expect(FROZEN_ROUTES).toHaveLength(13);
     expect(new Set(FROZEN_ROUTES).size).toBe(FROZEN_ROUTES.length);
   });
 
@@ -292,7 +302,7 @@ describe('the compatibility surface gains no route (#139 ws6, ADR 0004)', () => 
  *
  * Three regimes, and the difference between them is the whole point of freezing
  * per route rather than per surface: the same file mounts an unauthenticated
- * catalogue, an optional-auth listing and twelve authenticated endpoints, and
+ * catalogue, an optional-auth listing and ten authenticated endpoints, and
  * which regime a route falls into is decided by WHERE IN THE FILE it is
  * declared. Moving `router.use('/chat/completions', ...)` three lines up makes
  * inference public, and nothing about that edit looks like a security change.
@@ -331,8 +341,6 @@ const FROZEN_CHAINS: Readonly<Record<string, readonly string[]>> = {
   'POST /v1/chat/completions': CHAT,
   'GET /v1/chat/completions': CHAT,
   'POST /v1/responses': AUTHENTICATED,
-  'POST /v1/voice/token': AUTHENTICATED,
-  'POST /v1/voice/transcribe': AUTHENTICATED,
   'POST /v1/audio/speech': AUTHENTICATED,
   'POST /v1/audio/generate': AUTHENTICATED,
   'GET /v1/audio/jobs/:jobId': AUTHENTICATED,
@@ -379,14 +387,14 @@ describe('the compatibility surface gains no auth mechanism (#139 ws6, ADR 0004)
 
   it('the one unnamed middleware is the channel-bot pre-auth, and it still compares in constant time', () => {
     /**
-     * `?anonymous` is frozen into twelve chains above, so what it IS has to be
+     * `?anonymous` is frozen into ten chains above, so what it IS has to be
      * asserted somewhere or the freeze pins a shape and not a mechanism. It
      * grants `req.user` from a header, which makes it an auth mechanism reaching
      * the compatibility surface — condition 1 of ADR 0004 — and the only thing
      * standing between that header and a chosen user id is the secret compare.
      */
     const chains = v1.filter((e) => e.chain.includes('?anonymous'));
-    expect(chains).toHaveLength(12);
+    expect(chains).toHaveLength(10);
     // Exactly one distinct unnamed function, and it is first in every chain.
     for (const endpoint of chains) expect(endpoint.chain[0]).toBe('?anonymous');
 
@@ -941,5 +949,51 @@ describe('an anonymous caller is refused on both chat surfaces (#139 ws6)', () =
 
     const version = await fetch(`${base}/v1`);
     expect(version.status).toBe(200);
+  });
+});
+
+/**
+ * The two voice stubs, by HTTP rather than by mount: an authenticated caller
+ * reaches the router and finds nothing there. The user is set ahead of the
+ * router the way the channel-bot pre-middleware sets it, so no Oxy call is
+ * made; `POST /v1/report-usage` is the control — a route that IS there, still
+ * answering its deliberate `410`, so a 404 cannot come from a router that was
+ * never reached.
+ */
+describe('the retired voice session and transcription routes are gone', () => {
+  let base: string;
+  let server: Server;
+
+  beforeAll(async () => {
+    const app = express();
+    app.use(express.json());
+    app.use((req, _res, next) => {
+      req.user = { id: 'user-voice-retired' };
+      next();
+    });
+    app.use('/v1', v1Router);
+    server = await new Promise((resolve) => {
+      const listening = app.listen(0, '127.0.0.1', () => resolve(listening));
+    });
+    base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  });
+
+  afterAll(async () => {
+    await new Promise<void>((resolve, reject) => server.close((e) => (e ? reject(e) : resolve())));
+  });
+
+  const post = (route: string): Promise<Response> =>
+    fetch(`${base}${route}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+
+  it.each(['/v1/voice/token', '/v1/voice/transcribe'])('%s answers 404', async (route) => {
+    const response = await post(route);
+    expect(response.status).toBe(404);
+    await response.body?.cancel();
+  });
+
+  it('while the router in front of them still answers an authenticated caller', async () => {
+    const response = await post('/v1/report-usage');
+    expect(response.status).toBe(410);
+    await response.body?.cancel();
   });
 });
