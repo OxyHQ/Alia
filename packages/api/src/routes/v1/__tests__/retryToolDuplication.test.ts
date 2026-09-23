@@ -63,8 +63,6 @@ const RESOLVED = {
   modelId: UPSTREAM_MODEL_ID,
   keyConfig: { provider: UPSTREAM_PROVIDER, key: 'secret', modelId: UPSTREAM_MODEL_ID, keyId: 'key-ws13' },
   routingProfile: { name: 'Auto', creditMultiplier: 1 },
-  isFallback: false,
-  fallbackIndex: 0,
 };
 
 vi.mock('../../../lib/chat-core.js', () => ({

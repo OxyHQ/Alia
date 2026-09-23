@@ -57,8 +57,6 @@ export interface ResolvedModel {
     | { readonly kind: 'model'; readonly model: string }
     | null;
   routingProfile: RoutingProfile;
-  isFallback: boolean;
-  fallbackIndex?: number;
 }
 
 /**
@@ -71,8 +69,6 @@ export interface ResolvedModel {
  */
 export async function resolveModel(
   routingProfileId: string,
-  _skipProviders?: Set<string>,
-  _skipKeyIds?: Set<string>,
   options?: RoutingOptions
 ): Promise<ResolvedModel | null> {
   assertUnreservedModelIdentifier(routingProfileId);
@@ -107,7 +103,6 @@ export async function resolveModel(
     keyConfig: { provider: 'kaana', modelId: productModelId },
     oxyInferenceTarget: target,
     routingProfile,
-    isFallback: false,
   };
 }
 

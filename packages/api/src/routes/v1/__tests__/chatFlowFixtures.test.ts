@@ -552,8 +552,6 @@ const RESOLVED = {
   modelId: UPSTREAM_MODEL_ID,
   keyConfig: { provider: UPSTREAM_PROVIDER, key: 'secret-not-for-clients', modelId: UPSTREAM_MODEL_ID, keyId: 'key-ws13' },
   routingProfile: { name: 'Auto', creditMultiplier: 1 },
-  isFallback: false,
-  fallbackIndex: 0,
 };
 
 const RESERVATION = { userId: 'user-ws13', creditsReserved: 1, initialFreeCredits: 100, initialPaidCredits: 0 };
