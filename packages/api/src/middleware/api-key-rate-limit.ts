@@ -240,7 +240,7 @@ export async function apiKeyRateLimit(
       if (!result.allowed) {
         return sendRateLimitResponse(res, {
           limited: true,
-          limitType: result.limitType === 'rpm' ? 'requestsPerMinute' : 'tokensPerDay',
+          limitType: 'requestsPerMinute',
           current: result.current,
           limit: result.limit,
           resetInSeconds: result.resetInSeconds,

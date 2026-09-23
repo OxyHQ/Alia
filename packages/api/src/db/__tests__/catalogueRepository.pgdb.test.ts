@@ -21,13 +21,7 @@ import {
   selectFeatures,
   updateFeatureByFeatureId,
 } from '../billing/featureRepository';
-import {
-  deleteCreditPackageByPackageId,
-  insertCreditPackage,
-  seedCreditPackage,
-  selectCreditPackages,
-  updateCreditPackageByPackageId,
-} from '../billing/creditPackageRepository';
+import { seedCreditPackage, selectCreditPackages } from '../billing/creditPackageRepository';
 import {
   bulkUpsertPlanFeatures,
   deletePlanFeature,
@@ -35,7 +29,7 @@ import {
   selectPlanFeatures,
   upsertPlanFeature,
 } from '../billing/planFeatureRepository';
-import { planFeatures, plans } from '../schema/billing';
+import { creditPackages, planFeatures, plans } from '../schema/billing';
 
 /**
  * Both audited writers take an actor and neither defaults one, so every call
@@ -268,8 +262,8 @@ describe('features', () => {
 
 describe('credit packages', () => {
   it('round-trips and orders by sortOrder, with price as a number', async () => {
-    await insertCreditPackage(db, { packageId: 'cat-pkg-b', name: 'B', credits: 100, price: 999, sortOrder: 2 });
-    await insertCreditPackage(db, { packageId: 'cat-pkg-a', name: 'A', credits: 50, price: 499, sortOrder: 1, isActive: false });
+    await seedCreditPackage(db, { packageId: 'cat-pkg-b', name: 'B', credits: 100, price: 999, sortOrder: 2 });
+    await seedCreditPackage(db, { packageId: 'cat-pkg-a', name: 'A', credits: 50, price: 499, sortOrder: 1, isActive: false });
 
     const all = (await selectCreditPackages(db)).filter((p) => p.packageId.startsWith('cat-pkg-'));
     expect(all.map((p) => p.packageId)).toEqual(['cat-pkg-a', 'cat-pkg-b']);
@@ -285,7 +279,7 @@ describe('credit packages', () => {
     // no mocked counterpart.
     let zeroCredits: unknown;
     try {
-      await insertCreditPackage(db, { packageId: 'cat-pkg-zero', name: 'Zero', credits: 0, price: 100 });
+      await seedCreditPackage(db, { packageId: 'cat-pkg-zero', name: 'Zero', credits: 0, price: 100 });
     } catch (error) {
       zeroCredits = error;
     }
@@ -293,22 +287,20 @@ describe('credit packages', () => {
 
     let negativePrice: unknown;
     try {
-      await insertCreditPackage(db, { packageId: 'cat-pkg-neg', name: 'Neg', credits: 10, price: -1 });
+      await seedCreditPackage(db, { packageId: 'cat-pkg-neg', name: 'Neg', credits: 10, price: -1 });
     } catch (error) {
       negativePrice = error;
     }
     expect(constraintNameOf(negativePrice)).toBe('credit_packages_price_check');
   });
 
-  it('updates, deletes and seeds idempotently', async () => {
+  it('seeds once and never overwrites an admin edit', async () => {
     const values = { packageId: 'cat-pkg-seed', name: 'Seeded', credits: 10, price: 100 };
     expect((await seedCreditPackage(db, values)).inserted).toBe(true);
-    await updateCreditPackageByPackageId(db, 'cat-pkg-seed', { price: 200 });
+    await db.update(creditPackages).set({ price: 200 }).where(eq(creditPackages.packageId, 'cat-pkg-seed'));
     expect((await seedCreditPackage(db, values)).inserted).toBe(false);
     const rows = await selectCreditPackages(db, {});
     expect(rows.find((p) => p.packageId === 'cat-pkg-seed')?.price).toBe(200);
-    expect((await deleteCreditPackageByPackageId(db, 'cat-pkg-seed'))?.packageId).toBe('cat-pkg-seed');
-    expect(await deleteCreditPackageByPackageId(db, 'cat-pkg-seed')).toBeNull();
   });
 });
 

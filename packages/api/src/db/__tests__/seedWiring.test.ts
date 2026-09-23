@@ -97,10 +97,7 @@ function wiredSeeders(): string[] {
  * assertion below: adding a member is a visible edit to a number, not a
  * defensible-looking line appended to a list.
  */
-const DELIBERATELY_UNWIRED: Readonly<Record<string, string>> = {
-  seedBots:
-    'Derives the bot id from TELEGRAM_BOT_TOKEN / DISCORD_APP_ID, neither of which the task definition sets. Running it writes rows keyed on the literal placeholders `telegram-bot` and `discord-bot`, which change the moment real credentials arrive — a wrong row that looks right.',
-};
+const DELIBERATELY_UNWIRED: Readonly<Record<string, string>> = {};
 
 describe('every table seeder reaches the entrypoint that runs', () => {
   it('found a real population, in both seeder directories', () => {
@@ -111,14 +108,15 @@ describe('every table seeder reaches the entrypoint that runs', () => {
      * would report clean while missing five.
      */
     const files = seederFiles();
-    expect(files.length).toBeGreaterThanOrEqual(7);
+    expect(files.length).toBeGreaterThanOrEqual(6);
     expect(files.some((f) => f.startsWith('src/lib/'))).toBe(true);
     expect(files.some((f) => f.startsWith('src/internal/providers/lib/'))).toBe(true);
 
     const seeders = tableSeeders();
-    // 8, not 9: `seedModelConfigs` and `seedRoutingProfiles` were deleted with
-    // the routing-catalogue seed (see the census below).
-    expect(seeders.length).toBeGreaterThanOrEqual(8);
+    // 7: `seedModelConfigs` and `seedRoutingProfiles` were deleted with the
+    // routing-catalogue seed (see the census below), and `seedBots` with the
+    // system-bot seeder nothing ran.
+    expect(seeders.length).toBeGreaterThanOrEqual(7);
     // Positive control on the MATCHER: two known members, one per directory.
     expect(seeders).toContain('seedSkills');
     expect(seeders).toContain('seedFeatures');
@@ -135,7 +133,6 @@ describe('every table seeder reaches the entrypoint that runs', () => {
     // not. This is the floor for the second case.
     expect(wired.length).toBeGreaterThanOrEqual(7);
     expect(wired).toContain('seedSkills');
-    expect(wired).not.toContain('seedBots');
   });
 
   it('never writes the routing catalogue: model_configs, routing_profiles and their mappings', () => {
@@ -191,7 +188,7 @@ describe('every table seeder reaches the entrypoint that runs', () => {
      * to make it pass is always to add a member, and the terminus is a gate that
      * exempts everything.
      */
-    expect(Object.keys(DELIBERATELY_UNWIRED)).toEqual(['seedBots']);
+    expect(Object.keys(DELIBERATELY_UNWIRED)).toEqual([]);
     // Each reason has to SAY something. A one-word placeholder is how an
     // exemption gets added without anyone having to defend it.
     const unreasoned = Object.entries(DELIBERATELY_UNWIRED)
@@ -211,14 +208,13 @@ describe('every table seeder reaches the entrypoint that runs', () => {
      * moved to `lib/background-services.ts` when the Mongo gate came off, and a
      * scan that still read only `index.ts` would report clean for a seeder added
      * to the module the boot path actually runs. `seedBots()` was called from
-     * exactly that code and is now called from nowhere — which is what the
-     * exemption above records.
+     * exactly that code; it is now deleted.
      */
     const bootPath = ['src/index.ts', 'src/lib/background-services.ts'];
     /*
      * Comment-stripped, and it was measured rather than assumed: the first
      * version of this scan failed on `background-services.ts`, whose module
-     * comment SAYS `seedBots()` used to be called from there. A census that
+     * comment SAID `seedBots()` used to be called from there. A census that
      * cannot tell prose from code convicts its own documentation, and the fix
      * an author reaches for under that pressure is to soften the regex.
      */

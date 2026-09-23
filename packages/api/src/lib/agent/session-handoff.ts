@@ -6,7 +6,7 @@
  *
  * Hiring an agent is a fixed sequence: reserve the agent's price, write the
  * session row carrying that reservation, count the hire, enqueue the job. Three
- * call sites did it — `routes/agents/hire.ts`, `lib/agent/routing-handler.ts`
+ * call sites did it — `routes/agents/hire.ts`, `lib/agent/routing-handler.ts` (since deleted)
  * and the agent-escalation branch of `routes/v1/chat-completions.ts` — and all
  * three answered a failure of any step with a `log.error` and nothing else.
  *

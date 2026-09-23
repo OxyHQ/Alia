@@ -206,7 +206,6 @@ beforeEach(() => {
     modelId: 'a-deployment',
     keyConfig: { provider: 'an-operator', key: 'secret', modelId: 'a-deployment' },
     routingProfile: { name: 'x', creditMultiplier: 1 },
-    isFallback: false,
   });
   findMcpServerForUser.mockResolvedValue(null);
   reserveCredits.mockResolvedValue({ reservationId: 'reservation-1' });
@@ -714,7 +713,7 @@ describe('hosted chat routes only through reviewed Oxy profiles', () => {
     // The control. Without it, a `pinnedModel` set unconditionally — to the
     // tier's default, say — would satisfy every assertion above.
     const { ctx } = await run('route:auto');
-    const [alias, , , options] = resolveModel.mock.calls[0];
+    const [alias, options] = resolveModel.mock.calls[0];
     expect(alias).toBe('route:auto');
     expect(options).toEqual({});
     expect(ctx?.routingOptions).toEqual({});

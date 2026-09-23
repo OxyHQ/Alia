@@ -550,7 +550,6 @@ export async function buildChatRequestContext(
         supportsVision: false,
         category: 'local',
       },
-      isFallback: false,
     };
   }
 
@@ -708,8 +707,7 @@ export async function buildChatRequestContext(
       : Promise.resolve({ reservation: null, error: false as const }),
 
     /**
-     * Model resolution (includes key loading, rate limit checks, circuit
-     * breaker).
+     * Model resolution against the Kaana routing profile catalogue.
      *
      * The catch keeps the two REFUSALS instead of flattening them to `null`.
      * Everything else still becomes `null` and still becomes the same 503 it
@@ -718,12 +716,7 @@ export async function buildChatRequestContext(
      */
     localResolved !== null
       ? Promise.resolve(localResolved)
-      : resolveModel(
-          requestedModel,
-          undefined,
-          undefined,
-          routingOptions,
-        ).catch((err: unknown) => {
+      : resolveModel(requestedModel, routingOptions).catch((err: unknown) => {
           log.v1.error({ err }, 'Error resolving model');
           if (
             err instanceof UnregisteredModelError ||

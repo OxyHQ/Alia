@@ -219,8 +219,14 @@ interface MatrixRow {
  * the production audit that gates their DROP (#139 workstream 10).
  *
  * It carries a branch name for the reason the others do.
+ *
+ * ## 110 -> 112: `cost-tracker-pricing`, `sse-named-event-contract`
+ *
+ * `lib/cost-tracker.ts` (no production caller; `recordCost` never had one) and
+ * `lib/chat-events.ts` (zero importers; the union it declared constrained
+ * nothing) are deleted in the dead-code cut.
  */
-const REMOVED_ROW_COUNT = 110;
+const REMOVED_ROW_COUNT = 112;
 
 const OWNERS = new Set(['alia', 'oxy', 'kaana', 'delete']);
 const REACHABLE = new Set(['live', 'dead', 'unverified', 'loaded-not-invoked']);

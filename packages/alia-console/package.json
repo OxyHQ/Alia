@@ -14,7 +14,6 @@
     "check": "prettier --write . && eslint --fix"
   },
   "dependencies": {
-    "@base-ui/react": "^1.6.0",
     "@expo/vector-icons": "^15.1.1",
     "@hugeicons/core-free-icons": "^4.2.2",
     "@hugeicons/react": "^1.1.9",
@@ -29,9 +28,7 @@
     "@tanstack/react-query-persist-client": "^5.102.8",
     "@tanstack/react-router": "^1.170.18",
     "@tanstack/react-router-devtools": "^1.167.0",
-    "@tanstack/react-router-ssr-query": "^1.167.1",
     "@tanstack/react-start": "^1.168.28",
-    "@tanstack/router-plugin": "^1.168.20",
     "@vitejs/plugin-react": "5.2.0",
     "axios": "^1.18.1",
     "class-variance-authority": "^0.7.1",
@@ -47,16 +44,13 @@
     "react-native-safe-area-context": "~5.8.0",
     "react-native-svg": "15.15.5",
     "react-native-web": "^0.21.2",
-    "react-resizable-panels": "^4.12.2",
     "shadcn": "^3.8.5",
     "shiki": "^3.23.0",
-    "socket.io-client": "^4.8.3",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.6.0",
     "tailwindcss": "^4.3.2",
     "tw-animate-css": "^1.4.0",
     "typescript": "^5.9.3",
-    "vaul": "^1.1.2",
     "vite": "npm:rolldown-vite@^7.3.1",
     "vite-plugin-react-native-web": "^3.2.0",
     "vite-tsconfig-paths": "^5.1.4",
@@ -64,14 +58,11 @@
   },
   "devDependencies": {
     "@tanstack/eslint-config": "^0.4.0",
-    "@testing-library/dom": "^10.4.1",
-    "@testing-library/react": "^16.3.2",
     "@types/node": "^22.20.1",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "jsdom": "^29.1.1",
     "prettier": "^3.9.5",
-    "vitest": "^3.2.7",
-    "web-vitals": "^5.3.0"
+    "vitest": "^3.2.7"
   }
 }

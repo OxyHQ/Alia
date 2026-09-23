@@ -47,7 +47,6 @@ function resolved(): ResolvedModel {
       routingProfileId: '01a06477-94f5-74f0-bc25-628b5f45d802',
     },
     routingProfile: { id: 'route:thinking' },
-    isFallback: false,
   } as ResolvedModel;
 }
 

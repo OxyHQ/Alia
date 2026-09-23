@@ -286,36 +286,6 @@ export async function deleteBot(db: ApiDatabase, id: string): Promise<void> {
   await db.delete(bots).where(eq(bots.id, id));
 }
 
-/**
- * Ensure a system bot exists for a configured platform.
- *
- * The source's `findOneAndUpdate({platform}, {$setOnInsert: …}, {upsert:true})`
- * — insert-or-leave-alone, never an update. `ON CONFLICT DO NOTHING` is exactly
- * that, and it means a hand-edited name or status survives a restart.
- *
- * The conflict target is `(platform, bot_id)` because that is the unique this
- * table HAS; the source filtered on `platform` alone, which was not unique, so a
- * platform whose env-derived `botId` changes now seeds a second row where Mongo
- * would have matched the first. Named here because it is a real difference: the
- * ids come from `TELEGRAM_BOT_TOKEN` / `DISCORD_APP_ID`, so it only bites when
- * those change, and the alternative — a unique on `platform` alone — would
- * forbid the user-registered bots this table exists to hold.
- */
-export async function seedSystemBot(
-  db: ApiDatabase,
-  input: { platform: string; botId: string; name: string },
-): Promise<void> {
-  await db
-    .insert(bots)
-    .values({
-      platform: input.platform,
-      botId: input.botId,
-      name: input.name,
-      status: 'active',
-    })
-    .onConflictDoNothing({ target: [bots.platform, bots.botId] });
-}
-
 // ---------------------------------------------------------------------------
 // bot_users
 // ---------------------------------------------------------------------------

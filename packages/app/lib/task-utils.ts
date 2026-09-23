@@ -49,29 +49,6 @@ export function getStatusConfig(status: TaskSession['status'], colors: { mutedFo
   }
 }
 
-export function getPlanProgress(task: TaskSession): number | null {
-  if (!task.plan?.items?.length) return null;
-  const completed = task.plan.items.filter(i => i.status === 'completed').length;
-  return Math.round((completed / task.plan.items.length) * 100);
-}
-
-export function getTimeLabel(task: TaskSession): string {
-  const now = Date.now();
-
-  if (task.status === 'running' && task.stats.startedAt) {
-    const elapsed = now - new Date(task.stats.startedAt).getTime();
-    return formatDuration(elapsed);
-  }
-
-  if (task.stats.completedAt) {
-    const ago = now - new Date(task.stats.completedAt).getTime();
-    return formatTimeAgo(ago);
-  }
-
-  const ago = now - new Date(task.createdAt).getTime();
-  return formatTimeAgo(ago);
-}
-
 export function formatDuration(ms: number): string {
   const seconds = Math.floor(ms / 1000);
   if (seconds < 60) return `${seconds}s`;
@@ -79,17 +56,6 @@ export function formatDuration(ms: number): string {
   if (minutes < 60) return `${minutes}m ${seconds % 60}s`;
   const hours = Math.floor(minutes / 60);
   return `${hours}h ${minutes % 60}m`;
-}
-
-export function formatTimeAgo(ms: number): string {
-  const seconds = Math.floor(ms / 1000);
-  if (seconds < 60) return 'Just now';
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  return `${days}d ago`;
 }
 
 const TOOL_PILL_LABELS: Record<string, string> = {

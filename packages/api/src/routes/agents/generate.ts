@@ -25,20 +25,17 @@ router.post('/generate', authenticateToken, async (req: Request, res: Response) 
       return res.status(400).json({ error: 'A prompt of at least 10 characters is required' });
     }
 
-    // Provider fallback retry loop (mirrors v1/chat-completions pattern)
-    const MAX_PROVIDER_RETRIES = 3;
-    const skipProviders = new Set<string>();
+    // A bounded retry of the same Kaana route: Kaana owns provider selection,
+    // so there is nothing to skip between attempts.
+    const MAX_ATTEMPTS = 3;
     let result: Awaited<ReturnType<typeof generateText>> | null = null;
 
-    for (let attempt = 0; attempt < MAX_PROVIDER_RETRIES; attempt++) {
-      const resolved = await resolveModel(getDefaultRoutingProfile(), skipProviders);
-      if (!resolved) {
-        if (attempt === 0) {
-          return res.status(503).json({ error: 'No AI models available' });
-        }
-        break;
-      }
+    const resolved = await resolveModel(getDefaultRoutingProfile());
+    if (!resolved) {
+      return res.status(503).json({ error: 'No AI models available' });
+    }
 
+    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
       try {
         const model = getAIModel(resolved, 'authoring');
         result = await generateText({
@@ -71,10 +68,9 @@ Do not include any text outside the JSON object.`,
           maxRetries: 0,
         });
         break; // Success — exit retry loop
-      } catch (providerError: unknown) {
-        log.agents.error({ err: providerError, provider: resolved.provider, attempt }, 'Provider failed for agent generation');
-        skipProviders.add(resolved.provider);
-        if (attempt >= MAX_PROVIDER_RETRIES - 1) throw providerError;
+      } catch (inferenceError: unknown) {
+        log.agents.error({ err: inferenceError, attempt }, 'Inference failed for agent generation');
+        if (attempt >= MAX_ATTEMPTS - 1) throw inferenceError;
       }
     }
 

@@ -64,7 +64,7 @@ export class LocalRuntimeProbeError extends Error {
  * the address is genuinely unreachable; the second call answers the same either
  * way.
  */
-export async function probeLocalRuntime(endpoint: string, signal?: AbortSignal): Promise<string[]> {
+async function probeLocalRuntime(endpoint: string, signal?: AbortSignal): Promise<string[]> {
   const base = endpoint.replace(/\/$/, '');
   let response: Response;
   try {
