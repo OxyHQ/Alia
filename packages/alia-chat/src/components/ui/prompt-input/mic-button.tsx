@@ -8,12 +8,11 @@ import { usePromptInput } from "./context";
 
 export type PromptInputMicButtonProps = {
   className?: string;
-  apiUrl?: string;
 };
 
-export function PromptInputMicButton({ className, apiUrl }: PromptInputMicButtonProps) {
+export function PromptInputMicButton({ className }: PromptInputMicButtonProps) {
   const { value, setValue, onError } = usePromptInput();
-  const stt = useSpeechToText({ apiUrl });
+  const stt = useSpeechToText();
 
   useEffect(() => {
     if (stt.error) {

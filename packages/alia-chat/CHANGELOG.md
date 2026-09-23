@@ -31,8 +31,7 @@ realtime session. Those endpoints are removed from the API.
 - **`useSpeechToText`** recognizes on the device (Web Speech API on web,
   `expo-speech-recognition` on iOS/Android). Its shape is unchanged —
   `startRecording`, `stopAndTranscribe`, `cancel`, the three states,
-  `useSTTStore` metering — and it gains `lang` and `isSupported`. `apiUrl` and
-  `accessToken` are accepted and ignored.
+  `useSTTStore` metering — and it gains `lang` and `isSupported`.
 - **`useVoiceRoom`** is a turn loop: on-device listening with end-of-utterance
   detection, each utterance sent through the chat path (`sendTurn`, by default
   `createAliaVoiceTurnSender`, which posts `/v1/chat/completions` with
@@ -51,9 +50,37 @@ realtime session. Those endpoints are removed from the API.
   app needs a new build with its config plugin.
 - `useVoiceRoom().room` is a `VoiceLevelSource` (live capture and playback
   levels), not a LiveKit `Room`; `useAudioLevelMonitor` takes that.
-- The cohost is retired: `cohostActive` is always `false`, `enableCohost`,
-  `disableCohost` and `continueCohost` do nothing, and `VoiceControls` draws the
-  cohost button only when handed those handlers, which are now optional.
+- `livekit-client` is gone from the package entirely; nothing in either entry
+  reaches it (`check:entries` asserts that).
+- The cohost is removed. `useVoiceRoom` no longer returns `cohostActive`,
+  `roundComplete`, `enableCohost`, `disableCohost` or `continueCohost`, and
+  `currentSpeaker` is `'primary' | 'user' | null`. `VoiceControls` no longer
+  takes `cohostActive`, `currentSpeaker`, `roundComplete`, `onEnableCohost`,
+  `onDisableCohost` or `onContinueCohost`, and draws no cohost button or
+  "Continue conversation" prompt. `ChatMessage.speaker` and
+  `VoiceMessage.speaker` are `'primary'` only, and the message list draws no
+  "Cohost" label.
+- `useSpeechToText` no longer takes `apiUrl` or `accessToken`; dictation never
+  talks to the Alia API. Pass `lang` or nothing.
+- The pre-Bloom composer is no longer public. `PromptInput`,
+  `PromptInputTextarea`, `PromptInputActions`, `PromptInputSubmitButton`,
+  `PromptInputMicButton`, `PromptInputAddMenu`, `PromptInputAttachments`,
+  `PromptInputAutocomplete`, `PromptInputContext`, `usePromptInput`,
+  `useIsFullscreen`, `ChatTextInput` and the types `PromptInputProps`,
+  `PromptInputContextType`, `Attachment` and `Completion` are removed from the
+  root entry. `AliaChatScreen` / `AliaChatSheet` still draw their composer;
+  build your own from the primitives if you composed one from these parts.
+- Dependencies trimmed: `@tanstack/react-query`,
+  `@tanstack/react-query-persist-client` and
+  `@tanstack/query-async-storage-persister` are no longer dependencies (no
+  module imported them), and `socket.io-client` and `expo-font` are no longer
+  peer dependencies (likewise unused). Keep them in your app if your app uses
+  them itself.
+
+**Server side, alongside this release:** the `alia_sk_*` developer keys are
+retired and refused by the Alia API. The SDK never used them — it sends the
+signed-in user's Oxy session — but a backend that relays the SDK's requests
+with such a key must forward the user's Oxy token instead (see the README).
 
 ## 7.2.8
 
