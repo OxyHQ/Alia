@@ -659,10 +659,6 @@
       "noResults": "No results"
     },
     "voiceStartFailed": "Could not start the voice session",
-    "emptyState": {
-      "title": "What can I help with?",
-      "description": "Ask anything, or start from one of these."
-    },
     "exportMarkdown": "Export as Markdown",
     "deleteConversation": "Delete conversation",
     "deleteConversationTitle": "Delete this conversation?",

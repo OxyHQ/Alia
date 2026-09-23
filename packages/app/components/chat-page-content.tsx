@@ -3,11 +3,14 @@ import { ChatWorkspace } from '@/components/chat/chat-workspace';
 import type { WelcomeIntroSlots } from '@/components/welcome-intro';
 import { Composer } from '@/components/chat/composer/composer';
 import { useAliaComposer } from '@/components/chat/composer/use-alia-composer';
+import {
+  ComposerSuggestions,
+  useComposerSuggestions,
+} from '@/components/chat/composer/composer-suggestions';
 import { useEntitlements } from '@/lib/hooks/use-billing';
 import { useCredits } from '@/lib/hooks/use-credits';
 import {
   useRecordSuggestionUsage,
-  useWelcomeSuggestions,
   type Suggestion,
 } from '@/lib/hooks/use-suggestions';
 import { Button } from '@oxy.so/bloom/button';
@@ -304,7 +307,6 @@ export const ChatPageContent = ({
    * The welcome suggestions the empty chat offers — fetched once by the layout,
    * read from the same query here.
    */
-  const { data: welcomeSuggestions } = useWelcomeSuggestions();
   const { mutate: recordSuggestionUsage } = useRecordSuggestionUsage();
 
   const handleSubmit = async (dictated?: string) => {
@@ -361,6 +363,13 @@ export const ChatPageContent = ({
   );
 
 
+  // The old composer's suggestions, over it: welcome first, then matches.
+  const suggestions = useComposerSuggestions({
+    draft: inputValue,
+    enabled: isMainScreen && !disabled,
+    onPick: handlePickSuggestion,
+  });
+
   if (intro) {
     return (
       <ChatWorkspace
@@ -408,7 +417,13 @@ export const ChatPageContent = ({
           // A fragment, as in the template: the footer's gap spaces the pill
           // and the status bar.
           <>
+            <ComposerSuggestions
+              completions={suggestions.completions}
+              selected={suggestions.selected}
+              onPick={handlePickSuggestion}
+            />
             <Composer
+              onKeyPress={suggestions.onKeyPress}
               value={inputValue}
               onValueChange={setInputValue}
               onSubmit={handleSubmit}
@@ -455,8 +470,6 @@ export const ChatPageContent = ({
         onDismissNewConversation={onDismissNewConversation}
         failedTurn={failedTurn}
         onRetryTurn={onRetryTurn}
-        suggestions={welcomeSuggestions}
-        onPickSuggestion={handlePickSuggestion}
       />
     </ChatWorkspace>
   );
