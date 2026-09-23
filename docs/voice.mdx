@@ -1,0 +1,98 @@
+---
+title: "Voice"
+description: "Dictation and voice calls: recognized on the device, answered through chat, spoken through Oxy speech."
+order: 5
+---
+
+# Voice
+
+Alia has two voice features, and both run the same way since `@alia.onl/sdk`
+8.0.0: **the device listens, the chat path answers, Oxy speaks.**
+
+| Feature | Hook | What it does |
+|---|---|---|
+| Dictation | `useSpeechToText` | The composer's mic: speech becomes text in the draft |
+| Voice call | `useVoiceRoom` (app: `use-voice-mode.ts`) | A spoken conversation: listen → answer → speak, with barge-in |
+| Read aloud | `useTTS` | A message, spoken on request |
+
+## Why it is built this way
+
+Until #477 dictation posted audio to `POST /v1/voice/transcribe` and a call opened
+a LiveKit room from `POST /v1/voice/token`; both reached speech providers
+directly. Alia's only inference path is `Alia -> Oxy -> Kaana`
+([ADR 0001](./adr/0001-alia-oxy-kaana-responsibility-boundary.md)), and Oxy serves
+chat and speech synthesis but **no transcription and no realtime session**. The
+two routes answered `503` from the cut-over on, and are removed. Adding those
+capabilities to Oxy and Kaana is cross-repository work; recognizing speech on the
+device needs none of it.
+
+## Listening: on the device
+
+`packages/alia-chat/src/lib/speech-recognition*.ts` is one contract with two
+engines, picked by the bundler:
+
+- **Web** (`speech-recognition.ts`): the browser's Web Speech API
+  (`SpeechRecognition` / `webkitSpeechRecognition`). Chromium browsers and Safari
+  have it; **Firefox does not**, and dictation says so instead of failing
+  (`useSpeechToText().isSupported === false`, and the voice call refuses to start).
+  A `getUserMedia` stream is opened beside the recognizer for the permission
+  prompt, precise device errors and the level meter; it is never recorded.
+- **iOS / Android** (`speech-recognition.native.ts`): `expo-speech-recognition`
+  (Apple's Speech framework, Android's `SpeechRecognizer`), continuous with
+  interim results and punctuation, and iOS voice processing (echo cancellation)
+  during calls. It is a native module: the app lists its config plugin in
+  `app.json`, which writes `NSSpeechRecognitionUsageDescription`,
+  `NSMicrophoneUsageDescription`, `RECORD_AUDIO` and the Android recognizer
+  visibility query — **it needs a new native build**.
+
+The language is the app's (`packages/app/lib/speech-locale.ts`): `i18n.locale`,
+widened to a regional tag from the device's locales when it is bare.
+
+**Privacy, stated plainly.** No audio reaches Alia. What the platform's
+recognizer does is the platform's: Chrome's Web Speech API streams audio to a
+Google service; Safari and iOS use Apple's, on-device where the device supports
+it; Android uses the device's recognition service, on-device where installed.
+Accuracy is the engine's too, and varies by browser, device and language.
+
+## Answering: the chat path
+
+A spoken turn **is a chat turn**. In the app, `use-voice-mode.ts` hands each
+utterance to the conversation screen's own `sendMessage` — `POST /alia/chat` with
+the open conversation, its agent, the chosen model and every tool — so a call's
+turns land in the thread as ordinary messages, persisted by the server. The SDK's
+default sender (`createAliaVoiceTurnSender`) makes the same request `useAliaChat`
+does, on `/v1/chat/completions`.
+
+Every voice turn carries `responseMode: "voice"`. The API layers
+`prompts/voice.md` over the turn's product prompt (`SystemPromptBuilder`, the way
+extended reasoning is layered): short, conversational, nothing that reads badly
+aloud. Routing, tools and billing are those of a typed turn.
+
+## Speaking: Oxy speech, sentence by sentence
+
+Answers are spoken through `POST /v1/audio/speech` — the same route read-aloud
+uses (`lib/speech-synthesis.ts` is shared) — in the product voice, `male` or
+`female`; no upstream voice name is ever sent or shown. The loop synthesizes the
+first sentence as soon as it has streamed, gathers later sentences into fuller
+chunks, and fetches the next clip while the current one plays. Markdown, code and
+links are stripped from what is spoken, not from the transcript.
+
+**Barge-in.** The microphone stays open while Alia thinks and speaks. When the
+person says two or more words that are not the answer echoing back
+(`isInterruption` in `lib/voice-text.ts`), the turn is aborted — playback stops
+and the chat request is cancelled — and what they are saying becomes the next
+utterance.
+
+If speech synthesis is unavailable the call carries on: the answer is in the
+thread, and the call reports that it could not be played aloud.
+
+## Entitlements and billing
+
+The app gates calls on the plan's `voice-mode` capability, as before. The
+`voice-minutes` allowance is retired: it was an Alia-local count of LiveKit
+session minutes in `voice_call_usage`, whose only writer left with the LiveKit
+route, so it enforced nothing. Migration `0072_voice_minutes_retired` (post
+phase) removes the feature rows and drops the table, and
+`GET /billing/voice-usage` is gone. Each voice turn and each spoken sentence is
+billed per call by Oxy like any other chat or speech request
+([ADR 0005](./adr/0005-product-entitlements-versus-financial-ledger.md)).

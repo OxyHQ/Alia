@@ -495,12 +495,14 @@ None of the following has a 3.2.1 export that models it. Each stays Alia's.
 - **"Meet Alia".** `components/welcome-intro.tsx` — `IdentityMark`, the typed
   headline with a caret, "Get started" / "Continue without an account", the
   `isAuthResolved` wait, and the `onExitStart` handoff to the chat behind it.
-- **LiveKit call transport.** `lib/hooks/use-voice-mode.ts` and
-  `@alia.onl/sdk/voice` (`useVoiceRoom`, `useAudioLevelMonitor`, `useAudioLevels`,
-  `useSoundEffects`). Bloom's `call-ui` is presentation only — correctly so.
-- **Cohost.** `VoiceControlsProps` carries `cohostActive`, `currentSpeaker:
-  'primary' | 'cohost' | 'user' | null`, `roundComplete`, `onEnableCohost`,
-  `onDisableCohost`, `onContinueCohost`. `CallControlKey` has no equivalent.
+- **Call transport.** `lib/hooks/use-voice-mode.ts` and `@alia.onl/sdk/voice`
+  (`useVoiceRoom`, `useAudioLevelMonitor`, `useAudioLevels`, `useSoundEffects`) —
+  the on-device turn loop since SDK 8.0.0 ([Voice](./voice.mdx)), a LiveKit room
+  before it. Bloom's `call-ui` is presentation only — correctly so.
+- **Cohost** (retired with LiveKit in SDK 8.0.0). `VoiceControlsProps` still
+  accepts `cohostActive`, `currentSpeaker`, `roundComplete` and the three cohost
+  handlers, all optional, and draws no cohost button without them.
+  `CallControlKey` has no equivalent.
 - **The rich message block renderers.** `renderMessage` / `MessageRow` in
   `components/chat-interface.tsx` handles, in order: day separators
   (`lib/message-days.ts`), thread seams (`lib/thread-history.ts`), plan preview
