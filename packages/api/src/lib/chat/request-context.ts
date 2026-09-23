@@ -94,6 +94,12 @@ export interface ChatRequestContext {
    * Nothing downstream carries the `thinkingMode` boolean this replaced.
    */
   reasoningEffort: EffortLevel | null;
+  /**
+   * `'voice'` when the caller says the answer will be spoken (a voice call's
+   * turn), else `null`. Only the prompt reads it; routing, tools and billing
+   * are the same as for a typed turn.
+   */
+  responseMode: 'voice' | null;
   agentMode: boolean;
   deepResearch: boolean | undefined;
   /**
@@ -1078,6 +1084,7 @@ export async function buildChatRequestContext(
     messages,
     conversationId,
     reasoningEffort,
+    responseMode: body.responseMode === 'voice' ? 'voice' : null,
     agentMode,
     deepResearch,
     webSearch,
