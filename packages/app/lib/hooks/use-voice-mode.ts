@@ -140,17 +140,10 @@ export function useVoiceMode({ sendMessage, stopGeneration, onDeactivate }: UseV
     roomState: voiceRoom.roomState,
     agentState: voiceRoom.agentState,
     isMuted: voiceRoom.isMuted,
-    cohostActive: voiceRoom.cohostActive,
-    currentSpeaker: voiceRoom.currentSpeaker,
-    roundComplete: voiceRoom.roundComplete,
     isConnected: voiceRoom.isConnected,
-    room: voiceRoom.room,
 
     // Voice loop controls
     toggleMute: voiceRoom.toggleMute,
-    enableCohost: voiceRoom.enableCohost,
-    disableCohost: voiceRoom.disableCohost,
-    continueCohost: voiceRoom.continueCohost,
 
     // Audio visualization
     waveAmplitude,

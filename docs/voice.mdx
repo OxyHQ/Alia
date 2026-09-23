@@ -91,8 +91,10 @@ thread, and the call reports that it could not be played aloud.
 The app gates calls on the plan's `voice-mode` capability, as before. The
 `voice-minutes` allowance is retired: it was an Alia-local count of LiveKit
 session minutes in `voice_call_usage`, whose only writer left with the LiveKit
-route, so it enforced nothing. Migration `0072_voice_minutes_retired` (post
+route, so it enforced nothing. Migration `0074_voice_minutes_retired` (post
 phase) removes the feature rows and drops the table, and
-`GET /billing/voice-usage` is gone. Each voice turn and each spoken sentence is
+`GET /billing/voice-usage` is gone. The same migration removes the
+`voice-cohost` feature, a second realtime voice in the LiveKit room that the
+on-device call does not have. Each voice turn and each spoken sentence is
 billed per call by Oxy like any other chat or speech request
 ([ADR 0005](./adr/0005-product-entitlements-versus-financial-ledger.md)).
