@@ -105,11 +105,6 @@ vi.mock('../../lib/logger.js', () => ({
   },
 }));
 vi.mock('../../lib/trigger-engine.js', () => ({ reloadTrigger: vi.fn(), generateWebhookToken: () => 'tok' }));
-vi.mock('../../db/automation/triggerRepository.js', () => ({
-  createTrigger: vi.fn(),
-  findAgentTriggerByType: vi.fn(async () => null),
-  updateTrigger: vi.fn(),
-}));
 
 const AGENT_ROW = {
   _id: 'agent-1',

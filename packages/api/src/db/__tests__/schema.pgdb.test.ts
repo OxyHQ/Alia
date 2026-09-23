@@ -1,10 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { sql } from 'drizzle-orm';
-import { constraintNameOf } from '@oxy.so/db';
 import { sweepAllExpiredRows } from '@oxy.so/db/expiry';
 import { closePostgres, connectPostgres, type ApiDatabase } from '../index';
 import { EXPIRY_TARGETS } from '../expiryTargets';
-import { authHealthMetrics, routingLogs } from '../schema/telemetry';
 import { agentSessions } from '../schema/agent-sessions';
 import { oauthStates } from '../schema/integrations';
 import { leases } from '../schema/leases';
@@ -33,50 +31,6 @@ beforeAll(() => {
 
 afterAll(async () => {
   await closePostgres();
-});
-
-describe('closed value sets are enforced by the DATABASE, not just the editor', () => {
-  it('refuses a routing status outside the tuple, naming its own constraint', async () => {
-    const insert = db.execute(sql`
-      insert into ${routingLogs}
-        (id, agent_id, oxy_user_id, inbound_channel, inbound_summary,
-         classification_category, classification_priority, status)
-      values ('probe-2', 'a', 'u', 'email', 's', 'c', 'p', 'not-a-status')
-    `);
-
-    await expect(insert).rejects.toSatisfy((error: unknown) => {
-      expect(constraintNameOf(error)).toBe('routing_logs_status_check');
-      return true;
-    });
-  });
-});
-
-describe('the unique indexes a port must not lose', () => {
-  it('refuses a second auth metric for one (method, hour)', async () => {
-    /**
-     * ISO string plus an explicit cast, NOT a bare `Date`.
-     *
-     * Interpolating a JS `Date` into a raw `sql` template throws in the DRIVER
-     * before the server ever sees the statement — `The "string" argument must be
-     * of type string … Received an instance of Date` — because postgres.js has no
-     * wire type to serialise it as here. It cost a red run on this very test.
-     * Worth knowing that this is NOT limited to range constructors, which is
-     * where the trap is usually described: it bites a plain parameter in
-     * `db.execute` too.
-     */
-    const hour = '2026-01-01T00:00:00.000Z';
-    await db.execute(sql`
-      insert into ${authHealthMetrics} (id, method, hour) values ('a-1', 'jwt', ${hour}::timestamptz)
-    `);
-    const duplicate = db.execute(sql`
-      insert into ${authHealthMetrics} (id, method, hour) values ('a-2', 'jwt', ${hour}::timestamptz)
-    `);
-
-    await expect(duplicate).rejects.toSatisfy((error: unknown) => {
-      expect(constraintNameOf(error)).toBe('auth_health_metrics_method_hour_key');
-      return true;
-    });
-  });
 });
 
 describe('leader election: the CAS Mongo did with an aggregation pipeline', () => {

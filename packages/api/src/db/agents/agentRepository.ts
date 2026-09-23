@@ -31,7 +31,7 @@
  * Every shipped client addresses an agent by the id the API handed out —
  * `PATCH /agents/:id`, `DELETE /agents/:id`, `POST /agents/:id/hire`. This is a
  * versioned contract, not a compat shim: it retires when no supported client
- * reads `_id`. Same call `triggerRepository` and `developerRepository` made.
+ * reads `_id`.
  *
  * ## Searching `tags` is an EXISTS over `unnest`, not a comparison
  *

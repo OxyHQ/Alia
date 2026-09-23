@@ -42,7 +42,6 @@ import skillsRouter from './routes/skills.js';
 import analyticsRouter from './routes/analytics.js';
 import webhooksRouter from './routes/webhooks.js';
 import referralsRouter from './routes/referrals.js';
-import triggersRouter from './routes/triggers.js';
 import automationsRouter from './routes/automations.js';
 import agentsRouter from './routes/agents.js';
 import libraryRouter from './routes/library.js';
@@ -268,7 +267,6 @@ app.use('/external-models', externalModelsRouter);
 app.use('/local-runtimes', localRuntimesRouter);
 app.use('/skills', skillsRouter);
 app.use('/analytics', analyticsRouter);
-app.use('/triggers', triggersRouter);
 app.use('/automations', automationsRouter);
 app.use('/webhooks/oxy', oxyServiceEventsRouter);
 app.use('/webhooks', webhooksRouter);
@@ -309,7 +307,6 @@ app.get('/', (_req, res) => {
       '/external-models',
       '/local-runtimes',
       '/skills',
-      '/triggers',
       '/analytics',
       '/webhooks',
       '/agents',

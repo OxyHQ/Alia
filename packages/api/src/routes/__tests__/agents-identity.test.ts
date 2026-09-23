@@ -122,11 +122,6 @@ vi.mock('../../lib/trigger-engine.js', () => ({
   reloadTrigger: vi.fn(),
   generateWebhookToken: () => 'tok',
 }));
-vi.mock('../../db/automation/triggerRepository.js', () => ({
-  createTrigger: vi.fn(),
-  findAgentTriggerByType: vi.fn(async () => null),
-  updateTrigger: vi.fn(),
-}));
 
 const { default: crudRouter } = await import('../agents/crud.js');
 const { clearAgentAccountVerdicts, verifyAgentAccount } = await import(

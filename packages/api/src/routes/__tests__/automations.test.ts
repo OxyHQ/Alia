@@ -19,7 +19,6 @@ const state = vi.hoisted(() => ({
   scheduleError: vi.fn(),
   oxyMap: vi.fn(),
   list: vi.fn(),
-  listTriggers: vi.fn(),
 }));
 
 const database = { transaction: vi.fn(async (callback) => callback(database)) };
@@ -52,9 +51,6 @@ vi.mock('../../db/automation/automationDefinitionRepository.js', () => ({
   setAutomationEnabled: state.setEnabled,
   updateAutomationDefinition: state.update,
   upsertAutomationActionAuthorizations: state.upsert,
-}));
-vi.mock('../../db/automation/triggerRepository.js', () => ({
-  listTriggers: state.listTriggers,
 }));
 vi.mock('../../lib/automation-authority.js', () => ({
   provisionAutomationAuthorizations: state.provision,
@@ -141,7 +137,6 @@ function storedAutomation(overrides: Record<string, unknown> = {}) {
     maximumAutonomy: payload.maximumAutonomy,
     limits: [],
     enabled: true,
-    legacyTriggerId: null,
     createdAt: new Date('2026-09-01T10:00:00.000Z'),
     updatedAt: new Date('2026-09-01T10:00:00.000Z'),
     ...overrides,
@@ -200,69 +195,6 @@ beforeEach(() => {
   }]);
   state.setEnabled.mockImplementation(async (_db, id, _owner, enabled) => ({ id, enabled }));
   state.list.mockResolvedValue([]);
-  state.listTriggers.mockResolvedValue([]);
-});
-
-/**
- * The listing carries the NAME a person gave a legacy-trigger automation.
- *
- * The definition index copies the trigger's prompt as `objective` and has no
- * name column, so before this the client headed every card with the prompt and
- * two automations created from the same suggestion were one card twice (#534).
- */
-describe('automation listing names', () => {
-  const definition = (id: string, legacyTriggerId: string | null) => ({
-    id,
-    ownerAccountId: 'owner-1',
-    objective: 'Review PR comments every hour and share next steps',
-    trigger: { type: 'schedule', cron: '0 * * * *', timezone: 'UTC' },
-    actorSelection: { mode: 'automatic', eligibleAgentIds: [] },
-    executionMode: 'execute',
-    actions: [],
-    inputs: {},
-    resources: [],
-    dataFlow: { sources: [], destinations: [] },
-    maximumAutonomy: 'autonomous',
-    limits: [],
-    enabled: true,
-    legacyTriggerId,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  });
-
-  it('joins each legacy definition to its trigger name so identical prompts stay distinguishable', async () => {
-    state.list.mockResolvedValue([
-      definition('legacy-trigger-t1', 't1'),
-      definition('legacy-trigger-t2', 't2'),
-    ]);
-    state.listTriggers.mockResolvedValue([
-      { _id: 't1', name: 'Frontend PR watch' },
-      { _id: 't2', name: 'Backend PR watch' },
-    ]);
-    const response = await send('GET', '/automations');
-    expect(response.status).toBe(200);
-    expect(state.listTriggers).toHaveBeenCalledWith(database, 'owner-1');
-    const automations = response.body.automations as Array<{ id: string; name: string | null; objective: string }>;
-    expect(automations.map((automation) => automation.name)).toEqual(['Frontend PR watch', 'Backend PR watch']);
-    expect(new Set(automations.map((automation) => automation.objective)).size).toBe(1);
-  });
-
-  it('returns null names for structured definitions and for a trigger that is gone, without reading triggers needlessly', async () => {
-    state.list.mockResolvedValue([definition('automation-1', null)]);
-    let response = await send('GET', '/automations');
-    expect(response.status).toBe(200);
-    expect(state.listTriggers).not.toHaveBeenCalled();
-    expect((response.body.automations as Array<{ name: string | null }>)[0]?.name).toBeNull();
-
-    state.list.mockResolvedValue([definition('legacy-trigger-gone', 'gone')]);
-    response = await send('GET', '/automations');
-    expect(response.status).toBe(200);
-    expect((response.body.automations as Array<{ name: string | null }>)[0]?.name).toBeNull();
-  });
-  state.setEnabled.mockImplementation(async (_db, id, _owner, enabled) => ({
-    ...storedAutomation({ id, enabled }),
-    updatedAt: new Date('2026-09-01T10:01:00.000Z'),
-  }));
   state.update.mockImplementation(async (_db, input) => storedAutomation({
     id: input.id,
     objective: input.objective,
@@ -541,18 +473,6 @@ describe('structured automation control plane', () => {
         oxyAuthorizationId: 'authorization-agent-2',
       })],
     }));
-  });
-
-  it('refuses to edit a legacy projection through the structured control plane', async () => {
-    state.find.mockResolvedValue(storedAutomation({ legacyTriggerId: 'trigger-1' }));
-
-    const response = await send('PATCH', '/automations/automation-1', {
-      objective: 'Changed legacy automation',
-    });
-
-    expect(response.status).toBe(409);
-    expect(response.body.error).toBe('legacy_automation_not_editable');
-    expect(state.update).not.toHaveBeenCalled();
   });
 
   it('rejects duplicate global limits before rotating authority', async () => {
