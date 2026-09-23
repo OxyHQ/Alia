@@ -801,7 +801,8 @@
       ],
       "removalGate": "The base64-to-FormData conversion lives in gateway-client.ts:355-366; Kaana's contract must accept audio directly.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/routes/v1/voice.ts:265, :304-347; packages/api/src/lib/gateway-client.ts:355-366"
+      "evidence": "packages/api/src/routes/v1/voice.ts:265, :304-347; packages/api/src/lib/gateway-client.ts:355-366",
+      "removedIn": "voz-en-dispositivo"
     },
     {
       "id": "behaviour-tts",
@@ -3540,7 +3541,8 @@
       ],
       "removalGate": "Two distinct gates: transcription needs a Kaana endpoint; realtime needs the voice-session-manager split.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/routes/v1/voice.ts:3-4, :8, :118, :265 (TRANSCRIBE_TIMEOUT_MS 55s), :304-329 (15s, 1 attempt), :347"
+      "evidence": "packages/api/src/routes/v1/voice.ts:3-4, :8, :118, :265 (TRANSCRIBE_TIMEOUT_MS 55s), :304-329 (15s, 1 attempt), :347",
+      "removedIn": "voz-en-dispositivo"
     },
     {
       "id": "hazard-do-app-yaml-gateway-url",
@@ -4869,7 +4871,7 @@
         "model-id-route:voice",
         "v1-voice-token"
       ],
-      "removalGate": "Published package. Same gate as sdk-tts-consumer.",
+      "removalGate": "Published package. Same gate as sdk-tts-consumer. || Since @alia.onl/sdk 8.0.0 the hook recognizes speech on the device and sends each turn through /v1/chat/completions; it calls neither /v1/voice route.",
       "provenance": "inventory-product-api",
       "evidence": "packages/alia-chat/src/hooks/useVoiceRoom.ts:325,332"
     },
@@ -6150,7 +6152,8 @@
       "dependsOn": [],
       "removalGate": "Consumed by the published SDK (packages/alia-chat/src/hooks/useVoiceRoom.ts:325, which sends model:'route:voice'). Any change is a breaking SDK major.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/routes/v1/voice.ts:31"
+      "evidence": "packages/api/src/routes/v1/voice.ts:31",
+      "removedIn": "voz-en-dispositivo"
     },
     {
       "id": "v1-voice-transcribe",
@@ -6166,7 +6169,8 @@
       ],
       "removalGate": "Consumed by the published SDK (useSpeechToText.ts:164) and by integrations (api-client.ts:241). The PATH must survive; only the provider call underneath may move.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/routes/v1/voice.ts:267; packages/api/src/routes/v1/voice.ts:3-4"
+      "evidence": "packages/api/src/routes/v1/voice.ts:267; packages/api/src/routes/v1/voice.ts:3-4",
+      "removedIn": "voz-en-dispositivo"
     },
     {
       "id": "voice-session-manager",

@@ -230,7 +230,6 @@ Routes mounted in `packages/api/src/routes/v1.ts`:
 | `GET /v1/me` | `:68` | Oxy session or service token |
 | `POST /v1/chat/completions` | `:127` | Oxy session or service token |
 | `/v1/responses` | `:130` | Oxy session or service token |
-| `/v1/voice` | `:133` | Oxy session or service token |
 | `/v1/audio` | `:136` | Oxy session or service token |
 | `/v1/images` | `:139` | Oxy session or service token |
 

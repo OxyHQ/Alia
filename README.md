@@ -73,7 +73,7 @@ Three roles, none a subset of another
 - **Oxy** is the platform and Oxy Console — accounts, applications, **all** API keys for
   Alia, Kaana and Mention, billing.
 - **Alia** is the assistant, with its own **permanent product API**: `api.alia.onl/v1/*`
-  and `/alia/chat` (`chat/completions`, `models`, `responses`, `images`, `audio`, `voice`)
+  and `/alia/chat` (`chat/completions`, `models`, `responses`, `images`, `audio`)
   plus `/conversations`, `/shows`, `/skills`, `/agents` and `/catalogue`. Three groups
   call it, all authorized by Oxy: Alia's own surfaces (the app, Codea — extension and CLI —
   and Cowork, on `/alia/chat` with the user's Oxy session), other applications in the Oxy

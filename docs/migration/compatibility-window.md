@@ -132,7 +132,7 @@ Stored selections deserve their own attention: a per-conversation or per-agent m
 
 ## (b) `api.alia.onl/v1/*` — resolved: permanent, not a compatibility path
 
-The routes mounted at `packages/api/src/index.ts:249` — `/v1/chat/completions`, `/v1/responses`, `/v1/models`, `/v1/voice`, `/v1/audio` and `/v1/images` (`packages/api/src/routes/v1.ts`), fifteen routes frozen by name in `packages/api/src/routes/__tests__/v1-compatibility-surface.test.ts`.
+The routes mounted at `packages/api/src/index.ts:249` — `/v1/chat/completions`, `/v1/responses`, `/v1/models`, `/v1/audio` and `/v1/images` (`packages/api/src/routes/v1.ts`), thirteen routes frozen by name in `packages/api/src/routes/__tests__/v1-compatibility-surface.test.ts`. (`/v1/voice/token` and `/v1/voice/transcribe` refused every call from #477 on and were removed when voice moved onto the device; see [Voice](../voice.mdx).)
 
 **Until 2026-09-10 this section carried a removal gate.** ADR 0004 §3 had decided the surface *"remains as a bounded compatibility surface that authenticates through Oxy, does not reintroduce Alia-owned API keys, does not reintroduce provider billing in Alia, and then sunsets"*, and this section specified a per-route gate over `api_key_usage`, a `Deprecation`/`Sunset`/`Link` signal, an `alia.deprecation` stream event, and a clock owned by workstream 6. None of the signal was ever built — *"Path (b) emits nothing"* above was true throughout — and the gate was never measured. ADR 0006 recorded that four derived notes said the opposite.
 

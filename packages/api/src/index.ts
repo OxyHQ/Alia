@@ -294,8 +294,6 @@ app.get('/', (_req, res) => {
       '/suggestions',
       '/writing-style',
       '/notifications',
-      '/v1/voice/token',
-      '/v1/voice/transcribe',
       '/v1/audio/speech',
       '/internal/trigger'
     ]
