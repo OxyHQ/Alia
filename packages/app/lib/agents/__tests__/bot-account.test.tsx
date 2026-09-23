@@ -84,6 +84,9 @@ vi.mock('@oxy.so/bloom/typography', async () => {
   return { Text: text('Text'), Muted: text('Muted') };
 });
 
+vi.mock('@/components/chat/composer/use-alia-composer', () => ({
+  useAliaComposer: () => ({ props: {}, attachments: [], turnOptions: {}, restoreTurn: () => {}, clearTurn: () => {} }),
+}));
 vi.mock('@/components/chat/composer/composer', async () => {
   const ReactModule = await import('react');
   return {

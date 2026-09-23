@@ -1,4 +1,5 @@
 import { Composer } from '@/components/chat/composer/composer';
+import { useAliaComposer } from '@/components/chat/composer/use-alia-composer';
 import { useCreateConversation } from '@/lib/hooks/use-conversations';
 import { useTranslation } from '@/lib/hooks/use-translation';
 import { useStore } from '@/lib/stores/global-store';
@@ -28,6 +29,7 @@ export default function AutomationsScreen() {
   const router = useRouter();
   const { t } = useTranslation();
   const createConversation = useCreateConversation();
+  const composer = useAliaComposer({ locked: createConversation.isPending });
   const [prompt, setPrompt] = useState('');
 
   const startConversation = async (message: string) => {
@@ -68,6 +70,7 @@ export default function AutomationsScreen() {
       </Muted>
 
       <Composer
+        {...composer.props}
         value={prompt}
         onValueChange={setPrompt}
         onSubmit={() => void startConversation(prompt)}
