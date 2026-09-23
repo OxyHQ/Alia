@@ -94,7 +94,6 @@ import {
   emitApprovalRequest,
   emitApprovalResult,
   emitAudioJobUpdate,
-  emitCanvasUpdate,
   emitTelegramLinked,
   emitWorkflowProgress,
   initSocket,
@@ -194,16 +193,14 @@ describe('each product event is emitted under its own name, to its own room', ()
     expect(broadcasts[0].payload).toMatchObject({ agentId: 'agent-ws13', type: 'tool_call' });
   });
 
-  it('audio job, telegram link, canvas and workflow, each on its own room', () => {
+  it('audio job, telegram link and workflow, each on its own room', () => {
     emitAudioJobUpdate('user-ws13', { jobId: 'job-1', status: 'completed', audioUrl: 'https://x.test/a.mp3' });
     emitTelegramLinked('tok-1', { linked: true });
-    emitCanvasUpdate('conv-ws13', { kind: 'chart' });
     emitWorkflowProgress('exec-1', { step: 2 });
 
     expect(broadcasts.map((entry) => ({ event: entry.event, rooms: entry.rooms }))).toEqual([
       { event: 'audio:job-update', rooms: ['user:user-ws13'] },
       { event: 'telegram-linked', rooms: ['telegram-token:tok-1'] },
-      { event: 'canvas-update', rooms: ['canvas:conv-ws13'] },
       { event: 'workflow-progress', rooms: ['workflow:exec-1'] },
     ]);
   });
@@ -297,7 +294,7 @@ describe('every socket event the app listens for is one the API emits', () => {
 
   it('emits every name the app binds, and the census can tell a miss from a hit', () => {
     /**
-     * Driving all seven emitters plus the notification service once, and reading
+     * Driving all six emitters plus the notification service once, and reading
      * the union of the names they produced. This is what the app must find.
      */
     broadcasts.length = 0;
@@ -306,7 +303,6 @@ describe('every socket event the app listens for is one the API emits', () => {
     emitAgentActivity('a', { type: 'system', content: '', timestamp: 1, sessionId: 's' });
     emitAudioJobUpdate('u', { jobId: 'j', status: 'completed' });
     emitTelegramLinked('t', {});
-    emitCanvasUpdate('c', {});
     emitWorkflowProgress('e', {});
     const emitted = new Set(broadcasts.map((entry) => entry.event));
     // `notification` and `show:progress` are emitted by their own services
