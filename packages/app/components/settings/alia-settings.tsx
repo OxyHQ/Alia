@@ -1,4 +1,3 @@
-import { bloomIcon } from '@/components/sidebar/bloom-icon';
 import { useTranslation } from '@/lib/hooks/use-translation';
 import { useDialogControl } from '@oxy.so/bloom/dialog';
 import {
@@ -24,13 +23,17 @@ import { IntegrationsSection } from './integrations-section';
 import { LocalModelsSection } from './local-models-section';
 import { MemorySection } from './memory-section';
 import { PersonalizationSection } from './personalization-section';
+import { ProfileSection } from './profile-section';
 import { SETTINGS_GROUPS } from './sections';
 import { SecuritySection } from './security-section';
+import { StorageSection } from './storage-section';
 import { AliaSettingsContext } from './settings-context';
 import { WritingStyleSection } from './writing-style-section';
 
 const CONTENT: Record<string, ReactNode> = {
   general: <GeneralSection />,
+  profile: <ProfileSection />,
+  storage: <StorageSection />,
   personalization: <PersonalizationSection />,
   accounts: <AccountsSection />,
   bots: <BotsSection />,
@@ -63,7 +66,7 @@ export function AliaSettingsProvider({ children }: { children: ReactNode }) {
             key: section.id,
             page: section.id,
             label: t(section.labelKey),
-            icon: bloomIcon(section.icon),
+            icon: section.icon,
           })),
       })).filter((group) => group.items.length),
     [isAuthenticated, t],

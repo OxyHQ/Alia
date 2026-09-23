@@ -1,4 +1,3 @@
-import { ActionKeyIcon } from '@/components/ui/action-key-icon';
 import { errorStatus } from '@/lib/errors/error-utils';
 import {
   useMcpServers,
@@ -6,33 +5,32 @@ import {
   type McpRegistryEntry,
 } from '@/lib/hooks/use-mcp-servers';
 import { useTranslation } from '@/lib/hooks/use-translation';
-import { useColorScheme } from '@/lib/useColorScheme';
 import { Button } from '@oxy.so/bloom/button';
 import { Dialog } from '@oxy.so/bloom/dialog';
+import { RiArrowDownSLine } from '@oxy.so/bloom/icons/RiArrowDownSLine';
+import { RiArrowRightSLine } from '@oxy.so/bloom/icons/RiArrowRightSLine';
+import { RiCheckLine } from '@oxy.so/bloom/icons/RiCheckLine';
 import { Search } from '@oxy.so/bloom/search';
 import {
   SettingsCard,
   SettingsRow,
   SettingsSection,
-  SettingsValueField,
+  SettingsServerList,
+  type SettingsMcpServer,
+  type SettingsMenuAction,
+  type SettingsServerTone,
 } from '@oxy.so/bloom/settings-modal';
-import { TextFieldInput } from '@oxy.so/bloom/text-field';
+import * as Skeleton from '@oxy.so/bloom/skeleton';
+import { confirm } from '@oxy.so/bloom/surfaces';
+import { TextFieldInput, TextFieldLabel } from '@oxy.so/bloom/text-field';
 import { toast } from '@oxy.so/bloom/toast';
-import { Text } from '@oxy.so/bloom/typography';
 import * as Collapsible from '@rn-primitives/collapsible';
-import { Image } from 'expo-image';
-import { useRouter } from 'expo-router';
-import { ChevronDown, Plus } from 'lucide-react-native';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import {
-  ActivityIndicator,
-  Linking,
-  Platform,
-  Pressable,
-  View,
-} from 'react-native';
+import { Linking, Platform, StyleSheet, View } from 'react-native';
 import { SettingsPreferenceSelect } from './preference-select';
 import { useAliaSettings } from './settings-context';
+
+type Translate = ReturnType<typeof useTranslation>['t'];
 
 // Ordered registry categories rendered after the Featured section. A featured
 // entry appears ONLY in Featured, never duplicated into its category section.
@@ -45,21 +43,25 @@ const CATEGORY_ORDER = [
   'filesystem',
 ] as const;
 
-function isImageUrl(icon?: string): boolean {
-  return !!icon && /^https?:\/\//i.test(icon);
-}
+// Letter-tile swatches for the server list, picked by name so a connector keeps
+// its colour across renders.
+const TILE_TONES: SettingsServerTone[] = [
+  'secondary',
+  'primary',
+  'warning',
+  'info',
+  'success',
+  'tertiary',
+  'inverse',
+  'neutral',
+];
 
-function ConnectorIcon({ icon, size = 20 }: { icon?: string; size?: number }) {
-  if (isImageUrl(icon)) {
-    return (
-      <Image
-        source={{ uri: icon }}
-        style={{ width: size, height: size }}
-        contentFit="contain"
-      />
-    );
+function toneFor(name: string): SettingsServerTone {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = (hash * 31 + name.charCodeAt(i)) | 0;
   }
-  return <ActionKeyIcon size={size} />;
+  return TILE_TONES[Math.abs(hash) % TILE_TONES.length] ?? 'neutral';
 }
 
 // A connector is "connected" only when it's genuinely usable: an OAuth
@@ -69,6 +71,41 @@ function ConnectorIcon({ icon, size = 20 }: { icon?: string; size?: number }) {
 function isServerConnected(server: InstalledMcpServer | undefined): boolean {
   if (!server) return false;
   return server.config?.requiresOAuth ? server.status === 'running' : true;
+}
+
+/** "Stopped · 3 tools enabled" — the status only when it is not the usual one. */
+function serverSummary(
+  server: InstalledMcpServer,
+  t: Translate,
+  withUrl = false,
+): string {
+  const parts: string[] = [];
+  if (withUrl && server.config?.url) parts.push(server.config.url);
+  if (server.status !== 'running' && server.status !== 'error') {
+    parts.push(t(`settings.connections.serverStatus.${server.status}`));
+  }
+  parts.push(
+    t('settings.connections.toolCount', {
+      count: (server.tools ?? []).length,
+    }),
+  );
+  return parts.join(' · ');
+}
+
+function toSettingsServer(
+  server: InstalledMcpServer,
+  t: Translate,
+  withUrl = false,
+): SettingsMcpServer {
+  const name = server.displayName || server.name;
+  return {
+    id: server._id,
+    name,
+    tone: toneFor(name),
+    status: server.status === 'error' ? 'error' : 'connected',
+    summary: serverSummary(server, t, withUrl),
+    tools: (server.tools ?? []).map((tool) => tool.name),
+  };
 }
 
 function ConnectorRow({
@@ -90,14 +127,30 @@ function ConnectorRow({
   const connected = isServerConnected(server);
   return (
     <SettingsRow label={entry.name} description={entry.description}>
-      <View className="flex-row flex-wrap gap-2">
-        <Button variant="secondary" size="sm" onPress={() => onOpen(entry)}>
-          {t('connectors.detailTitle')}
+      <>
+        <Button
+          size="sm"
+          appearance="outline"
+          tone="neutral"
+          onPress={() => onOpen(entry)}
+        >
+          {t('settings.connections.viewDetails')}
         </Button>
-        {!connected && (
+        {connected ? (
           <Button
-            variant="secondary"
             size="sm"
+            appearance="outline"
+            tone="neutral"
+            leadingIcon={RiCheckLine}
+            disabled
+          >
+            {t('connectors.connected')}
+          </Button>
+        ) : (
+          <Button
+            size="sm"
+            appearance="outline"
+            tone="neutral"
             loading={pending}
             onPress={() =>
               entry.requiresOAuth ? onConnect(entry) : onInstall(entry)
@@ -108,10 +161,7 @@ function ConnectorRow({
               : t('connectors.install')}
           </Button>
         )}
-        {connected && (
-          <SettingsValueField>{t('connectors.connected')}</SettingsValueField>
-        )}
-      </View>
+      </>
     </SettingsRow>
   );
 }
@@ -134,7 +184,7 @@ function CategorySection({
   onInstall: (entry: McpRegistryEntry) => void;
 }) {
   return (
-    <SettingsSection label={title}>
+    <SettingsSection label={title} inset={8}>
       <SettingsCard>
         {entries.map((entry) => (
           <ConnectorRow
@@ -154,8 +204,6 @@ function CategorySection({
 
 export function ConnectorsSection() {
   const { t } = useTranslation();
-  const { colors } = useColorScheme();
-  const router = useRouter();
   const settings = useAliaSettings();
   const searchParams = settings.params;
 
@@ -165,6 +213,7 @@ export function ConnectorsSection() {
     loading,
     install,
     installCustom,
+    uninstall,
     startOAuth,
     completeOAuth,
   } = useMcpServers();
@@ -230,7 +279,7 @@ export function ConnectorsSection() {
     return map;
   }, [installed]);
 
-  // Only surface genuinely-connected connectors in the Installed grid — an
+  // Only surface genuinely-connected connectors in the Installed list — an
   // OAuth connector whose flow hasn't completed (installed but not running) is
   // not yet connected.
   const connectedServers = useMemo(
@@ -285,8 +334,79 @@ export function ConnectorsSection() {
     }));
   }, [filteredRegistry]);
 
+  const serverActions: SettingsMenuAction[] = [
+    { id: 'details', label: t('settings.connections.viewDetails') },
+    { id: 'uninstall', label: t('connectors.uninstall') },
+  ];
+
   const handleOpen = (entry: McpRegistryEntry) =>
     settings.open('connector-detail', { id: entry.id });
+
+  const openServerDetails = (server: InstalledMcpServer) => {
+    if (server.registryId) {
+      settings.open('connector-detail', { id: server.registryId });
+    } else {
+      // Custom connectors have no catalog page; their home is the Personal list.
+      setTab('personal');
+    }
+  };
+
+  const handleUninstallServer = async (server: InstalledMcpServer) => {
+    const name = server.displayName || server.name;
+    const ok = await confirm({
+      title: t('connectors.uninstallTitle'),
+      description: t('connectors.uninstallDescription', { name }),
+      confirmLabel: t('connectors.uninstall'),
+      cancelLabel: t('common.cancel'),
+      destructive: true,
+    });
+    if (!ok) return;
+    try {
+      await uninstall(server._id);
+      toast.success(t('connectors.uninstalledToast', { name }));
+    } catch {
+      toast.error(t('connectors.uninstallFailed'));
+    }
+  };
+
+  const findServer = (serverId: string) =>
+    installed.find((s) => s._id === serverId);
+
+  const handleServerAction = (serverId: string, actionId: string) => {
+    const server = findServer(serverId);
+    if (!server) return;
+    if (actionId === 'details') openServerDetails(server);
+    if (actionId === 'uninstall') void handleUninstallServer(server);
+  };
+
+  const handleServerLogout = (serverId: string) => {
+    const server = findServer(serverId);
+    if (server) void handleUninstallServer(server);
+  };
+
+  const handleShowOutput = (serverId: string) => {
+    const server = findServer(serverId);
+    if (!server) return;
+    if (server.statusMessage) {
+      toast.error(
+        `${server.displayName || server.name}: ${server.statusMessage}`,
+      );
+    } else if (server.registryId) {
+      openServerDetails(server);
+    } else {
+      toast.error(t('settings.connections.noOutput'));
+    }
+  };
+
+  const serverListProps = {
+    actions: serverActions,
+    onServerAction: handleServerAction,
+    onLogout: handleServerLogout,
+    onShowOutput: handleShowOutput,
+    onAddServer: () => setCustomDialogOpen(true),
+    addServerLabel: t('connectors.addCustomTitle'),
+    addServerDescription: t('connectors.addCustomDescription'),
+  };
 
   const handleConnect = async (entry: McpRegistryEntry) => {
     setPendingId(entry.id);
@@ -394,79 +514,60 @@ export function ConnectorsSection() {
     }
   };
 
-  const inputClass =
-    'border border-border rounded-lg px-3 py-2 bg-background text-foreground text-sm';
-
   if (loading) {
     return (
-      <View className="flex-1 items-center justify-center py-12">
-        <ActivityIndicator size="small" />
+      <View style={styles.page}>
+        <SettingsSection label={t('connectors.installed')} inset={8}>
+          <SettingsCard>
+            <SettingsRow label={t('common.loading')}>
+              <Skeleton.Box width={202} height={32} borderRadius={10} />
+            </SettingsRow>
+          </SettingsCard>
+        </SettingsSection>
       </View>
     );
   }
 
   return (
-    <View className="gap-6">
-      {/* Search + Add custom */}
-      <View className="flex-row items-center gap-2">
-        <View className="flex-1">
-          <Search
-            label={t('connectors.searchPlaceholder')}
-            value={search}
-            onChangeText={setSearch}
-            onClearText={() => setSearch('')}
-          />
-        </View>
-        <Pressable
-          onPress={() => setCustomDialogOpen(true)}
-          accessibilityRole="button"
-          accessibilityLabel={t('connectors.addCustom')}
-          className="h-11 w-11 rounded-full border border-border items-center justify-center active:bg-accent web:hover:bg-accent"
-        >
-          <Plus size={16} className="text-foreground" />
-        </Pressable>
-      </View>
-
-      <SettingsSection label={t('connectors.installed')}>
-        <SettingsCard>
-          {connectedServers.length ? (
-            connectedServers.map((server) => (
-              <SettingsRow
-                key={server._id}
-                label={server.displayName || server.name}
-                description={server.description}
-              >
-                {server.registryId ? (
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    onPress={() =>
-                      settings.open('connector-detail', {
-                        id: server.registryId!,
-                      })
-                    }
-                  >
-                    {t('connectors.detailTitle')}
-                  </Button>
-                ) : (
-                  <SettingsValueField>{server.status}</SettingsValueField>
-                )}
-              </SettingsRow>
-            ))
-          ) : (
-            <SettingsRow label={t('connectors.installedEmpty')} />
+    <View style={styles.page}>
+      <SettingsSection
+        label={t('connectors.installed')}
+        description={
+          connectedServers.length ? undefined : t('connectors.installedEmpty')
+        }
+        inset={8}
+      >
+        <SettingsServerList
+          servers={connectedServers.map((server) =>
+            toSettingsServer(server, t),
           )}
-        </SettingsCard>
+          {...serverListProps}
+        />
       </SettingsSection>
-      <SettingsPreferenceSelect
-        label="Connector catalog"
-        value={tab}
-        onChange={setTab}
-        items={[
-          { value: 'public', label: t('connectors.tab.public') },
-          { value: 'personal', label: t('connectors.tab.personal') },
-        ]}
-      />
+
+      <SettingsSection
+        label={t('connectors.title')}
+        description={t('connectors.subtitle')}
+        inset={8}
+        action={
+          <SettingsPreferenceSelect
+            label={t('settings.connections.catalog')}
+            value={tab}
+            onChange={setTab}
+            items={[
+              { value: 'public', label: t('connectors.tab.public') },
+              { value: 'personal', label: t('connectors.tab.personal') },
+            ]}
+          />
+        }
+      >
+        <Search
+          label={t('connectors.searchPlaceholder')}
+          value={search}
+          onChangeText={setSearch}
+          onClearText={() => setSearch('')}
+        />
+      </SettingsSection>
 
       {tab === 'public' ? (
         <>
@@ -500,28 +601,25 @@ export function ConnectorsSection() {
           )}
 
           {filteredRegistry.length === 0 && (
-            <Text className="text-[13px] text-muted-foreground text-center py-6">
-              {t('connectors.noResults')}
-            </Text>
+            <SettingsCard>
+              <SettingsRow label={t('connectors.noResults')} />
+            </SettingsCard>
           )}
         </>
       ) : (
-        <SettingsSection label={t('connectors.tab.personal')}>
-          <SettingsCard>
-            {personalServers.length ? (
-              personalServers.map((server) => (
-                <SettingsRow
-                  key={server._id}
-                  label={server.displayName || server.name}
-                  description={server.config?.url || server.description || ''}
-                >
-                  <SettingsValueField>{server.status}</SettingsValueField>
-                </SettingsRow>
-              ))
-            ) : (
-              <SettingsRow label={t('connectors.personalEmpty')} />
+        <SettingsSection
+          label={t('connectors.tab.personal')}
+          description={
+            personalServers.length ? undefined : t('connectors.personalEmpty')
+          }
+          inset={8}
+        >
+          <SettingsServerList
+            servers={personalServers.map((server) =>
+              toSettingsServer(server, t, true),
             )}
-          </SettingsCard>
+            {...serverListProps}
+          />
         </SettingsSection>
       )}
 
@@ -546,17 +644,13 @@ export function ConnectorsSection() {
           },
         ]}
       >
-        <View className="gap-3">
+        <View style={styles.fields}>
           {installTarget?.requiredEnv.map((envKey) => (
-            <View key={envKey} className="gap-1">
-              <Text className="text-xs font-medium text-muted-foreground">
-                {envKey}
-              </Text>
+            <View key={envKey}>
+              <TextFieldLabel>{envKey}</TextFieldLabel>
               <TextFieldInput
                 label={t('connectors.enterValue', { name: envKey })}
-
                 placeholder={t('connectors.enterValue', { name: envKey })}
-                placeholderTextColor={colors.mutedForeground}
                 value={envValues[envKey] || ''}
                 onChangeText={(val) =>
                   setEnvValues((prev) => ({ ...prev, [envKey]: val }))
@@ -597,31 +691,23 @@ export function ConnectorsSection() {
           },
         ]}
       >
-        <View className="gap-3">
-          <View className="gap-1">
-            <Text className="text-xs font-medium text-muted-foreground">
-              {t('connectors.nameLabel')}
-            </Text>
+        <View style={styles.fields}>
+          <View>
+            <TextFieldLabel>{t('connectors.nameLabel')}</TextFieldLabel>
             <TextFieldInput
               label={t('connectors.namePlaceholder')}
-
               placeholder={t('connectors.namePlaceholder')}
-              placeholderTextColor={colors.mutedForeground}
               value={customName}
               onChangeText={setCustomName}
               autoCapitalize="words"
             />
           </View>
 
-          <View className="gap-1">
-            <Text className="text-xs font-medium text-muted-foreground">
-              {t('connectors.urlLabel')}
-            </Text>
+          <View>
+            <TextFieldLabel>{t('connectors.urlLabel')}</TextFieldLabel>
             <TextFieldInput
               label="https://example.com/mcp"
-
               placeholder="https://example.com/mcp"
-              placeholderTextColor={colors.mutedForeground}
               value={customUrl}
               onChangeText={setCustomUrl}
               autoCapitalize="none"
@@ -632,47 +718,37 @@ export function ConnectorsSection() {
 
           <Collapsible.Root open={advancedOpen} onOpenChange={setAdvancedOpen}>
             <Collapsible.Trigger asChild>
-              <Pressable className="flex-row items-center gap-1 py-1">
-                <ChevronDown
-                  size={14}
-                  className="text-muted-foreground"
-                  style={
-                    advancedOpen
-                      ? undefined
-                      : { transform: [{ rotate: '-90deg' }] }
-                  }
-                />
-                <Text className="text-xs font-medium text-muted-foreground">
-                  {t('connectors.advancedSettings')}
-                </Text>
-              </Pressable>
+              <Button
+                size="sm"
+                appearance="plain"
+                tone="neutral"
+                leadingIcon={advancedOpen ? RiArrowDownSLine : RiArrowRightSLine}
+              >
+                {t('connectors.advancedSettings')}
+              </Button>
             </Collapsible.Trigger>
             <Collapsible.Content>
-              <View className="gap-3 mt-2">
-                <View className="gap-1">
-                  <Text className="text-xs font-medium text-muted-foreground">
+              <View style={styles.fields}>
+                <View>
+                  <TextFieldLabel>
                     {t('connectors.headerNameLabel')}
-                  </Text>
+                  </TextFieldLabel>
                   <TextFieldInput
                     label="Authorization"
-
                     placeholder="Authorization"
-                    placeholderTextColor={colors.mutedForeground}
                     value={customHeaderKey}
                     onChangeText={setCustomHeaderKey}
                     autoCapitalize="none"
                     autoCorrect={false}
                   />
                 </View>
-                <View className="gap-1">
-                  <Text className="text-xs font-medium text-muted-foreground">
+                <View>
+                  <TextFieldLabel>
                     {t('connectors.headerValueLabel')}
-                  </Text>
+                  </TextFieldLabel>
                   <TextFieldInput
                     label="Bearer sk-..."
-
                     placeholder="Bearer sk-..."
-                    placeholderTextColor={colors.mutedForeground}
                     value={customHeaderValue}
                     onChangeText={setCustomHeaderValue}
                     autoCapitalize="none"
@@ -688,3 +764,10 @@ export function ConnectorsSection() {
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  // The Tools page's own rhythm: sections 24 apart.
+  page: { width: '100%', gap: 24 },
+  // Dialog form fields, 12 apart.
+  fields: { gap: 12 },
+});

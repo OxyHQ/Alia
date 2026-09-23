@@ -13,9 +13,6 @@ vi.mock('@oxy.so/services', () => ({
 vi.mock('@/lib/hooks/use-translation', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
-vi.mock('@/components/sidebar/bloom-icon', () => ({
-  bloomIcon: () => () => null,
-}));
 vi.mock('@/components/settings/sections', () => ({
   SETTINGS_GROUPS: [
     {
@@ -52,6 +49,12 @@ vi.mock('@oxy.so/bloom/settings-modal', async () => {
 });
 vi.mock('@/components/settings/general-section', () => ({
   GeneralSection: () => null,
+}));
+vi.mock('@/components/settings/profile-section', () => ({
+  ProfileSection: () => null,
+}));
+vi.mock('@/components/settings/storage-section', () => ({
+  StorageSection: () => null,
 }));
 vi.mock('@/components/settings/personalization-section', () => ({
   PersonalizationSection: () => null,

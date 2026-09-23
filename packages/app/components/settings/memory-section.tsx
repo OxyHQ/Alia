@@ -1,33 +1,36 @@
-import { MemoryTable } from '@/components/settings/memory-table';
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { generateAPIUrl } from '@/lib/generate-api-url';
 import { useTranslation } from '@/lib/hooks/use-translation';
 import { useUserData } from '@/lib/hooks/use-user-data';
 import { useStore } from '@/lib/stores/global-store';
 import { useUserDataStore } from '@/lib/stores/user-data-store';
 import { Button } from '@oxy.so/bloom/button';
+import { ButtonGroup, ButtonGroupItem } from '@oxy.so/bloom/button-group';
 import { Dialog, type DialogAction } from '@oxy.so/bloom/dialog';
-import { Label } from '@oxy.so/bloom/label';
+import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
+import { RiDeleteBinLine } from '@oxy.so/bloom/icons/RiDeleteBinLine';
+import { RiDownload2Line } from '@oxy.so/bloom/icons/RiDownload2Line';
+import { RiFileCopyLine } from '@oxy.so/bloom/icons/RiFileCopyLine';
+import { RiUpload2Line } from '@oxy.so/bloom/icons/RiUpload2Line';
 import { Search } from '@oxy.so/bloom/search';
-import { SettingsGeneralPage } from '@oxy.so/bloom/settings-modal';
+import {
+  SettingsCard,
+  SettingsRow,
+  SettingsSection,
+  SettingsValueField,
+} from '@oxy.so/bloom/settings-modal';
+import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { confirm } from '@oxy.so/bloom/surfaces';
 import { Switch } from '@oxy.so/bloom/switch';
 import { Textarea } from '@oxy.so/bloom/textarea';
 import { toast } from '@oxy.so/bloom/toast';
-import { Text } from '@oxy.so/bloom/typography';
 import { useAuth, useOxy } from '@oxy.so/services';
 import { useRouter } from 'expo-router';
-import {
-  Brain,
-  Copy,
-  Download,
-  FileJson,
-  FileText,
-  Plus,
-  Upload,
-} from 'lucide-react-native';
 import React, { useEffect, useMemo, useState } from 'react';
 import { ScrollView, View } from 'react-native';
+import { SettingsPreferenceSelect } from './preference-select';
+
+/** This page's own strings. */
+const K = 'settings.assistant.memory';
 
 type MemoryType = 'profile' | 'topic' | 'person';
 
@@ -454,10 +457,13 @@ export function MemorySection() {
   };
 
   if (loading) {
+    // The page's own geometry, shimmering: the settings card, then a list.
     return (
-      <View className="flex-1 items-center justify-center bg-background">
-        <Text>{t('common.loading')}</Text>
-      </View>
+      <Skeleton.Col style={{ gap: 24 }}>
+        <Skeleton.Box width="100%" height={156} borderRadius={16} />
+        <Skeleton.Box width="100%" height={208} borderRadius={16} />
+        <Skeleton.Box width="100%" height={156} borderRadius={16} />
+      </Skeleton.Col>
     );
   }
 
@@ -493,170 +499,184 @@ export function MemorySection() {
               ]),
         ];
 
+  const editMemory = (found: Memory) =>
+    startMemoryChat(
+      t('memory.chatEditPrompt', {
+        title: found.title,
+        summary: found.summary,
+      }),
+    );
+
   return (
-    <View className="gap-4">
-      <View className="gap-4">
-        <SettingsGeneralPage
-          sections={[
-            {
-              key: 'memory',
-              rows: [
-                {
-                  key: 'recall',
-                  label: t('memory.recallToggleLabel'),
-                  description: t('memory.recallToggleDescription'),
-                  control: (
-                    <Switch
-                      accessibilityLabel={t('memory.recallToggleLabel')}
-                      value={memory?.settings?.recallEnabled ?? true}
-                      onValueChange={(v) =>
-                        handleToggleSetting('recallEnabled', v)
-                      }
-                      disabled={updatingSettings}
-                    />
-                  ),
-                },
-                {
-                  key: 'save',
-                  label: t('memory.autoSaveToggleLabel'),
-                  description: t('memory.autoSaveToggleDescription'),
-                  control: (
-                    <Switch
-                      accessibilityLabel={t('memory.autoSaveToggleLabel')}
-                      value={memory?.settings?.autoSaveEnabled ?? true}
-                      onValueChange={(v) =>
-                        handleToggleSetting('autoSaveEnabled', v)
-                      }
-                      disabled={updatingSettings}
-                    />
-                  ),
-                },
-                {
-                  key: 'import',
-                  label: t('memory.importFromProvider'),
-                  description: t('memory.providerImportRowDescription'),
-                  control: (
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      onPress={() => setShowProviderImportDialog(true)}
-                    >
-                      {t('memory.startImport')}
-                    </Button>
-                  ),
-                },
-              ],
-            },
-          ]}
-        />
-        {/* Compact Toolbar */}
-        <View className="px-4 pt-1 pb-2 gap-2">
-          <View className="flex-row items-center gap-2">
-            <View className="flex-1">
-              <Search
-                label={t('memory.searchPlaceholder')}
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-                onClearText={() => setSearchQuery('')}
-              />
-            </View>
+    <>
+      {/* SettingsGeneralPage's page geometry (full width, sections 24 apart),
+          spelled out because the search field is a section, not a row. */}
+      <View style={PAGE}>
+        <SettingsCard>
+          <SettingsRow
+            label={t('memory.recallToggleLabel')}
+            description={t('memory.recallToggleDescription')}
+          >
+            <Switch
+              accessibilityLabel={t('memory.recallToggleLabel')}
+              checked={memory?.settings?.recallEnabled ?? true}
+              onCheckedChange={(v) => handleToggleSetting('recallEnabled', v)}
+              disabled={updatingSettings}
+            />
+          </SettingsRow>
+          <SettingsRow
+            label={t('memory.autoSaveToggleLabel')}
+            description={t('memory.autoSaveToggleDescription')}
+          >
+            <Switch
+              accessibilityLabel={t('memory.autoSaveToggleLabel')}
+              checked={memory?.settings?.autoSaveEnabled ?? true}
+              onCheckedChange={(v) => handleToggleSetting('autoSaveEnabled', v)}
+              disabled={updatingSettings}
+            />
+          </SettingsRow>
+        </SettingsCard>
 
-            <Button
-              onPress={() => startMemoryChat(t('memory.chatAddPrompt'))}
-              size="sm"
-              className="h-11 px-3 rounded-lg"
-              accessibilityLabel={t('memory.newMemory')}
+        <SettingsSection label={t(`${K}.manage`)}>
+          <SettingsCard>
+            <SettingsRow
+              label={t('memory.newMemory')}
+              description={t(`${K}.newMemoryDescription`)}
             >
-              <View className="flex-row items-center gap-1.5">
-                <Plus size={16} className="text-primary-foreground" />
-              </View>
-            </Button>
-          </View>
-
-          <View className="flex-row items-center justify-between">
-            <Text className="text-xs text-muted-foreground">
-              {filteredMemories.length}{' '}
-              {filteredMemories.length === 1 ? 'memoria' : 'memorias'}
-            </Text>
-            <View className="flex-row items-center gap-1">
               <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7"
+                size="sm"
+                appearance="outline"
+                tone="neutral"
+                leadingIcon={RiAddLine}
+                onPress={() => startMemoryChat(t('memory.chatAddPrompt'))}
+              >
+                {t('memory.addMemory')}
+              </Button>
+            </SettingsRow>
+            <SettingsRow
+              label={t('memory.importFromProvider')}
+              description={t('memory.providerImportRowDescription')}
+            >
+              <Button
+                size="sm"
+                appearance="outline"
+                tone="neutral"
+                onPress={() => setShowProviderImportDialog(true)}
+              >
+                {t('memory.startImport')}
+              </Button>
+            </SettingsRow>
+            <SettingsRow
+              label={t('memory.exportTitle')}
+              description={t('memory.exportDescription')}
+            >
+              <Button
+                size="sm"
+                appearance="outline"
+                tone="neutral"
+                leadingIcon={RiDownload2Line}
                 onPress={() => {
                   setShowExportDialog(true);
                   loadExportStats();
                 }}
-                icon={
-                  <>
-                    <Download size={14} className="text-muted-foreground" />
-                  </>
-                }
-              />
+              >
+                {t('memory.export')}
+              </Button>
+            </SettingsRow>
+            <SettingsRow
+              label={t('memory.importTitle')}
+              description={t('memory.importDescription')}
+            >
               <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7"
+                size="sm"
+                appearance="outline"
+                tone="neutral"
+                leadingIcon={RiUpload2Line}
                 onPress={() => setShowImportDialog(true)}
-                icon={
-                  <>
-                    <Upload size={14} className="text-muted-foreground" />
-                  </>
-                }
-              />
+              >
+                {t('memory.import')}
+              </Button>
+            </SettingsRow>
+            <SettingsRow
+              label={t('memory.duplicateMemories')}
+              description={t(`${K}.duplicatesDescription`)}
+            >
               <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7"
+                size="sm"
+                appearance="outline"
+                tone="neutral"
+                leadingIcon={RiFileCopyLine}
                 onPress={loadDuplicates}
                 disabled={duplicatesLoading}
-                icon={
-                  <>
-                    <Copy size={14} className="text-muted-foreground" />
-                  </>
-                }
-              />
-            </View>
-          </View>
-        </View>
+              >
+                {t(`${K}.findDuplicates`)}
+              </Button>
+            </SettingsRow>
+          </SettingsCard>
+        </SettingsSection>
 
-        {/* Grouped sections */}
-        <View className="px-4 pb-4">
-          {memories.length === 0 ? (
-            <View className="items-center justify-center py-12">
-              <Brain size={32} className="text-muted-foreground opacity-40" />
-              <Text className="text-sm font-medium text-muted-foreground mt-3">
-                {t('memory.noMemories')}
-              </Text>
-              <Text className="text-xs text-muted-foreground text-center mt-1 max-w-xs">
-                {t('memory.shareInfo')}
-              </Text>
-            </View>
-          ) : (
-            <>
-              {TYPE_SECTIONS.map((section) => (
-                <MemoryTable
-                  key={section.type}
-                  heading={t(section.headingKey)}
-                  rows={groupedByType[section.type]}
-                  emptyLabel={t(section.emptyKey)}
-                  onRowPress={(id) => {
-                    const found = memories.find((m) => m._id === id);
-                    if (found) {
-                      startMemoryChat(
-                        t('memory.chatEditPrompt', {
-                          title: found.title,
-                          summary: found.summary,
-                        }),
-                      );
-                    }
-                  }}
-                  onDelete={handleDeleteMemory}
-                />
-              ))}
-            </>
-          )}
-        </View>
+        <SettingsSection
+          label={t(`${K}.count`, { count: filteredMemories.length })}
+        >
+          <Search
+            label={t('memory.searchPlaceholder')}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            onClearText={() => setSearchQuery('')}
+          />
+        </SettingsSection>
+
+        {memories.length === 0 ? (
+          <SettingsCard>
+            <SettingsRow
+              label={t('memory.noMemories')}
+              description={t('memory.shareInfo')}
+            />
+          </SettingsCard>
+        ) : (
+          TYPE_SECTIONS.map((section) => {
+            const rows = groupedByType[section.type];
+            return (
+              <SettingsSection key={section.type} label={t(section.headingKey)}>
+                <SettingsCard>
+                  {rows.length ? (
+                    rows.map((row) => (
+                      <SettingsRow
+                        key={row._id}
+                        label={row.title}
+                        description={row.summary}
+                      >
+                        <ButtonGroup
+                          size="sm"
+                          accessibilityLabel={row.title}
+                        >
+                          <ButtonGroupItem onPress={() => editMemory(row)}>
+                            {t('common.edit')}
+                          </ButtonGroupItem>
+                          <ButtonGroupItem
+                            iconOnly
+                            leadingIcon={RiDeleteBinLine}
+                            accessibilityLabel={`${t('common.delete')} ${row.title}`}
+                            onPress={() => handleDeleteMemory(row._id)}
+                          />
+                        </ButtonGroup>
+                      </SettingsRow>
+                    ))
+                  ) : (
+                    <SettingsRow
+                      label={t(section.emptyKey)}
+                      description={
+                        searchQuery.trim()
+                          ? t('common.tryDifferentSearch')
+                          : undefined
+                      }
+                    />
+                  )}
+                </SettingsCard>
+              </SettingsSection>
+            );
+          })
+        )}
       </View>
 
       {/* Export Dialog */}
@@ -675,50 +695,44 @@ export function MemorySection() {
         ]}
       >
         {exportStats && (
-          <View className="gap-3">
-            <View className="bg-muted rounded-lg p-3">
-              <Text className="text-sm text-muted-foreground mb-2">
-                {t('memory.exportStatistics')}
-              </Text>
-              <Text className="text-sm">
-                {t('memory.totalMemories')}: {exportStats.totalMemories}
-              </Text>
-              <Text className="text-sm">
-                {t('memory.types')}: {exportStats.totalTypes}
-              </Text>
-              <Text className="text-sm">
-                {t('memory.sizeJSON')}: ~
-                {(exportStats.estimatedSizeJSON / 1024).toFixed(1)} KB
-              </Text>
-            </View>
-
-            <View className="gap-2">
-              <Label>{t('memory.format')}</Label>
-              <ToggleGroup
-                type="single"
-                value={exportFormat}
-                onValueChange={(val) => setExportFormat(val as 'json' | 'csv')}
+          <View style={FORM}>
+            <SettingsSection label={t('memory.exportStatistics')}>
+              <SettingsCard>
+                <SettingsRow label={t('memory.totalMemories')}>
+                  <SettingsValueField>
+                    {exportStats.totalMemories}
+                  </SettingsValueField>
+                </SettingsRow>
+                <SettingsRow label={t('memory.types')}>
+                  <SettingsValueField>{exportStats.totalTypes}</SettingsValueField>
+                </SettingsRow>
+                <SettingsRow label={t('memory.sizeJSON')}>
+                  <SettingsValueField>
+                    ~{(exportStats.estimatedSizeJSON / 1024).toFixed(1)} KB
+                  </SettingsValueField>
+                </SettingsRow>
+              </SettingsCard>
+            </SettingsSection>
+            <SettingsCard>
+              <SettingsRow
+                label={t('memory.format')}
+                description={
+                  exportFormat === 'json'
+                    ? t('memory.jsonDescription')
+                    : t('memory.csvDescription')
+                }
               >
-                <ToggleGroupItem value="json">
-                  <View className="flex-row items-center gap-2">
-                    <FileJson size={16} className="text-foreground" />
-                    <Text>{t('memory.jsonFull')}</Text>
-                  </View>
-                </ToggleGroupItem>
-                <ToggleGroupItem value="csv">
-                  <View className="flex-row items-center gap-2">
-                    <FileText size={16} className="text-foreground" />
-                    <Text>{t('memory.csv')}</Text>
-                  </View>
-                </ToggleGroupItem>
-              </ToggleGroup>
-
-              <Text className="text-xs text-muted-foreground mt-1">
-                {exportFormat === 'json'
-                  ? t('memory.jsonDescription')
-                  : t('memory.csvDescription')}
-              </Text>
-            </View>
+                <SettingsPreferenceSelect
+                  label={t('memory.format')}
+                  value={exportFormat}
+                  onChange={setExportFormat}
+                  items={[
+                    { value: 'json', label: t('memory.jsonFull') },
+                    { value: 'csv', label: t('memory.csv') },
+                  ]}
+                />
+              </SettingsRow>
+            </SettingsCard>
           </View>
         )}
       </Dialog>
@@ -741,74 +755,70 @@ export function MemorySection() {
           },
         ]}
       >
-        <View className="gap-4">
-          <View className="gap-2">
-            <Label>{t('memory.selectFile')}</Label>
-            <input
-              type="file"
-              accept=".json"
-              onChange={handleFileSelect}
-              className="block w-full text-sm"
-            />
-          </View>
+        <View style={FORM}>
+          <SettingsCard>
+            <SettingsRow label={t('memory.selectFile')}>
+              {/* Web-only file chooser: Bloom has no bare file-picker control. */}
+              <input type="file" accept=".json" onChange={handleFileSelect} />
+            </SettingsRow>
+          </SettingsCard>
 
           {importPreview && (
-            <View className="bg-muted rounded-lg p-3 gap-2">
-              <Text className="text-sm font-medium">{t('memory.preview')}</Text>
-              <Text className="text-xs">
-                {t('memory.totalToImport')}: {importPreview.totalToImport}
-              </Text>
-              <Text className="text-xs">
-                {t('memory.newMemoriesCount')}: {importPreview.newTitles}
-              </Text>
-              <Text className="text-xs">
-                {t('memory.duplicatesCount')}: {importPreview.duplicateTitles}
-              </Text>
-              <Text className="text-xs">
-                {t('memory.finalTotal')}: {importPreview.estimatedFinalTotal}
-              </Text>
-              {importPreview.memoryLimit !== -1 && (
-                <Text className="text-xs">
-                  {t('memory.memoryLimit')}: {importPreview.memoryLimit}
-                </Text>
-              )}
-            </View>
+            <SettingsSection label={t('memory.preview')}>
+              <SettingsCard>
+                <SettingsRow label={t('memory.totalToImport')}>
+                  <SettingsValueField>
+                    {importPreview.totalToImport}
+                  </SettingsValueField>
+                </SettingsRow>
+                <SettingsRow label={t('memory.newMemoriesCount')}>
+                  <SettingsValueField>{importPreview.newTitles}</SettingsValueField>
+                </SettingsRow>
+                <SettingsRow label={t('memory.duplicatesCount')}>
+                  <SettingsValueField>
+                    {importPreview.duplicateTitles}
+                  </SettingsValueField>
+                </SettingsRow>
+                <SettingsRow label={t('memory.finalTotal')}>
+                  <SettingsValueField>
+                    {importPreview.estimatedFinalTotal}
+                  </SettingsValueField>
+                </SettingsRow>
+                {importPreview.memoryLimit !== -1 && (
+                  <SettingsRow label={t('memory.memoryLimit')}>
+                    <SettingsValueField>
+                      {importPreview.memoryLimit}
+                    </SettingsValueField>
+                  </SettingsRow>
+                )}
+              </SettingsCard>
+            </SettingsSection>
           )}
 
           {importFile && (
-            <View className="gap-2">
-              <Label>{t('memory.importStrategy')}</Label>
-              <ToggleGroup
-                type="single"
-                value={importStrategy}
-                onValueChange={(val) => {
-                  if (
-                    val === 'merge' ||
-                    val === 'skip-duplicates' ||
-                    val === 'replace'
-                  ) {
-                    setImportStrategy(val);
-                  }
-                }}
+            <SettingsCard>
+              <SettingsRow
+                label={t('memory.importStrategy')}
+                description={
+                  importStrategy === 'merge'
+                    ? t('memory.mergeDescription')
+                    : importStrategy === 'skip-duplicates'
+                      ? t('memory.skipDescription')
+                      : t('memory.replaceDescription')
+                }
               >
-                <ToggleGroupItem value="merge">
-                  <Text>{t('memory.merge')}</Text>
-                </ToggleGroupItem>
-                <ToggleGroupItem value="skip-duplicates">
-                  <Text>{t('memory.skipDupes')}</Text>
-                </ToggleGroupItem>
-                <ToggleGroupItem value="replace">
-                  <Text>{t('memory.replaceAll')}</Text>
-                </ToggleGroupItem>
-              </ToggleGroup>
-
-              <Text className="text-xs text-muted-foreground mt-1">
-                {importStrategy === 'merge' && t('memory.mergeDescription')}
-                {importStrategy === 'skip-duplicates' &&
-                  t('memory.skipDescription')}
-                {importStrategy === 'replace' && t('memory.replaceDescription')}
-              </Text>
-            </View>
+                <SettingsPreferenceSelect
+                  label={t('memory.importStrategy')}
+                  value={importStrategy}
+                  onChange={setImportStrategy}
+                  items={[
+                    { value: 'merge', label: t('memory.merge') },
+                    { value: 'skip-duplicates', label: t('memory.skipDupes') },
+                    { value: 'replace', label: t('memory.replaceAll') },
+                  ]}
+                />
+              </SettingsRow>
+            </SettingsCard>
           )}
         </View>
       </Dialog>
@@ -828,74 +838,53 @@ export function MemorySection() {
       >
         {duplicates.length > 0 && (
           <ScrollView style={{ maxHeight: 400 }}>
-            <View className="gap-3">
-              {duplicates.map((dup, i) => (
-                <View
-                  key={i}
-                  className="border border-border rounded-lg p-3 gap-2"
-                >
-                  <View className="bg-muted rounded-md px-2 py-1 self-start">
-                    <Text className="text-[10px] text-muted-foreground font-medium">
-                      {dup.reason === 'identical_summary'
+            <View style={FORM}>
+              {duplicates.map((dup, i) => {
+                // Keeping one of the pair deletes the other.
+                const keep = (targetId?: string) => {
+                  if (targetId) handleDeleteMemory(targetId);
+                  setDuplicates((prev) => prev.filter((_, idx) => idx !== i));
+                };
+                return (
+                  <SettingsSection
+                    key={i}
+                    label={
+                      dup.reason === 'identical_summary'
                         ? t('memory.identicalValue')
-                        : t('memory.similarKey')}
-                    </Text>
-                  </View>
-                  <View className="gap-1">
-                    <Text className="text-xs font-semibold text-foreground">
-                      {dup.memory1?.title}
-                    </Text>
-                    <Text
-                      className="text-xs text-muted-foreground"
-                      numberOfLines={2}
-                    >
-                      {dup.memory1?.summary}
-                    </Text>
-                  </View>
-                  <View className="h-px bg-border" />
-                  <View className="gap-1">
-                    <Text className="text-xs font-semibold text-foreground">
-                      {dup.memory2?.title}
-                    </Text>
-                    <Text
-                      className="text-xs text-muted-foreground"
-                      numberOfLines={2}
-                    >
-                      {dup.memory2?.summary}
-                    </Text>
-                  </View>
-                  <View className="flex-row gap-2 mt-1">
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      className="flex-1 h-7"
-                      onPress={() => {
-                        const targetId = dup.memory2?._id;
-                        if (targetId) handleDeleteMemory(targetId);
-                        setDuplicates((prev) =>
-                          prev.filter((_, idx) => idx !== i),
-                        );
-                      }}
-                    >
-                      {t('memory.keepFirst')}
-                    </Button>
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      className="flex-1 h-7"
-                      onPress={() => {
-                        const targetId = dup.memory1?._id;
-                        if (targetId) handleDeleteMemory(targetId);
-                        setDuplicates((prev) =>
-                          prev.filter((_, idx) => idx !== i),
-                        );
-                      }}
-                    >
-                      {t('memory.keepSecond')}
-                    </Button>
-                  </View>
-                </View>
-              ))}
+                        : t('memory.similarKey')
+                    }
+                  >
+                    <SettingsCard>
+                      <SettingsRow
+                        label={dup.memory1?.title ?? ''}
+                        description={dup.memory1?.summary}
+                      >
+                        <Button
+                          size="sm"
+                          appearance="outline"
+                          tone="neutral"
+                          onPress={() => keep(dup.memory2?._id)}
+                        >
+                          {t('memory.keepFirst')}
+                        </Button>
+                      </SettingsRow>
+                      <SettingsRow
+                        label={dup.memory2?.title ?? ''}
+                        description={dup.memory2?.summary}
+                      >
+                        <Button
+                          size="sm"
+                          appearance="outline"
+                          tone="neutral"
+                          onPress={() => keep(dup.memory1?._id)}
+                        >
+                          {t('memory.keepSecond')}
+                        </Button>
+                      </SettingsRow>
+                    </SettingsCard>
+                  </SettingsSection>
+                );
+              })}
             </View>
           </ScrollView>
         )}
@@ -915,64 +904,61 @@ export function MemorySection() {
         }
       >
         {providerImportStep === 'prompt' ? (
-          <View className="gap-3">
-            <View className="bg-muted rounded-lg p-3">
-              <Text className="text-sm text-foreground" selectable>
-                {PROVIDER_IMPORT_PROMPT}
-              </Text>
-            </View>
-            <Button
-              variant="secondary"
-              onPress={() => {
-                if (typeof navigator !== 'undefined' && navigator.clipboard) {
-                  navigator.clipboard.writeText(PROVIDER_IMPORT_PROMPT);
-                  toast.success(t('memory.promptCopied'));
-                }
-              }}
-              leading={
-                <>
-                  <Copy size={16} className="text-foreground" />
-                </>
-              }
-            >
-              {t('memory.copyPrompt')}
-            </Button>
-          </View>
+          <SettingsCard>
+            <SettingsRow label={PROVIDER_IMPORT_PROMPT}>
+              <Button
+                size="sm"
+                appearance="outline"
+                tone="neutral"
+                leadingIcon={RiFileCopyLine}
+                onPress={() => {
+                  if (typeof navigator !== 'undefined' && navigator.clipboard) {
+                    navigator.clipboard.writeText(PROVIDER_IMPORT_PROMPT);
+                    toast.success(t('memory.promptCopied'));
+                  }
+                }}
+              >
+                {t('memory.copyPrompt')}
+              </Button>
+            </SettingsRow>
+          </SettingsCard>
         ) : (
-          <View className="gap-3">
-            <View className="gap-2">
-              <Label>{t('memory.pasteResponseLabel')}</Label>
-              <Textarea
-                value={providerPastedText}
-                onChangeText={setProviderPastedText}
-                placeholder={t('memory.pasteResponsePlaceholder')}
-                editable={!providerImporting}
-                autoResize
-                rows={8}
-              />
-            </View>
+          <View style={FORM}>
+            <Textarea
+              label={t('memory.pasteResponseLabel')}
+              value={providerPastedText}
+              onChangeText={setProviderPastedText}
+              placeholder={t('memory.pasteResponsePlaceholder')}
+              editable={!providerImporting}
+              autoResize
+              rows={8}
+            />
 
             {providerImportResult && (
-              <View className="bg-muted rounded-lg p-3 gap-1">
-                <Text className="text-sm font-medium">
-                  {t('memory.providerImportResultHeading')}
-                </Text>
-                {providerImportResult.length === 0 ? (
-                  <Text className="text-xs text-muted-foreground">
-                    {t('memory.providerImportNoneFound')}
-                  </Text>
-                ) : (
-                  providerImportResult.map((m, i) => (
-                    <Text key={i} className="text-xs text-muted-foreground">
-                      • {m.title}: {m.summary}
-                    </Text>
-                  ))
-                )}
-              </View>
+              <SettingsSection label={t('memory.providerImportResultHeading')}>
+                <SettingsCard>
+                  {providerImportResult.length === 0 ? (
+                    <SettingsRow label={t('memory.providerImportNoneFound')} />
+                  ) : (
+                    providerImportResult.map((m, i) => (
+                      <SettingsRow
+                        key={i}
+                        label={m.title}
+                        description={m.summary}
+                      />
+                    ))
+                  )}
+                </SettingsCard>
+              </SettingsSection>
             )}
           </View>
         )}
       </Dialog>
-    </View>
+    </>
   );
 }
+
+/** SettingsGeneralPage's own geometry: full width, blocks 24 apart. */
+const PAGE = { width: '100%', gap: 24 } as const;
+/** A dialog's blocks, 16 apart. */
+const FORM = { gap: 16 } as const;

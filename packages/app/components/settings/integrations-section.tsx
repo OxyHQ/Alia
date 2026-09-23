@@ -3,108 +3,29 @@ import {
   type ConnectedIntegration,
   type IntegrationEntry,
 } from '@/lib/hooks/use-integrations';
+import { useTranslation } from '@/lib/hooks/use-translation';
 import { Button } from '@oxy.so/bloom/button';
+import { RiExternalLinkLine } from '@oxy.so/bloom/icons/RiExternalLinkLine';
 import {
-  SettingsCard,
-  SettingsRow,
-  SettingsSection,
+  SettingsProfilePage,
+  type SettingsPageSection,
 } from '@oxy.so/bloom/settings-modal';
+import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { confirm } from '@oxy.so/bloom/surfaces';
-import { useTheme } from '@oxy.so/bloom/theme';
 import { toast } from '@oxy.so/bloom/toast';
-import { Text } from '@oxy.so/bloom/typography';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ExternalLink, Unlink } from 'lucide-react-native';
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Linking, View } from 'react-native';
+import { Linking } from 'react-native';
 
-function IntegrationStatusBadge({
-  status,
-}: {
-  status: ConnectedIntegration['status'];
-}) {
-  const config = {
-    active: { label: 'Active', bg: 'bg-green-500/10', text: 'text-green-600' },
-    expired: {
-      label: 'Expired',
-      bg: 'bg-yellow-500/10',
-      text: 'text-yellow-600',
-    },
-    revoked: { label: 'Revoked', bg: 'bg-gray-500/10', text: 'text-gray-500' },
-    error: { label: 'Error', bg: 'bg-red-500/10', text: 'text-red-600' },
-  }[status] ?? { label: status, bg: 'bg-gray-500/10', text: 'text-gray-500' };
-
-  return (
-    <View className={`px-2 py-0.5 rounded-full ${config.bg}`}>
-      <Text className={`text-[10px] font-medium ${config.text}`}>
-        {config.label}
-      </Text>
-    </View>
-  );
-}
-
-function ConnectedRow({
-  integration,
-  onDisconnect,
-}: {
-  integration: ConnectedIntegration;
-  onDisconnect: (id: string) => void;
-}) {
-  const { colors } = useTheme();
-  return (
-    <SettingsRow
-      label={integration.displayName}
-      description={
-        integration.accountName || integration.accountId || integration.service
-      }
-    >
-      <View className="flex-row items-center gap-2">
-        <IntegrationStatusBadge status={integration.status} />
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-7 px-2"
-          accessibilityLabel={`Disconnect ${integration.displayName}`}
-          onPress={() => onDisconnect(integration._id)}
-        >
-          <Unlink size={14} className="text-destructive" />
-        </Button>
-      </View>
-    </SettingsRow>
-  );
-}
-
-function AvailableCard({
-  entry,
-  onConnect,
-  connecting,
-}: {
-  entry: IntegrationEntry;
-  onConnect: (service: string) => void;
-  connecting: boolean;
-}) {
-  const { colors } = useTheme();
-  return (
-    <SettingsRow label={entry.name} description={entry.description}>
-      <Button
-        variant="secondary"
-        size="sm"
-        className="h-7"
-        onPress={() => onConnect(entry.service)}
-        disabled={connecting}
-        leading={
-          <>
-            <ExternalLink size={12} className="text-foreground" />
-          </>
-        }
-      >
-        Connect
-      </Button>
-    </SettingsRow>
-  );
-}
+const INTEGRATION_STATUSES: readonly ConnectedIntegration['status'][] = [
+  'active',
+  'expired',
+  'revoked',
+  'error',
+];
 
 export function IntegrationsSection() {
+  const { t } = useTranslation();
   const {
     available,
     connected,
@@ -139,7 +60,7 @@ export function IntegrationsSection() {
     if (error) {
       if (handledOAuthRef.current === `err:${error}`) return;
       handledOAuthRef.current = `err:${error}`;
-      toast.error('Connection was cancelled or failed');
+      toast.error(t('settings.connections.integrations.oauthError'));
       router.replace('/(app)/settings/integrations');
       return;
     }
@@ -148,8 +69,16 @@ export function IntegrationsSection() {
       if (handledOAuthRef.current === state) return;
       handledOAuthRef.current = state;
       completeOAuth(service, state, code)
-        .then(() => toast.success(`${service} connected successfully`))
-        .catch(() => toast.error('Failed to finish connection'))
+        .then(() =>
+          toast.success(
+            t('settings.connections.integrations.connectedToast', {
+              name: service,
+            }),
+          ),
+        )
+        .catch(() =>
+          toast.error(t('settings.connections.integrations.finishFailed')),
+        )
         .finally(() => router.replace('/(app)/settings/integrations'));
     }
   }, [
@@ -171,7 +100,7 @@ export function IntegrationsSection() {
       await Linking.openURL(url);
     } catch (err) {
       console.error('Failed to start OAuth flow:', err);
-      toast.error('Failed to start connection');
+      toast.error(t('settings.connections.integrations.startFailed'));
     } finally {
       setConnectingService(null);
     }
@@ -179,67 +108,113 @@ export function IntegrationsSection() {
 
   const handleDisconnect = async (integrationId: string) => {
     const ok = await confirm({
-      title: 'Disconnect Integration',
-      description:
-        'Are you sure you want to disconnect this integration? You can reconnect it anytime.',
-      confirmLabel: 'Disconnect',
-      cancelLabel: 'Cancel',
+      title: t('settings.connections.integrations.disconnectTitle'),
+      description: t('settings.connections.integrations.disconnectDescription'),
+      confirmLabel: t('settings.connections.disconnect'),
+      cancelLabel: t('common.cancel'),
       destructive: true,
     });
     if (!ok) return;
     try {
       await disconnect(integrationId);
-      toast.success('Integration disconnected');
+      toast.success(t('settings.connections.integrations.disconnectedToast'));
     } catch (err) {
       console.error('Failed to disconnect integration:', err);
-      toast.error('Failed to disconnect integration');
+      toast.error(t('settings.connections.integrations.disconnectFailed'));
     }
   };
 
+  const statusLabel = (status: ConnectedIntegration['status']) =>
+    INTEGRATION_STATUSES.includes(status)
+      ? t(`settings.connections.integrations.status.${status}`)
+      : status;
+
   if (loading) {
     return (
-      <View className="flex-1 items-center justify-center py-12">
-        <ActivityIndicator size="small" />
-      </View>
+      <SettingsProfilePage
+        sections={[
+          {
+            key: 'loading',
+            rows: [
+              {
+                key: 'loading',
+                label: t('common.loading'),
+                control: (
+                  <Skeleton.Box width={202} height={32} borderRadius={10} />
+                ),
+              },
+            ],
+          },
+        ]}
+      />
     );
   }
 
-  return (
-    <View>
-      {connected.length === 0 ? (
-        <View className="items-center py-6">
-          <Text className="text-sm text-muted-foreground">
-            No integrations connected yet.
-          </Text>
-        </View>
-      ) : (
-        <SettingsSection label="Connected">
-          <SettingsCard>
-            {connected.map((integration) => (
-              <ConnectedRow
-                key={integration._id}
-                integration={integration}
-                onDisconnect={handleDisconnect}
-              />
-            ))}
-          </SettingsCard>
-        </SettingsSection>
-      )}
+  const connectedSection: SettingsPageSection = {
+    key: 'connected',
+    label: t('settings.connections.integrations.connected'),
+    rows: connected.length
+      ? connected.map((integration) => ({
+          key: integration._id,
+          label: integration.displayName,
+          description: [
+            integration.accountName ||
+              integration.accountId ||
+              integration.service,
+            statusLabel(integration.status),
+          ].join(' · '),
+          control: (
+            <Button
+              size="sm"
+              appearance="outline"
+              tone="neutral"
+              accessibilityLabel={t(
+                'settings.connections.disconnectNamed',
+                { name: integration.displayName },
+              )}
+              onPress={() => handleDisconnect(integration._id)}
+            >
+              {t('settings.connections.disconnect')}
+            </Button>
+          ),
+        }))
+      : [
+          {
+            key: 'empty',
+            label: t('settings.connections.integrations.empty'),
+          },
+        ],
+  };
 
-      {availableNotConnected.length > 0 && (
-        <SettingsSection label="Available">
-          <SettingsCard>
-            {availableNotConnected.map((entry) => (
-              <AvailableCard
-                key={entry.service}
-                entry={entry}
-                onConnect={handleConnect}
-                connecting={connectingService === entry.service}
-              />
-            ))}
-          </SettingsCard>
-        </SettingsSection>
-      )}
-    </View>
+  const availableSection: SettingsPageSection = {
+    key: 'available',
+    label: t('settings.connections.integrations.available'),
+    rows: availableNotConnected.map((entry: IntegrationEntry) => ({
+      key: entry.service,
+      label: entry.name,
+      description: entry.description,
+      control: (
+        <Button
+          size="sm"
+          appearance="outline"
+          tone="neutral"
+          leadingIcon={RiExternalLinkLine}
+          onPress={() => handleConnect(entry.service)}
+          disabled={connectingService === entry.service}
+        >
+          {t('connectors.connect')}
+        </Button>
+      ),
+    })),
+  };
+
+  return (
+    <SettingsProfilePage
+      sections={
+        availableNotConnected.length > 0
+          ? [connectedSection, availableSection]
+          : [connectedSection]
+      }
+    />
   );
 }
