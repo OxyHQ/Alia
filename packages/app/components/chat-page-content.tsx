@@ -13,7 +13,9 @@ import { useProjectsStore } from '@/lib/stores/projects-store';
 import type { ThreadMessage } from '@/lib/thread-history';
 import { useColorScheme } from '@/lib/useColorScheme';
 import type { Message } from '@/types/chat';
-import { VoiceControls } from '@alia.onl/sdk/voice';
+import { AmbientField } from '@/components/ambient-field';
+import { useTTS } from '@/lib/hooks/use-tts';
+import { VoiceControls, useAmbientWave } from '@alia.onl/sdk/voice';
 import {
   AiChatMobileHeader,
   type AiChatThreadHandle,
@@ -190,7 +192,24 @@ export const ChatPageContent = ({
     });
   }
 
-  const { colors } = useColorScheme();
+  const { colors, isDarkColorScheme } = useColorScheme();
+  const { ttsWaveAmplitude, playbackState: ttsPlaybackState } = useTTS();
+  // The ambient field behind the conversation, the welcome's own: one wave
+  // across idle, voice, read-aloud and dictation (STT is read inside
+  // useAmbientWave from the SDK store).
+  const wave = useAmbientWave({
+    voice: voice
+      ? {
+          isActive: voice.isVoiceActive,
+          isConnected: voice.isConnected,
+          agentState: voice.agentState,
+          waveAmplitude: voice.waveAmplitude,
+        }
+      : undefined,
+    isTTSPlaying: ttsPlaybackState === 'playing',
+    ttsWaveAmplitude,
+    isGenerating: isLoading,
+  });
   const insets = useSafeAreaInsets();
   /**
    * The chat's folder, as the sidebar's tree files it: its project, or
@@ -266,7 +285,14 @@ export const ChatPageContent = ({
 
   return (
     <ChatWorkspace
-      working={isLoading}
+      background={
+        <AmbientField
+          waveAmplitude={wave.waveAmplitude}
+          agentState={wave.agentState}
+          intensity={wave.intensity}
+          isDarkMode={isDarkColorScheme}
+        />
+      }
       project={projectName}
       title={conversationTitle || agentName || t('chat.newChat')}
       header={<AiChatMobileHeader title={conversationTitle || agentName || 'Alia'} />}
