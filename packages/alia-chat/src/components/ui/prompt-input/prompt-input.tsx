@@ -49,8 +49,6 @@ export type PromptInputProps = {
   onSuggestionUsed?: (suggestionId: string) => void;
   // Injectable error handler (replaces toast)
   onError?: (message: string) => void;
-  // Mic button API URL
-  apiUrl?: string;
 } & Omit<React.ComponentProps<typeof View>, "children">;
 
 export function PromptInput({
@@ -77,7 +75,6 @@ export function PromptInput({
   useSuggestions,
   onSuggestionUsed,
   onError,
-  apiUrl,
   ...props
 }: PromptInputProps) {
   const [internalValue, setInternalValue] = useState(value || "");
@@ -182,7 +179,7 @@ export function PromptInput({
           {actionsLeft ?? <PromptInputAddMenu />}
         </View>
         <View className="flex-row items-center gap-1.5">
-          <PromptInputMicButton apiUrl={apiUrl} />
+          <PromptInputMicButton />
           <PromptInputSubmitButton
             isLoading={isLoading}
             onStop={onStop}

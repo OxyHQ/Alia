@@ -147,7 +147,7 @@ export function useVoiceRoom(options: UseVoiceRoomOptions = {}) {
   /** A turn that failed without ending the call: no answer, or no audio for it. */
   const [turnError, setTurnError] = useState<string | null>(null);
   const [messages, setMessagesState] = useState<VoiceMessage[]>([]);
-  const [currentSpeaker, setCurrentSpeaker] = useState<'primary' | 'cohost' | 'user' | null>(null);
+  const [currentSpeaker, setCurrentSpeaker] = useState<'primary' | 'user' | null>(null);
 
   const { oxyServices } = useOxy();
 
@@ -619,22 +619,6 @@ export function useVoiceRoom(options: UseVoiceRoomOptions = {}) {
     }
   }, [discardDraft, levels]);
 
-  // ============== COHOST (retired) ==============
-
-  /**
-   * The cohost was a second voice agent in the LiveKit room. A turn loop on
-   * the device has one voice, so these stay only so existing callers compile;
-   * `cohostActive` is always false and `VoiceControls` draws no cohost button
-   * unless handed these.
-   *
-   * @deprecated No effect.
-   */
-  const enableCohost = useCallback(() => undefined, []);
-  /** @deprecated No effect. */
-  const disableCohost = useCallback(() => undefined, []);
-  /** @deprecated No effect. */
-  const continueCohost = useCallback(() => undefined, []);
-
   // ============== CLEANUP ON UNMOUNT ==============
 
   useEffect(() => {
@@ -656,15 +640,10 @@ export function useVoiceRoom(options: UseVoiceRoomOptions = {}) {
     error,
     turnError,
     messages,
-    cohostActive: false,
     currentSpeaker,
-    roundComplete: false,
     connect,
     disconnect,
     toggleMute,
-    enableCohost,
-    disableCohost,
-    continueCohost,
     isConnected: roomState === 'connected',
   };
 }

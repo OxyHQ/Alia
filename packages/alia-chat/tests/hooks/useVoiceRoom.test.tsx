@@ -300,6 +300,5 @@ describe('the on-device voice loop', () => {
     expect(latest.roomState).toBe('disconnected');
     expect(latest.agentState).toBe('idle');
     expect(latest.messages).toEqual([]);
-    expect(latest.cohostActive).toBe(false);
   });
 });

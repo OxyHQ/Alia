@@ -17,13 +17,6 @@ export interface UseSTTOptions {
    * platform's own language. The Alia app passes its UI locale.
    */
   lang?: string;
-  /**
-   * @deprecated Ignored. Dictation is recognized on the device and nothing is
-   * sent to the Alia API; the option stays so existing callers still compile.
-   */
-  apiUrl?: string;
-  /** @deprecated Ignored, for the same reason as `apiUrl`. */
-  accessToken?: string;
 }
 
 // ============== INLINE STT STORE ==============

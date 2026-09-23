@@ -286,7 +286,6 @@ export function AliaChatContent({
             onStop={stop}
             emptyAction={voiceActivateButton}
             placeholder="Ask Alia..."
-            apiUrl={apiUrl}
             autocomplete={!!useSuggestions}
             useSuggestions={useSuggestions}
             onSuggestionUsed={onSuggestionUsed}
