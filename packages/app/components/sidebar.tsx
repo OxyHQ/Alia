@@ -1,7 +1,6 @@
 import { useAliaSettings } from "@/components/settings/settings-context";
 import { formatRelativeTime } from "@/lib/utils/relative-time";
 import { queryKeys } from "@/lib/hooks/query-keys";
-import { useSubscription } from "@/lib/hooks/use-billing";
 import {
   prefetchConversation,
   useConversations,
@@ -23,13 +22,11 @@ import { RiSparklingLine } from "@oxy.so/bloom/icons/RiSparklingLine";
 import { RiTimeLine } from "@oxy.so/bloom/icons/RiTimeLine";
 import {
   Sidebar as BloomSidebar,
-  type SidebarAccount,
   type SidebarNavItem,
-  type SidebarPlan,
   type SidebarTree,
   type SidebarTreeFolder,
 } from "@oxy.so/bloom/sidebar";
-import { useAuth, useOxy } from "@oxy.so/services";
+import { ProfileButton, useAuth, useOxy } from "@oxy.so/services";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
 import React from "react";
@@ -64,9 +61,8 @@ function useSidebarProps() {
   const { t } = useTranslation();
   const chatId = useStore((state) => state.chatId);
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage } = useConversations();
-  const { isAuthenticated, showBottomSheet, openAccountDialog, oxyServices } = useOxy();
-  const { signIn, user, isAuthResolved, isPrivateApiPending } = useAuth();
-  const { data: subscription } = useSubscription();
+  const { isAuthenticated, showBottomSheet } = useOxy();
+  const { signIn } = useAuth();
   const projects = useProjectsStore((state) => state.projects);
   const toggleProject = useProjectsStore((state) => state.toggleProject);
 
@@ -160,9 +156,6 @@ function useSidebarProps() {
     { key: "shows", label: t("sidebar.shows"), icon: RiMicLine, onPress: () => go("/(app)/shows") },
   ];
 
-  const authReady = isAuthResolved && !isPrivateApiPending;
-  const signedIn = authReady && isAuthenticated;
-
   const secondaryItems: SidebarNavItem[] = [
     {
       key: "support",
@@ -183,61 +176,30 @@ function useSidebarProps() {
     },
   ];
 
-  const name = user?.name?.displayName?.trim() || user?.username || "";
-  const avatar = user?.avatar
-    ? { source: oxyServices.getFileDownloadUrl(user.avatar, "thumb") }
-    : { initials: name.slice(0, 1).toUpperCase(), color: "neutral" as const };
-
-  const signInNow = () => {
-    signIn().catch(() => {});
-  };
-
-  // The template always has an account at the top and a plan card at the
-  // foot. Signed out, both are the guest's, and both lead to signing in.
-  const account: SidebarAccount | undefined = !authReady
-    ? undefined
-    : signedIn
-      ? {
-          name,
-          avatar,
-          users: [
-            {
-              id: user?.id ?? "me",
-              name,
-              avatar,
-              selected: true,
-              onPress: () => openAccountDialog("accounts"),
-            },
-          ],
-          onAddUser: signInNow,
-          onManage: () => showBottomSheet?.("ManageAccount"),
-        }
-      : {
-          name: t("sidebar.guest"),
-          avatar: { initials: "A", color: "neutral" },
-          users: [],
-          onAddUser: signInNow,
-          addUserLabel: t("sidebar.signIn"),
-          onManage: signInNow,
-          manageLabel: t("sidebar.signIn"),
-        };
-
-  const plan: SidebarPlan | undefined = !authReady
-    ? undefined
-    : signedIn
-      ? {
-          name,
-          plan: subscription?.plan.name ?? t("sidebar.freePlan"),
-          avatar,
-          onAction: () => go("/(biglayout)/subscribe"),
-        }
-      : {
-          name: "Alia",
-          plan: t("sidebar.freePlan"),
-          avatar: { initials: "A", color: "neutral" },
-          actionLabel: t("sidebar.signIn"),
-          onAction: signInNow,
-        };
+  // The foot of the sidebar is Oxy's own account control: the avatar and the
+  // shared account menu signed in, sign-in signed out. It takes the place of
+  // the template's plan card; upgrading lives in its menu.
+  const footer = ({ collapsed }: { collapsed: boolean }) => (
+    <ProfileButton
+      expanded={!collapsed}
+      placement="up"
+      onNavigateManage={() => showBottomSheet?.("ManageAccount")}
+      onAddAccount={() => {
+        signIn().catch(() => {});
+      }}
+      menuItems={
+        isAuthenticated
+          ? [
+              {
+                key: "upgrade",
+                label: t("sidebar.upgradeToPro"),
+                onPress: () => go("/(biglayout)/subscribe"),
+              },
+            ]
+          : undefined
+      }
+    />
+  );
 
   const onScroll = React.useCallback(
     (event: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -264,11 +226,10 @@ function useSidebarProps() {
     },
     items,
     secondaryItems,
-    account,
     tree,
     selectedTreeItem: chatId?.id,
     onTreeItemPress: (item: { key: string }) => openConversation(item.key),
-    plan,
+    footer,
     onScroll,
     onClose: closeNav,
   };
