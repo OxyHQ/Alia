@@ -59,6 +59,8 @@ export interface ComposerProps {
   onRemoveAttachment?: (id: string) => void;
   /** The tab on the card's top edge (`ComposerPanelStatusTab`). */
   status?: ReactNode;
+  /** Drawn where send would be while there is nothing to send (voice mode). */
+  emptyAction?: ReactNode;
   /** The host already avoids the keyboard. */
   disableKeyboardAvoidance?: boolean;
 }
@@ -86,6 +88,7 @@ export function Composer({
   onAddAttachment,
   onRemoveAttachment,
   status,
+  emptyAction,
   disableKeyboardAvoidance = false,
 }: ComposerProps) {
   const { t } = useTranslation();
@@ -235,6 +238,7 @@ export function Composer({
         attachments={tiles}
         onRemoveAttachment={removeTile}
         status={status}
+        emptyAction={emptyAction}
         labels={labels}
       />
     </View>

@@ -3,6 +3,12 @@ import { ChatWorkspace } from '@/components/chat/chat-workspace';
 import type { WelcomeIntroSlots } from '@/components/welcome-intro';
 import { Composer } from '@/components/chat/composer/composer';
 import { useAliaComposer } from '@/components/chat/composer/use-alia-composer';
+import { useEntitlements } from '@/lib/hooks/use-billing';
+import { useCredits } from '@/lib/hooks/use-credits';
+import { Button } from '@oxy.so/bloom/button';
+import { RiHeadphoneLine } from '@oxy.so/bloom/icons/RiHeadphoneLine';
+import { toast } from '@oxy.so/bloom/toast';
+import { useRouter } from 'expo-router';
 import type { Attachment } from '@/components/chat/composer/types';
 import type { AgentActivityState } from '@/lib/hooks/use-agent-activity';
 import type { FailedTurn, SendOptions } from '@/lib/hooks/use-streaming-chat';
@@ -118,6 +124,8 @@ interface ChatPageContentProps {
    */
   failedTurn?: FailedTurn | null;
   onRetryTurn?: () => void;
+  /** Start voice mode where this screen has no voice session of its own (the new-chat screen). */
+  onVoiceStart?: () => void;
   /** The model this chat sends with (a conversation remembers its own). */
   selectedModel?: string;
   onModelChange?: (model: string) => void;
@@ -156,6 +164,7 @@ export const ChatPageContent = ({
   onRetryTurn,
   selectedModel,
   onModelChange,
+  onVoiceStart,
   intro,
 }: ChatPageContentProps) => {
   const { isAuthenticated, signIn } = useAuth();
@@ -237,6 +246,43 @@ export const ChatPageContent = ({
   }, [onLoadHistory, hasMoreHistory, isLoadingHistory]);
 
   const threadRef = useRef<AiChatThreadHandle | null>(null);
+
+  /**
+   * Voice mode, from the send slot while the composer is empty — as it was
+   * before the composer became Bloom's panel. It needs an account, a plan
+   * with voice, and credits.
+   */
+  const { data: entitlements } = useEntitlements();
+  const { data: creditsInfo } = useCredits();
+  const router = useRouter();
+  const handleVoiceActivate = useCallback(() => {
+    if (!isAuthenticated) {
+      signIn().catch(() => {});
+      return;
+    }
+    if (!entitlements?.features['voice-mode']) {
+      toast.info(t('subscribe.featureRequiresPlan', { feature: t('modes.voiceMode') }));
+      router.push('/(biglayout)/subscribe');
+      return;
+    }
+    if (creditsInfo && creditsInfo.credits <= 0) {
+      toast.error(t('usageLimit.outOfCreditsTitle'));
+      return;
+    }
+    if (voice) voice.activateVoice();
+    else onVoiceStart?.();
+  }, [isAuthenticated, signIn, entitlements, creditsInfo, t, router, voice, onVoiceStart]);
+  const voiceAction =
+    voice || onVoiceStart ? (
+      <Button
+        iconOnly
+        size="md"
+        tone="action"
+        leadingIcon={RiHeadphoneLine}
+        accessibilityLabel={t('modes.voiceMode')}
+        onPress={handleVoiceActivate}
+      />
+    ) : undefined;
 
   useEffect(() => {
     useStore.getState().setGhostMode(false);
@@ -327,6 +373,7 @@ export const ChatPageContent = ({
               onStop={onStop}
               disableKeyboardAvoidance
               {...composer.props}
+              emptyAction={voiceAction}
               placeholder={
                 disabled ? t('usageLimit.inputDisabledPlaceholder') : t('composer.placeholder')
               }

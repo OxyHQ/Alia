@@ -157,6 +157,7 @@ vi.mock('@/lib/hooks/use-conversations', () => ({
 }));
 
 vi.mock('@oxy.so/bloom/toast', () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
+vi.mock('@/lib/hooks/use-translation', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
 vi.mock('@oxy.so/bloom/content-panel', async () => {
   const ReactModule = await import('react');
   return {
@@ -270,6 +271,8 @@ describe('the new-chat screen wires the whole conversation', () => {
     // The model is the app's selection, which the shared composer reads
     // itself; the new-chat screen has no model of its own to hand down.
     expect('selectedModel' in props).toBe(false);
+    // Voice from the new-chat screen opens a conversation in voice mode.
+    expect(typeof props.onVoiceStart).toBe('function');
   });
 
   it('names no conversation, because there is not one yet', async () => {
