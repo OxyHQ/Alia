@@ -5,9 +5,11 @@ import { Text } from '@oxy.so/bloom/typography';
 import { getAccountDisplayName } from '@oxy.so/core';
 import { useAuth } from '@oxy.so/services';
 import { View } from 'react-native';
+
 /**
- * The empty chat's greeting, as Alia had it: its mark beside "Hi {name},
- * what's on your mind?", resting at the foot of the thread over the composer.
+ * The empty chat's greeting, as Alia has always had it: its mark beside
+ * "Hi {name}, what's on your mind?" at display size, centred in the thread —
+ * stacked on a phone, side by side from `md`.
  */
 export const WelcomeMessage = () => {
   const { user, isAuthenticated } = useAuth();
@@ -21,9 +23,9 @@ export const WelcomeMessage = () => {
       : t('welcome.greeting');
 
   return (
-    <View className="flex-row items-center gap-2 py-3">
-      <IdentityMark size={20} color={colors.primary} spinOnPress />
-      <Text className="text-sm text-muted-foreground">{greeting}</Text>
+    <View className="flex-col items-center justify-center gap-3 md:flex-row">
+      <IdentityMark size={38} color={colors.primary} spinOnPress />
+      <Text className="text-center text-4xl tracking-tight text-foreground md:text-left">{greeting}</Text>
     </View>
   );
 };
