@@ -45,7 +45,7 @@
     "react-native-gesture-handler": "3.3.0",
     "react-native-qrcode-svg": "^6.3.21",
     "react-native-safe-area-context": "~5.8.0",
-    "react-native-svg": "15.15.4",
+    "react-native-svg": "15.15.5",
     "react-native-web": "^0.21.2",
     "react-resizable-panels": "^4.12.2",
     "shadcn": "^3.8.5",
