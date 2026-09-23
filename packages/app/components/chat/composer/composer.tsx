@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useMemo, useState, type ReactNode } from "react";
-import { View } from "react-native";
+import { View, type NativeSyntheticEvent, type TextInputKeyPressEventData } from "react-native";
 import {
   ComposerPanel,
   type ComposerPanelAddMenuGroup,
@@ -61,6 +61,8 @@ export interface ComposerProps {
   status?: ReactNode;
   /** Drawn where send would be while there is nothing to send (voice mode). */
   emptyAction?: ReactNode;
+  /** The field's keys, before the panel's own Enter rule (suggestions over it). */
+  onKeyPress?: (event: NativeSyntheticEvent<TextInputKeyPressEventData>) => void;
   /** The host already avoids the keyboard. */
   disableKeyboardAvoidance?: boolean;
 }
@@ -89,6 +91,7 @@ export function Composer({
   onRemoveAttachment,
   status,
   emptyAction,
+  onKeyPress,
   disableKeyboardAvoidance = false,
 }: ComposerProps) {
   const { t } = useTranslation();
@@ -239,6 +242,7 @@ export function Composer({
         onRemoveAttachment={removeTile}
         status={status}
         emptyAction={emptyAction}
+        onKeyPress={onKeyPress}
         labels={labels}
       />
     </View>
