@@ -8,8 +8,6 @@ import { createAgentSession, updateAgentSession } from '../../db/agents/agentSes
 import type { HydratedAgent } from '../agent-identity.js';
 import type { AgentRuntimeContext } from './actions.js';
 import { TodoManager } from './todo-manager.js';
-import { WorkspaceMemory } from './workspace-memory.js';
-import { TerminalSession } from './terminal-session.js';
 import { BrowserSession } from './browser-session.js';
 import { EventStream } from './event-stream.js';
 import { withAgentAdmission } from '../../db/agents/agentRuntimeRepository.js';
@@ -54,16 +52,12 @@ export class AgentTurnCoordinator {
     });
 
     const todoManager = new TodoManager();
-    const workspaceMemory = new WorkspaceMemory();
     const eventStream = new EventStream({ agentId: input.agent._id, sessionId: session._id });
-    const terminalSession = new TerminalSession();
     const browserSession = new BrowserSession({ agentId: input.agent._id, sessionId: session._id });
     let completedResult: string | undefined;
     const runtime: AgentRuntimeContext = {
       session,
       todoManager,
-      workspaceMemory,
-      terminalSession,
       browserSession,
       eventStream,
       onComplete: (result) => { completedResult = result; },

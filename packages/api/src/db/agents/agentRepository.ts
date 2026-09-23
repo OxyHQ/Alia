@@ -71,6 +71,7 @@ import { conversations } from '../schema/chat';
 import { libraryFiles } from '../schema/library';
 import { skills } from '../schema/skills';
 import type { AgentAccess, AgentArchetype, AgentStatus } from '../../domain/agent';
+import { withoutRetiredGrants } from '../../domain/capability-grants';
 import type { OxyKaanaRoutingProfileId } from '../../config/oxy-inference-routing-profile-ids';
 import { escapeLikePattern } from '@oxy.so/utils/sql';
 
@@ -224,7 +225,13 @@ export function toAgentRecord(row: AgentRow): AgentRecord {
     hireCount: row.hireCount,
     maxConcurrentThreads: row.maxConcurrentThreads,
     price: row.price,
-    capabilityGrants: row.capabilityGrants,
+    /**
+     * Without the RETIRED families (`shell`, `files`). The turn's reader already
+     * ignores them; serving them would hand an editor a switch it cannot draw
+     * and a value it would echo into the next save. Only retired ones: anything
+     * else is stored and served exactly as written.
+     */
+    capabilityGrants: withoutRetiredGrants(row.capabilityGrants),
     isFeatured: row.isFeatured,
     isTrending: row.isTrending,
     isPublished: row.isPublished,

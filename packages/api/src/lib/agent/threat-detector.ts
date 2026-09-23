@@ -79,19 +79,6 @@ export function analyzeThreat(toolName: string, args: Record<string, unknown>): 
  */
 function extractTextFromArgs(toolName: string, args: Record<string, unknown>): string | null {
   switch (toolName) {
-    case 'shell':
-      return typeof args.command === 'string' ? args.command : null;
-
-    case 'file_edit': {
-      const parts: string[] = [];
-      if (typeof args.path === 'string') parts.push(args.path);
-      if (typeof args.content === 'string') parts.push(args.content);
-      if (typeof args.action === 'string' && args.action === 'write' && typeof args.content === 'string') {
-        parts.push(args.content);
-      }
-      return parts.length > 0 ? parts.join('\n') : null;
-    }
-
     case 'browser': {
       const parts: string[] = [];
       if (typeof args.url === 'string') parts.push(args.url);

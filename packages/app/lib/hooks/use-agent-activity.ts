@@ -49,7 +49,6 @@ export interface AgentActivityEvent {
     base64?: string;
     url?: string;
     plan?: PlanProgress;
-    files?: string[];
     currentStep?: number;
     maxSteps?: number;
     approval?: {
@@ -92,8 +91,6 @@ export interface AgentActivityState {
   startedAt: number | null;
   /** Sources found during browsing */
   sources: AgentSource[];
-  /** Files created/modified in workspace */
-  files: string[];
   /** Latest text response from agent */
   latestResponse: string | null;
   /** Pending approval request for this session */
@@ -129,7 +126,6 @@ const INITIAL_STATE: AgentActivityState = {
   events: [],
   startedAt: null,
   sources: [],
-  files: [],
   latestResponse: null,
   approvalRequest: null,
   approvalResult: null,
@@ -249,15 +245,6 @@ export function useAgentActivity(sessionId: string | null, agentId?: string | nu
             // Deduplicate by URL
             if (!prev.sources.some(s => s.url === newSource.url)) {
               updated.sources = [...prev.sources, newSource];
-            }
-          }
-          break;
-
-        case 'file_change':
-          if (event.data?.files) {
-            const newFiles = event.data.files.filter(f => !prev.files.includes(f));
-            if (newFiles.length > 0) {
-              updated.files = [...prev.files, ...newFiles];
             }
           }
           break;

@@ -83,7 +83,7 @@ what the agent may DO, so widening one is a change both repositories merge.
 Sindi reads and answers: `web` (search, scraping, browsing, deep research and
 the weather/quote/FairCoin cards), `artifacts` (canvas, generated files) and
 `memory` (saving and searching what the person has already said). It has no
-`shell`, `browser`, `files`, `messaging`, `automation` or `delegation`, and no
+`browser`, `messaging`, `automation` or `delegation`, and no
 connector row of any kind. Clarity's `(none)` is a decision that denies
 everything, not an unset field. Oxy app tools are not expressible here at all:
 Oxy's normalized DelegationGrant records are their sole authority.
@@ -326,6 +326,15 @@ What an agent may reach is `agents.capability_grants`: one list of
 `ToolPipeline.forUser`. The families and the argument for each are in
 `domain/capability-grants.ts`; the table of which tools each contributes is in
 `docs/chat-runtime.mdx`.
+
+`shell` and `files` are **retired**, not merely unused. They granted the
+runner's `shell` and `file_edit` primitives, which acted through a sandbox
+container production never had, so the switches could be turned on and never
+do anything. `RETIRED_CAPABILITY_FAMILIES` names them so the wire can drop an
+echoed one instead of refusing the whole save, the reader ignores them, and
+migration 0071 (post phase) removed them from `agents.capability_grants`. An
+agent has no shell and no workspace filesystem; `plan` keeps its checklist on
+the session row.
 
 Two properties are worth stating outright, because both reverse what came before:
 

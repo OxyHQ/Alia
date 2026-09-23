@@ -175,10 +175,10 @@ export interface ForUserOptions {
    */
   deviceInfo?: DeviceInfo | null;
   /**
-   * A live autonomous-agent session: its container, its browser, its plan.
+   * A live autonomous-agent session: its browser, its plan.
    *
-   * The other structural precondition. `shell`, `browser`, `file_edit`, `plan`
-   * and `delegate` act ON these objects, so they exist only for a turn that has
+   * The other structural precondition. `browser`, `plan` and `delegate` act ON
+   * these objects, so they exist only for a turn that has
    * them — which is the runner's, and no other. Absent everywhere else, and
    * that is why they are not simply always-on like the rest.
    */
@@ -235,7 +235,7 @@ export interface ForUserOptions {
   /**
    * Restrict a normalized background stage to its protocol tools and the exact
    * Oxy actions named by `oxyExecutionAuthorizations`. No user-bound, web,
-   * editor, skill, connector, shell, file, browser or delegation tool is built.
+   * editor, skill, connector, browser or delegation tool is built.
    */
   toolScope?: 'standard' | 'preauthorized_oxy_automation';
   /**
@@ -364,8 +364,7 @@ export class ToolPipeline {
      * `getCurrentDate` is ungranted — it is the clock, and it is already
      * unconditional above for a trigger that switched tools off entirely.
      * `generateFile` and `canvas` both produce something to RENDER rather than
-     * writing anywhere, which is why they are one family and why neither sits
-     * with `file_edit`.
+     * writing anywhere, which is why they are one family.
      */
     const aliaTools: ToolSet = { getCurrentDate: getCurrentDateTool };
     if (grants.allows('artifacts')) {

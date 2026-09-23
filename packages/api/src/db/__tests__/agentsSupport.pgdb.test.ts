@@ -92,7 +92,7 @@ describe('rollback_records', () => {
     return {
       oxyUserId: 'oxy-user-rb',
       sessionId: '507f1f77bcf86cd799439011',
-      toolName: 'shell',
+      toolName: 'browser',
       args: { command: 'rm -rf ./build' },
       expiresAt: new Date(Date.now() + 30 * 60 * 1000),
       executedAt: new Date(),
@@ -103,7 +103,7 @@ describe('rollback_records', () => {
   it('closes risk_level and status', async () => {
     const badRisk = db.execute(sql`
       insert into ${rollbackRecords} (id, oxy_user_id, session_id, tool_name, risk_level, args, expires_at, executed_at)
-      values ('rb-badrisk', 'oxy-user-rb', 'sess-1', 'shell', 'R2', '{}'::jsonb, now(), now())
+      values ('rb-badrisk', 'oxy-user-rb', 'sess-1', 'browser', 'R2', '{}'::jsonb, now(), now())
     `);
     await expect(badRisk).rejects.toSatisfy((error: unknown) => {
       expect(isCheckViolation(error)).toBe(true);
@@ -113,7 +113,7 @@ describe('rollback_records', () => {
 
     const badStatus = db.execute(sql`
       insert into ${rollbackRecords} (id, oxy_user_id, session_id, tool_name, args, status, expires_at, executed_at)
-      values ('rb-badstatus', 'oxy-user-rb', 'sess-1', 'shell', '{}'::jsonb, 'undone', now(), now())
+      values ('rb-badstatus', 'oxy-user-rb', 'sess-1', 'browser', '{}'::jsonb, 'undone', now(), now())
     `);
     await expect(badStatus).rejects.toSatisfy((error: unknown) => {
       expect(isCheckViolation(error)).toBe(true);

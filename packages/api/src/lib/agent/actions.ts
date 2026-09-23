@@ -1,17 +1,17 @@
 /**
- * The five session-bound primitives an autonomous run acts THROUGH, and the
- * policy that wraps whatever it ends up holding.
+ * The session-bound primitives an autonomous run acts THROUGH, and the policy
+ * that wraps whatever it ends up holding.
  *
  * ## This is a SOURCE and a POLICY, not an assembler
  *
- * It used to be `buildActions`, one of five tool assemblers: it built these
- * five, then merged MCP and integration tools itself, then wrapped the lot.
+ * It used to be `buildActions`, one of five tool assemblers: it built the
+ * primitives, then merged MCP and integration tools itself, then wrapped the lot.
  * `ToolPipeline` is the only assembler now, so the merging left and what
  * remains is two things it can call:
  *
- *  - {@link buildRuntimeTools} — the five primitives, and nothing else. A
- *    source, exactly like `buildMcpTools`, distinguished only by needing a live
- *    container, browser and plan to act on.
+ *  - {@link buildRuntimeTools} — the primitives, and nothing else. A source,
+ *    exactly like `buildMcpTools`, distinguished only by needing a live
+ *    session and plan to act on.
  *  - {@link applyRuntimePolicy} — the agent's permission stubs and the threat
  *    detector, applied to the WHOLE assembled set including MCP tools, which is
  *    why it is a separate pass that runs last.
@@ -20,20 +20,22 @@
  * Extending it over the chat path would be a change to what Alia refuses, not a
  * change to how tools are assembled, and it is not this one.
  *
- * The five primitives replace the 20+ structured tools from agent-tools.ts:
+ * The primitives replace the 20+ structured tools from agent-tools.ts:
  *
- *   shell     — Persistent terminal (lazy container creation)      grant: shell
  *   browser   — Web search, navigation, screenshots                grant: browser
- *   file_edit — Read/write/edit files in workspace                 grant: files
  *   plan      — Task planning + completion signal                  ungranted
  *   delegate  — Hire specialist agents                             grant: delegation
+ *
+ * `shell` and `file_edit` were two more, and are gone with their families.
+ * They acted through a sandbox container that production never had, so every
+ * call answered "no sandbox" — see `RETIRED_CAPABILITY_FAMILIES`.
  *
  * Design principles (from Manus):
  *   - Simple schemas (strict validation, no .passthrough())
  *   - Raw text returns (not structured JSON)
  *   - State instructions via prompt, not tool removal
  *
- * The fifth principle used to be "all 5 actions ALWAYS present in context
+ * The fifth principle used to be "all actions ALWAYS present in context
  * (KV-cache stability)", and the capability grants retire it deliberately: a
  * primitive the agent was not granted is ABSENT rather than present-and-stubbed.
  * The cache argument survives intact, because a grant is a stored property of
@@ -49,10 +51,8 @@
 import { tool, type ToolSet } from 'ai';
 import { z } from 'zod';
 import type { CapabilityGrantSet } from '../../domain/capability-grants.js';
-import { TerminalSession } from './terminal-session.js';
 import { BrowserSession } from './browser-session.js';
 import { TodoManager } from './todo-manager.js';
-import { WorkspaceMemory } from './workspace-memory.js';
 import { log } from '../logger.js';
 import { getErrorMessage } from '../errors/index.js';
 import { analyzeThreat, formatThreatSummary } from './threat-detector.js';
@@ -70,8 +70,6 @@ export interface AgentRuntimeContext {
   onComplete: (result: string) => void;
   onHireAgent?: (handle: string, task: string) => Promise<string>;
   todoManager: TodoManager;
-  workspaceMemory: WorkspaceMemory;
-  terminalSession: TerminalSession;
   browserSession: BrowserSession;
   eventStream?: EventStream;
 }
@@ -95,31 +93,13 @@ export function buildRuntimeTools(
 ): ToolSet {
   const {
     session, onComplete, onHireAgent,
-    todoManager, workspaceMemory,
-    terminalSession, browserSession,
+    todoManager, browserSession,
     eventStream,
   } = ctx;
 
   const actions: ToolSet = {};
 
-  // ── 1. shell — Persistent terminal ──
-
-  if (!options.protocolOnly && grants.allows('shell')) actions.shell = tool({
-    description: 'Run a bash command in a persistent terminal session. Working directory, environment variables, and installed packages persist between calls. A container is created automatically on first use.',
-    inputSchema: z.object({
-      command: z.string().describe('Bash command to execute'),
-      timeout: z.number().optional().describe('Timeout in seconds (default 30, max 300)'),
-    }),
-    execute: async ({ command, timeout }) => {
-      try {
-        return await terminalSession.run(command, timeout);
-      } catch (err: unknown) {
-        return `Error: ${getErrorMessage(err)}`;
-      }
-    },
-  });
-
-  // ── 2. browser — Web search, navigation, screenshots ──
+  // ── browser — Web search, navigation, screenshots ──
 
   if (!options.protocolOnly && grants.allows('browser')) actions.browser = tool({
     description: 'Interact with a web browser. Use for web research, reading pages, and interactive browsing. Actions: search (web search), goto (navigate to URL), get_text (extract page text), screenshot (capture page), click (click element), type (fill input), scroll_down, scroll_up, back, wait.',
@@ -155,62 +135,7 @@ export function buildRuntimeTools(
     },
   });
 
-  // ── 3. file_edit — Read/write/edit files ──
-
-  if (!options.protocolOnly && grants.allows('files')) actions.file_edit = tool({
-    description: 'Read, write, edit, or list files in the workspace. Use "read" to view file contents, "write" to create/overwrite a file, "edit" to find and replace text in a file, "list" to list files in a directory. More precise than shell commands for file modifications.',
-    inputSchema: z.object({
-      action: z.enum(['read', 'write', 'edit', 'list']),
-      path: z.string().describe('File path (relative to /workspace or absolute). For "list", this is the directory path.'),
-      content: z.string().optional().describe('File content for write, or new text for edit'),
-      old_text: z.string().optional().describe('Text to find and replace (edit action only)'),
-    }),
-    execute: async ({ action, path, content, old_text }) => {
-      try {
-        switch (action) {
-          case 'read': {
-            const text = await terminalSession.readFile(path);
-            // Add line numbers for readability
-            const lines = text.split('\n');
-            return lines.map((line, i) => `${String(i + 1).padStart(4)} | ${line}`).join('\n');
-          }
-
-          case 'write': {
-            if (content == null) return 'Error: content is required for write action';
-            await terminalSession.writeFile(path, content);
-            return `File written: ${path} (${content.length} chars)`;
-          }
-
-          case 'edit': {
-            if (!old_text) return 'Error: old_text is required for edit action';
-            if (content == null) return 'Error: content (new text) is required for edit action';
-
-            const current = await terminalSession.readFile(path);
-            if (!current.includes(old_text)) {
-              return `Error: old_text not found in ${path}. Use file_edit(read) to see the current contents.`;
-            }
-            const replaced = current.split(old_text).length - 1;
-            const updated = current.split(old_text).join(content);
-            await terminalSession.writeFile(path, updated);
-
-            return `File edited: ${path} (${replaced} replacement${replaced !== 1 ? 's' : ''})`;
-          }
-
-          case 'list': {
-            const result = await terminalSession.run(`ls -la ${path.includes(' ') ? `'${path}'` : path} 2>&1`);
-            return result;
-          }
-
-          default:
-            return `Error: unknown action "${action}"`;
-        }
-      } catch (err: unknown) {
-        return `Error: ${getErrorMessage(err)}`;
-      }
-    },
-  });
-
-  // ── 4. plan — Todo management + completion ──
+  // ── plan — Todo management + completion ──
 
   actions.plan = tool({
     description: 'Manage your task plan or signal completion. Use "update" to create/modify your checklist. Use "complete" when you are done with the task. Create a plan for multi-step tasks.',
@@ -232,9 +157,6 @@ export function buildRuntimeTools(
           log.agents.warn({ saveErr }, 'Failed to save plan to session');
         }
 
-        // Sync to workspace filesystem
-        await workspaceMemory.syncTodo(todoManager.serialize());
-
         // Emit plan progress to frontend via Socket.IO
         if (eventStream) {
           const planData = todoManager.toJSON();
@@ -253,19 +175,7 @@ export function buildRuntimeTools(
       }
 
       if (action === 'complete') {
-        // Scan workspace for user-created files and include download info
-        let filesNote = '';
-        try {
-          const container = terminalSession.getContainerId();
-          if (container) {
-            const apiUrl = process.env.ALIA_API_URL || 'http://localhost:4150';
-            filesNote = `\n\nWorkspace files are available for download at: ${apiUrl}/agents/sessions/${session._id}/files`;
-          }
-        } catch {
-          // No container — no files to include
-        }
-
-        onComplete((result || 'Task completed.') + filesNote);
+        onComplete(result || 'Task completed.');
         return 'Task marked as complete.';
       }
 
@@ -273,7 +183,7 @@ export function buildRuntimeTools(
     },
   });
 
-  // ── 5. delegate — Hire specialist agents ──
+  // ── delegate — Hire specialist agents ──
 
   if (!options.protocolOnly && onHireAgent && grants.allows('delegation')) {
     actions.delegate = tool({

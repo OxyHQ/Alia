@@ -256,7 +256,7 @@ function inlineToolLiterals(): string[] {
  *    Reporting them is reporting every consumer as a producer — the same
  *    false-positive class the generic-constraint case above records.
  *  - **Keyed on an array in the `tools:` position.** That is what the object
- *    census does, and transposed to arrays it finds `tools: ['shell']` in
+ *    census does, and transposed to arrays it finds `tools: ['browser']` in
  *    `threat-patterns.ts` — data with the same field name and nothing to do
  *    with what a model may call. Worse, it MISSED `voice.ts`, whose array
  *    now reaches the call through a filtering function, so it reported three
