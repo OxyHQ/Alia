@@ -72,15 +72,6 @@ export const queryKeys = {
     transactions: (limit?: number, offset?: number) => ['transactions', limit, offset] as const,
     entitlements: ['entitlements'] as const,
   },
-  developer: {
-    apps: ['developer-apps'] as const,
-    app: (id: string) => ['developer-app', id] as const,
-    keys: (appId: string) => ['developer-keys', appId] as const,
-    usage: (appId: string, period: string) => ['developer-usage', appId, period] as const,
-    keyUsage: (appId: string, keyId: string, period: string) => ['developer-key-usage', appId, keyId, period] as const,
-    stats: ['developer-stats'] as const,
-    modelsStats: ['models-stats'] as const,
-  },
   organizations: {
     all: ['organizations'] as const,
     detail: (id: string) => ['organization', id] as const,

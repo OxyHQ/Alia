@@ -11,7 +11,6 @@ const mailbox = {
 
 const automation: AutomationDefinition = {
   id: 'automation-1',
-  name: 'Important email reply',
   objective: 'Reply to important email',
   trigger: {
     type: 'event',

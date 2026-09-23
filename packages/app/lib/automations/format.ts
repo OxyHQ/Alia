@@ -103,27 +103,15 @@ export function triggerLabel(trigger: AutomationTrigger): string {
   return `${trigger.cron ? cronLabel(trigger.cron) : 'Unscheduled'} · ${trigger.timezone ?? 'UTC'}`;
 }
 
-/**
- * What an automation is called wherever it has a heading: the name its owner
- * gave it, and only when there is none, the objective (#534).
- */
-export function automationTitle(
-  automation: Pick<AutomationDefinition, 'name' | 'objective'>,
-): string {
-  const name = automation.name?.trim();
-  return name ? name : automation.objective;
-}
-
 export function actorLabel(
   selection: AutomationActorSelection,
   agentName: (agentId: string) => string,
-  legacy = false,
 ): string {
   if (selection.mode === 'fixed') {
     return selection.agentId ? agentName(selection.agentId) : 'No agent assigned';
   }
   if (selection.eligibleAgentIds.length === 0) {
-    return legacy ? 'Alia (legacy routine)' : 'No eligible agents';
+    return 'No eligible agents';
   }
   return selection.eligibleAgentIds.map(agentName).join(', ');
 }

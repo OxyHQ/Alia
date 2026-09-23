@@ -10,7 +10,6 @@ import { AutomationEditor } from '@/components/automations/automation-editor';
 import { AutomationPill, automationStatusTone } from '@/components/automations/automation-pill';
 import {
   actorLabel,
-  automationTitle,
   triggerLabel,
 } from '@/lib/automations/format';
 import type { AutomationRun, AutomationUpdateInput } from '@/lib/automations/types';
@@ -144,44 +143,29 @@ export default function AutomationHistoryScreen() {
         </Pressable>
 
         <View className="gap-3">
-          {/* The heading is the name; the objective (a legacy trigger's prompt) reads under it (#534). */}
           <View className="flex-row flex-wrap items-center gap-2">
             <Text className="flex-1 text-2xl font-bold text-foreground" selectable>
-              {automationTitle(automation)}
+              {automation.objective}
             </Text>
             <AutomationPill
               label={automation.enabled ? 'Active' : 'Stopped'}
               tone={automation.enabled ? 'positive' : 'neutral'}
             />
-            {automation.legacyTriggerId ? (
-              <AutomationPill label="Legacy transition" tone="warning" />
-            ) : null}
-            {!automation.legacyTriggerId ? (
-              <Button
-                size="sm"
-                variant="outline"
-                onPress={() => setEditorOpen(true)}
-                className="ml-auto"
-              >
-                <Pencil size={14} color={colors.foreground} />
-                <Text>Edit</Text>
-              </Button>
-            ) : null}
+            <Button
+              size="sm"
+              variant="outline"
+              onPress={() => setEditorOpen(true)}
+              className="ml-auto"
+            >
+              <Pencil size={14} color={colors.foreground} />
+              <Text>Edit</Text>
+            </Button>
           </View>
-          {automation.name?.trim() ? (
-            <Text className="text-base text-foreground" selectable>
-              {automation.objective}
-            </Text>
-          ) : null}
           <Text className="text-sm text-muted-foreground" selectable>
             {triggerLabel(automation.trigger)}
           </Text>
           <Text className="text-sm text-muted-foreground" selectable>
-            Actors: {actorLabel(
-              automation.actorSelection,
-              agentName,
-              Boolean(automation.legacyTriggerId),
-            )}
+            Actors: {actorLabel(automation.actorSelection, agentName)}
           </Text>
           {automation.actions.length > 0 ? (
             <Text className="text-xs text-muted-foreground" selectable>
@@ -212,17 +196,15 @@ export default function AutomationHistoryScreen() {
           ) : null}
         </View>
       </ScrollView>
-      {!automation.legacyTriggerId ? (
-        <AutomationEditor
-          key={`${automation.updatedAt}:${editorOpen}`}
-          automation={automation}
-          agents={agentOptions}
-          open={editorOpen}
-          saving={updateAutomation.isPending}
-          onClose={() => setEditorOpen(false)}
-          onSave={saveUpdate}
-        />
-      ) : null}
+      <AutomationEditor
+        key={`${automation.updatedAt}:${editorOpen}`}
+        automation={automation}
+        agents={agentOptions}
+        open={editorOpen}
+        saving={updateAutomation.isPending}
+        onClose={() => setEditorOpen(false)}
+        onSave={saveUpdate}
+      />
     </ContentPanel>
   );
 }

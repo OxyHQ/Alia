@@ -26,7 +26,6 @@
     "processing": "Processing...",
     "user": "User",
     "done": "Done",
-    "authorize": "Authorize",
     "tryAgain": "Try Again"
   },
   "errors": {
@@ -756,29 +755,14 @@
     "saveFailed": "Could not save"
   },
   "authorize": {
-    "sendMessages": "Send messages to AI models",
-    "useCredits": "Use your credits for API calls",
-    "accessModels": "Access available models",
-    "linkAccount": "Link your {{app}} account",
-    "sendVia": "Send messages via {{app}}",
-    "receiveNotifications": "Receive notifications",
-    "invalidCallback": "Invalid callback URL. Please try again from the app.",
-    "invalidPKCE": "Invalid authorization request. Missing PKCE challenge.",
-    "authorizing": "Authorizing...",
     "linkingAccount": "Linking account...",
     "pleaseWait": "Please wait while we set up your access",
     "authRequired": "Authentication Required",
     "linked": "Linked!",
-    "authorized": "Authorized!",
-    "authSuccess": "Authorization successful! Redirecting back to the app...",
     "linkSuccess": "Your {{app}} account has been linked successfully!",
     "linkFailed": "Link Failed",
-    "authFailed": "Authorization Failed",
-    "failedToAuthorize": "Failed to authorize. Please try again.",
     "failedToLink": "Failed to link your account. Please try again.",
-    "openAppManually": "Open App Manually",
     "returnToApp": "You can now return to {{app}} and start chatting with Alia!",
-    "closeWindow": "If not redirected automatically, you can close this window.",
     "requestNewLink": "Request New Link",
     "invalidToken": "Invalid authentication token. The link you followed is not valid.",
     "tokenExpired": "This link has expired. Please request a new one.",
@@ -786,8 +770,7 @@
     "needLogin": "You need to log in first to link your {{app}} account.",
     "missingToken": "Missing authentication token.",
     "authorizeApp": "Authorize {{app}}",
-    "appWantsAccess": "{{app}} wants to access your account",
-    "willAllow": "This will allow {{app}} to:"
+    "appWantsAccess": "{{app}} wants to access your account"
   },
   "memory": {
     "title": "Memory",

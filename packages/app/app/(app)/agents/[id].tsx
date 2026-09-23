@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from "react";
-import { View, ScrollView, Pressable, Share, TextInput, ActivityIndicator } from "react-native";
+import { View, ScrollView, Pressable, Share, TextInput } from "react-native";
 import { useIsLargeScreen } from "@/lib/hooks/use-is-large-screen";
 import { Switch } from "@oxy.so/bloom/switch";
 import { Text } from "@/components/ui/text";
@@ -90,178 +90,6 @@ function formatRelativeTime(dateStr: string): string {
   return `${days}d ago`;
 }
 
-function formatDuration(ms: number): string {
-  if (ms < 1000) return `${ms}ms`;
-  const s = (ms / 1000).toFixed(1);
-  return `${s}s`;
-}
-
-// ─── Report Item ────────────────────────────────────────────────────────────
-
-interface ReportItem {
-  _id: string;
-  status: "success" | "failed" | string;
-  createdAt: string;
-  durationMs?: number;
-  result?: string;
-}
-
-function ReportCard({ item }: { item: ReportItem }) {
-  const isSuccess = item.status === "success";
-  const preview = (item.result || "").slice(0, 200);
-  return (
-    <View className="rounded-2xl bg-surface border border-border p-4 mb-3">
-      <View className="flex-row items-center justify-between mb-2">
-        <View
-          className={cn(
-            "px-2 py-0.5 rounded-full",
-            isSuccess ? "bg-green-500/10" : "bg-red-500/10"
-          )}
-        >
-          <Text
-            className={cn(
-              "text-[11px] font-semibold",
-              isSuccess ? "text-green-600" : "text-red-500"
-            )}
-          >
-            {item.status}
-          </Text>
-        </View>
-        <View className="flex-row items-center gap-3">
-          {item.durationMs != null && (
-            <Text className="text-[11px] text-muted-foreground">
-              {formatDuration(item.durationMs)}
-            </Text>
-          )}
-          <Text className="text-[11px] text-muted-foreground">
-            {formatRelativeTime(item.createdAt)}
-          </Text>
-        </View>
-      </View>
-      {preview ? (
-        <Text className="text-[13px] text-foreground/80 leading-[18px]">
-          {preview}
-          {(item.result || "").length > 200 ? "…" : ""}
-        </Text>
-      ) : null}
-    </View>
-  );
-}
-
-// ─── Routing Log Item ───────────────────────────────────────────────────────
-
-interface RoutingLogItem {
-  _id: string;
-  classification?: {
-    category?: string;
-    priority?: "urgent" | "high" | "medium" | "low" | string;
-    confidence?: number;
-  };
-  inboundSummary?: string;
-  routedTo?: { type?: string; id?: string; name?: string } | null;
-  reasoning?: string;
-  status?: string;
-  createdAt: string;
-}
-
-const PRIORITY_COLORS: Record<string, string> = {
-  urgent: "bg-red-500",
-  high: "bg-orange-500",
-  medium: "bg-yellow-500",
-  low: "bg-green-500",
-};
-
-const PRIORITY_TEXT_COLORS: Record<string, string> = {
-  urgent: "text-red-500",
-  high: "text-orange-500",
-  medium: "text-yellow-500",
-  low: "text-green-500",
-};
-
-function RoutingLogCard({ item }: { item: RoutingLogItem }) {
-  const priority = item.classification?.priority ?? "medium";
-  const category = item.classification?.category;
-  const dotColor = PRIORITY_COLORS[priority] ?? "bg-gray-400";
-  const textColor = PRIORITY_TEXT_COLORS[priority] ?? "text-gray-400";
-  return (
-    <View className="rounded-2xl bg-surface border border-border p-4 mb-3">
-      <View className="flex-row items-center justify-between mb-1.5">
-        <View className="flex-row items-center gap-2">
-          <View className={cn("w-2 h-2 rounded-full", dotColor)} />
-          {category ? (
-            <Text className="text-[12px] font-medium text-foreground">
-              {category}
-            </Text>
-          ) : null}
-          <Text className={cn("text-[11px] font-semibold capitalize", textColor)}>
-            {priority}
-          </Text>
-        </View>
-        <Text className="text-[11px] text-muted-foreground">
-          {formatRelativeTime(item.createdAt)}
-        </Text>
-      </View>
-      {item.inboundSummary ? (
-        <Text className="text-[13px] text-foreground/80 leading-[18px] mb-1.5">
-          {item.inboundSummary}
-        </Text>
-      ) : null}
-      <View className="flex-row items-center gap-2">
-        {item.routedTo?.name ? (
-          <Text className="text-[12px] text-muted-foreground">
-            → {item.routedTo.name}
-          </Text>
-        ) : null}
-        {item.status ? (
-          <View className="px-1.5 py-0.5 rounded bg-muted/50">
-            <Text className="text-[10px] text-muted-foreground">{item.status}</Text>
-          </View>
-        ) : null}
-      </View>
-    </View>
-  );
-}
-
-// ─── Detail Tab Bar ─────────────────────────────────────────────────────────
-
-type DetailTab = "overview" | "reports" | "routing";
-
-function DetailTabBar({
-  tabs,
-  active,
-  onChange,
-}: {
-  tabs: { key: DetailTab; label: string }[];
-  active: DetailTab;
-  onChange: (t: DetailTab) => void;
-}) {
-  return (
-    <View className="flex-row border-b border-border mb-5">
-      {tabs.map((tab) => (
-        <Pressable
-          key={tab.key}
-          onPress={() => onChange(tab.key)}
-          className="mr-5 pb-2.5 active:opacity-70"
-        >
-          <Text
-            className={cn(
-              "text-[13px] font-medium",
-              active === tab.key
-                ? "text-foreground border-b-2 border-primary"
-                : "text-muted-foreground"
-            )}
-          >
-            {tab.label}
-          </Text>
-          {active === tab.key && (
-            <View className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary rounded-full" />
-          )}
-        </Pressable>
-      ))}
-    </View>
-  );
-}
-
 export default function AgentDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const queryClient = useQueryClient();
@@ -295,13 +123,6 @@ export default function AgentDetailScreen() {
   const isFavorite = useAgentFavoritesStore((s) => s.isFavorite);
   const loadFavorites = useAgentFavoritesStore((s) => s.loadFavorites);
 
-  // Archetype tab state
-  const [detailTab, setDetailTab] = useState<DetailTab>("overview");
-  const [reports, setReports] = useState<ReportItem[]>([]);
-  const [reportsLoading, setReportsLoading] = useState(false);
-  const [routingLogs, setRoutingLogs] = useState<RoutingLogItem[]>([]);
-  const [routingLoading, setRoutingLoading] = useState(false);
-
   // Review state
   const [reviews, setReviews] = useState<any[]>([]);
   const [userReview, setUserReview] = useState<any>(null);
@@ -327,29 +148,6 @@ export default function AgentDetailScreen() {
       }).catch((err) => console.error('Failed to load reviews:', err));
     }
   }, [id]);
-
-  // Load reports when reports tab becomes active (status_update archetype)
-  const archetype = agent?.archetype;
-  useEffect(() => {
-    if (detailTab !== "reports" || !id || archetype !== "status_update") return;
-    setReportsLoading(true);
-    apiClient
-      .get(`/agents/${id}/reports`)
-      .then((res) => setReports(res.data?.reports || res.data || []))
-      .catch((err) => console.error("Failed to load reports:", err))
-      .finally(() => setReportsLoading(false));
-  }, [detailTab, id, archetype]);
-
-  // Load routing logs when routing tab becomes active (task_router archetype)
-  useEffect(() => {
-    if (detailTab !== "routing" || !id || archetype !== "task_router") return;
-    setRoutingLoading(true);
-    apiClient
-      .get(`/agents/${id}/routing-logs`)
-      .then((res) => setRoutingLogs(res.data?.logs || res.data || []))
-      .catch((err) => console.error("Failed to load routing logs:", err))
-      .finally(() => setRoutingLoading(false));
-  }, [detailTab, id, archetype]);
 
   const isOwner = !!(user && agent && user.id === agent.author);
   const bookmarked = agent ? isFavorite(agent._id) : false;
@@ -789,269 +587,200 @@ export default function AgentDetailScreen() {
               </View>
             )}
 
-            {/* Archetype Tab Bar */}
-            {(agent.archetype === "status_update" || agent.archetype === "task_router") && (
-              <DetailTabBar
-                tabs={[
-                  { key: "overview" as const, label: "Overview" },
-                  ...(agent.archetype === "status_update"
-                    ? [{ key: "reports" as const, label: "Reports" }]
-                    : [{ key: "routing" as const, label: "Routing" }]),
-                ]}
-                active={detailTab}
-                onChange={setDetailTab}
-              />
-            )}
-
-            {/* Reports Tab Content */}
-            {detailTab === "reports" && agent.archetype === "status_update" && (
+            {agentThreads.length > 0 && (
               <View className="mb-5">
-                {reportsLoading ? (
-                  <ActivityIndicator
-                    size="small"
-                    color={colors.primary}
-                    style={{ marginVertical: 24 }}
-                  />
-                ) : reports.length === 0 ? (
-                  <View className="items-center py-10">
-                    <Text className="text-[14px] text-muted-foreground">
-                      No reports yet
-                    </Text>
-                  </View>
-                ) : (
-                  <View>
-                    {reports.map((item) => (
-                      <ReportCard key={item._id} item={item} />
-                    ))}
-                  </View>
-                )}
+                <SectionLabel>{t("agents.threads")}</SectionLabel>
+                <View className="mt-2 gap-2">
+                  {agentThreads.slice(0, 8).map((thread) => (
+                    <Pressable
+                      key={thread.id}
+                      onPress={() => {
+                        const handle = agentHandle(agent);
+                        if (handle) router.push({
+                          pathname: "/(app)/[username]",
+                          params: { username: `@${handle}`, threadId: thread.id },
+                        });
+                      }}
+                      className="flex-row items-center justify-between rounded-xl border border-border px-3 py-2.5 active:bg-muted"
+                    >
+                      <View className="flex-1 mr-3">
+                        <Text className="text-[13px] font-medium text-foreground" numberOfLines={1}>{thread.title}</Text>
+                        <Text className="text-[11px] text-muted-foreground mt-0.5">
+                          {thread.executionTarget === 'cowork' ? 'Cowork' : 'Sandbox'} · {thread.status}
+                        </Text>
+                      </View>
+                      <Text className="text-[11px] text-muted-foreground">{formatRelativeTime(thread.updatedAt)}</Text>
+                    </Pressable>
+                  ))}
+                </View>
               </View>
             )}
 
-            {/* Routing Tab Content */}
-            {detailTab === "routing" && agent.archetype === "task_router" && (
-              <View className="mb-5">
-                {routingLoading ? (
-                  <ActivityIndicator
-                    size="small"
-                    color={colors.primary}
-                    style={{ marginVertical: 24 }}
-                  />
-                ) : routingLogs.length === 0 ? (
-                  <View className="items-center py-10">
-                    <Text className="text-[14px] text-muted-foreground">
-                      No routing activity yet
-                    </Text>
-                  </View>
-                ) : (
-                  <View>
-                    {routingLogs.map((item) => (
-                      <RoutingLogCard key={item._id} item={item} />
-                    ))}
-                  </View>
-                )}
+            {/* Activity Grid */}
+            <View className="mb-5">
+              <SectionLabel>{t("agents.activity")}</SectionLabel>
+              <View className="mt-2">
+                <ActivityGrid agentId={agent._id} />
               </View>
-            )}
+            </View>
 
-            {/* Overview Tab Content (shown for all archetypes when overview is active) */}
-            {detailTab === "overview" && (
+            {/* Divider */}
+            <View className="h-px bg-border mx-0 mb-5" />
+
+            {/* About / Description */}
+            <View className="mb-5">
+              <SectionLabel>{t("agents.about")}</SectionLabel>
+              <Text className="text-[14px] text-foreground leading-5 mt-1">
+                {agent.description}
+              </Text>
+            </View>
+
+            {/* Capabilities — the families this agent was granted, by their
+                own labels. It used to render `agent.capabilities`, which
+                held raw tool ids (`web-browsing`, `agent-delegation`) that
+                named nothing the agent could actually do. A connector grant
+                (`mcp:<id>`) is deliberately not shown here: the id is
+                meaningless to a reader and the connector belongs to the
+                owner, not to this public listing. */}
+            {grantedFamilyLabels.length > 0 && (
               <>
-                {agentThreads.length > 0 && (
-                  <View className="mb-5">
-                    <SectionLabel>{t("agents.threads")}</SectionLabel>
-                    <View className="mt-2 gap-2">
-                      {agentThreads.slice(0, 8).map((thread) => (
-                        <Pressable
-                          key={thread.id}
-                          onPress={() => {
-                            const handle = agentHandle(agent);
-                            if (handle) router.push({
-                              pathname: "/(app)/[username]",
-                              params: { username: `@${handle}`, threadId: thread.id },
-                            });
-                          }}
-                          className="flex-row items-center justify-between rounded-xl border border-border px-3 py-2.5 active:bg-muted"
-                        >
-                          <View className="flex-1 mr-3">
-                            <Text className="text-[13px] font-medium text-foreground" numberOfLines={1}>{thread.title}</Text>
-                            <Text className="text-[11px] text-muted-foreground mt-0.5">
-                              {thread.executionTarget === 'cowork' ? 'Cowork' : 'Sandbox'} · {thread.status}
-                            </Text>
-                          </View>
-                          <Text className="text-[11px] text-muted-foreground">{formatRelativeTime(thread.updatedAt)}</Text>
-                        </Pressable>
-                      ))}
-                    </View>
-                  </View>
-                )}
+                <View className="h-px bg-border mx-0 mb-5" />
+                <View className="mb-5">
+                  <SectionLabel>{t("agents.capabilities")}</SectionLabel>
+                  <PillList items={grantedFamilyLabels} />
+                </View>
+              </>
+            )}
 
-                {/* Activity Grid */}
+            {/* Tags */}
+            {agent.tags.length > 0 && (
+              <>
+                <View className="h-px bg-border mx-0 mb-5" />
+                <View className="mb-5">
+                  <SectionLabel>{t("agents.tags")}</SectionLabel>
+                  <PillList items={agent.tags} />
+                </View>
+              </>
+            )}
+
+            {/* Reviews */}
+            <View className="h-px bg-border mx-0 mb-5" />
+            <View className="mb-5">
+              <View className="flex-row items-center justify-between mb-3">
+                <SectionLabel>{t("agents.reviews")}</SectionLabel>
+                {user && !isOwner && !showReviewForm && (
+                  <Pressable
+                    onPress={() => setShowReviewForm(true)}
+                    className="active:opacity-70"
+                  >
+                    <Text className="text-[12px] font-medium text-primary">
+                      {userReview ? t("agents.editReview") : t("agents.writeReview")}
+                    </Text>
+                  </Pressable>
+                )}
+              </View>
+
+              {/* Review Form */}
+              {showReviewForm && (
+                <View className="bg-muted/30 rounded-xl px-4 py-3 border border-border mb-4">
+                  <View className="mb-3">
+                    <StarRatingInput value={reviewRating} onChange={setReviewRating} />
+                  </View>
+                  <TextInput
+                    value={reviewComment}
+                    onChangeText={setReviewComment}
+                    placeholder={t("agents.reviewPlaceholder")}
+                    placeholderTextColor={colors.mutedForeground}
+                    multiline
+                    numberOfLines={3}
+                    style={{
+                      color: "#fff",
+                      fontSize: 14,
+                      paddingVertical: 8,
+                      minHeight: 60,
+                      textAlignVertical: "top",
+                    }}
+                  />
+                  <View className="flex-row justify-end gap-2 mt-2">
+                    <Pressable
+                      onPress={() => setShowReviewForm(false)}
+                      className="px-3 py-1.5 active:opacity-70"
+                    >
+                      <Text className="text-[13px] text-muted-foreground">
+                        {t("common.cancel")}
+                      </Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={handleSubmitReview}
+                      disabled={!reviewRating || submittingReview}
+                      className={cn(
+                        "px-3 py-1.5 rounded-md active:opacity-70",
+                        reviewRating ? "bg-primary" : "bg-muted"
+                      )}
+                    >
+                      <Text className={cn(
+                        "text-[13px] font-medium",
+                        reviewRating ? "text-primary-foreground" : "text-muted-foreground"
+                      )}>
+                        {submittingReview ? "..." : t("agents.writeReview")}
+                      </Text>
+                    </Pressable>
+                  </View>
+                </View>
+              )}
+
+              {/* Reviews List */}
+              {reviews.length === 0 && !showReviewForm ? (
+                <Text className="text-[13px] text-muted-foreground">
+                  {t("agents.noReviews")}
+                </Text>
+              ) : (
+                <View className="gap-3">
+                  {reviews.map((review: any) => (
+                    <View key={review._id} className="gap-1">
+                      <View className="flex-row items-center justify-between">
+                        <View className="flex-row items-center gap-2">
+                          <Text className="text-[13px] font-medium text-foreground">
+                            {review.userId?.username || "User"}
+                          </Text>
+                          <View className="flex-row">
+                            {[1, 2, 3, 4, 5].map((star) => (
+                              <Star
+                                key={star}
+                                size={10}
+                                className={star <= review.rating ? "text-amber-500" : "text-muted-foreground/20"}
+                                fill={star <= review.rating ? "#f59e0b" : "transparent"}
+                              />
+                            ))}
+                          </View>
+                        </View>
+                        {user && review.userId?._id === user.id && (
+                          <Pressable onPress={handleDeleteReview} className="p-1 active:opacity-70">
+                            <Trash2 size={12} className="text-muted-foreground" />
+                          </Pressable>
+                        )}
+                      </View>
+                      {review.comment ? (
+                        <Text className="text-[13px] text-foreground/80 leading-[18px]">
+                          {review.comment}
+                        </Text>
+                      ) : null}
+                    </View>
+                  ))}
+                </View>
+              )}
+            </View>
+
+            {/* Activity Terminal — mobile only */}
+            {!isLargeScreen && (
+              <>
+                <View className="h-px bg-border mx-0 mb-5" />
                 <View className="mb-5">
                   <SectionLabel>{t("agents.activity")}</SectionLabel>
-                  <View className="mt-2">
-                    <ActivityGrid agentId={agent._id} />
+                  <View style={{ height: 300 }} className="rounded-lg overflow-hidden mt-2">
+                    <AgentTerminal agentId={agent._id} />
                   </View>
                 </View>
-
-                {/* Divider */}
-                <View className="h-px bg-border mx-0 mb-5" />
-
-                {/* About / Description */}
-                <View className="mb-5">
-                  <SectionLabel>{t("agents.about")}</SectionLabel>
-                  <Text className="text-[14px] text-foreground leading-5 mt-1">
-                    {agent.description}
-                  </Text>
-                </View>
-
-                {/* Capabilities — the families this agent was granted, by their
-                    own labels. It used to render `agent.capabilities`, which
-                    held raw tool ids (`web-browsing`, `agent-delegation`) that
-                    named nothing the agent could actually do. A connector grant
-                    (`mcp:<id>`) is deliberately not shown here: the id is
-                    meaningless to a reader and the connector belongs to the
-                    owner, not to this public listing. */}
-                {grantedFamilyLabels.length > 0 && (
-                  <>
-                    <View className="h-px bg-border mx-0 mb-5" />
-                    <View className="mb-5">
-                      <SectionLabel>{t("agents.capabilities")}</SectionLabel>
-                      <PillList items={grantedFamilyLabels} />
-                    </View>
-                  </>
-                )}
-
-                {/* Tags */}
-                {agent.tags.length > 0 && (
-                  <>
-                    <View className="h-px bg-border mx-0 mb-5" />
-                    <View className="mb-5">
-                      <SectionLabel>{t("agents.tags")}</SectionLabel>
-                      <PillList items={agent.tags} />
-                    </View>
-                  </>
-                )}
-
-                {/* Reviews */}
-                <View className="h-px bg-border mx-0 mb-5" />
-                <View className="mb-5">
-                  <View className="flex-row items-center justify-between mb-3">
-                    <SectionLabel>{t("agents.reviews")}</SectionLabel>
-                    {user && !isOwner && !showReviewForm && (
-                      <Pressable
-                        onPress={() => setShowReviewForm(true)}
-                        className="active:opacity-70"
-                      >
-                        <Text className="text-[12px] font-medium text-primary">
-                          {userReview ? t("agents.editReview") : t("agents.writeReview")}
-                        </Text>
-                      </Pressable>
-                    )}
-                  </View>
-
-                  {/* Review Form */}
-                  {showReviewForm && (
-                    <View className="bg-muted/30 rounded-xl px-4 py-3 border border-border mb-4">
-                      <View className="mb-3">
-                        <StarRatingInput value={reviewRating} onChange={setReviewRating} />
-                      </View>
-                      <TextInput
-                        value={reviewComment}
-                        onChangeText={setReviewComment}
-                        placeholder={t("agents.reviewPlaceholder")}
-                        placeholderTextColor={colors.mutedForeground}
-                        multiline
-                        numberOfLines={3}
-                        style={{
-                          color: "#fff",
-                          fontSize: 14,
-                          paddingVertical: 8,
-                          minHeight: 60,
-                          textAlignVertical: "top",
-                        }}
-                      />
-                      <View className="flex-row justify-end gap-2 mt-2">
-                        <Pressable
-                          onPress={() => setShowReviewForm(false)}
-                          className="px-3 py-1.5 active:opacity-70"
-                        >
-                          <Text className="text-[13px] text-muted-foreground">
-                            {t("common.cancel")}
-                          </Text>
-                        </Pressable>
-                        <Pressable
-                          onPress={handleSubmitReview}
-                          disabled={!reviewRating || submittingReview}
-                          className={cn(
-                            "px-3 py-1.5 rounded-md active:opacity-70",
-                            reviewRating ? "bg-primary" : "bg-muted"
-                          )}
-                        >
-                          <Text className={cn(
-                            "text-[13px] font-medium",
-                            reviewRating ? "text-primary-foreground" : "text-muted-foreground"
-                          )}>
-                            {submittingReview ? "..." : t("agents.writeReview")}
-                          </Text>
-                        </Pressable>
-                      </View>
-                    </View>
-                  )}
-
-                  {/* Reviews List */}
-                  {reviews.length === 0 && !showReviewForm ? (
-                    <Text className="text-[13px] text-muted-foreground">
-                      {t("agents.noReviews")}
-                    </Text>
-                  ) : (
-                    <View className="gap-3">
-                      {reviews.map((review: any) => (
-                        <View key={review._id} className="gap-1">
-                          <View className="flex-row items-center justify-between">
-                            <View className="flex-row items-center gap-2">
-                              <Text className="text-[13px] font-medium text-foreground">
-                                {review.userId?.username || "User"}
-                              </Text>
-                              <View className="flex-row">
-                                {[1, 2, 3, 4, 5].map((star) => (
-                                  <Star
-                                    key={star}
-                                    size={10}
-                                    className={star <= review.rating ? "text-amber-500" : "text-muted-foreground/20"}
-                                    fill={star <= review.rating ? "#f59e0b" : "transparent"}
-                                  />
-                                ))}
-                              </View>
-                            </View>
-                            {user && review.userId?._id === user.id && (
-                              <Pressable onPress={handleDeleteReview} className="p-1 active:opacity-70">
-                                <Trash2 size={12} className="text-muted-foreground" />
-                              </Pressable>
-                            )}
-                          </View>
-                          {review.comment ? (
-                            <Text className="text-[13px] text-foreground/80 leading-[18px]">
-                              {review.comment}
-                            </Text>
-                          ) : null}
-                        </View>
-                      ))}
-                    </View>
-                  )}
-                </View>
-
-                {/* Activity Terminal — mobile only */}
-                {!isLargeScreen && (
-                  <>
-                    <View className="h-px bg-border mx-0 mb-5" />
-                    <View className="mb-5">
-                      <SectionLabel>{t("agents.activity")}</SectionLabel>
-                      <View style={{ height: 300 }} className="rounded-lg overflow-hidden mt-2">
-                        <AgentTerminal agentId={agent._id} />
-                      </View>
-                    </View>
-                  </>
-                )}
               </>
             )}
           </View>

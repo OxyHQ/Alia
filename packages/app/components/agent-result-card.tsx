@@ -1,8 +1,7 @@
 /**
  * AgentResultCard — Rich summary card shown in chat when an agent completes a task.
  *
- * Displays: title, agent info, duration, step count, plan summary, deliverable files.
- * Includes a "View Files" toggle that expands the WorkspaceBrowser inline.
+ * Displays: title, agent info, duration, step count and plan summary.
  */
 
 import React, { useState } from 'react';
@@ -16,18 +15,15 @@ import {
   Layers,
   ChevronDown,
   ChevronUp,
-  FolderTree,
   AlertTriangle,
   Coins,
 } from 'lucide-react-native';
 import { useColorScheme } from '@/lib/useColorScheme';
 import { useTheme, withAlpha } from '@oxy.so/bloom/theme';
-import { WorkspaceBrowser } from '@/components/workspace-browser';
 import type { AgentActivityState, PlanItem } from '@/lib/hooks/use-agent-activity';
 
 interface AgentResultCardProps {
   activity: AgentActivityState;
-  sessionId: string;
   agentName?: string;
 }
 
@@ -77,13 +73,11 @@ function CompletedPlanSummary({ items }: { items: PlanItem[] }) {
 
 export const AgentResultCard = React.memo(function AgentResultCard({
   activity,
-  sessionId,
   agentName,
 }: AgentResultCardProps) {
   const { colors } = useColorScheme();
   const { colors: themeColors } = useTheme();
   const [showPlan, setShowPlan] = useState(false);
-  const [showFiles, setShowFiles] = useState(false);
 
   const { plan, isComplete, hasError, lastError, eventCount, startedAt } = activity;
   const isSuccess = isComplete && !hasError;
@@ -168,28 +162,6 @@ export const AgentResultCard = React.memo(function AgentResultCard({
           )}
         </View>
       )}
-
-      {/* Files toggle */}
-      <View>
-        <Pressable
-          onPress={() => setShowFiles(!showFiles)}
-          className="flex-row items-center justify-between px-3 py-2 active:bg-muted/50"
-        >
-          <View className="flex-row items-center gap-2">
-            <FolderTree size={14} color={colors.primary} />
-            <Text className="text-xs font-medium text-foreground">Workspace Files</Text>
-          </View>
-          {showFiles
-            ? <ChevronUp size={14} color={colors.mutedForeground} />
-            : <ChevronDown size={14} color={colors.mutedForeground} />
-          }
-        </Pressable>
-        {showFiles && (
-          <View className="px-2 pb-2">
-            <WorkspaceBrowser sessionId={sessionId} />
-          </View>
-        )}
-      </View>
     </Animated.View>
   );
 });

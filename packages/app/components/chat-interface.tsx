@@ -1266,10 +1266,7 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, threa
           {/* Agent execution — in-progress card or completed result card */}
           {agentActivity && agentActivity.eventCount > 0 && (
             agentActivity.isComplete && agentSessionId ? (
-              <AgentResultCard
-                activity={agentActivity}
-                sessionId={agentSessionId}
-              />
+              <AgentResultCard activity={agentActivity} />
             ) : (
               <AgentTaskCard activity={agentActivity} />
             )
