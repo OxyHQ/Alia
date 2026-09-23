@@ -1,11 +1,6 @@
 import { ChatPageContent } from '@/components/chat-page-content';
 import { ThreadSearch } from '@/components/thread-search';
 import { UsageLimitDialog } from '@/components/usage-limit-dialog';
-import {
-  buildConversationMarkdown,
-  exportFilename,
-} from '@/lib/conversation-export';
-import { deliverMarkdownFile } from '@/lib/conversation-share';
 import { UsageLimitError } from '@/lib/errors/usage-limit-error';
 import { queryKeys } from '@/lib/hooks/query-keys';
 import { resolveSelection, useCatalogue } from '@/lib/hooks/use-catalogue';
@@ -14,7 +9,6 @@ import {
   useConversation,
   useCreateConversation,
   useSaveConversation,
-  type Conversation,
 } from '@/lib/hooks/use-conversations';
 import { useProductModes } from '@/lib/hooks/use-product-modes';
 import { useVoiceSoundEffects } from '@/lib/hooks/use-sound-effects';
@@ -30,7 +24,6 @@ import { type Attachment } from '@/lib/stores/global-store';
 import { useModelStore } from '@/lib/stores/model-store';
 import type { Message } from '@/types/chat';
 import { Button } from '@oxy.so/bloom/button';
-import { toast } from '@oxy.so/bloom/toast';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { View } from 'react-native';
@@ -39,15 +32,8 @@ interface ConversationScreenProps {
   conversationId: string;
   /** The agent answering, when this thread belongs to one. */
   agentId?: string;
-  /**
-   * The agent's name and color, for the header.
-   *
-   * Passed as two primitives all the way down, never repackaged: `ChatHeader`
-   * is memoized against a screen that re-renders ~20×/s while streaming, and an
-   * object would be a new reference on every one of those renders.
-   */
+  /** The agent's name, for the title when the chat has none. */
   agentName?: string;
-  agentColor?: string | null;
   /**
    * The handle whose thread this is, when it is one.
    *
@@ -80,7 +66,6 @@ export const ConversationScreen = ({
   conversationId,
   agentId,
   agentName,
-  agentColor,
   threadHandle,
   startVoice = false,
 }: ConversationScreenProps) => {
@@ -118,12 +103,8 @@ export const ConversationScreen = ({
     isLoading,
     conversationLoading,
     error,
-    scrollViewRef,
     sendMessage,
-    editMessage,
-    regenerateMessage,
     stopGeneration,
-    clearConversation,
     clearError,
     setMessages,
     approvePlan,
@@ -175,57 +156,11 @@ export const ConversationScreen = ({
   }, []);
 
   const handleBackToLatest = useCallback(() => setJumpedTo(null), []);
-  /**
-   * Stable, because it becomes a prop of `ChatHeader` — which is memoized
-   * against a screen that re-renders ~20×/s while streaming, and an arrow at
-   * the call site is a new reference on every one of those renders.
-   */
-  const handleSearchPress = useCallback(() => setSearchOpen(true), []);
   const handleSearchClose = useCallback(() => setSearchOpen(false), []);
 
   const saveConversation = useSaveConversation();
   const createConversation = useCreateConversation();
   const queryClient = useQueryClient();
-
-  /**
-   * The messages, for the export — behind a ref, and that is the whole point.
-   *
-   * `ChatHeader` is memoized against this screen, which re-renders per
-   * streamed token, and `handleExport` becomes one of its props. A callback
-   * that closed over `messages` would be rebuilt on every token and hand every
-   * one of those renders to the whole header; one that reads a ref is built
-   * once and still sees the thread as it is when the menu item is chosen.
-   */
-  const messagesRef = useRef<Message[]>(messages);
-  useEffect(() => {
-    messagesRef.current = messages;
-  }, [messages]);
-
-  const handleExport = useCallback(() => {
-    // The title is read out of the query cache at the moment of the export
-    // rather than subscribed to: `useChatConversation` already keeps that
-    // entry live, and the `alia.title` frame writes the generated title into
-    // the same key, so this sees it without a dependency of its own.
-    const cached = queryClient.getQueryData<Conversation>(
-      queryKeys.conversations.detail(conversationId),
-    );
-    const title = cached?.title?.trim() || agentName || t('chat.newChat');
-    const exportedAt = new Date();
-    const markdown = buildConversationMarkdown({
-      title,
-      messages: messagesRef.current,
-      exportedAt,
-      assistantName: agentName,
-      userLabel: t('chat.searchThreadYou'),
-    });
-    deliverMarkdownFile(
-      exportFilename(title, exportedAt),
-      markdown,
-      title,
-    ).catch(() => {
-      toast.error(t('chat.exportFailed'));
-    });
-  }, [queryClient, conversationId, agentName, t]);
 
   /**
    * Take the agent up on its offer: start the next stretch of this thread.
@@ -335,21 +270,15 @@ export const ConversationScreen = ({
           // conversation being streamed into is not below it in the thread.
           messages={jumped ? NO_MESSAGES : messages}
           conversationId={conversationId}
-          scrollViewRef={scrollViewRef}
           isLoading={isLoading}
           conversationLoading={conversationLoading}
           onSubmit={handleSubmit}
-          onEditMessage={editMessage}
-          onRegenerateMessage={regenerateMessage}
           onStop={stopGeneration}
-          onClear={clearConversation}
           selectedModel={selectedModel}
           onModelChange={setConversationModel}
           disabled={!!usageLimitError}
           voice={voice}
-          agentId={agentId}
           agentName={agentName}
-          agentColor={agentColor}
           onApprovePlan={approvePlan}
           onRejectPlan={rejectPlan}
           suggestedNewConversation={suggestedNewConversation}
@@ -363,11 +292,7 @@ export const ConversationScreen = ({
               : history.isLoadingMore
           }
           onLoadHistory={jumped ? past.loadMore : history.loadMore}
-          onSearchPress={
-            threadHandle === undefined ? undefined : handleSearchPress
-          }
           focusCursor={jumpedTo}
-          onExport={handleExport}
           failedTurn={failedTurn}
           onRetryTurn={retryFailedTurn}
         />

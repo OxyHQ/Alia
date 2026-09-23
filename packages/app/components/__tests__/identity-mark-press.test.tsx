@@ -112,7 +112,6 @@ vi.mock('@/lib/hooks/use-translation', () => ({
 }));
 
 import { IdentityMark } from '../../../alia-chat/src/components/IdentityMark';
-import { WelcomeMessage } from '../welcome-message';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
@@ -145,33 +144,6 @@ afterEach(() => {
     act(() => renderer?.unmount());
     renderer = null;
   }
-});
-
-describe('the mark on the welcome greeting', () => {
-  it('offers something to press', () => {
-    // The greeting itself is not a control, so the only press target the
-    // welcome puts on screen is the mark.
-    expect(pressables(render(<WelcomeMessage />))).toHaveLength(1);
-  });
-
-  it('runs the flourish when it is pressed', () => {
-    const r = render(<WelcomeMessage />);
-
-    act(() => pressables(r)[0]?.props.onPress());
-
-    // The haptic is the observable half of the flourish and it is fired by the
-    // mark's own handler — so this is reached only if the press actually
-    // arrived there, rather than a prop having been handed over.
-    expect(mocks.impactAsync).toHaveBeenCalledOnce();
-  });
-
-  it('is not announced as a button, because the press promises no action', () => {
-    // Pressable, but there is nowhere for it to take you. Same role it carried
-    // before the press target was made opt-in.
-    expect(
-      pressables(render(<WelcomeMessage />))[0]?.props.accessibilityRole,
-    ).toBe('image');
-  });
 });
 
 describe('a mark that asked for nothing', () => {

@@ -1,14 +1,9 @@
-import { AgentTerminal } from '@/components/agent-terminal';
-import { ChatHeader } from '@/components/chat-header';
 import { ChatInterface } from '@/components/chat-interface';
 import { ChatWorkspace } from '@/components/chat/chat-workspace';
 import { useComposerAddMenu } from '@/components/chat/composer/add-menu';
 import { Composer } from '@/components/chat/composer/composer';
 import { useComposerLineup } from '@/components/chat/composer/model-lineup';
 import type { Attachment } from '@/components/chat/composer/types';
-import { CreditWarningBanner } from '@/components/credit-warning-banner';
-import { LocalModelsInvite } from '@/components/local-models-invite';
-import { ScrollButton } from '@/components/ui/scroll-button';
 import {
   buildTurnSelection,
   toggleConnectorId,
@@ -16,9 +11,6 @@ import {
 } from '@/lib/chat/turn-selection';
 import { useCapabilityModes } from '@/lib/chat/use-capability-modes';
 import type { AgentActivityState } from '@/lib/hooks/use-agent-activity';
-import { useAtBottom } from '@/lib/hooks/use-at-bottom';
-import { useEntitlements } from '@/lib/hooks/use-billing';
-import { useCredits } from '@/lib/hooks/use-credits';
 import { useMcpServers } from '@/lib/hooks/use-mcp-servers';
 import { useInstalledSkills } from '@/lib/hooks/use-skills';
 import type { FailedTurn, SendOptions } from '@/lib/hooks/use-streaming-chat';
@@ -26,33 +18,21 @@ import { useTranslation } from '@/lib/hooks/use-translation';
 import type { useVoiceMode } from '@/lib/hooks/use-voice-mode';
 import { useStore } from '@/lib/stores/global-store';
 import { useModelStore } from '@/lib/stores/model-store';
+import { useProjectsStore } from '@/lib/stores/projects-store';
 import { useUIStore } from '@/lib/stores/ui-store';
 import type { ThreadMessage } from '@/lib/thread-history';
 import { useColorScheme } from '@/lib/useColorScheme';
 import type { Message } from '@/types/chat';
 import { VoiceControls } from '@alia.onl/sdk/voice';
-import Entypo from '@expo/vector-icons/Entypo';
 import {
   AiChatMobileHeader,
   type AiChatThreadHandle,
 } from '@oxy.so/bloom/ai-chat';
-import { Button } from '@oxy.so/bloom/button';
 import { ComposerStatusBar } from '@oxy.so/bloom/composer-panel';
 import { toast } from '@oxy.so/bloom/toast';
-import { Text } from '@oxy.so/bloom/typography';
 import { useAuth } from '@oxy.so/services';
-import { useRouter } from 'expo-router';
-import {
-  AlertTriangle,
-  ChevronDown,
-  ChevronUp,
-  Pencil,
-  Terminal as TerminalIcon,
-  X,
-} from 'lucide-react-native';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, View } from 'react-native';
-import type { ScrollView as GHScrollView } from 'react-native-gesture-handler';
+import { View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 /**
@@ -102,41 +82,21 @@ type VoiceState = ReturnType<typeof useVoiceMode>;
 
 interface ChatPageContentProps {
   messages: Message[];
-  scrollViewRef: React.RefObject<GHScrollView | null>;
   isLoading: boolean;
   onSubmit: (
     value: string,
     attachments?: Attachment[],
     options?: SendOptions,
   ) => Promise<boolean>;
-  onEditMessage: (
-    messageId: string,
-    newContent: string,
-    options?: SendOptions,
-  ) => Promise<boolean>;
-  onRegenerateMessage: (
-    assistantMessageId: string,
-    options?: SendOptions,
-  ) => Promise<boolean>;
   onStop?: () => void;
-  onClear?: () => void;
   selectedModel: string;
   onModelChange: (model: string) => void;
   disabled?: boolean;
   conversationLoading?: boolean;
   voice?: VoiceState;
-  onVoiceStart?: () => void;
   agentActivity?: AgentActivityState | null;
-  agentId?: string | null;
-  /**
-   * The agent this thread belongs to, for the header.
-   *
-   * Two primitives rather than an identity object, because `ChatHeader` is
-   * memoized against a screen that re-renders ~20×/s while streaming — see the
-   * note on its props. They are passed straight through, never repackaged.
-   */
+  /** The agent this thread belongs to, for the title when the chat has none. */
   agentName?: string;
-  agentColor?: string | null;
   agentSessionId?: string | null;
   onApprovePlan?: (planId: string) => void;
   onRejectPlan?: (planId: string) => void;
@@ -155,29 +115,14 @@ interface ChatPageContentProps {
    * The thread's history and how to ask for more of it.
    *
    * All four are absent on `/c/:id`: a chat in the sidebar is one conversation
-   * with nothing behind it, so there is no older stretch to page into and no
-   * seam to draw.
+   * with nothing behind it, so there is no older stretch to page into.
    */
   historyMessages?: ThreadMessage[];
   hasMoreHistory?: boolean;
   isLoadingHistory?: boolean;
   onLoadHistory?: () => void;
-  /**
-   * Search THIS thread, when there is a thread to search.
-   *
-   * Absent on `/c/:id`, where the header's magnifier keeps opening the app-wide
-   * palette — a different question: that one finds a chat, this one finds a
-   * sentence, and only a thread has stretches behind it to look through.
-   */
-  onSearchPress?: () => void;
   /** The message a jump was aimed at, by cursor, or `null` at the present. */
   focusCursor?: string | null;
-  /**
-   * Export this conversation as Markdown, for the header's menu. A stable
-   * callback built by the screen that owns the messages — see `ChatHeader`'s
-   * note on why it is not the messages themselves.
-   */
-  onExport?: () => void;
   /**
    * The turn that got no answer, drawn in the thread with an error and a
    * retry, or `null`. Both are passed straight through to the list.
@@ -188,23 +133,16 @@ interface ChatPageContentProps {
 
 export const ChatPageContent = ({
   messages,
-  scrollViewRef,
   isLoading,
   onSubmit,
-  onEditMessage,
-  onRegenerateMessage,
   onStop,
-  onClear,
   selectedModel,
   onModelChange,
   disabled = false,
   conversationLoading,
   voice,
-  onVoiceStart,
   agentActivity,
-  agentId,
   agentName,
-  agentColor,
   agentSessionId,
   onApprovePlan,
   onRejectPlan,
@@ -217,9 +155,7 @@ export const ChatPageContent = ({
   hasMoreHistory = false,
   isLoadingHistory = false,
   onLoadHistory,
-  onSearchPress,
   focusCursor,
-  onExport,
   failedTurn,
   onRetryTurn,
 }: ChatPageContentProps) => {
@@ -227,9 +163,6 @@ export const ChatPageContent = ({
   const addAttachment = useStore((state) => state.addAttachment);
   const removeAttachment = useStore((state) => state.removeAttachment);
   const { isAuthenticated, signIn } = useAuth();
-  const { data: entitlements } = useEntitlements();
-  const { data: creditsInfo } = useCredits();
-  const router = useRouter();
   const { t } = useTranslation();
   const { installed } = useMcpServers();
   const { active: modeActive, toggle: toggleMode } = useCapabilityModes();
@@ -277,7 +210,6 @@ export const ChatPageContent = ({
 
   const isVoiceActive = voice?.isVoiceActive ?? false;
   const [inputValue, setInputValue] = useState('');
-  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
 
   // Draft handed over by another route, or handed back by a send that failed.
   // `target` picks the one screen it belongs to and the seq marks it consumed,
@@ -296,19 +228,16 @@ export const ChatPageContent = ({
     setSelectedSkills(composerDraft.skillNames);
   }
 
-  const [showTerminal, setShowTerminal] = useState(false);
   const { colors } = useColorScheme();
   const insets = useSafeAreaInsets();
+  /** The template's breadcrumb: the project this chat belongs to, if any. */
+  const projectName = useProjectsStore((state) =>
+    conversationId
+      ? state.projects.find((p) => p.conversationIds.includes(conversationId))?.name
+      : undefined,
+  );
 
   const isMainScreen = messages.length === 0;
-
-  /**
-   * Reading upwards asks for the page above, and holds the reader in place
-   * while it lands — both inside the scroll hook, because they are one act: a
-   * page that arrives without the position being restored leaves the reader at
-   * the top again, asking for the next one.
-   */
-  const { isAtBottom, onScroll } = useAtBottom();
 
   /**
    * Ask for the page above, unless there is nothing above or one is already
@@ -325,41 +254,9 @@ export const ChatPageContent = ({
   }, [onLoadHistory, hasMoreHistory, isLoadingHistory]);
 
   const threadRef = useRef<AiChatThreadHandle | null>(null);
-  const scrollToBottom = useCallback(() => {
-    threadRef.current?.scrollToEnd({ animated: true });
-  }, []);
 
   useEffect(() => {
     useStore.getState().setGhostMode(false);
-  }, []);
-
-  // Stable identity so the memoized ChatHeader isn't re-rendered per
-  // streaming flush by a fresh inline closure.
-  const handleGhostModeToggle = useCallback(
-    () => toggleMode('ghost'),
-    [toggleMode],
-  );
-
-  const handleStartEdit = useCallback((messageId: string, content: string) => {
-    setEditingMessageId(messageId);
-    setInputValue(content);
-  }, []);
-
-  const handleRegenerate = useCallback(
-    (assistantMessageId: string) => {
-      // Replay the prompt with whatever the composer is set to NOW — regenerating
-      // after switching connector or skills should honour the new selection.
-      void onRegenerateMessage(assistantMessageId, {
-        mcpServerId: selectedConnectorId,
-        skillNames: selectedSkills,
-      });
-    },
-    [onRegenerateMessage, selectedConnectorId, selectedSkills],
-  );
-
-  const handleCancelEdit = useCallback(() => {
-    setEditingMessageId(null);
-    setInputValue('');
   }, []);
 
   const handleSubmit = async (dictated?: string) => {
@@ -372,9 +269,6 @@ export const ChatPageContent = ({
     const draft = typeof dictated === 'string' ? dictated : inputValue;
     const hasText = draft.trim().length > 0;
     if ((!hasText && attachments.length === 0) || isLoading || disabled) return;
-    // Editing changes the existing text message; attachments belong to new
-    // turns and must not make an empty edit look submittable.
-    if (editingMessageId && !hasText) return;
     // Signed-out: open the SDK sign-in dialog instead of firing a request that
     // would 401. The draft stays in the input for after sign-in.
     if (!isAuthenticated) {
@@ -388,55 +282,17 @@ export const ChatPageContent = ({
       skillNames: selectedSkills,
     };
 
-    // Clear optimistically. Both send paths restore text, attachments and the
+    // Clear optimistically. The send path restores text, attachments and the
     // selected connector through composerDraft if the request fails.
     setInputValue('');
     useStore.getState().clearAttachments();
 
-    if (editingMessageId) {
-      const sent = await onEditMessage(editingMessageId, content, options);
-      if (sent) {
-        setEditingMessageId(null);
-        setSelectedConnectorId(null);
-        setSelectedSkills([]);
-      }
-      return;
-    }
     const sent = await onSubmit(content, pendingAttachments, options);
     if (sent) {
       setSelectedConnectorId(null);
       setSelectedSkills([]);
     }
   };
-
-  // Send a suggestion's text directly (non-template selections) via the same send path.
-  const handleSuggestionSend = useCallback(
-    async (text: string) => {
-      if (isLoading || disabled) return;
-      if (!isAuthenticated) {
-        signIn().catch(() => {});
-        return;
-      }
-      setInputValue('');
-      const sent = await onSubmit(text, undefined, {
-        mcpServerId: selectedConnectorId,
-        skillNames: selectedSkills,
-      });
-      if (sent) {
-        setSelectedConnectorId(null);
-        setSelectedSkills([]);
-      }
-    },
-    [
-      isLoading,
-      disabled,
-      isAuthenticated,
-      signIn,
-      onSubmit,
-      selectedConnectorId,
-      selectedSkills,
-    ],
-  );
 
   const handleWebSearch = () => {
     // Withholds three tools rather than rewording a prompt. The model decides
@@ -464,37 +320,6 @@ export const ChatPageContent = ({
   const handleCanvas = () => {
     useUIStore.getState().setRightPanel('canvas');
   };
-
-  const handleVoiceActivate = useCallback(() => {
-    if (!isAuthenticated) {
-      toast.error(t('subscribe.signInRequired'));
-      return;
-    }
-    if (!entitlements?.features['voice-mode']) {
-      toast.info(
-        t('subscribe.featureRequiresPlan', { feature: t('modes.voiceMode') }),
-      );
-      router.push('/(biglayout)/subscribe');
-      return;
-    }
-    if (creditsInfo && creditsInfo.credits <= 0) {
-      toast.error(t('usageLimit.outOfCreditsTitle'));
-      return;
-    }
-    if (voice) {
-      voice.activateVoice();
-    } else if (onVoiceStart) {
-      onVoiceStart();
-    }
-  }, [
-    voice,
-    onVoiceStart,
-    isAuthenticated,
-    entitlements,
-    creditsInfo,
-    t,
-    router,
-  ]);
 
   const handleToggleSkill = useCallback(
     (name: string) =>
@@ -533,227 +358,92 @@ export const ChatPageContent = ({
   const lineup = useComposerLineup(selectedModel, onModelChange);
 
   return (
-    <View className="flex-1">
-      <ChatWorkspace
-        working={isLoading}
-        title={conversationTitle || agentName || t('chat.newChat')}
-        header={<AiChatMobileHeader title={agentName ?? 'Alia'} />}
-        actions={
-          <ChatHeader
-            onGhostModePress={handleGhostModeToggle}
-            ghostModeActive={modeActive.ghost}
-            onClear={onClear}
-            isConversation={messages.length > 0}
-            onSearchPress={onSearchPress}
-            onExport={onExport}
-          />
-        }
-        composer={
-          isVoiceActive && voice ? (
-            <View style={{ paddingBottom: insets.bottom }}>
-              <VoiceControls
-                roomState={voice.roomState}
-                agentState={voice.agentState}
-                isMuted={voice.isMuted}
-                cohostActive={voice.cohostActive}
-                currentSpeaker={voice.currentSpeaker}
-                roundComplete={voice.roundComplete}
-                onToggleMute={voice.toggleMute}
-                onEnableCohost={voice.enableCohost}
-                onDisableCohost={voice.disableCohost}
-                onContinueCohost={voice.continueCohost}
-                onEnd={voice.deactivateVoice}
-                primaryColor={colors.primary}
+    <ChatWorkspace
+      working={isLoading}
+      project={projectName}
+      title={conversationTitle || agentName || t('chat.newChat')}
+      header={<AiChatMobileHeader title={conversationTitle || agentName || 'Alia'} />}
+      composer={
+        isVoiceActive && voice ? (
+          <View style={{ paddingBottom: insets.bottom }}>
+            <VoiceControls
+              roomState={voice.roomState}
+              agentState={voice.agentState}
+              isMuted={voice.isMuted}
+              cohostActive={voice.cohostActive}
+              currentSpeaker={voice.currentSpeaker}
+              roundComplete={voice.roundComplete}
+              onToggleMute={voice.toggleMute}
+              onEnableCohost={voice.enableCohost}
+              onDisableCohost={voice.disableCohost}
+              onContinueCohost={voice.continueCohost}
+              onEnd={voice.deactivateVoice}
+              primaryColor={colors.primary}
+            />
+          </View>
+        ) : (
+          // A fragment, as in the template: the footer's gap spaces the pill
+          // and the status bar.
+          <>
+            <Composer
+              value={inputValue}
+              onValueChange={setInputValue}
+              onSubmit={handleSubmit}
+              busy={isLoading}
+              disabled={disabled}
+              onStop={onStop}
+              disableKeyboardAvoidance
+              attachments={attachments}
+              onAddAttachment={addAttachment}
+              onRemoveAttachment={removeAttachment}
+              placeholder={
+                disabled ? t('usageLimit.inputDisabledPlaceholder') : undefined
+              }
+              models={lineup.models}
+              model={lineup.model}
+              onModelChange={lineup.onModelChange}
+              effortLevels={lineup.effortLevels}
+              effort={lineup.effort}
+              onEffortChange={lineup.onEffortChange}
+              addMenu={addMenu.groups}
+              onAddMenuSelect={addMenu.onSelect}
+            />
+            <View
+              style={{ paddingLeft: 6, paddingRight: 6, paddingBottom: insets.bottom }}
+            >
+              <ComposerStatusBar
+                mode={modeActive.agent ? t('modes.agentLabel') : 'Chat'}
+                onModePress={() => toggleMode('agent')}
               />
             </View>
-          ) : (
-            <View>
-              <View style={{ paddingBottom: insets.bottom }}>
-                <CreditWarningBanner
-                  selectedModel={selectedModel}
-                  onSwitchModel={onModelChange}
-                />
-
-                {disabled && (
-                  <View className="pb-1">
-                    <View className="flex-row items-center gap-2 rounded-lg bg-destructive/10 px-3 py-2">
-                      <AlertTriangle size={14} className="text-destructive" />
-                      <Text className="text-xs text-destructive flex-1">
-                        {t('usageLimit.limitReachedBanner')}
-                      </Text>
-                    </View>
-                  </View>
-                )}
-
-                <View>
-                  <View className="relative">
-                    {messages.length > 0 && (
-                      <View
-                        style={{
-                          position: 'absolute',
-                          top: -48,
-                          right: 0,
-                          zIndex: -1,
-                        }}
-                      >
-                        <ScrollButton
-                          isAtBottom={isAtBottom}
-                          onScrollToBottom={scrollToBottom}
-                        />
-                      </View>
-                    )}
-                    {editingMessageId && (
-                      <View className="flex-row items-center gap-2 mb-2 px-1">
-                        <Pencil size={14} className="text-primary" />
-                        <Text className="text-xs text-muted-foreground flex-1">
-                          Editing message
-                        </Text>
-                        <Pressable
-                          onPress={handleCancelEdit}
-                          className="active:opacity-70"
-                        >
-                          <X size={14} className="text-muted-foreground" />
-                        </Pressable>
-                      </View>
-                    )}
-                    {/*
-                    The one time Alia asks whether it may look for a model on
-                    this machine.
-
-                    It used to hang off the model selector, because that is
-                    where the answer is relevant — and the selector is Bloom's
-                    now, with no slot to hang anything from. So it anchors to
-                    the composer instead, which is the next box out and the one
-                    the model chip lives in. The card itself decides whether it
-                    appears at all (signed in, unasked, large screen, once);
-                    all this position changes is what it points at.
-                  */}
-                    <LocalModelsInvite>
-                      <Composer
-                        value={inputValue}
-                        onValueChange={setInputValue}
-                        onSubmit={handleSubmit}
-                        // The two locks, kept apart. `busy` is the stream: send
-                        // becomes stop, and Bloom keeps stop outside `disabled`'s
-                        // reach by contract — which is the property the old
-                        // composer had to fight its own DOM to hold on to.
-                        // `disabled` is the usage limit and nothing else.
-                        busy={isLoading}
-                        disabled={disabled}
-                        onStop={onStop}
-                        disableKeyboardAvoidance
-                        attachments={attachments}
-                        onAddAttachment={addAttachment}
-                        onRemoveAttachment={removeAttachment}
-                        autocomplete
-                        onSuggestionSend={handleSuggestionSend}
-                        floatingAutocomplete
-                        placeholder={
-                          disabled
-                            ? t('usageLimit.inputDisabledPlaceholder')
-                            : 'Message Alia...'
-                        }
-                        models={lineup.models}
-                        model={lineup.model}
-                        onModelChange={lineup.onModelChange}
-                        effortLevels={lineup.effortLevels}
-                        effort={lineup.effort}
-                        onEffortChange={lineup.onEffortChange}
-                        addMenu={addMenu.groups}
-                        onAddMenuSelect={addMenu.onSelect}
-                        emptyAction={
-                          <Button
-                            size="icon"
-                            className="h-9 w-9 rounded-full items-center justify-center"
-                            onPress={handleVoiceActivate}
-                            accessibilityLabel={t('modes.voiceMode')}
-                            icon={
-                              <>
-                                <Entypo
-                                  name="sound"
-                                  size={18}
-                                  color={colors.primaryForeground}
-                                />
-                              </>
-                            }
-                          />
-                        }
-                      />
-                    </LocalModelsInvite>
-                    <View
-                      style={{ paddingLeft: 6, paddingRight: 6, marginTop: 10 }}
-                    >
-                      <ComposerStatusBar
-                        mode={modeActive.agent ? t('modes.agentLabel') : 'Chat'}
-                        onModePress={() => toggleMode('agent')}
-                      />
-                    </View>
-                  </View>
-                </View>
-              </View>
-            </View>
-          )
+          </>
+        )
+      }
+    >
+      <ChatInterface
+        messages={messages}
+        threadRef={threadRef}
+        onLoadHistory={
+          onLoadHistory === undefined ? undefined : handleLoadHistory
         }
-      >
-        <ChatInterface
-          messages={messages}
-          threadRef={threadRef}
-          onLoadHistory={
-            onLoadHistory === undefined ? undefined : handleLoadHistory
-          }
-          isLoading={isLoading}
-          conversationLoading={conversationLoading}
-          onStartEdit={handleStartEdit}
-          onRegenerate={handleRegenerate}
-          bottomPadding={0}
-          isVoiceActive={isVoiceActive}
-          voiceAgentState={voice?.agentState}
-          onScroll={onScroll}
-          historyMessages={historyMessages}
-          isLoadingHistory={isLoadingHistory}
-          activeConversationId={conversationId}
-          focusCursor={focusCursor}
-          agentActivity={agentActivity}
-          agentSessionId={agentSessionId}
-          onApprovePlan={onApprovePlan}
-          onRejectPlan={onRejectPlan}
-          suggestedNewConversation={suggestedNewConversation}
-          onAcceptNewConversation={onAcceptNewConversation}
-          onDismissNewConversation={onDismissNewConversation}
-          failedTurn={failedTurn}
-          onRetryTurn={onRetryTurn}
-        />
-      </ChatWorkspace>
-
-      {/* Agent Terminal Panel — collapsible at the bottom */}
-      {agentId && showTerminal && (
-        <View className="border-t border-border" style={{ height: 280 }}>
-          <View className="flex-row items-center justify-between px-3 py-1.5 bg-card">
-            <View className="flex-row items-center gap-2">
-              <TerminalIcon size={12} className="text-muted-foreground" />
-              <Text className="text-xs text-muted-foreground">
-                Agent Terminal
-              </Text>
-            </View>
-            <Pressable onPress={() => setShowTerminal(false)} className="p-1">
-              <ChevronDown size={14} className="text-muted-foreground" />
-            </Pressable>
-          </View>
-          <AgentTerminal agentId={agentId} />
-        </View>
-      )}
-
-      {/* Terminal toggle button — shows when agent mode is active */}
-      {agentId && !showTerminal && modeActive.agent && (
-        <Pressable
-          onPress={() => setShowTerminal(true)}
-          className="absolute bottom-32 right-4 z-20 bg-card rounded-lg px-3 py-2 flex-row items-center gap-2 border border-border shadow-lg"
-        >
-          <TerminalIcon size={14} className="text-muted-foreground" />
-          <Text className="text-xs text-muted-foreground">Terminal</Text>
-          <ChevronUp size={12} className="text-muted-foreground" />
-        </Pressable>
-      )}
-    </View>
+        isLoading={isLoading}
+        conversationLoading={conversationLoading}
+        bottomPadding={0}
+        voiceAgentState={voice?.agentState}
+        historyMessages={historyMessages}
+        isLoadingHistory={isLoadingHistory}
+        activeConversationId={conversationId}
+        focusCursor={focusCursor}
+        agentActivity={agentActivity}
+        agentSessionId={agentSessionId}
+        onApprovePlan={onApprovePlan}
+        onRejectPlan={onRejectPlan}
+        suggestedNewConversation={suggestedNewConversation}
+        onAcceptNewConversation={onAcceptNewConversation}
+        onDismissNewConversation={onDismissNewConversation}
+        failedTurn={failedTurn}
+        onRetryTurn={onRetryTurn}
+      />
+    </ChatWorkspace>
   );
 };

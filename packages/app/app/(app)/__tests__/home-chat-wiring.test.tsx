@@ -266,11 +266,7 @@ describe('the new-chat screen wires the whole conversation', () => {
     const props = await mount();
 
     expect(props.messages).toBe(chat.messages);
-    expect(props.scrollViewRef).toBe(chat.scrollViewRef);
     expect(props.isLoading).toBe(chat.isLoading);
-    expect(props.onEditMessage).toBe(chat.editMessage);
-    expect(props.onRegenerateMessage).toBe(chat.regenerateMessage);
-    expect(props.onClear).toBe(chat.clearConversation);
     expect(props.selectedModel).toBe('model-of-record');
     expect(props.onModelChange).toBe(setSelectedModel);
   });
