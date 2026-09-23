@@ -123,3 +123,26 @@ export function getToolPillLabel(toolName: string): string {
   // Fallback: camelCase → "Camel Case"
   return toolName.replace(/([A-Z])/g, ' $1').replace(/^./, c => c.toUpperCase()).trim();
 }
+
+/**
+ * The finished form of a tool's label, for a task whose call has returned
+ * (`TaskList` swaps `runningTitle` for this once the task's steps land).
+ * Labels that are already names ("Telegram", "Email") read the same either
+ * way, so they fall back to `getToolPillLabel`.
+ */
+const TOOL_DONE_LABELS: Record<string, string> = {
+  browse: 'Browsed',
+  webScraper: 'Read page',
+  generateFile: 'Generated file',
+  delegateToAgent: 'Delegated',
+  askAgent: 'Asked an agent',
+  agentSearch: 'Searched agents',
+  userMemory: 'Remembered',
+  shellExec: 'Ran command',
+  fileEdit: 'Edited file',
+  codeInterpreter: 'Ran code',
+};
+
+export function getToolDoneLabel(toolName: string): string {
+  return Object.hasOwn(TOOL_DONE_LABELS, toolName) ? TOOL_DONE_LABELS[toolName] : getToolPillLabel(toolName);
+}

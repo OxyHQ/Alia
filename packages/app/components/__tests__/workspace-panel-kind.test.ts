@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/components/agent-panel', () => ({ AgentPanel: () => null }));
 vi.mock('@/components/canvas/canvas-component', () => ({ CanvasComponent: () => null }));
-vi.mock('@/components/credits-panel', () => ({ CreditsPanel: () => null }));
+vi.mock('@/components/credits-limits', () => ({ CreditsLimits: () => null }));
 vi.mock('@/components/thought-panel', () => ({ ThoughtPanel: () => null }));
 vi.mock('@/lib/stores/library-store', () => ({ useLibraryStore: () => null }));
 vi.mock('@/lib/stores/ui-store', () => ({ useUIStore: () => null }));
