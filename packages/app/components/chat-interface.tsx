@@ -1,12 +1,11 @@
 import { AgentResultCard } from '@/components/agent-result-card';
 import { AgentTaskCard } from '@/components/agent-task-card';
-import { ChatEmptyState } from '@/components/chat/chat-empty-state';
+import { WelcomeMessage } from '@/components/welcome-message';
 import { FailedTurnCard } from '@/components/chat/failed-turn-card';
 import { MessageBlockBoundary } from '@/components/chat/message-block-boundary';
 import { ToolResultCard } from '@/components/chat/tool-result-card';
 import type { FailedTurn } from '@/components/chat/turn-failure';
 import { cardOf } from '@/lib/chat/tool-cards';
-import type { Suggestion } from '@/lib/hooks/use-suggestions';
 import { getToolPillLabel } from '@/lib/task-utils';
 import { isWebInvocation, taskListLog, webSearchLog } from '@/lib/chat/work-log';
 import { useAtBottom } from '@/lib/hooks/use-at-bottom';
@@ -44,6 +43,7 @@ import {
   AiChatThread,
   AiChatUserMessage,
   type AiChatThreadHandle,
+  useAiChatChromeInsets,
 } from '@oxy.so/bloom/ai-chat';
 import { Loading } from '@oxy.so/bloom/loading';
 import * as Skeleton from '@oxy.so/bloom/skeleton';
@@ -185,12 +185,6 @@ type ChatInterfaceProps = {
    */
   failedTurn?: FailedTurn | null;
   onRetryTurn?: () => void;
-  /**
-   * The welcome suggestions the empty chat offers, and what picking one does.
-   * Only read while the thread is empty.
-   */
-  suggestions?: readonly Suggestion[];
-  onPickSuggestion?: (suggestion: Suggestion) => void;
 };
 
 /**
@@ -516,8 +510,6 @@ export const ChatInterface = React.memo(function ChatInterface({
   focusCursor,
   failedTurn,
   onRetryTurn,
-  suggestions,
-  onPickSuggestion,
 }: ChatInterfaceProps) {
   const { t, locale } = useTranslation();
   /** This screen's votes, read to decide whether a press casts or retracts one. */
@@ -851,10 +843,10 @@ export const ChatInterface = React.memo(function ChatInterface({
    * The keyboard is handled by `ChatWorkspace` one level up: Bloom's AI Chat
    * family imports no keyboard controller at all.
    */
+  const chromeInsets = useAiChatChromeInsets();
   /**
-   * Nothing said yet and nothing on its way: Bloom's empty state, centred in
-   * the transcript's 768 column as `AgentChat` centres its own, instead of the
-   * bottom-anchored thread with nothing in it.
+   * Nothing said yet and nothing on its way: Alia's greeting, resting at the
+   * foot of the transcript's 768 column over the composer.
    */
   const isEmpty =
     filteredMessages.length === 0 &&
@@ -864,12 +856,10 @@ export const ChatInterface = React.memo(function ChatInterface({
     voiceAgentState !== 'thinking';
   if (isEmpty) {
     return (
-      <View className="flex-1 justify-center px-4">
+      // Above the floating composer: the container measures it for us.
+      <View className="flex-1 justify-end px-4" style={{ paddingBottom: chromeInsets?.bottom ?? 0 }}>
         <View className="w-full max-w-[768px] self-center">
-          <ChatEmptyState
-            suggestions={suggestions}
-            onPickSuggestion={onPickSuggestion}
-          />
+          <WelcomeMessage />
         </View>
       </View>
     );

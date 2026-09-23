@@ -4,9 +4,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 /**
  * The chat's new Bloom surfaces, by what they DO rather than how they look:
- * the empty chat hands a picked suggestion back whole, the header's menu
- * offers exactly the actions the screen can honour, and a page's header on a
- * phone carries the menu and panel buttons the mobile header used to.
+ * the header's menu offers exactly the actions the screen can honour, and a
+ * page's header on a phone carries the menu and panel buttons the mobile
+ * header used to.
  */
 
 const shell = vi.hoisted(() => ({
@@ -29,21 +29,6 @@ vi.mock('@/lib/useColorScheme', () => ({
   useColorScheme: () => ({ colors: { primary: '#000' } }),
 }));
 vi.mock('@alia.onl/sdk', () => ({ IdentityMark: () => null }));
-
-vi.mock('@oxy.so/bloom/empty-state', async () => {
-  const ReactModule = await import('react');
-  return {
-    EmptyState: ({ title, description, footer }: Record<string, React.ReactNode>) =>
-      ReactModule.createElement('EmptyState', { title, description }, footer),
-  };
-});
-vi.mock('@oxy.so/bloom/chip', async () => {
-  const ReactModule = await import('react');
-  return {
-    Chip: ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
-      ReactModule.createElement('Chip', props, children),
-  };
-});
 
 vi.mock('@oxy.so/bloom/dropdown-menu', async () => {
   const ReactModule = await import('react');
@@ -82,7 +67,6 @@ vi.mock('@oxy.so/bloom/page-header', async () => {
   };
 });
 
-const { ChatEmptyState } = await import('@/components/chat/chat-empty-state');
 const { ChatHeaderActions } = await import('@/components/chat/chat-header-actions');
 const { ShellPageHeader } = await import('@/components/app-shell/page-chrome');
 
@@ -103,35 +87,6 @@ afterEach(() => {
 
 const all = (r: ReactTestRenderer, name: string): ReactTestInstance[] =>
   r.root.findAll((node) => node.type === name);
-
-const SUGGESTION = {
-  suggestionId: 's1',
-  title: 'Plan a trip',
-  text: 'Plan a three-day trip to Lisbon',
-  isTemplate: false,
-} as never;
-
-describe('ChatEmptyState', () => {
-  it('asks what it can help with, and offers each suggestion by its title', () => {
-    const r = render(<ChatEmptyState suggestions={[SUGGESTION]} onPickSuggestion={vi.fn()} />);
-    expect(all(r, 'EmptyState')[0].props.title).toBe('chat.emptyState.title');
-    const chips = all(r, 'Chip');
-    expect(chips).toHaveLength(1);
-    expect(chips[0].props.children).toBe('Plan a trip');
-  });
-
-  it('hands the whole suggestion back when one is pressed', () => {
-    const onPick = vi.fn();
-    const r = render(<ChatEmptyState suggestions={[SUGGESTION]} onPickSuggestion={onPick} />);
-    act(() => all(r, 'Chip')[0].props.onPress());
-    expect(onPick).toHaveBeenCalledWith(SUGGESTION);
-  });
-
-  it('draws the heading alone when there is nothing to suggest', () => {
-    const r = render(<ChatEmptyState suggestions={[]} onPickSuggestion={vi.fn()} />);
-    expect(all(r, 'Chip')).toHaveLength(0);
-  });
-});
 
 describe('ChatHeaderActions', () => {
   const labels = (r: ReactTestRenderer) =>

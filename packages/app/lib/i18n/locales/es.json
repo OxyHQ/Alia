@@ -633,10 +633,6 @@
       "noResults": "Sin resultados"
     },
     "voiceStartFailed": "No se pudo iniciar la sesión de voz",
-    "emptyState": {
-      "title": "¿En qué puedo ayudarte?",
-      "description": "Pregunta lo que quieras o empieza con una de estas ideas."
-    },
     "exportMarkdown": "Exportar como Markdown",
     "deleteConversation": "Eliminar conversación",
     "deleteConversationTitle": "¿Eliminar esta conversación?",

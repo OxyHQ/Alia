@@ -7,6 +7,7 @@ import {
   SettingsValueField,
 } from '@oxy.so/bloom/settings-modal';
 import { confirm } from '@oxy.so/bloom/surfaces';
+import { getAccountDisplayName } from '@oxy.so/core';
 import { useOxy } from '@oxy.so/services';
 import { useAliaSettings } from './settings-context';
 
@@ -18,13 +19,9 @@ import { useAliaSettings } from './settings-context';
 export function ProfileSection() {
   const { user, showBottomSheet, logoutAll } = useOxy();
   const { afterClose } = useAliaSettings();
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
 
-  const name =
-    user?.name?.displayName?.trim() ||
-    [user?.name?.first, user?.name?.last].filter(Boolean).join(' ') ||
-    user?.username ||
-    '';
+  const name = user ? getAccountDisplayName(user, locale) : '';
 
   return (
     <SettingsProfilePage
