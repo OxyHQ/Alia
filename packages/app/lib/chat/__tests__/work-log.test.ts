@@ -110,10 +110,17 @@ describe('tool calls → WebSearch steps and sources', () => {
     expect(log.revealed).toBe(3);
   });
 
-  it('gives a failed search no count and no sources', () => {
+  it('says a search failed rather than drawing it like one with missing sources', () => {
     const failed: ToolInvocation = { ...search, result: { error: 'boom', results: [], count: 0 } };
     const [step] = webSearchLog([failed], undefined, t).steps;
-    expect(step.meta).toBeUndefined();
+    expect(step.meta).toBe(t('chat.bloom.searchFailed'));
+    expect(step.sources).toBeUndefined();
+  });
+
+  it('says a search found nothing', () => {
+    const empty: ToolInvocation = { ...search, result: { results: [], count: 0 } };
+    const [step] = webSearchLog([empty], undefined, t).steps;
+    expect(step.meta).toBe(t('chat.bloom.noResults'));
     expect(step.sources).toBeUndefined();
   });
 
