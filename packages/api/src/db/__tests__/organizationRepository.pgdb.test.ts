@@ -464,7 +464,8 @@ describe('updating an organization', () => {
 describe('the wire shape the clients already read', () => {
   it('serves `_id` and re-nests credits and settings', async () => {
     /**
-     * Three measured readers in `packages/alia-console/src/hooks/use-workspace.ts`:
+     * Three readers measured in the since-retired developer console's
+     * `use-workspace.ts`:
      * `org._id === updatedOrg._id`, `org.credits?.paid ?? 0` and
      * `org.settings?.billingEmail`. Serving the flat row makes the first TRUE for
      * every pair of organizations, the second render every balance as zero, and

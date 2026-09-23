@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -17,7 +17,7 @@ const rootFlag = process.argv.indexOf('--root');
 const root = rootFlag === -1
   ? path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
   : path.resolve(process.argv[rootFlag + 1] ?? '.');
-const consoleOutput = path.join(root, 'packages/alia-console/.output');
+const lockfile = path.join(root, 'bun.lock');
 const failures = [];
 
 const tracked = execFileSync('git', ['ls-files'], { cwd: root, encoding: 'utf8' })
@@ -58,12 +58,8 @@ const SOURCE = /^packages\/.+\.(?:[cm]?[jt]sx?)$/;
 /**
  * Generated or vendored trees that are not anybody's runtime source.
  *
- * `.output` is Nitro's build directory for `alia-console`, and it is checked
- * further down as a BUILT ARTEFACT — by a stricter test that also looks for
- * driver fingerprints rather than only for imports. Letting it match here as
- * well would double-report it, and would count emitted files toward the
- * "matched no source files" floor, which is supposed to notice that the SOURCE
- * pattern stopped matching.
+ * Emitted files would count toward the "matched no source files" floor, which
+ * is supposed to notice that the SOURCE pattern stopped matching.
  */
 const NOT_SOURCE = /(?:^|\/)(?:node_modules|dist|build|out|\.output|\.expo|coverage)\//;
 
@@ -105,27 +101,23 @@ for (const relative of sources) {
   }
 }
 
-if (!existsSync(path.join(consoleOutput, 'server/index.mjs'))) {
-  failures.push('packages/alia-console/.output/server/index.mjs is absent; build alia-console before this gate');
+/**
+ * The lockfile resolves no Mongo package at all.
+ *
+ * It used to resolve `mongodb` as an optional peer of Nitro's unstorage, which
+ * only the retired `alia-console` used, so this gate built that console and
+ * searched its artefact for a driver instead. With the console gone the
+ * resolution is gone too, and the stricter check is possible: any `mongodb`,
+ * `mongoose` or `@mongodb-js/*` entry in `bun.lock` is a failure, direct or
+ * transitive.
+ */
+if (!existsSync(lockfile)) {
+  failures.push('bun.lock is absent; the gate cannot see what the install resolves');
 } else {
-  const visit = (directory) => {
-    for (const entry of readdirSync(directory)) {
-      const absolute = path.join(directory, entry);
-      if (statSync(absolute).isDirectory()) {
-        visit(absolute);
-        continue;
-      }
-      if (!/\.(?:m?js|cjs|json)$/.test(entry)) continue;
-      const source = readFileSync(absolute, 'utf8');
-      if (
-        runtimeImport.test(source)
-        || /mongodb-connection-string-url|@mongodb-js\/saslprep|node_modules\/mongodb/.test(source)
-      ) {
-        failures.push(`${path.relative(root, absolute)}: built Mongo runtime fingerprint`);
-      }
-    }
-  };
-  visit(consoleOutput);
+  const resolved = readFileSync(lockfile, 'utf8').match(/"(?:mongodb|mongoose|@mongodb-js\/[^"]+)"\s*:/g) ?? [];
+  for (const entry of new Set(resolved)) {
+    failures.push(`bun.lock resolves ${entry.replace(/\s*:$/, '')}`);
+  }
 }
 
 if (failures.length > 0) {
@@ -136,5 +128,5 @@ if (failures.length > 0) {
 console.log(
   'Mongo runtime boundary passed: '
     + `${String(manifests.length)} workspace manifests and ${String(sources.length)} source files `
-    + 'carry no direct dependency or import, and the alia-console build artefact contains no driver.',
+    + 'carry no direct dependency or import, and bun.lock resolves no Mongo package.',
 );

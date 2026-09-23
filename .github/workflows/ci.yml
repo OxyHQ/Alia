@@ -338,15 +338,6 @@ jobs:
       - name: Assert the Expo generator did not rewrite tsconfig
         run: git diff --exit-code packages/app/tsconfig.json
 
-      # `alia-console` gains a `typecheck` script in this PR, so the enumeration
-      # above picks it up automatically. Its SUITE does not enumerate: before
-      # this PR the package had zero test files and a `test` script of
-      # `vitest run --passWithNoTests`, which is a green that measures nothing.
-      # The suite is the row-459 gate — it fails if a screen or store starts
-      # asking Alia to issue an application or a key again.
-      - name: Test console
-        run: bun run --filter alia-console test
-
       # The VS Code extension parses `GET /catalogue` and `GET /catalogue/modes`
       # itself — it bundles with esbuild and cannot depend on an unpublished
       # workspace package, so the parsing is its own. It had a `test` script and
@@ -358,7 +349,7 @@ jobs:
       # `src/preload/__tests__/index.test.ts`, which caught ten no-op IPC
       # unsubscribes — and no job has ever called it. Exactly the
       # suite-that-cannot-fail this file records having fixed for
-      # `alia-console`, `alia-codea` and `@alia/app`; cowork was simply missed.
+      # `alia-codea` and `@alia/app`; cowork was simply missed.
       - name: Test Cowork
         run: bun run --filter alia-cowork test
 
@@ -376,12 +367,11 @@ jobs:
       - name: Test Canvas
         run: bun run --filter alia-canvas test
 
-      # Three packages carry an `eslint.config.js` and a `lint` script that no
+      # Two packages carry an `eslint.config.js` and a `lint` script that no
       # job ran, so the configuration was as good as absent. `@alia/api`'s lint
       # runs in `Lint & Test`; these are the rest of them.
       - name: Lint the frontends
         run: |
-          bun run --filter alia-console lint
           bun run --filter alia-canvas lint
           bun run --filter @alia-codea/cli lint
 
@@ -497,31 +487,13 @@ jobs:
       - name: Check an agent is offered no colour it cannot keep
         run: node scripts/check-agent-colour-vocabulary.mjs
 
-      # LAST in this job, and the position is the point.
-      #
-      # Nitro depends on unstorage, whose broad OPTIONAL peer set leaves a
-      # mongodb resolution in bun.lock even though Alia is PostgreSQL-only.
-      # Replacing Nitro is outside this cutover; build the actual server and
-      # prove the optional driver did not enter its runtime artefact.
-      #
-      # It used to sit third, and that made it a single point of failure for
-      # everything after it. `bun run --filter alia-console build` has been
-      # failing on `main` since the Bloom bump — `@vitejs/plugin-react@6` peers
-      # `vite ^8` while this workspace pins `npm:rolldown-vite@^7.3.1`, so bun
-      # installs a nested vite that does not export `./internal` — and a step
-      # that exits non-zero ends the job. So ELEVEN later checks stopped
-      # reporting: `Test Codea extension`, `Test app`, the route, static-asset,
-      # model-default, Dockerfile, picker-language, model-wording and
-      # agent-colour gates, the solution-style typechecks and the Canvas deploy
-      # dry-run. None of them were red. None of them ran.
-      #
-      # Moving it to the end hides nothing: the job still fails while the build
-      # is broken. It just stops one broken dependency from deciding whether
-      # everything else gets measured.
-      - name: Prove the console runtime contains no Mongo driver
-        run: |
-          bun run --filter alia-console build
-          node scripts/check-no-mongodb-runtime.mjs
+      # Alia is PostgreSQL-only: no workspace may depend on or import a Mongo
+      # driver, and `bun.lock` may not resolve one. The lockfile used to carry
+      # `mongodb` as an optional peer of Nitro's unstorage, pulled in only by the
+      # retired `alia-console`, which is why this step once had to build that
+      # console and search its artefact instead.
+      - name: Prove the runtime contains no Mongo driver
+        run: node scripts/check-no-mongodb-runtime.mjs
 
   build-api:
     name: Build API

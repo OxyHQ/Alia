@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  *
  * Nothing asserted this, and the Postgres port changed it: the route started
  * returning the raw row — flat `planSnapshotName`, `planSnapshotPrice` — while
- * `packages/app` and `packages/alia-console` both read `subscription.plan.name`
+ * `packages/app` (and the since-retired developer console) read `subscription.plan.name`
  * and `subscription.plan.planId`. Every account was on the free floor and got
  * `null` here, so nobody saw it until one account had a subscription and its
  * plan rendered blank.
@@ -144,7 +144,7 @@ describe('GET /billing/subscription', () => {
     const { body } = await getSubscription();
     const { subscription } = body as { subscription: Record<string, unknown> };
 
-    // The exact keys `packages/app` and `packages/alia-console` index into.
+    // The exact keys `packages/app` indexes into.
     expect(subscription.plan).toEqual({
       planId: 'pro',
       name: 'Pro',

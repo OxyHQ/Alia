@@ -64,7 +64,7 @@ describe('every surface names a workspace that exists', () => {
   });
 
   it('gives every surface text and a modality vocabulary it stays inside', () => {
-    expect(SURFACES.length).toBeGreaterThanOrEqual(7);
+    expect(SURFACES.length).toBeGreaterThanOrEqual(6);
     for (const name of SURFACES) {
       const capability = SURFACE_CAPABILITIES[name];
       // A surface that cannot render text is not a chat client, and admitting
