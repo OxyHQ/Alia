@@ -16,10 +16,14 @@ import { useFoldersStore } from '@/lib/stores/folders-store';
 import { usePinnedStore } from '@/lib/stores/pinned-store';
 import { useProjectsStore } from '@/lib/stores/projects-store';
 import { useUIStore } from '@/lib/stores/ui-store';
-import { AiChatShell } from '@oxy.so/bloom/ai-chat';
+import {
+  AiChatContainer,
+  AiChatMobileHeader,
+  AiChatShell,
+} from '@oxy.so/bloom/ai-chat';
 import { useOxy } from '@oxy.so/services';
 import { Stack } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -33,6 +37,20 @@ const SELF_INSET_ROUTES = new Set([
 
 /** The template's frame (`templates/shared/dashboard.tsx` in Bloom). */
 const TEMPLATE_FRAME = { flex: 1, width: '100%', minWidth: 0, minHeight: 0 } as const;
+
+/** Routes that compose their own `AiChatContainer` (theirs holds the composer). */
+const CHAT_ROUTES = new Set(['index', 'c/[id]/index', '[username]']);
+
+/** The crumb each page's section gets. */
+const PAGE_TITLES: Record<string, string> = {
+  library: 'sidebar.library',
+  tasks: 'sidebar.tasks',
+  automations: 'sidebar.automations',
+  skills: 'sidebar.skills',
+  shows: 'sidebar.shows',
+  agents: 'sidebar.agents',
+  notifications: 'sidebar.notifications',
+};
 
 export default function AppLayout() {
   const insets = useSafeAreaInsets();
@@ -108,6 +126,32 @@ export default function AppLayout() {
     },
   });
 
+  /**
+   * Every page stands on the layout's surface: Bloom's `AiChatContainer`, with
+   * its mobile header and the page's crumb. A page draws no background and no
+   * corner of its own. The chat routes compose the same container themselves,
+   * because theirs carries the composer.
+   */
+  const screenLayout = ({
+    route,
+    children,
+  }: {
+    route: { name: string };
+    children: React.ReactElement;
+  }) => {
+    if (CHAT_ROUTES.has(route.name)) return children;
+    const section = route.name.split('/')[0];
+    const title = PAGE_TITLES[section] ? i18n.t(PAGE_TITLES[section]) : undefined;
+    return (
+      <AiChatContainer
+        header={<AiChatMobileHeader title={title ?? 'Alia'} />}
+        title={title}
+      >
+        {children}
+      </AiChatContainer>
+    );
+  };
+
   return (
     <AppErrorBoundary>
       <AliaSettingsProvider>
@@ -130,7 +174,7 @@ export default function AppLayout() {
           panel={(width) => <WorkspacePanel width={width} />}
         >
           <ShellNavProvider>
-            <Stack screenOptions={screenOptions}>
+            <Stack screenOptions={screenOptions} screenLayout={screenLayout}>
               <Stack.Screen
                 name="c/[id]/index"
                 options={{ title: i18n.t('nav.chat') }}

@@ -26,6 +26,9 @@ import type { Attachment } from "./types";
  * rail and effort chip, the mic, send / stop, the attachment tiles and the
  * status tab. Alia supplies the data and the handlers.
  */
+/** The panel's width in Bloom's own story frame; narrower screens fill. */
+const PANEL_FRAME = { width: '100%', maxWidth: 640, alignSelf: 'center' } as const;
+
 const EMPTY_ADD_MENU: readonly ComposerPanelAddMenuGroup[] = [];
 /** `[]` hides the selector; Bloom's own four modes are not Alia's. */
 const NO_MODES: readonly ComposerPanelPermissionOption[] = [];
@@ -207,7 +210,7 @@ export function Composer({
   );
 
   const host = (
-    <View id={hostId}>
+    <View id={hostId} style={PANEL_FRAME}>
       <ComposerPanel
         value={value}
         onValueChange={onValueChange}

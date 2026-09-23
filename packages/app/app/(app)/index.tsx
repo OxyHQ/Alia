@@ -1,5 +1,5 @@
 import { ChatPageContent } from '@/components/chat-page-content';
-import { WelcomeIntro } from '@/components/welcome-intro';
+import { WelcomeIntro, type WelcomeIntroSlots } from '@/components/welcome-intro';
 import { resolveSelection, useCatalogue } from '@/lib/hooks/use-catalogue';
 import { useChatConversation } from '@/lib/hooks/use-chat-conversation';
 import { useProductModes } from '@/lib/hooks/use-product-modes';
@@ -8,20 +8,6 @@ import { useModelStore } from '@/lib/stores/model-store';
 import { useAuth } from '@oxy.so/services';
 import Head from 'expo-router/head';
 import { useCallback, useState } from 'react';
-import { View } from 'react-native';
-import Animated, {
-  Easing,
-  useAnimatedStyle,
-  useSharedValue,
-  withDelay,
-  withTiming,
-} from 'react-native-reanimated';
-
-/** The chat rises into view as the intro leaves: 600ms, 450ms after it starts. */
-const CHAT_RISE_DURATION = 600;
-const CHAT_RISE_DELAY = 450;
-const CHAT_RISE_EASE = Easing.bezier(0.16, 0.84, 0.28, 1);
-const CHAT_RISE_DISTANCE = 22;
 
 const ChatPage = () => {
   // The store holds what the user chose; the catalogue decides what a request
@@ -74,22 +60,6 @@ const ChatPage = () => {
   if (introState === 'idle' && isAuthResolved && !isAuthenticated) {
     setIntroState('showing');
   }
-  const introShown = introState !== 'idle';
-  const chatRise = useSharedValue(0);
-  const chatStyle = useAnimatedStyle(() => ({
-    opacity: introShown ? chatRise.value : 1,
-    transform: [
-      {
-        translateY: introShown ? (1 - chatRise.value) * CHAT_RISE_DISTANCE : 0,
-      },
-    ],
-  }));
-  const handleIntroExitStart = useCallback(() => {
-    chatRise.value = withDelay(
-      CHAT_RISE_DELAY,
-      withTiming(1, { duration: CHAT_RISE_DURATION, easing: CHAT_RISE_EASE }),
-    );
-  }, [chatRise]);
   const handleIntroDismissed = useCallback(() => setIntroState('done'), []);
 
   /**
@@ -147,6 +117,32 @@ const ChatPage = () => {
     void clearConversation();
   }, [dismissSuggestedNewConversation, clearConversation]);
 
+  /** The chat, or the welcome inside the same container while it shows. */
+  const chat = (intro?: WelcomeIntroSlots) => (
+      <ChatPageContent
+        intro={intro}
+        // No `conversationId`, deliberately: this is the new-chat screen,
+        // and its absence is what `ChatPageContent` reads to decide which
+        // mounted instance a `composerDraft` belongs to. The drawer keeps
+        // every visited chat alive, so naming an id here would hand this
+        // screen's draft to a persisted conversation.
+        messages={messages}
+        isLoading={isLoading}
+        conversationLoading={conversationLoading}
+        onSubmit={handleSubmit}
+        onStop={stopGeneration}
+        selectedModel={selectedModel}
+        onModelChange={setSelectedModel}
+        onApprovePlan={approvePlan}
+        onRejectPlan={rejectPlan}
+        suggestedNewConversation={suggestedNewConversation}
+        onAcceptNewConversation={handleAcceptNewConversation}
+        onDismissNewConversation={dismissSuggestedNewConversation}
+        failedTurn={failedTurn}
+        onRetryTurn={retryFailedTurn}
+      />
+  );
+
   return (
     <>
       <>
@@ -167,47 +163,15 @@ const ChatPage = () => {
             content="https://alia.onl/og-image-default.png"
           />
         </Head>
-        <Animated.View style={[{ flex: 1 }, chatStyle]}>
-          <ChatPageContent
-            // No `conversationId`, deliberately: this is the new-chat screen,
-            // and its absence is what `ChatPageContent` reads to decide which
-            // mounted instance a `composerDraft` belongs to. The drawer keeps
-            // every visited chat alive, so naming an id here would hand this
-            // screen's draft to a persisted conversation.
-            messages={messages}
-            isLoading={isLoading}
-            conversationLoading={conversationLoading}
-            onSubmit={handleSubmit}
-            onStop={stopGeneration}
-            selectedModel={selectedModel}
-            onModelChange={setSelectedModel}
-            onApprovePlan={approvePlan}
-            onRejectPlan={rejectPlan}
-            suggestedNewConversation={suggestedNewConversation}
-            onAcceptNewConversation={handleAcceptNewConversation}
-            onDismissNewConversation={dismissSuggestedNewConversation}
-            failedTurn={failedTurn}
-            onRetryTurn={retryFailedTurn}
-          />
-        </Animated.View>
-
         {introState === 'showing' ? (
-          <View
-            style={{
-              position: 'absolute',
-              top: 0,
-              right: 0,
-              bottom: 0,
-              left: 0,
-              zIndex: 20,
-            }}
+          <WelcomeIntro
+            onDismissed={handleIntroDismissed}
           >
-            <WelcomeIntro
-              onExitStart={handleIntroExitStart}
-              onDismissed={handleIntroDismissed}
-            />
-          </View>
-        ) : null}
+            {(intro) => chat(intro)}
+          </WelcomeIntro>
+        ) : (
+          chat()
+        )}
       </>
     </>
   );
