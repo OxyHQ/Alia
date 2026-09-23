@@ -13,7 +13,6 @@ import {
 import {
   countSubscriptions,
   findActiveSubscription,
-  findActiveSubscriptionByPeriodStart,
   findActiveSubscriptions,
   findSubscriptionByStripeId,
   selectSubscriptions,
@@ -280,25 +279,6 @@ describe('subscriptions', () => {
     // the null above is the status filter and not a failed fixture.
     await updateSubscriptionByStripeId(db, 'sub_br_dead', { status: 'trialing' });
     expect(await findActiveSubscription(db, 'br-dead')).not.toBeNull();
-  });
-
-  it('orders by PERIOD START for the voice entitlement, a different question', async () => {
-    // Created newest-last but with the LATER period, so the two orderings
-    // disagree and this asserts which one the entitlement uses.
-    await upsertSubscriptionByStripeId(db, aSubscription({
-      stripeSubscriptionId: 'sub_br_period_late', oxyUserId: 'br-period',
-      planSnapshotName: 'LatePeriod', currentPeriodStart: daysAgo(1), createdAt: daysAgo(90),
-    }));
-    await upsertSubscriptionByStripeId(db, aSubscription({
-      stripeSubscriptionId: 'sub_br_period_early', oxyUserId: 'br-period',
-      planSnapshotName: 'EarlyPeriod', currentPeriodStart: daysAgo(100), createdAt: daysAgo(2),
-    }));
-
-    expect((await findActiveSubscriptionByPeriodStart(db, 'br-period'))?.planSnapshotName).toBe('LatePeriod');
-    // Created last (explicit `created_at`), so the creation-ordered read gives
-    // the other one — the two orderings genuinely disagree here, which is the
-    // only way this asserts WHICH ordering the entitlement uses.
-    expect((await findActiveSubscription(db, 'br-period'))?.planSnapshotName).toBe('EarlyPeriod');
   });
 
   it('answers null for an update naming no subscription', async () => {

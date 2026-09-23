@@ -453,8 +453,7 @@ describe('the financial write half can be deleted without touching the read mode
     // cache invalidation from the Stripe webhook — cannot look like progress.
     const billing = namedImports(parse(`${API_SRC}/routes/billing.ts`));
     const fromReadModel = billing.filter((i) => i.spec.includes('plan-access'));
-    // A SET: the route takes `getUserEntitlements` twice, statically and again
-    // through an awaited `import()` inside the voice-usage handler.
+    // A SET, so a second import of the same binding would not change the answer.
     expect([...new Set(fromReadModel.flatMap((i) => i.names))].sort()).toEqual([
       'getUserEntitlements',
       'invalidateEntitlementsCache',
@@ -683,19 +682,27 @@ describe('the billing path audit matches the tree it describes (#139 ws12)', () 
  * assertion in this block pins that, so the day somebody builds a ledger they
  * are sent back here.
  *
- * The one settlement that DOES write a cost record is the voice session, and it
- * is the one place a `CreditReservation` and the serving provider coexist.
+ * The one settlement that did write a cost record was the voice session, into
+ * `voice_call_usage.grant_kind`. Its writer left with the LiveKit route in
+ * #477 and 0072 dropped the table, so today the funding source is decided on
+ * every reservation and persisted nowhere — the first assertion below pins
+ * that, so whoever builds the ledger starts from the decision, not from a
+ * column that no longer exists.
  */
 describe('a cost record says which balance funded it (#139 ws12)', () => {
-  it('the funding source is a closed set the cost record renders a CHECK from', () => {
+  it('the funding source is a closed set, and no table persists it since voice_call_usage went', () => {
     expect([...CREDIT_FUNDING_SOURCES]).toEqual(['free_allowance', 'paid_balance']);
 
-    const schema = readFileSync(path.join(REPO_ROOT, API_SRC, 'db/schema/usage.ts'), 'utf8');
-    expect(schema, 'voice_call_usage has no funding-source CHECK').toContain('voice_call_usage_grant_kind_check');
-    // Rendered from the tuple, not from a retyped list beside it.
-    const usage = symbols(parse(`${API_SRC}/db/schema/usage.ts`));
-    expect(usage).toContain('CREDIT_FUNDING_SOURCES');
-    expect(usage).not.toContain('free_allowance');
+    // A census, not an aspiration: no schema module renders a column from the
+    // tuple. A cost record that comes back must render its CHECK from it — and
+    // turns this red, which is the moment to restate the gate.
+    const persisting = trackedSources(`${API_SRC}/db/schema`)
+      .filter((f) => !isTestFile(f))
+      .filter((f) => symbols(parse(f)).has('CREDIT_FUNDING_SOURCES'))
+      .sort();
+    expect(persisting, 'a table persists the funding source again — restate this gate').toEqual([]);
+    // The positive control: the same scan finds the tuple where it IS declared.
+    expect(symbols(parse(`${API_SRC}/domain/credit-funding.ts`))).toContain('CREDIT_FUNDING_SOURCES');
   });
 
   it('the reservation carries it, decided from the balance the spend returned', () => {
@@ -736,7 +743,7 @@ describe('a cost record says which balance funded it (#139 ws12)', () => {
     expect(writers, 'a cost_entries ledger came back — update this gate and the audit').toEqual([]);
 
     // The positive control: the same scan finds a table object where one IS declared.
-    expect(symbols(parse(`${API_SRC}/db/schema/usage.ts`))).toContain('voiceCallUsage');
+    expect(symbols(parse(`${API_SRC}/db/schema/usage.ts`))).toContain('chatAnalytics');
   });
 });
 
@@ -794,9 +801,9 @@ describe('every seeded feature id has a contract allowance key (#139 ws12)', () 
     // Uppercase, a leading digit and an illegal character are all outside the
     // contract's pattern; a mapper that returned its input would pass the test
     // above and this one would catch it.
-    expect(allowanceKeyFor('Voice-Minutes')).toBeNull();
+    expect(allowanceKeyFor('Concurrent-Tasks')).toBeNull();
     expect(allowanceKeyFor('1-minute')).toBeNull();
-    expect(allowanceKeyFor('voice minutes')).toBeNull();
-    expect(allowanceKeyFor('voice-minutes')).toBe('voice_minutes');
+    expect(allowanceKeyFor('concurrent tasks')).toBeNull();
+    expect(allowanceKeyFor('concurrent-tasks')).toBe('concurrent_tasks');
   });
 });

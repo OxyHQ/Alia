@@ -125,7 +125,8 @@ decision for **after** the backfill has audited what is actually stored.
 The columns that have taken this answer, so the reasoning is not re-argued per
 column: `auth_health_metrics.method`, `chat_analytics.platform`, and
 `voice_call_usage.provider` / `.audio_format` / `.disconnect_reason` /
-`.client_type`. **`voice_call_usage.provider` is the one worth reading twice**,
+`.client_type` (that table was dropped by 0072, and the reasoning is kept for
+the next column like it). **`voice_call_usage.provider` is the one worth reading twice**,
 because `PROVIDER_NAMES` exists and renders CHECKs on three columns in
 `providers.ts` — so the tempting move is to reuse it. Its Mongoose field is a
 bare `String` with no `enum`, and the write happens during session teardown,
@@ -1048,7 +1049,7 @@ about enums, applied to all of them.
 | Where | What to audit | Why it matters |
 |---|---|---|
 | `referral_redemptions_referred_user_key` | one account appearing under TWO referrers | The double-credit race is real (`routes/referrals.ts` pays before it records). A hit here is a customer who was credited twice. |
-| `voice_call_usage_session_id_key` | two rows for one provider `sessionId` | Mongoose declared this unique, so a hit means a row predating it. It matters because `lib/voice-usage.ts` sums minutes per user: a duplicated session double-counts against a plan's voice entitlement. |
+| `voice_call_usage_session_id_key` | two rows for one provider `sessionId` | Mongoose declared this unique, so a hit means a row predating it. It mattered because `lib/voice-usage.ts` summed minutes per user; the table, that reader and the allowance were dropped by 0072. |
 | `organizations_slug_lower_key` | two slugs differing only in case | Mongoose's `lowercase` setter folded them; a row written around it did not. |
 | `routing_profiles.routing_profile_id` | a value that is not already lowercase | Same setter, no CHECK added — the port stores whatever is there. |
 | `user_memory_entries_memory_title_lower_key` | two memories under one profile whose titles differ only in case or surrounding whitespace | Mongo could not index inside a sub-document array, so nothing enforced this; the application already treats such a pair as ONE memory, so a hit is two entries a user sees as duplicates. Merge them rather than relaxing the index. |

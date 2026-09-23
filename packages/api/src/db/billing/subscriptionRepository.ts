@@ -81,26 +81,6 @@ export async function findActiveSubscriptions(
     .orderBy(desc(subscriptions.createdAt));
 }
 
-/**
- * The live subscription whose billing period started most recently.
- *
- * A different ordering from `findActiveSubscription`, and deliberately so: the
- * voice-minutes entitlement is measured from the CURRENT period's start, which
- * is not necessarily the newest subscription's creation date.
- */
-export async function findActiveSubscriptionByPeriodStart(
-  db: ApiDatabase,
-  oxyUserId: string,
-): Promise<SubscriptionRow | null> {
-  const [row] = await db
-    .select()
-    .from(subscriptions)
-    .where(liveFor(oxyUserId))
-    .orderBy(desc(subscriptions.currentPeriodStart))
-    .limit(1);
-  return row ?? null;
-}
-
 export async function findSubscriptionByStripeId(
   db: ApiDatabase,
   stripeSubscriptionId: string,

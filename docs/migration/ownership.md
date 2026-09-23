@@ -412,7 +412,7 @@ is the product unit — Kaana bills Alia in dollars, Alia bills the user in cred
   `FREE_MODEL_IDS`. No error.
 - An empty `api_key_usage` makes every rate-limit window read zero, so every developer key
   becomes unlimited. Same for `api_usage` and provider keys.
-- An empty `voice_call_usage` reads as "zero minutes used", removing the only enforcement
+- (Resolved by retirement: 0072 dropped `voice_call_usage` and the `voice-minutes` allowance together, so there is no minute count to read as zero — see [Voice](../voice.mdx).) An empty `voice_call_usage` reads as "zero minutes used", removing the only enforcement
   of a plan's voice-minute entitlement.
 - Losing `chat_analytics.alia_model_id` empties `GET /analytics/models` for every user,
   because unresolvable entries are SKIPPED by the model-abstraction rule — it looks

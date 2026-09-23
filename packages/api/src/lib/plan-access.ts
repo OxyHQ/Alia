@@ -78,7 +78,7 @@ const cache = new TTLCache<Entitlements>({ ttlMs: 5 * 60 * 1000, maxSize: 5000 }
  * An Alia `feature_id` as an allowance key the contract will accept, or `null`.
  *
  * The two namespaces do not coincide and the difference is one character:
- * Alia's feature ids are kebab-case (`voice-minutes`) and the contract's
+ * Alia's feature ids are kebab-case (`concurrent-tasks`) and the contract's
  * `planAllowanceSchema.key` is a machine name with no hyphen. A hyphen is
  * therefore an underscore here — injective over every seeded id, because none
  * of them contains an underscore already.
