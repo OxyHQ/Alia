@@ -2,13 +2,10 @@ import { ChatPageContent } from '@/components/chat-page-content';
 import { WelcomeIntro } from '@/components/welcome-intro';
 import { resolveSelection, useCatalogue } from '@/lib/hooks/use-catalogue';
 import { useChatConversation } from '@/lib/hooks/use-chat-conversation';
-import { useCreateConversation } from '@/lib/hooks/use-conversations';
 import { useProductModes } from '@/lib/hooks/use-product-modes';
 import { useStore } from '@/lib/stores/global-store';
 import { useModelStore } from '@/lib/stores/model-store';
-import { toast } from '@oxy.so/bloom/toast';
 import { useAuth } from '@oxy.so/services';
-import { useRouter } from 'expo-router';
 import Head from 'expo-router/head';
 import { useCallback, useState } from 'react';
 import { View } from 'react-native';
@@ -27,9 +24,6 @@ const CHAT_RISE_EASE = Easing.bezier(0.16, 0.84, 0.28, 1);
 const CHAT_RISE_DISTANCE = 22;
 
 const ChatPage = () => {
-  const router = useRouter();
-  const createConversationMutation = useCreateConversation();
-
   // The store holds what the user chose; the catalogue decides what a request
   // may carry. They differ only when the chosen identifier is no longer one the
   // product offers, and sending that identifier would be a 400.
@@ -115,11 +109,8 @@ const ChatPage = () => {
     messages,
     isLoading,
     conversationLoading,
-    scrollViewRef,
     sendMessage,
     createNewConversation,
-    editMessage,
-    regenerateMessage,
     stopGeneration,
     clearConversation,
     approvePlan,
@@ -143,9 +134,8 @@ const ChatPage = () => {
    * an agent's thread — a persisted conversation, a handle to re-read. None of
    * that applies here: this screen is already the empty one, and nothing has
    * been written yet in ghost mode by design. So accepting stops whatever is
-   * streaming and empties the thread, which is the same act the header's
-   * "Clear" performs and is genuinely "start a new conversation" on a screen
-   * that has no id.
+   * streaming and empties the thread, which is genuinely "start a new
+   * conversation" on a screen that has no id.
    *
    * It is not simply `dismiss`. The card's primary button says the offer will
    * be acted on, and a button that only retires the card it sits in would be a
@@ -156,18 +146,6 @@ const ChatPage = () => {
     dismissSuggestedNewConversation();
     void clearConversation();
   }, [dismissSuggestedNewConversation, clearConversation]);
-
-  const handleVoiceStart = useCallback(async () => {
-    try {
-      const conv = await createConversationMutation.mutateAsync({});
-      router.replace({
-        pathname: '/(app)/c/[id]',
-        params: { id: conv.id, startVoice: 'true' },
-      });
-    } catch {
-      toast.error('Failed to start voice session');
-    }
-  }, [createConversationMutation, router]);
 
   return (
     <>
@@ -197,17 +175,12 @@ const ChatPage = () => {
             // every visited chat alive, so naming an id here would hand this
             // screen's draft to a persisted conversation.
             messages={messages}
-            scrollViewRef={scrollViewRef}
             isLoading={isLoading}
             conversationLoading={conversationLoading}
             onSubmit={handleSubmit}
-            onEditMessage={editMessage}
-            onRegenerateMessage={regenerateMessage}
             onStop={stopGeneration}
-            onClear={clearConversation}
             selectedModel={selectedModel}
             onModelChange={setSelectedModel}
-            onVoiceStart={handleVoiceStart}
             onApprovePlan={approvePlan}
             onRejectPlan={rejectPlan}
             suggestedNewConversation={suggestedNewConversation}

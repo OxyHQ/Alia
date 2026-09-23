@@ -263,8 +263,6 @@ export default function CreateAgentScreen() {
             busy={generating}
             disabled={generating}
             placeholder={t("agents.createPlaceholder")}
-            autocomplete
-            autocompletePosition="bottom"
           />
         </View>
       </ScrollView>

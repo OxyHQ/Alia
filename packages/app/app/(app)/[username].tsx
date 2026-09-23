@@ -147,7 +147,6 @@ const AgentThreadPage = () => {
           conversationId={thread.conversationId}
           agentId={thread.agent._id}
           agentName={headerName}
-          agentColor={thread.agent.color}
           /**
            * The handle is what makes this screen a THREAD rather than one
            * conversation: it is what the history is paged from, and what is
