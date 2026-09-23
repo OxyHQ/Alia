@@ -12,7 +12,6 @@ const REVIEWED = new Set<string>(OXY_KAANA_ROUTING_PROFILE_ID_LIST);
 export interface AgentRoutingReadinessRow {
   readonly id: string;
   readonly routingProfileId: string | null;
-  readonly allowedModels: readonly string[];
 }
 
 export function agentRoutingReadinessReport(rows: readonly AgentRoutingReadinessRow[]) {
@@ -21,7 +20,6 @@ export function agentRoutingReadinessReport(rows: readonly AgentRoutingReadiness
     .map((row) => ({
       id: row.id,
       routingProfileId: row.routingProfileId,
-      legacyAllowedModels: [...row.allowedModels],
       reason: row.routingProfileId === null ? 'missing' as const : 'unknown' as const,
     }))
     .sort((left, right) => left.id.localeCompare(right.id));
@@ -82,7 +80,6 @@ async function main(): Promise<void> {
     .select({
       id: agents.id,
       routingProfileId: agents.routingProfileId,
-      allowedModels: agents.allowedModels,
     })
     .from(agents)
     .where(eq(agents.status, 'active'));

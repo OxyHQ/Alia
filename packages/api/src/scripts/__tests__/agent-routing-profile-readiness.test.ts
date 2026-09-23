@@ -11,7 +11,6 @@ describe('agent routing-profile rollout readiness', () => {
     expect(agentRoutingReadinessReport([{
       id: 'agent-ready',
       routingProfileId: OXY_KAANA_ROUTING_PROFILE_IDS['route:auto'],
-      allowedModels: ['legacy-display-only'],
     }])).toEqual({ ready: true, unresolvedCount: 0, unresolved: [] });
   });
 
@@ -21,18 +20,16 @@ describe('agent routing-profile rollout readiness', () => {
     ['leading whitespace', ` ${OXY_KAANA_ROUTING_PROFILE_IDS['route:auto']}`],
     ['trailing whitespace', `${OXY_KAANA_ROUTING_PROFILE_IDS['route:auto']} `],
     ['unknown opaque id', '01a06477-94f5-74f0-bc25-000000000000'],
-  ])('reports %s without deriving a profile from legacy array order', (_label, routingProfileId) => {
+  ])('reports %s as unresolved', (_label, routingProfileId) => {
     expect(agentRoutingReadinessReport([{
       id: 'agent-unresolved',
       routingProfileId,
-      allowedModels: ['route:auto', 'route:instant'],
     }])).toEqual({
       ready: false,
       unresolvedCount: 1,
       unresolved: [{
         id: 'agent-unresolved',
         routingProfileId,
-        legacyAllowedModels: ['route:auto', 'route:instant'],
         reason: routingProfileId === null ? 'missing' : 'unknown',
       }],
     });
@@ -43,12 +40,10 @@ describe('agent routing-profile rollout readiness', () => {
       {
         id: '01a03df0-2834-7309-80cb-cb1b1ce67dda',
         routingProfileId: OXY_KAANA_ROUTING_PROFILE_IDS['route:auto'],
-        allowedModels: ['mode:auto', 'mode:pro'],
       },
       {
         id: 'another-agent',
         routingProfileId: null,
-        allowedModels: ['mode:auto', 'mode:pro'],
       },
     ])).toEqual({
       ready: false,
@@ -56,7 +51,6 @@ describe('agent routing-profile rollout readiness', () => {
       unresolved: [{
         id: 'another-agent',
         routingProfileId: null,
-        legacyAllowedModels: ['mode:auto', 'mode:pro'],
         reason: 'missing',
       }],
     });
