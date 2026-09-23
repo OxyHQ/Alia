@@ -154,7 +154,15 @@ function webStep(inv: ToolInvocation, live: LiveResearch | undefined, t: Transla
         label: t('chat.bloom.searchedWeb'),
         query: str(inv.args?.query),
         icon: RiSearchLine,
-        ...(inv.state === 'result' && ok ? { meta: t('chat.bloom.resultCount', { count }) } : {}),
+        // Say what came back, including nothing: a search that found nothing or
+        // failed must not look like one whose sources are missing.
+        ...(inv.state !== 'result'
+          ? {}
+          : !ok
+            ? { meta: t('chat.bloom.searchFailed') }
+            : count === 0
+              ? { meta: t('chat.bloom.noResults') }
+              : { meta: t('chat.bloom.resultCount', { count }) }),
         ...(sources.length > 0 ? { sources } : {}),
       },
     };
