@@ -265,6 +265,8 @@ export const ConversationScreen = ({
     <>
       <>
         <ChatPageContent
+          selectedModel={selectedModel}
+          onModelChange={setConversationModel}
           conversationTitle={conversationDetails?.title}
           // Nothing live under a window: it is a view of the past, and the
           // conversation being streamed into is not below it in the thread.
@@ -274,8 +276,6 @@ export const ConversationScreen = ({
           conversationLoading={conversationLoading}
           onSubmit={handleSubmit}
           onStop={stopGeneration}
-          selectedModel={selectedModel}
-          onModelChange={setConversationModel}
           disabled={!!usageLimitError}
           voice={voice}
           agentName={agentName}

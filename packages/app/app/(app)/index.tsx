@@ -14,7 +14,6 @@ const ChatPage = () => {
   // may carry. They differ only when the chosen identifier is no longer one the
   // product offers, and sending that identifier would be a 400.
   const selectedModel = useModelStore((s) => s.selectedModel);
-  const setSelectedModel = useModelStore((s) => s.setSelectedModel);
   /**
    * The effort level, on the FIRST turn too.
    *
@@ -131,8 +130,6 @@ const ChatPage = () => {
         conversationLoading={conversationLoading}
         onSubmit={handleSubmit}
         onStop={stopGeneration}
-        selectedModel={selectedModel}
-        onModelChange={setSelectedModel}
         onApprovePlan={approvePlan}
         onRejectPlan={rejectPlan}
         suggestedNewConversation={suggestedNewConversation}

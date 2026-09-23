@@ -267,8 +267,9 @@ describe('the new-chat screen wires the whole conversation', () => {
 
     expect(props.messages).toBe(chat.messages);
     expect(props.isLoading).toBe(chat.isLoading);
-    expect(props.selectedModel).toBe('model-of-record');
-    expect(props.onModelChange).toBe(setSelectedModel);
+    // The model is the app's selection, which the shared composer reads
+    // itself; the new-chat screen has no model of its own to hand down.
+    expect('selectedModel' in props).toBe(false);
   });
 
   it('names no conversation, because there is not one yet', async () => {

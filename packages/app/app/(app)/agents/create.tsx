@@ -1,4 +1,5 @@
 import { Composer } from '@/components/chat/composer/composer';
+import { useAliaComposer } from '@/components/chat/composer/use-alia-composer';
 import {
   applyBotUsernameSuffix,
   createBotAccount,
@@ -76,6 +77,7 @@ export default function CreateAgentScreen() {
 
   const [inputValue, setInputValue] = useState("");
   const [generating, setGenerating] = useState(false);
+  const composer = useAliaComposer({ locked: generating });
   const [selectedArchetype, setSelectedArchetype] = useState<Archetype>('general');
 
   const handleGenerate = useCallback(async () => {
@@ -231,6 +233,7 @@ export default function CreateAgentScreen() {
           `onStop` Bloom draws no stop control at all.
         */}
         <Composer
+          {...composer.props}
           value={inputValue}
           onValueChange={setInputValue}
           onSubmit={handleGenerate}

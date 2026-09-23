@@ -1,26 +1,15 @@
 import { ChatInterface } from '@/components/chat-interface';
 import { ChatWorkspace } from '@/components/chat/chat-workspace';
 import type { WelcomeIntroSlots } from '@/components/welcome-intro';
-import { useComposerAddMenu } from '@/components/chat/composer/add-menu';
 import { Composer } from '@/components/chat/composer/composer';
-import { useComposerLineup } from '@/components/chat/composer/model-lineup';
+import { useAliaComposer } from '@/components/chat/composer/use-alia-composer';
 import type { Attachment } from '@/components/chat/composer/types';
-import {
-  buildTurnSelection,
-  toggleConnectorId,
-  toggleSkillName,
-} from '@/lib/chat/turn-selection';
-import { useCapabilityModes } from '@/lib/chat/use-capability-modes';
 import type { AgentActivityState } from '@/lib/hooks/use-agent-activity';
-import { useMcpServers } from '@/lib/hooks/use-mcp-servers';
-import { useInstalledSkills } from '@/lib/hooks/use-skills';
 import type { FailedTurn, SendOptions } from '@/lib/hooks/use-streaming-chat';
 import { useTranslation } from '@/lib/hooks/use-translation';
 import type { useVoiceMode } from '@/lib/hooks/use-voice-mode';
 import { useStore } from '@/lib/stores/global-store';
-import { useModelStore } from '@/lib/stores/model-store';
 import { useProjectsStore } from '@/lib/stores/projects-store';
-import { useUIStore } from '@/lib/stores/ui-store';
 import type { ThreadMessage } from '@/lib/thread-history';
 import { useColorScheme } from '@/lib/useColorScheme';
 import type { Message } from '@/types/chat';
@@ -30,12 +19,8 @@ import {
   type AiChatThreadHandle,
 } from '@oxy.so/bloom/ai-chat';
 import { ComposerPanelStatusTab } from '@oxy.so/bloom/composer-panel';
-import { RiChat3Line } from '@oxy.so/bloom/icons/RiChat3Line';
-import { RiRobot2Line } from '@oxy.so/bloom/icons/RiRobot2Line';
-import { RiSearchLine } from '@oxy.so/bloom/icons/RiSearchLine';
-import { toast } from '@oxy.so/bloom/toast';
 import { useAuth } from '@oxy.so/services';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -93,8 +78,6 @@ interface ChatPageContentProps {
     options?: SendOptions,
   ) => Promise<boolean>;
   onStop?: () => void;
-  selectedModel: string;
-  onModelChange: (model: string) => void;
   disabled?: boolean;
   conversationLoading?: boolean;
   voice?: VoiceState;
@@ -133,6 +116,9 @@ interface ChatPageContentProps {
    */
   failedTurn?: FailedTurn | null;
   onRetryTurn?: () => void;
+  /** The model this chat sends with (a conversation remembers its own). */
+  selectedModel?: string;
+  onModelChange?: (model: string) => void;
   /**
    * The signed-out welcome, in place of the conversation: its field in the
    * container's background slot and its words in the content area, with no
@@ -146,8 +132,6 @@ export const ChatPageContent = ({
   isLoading,
   onSubmit,
   onStop,
-  selectedModel,
-  onModelChange,
   disabled = false,
   conversationLoading,
   voice,
@@ -168,56 +152,21 @@ export const ChatPageContent = ({
   focusCursor,
   failedTurn,
   onRetryTurn,
+  selectedModel,
+  onModelChange,
   intro,
 }: ChatPageContentProps) => {
-  const attachments = useStore((state) => state.attachments);
-  const addAttachment = useStore((state) => state.addAttachment);
-  const removeAttachment = useStore((state) => state.removeAttachment);
   const { isAuthenticated, signIn } = useAuth();
   const { t } = useTranslation();
-  const { installed } = useMcpServers();
-  const { active: modeActive, toggle: toggleMode } = useCapabilityModes();
-  const [selectedConnectorId, setSelectedConnectorId] = useState<string | null>(
-    null,
-  );
-  /**
-   * Skills chosen for the NEXT message, by name.
-   *
-   * Per turn, like the connector beside it. Choosing none is the normal case:
-   * Alia carries an index of the installed skills in its system prompt and can
-   * load one on its own when a request matches. This is for saying "use this
-   * one" out loud.
-   */
-  const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
-  const { data: installedSkills = [] } = useInstalledSkills();
-  /**
-   * What this turn may be sent with, as two independent lists.
-   *
-   * Built by `lib/chat/turn-selection.ts` rather than derived in the menu's
-   * markup, which is where the two lists used to be tangled: the skills block
-   * was nested inside the connectors' `&&`, so an account with skills and no
-   * running MCP server was shown none of them.
-   */
-  const turnSelection = useMemo(
-    () =>
-      buildTurnSelection({
-        installedSkills,
-        installedConnectors: installed,
-        selectedSkillNames: selectedSkills,
-        selectedConnectorId,
-      }),
-    [installedSkills, installed, selectedSkills, selectedConnectorId],
-  );
-  /**
-   * Whether Alia may reach the open web on this turn.
-   *
-   * On the model store rather than in the global store beside the three, because it is one of the
-   * composer's three persistent axes and the request reads it at send time —
-   * see `lib/stores/model-store.ts`. The effort axis lives with the model rows
-   * in the composer's combined picker, not in this capability menu.
-   */
-  const webSearch = useModelStore((s) => s.webSearch);
-  const setWebSearch = useModelStore((s) => s.setWebSearch);
+  const isMainScreen = messages.length === 0;
+  // The same composer every screen that asks Alia something uses.
+  const composer = useAliaComposer({
+    locked: isLoading || disabled,
+    offerGhost: isMainScreen,
+    selectedModel,
+    onModelChange,
+  });
+  const { attachments, turnOptions, restoreTurn, clearTurn } = composer;
 
   const isVoiceActive = voice?.isVoiceActive ?? false;
   const [inputValue, setInputValue] = useState('');
@@ -235,8 +184,10 @@ export const ChatPageContent = ({
   ) {
     setAppliedDraftSeq(composerDraftSeq);
     setInputValue(composerDraft.text);
-    setSelectedConnectorId(composerDraft.mcpServerId);
-    setSelectedSkills(composerDraft.skillNames);
+    restoreTurn({
+      mcpServerId: composerDraft.mcpServerId,
+      skillNames: composerDraft.skillNames,
+    });
   }
 
   const { colors } = useColorScheme();
@@ -251,8 +202,6 @@ export const ChatPageContent = ({
     ? (projects.find((p) => p.conversationIds.includes(conversationId))?.name ??
       recentLabel)
     : undefined;
-
-  const isMainScreen = messages.length === 0;
 
   /**
    * Ask for the page above, unless there is nothing above or one is already
@@ -292,10 +241,7 @@ export const ChatPageContent = ({
     }
     const content = draft;
     const pendingAttachments = attachments.length > 0 ? attachments : undefined;
-    const options: SendOptions = {
-      mcpServerId: selectedConnectorId,
-      skillNames: selectedSkills,
-    };
+    const options: SendOptions = turnOptions;
 
     // Clear optimistically. The send path restores text, attachments and the
     // selected connector through composerDraft if the request fails.
@@ -303,100 +249,9 @@ export const ChatPageContent = ({
     useStore.getState().clearAttachments();
 
     const sent = await onSubmit(content, pendingAttachments, options);
-    if (sent) {
-      setSelectedConnectorId(null);
-      setSelectedSkills([]);
-    }
+    if (sent) clearTurn();
   };
 
-  const handleWebSearch = () => {
-    // Withholds three tools rather than rewording a prompt. The model decides
-    // whether to call a tool, so "please do not search" in the system message
-    // would be a switch the model may overrule; removing the tools is the only
-    // implementation an off switch can honestly have.
-    const next = !webSearch;
-    setWebSearch(next);
-    toast.info(next ? t('modes.searchOn') : t('modes.searchOff'));
-  };
-
-  /*
-   * Pasting is no longer this file's business.
-   *
-   * There used to be a `handleImagePaste` here that did its own
-   * `new FileReader()` with no progress, no cancel, and — the actual bug — no
-   * `abort()` anywhere: removing a pasted image while it was still being read
-   * left the read running to completion, holding the whole `File` and then
-   * writing a data URL into an attachment that no longer existed. Paste and
-   * drop now enter the composer's one intake queue, so the corner button that
-   * stops a dropped file stops a pasted one too, and a failed read of either
-   * can be tried again.
-   */
-
-  const handleCanvas = () => {
-    useUIStore.getState().setRightPanel('canvas');
-  };
-
-  const handleToggleSkill = useCallback(
-    (name: string) =>
-      setSelectedSkills((current) => toggleSkillName(current, name)),
-    [],
-  );
-  const handleToggleConnector = useCallback(
-    (id: string) =>
-      setSelectedConnectorId((current) => toggleConnectorId(current, id)),
-    [],
-  );
-
-  /**
-   * The panel's mode selector: how Alia works on this turn. The three are
-   * the capability flags that already existed (agent, deep research), made
-   * exclusive here because a turn is one or the other; the plan gate and the
-   * toasts stay in `toggleMode`.
-   */
-  const chatModes = useMemo(
-    () => [
-      { id: 'chat', label: t('composer.modeChat'), description: t('composer.modeChatDescription'), icon: RiChat3Line },
-      { id: 'agent', label: t('modes.agentLabel'), description: t('composer.agentDescription'), icon: RiRobot2Line },
-      { id: 'research', label: t('modes.deepResearchLabel'), description: t('composer.deepResearchDescription'), icon: RiSearchLine },
-    ],
-    [t],
-  );
-  const chatMode = modeActive.agent ? 'agent' : modeActive.deepResearch ? 'research' : 'chat';
-  const handleModeChange = useCallback(
-    (next: string) => {
-      if (next === chatMode) return;
-      if (modeActive.agent) toggleMode('agent');
-      if (modeActive.deepResearch) toggleMode('deepResearch');
-      if (next === 'agent') toggleMode('agent');
-      if (next === 'research') toggleMode('deepResearch');
-    },
-    [chatMode, modeActive, toggleMode],
-  );
-
-  const addMenu = useComposerAddMenu({
-    addAttachment,
-    // Nothing may be attached to a turn already streaming, or to a composer
-    // the usage limit has closed — the same lock the old plus button wore,
-    // now aimed at the three rows that need it rather than at the whole menu.
-    canAttach: !isLoading && !disabled,
-    modes: modeActive,
-    toggleMode,
-    webSearch,
-    onToggleWebSearch: handleWebSearch,
-    onOpenCanvas: handleCanvas,
-    // Ghost decides whether what you are about to start gets saved, and a
-    // stretch already on screen has been saved — so it is offered on an empty
-    // conversation and nowhere else, exactly as it was.
-    offerGhost: isMainScreen,
-    turnSelection,
-    onToggleSkill: handleToggleSkill,
-    onToggleConnector: handleToggleConnector,
-  });
-
-  // The catalogue, in the shape Bloom's model menu takes — including the
-  // entitlement gate, which survives as an intercepted change rather than a
-  // row that refuses itself. See `model-lineup.ts`.
-  const lineup = useComposerLineup(selectedModel, onModelChange);
 
   if (intro) {
     return (
@@ -445,23 +300,10 @@ export const ChatPageContent = ({
               disabled={disabled}
               onStop={onStop}
               disableKeyboardAvoidance
-              attachments={attachments}
-              onAddAttachment={addAttachment}
-              onRemoveAttachment={removeAttachment}
+              {...composer.props}
               placeholder={
                 disabled ? t('usageLimit.inputDisabledPlaceholder') : t('composer.placeholder')
               }
-              providers={lineup.providers}
-              model={lineup.model}
-              onModelChange={lineup.onModelChange}
-              effortLevels={lineup.effortLevels}
-              effort={lineup.effort}
-              onEffortChange={lineup.onEffortChange}
-              modes={chatModes}
-              mode={chatMode}
-              onModeChange={handleModeChange}
-              addMenu={addMenu.groups}
-              onAddMenuSelect={addMenu.onSelect}
               status={
                 projectName ? (
                   <ComposerPanelStatusTab project={projectName} />

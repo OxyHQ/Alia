@@ -1,4 +1,5 @@
 import { Composer } from '@/components/chat/composer/composer';
+import { useAliaComposer } from '@/components/chat/composer/use-alia-composer';
 import { useCreateSkill, useGenerateSkillDraft } from '@/lib/hooks/use-skills';
 import { useTranslation } from '@/lib/hooks/use-translation';
 import { useI18nStore } from '@/lib/stores/i18n-store';
@@ -27,6 +28,7 @@ export default function CreateSkillScreen() {
   const draft = useGenerateSkillDraft();
   const create = useCreateSkill();
   const busy = draft.isPending || create.isPending;
+  const composer = useAliaComposer({ locked: busy });
 
   const handleCreate = async () => {
     if (prompt.trim().length < 10) return;
@@ -64,6 +66,7 @@ export default function CreateSkillScreen() {
       {/* The chat's own composer: describing a skill is the same gesture as
           asking Alia anything. The ten-character floor stays in the handler. */}
       <Composer
+        {...composer.props}
         value={prompt}
         onValueChange={setPrompt}
         onSubmit={() => void handleCreate()}
