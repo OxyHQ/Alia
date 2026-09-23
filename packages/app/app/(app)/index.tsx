@@ -6,6 +6,10 @@ import { useProductModes } from '@/lib/hooks/use-product-modes';
 import { useStore } from '@/lib/stores/global-store';
 import { useModelStore } from '@/lib/stores/model-store';
 import { useAuth } from '@oxy.so/services';
+import { useCreateConversation } from '@/lib/hooks/use-conversations';
+import { useTranslation } from '@/lib/hooks/use-translation';
+import { toast } from '@oxy.so/bloom/toast';
+import { useRouter } from 'expo-router';
 import Head from 'expo-router/head';
 import { useCallback, useState } from 'react';
 
@@ -116,10 +120,27 @@ const ChatPage = () => {
     void clearConversation();
   }, [dismissSuggestedNewConversation, clearConversation]);
 
+  /** Voice from the new-chat screen: a conversation to hold it, opened in voice. */
+  const createConversation = useCreateConversation();
+  const router = useRouter();
+  const { t } = useTranslation();
+  const handleVoiceStart = useCallback(async () => {
+    try {
+      const conversation = await createConversation.mutateAsync({});
+      router.replace({
+        pathname: '/(app)/c/[id]',
+        params: { id: conversation.id, startVoice: 'true' },
+      });
+    } catch {
+      toast.error(t('chat.voiceStartFailed'));
+    }
+  }, [createConversation, router, t]);
+
   /** The chat, or the welcome inside the same container while it shows. */
   const chat = (intro?: WelcomeIntroSlots) => (
       <ChatPageContent
         intro={intro}
+        onVoiceStart={handleVoiceStart}
         // No `conversationId`, deliberately: this is the new-chat screen,
         // and its absence is what `ChatPageContent` reads to decide which
         // mounted instance a `composerDraft` belongs to. The drawer keeps

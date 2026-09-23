@@ -633,7 +633,8 @@
         "planUsage": "Plan usage limits",
         "close": "Close credits panel"
       }
-    }
+    },
+    "voiceStartFailed": "Could not start the voice session"
   },
   "credits": {
     "title": "Credits",

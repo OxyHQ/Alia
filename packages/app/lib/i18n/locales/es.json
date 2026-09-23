@@ -607,7 +607,8 @@
         "planUsage": "Límites de uso del plan",
         "close": "Cerrar panel de créditos"
       }
-    }
+    },
+    "voiceStartFailed": "No se pudo iniciar la sesión de voz"
   },
   "credits": {
     "title": "Créditos",
