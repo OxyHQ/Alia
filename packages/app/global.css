@@ -13,3 +13,21 @@
 @layer utilities {
   .squircle { border-radius: 20%; }
 }
+
+/* The page scrolls the DOCUMENT (Bloom's `AiChatShell scroll="document"`).
+   Expo / react-native-web inject a reset that locks `html, body { height: 100%;
+   overflow: hidden }` and `#root { height: 100% }`; these unlayered rules let
+   the document grow instead. `overflow` stays `visible` on BOTH axes: one axis
+   clipped promotes the other to `auto` and turns body into a scroll container. */
+html,
+body {
+  height: auto !important;
+  min-height: 100% !important;
+  overflow: visible !important;
+}
+
+#root {
+  height: auto !important;
+  min-height: 100vh !important;
+  overflow: visible !important;
+}
