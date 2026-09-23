@@ -2,7 +2,7 @@ import { useTranslation } from '@/lib/hooks/use-translation';
 import { useUIStore } from '@/lib/stores/ui-store';
 import { Dialog } from '@oxy.so/bloom/dialog';
 import { Kbd } from '@oxy.so/bloom/kbd';
-import { Text } from '@oxy.so/bloom/typography';
+import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import { Platform, View } from 'react-native';
 const isMac =
   typeof navigator !== "undefined" &&
@@ -61,39 +61,27 @@ export function KeyboardShortcutsDialog() {
       title={t("keyboardShortcuts.title")}
       maxWidth={448}
     >
-      <View className="gap-5">
+      <View className="gap-4">
         {SHORTCUT_SECTIONS.map((section) => (
-          <View key={section.titleKey}>
-            <Text className="text-xs font-medium text-muted-foreground mb-2">
-              {t(section.titleKey)}
-            </Text>
-            <View className="gap-0.5">
-              {section.shortcuts.map((shortcut) => (
-                <View
-                  key={shortcut.labelKey}
-                  className="flex-row items-center justify-between py-1.5"
-                >
-                  <Text className="text-sm text-foreground">
-                    {t(shortcut.labelKey)}
-                  </Text>
-                  {/*
-                    Bloom owns the key cap (`@oxy.so/bloom/kbd`); the row that
-                    holds two or three of them is four pixels of gap and does
-                    not need a name. The wrapper this replaced spelled that row
-                    as a DOM `<kbd>` wrapping DOM `<kbd>`s, which is invalid
-                    HTML and, worse, would have thrown the moment either of
-                    these two screens was opened on native — they were web-only
-                    by accident rather than by decision.
-                  */}
+          <SettingsListGroup key={section.titleKey} title={t(section.titleKey)}>
+            {section.shortcuts.map((shortcut) => (
+              <SettingsListItem
+                key={shortcut.labelKey}
+                title={t(shortcut.labelKey)}
+                showChevron={false}
+                rightElement={
+                  // One key per cap: `⌘` and `K` are two keys, so two `Kbd`s.
                   <View className="flex-row items-center gap-1">
                     {shortcut.keys().map((key, i) => (
-                      <Kbd key={i}>{key}</Kbd>
+                      <Kbd key={i} size="sm">
+                        {key}
+                      </Kbd>
                     ))}
                   </View>
-                </View>
-              ))}
-            </View>
-          </View>
+                }
+              />
+            ))}
+          </SettingsListGroup>
         ))}
       </View>
     </Dialog>

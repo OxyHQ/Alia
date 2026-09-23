@@ -15,6 +15,7 @@ import { RiStarFill } from "@oxy.so/bloom/icons/RiStarFill";
 import { RiTeamLine } from "@oxy.so/bloom/icons/RiTeamLine";
 import { RiTimerLine } from "@oxy.so/bloom/icons/RiTimerLine";
 import { useConversations } from "@/lib/hooks/use-conversations";
+import { useTranslation } from "@/lib/hooks/use-translation";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { useFavoritesStore } from "@/lib/stores/favorites-store";
 
@@ -27,6 +28,7 @@ export function CommandPalette() {
   const [open, setOpen] = React.useState(false);
   const [query, setQuery] = React.useState("");
   const router = useRouter();
+  const { t } = useTranslation();
   const { data: conversationsData } = useConversations();
   const toggleShortcutsDialog = useUIStore((s) => s.toggleShortcutsDialog);
   const favoriteIds = useFavoritesStore((state) => state.favoriteConversationIds);
@@ -53,73 +55,73 @@ export function CommandPalette() {
     const actions: CommandItem[] = [
       {
         id: "new-chat",
-        label: "New Chat",
-        group: "Actions",
+        label: t("dialogs.commandPalette.newChat"),
+        group: t("dialogs.commandPalette.groupActions"),
         icon: RiChatNewLine,
         shortcut: "⌘⇧N",
         onSelect: () => router.replace("/(app)"),
       },
       {
         id: "search-library",
-        label: "Search Library",
-        group: "Actions",
+        label: t("dialogs.commandPalette.searchLibrary"),
+        group: t("dialogs.commandPalette.groupActions"),
         icon: RiSearchLine,
         onSelect: () => router.push("/(app)/library"),
       },
       {
         id: "agents",
-        label: "Agents",
-        group: "Navigate",
+        label: t("dialogs.commandPalette.agents"),
+        group: t("dialogs.commandPalette.groupNavigate"),
         icon: RiTeamLine,
         onSelect: () => router.push("/(app)/agents"),
       },
       {
         id: "library",
-        label: "Library",
-        group: "Navigate",
+        label: t("dialogs.commandPalette.library"),
+        group: t("dialogs.commandPalette.groupNavigate"),
         icon: RiBookShelfLine,
         onSelect: () => router.push("/(app)/library"),
       },
       {
         id: "automations",
-        label: "Automations",
-        group: "Navigate",
+        label: t("dialogs.commandPalette.automations"),
+        group: t("dialogs.commandPalette.groupNavigate"),
         icon: RiTimerLine,
         onSelect: () => router.push("/(app)/automations"),
       },
       {
         id: "skills",
-        label: "Skills",
-        group: "Navigate",
+        label: t("dialogs.commandPalette.skills"),
+        group: t("dialogs.commandPalette.groupNavigate"),
         icon: RiBookOpenLine,
         onSelect: () => router.push("/(app)/skills"),
       },
       {
         id: "settings",
-        label: "Settings",
-        group: "Settings",
+        label: t("dialogs.commandPalette.settings"),
+        group: t("dialogs.commandPalette.groupSettings"),
         icon: RiSettings3Line,
         shortcut: "⌘,",
         onSelect: () => router.push("/(app)/settings"),
       },
       {
         id: "billing",
-        label: "Billing",
-        group: "Settings",
+        label: t("dialogs.commandPalette.billing"),
+        group: t("dialogs.commandPalette.groupSettings"),
         icon: RiBankCardLine,
         onSelect: () => router.push("/(app)/settings/usage"),
       },
       {
         id: "notifications",
-        label: "Notifications",
-        group: "Settings",
+        label: t("dialogs.commandPalette.notifications"),
+        group: t("dialogs.commandPalette.groupSettings"),
         icon: RiNotification3Line,
         onSelect: () => router.push("/(app)/notifications"),
       },
       {
         id: "subscribe",
-        label: "Upgrade to Pro",
-        group: "Settings",
+        label: t("dialogs.commandPalette.upgrade"),
+        group: t("dialogs.commandPalette.groupSettings"),
         icon: RiSparklingLine,
         onSelect: () => router.push("/(biglayout)/subscribe"),
       },
@@ -145,7 +147,11 @@ export function CommandPalette() {
       return af - bf;
     });
 
-    const group = query.trim() ? "Conversations" : "Recent Conversations";
+    const group = t(
+      query.trim()
+        ? "dialogs.commandPalette.groupConversations"
+        : "dialogs.commandPalette.groupRecentConversations",
+    );
     const recents: CommandItem[] = favouritesFirst.map((conv) => ({
       id: conv.id,
       label: conv.title ?? "",
@@ -155,7 +161,7 @@ export function CommandPalette() {
     }));
 
     return [...actions, ...recents];
-  }, [conversations, favoriteIds, query, router]);
+  }, [conversations, favoriteIds, query, router, t]);
 
   React.useEffect(() => {
     if (Platform.OS !== "web") return;
@@ -200,7 +206,8 @@ export function CommandPalette() {
       items={items}
       query={query}
       onQueryChange={setQuery}
-      placeholder="Type a command or search..."
+      placeholder={t("dialogs.commandPalette.placeholder")}
+      emptyText={t("dialogs.commandPalette.empty")}
     />
   );
 }

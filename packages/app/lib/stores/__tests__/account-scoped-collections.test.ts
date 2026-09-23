@@ -265,3 +265,23 @@ describe('projects, favourites and pins', () => {
     ]);
   });
 });
+
+describe('a new project', () => {
+  /**
+   * The sidebar's project dialog picks a colour before the project exists. It
+   * is written with the project, in one commit, rather than patched in after:
+   * the patch used to read the project list from before the create and so
+   * coloured whichever project happened to be last.
+   */
+  it('is created with the colour it was given', async () => {
+    const { projects } = await freshStores();
+    await projects.getState().loadProjects('user-a');
+    await projects.getState().createProject('Launch', undefined, undefined, '#8b5cf6');
+    await projects.getState().createProject('Plain');
+
+    const [launch, plain] = projects.getState().projects;
+    expect(launch.color).toBe('#8b5cf6');
+    // Without one it still gets a colour, as before.
+    expect(plain.color).toMatch(/^#[0-9a-f]{6}$/);
+  });
+});

@@ -1,83 +1,62 @@
-import { COLOR_OPTIONS, ColorPicker } from '@/components/ui/color-picker';
+import { useTranslation } from '@/lib/hooks/use-translation';
 import type { Project } from '@/lib/stores/projects-store';
-import { cn } from '@/lib/utils';
+import { Chip, ChipRow, type ChipHue } from '@oxy.so/bloom/chip';
 import { Dialog } from '@oxy.so/bloom/dialog';
-import { TextFieldInput as Input } from '@oxy.so/bloom/text-field';
-import { Text } from '@oxy.so/bloom/typography';
-import {
-  Briefcase,
-  Folder,
-  FolderOpen,
-  Heart,
-  Lightbulb,
-  Package,
-  Rocket,
-  Star,
-  Target,
-  Zap,
-} from 'lucide-react-native';
+import { Field } from '@oxy.so/bloom/field';
+import { RiCheckLine } from '@oxy.so/bloom/icons/RiCheckLine';
+import { TextFieldInput } from '@oxy.so/bloom/text-field';
 import { useEffect, useState } from 'react';
-import { Pressable, View } from 'react-native';
+import { View } from 'react-native';
 
-const ICON_OPTIONS = [
-  { name: 'FolderOpen', Icon: FolderOpen },
-  { name: 'Briefcase', Icon: Briefcase },
-  { name: 'Folder', Icon: Folder },
-  { name: 'Package', Icon: Package },
-  { name: 'Rocket', Icon: Rocket },
-  { name: 'Target', Icon: Target },
-  { name: 'Lightbulb', Icon: Lightbulb },
-  { name: 'Star', Icon: Star },
-  { name: 'Heart', Icon: Heart },
-  { name: 'Zap', Icon: Zap },
+/**
+ * The colours a project can carry, each drawn as one of Bloom's data hues.
+ *
+ * The store keeps the hex it always kept (older projects hold one of these),
+ * so the value is the hex and the chip is only how it is shown.
+ */
+export const PROJECT_COLORS: readonly { value: string; hue: ChipHue; labelKey: string }[] = [
+  { value: '#3b82f6', hue: 'blue', labelKey: 'sidebar.colors.blue' },
+  { value: '#8b5cf6', hue: 'purple', labelKey: 'sidebar.colors.purple' },
+  { value: '#ec4899', hue: 'rose', labelKey: 'sidebar.colors.rose' },
+  { value: '#f59e0b', hue: 'yellow', labelKey: 'sidebar.colors.yellow' },
+  { value: '#10b981', hue: 'lime', labelKey: 'sidebar.colors.lime' },
+  { value: '#06b6d4', hue: 'cyan', labelKey: 'sidebar.colors.cyan' },
 ];
+
+const DEFAULT_COLOR = PROJECT_COLORS[0].value;
+
+export interface ProjectEditValues {
+  name: string;
+  description?: string;
+  color: string;
+}
 
 interface ProjectEditDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** The project being edited; `null` creates a new one. */
   project?: Project | null;
-  onSave: (data: {
-    name: string;
-    description?: string;
-    icon?: string;
-    color?: string;
-  }) => void;
+  onSave: (values: ProjectEditValues) => void;
 }
 
-export const ProjectEditDialog = ({
-  open,
-  onOpenChange,
-  project,
-  onSave,
-}: ProjectEditDialogProps) => {
+/** Create or edit a project: its name, an optional description and its colour. */
+export function ProjectEditDialog({ open, onOpenChange, project, onSave }: ProjectEditDialogProps) {
+  const { t } = useTranslation();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [selectedIcon, setSelectedIcon] = useState('FolderOpen');
-  const [selectedColor, setSelectedColor] = useState(COLOR_OPTIONS[0]);
+  const [color, setColor] = useState(DEFAULT_COLOR);
 
   useEffect(() => {
-    if (project) {
-      setName(project.name);
-      setDescription(project.description || '');
-      setSelectedIcon(project.icon || 'FolderOpen');
-      setSelectedColor(project.color || COLOR_OPTIONS[0]);
-    } else {
-      setName('');
-      setDescription('');
-      setSelectedIcon('FolderOpen');
-      setSelectedColor(COLOR_OPTIONS[0]);
-    }
+    if (!open) return;
+    setName(project?.name ?? '');
+    setDescription(project?.description ?? '');
+    setColor(project?.color ?? DEFAULT_COLOR);
   }, [project, open]);
 
-  const handleSave = () => {
-    if (!name.trim()) return;
-
-    onSave({
-      name: name.trim(),
-      description: description.trim() || undefined,
-      icon: selectedIcon,
-      color: selectedColor,
-    });
+  const trimmed = name.trim();
+  const save = () => {
+    if (!trimmed) return;
+    onSave({ name: trimmed, description: description.trim() || undefined, color });
   };
 
   return (
@@ -85,79 +64,57 @@ export const ProjectEditDialog = ({
       open={open}
       onClose={() => onOpenChange(false)}
       placement={{ base: 'bottom', md: 'center' }}
-      title={project ? 'Edit Project' : 'New Project'}
-      description={
-        project
-          ? 'Update your project details'
-          : 'Create a new project to organize your conversations'
-      }
+      title={t(project ? 'sidebar.projectDialog.editTitle' : 'sidebar.projectDialog.newTitle')}
+      description={t(
+        project ? 'sidebar.projectDialog.editDescription' : 'sidebar.projectDialog.newDescription',
+      )}
       actions={[
-        { label: 'Cancel', color: 'cancel' },
+        { label: t('common.cancel'), color: 'cancel' },
         {
-          label: project ? 'Save' : 'Create',
-          onPress: handleSave,
-          disabled: !name.trim(),
+          label: t(project ? 'common.save' : 'common.create'),
+          onPress: save,
+          disabled: !trimmed,
         },
       ]}
     >
       <View className="gap-4">
-        {/* Name Input */}
-        <View className="gap-2">
-          <Text className="text-sm font-medium text-foreground">Name</Text>
-          <Input
-            label="Project name"
+        <Field label={t('sidebar.projectDialog.name')} required>
+          <TextFieldInput
+            label={t('sidebar.projectDialog.name')}
             value={name}
-            onChangeText={setName}
-            placeholder="Project name"
-            className="h-11"
+            onValueChange={setName}
+            onSubmitEditing={save}
+            autoFocus
           />
-        </View>
-
-        {/* Description Input */}
-        <View className="gap-2">
-          <Text className="text-sm font-medium text-foreground">
-            Description (optional)
-          </Text>
-          <Input
-            label="Project description"
+        </Field>
+        <Field label={t('sidebar.projectDialog.description')}>
+          <TextFieldInput
+            label={t('sidebar.projectDialog.description')}
             value={description}
-            onChangeText={setDescription}
-            placeholder="Project description"
-            className="h-11"
+            onValueChange={setDescription}
           />
-        </View>
-
-        {/* Icon Picker */}
-        <View className="gap-2">
-          <Text className="text-sm font-medium text-foreground">Icon</Text>
-          <View className="flex-row flex-wrap gap-2">
-            {ICON_OPTIONS.map(({ name: iconName, Icon }) => (
-              <Pressable
-                key={iconName}
-                onPress={() => setSelectedIcon(iconName)}
-                className={cn(
-                  'h-12 w-12 items-center justify-center rounded-lg border-2 transition-colors',
-                  selectedIcon === iconName
-                    ? 'border-primary bg-primary/10'
-                    : 'border-border bg-muted active:bg-muted/70',
-                )}
-              >
-                <Icon
-                  size={20}
-                  className={cn(
-                    selectedIcon === iconName
-                      ? 'text-primary'
-                      : 'text-muted-foreground',
-                  )}
-                />
-              </Pressable>
-            ))}
-          </View>
-        </View>
-
-        {/* Color Picker */}
-        <ColorPicker selected={selectedColor} onSelect={setSelectedColor} />
+        </Field>
+        <Field label={t('sidebar.projectDialog.color')} multiple>
+          <ChipRow role="radiogroup" accessibilityLabel={t('sidebar.projectDialog.color')}>
+            {PROJECT_COLORS.map((option) => {
+              const selected = option.value === color;
+              return (
+                <Chip
+                  key={option.value}
+                  role="radio"
+                  size="xl"
+                  hue={option.hue}
+                  selected={selected}
+                  leadingIcon={selected ? RiCheckLine : undefined}
+                  onPress={() => setColor(option.value)}
+                >
+                  {t(option.labelKey)}
+                </Chip>
+              );
+            })}
+          </ChipRow>
+        </Field>
       </View>
     </Dialog>
   );
-};
+}

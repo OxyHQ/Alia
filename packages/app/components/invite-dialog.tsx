@@ -4,353 +4,212 @@ import {
   useReferralHistory,
   useReferralInfo,
 } from '@/lib/hooks/use-referrals';
-import Fontisto from '@expo/vector-icons/Fontisto';
+import { useTranslation } from '@/lib/hooks/use-translation';
 import { Button } from '@oxy.so/bloom/button';
+import { Chip, ChipRow } from '@oxy.so/bloom/chip';
 import { Dialog } from '@oxy.so/bloom/dialog';
-import { useTheme } from '@oxy.so/bloom/theme';
-import { Text } from '@oxy.so/bloom/typography';
+import { EmptyState } from '@oxy.so/bloom/empty-state';
+import { IconCircle } from '@oxy.so/bloom/icon-circle';
+import { RiFileCopyLine } from '@oxy.so/bloom/icons/RiFileCopyLine';
+import { RiHandHeartLine } from '@oxy.so/bloom/icons/RiHandHeartLine';
+import { RiShareLine } from '@oxy.so/bloom/icons/RiShareLine';
+import { RiUserHeartLine } from '@oxy.so/bloom/icons/RiUserHeartLine';
+import { InputGroup, InputGroupAddon } from '@oxy.so/bloom/input-group';
+import { Loading } from '@oxy.so/bloom/loading';
+import {
+  SegmentedControl,
+  SegmentedControlItem,
+  SegmentedControlItemText,
+} from '@oxy.so/bloom/segmented-control';
+import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
+import { TextFieldInput } from '@oxy.so/bloom/text-field';
+import { toast } from '@oxy.so/bloom/toast';
 import * as Clipboard from 'expo-clipboard';
-import {
-  AlertCircle,
-  Check,
-  Copy,
-  HeartHandshake,
-  Send,
-} from 'lucide-react-native';
 import React from 'react';
-import {
-  ActivityIndicator,
-  Linking,
-  Pressable,
-  ScrollView,
-  Share,
-  TextInput,
-  View,
-} from 'react-native';
+import { Linking, Share, View } from 'react-native';
 
-const SHARE_TEXT =
-  'Check out Alia — sign up with my link and we both get 500 credits!';
+type InviteTab = 'share' | 'redeem' | 'history';
+
+/** Where the invite link can be posted, and the URL that posts it there. */
+const SHARE_TARGETS: readonly { name: string; url: (link: string, text: string) => string }[] = [
+  { name: 'X', url: (link, text) => `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(link)}` },
+  { name: 'LinkedIn', url: (link) => `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(link)}` },
+  { name: 'WhatsApp', url: (link, text) => `https://wa.me/?text=${encodeURIComponent(`${text}\n${link}`)}` },
+  { name: 'Telegram', url: (link, text) => `https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent(text)}` },
+  { name: 'Facebook', url: (link) => `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(link)}` },
+  { name: 'Reddit', url: (link, text) => `https://reddit.com/submit?url=${encodeURIComponent(link)}&title=${encodeURIComponent(text)}` },
+  { name: 'Pinterest', url: (link, text) => `https://pinterest.com/pin/create/button/?url=${encodeURIComponent(link)}&description=${encodeURIComponent(text)}` },
+];
 
 interface InviteDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
-const SocialButton = React.memo(function SocialButton({
-  iconName,
-  onPress,
-}: {
-  iconName: React.ComponentProps<typeof Fontisto>['name'];
-  onPress: () => void;
-}) {
-  return (
-    <Pressable
-      onPress={onPress}
-      className="h-11 w-11 items-center justify-center rounded-full border border-border active:bg-muted"
-    >
-      <Fontisto name={iconName} size={18} className="text-foreground" />
-    </Pressable>
-  );
-});
-
+/** Invite friends for credits: the link to share, a code to redeem, and who joined. */
 export function InviteDialog({ open, onOpenChange }: InviteDialogProps) {
-  const { colors } = useTheme();
-  const { data: referralInfo } = useReferralInfo();
-  const [copied, setCopied] = React.useState(false);
-  const [activeSection, setActiveSection] = React.useState<
-    'redeem' | 'history' | null
-  >(null);
-  const [redeemCode, setRedeemCode] = React.useState('');
-  const [redeemResult, setRedeemResult] = React.useState<{
-    success: boolean;
-    message: string;
-  } | null>(null);
-  const redeemMutation = useRedeemInviteCode();
-  const { data: historyData, isLoading: historyLoading } = useReferralHistory();
+  const { t } = useTranslation();
+  const [tab, setTab] = React.useState<InviteTab>('share');
 
-  const inviteUrl = referralInfo?.inviteUrl || '';
-
-  // Reset state when dialog closes
   React.useEffect(() => {
-    if (!open) {
-      setActiveSection(null);
-      setRedeemCode('');
-      setRedeemResult(null);
-    }
+    if (!open) setTab('share');
   }, [open]);
-
-  const handleRedeem = React.useCallback(() => {
-    if (!redeemCode.trim()) return;
-    setRedeemResult(null);
-    redeemMutation.mutate(redeemCode.trim(), {
-      onSuccess: (data) => {
-        setRedeemResult({
-          success: true,
-          message: `You got ${data.creditsAwarded} credits!`,
-        });
-        setRedeemCode('');
-      },
-      onError: (err: any) => {
-        setRedeemResult({
-          success: false,
-          message: errorMessage(err, 'Invalid invite code'),
-        });
-      },
-    });
-  }, [redeemCode, redeemMutation]);
-
-  const handleCopy = React.useCallback(async () => {
-    if (!inviteUrl) return;
-    await Clipboard.setStringAsync(inviteUrl);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  }, [inviteUrl]);
-
-  const handleShareFacebook = React.useCallback(() => {
-    Linking.openURL(
-      `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(inviteUrl)}`,
-    );
-  }, [inviteUrl]);
-
-  const handleShareX = React.useCallback(() => {
-    Linking.openURL(
-      `https://twitter.com/intent/tweet?text=${encodeURIComponent(SHARE_TEXT)}&url=${encodeURIComponent(inviteUrl)}`,
-    );
-  }, [inviteUrl]);
-
-  const handleShareLinkedIn = React.useCallback(() => {
-    Linking.openURL(
-      `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(inviteUrl)}`,
-    );
-  }, [inviteUrl]);
-
-  const handleShareReddit = React.useCallback(() => {
-    Linking.openURL(
-      `https://reddit.com/submit?url=${encodeURIComponent(inviteUrl)}&title=${encodeURIComponent(SHARE_TEXT)}`,
-    );
-  }, [inviteUrl]);
-
-  const handleShareWhatsApp = React.useCallback(() => {
-    Linking.openURL(
-      `https://wa.me/?text=${encodeURIComponent(`${SHARE_TEXT}\n${inviteUrl}`)}`,
-    );
-  }, [inviteUrl]);
-
-  const handleShareTelegram = React.useCallback(() => {
-    Linking.openURL(
-      `https://t.me/share/url?url=${encodeURIComponent(inviteUrl)}&text=${encodeURIComponent(SHARE_TEXT)}`,
-    );
-  }, [inviteUrl]);
-
-  const handleSharePinterest = React.useCallback(() => {
-    Linking.openURL(
-      `https://pinterest.com/pin/create/button/?url=${encodeURIComponent(inviteUrl)}&description=${encodeURIComponent(SHARE_TEXT)}`,
-    );
-  }, [inviteUrl]);
-
-  const handleShare = React.useCallback(async () => {
-    if (!inviteUrl) return;
-    await Share.share({
-      message: `${SHARE_TEXT}\n${inviteUrl}`,
-    });
-  }, [inviteUrl]);
 
   return (
     <Dialog
       open={open}
       onClose={() => onOpenChange(false)}
       placement={{ base: 'bottom', md: 'center' }}
-      title="Invite to get credits"
-      description="Share your invitation link with friends, get 500 credits each."
-      // The body owns its own ScrollView.
-      scrollable={false}
+      title={t('dialogs.invite.title')}
+      description={t('dialogs.invite.description')}
     >
-      <ScrollView showsVerticalScrollIndicator={false}>
-        {/* Header Icon */}
-        <View className="items-center mb-4">
-          <View className="h-16 w-16 items-center justify-center rounded-full bg-primary/10">
-            <HeartHandshake size={32} className="text-primary" />
-          </View>
+      <View className="gap-4">
+        <View className="items-center">
+          <IconCircle icon={RiHandHeartLine} size="lg" />
         </View>
-
-        {/* Share Link */}
-        <View className="gap-2 mb-4">
-          <Text className="text-sm font-medium text-foreground">
-            Share invitation link
-          </Text>
-          <View className="flex-row items-center gap-2 rounded-full border border-input bg-muted/30 pl-4 pr-1.5 h-11">
-            <Text
-              className="flex-1 text-sm text-muted-foreground"
-              numberOfLines={1}
-            >
-              {inviteUrl || 'Loading...'}
-            </Text>
-            <Pressable
-              onPress={handleCopy}
-              className="flex-row items-center gap-1.5 py-1.5 px-2.5 rounded-full bg-background border border-border active:bg-muted"
-            >
-              <Copy size={14} className="text-foreground" />
-              <Text className="text-sm font-medium text-foreground">
-                {copied ? 'Copied!' : 'Copy'}
-              </Text>
-            </Pressable>
-          </View>
-        </View>
-
-        {/* Social Sharing */}
-        <View className="flex-row flex-wrap justify-center gap-3 mb-4">
-          <SocialButton iconName="facebook" onPress={handleShareFacebook} />
-          <SocialButton iconName="twitter" onPress={handleShareX} />
-          <SocialButton iconName="linkedin" onPress={handleShareLinkedIn} />
-          <SocialButton iconName="reddit" onPress={handleShareReddit} />
-          <SocialButton iconName="whatsapp" onPress={handleShareWhatsApp} />
-          <SocialButton iconName="telegram" onPress={handleShareTelegram} />
-          <SocialButton iconName="pinterest" onPress={handleSharePinterest} />
-        </View>
-
-        {/* Share */}
-        <Button
-          onPress={handleShare}
-          className="h-11 rounded-full mb-4"
-          leading={
-            <>
-              <Send size={14} className="text-primary-foreground" />
-            </>
-          }
-        >
-          Share invite link
-        </Button>
-
-        {/* Stats Card */}
-        <View className="flex-row rounded-xl bg-muted/50 border border-border p-4 mb-4">
-          <View className="flex-1">
-            <Text className="text-2xl font-bold text-foreground">
-              {referralInfo?.totalCreditsEarned ?? 0}
-            </Text>
-            <Text className="text-xs text-muted-foreground">Credits</Text>
-          </View>
-          <View className="flex-1">
-            <Text className="text-2xl font-bold text-foreground">
-              {referralInfo?.totalReferrals ?? 0}
-            </Text>
-            <Text className="text-xs text-muted-foreground">Referrals</Text>
-          </View>
-        </View>
-
-        {/* Footer Links */}
-        <View className="flex-row items-center justify-center gap-4 mb-4">
-          <Pressable
-            className="active:opacity-70"
-            onPress={() =>
-              setActiveSection(activeSection === 'redeem' ? null : 'redeem')
-            }
-          >
-            <Text
-              className={`text-sm ${activeSection === 'redeem' ? 'text-primary font-medium' : 'text-muted-foreground'}`}
-            >
-              Redeem
-            </Text>
-          </Pressable>
-          <View className="h-4 w-px bg-border" />
-          <Pressable
-            className="active:opacity-70"
-            onPress={() =>
-              setActiveSection(activeSection === 'history' ? null : 'history')
-            }
-          >
-            <Text
-              className={`text-sm ${activeSection === 'history' ? 'text-primary font-medium' : 'text-muted-foreground'}`}
-            >
-              Invitation history
-            </Text>
-          </Pressable>
-        </View>
-
-        {/* Redeem Section */}
-        {activeSection === 'redeem' && (
-          <View className="gap-3 rounded-xl border border-border bg-muted/30 p-4">
-            <Text className="text-sm font-medium text-foreground">
-              Redeem invite code
-            </Text>
-            <View className="flex-row items-center gap-2">
-              <TextInput
-                value={redeemCode}
-                onChangeText={setRedeemCode}
-                placeholder="Enter invite code"
-                placeholderTextColor={colors.textSecondary}
-                autoCapitalize="none"
-                autoCorrect={false}
-                className="flex-1 h-11 rounded-full border border-input bg-background px-4 text-sm text-foreground"
-              />
-              <Button
-                onPress={handleRedeem}
-                disabled={redeemMutation.isPending || !redeemCode.trim()}
-                className="h-11 rounded-full px-5"
-              >
-                {redeemMutation.isPending ? 'Redeeming...' : 'Redeem'}
-              </Button>
-            </View>
-            {redeemResult && (
-              <View
-                className={`flex-row items-center gap-2 rounded-lg p-3 ${redeemResult.success ? 'bg-green-500/10' : 'bg-destructive/10'}`}
-              >
-                {redeemResult.success ? (
-                  <Check size={16} className="text-green-600" />
-                ) : (
-                  <AlertCircle size={16} className="text-destructive" />
-                )}
-                <Text
-                  className={`text-sm ${redeemResult.success ? 'text-green-600' : 'text-destructive'}`}
-                >
-                  {redeemResult.message}
-                </Text>
-              </View>
-            )}
-          </View>
-        )}
-
-        {/* History Section */}
-        {activeSection === 'history' && (
-          <View className="gap-3 rounded-xl border border-border bg-muted/30 p-4">
-            <Text className="text-sm font-medium text-foreground">
-              Invitation history
-            </Text>
-            {historyLoading ? (
-              <View className="items-center py-4">
-                <ActivityIndicator size="small" />
-              </View>
-            ) : !historyData?.referrals?.length ? (
-              <Text className="text-sm text-muted-foreground text-center py-4">
-                No referrals yet
-              </Text>
-            ) : (
-              <View className="gap-2">
-                {historyData.referrals.map((referral, index) => (
-                  <View
-                    key={index}
-                    className="flex-row items-center justify-between rounded-lg bg-background/50 p-3"
-                  >
-                    <View className="flex-1">
-                      <Text
-                        className="text-sm text-foreground"
-                        numberOfLines={1}
-                      >
-                        {referral.email || 'User'}
-                      </Text>
-                      <Text className="text-xs text-muted-foreground">
-                        {new Date(referral.creditedAt).toLocaleDateString()}
-                      </Text>
-                    </View>
-                    <Text className="text-sm font-medium text-primary">
-                      +{referral.creditsAwarded}
-                    </Text>
-                  </View>
-                ))}
-              </View>
-            )}
-          </View>
-        )}
-      </ScrollView>
+        <SegmentedControl type="tabs" label={t('dialogs.invite.title')} value={tab} onValueChange={setTab}>
+          <SegmentedControlItem value="share">
+            <SegmentedControlItemText>{t('dialogs.invite.tabShare')}</SegmentedControlItemText>
+          </SegmentedControlItem>
+          <SegmentedControlItem value="redeem">
+            <SegmentedControlItemText>{t('dialogs.invite.tabRedeem')}</SegmentedControlItemText>
+          </SegmentedControlItem>
+          <SegmentedControlItem value="history">
+            <SegmentedControlItemText>{t('dialogs.invite.tabHistory')}</SegmentedControlItemText>
+          </SegmentedControlItem>
+        </SegmentedControl>
+        {tab === 'share' ? <ShareTab /> : tab === 'redeem' ? <RedeemTab /> : <HistoryTab />}
+      </View>
     </Dialog>
+  );
+}
+
+function ShareTab() {
+  const { t } = useTranslation();
+  const { data: referralInfo } = useReferralInfo();
+  const [copied, setCopied] = React.useState(false);
+  const inviteUrl = referralInfo?.inviteUrl ?? '';
+  const shareText = t('dialogs.invite.shareText');
+
+  const copy = async () => {
+    if (!inviteUrl) return;
+    await Clipboard.setStringAsync(inviteUrl);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <View className="gap-4">
+      <InputGroup>
+        <TextFieldInput
+          label={t('dialogs.invite.linkLabel')}
+          value={inviteUrl}
+          placeholder={t('common.loading')}
+          editable={false}
+          selectTextOnFocus
+        />
+        <InputGroupAddon noPadding>
+          <Button size="sm" appearance="subtle" tone="neutral" leadingIcon={RiFileCopyLine} onPress={copy} disabled={!inviteUrl}>
+            {t(copied ? 'dialogs.invite.copied' : 'dialogs.invite.copy')}
+          </Button>
+        </InputGroupAddon>
+      </InputGroup>
+      <ChipRow role="group" accessibilityLabel={t('dialogs.invite.shareOn')}>
+        {SHARE_TARGETS.map((target) => (
+          <Chip
+            key={target.name}
+            size="xl"
+            disabled={!inviteUrl}
+            onPress={() => {
+              void Linking.openURL(target.url(inviteUrl, shareText));
+            }}
+          >
+            {target.name}
+          </Chip>
+        ))}
+      </ChipRow>
+      <Button
+        leadingIcon={RiShareLine}
+        disabled={!inviteUrl}
+        onPress={() => {
+          void Share.share({ message: `${shareText}\n${inviteUrl}` });
+        }}
+      >
+        {t('dialogs.invite.share')}
+      </Button>
+      <SettingsListGroup>
+        <SettingsListItem
+          title={t('dialogs.invite.creditsEarned')}
+          value={String(referralInfo?.totalCreditsEarned ?? 0)}
+          showChevron={false}
+        />
+        <SettingsListItem
+          title={t('dialogs.invite.referrals')}
+          value={String(referralInfo?.totalReferrals ?? 0)}
+          showChevron={false}
+        />
+      </SettingsListGroup>
+    </View>
+  );
+}
+
+function RedeemTab() {
+  const { t } = useTranslation();
+  const [code, setCode] = React.useState('');
+  const redeem = useRedeemInviteCode();
+  const trimmed = code.trim();
+
+  const submit = () => {
+    if (!trimmed || redeem.isPending) return;
+    redeem.mutate(trimmed, {
+      onSuccess: (data) => {
+        toast.success(t('dialogs.invite.redeemSuccess', { count: data.creditsAwarded }));
+        setCode('');
+      },
+      onError: (error: unknown) => {
+        toast.error(errorMessage(error, t('dialogs.invite.redeemInvalid')));
+      },
+    });
+  };
+
+  return (
+    <InputGroup>
+      <TextFieldInput
+        label={t('dialogs.invite.codeLabel')}
+        value={code}
+        onValueChange={setCode}
+        onSubmitEditing={submit}
+        autoCapitalize="none"
+        autoCorrect={false}
+      />
+      <InputGroupAddon noPadding>
+        <Button size="sm" onPress={submit} disabled={!trimmed} loading={redeem.isPending}>
+          {t('dialogs.invite.redeem')}
+        </Button>
+      </InputGroupAddon>
+    </InputGroup>
+  );
+}
+
+function HistoryTab() {
+  const { t } = useTranslation();
+  const { data, isLoading } = useReferralHistory();
+
+  if (isLoading) return <Loading />;
+  if (!data?.referrals?.length) {
+    return <EmptyState variant="compact" icon={RiUserHeartLine} title={t('dialogs.invite.noReferrals')} />;
+  }
+  return (
+    <SettingsListGroup>
+      {data.referrals.map((referral) => (
+        <SettingsListItem
+          key={`${referral.userId}-${referral.creditedAt}`}
+          title={referral.email || t('common.user')}
+          description={new Date(referral.creditedAt).toLocaleDateString()}
+          value={`+${referral.creditsAwarded}`}
+          showChevron={false}
+        />
+      ))}
+    </SettingsListGroup>
   );
 }
