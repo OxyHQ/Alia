@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, ActivityIndicator, Linking, Platform } from 'react-native';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import Head from 'expo-router/head';
 import { AuthContainer } from '@/components/auth/auth-container';
 import { AuthLogo } from '@/components/auth/auth-logo';
@@ -8,127 +8,45 @@ import { useAuth, useOxy } from '@oxy.so/services';
 import apiClient, { getSocketToken } from '@/lib/api/client';
 import config from '@/lib/config';
 import { Button } from '@/components/ui/button';
-import { Card, CardBody, CardDescription, CardHeader, CardTitle } from '@oxy.so/bloom/card';
+import { Card, CardBody } from '@oxy.so/bloom/card';
 import { Text } from '@/components/ui/text';
-import { Divider } from '@oxy.so/bloom/divider';
 import { io as socketIO } from 'socket.io-client';
 import { useTranslation } from '@/lib/hooks/use-translation';
 import { useColorScheme } from '@/lib/useColorScheme';
 import { errorMessage as getErrorMessage } from '@/lib/errors/error-utils';
 import { ContentPanel } from "@oxy.so/bloom/content-panel";
 
-type AppType = string;
-type Status = 'loading' | 'authorize' | 'authorizing' | 'success' | 'error' | 'needLogin';
+/**
+ * Links a chat channel (Telegram, Discord, ...) to the signed-in account.
+ *
+ * This screen once also ran a PKCE authorize flow for Codea and Cowork against
+ * `POST /auth/authorize/:app`. Both clients sign in with Oxy directly now and
+ * that endpoint is gone, so the channel link is the only flow left here.
+ */
+type Status = 'loading' | 'authorizing' | 'success' | 'error' | 'needLogin';
 
-interface AppConfig {
-  name: string;
-  displayName: string;
-  permissionKeys: string[];
-  isChannel?: boolean;
-}
-
-const APP_CONFIGS: Record<string, AppConfig> = {
-  codea: {
-    name: 'codea',
-    displayName: 'Alia Codea',
-    permissionKeys: ['sendMessages', 'useCredits', 'accessModels'],
-  },
-  cowork: {
-    name: 'cowork',
-    displayName: 'Alia Cowork',
-    permissionKeys: ['sendMessages', 'useCredits', 'accessModels'],
-  },
-  telegram: {
-    name: 'telegram',
-    displayName: 'Telegram',
-    permissionKeys: ['linkAccount', 'sendVia', 'receiveNotifications'],
-    isChannel: true,
-  },
-  discord: {
-    name: 'discord',
-    displayName: 'Discord',
-    permissionKeys: ['linkAccount', 'sendVia', 'receiveNotifications'],
-    isChannel: true,
-  },
+const CHANNEL_NAMES: Record<string, string> = {
+  telegram: 'Telegram',
+  discord: 'Discord',
 };
 
-function getAppConfig(app: string): AppConfig {
-  return APP_CONFIGS[app] || {
-    name: app,
-    displayName: app.charAt(0).toUpperCase() + app.slice(1),
-    permissionKeys: ['linkAccount', 'sendVia'],
-    isChannel: true,
-  };
+function channelDisplayName(channel: string): string {
+  return CHANNEL_NAMES[channel] ?? channel.charAt(0).toUpperCase() + channel.slice(1);
 }
 
 export default function AuthorizeScreen() {
-  const router = useRouter();
   const params = useLocalSearchParams();
-  const { isAuthenticated, isLoading: authLoading, signIn } = useAuth();
+  const { isLoading: authLoading, signIn } = useAuth();
   const { isAuthenticated: isOxyAuth } = useOxy();
   const { t } = useTranslation();
   const { colors } = useColorScheme();
 
-  // Determine app type from params
-  const app = (params.app as AppType) || 'codea';
+  const app = typeof params.app === 'string' && params.app ? params.app : 'telegram';
   const channel = params.channel as string | undefined;
-  const appConfig = getAppConfig(app);
+  const displayName = channelDisplayName(channel || app);
 
   const [status, setStatus] = useState<Status>('loading');
   const [message, setMessage] = useState('');
-  const [redirectUrl, setRedirectUrl] = useState('');
-
-  // Handle OAuth flow (Codea/Cowork)
-  const handleOAuthAuthorize = async () => {
-    const { callback, code_challenge, code_challenge_method } = params;
-
-    if (!callback || typeof callback !== 'string') {
-      setStatus('error');
-      setMessage(t('authorize.invalidCallback'));
-      return;
-    }
-
-    if (!code_challenge || typeof code_challenge !== 'string') {
-      setStatus('error');
-      setMessage(t('authorize.invalidPKCE'));
-      return;
-    }
-
-    setStatus('authorizing');
-
-    try {
-      const response = await apiClient.post(`/auth/authorize/${app}`, {
-        code_challenge,
-        code_challenge_method: code_challenge_method || 'S256',
-      });
-      const { code } = response.data;
-
-      if (!code) {
-        throw new Error('No authorization code received');
-      }
-
-      const callbackUrl = new URL(callback);
-      callbackUrl.searchParams.set('code', code);
-      const finalUrl = callbackUrl.toString();
-
-      setRedirectUrl(finalUrl);
-      setStatus('success');
-      setMessage(t('authorize.authSuccess'));
-
-      setTimeout(() => {
-        try {
-          window.location.replace(finalUrl);
-        } catch (e) {
-          console.error('Redirect failed:', e);
-          window.location.href = finalUrl;
-        }
-      }, 1000);
-    } catch (error: unknown) {
-      console.error('Authorization error:', error);
-      setStatus('error');
-      setMessage(getErrorMessage(error, t('authorize.failedToAuthorize')));
-    }
-  };
 
   // Bot auth handler for all bot types (Telegram, Discord, etc.)
   const handleChannelAuth = useCallback(async () => {
@@ -159,7 +77,7 @@ export default function AuthorizeScreen() {
 
     if (!isOxyAuth) {
       setStatus('needLogin');
-      setMessage(t('authorize.needLogin', { app: appConfig.displayName }));
+      setMessage(t('authorize.needLogin', { app: displayName }));
       signIn().catch(() => {});
       return;
     }
@@ -171,7 +89,7 @@ export default function AuthorizeScreen() {
       });
       if (response.data.success) {
         setStatus('success');
-        setMessage(t('authorize.linkSuccess', { app: appConfig.displayName }));
+        setMessage(t('authorize.linkSuccess', { app: displayName }));
       } else {
         setStatus('error');
         setMessage(t('authorize.failedToLink'));
@@ -182,30 +100,18 @@ export default function AuthorizeScreen() {
       setStatus('error');
       setMessage(errorMessage);
     }
-  }, [params, isOxyAuth, signIn, channel, app, appConfig.displayName]);
+  }, [params, isOxyAuth, signIn, channel, app, displayName, t]);
 
   useEffect(() => {
     if (authLoading) return;
 
-    if (appConfig.isChannel || channel) {
-      // Bot flow (Telegram, Discord, etc.) using /bots/* endpoints
-      if (params.token) {
-        handleChannelAuth();
-      } else {
-        setStatus('error');
-        setMessage(t('authorize.missingToken'));
-      }
+    if (params.token) {
+      handleChannelAuth();
     } else {
-      // OAuth flow for Codea/Cowork
-      if (!isAuthenticated) {
-        setStatus('needLogin');
-        setMessage(t('authorize.needLogin', { app: appConfig.displayName }));
-        signIn().catch(() => {});
-        return;
-      }
-      setStatus('authorize');
+      setStatus('error');
+      setMessage(t('authorize.missingToken'));
     }
-  }, [isAuthenticated, authLoading, app, channel, params, signIn, handleChannelAuth, appConfig.isChannel]);
+  }, [authLoading, params.token, handleChannelAuth, t]);
 
   // Real-time socket subscription for Telegram token linking
   useEffect(() => {
@@ -236,21 +142,6 @@ export default function AuthorizeScreen() {
     };
   }, [app, params.token]);
 
-  const handleCancel = () => {
-    const { callback } = params;
-    if (callback && typeof callback === 'string') {
-      try {
-        const callbackUrl = new URL(callback);
-        callbackUrl.searchParams.set('error', 'user_cancelled');
-        window.location.href = callbackUrl.toString();
-      } catch {
-        router.back();
-      }
-    } else {
-      router.back();
-    }
-  };
-
   if (authLoading || status === 'loading') {
     return (
       <AuthContainer>
@@ -267,64 +158,12 @@ export default function AuthorizeScreen() {
     <ContentPanel surfaceClassName="bg-background">
       <>
         <Head>
-          <title>{t('authorize.authorizeApp', { app: appConfig.displayName })}</title>
-          <meta name="description" content={t('authorize.appWantsAccess', { app: appConfig.displayName })} />
+          <title>{t('authorize.authorizeApp', { app: displayName })}</title>
+          <meta name="description" content={t('authorize.appWantsAccess', { app: displayName })} />
           <meta name="robots" content="noindex, nofollow" />
         </Head>
         <AuthContainer>
           <AuthLogo />
-
-          {status === 'authorize' && (
-            <Card>
-              <CardHeader>
-                <CardTitle style={{ textAlign: 'center' }}>{t('authorize.authorizeApp', { app: appConfig.displayName })}</CardTitle>
-                <CardDescription style={{ textAlign: 'center' }}>
-                  {t('authorize.appWantsAccess', { app: appConfig.displayName })}
-                </CardDescription>
-              </CardHeader>
-              <CardBody>
-                <View className="gap-4">
-                  <View className="gap-2">
-                    <Text className="text-sm text-muted-foreground font-medium">
-                      {t('authorize.willAllow', { app: appConfig.displayName })}
-                    </Text>
-                    <View className="gap-2 pl-1">
-                      {/*
-                        `text-foreground` is stated here now. The wrapper's
-                        `CardContent` pushed `text-surface-foreground` down
-                        through a `TextClassContext`, and this permission list
-                        was the ONE reader of it anywhere in the app — a context
-                        with a single consumer is a coupling, not an adaptation.
-                      */}
-                      {appConfig.permissionKeys.map((key, index) => (
-                        <Text key={index} className="text-sm text-foreground">
-                          • {t(`authorize.${key}`, { app: appConfig.displayName })}
-                        </Text>
-                      ))}
-                    </View>
-                  </View>
-
-                  {/*
-                    Bloom calls it a Divider. The wrapper this replaces was a
-                    `@rn-primitives/separator` root with `bg-border` and a
-                    hairline, on one screen, for one rule — and `my-2` is the
-                    `spacing` prop, so nothing is lost in the rename back.
-                  */}
-                  <Divider spacing={8} />
-
-                  <View className="gap-3">
-                    <Button onPress={handleOAuthAuthorize} size="lg">
-                      <Text>{t('common.authorize')}</Text>
-                    </Button>
-
-                    <Button onPress={handleCancel} variant="outline" size="lg">
-                      <Text>{t('common.cancel')}</Text>
-                    </Button>
-                  </View>
-                </View>
-              </CardBody>
-            </Card>
-          )}
 
           {status === 'authorizing' && (
             <Card>
@@ -332,7 +171,7 @@ export default function AuthorizeScreen() {
                 <View className="items-center py-4 gap-3">
                   <ActivityIndicator size="large" color={colors.primary} />
                   <Text className="text-xl font-semibold text-foreground">
-                    {appConfig.isChannel ? t('authorize.linkingAccount') : t('authorize.authorizing')}
+                    {t('authorize.linkingAccount')}
                   </Text>
                   <Text className="text-muted-foreground text-center">
                     {t('authorize.pleaseWait')}
@@ -367,41 +206,15 @@ export default function AuthorizeScreen() {
                   <Text className="text-4xl">✅</Text>
                   <View className="gap-2 items-center">
                     <Text className="text-xl font-semibold text-foreground">
-                      {appConfig.isChannel ? t('authorize.linked') : t('authorize.authorized')}
+                      {t('authorize.linked')}
                     </Text>
                     <Text className="text-muted-foreground text-center">
                       {message}
                     </Text>
                   </View>
-                  {redirectUrl ? (
-                    <>
-                      <Button
-                        onPress={() => {
-                          if (Platform.OS === 'web') {
-                            const link = document.createElement('a');
-                            link.href = redirectUrl;
-                            link.click();
-                          } else {
-                            Linking.openURL(redirectUrl);
-                          }
-                        }}
-                        size="lg"
-                      >
-                        <Text>{t('authorize.openAppManually')}</Text>
-                      </Button>
-                      <Text className="text-xs text-muted-foreground text-center select-all">
-                        {redirectUrl}
-                      </Text>
-                    </>
-                  ) : appConfig.isChannel ? (
-                    <Text className="text-xs text-muted-foreground text-center">
-                      You can now return to {appConfig.displayName} and start chatting with Alia!
-                    </Text>
-                  ) : (
-                    <Text className="text-xs text-muted-foreground text-center">
-                      If not redirected automatically, you can close this window.
-                    </Text>
-                  )}
+                  <Text className="text-xs text-muted-foreground text-center">
+                    {t('authorize.returnToApp', { app: displayName })}
+                  </Text>
                 </View>
               </CardBody>
             </Card>
@@ -414,7 +227,7 @@ export default function AuthorizeScreen() {
                   <Text className="text-4xl">❌</Text>
                   <View className="gap-2 items-center">
                     <Text className="text-xl font-semibold text-foreground">
-                      {appConfig.isChannel ? 'Link Failed' : 'Authorization Failed'}
+                      {t('authorize.linkFailed')}
                     </Text>
                     <Text className="text-muted-foreground text-center">
                       {message}
@@ -433,19 +246,10 @@ export default function AuthorizeScreen() {
                       }}
                       size="lg"
                     >
-                      <Text>Request New Link</Text>
+                      <Text>{t('authorize.requestNewLink')}</Text>
                     </Button>
                   ) : (
-                    <Button
-                      onPress={() => {
-                        if (appConfig.isChannel || channel) {
-                          handleChannelAuth();
-                        } else {
-                          setStatus('authorize');
-                        }
-                      }}
-                      size="lg"
-                    >
+                    <Button onPress={handleChannelAuth} size="lg">
                       <Text>Try Again</Text>
                     </Button>
                   )}

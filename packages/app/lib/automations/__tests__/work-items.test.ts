@@ -31,7 +31,6 @@ function automation(
 ): AutomationDefinition {
   return {
     id,
-    name: null,
     objective: `objective ${id}`,
     trigger: { type: 'schedule', cron: '0 9 * * *', timezone: 'UTC' },
     actorSelection: { mode: 'automatic', eligibleAgentIds: [] },

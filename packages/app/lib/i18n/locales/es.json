@@ -26,7 +26,6 @@
     "processing": "Procesando...",
     "user": "Usuario",
     "done": "Listo",
-    "authorize": "Autorizar",
     "tryAgain": "Reintentar"
   },
   "errors": {
@@ -720,29 +719,14 @@
     "saveFailed": "No se pudo guardar"
   },
   "authorize": {
-    "sendMessages": "Enviar mensajes a modelos de IA",
-    "useCredits": "Usar tus créditos para llamadas API",
-    "accessModels": "Acceder a modelos disponibles",
-    "linkAccount": "Vincular tu cuenta de {{app}}",
-    "sendVia": "Enviar mensajes vía {{app}}",
-    "receiveNotifications": "Recibir notificaciones",
-    "invalidCallback": "URL de retorno inválida. Por favor intenta de nuevo desde la aplicación.",
-    "invalidPKCE": "Solicitud de autorización inválida. Falta el desafío PKCE.",
-    "authorizing": "Autorizando...",
     "linkingAccount": "Vinculando cuenta...",
     "pleaseWait": "Por favor espera mientras configuramos tu acceso",
     "authRequired": "Autenticación requerida",
     "linked": "¡Vinculado!",
-    "authorized": "¡Autorizado!",
-    "authSuccess": "¡Autorización exitosa! Redirigiendo a la aplicación...",
     "linkSuccess": "¡Tu cuenta de {{app}} ha sido vinculada exitosamente!",
     "linkFailed": "Error al vincular",
-    "authFailed": "Error de autorización",
-    "failedToAuthorize": "Error al autorizar. Por favor intenta de nuevo.",
     "failedToLink": "Error al vincular tu cuenta. Por favor intenta de nuevo.",
-    "openAppManually": "Abrir aplicación manualmente",
     "returnToApp": "¡Ahora puedes volver a {{app}} y empezar a chatear con Alia!",
-    "closeWindow": "Si no se redirige automáticamente, puedes cerrar esta ventana.",
     "requestNewLink": "Solicitar nuevo enlace",
     "invalidToken": "Token de autenticación inválido. El enlace que seguiste no es válido.",
     "tokenExpired": "Este enlace ha expirado. Por favor solicita uno nuevo.",
@@ -750,8 +734,7 @@
     "needLogin": "Necesitas iniciar sesión primero para vincular tu cuenta de {{app}}.",
     "missingToken": "Token de autenticación faltante.",
     "authorizeApp": "Autorizar {{app}}",
-    "appWantsAccess": "{{app}} quiere acceder a tu cuenta",
-    "willAllow": "Esto permitirá a {{app}}:"
+    "appWantsAccess": "{{app}} quiere acceder a tu cuenta"
   },
   "memory": {
     "title": "Memoria",

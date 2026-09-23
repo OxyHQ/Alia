@@ -107,12 +107,6 @@ export interface Agent {
    */
   access: 'private' | 'public';
   systemPrompt?: string;
-  /**
-   * Gone from the API: `agents.allowed_models` was dropped. Declared only
-   * because two Bloom-locked editor test fixtures still set it; delete it with
-   * those two lines.
-   */
-  allowedModels?: string[];
   archetype?: AgentArchetype;
   archetypeConfig?: ArchetypeConfig;
   createdAt: string;

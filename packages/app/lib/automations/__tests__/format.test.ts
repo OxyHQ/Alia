@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
   actorLabel,
-  automationTitle,
   canRunNow,
   cronLabel,
   latestRunsByAutomation,
@@ -49,8 +48,6 @@ describe('automation formatting', () => {
       .toBe('Writer');
     expect(actorLabel({ mode: 'automatic', eligibleAgentIds: [] }, () => 'unused'))
       .toBe('No eligible agents');
-    expect(actorLabel({ mode: 'automatic', eligibleAgentIds: [] }, () => 'unused', true))
-      .toBe('Alia (legacy routine)');
     expect(resourceLabel({
       appId: 'inbox',
       effectiveAccountId: 'company-1',
@@ -112,13 +109,5 @@ describe('cronLabel', () => {
     expect(cronLabel('0 25 * * *')).toBe('0 25 * * *');
     expect(cronLabel('0 9 * * 8')).toBe('0 9 * * 8');
     expect(cronLabel('not cron')).toBe('not cron');
-  });
-});
-
-describe('automationTitle', () => {
-  it('prefers the name and falls back to the objective', () => {
-    expect(automationTitle({ name: 'PR watch', objective: 'Review PRs' })).toBe('PR watch');
-    expect(automationTitle({ name: null, objective: 'Review PRs' })).toBe('Review PRs');
-    expect(automationTitle({ name: '   ', objective: 'Review PRs' })).toBe('Review PRs');
   });
 });

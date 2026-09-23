@@ -70,7 +70,6 @@ export { default as Flame } from 'lucide-react-native/icons/flame';
 export { default as Folder } from 'lucide-react-native/icons/folder';
 export { default as FolderClosed } from 'lucide-react-native/icons/folder-closed';
 export { default as FolderOpen } from 'lucide-react-native/icons/folder-open';
-export { default as FolderTree } from 'lucide-react-native/icons/folder-tree';
 export { default as Ghost } from 'lucide-react-native/icons/ghost';
 export { default as Gift } from 'lucide-react-native/icons/gift';
 export { default as GitBranch } from 'lucide-react-native/icons/git-branch';

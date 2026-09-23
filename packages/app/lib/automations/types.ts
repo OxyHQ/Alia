@@ -28,13 +28,6 @@ export type AutomationActorSelection =
 
 export interface AutomationDefinition {
   id: string;
-  /**
-   * No longer sent by the API. Only legacy-trigger automations ever had a name
-   * (joined from the `triggers` row, #534); those rows and that table are gone,
-   * and structured definitions have no name column. Optional until the
-   * Bloom-migrated screens stop reading it. Render with `automationTitle`.
-   */
-  name?: string | null;
   objective: string;
   trigger: AutomationTrigger;
   actorSelection: AutomationActorSelection;
@@ -46,13 +39,6 @@ export interface AutomationDefinition {
   maximumAutonomy: AutomationAutonomy;
   limits: Array<{ key: string; value: string | number | boolean | string[] }>;
   enabled: boolean;
-  /**
-   * No longer sent by the API: the legacy `triggers` table and the
-   * `automation_definitions.legacy_trigger_id` link were dropped. Optional only
-   * until the Bloom-migrated screens (`automation-card.tsx`,
-   * `automations/[id].tsx`, `tasks.tsx`) stop reading it; then delete it.
-   */
-  legacyTriggerId?: string | null;
   createdAt: string;
   updatedAt: string;
 }

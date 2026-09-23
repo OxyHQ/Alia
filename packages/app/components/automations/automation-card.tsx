@@ -4,7 +4,6 @@ import { Switch } from '@oxy.so/bloom/switch';
 import { Text } from '@/components/ui/text';
 import {
   actorLabel,
-  automationTitle,
   canRunNow,
   humanizeIdentifier,
   policyReason,
@@ -53,8 +52,7 @@ export function AutomationCard({
 }) {
   const { colors } = useColorScheme();
   const compact = variant === 'compact';
-  const title = automationTitle(automation);
-  const hasName = Boolean(automation.name?.trim());
+  const title = automation.objective;
   const lifecycle = lifecycleLabel(automationLifecycle(automation, latestRun));
   const lastReason = policyReason(latestRun);
 
@@ -66,26 +64,9 @@ export function AutomationCard({
       <View className="flex-row items-start justify-between gap-3">
         <View className="flex-1 gap-1.5">
           <Text className="text-base font-semibold text-foreground" selectable>{title}</Text>
-          {hasName ? (
-            <Text
-              className="text-sm text-muted-foreground"
-              numberOfLines={compact ? 2 : undefined}
-              selectable
-            >
-              {automation.objective}
-            </Text>
-          ) : null}
           <View className="flex-row flex-wrap gap-2">
             <AutomationPill label={lifecycle.label} tone={lifecycle.tone} />
-            {compact ? (
-              <AutomationPill label="Automation" />
-            ) : (
-              <>
-                {automation.legacyTriggerId ? (
-                  <AutomationPill label="Legacy transition" tone="warning" />
-                ) : null}
-              </>
-            )}
+            {compact ? <AutomationPill label="Automation" /> : null}
           </View>
         </View>
         <View accessibilityLabel={`${automation.enabled ? 'Pause' : 'Resume'} ${title}`}>
@@ -106,14 +87,12 @@ export function AutomationCard({
           </Text>
         </View>
         {compact ? null : (
-          <>
-            <View className="flex-row items-center gap-2">
-              <Users size={14} color={colors.mutedForeground} />
-              <Text className="flex-1 text-xs text-muted-foreground" selectable>
-                {actorLabel(automation.actorSelection, agentName, Boolean(automation.legacyTriggerId))}
-              </Text>
-            </View>
-          </>
+          <View className="flex-row items-center gap-2">
+            <Users size={14} color={colors.mutedForeground} />
+            <Text className="flex-1 text-xs text-muted-foreground" selectable>
+              {actorLabel(automation.actorSelection, agentName)}
+            </Text>
+          </View>
         )}
       </View>
 
@@ -174,7 +153,7 @@ export function AutomationCard({
           >
             <Square size={13} className="text-destructive" />
             <Text className="ml-1.5 text-xs font-medium text-destructive">
-              {automation.legacyTriggerId ? 'Stop' : 'Stop and revoke'}
+              Stop and revoke
             </Text>
           </Pressable>
         ) : compact ? null : (
