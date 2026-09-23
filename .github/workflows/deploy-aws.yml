@@ -84,7 +84,7 @@ jobs:
       #
       # Enumerating is also least privilege. The old loop copied every secret
       # visible to the repo, so the org-wide CI credentials (NPM_TOKEN,
-      # CLOUDFLARE_API_TOKEN, ADD_TO_PROJECT_TOKEN) ended up in this app's SSM
+      # CLOUDFLARE_API_TOKEN) ended up in this app's SSM
       # namespace.
       #
       # The list is the GitHub-owned secrets the `alia` task definition
