@@ -148,23 +148,11 @@ export default function NotificationsScreen() {
 
   return (
     <ScrollView
-      style={{ flex: 1 }}
-      contentContainerStyle={{
-        paddingHorizontal: 16,
-        paddingTop: 16,
-        paddingBottom: 24,
-        gap: 16,
-      }}
+      className="flex-1"
+      contentContainerClassName="gap-4 px-4 pb-6 pt-4"
     >
       {/* Top row: the way back, the unread count and the page's actions. */}
-      <View
-        style={{
-          flexDirection: 'row',
-          alignItems: 'center',
-          flexWrap: 'wrap',
-          gap: 8,
-        }}
-      >
+      <View className="flex-row flex-wrap items-center gap-2">
         <Button
           tone="neutral"
           appearance="plain"
@@ -174,13 +162,13 @@ export default function NotificationsScreen() {
         >
           {t('common.back')}
         </Button>
-        {unreadCount > 0 ? (
-          <Muted style={{ flex: 1 }}>
-            {t('pages.notifications.unread', { count: unreadCount })}
-          </Muted>
-        ) : (
-          <View style={{ flex: 1 }} />
-        )}
+        <View className="flex-1">
+          {unreadCount > 0 ? (
+            <Muted>
+              {t('pages.notifications.unread', { count: unreadCount })}
+            </Muted>
+          ) : null}
+        </View>
         {unreadCount > 0 ? (
           <Button
             tone="neutral"
@@ -269,13 +257,7 @@ export default function NotificationsScreen() {
                   <Muted numberOfLines={3}>{notification.body}</Muted>
                 }
                 trailing={
-                  <View
-                    style={{
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      gap: 4,
-                    }}
-                  >
+                  <View className="flex-row items-center gap-1">
                     <Muted>{timeAgo(notification.createdAt)}</Muted>
                     <Button
                       tone="neutral"

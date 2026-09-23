@@ -54,13 +54,9 @@ export function ShowArtwork({ assetId, title, size, radius, iconSize }: ShowArtw
       appearance="subtle"
       radius={radius}
       accessibilityLabel={hasCover ? undefined : `${title} has no cover art`}
-      style={{
-        width: size,
-        height: size,
-        flexShrink: 0,
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}
+      className="shrink-0 items-center justify-center"
+      // The side is the caller's number (64 in a list, larger on the show page).
+      style={{ width: size, height: size }}
     >
       {hasCover ? (
         <Image

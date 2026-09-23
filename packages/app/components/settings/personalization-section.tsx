@@ -209,7 +209,7 @@ export function PersonalizationSection() {
   return (
     // SettingsProfilePage's own page geometry (full width, cards 24 apart),
     // spelled out because two of its blocks are free-text sections, not rows.
-    <View style={PAGE}>
+    <View className="w-full gap-6">
       <SettingsCard>
         {rows.map((row) => (
           <SettingsRow
@@ -277,5 +277,3 @@ export function PersonalizationSection() {
     </View>
   );
 }
-
-const PAGE = { width: '100%', gap: 24 } as const;

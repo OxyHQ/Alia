@@ -214,10 +214,10 @@ export function WritingStyleSection() {
   if (loading) {
     // The page's own geometry, shimmering: the status card, then the overview.
     return (
-      <Skeleton.Col style={{ gap: 24 }}>
+      <View className="flex-1 gap-6">
         <Skeleton.Box width="100%" height={52} borderRadius={16} />
         <Skeleton.Box width="100%" height={312} borderRadius={16} />
-      </Skeleton.Col>
+      </View>
     );
   }
 
@@ -444,7 +444,7 @@ export function WritingStyleSection() {
           },
         ]}
       >
-        <View style={FORM}>
+        <View className="gap-4">
           <SettingsSection label={t(`${K}.signOff`)}>
             <TextFieldInput
               label={t(`${K}.signOff`)}
@@ -491,6 +491,3 @@ export function WritingStyleSection() {
     </>
   );
 }
-
-/** The dialog's labelled fields, stacked like the page's sections. */
-const FORM = { gap: 16 } as const;

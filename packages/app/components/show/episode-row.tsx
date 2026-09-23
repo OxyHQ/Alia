@@ -208,7 +208,7 @@ export function EpisodeRow({ episode, onDelete }: EpisodeRowProps) {
       role="listitem"
       trailing={
         // Stacking only: the delete and readiness controls side by side.
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+        <View className="flex-row items-center gap-1">
           {/*
             The qualifier is load-bearing, not padding, and it had to change
             when the action did. This used to say "from Alia" because the
@@ -231,21 +231,21 @@ export function EpisodeRow({ episode, onDelete }: EpisodeRowProps) {
       }
     >
       {/* Stacking only: the title block, with what the episode is about under it. */}
-      <View style={{ minWidth: 0, flex: 1, gap: 4 }}>
+      <View className="min-w-0 flex-1 gap-1">
         <Text variant="headline-semibold" numberOfLines={2}>
           {name}
         </Text>
-        <Text variant="caption-1-regular" numberOfLines={1} style={{ color: colors.textSecondary }}>
+        <Text numberOfLines={1} className="text-xs text-muted-foreground">
           {meta}
         </Text>
         {summary ? (
-          <Text variant="caption-1-regular" numberOfLines={2} style={{ color: colors.textSecondary }}>
+          <Text numberOfLines={2} className="text-xs text-muted-foreground">
             {summary}
           </Text>
         ) : null}
 
         {isGenerating ? (
-          <View style={{ gap: 4, paddingTop: 4 }}>
+          <View className="gap-1 pt-1">
             <Meter
               value={progress}
               max={100}
@@ -253,12 +253,15 @@ export function EpisodeRow({ episode, onDelete }: EpisodeRowProps) {
               accessibilityLabel={`${name} progress`}
               valueText={`${progress}%`}
             />
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 8 }}>
-              <Text variant="caption-2-regular" numberOfLines={1} style={{ color: colors.textSecondary }}>
+            <View className="flex-row justify-between gap-2">
+              <Text
+                numberOfLines={1}
+                className="text-[11px] leading-[15px] text-muted-foreground"
+              >
                 {live?.currentStep || STEP_LABEL[episode.status]}
               </Text>
               {live?.segmentIndex !== undefined && live.totalSegments !== undefined ? (
-                <Text variant="caption-2-regular" style={{ color: colors.textSecondary }}>
+                <Text className="text-[11px] leading-[15px] text-muted-foreground">
                   Segment {live.segmentIndex}/{live.totalSegments}
                 </Text>
               ) : null}

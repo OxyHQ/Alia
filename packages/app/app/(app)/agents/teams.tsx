@@ -19,8 +19,8 @@ export default function AgentTeamsScreen() {
   const { t } = useTranslation();
   const { data: teams = [], isLoading } = useAgentTeams();
   return (
-    <ScrollView contentContainerStyle={{ padding: 16, gap: 16 }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+    <ScrollView contentContainerClassName="gap-4 p-4">
+      <View className="flex-row items-center gap-2">
         <Button
           size="sm"
           tone="neutral"
@@ -29,7 +29,7 @@ export default function AgentTeamsScreen() {
           accessibilityLabel={t('pages.agents.back')}
           onPress={() => router.back()}
         />
-        <View style={{ flexShrink: 1 }}>
+        <View className="shrink">
           <Text variant="headline-semibold">{t('pages.agents.teamsTitle')}</Text>
           <Muted>{t('pages.agents.teamsDescription')}</Muted>
         </View>

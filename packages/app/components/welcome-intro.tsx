@@ -311,13 +311,13 @@ export function WelcomeIntro({
             </Animated.View>
 
             <Animated.View className="items-center gap-2" style={ctaStyle}>
-              <Button className="rounded-full px-5" onPress={handleGetStarted}>
+              <Button tone="action" onPress={handleGetStarted}>
                 {t('welcome.intro.cta')}
               </Button>
               <Button
-                variant="ghost"
+                tone="neutral"
+                appearance="plain"
                 size="sm"
-                className="rounded-full"
                 onPress={startExit}
               >
                 {t('welcome.intro.skip')}

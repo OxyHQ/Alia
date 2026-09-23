@@ -58,66 +58,73 @@ export const AgentCard = React.memo(function AgentCard({
       appearance="outline"
       onPress={() => onPress(agent._id)}
       accessibilityLabel={agentDisplayName(agent)}
-      style={isFeatured ? { width: 300 } : { flex: 1 }}
+      className={isFeatured ? 'w-[300px]' : 'flex-1'}
     >
-      <CardBody style={{ flex: 1, gap: 8, paddingVertical: 16 }}>
-        {/* The mark, carrying the status dot, and Chat beside it. */}
-        <View
-          style={{
-            flexDirection: 'row',
-            alignItems: 'flex-start',
-            justifyContent: 'space-between',
-          }}
-        >
-          <Badge dot color={STATUS_TONE[agent.status]} placement="bottom-right">
-            <IdentityMark
-              size={isFeatured ? 64 : 56}
-              color={agentTint(agent.color, colors)}
-              accessibilityLabel={agentDisplayName(agent)}
-            />
-          </Badge>
-          <Button
-            size="sm"
-            tone="neutral"
-            stopPropagation
-            onPress={() => onChat?.(agent._id)}
-          >
-            {t('agents.chat')}
-          </Button>
+      {/* Two bodies with a spring between them: the grid equalises a row's
+          heights, and the spring keeps every card's numbers and task action
+          on the same bottom line. */}
+      <CardBody>
+        <View className="gap-2 pt-2">
+          {/* The mark, carrying the status dot, and Chat beside it. */}
+          <View className="flex-row items-start justify-between">
+            <Badge
+              dot
+              color={STATUS_TONE[agent.status]}
+              placement="bottom-right"
+            >
+              <IdentityMark
+                size={isFeatured ? 64 : 56}
+                color={agentTint(agent.color, colors)}
+                accessibilityLabel={agentDisplayName(agent)}
+              />
+            </Badge>
+            <Button
+              size="sm"
+              tone="neutral"
+              stopPropagation
+              onPress={() => onChat?.(agent._id)}
+            >
+              {t('agents.chat')}
+            </Button>
+          </View>
+
+          <View>
+            <CardTitle numberOfLines={1}>{agentDisplayName(agent)}</CardTitle>
+            {/* Handle — absent when Oxy could not resolve the bot account. */}
+            {handle !== '' && <Muted numberOfLines={1}>@{handle}</Muted>}
+          </View>
+
+          <Text variant="body-regular" numberOfLines={2}>
+            {agent.tagline}
+          </Text>
         </View>
+      </CardBody>
 
-        <View>
-          <CardTitle numberOfLines={1}>{agentDisplayName(agent)}</CardTitle>
-          {/* Handle — absent when Oxy could not resolve the bot account. */}
-          {handle !== '' && <Muted numberOfLines={1}>@{handle}</Muted>}
-        </View>
+      {/* Pushes the numbers and the task action to the bottom of the card. */}
+      <View className="flex-1" />
 
-        <Text variant="body-regular" numberOfLines={2}>
-          {agent.tagline}
-        </Text>
+      <CardBody>
+        <View className="gap-2 pb-2">
+          <Muted>{stats}</Muted>
 
-        {/* Pushes the numbers and the task action to the bottom of the card. */}
-        <View style={{ flex: 1 }} />
-
-        <Muted>{stats}</Muted>
-
-        {/* Only an agent anyone may use offers the button to everyone; a
+          {/* Only an agent anyone may use offers the button to everyone; a
             private one is reached through its own thread, by people who were
             given access. */}
-        {agent.access === 'public' && (
-          <Button
-            size="sm"
-            tone="neutral"
-            appearance="outline"
-            leadingIcon={RiFlashlightLine}
-            stopPropagation
-            onPress={() => onHire?.(agent._id)}
-          >
-            {agent.price != null
-              ? `${t('agents.startTask')} · ${agent.price} credits`
-              : t('agents.startTask')}
-          </Button>
-        )}
+          {agent.access === 'public' && (
+            <Button
+              size="sm"
+              tone="neutral"
+              appearance="outline"
+              leadingIcon={RiFlashlightLine}
+              stopPropagation
+              onPress={() => onHire?.(agent._id)}
+            >
+              {agent.price != null
+                ? `${t('agents.startTask')} · ${agent.price} credits`
+                : t('agents.startTask')}
+            </Button>
+          )}
+        </View>
       </CardBody>
     </Card>
   );

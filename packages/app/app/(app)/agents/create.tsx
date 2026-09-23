@@ -184,27 +184,25 @@ export default function CreateAgentScreen() {
   }, [inputValue, generating, createAgent.mutateAsync, router, t, selectedArchetype]);
 
   if (generating) {
-    return <Loading variant="spinner" size="lg" text={t("agents.generating")} style={{ flex: 1 }} />;
+    return (
+      <View className="flex-1 items-center justify-center">
+        <Loading variant="spinner" size="lg" text={t("agents.generating")} />
+      </View>
+    );
   }
 
   return (
     <ScrollView
-      contentContainerStyle={{
-        flexGrow: 1,
-        alignItems: "center",
-        justifyContent: "center",
-        paddingHorizontal: 16,
-        paddingVertical: 40,
-      }}
+      contentContainerClassName="grow items-center justify-center px-4 py-10"
       keyboardShouldPersistTaps="handled"
     >
-      <View style={{ width: "100%", maxWidth: 672, gap: 24 }}>
-        <Text variant="title-3-semibold" style={{ textAlign: "center" }}>
+      <View className="w-full max-w-[672px] gap-6">
+        <Text className="text-center text-lg font-semibold leading-[26px] text-foreground">
           {t("agents.createTitle")}
         </Text>
 
         {/* Archetype picker: one radio row per archetype. */}
-        <View style={{ gap: 8 }}>
+        <View className="gap-2">
           <Muted>{t("pages.agents.agentType")}</Muted>
           <View accessibilityRole="radiogroup" accessibilityLabel={t("pages.agents.agentType")}>
             {ARCHETYPE_OPTIONS.map((option) => (

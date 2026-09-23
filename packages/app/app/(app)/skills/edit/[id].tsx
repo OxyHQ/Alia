@@ -40,25 +40,6 @@ import { ScrollView, View } from 'react-native';
  * changing it makes a different skill rather than editing this one.
  */
 
-/** Stacking only: the column the page reads in. */
-const CONTENT = {
-  width: '100%',
-  maxWidth: 768,
-  alignSelf: 'center',
-  paddingHorizontal: 16,
-  paddingTop: 16,
-  paddingBottom: 48,
-  gap: 16,
-} as const;
-/** Stacking only: the top row, back on one side and saving on the other. */
-const ACTIONS = {
-  flexDirection: 'row',
-  justifyContent: 'space-between',
-  alignItems: 'center',
-  gap: 8,
-} as const;
-const ROW = { flexDirection: 'row', gap: 8 } as const;
-
 export default function EditSkillScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
@@ -178,9 +159,9 @@ export default function EditSkillScreen() {
     <ScrollView
       showsVerticalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"
-      contentContainerStyle={CONTENT}
+      contentContainerClassName="w-full max-w-[768px] self-center gap-4 px-4 pb-12 pt-4"
     >
-      <View style={ACTIONS}>
+      <View className="flex-row items-center justify-between gap-2">
         <Button
           tone="neutral"
           appearance="plain"
@@ -189,7 +170,7 @@ export default function EditSkillScreen() {
           accessibilityLabel={t('common.back')}
           onPress={() => router.back()}
         />
-        <View style={ROW}>
+        <View className="flex-row gap-2">
           <Button
             size="sm"
             tone="neutral"

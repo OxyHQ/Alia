@@ -47,31 +47,6 @@ const KIND_ICON = {
   asset: RiFileTextLine,
 } as const;
 
-/** Stacking only: the column the page reads in. */
-const CONTENT = {
-  width: '100%',
-  maxWidth: 768,
-  alignSelf: 'center',
-  paddingHorizontal: 16,
-  paddingTop: 16,
-  paddingBottom: 48,
-  gap: 24,
-} as const;
-/** Stacking only: the top row of actions. */
-const ACTIONS = {
-  flexDirection: 'row',
-  justifyContent: 'space-between',
-  alignItems: 'center',
-  gap: 8,
-} as const;
-/** Stacking only: the cover beside the skill's identity. */
-const HERO = { flexDirection: 'row', gap: 16 } as const;
-const IDENTITY = { flex: 1, gap: 4, alignItems: 'flex-start' } as const;
-/** Stacking only: a section, its heading over its content. */
-const SECTION = { gap: 8 } as const;
-/** Stacking only: the declared tools, wrapping. */
-const TAGS = { flexDirection: 'row', flexWrap: 'wrap', gap: 6 } as const;
-
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
@@ -113,9 +88,9 @@ export default function SkillDetailScreen() {
   return (
     <ScrollView
       showsVerticalScrollIndicator={false}
-      contentContainerStyle={CONTENT}
+      contentContainerClassName="w-full max-w-[768px] self-center gap-6 px-4 pb-12 pt-4"
     >
-      <View style={ACTIONS}>
+      <View className="flex-row items-center justify-between gap-2">
         <Button
           tone="neutral"
           appearance="plain"
@@ -137,7 +112,7 @@ export default function SkillDetailScreen() {
         ) : null}
       </View>
 
-      <View style={HERO}>
+      <View className="flex-row gap-4">
         {/* The one cover on this screen is the one that may move: an
             explicit opt-in, honoured on native only and not under reduced
             motion. Shelves never pass it (#545). */}
@@ -148,7 +123,7 @@ export default function SkillDetailScreen() {
           title={skill.displayName}
           animated
         />
-        <View style={IDENTITY}>
+        <View className="flex-1 items-start gap-1">
           <Text variant="title-2-semibold">{skill.displayName}</Text>
           <Muted>{skill.name}</Muted>
           {skill.publisher ? (
@@ -228,16 +203,16 @@ export default function SkillDetailScreen() {
       ) : null}
 
       {skill.compatibility ? (
-        <View style={SECTION}>
+        <View className="gap-2">
           <Text variant="headline-semibold">{t('skills.compatibility')}</Text>
           <Muted>{skill.compatibility}</Muted>
         </View>
       ) : null}
 
       {skill.allowedTools.length > 0 ? (
-        <View style={SECTION}>
+        <View className="gap-2">
           <Text variant="headline-semibold">{t('skills.declaredTools')}</Text>
-          <View style={TAGS}>
+          <View className="flex-row flex-wrap gap-1.5">
             {skill.allowedTools.map((tool) => (
               <Badge
                 key={tool}
@@ -251,7 +226,7 @@ export default function SkillDetailScreen() {
         </View>
       ) : null}
 
-      <View style={SECTION}>
+      <View className="gap-2">
         <Text variant="headline-semibold">{t('skills.instructions')}</Text>
         {skill.publisher ? (
           <Muted>{t('skills.untrusted', { publisher: skill.publisher })}</Muted>
@@ -259,7 +234,7 @@ export default function SkillDetailScreen() {
         {version ? <CustomMarkdown content={version.body} /> : null}
       </View>
 
-      <View style={SECTION}>
+      <View className="gap-2">
         <Text variant="headline-semibold">{t('skills.files')}</Text>
         {files.length === 0 ? (
           <Muted>{t('skills.noFiles')}</Muted>

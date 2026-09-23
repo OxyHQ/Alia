@@ -360,17 +360,21 @@ describe("the Library on the layout's surface", () => {
     ).toHaveLength(1);
   });
 
-  it('paints no surface: no ContentPanel, no className, no background', async () => {
+  it('paints no surface: no ContentPanel, no frame classes, no background', async () => {
     const { root } = await renderLibrary();
 
     expect(root.findAll((node) => isHost(node, 'ContentPanel'))).toHaveLength(0);
-    const styled = root.findAll(
-      (node) =>
-        typeof node.type === 'string' &&
-        (node.props.className !== undefined ||
-          node.props.surfaceClassName !== undefined),
-    );
-    expect(styled, 'no NativeWind classes on the page').toHaveLength(0);
+    // Layout classes (rows, gaps, padding) are the page's; a page FRAME — a
+    // background, a border or rounded corners — is the layout's alone.
+    const framed = root.findAll((node) => {
+      if (typeof node.type !== 'string') return false;
+      if (node.props.surfaceClassName !== undefined) return true;
+      const classes = [node.props.className, node.props.contentContainerClassName]
+        .filter((value): value is string => typeof value === 'string')
+        .join(' ');
+      return /(^|\s)(bg-|border|rounded)/.test(classes);
+    });
+    expect(framed, 'no page frame classes on the page').toHaveLength(0);
     const painted = root.findAll((node) => {
       if (typeof node.type !== 'string') return false;
       const style = node.props.style as Record<string, unknown> | undefined;
@@ -489,7 +493,10 @@ describe('the same opener on every top-level page', () => {
       expect(source).not.toMatch(/drawer-toggle/);
       expect(source).not.toContain('<DrawerToggle');
       expect(source).not.toContain('ContentPanel');
-      expect(source).not.toContain('className');
+      // Layout classes (rows, gaps, padding) are the page's; a page FRAME —
+      // a background, a border or rounded corners — is the layout's alone.
+      expect(source).not.toMatch(/surfaceClassName/);
+      expect(source).not.toMatch(/className="[^"]*\b(bg-|border|rounded)/);
     });
   }
 

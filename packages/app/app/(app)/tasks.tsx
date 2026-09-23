@@ -308,7 +308,9 @@ export default function TasksPage() {
   );
 
   const ListEmpty = isLoading ? (
-    <Loading variant="spinner" size="sm" style={{ paddingVertical: 48 }} />
+    <View className="py-12">
+      <Loading variant="spinner" size="sm" />
+    </View>
   ) : isError && items.length === 0 ? null : (
     <EmptyState
       icon={RiInbox2Line}
@@ -321,15 +323,8 @@ export default function TasksPage() {
 
   const ListHeader = (
     // Stacking only: the view switch, the type filter and the error block.
-    <View style={{ gap: 12, paddingBottom: 4 }}>
-      <View
-        style={{
-          flexDirection: 'row',
-          flexWrap: 'wrap',
-          alignItems: 'center',
-          gap: 12,
-        }}
-      >
+    <View className="gap-3 pb-1">
+      <View className="flex-row flex-wrap items-center gap-3">
         <SegmentedControl
           label={t('pages.tasks.view')}
           type="tabs"
@@ -401,30 +396,26 @@ export default function TasksPage() {
     tab === 'history' &&
     taskHistory.data &&
     taskHistory.data.total > historyPage * 20 ? (
-      <Button
-        tone="neutral"
-        appearance="subtle"
-        size="sm"
-        style={{ alignSelf: 'center', marginTop: 12 }}
-        onPress={() => setHistoryPage((p) => p + 1)}
-      >
-        {t('tasks.loadMore')}
-      </Button>
+      <View className="mt-3 items-center">
+        <Button
+          tone="neutral"
+          appearance="subtle"
+          size="sm"
+          onPress={() => setHistoryPage((p) => p + 1)}
+        >
+          {t('tasks.loadMore')}
+        </Button>
+      </View>
     ) : null;
 
   return (
     <FlatList
-      style={{ flex: 1 }}
+      className="flex-1"
       data={items}
       keyExtractor={keyExtractor}
       renderItem={renderItem}
       ItemSeparatorComponent={TaskSeparator}
-      contentContainerStyle={{
-        paddingHorizontal: 16,
-        paddingTop: 16,
-        paddingBottom: 24,
-        gap: 12,
-      }}
+      contentContainerClassName="gap-3 px-4 pb-6 pt-4"
       refreshControl={
         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
       }

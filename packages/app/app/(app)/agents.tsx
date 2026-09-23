@@ -18,9 +18,6 @@ import { useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import { RefreshControl, ScrollView, View } from 'react-native';
 
-/** The page's side gutter, the same 16 the layout's breadcrumb sits on. */
-const GUTTER = 16;
-
 /**
  * The agent catalogue. Plain content on the layout's surface: the layout draws
  * the page, its corners, the menu button and the "Agents" crumb, so this page
@@ -100,7 +97,7 @@ export default function AgentsScreen() {
 
   const renderItem = useCallback(
     ({ item: agent }: { item: (typeof filteredAgents)[0] }) => (
-      <View style={{ flex: 1, padding: 6 }}>
+      <View className="flex-1 p-1.5">
         <AgentCard
           agent={agent}
           variant="grid"
@@ -118,18 +115,11 @@ export default function AgentsScreen() {
   /** The description, and the page's two actions beside it. */
   const headerTop = useMemo(
     () => (
-      <View
-        style={{
-          flexDirection: 'row',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          flexWrap: 'wrap',
-          gap: 12,
-          paddingTop: 16,
-        }}
-      >
-        <Muted style={{ flexShrink: 1 }}>{t('agents.subtitle')}</Muted>
-        <View style={{ flexDirection: 'row', gap: 8 }}>
+      <View className="flex-row flex-wrap items-center justify-between gap-3 pt-4">
+        <Muted className="shrink text-sm text-muted-foreground">
+          {t('agents.subtitle')}
+        </Muted>
+        <View className="flex-row gap-2">
           <Button
             size="sm"
             tone="neutral"
@@ -154,7 +144,7 @@ export default function AgentsScreen() {
   );
 
   const searchBar = (
-    <View style={{ paddingTop: 16 }}>
+    <View className="pt-4">
       <Search
         label={t('agents.searchPlaceholder')}
         value={searchQuery}
@@ -166,32 +156,33 @@ export default function AgentsScreen() {
 
   const categoryChips = useMemo(
     () => (
-      <ChipRow
-        role="radiogroup"
-        accessibilityLabel={t('pages.agents.categories')}
-        style={{ paddingVertical: 12 }}
-      >
-        {categories.map((category) => {
-          const isActive =
-            selectedCategory === category ||
-            (!selectedCategory && category === t('common.all'));
-          return (
-            <Chip
-              key={category}
-              size="xl"
-              role="radio"
-              selected={isActive}
-              onPress={() =>
-                setSelectedCategory(
-                  category === t('common.all') ? null : category,
-                )
-              }
-            >
-              {category}
-            </Chip>
-          );
-        })}
-      </ChipRow>
+      <View className="py-3">
+        <ChipRow
+          role="radiogroup"
+          accessibilityLabel={t('pages.agents.categories')}
+        >
+          {categories.map((category) => {
+            const isActive =
+              selectedCategory === category ||
+              (!selectedCategory && category === t('common.all'));
+            return (
+              <Chip
+                key={category}
+                size="xl"
+                role="radio"
+                selected={isActive}
+                onPress={() =>
+                  setSelectedCategory(
+                    category === t('common.all') ? null : category,
+                  )
+                }
+              >
+                {category}
+              </Chip>
+            );
+          })}
+        </ChipRow>
+      </View>
     ),
     [categories, selectedCategory, t],
   );
@@ -200,12 +191,12 @@ export default function AgentsScreen() {
     if (searchQuery || selectedCategory || featuredAgents.length === 0)
       return null;
     return (
-      <View style={{ gap: 8, paddingBottom: 16 }}>
+      <View className="gap-2 pb-4">
         <Text variant="headline-semibold">{t('agents.featured')}</Text>
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ gap: 12 }}
+          contentContainerClassName="gap-3"
         >
           {featuredAgents.map((agent) => (
             <AgentCard
@@ -231,11 +222,13 @@ export default function AgentsScreen() {
 
   const sectionTitle = useMemo(
     () => (
-      <Text variant="headline-semibold" style={{ paddingBottom: 6 }}>
-        {searchQuery || selectedCategory
-          ? `${filteredAgents.length} ${filteredAgents.length === 1 ? 'agent' : 'agents'}`
-          : t('common.all')}
-      </Text>
+      <View className="pb-1.5">
+        <Text variant="headline-semibold">
+          {searchQuery || selectedCategory
+            ? `${filteredAgents.length} ${filteredAgents.length === 1 ? 'agent' : 'agents'}`
+            : t('common.all')}
+        </Text>
+      </View>
     ),
     [searchQuery, selectedCategory, filteredAgents.length, t],
   );
@@ -244,18 +237,20 @@ export default function AgentsScreen() {
   const loadingSkeleton = useMemo(() => {
     if (!loading || agents.length > 0) return null;
     return (
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', margin: -6 }}>
+      <View className="-m-1.5 flex-row flex-wrap">
         {Array.from({ length: 6 }).map((_, i) => (
           <View
             key={i}
-            style={{ width: isLargeScreen ? '33.33%' : '50%', padding: 6 }}
+            className={isLargeScreen ? 'w-1/3 p-1.5' : 'w-1/2 p-1.5'}
           >
             <Card appearance="outline">
-              <CardBody style={{ gap: 10, paddingVertical: 16 }}>
-                <Skeleton.Circle size={40} />
-                <Skeleton.Box width="70%" height={14} />
-                <Skeleton.Box width="90%" height={10} />
-                <Skeleton.Box width="50%" height={10} />
+              <CardBody>
+                <View className="gap-2.5 py-2">
+                  <Skeleton.Circle size={40} />
+                  <Skeleton.Box width="70%" height={14} />
+                  <Skeleton.Box width="90%" height={10} />
+                  <Skeleton.Box width="50%" height={10} />
+                </View>
               </CardBody>
             </Card>
           </View>
@@ -265,7 +260,7 @@ export default function AgentsScreen() {
   }, [loading, agents.length, isLargeScreen]);
 
   const listHeader = (
-    <View style={{ paddingHorizontal: 6 }}>
+    <View className="px-1.5">
       {headerTop}
       {searchBar}
       {categoryChips}
@@ -290,22 +285,24 @@ export default function AgentsScreen() {
     );
   }, [loading, t, searchQuery]);
 
+  // FlashList measures its own content container, so the page gutter (16, the
+  // layout breadcrumb's, less the 6 each cell pads) and the bottom breathing
+  // room sit around the list and after it rather than in `contentContainerStyle`.
   return (
-    <FlashList
-      key={numColumns}
-      data={loading && agents.length === 0 ? [] : filteredAgents}
-      numColumns={numColumns}
-      renderItem={renderItem}
-      ListHeaderComponent={listHeader}
-      ListEmptyComponent={listEmpty}
-      showsVerticalScrollIndicator={false}
-      contentContainerStyle={{
-        paddingHorizontal: GUTTER - 6,
-        paddingBottom: 24,
-      }}
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-      }
-    />
+    <View className="flex-1 px-2.5">
+      <FlashList
+        key={numColumns}
+        data={loading && agents.length === 0 ? [] : filteredAgents}
+        numColumns={numColumns}
+        renderItem={renderItem}
+        ListHeaderComponent={listHeader}
+        ListEmptyComponent={listEmpty}
+        ListFooterComponent={<View className="h-6" />}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+      />
+    </View>
   );
 }

@@ -35,25 +35,8 @@ import { ScrollView, View } from 'react-native';
 
 const RUN_PAGE_SIZE = 20;
 
-/** Stacking only: the column the page reads in. */
-const CONTENT = {
-  width: '100%',
-  maxWidth: 768,
-  alignSelf: 'center',
-  paddingHorizontal: 16,
-  paddingVertical: 16,
-  gap: 20,
-} as const;
 /** Stacking only: a row of actions or badges. */
-const ROW = {
-  flexDirection: 'row',
-  flexWrap: 'wrap',
-  alignItems: 'center',
-  gap: 8,
-} as const;
-const SPREAD = { ...ROW, justifyContent: 'space-between' } as const;
-/** Stacking only: a vertical group. */
-const STACK = { gap: 8 } as const;
+const ROW = 'flex-row flex-wrap items-center gap-2';
 
 /** The run status tones, in `Badge`'s palette. */
 const BADGE_COLOR = {
@@ -161,9 +144,9 @@ export default function AutomationHistoryScreen() {
     <>
       <ScrollView
         contentInsetAdjustmentBehavior="automatic"
-        contentContainerStyle={CONTENT}
+        contentContainerClassName="w-full max-w-[768px] self-center gap-5 p-4"
       >
-        <View style={SPREAD}>
+        <View className={`${ROW} justify-between`}>
           <Button
             tone="neutral"
             appearance="plain"
@@ -185,12 +168,12 @@ export default function AutomationHistoryScreen() {
           ) : null}
         </View>
 
-        <View style={STACK}>
+        <View className="gap-2">
           {/* The heading is the name; the objective (a legacy trigger's prompt) reads under it (#534). */}
           <Text variant="title-2-semibold" selectable>
             {automationTitle(automation)}
           </Text>
-          <View style={ROW}>
+          <View className={ROW}>
             <Badge
               size="label-medium"
               variant="subtle"

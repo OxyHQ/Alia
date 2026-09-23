@@ -212,18 +212,19 @@ export default function SeriesDetailScreen() {
 
   if (!series) {
     return (
-      <Skeleton.Col style={{ flex: 1, gap: 16, padding: 16 }}>
-        <Skeleton.Row style={{ gap: 16 }}>
+      <View className="flex-1 gap-4 p-4">
+        <View className="flex-row gap-4">
           <Skeleton.Box width={112} height={112} borderRadius={16} />
-          <Skeleton.Col style={{ flex: 1, justifyContent: 'center', gap: 8 }}>
-            <Skeleton.Text style={{ width: '75%', lineHeight: 24 }} />
-            <Skeleton.Text style={{ width: '50%', lineHeight: 16 }} />
+          <View className="flex-1 justify-center gap-2">
+            {/* Bars 0.7 of the 24px title line and the 16px byline. */}
+            <Skeleton.Box width="75%" height={17} />
+            <Skeleton.Box width="50%" height={11} />
             <Skeleton.Pill size={32} />
-          </Skeleton.Col>
-        </Skeleton.Row>
+          </View>
+        </View>
         <Skeleton.Box width="100%" height={56} />
         <Skeleton.Box width="100%" height={64} />
-      </Skeleton.Col>
+      </View>
     );
   }
 
@@ -232,8 +233,6 @@ export default function SeriesDetailScreen() {
   const description = series.description?.trim() || series.brief;
   const isClampable = description.length > DESCRIPTION_CLAMP_CHARS;
 
-  const secondary = { color: colors.textSecondary };
-
   /*
    * No surface and no wash of its own: the layout's `AiChatContainer` paints
    * the page and carries the "Shows" crumb. The show's own title stays — it is
@@ -241,8 +240,8 @@ export default function SeriesDetailScreen() {
    */
   const header = (
     // Stacking only: the hero, the description, the hosts and the heading.
-    <View style={{ gap: 20, paddingBottom: 4 }}>
-      <View style={{ alignItems: 'flex-start' }}>
+    <View className="gap-5 pb-1">
+      <View className="items-start">
         <Button
           tone="neutral"
           appearance="plain"
@@ -254,7 +253,7 @@ export default function SeriesDetailScreen() {
         />
       </View>
 
-      <View style={{ flexDirection: 'row', gap: 16 }}>
+      <View className="flex-row gap-4">
         <ShowArtwork
           assetId={series.coverImageAssetId}
           title={series.title}
@@ -263,29 +262,29 @@ export default function SeriesDetailScreen() {
           iconSize={40}
         />
 
-        <View style={{ minWidth: 0, flex: 1, justifyContent: 'center', gap: 6 }}>
+        <View className="min-w-0 flex-1 justify-center gap-1.5">
           <Text variant="title-2-bold" numberOfLines={3}>
             {series.title}
           </Text>
 
           {hosts ? <Muted numberOfLines={2}>{hosts}</Muted> : null}
 
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
+          <View className="flex-row flex-wrap items-center gap-2">
             <Badge
               size="label-small"
               variant="subtle"
               icon={visibility.icon}
               content={visibility.label}
             />
-            <Text variant="caption-1-regular" style={[secondary, { textTransform: 'capitalize' }]}>
+            <Text className="text-xs capitalize text-muted-foreground">
               {series.format}
             </Text>
-            <Text variant="caption-1-regular" style={secondary}>
+            <Text className="text-xs text-muted-foreground">
               {formatEpisodeCount(episodes.length)}
             </Text>
           </View>
 
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingTop: 6 }}>
+          <View className="flex-row flex-wrap gap-2 pt-1.5">
             <Button
               tone="action"
               size="sm"
@@ -327,14 +326,10 @@ export default function SeriesDetailScreen() {
         </View>
       </View>
 
-      <View style={{ alignItems: 'flex-start', gap: 4 }}>
-        <Text
-          variant="body-regular"
-          style={secondary}
-          numberOfLines={descriptionExpanded || !isClampable ? undefined : 3}
-        >
+      <View className="items-start gap-1">
+        <Muted numberOfLines={descriptionExpanded || !isClampable ? undefined : 3}>
           {description}
-        </Text>
+        </Muted>
         {isClampable ? (
           <Button
             tone="accent"
@@ -348,7 +343,7 @@ export default function SeriesDetailScreen() {
       </View>
 
       {series.speakers.length > 0 ? (
-        <View style={{ gap: 4 }}>
+        <View className="gap-1">
           <H5>Hosts</H5>
           {series.speakers.map((speaker) => (
             <Item
@@ -369,10 +364,10 @@ export default function SeriesDetailScreen() {
         </View>
       ) : null}
 
-      <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' }}>
+      <View className="flex-row items-baseline justify-between">
         <H5>Episodes</H5>
         {episodes.length > 0 ? (
-          <Text variant="caption-1-regular" style={secondary}>
+          <Text className="text-xs text-muted-foreground">
             {formatEpisodeCount(episodes.length)}
           </Text>
         ) : null}
@@ -383,7 +378,7 @@ export default function SeriesDetailScreen() {
   return (
     <>
       <FlatList
-        style={{ flex: 1 }}
+        className="flex-1"
         data={episodes}
         renderItem={renderItem}
         keyExtractor={(item) => item.id}
@@ -409,7 +404,7 @@ export default function SeriesDetailScreen() {
           />
         }
         ListFooterComponent={
-          <View style={{ alignItems: 'center', paddingTop: 24 }}>
+          <View className="items-center pt-6">
             <Button
               tone="danger"
               appearance="plain"
@@ -423,12 +418,7 @@ export default function SeriesDetailScreen() {
             </Button>
           </View>
         }
-        contentContainerStyle={{
-          paddingHorizontal: 16,
-          paddingTop: 8,
-          paddingBottom: 32,
-          gap: 4,
-        }}
+        contentContainerClassName="gap-1 px-4 pt-2 pb-8"
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl

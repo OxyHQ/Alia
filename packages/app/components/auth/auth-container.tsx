@@ -18,24 +18,12 @@ export function AuthContainer({ children }: AuthContainerProps) {
   return (
     <KeyboardAwareScrollView
       bottomOffset={20}
-      style={{ flex: 1 }}
-      contentContainerStyle={{
-        flexGrow: 1,
-        justifyContent: 'center',
-        paddingHorizontal: 24,
-        paddingVertical: 24,
-      }}
+      className="flex-1"
+      contentContainerClassName="grow justify-center p-6"
       keyboardShouldPersistTaps="handled"
       showsVerticalScrollIndicator={false}
     >
-      <View
-        style={{
-          width: '100%',
-          maxWidth: 384,
-          alignSelf: 'center',
-          gap: 24,
-        }}
-      >
+      <View className="w-full max-w-[384px] self-center gap-6">
         {children}
       </View>
     </KeyboardAwareScrollView>

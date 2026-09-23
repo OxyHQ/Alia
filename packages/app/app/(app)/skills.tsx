@@ -37,25 +37,18 @@ import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
 
 const BOOK_WIDTH = 110;
 const BOOK_GAP = 10;
-/** Cover (2:3) + the gap below it + the install button. FlashList needs the height. */
-const SHELF_HEIGHT = BOOK_WIDTH * 1.5 + 6 + 28;
 /** How far past the viewport edge a shelf pre-mounts: about two books. */
 const SHELF_DRAW_DISTANCE = (BOOK_WIDTH + BOOK_GAP) * 2;
 /** Typing pauses this long before a keystroke becomes a request. */
 const SEARCH_DEBOUNCE_MS = 250;
 
-/** Stacking only: the page's side gutter, shared by the header and the shelves. */
-const GUTTER = { paddingHorizontal: 16 } as const;
-/** Stacking only: the header block above the shelves. */
-const HEADER = { ...GUTTER, paddingTop: 16, gap: 12 } as const;
-/** Stacking only: the header's action row. */
-const ACTIONS = { flexDirection: 'row', justifyContent: 'flex-end', gap: 8 } as const;
-/** Stacking only: one shelf, its title above its books. */
-const SECTION = { gap: 8 } as const;
-/** Stacking only: the shelves, one under the other. */
-const SHELVES = { paddingTop: 20, paddingBottom: 32, gap: 20 } as const;
-/** Stacking only: a book, its cover over its install button. */
-const BOOK = { width: BOOK_WIDTH, marginRight: BOOK_GAP, gap: 6, alignItems: 'center' } as const;
+/**
+ * Layout is NativeWind classes. The numbers above that also appear as classes
+ * are restated literally there (Tailwind only sees whole class strings):
+ * `w-[110px]` is BOOK_WIDTH, `mr-[10px]`/`gap-[10px]` is BOOK_GAP and
+ * `h-[199px]` is the shelf height FlashList needs: the 2:3 cover
+ * (BOOK_WIDTH * 1.5) + the 6px gap below it + the 28px install button. Change one, change both.
+ */
 
 /**
  * The server's `query` filter, applied locally to the installed shelf: an
@@ -86,7 +79,7 @@ function SkillBook({
 }) {
   const { t } = useTranslation();
   return (
-    <View style={BOOK}>
+    <View className="w-[110px] mr-[10px] items-center gap-1.5">
       {/* The cover is the skill's own artwork, not a control, so the press
           around it is a bare `Pressable`: Bloom's `PressableScale` animates
           through reanimated, which the shelf must not load (#545). */}
@@ -151,12 +144,12 @@ function Shelf({
 
   if (skills.length === 0) return null;
   return (
-    <View style={SECTION}>
-      <Text variant="headline-semibold" style={GUTTER}>
-        {title}
-      </Text>
+    <View className="gap-2">
+      <View className="px-4">
+        <Text variant="headline-semibold">{title}</Text>
+      </View>
       {/* A horizontal list needs its height from outside; the books are all one size. */}
-      <View style={{ height: SHELF_HEIGHT }}>
+      <View className="h-[199px]">
         <FlashList
           horizontal
           data={skills}
@@ -165,7 +158,7 @@ function Shelf({
           extraData={installedIds}
           drawDistance={SHELF_DRAW_DISTANCE}
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={GUTTER}
+          contentContainerClassName="px-4"
           onEndReached={onEndReached}
           onEndReachedThreshold={0.5}
         />
@@ -266,8 +259,8 @@ export default function SkillsScreen() {
         />
       }
     >
-      <View style={HEADER}>
-        <View style={ACTIONS}>
+      <View className="gap-3 px-4 pt-4">
+        <View className="flex-row justify-end gap-2">
           <Button
             tone="neutral"
             appearance="subtle"
@@ -296,13 +289,15 @@ export default function SkillsScreen() {
       </View>
 
       {catalogue.isLoading ? (
-        <View style={SHELVES}>
-          <View style={SECTION}>
-            <Skeleton.Text style={{ width: 120, marginHorizontal: 16 }} />
+        <View className="gap-5 pb-8 pt-5">
+          <View className="gap-2">
+            <View className="ml-4 w-[120px] flex-row">
+              <Skeleton.Text />
+            </View>
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
-              contentContainerStyle={[GUTTER, { gap: BOOK_GAP }]}
+              contentContainerClassName="gap-[10px] px-4"
             >
               {Array.from({ length: 4 }).map((_, index) => (
                 <Skeleton.Box
@@ -315,7 +310,7 @@ export default function SkillsScreen() {
           </View>
         </View>
       ) : (
-        <View style={SHELVES}>
+        <View className="gap-5 pb-8 pt-5">
           <Shelf
             title={t('skills.installed')}
             skills={installedShelf}
@@ -364,7 +359,7 @@ export default function SkillsScreen() {
           {/* The shelves ask for more as they are scrolled; this is the same
               request for anybody who would rather press than scroll. */}
           {catalogue.hasNextPage ? (
-            <View style={GUTTER}>
+            <View className="px-4">
               <Button
                 tone="neutral"
                 appearance="subtle"

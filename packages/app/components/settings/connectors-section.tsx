@@ -26,7 +26,7 @@ import { TextFieldInput, TextFieldLabel } from '@oxy.so/bloom/text-field';
 import { toast } from '@oxy.so/bloom/toast';
 import * as Collapsible from '@rn-primitives/collapsible';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Linking, Platform, StyleSheet, View } from 'react-native';
+import { Linking, Platform, View } from 'react-native';
 import { SettingsPreferenceSelect } from './preference-select';
 import { useAliaSettings } from './settings-context';
 
@@ -516,7 +516,7 @@ export function ConnectorsSection() {
 
   if (loading) {
     return (
-      <View style={styles.page}>
+      <View className="w-full gap-6">
         <SettingsSection label={t('connectors.installed')} inset={8}>
           <SettingsCard>
             <SettingsRow label={t('common.loading')}>
@@ -529,7 +529,7 @@ export function ConnectorsSection() {
   }
 
   return (
-    <View style={styles.page}>
+    <View className="w-full gap-6">
       <SettingsSection
         label={t('connectors.installed')}
         description={
@@ -644,7 +644,7 @@ export function ConnectorsSection() {
           },
         ]}
       >
-        <View style={styles.fields}>
+        <View className="gap-3">
           {installTarget?.requiredEnv.map((envKey) => (
             <View key={envKey}>
               <TextFieldLabel>{envKey}</TextFieldLabel>
@@ -691,7 +691,7 @@ export function ConnectorsSection() {
           },
         ]}
       >
-        <View style={styles.fields}>
+        <View className="gap-3">
           <View>
             <TextFieldLabel>{t('connectors.nameLabel')}</TextFieldLabel>
             <TextFieldInput
@@ -728,7 +728,7 @@ export function ConnectorsSection() {
               </Button>
             </Collapsible.Trigger>
             <Collapsible.Content>
-              <View style={styles.fields}>
+              <View className="gap-3">
                 <View>
                   <TextFieldLabel>
                     {t('connectors.headerNameLabel')}
@@ -764,10 +764,3 @@ export function ConnectorsSection() {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  // The Tools page's own rhythm: sections 24 apart.
-  page: { width: '100%', gap: 24 },
-  // Dialog form fields, 12 apart.
-  fields: { gap: 12 },
-});

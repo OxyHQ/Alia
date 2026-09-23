@@ -459,11 +459,11 @@ export function MemorySection() {
   if (loading) {
     // The page's own geometry, shimmering: the settings card, then a list.
     return (
-      <Skeleton.Col style={{ gap: 24 }}>
+      <View className="flex-1 gap-6">
         <Skeleton.Box width="100%" height={156} borderRadius={16} />
         <Skeleton.Box width="100%" height={208} borderRadius={16} />
         <Skeleton.Box width="100%" height={156} borderRadius={16} />
-      </Skeleton.Col>
+      </View>
     );
   }
 
@@ -511,7 +511,7 @@ export function MemorySection() {
     <>
       {/* SettingsGeneralPage's page geometry (full width, sections 24 apart),
           spelled out because the search field is a section, not a row. */}
-      <View style={PAGE}>
+      <View className="w-full gap-6">
         <SettingsCard>
           <SettingsRow
             label={t('memory.recallToggleLabel')}
@@ -695,7 +695,7 @@ export function MemorySection() {
         ]}
       >
         {exportStats && (
-          <View style={FORM}>
+          <View className="gap-4">
             <SettingsSection label={t('memory.exportStatistics')}>
               <SettingsCard>
                 <SettingsRow label={t('memory.totalMemories')}>
@@ -755,7 +755,7 @@ export function MemorySection() {
           },
         ]}
       >
-        <View style={FORM}>
+        <View className="gap-4">
           <SettingsCard>
             <SettingsRow label={t('memory.selectFile')}>
               {/* Web-only file chooser: Bloom has no bare file-picker control. */}
@@ -837,8 +837,8 @@ export function MemorySection() {
         }
       >
         {duplicates.length > 0 && (
-          <ScrollView style={{ maxHeight: 400 }}>
-            <View style={FORM}>
+          <ScrollView className="max-h-[400px]">
+            <View className="gap-4">
               {duplicates.map((dup, i) => {
                 // Keeping one of the pair deletes the other.
                 const keep = (targetId?: string) => {
@@ -923,7 +923,7 @@ export function MemorySection() {
             </SettingsRow>
           </SettingsCard>
         ) : (
-          <View style={FORM}>
+          <View className="gap-4">
             <Textarea
               label={t('memory.pasteResponseLabel')}
               value={providerPastedText}
@@ -957,8 +957,3 @@ export function MemorySection() {
     </>
   );
 }
-
-/** SettingsGeneralPage's own geometry: full width, blocks 24 apart. */
-const PAGE = { width: '100%', gap: 24 } as const;
-/** A dialog's blocks, 16 apart. */
-const FORM = { gap: 16 } as const;

@@ -131,39 +131,41 @@ function EventCard({ entry }: { entry: EventEntry }) {
       onPress={() => setExpanded(!expanded)}
       accessibilityLabel={entry.type.replace(/_/g, " ")}
     >
-      <CardBody style={{ gap: 6, paddingVertical: 12 }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          <Badge
-            size="label-small"
-            variant="subtle"
-            color={EVENT_TONES[entry.type] ?? 'default'}
-            icon={EVENT_ICONS[entry.type] ?? RiChat3Line}
-            content={entry.type.replace(/_/g, " ")}
-          />
-          {entry.metadata?.toolName && (
-            <Muted numberOfLines={1} style={{ flexShrink: 1 }}>
-              {entry.metadata.toolName}
-            </Muted>
-          )}
-          <View style={{ flex: 1 }} />
-          {entry.metadata?.durationMs && (
-            <Muted>{formatDuration(entry.metadata.durationMs)}</Muted>
-          )}
-          <Muted>{formatTimestamp(entry.timestamp)}</Muted>
-          {expanded ? (
-            <RiArrowUpSLine size="sm" />
-          ) : (
-            <RiArrowDownSLine size="sm" />
+      <CardBody>
+        <View className="gap-1.5 py-1">
+          <View className="flex-row items-center gap-2">
+            <Badge
+              size="label-small"
+              variant="subtle"
+              color={EVENT_TONES[entry.type] ?? 'default'}
+              icon={EVENT_ICONS[entry.type] ?? RiChat3Line}
+              content={entry.type.replace(/_/g, " ")}
+            />
+            {entry.metadata?.toolName && (
+              <Muted numberOfLines={1} className="shrink text-sm text-muted-foreground">
+                {entry.metadata.toolName}
+              </Muted>
+            )}
+            <View className="flex-1" />
+            {entry.metadata?.durationMs && (
+              <Muted>{formatDuration(entry.metadata.durationMs)}</Muted>
+            )}
+            <Muted>{formatTimestamp(entry.timestamp)}</Muted>
+            {expanded ? (
+              <RiArrowUpSLine size="sm" />
+            ) : (
+              <RiArrowDownSLine size="sm" />
+            )}
+          </View>
+
+          <Text variant="body-regular" numberOfLines={expanded ? undefined : 2}>
+            {entry.content}
+          </Text>
+
+          {expanded && entry.metadata?.args && (
+            <Pre>{JSON.stringify(entry.metadata.args, null, 2)}</Pre>
           )}
         </View>
-
-        <Text variant="body-regular" numberOfLines={expanded ? undefined : 2}>
-          {entry.content}
-        </Text>
-
-        {expanded && entry.metadata?.args && (
-          <Pre>{JSON.stringify(entry.metadata.args, null, 2)}</Pre>
-        )}
       </CardBody>
     </Card>
   );
@@ -209,9 +211,9 @@ export default function SessionActivityScreen() {
   const errorCount = entries.filter((e) => e.type === "error").length;
 
   return (
-    <View style={{ flex: 1 }}>
+    <View className="flex-1">
       {/* The back action, what this session was asked to do, and its status. */}
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingTop: 16 }}>
+      <View className="flex-row items-center gap-2 px-4 pt-4">
         <Button
           size="sm"
           tone="neutral"
@@ -220,7 +222,7 @@ export default function SessionActivityScreen() {
           accessibilityLabel={t('pages.agents.back')}
           onPress={() => router.back()}
         />
-        <View style={{ flex: 1 }}>
+        <View className="flex-1">
           <Text variant="headline-semibold">{t('pages.agents.sessionTitle')}</Text>
           {session && <Muted numberOfLines={1}>{session.task}</Muted>}
         </View>
@@ -236,7 +238,7 @@ export default function SessionActivityScreen() {
 
       {/* Stats */}
       {session && (
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingTop: 12 }}>
+        <View className="flex-row flex-wrap items-center gap-2 px-4 pt-3">
           <Badge size="label-small" variant="subtle" icon={RiTimeLine} content={t('pages.agents.sessionSteps', { count: session.stats.totalSteps })} />
           <Badge size="label-small" variant="subtle" icon={RiHistoryLine} content={t('pages.agents.sessionEvents', { count: entries.length })} />
           {threatCount > 0 && (
@@ -252,13 +254,15 @@ export default function SessionActivityScreen() {
 
       {/* Activity timeline */}
       {loading ? (
-        <Loading variant="spinner" style={{ flex: 1 }} />
+        <View className="flex-1 items-center justify-center">
+          <Loading variant="spinner" />
+        </View>
       ) : (
         <FlatList
           data={entries}
           keyExtractor={(item) => item._id || String(item.seq)}
           renderItem={({ item }) => <EventCard entry={item} />}
-          contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 16, gap: 8 }}
+          contentContainerClassName="gap-2 px-4 pb-4"
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
           }

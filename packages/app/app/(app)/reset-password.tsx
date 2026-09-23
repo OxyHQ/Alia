@@ -82,12 +82,12 @@ export default function ResetPasswordScreen() {
     <AuthContainer>
       <AuthLogo />
 
-      <View style={{ gap: 8 }}>
+      <View className="gap-2">
         <Text variant="title-1-bold">{t('resetPassword.title')}</Text>
         <Muted>{t('resetPassword.subtitle')}</Muted>
       </View>
 
-      <View style={{ gap: 12 }}>
+      <View className="gap-3">
         <AuthError message={error} />
 
         <TextFieldInput

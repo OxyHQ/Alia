@@ -10,19 +10,9 @@ import {
 } from '@oxy.so/bloom/select';
 
 /**
- * The settings modal story's `CompactSelect`: Bloom's md select with the
- * compact row trigger (`h-8 gap-1 px-2 py-1.5`, spelled here as the trigger's
- * `fieldStyle` longhands so no utility class is needed), typed on its values.
+ * The settings modal story's `CompactSelect`: Bloom's select at its compact
+ * `sm` density, typed on its values.
  */
-const COMPACT_TRIGGER = {
-  height: 32,
-  gap: 4,
-  paddingLeft: 8,
-  paddingRight: 8,
-  paddingTop: 6,
-  paddingBottom: 6,
-} as const;
-
 export function SettingsPreferenceSelect<T extends string>({
   label,
   value,
@@ -38,6 +28,7 @@ export function SettingsPreferenceSelect<T extends string>({
 }) {
   return (
     <Select
+      size="sm"
       value={value}
       disabled={disabled}
       onValueChange={(next) => {
@@ -45,7 +36,7 @@ export function SettingsPreferenceSelect<T extends string>({
         if (item) onChange(item.value);
       }}
     >
-      <SelectTrigger label={label} fieldStyle={COMPACT_TRIGGER}>
+      <SelectTrigger label={label}>
         <SelectValue>
           {(v) => {
             const key =
