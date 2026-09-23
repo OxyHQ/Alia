@@ -23,12 +23,6 @@ export interface PlanProgress {
   total: number;
 }
 
-export interface AgentScreenshot {
-  base64: string;
-  url: string;
-  timestamp: number;
-}
-
 export interface AgentActivityEvent {
   type: 'system' | 'thinking' | 'response' | 'tool_call' | 'tool_result' | 'error' | 'complete' | 'screenshot' | 'plan_progress' | 'file_change' | 'source_found' | 'threat' | 'approval_request' | 'approval_result';
   content: string;
@@ -46,7 +40,6 @@ export interface AgentActivityEvent {
     decision?: 'approved' | 'denied' | 'timeout';
   };
   data?: {
-    base64?: string;
     url?: string;
     plan?: PlanProgress;
     currentStep?: number;
@@ -73,8 +66,6 @@ export interface AgentSource {
 export interface AgentActivityState {
   /** Current plan with checklist items */
   plan: PlanProgress | null;
-  /** Most recent screenshots (last 5) */
-  screenshots: AgentScreenshot[];
   /** Current action being executed */
   currentAction: { toolName: string; content: string } | null;
   /** Whether the agent has completed */
@@ -117,7 +108,6 @@ export interface UseAgentActivityResult extends AgentActivityState {
 
 const INITIAL_STATE: AgentActivityState = {
   plan: null,
-  screenshots: [],
   currentAction: null,
   isComplete: false,
   hasError: false,
@@ -131,7 +121,6 @@ const INITIAL_STATE: AgentActivityState = {
   approvalResult: null,
 };
 
-const MAX_SCREENSHOTS = 5;
 const MAX_EVENTS = 50;
 
 type PersistedAgentEvent = {
@@ -198,15 +187,6 @@ export function useAgentActivity(sessionId: string | null, agentId?: string | nu
         case 'plan_progress':
           if (event.data?.plan) {
             updated.plan = event.data.plan;
-          }
-          break;
-
-        case 'screenshot':
-          if (event.data?.base64) {
-            updated.screenshots = [
-              ...prev.screenshots.slice(-(MAX_SCREENSHOTS - 1)),
-              { base64: event.data.base64, url: event.data.url || '', timestamp: event.timestamp },
-            ];
           }
           break;
 

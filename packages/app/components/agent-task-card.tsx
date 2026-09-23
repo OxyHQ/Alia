@@ -2,11 +2,11 @@
  * AgentTaskCard — Inline card showing real-time agent execution progress.
  *
  * Renders in the chat interface when an agent is working on a task.
- * Shows: plan checklist, current action, screenshots, elapsed time.
+ * Shows: plan checklist, current action, elapsed time.
  */
 
 import React, { useState, useEffect } from 'react';
-import { View, Pressable, Image as RNImage } from 'react-native';
+import { View, Pressable } from 'react-native';
 import { Text } from '@/components/ui/text';
 import Animated, {
   useSharedValue,
@@ -16,9 +16,9 @@ import Animated, {
   withTiming,
   FadeIn,
 } from 'react-native-reanimated';
-import { Check, Circle, Loader, ChevronDown, ChevronUp, Monitor, AlertCircle } from 'lucide-react-native';
+import { Check, Circle, Loader, ChevronDown, ChevronUp, AlertCircle } from 'lucide-react-native';
 import { useTheme } from '@oxy.so/bloom/theme';
-import type { AgentActivityState, PlanItem, AgentScreenshot } from '@/lib/hooks/use-agent-activity';
+import type { AgentActivityState, PlanItem } from '@/lib/hooks/use-agent-activity';
 
 interface AgentTaskCardProps {
   activity: AgentActivityState;
@@ -73,32 +73,9 @@ function PlanItemRow({ item }: { item: PlanItem }) {
   );
 }
 
-function ScreenshotThumbnail({ screenshot }: { screenshot: AgentScreenshot }) {
-  const [expanded, setExpanded] = useState(false);
-
-  return (
-    <Pressable onPress={() => setExpanded(!expanded)}>
-      <View className="rounded-lg overflow-hidden border border-border">
-        <RNImage
-          source={{ uri: `data:image/png;base64,${screenshot.base64}` }}
-          style={{ width: expanded ? 320 : 120, height: expanded ? 200 : 75 }}
-          resizeMode="cover"
-        />
-        {!expanded && (
-          <View className="absolute bottom-0 left-0 right-0 bg-black/60 px-1 py-0.5">
-            <Text className="text-[10px] text-white" numberOfLines={1}>
-              {screenshot.url}
-            </Text>
-          </View>
-        )}
-      </View>
-    </Pressable>
-  );
-}
-
 export const AgentTaskCard = React.memo(function AgentTaskCard({ activity }: AgentTaskCardProps) {
   const { colors } = useTheme();
-  const { plan, screenshots, currentAction, isComplete, hasError, lastError, eventCount, startedAt, latestResponse } = activity;
+  const { plan, currentAction, isComplete, hasError, lastError, eventCount, startedAt, latestResponse } = activity;
   const [showPlan, setShowPlan] = useState(true);
   const [elapsed, setElapsed] = useState('');
 
@@ -209,21 +186,6 @@ export const AgentTaskCard = React.memo(function AgentTaskCard({ activity }: Age
           <Text className="text-xs text-red-400" numberOfLines={2}>
             {lastError}
           </Text>
-        </View>
-      )}
-
-      {/* Screenshots */}
-      {screenshots.length > 0 && (
-        <View className="px-3 py-2 border-t border-border">
-          <View className="flex-row items-center gap-1 mb-1.5">
-            <Monitor size={12} className="text-muted-foreground" />
-            <Text className="text-xs text-muted-foreground">Browser</Text>
-          </View>
-          <View className="flex-row gap-2 flex-wrap">
-            {screenshots.map((s, i) => (
-              <ScreenshotThumbnail key={`ss-${i}`} screenshot={s} />
-            ))}
-          </View>
         </View>
       )}
     </Animated.View>

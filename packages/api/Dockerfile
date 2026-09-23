@@ -49,6 +49,9 @@ COPY packages/alia-cowork/package.json ./packages/alia-cowork/
 COPY packages/alia-codea-cli/package.json ./packages/alia-codea-cli/
 
 # Skip heavy browser/desktop binaries pulled by unrelated workspaces.
+# The API itself ships no browser and depends on neither Playwright nor
+# Stagehand (its `browser` tool is Clarity-only); PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD
+# stays only because alia-cowork's postinstall runs `playwright install`.
 # ffmpeg-static (declared in packages/api "trustedDependencies") still fetches its
 # arch-specific binary so audio features work on the target architecture.
 ENV ELECTRON_SKIP_BINARY_DOWNLOAD=1 \

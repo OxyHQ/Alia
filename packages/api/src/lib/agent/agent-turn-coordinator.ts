@@ -53,7 +53,7 @@ export class AgentTurnCoordinator {
 
     const todoManager = new TodoManager();
     const eventStream = new EventStream({ agentId: input.agent._id, sessionId: session._id });
-    const browserSession = new BrowserSession({ agentId: input.agent._id, sessionId: session._id });
+    const browserSession = new BrowserSession();
     let completedResult: string | undefined;
     const runtime: AgentRuntimeContext = {
       session,
@@ -66,11 +66,12 @@ export class AgentTurnCoordinator {
 
     let settlement: Promise<void> | null = null;
     const settle = (status: 'completed' | 'failed', result: string): Promise<void> => {
-      // A successful inference turn is over before its disposable browser has
-      // finished tearing down. Release admission first:
-      // the client is allowed to send its next turn as soon as it receives
-      // [DONE], and counting cleanup time as active work made that immediate
-      // follow-up lose a race against maxConcurrentThreads=1.
+      // Admission is released by the status write, and nothing slow may sit
+      // before it: the client is allowed to send its next turn as soon as it
+      // receives [DONE], and counting cleanup time as active work made that
+      // immediate follow-up lose a race against maxConcurrentThreads=1. (There
+      // used to be a disposable browser to tear down here; the Clarity-only
+      // browser holds nothing to close.)
       settlement ??= (async () => {
         eventStream.append(status === 'completed' ? 'complete' : 'error', result);
         await eventStream.flush().catch((err: unknown) => {
@@ -81,9 +82,6 @@ export class AgentTurnCoordinator {
           result,
           chatLeaseExpiresAt: null,
           stats: { completedAt: new Date(), lastActivityAt: new Date() },
-        });
-        await browserSession.close().catch((err: unknown) => {
-          log.agents.warn({ err, sessionId: session._id }, 'Failed to close agent browser session');
         });
       })();
       return settlement;

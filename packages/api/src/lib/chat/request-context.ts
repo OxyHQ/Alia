@@ -100,7 +100,7 @@ export interface ChatRequestContext {
    * Whether Alia may reach the open web for this turn.
    *
    * `true` when the caller said nothing, which is the behaviour every request
-   * has had: `lib/tool-pipeline.ts` put `webSearch`, `webScraper` and `browse`
+   * has had: `lib/tool-pipeline.ts` put `webSearch`, `webScraper` and (then) `browse`
    * in the always-on tool set, and the composer's "Web search" switch reached
    * nothing at all. The switch means something now, and what it means is
    * REMOVAL — a person turning it off gets a turn with no web tools offered to

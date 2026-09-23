@@ -1,167 +1,68 @@
 /**
- * Browser Session — Manus-Style Browser Automation
+ * Browser Session — the autonomous runner's `browser` primitive, through Clarity.
  *
- * Provides a persistent browser session for agent interactions.
- * Uses a hybrid approach for performance:
- *   - search: Clarity Search (no browser needed)
- *   - goto + get_text: Clarity document extraction (no browser needed)
- *   - goto + screenshot: Stagehand/Playwright (real browser)
- *   - click/type/scroll: Stagehand interactive actions
+ * Three actions, and all of them are Clarity calls:
+ *   - search:   Clarity Search over its public web index
+ *   - goto:     Clarity document extraction for one URL, remembered as current
+ *   - get_text: the current URL's extracted text again
  *
- * Screenshots are returned as base64 for vision-capable models.
- * Falls back to text extraction when vision is unavailable.
+ * ## There is no local browser, and that is the design
+ *
+ * This used to fall back to Stagehand driving a local Chromium for anything
+ * Clarity could not represent, and to offer screenshot, click, type, scroll and
+ * back on top of it. The runtime image ships no Chromium, so in production every
+ * one of those failed at launch — the primitive worked exactly as far as Clarity
+ * reached and no further. What cannot work was removed; what remains works in
+ * the image as it is built.
+ *
+ * `validateUrl` still runs before Clarity is asked anything: Clarity fetches on
+ * our behalf, and a URL a model produced is not trusted because it came back
+ * through a service.
+ *
+ * The session holds nothing but the current URL, so there is nothing to open,
+ * pre-warm or close.
  */
 
-/// <reference lib="dom" />
-/// <reference lib="dom.iterable" />
-
-import { Stagehand } from '@browserbasehq/stagehand';
-import type { Page } from 'playwright';
 import { validateUrl } from '../tools/sandbox.js';
 import { log } from '../logger.js';
 import { getErrorMessage } from '../errors/index.js';
 import { clarityClient } from '../clarity-client.js';
-import { oxyServiceToken } from '../oxy-service-client.js';
-import { emitAgentActivity } from '../../socket.js';
 
 const MAX_CONTENT_CHARS = 12_000;
-const PAGE_TIMEOUT = 15_000;
 
-export type BrowserAction =
-  | 'goto'
-  | 'click'
-  | 'type'
-  | 'scroll_down'
-  | 'scroll_up'
-  | 'screenshot'
-  | 'get_text'
-  | 'search'
-  | 'back'
-  | 'wait';
-
-/** Actions that auto-capture a screenshot for model vision */
-const INTERACTIVE_ACTIONS: ReadonlySet<BrowserAction> = new Set(['click', 'type', 'scroll_down', 'scroll_up', 'back', 'goto']);
+export const BROWSER_ACTIONS = ['search', 'goto', 'get_text'] as const;
+export type BrowserAction = (typeof BROWSER_ACTIONS)[number];
 
 export interface BrowserParams {
   url?: string;
-  selector?: string;
-  text?: string;
   query?: string;
 }
 
-export interface BrowserSessionOpts {
-  agentId?: string;
-  sessionId?: string;
-}
-
 export class BrowserSession {
-  private stagehand: Stagehand | null = null;
-  private page: Page | null = null;
   private currentUrl = '';
-  private screenshotSeq = 0;
-  private agentId?: string;
-  private sessionId?: string;
 
-  constructor(opts?: BrowserSessionOpts) {
-    this.agentId = opts?.agentId;
-    this.sessionId = opts?.sessionId;
-  }
-
-  /**
-   * Pre-initialize the browser in the background.
-   * Call this early when the task likely needs browser interaction.
-   * Safe to call multiple times — only the first call initializes.
-   */
-  preInit(): void {
-    this.ensureBrowser().catch(err =>
-      log.agents.warn({ err }, 'Browser pre-init failed (will retry on first use)'),
-    );
-  }
-
-  /**
-   * Execute a browser action. Initializes the browser lazily on first interactive action.
-   */
+  /** Run one browser action. Errors come back as text the model can act on. */
   async execute(action: BrowserAction, params: BrowserParams): Promise<string> {
     try {
-      let result: string;
       switch (action) {
         case 'search':
           return await this.search(params.query || '');
-
         case 'goto':
-          result = await this.goto(params.url || '');
-          break;
-
+          return await this.goto(params.url || '');
         case 'get_text':
           return await this.getText();
-
-        case 'screenshot':
-          return await this.screenshot();
-
-        case 'click':
-          result = await this.click(params.selector || params.text || '');
-          break;
-
-        case 'type':
-          result = await this.type(params.selector || '', params.text || '');
-          break;
-
-        case 'scroll_down':
-          result = await this.scroll('down');
-          break;
-
-        case 'scroll_up':
-          result = await this.scroll('up');
-          break;
-
-        case 'back':
-          result = await this.back();
-          break;
-
-        case 'wait':
-          await new Promise(r => setTimeout(r, 2000));
-          return 'Waited 2 seconds.';
-
         default:
-          return `Unknown browser action: ${action}`;
+          return `Unknown browser action: ${String(action)}. Use search, goto or get_text.`;
       }
-
-      // Auto-screenshot after interactive actions so the model can see the result
-      if (INTERACTIVE_ACTIONS.has(action) && this.page && !result.startsWith('Error')) {
-        try {
-          await this.screenshot();
-          result += '\n[Auto-screenshot captured — visible in your next message as an image.]';
-        } catch {
-          // Non-critical — continue without screenshot
-        }
-      }
-
-      return result;
     } catch (err: unknown) {
-      log.agents.error({ err, action, params }, 'Browser session error');
+      // Neither the query nor the URL: both are chosen by the model from what
+      // the person asked, and a URL identifies what someone is reading.
+      log.agents.error({ err, action }, 'Browser session error');
       return `Browser error: ${getErrorMessage(err)}`;
     }
   }
 
-  /** Close the browser session */
-  async close(): Promise<void> {
-    if (this.stagehand) {
-      try {
-        await this.stagehand.close();
-      } catch { /* ignore */ }
-      this.stagehand = null;
-      this.page = null;
-    }
-  }
-
-  /** Check if the browser is open */
-  isOpen(): boolean {
-    return this.stagehand !== null;
-  }
-
-  // ── Actions ──
-
-  /** Search Clarity's public web index without opening a browser. */
+  /** Search Clarity's public web index. */
   private async search(query: string): Promise<string> {
     if (!query) return 'Error: query is required for search action';
     const response = await clarityClient().search({ query, mode: 'hybrid', limit: 8 });
@@ -173,7 +74,7 @@ export class BrowserSession {
     ).join('\n\n');
   }
 
-  /** Navigate to a URL and return page text */
+  /** Read a URL through Clarity and make it the current page. */
   private async goto(url: string): Promise<string> {
     if (!url) return 'Error: url is required for goto action';
 
@@ -181,261 +82,28 @@ export class BrowserSession {
     if (!check.valid) return `Error: URL blocked — ${check.reason}`;
 
     this.currentUrl = url;
-
-    // Try fast text extraction first (no browser needed)
-    const text = await this.fetchAndExtract(url);
-    if (text) return text;
-
-    // Fall back to real browser
-    await this.ensureBrowser();
-    await this.page!.goto(url, { waitUntil: 'domcontentloaded', timeout: PAGE_TIMEOUT });
-
-    return await this.extractPageText();
+    return await this.read(url);
   }
 
-  /** Get text content of the current page */
+  /** The current page's text, read again. */
   private async getText(): Promise<string> {
-    if (!this.page && this.currentUrl) {
-      // If no browser, try scraping
-      const text = await this.fetchAndExtract(this.currentUrl);
-      return text || 'No page loaded. Use goto first.';
+    if (!this.currentUrl) return 'No page loaded. Use goto first.';
+    return await this.read(this.currentUrl);
+  }
+
+  private async read(url: string): Promise<string> {
+    const resolution = await clarityClient().indexing.resolve({ urls: [url], waitMs: 8_000 });
+    const item = resolution.data[0];
+    const document = item?.document;
+    const content = document?.content?.trim();
+    if (!document || !content) {
+      return item?.operationId
+        ? `Clarity is still indexing ${url}. Try get_text again shortly, or search for another source.`
+        : `Clarity could not extract readable text from ${url}. Search for another source.`;
     }
-    if (!this.page) return 'No page loaded. Use goto first.';
-    return await this.extractPageText();
-  }
-
-  /** The most recent screenshot base64 — available for vision model injection */
-  private _lastScreenshotBase64: string | null = null;
-
-  /** Consume the last screenshot (returns it and clears the internal reference). */
-  consumeLastScreenshot(): string | null {
-    const shot = this._lastScreenshotBase64;
-    this._lastScreenshotBase64 = null;
-    return shot;
-  }
-
-  /** Take a screenshot of the current page (base64) */
-  private async screenshot(): Promise<string> {
-    if (!this.page && this.currentUrl) {
-      await this.ensureBrowser();
-      await this.page!.goto(this.currentUrl, { waitUntil: 'domcontentloaded', timeout: PAGE_TIMEOUT });
-    }
-    if (!this.page) return 'No page loaded. Use goto first.';
-
-    const buffer = await this.page.screenshot({ fullPage: false });
-    const base64 = buffer.toString('base64');
-    this.screenshotSeq++;
-    this._lastScreenshotBase64 = base64;
-
-    const pageUrl = this.page.url();
-
-    // Stream screenshot to frontend via Socket.IO
-    if (this.agentId && this.sessionId) {
-      emitAgentActivity(this.agentId, {
-        type: 'screenshot',
-        content: `Screenshot of ${pageUrl}`,
-        timestamp: Date.now(),
-        sessionId: this.sessionId,
-        data: { base64, url: pageUrl },
-      });
-    }
-
-    return `[Screenshot captured (${Math.round(buffer.length / 1024)}KB). Current URL: ${pageUrl}]. The screenshot is included in your next message as an image.`;
-  }
-
-  /** Click an element described by selector or natural language */
-  private async click(target: string): Promise<string> {
-    if (!target) return 'Error: selector or description required for click action';
-
-    await this.ensureBrowser();
-    if (!this.page) return 'No page loaded. Use goto first.';
-
-    // Try Stagehand NL action first, fall back to JS injection
-    try {
-      await this.stagehand!.act(`Click on "${target}"`);
-      await this.page.waitForTimeout(1000);
-      return `Clicked: "${target}". Current URL: ${this.page.url()}`;
-    } catch (nlErr: unknown) {
-      log.agents.warn({ err: nlErr, target }, 'Browser: Stagehand click failed, trying JS fallback');
-      try {
-        // Fallback: find element by text content, aria-label, or CSS selector
-        const clicked = await this.page.evaluate((t: string) => {
-          // Try as CSS selector first
-          try {
-            const el = document.querySelector(t) as HTMLElement;
-            if (el) { el.click(); return true; }
-          } catch { /* not a valid selector */ }
-          // Try finding by text content
-          const allElements = document.querySelectorAll('a, button, [role="button"], input[type="submit"], [onclick]');
-          for (const el of allElements) {
-            const text = (el as HTMLElement).innerText?.trim() || el.getAttribute('aria-label') || '';
-            if (text.toLowerCase().includes(t.toLowerCase())) {
-              (el as HTMLElement).click();
-              return true;
-            }
-          }
-          return false;
-        }, target);
-
-        if (clicked) {
-          await this.page.waitForTimeout(1000);
-          return `Clicked (JS fallback): "${target}". Current URL: ${this.page.url()}`;
-        }
-        return `Failed to click "${target}": element not found (tried Stagehand NL + JS fallback)`;
-      } catch (jsErr: unknown) {
-        return `Browser error clicking "${target}": ${getErrorMessage(nlErr)}, JS fallback also failed: ${getErrorMessage(jsErr)}`;
-      }
-    }
-  }
-
-  /** Type text into a form field */
-  private async type(selector: string, text: string): Promise<string> {
-    if (!text) return 'Error: text is required for type action';
-
-    await this.ensureBrowser();
-    if (!this.page) return 'No page loaded. Use goto first.';
-
-    // Try Stagehand NL action first, fall back to JS injection
-    try {
-      if (selector) {
-        await this.stagehand!.act(`Type "${text}" into the ${selector} field`);
-      } else {
-        await this.stagehand!.act(`Type "${text}" into the focused input`);
-      }
-      return `Typed: "${text}"`;
-    } catch (nlErr: unknown) {
-      // Never the text: what an agent types into a page is whatever the user
-      // asked it to enter, up to and including a credential.
-      log.agents.warn({ err: nlErr, selector, textLength: text.length }, 'Browser: Stagehand type failed, trying JS fallback');
-      try {
-        // Fallback: find input by selector, placeholder, or label
-        const typed = await this.page.evaluate(({ sel, val }: { sel: string; val: string }) => {
-          let input: HTMLElement | null = null;
-          // Try CSS selector
-          if (sel) {
-            try { input = document.querySelector(sel) as HTMLElement; } catch { /* not valid */ }
-          }
-          // Try by placeholder or aria-label
-          if (!input && sel) {
-            const inputs = document.querySelectorAll('input, textarea, [contenteditable]');
-            for (const el of inputs) {
-              const placeholder = el.getAttribute('placeholder') || '';
-              const label = el.getAttribute('aria-label') || '';
-              if (placeholder.toLowerCase().includes(sel.toLowerCase()) || label.toLowerCase().includes(sel.toLowerCase())) {
-                input = el as HTMLElement;
-                break;
-              }
-            }
-          }
-          // Fallback to currently focused element
-          if (!input) input = document.activeElement as HTMLElement;
-          if (!input) return false;
-
-          if ('value' in input) {
-            (input as HTMLInputElement).value = val;
-            input.dispatchEvent(new Event('input', { bubbles: true }));
-            input.dispatchEvent(new Event('change', { bubbles: true }));
-            return true;
-          }
-          if (input.isContentEditable) {
-            input.textContent = val;
-            input.dispatchEvent(new Event('input', { bubbles: true }));
-            return true;
-          }
-          return false;
-        }, { sel: selector, val: text });
-
-        if (typed) return `Typed (JS fallback): "${text}"`;
-        return `Failed to type "${text}": no suitable input found`;
-      } catch (jsErr: unknown) {
-        return `Browser error typing "${text}": ${getErrorMessage(nlErr)}, JS fallback also failed: ${getErrorMessage(jsErr)}`;
-      }
-    }
-  }
-
-  /** Scroll the page */
-  private async scroll(direction: 'up' | 'down'): Promise<string> {
-    await this.ensureBrowser();
-    if (!this.page) return 'No page loaded. Use goto first.';
-
-    const delta = direction === 'down' ? 600 : -600;
-    await this.page.mouse.wheel(0, delta);
-    await this.page.waitForTimeout(500);
-
-    return `Scrolled ${direction}.`;
-  }
-
-  /** Go back in browser history */
-  private async back(): Promise<string> {
-    await this.ensureBrowser();
-    if (!this.page) return 'No page loaded. Use goto first.';
-
-    await this.page.goBack({ timeout: PAGE_TIMEOUT });
-    return `Navigated back. Current URL: ${this.page.url()}`;
-  }
-
-  // ── Internal ──
-
-  /** Initialize Stagehand/Playwright browser lazily */
-  private async ensureBrowser(): Promise<void> {
-    if (this.stagehand) return;
-
-    const serviceToken = await oxyServiceToken();
-    const aliaApiUrl = process.env.ALIA_API_URL || 'http://localhost:4150';
-
-    const sh = new Stagehand({
-      env: 'LOCAL',
-      localBrowserLaunchOptions: {
-        headless: true,
-        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
-      },
-      model: {
-        modelName: 'openai/route:instant',
-        apiKey: serviceToken,
-        baseURL: `${aliaApiUrl}/v1`,
-      },
-    });
-
-    await sh.init();
-    // Only assign after successful init so failed attempts can be retried
-    this.stagehand = sh;
-    this.page = sh.context.pages()[0] as unknown as Page;
-
-    log.agents.info('Browser session initialized');
-  }
-
-  /** Read Clarity's extracted document before using the interactive browser. */
-  private async fetchAndExtract(url: string): Promise<string | null> {
-    try {
-      const resolution = await clarityClient().indexing.resolve({ urls: [url], waitMs: 8_000 });
-      const document = resolution.data[0]?.document;
-      const content = document?.content?.trim();
-      if (!document || !content) return null;
-      return `# ${document.title || document.canonicalUrl}\nURL: ${document.canonicalUrl}\n\n${truncate(content, MAX_CONTENT_CHARS)}`;
-    } catch (error: unknown) {
-      log.agents.warn({ err: error, url }, 'Clarity could not represent page; using browser fallback');
-      return null;
-    }
-  }
-
-  /** Extract text from the current Playwright page */
-  private async extractPageText(): Promise<string> {
-    if (!this.page) return '';
-
-    const title = await this.page.title();
-    const text = await this.page.evaluate(() => {
-      // Remove noise elements
-      const remove = document.querySelectorAll('script, style, nav, footer, header, aside, [role="banner"], [role="navigation"]');
-      remove.forEach(el => el.remove());
-      return document.body?.innerText || '';
-    });
-
-    const content = truncate(text.trim(), MAX_CONTENT_CHARS);
-    return `# ${title}\nURL: ${this.page.url()}\n\n${content}`;
+    return `# ${document.title || document.canonicalUrl}\nURL: ${document.canonicalUrl}\n\n${truncate(content, MAX_CONTENT_CHARS)}`;
   }
 }
-
-// ── Helpers ──
 
 function truncate(text: string, maxLen: number): string {
   if (text.length <= maxLen) return text;

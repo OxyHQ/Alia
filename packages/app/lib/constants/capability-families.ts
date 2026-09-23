@@ -64,7 +64,7 @@ export interface CapabilityFamily {
  * The seven families granted whole, in the order they are shown.
  *
  * Ordered by how much of the world the family reaches — reading the web, then
- * driving a browser, then what the agent produces, the
+ * reading pages step by step, then what the agent produces, the
  * person's memory and messages, then acting through other agents. Not
  * alphabetical: the ones with the widest blast radius are the ones an owner
  * should decide about first.
@@ -92,7 +92,7 @@ export const CAPABILITY_FAMILIES: readonly CapabilityFamily[] = [
   {
     id: 'browser',
     label: 'Browser',
-    description: 'Drive a real browser — navigate, click, fill forms, screenshot',
+    description: 'Search and read web pages step by step during a long-running task',
     icon: AppWindow,
   },
   {

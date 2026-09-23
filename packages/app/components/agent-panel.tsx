@@ -1,11 +1,13 @@
 /**
  * AgentPanel — Right panel showing real-time agent activity.
  *
- * 3 tabs: Steps | Browser | Sources
+ * 2 tabs: Steps | Sources
  *
- * There is no Files tab: an agent has no workspace filesystem. The `files`
- * capability that would have written one is retired with the sandbox it
- * needed, which production never had.
+ * There is no Files tab and no Browser tab. An agent has no workspace
+ * filesystem — the `files` capability was retired with the sandbox it needed,
+ * which production never had — and its `browser` reads pages through Clarity
+ * as text, so there are no screenshots to show. What it read appears under
+ * Sources.
  * Follows the same pattern as ThoughtPanel for consistent UX.
  */
 
@@ -18,7 +20,6 @@ import {
   Globe,
   FileText,
   ChevronRight,
-  Monitor,
   Loader,
   CheckCircle2,
   AlertCircle,
@@ -42,7 +43,7 @@ import Animated, {
   withSequence,
 } from "react-native-reanimated";
 
-type Tab = "steps" | "browser" | "sources";
+type Tab = "steps" | "sources";
 
 function TabToggle({
   value,
@@ -55,7 +56,6 @@ function TabToggle({
 }) {
   const tabs: { key: Tab; label: string; badge?: number }[] = [
     { key: "steps", label: "Steps" },
-    { key: "browser", label: "Browser" },
     { key: "sources", label: "Sources", badge: sourceCount || undefined },
   ];
 
@@ -272,58 +272,6 @@ function StepsTab({ events, isActive }: { events: AgentActivityEvent[]; isActive
   );
 }
 
-function BrowserTab({ screenshots }: { screenshots: Array<{ base64: string; url: string; timestamp: number }> }) {
-  if (screenshots.length === 0) {
-    return (
-      <View className="items-center justify-center py-8">
-        <Monitor size={24} className="text-muted-foreground mb-2" />
-        <Text className="text-sm text-muted-foreground">
-          No browser activity yet
-        </Text>
-      </View>
-    );
-  }
-
-  const latest = screenshots[screenshots.length - 1];
-
-  return (
-    <View className="gap-3">
-      {/* Latest screenshot */}
-      <View className="rounded-lg overflow-hidden border border-border">
-        <View className="bg-muted px-2 py-1 flex-row items-center gap-1">
-          <Globe size={10} className="text-muted-foreground" />
-          <Text className="text-[10px] text-muted-foreground flex-1" numberOfLines={1}>
-            {latest.url}
-          </Text>
-        </View>
-        <Animated.Image
-          source={{ uri: `data:image/png;base64,${latest.base64}` }}
-          style={{ width: "100%", height: 200 }}
-          resizeMode="cover"
-        />
-      </View>
-
-      {/* Thumbnails of previous screenshots */}
-      {screenshots.length > 1 && (
-        <View className="flex-row gap-2 flex-wrap">
-          {screenshots.slice(0, -1).map((s, i) => (
-            <View
-              key={`ss-${i}`}
-              className="rounded-md overflow-hidden border border-border"
-            >
-              <Animated.Image
-                source={{ uri: `data:image/png;base64,${s.base64}` }}
-                style={{ width: 80, height: 50 }}
-                resizeMode="cover"
-              />
-            </View>
-          ))}
-        </View>
-      )}
-    </View>
-  );
-}
-
 function SourcesTab({ sources }: { sources: AgentSource[] }) {
   if (sources.length === 0) {
     return (
@@ -491,8 +439,6 @@ export function AgentPanel() {
       >
         {activeTab === "steps" ? (
           <StepsTab events={activity.events} isActive={isActive} />
-        ) : activeTab === "browser" ? (
-          <BrowserTab screenshots={activity.screenshots} />
         ) : (
           <SourcesTab sources={activity.sources} />
         )}
