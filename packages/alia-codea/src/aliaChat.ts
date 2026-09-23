@@ -195,7 +195,7 @@ export interface AliaChatRequestBody {
 
 export interface AliaChatStreamOptions {
   readonly baseUrl: string;
-  /** The Oxy session bearer (or a legacy `alia_sk_*` key). Read at call time. */
+  /** The Oxy session bearer. Read at call time. */
   readonly accessToken: string;
   readonly body: AliaChatRequestBody;
   readonly signal?: AbortSignal;

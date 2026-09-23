@@ -145,12 +145,6 @@
     "configuration": {
       "title": "Codea by Alia",
       "properties": {
-        "codea.apiKey": {
-          "type": "string",
-          "default": "",
-          "description": "(Deprecated: Use 'Codea: Sign In' command instead) Legacy API key (alia_sk_*)",
-          "order": 10
-        },
         "codea.apiBaseUrl": {
           "type": "string",
           "default": "https://api.alia.onl",
