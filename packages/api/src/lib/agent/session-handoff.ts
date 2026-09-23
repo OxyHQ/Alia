@@ -6,9 +6,9 @@
  *
  * Hiring an agent is a fixed sequence: reserve the agent's price, write the
  * session row carrying that reservation, count the hire, enqueue the job. Three
- * call sites did it — `routes/agents/hire.ts`, `lib/agent/routing-handler.ts` (since deleted)
- * and the agent-escalation branch of `routes/v1/chat-completions.ts` — and all
- * three answered a failure of any step with a `log.error` and nothing else.
+ * call sites did it — the retired `POST /agents/:id/hire` route,
+ * `lib/agent/routing-handler.ts` and the agent-escalation branch of
+ * `routes/v1/chat-completions.ts`, all since deleted — and all three answered a failure of any step with a `log.error` and nothing else.
  *
  * `reserveCredits` DEBITS on the way in. So every one of those failures left the
  * person short by the agent's price, for an agent that never ran, with no record
@@ -59,8 +59,8 @@ const DEFAULT_AGENT_PRICE = 15;
  * What KIND of act is spending these credits, which is what decides whether it
  * counts as a hire.
  *
- * `hire` — somebody CHOSE this agent: the marketplace hire route, and a chat
- * turn escalating to the agent its conversation is linked to. Moves both
+ * `hire` — somebody CHOSE this agent: an explicit goal on an agent thread
+ * (`POST /agents/threads/:threadId/goals`, the one live caller). Moves both
  * counters.
  *
  * `delegation` — a `task_router` agent routed work to it on a trigger. Real

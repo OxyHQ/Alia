@@ -114,7 +114,6 @@ const repository = vi.hoisted(() => ({
 
 vi.mock('../../db/agents/agentRepository.js', () => repository);
 vi.mock('../../db/index.js', () => ({ getDb: () => ({}) }));
-vi.mock('../../lib/agent/health.js', () => ({ getAgentCapabilities: async () => ({}) }));
 vi.mock('../../lib/logger.js', () => ({
   log: { agents: { info: vi.fn(), warn: vi.fn(), error: vi.fn() }, general: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } },
 }));

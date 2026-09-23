@@ -162,7 +162,9 @@ second paid session beside the answer.
 - `GET|PATCH /agents/threads/:threadId` reads or changes title, lifecycle,
   approval mode and execution target.
 - `POST /agents/threads/:threadId/goals` starts explicitly priced work and
-  requires `Idempotency-Key`.
+  requires `Idempotency-Key`. It is the only paid hire: the legacy
+  `POST /agents/:id/hire` is gone. It re-asks `canReachAgent` at goal time, so a
+  thread does not outlive a revoked membership.
 - A thread stores only an opaque reviewed Oxy routing-profile ID. Tools remain
   deny-by-default.
 - PostgreSQL serializes admission by agent before a queued or running session

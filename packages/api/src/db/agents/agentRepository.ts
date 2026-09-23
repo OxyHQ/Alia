@@ -29,7 +29,7 @@
  * ## `_id` is served from the Postgres `id`
  *
  * Every shipped client addresses an agent by the id the API handed out —
- * `PATCH /agents/:id`, `DELETE /agents/:id`, `POST /agents/:id/hire`. This is a
+ * `PATCH /agents/:id`, `DELETE /agents/:id`, `POST /agents/:id/threads`. This is a
  * versioned contract, not a compat shim: it retires when no supported client
  * reads `_id`.
  *

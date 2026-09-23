@@ -93,7 +93,6 @@ const repository = vi.hoisted(() => ({
 }));
 vi.mock('../../db/agents/agentRepository.js', () => repository);
 vi.mock('../../db/index.js', () => ({ getDb: () => ({}) }));
-vi.mock('../../lib/agent/health.js', () => ({ getAgentCapabilities: async () => ({}) }));
 vi.mock('../../lib/agent-identity.js', () => ({
   attachAgentIdentity: async (agent: unknown) => agent,
   attachAgentIdentities: async (agents: unknown) => agents,
