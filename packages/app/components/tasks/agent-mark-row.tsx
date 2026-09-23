@@ -1,10 +1,9 @@
-import React from 'react';
-import { View } from 'react-native';
-import { IdentityMark } from '@alia.onl/sdk';
-import { Text } from '@/components/ui/text';
 import { agentTint } from '@/lib/agents/agent-color';
 import { useColorScheme } from '@/lib/useColorScheme';
-
+import { IdentityMark } from '@alia.onl/sdk';
+import { Text } from '@oxy.so/bloom/typography';
+import React from 'react';
+import { View } from 'react-native';
 /**
  * The agents that ran a task, drawn as their own marks.
  *

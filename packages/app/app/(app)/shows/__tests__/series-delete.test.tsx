@@ -1,5 +1,10 @@
 import React from 'react';
-import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
+import {
+  act,
+  create,
+  type ReactTestInstance,
+  type ReactTestRenderer,
+} from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
@@ -54,7 +59,10 @@ vi.mock('react-native', async () => {
   const ReactModule = await import('react');
   const host =
     (name: string) =>
-    ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
+    ({
+      children,
+      ...props
+    }: React.PropsWithChildren<Record<string, unknown>>) =>
       ReactModule.createElement(name, props, children);
 
   type ListProps = {
@@ -133,18 +141,24 @@ vi.mock('lucide-react-native', async () => {
   };
 });
 
-vi.mock('@/components/ui/text', async () => {
+vi.mock('@oxy.so/bloom/typography', async () => {
   const ReactModule = await import('react');
   return {
-    Text: ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
+    Text: ({
+      children,
+      ...props
+    }: React.PropsWithChildren<Record<string, unknown>>) =>
       ReactModule.createElement('Text', props, children),
   };
 });
 
-vi.mock('@/components/ui/button', async () => {
+vi.mock('@oxy.so/bloom/button', async () => {
   const ReactModule = await import('react');
   return {
-    Button: ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
+    Button: ({
+      children,
+      ...props
+    }: React.PropsWithChildren<Record<string, unknown>>) =>
       ReactModule.createElement('Button', props, children),
   };
 });
@@ -158,7 +172,12 @@ vi.mock('@oxy.so/bloom/skeleton', async () => {
   const ReactModule = await import('react');
   const shape = (name: string) => (props: Record<string, unknown>) =>
     ReactModule.createElement(name, props);
-  return { Box: shape('Skeleton'), Circle: shape('Skeleton'), Pill: shape('Skeleton'), Text: shape('Skeleton') };
+  return {
+    Box: shape('Skeleton'),
+    Circle: shape('Skeleton'),
+    Pill: shape('Skeleton'),
+    Text: shape('Skeleton'),
+  };
 });
 
 vi.mock('@oxy.so/bloom/content-panel', async () => {
@@ -178,13 +197,21 @@ vi.mock('@/components/show/show-artwork', async () => {
 
 vi.mock('@/components/show/episode-create-dialog', async () => {
   const ReactModule = await import('react');
-  return { EpisodeCreateDialog: () => ReactModule.createElement('EpisodeCreateDialog') };
+  return {
+    EpisodeCreateDialog: () => ReactModule.createElement('EpisodeCreateDialog'),
+  };
 });
 
 vi.mock('@/components/show/episode-row', async () => {
   const ReactModule = await import('react');
   return {
-    EpisodeRow: ({ episode, onDelete }: { episode: { id: string }; onDelete: (id: string) => void }) =>
+    EpisodeRow: ({
+      episode,
+      onDelete,
+    }: {
+      episode: { id: string };
+      onDelete: (id: string) => void;
+    }) =>
       ReactModule.createElement('EpisodeRow', {
         accessibilityLabel: `row ${episode.id}`,
         onDelete: () => onDelete(episode.id),
@@ -192,10 +219,14 @@ vi.mock('@/components/show/episode-row', async () => {
   };
 });
 
-vi.mock('@/lib/hooks/use-show-progress', () => ({ useShowProgress: () => undefined }));
+vi.mock('@/lib/hooks/use-show-progress', () => ({
+  useShowProgress: () => undefined,
+}));
 
 vi.mock('@/lib/useColorScheme', () => ({
-  useColorScheme: () => ({ colors: { primary: '#000', background: '#fff', foreground: '#000' } }),
+  useColorScheme: () => ({
+    colors: { primary: '#000', background: '#fff', foreground: '#000' },
+  }),
 }));
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
@@ -249,7 +280,11 @@ async function renderScreen(episodes: (typeof EPISODE)[] = []) {
  * `type: string` rather than a literal — `node.type` is `ElementType`, and TS
  * calls a comparison against a string LITERAL an unintentional one.
  */
-function byLabel(rendered: ReactTestRenderer, type: string, label: string): ReactTestInstance {
+function byLabel(
+  rendered: ReactTestRenderer,
+  type: string,
+  label: string,
+): ReactTestInstance {
   return rendered.root.find(
     (node) => node.type === type && node.props.accessibilityLabel === label,
   );
@@ -286,11 +321,15 @@ describe('removing a show', () => {
     expect(routerBack).not.toHaveBeenCalled();
 
     const { useShowStore } = await import('@/lib/stores/show-store');
-    expect(useShowStore.getState().series.map((s) => s.id)).toEqual(['series-abc']);
+    expect(useShowStore.getState().series.map((s) => s.id)).toEqual([
+      'series-abc',
+    ]);
   });
 
   it('says it is gone from both, when the request succeeded', async () => {
-    httpDelete.mockResolvedValueOnce({ data: { deleted: true, syraPodcastDeleted: true } });
+    httpDelete.mockResolvedValueOnce({
+      data: { deleted: true, syraPodcastDeleted: true },
+    });
     const rendered = await renderScreen();
 
     await pressRemoveShow(rendered);
@@ -299,7 +338,9 @@ describe('removing a show', () => {
     expect(toastError).not.toHaveBeenCalled();
     // The message names both places, because both is what happened. It used to
     // promise the podcast survived on Syra, which stopped being true.
-    expect(toastSuccess).toHaveBeenCalledWith('Show deleted from Alia and Syra');
+    expect(toastSuccess).toHaveBeenCalledWith(
+      'Show deleted from Alia and Syra',
+    );
     expect(routerBack).toHaveBeenCalled();
   });
 
@@ -320,7 +361,10 @@ describe('removing a show', () => {
      * the confirmation has to say that at the moment of the decision, not in a
      * toast once it is too late to decline.
      */
-    const asked = confirmSurface.mock.calls[0]?.[0] as { title: string; description: string };
+    const asked = confirmSurface.mock.calls[0]?.[0] as {
+      title: string;
+      description: string;
+    };
     expect(asked.title).toContain('everywhere');
     expect(asked.description).toContain('deleted from Syra too');
     expect(asked.description).toContain('cannot be undone');
@@ -341,8 +385,8 @@ describe('removing an episode', () => {
 
     expect(toastSuccess).not.toHaveBeenCalled();
     expect(toastError).toHaveBeenCalled();
-    expect(useShowStore.getState().episodesBySeries['series-abc']?.map((e) => e.id)).toEqual([
-      'episode-xyz',
-    ]);
+    expect(
+      useShowStore.getState().episodesBySeries['series-abc']?.map((e) => e.id),
+    ).toEqual(['episode-xyz']);
   });
 });

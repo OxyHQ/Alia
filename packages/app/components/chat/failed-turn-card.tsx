@@ -1,9 +1,8 @@
-import React from "react";
-import { View, Pressable } from "react-native";
-import { AlertTriangle } from "lucide-react-native";
-import { Text } from "@/components/ui/text";
-import { useTranslation } from "@/lib/hooks/use-translation";
-
+import { useTranslation } from '@/lib/hooks/use-translation';
+import { Text } from '@oxy.so/bloom/typography';
+import { AlertTriangle } from 'lucide-react-native';
+import React from 'react';
+import { Pressable, View } from 'react-native';
 interface FailedTurnCardProps {
   /** Real output arrived before the failure — the wording says "interrupted", not "couldn't answer". */
   partial: boolean;

@@ -1,20 +1,39 @@
-import { useState, useMemo } from "react";
-import { View, Pressable, ScrollView } from "react-native";
-import Svg, { Circle } from "react-native-svg";
-import * as Linking from "expo-linking";
-import { Text } from "@/components/ui/text";
-import { Button } from "@/components/ui/button";
-import * as Skeleton from "@oxy.so/bloom/skeleton";
-import { Calendar, X, Crown, MessageSquare, Layers, ShoppingCart } from "lucide-react-native";
-import { useCredits, useCreditsUsage, useAnalytics, PERIODS, type UsagePeriod } from "@/lib/hooks/use-credits";
-import { useSubscription, useCreditPackages, useCreateCheckout } from "@/lib/hooks/use-billing";
-import { useRouter, type Href } from "expo-router";
-import { useUIStore } from "@/lib/stores/ui-store";
-import { useTranslation } from "@/lib/hooks/use-translation";
-import { toast } from "@oxy.so/bloom/toast";
+import {
+  useCreateCheckout,
+  useCreditPackages,
+  useSubscription,
+} from '@/lib/hooks/use-billing';
+import {
+  PERIODS,
+  useAnalytics,
+  useCredits,
+  useCreditsUsage,
+  type UsagePeriod,
+} from '@/lib/hooks/use-credits';
+import { useTranslation } from '@/lib/hooks/use-translation';
+import { useUIStore } from '@/lib/stores/ui-store';
+import { useColorScheme } from '@/lib/useColorScheme';
+import { useAiChatShell } from '@oxy.so/bloom/ai-chat';
+import { Button } from '@oxy.so/bloom/button';
+import { PageHeader } from '@oxy.so/bloom/page-header';
+import * as Skeleton from '@oxy.so/bloom/skeleton';
+import { withAlpha } from '@oxy.so/bloom/theme';
+import { toast } from '@oxy.so/bloom/toast';
+import { Text } from '@oxy.so/bloom/typography';
+import * as Linking from 'expo-linking';
+import { useRouter, type Href } from 'expo-router';
+import {
+  Calendar,
+  Crown,
+  Layers,
+  MessageSquare,
+  ShoppingCart,
+  X,
+} from 'lucide-react-native';
+import { useMemo, useState } from 'react';
+import { Pressable, ScrollView, View } from 'react-native';
+import Svg, { Circle } from 'react-native-svg';
 import { errorMessage as getErrorMessage } from '../lib/errors/error-utils';
-import { useColorScheme } from "@/lib/useColorScheme";
-import { withAlpha } from "@oxy.so/bloom/theme";
 
 /**
  * The balance ring: how much of the spendable total is still there.
@@ -42,10 +61,10 @@ function BalanceRing({ ratio }: { ratio: number }) {
         strokeWidth={12}
       />
       {/*
-        * Drawn only when there is something to draw: a round cap on a
-        * zero-length dash renders as a dot, so an empty balance would show a
-        * mark exactly where "none left" must show nothing.
-        */}
+       * Drawn only when there is something to draw: a round cap on a
+       * zero-length dash renders as a dot, so an empty balance would show a
+       * mark exactly where "none left" must show nothing.
+       */}
       {filled > 0 ? (
         <Circle
           cx={50}
@@ -74,16 +93,24 @@ function BalanceRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-function PeriodToggle({ value, onChange }: { value: UsagePeriod; onChange: (p: UsagePeriod) => void }) {
+function PeriodToggle({
+  value,
+  onChange,
+}: {
+  value: UsagePeriod;
+  onChange: (p: UsagePeriod) => void;
+}) {
   return (
     <View className="flex-row bg-muted rounded-lg overflow-hidden">
       {PERIODS.map((p) => (
         <Pressable
           key={p}
           onPress={() => onChange(p)}
-          className={`px-2 py-0.5 ${value === p ? "bg-background" : ""}`}
+          className={`px-2 py-0.5 ${value === p ? 'bg-background' : ''}`}
         >
-          <Text className={`text-[10px] font-medium ${value === p ? "text-foreground" : "text-muted-foreground"}`}>
+          <Text
+            className={`text-[10px] font-medium ${value === p ? 'text-foreground' : 'text-muted-foreground'}`}
+          >
             {p}
           </Text>
         </Pressable>
@@ -92,10 +119,14 @@ function PeriodToggle({ value, onChange }: { value: UsagePeriod; onChange: (p: U
   );
 }
 
-function formatDayLabel(dateStr: string, isLast: boolean, todayLabel: string): string {
+function formatDayLabel(
+  dateStr: string,
+  isLast: boolean,
+  todayLabel: string,
+): string {
   if (isLast) return todayLabel;
-  const d = new Date(dateStr + "T00:00:00");
-  return d.toLocaleDateString(undefined, { weekday: "short" }).slice(0, 3);
+  const d = new Date(dateStr + 'T00:00:00');
+  return d.toLocaleDateString(undefined, { weekday: 'short' }).slice(0, 3);
 }
 
 function ChartSkeleton() {
@@ -108,11 +139,18 @@ function ChartSkeleton() {
       <View className="flex-row items-end gap-1.5" style={{ height: 100 }}>
         {[40, 65, 30, 80, 55, 45, 70].map((h, i) => (
           <View key={i} className="flex-1 items-center gap-1.5">
-            <View className="w-full items-center justify-end" style={{ height: 80 }}>
+            <View
+              className="w-full items-center justify-end"
+              style={{ height: 80 }}
+            >
               <Skeleton.Box
                 width="100%"
                 borderRadius={0}
-                style={{ height: `${h}%`, borderTopLeftRadius: 2, borderTopRightRadius: 2 }}
+                style={{
+                  height: `${h}%`,
+                  borderTopLeftRadius: 2,
+                  borderTopRightRadius: 2,
+                }}
               />
             </View>
             <Skeleton.Box width={20} height={8} borderRadius={4} />
@@ -128,7 +166,8 @@ function UsageChart({ period }: { period: UsagePeriod }) {
   const { t } = useTranslation();
 
   const { maxValue, totalUsed } = useMemo(() => {
-    let max = 0, total = 0;
+    let max = 0,
+      total = 0;
     for (const d of items) {
       if (d.used > max) max = d.used;
       total += d.used;
@@ -141,14 +180,20 @@ function UsageChart({ period }: { period: UsagePeriod }) {
   return (
     <View className="gap-3">
       <View>
-        <Text className="text-xs text-muted-foreground">{t('credits.totalUsage')}</Text>
-        <Text className="text-lg font-bold text-foreground">{totalUsed.toLocaleString()}</Text>
+        <Text className="text-xs text-muted-foreground">
+          {t('credits.totalUsage')}
+        </Text>
+        <Text className="text-lg font-bold text-foreground">
+          {totalUsed.toLocaleString()}
+        </Text>
       </View>
 
       <View className="flex-row items-end gap-1.5" style={{ height: 100 }}>
         {totalUsed === 0 ? (
           <View className="flex-1 items-center justify-center">
-            <Text className="text-xs text-muted-foreground">{t('credits.noUsage')}</Text>
+            <Text className="text-xs text-muted-foreground">
+              {t('credits.noUsage')}
+            </Text>
           </View>
         ) : (
           items.map((item, i) => {
@@ -156,13 +201,21 @@ function UsageChart({ period }: { period: UsagePeriod }) {
             const isLast = i === items.length - 1;
             return (
               <View key={item.date} className="flex-1 items-center gap-1.5">
-                <View className="w-full items-center justify-end" style={{ height: 80 }}>
+                <View
+                  className="w-full items-center justify-end"
+                  style={{ height: 80 }}
+                >
                   <View
-                    className={`w-full rounded-t-sm ${isLast ? "bg-primary" : "bg-primary/30"}`}
-                    style={{ height: `${Math.max(barHeight, 4)}%`, minHeight: 3 }}
+                    className={`w-full rounded-t-sm ${isLast ? 'bg-primary' : 'bg-primary/30'}`}
+                    style={{
+                      height: `${Math.max(barHeight, 4)}%`,
+                      minHeight: 3,
+                    }}
                   />
                 </View>
-                <Text className={`text-[10px] ${isLast ? "text-foreground font-medium" : "text-muted-foreground"}`}>
+                <Text
+                  className={`text-[10px] ${isLast ? 'text-foreground font-medium' : 'text-muted-foreground'}`}
+                >
                   {formatDayLabel(item.date, isLast, t('credits.today'))}
                 </Text>
               </View>
@@ -237,6 +290,7 @@ function formatTokens(n: number): string {
 }
 
 export function CreditsPanel() {
+  const shell = useAiChatShell();
   const router = useRouter();
   const [period, setPeriod] = useState<UsagePeriod>('7d');
   const { data, isLoading: creditsLoading } = useCredits();
@@ -250,7 +304,8 @@ export function CreditsPanel() {
   const { totalConversations, totalTokens } = useMemo(() => {
     const usage = analytics?.usage;
     if (!usage) return { totalConversations: 0, totalTokens: 0 };
-    let convs = 0, tokens = 0;
+    let convs = 0,
+      tokens = 0;
     for (const d of usage) {
       convs += d.conversations;
       tokens += d.totalTokens;
@@ -281,8 +336,8 @@ export function CreditsPanel() {
     try {
       const { url } = await createCheckoutMutation.mutateAsync({
         packageId,
-        successUrl: Linking.createURL("/settings/usage?success=true"),
-        cancelUrl: Linking.createURL("/settings/usage"),
+        successUrl: Linking.createURL('/settings/usage?success=true'),
+        cancelUrl: Linking.createURL('/settings/usage'),
       });
       if (url) {
         await Linking.openURL(url);
@@ -293,16 +348,22 @@ export function CreditsPanel() {
   };
 
   return (
-    <View className="flex-1 bg-background">
-      {/* Header */}
-      <View className="flex-row items-center justify-between px-4 py-3 bg-surface">
-        <Text className="text-base font-semibold text-foreground">
-          {t('credits.title')}
-        </Text>
-        <Pressable className="p-1 rounded-lg active:opacity-70" onPress={() => setRightPanel(null)}>
-          <X size={20} className="text-muted-foreground" />
-        </Pressable>
-      </View>
+    <View className="flex-1">
+      {!shell?.compact && (
+        <PageHeader
+          title={t('credits.title')}
+          actions={
+            <Button
+              appearance="plain"
+              tone="neutral"
+              size="xs"
+              accessibilityLabel="Close credits panel"
+              onPress={() => setRightPanel(null)}
+              icon={<X size={16} />}
+            />
+          }
+        />
+      )}
 
       <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
         {/* Balance */}
@@ -314,21 +375,35 @@ export function CreditsPanel() {
               <View className="flex-row items-center justify-between">
                 <View className="flex-row items-center gap-1.5">
                   <BalanceRing ratio={remainingRatio} />
-                  <Text className="text-sm font-medium text-foreground">{t('credits.balance')}</Text>
+                  <Text className="text-sm font-medium text-foreground">
+                    {t('credits.balance')}
+                  </Text>
                 </View>
                 <View className="flex-row items-center gap-1.5">
-                  <View className={`px-1.5 py-0.5 rounded-md ${isSubscribed ? 'bg-primary/10' : 'bg-muted'}`}>
-                    <Text className={`text-[10px] font-medium ${isSubscribed ? 'text-primary' : 'text-muted-foreground'}`}>
-                      {isSubscribed ? subscription.plan.name : t('credits.free')}
+                  <View
+                    className={`px-1.5 py-0.5 rounded-md ${isSubscribed ? 'bg-primary/10' : 'bg-muted'}`}
+                  >
+                    <Text
+                      className={`text-[10px] font-medium ${isSubscribed ? 'text-primary' : 'text-muted-foreground'}`}
+                    >
+                      {isSubscribed
+                        ? subscription.plan.name
+                        : t('credits.free')}
                     </Text>
                   </View>
                   <Button
-                    onPress={() => navigate(isSubscribed ? "/(app)/settings/usage" : "/(biglayout)/subscribe")}
+                    onPress={() =>
+                      navigate(
+                        isSubscribed
+                          ? '/(app)/settings/usage'
+                          : '/(biglayout)/subscribe',
+                      )
+                    }
                     className="h-6 px-2 rounded-md"
                   >
-                    <Text className="text-xs font-medium text-primary-foreground">
-                      {isSubscribed ? t('credits.manageBilling') : t('credits.upgrade')}
-                    </Text>
+                    {isSubscribed
+                      ? t('credits.manageBilling')
+                      : t('credits.upgrade')}
                   </Button>
                 </View>
               </View>
@@ -336,11 +411,19 @@ export function CreditsPanel() {
               <View className="gap-0.5">
                 <BalanceRow
                   label={t('credits.total')}
-                  value={t('credits.creditsAmount', { count: totalCredits.toLocaleString() })}
+                  value={t('credits.creditsAmount', {
+                    count: totalCredits.toLocaleString(),
+                  })}
                 />
-                <BalanceRow label={t('credits.remaining')} value={credits.toLocaleString()} />
+                <BalanceRow
+                  label={t('credits.remaining')}
+                  value={credits.toLocaleString()}
+                />
                 {paidCredits > 0 ? (
-                  <BalanceRow label={t('credits.paidCredits')} value={paidCredits.toLocaleString()} />
+                  <BalanceRow
+                    label={t('credits.paidCredits')}
+                    value={paidCredits.toLocaleString()}
+                  />
                 ) : null}
               </View>
             </View>
@@ -355,22 +438,38 @@ export function CreditsPanel() {
                 <View className="gap-2">
                   <View className="flex-row items-center gap-2">
                     <Crown size={18} className="text-foreground" />
-                    <Text className="text-sm font-semibold text-foreground">{t('credits.subscription')}</Text>
+                    <Text className="text-sm font-semibold text-foreground">
+                      {t('credits.subscription')}
+                    </Text>
                   </View>
                   <View className="pl-6 gap-1">
                     <View className="flex-row items-baseline justify-between">
-                      <Text className="text-sm text-muted-foreground">{subscription.plan.name}</Text>
+                      <Text className="text-sm text-muted-foreground">
+                        {subscription.plan.name}
+                      </Text>
                       <Text className="text-base font-semibold text-foreground">
-                        ${(subscription.plan.price / 100).toFixed(2)}{t('credits.perMonth')}
+                        ${(subscription.plan.price / 100).toFixed(2)}
+                        {t('credits.perMonth')}
                       </Text>
                     </View>
                     <Text className="text-xs text-muted-foreground">
-                      {t('credits.creditsPerMonth', { count: subscription.plan.creditsPerMonth.toLocaleString() })}
+                      {t('credits.creditsPerMonth', {
+                        count:
+                          subscription.plan.creditsPerMonth.toLocaleString(),
+                      })}
                     </Text>
                     <Text className="text-xs text-muted-foreground">
                       {subscription.cancelAtPeriodEnd
-                        ? t('credits.cancelsOn', { date: new Date(subscription.currentPeriodEnd).toLocaleDateString() })
-                        : t('credits.renewsOn', { date: new Date(subscription.currentPeriodEnd).toLocaleDateString() })}
+                        ? t('credits.cancelsOn', {
+                            date: new Date(
+                              subscription.currentPeriodEnd,
+                            ).toLocaleDateString(),
+                          })
+                        : t('credits.renewsOn', {
+                            date: new Date(
+                              subscription.currentPeriodEnd,
+                            ).toLocaleDateString(),
+                          })}
                     </Text>
                   </View>
                 </View>
@@ -379,11 +478,17 @@ export function CreditsPanel() {
               <View className="gap-2">
                 <View className="flex-row items-center gap-2">
                   <Calendar size={18} className="text-foreground" />
-                  <Text className="text-sm font-semibold text-foreground">{t('credits.dailyRefresh')}</Text>
+                  <Text className="text-sm font-semibold text-foreground">
+                    {t('credits.dailyRefresh')}
+                  </Text>
                 </View>
                 <View className="flex-row items-baseline justify-between pl-6">
-                  <Text className="text-sm text-muted-foreground">{t('credits.atMidnight')}</Text>
-                  <Text className="text-2xl font-bold text-foreground">{dailyRefresh}</Text>
+                  <Text className="text-sm text-muted-foreground">
+                    {t('credits.atMidnight')}
+                  </Text>
+                  <Text className="text-2xl font-bold text-foreground">
+                    {dailyRefresh}
+                  </Text>
                 </View>
               </View>
             </View>
@@ -393,7 +498,9 @@ export function CreditsPanel() {
         {/* Usage Chart */}
         <View className="px-4 py-3">
           <View className="flex-row items-center justify-between mb-2">
-            <Text className="text-xs font-medium text-muted-foreground">{t('credits.creditUsage')}</Text>
+            <Text className="text-xs font-medium text-muted-foreground">
+              {t('credits.creditUsage')}
+            </Text>
             <PeriodToggle value={period} onChange={setPeriod} />
           </View>
           <UsageChart period={period} />
@@ -404,7 +511,9 @@ export function CreditsPanel() {
           <View className="px-4 py-3">
             <View className="flex-row items-center gap-2 mb-2">
               <ShoppingCart size={14} className="text-muted-foreground" />
-              <Text className="text-xs font-medium text-muted-foreground">{t('credits.buyCredits')}</Text>
+              <Text className="text-xs font-medium text-muted-foreground">
+                {t('credits.buyCredits')}
+              </Text>
             </View>
             <View className="gap-1.5">
               {packages.map((pkg) => (
@@ -415,9 +524,13 @@ export function CreditsPanel() {
                   className="flex-row items-center justify-between py-2 px-3 rounded-lg active:bg-muted"
                 >
                   <View>
-                    <Text className="text-sm font-medium text-foreground">{pkg.name}</Text>
+                    <Text className="text-sm font-medium text-foreground">
+                      {pkg.name}
+                    </Text>
                     <Text className="text-[10px] text-muted-foreground">
-                      {t('credits.perThousand', { price: `$${((pkg.price / pkg.credits) * 1000 / 100).toFixed(2)}` })}
+                      {t('credits.perThousand', {
+                        price: `$${(((pkg.price / pkg.credits) * 1000) / 100).toFixed(2)}`,
+                      })}
                     </Text>
                   </View>
                   <Text className="text-sm font-semibold text-foreground">
@@ -438,21 +551,33 @@ export function CreditsPanel() {
               <View className="gap-2">
                 <View className="flex-row items-center gap-2">
                   <MessageSquare size={18} className="text-foreground" />
-                  <Text className="text-sm font-semibold text-foreground">{t('credits.activity')}</Text>
+                  <Text className="text-sm font-semibold text-foreground">
+                    {t('credits.activity')}
+                  </Text>
                 </View>
                 {totalConversations > 0 ? (
                   <>
                     <View className="flex-row items-baseline justify-between pl-6">
-                      <Text className="text-sm text-muted-foreground">{t('credits.conversations')}</Text>
-                      <Text className="text-2xl font-bold text-foreground">{totalConversations.toLocaleString()}</Text>
+                      <Text className="text-sm text-muted-foreground">
+                        {t('credits.conversations')}
+                      </Text>
+                      <Text className="text-2xl font-bold text-foreground">
+                        {totalConversations.toLocaleString()}
+                      </Text>
                     </View>
                     <View className="flex-row items-baseline justify-between pl-6">
-                      <Text className="text-sm text-muted-foreground">{t('credits.tokensUsed')}</Text>
-                      <Text className="text-base font-semibold text-foreground">{formatTokens(totalTokens)}</Text>
+                      <Text className="text-sm text-muted-foreground">
+                        {t('credits.tokensUsed')}
+                      </Text>
+                      <Text className="text-base font-semibold text-foreground">
+                        {formatTokens(totalTokens)}
+                      </Text>
                     </View>
                   </>
                 ) : (
-                  <Text className="text-xs text-muted-foreground pl-6">{t('credits.noActivity')}</Text>
+                  <Text className="text-xs text-muted-foreground pl-6">
+                    {t('credits.noActivity')}
+                  </Text>
                 )}
               </View>
 
@@ -460,15 +585,23 @@ export function CreditsPanel() {
                 <View className="gap-2">
                   <View className="flex-row items-center gap-2">
                     <Layers size={18} className="text-foreground" />
-                    <Text className="text-sm font-semibold text-foreground">{t('credits.models')}</Text>
+                    <Text className="text-sm font-semibold text-foreground">
+                      {t('credits.models')}
+                    </Text>
                   </View>
                   <View className="pl-6 gap-1">
                     {analytics.models.map((m) => (
-                      <View key={m._id} className="flex-row items-baseline justify-between">
+                      <View
+                        key={m._id}
+                        className="flex-row items-baseline justify-between"
+                      >
                         <Text className="text-sm text-muted-foreground">
-                          {m.emoji ? `${m.emoji} ` : ''}{m.name}
+                          {m.emoji ? `${m.emoji} ` : ''}
+                          {m.name}
                         </Text>
-                        <Text className="text-sm font-medium text-foreground">{m.count}</Text>
+                        <Text className="text-sm font-medium text-foreground">
+                          {m.count}
+                        </Text>
                       </View>
                     ))}
                   </View>
@@ -480,8 +613,13 @@ export function CreditsPanel() {
 
         {/* Footer Links */}
         <View className="px-4 pb-3 gap-2">
-          <Pressable onPress={() => navigate("/(app)/settings/usage")} className="flex-row items-center gap-1 active:opacity-70">
-            <Text className="text-sm font-medium text-primary">{t('credits.manageBilling')}</Text>
+          <Pressable
+            onPress={() => navigate('/(app)/settings/usage')}
+            className="flex-row items-center gap-1 active:opacity-70"
+          >
+            <Text className="text-sm font-medium text-primary">
+              {t('credits.manageBilling')}
+            </Text>
             <Text className="text-sm text-primary">&rsaquo;</Text>
           </Pressable>
         </View>

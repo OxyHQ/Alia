@@ -1,172 +1,76 @@
-import React from "react";
-import { View, Pressable } from "react-native";
-import { vars } from "nativewind";
-import { Text } from "@/components/ui/text";
-import { useColorScheme } from "@/lib/useColorScheme";
-import { getPresetVars } from "@oxy.so/bloom/design-tokens";
-import { useBloomTheme, APP_COLOR_PRESETS, APP_COLOR_NAMES, type AppColorName } from "@oxy.so/bloom/theme";
-import { useTranslation } from "@/lib/hooks/use-translation";
-import { LanguageSelector } from "@/components/language-selector";
-import { cn } from "@/lib/utils";
-import { SettingsListGroup } from "@oxy.so/bloom/settings-list";
-
-/** Miniature app layout using real theme tokens via NativeWind vars() */
-const AppMiniature = React.memo(function AppMiniature({ variant, presetName }: { variant: "light" | "dark"; presetName: AppColorName }) {
-  const themeVars = vars(getPresetVars(presetName, variant));
-
-  return (
-    <View className="flex-row flex-1 rounded overflow-hidden" style={themeVars}>
-      {/* Sidebar */}
-      <View className="bg-background p-1 gap-0.5 justify-between" style={{ width: "27%" }}>
-        <View className="gap-0.5">
-          <View className="h-1.5 rounded-sm bg-primary" />
-          <View className="h-[1px] w-3/4 rounded-full mt-0.5 bg-border" />
-          <View className="h-[1px] w-2/3 rounded-full bg-border" />
-          <View className="h-[1px] w-3/4 rounded-full bg-border" />
-          <View className="h-[1px] w-1/2 rounded-full bg-border" />
-        </View>
-        <View className="gap-0.5">
-          <View className="h-[1px] w-2/3 rounded-full bg-border" />
-          <View className="h-[1px] w-3/4 rounded-full bg-border" />
-        </View>
-      </View>
-      {/* Main content */}
-      <View className="flex-1 bg-background justify-between">
-        {/* Chat header */}
-        <View className="flex-row items-center justify-between px-1 py-0.5">
-          <View className="h-[2px] w-1/4 rounded-full bg-border" />
-          <View className="h-[2px] w-2 rounded-full bg-border" />
-        </View>
-        {/* Greeting */}
-        <View className="items-center gap-0.5">
-          <View className="h-[2px] w-3/5 rounded-full bg-muted-foreground" />
-          <View className="h-[1px] w-2/5 rounded-full bg-border" />
-        </View>
-        {/* Suggestion cards 2x2 */}
-        <View className="gap-[2px] px-1">
-          <View className="flex-row gap-[2px]">
-            <View className="flex-1 h-1.5 rounded-sm bg-muted" />
-            <View className="flex-1 h-1.5 rounded-sm bg-muted" />
-          </View>
-          <View className="flex-row gap-[2px]">
-            <View className="flex-1 h-1.5 rounded-sm bg-muted" />
-            <View className="flex-1 h-1.5 rounded-sm bg-muted" />
-          </View>
-        </View>
-        {/* Input bar */}
-        <View className="px-1 pb-0.5 gap-[2px]">
-          <View className="flex-row gap-[2px]">
-            <View className="h-1 w-3 rounded-full bg-primary/50" />
-            <View className="h-1 w-2 rounded-full bg-border" />
-          </View>
-          <View className="h-2 rounded-sm bg-muted" />
-        </View>
-      </View>
-    </View>
-  );
-});
+import { useTranslation } from '@/lib/hooks/use-translation';
+import { Button } from '@oxy.so/bloom/button';
+import { SettingsGeneralPage } from '@oxy.so/bloom/settings-modal';
+import { APP_COLOR_NAMES, useBloomTheme } from '@oxy.so/bloom/theme';
+import { getNativeLanguageName } from '@oxy.so/core';
+import { useOxy } from '@oxy.so/services';
+import { SettingsPreferenceSelect } from './preference-select';
+import { useAliaSettings } from './settings-context';
 
 export function GeneralSection() {
-  const { mode, setColorScheme } = useColorScheme();
-  const { colorPreset, setColorPreset } = useBloomTheme();
+  const { mode, setMode, colorPreset, setColorPreset } = useBloomTheme();
+  const { currentLanguage, currentLanguages, showBottomSheet } = useOxy();
+  const { afterClose } = useAliaSettings();
   const { t } = useTranslation();
-
+  const languages = currentLanguages.length
+    ? currentLanguages
+    : [currentLanguage];
   return (
-    <View className="gap-5">
-      {/* App Language */}
-      <LanguageSelector />
-
-      <SettingsListGroup title={t("settings.appearance.title")}>
-        <View className="flex-row gap-2 p-3">
-          {/* Light */}
-          <Pressable onPress={() => setColorScheme("light")} className="flex-1">
-            <View
-              className={`rounded-lg p-1.5 ${
-                mode === "light" ? "border-2 border-primary" : "border border-border"
-              }`}
-            >
-              <View className="mb-1.5 aspect-[5/3]">
-                <AppMiniature variant="light" presetName={colorPreset} />
-              </View>
-              <Text className="text-center text-xs font-medium text-foreground">
-                {t("settings.appearance.light")}
-              </Text>
-            </View>
-          </Pressable>
-
-          {/* Follow System */}
-          <Pressable onPress={() => setColorScheme("system")} className="flex-1">
-            <View
-              className={`rounded-lg p-1.5 ${
-                mode === "system" ? "border-2 border-primary" : "border border-border"
-              }`}
-            >
-              <View className="rounded overflow-hidden mb-1.5 aspect-[5/3]">
-                <View className="flex-row flex-1">
-                  <View className="flex-1 overflow-hidden">
-                    <AppMiniature variant="light" presetName={colorPreset} />
-                  </View>
-                  <View className="flex-1 overflow-hidden">
-                    <AppMiniature variant="dark" presetName={colorPreset} />
-                  </View>
-                </View>
-              </View>
-              <Text className="text-center text-xs font-medium text-foreground">
-                {t("settings.appearance.system")}
-              </Text>
-            </View>
-          </Pressable>
-
-          {/* Dark */}
-          <Pressable onPress={() => setColorScheme("dark")} className="flex-1">
-            <View
-              className={`rounded-lg p-1.5 ${
-                mode === "dark" ? "border-2 border-primary" : "border border-border"
-              }`}
-            >
-              <View className="mb-1.5 aspect-[5/3]">
-                <AppMiniature variant="dark" presetName={colorPreset} />
-              </View>
-              <Text className="text-center text-xs font-medium text-foreground">
-                {t("settings.appearance.dark")}
-              </Text>
-            </View>
-          </Pressable>
-        </View>
-      </SettingsListGroup>
-
-      <SettingsListGroup title={t("settings.accentColor.title")}>
-        <View className="flex-row gap-3 flex-wrap p-3">
-          {APP_COLOR_NAMES.map((key) => {
-            const p = APP_COLOR_PRESETS[key];
-            const isSelected = colorPreset === key;
-            return (
-              <Pressable
-                key={key}
-                onPress={() => setColorPreset(key)}
-                className="items-center gap-1.5"
-              >
-                <View
-                  className={cn(
-                    "w-8 h-8 rounded-full border-2 overflow-hidden",
-                    isSelected ? "border-foreground scale-110" : "border-transparent"
-                  )}
+    <SettingsGeneralPage
+      sections={[
+        {
+          key: 'general',
+          rows: [
+            {
+              key: 'language',
+              label: t('settings.appLanguage.title'),
+              description: t('settings.appLanguage.description'),
+              control: (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onPress={() =>
+                    afterClose(() => showBottomSheet?.('LanguageSelector'))
+                  }
                 >
-                  <View style={{ backgroundColor: p.hex, flex: 1 }} />
-                </View>
-                <Text
-                  className={cn(
-                    "text-[10px]",
-                    isSelected ? "text-foreground font-medium" : "text-muted-foreground"
-                  )}
-                >
-                  {t(`settings.accentColor.${key}`)}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-      </SettingsListGroup>
-    </View>
+                  {languages.map(getNativeLanguageName).join(', ')}
+                </Button>
+              ),
+            },
+            {
+              key: 'appearance',
+              label: t('settings.appearance.title'),
+              control: (
+                <SettingsPreferenceSelect
+                  label={t('settings.appearance.title')}
+                  value={mode}
+                  onChange={setMode}
+                  items={[
+                    { value: 'system', label: t('settings.appearance.system') },
+                    { value: 'light', label: t('settings.appearance.light') },
+                    { value: 'dark', label: t('settings.appearance.dark') },
+                  ]}
+                />
+              ),
+            },
+            {
+              key: 'color',
+              label: t('settings.accentColor.title'),
+              control: (
+                <SettingsPreferenceSelect
+                  label={t('settings.accentColor.title')}
+                  value={colorPreset}
+                  onChange={setColorPreset}
+                  items={APP_COLOR_NAMES.map((value) => ({
+                    value,
+                    label: value,
+                  }))}
+                />
+              ),
+            },
+          ],
+        },
+      ]}
+    />
   );
 }

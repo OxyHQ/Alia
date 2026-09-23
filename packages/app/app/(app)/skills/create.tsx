@@ -1,15 +1,14 @@
-import { useState } from 'react';
-import { View, ScrollView, ActivityIndicator, Pressable } from 'react-native';
-import { Text } from '@/components/ui/text';
-import { Button } from '@/components/ui/button';
-import { Textarea } from '@oxy.so/bloom/textarea';
-import { ArrowLeft, Sparkles } from 'lucide-react-native';
-import { useRouter } from 'expo-router';
-import { toast } from "@oxy.so/bloom/toast";
+import { useCreateSkill, useGenerateSkillDraft } from '@/lib/hooks/use-skills';
 import { useTranslation } from '@/lib/hooks/use-translation';
 import { useI18nStore } from '@/lib/stores/i18n-store';
-import { useCreateSkill, useGenerateSkillDraft } from '@/lib/hooks/use-skills';
-
+import { Button } from '@oxy.so/bloom/button';
+import { Textarea } from '@oxy.so/bloom/textarea';
+import { toast } from '@oxy.so/bloom/toast';
+import { Text } from '@oxy.so/bloom/typography';
+import { useRouter } from 'expo-router';
+import { ArrowLeft, Sparkles } from 'lucide-react-native';
+import { useState } from 'react';
+import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
 /**
  * Writing a skill, starting from a sentence.
  *

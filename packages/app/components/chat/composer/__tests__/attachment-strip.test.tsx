@@ -1,9 +1,14 @@
-import React from 'react';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { act, create, type ReactTestRenderer, type ReactTestInstance } from 'react-test-renderer';
+import React from 'react';
+import {
+  act,
+  create,
+  type ReactTestInstance,
+  type ReactTestRenderer,
+} from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 /**
@@ -20,7 +25,10 @@ vi.mock('react-native', async () => {
   const ReactModule = await import('react');
   const host =
     (name: string) =>
-    ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
+    ({
+      children,
+      ...props
+    }: React.PropsWithChildren<Record<string, unknown>>) =>
       ReactModule.createElement(name, props, children);
   return {
     View: host('View'),
@@ -32,7 +40,10 @@ vi.mock('react-native', async () => {
 
 vi.mock('expo-image', async () => {
   const ReactModule = await import('react');
-  return { Image: (props: Record<string, unknown>) => ReactModule.createElement('Image', props) };
+  return {
+    Image: (props: Record<string, unknown>) =>
+      ReactModule.createElement('Image', props),
+  };
 });
 
 vi.mock('expo-linear-gradient', async () => {
@@ -60,10 +71,13 @@ vi.mock('lucide-react-native', async () => {
   };
 });
 
-vi.mock('@/components/ui/text', async () => {
+vi.mock('@oxy.so/bloom/typography', async () => {
   const ReactModule = await import('react');
   return {
-    Text: ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
+    Text: ({
+      children,
+      ...props
+    }: React.PropsWithChildren<Record<string, unknown>>) =>
       ReactModule.createElement('Text', props, children),
   };
 });
@@ -75,7 +89,10 @@ vi.mock('@/components/ui/text', async () => {
  */
 vi.mock('@oxy.so/bloom/theme', () => ({
   withAlpha: (color: string, alpha: number) =>
-    color.replace(/^rgb\(([^)]+)\)$/, (_m, channels: string) => `rgba(${channels}, ${alpha})`),
+    color.replace(
+      /^rgb\(([^)]+)\)$/,
+      (_m, channels: string) => `rgba(${channels}, ${alpha})`,
+    ),
 }));
 
 /**
@@ -113,9 +130,9 @@ vi.mock('@/lib/useColorScheme', () => ({
 
 import { ComposerAttachmentStrip } from '../attachment-strip';
 import {
-  COMPOSER_RADIUS,
   ATTACHMENT_ROW_INSET,
   ATTACHMENT_TILE_RADIUS,
+  COMPOSER_RADIUS,
   type Attachment,
 } from '../types';
 import type { IntakeItem } from '../use-attachment-intake';
@@ -161,7 +178,10 @@ function render(attachments: Attachment[]) {
   let next: ReactTestRenderer | undefined;
   act(() => {
     next = create(
-      <ComposerAttachmentStrip attachments={attachments} onRemove={removeAttachment} />,
+      <ComposerAttachmentStrip
+        attachments={attachments}
+        onRemove={removeAttachment}
+      />,
     );
   });
   if (next === undefined) throw new Error('the attachment row did not render');
@@ -226,7 +246,9 @@ afterEach(() => {
 describe('an image tile', () => {
   it('is a small square showing only the picture', () => {
     const { r } = render([image()]);
-    const tile = nodes(r, 'View').find((node) => classes(node).includes('h-14'));
+    const tile = nodes(r, 'View').find((node) =>
+      classes(node).includes('h-14'),
+    );
 
     // `h-14 w-14` is 56px square — equal on both axes is the property, and the
     // browser measurement pins the pixels.
@@ -261,13 +283,17 @@ describe('a file tile', () => {
     const { r: withImage } = render([image()]);
     // Read before unmounting: a node's props resolve lazily against a live tree.
     const imageClasses = classes(
-      nodes(withImage, 'View').find((node) => classes(node).includes('h-14')) as ReactTestInstance,
+      nodes(withImage, 'View').find((node) =>
+        classes(node).includes('h-14'),
+      ) as ReactTestInstance,
     );
     act(() => renderer?.unmount());
 
     const { r: withDoc } = render([doc()]);
     const docClasses = classes(
-      nodes(withDoc, 'View').find((node) => classes(node).includes('w-60')) as ReactTestInstance,
+      nodes(withDoc, 'View').find((node) =>
+        classes(node).includes('w-60'),
+      ) as ReactTestInstance,
     );
 
     // A 56px square against a width that is narrow on a phone and wider on a
@@ -278,9 +304,13 @@ describe('a file tile', () => {
   });
 
   it('lets a long name truncate rather than widen the tile', () => {
-    const { r } = render([doc({ name: 'a-report-with-a-preposterously-long-name.pdf' })]);
+    const { r } = render([
+      doc({ name: 'a-report-with-a-preposterously-long-name.pdf' }),
+    ]);
     const name = nodes(r, 'Text')[0];
-    const holder = nodes(r, 'View').find((node) => classes(node).includes('flex-1'));
+    const holder = nodes(r, 'View').find((node) =>
+      classes(node).includes('flex-1'),
+    );
 
     expect(name.props.numberOfLines).toBe(1);
     // Both halves: a flex child will not shrink past its content without
@@ -310,8 +340,13 @@ describe('the remove button', () => {
   });
 
   it('says which attachment it drops, by position as well as name', () => {
-    const { r } = render([doc({ id: 'a', name: 'first.pdf' }), doc({ id: 'b', name: 'second.pdf' })]);
-    const labels = nodes(r, 'Pressable').map((node) => node.props.accessibilityLabel);
+    const { r } = render([
+      doc({ id: 'a', name: 'first.pdf' }),
+      doc({ id: 'b', name: 'second.pdf' }),
+    ]);
+    const labels = nodes(r, 'Pressable').map(
+      (node) => node.props.accessibilityLabel,
+    );
 
     // Position as well as name, because two files can share a name and the name
     // alone would then describe both buttons. Read through the stubbed `t`, so
@@ -327,7 +362,13 @@ describe('the remove button', () => {
 
 describe('the row itself', () => {
   it('scrolls sideways instead of wrapping, with no bar of its own', () => {
-    const { r } = render([image(), doc(), image({ id: 'i2' }), doc({ id: 'd2' }), image({ id: 'i3' })]);
+    const { r } = render([
+      image(),
+      doc(),
+      image({ id: 'i2' }),
+      doc({ id: 'd2' }),
+      image({ id: 'i3' }),
+    ]);
     const row = nodes(r, 'ScrollView')[0];
 
     expect(row.props.horizontal).toBe(true);
@@ -376,7 +417,9 @@ describe('the tile corner, and the colours', () => {
     // `@oxy.so/bloom` to the workspace root, so `../../../../node_modules` is
     // one of the two places it might be and the wrong one here.
     join(
-      dirname(createRequire(import.meta.url).resolve('@oxy.so/bloom/package.json')),
+      dirname(
+        createRequire(import.meta.url).resolve('@oxy.so/bloom/package.json'),
+      ),
       'lib/module/composer-panel/ComposerPillBase.js',
     ),
     'utf8',
@@ -397,7 +440,9 @@ describe('the tile corner, and the colours', () => {
 
     // And the pill genuinely wears that corner in both states: a full round at
     // one line, and the same number spelt out once it has grown.
-    expect(pill).toContain(`borderRadius: multiLine ? ${COMPOSER_RADIUS} : 9999`);
+    expect(pill).toContain(
+      `borderRadius: multiLine ? ${COMPOSER_RADIUS} : 9999`,
+    );
   });
 
   it('names no colour of its own', () => {
@@ -438,7 +483,9 @@ describe('a file still being read', () => {
     // The honest rendering is a spinner; a bar at 0% would read as stuck, and
     // a bar at anything else would be invented.
     expect(nodes(r, 'ActivityIndicator')).toHaveLength(1);
-    expect(nodes(r, 'Text').map((node) => node.props.children)).not.toContain('0%');
+    expect(nodes(r, 'Text').map((node) => node.props.children)).not.toContain(
+      '0%',
+    );
   });
 
   it('shows the measured fraction, in the label and in the fill', () => {
@@ -455,7 +502,11 @@ describe('a file still being read', () => {
     expect(fill?.props.style.width).toBe('42%');
     // And the same number reaches a reader, rather than a bar that is only a
     // picture of one.
-    expect(tile?.props.accessibilityValue).toEqual({ min: 0, max: 100, now: 42 });
+    expect(tile?.props.accessibilityValue).toEqual({
+      min: 0,
+      max: 100,
+      now: 42,
+    });
     expect(nodes(r, 'ActivityIndicator')).toHaveLength(0);
   });
 
@@ -480,10 +531,13 @@ describe('a file still being read', () => {
 
 describe('a file that could not be read', () => {
   it('can be read again, from the tile itself', () => {
-    const { r, retry } = renderPending([pending({ id: 'in-x', status: 'failed' })]);
+    const { r, retry } = renderPending([
+      pending({ id: 'in-x', status: 'failed' }),
+    ]);
     const buttons = nodes(r, 'Pressable');
     const retryButton = buttons.find(
-      (node) => node.props.accessibilityLabel === 'composer.retryRead name=photo.png',
+      (node) =>
+        node.props.accessibilityLabel === 'composer.retryRead name=photo.png',
     );
 
     expect(retryButton).toBeDefined();
@@ -493,7 +547,9 @@ describe('a file that could not be read', () => {
 
   it('stops offering to cancel something that already stopped', () => {
     const { r } = renderPending([pending({ status: 'failed' })]);
-    const labels = nodes(r, 'Pressable').map((node) => node.props.accessibilityLabel);
+    const labels = nodes(r, 'Pressable').map(
+      (node) => node.props.accessibilityLabel,
+    );
 
     // The corner control is the same pixel in both states and must not claim
     // to stop a read that has already ended — there is nothing left to abort,
@@ -504,23 +560,30 @@ describe('a file that could not be read', () => {
   });
 
   it('sits after the settled tiles rather than among them', () => {
-    const { r } = renderPending([pending()], [image({ id: 'a' }), image({ id: 'b' })]);
+    const { r } = renderPending(
+      [pending()],
+      [image({ id: 'a' }), image({ id: 'b' })],
+    );
     const tiles = nodes(r, 'View').filter((node) =>
       classes(node).some((name) => name === 'w-60' || name === 'h-14'),
     );
 
     // Two settled pictures, then the file still being read — newest last, and
     // never inserted between tiles the user is already reaching for.
-    expect(tiles.map((tile) => (classes(tile).includes('h-14') ? 'square' : 'wide'))).toEqual(
-      ['square', 'square', 'wide'],
-    );
+    expect(
+      tiles.map((tile) => (classes(tile).includes('h-14') ? 'square' : 'wide')),
+    ).toEqual(['square', 'square', 'wide']);
   });
 });
 
 describe('a file the composer will not take', () => {
   it('says which file and why, in the strip rather than in a toast', () => {
     const { r } = renderPending([
-      pending({ name: 'enormous.png', status: 'refused', refusal: 'too-large' }),
+      pending({
+        name: 'enormous.png',
+        status: 'refused',
+        refusal: 'too-large',
+      }),
     ]);
     const written = nodes(r, 'Text').map((node) => node.props.children);
 
@@ -529,14 +592,18 @@ describe('a file the composer will not take', () => {
     // seconds. The limit reaches the sentence too, so "too large" is a fact
     // with a number rather than a complaint.
     expect(written).toContain('enormous.png');
-    expect(written).toContain('composer.fileTooLarge name=enormous.png limit=20 MB');
+    expect(written).toContain(
+      'composer.fileTooLarge name=enormous.png limit=20 MB',
+    );
   });
 
   it('offers only a way to dismiss it — retrying a refusal changes nothing', () => {
     const { r } = renderPending([
       pending({ name: 'Pictures', status: 'refused', refusal: 'empty' }),
     ]);
-    const labels = nodes(r, 'Pressable').map((node) => node.props.accessibilityLabel);
+    const labels = nodes(r, 'Pressable').map(
+      (node) => node.props.accessibilityLabel,
+    );
 
     expect(labels).toEqual(['composer.dismissFailed name=Pictures']);
     // A dropped folder arrives as a zero-byte File, and reading it again would

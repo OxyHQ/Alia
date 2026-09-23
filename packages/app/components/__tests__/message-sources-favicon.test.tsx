@@ -21,8 +21,13 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('react-native', async () => {
   const ReactModule = await import('react');
-  const h = (name: string) => ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
-    ReactModule.createElement(name, props, children);
+  const h =
+    (name: string) =>
+    ({
+      children,
+      ...props
+    }: React.PropsWithChildren<Record<string, unknown>>) =>
+      ReactModule.createElement(name, props, children);
   return {
     View: h('View'),
     Pressable: h('Pressable'),
@@ -32,20 +37,33 @@ vi.mock('react-native', async () => {
 
 vi.mock('expo-image', async () => {
   const ReactModule = await import('react');
-  return { Image: (props: Record<string, unknown>) => ReactModule.createElement('Image', props) };
+  return {
+    Image: (props: Record<string, unknown>) =>
+      ReactModule.createElement('Image', props),
+  };
 });
 
 vi.mock('lucide-react-native', async () => {
   const ReactModule = await import('react');
-  const h = (name: string) => ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
-    ReactModule.createElement(name, props, children);
+  const h =
+    (name: string) =>
+    ({
+      children,
+      ...props
+    }: React.PropsWithChildren<Record<string, unknown>>) =>
+      ReactModule.createElement(name, props, children);
   return { Globe: h('Globe') };
 });
 
-vi.mock('@/components/ui/text', async () => {
+vi.mock('@oxy.so/bloom/typography', async () => {
   const ReactModule = await import('react');
-  const h = (name: string) => ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
-    ReactModule.createElement(name, props, children);
+  const h =
+    (name: string) =>
+    ({
+      children,
+      ...props
+    }: React.PropsWithChildren<Record<string, unknown>>) =>
+      ReactModule.createElement(name, props, children);
   return { Text: h('Text') };
 });
 
@@ -68,7 +86,11 @@ const persistedSearch = (urls: string[]) => [
     state: 'result' as const,
     args: { query: 'anything' },
     result: {
-      results: urls.map((url, i) => ({ title: `Result ${i}`, url, snippet: 's' })),
+      results: urls.map((url, i) => ({
+        title: `Result ${i}`,
+        url,
+        snippet: 's',
+      })),
       count: urls.length,
     },
   },
@@ -79,7 +101,12 @@ let renderer: ReactTestRenderer | null = null;
 function render(urls: string[]) {
   let next: ReactTestRenderer | undefined;
   act(() => {
-    next = create(<MessageSources onPress={vi.fn()} toolInvocations={persistedSearch(urls)} />);
+    next = create(
+      <MessageSources
+        onPress={vi.fn()}
+        toolInvocations={persistedSearch(urls)}
+      />,
+    );
   });
   if (next === undefined) throw new Error('MessageSources did not render');
   renderer = next;
@@ -105,18 +132,22 @@ describe('the favicon behind a source mark', () => {
 
     // `www.` is stripped by `extractSources`, so the mark and the request agree
     // on the domain the reader is shown.
-    expect(image.props.source).toEqual({ uri: `${config.apiUrl}/favicons/nytimes.com` });
+    expect(image.props.source).toEqual({
+      uri: `${config.apiUrl}/favicons/nytimes.com`,
+    });
     expect(String(image.props.source.uri).startsWith(config.apiUrl)).toBe(true);
   });
 
   it('asks once per source, for that source', () => {
     const root = render(['https://elpais.com/a', 'https://reuters.com/b']);
 
-    expect(nodes(root, 'Image').map((image) => image.props.source.uri)).toEqual([
-      // Reversed in the stack so the first source sits on top of the overlap.
-      `${config.apiUrl}/favicons/reuters.com`,
-      `${config.apiUrl}/favicons/elpais.com`,
-    ]);
+    expect(nodes(root, 'Image').map((image) => image.props.source.uri)).toEqual(
+      [
+        // Reversed in the stack so the first source sits on top of the overlap.
+        `${config.apiUrl}/favicons/reuters.com`,
+        `${config.apiUrl}/favicons/elpais.com`,
+      ],
+    );
   });
 
   it('shows the globe while the icon is still on its way', () => {
@@ -131,7 +162,9 @@ describe('the favicon behind a source mark', () => {
     const root = render(['https://elpais.com/a']);
     const [image] = nodes(root, 'Image');
 
-    act(() => { image.props.onLoad(); });
+    act(() => {
+      image.props.onLoad();
+    });
 
     expect(nodes(root, 'Globe')).toHaveLength(0);
     expect(nodes(root, 'Image')).toHaveLength(1);
@@ -143,18 +176,28 @@ describe('the favicon behind a source mark', () => {
     const root = render(['https://elpais.com/a']);
     const [image] = nodes(root, 'Image');
 
-    act(() => { image.props.onError(); });
+    act(() => {
+      image.props.onError();
+    });
 
     expect(nodes(root, 'Image')).toHaveLength(0);
     expect(nodes(root, 'Globe')).toHaveLength(1);
   });
 
   it('lets one source fail without touching the others', () => {
-    const root = render(['https://elpais.com/a', 'https://reuters.com/b', 'https://lemonde.fr/c']);
+    const root = render([
+      'https://elpais.com/a',
+      'https://reuters.com/b',
+      'https://lemonde.fr/c',
+    ]);
     const images = nodes(root, 'Image');
 
-    act(() => { images[0].props.onError(); });
-    act(() => { images[1].props.onLoad(); });
+    act(() => {
+      images[0].props.onError();
+    });
+    act(() => {
+      images[1].props.onLoad();
+    });
 
     // One failed, one loaded, one still pending: two images left, two globes.
     expect(nodes(root, 'Image')).toHaveLength(2);

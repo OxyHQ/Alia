@@ -1,16 +1,16 @@
-import React, { useState } from 'react';
-import { View, Text, Pressable } from 'react-native';
-import { useRouter } from 'expo-router';
 import { AuthContainer } from '@/components/auth/auth-container';
-import { AuthLogo } from '@/components/auth/auth-logo';
-import { AuthInput } from '@/components/auth/auth-input';
-import { AuthButton } from '@/components/auth/auth-button';
 import { AuthError } from '@/components/auth/auth-error';
+import { AuthLogo } from '@/components/auth/auth-logo';
 import apiClient from '@/lib/api/client';
-import { toast } from '@oxy.so/bloom/toast';
-import { useTranslation } from '@/lib/hooks/use-translation';
 import { errorMessage as getErrorMessage } from '@/lib/errors/error-utils';
-import { ContentPanel } from "@oxy.so/bloom/content-panel";
+import { useTranslation } from '@/lib/hooks/use-translation';
+import { Button as AuthButton } from '@oxy.so/bloom/button';
+import { ContentPanel } from '@oxy.so/bloom/content-panel';
+import { TextFieldInput as AuthInput } from '@oxy.so/bloom/text-field';
+import { toast } from '@oxy.so/bloom/toast';
+import { useRouter } from 'expo-router';
+import { useState } from 'react';
+import { Pressable, Text, View } from 'react-native';
 
 export default function ForgotPasswordScreen() {
   const { t } = useTranslation();
@@ -40,7 +40,10 @@ export default function ForgotPasswordScreen() {
       router.back();
     } catch (error: unknown) {
       console.error('Reset password error:', error);
-      const errorMessage = getErrorMessage(error, t('forgotPassword.failedToSend'));
+      const errorMessage = getErrorMessage(
+        error,
+        t('forgotPassword.failedToSend'),
+      );
       setError(errorMessage);
 
       toast.error(errorMessage);
@@ -55,33 +58,31 @@ export default function ForgotPasswordScreen() {
         <AuthLogo />
 
         {sent ? (
-              // Success State
-              <View className="items-center">
-                <Text className="text-2xl font-bold text-foreground tracking-tight mb-2 text-center">
-                  {t('forgotPassword.checkEmail')}
-                </Text>
-                <Text className="text-sm text-muted-foreground text-center mb-6 leading-5">
-                  {t('forgotPassword.sentInstructions')}{'\n'}
-                  <Text className="font-medium text-foreground">{email}</Text>
-                </Text>
-                <AuthButton
-                  onPress={() => router.back()}
-                  className="w-full"
-                >
-                  {t('forgotPassword.returnToSignIn')}
-                </AuthButton>
-                <Pressable
-                  onPress={() => {
-                    setSent(false);
-                    setEmail('');
-                  }}
-                  className="mt-4"
-                >
-                  <Text className="text-primary text-sm font-medium">
-                    {t('forgotPassword.tryAnotherEmail')}
-                  </Text>
-                </Pressable>
-              </View>
+          // Success State
+          <View className="items-center">
+            <Text className="text-2xl font-bold text-foreground tracking-tight mb-2 text-center">
+              {t('forgotPassword.checkEmail')}
+            </Text>
+            <Text className="text-sm text-muted-foreground text-center mb-6 leading-5">
+              {t('forgotPassword.sentInstructions')}
+              {'\n'}
+              <Text className="font-medium text-foreground">{email}</Text>
+            </Text>
+            <AuthButton onPress={() => router.back()} className="w-full">
+              {t('forgotPassword.returnToSignIn')}
+            </AuthButton>
+            <Pressable
+              onPress={() => {
+                setSent(false);
+                setEmail('');
+              }}
+              className="mt-4"
+            >
+              <Text className="text-primary text-sm font-medium">
+                {t('forgotPassword.tryAnotherEmail')}
+              </Text>
+            </Pressable>
+          </View>
         ) : (
           // Form State
           <>
@@ -98,6 +99,7 @@ export default function ForgotPasswordScreen() {
               <AuthError message={error} />
 
               <AuthInput
+                label="Email"
                 placeholder={t('forgotPassword.emailPlaceholder')}
                 value={email}
                 onChangeText={(text) => {
@@ -113,8 +115,7 @@ export default function ForgotPasswordScreen() {
               <AuthButton
                 onPress={handleResetPassword}
                 disabled={loading || !email}
-                isLoading={loading}
-                loadingText={t('forgotPassword.sending')}
+                loading={loading}
                 className="mt-3"
               >
                 {t('common.continue')}
@@ -122,7 +123,6 @@ export default function ForgotPasswordScreen() {
             </View>
           </>
         )}
-
       </AuthContainer>
     </ContentPanel>
   );

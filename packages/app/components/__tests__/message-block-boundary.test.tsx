@@ -38,27 +38,41 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('react-native', async () => {
   const ReactModule = await import('react');
-  const host = (name: string) => ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
-    ReactModule.createElement(name, props, children);
+  const host =
+    (name: string) =>
+    ({
+      children,
+      ...props
+    }: React.PropsWithChildren<Record<string, unknown>>) =>
+      ReactModule.createElement(name, props, children);
   return {
     View: host('View'),
     Pressable: host('Pressable'),
     ScrollView: host('ScrollView'),
     Text: host('RNText'),
-    Platform: { OS: 'web', select: (o: Record<string, unknown>) => o.web ?? o.default },
+    Platform: {
+      OS: 'web',
+      select: (o: Record<string, unknown>) => o.web ?? o.default,
+    },
     StyleSheet: { create: (s: unknown) => s, flatten: (s: unknown) => s },
   };
 });
 
 vi.mock('lucide-react-native', async () => {
   const ReactModule = await import('react');
-  return { AlertTriangle: (props: Record<string, unknown>) => ReactModule.createElement('AlertTriangle', props) };
+  return {
+    AlertTriangle: (props: Record<string, unknown>) =>
+      ReactModule.createElement('AlertTriangle', props),
+  };
 });
 
-vi.mock('@/components/ui/text', async () => {
+vi.mock('@oxy.so/bloom/typography', async () => {
   const ReactModule = await import('react');
   return {
-    Text: ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
+    Text: ({
+      children,
+      ...props
+    }: React.PropsWithChildren<Record<string, unknown>>) =>
       ReactModule.createElement('Text', props, children),
   };
 });
@@ -68,15 +82,21 @@ vi.mock('@/lib/hooks/use-translation', () => ({
 }));
 
 vi.mock('@/lib/useColorScheme', () => ({
-  useColorScheme: () => ({ colors: { foreground: '#000', primary: '#000', muted: '#eee' }, isDarkColorScheme: false }),
+  useColorScheme: () => ({
+    colors: { foreground: '#000', primary: '#000', muted: '#eee' },
+    isDarkColorScheme: false,
+  }),
 }));
 
-vi.mock('@/lib/utils', () => ({ cn: (...parts: unknown[]) => parts.filter(Boolean).join(' ') }));
+vi.mock('@/lib/utils', () => ({
+  cn: (...parts: unknown[]) => parts.filter(Boolean).join(' '),
+}));
 
 vi.mock('@/components/cards/card-surface', async () => {
   const ReactModule = await import('react');
   return {
-    CardSurface: ({ children }: React.PropsWithChildren) => ReactModule.createElement('CardSurface', null, children),
+    CardSurface: ({ children }: React.PropsWithChildren) =>
+      ReactModule.createElement('CardSurface', null, children),
   };
 });
 
@@ -88,8 +108,11 @@ vi.mock('@/components/cards/area-chart', async () => {
   };
 });
 
+import {
+  WeatherCard,
+  type WeatherCardData,
+} from '@/components/cards/weather-card';
 import { MessageBlockBoundary } from '@/components/chat/message-block-boundary';
-import { WeatherCard, type WeatherCardData } from '@/components/cards/weather-card';
 
 /** What a tool could return that `cardOf` accepts and `WeatherCard` cannot read. */
 const MALFORMED = { place: 'Madrid' } as unknown as WeatherCardData;
@@ -108,7 +131,9 @@ afterEach(() => {
 describe('a malformed card', () => {
   it('really does throw — the exposure is not hypothetical', () => {
     expect(() => {
-      act(() => { create(React.createElement(WeatherCard, { data: MALFORMED })); });
+      act(() => {
+        create(React.createElement(WeatherCard, { data: MALFORMED }));
+      });
     }).toThrow();
   });
 });
@@ -161,7 +186,11 @@ describe('MessageBlockBoundary', () => {
 
     act(() => {
       renderer = create(
-        React.createElement(MessageBlockBoundary, null, React.createElement('AGoodBlock')),
+        React.createElement(
+          MessageBlockBoundary,
+          null,
+          React.createElement('AGoodBlock'),
+        ),
       );
     });
 
@@ -176,7 +205,9 @@ describe('MessageBlockBoundary', () => {
     act(() => {
       create(
         React.createElement(MessageBlockBoundary, {
-          onError: (error: Error) => { seen.push(error); },
+          onError: (error: Error) => {
+            seen.push(error);
+          },
           children: React.createElement(WeatherCard, { data: MALFORMED }),
         }),
       );

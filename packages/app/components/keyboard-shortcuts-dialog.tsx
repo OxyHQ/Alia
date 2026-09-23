@@ -1,11 +1,9 @@
-import * as React from "react";
-import { Platform, View } from "react-native";
-import { Dialog } from "@oxy.so/bloom/dialog";
-import { Text } from "@/components/ui/text";
-import { Kbd } from "@oxy.so/bloom/kbd";
-import { useTranslation } from "@/lib/hooks/use-translation";
-import { useUIStore } from "@/lib/stores/ui-store";
-
+import { useTranslation } from '@/lib/hooks/use-translation';
+import { useUIStore } from '@/lib/stores/ui-store';
+import { Dialog } from '@oxy.so/bloom/dialog';
+import { Kbd } from '@oxy.so/bloom/kbd';
+import { Text } from '@oxy.so/bloom/typography';
+import { Platform, View } from 'react-native';
 const isMac =
   typeof navigator !== "undefined" &&
   /Mac|iPod|iPhone|iPad/.test(navigator.platform);

@@ -1,9 +1,8 @@
-import { View, ScrollView } from 'react-native';
-import { Text } from '@/components/ui/text';
-import { Layers } from 'lucide-react-native';
-import { CanvasComponent } from './canvas/canvas-component';
 import { useUIStore } from '@/lib/stores/ui-store';
-
+import { Text } from '@oxy.so/bloom/typography';
+import { Layers } from 'lucide-react-native';
+import { ScrollView, View } from 'react-native';
+import { CanvasComponent } from './canvas/canvas-component';
 export function CanvasPanel() {
   const artifacts = useUIStore((s) => s.canvasArtifacts);
 

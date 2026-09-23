@@ -1,7 +1,3 @@
-import { ActivityIndicator, Pressable, View } from 'react-native';
-import { Clock, Play, Square, Users } from 'lucide-react-native';
-import { Switch } from '@oxy.so/bloom/switch';
-import { Text } from '@/components/ui/text';
 import {
   actorLabel,
   automationTitle,
@@ -10,11 +6,20 @@ import {
   policyReason,
   triggerLabel,
 } from '@/lib/automations/format';
-import type { AutomationDefinition, AutomationRun } from '@/lib/automations/types';
-import { automationLifecycle, lifecycleLabel } from '@/lib/automations/work-items';
+import type {
+  AutomationDefinition,
+  AutomationRun,
+} from '@/lib/automations/types';
+import {
+  automationLifecycle,
+  lifecycleLabel,
+} from '@/lib/automations/work-items';
 import { useColorScheme } from '@/lib/useColorScheme';
+import { Switch } from '@oxy.so/bloom/switch';
+import { Text } from '@oxy.so/bloom/typography';
+import { Clock, Play, Square, Users } from 'lucide-react-native';
+import { ActivityIndicator, Pressable, View } from 'react-native';
 import { AutomationPill, automationStatusTone } from './automation-pill';
-
 /**
  * One automation, with its controls.
  *

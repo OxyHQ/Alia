@@ -1,11 +1,9 @@
-import React from "react";
-import { View } from "react-native";
-import QRCode from "react-native-qrcode-svg";
-import { Text } from "@/components/ui/text";
-import { GetAppIcon } from "@/components/ui/get-app-icon";
-import { Dialog } from "@oxy.so/bloom/dialog";
-import { useColorScheme } from "@/lib/useColorScheme";
-
+import { GetAppIcon } from '@/components/ui/get-app-icon';
+import { useColorScheme } from '@/lib/useColorScheme';
+import { Dialog } from '@oxy.so/bloom/dialog';
+import { Text } from '@oxy.so/bloom/typography';
+import { View } from 'react-native';
+import QRCode from 'react-native-qrcode-svg';
 const DOWNLOAD_URL = "https://alia.onl/download";
 
 interface AppDownloadDialogProps {

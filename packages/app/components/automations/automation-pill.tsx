@@ -1,7 +1,6 @@
-import { View } from 'react-native';
-import { Text } from '@/components/ui/text';
 import type { AutomationStepStatus } from '@/lib/automations/types';
-
+import { Text } from '@oxy.so/bloom/typography';
+import { View } from 'react-native';
 export type AutomationPillTone = 'neutral' | 'positive' | 'warning' | 'danger';
 
 export function AutomationPill({

@@ -1,3 +1,25 @@
+import { WorkspaceBrowser } from '@/components/workspace-browser';
+import type {
+  AgentActivityState,
+  PlanItem,
+} from '@/lib/hooks/use-agent-activity';
+import { useColorScheme } from '@/lib/useColorScheme';
+import { useTheme, withAlpha } from '@oxy.so/bloom/theme';
+import { Text } from '@oxy.so/bloom/typography';
+import {
+  AlertTriangle,
+  CheckCircle,
+  ChevronDown,
+  ChevronUp,
+  Clock,
+  Coins,
+  FolderTree,
+  Layers,
+  XCircle,
+} from 'lucide-react-native';
+import React, { useState } from 'react';
+import { Pressable, View } from 'react-native';
+import Animated, { FadeIn } from 'react-native-reanimated';
 /**
  * AgentResultCard — Rich summary card shown in chat when an agent completes a task.
  *
@@ -5,25 +27,15 @@
  * Includes a "View Files" toggle that expands the WorkspaceBrowser inline.
  */
 
-import React, { useState } from 'react';
-import { View, Pressable } from 'react-native';
-import { Text } from '@/components/ui/text';
-import Animated, { FadeIn } from 'react-native-reanimated';
-import {
-  CheckCircle,
-  XCircle,
-  Clock,
-  Layers,
-  ChevronDown,
-  ChevronUp,
-  FolderTree,
-  AlertTriangle,
-  Coins,
-} from 'lucide-react-native';
-import { useColorScheme } from '@/lib/useColorScheme';
-import { useTheme, withAlpha } from '@oxy.so/bloom/theme';
-import { WorkspaceBrowser } from '@/components/workspace-browser';
-import type { AgentActivityState, PlanItem } from '@/lib/hooks/use-agent-activity';
+
+
+
+
+
+
+
+
+
 
 interface AgentResultCardProps {
   activity: AgentActivityState;

@@ -1,13 +1,16 @@
-import { useState } from "react";
-import { View, Pressable } from "react-native";
-import { Image } from "expo-image";
-import { Globe } from "lucide-react-native";
-import { Text } from "@/components/ui/text";
-import { useTranslation } from "@/lib/hooks/use-translation";
-import config from "@/lib/config";
-import { extractSources, mergeSources, researchSourcesToSources } from "@/lib/thought-utils";
-import type { ToolInvocation } from "@/lib/types/messages";
-
+import config from '@/lib/config';
+import { useTranslation } from '@/lib/hooks/use-translation';
+import {
+  extractSources,
+  mergeSources,
+  researchSourcesToSources,
+} from '@/lib/thought-utils';
+import type { ToolInvocation } from '@/lib/types/messages';
+import { Text } from '@oxy.so/bloom/typography';
+import { Image } from 'expo-image';
+import { Globe } from 'lucide-react-native';
+import { useState } from 'react';
+import { Pressable, View } from 'react-native';
 /** How many domain marks the stack shows before it stops adding them. */
 const STACK_LIMIT = 3;
 

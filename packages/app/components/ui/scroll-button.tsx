@@ -1,10 +1,8 @@
-import React from "react";
-import { Button, type ButtonProps } from "@/components/ui/button";
-import { useColorScheme } from "@/lib/useColorScheme";
-import { cn } from "@/lib/utils";
-import { ChevronDownIcon } from "@/components/ui/icons/chevron-down-icon";
-import Animated, { FadeInDown, FadeOutDown } from "react-native-reanimated";
-
+import { ChevronDownIcon } from '@/components/ui/icons/chevron-down-icon';
+import { useColorScheme } from '@/lib/useColorScheme';
+import { cn } from '@/lib/utils';
+import { Button, type ButtonProps } from '@oxy.so/bloom/button';
+import Animated, { FadeInDown, FadeOutDown } from 'react-native-reanimated';
 export type ScrollButtonProps = Omit<ButtonProps, "children"> & {
   isAtBottom: boolean;
   onScrollToBottom: () => void;

@@ -18,14 +18,28 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('react-native', async () => {
   const ReactModule = await import('react');
-  const h = (name: string) => ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
-    ReactModule.createElement(name, props, children);
-  return { View: h('View'), Pressable: h('Pressable'), ScrollView: h('ScrollView') };
+  const h =
+    (name: string) =>
+    ({
+      children,
+      ...props
+    }: React.PropsWithChildren<Record<string, unknown>>) =>
+      ReactModule.createElement(name, props, children);
+  return {
+    View: h('View'),
+    Pressable: h('Pressable'),
+    ScrollView: h('ScrollView'),
+  };
 });
 vi.mock('react-native-svg', async () => {
   const ReactModule = await import('react');
-  const h = (name: string) => ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
-    ReactModule.createElement(name, props, children);
+  const h =
+    (name: string) =>
+    ({
+      children,
+      ...props
+    }: React.PropsWithChildren<Record<string, unknown>>) =>
+      ReactModule.createElement(name, props, children);
   return {
     default: h('Svg'),
     Path: h('Path'),
@@ -36,10 +50,15 @@ vi.mock('react-native-svg', async () => {
     Text: h('SvgText'),
   };
 });
-vi.mock('@/components/ui/text', async () => {
+vi.mock('@oxy.so/bloom/typography', async () => {
   const ReactModule = await import('react');
-  const h = (name: string) => ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
-    ReactModule.createElement(name, props, children);
+  const h =
+    (name: string) =>
+    ({
+      children,
+      ...props
+    }: React.PropsWithChildren<Record<string, unknown>>) =>
+      ReactModule.createElement(name, props, children);
   return { Text: h('Text') };
 });
 // `cn` shares a module with a uuid helper that pulls expo-crypto, so importing
@@ -68,14 +87,21 @@ vi.mock('@/lib/hooks/use-translation', () => ({
   }),
 }));
 
-import { MarketCard, type MarketCardData, type MarketPoint } from '@/components/cards/market-card';
+import {
+  MarketCard,
+  type MarketCardData,
+  type MarketPoint,
+} from '@/components/cards/market-card';
 
 const UP = 'rgb(16, 185, 129)';
 const DOWN = 'rgb(220, 38, 38)';
 
 /** A run of `count` points from `start`, moving by `step` each time. */
 function ramp(count: number, start: number, step: number): MarketPoint[] {
-  return Array.from({ length: count }, (_, i) => [Date.UTC(2026, 8, i + 1), start + step * i]);
+  return Array.from({ length: count }, (_, i) => [
+    Date.UTC(2026, 8, i + 1),
+    start + step * i,
+  ]);
 }
 
 const stored: MarketCardData = {
@@ -99,7 +125,10 @@ const stored: MarketCardData = {
     ],
     '5D': ramp(5, 92, 3),
     // The one that fell: 130 down to 104 is a fifth of where it started.
-    '1M': [130, 126, 120, 115, 110, 104].map((p, i): MarketPoint => [Date.UTC(2026, 8, i + 1), p]),
+    '1M': [130, 126, 120, 115, 110, 104].map((p, i): MarketPoint => [
+      Date.UTC(2026, 8, i + 1),
+      p,
+    ]),
     '6M': ramp(7, 70, 5),
     YTD: ramp(8, 60, 6),
     '1Y': ramp(9, 50, 7),
@@ -110,7 +139,9 @@ const stored: MarketCardData = {
 
 function render(data: MarketCardData): ReactTestRenderer {
   let tree: ReactTestRenderer | undefined;
-  act(() => { tree = create(<MarketCard data={data} />); });
+  act(() => {
+    tree = create(<MarketCard data={data} />);
+  });
   if (!tree) throw new Error('act() returned without rendering');
   return tree;
 }
@@ -118,9 +149,16 @@ function render(data: MarketCardData): ReactTestRenderer {
 function texts(tree: ReactTestRenderer): string[] {
   const out: string[] = [];
   const walk = (node: unknown): void => {
-    if (typeof node === 'string') { out.push(node); return; }
-    if (Array.isArray(node)) { node.forEach(walk); return; }
-    if (node && typeof node === 'object' && 'children' in node) walk((node as { children: unknown }).children);
+    if (typeof node === 'string') {
+      out.push(node);
+      return;
+    }
+    if (Array.isArray(node)) {
+      node.forEach(walk);
+      return;
+    }
+    if (node && typeof node === 'object' && 'children' in node)
+      walk((node as { children: unknown }).children);
   };
   walk(tree.toJSON());
   return out;
@@ -131,8 +169,10 @@ function texts(tree: ReactTestRenderer): string[] {
  * `react-native-svg` passes each prop straight through, so a plain `findAll`
  * counts one grid line twice.
  */
-const hosts = (tree: ReactTestRenderer, match: (props: Record<string, unknown>) => boolean) =>
-  tree.root.findAll((n) => typeof n.type === 'string' && match(n.props));
+const hosts = (
+  tree: ReactTestRenderer,
+  match: (props: Record<string, unknown>) => boolean,
+) => tree.root.findAll((n) => typeof n.type === 'string' && match(n.props));
 
 /** The stroked curve. The filled twin under it has `fill` set instead. */
 const curve = (tree: ReactTestRenderer) =>
@@ -140,31 +180,46 @@ const curve = (tree: ReactTestRenderer) =>
 
 const curvePath = (tree: ReactTestRenderer) => curve(tree).props.d as string;
 /** Every "Lx,y" is one point after the opening "M". */
-const drawnPoints = (tree: ReactTestRenderer) => curvePath(tree).split('L').length;
+const drawnPoints = (tree: ReactTestRenderer) =>
+  curvePath(tree).split('L').length;
 
 const rangeButtons = (tree: ReactTestRenderer) =>
   tree.root.findAll(
-    (n) => typeof n.type !== 'string' && typeof n.props.accessibilityLabel === 'string'
-      && n.props.accessibilityLabel.startsWith('market.range.'),
+    (n) =>
+      typeof n.type !== 'string' &&
+      typeof n.props.accessibilityLabel === 'string' &&
+      n.props.accessibilityLabel.startsWith('market.range.'),
   );
 
 function press(tree: ReactTestRenderer, range: string) {
-  const button = rangeButtons(tree).find((n) => n.props.accessibilityLabel === `market.range.${range}`);
-  if (!button) throw new Error(`no ${range} button; the card offers ${rangeButtons(tree).length}`);
-  act(() => { button.props.onPress(); });
+  const button = rangeButtons(tree).find(
+    (n) => n.props.accessibilityLabel === `market.range.${range}`,
+  );
+  if (!button)
+    throw new Error(
+      `no ${range} button; the card offers ${rangeButtons(tree).length}`,
+    );
+  act(() => {
+    button.props.onPress();
+  });
 }
 
 /** The colour on the delta line, which is the only styled colour in the text. */
 const deltaColor = (tree: ReactTestRenderer) =>
-  (hosts(tree, (p) => p.style !== null && typeof p.style === 'object' && 'color' in p.style)[0]
-    .props.style as { color: string }).color;
+  (
+    hosts(
+      tree,
+      (p) =>
+        p.style !== null && typeof p.style === 'object' && 'color' in p.style,
+    )[0].props.style as { color: string }
+  ).color;
 
 afterEach(() => {
   vi.unstubAllGlobals();
 });
 
 describe('MarketCard', () => {
-  it('shows the coin, the quoted price and the quote\'s own 24h change', () => {
+  it("shows the coin, the quoted price and the quote's own 24h change", () => {
     const t = texts(render(stored));
     expect(t).toContain('Bitcoin');
     expect(t).toContain('BTC');
@@ -186,7 +241,14 @@ describe('MarketCard', () => {
 
     // Every range in the payload, in the order the control offers them.
     const counts: Record<string, number> = {
-      '5D': 5, '1M': 6, '6M': 7, YTD: 8, '1Y': 9, '5Y': 10, MAX: 11, '1D': 4,
+      '5D': 5,
+      '1M': 6,
+      '6M': 7,
+      YTD: 8,
+      '1Y': 9,
+      '5Y': 10,
+      MAX: 11,
+      '1D': 4,
     };
     for (const [range, points] of Object.entries(counts)) {
       press(tree, range);
@@ -200,7 +262,8 @@ describe('MarketCard', () => {
   it('moves the selection to the range that was pressed', () => {
     const tree = render(stored);
     const selected = () =>
-      rangeButtons(tree).filter((n) => n.props.accessibilityState.selected)
+      rangeButtons(tree)
+        .filter((n) => n.props.accessibilityState.selected)
         .map((n) => n.props.accessibilityLabel);
 
     expect(selected()).toEqual(['market.range.1D']);
@@ -208,7 +271,7 @@ describe('MarketCard', () => {
     expect(selected()).toEqual(['market.range.6M']);
   });
 
-  it('reports the selected range\'s own change, derived from its series', () => {
+  it("reports the selected range's own change, derived from its series", () => {
     const tree = render(stored);
     press(tree, '1M');
     // 130 down to 104: 26 lost, a fifth of where it started.
@@ -233,7 +296,9 @@ describe('MarketCard', () => {
     expect(shown).toContain('96');
     expect(shown).toContain('108');
 
-    const gridY = hosts(tree, (p) => typeof p.y1 === 'number').map((n) => n.props.y1 as number);
+    const gridY = hosts(tree, (p) => typeof p.y1 === 'number').map(
+      (n) => n.props.y1 as number,
+    );
     expect(gridY).toHaveLength(4);
     // Top line for the high, bottom line for the low, inside the 140 box.
     expect(Math.min(...gridY)).toBeCloseTo(8, 5);
@@ -257,7 +322,9 @@ describe('MarketCard', () => {
 
     // Spanish "billón" is 10¹², not 10⁹, so every rung of the ladder has to be
     // a string somebody can translate rather than a letter appended here.
-    const small = texts(render({ ...stored, marketCap: 5.5e6, volume24h: 9.9e3 }));
+    const small = texts(
+      render({ ...stored, marketCap: 5.5e6, volume24h: 9.9e3 }),
+    );
     expect(small).toContain('market.scale.million[5.5] USD');
     expect(small).toContain('market.scale.thousand[9.9] USD');
   });
@@ -283,7 +350,14 @@ describe('MarketCard', () => {
   });
 
   it('says so instead of inventing a price when the quote failed', () => {
-    const t = texts(render({ ...stored, price: undefined, changePct: undefined, changeAbs: undefined }));
+    const t = texts(
+      render({
+        ...stored,
+        price: undefined,
+        changePct: undefined,
+        changeAbs: undefined,
+      }),
+    );
     expect(t).toContain('market.noPrice');
     // Without the quote's own change the card falls back to the series ends,
     // which for the intraday run is 100 to 104.
@@ -293,15 +367,20 @@ describe('MarketCard', () => {
   it('does not round a sub-cent coin down to nothing', () => {
     // Most coins trade well under a dollar, and two decimals turns every one of
     // them into "$0.00" — price, open, high and low alike.
-    const t = texts(render({
-      ...stored,
-      price: 0.000023,
-      changePct: 9.5,
-      changeAbs: 0.000002,
-      series: {
-        '1D': [[Date.UTC(2026, 8, 9, 0), 0.000021], [Date.UTC(2026, 8, 9, 12), 0.000023]],
-      },
-    }));
+    const t = texts(
+      render({
+        ...stored,
+        price: 0.000023,
+        changePct: 9.5,
+        changeAbs: 0.000002,
+        series: {
+          '1D': [
+            [Date.UTC(2026, 8, 9, 0), 0.000021],
+            [Date.UTC(2026, 8, 9, 12), 0.000023],
+          ],
+        },
+      }),
+    );
     expect(t).toContain('$0.000023');
     expect(t).toContain('$0.000021');
     // And the axis, which drops the currency symbol but not the digits.
@@ -328,14 +407,21 @@ describe('MarketCard', () => {
         YTD: [[Date.UTC(2026, 0, 1), 99]],
       },
     };
-    const offered = rangeButtons(render(sparse)).map((n) => n.props.accessibilityLabel);
+    const offered = rangeButtons(render(sparse)).map(
+      (n) => n.props.accessibilityLabel,
+    );
     expect(offered).toEqual(['market.range.1D', 'market.range.5D']);
   });
 
   it('draws a flat range in the middle instead of dividing by its own zero span', () => {
     const flat: MarketCardData = {
       ...stored,
-      series: { '1D': [[Date.UTC(2026, 8, 9, 0), 20], [Date.UTC(2026, 8, 9, 12), 20]] },
+      series: {
+        '1D': [
+          [Date.UTC(2026, 8, 9, 0), 20],
+          [Date.UTC(2026, 8, 9, 12), 20],
+        ],
+      },
     };
     const tree = render(flat);
     const d = curvePath(tree);
@@ -373,32 +459,50 @@ describe('MarketCard', () => {
   it('gives each card its own gradient, because SVG ids are document-global', () => {
     let rendered: ReactTestRenderer | undefined;
     act(() => {
-      rendered = create(<><MarketCard data={stored} /><MarketCard data={stored} /></>);
+      rendered = create(
+        <>
+          <MarketCard data={stored} />
+          <MarketCard data={stored} />
+        </>,
+      );
     });
     if (!rendered) throw new Error('act() returned without rendering');
     const tree = rendered;
 
-    const ids = hosts(tree, (p) => typeof p.id === 'string').map((n) => n.props.id as string);
+    const ids = hosts(tree, (p) => typeof p.id === 'string').map(
+      (n) => n.props.id as string,
+    );
     expect(ids).toHaveLength(2);
     expect(new Set(ids).size).toBe(2);
     // And each area is filled from its own definition rather than from whichever
     // card happened to define that name last.
-    const fills = hosts(tree, (p) => typeof p.d === 'string' && p.fill !== 'none')
-      .map((n) => n.props.fill as string);
+    const fills = hosts(
+      tree,
+      (p) => typeof p.d === 'string' && p.fill !== 'none',
+    ).map((n) => n.props.fill as string);
     expect(fills).toEqual(ids.map((id) => `url(#${id})`));
   });
 
   it('asks for no string that either language is missing', () => {
     const locale = (name: string): Record<string, unknown> =>
-      JSON.parse(readFileSync(new URL(`../../lib/i18n/locales/${name}.json`, import.meta.url), 'utf8'));
+      JSON.parse(
+        readFileSync(
+          new URL(`../../lib/i18n/locales/${name}.json`, import.meta.url),
+          'utf8',
+        ),
+      );
     const en = locale('en');
     const es = locale('es');
     const resolve = (root: Record<string, unknown>, key: string): unknown =>
-      key.split('.').reduce<unknown>(
-        (node, part) =>
-          node && typeof node === 'object' ? (node as Record<string, unknown>)[part] : undefined,
-        root,
-      );
+      key
+        .split('.')
+        .reduce<unknown>(
+          (node, part) =>
+            node && typeof node === 'object'
+              ? (node as Record<string, unknown>)[part]
+              : undefined,
+          root,
+        );
 
     // Every string the card can render, collected by walking it through every
     // range rather than from a list here that would drift from the card.

@@ -12,23 +12,66 @@
  * again.
  */
 
-import React, { useCallback, useState } from 'react';
-import { View, ScrollView } from 'react-native';
-import { Text } from '@/components/ui/text';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Dialog } from '@oxy.so/bloom/dialog';
-import { toast } from '@oxy.so/bloom/toast';
-import { Mic, Newspaper, MessageSquare, HelpCircle, BookOpen, Lock, Link2, Globe } from 'lucide-react-native';
-import { useShowStore, type ShowFormat, type ShowVisibility } from '@/lib/stores/show-store';
+import {
+  useShowStore,
+  type ShowFormat,
+  type ShowVisibility,
+} from '@/lib/stores/show-store';
 import { cn } from '@/lib/utils';
+import { Button } from '@oxy.so/bloom/button';
+import { Dialog } from '@oxy.so/bloom/dialog';
+import { TextFieldInput as Input } from '@oxy.so/bloom/text-field';
+import { toast } from '@oxy.so/bloom/toast';
+import { Text } from '@oxy.so/bloom/typography';
+import {
+  BookOpen,
+  Globe,
+  HelpCircle,
+  Link2,
+  Lock,
+  MessageSquare,
+  Mic,
+  Newspaper,
+} from 'lucide-react-native';
+import { useCallback, useState } from 'react';
+import { ScrollView, View } from 'react-native';
 
-const FORMATS: Array<{ id: ShowFormat; label: string; icon: typeof Mic; description: string }> = [
-  { id: 'podcast', label: 'Podcast', icon: Mic, description: 'Casual conversation between two hosts' },
-  { id: 'news', label: 'News', icon: Newspaper, description: 'Professional news broadcast' },
-  { id: 'debate', label: 'Debate', icon: MessageSquare, description: 'Two sides, one moderator' },
-  { id: 'interview', label: 'Interview', icon: HelpCircle, description: 'A host interviews a guest' },
-  { id: 'explainer', label: 'Explainer', icon: BookOpen, description: 'A single narrator explains a topic' },
+const FORMATS: Array<{
+  id: ShowFormat;
+  label: string;
+  icon: typeof Mic;
+  description: string;
+}> = [
+  {
+    id: 'podcast',
+    label: 'Podcast',
+    icon: Mic,
+    description: 'Casual conversation between two hosts',
+  },
+  {
+    id: 'news',
+    label: 'News',
+    icon: Newspaper,
+    description: 'Professional news broadcast',
+  },
+  {
+    id: 'debate',
+    label: 'Debate',
+    icon: MessageSquare,
+    description: 'Two sides, one moderator',
+  },
+  {
+    id: 'interview',
+    label: 'Interview',
+    icon: HelpCircle,
+    description: 'A host interviews a guest',
+  },
+  {
+    id: 'explainer',
+    label: 'Explainer',
+    icon: BookOpen,
+    description: 'A single narrator explains a topic',
+  },
 ];
 
 /**
@@ -43,9 +86,24 @@ const VISIBILITIES: Array<{
   icon: typeof Lock;
   description: string;
 }> = [
-  { id: 'private', label: 'Private', icon: Lock, description: 'Only you can listen' },
-  { id: 'unlisted', label: 'Unlisted', icon: Link2, description: 'Anyone with the link' },
-  { id: 'public', label: 'Public', icon: Globe, description: 'Listed on Syra for everyone' },
+  {
+    id: 'private',
+    label: 'Private',
+    icon: Lock,
+    description: 'Only you can listen',
+  },
+  {
+    id: 'unlisted',
+    label: 'Unlisted',
+    icon: Link2,
+    description: 'Anyone with the link',
+  },
+  {
+    id: 'public',
+    label: 'Public',
+    icon: Globe,
+    description: 'Listed on Syra for everyone',
+  },
 ];
 
 interface SeriesCreateDialogProps {
@@ -54,7 +112,11 @@ interface SeriesCreateDialogProps {
   onCreated?: (seriesId: string) => void;
 }
 
-export function SeriesCreateDialog({ open, onOpenChange, onCreated }: SeriesCreateDialogProps) {
+export function SeriesCreateDialog({
+  open,
+  onOpenChange,
+  onCreated,
+}: SeriesCreateDialogProps) {
   const preferences = useShowStore((s) => s.preferences);
   const createSeries = useShowStore((s) => s.createSeries);
 
@@ -68,7 +130,8 @@ export function SeriesCreateDialog({ open, onOpenChange, onCreated }: SeriesCrea
   const [creating, setCreating] = useState(false);
 
   const chosenFormat = format ?? preferences?.defaultFormat ?? 'podcast';
-  const chosenVisibility = visibility ?? preferences?.defaultVisibility ?? 'private';
+  const chosenVisibility =
+    visibility ?? preferences?.defaultVisibility ?? 'private';
 
   const handleCreate = useCallback(async () => {
     if (title.trim().length < 3 || brief.trim().length < 10) {
@@ -97,7 +160,15 @@ export function SeriesCreateDialog({ open, onOpenChange, onCreated }: SeriesCrea
     } finally {
       setCreating(false);
     }
-  }, [title, brief, chosenFormat, chosenVisibility, createSeries, onOpenChange, onCreated]);
+  }, [
+    title,
+    brief,
+    chosenFormat,
+    chosenVisibility,
+    createSeries,
+    onOpenChange,
+    onCreated,
+  ]);
 
   return (
     <Dialog
@@ -111,7 +182,8 @@ export function SeriesCreateDialog({ open, onOpenChange, onCreated }: SeriesCrea
         {
           label: creating ? 'Creating...' : 'Create show',
           onPress: handleCreate,
-          disabled: creating || title.trim().length < 3 || brief.trim().length < 10,
+          disabled:
+            creating || title.trim().length < 3 || brief.trim().length < 10,
           // Creation draws cover art and calls Syra, so the dialog owns the
           // progress label and stays mounted while it runs.
           shouldCloseOnPress: false,
@@ -122,12 +194,20 @@ export function SeriesCreateDialog({ open, onOpenChange, onCreated }: SeriesCrea
         <View className="gap-4 py-2">
           <View className="gap-1.5">
             <Text className="text-sm font-medium text-foreground">Name</Text>
-            <Input value={title} onChangeText={setTitle} placeholder="The Wednesday Digest" />
+            <Input
+              label="The Wednesday Digest"
+              value={title}
+              onChangeText={setTitle}
+              placeholder="The Wednesday Digest"
+            />
           </View>
 
           <View className="gap-1.5">
-            <Text className="text-sm font-medium text-foreground">What is it about?</Text>
+            <Text className="text-sm font-medium text-foreground">
+              What is it about?
+            </Text>
             <Input
+              label="A weekly look at what I have been reading, in plain language."
               value={brief}
               onChangeText={setBrief}
               placeholder="A weekly look at what I have been reading, in plain language."
@@ -136,10 +216,10 @@ export function SeriesCreateDialog({ open, onOpenChange, onCreated }: SeriesCrea
               className="min-h-[80px]"
             />
             <Text className="text-xs text-muted-foreground">
-              This is the only thing an episode is written from, and — unless you say otherwise
-              for one — the only thing its subject is chosen from. Describe the show and the
-              ground it covers, not one episode: a line or two gives a show with nothing to vary
-              along.
+              This is the only thing an episode is written from, and — unless
+              you say otherwise for one — the only thing its subject is chosen
+              from. Describe the show and the ground it covers, not one episode:
+              a line or two gives a show with nothing to vary along.
             </Text>
           </View>
 
@@ -152,23 +232,27 @@ export function SeriesCreateDialog({ open, onOpenChange, onCreated }: SeriesCrea
                 return (
                   <Button
                     key={option.id}
-                    variant={selected ? 'default' : 'outline'}
+                    variant={selected ? 'primary' : 'secondary'}
                     size="sm"
-                    className={cn('flex-row items-center gap-1.5', selected && 'border-primary')}
+                    className={cn(
+                      'flex-row items-center gap-1.5',
+                      selected && 'border-primary',
+                    )}
                     onPress={() => setFormat(option.id)}
+                    leading={
+                      <>
+                        <Icon
+                          size={14}
+                          className={
+                            selected
+                              ? 'text-primary-foreground'
+                              : 'text-muted-foreground'
+                          }
+                        />
+                      </>
+                    }
                   >
-                    <Icon
-                      size={14}
-                      className={selected ? 'text-primary-foreground' : 'text-muted-foreground'}
-                    />
-                    <Text
-                      className={cn(
-                        'text-xs',
-                        selected ? 'text-primary-foreground' : 'text-foreground',
-                      )}
-                    >
-                      {option.label}
-                    </Text>
+                    {option.label}
                   </Button>
                 );
               })}
@@ -179,7 +263,9 @@ export function SeriesCreateDialog({ open, onOpenChange, onCreated }: SeriesCrea
           </View>
 
           <View className="gap-1.5">
-            <Text className="text-sm font-medium text-foreground">Who can listen?</Text>
+            <Text className="text-sm font-medium text-foreground">
+              Who can listen?
+            </Text>
             <View className="flex-row flex-wrap gap-2">
               {VISIBILITIES.map((option) => {
                 const Icon = option.icon;
@@ -187,23 +273,27 @@ export function SeriesCreateDialog({ open, onOpenChange, onCreated }: SeriesCrea
                 return (
                   <Button
                     key={option.id}
-                    variant={selected ? 'default' : 'outline'}
+                    variant={selected ? 'primary' : 'secondary'}
                     size="sm"
-                    className={cn('flex-row items-center gap-1.5', selected && 'border-primary')}
+                    className={cn(
+                      'flex-row items-center gap-1.5',
+                      selected && 'border-primary',
+                    )}
                     onPress={() => setVisibility(option.id)}
+                    leading={
+                      <>
+                        <Icon
+                          size={14}
+                          className={
+                            selected
+                              ? 'text-primary-foreground'
+                              : 'text-muted-foreground'
+                          }
+                        />
+                      </>
+                    }
                   >
-                    <Icon
-                      size={14}
-                      className={selected ? 'text-primary-foreground' : 'text-muted-foreground'}
-                    />
-                    <Text
-                      className={cn(
-                        'text-xs',
-                        selected ? 'text-primary-foreground' : 'text-foreground',
-                      )}
-                    >
-                      {option.label}
-                    </Text>
+                    {option.label}
                   </Button>
                 );
               })}

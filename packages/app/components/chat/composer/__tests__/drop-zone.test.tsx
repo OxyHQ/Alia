@@ -17,15 +17,21 @@ vi.mock('react-native', async () => {
   const ReactModule = await import('react');
   return {
     Platform: { OS: 'web' },
-    View: ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
+    View: ({
+      children,
+      ...props
+    }: React.PropsWithChildren<Record<string, unknown>>) =>
       ReactModule.createElement('View', props, children),
   };
 });
 
-vi.mock('@/components/ui/text', async () => {
+vi.mock('@oxy.so/bloom/typography', async () => {
   const ReactModule = await import('react');
   return {
-    Text: ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
+    Text: ({
+      children,
+      ...props
+    }: React.PropsWithChildren<Record<string, unknown>>) =>
       ReactModule.createElement('Text', props, children),
   };
 });

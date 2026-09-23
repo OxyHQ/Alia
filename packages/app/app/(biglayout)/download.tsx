@@ -1,15 +1,15 @@
-import { useEffect, useState } from 'react';
-import { View, Pressable, Linking, Platform } from 'react-native';
 import { AliaLogo } from '@/components/ui/alia-logo';
+import MaterialCommunityIcons from '@/components/ui/material-community-glyphs';
+import { cn } from '@/lib/utils';
+import { Button } from '@oxy.so/bloom/button';
+import { useTheme } from '@oxy.so/bloom/theme';
+import { Text } from '@oxy.so/bloom/typography';
 import { useRouter } from 'expo-router';
 import Head from 'expo-router/head';
-import QRCode from 'react-native-qrcode-svg';
-import MaterialCommunityIcons from '@/components/ui/material-community-glyphs';
 import { ArrowLeft } from 'lucide-react-native';
-import { Text } from '@/components/ui/text';
-import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
-import { useTheme } from '@oxy.so/bloom/theme';
+import { useEffect, useState } from 'react';
+import { Linking, Platform, Pressable, View } from 'react-native';
+import QRCode from 'react-native-qrcode-svg';
 
 const PLAY_STORE_URL =
   'https://play.google.com/store/apps/details?id=onl.alia.app';
@@ -64,18 +64,24 @@ export default function DownloadScreen() {
               onPress={() => setPlatform('android')}
               className={cn(
                 'flex-row items-center gap-1.5 px-4 py-1.5 rounded-full',
-                platform === 'android' && 'bg-background shadow-sm'
+                platform === 'android' && 'bg-background shadow-sm',
               )}
             >
               <MaterialCommunityIcons
                 name="android"
                 size={16}
-                color={platform === 'android' ? '#3ddc84' : colors.textSecondary}
+                color={
+                  platform === 'android' ? '#3ddc84' : colors.textSecondary
+                }
               />
-              <Text className={cn(
-                'text-xs font-medium',
-                platform === 'android' ? 'text-foreground' : 'text-muted-foreground'
-              )}>
+              <Text
+                className={cn(
+                  'text-xs font-medium',
+                  platform === 'android'
+                    ? 'text-foreground'
+                    : 'text-muted-foreground',
+                )}
+              >
                 Android
               </Text>
             </Pressable>
@@ -83,7 +89,7 @@ export default function DownloadScreen() {
               onPress={() => setPlatform('ios')}
               className={cn(
                 'flex-row items-center gap-1.5 px-4 py-1.5 rounded-full',
-                platform === 'ios' && 'bg-background shadow-sm'
+                platform === 'ios' && 'bg-background shadow-sm',
               )}
             >
               <MaterialCommunityIcons
@@ -91,17 +97,24 @@ export default function DownloadScreen() {
                 size={16}
                 color={platform === 'ios' ? colors.text : colors.textSecondary}
               />
-              <Text className={cn(
-                'text-xs font-medium',
-                platform === 'ios' ? 'text-foreground' : 'text-muted-foreground'
-              )}>
+              <Text
+                className={cn(
+                  'text-xs font-medium',
+                  platform === 'ios'
+                    ? 'text-foreground'
+                    : 'text-muted-foreground',
+                )}
+              >
                 iOS
               </Text>
             </Pressable>
           </View>
 
           {/* QR / Coming soon — fixed-size container to prevent layout shift */}
-          <View className="items-center gap-3" style={{ width: 212, height: 244 }}>
+          <View
+            className="items-center gap-3"
+            style={{ width: 212, height: 244 }}
+          >
             {platform === 'android' ? (
               <>
                 <View className="bg-white p-4 rounded-2xl">
@@ -114,15 +127,17 @@ export default function DownloadScreen() {
                 </View>
                 <Button
                   onPress={() => Linking.openURL(PLAY_STORE_URL)}
-                  variant="outline"
+                  variant="secondary"
                   className="h-9 rounded-full px-5"
                 >
-                  <Text className="text-xs font-medium">Get it on Google Play</Text>
+                  Get it on Google Play
                 </Button>
               </>
             ) : (
               <View className="flex-1 items-center justify-center rounded-2xl border border-dashed border-border w-full gap-2">
-                <Text className="text-sm font-medium text-foreground">Coming soon</Text>
+                <Text className="text-sm font-medium text-foreground">
+                  Coming soon
+                </Text>
                 <Text className="text-xs text-muted-foreground text-center">
                   The iOS app is on the way.
                 </Text>

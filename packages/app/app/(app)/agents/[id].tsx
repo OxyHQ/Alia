@@ -1,56 +1,65 @@
-import React, { useEffect, useState, useCallback } from "react";
-import { View, ScrollView, Pressable, Share, TextInput, ActivityIndicator } from "react-native";
-import { useIsLargeScreen } from "@/lib/hooks/use-is-large-screen";
-import { Switch } from "@oxy.so/bloom/switch";
-import { Text } from "@/components/ui/text";
-import { IdentityMark } from "@alia.onl/sdk";
-import * as DropdownMenu from "@/components/ui/dropdown-menu";
+import { AgentTerminal } from '@/components/agent-terminal';
+import { ActivityGrid } from '@/components/detail/activity-grid';
+import { PillList } from '@/components/detail/pill-list';
+import { SectionLabel } from '@/components/detail/section-label';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@oxy.so/bloom/dropdown-menu';
+import { RiAlertLine, RiBookmarkFill, RiBookmarkLine } from '@oxy.so/bloom/icons';
+import { agentTint } from '@/lib/agents/agent-color';
+import { agentDisplayName, agentHandle } from '@/lib/agents/identity';
+import apiClient from '@/lib/api/client';
+import { API_ROUTES } from '@/lib/api/routes';
+import { CAPABILITY_FAMILIES } from '@/lib/constants/capability-families';
+import {
+  errorResponseData,
+  errorStatus,
+  errorMessage as getErrorMessage,
+} from '@/lib/errors/error-utils';
+import { queryKeys } from '@/lib/hooks/query-keys';
+import { useAgentThreads } from '@/lib/hooks/use-agent-threads';
+import { useAgent } from '@/lib/hooks/use-agents';
+import { useIsLargeScreen } from '@/lib/hooks/use-is-large-screen';
+import { useTranslation } from '@/lib/hooks/use-translation';
+import { useAgentFavoritesStore } from '@/lib/stores/agent-favorites-store';
+import type { Agent } from '@/lib/types/agents';
+import { useColorScheme } from '@/lib/useColorScheme';
+import { cn } from '@/lib/utils';
+import { IdentityMark } from '@alia.onl/sdk';
+import { ContentPanel } from '@oxy.so/bloom/content-panel';
+import { confirm } from '@oxy.so/bloom/surfaces';
+import { Switch } from '@oxy.so/bloom/switch';
+import { toast } from '@oxy.so/bloom/toast';
+import { Text } from '@oxy.so/bloom/typography';
+import { useOxy } from '@oxy.so/services';
+import { useQueryClient } from '@tanstack/react-query';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
   ArrowLeft,
-  BadgeCheck,
-  CheckCircle2,
-  Star,
-  Send,
-  Bookmark,
   Ellipsis,
+  Send,
   Share2,
+  Star,
   Trash2,
-} from "lucide-react-native";
-import { useAgent } from "@/lib/hooks/use-agents";
-import type { Agent } from "@/lib/types/agents";
-import { queryKeys } from "@/lib/hooks/query-keys";
-import { useQueryClient } from "@tanstack/react-query";
-import { useRouter, useLocalSearchParams } from "expo-router";
-import { useTranslation } from "@/lib/hooks/use-translation";
-import { useOxy } from "@oxy.so/services";
-import { toast } from "@oxy.so/bloom/toast";
-import { alert, confirm } from "@oxy.so/bloom/surfaces";
-import { SectionLabel } from "@/components/detail/section-label";
-import { PillList } from "@/components/detail/pill-list";
-import { ActivityGrid } from "@/components/detail/activity-grid";
-import { AgentTerminal } from "@/components/agent-terminal";
-import apiClient from "@/lib/api/client";
-import { API_ROUTES } from "@/lib/api/routes";
-import { useColorScheme } from "@/lib/useColorScheme";
-import { agentTint } from "@/lib/agents/agent-color";
-import { cn } from "@/lib/utils";
-import { useAgentFavoritesStore } from "@/lib/stores/agent-favorites-store";
-import { CAPABILITY_FAMILIES } from "@/lib/constants/capability-families";
-import { errorMessage as getErrorMessage, errorStatus, errorResponseData } from "@/lib/errors/error-utils";
-import { agentDisplayName, agentHandle } from "@/lib/agents/identity";
-import { ContentPanel } from "@oxy.so/bloom/content-panel";
-import { useAgentThreads } from "@/lib/hooks/use-agent-threads";
+} from 'lucide-react-native';
+import { useCallback, useEffect, useState } from 'react';
+import {
+  ActivityIndicator,
+  Pressable,
+  ScrollView,
+  Share,
+  TextInput,
+  View,
+} from 'react-native';
 
 const STATUS_COLORS: Record<string, string> = {
-  active: "bg-green-500",
-  idle: "bg-yellow-500",
-  offline: "bg-gray-400",
+  active: 'bg-green-500',
+  idle: 'bg-yellow-500',
+  offline: 'bg-gray-400',
 };
 
 const STATUS_TEXT_COLORS: Record<string, string> = {
-  active: "text-green-500",
-  idle: "text-yellow-500",
-  offline: "text-gray-400",
+  active: 'text-green-500',
+  idle: 'text-yellow-500',
+  offline: 'text-gray-400',
 };
 
 function formatCount(n: number): string {
@@ -58,16 +67,28 @@ function formatCount(n: number): string {
   return String(n);
 }
 
-function StarRatingInput({ value, onChange }: { value: number; onChange: (v: number) => void }) {
+function StarRatingInput({
+  value,
+  onChange,
+}: {
+  value: number;
+  onChange: (v: number) => void;
+}) {
   return (
     <ContentPanel surfaceClassName="bg-background">
       <View className="flex-row gap-1">
         {[1, 2, 3, 4, 5].map((star) => (
-          <Pressable key={star} onPress={() => onChange(star)} className="p-0.5">
+          <Pressable
+            key={star}
+            onPress={() => onChange(star)}
+            className="p-0.5"
+          >
             <Star
               size={20}
-              className={star <= value ? "text-amber-500" : "text-muted-foreground/30"}
-              fill={star <= value ? "#f59e0b" : "transparent"}
+              className={
+                star <= value ? 'text-amber-500' : 'text-muted-foreground/30'
+              }
+              fill={star <= value ? '#f59e0b' : 'transparent'}
             />
           </Pressable>
         ))}
@@ -100,28 +121,28 @@ function formatDuration(ms: number): string {
 
 interface ReportItem {
   _id: string;
-  status: "success" | "failed" | string;
+  status: 'success' | 'failed' | string;
   createdAt: string;
   durationMs?: number;
   result?: string;
 }
 
 function ReportCard({ item }: { item: ReportItem }) {
-  const isSuccess = item.status === "success";
-  const preview = (item.result || "").slice(0, 200);
+  const isSuccess = item.status === 'success';
+  const preview = (item.result || '').slice(0, 200);
   return (
     <View className="rounded-2xl bg-surface border border-border p-4 mb-3">
       <View className="flex-row items-center justify-between mb-2">
         <View
           className={cn(
-            "px-2 py-0.5 rounded-full",
-            isSuccess ? "bg-green-500/10" : "bg-red-500/10"
+            'px-2 py-0.5 rounded-full',
+            isSuccess ? 'bg-green-500/10' : 'bg-red-500/10',
           )}
         >
           <Text
             className={cn(
-              "text-[11px] font-semibold",
-              isSuccess ? "text-green-600" : "text-red-500"
+              'text-[11px] font-semibold',
+              isSuccess ? 'text-green-600' : 'text-red-500',
             )}
           >
             {item.status}
@@ -141,7 +162,7 @@ function ReportCard({ item }: { item: ReportItem }) {
       {preview ? (
         <Text className="text-[13px] text-foreground/80 leading-[18px]">
           {preview}
-          {(item.result || "").length > 200 ? "…" : ""}
+          {(item.result || '').length > 200 ? '…' : ''}
         </Text>
       ) : null}
     </View>
@@ -154,7 +175,7 @@ interface RoutingLogItem {
   _id: string;
   classification?: {
     category?: string;
-    priority?: "urgent" | "high" | "medium" | "low" | string;
+    priority?: 'urgent' | 'high' | 'medium' | 'low' | string;
     confidence?: number;
   };
   inboundSummary?: string;
@@ -165,35 +186,37 @@ interface RoutingLogItem {
 }
 
 const PRIORITY_COLORS: Record<string, string> = {
-  urgent: "bg-red-500",
-  high: "bg-orange-500",
-  medium: "bg-yellow-500",
-  low: "bg-green-500",
+  urgent: 'bg-red-500',
+  high: 'bg-orange-500',
+  medium: 'bg-yellow-500',
+  low: 'bg-green-500',
 };
 
 const PRIORITY_TEXT_COLORS: Record<string, string> = {
-  urgent: "text-red-500",
-  high: "text-orange-500",
-  medium: "text-yellow-500",
-  low: "text-green-500",
+  urgent: 'text-red-500',
+  high: 'text-orange-500',
+  medium: 'text-yellow-500',
+  low: 'text-green-500',
 };
 
 function RoutingLogCard({ item }: { item: RoutingLogItem }) {
-  const priority = item.classification?.priority ?? "medium";
+  const priority = item.classification?.priority ?? 'medium';
   const category = item.classification?.category;
-  const dotColor = PRIORITY_COLORS[priority] ?? "bg-gray-400";
-  const textColor = PRIORITY_TEXT_COLORS[priority] ?? "text-gray-400";
+  const dotColor = PRIORITY_COLORS[priority] ?? 'bg-gray-400';
+  const textColor = PRIORITY_TEXT_COLORS[priority] ?? 'text-gray-400';
   return (
     <View className="rounded-2xl bg-surface border border-border p-4 mb-3">
       <View className="flex-row items-center justify-between mb-1.5">
         <View className="flex-row items-center gap-2">
-          <View className={cn("w-2 h-2 rounded-full", dotColor)} />
+          <View className={cn('w-2 h-2 rounded-full', dotColor)} />
           {category ? (
             <Text className="text-[12px] font-medium text-foreground">
               {category}
             </Text>
           ) : null}
-          <Text className={cn("text-[11px] font-semibold capitalize", textColor)}>
+          <Text
+            className={cn('text-[11px] font-semibold capitalize', textColor)}
+          >
             {priority}
           </Text>
         </View>
@@ -214,7 +237,9 @@ function RoutingLogCard({ item }: { item: RoutingLogItem }) {
         ) : null}
         {item.status ? (
           <View className="px-1.5 py-0.5 rounded bg-muted/50">
-            <Text className="text-[10px] text-muted-foreground">{item.status}</Text>
+            <Text className="text-[10px] text-muted-foreground">
+              {item.status}
+            </Text>
           </View>
         ) : null}
       </View>
@@ -224,7 +249,7 @@ function RoutingLogCard({ item }: { item: RoutingLogItem }) {
 
 // ─── Detail Tab Bar ─────────────────────────────────────────────────────────
 
-type DetailTab = "overview" | "reports" | "routing";
+type DetailTab = 'overview' | 'reports' | 'routing';
 
 function DetailTabBar({
   tabs,
@@ -245,10 +270,10 @@ function DetailTabBar({
         >
           <Text
             className={cn(
-              "text-[13px] font-medium",
+              'text-[13px] font-medium',
               active === tab.key
-                ? "text-foreground border-b-2 border-primary"
-                : "text-muted-foreground"
+                ? 'text-foreground border-b-2 border-primary'
+                : 'text-muted-foreground',
             )}
           >
             {tab.label}
@@ -279,13 +304,14 @@ export default function AgentDetailScreen() {
   const { data: agent, isPending: loading } = useAgent(id);
   const { data: agentThreads = [] } = useAgentThreads(id);
   const setAgent = useCallback(
-    (next: Agent) => queryClient.setQueryData(queryKeys.agents.detail(next._id), next),
+    (next: Agent) =>
+      queryClient.setQueryData(queryKeys.agents.detail(next._id), next),
     [queryClient],
   );
 
   // Hire input state
   const [showHireInput, setShowHireInput] = useState(false);
-  const [taskInput, setTaskInput] = useState("");
+  const [taskInput, setTaskInput] = useState('');
   const [hiring, setHiring] = useState(false);
 
   // Chat
@@ -296,7 +322,7 @@ export default function AgentDetailScreen() {
   const loadFavorites = useAgentFavoritesStore((s) => s.loadFavorites);
 
   // Archetype tab state
-  const [detailTab, setDetailTab] = useState<DetailTab>("overview");
+  const [detailTab, setDetailTab] = useState<DetailTab>('overview');
   const [reports, setReports] = useState<ReportItem[]>([]);
   const [reportsLoading, setReportsLoading] = useState(false);
   const [routingLogs, setRoutingLogs] = useState<RoutingLogItem[]>([]);
@@ -307,7 +333,7 @@ export default function AgentDetailScreen() {
   const [userReview, setUserReview] = useState<any>(null);
   const [showReviewForm, setShowReviewForm] = useState(false);
   const [reviewRating, setReviewRating] = useState(0);
-  const [reviewComment, setReviewComment] = useState("");
+  const [reviewComment, setReviewComment] = useState('');
   const [submittingReview, setSubmittingReview] = useState(false);
 
   useEffect(() => {
@@ -317,37 +343,40 @@ export default function AgentDetailScreen() {
   // Load reviews
   useEffect(() => {
     if (id) {
-      apiClient.get(`/agents/${id}/reviews`).then((res) => {
-        setReviews(res.data?.reviews || []);
-        setUserReview(res.data?.userReview || null);
-        if (res.data?.userReview) {
-          setReviewRating(res.data.userReview.rating);
-          setReviewComment(res.data.userReview.comment || "");
-        }
-      }).catch((err) => console.error('Failed to load reviews:', err));
+      apiClient
+        .get(`/agents/${id}/reviews`)
+        .then((res) => {
+          setReviews(res.data?.reviews || []);
+          setUserReview(res.data?.userReview || null);
+          if (res.data?.userReview) {
+            setReviewRating(res.data.userReview.rating);
+            setReviewComment(res.data.userReview.comment || '');
+          }
+        })
+        .catch((err) => console.error('Failed to load reviews:', err));
     }
   }, [id]);
 
   // Load reports when reports tab becomes active (status_update archetype)
   const archetype = agent?.archetype;
   useEffect(() => {
-    if (detailTab !== "reports" || !id || archetype !== "status_update") return;
+    if (detailTab !== 'reports' || !id || archetype !== 'status_update') return;
     setReportsLoading(true);
     apiClient
       .get(`/agents/${id}/reports`)
       .then((res) => setReports(res.data?.reports || res.data || []))
-      .catch((err) => console.error("Failed to load reports:", err))
+      .catch((err) => console.error('Failed to load reports:', err))
       .finally(() => setReportsLoading(false));
   }, [detailTab, id, archetype]);
 
   // Load routing logs when routing tab becomes active (task_router archetype)
   useEffect(() => {
-    if (detailTab !== "routing" || !id || archetype !== "task_router") return;
+    if (detailTab !== 'routing' || !id || archetype !== 'task_router') return;
     setRoutingLoading(true);
     apiClient
       .get(`/agents/${id}/routing-logs`)
       .then((res) => setRoutingLogs(res.data?.logs || res.data || []))
-      .catch((err) => console.error("Failed to load routing logs:", err))
+      .catch((err) => console.error('Failed to load routing logs:', err))
       .finally(() => setRoutingLoading(false));
   }, [detailTab, id, archetype]);
 
@@ -360,10 +389,12 @@ export default function AgentDetailScreen() {
    * Derived rather than stored: the row carries grant STRINGS, and a family the
    * app does not know about is skipped rather than rendered raw.
    */
-  const grantedFamilyLabels = (agent?.capabilityGrants ?? []).flatMap((grant) => {
-    const family = CAPABILITY_FAMILIES.find((entry) => entry.id === grant);
-    return family === undefined ? [] : [family.label];
-  });
+  const grantedFamilyLabels = (agent?.capabilityGrants ?? []).flatMap(
+    (grant) => {
+      const family = CAPABILITY_FAMILIES.find((entry) => entry.id === grant);
+      return family === undefined ? [] : [family.label];
+    },
+  );
 
   /**
    * Open the thread with this agent. It does not START one.
@@ -385,28 +416,34 @@ export default function AgentDetailScreen() {
   const handleChat = useCallback(async () => {
     if (!agent) return;
     const handle = agentHandle(agent);
-    if (handle === "") {
-      toast.error(t("agents.chatUnavailable"));
+    if (handle === '') {
+      toast.error(t('agents.chatUnavailable'));
       return;
     }
     try {
-      const response = await apiClient.post(API_ROUTES.agents.threads(agent._id), {
-        title: `Chat with ${agentDisplayName(agent)}`,
-        executionTarget: 'sandbox',
-        approvalMode: 'ask',
-      });
+      const response = await apiClient.post(
+        API_ROUTES.agents.threads(agent._id),
+        {
+          title: `Chat with ${agentDisplayName(agent)}`,
+          executionTarget: 'sandbox',
+          approvalMode: 'ask',
+        },
+      );
       router.push({
-        pathname: "/(app)/[username]",
-        params: { username: `@${handle}`, threadId: String(response.data.thread.id) },
+        pathname: '/(app)/[username]',
+        params: {
+          username: `@${handle}`,
+          threadId: String(response.data.thread.id),
+        },
       });
     } catch (error: unknown) {
-      toast.error(getErrorMessage(error, t("agents.threadCreateFailed")));
+      toast.error(getErrorMessage(error, t('agents.threadCreateFailed')));
     }
   }, [agent, router, t]);
 
   const handleHirePress = () => {
-    if (agent?.status !== "active") {
-      toast.error(t("agents.notActive"));
+    if (agent?.status !== 'active') {
+      toast.error(t('agents.notActive'));
       return;
     }
     setShowHireInput(true);
@@ -416,45 +453,61 @@ export default function AgentDetailScreen() {
     if (!agent || !taskInput.trim() || hiring) return;
     setHiring(true);
     try {
-      const threadResponse = await apiClient.post(API_ROUTES.agents.threads(agent._id), {
-        title: taskInput.trim().slice(0, 120),
-        executionTarget: 'sandbox',
-        approvalMode: 'ask',
-      });
+      const threadResponse = await apiClient.post(
+        API_ROUTES.agents.threads(agent._id),
+        {
+          title: taskInput.trim().slice(0, 120),
+          executionTarget: 'sandbox',
+          approvalMode: 'ask',
+        },
+      );
       const threadId = String(threadResponse.data.thread.id);
-      const res = await apiClient.post(API_ROUTES.agents.goals(threadId), {
-        objective: taskInput.trim(),
-      }, { headers: { 'Idempotency-Key': `${agent._id}:${Date.now()}:${Math.random()}` } });
-      setTaskInput("");
+      const res = await apiClient.post(
+        API_ROUTES.agents.goals(threadId),
+        {
+          objective: taskInput.trim(),
+        },
+        {
+          headers: {
+            'Idempotency-Key': `${agent._id}:${Date.now()}:${Math.random()}`,
+          },
+        },
+      );
+      setTaskInput('');
       setShowHireInput(false);
-      toast.success(t("agents.taskStarted"));
+      toast.success(t('agents.taskStarted'));
 
       const handle = agentHandle(agent);
       if (handle) {
-        router.push({ pathname: "/(app)/[username]", params: { username: `@${handle}`, threadId } });
+        router.push({
+          pathname: '/(app)/[username]',
+          params: { username: `@${handle}`, threadId },
+        });
       }
 
       // Open agent panel if session was created
       const sessionId = res.data?.sessionId;
       if (sessionId) {
-        const { useUIStore } = await import("@/lib/stores/ui-store");
+        const { useUIStore } = await import('@/lib/stores/ui-store');
         useUIStore.getState().openAgentPanel(String(sessionId), agent._id);
       }
     } catch (err: unknown) {
       const status = errorStatus(err);
       const data = errorResponseData(err);
       if (status === 402) {
-        toast.error(`Insufficient credits. You need ${data?.creditsNeeded || 'more'} credits.`);
+        toast.error(
+          `Insufficient credits. You need ${data?.creditsNeeded || 'more'} credits.`,
+        );
         // Open credits panel
-        const { useUIStore } = await import("@/lib/stores/ui-store");
-        useUIStore.getState().setRightPanel("credits");
+        const { useUIStore } = await import('@/lib/stores/ui-store');
+        useUIStore.getState().setRightPanel('credits');
       } else if (status === 503) {
-        toast.error("Agent infrastructure unavailable. Try again later.");
+        toast.error('Agent infrastructure unavailable. Try again later.');
       } else {
         // Through the extractor, not off the body: `/v1` answers
         // `{ error: { message, type } }`, and handing that object to `toast`
         // is the same React #31 crash deleting a show produced.
-        toast.error(getErrorMessage(err, "Failed to start task"));
+        toast.error(getErrorMessage(err, 'Failed to start task'));
       }
     } finally {
       setHiring(false);
@@ -477,7 +530,7 @@ export default function AgentDetailScreen() {
     toggleFavorite(agent._id);
   };
 
-  const handleStatusToggle = async (newStatus: "active" | "idle") => {
+  const handleStatusToggle = async (newStatus: 'active' | 'idle') => {
     if (!agent) return;
     try {
       await apiClient.patch(`/agents/${agent._id}/status`, {
@@ -485,7 +538,7 @@ export default function AgentDetailScreen() {
       });
       setAgent({ ...agent, status: newStatus });
     } catch {
-      toast.error("Failed to update status");
+      toast.error('Failed to update status');
     }
   };
 
@@ -498,13 +551,17 @@ export default function AgentDetailScreen() {
         comment: reviewComment.trim(),
       });
       setUserReview(res.data.review);
-      setAgent({ ...agent, rating: res.data.rating, reviewCount: res.data.reviewCount });
+      setAgent({
+        ...agent,
+        rating: res.data.rating,
+        reviewCount: res.data.reviewCount,
+      });
       setShowReviewForm(false);
-      toast.success(t("agents.reviewSubmitted"));
+      toast.success(t('agents.reviewSubmitted'));
       const reviewsRes = await apiClient.get(`/agents/${agent._id}/reviews`);
       setReviews(reviewsRes.data?.reviews || []);
     } catch (err: unknown) {
-      toast.error(getErrorMessage(err, "Failed to submit review"));
+      toast.error(getErrorMessage(err, 'Failed to submit review'));
     } finally {
       setSubmittingReview(false);
     }
@@ -513,10 +570,10 @@ export default function AgentDetailScreen() {
   const handleDeleteReview = useCallback(async () => {
     if (!agent) return;
     const ok = await confirm({
-      title: t("agents.deleteReview"),
-      description: t("agents.deleteReviewConfirm"),
-      confirmLabel: t("agents.deleteReview"),
-      cancelLabel: t("common.cancel"),
+      title: t('agents.deleteReview'),
+      description: t('agents.deleteReviewConfirm'),
+      confirmLabel: t('agents.deleteReview'),
+      cancelLabel: t('common.cancel'),
       destructive: true,
     });
     if (!ok) return;
@@ -524,24 +581,26 @@ export default function AgentDetailScreen() {
       await apiClient.delete(`/agents/${agent._id}/reviews`);
       setUserReview(null);
       setReviewRating(0);
-      setReviewComment("");
-      toast.success(t("agents.reviewDeleted"));
+      setReviewComment('');
+      toast.success(t('agents.reviewDeleted'));
       const [, reviewsRes] = await Promise.all([
         // The rating the deletion changed comes back from the server rather
         // than being recomputed here.
-        queryClient.invalidateQueries({ queryKey: queryKeys.agents.detail(agent._id) }),
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.agents.detail(agent._id),
+        }),
         apiClient.get(`/agents/${agent._id}/reviews`),
       ]);
       setReviews(reviewsRes.data?.reviews || []);
     } catch {
-      toast.error("Failed to delete review");
+      toast.error('Failed to delete review');
     }
   }, [agent, t, queryClient]);
 
   if (loading) {
     return (
       <View className="flex-1 bg-background items-center justify-center">
-        <Text className="text-muted-foreground">{t("common.loading")}</Text>
+        <Text className="text-muted-foreground">{t('common.loading')}</Text>
       </View>
     );
   }
@@ -549,7 +608,7 @@ export default function AgentDetailScreen() {
   if (!agent) {
     return (
       <View className="flex-1 bg-background items-center justify-center">
-        <Text className="text-muted-foreground">{t("agents.notFound")}</Text>
+        <Text className="text-muted-foreground">{t('agents.notFound')}</Text>
       </View>
     );
   }
@@ -565,17 +624,22 @@ export default function AgentDetailScreen() {
           <ArrowLeft size={20} className="text-foreground" />
         </Pressable>
         {isLargeScreen && (
-          <Text className="text-sm font-medium text-foreground" numberOfLines={1}>
+          <Text
+            className="text-sm font-medium text-foreground"
+            numberOfLines={1}
+          >
             {agent.name}
           </Text>
         )}
       </View>
 
       {/* Content area: side-by-side on desktop, stacked on mobile */}
-      <View className={cn("flex-1", isLargeScreen && "flex-row")}>
+      <View className={cn('flex-1', isLargeScreen && 'flex-row')}>
         {/* Left panel (or full-width on mobile): agent details */}
         <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
-          <View className={cn("px-5 pb-6 pt-4", isLargeScreen && "px-6 max-w-2xl")}>
+          <View
+            className={cn('px-5 pb-6 pt-4', isLargeScreen && 'px-6 max-w-2xl')}
+          >
             {/* The agent's mark, in its own color */}
             <View className="relative self-start">
               <IdentityMark
@@ -585,8 +649,8 @@ export default function AgentDetailScreen() {
               />
               <View
                 className={cn(
-                  "absolute bottom-1 right-1 w-4 h-4 rounded-full border-2 border-background",
-                  STATUS_COLORS[agent.status]
+                  'absolute bottom-1 right-1 w-4 h-4 rounded-full border-2 border-background',
+                  STATUS_COLORS[agent.status],
                 )}
               />
             </View>
@@ -599,21 +663,23 @@ export default function AgentDetailScreen() {
                 </Text>
                 <View
                   className={cn(
-                    "px-2 py-0.5 rounded-full ml-1",
-                    agent.status === "active"
-                      ? "bg-green-500/15"
-                      : agent.status === "idle"
-                        ? "bg-yellow-500/15"
-                        : "bg-gray-500/15"
+                    'px-2 py-0.5 rounded-full ml-1',
+                    agent.status === 'active'
+                      ? 'bg-green-500/15'
+                      : agent.status === 'idle'
+                        ? 'bg-yellow-500/15'
+                        : 'bg-gray-500/15',
                   )}
                 >
                   <Text
                     className={cn(
-                      "text-[10px] font-semibold",
-                      STATUS_TEXT_COLORS[agent.status]
+                      'text-[10px] font-semibold',
+                      STATUS_TEXT_COLORS[agent.status],
                     )}
                   >
-                    {t(`agents.status${agent.status.charAt(0).toUpperCase() + agent.status.slice(1)}`)}
+                    {t(
+                      `agents.status${agent.status.charAt(0).toUpperCase() + agent.status.slice(1)}`,
+                    )}
                   </Text>
                 </View>
               </View>
@@ -623,13 +689,15 @@ export default function AgentDetailScreen() {
                   has a value, so an unresolved agent shows a name and a tagline
                   rather than a row of separators around nothing. */}
               <View className="flex-row items-center gap-1 mt-0.5">
-                {agentHandle(agent) !== "" && (
+                {agentHandle(agent) !== '' && (
                   <Text className="text-[13px] text-muted-foreground">
                     @{agentHandle(agent)}
                   </Text>
                 )}
-                {agentHandle(agent) !== "" && agent.authorName !== null && (
-                  <Text className="text-[13px] text-muted-foreground mx-1">·</Text>
+                {agentHandle(agent) !== '' && agent.authorName !== null && (
+                  <Text className="text-[13px] text-muted-foreground mx-1">
+                    ·
+                  </Text>
                 )}
                 {agent.authorName !== null && (
                   <Text className="text-[13px] text-muted-foreground">
@@ -659,11 +727,11 @@ export default function AgentDetailScreen() {
               </View>
               <Text className="text-[11px] text-muted-foreground">·</Text>
               <Text className="text-[12px] text-muted-foreground">
-                {formatCount(agent.hireCount)} {t("agents.hires")}
+                {formatCount(agent.hireCount)} {t('agents.hires')}
               </Text>
               <Text className="text-[11px] text-muted-foreground">·</Text>
               <Text className="text-[12px] text-muted-foreground">
-                {formatCount(agent.usageCount)} {t("agents.uses")}
+                {formatCount(agent.usageCount)} {t('agents.uses')}
               </Text>
             </View>
 
@@ -672,19 +740,19 @@ export default function AgentDetailScreen() {
               <View className="flex-row items-center justify-between bg-muted/50 rounded-xl px-4 py-3 mb-4">
                 <View>
                   <Text className="text-[13px] font-semibold text-foreground">
-                    {agent.status === "active" ? "Active" : "Paused"}
+                    {agent.status === 'active' ? 'Active' : 'Paused'}
                   </Text>
                   <Text className="text-[11px] text-muted-foreground">
-                    {agent.status === "active"
-                      ? "Accepting hires"
-                      : "Not accepting hires"}
+                    {agent.status === 'active'
+                      ? 'Accepting hires'
+                      : 'Not accepting hires'}
                   </Text>
                 </View>
                 <Switch
                   accessibilityLabel="Accepting hires"
-                  value={agent.status === "active"}
+                  value={agent.status === 'active'}
                   onValueChange={(on) =>
-                    handleStatusToggle(on ? "active" : "idle")
+                    handleStatusToggle(on ? 'active' : 'idle')
                   }
                 />
               </View>
@@ -695,11 +763,16 @@ export default function AgentDetailScreen() {
               {isOwner && (
                 <>
                   <Pressable
-                    onPress={() => router.push({ pathname: "/(app)/agents/edit/[id]", params: { id: agent._id } })}
+                    onPress={() =>
+                      router.push({
+                        pathname: '/(app)/agents/edit/[id]',
+                        params: { id: agent._id },
+                      })
+                    }
                     className="items-center justify-center px-3.5 py-2 active:bg-muted"
                   >
                     <Text className="text-[13px] font-medium text-foreground">
-                      {t("agents.edit")}
+                      {t('agents.edit')}
                     </Text>
                   </Pressable>
                   <View className="w-px bg-border" />
@@ -710,7 +783,7 @@ export default function AgentDetailScreen() {
                 className="items-center justify-center px-3.5 py-2 active:bg-muted"
               >
                 <Text className="text-[13px] font-medium text-foreground">
-                  {t("agents.chat")}
+                  {t('agents.chat')}
                 </Text>
               </Pressable>
               <View className="w-px bg-border" />
@@ -720,8 +793,8 @@ export default function AgentDetailScreen() {
               >
                 <Text className="text-[13px] font-medium text-foreground">
                   {agent.price != null
-                    ? `${t("agents.startTask")} · ${agent.price} credits`
-                    : t("agents.startTask")}
+                    ? `${t('agents.startTask')} · ${agent.price} credits`
+                    : t('agents.startTask')}
                 </Text>
               </Pressable>
               <View className="w-px bg-border" />
@@ -732,25 +805,30 @@ export default function AgentDetailScreen() {
                 <Share2 size={15} className="text-foreground" />
               </Pressable>
               <View className="w-px bg-border" />
-              <DropdownMenu.Root>
-                <DropdownMenu.Trigger>
+              <DropdownMenu>
+                <DropdownMenuTrigger label="Actions" asChild>
                   <Pressable className="items-center justify-center px-2.5 py-2">
                     <Ellipsis size={16} className="text-foreground" />
                   </Pressable>
-                </DropdownMenu.Trigger>
-                <DropdownMenu.Content>
-                  <DropdownMenu.Item key="bookmark" onSelect={handleBookmark}>
-                    <DropdownMenu.ItemIcon ios={{ name: bookmarked ? "bookmark.fill" : "bookmark" }} />
-                    <DropdownMenu.ItemTitle>
-                      {bookmarked ? t("agents.removeBookmark") : t("agents.bookmark")}
-                    </DropdownMenu.ItemTitle>
-                  </DropdownMenu.Item>
-                  <DropdownMenu.Item key="report" onSelect={() => toast.info(t("agents.reportSubmitted"))}>
-                    <DropdownMenu.ItemIcon ios={{ name: "exclamationmark.triangle" }} />
-                    <DropdownMenu.ItemTitle>{t("agents.report")}</DropdownMenu.ItemTitle>
-                  </DropdownMenu.Item>
-                </DropdownMenu.Content>
-              </DropdownMenu.Root>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent>
+                  <DropdownMenuItem key="bookmark" onPress={handleBookmark} leading={bookmarked ? <RiBookmarkFill size="sm" /> : <RiBookmarkLine size="sm" />}>
+
+                      {bookmarked
+                        ? t('agents.removeBookmark')
+                        : t('agents.bookmark')}
+
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    key="report"
+                    onPress={() => toast.info(t('agents.reportSubmitted'))}
+                   leading={<RiAlertLine size="sm" />}>
+
+                      {t('agents.report')}
+
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </View>
 
             {/* Hire Task Input */}
@@ -759,17 +837,17 @@ export default function AgentDetailScreen() {
                 <TextInput
                   value={taskInput}
                   onChangeText={setTaskInput}
-                  placeholder={t("agents.taskPlaceholder")}
+                  placeholder={t('agents.taskPlaceholder')}
                   placeholderTextColor={colors.mutedForeground}
                   editable={!hiring}
                   multiline
                   numberOfLines={3}
                   style={{
-                    color: "#fff",
+                    color: '#fff',
                     fontSize: 14,
                     paddingVertical: 8,
                     minHeight: 72,
-                    textAlignVertical: "top",
+                    textAlignVertical: 'top',
                   }}
                 />
                 <View className="flex-row justify-end mt-1">
@@ -781,7 +859,9 @@ export default function AgentDetailScreen() {
                     <Send
                       size={18}
                       className={
-                        taskInput.trim() ? "text-primary" : "text-muted-foreground"
+                        taskInput.trim()
+                          ? 'text-primary'
+                          : 'text-muted-foreground'
                       }
                     />
                   </Pressable>
@@ -790,13 +870,14 @@ export default function AgentDetailScreen() {
             )}
 
             {/* Archetype Tab Bar */}
-            {(agent.archetype === "status_update" || agent.archetype === "task_router") && (
+            {(agent.archetype === 'status_update' ||
+              agent.archetype === 'task_router') && (
               <DetailTabBar
                 tabs={[
-                  { key: "overview" as const, label: "Overview" },
-                  ...(agent.archetype === "status_update"
-                    ? [{ key: "reports" as const, label: "Reports" }]
-                    : [{ key: "routing" as const, label: "Routing" }]),
+                  { key: 'overview' as const, label: 'Overview' },
+                  ...(agent.archetype === 'status_update'
+                    ? [{ key: 'reports' as const, label: 'Reports' }]
+                    : [{ key: 'routing' as const, label: 'Routing' }]),
                 ]}
                 active={detailTab}
                 onChange={setDetailTab}
@@ -804,7 +885,7 @@ export default function AgentDetailScreen() {
             )}
 
             {/* Reports Tab Content */}
-            {detailTab === "reports" && agent.archetype === "status_update" && (
+            {detailTab === 'reports' && agent.archetype === 'status_update' && (
               <View className="mb-5">
                 {reportsLoading ? (
                   <ActivityIndicator
@@ -829,7 +910,7 @@ export default function AgentDetailScreen() {
             )}
 
             {/* Routing Tab Content */}
-            {detailTab === "routing" && agent.archetype === "task_router" && (
+            {detailTab === 'routing' && agent.archetype === 'task_router' && (
               <View className="mb-5">
                 {routingLoading ? (
                   <ActivityIndicator
@@ -854,31 +935,45 @@ export default function AgentDetailScreen() {
             )}
 
             {/* Overview Tab Content (shown for all archetypes when overview is active) */}
-            {detailTab === "overview" && (
+            {detailTab === 'overview' && (
               <>
                 {agentThreads.length > 0 && (
                   <View className="mb-5">
-                    <SectionLabel>{t("agents.threads")}</SectionLabel>
+                    <SectionLabel>{t('agents.threads')}</SectionLabel>
                     <View className="mt-2 gap-2">
                       {agentThreads.slice(0, 8).map((thread) => (
                         <Pressable
                           key={thread.id}
                           onPress={() => {
                             const handle = agentHandle(agent);
-                            if (handle) router.push({
-                              pathname: "/(app)/[username]",
-                              params: { username: `@${handle}`, threadId: thread.id },
-                            });
+                            if (handle)
+                              router.push({
+                                pathname: '/(app)/[username]',
+                                params: {
+                                  username: `@${handle}`,
+                                  threadId: thread.id,
+                                },
+                              });
                           }}
                           className="flex-row items-center justify-between rounded-xl border border-border px-3 py-2.5 active:bg-muted"
                         >
                           <View className="flex-1 mr-3">
-                            <Text className="text-[13px] font-medium text-foreground" numberOfLines={1}>{thread.title}</Text>
+                            <Text
+                              className="text-[13px] font-medium text-foreground"
+                              numberOfLines={1}
+                            >
+                              {thread.title}
+                            </Text>
                             <Text className="text-[11px] text-muted-foreground mt-0.5">
-                              {thread.executionTarget === 'cowork' ? 'Cowork' : 'Sandbox'} · {thread.status}
+                              {thread.executionTarget === 'cowork'
+                                ? 'Cowork'
+                                : 'Sandbox'}{' '}
+                              · {thread.status}
                             </Text>
                           </View>
-                          <Text className="text-[11px] text-muted-foreground">{formatRelativeTime(thread.updatedAt)}</Text>
+                          <Text className="text-[11px] text-muted-foreground">
+                            {formatRelativeTime(thread.updatedAt)}
+                          </Text>
                         </Pressable>
                       ))}
                     </View>
@@ -887,7 +982,7 @@ export default function AgentDetailScreen() {
 
                 {/* Activity Grid */}
                 <View className="mb-5">
-                  <SectionLabel>{t("agents.activity")}</SectionLabel>
+                  <SectionLabel>{t('agents.activity')}</SectionLabel>
                   <View className="mt-2">
                     <ActivityGrid agentId={agent._id} />
                   </View>
@@ -898,7 +993,7 @@ export default function AgentDetailScreen() {
 
                 {/* About / Description */}
                 <View className="mb-5">
-                  <SectionLabel>{t("agents.about")}</SectionLabel>
+                  <SectionLabel>{t('agents.about')}</SectionLabel>
                   <Text className="text-[14px] text-foreground leading-5 mt-1">
                     {agent.description}
                   </Text>
@@ -915,7 +1010,7 @@ export default function AgentDetailScreen() {
                   <>
                     <View className="h-px bg-border mx-0 mb-5" />
                     <View className="mb-5">
-                      <SectionLabel>{t("agents.capabilities")}</SectionLabel>
+                      <SectionLabel>{t('agents.capabilities')}</SectionLabel>
                       <PillList items={grantedFamilyLabels} />
                     </View>
                   </>
@@ -926,7 +1021,7 @@ export default function AgentDetailScreen() {
                   <>
                     <View className="h-px bg-border mx-0 mb-5" />
                     <View className="mb-5">
-                      <SectionLabel>{t("agents.tags")}</SectionLabel>
+                      <SectionLabel>{t('agents.tags')}</SectionLabel>
                       <PillList items={agent.tags} />
                     </View>
                   </>
@@ -936,14 +1031,16 @@ export default function AgentDetailScreen() {
                 <View className="h-px bg-border mx-0 mb-5" />
                 <View className="mb-5">
                   <View className="flex-row items-center justify-between mb-3">
-                    <SectionLabel>{t("agents.reviews")}</SectionLabel>
+                    <SectionLabel>{t('agents.reviews')}</SectionLabel>
                     {user && !isOwner && !showReviewForm && (
                       <Pressable
                         onPress={() => setShowReviewForm(true)}
                         className="active:opacity-70"
                       >
                         <Text className="text-[12px] font-medium text-primary">
-                          {userReview ? t("agents.editReview") : t("agents.writeReview")}
+                          {userReview
+                            ? t('agents.editReview')
+                            : t('agents.writeReview')}
                         </Text>
                       </Pressable>
                     )}
@@ -953,21 +1050,24 @@ export default function AgentDetailScreen() {
                   {showReviewForm && (
                     <View className="bg-muted/30 rounded-xl px-4 py-3 border border-border mb-4">
                       <View className="mb-3">
-                        <StarRatingInput value={reviewRating} onChange={setReviewRating} />
+                        <StarRatingInput
+                          value={reviewRating}
+                          onChange={setReviewRating}
+                        />
                       </View>
                       <TextInput
                         value={reviewComment}
                         onChangeText={setReviewComment}
-                        placeholder={t("agents.reviewPlaceholder")}
+                        placeholder={t('agents.reviewPlaceholder')}
                         placeholderTextColor={colors.mutedForeground}
                         multiline
                         numberOfLines={3}
                         style={{
-                          color: "#fff",
+                          color: '#fff',
                           fontSize: 14,
                           paddingVertical: 8,
                           minHeight: 60,
-                          textAlignVertical: "top",
+                          textAlignVertical: 'top',
                         }}
                       />
                       <View className="flex-row justify-end gap-2 mt-2">
@@ -976,22 +1076,26 @@ export default function AgentDetailScreen() {
                           className="px-3 py-1.5 active:opacity-70"
                         >
                           <Text className="text-[13px] text-muted-foreground">
-                            {t("common.cancel")}
+                            {t('common.cancel')}
                           </Text>
                         </Pressable>
                         <Pressable
                           onPress={handleSubmitReview}
                           disabled={!reviewRating || submittingReview}
                           className={cn(
-                            "px-3 py-1.5 rounded-md active:opacity-70",
-                            reviewRating ? "bg-primary" : "bg-muted"
+                            'px-3 py-1.5 rounded-md active:opacity-70',
+                            reviewRating ? 'bg-primary' : 'bg-muted',
                           )}
                         >
-                          <Text className={cn(
-                            "text-[13px] font-medium",
-                            reviewRating ? "text-primary-foreground" : "text-muted-foreground"
-                          )}>
-                            {submittingReview ? "..." : t("agents.writeReview")}
+                          <Text
+                            className={cn(
+                              'text-[13px] font-medium',
+                              reviewRating
+                                ? 'text-primary-foreground'
+                                : 'text-muted-foreground',
+                            )}
+                          >
+                            {submittingReview ? '...' : t('agents.writeReview')}
                           </Text>
                         </Pressable>
                       </View>
@@ -1001,7 +1105,7 @@ export default function AgentDetailScreen() {
                   {/* Reviews List */}
                   {reviews.length === 0 && !showReviewForm ? (
                     <Text className="text-[13px] text-muted-foreground">
-                      {t("agents.noReviews")}
+                      {t('agents.noReviews')}
                     </Text>
                   ) : (
                     <View className="gap-3">
@@ -1010,22 +1114,36 @@ export default function AgentDetailScreen() {
                           <View className="flex-row items-center justify-between">
                             <View className="flex-row items-center gap-2">
                               <Text className="text-[13px] font-medium text-foreground">
-                                {review.userId?.username || "User"}
+                                {review.userId?.username || 'User'}
                               </Text>
                               <View className="flex-row">
                                 {[1, 2, 3, 4, 5].map((star) => (
                                   <Star
                                     key={star}
                                     size={10}
-                                    className={star <= review.rating ? "text-amber-500" : "text-muted-foreground/20"}
-                                    fill={star <= review.rating ? "#f59e0b" : "transparent"}
+                                    className={
+                                      star <= review.rating
+                                        ? 'text-amber-500'
+                                        : 'text-muted-foreground/20'
+                                    }
+                                    fill={
+                                      star <= review.rating
+                                        ? '#f59e0b'
+                                        : 'transparent'
+                                    }
                                   />
                                 ))}
                               </View>
                             </View>
                             {user && review.userId?._id === user.id && (
-                              <Pressable onPress={handleDeleteReview} className="p-1 active:opacity-70">
-                                <Trash2 size={12} className="text-muted-foreground" />
+                              <Pressable
+                                onPress={handleDeleteReview}
+                                className="p-1 active:opacity-70"
+                              >
+                                <Trash2
+                                  size={12}
+                                  className="text-muted-foreground"
+                                />
                               </Pressable>
                             )}
                           </View>
@@ -1045,8 +1163,11 @@ export default function AgentDetailScreen() {
                   <>
                     <View className="h-px bg-border mx-0 mb-5" />
                     <View className="mb-5">
-                      <SectionLabel>{t("agents.activity")}</SectionLabel>
-                      <View style={{ height: 300 }} className="rounded-lg overflow-hidden mt-2">
+                      <SectionLabel>{t('agents.activity')}</SectionLabel>
+                      <View
+                        style={{ height: 300 }}
+                        className="rounded-lg overflow-hidden mt-2"
+                      >
                         <AgentTerminal agentId={agent._id} />
                       </View>
                     </View>
@@ -1064,7 +1185,7 @@ export default function AgentDetailScreen() {
               <View className="px-4 py-2.5 flex-row items-center gap-2 border-b border-white/5">
                 <View className="w-2 h-2 rounded-full bg-green-500" />
                 <Text className="text-xs font-medium text-[#808080]">
-                  {t("agents.activity")}
+                  {t('agents.activity')}
                 </Text>
               </View>
               <View className="flex-1">

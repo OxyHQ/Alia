@@ -1,6 +1,5 @@
+import { Text } from '@oxy.so/bloom/typography';
 import { View } from 'react-native';
-import { Text } from '@/components/ui/text';
-
 interface ChartData {
   chartType: 'bar' | 'line' | 'pie';
   labels: string[];

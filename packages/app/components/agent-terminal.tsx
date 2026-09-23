@@ -1,12 +1,11 @@
-import { useEffect, useRef, useState, useCallback } from "react";
-import { View, Platform, ActivityIndicator } from "react-native";
-import { Text } from "@/components/ui/text";
-import { io as socketIO, type Socket } from "socket.io-client";
-import config from "@/lib/config";
-import apiClient, { getSocketToken } from "@/lib/api/client";
-import { useColorScheme } from "@/lib/useColorScheme";
+import apiClient, { getSocketToken } from '@/lib/api/client';
+import config from '@/lib/config';
+import { useColorScheme } from '@/lib/useColorScheme';
+import { Text } from '@oxy.so/bloom/typography';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Platform, View } from 'react-native';
+import { io as socketIO, type Socket } from 'socket.io-client';
 import { errorMessage as getErrorMessage } from '../lib/errors/error-utils';
-
 interface AgentTerminalProps {
   agentId: string;
 }

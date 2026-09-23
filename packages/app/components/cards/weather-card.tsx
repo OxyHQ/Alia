@@ -1,12 +1,11 @@
-import { useState } from "react";
-import { View, Pressable, ScrollView } from "react-native";
-import { Text } from "@/components/ui/text";
-import { useColorScheme } from "@/lib/useColorScheme";
-import { useTranslation } from "@/lib/hooks/use-translation";
-import { cn } from "@/lib/utils";
-import { AreaChart, areaGeometry } from "@/components/cards/area-chart";
-import { CardSurface } from "@/components/cards/card-surface";
-
+import { AreaChart, areaGeometry } from '@/components/cards/area-chart';
+import { CardSurface } from '@/components/cards/card-surface';
+import { useTranslation } from '@/lib/hooks/use-translation';
+import { useColorScheme } from '@/lib/useColorScheme';
+import { cn } from '@/lib/utils';
+import { Text } from '@oxy.so/bloom/typography';
+import { useState } from 'react';
+import { Pressable, ScrollView, View } from 'react-native';
 /**
  * The weather, drawn from the snapshot stored with the message.
  *

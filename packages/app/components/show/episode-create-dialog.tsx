@@ -15,13 +15,13 @@
  * is a rival default.
  */
 
-import React, { useCallback, useState } from 'react';
-import { View, ScrollView } from 'react-native';
-import { Text } from '@/components/ui/text';
-import { Input } from '@/components/ui/input';
-import { Dialog } from '@oxy.so/bloom/dialog';
-import { toast } from '@oxy.so/bloom/toast';
 import { useShowStore } from '@/lib/stores/show-store';
+import { Dialog } from '@oxy.so/bloom/dialog';
+import { TextFieldInput as Input } from '@oxy.so/bloom/text-field';
+import { toast } from '@oxy.so/bloom/toast';
+import { Text } from '@oxy.so/bloom/typography';
+import { useCallback, useState } from 'react';
+import { ScrollView, View } from 'react-native';
 
 interface EpisodeCreateDialogProps {
   open: boolean;
@@ -60,7 +60,9 @@ export function EpisodeCreateDialog({
       return;
     }
     if (titleTooShort) {
-      toast.error('That name is too short — leave it blank to have one written');
+      toast.error(
+        'That name is too short — leave it blank to have one written',
+      );
       return;
     }
 
@@ -117,6 +119,7 @@ export function EpisodeCreateDialog({
               Anything specific this time?
             </Text>
             <Input
+              label="Leave blank and the show picks something it has not covered."
               value={topic}
               onChangeText={setTopic}
               placeholder="Leave blank and the show picks something it has not covered."
@@ -127,8 +130,11 @@ export function EpisodeCreateDialog({
           </View>
 
           <View className="gap-1.5">
-            <Text className="text-sm font-medium text-foreground">Source material (optional)</Text>
+            <Text className="text-sm font-medium text-foreground">
+              Source material (optional)
+            </Text>
             <Input
+              label="Paste articles, notes or talking points to work from..."
               value={notes}
               onChangeText={setNotes}
               placeholder="Paste articles, notes or talking points to work from..."
@@ -139,21 +145,24 @@ export function EpisodeCreateDialog({
           </View>
 
           <View className="gap-1.5">
-            <Text className="text-sm font-medium text-foreground">Name (optional)</Text>
+            <Text className="text-sm font-medium text-foreground">
+              Name (optional)
+            </Text>
             <Input
+              label="Leave blank and it is named once it is written"
               value={title}
               onChangeText={setTitle}
               placeholder="Leave blank and it is named once it is written"
             />
             <Text className="text-xs text-muted-foreground">
-              This is the name listeners see. Left blank, the script names the episode after what
-              it turned out to say.
+              This is the name listeners see. Left blank, the script names the
+              episode after what it turned out to say.
             </Text>
           </View>
 
           <Text className="text-xs text-muted-foreground">
-            Either way the script knows what every earlier episode covered, so it will not repeat
-            one.
+            Either way the script knows what every earlier episode covered, so
+            it will not repeat one.
           </Text>
         </View>
       </ScrollView>

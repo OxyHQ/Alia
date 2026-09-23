@@ -1,20 +1,30 @@
-import React, { useState, useCallback } from "react";
-import { View, ActivityIndicator, Pressable, ScrollView } from "react-native";
-import { Text } from "@/components/ui/text";
-import { Composer } from "@/components/chat/composer/composer";
-import { useRouter } from "expo-router";
-import { useCreateAgent } from "@/lib/hooks/use-agents";
-import { useOxy } from "@oxy.so/services";
-import { SELECTABLE_ACCOUNT_CATEGORY_IDS, type AccountCategoryId } from "@oxy.so/core";
-import { applyBotUsernameSuffix, createBotAccount } from "@/lib/agents/bot-account";
-import { useTranslation } from "@/lib/hooks/use-translation";
-import { toast } from "@oxy.so/bloom/toast";
-import apiClient from "@/lib/api/client";
-import { API_ROUTES } from "@/lib/api/routes";
-import { Sparkles, MessageCircleQuestion, GitBranch, BarChart3 } from "lucide-react-native";
+import { Composer } from '@/components/chat/composer/composer';
+import {
+  applyBotUsernameSuffix,
+  createBotAccount,
+} from '@/lib/agents/bot-account';
+import apiClient from '@/lib/api/client';
+import { API_ROUTES } from '@/lib/api/routes';
 import { errorMessage as getErrorMessage } from '@/lib/errors/error-utils';
-import { ContentPanel } from "@oxy.so/bloom/content-panel";
-
+import { useCreateAgent } from '@/lib/hooks/use-agents';
+import { useTranslation } from '@/lib/hooks/use-translation';
+import { ContentPanel } from '@oxy.so/bloom/content-panel';
+import { toast } from '@oxy.so/bloom/toast';
+import { Text } from '@oxy.so/bloom/typography';
+import {
+  SELECTABLE_ACCOUNT_CATEGORY_IDS,
+  type AccountCategoryId,
+} from '@oxy.so/core';
+import { useOxy } from '@oxy.so/services';
+import { useRouter } from 'expo-router';
+import {
+  BarChart3,
+  GitBranch,
+  MessageCircleQuestion,
+  Sparkles,
+} from 'lucide-react-native';
+import React, { useCallback, useState } from 'react';
+import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
 type Archetype = 'general' | 'qa' | 'task_router' | 'status_update';
 
 interface ArchetypeOption {

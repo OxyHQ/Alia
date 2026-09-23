@@ -1,43 +1,47 @@
-import React, { useState, useEffect } from "react";
-import { View, Pressable, ScrollView } from "react-native";
-import { Text } from "@/components/ui/text";
-import { Input } from "@/components/ui/input";
-import { Dialog } from "@oxy.so/bloom/dialog";
+import { COLOR_OPTIONS, ColorPicker } from '@/components/ui/color-picker';
+import type { Project } from '@/lib/stores/projects-store';
+import { cn } from '@/lib/utils';
+import { Dialog } from '@oxy.so/bloom/dialog';
+import { TextFieldInput as Input } from '@oxy.so/bloom/text-field';
+import { Text } from '@oxy.so/bloom/typography';
 import {
-  FolderOpen,
   Briefcase,
   Folder,
+  FolderOpen,
+  Heart,
+  Lightbulb,
   Package,
   Rocket,
-  Target,
-  Lightbulb,
   Star,
-  Heart,
+  Target,
   Zap,
-  type LucideIcon,
-} from "lucide-react-native";
-import { cn } from "@/lib/utils";
-import { ColorPicker, COLOR_OPTIONS } from "@/components/ui/color-picker";
-import type { Project } from "@/lib/stores/projects-store";
+} from 'lucide-react-native';
+import { useEffect, useState } from 'react';
+import { Pressable, View } from 'react-native';
 
 const ICON_OPTIONS = [
-  { name: "FolderOpen", Icon: FolderOpen },
-  { name: "Briefcase", Icon: Briefcase },
-  { name: "Folder", Icon: Folder },
-  { name: "Package", Icon: Package },
-  { name: "Rocket", Icon: Rocket },
-  { name: "Target", Icon: Target },
-  { name: "Lightbulb", Icon: Lightbulb },
-  { name: "Star", Icon: Star },
-  { name: "Heart", Icon: Heart },
-  { name: "Zap", Icon: Zap },
+  { name: 'FolderOpen', Icon: FolderOpen },
+  { name: 'Briefcase', Icon: Briefcase },
+  { name: 'Folder', Icon: Folder },
+  { name: 'Package', Icon: Package },
+  { name: 'Rocket', Icon: Rocket },
+  { name: 'Target', Icon: Target },
+  { name: 'Lightbulb', Icon: Lightbulb },
+  { name: 'Star', Icon: Star },
+  { name: 'Heart', Icon: Heart },
+  { name: 'Zap', Icon: Zap },
 ];
 
 interface ProjectEditDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   project?: Project | null;
-  onSave: (data: { name: string; description?: string; icon?: string; color?: string }) => void;
+  onSave: (data: {
+    name: string;
+    description?: string;
+    icon?: string;
+    color?: string;
+  }) => void;
 }
 
 export const ProjectEditDialog = ({
@@ -46,21 +50,21 @@ export const ProjectEditDialog = ({
   project,
   onSave,
 }: ProjectEditDialogProps) => {
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [selectedIcon, setSelectedIcon] = useState("FolderOpen");
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
+  const [selectedIcon, setSelectedIcon] = useState('FolderOpen');
   const [selectedColor, setSelectedColor] = useState(COLOR_OPTIONS[0]);
 
   useEffect(() => {
     if (project) {
       setName(project.name);
-      setDescription(project.description || "");
-      setSelectedIcon(project.icon || "FolderOpen");
+      setDescription(project.description || '');
+      setSelectedIcon(project.icon || 'FolderOpen');
       setSelectedColor(project.color || COLOR_OPTIONS[0]);
     } else {
-      setName("");
-      setDescription("");
-      setSelectedIcon("FolderOpen");
+      setName('');
+      setDescription('');
+      setSelectedIcon('FolderOpen');
       setSelectedColor(COLOR_OPTIONS[0]);
     }
   }, [project, open]);
@@ -74,85 +78,86 @@ export const ProjectEditDialog = ({
       icon: selectedIcon,
       color: selectedColor,
     });
-
   };
 
   return (
     <Dialog
       open={open}
       onClose={() => onOpenChange(false)}
-      placement={{ base: "bottom", md: "center" }}
-      title={project ? "Edit Project" : "New Project"}
+      placement={{ base: 'bottom', md: 'center' }}
+      title={project ? 'Edit Project' : 'New Project'}
       description={
         project
-          ? "Update your project details"
-          : "Create a new project to organize your conversations"
+          ? 'Update your project details'
+          : 'Create a new project to organize your conversations'
       }
       actions={[
-        { label: "Cancel", color: "cancel" },
+        { label: 'Cancel', color: 'cancel' },
         {
-          label: project ? "Save" : "Create",
+          label: project ? 'Save' : 'Create',
           onPress: handleSave,
           disabled: !name.trim(),
         },
       ]}
     >
-        <View className="gap-4">
-          {/* Name Input */}
-          <View className="gap-2">
-            <Text className="text-sm font-medium text-foreground">Name</Text>
-            <Input
-              value={name}
-              onChangeText={setName}
-              placeholder="Project name"
-              className="h-11"
-            />
-          </View>
-
-          {/* Description Input */}
-          <View className="gap-2">
-            <Text className="text-sm font-medium text-foreground">
-              Description (optional)
-            </Text>
-            <Input
-              value={description}
-              onChangeText={setDescription}
-              placeholder="Project description"
-              className="h-11"
-            />
-          </View>
-
-          {/* Icon Picker */}
-          <View className="gap-2">
-            <Text className="text-sm font-medium text-foreground">Icon</Text>
-            <View className="flex-row flex-wrap gap-2">
-              {ICON_OPTIONS.map(({ name: iconName, Icon }) => (
-                <Pressable
-                  key={iconName}
-                  onPress={() => setSelectedIcon(iconName)}
-                  className={cn(
-                    "h-12 w-12 items-center justify-center rounded-lg border-2 transition-colors",
-                    selectedIcon === iconName
-                      ? "border-primary bg-primary/10"
-                      : "border-border bg-muted active:bg-muted/70"
-                  )}
-                >
-                  <Icon
-                    size={20}
-                    className={cn(
-                      selectedIcon === iconName
-                        ? "text-primary"
-                        : "text-muted-foreground"
-                    )}
-                  />
-                </Pressable>
-              ))}
-            </View>
-          </View>
-
-          {/* Color Picker */}
-          <ColorPicker selected={selectedColor} onSelect={setSelectedColor} />
+      <View className="gap-4">
+        {/* Name Input */}
+        <View className="gap-2">
+          <Text className="text-sm font-medium text-foreground">Name</Text>
+          <Input
+            label="Project name"
+            value={name}
+            onChangeText={setName}
+            placeholder="Project name"
+            className="h-11"
+          />
         </View>
+
+        {/* Description Input */}
+        <View className="gap-2">
+          <Text className="text-sm font-medium text-foreground">
+            Description (optional)
+          </Text>
+          <Input
+            label="Project description"
+            value={description}
+            onChangeText={setDescription}
+            placeholder="Project description"
+            className="h-11"
+          />
+        </View>
+
+        {/* Icon Picker */}
+        <View className="gap-2">
+          <Text className="text-sm font-medium text-foreground">Icon</Text>
+          <View className="flex-row flex-wrap gap-2">
+            {ICON_OPTIONS.map(({ name: iconName, Icon }) => (
+              <Pressable
+                key={iconName}
+                onPress={() => setSelectedIcon(iconName)}
+                className={cn(
+                  'h-12 w-12 items-center justify-center rounded-lg border-2 transition-colors',
+                  selectedIcon === iconName
+                    ? 'border-primary bg-primary/10'
+                    : 'border-border bg-muted active:bg-muted/70',
+                )}
+              >
+                <Icon
+                  size={20}
+                  className={cn(
+                    selectedIcon === iconName
+                      ? 'text-primary'
+                      : 'text-muted-foreground',
+                  )}
+                />
+              </Pressable>
+            ))}
+          </View>
+        </View>
+
+        {/* Color Picker */}
+        <ColorPicker selected={selectedColor} onSelect={setSelectedColor} />
+      </View>
     </Dialog>
   );
 };

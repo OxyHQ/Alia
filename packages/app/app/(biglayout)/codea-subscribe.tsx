@@ -1,32 +1,37 @@
-import { useState, useMemo, useEffect, useRef } from 'react';
-import { View, ScrollView, useWindowDimensions, ActivityIndicator, Platform } from 'react-native';
-import * as Linking from 'expo-linking';
-import { useRouter, useLocalSearchParams } from 'expo-router';
-import { Text } from '@/components/ui/text';
 import {
-  useSubscriptionPlans,
-  useSubscription,
-  useSubscriptionPolling,
-  useCreateSubscriptionCheckout,
-  useChangePlan,
-  useCancelSubscription,
-  type SubscriptionPlan,
-} from '@/lib/hooks/use-billing';
-import { useAuth } from '@oxy.so/services';
-import { toast } from '@oxy.so/bloom/toast';
-import { useTranslation } from '@/lib/hooks/use-translation';
-import { confirm } from '@oxy.so/bloom/surfaces';
-import { useColorScheme } from '@/lib/useColorScheme';
-import {
+  BackButton,
+  BillingToggle,
+  PageFooter,
+  PlanGrid,
   type BillingPeriod,
   type PricingTier,
-  BillingToggle,
-  PlanGrid,
-  BackButton,
-  PageFooter,
 } from '@/components/subscribe-shared';
+import {
+  useCancelSubscription,
+  useChangePlan,
+  useCreateSubscriptionCheckout,
+  useSubscription,
+  useSubscriptionPlans,
+  useSubscriptionPolling,
+  type SubscriptionPlan,
+} from '@/lib/hooks/use-billing';
+import { useTranslation } from '@/lib/hooks/use-translation';
+import { useColorScheme } from '@/lib/useColorScheme';
+import { confirm } from '@oxy.so/bloom/surfaces';
+import { toast } from '@oxy.so/bloom/toast';
+import { Text } from '@oxy.so/bloom/typography';
+import { useAuth } from '@oxy.so/services';
+import * as Linking from 'expo-linking';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  ActivityIndicator,
+  Platform,
+  ScrollView,
+  useWindowDimensions,
+  View,
+} from 'react-native';
 import { errorMessage as getErrorMessage } from '../../lib/errors/error-utils';
-
 const MONO_FONT = Platform.select({ ios: 'Menlo', android: 'monospace', default: 'monospace' });
 
 function buildCodeaTiers(

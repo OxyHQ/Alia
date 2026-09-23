@@ -21,21 +21,28 @@ vi.mock('react-native', async () => {
   const ReactModule = await import('react');
   const host =
     (name: string) =>
-    ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
+    ({
+      children,
+      ...props
+    }: React.PropsWithChildren<Record<string, unknown>>) =>
       ReactModule.createElement(name, props, children);
   return { View: host('View'), Pressable: host('Pressable') };
 });
 
 vi.mock('lucide-react-native', async () => {
   const ReactModule = await import('react');
-  const glyph = (props: Record<string, unknown>) => ReactModule.createElement('Glyph', props);
+  const glyph = (props: Record<string, unknown>) =>
+    ReactModule.createElement('Glyph', props);
   return { ChevronRight: glyph, Globe2: glyph };
 });
 
-vi.mock('@/components/ui/text', async () => {
+vi.mock('@oxy.so/bloom/typography', async () => {
   const ReactModule = await import('react');
   return {
-    Text: ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
+    Text: ({
+      children,
+      ...props
+    }: React.PropsWithChildren<Record<string, unknown>>) =>
       ReactModule.createElement('Text', props, children),
   };
 });
@@ -103,7 +110,9 @@ describe('the app-language row', () => {
     mocks.currentLanguages = [];
     const r = render();
 
-    const texts = r.root.findAll((node) => node.type === HOST_TEXT).map((n) => n.props.children);
+    const texts = r.root
+      .findAll((node) => node.type === HOST_TEXT)
+      .map((n) => n.props.children);
     expect(texts).toContain('native:en-US');
   });
 
@@ -111,7 +120,9 @@ describe('the app-language row', () => {
     mocks.currentLanguages = ['es-ES', 'en-US'];
     const r = render();
 
-    const texts = r.root.findAll((node) => node.type === HOST_TEXT).map((n) => n.props.children);
+    const texts = r.root
+      .findAll((node) => node.type === HOST_TEXT)
+      .map((n) => n.props.children);
     expect(texts).toContain('native:es-ES, native:en-US');
   });
 });

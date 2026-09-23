@@ -1,17 +1,17 @@
-import React from "react";
-import { formatRelativeTime } from '@/lib/utils/relative-time';
-import { View, Pressable } from "react-native";
-import { Text } from "@/components/ui/text";
-import { SettingsListGroup, SettingsListItem } from "@oxy.so/bloom/settings-list";
-import { Trash2 } from "lucide-react-native";
-
+import { Button, IconButton } from '@oxy.so/bloom/button';
+import { RiDeleteBinLine } from '@oxy.so/bloom/icons';
+import {
+  SettingsCard,
+  SettingsRow,
+  SettingsSection,
+} from '@oxy.so/bloom/settings-modal';
+import { View } from 'react-native';
 interface MemoryRow {
   _id: string;
   title: string;
   summary: string;
   updatedAt: string;
 }
-
 interface MemoryTableProps {
   heading: string;
   rows: MemoryRow[];
@@ -19,43 +19,45 @@ interface MemoryTableProps {
   onRowPress: (id: string) => void;
   onDelete: (id: string) => void;
 }
-
-export function MemoryTable({ heading, rows, emptyLabel, onRowPress, onDelete }: MemoryTableProps) {
-  if (rows.length === 0) {
-    return (
-      <SettingsListGroup title={heading}>
-        <View className="px-3 py-3">
-          <Text className="text-xs text-muted-foreground">{emptyLabel}</Text>
-        </View>
-      </SettingsListGroup>
-    );
-  }
-
+export function MemoryTable({
+  heading,
+  rows,
+  emptyLabel,
+  onRowPress,
+  onDelete,
+}: MemoryTableProps) {
   return (
-    <SettingsListGroup title={heading}>
-      {rows.map((row) => (
-        <SettingsListItem
-          key={row._id}
-          title={row.title}
-          description={row.summary}
-          value={formatRelativeTime(row.updatedAt)}
-          onPress={() => onRowPress(row._id)}
-          showChevron={false}
-          rightElement={
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={`Delete ${row.title}`}
-              onPress={(e) => {
-                e.stopPropagation();
-                onDelete(row._id);
-              }}
-              className="w-7 h-7 items-center justify-center rounded-md active:bg-destructive/10"
+    <SettingsSection label={heading}>
+      <SettingsCard>
+        {rows.length ? (
+          rows.map((row) => (
+            <SettingsRow
+              key={row._id}
+              label={row.title}
+              description={row.summary}
             >
-              <Trash2 size={14} className="text-muted-foreground" />
-            </Pressable>
-          }
-        />
-      ))}
-    </SettingsListGroup>
+              <View className="flex-row gap-2">
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onPress={() => onRowPress(row._id)}
+                >
+                  Edit
+                </Button>
+                <IconButton
+                  size="sm"
+                  tone="danger"
+                  icon={RiDeleteBinLine}
+                  accessibilityLabel={`Delete ${row.title}`}
+                  onPress={() => onDelete(row._id)}
+                />
+              </View>
+            </SettingsRow>
+          ))
+        ) : (
+          <SettingsRow label={emptyLabel} />
+        )}
+      </SettingsCard>
+    </SettingsSection>
   );
 }

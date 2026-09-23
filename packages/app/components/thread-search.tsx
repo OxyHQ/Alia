@@ -1,12 +1,15 @@
-import { useState } from "react";
-import { View, Pressable, ScrollView } from "react-native";
-import { X, Search } from "lucide-react-native";
-import { Text } from "@/components/ui/text";
-import { THREAD_COLUMN } from "@/lib/chat-layout";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { useTranslation } from "@/lib/hooks/use-translation";
-import { useThreadSearch, type ThreadSearchHit } from "@/lib/hooks/use-thread-search";
+import { THREAD_COLUMN } from '@/lib/chat-layout';
+import {
+  useThreadSearch,
+  type ThreadSearchHit,
+} from '@/lib/hooks/use-thread-search';
+import { useTranslation } from '@/lib/hooks/use-translation';
+import { Button } from '@oxy.so/bloom/button';
+import { TextFieldInput as Input } from '@oxy.so/bloom/text-field';
+import { Text } from '@oxy.so/bloom/typography';
+import { Search, X } from 'lucide-react-native';
+import { useState } from 'react';
+import { Pressable, ScrollView, View } from 'react-native';
 
 /**
  * Searching what was said in this thread, across every conversation in it.
@@ -39,7 +42,11 @@ function hitDay(createdAt: string, locale: string): string {
   });
 }
 
-export const ThreadSearch = ({ handle, onJump, onClose }: ThreadSearchProps) => {
+export const ThreadSearch = ({
+  handle,
+  onJump,
+  onClose,
+}: ThreadSearchProps) => {
   const { t, locale } = useTranslation();
   const [query, setQuery] = useState('');
   const { data: hits, isFetching, isError } = useThreadSearch(handle, query);
@@ -59,6 +66,7 @@ export const ThreadSearch = ({ handle, onJump, onClose }: ThreadSearchProps) => 
           <View className="flex-1 flex-row items-center gap-2 rounded-xl border border-input bg-background px-3">
             <Search size={16} className="text-muted-foreground" />
             <Input
+              label={t('chat.searchThreadPlaceholder')}
               value={query}
               onChangeText={setQuery}
               placeholder={t('chat.searchThreadPlaceholder')}
@@ -67,9 +75,17 @@ export const ThreadSearch = ({ handle, onJump, onClose }: ThreadSearchProps) => 
               returnKeyType="search"
             />
           </View>
-          <Button variant="ghost" size="icon" onPress={onClose} className="h-9 w-9 rounded-full">
-            <X size={18} className="text-muted-foreground" />
-          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            onPress={onClose}
+            className="h-9 w-9 rounded-full"
+            icon={
+              <>
+                <X size={18} className="text-muted-foreground" />
+              </>
+            }
+          />
         </View>
 
         {!asked ? (
@@ -82,7 +98,9 @@ export const ThreadSearch = ({ handle, onJump, onClose }: ThreadSearchProps) => 
           </Text>
         ) : found.length === 0 ? (
           <Text className="px-1 py-4 text-sm text-muted-foreground">
-            {isFetching ? t('chat.searchThreadSearching') : t('chat.searchThreadEmpty')}
+            {isFetching
+              ? t('chat.searchThreadSearching')
+              : t('chat.searchThreadEmpty')}
           </Text>
         ) : (
           <ScrollView
@@ -102,11 +120,20 @@ export const ThreadSearch = ({ handle, onJump, onClose }: ThreadSearchProps) => 
               >
                 <View className="flex-row items-center justify-between gap-3">
                   <Text className="text-xs font-medium text-muted-foreground">
-                    {t(hit.role === 'user' ? 'chat.searchThreadYou' : 'chat.searchThreadAgent')}
+                    {t(
+                      hit.role === 'user'
+                        ? 'chat.searchThreadYou'
+                        : 'chat.searchThreadAgent',
+                    )}
                   </Text>
-                  <Text className="text-xs text-muted-foreground">{hitDay(hit.createdAt, locale)}</Text>
+                  <Text className="text-xs text-muted-foreground">
+                    {hitDay(hit.createdAt, locale)}
+                  </Text>
                 </View>
-                <Text className="mt-1 text-sm text-foreground" numberOfLines={2}>
+                <Text
+                  className="mt-1 text-sm text-foreground"
+                  numberOfLines={2}
+                >
                   {hit.snippet}
                 </Text>
               </Pressable>

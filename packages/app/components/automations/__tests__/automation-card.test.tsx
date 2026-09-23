@@ -1,5 +1,10 @@
 import React from 'react';
-import { act, create, type ReactTestRenderer, type ReactTestInstance } from 'react-test-renderer';
+import {
+  act,
+  create,
+  type ReactTestInstance,
+  type ReactTestRenderer,
+} from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 /**
@@ -16,39 +21,61 @@ vi.mock('react-native', async () => {
   const ReactModule = await import('react');
   const host =
     (name: string) =>
-    ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
+    ({
+      children,
+      ...props
+    }: React.PropsWithChildren<Record<string, unknown>>) =>
       ReactModule.createElement(name, props, children);
   return {
-    Platform: { OS: 'web', select: (spec: Record<string, unknown>) => spec.web },
+    Platform: {
+      OS: 'web',
+      select: (spec: Record<string, unknown>) => spec.web,
+    },
     View: host('View'),
     Pressable: host('Pressable'),
     ActivityIndicator: host('ActivityIndicator'),
   };
 });
-vi.mock('@/components/ui/text', async () => {
+vi.mock('@oxy.so/bloom/typography', async () => {
   const ReactModule = await import('react');
   return {
-    Text: ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
+    Text: ({
+      children,
+      ...props
+    }: React.PropsWithChildren<Record<string, unknown>>) =>
       ReactModule.createElement('Text', props, children),
   };
 });
 vi.mock('@oxy.so/bloom/switch', async () => {
   const ReactModule = await import('react');
-  return { Switch: (props: Record<string, unknown>) => ReactModule.createElement('Switch', props) };
+  return {
+    Switch: (props: Record<string, unknown>) =>
+      ReactModule.createElement('Switch', props),
+  };
 });
 vi.mock('lucide-react-native', async () => {
   const ReactModule = await import('react');
-  const glyph = (props: Record<string, unknown>) => ReactModule.createElement('Glyph', props);
-  return { Clock: glyph, Play: glyph, ShieldCheck: glyph, Square: glyph, Users: glyph };
+  const glyph = (props: Record<string, unknown>) =>
+    ReactModule.createElement('Glyph', props);
+  return {
+    Clock: glyph,
+    Play: glyph,
+    ShieldCheck: glyph,
+    Square: glyph,
+    Users: glyph,
+  };
 });
 vi.mock('@/lib/useColorScheme', () => ({
-  useColorScheme: () => ({ colors: { mutedForeground: 'grey', primary: 'blue' } }),
+  useColorScheme: () => ({
+    colors: { mutedForeground: 'grey', primary: 'blue' },
+  }),
 }));
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
 const { AutomationCard } = await import('../automation-card');
-type AutomationDefinition = import('@/lib/automations/types').AutomationDefinition;
+type AutomationDefinition =
+  import('@/lib/automations/types').AutomationDefinition;
 
 const PROMPT = 'Review PR comments every hour and share next steps';
 
@@ -75,19 +102,24 @@ function automation(id: string, name: string | null): AutomationDefinition {
 let renderer: ReactTestRenderer;
 afterEach(() => act(() => renderer?.unmount()));
 
-function mount(definition: AutomationDefinition, variant: 'full' | 'compact' = 'full'): ReactTestInstance {
+function mount(
+  definition: AutomationDefinition,
+  variant: 'full' | 'compact' = 'full',
+): ReactTestInstance {
   act(() => {
-    renderer = create(React.createElement(AutomationCard, {
-      automation: definition,
-      agentName: () => 'Writer',
-      busy: false,
-      controlsDisabled: false,
-      onToggle: vi.fn(),
-      onRun: vi.fn(),
-      onStop: vi.fn(),
-      onViewHistory: vi.fn(),
-      variant,
-    }));
+    renderer = create(
+      React.createElement(AutomationCard, {
+        automation: definition,
+        agentName: () => 'Writer',
+        busy: false,
+        controlsDisabled: false,
+        onToggle: vi.fn(),
+        onRun: vi.fn(),
+        onStop: vi.fn(),
+        onViewHistory: vi.fn(),
+        variant,
+      }),
+    );
   });
   return renderer.root;
 }
@@ -110,13 +142,15 @@ describe('AutomationCard heading', () => {
     const shown = texts(root);
     expect(shown[0]).toBe('Frontend PR watch');
     expect(shown[1]).toBe(PROMPT);
-    expect(labels(root)).toEqual(expect.arrayContaining([
-      'Automation Frontend PR watch',
-      'Pause Frontend PR watch',
-      'Run Frontend PR watch',
-      'Stop Frontend PR watch',
-      'View history for Frontend PR watch',
-    ]));
+    expect(labels(root)).toEqual(
+      expect.arrayContaining([
+        'Automation Frontend PR watch',
+        'Pause Frontend PR watch',
+        'Run Frontend PR watch',
+        'Stop Frontend PR watch',
+        'View history for Frontend PR watch',
+      ]),
+    );
     expect(labels(root).some((label) => label.includes(PROMPT))).toBe(false);
   });
 

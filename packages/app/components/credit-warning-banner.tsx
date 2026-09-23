@@ -1,16 +1,14 @@
-import { View, Pressable } from 'react-native';
-import { useQueryClient } from '@tanstack/react-query';
-import { X, Zap, AlertTriangle } from 'lucide-react-native';
-import { Text } from '@/components/ui/text';
-import { useRouter } from 'expo-router';
-import { useCredits } from '@/lib/hooks/use-credits';
 import { queryKeys } from '@/lib/hooks/query-keys';
-import { THREAD_COLUMN } from '@/lib/chat-layout';
-import React, { useState } from 'react';
-import { useTranslation } from '@/lib/hooks/use-translation';
 import { useCatalogue, type CatalogueEntry } from '@/lib/hooks/use-catalogue';
+import { useCredits } from '@/lib/hooks/use-credits';
 import { presentation, useProductModes } from '@/lib/hooks/use-product-modes';
-
+import { useTranslation } from '@/lib/hooks/use-translation';
+import { Text } from '@oxy.so/bloom/typography';
+import { useQueryClient } from '@tanstack/react-query';
+import { useRouter } from 'expo-router';
+import { AlertTriangle, X, Zap } from 'lucide-react-native';
+import React, { useState } from 'react';
+import { Pressable, View } from 'react-native';
 interface UsageWarningData {
   level: string;
   daysRemaining: number;
@@ -86,7 +84,7 @@ export const CreditWarningBanner = React.memo(function CreditWarningBanner({ sel
   const isLowCredits = !lowCreditsDismissed && creditsInfo && creditsInfo.credits < 50 && creditsInfo.credits > 0;
   if (!usageWarning && isLowCredits) {
     return (
-      <View className={`${THREAD_COLUMN} px-4 pb-1`}>
+      <View className="w-full pb-1">
         <View className="flex-row items-center gap-2 rounded-lg px-3 py-2 bg-yellow-500/10">
           <AlertTriangle size={14} className="text-yellow-600" />
           <Text className="text-xs flex-1 text-yellow-700 dark:text-yellow-400">
@@ -140,7 +138,7 @@ export const CreditWarningBanner = React.memo(function CreditWarningBanner({ sel
     : t('usageLimit.switchToModelAlt', { model: altName });
 
   return (
-    <View className={`${THREAD_COLUMN} px-4 pb-1`}>
+    <View className="w-full pb-1">
       <View className={`flex-row items-center gap-2 rounded-lg px-3 py-2 ${isCritical ? 'bg-destructive/10' : 'bg-yellow-500/10'}`}>
         <Zap size={14} className={isCritical ? 'text-destructive' : 'text-yellow-600'} />
         <Text className={`text-xs flex-1 ${isCritical ? 'text-destructive' : 'text-yellow-700 dark:text-yellow-400'}`}>

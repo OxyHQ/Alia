@@ -1,61 +1,118 @@
-import { View, Pressable, Platform, type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent } from "react-native";
-import { toast } from "@oxy.so/bloom/toast";
-import { Image } from "expo-image";
-import { CustomMarkdown } from "@/components/ui/markdown";
-import { Text } from "@/components/ui/text";
-import { WelcomeMessage } from "@/components/welcome-message";
-import React, { useEffect, useState, useCallback, useRef, useMemo } from "react";
-import { processMessage } from "@/lib/message-processor";
-import { cn } from "@/lib/utils";
-import { THREAD_COLUMN } from "@/lib/chat-layout";
-import { IdentityMark, type IdentityMarkState } from '@alia.onl/sdk';
-import { AgentThinking } from '@oxy.so/bloom/agent-thinking';
-import { AiChatAssistantMessage, AiChatThread, AiChatUserMessage, type AiChatThreadHandle } from '@oxy.so/bloom/ai-chat';
-import { useColorScheme } from "@/lib/useColorScheme";
-import { agentTint } from "@/lib/agents/agent-color";
-import { Copy, ThumbsUp, ThumbsDown, Pencil, Check, Volume2, Square, Music, RotateCcw } from "lucide-react-native";
-import * as DropdownMenu from "@/components/ui/dropdown-menu";
-import { useTTS } from "@/lib/hooks/use-tts";
-import { useAudioGen } from "@/lib/hooks/use-audio-gen";
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withTiming,
-  Easing,
-} from "react-native-reanimated";
-import * as Clipboard from "expo-clipboard";
-import { Reasoning, ReasoningTrigger } from "@/components/ui/reasoning";
-import { getToolActiveLabel, getResearchActiveLabel, getTextFromContent, getImagesFromContent } from '@alia.onl/sdk';
-import { useUIStore, type ThoughtTab, type ThoughtScope } from "@/lib/stores/ui-store";
-import { useStore, type ChatIdState } from "@/lib/stores/global-store";
-import { useQueryClient } from "@tanstack/react-query";
-import { queryKeys } from "@/lib/hooks/query-keys";
-import type { ToolInvocation } from "@/lib/types/messages";
-import type { Message as ConversationMessage } from "@/lib/hooks/use-conversations";
-import { AgentTaskCard } from "@/components/agent-task-card";
-import { AgentResultCard } from "@/components/agent-result-card";
-import { ResearchProgressCard, PlanPreviewCard } from '@alia.onl/sdk';
+import { AgentResultCard } from '@/components/agent-result-card';
+import { AgentTaskCard } from '@/components/agent-task-card';
+import {
+  FairCoinCard,
+  type FairCoinCardData,
+} from '@/components/cards/faircoin-card';
+import {
+  MarketCard,
+  type MarketCardData,
+} from '@/components/cards/market-card';
+import {
+  ScheduledTaskCard,
+  type ScheduledTaskCardData,
+} from '@/components/cards/scheduled-task-card';
+import {
+  WeatherCard,
+  type WeatherCardData,
+} from '@/components/cards/weather-card';
+import { FailedTurnCard } from '@/components/chat/failed-turn-card';
+import { MessageBlockBoundary } from '@/components/chat/message-block-boundary';
+import type { FailedTurn } from '@/components/chat/turn-failure';
+import { rememberOpener } from '@/components/execution/focus-return';
+import { WorkSummary } from '@/components/execution/work-summary';
+import { MessageSources } from '@/components/message-sources';
+import { NewConversationOffer } from '@/components/new-conversation-offer';
+import { CustomMarkdown } from '@/components/ui/markdown';
+import { Reasoning, ReasoningTrigger } from '@/components/ui/reasoning';
+import { WelcomeMessage } from '@/components/welcome-message';
+import { agentTint } from '@/lib/agents/agent-color';
+import apiClient from '@/lib/api/client';
+import { queryKeys } from '@/lib/hooks/query-keys';
+import type { AgentActivityState } from '@/lib/hooks/use-agent-activity';
+import { useAudioGen } from '@/lib/hooks/use-audio-gen';
+import type { Message as ConversationMessage } from '@/lib/hooks/use-conversations';
+import { useTranslation } from '@/lib/hooks/use-translation';
+import { useTTS } from '@/lib/hooks/use-tts';
+import { daySeparators } from '@/lib/message-days';
+import { processMessage } from '@/lib/message-processor';
+import { useStore, type ChatIdState } from '@/lib/stores/global-store';
+import {
+  useUIStore,
+  type ThoughtScope,
+  type ThoughtTab,
+} from '@/lib/stores/ui-store';
+import { turnLifecycle, turnTimings } from '@/lib/thought-utils';
+import { threadSeamIds, type ThreadMessage } from '@/lib/thread-history';
+import type { ToolInvocation } from '@/lib/types/messages';
+import { useColorScheme } from '@/lib/useColorScheme';
+import { cn } from '@/lib/utils';
 import type { ResearchProgress as ResearchProgressData } from '@alia.onl/sdk';
-import type { AgentActivityState } from "@/lib/hooks/use-agent-activity";
-import * as Skeleton from "@oxy.so/bloom/skeleton";
-import apiClient from "@/lib/api/client";
-import { useTranslation } from "@/lib/hooks/use-translation";
-import { MessageSources } from "@/components/message-sources";
-import { WeatherCard, type WeatherCardData } from "@/components/cards/weather-card";
-import { MarketCard, type MarketCardData } from "@/components/cards/market-card";
-import { FairCoinCard, type FairCoinCardData } from "@/components/cards/faircoin-card";
-import { ScheduledTaskCard, type ScheduledTaskCardData } from "@/components/cards/scheduled-task-card";
-import { NewConversationOffer } from "@/components/new-conversation-offer";
-import { daySeparators } from "@/lib/message-days";
-import { threadSeamIds, type ThreadMessage } from "@/lib/thread-history";
-import { FailedTurnCard } from "@/components/chat/failed-turn-card";
-import { MessageBlockBoundary } from "@/components/chat/message-block-boundary";
-import type { FailedTurn } from "@/components/chat/turn-failure";
-import { WorkSummary } from "@/components/execution/work-summary";
-import { rememberOpener } from "@/components/execution/focus-return";
-import { turnLifecycle, turnTimings } from "@/lib/thought-utils";
-
-const isWeb = Platform.OS === "web";
+import {
+  getImagesFromContent,
+  getResearchActiveLabel,
+  getTextFromContent,
+  getToolActiveLabel,
+  IdentityMark,
+  PlanPreviewCard,
+  ResearchProgressCard,
+} from '@alia.onl/sdk';
+import { AgentThinking } from '@oxy.so/bloom/agent-thinking';
+import {
+  AiChatAssistantMessage,
+  AiChatThread,
+  AiChatUserMessage,
+  type AiChatThreadHandle,
+} from '@oxy.so/bloom/ai-chat';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@oxy.so/bloom/dropdown-menu';
+import {
+  RiEditLine,
+  RiFileCopyLine,
+  RiMusic2Line,
+  RiRefreshLine,
+  RiThumbDownLine,
+  RiThumbUpLine,
+  RiVolumeUpLine,
+} from '@oxy.so/bloom/icons';
+import * as Skeleton from '@oxy.so/bloom/skeleton';
+import { toast } from '@oxy.so/bloom/toast';
+import { Text } from '@oxy.so/bloom/typography';
+import { useQueryClient } from '@tanstack/react-query';
+import * as Clipboard from 'expo-clipboard';
+import { Image } from 'expo-image';
+import {
+  Check,
+  Copy,
+  Music,
+  Pencil,
+  RotateCcw,
+  Square,
+  ThumbsDown,
+  ThumbsUp,
+  Volume2,
+} from 'lucide-react-native';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
+import {
+  Platform,
+  Pressable,
+  View,
+  type LayoutChangeEvent,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
+} from 'react-native';
+import Animated from 'react-native-reanimated';
+const isWeb = Platform.OS === 'web';
 
 /** How near the end still counts as being at the bottom, px. */
 export const AT_BOTTOM_THRESHOLD = 50;
@@ -86,11 +143,11 @@ const EMPTY_TIMING = Object.freeze({ startedAt: null, endedAt: null });
 // what they were about to activate. The bar shows for as long as focus is in
 // it, on the row (`group-`) or on the bar itself.
 const ACTION_BAR = isWeb
-  ? "flex-row gap-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 focus-within:opacity-100"
-  : "flex-row gap-1";
+  ? 'flex-row gap-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 focus-within:opacity-100'
+  : 'flex-row gap-1';
 const ACTION_BTN = isWeb
-  ? "p-1.5 rounded-lg hover:bg-muted active:bg-muted"
-  : "p-2.5 rounded-lg active:bg-muted";
+  ? 'p-1.5 rounded-lg hover:bg-muted active:bg-muted'
+  : 'p-2.5 rounded-lg active:bg-muted';
 
 type MessagePart = {
   type: string;
@@ -107,7 +164,7 @@ type PendingPlan = {
 
 type Message = {
   id: string;
-  role: "user" | "assistant" | "system" | "function" | "data" | "tool";
+  role: 'user' | 'assistant' | 'system' | 'function' | 'data' | 'tool';
   content?: string | Array<{ type: string; [key: string]: unknown }>;
   thinking?: string; // Extended thinking content
   parts?: MessagePart[];
@@ -223,9 +280,9 @@ function getRawMessageText(message: Message): string {
   }
   if (message.parts && Array.isArray(message.parts)) {
     return message.parts
-      .filter((part) => part.type === "text")
-      .map((part) => part.text || "")
-      .join("");
+      .filter((part) => part.type === 'text')
+      .map((part) => part.text || '')
+      .join('');
   }
   return '';
 }
@@ -257,18 +314,25 @@ const CARD_TYPES = new Set(['weather', 'market', 'faircoin', 'scheduled-task']);
 /** The card a finished call returned, if it is one this conversation draws. */
 function cardOf(t: ToolInvocation): { type: string; data: unknown } | null {
   if (t.state !== 'result') return null;
-  const card = (t.result as { card?: { type?: string; data?: unknown } } | undefined)?.card;
-  if (card?.type === undefined || !CARD_TYPES.has(card.type) || !card.data) return null;
+  const card = (
+    t.result as { card?: { type?: string; data?: unknown } } | undefined
+  )?.card;
+  if (card?.type === undefined || !CARD_TYPES.has(card.type) || !card.data)
+    return null;
   return { type: card.type, data: card.data };
 }
 
 function toolCard(t: ToolInvocation, key: string): React.ReactElement | null {
   const card = cardOf(t);
   if (card === null) return null;
-  if (card.type === 'weather') return <WeatherCard key={key} data={card.data as WeatherCardData} />;
-  if (card.type === 'market') return <MarketCard key={key} data={card.data as MarketCardData} />;
+  if (card.type === 'weather')
+    return <WeatherCard key={key} data={card.data as WeatherCardData} />;
+  if (card.type === 'market')
+    return <MarketCard key={key} data={card.data as MarketCardData} />;
   if (card.type === 'scheduled-task') {
-    return <ScheduledTaskCard key={key} data={card.data as ScheduledTaskCardData} />;
+    return (
+      <ScheduledTaskCard key={key} data={card.data as ScheduledTaskCardData} />
+    );
   }
   return <FairCoinCard key={key} data={card.data as FairCoinCardData} />;
 }
@@ -294,7 +358,11 @@ function hasToolCard(t: ToolInvocation): boolean {
  * given a fresh context here, and everything above is out of its sight. Drawing
  * them the same way would suggest a break happened every midnight.
  */
-const ConversationSeam = React.memo(function ConversationSeam({ text }: { text: string }) {
+const ConversationSeam = React.memo(function ConversationSeam({
+  text,
+}: {
+  text: string;
+}) {
   return (
     <View className="flex-row items-center gap-3 py-6">
       <View className="h-px flex-1 bg-border" />
@@ -304,11 +372,17 @@ const ConversationSeam = React.memo(function ConversationSeam({ text }: { text: 
   );
 });
 
-const DaySeparator = React.memo(function DaySeparator({ text }: { text: string }) {
+const DaySeparator = React.memo(function DaySeparator({
+  text,
+}: {
+  text: string;
+}) {
   return (
     <View className="items-center py-4">
       <View className="rounded-full bg-muted px-3 py-1">
-        <Text className="text-xs font-medium text-muted-foreground">{text}</Text>
+        <Text className="text-xs font-medium text-muted-foreground">
+          {text}
+        </Text>
       </View>
     </View>
   );
@@ -330,13 +404,25 @@ type MessageRowProps = {
   ttsState: string;
   chatId: ChatIdState;
   voiceAgentState?: 'idle' | 'listening' | 'thinking' | 'speaking';
-  handleMarkLayout: (e: LayoutChangeEvent) => void;
   /** Where this row ended up, for the one row a jump is aimed at. */
   onRowLayout?: (e: LayoutChangeEvent) => void;
   handleCopyMessage: (messageId: string, content: string) => void;
-  handleVote: (messageId: string, vote: 'up' | 'down', conversationId?: string) => void;
-  readAloud: (id: string, text: string, chatId?: string, audioUrl?: string) => void;
-  generateAudio: (messageId: string, prompt: string, conversationId?: string) => void;
+  handleVote: (
+    messageId: string,
+    vote: 'up' | 'down',
+    conversationId?: string,
+  ) => void;
+  readAloud: (
+    id: string,
+    text: string,
+    chatId?: string,
+    audioUrl?: string,
+  ) => void;
+  generateAudio: (
+    messageId: string,
+    prompt: string,
+    conversationId?: string,
+  ) => void;
   // Per-row audio-gen state: 'idle' unless this row is the active one (same
   // rationale as ttsState above).
   audioGenRowState: string;
@@ -345,7 +431,11 @@ type MessageRowProps = {
    * pressed, when the caller has it, so the panel can hand focus back to it on
    * close; without one the panel remembers whatever is focused at the time.
    */
-  openThoughtPanel: (messageId: string, tab?: ThoughtTab, opener?: unknown) => void;
+  openThoughtPanel: (
+    messageId: string,
+    tab?: ThoughtTab,
+    opener?: unknown,
+  ) => void;
   /**
    * The turn's timing for its work summary, as primitives so the row's memo
    * holds: epoch ms of the send, and of the persisted end or `null` for a
@@ -362,13 +452,32 @@ type MessageRowProps = {
 };
 
 const MessageRow = React.memo(function MessageRow({
-  m, index, isNewMessage, isAliaMessage, isLastAlia,
-  isLoading, isLastMessage, isCopied, myVote,
-  ttsState, chatId, voiceAgentState,
-  handleMarkLayout, onRowLayout, handleCopyMessage, handleVote, readAloud,
-  generateAudio, audioGenRowState,
-  openThoughtPanel, onStartEdit, onRegenerate, onApprovePlan, onRejectPlan,
-  workStartedAt, workEndedAt, turnFailed,
+  m,
+  index,
+  isNewMessage,
+  isAliaMessage,
+  isLastAlia,
+  isLoading,
+  isLastMessage,
+  isCopied,
+  myVote,
+  ttsState,
+  chatId,
+  voiceAgentState,
+  onRowLayout,
+  handleCopyMessage,
+  handleVote,
+  readAloud,
+  generateAudio,
+  audioGenRowState,
+  openThoughtPanel,
+  onStartEdit,
+  onRegenerate,
+  onApprovePlan,
+  onRejectPlan,
+  workStartedAt,
+  workEndedAt,
+  turnFailed,
 }: MessageRowProps) {
   const { colors } = useColorScheme();
   const { t: rowT } = useTranslation();
@@ -380,17 +489,28 @@ const MessageRow = React.memo(function MessageRow({
    * card. Read on each render — the list changes per streamed tool event and
    * the row is memoised on `m` already.
    */
-  const workInvocations = m.role === 'assistant' ? (m.toolInvocations ?? []).filter((t) => !hasToolCard(t)) : [];
+  const workInvocations =
+    m.role === 'assistant'
+      ? (m.toolInvocations ?? []).filter((t) => !hasToolCard(t))
+      : [];
   // The same cast the scope below makes: the local Message is a structural
   // superset of the conversation Message the lifecycle reads, with `content`
   // optional here — and `turnLifecycle` reads an absent one as empty.
-  const workLifecycle = workInvocations.length === 0
-    ? null
-    : turnLifecycle(m as unknown as ConversationMessage, {
-        isLoading,
-        isLastAssistant: isLastAlia,
-        failedTurn: turnFailed ? { userMessageId: '', anchorMessageId: m.id, retryable: false, partial: true } : null,
-      });
+  const workLifecycle =
+    workInvocations.length === 0
+      ? null
+      : turnLifecycle(m as unknown as ConversationMessage, {
+          isLoading,
+          isLastAssistant: isLastAlia,
+          failedTurn: turnFailed
+            ? {
+                userMessageId: '',
+                anchorMessageId: m.id,
+                retryable: false,
+                partial: true,
+              }
+            : null,
+        });
 
   return (
     /**
@@ -403,37 +523,23 @@ const MessageRow = React.memo(function MessageRow({
      * reply's blocks and it honours reduced motion — so it is the one that
      * stays, and the row is a plain layout element again.
      */
-    <Animated.View
-      key={m.id || `msg-${index}`}
-      style={isAliaMessage && isLastAlia ? { paddingTop: 36 } : undefined}
-      /**
-       * Two things want this row's position and one element can report it: the
-       * flying mark follows the last Alia message, and a jump aims at whichever
-       * message was searched for. They coincide often enough to matter.
-       */
-      onLayout={
-        isAliaMessage && isLastAlia
-          ? (onRowLayout === undefined
-              ? handleMarkLayout
-              : (e: LayoutChangeEvent) => { handleMarkLayout(e); onRowLayout(e); })
-          : onRowLayout
-      }
-    >
+    <Animated.View key={m.id || `msg-${index}`} onLayout={onRowLayout}>
       {/* Plan Preview — shown before tool execution */}
-      {m.pendingPlan && (() => {
-        const plan = m.pendingPlan;
-        return (
-          <MessageBlockBoundary>
-            <PlanPreviewCard
-              steps={plan.steps}
-              approved={plan.approved}
-              rejected={plan.rejected}
-              onApprove={() => onApprovePlan?.(plan.planId)}
-              onReject={() => onRejectPlan?.(plan.planId)}
-            />
-          </MessageBlockBoundary>
-        );
-      })()}
+      {m.pendingPlan &&
+        (() => {
+          const plan = m.pendingPlan;
+          return (
+            <MessageBlockBoundary>
+              <PlanPreviewCard
+                steps={plan.steps}
+                approved={plan.approved}
+                rejected={plan.rejected}
+                onApprove={() => onApprovePlan?.(plan.planId)}
+                onReject={() => onRejectPlan?.(plan.planId)}
+              />
+            </MessageBlockBoundary>
+          );
+        })()}
 
       {/* A tool that produced a card draws it where the answer is read.
           Each inside its own boundary: `cardOf` checks the card's NAME, not
@@ -443,7 +549,9 @@ const MessageRow = React.memo(function MessageRow({
         const key = t.toolCallId || `tool-${m.id}-${ti}`;
         const card = toolCard(t, key);
         return card === null ? null : (
-          <MessageBlockBoundary key={`${key}-block`}>{card}</MessageBlockBoundary>
+          <MessageBlockBoundary key={`${key}-block`}>
+            {card}
+          </MessageBlockBoundary>
         );
       })}
 
@@ -466,58 +574,58 @@ const MessageRow = React.memo(function MessageRow({
       )}
 
       {/* Deep Research Progress */}
-      {m.role === "assistant" && m.researchProgress && (
+      {m.role === 'assistant' && m.researchProgress && (
         <MessageBlockBoundary>
-          <ResearchProgressCard progress={m.researchProgress as ResearchProgressData} />
+          <ResearchProgressCard
+            progress={m.researchProgress as ResearchProgressData}
+          />
         </MessageBlockBoundary>
       )}
 
       {/* Thinking Content (Extended Thinking Mode) */}
-      {m.role === "assistant" && m.thinking && (
+      {m.role === 'assistant' && m.thinking && (
         <View key="thinking-content" className="mb-3 w-full">
-          <Reasoning
-            isStreaming={
-              isLoading &&
-              isLastMessage &&
-              !messageText
-            }
-          >
-            <ReasoningTrigger
-              onPress={() => openThoughtPanel(m.id)}
-            />
+          <Reasoning isStreaming={isLoading && isLastMessage && !messageText}>
+            <ReasoningTrigger onPress={() => openThoughtPanel(m.id)} />
           </Reasoning>
         </View>
       )}
-
 
       {/* Message Content. `isStreaming` opens the block for VOICE only: a
           voice row shows its cursor before it has words, while a text turn's
           placeholder — stamped `isStreaming` too, now — is the thinking
           indicator's until its first token arrives. */}
-      {(messageText.length > 0 || messageImages.length > 0 || (m.isStreaming && m.source === 'voice')) && (
-        <View key="message-content" className={cn("w-full", m.role === "user" && "mt-2")}>
-          {m.role === "assistant" ? (
+      {(messageText.length > 0 ||
+        messageImages.length > 0 ||
+        (m.isStreaming && m.source === 'voice')) && (
+        <View
+          key="message-content"
+          className={cn('w-full', m.role === 'user' && 'mt-2')}
+        >
+          {m.role === 'assistant' ? (
             // Assistant message: text below (flying face handles avatar)
-            <DropdownMenu.Root>
-            <DropdownMenu.Trigger asChild>
-            <Pressable className="group">
-            <View className="flex-col items-start">
-              {/* Agent identity or cohost label (Alia face is floating) */}
-              {m.agentInfo ? (
-                <View className="flex-row items-center gap-2 mb-0.5">
-                  <IdentityMark
-                    size={20}
-                    color={agentTint(m.agentInfo.color, colors)}
-                    accessibilityLabel={m.agentInfo.name}
-                  />
-                  <Text className="text-xs font-semibold text-foreground">
-                    {m.agentInfo.name}
-                  </Text>
-                </View>
-              ) : m.source === 'voice' && m.speaker === 'cohost' ? (
-                <Text className="text-xs text-indigo-400 mb-0.5">Cohost</Text>
-              ) : null}
-              {/* The reply, as Bloom composes one: a container that fades in
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild label="Actions">
+                <Pressable className="group">
+                  <View className="flex-col items-start">
+                    {/* Agent identity or cohost label (Alia face is floating) */}
+                    {m.agentInfo ? (
+                      <View className="flex-row items-center gap-2 mb-0.5">
+                        <IdentityMark
+                          size={20}
+                          color={agentTint(m.agentInfo.color, colors)}
+                          accessibilityLabel={m.agentInfo.name}
+                        />
+                        <Text className="text-xs font-semibold text-foreground">
+                          {m.agentInfo.name}
+                        </Text>
+                      </View>
+                    ) : m.source === 'voice' && m.speaker === 'cohost' ? (
+                      <Text className="text-xs text-indigo-400 mb-0.5">
+                        Cohost
+                      </Text>
+                    ) : null}
+                    {/* The reply, as Bloom composes one: a container that fades in
                   while its blocks rise and un-blur 180ms apart.
 
                   `feedback={false}` because Alia's own action bar below is a
@@ -529,219 +637,298 @@ const MessageRow = React.memo(function MessageRow({
                   turn. The reveal is mount-only inside Bloom, so a streaming
                   reply does not restart it on each token; what it must not do
                   is play at all for a message restored from history. */}
-              <AiChatAssistantMessage
-                animate={isNewMessage}
-                feedback={false}
-                style={{ width: '100%' }}
-              >
-                {m.source === 'voice' ? (
-                  <Text className="text-base text-foreground leading-7">
-                    {messageText}
-                    {m.isStreaming ? '\u258C' : ''}
-                  </Text>
-                ) : (
-                  <CustomMarkdown
-                    content={messageText}
-                    toolInvocations={m.toolInvocations}
-                    researchSources={m.researchProgress?.sources}
-                  />
-                )}
-                {m.isStreaming && m.source === 'voice' ? null : (
-                  <MessageSources
-                    toolInvocations={m.toolInvocations}
-                    researchSources={m.researchProgress?.sources}
-                    onPress={() => openThoughtPanel(m.id, 'sources')}
-                  />
-                )}
-              </AiChatAssistantMessage>
-              {/* Action Buttons for Assistant Messages */}
-              <View className={ACTION_BAR}>
-                <Pressable
-                  key="read-aloud"
-                  className={ACTION_BTN}
-                  onPress={() => readAloud(m.id, messageText, chatId?.id, m.audioUrl)}
-                  accessibilityRole="button"
-                  accessibilityLabel={rowT('chat.readAloud')}
-                  accessibilityState={{ selected: ttsState === 'playing' || ttsState === 'paused', busy: ttsState === 'loading' }}
-                >
-                  {ttsState === 'playing' || ttsState === 'paused' ? (
-                    <Square size={14} className={ttsState === 'playing' ? "text-primary" : "text-muted-foreground"} />
-                  ) : (
-                    <Volume2 size={14} className={ttsState === 'loading' ? "text-primary opacity-50" : "text-muted-foreground"} />
-                  )}
+                    <AiChatAssistantMessage
+                      animate={isNewMessage}
+                      feedback={false}
+                      style={{ width: '100%' }}
+                    >
+                      {m.source === 'voice' ? (
+                        <Text className="text-base text-foreground leading-7">
+                          {messageText}
+                          {m.isStreaming ? '\u258C' : ''}
+                        </Text>
+                      ) : (
+                        <CustomMarkdown
+                          content={messageText}
+                          toolInvocations={m.toolInvocations}
+                          researchSources={m.researchProgress?.sources}
+                        />
+                      )}
+                      {m.isStreaming && m.source === 'voice' ? null : (
+                        <MessageSources
+                          toolInvocations={m.toolInvocations}
+                          researchSources={m.researchProgress?.sources}
+                          onPress={() => openThoughtPanel(m.id, 'sources')}
+                        />
+                      )}
+                    </AiChatAssistantMessage>
+                    {/* Action Buttons for Assistant Messages */}
+                    <View className={ACTION_BAR}>
+                      <Pressable
+                        key="read-aloud"
+                        className={ACTION_BTN}
+                        onPress={() =>
+                          readAloud(m.id, messageText, chatId?.id, m.audioUrl)
+                        }
+                        accessibilityRole="button"
+                        accessibilityLabel={rowT('chat.readAloud')}
+                        accessibilityState={{
+                          selected:
+                            ttsState === 'playing' || ttsState === 'paused',
+                          busy: ttsState === 'loading',
+                        }}
+                      >
+                        {ttsState === 'playing' || ttsState === 'paused' ? (
+                          <Square
+                            size={14}
+                            className={
+                              ttsState === 'playing'
+                                ? 'text-primary'
+                                : 'text-muted-foreground'
+                            }
+                          />
+                        ) : (
+                          <Volume2
+                            size={14}
+                            className={
+                              ttsState === 'loading'
+                                ? 'text-primary opacity-50'
+                                : 'text-muted-foreground'
+                            }
+                          />
+                        )}
+                      </Pressable>
+                      <Pressable
+                        key="generate-audio"
+                        className={ACTION_BTN}
+                        onPress={() =>
+                          generateAudio(m.id, messageText, chatId?.id)
+                        }
+                        accessibilityRole="button"
+                        accessibilityLabel={rowT('chat.generateAudio')}
+                        accessibilityState={{
+                          selected: audioGenRowState === 'playing',
+                          busy: audioGenRowState === 'generating',
+                        }}
+                      >
+                        {audioGenRowState === 'playing' ? (
+                          <Square size={14} className="text-primary" />
+                        ) : (
+                          <Music
+                            size={14}
+                            className={
+                              audioGenRowState === 'generating'
+                                ? 'text-primary opacity-50'
+                                : 'text-muted-foreground'
+                            }
+                          />
+                        )}
+                      </Pressable>
+                      <Pressable
+                        key="copy"
+                        className={ACTION_BTN}
+                        onPress={() => handleCopyMessage(m.id, messageText)}
+                        accessibilityRole="button"
+                        accessibilityLabel={rowT('chat.copy')}
+                      >
+                        {isCopied ? (
+                          <Check size={14} className="text-green-500" />
+                        ) : (
+                          <Copy size={14} className="text-muted-foreground" />
+                        )}
+                      </Pressable>
+                      {onRegenerate === undefined || m.isStreaming ? null : (
+                        <Pressable
+                          key="regenerate"
+                          className={ACTION_BTN}
+                          onPress={() => onRegenerate(m.id)}
+                          accessibilityRole="button"
+                          accessibilityLabel={rowT('chat.regenerate')}
+                        >
+                          <RotateCcw
+                            size={14}
+                            className="text-muted-foreground"
+                          />
+                        </Pressable>
+                      )}
+                      <Pressable
+                        key="thumbs-up"
+                        className={ACTION_BTN}
+                        onPress={() => handleVote(m.id, 'up', chatId?.id)}
+                        accessibilityRole="button"
+                        accessibilityLabel={rowT('chat.like')}
+                        accessibilityState={{ selected: myVote === 'up' }}
+                      >
+                        <ThumbsUp
+                          size={14}
+                          className={
+                            myVote === 'up'
+                              ? 'text-primary'
+                              : 'text-muted-foreground'
+                          }
+                        />
+                      </Pressable>
+                      <Pressable
+                        key="thumbs-down"
+                        className={ACTION_BTN}
+                        onPress={() => handleVote(m.id, 'down', chatId?.id)}
+                        accessibilityRole="button"
+                        accessibilityLabel={rowT('chat.dislike')}
+                        accessibilityState={{ selected: myVote === 'down' }}
+                      >
+                        <ThumbsDown
+                          size={14}
+                          className={
+                            myVote === 'down'
+                              ? 'text-primary'
+                              : 'text-muted-foreground'
+                          }
+                        />
+                      </Pressable>
+                    </View>
+                  </View>
                 </Pressable>
-                <Pressable
-                  key="generate-audio"
-                  className={ACTION_BTN}
-                  onPress={() => generateAudio(m.id, messageText, chatId?.id)}
-                  accessibilityRole="button"
-                  accessibilityLabel={rowT('chat.generateAudio')}
-                  accessibilityState={{ selected: audioGenRowState === 'playing', busy: audioGenRowState === 'generating' }}
-                >
-                  {audioGenRowState === 'playing' ? (
-                    <Square size={14} className="text-primary" />
-                  ) : (
-                    <Music size={14} className={audioGenRowState === 'generating' ? "text-primary opacity-50" : "text-muted-foreground"} />
-                  )}
-                </Pressable>
-                <Pressable
-                  key="copy"
-                  className={ACTION_BTN}
-                  onPress={() => handleCopyMessage(m.id, messageText)}
-                  accessibilityRole="button"
-                  accessibilityLabel={rowT('chat.copy')}
-                >
-                  {isCopied ? (
-                    <Check size={14} className="text-green-500" />
-                  ) : (
-                    <Copy size={14} className="text-muted-foreground" />
-                  )}
-                </Pressable>
-                {onRegenerate === undefined || m.isStreaming ? null : (
-                  <Pressable
-                    key="regenerate"
-                    className={ACTION_BTN}
-                    onPress={() => onRegenerate(m.id)}
-                    accessibilityRole="button"
-                    accessibilityLabel={rowT('chat.regenerate')}
+              </DropdownMenuTrigger>
+              {!isWeb && (
+                <DropdownMenuContent>
+                  <DropdownMenuItem
+                    key="read-aloud"
+                    onPress={() =>
+                      readAloud(m.id, messageText, chatId?.id, m.audioUrl)
+                    }
+                    leading={<RiVolumeUpLine size="sm" />}
                   >
-                    <RotateCcw size={14} className="text-muted-foreground" />
-                  </Pressable>
-                )}
-                <Pressable
-                  key="thumbs-up"
-                  className={ACTION_BTN}
-                  onPress={() => handleVote(m.id, 'up', chatId?.id)}
-                  accessibilityRole="button"
-                  accessibilityLabel={rowT('chat.like')}
-                  accessibilityState={{ selected: myVote === 'up' }}
-                >
-                  <ThumbsUp size={14} className={myVote === 'up' ? "text-primary" : "text-muted-foreground"} />
-                </Pressable>
-                <Pressable
-                  key="thumbs-down"
-                  className={ACTION_BTN}
-                  onPress={() => handleVote(m.id, 'down', chatId?.id)}
-                  accessibilityRole="button"
-                  accessibilityLabel={rowT('chat.dislike')}
-                  accessibilityState={{ selected: myVote === 'down' }}
-                >
-                  <ThumbsDown size={14} className={myVote === 'down' ? "text-primary" : "text-muted-foreground"} />
-                </Pressable>
-              </View>
-            </View>
-            </Pressable>
-            </DropdownMenu.Trigger>
-            {!isWeb && (
-            <DropdownMenu.Content>
-              <DropdownMenu.Item key="read-aloud" onSelect={() => readAloud(m.id, messageText, chatId?.id, m.audioUrl)}>
-                <DropdownMenu.ItemIcon ios={{ name: "speaker.wave.2" }} />
-                <DropdownMenu.ItemTitle>{rowT('chat.readAloud')}</DropdownMenu.ItemTitle>
-              </DropdownMenu.Item>
-              <DropdownMenu.Item key="generate-audio" onSelect={() => generateAudio(m.id, messageText, chatId?.id)}>
-                <DropdownMenu.ItemIcon ios={{ name: "music.note" }} />
-                <DropdownMenu.ItemTitle>{rowT('chat.generateAudio')}</DropdownMenu.ItemTitle>
-              </DropdownMenu.Item>
-              <DropdownMenu.Item key="copy" onSelect={() => handleCopyMessage(m.id, messageText)}>
-                <DropdownMenu.ItemIcon ios={{ name: "doc.on.doc" }} />
-                <DropdownMenu.ItemTitle>{rowT('chat.copy')}</DropdownMenu.ItemTitle>
-              </DropdownMenu.Item>
-              {onRegenerate === undefined ? null : (
-                <DropdownMenu.Item key="regenerate" onSelect={() => onRegenerate(m.id)}>
-                  <DropdownMenu.ItemIcon ios={{ name: "arrow.clockwise" }} />
-                  <DropdownMenu.ItemTitle>{rowT('chat.regenerate')}</DropdownMenu.ItemTitle>
-                </DropdownMenu.Item>
+                    {rowT('chat.readAloud')}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    key="generate-audio"
+                    onPress={() => generateAudio(m.id, messageText, chatId?.id)}
+                    leading={<RiMusic2Line size="sm" />}
+                  >
+                    {rowT('chat.generateAudio')}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    key="copy"
+                    onPress={() => handleCopyMessage(m.id, messageText)}
+                    leading={<RiFileCopyLine size="sm" />}
+                  >
+                    {rowT('chat.copy')}
+                  </DropdownMenuItem>
+                  {onRegenerate === undefined ? null : (
+                    <DropdownMenuItem
+                      key="regenerate"
+                      onPress={() => onRegenerate(m.id)}
+                      leading={<RiRefreshLine size="sm" />}
+                    >
+                      {rowT('chat.regenerate')}
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuItem
+                    key="thumbs-up"
+                    onPress={() => handleVote(m.id, 'up', chatId?.id)}
+                    leading={<RiThumbUpLine size="sm" />}
+                  >
+                    {rowT('chat.like')}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    key="thumbs-down"
+                    onPress={() => handleVote(m.id, 'down', chatId?.id)}
+                    leading={<RiThumbDownLine size="sm" />}
+                  >
+                    {rowT('chat.dislike')}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
               )}
-              <DropdownMenu.Item key="thumbs-up" onSelect={() => handleVote(m.id, 'up', chatId?.id)}>
-                <DropdownMenu.ItemIcon ios={{ name: "hand.thumbsup" }} />
-                <DropdownMenu.ItemTitle>{rowT('chat.like')}</DropdownMenu.ItemTitle>
-              </DropdownMenu.Item>
-              <DropdownMenu.Item key="thumbs-down" onSelect={() => handleVote(m.id, 'down', chatId?.id)}>
-                <DropdownMenu.ItemIcon ios={{ name: "hand.thumbsdown" }} />
-                <DropdownMenu.ItemTitle>{rowT('chat.dislike')}</DropdownMenu.ItemTitle>
-              </DropdownMenu.Item>
-            </DropdownMenu.Content>
-            )}
-            </DropdownMenu.Root>
+            </DropdownMenu>
           ) : (
             // User message: bubble only
-            <DropdownMenu.Root>
-            <DropdownMenu.Trigger asChild>
-            <Pressable className="group">
-            <View className="flex-col items-end gap-0.5">
-                {/* Bloom's turn, not a bubble of our own: radius, column half,
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild label="Actions">
+                <Pressable className="group">
+                  <View className="flex-col items-end gap-0.5">
+                    {/* Bloom's turn, not a bubble of our own: radius, column half,
                     the 6px bleed past the column, the card shadow and the
                     reveal all come from `AiChatUserMessage`. It reveals only
                     for a message that has just arrived — `animate` is the same
                     `isNewMessage` the row used to hand `FadeInUp`, which is
                     what keeps restored history and a page loaded above from
                     replaying as if the whole conversation were new. */}
-                <AiChatUserMessage animate={isNewMessage}>
-                  {messageImages.length > 0 && (
-                    <View className="flex-row flex-wrap gap-2">
-                      {messageImages.map((imgUrl, imgIdx) => (
-                        <View key={`img-${imgIdx}`} className="rounded-xl overflow-hidden" style={imageThumbStyle}>
-                          <Image
-                            source={{ uri: imgUrl }}
-                            className="w-full h-full"
-                            contentFit="cover"
-                          />
+                    <AiChatUserMessage animate={isNewMessage}>
+                      {messageImages.length > 0 && (
+                        <View className="flex-row flex-wrap gap-2">
+                          {messageImages.map((imgUrl, imgIdx) => (
+                            <View
+                              key={`img-${imgIdx}`}
+                              className="rounded-xl overflow-hidden"
+                              style={imageThumbStyle}
+                            >
+                              <Image
+                                source={{ uri: imgUrl }}
+                                className="w-full h-full"
+                                contentFit="cover"
+                              />
+                            </View>
+                          ))}
                         </View>
-                      ))}
-                    </View>
-                  )}
-                  {messageText}
-                </AiChatUserMessage>
-              {/* Action Buttons for User Messages */}
-                <View className={ACTION_BAR}>
-                  <Pressable
-                    key="copy"
-                    className={ACTION_BTN}
-                    onPress={() => handleCopyMessage(m.id, messageText)}
-                    accessibilityRole="button"
-                    accessibilityLabel={rowT('chat.copy')}
-                  >
-                    {isCopied ? (
-                      <Check size={14} className="text-green-500" />
-                    ) : (
-                      <Copy size={14} className="text-muted-foreground" />
-                    )}
-                  </Pressable>
-                  {/* Absent on a message from an earlier conversation. Editing
+                      )}
+                      {messageText}
+                    </AiChatUserMessage>
+                    {/* Action Buttons for User Messages */}
+                    <View className={ACTION_BAR}>
+                      <Pressable
+                        key="copy"
+                        className={ACTION_BTN}
+                        onPress={() => handleCopyMessage(m.id, messageText)}
+                        accessibilityRole="button"
+                        accessibilityLabel={rowT('chat.copy')}
+                      >
+                        {isCopied ? (
+                          <Check size={14} className="text-green-500" />
+                        ) : (
+                          <Copy size={14} className="text-muted-foreground" />
+                        )}
+                      </Pressable>
+                      {/* Absent on a message from an earlier conversation. Editing
                       truncates the live thread at that message and re-sends —
                       and a message this screen is not streaming is not in that
                       list, so the truncation finds nothing and the "edit"
                       silently becomes a brand-new turn. */}
+                      {onStartEdit === undefined ? null : (
+                        <Pressable
+                          key="edit"
+                          className={ACTION_BTN}
+                          onPress={() => onStartEdit(m.id, messageText)}
+                          accessibilityRole="button"
+                          accessibilityLabel={rowT('chat.edit')}
+                        >
+                          <Pencil size={14} className="text-muted-foreground" />
+                        </Pressable>
+                      )}
+                    </View>
+                  </View>
+                </Pressable>
+              </DropdownMenuTrigger>
+              {!isWeb && (
+                <DropdownMenuContent>
+                  <DropdownMenuItem
+                    key="copy"
+                    onPress={() => handleCopyMessage(m.id, messageText)}
+                    leading={<RiFileCopyLine size="sm" />}
+                  >
+                    {rowT('chat.copy')}
+                  </DropdownMenuItem>
                   {onStartEdit === undefined ? null : (
-                    <Pressable
+                    <DropdownMenuItem
                       key="edit"
-                      className={ACTION_BTN}
                       onPress={() => onStartEdit(m.id, messageText)}
-                      accessibilityRole="button"
-                      accessibilityLabel={rowT('chat.edit')}
+                      leading={<RiEditLine size="sm" />}
                     >
-                      <Pencil size={14} className="text-muted-foreground" />
-                    </Pressable>
+                      {rowT('chat.edit')}
+                    </DropdownMenuItem>
                   )}
-                </View>
-            </View>
-            </Pressable>
-            </DropdownMenu.Trigger>
-            {!isWeb && (
-            <DropdownMenu.Content>
-              <DropdownMenu.Item key="copy" onSelect={() => handleCopyMessage(m.id, messageText)}>
-                <DropdownMenu.ItemIcon ios={{ name: "doc.on.doc" }} />
-                <DropdownMenu.ItemTitle>{rowT('chat.copy')}</DropdownMenu.ItemTitle>
-              </DropdownMenu.Item>
-              {onStartEdit === undefined ? null : (
-                <DropdownMenu.Item key="edit" onSelect={() => onStartEdit(m.id, messageText)}>
-                  <DropdownMenu.ItemIcon ios={{ name: "pencil" }} />
-                  <DropdownMenu.ItemTitle>{rowT('chat.edit')}</DropdownMenu.ItemTitle>
-                </DropdownMenu.Item>
+                </DropdownMenuContent>
               )}
-            </DropdownMenu.Content>
-            )}
-            </DropdownMenu.Root>
+            </DropdownMenu>
           )}
         </View>
       )}
@@ -762,10 +949,13 @@ const MessageRow = React.memo(function MessageRow({
        * before the screen did. The duration Alia can stand behind is the one
        * the runtime stamps, and `WorkSummary` above already reads it. */}
       {(isLoading || voiceAgentState === 'thinking') &&
-        m.role === "assistant" &&
+        m.role === 'assistant' &&
         isLastMessage &&
-        !messageText && (() => {
-          const activeTool = m.toolInvocations?.find(t => t.state === 'call' || t.state === 'partial-call');
+        !messageText &&
+        (() => {
+          const activeTool = m.toolInvocations?.find(
+            (t) => t.state === 'call' || t.state === 'partial-call',
+          );
           const rp = m.researchProgress;
           const isWorking = (m.toolInvocations?.length ?? 0) > 0;
           let activeStatus: string | undefined;
@@ -779,7 +969,10 @@ const MessageRow = React.memo(function MessageRow({
           return (
             <AgentThinking
               variant={isWorking ? 'infinity' : 'wave'}
-              label={activeStatus ?? rowT(isWorking ? 'chat.working' : 'chat.thinking')}
+              label={
+                activeStatus ??
+                rowT(isWorking ? 'chat.working' : 'chat.thinking')
+              }
               showTimer={false}
             />
           );
@@ -790,214 +983,237 @@ const MessageRow = React.memo(function MessageRow({
 
 const imageThumbStyle = { width: 120, height: 120 };
 
-export const ChatInterface = React.memo(function ChatInterface({ messages, threadRef, onLoadHistory, isLoading, conversationLoading, onStartEdit, onRegenerate, onCopyMessage, bottomPadding = 160, isVoiceActive = false, voiceAgentState, onScroll, agentActivity, agentSessionId, onApprovePlan, onRejectPlan, suggestedNewConversation, onAcceptNewConversation, onDismissNewConversation, historyMessages, isLoadingHistory = false, onHistoryHeight, activeConversationId, focusCursor, failedTurn, onRetryTurn }: ChatInterfaceProps) {
-    const { t, locale } = useTranslation();
-    const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
-    const [votedMessages, setVotedMessages] = useState<Record<string, 'up' | 'down'>>({});
-    const voteInFlightRef = useRef<Set<string>>(new Set());
-    const openThoughtPanel = useUIStore((s) => s.openThoughtPanel);
-    const syncThoughtScope = useUIStore((s) => s.syncThoughtScope);
-    const queryClient = useQueryClient();
-    const { readAloud, activeMessageId: ttsActiveMessageId, playbackState: ttsPlaybackState } = useTTS();
-    const { generateAudio, activeMessageId: audioGenActiveMessageId, state: audioGenState } = useAudioGen();
-    const chatId = useStore(s => s.chatId);
-    const { colors } = useColorScheme();
+export const ChatInterface = React.memo(function ChatInterface({
+  messages,
+  threadRef,
+  onLoadHistory,
+  isLoading,
+  conversationLoading,
+  onStartEdit,
+  onRegenerate,
+  onCopyMessage,
+  bottomPadding = 0,
+  isVoiceActive = false,
+  voiceAgentState,
+  onScroll,
+  agentActivity,
+  agentSessionId,
+  onApprovePlan,
+  onRejectPlan,
+  suggestedNewConversation,
+  onAcceptNewConversation,
+  onDismissNewConversation,
+  historyMessages,
+  isLoadingHistory = false,
+  onHistoryHeight,
+  activeConversationId,
+  focusCursor,
+  failedTurn,
+  onRetryTurn,
+}: ChatInterfaceProps) {
+  const { t, locale } = useTranslation();
+  const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
+  const [votedMessages, setVotedMessages] = useState<
+    Record<string, 'up' | 'down'>
+  >({});
+  const voteInFlightRef = useRef<Set<string>>(new Set());
+  const openThoughtPanel = useUIStore((s) => s.openThoughtPanel);
+  const syncThoughtScope = useUIStore((s) => s.syncThoughtScope);
+  const queryClient = useQueryClient();
+  const {
+    readAloud,
+    activeMessageId: ttsActiveMessageId,
+    playbackState: ttsPlaybackState,
+  } = useTTS();
+  const {
+    generateAudio,
+    activeMessageId: audioGenActiveMessageId,
+    state: audioGenState,
+  } = useAudioGen();
+  const chatId = useStore((s) => s.chatId);
+  const { colors } = useColorScheme();
 
-    // Track previous message count — only animate newly added messages
-    const prevMessageCountRef = useRef(messages.length);
-    useEffect(() => {
-      prevMessageCountRef.current = messages.length;
-    }, [messages.length]);
+  // Track previous message count — only animate newly added messages
+  const prevMessageCountRef = useRef(messages.length);
+  useEffect(() => {
+    prevMessageCountRef.current = messages.length;
+  }, [messages.length]);
 
-    // ── Flying IdentityMark ──
-    const markY = useSharedValue(0);
+  const liveMessages = useMemo(
+    () => messages.filter((m) => m != null && m.role),
+    [messages],
+  );
+  const history = historyMessages ?? NO_HISTORY;
+  /**
+   * Everything on screen, in reading order: the thread's history first, the
+   * conversation being streamed into after it.
+   *
+   * Every position below — the separators and which row is
+   * last — is an index into THIS, not into the live messages, which is why it
+   * is built once here rather than concatenated at each use.
+   */
+  const filteredMessages = useMemo(
+    () => (history.length === 0 ? liveMessages : [...history, ...liveMessages]),
+    [history, liveMessages],
+  );
 
-    const liveMessages = useMemo(() => messages.filter(m => m != null && m.role), [messages]);
-    const history = historyMessages ?? NO_HISTORY;
-    /**
-     * Everything on screen, in reading order: the thread's history first, the
-     * conversation being streamed into after it.
-     *
-     * Every position below — the separators, the flying mark, which row is
-     * last — is an index into THIS, not into the live messages, which is why it
-     * is built once here rather than concatenated at each use.
-     */
-    const filteredMessages = useMemo(
-      () => (history.length === 0 ? liveMessages : [...history, ...liveMessages]),
-      [history, liveMessages],
-    );
+  /**
+   * Every turn's start and end, computed once for the whole thread.
+   *
+   * `renderMessage` used to ask `turnTiming(m, filteredMessages)` per row,
+   * handing it the entire list each time — and that function has to FIND the
+   * row before it can answer, so each call opened with a `findIndex` across
+   * the thread and then walked backwards for the send. Two scans per row
+   * makes drawing n messages O(n²), and this list re-renders roughly twenty
+   * times a second while an answer streams. Measured: 8.3ms per render at
+   * 1,000 messages and 80ms at 5,000, recomputing on every token an answer
+   * that only changes when the thread does.
+   *
+   * One pass over the same list gives the same answers — pinned row by row
+   * against the old function in `lib/__tests__/turn-timings-scale.test.ts` —
+   * and the memo means a streamed token does not trigger even that.
+   */
+  const timingsByMessage = useMemo(
+    () => turnTimings(filteredMessages as unknown as ConversationMessage[]),
+    [filteredMessages],
+  );
 
-    /**
-     * Every turn's start and end, computed once for the whole thread.
-     *
-     * `renderMessage` used to ask `turnTiming(m, filteredMessages)` per row,
-     * handing it the entire list each time — and that function has to FIND the
-     * row before it can answer, so each call opened with a `findIndex` across
-     * the thread and then walked backwards for the send. Two scans per row
-     * makes drawing n messages O(n²), and this list re-renders roughly twenty
-     * times a second while an answer streams. Measured: 8.3ms per render at
-     * 1,000 messages and 80ms at 5,000, recomputing on every token an answer
-     * that only changes when the thread does.
-     *
-     * One pass over the same list gives the same answers — pinned row by row
-     * against the old function in `lib/__tests__/turn-timings-scale.test.ts` —
-     * and the memo means a streamed token does not trigger even that.
-     */
-    const timingsByMessage = useMemo(
-      () => turnTimings(filteredMessages as unknown as ConversationMessage[]),
-      [filteredMessages],
-    );
+  /**
+   * The conversation each history message belongs to, as the id a row's own
+   * actions address.
+   *
+   * A vote goes to `/conversations/:id/messages/:id/vote` and audio is cached
+   * against a conversation, and both used to take the id of the stretch on
+   * screen — right for a live message and wrong for every history one, which
+   * belongs to a conversation that ended. It would have written to a
+   * conversation that does not contain the message, and failed quietly.
+   *
+   * One entry per conversation rather than per message: these are props of a
+   * memoized row, so a fresh object per row would re-render every one of them
+   * on every streamed token.
+   */
+  const historyChatIds = useMemo(() => {
+    const byConversation = new Map<string, ChatIdState>();
+    for (const message of history) {
+      if (byConversation.has(message.conversationId)) continue;
+      byConversation.set(message.conversationId, {
+        id: message.conversationId,
+        from: 'url',
+      });
+    }
+    return byConversation;
+  }, [history]);
 
-    /**
-     * The conversation each history message belongs to, as the id a row's own
-     * actions address.
-     *
-     * A vote goes to `/conversations/:id/messages/:id/vote` and audio is cached
-     * against a conversation, and both used to take the id of the stretch on
-     * screen — right for a live message and wrong for every history one, which
-     * belongs to a conversation that ended. It would have written to a
-     * conversation that does not contain the message, and failed quietly.
-     *
-     * One entry per conversation rather than per message: these are props of a
-     * memoized row, so a fresh object per row would re-render every one of them
-     * on every streamed token.
-     */
-    const historyChatIds = useMemo(() => {
-      const byConversation = new Map<string, ChatIdState>();
-      for (const message of history) {
-        if (byConversation.has(message.conversationId)) continue;
-        byConversation.set(message.conversationId, { id: message.conversationId, from: 'url' });
-      }
-      return byConversation;
-    }, [history]);
+  /**
+   * Which messages begin a new conversation, deduced from the data rather
+   * than from how long the gap was. Empty on `/c/:id`, which is one
+   * conversation and therefore has no seams.
+   */
+  const seamIds = useMemo(
+    () => threadSeamIds(history, liveMessages, activeConversationId ?? ''),
+    [history, liveMessages, activeConversationId],
+  );
 
-    /**
-     * Which messages begin a new conversation, deduced from the data rather
-     * than from how long the gap was. Empty on `/c/:id`, which is one
-     * conversation and therefore has no seams.
-     */
-    const seamIds = useMemo(
-      () => threadSeamIds(history, liveMessages, activeConversationId ?? ''),
-      [history, liveMessages, activeConversationId],
-    );
-
-    /**
-     * Where the thread changes day, as the finished line, keyed by the message
-     * each one sits above.
-     *
-     * `new Date()` is read here rather than passed in because "today" is a fact
-     * about when the list is being LOOKED at. It is re-read whenever the list
-     * changes, which is what relabels a thread left open across midnight on the
-     * next message rather than on a timer nobody needs.
-     *
-     * Keyed on `locale`, not on `t`: `useTranslation` builds a new `t` on every
-     * render, so depending on it would recompute this per streamed token, and
-     * `i18n.t` reads the locale this depends on at call time anyway.
-     */
-    const separatorsByMessage = useMemo(() => {
-      const separators = daySeparators(filteredMessages, new Date(), locale);
-      return new Map(separators.map(({ messageId, label }) => [
+  /**
+   * Where the thread changes day, as the finished line, keyed by the message
+   * each one sits above.
+   *
+   * `new Date()` is read here rather than passed in because "today" is a fact
+   * about when the list is being LOOKED at. It is re-read whenever the list
+   * changes, which is what relabels a thread left open across midnight on the
+   * next message rather than on a timer nobody needs.
+   *
+   * Keyed on `locale`, not on `t`: `useTranslation` builds a new `t` on every
+   * render, so depending on it would recompute this per streamed token, and
+   * `i18n.t` reads the locale this depends on at call time anyway.
+   */
+  const separatorsByMessage = useMemo(() => {
+    const separators = daySeparators(filteredMessages, new Date(), locale);
+    return new Map(
+      separators.map(({ messageId, label }) => [
         messageId,
         label.kind === 'date' ? label.text : t(`chat.${label.kind}`),
-      ]));
-    }, [filteredMessages, locale]);
-    const lastAliaIndex = useMemo(() => filteredMessages.reduce((acc, m, i) =>
-      isAliaOwnedMessage(m) ? i : acc, -1), [filteredMessages]);
+      ]),
+    );
+  }, [filteredMessages, locale]);
+  const lastAliaIndex = useMemo(
+    () =>
+      filteredMessages.reduce(
+        (acc, m, i) => (isAliaOwnedMessage(m) ? i : acc),
+        -1,
+      ),
+    [filteredMessages],
+  );
 
-    // Derive mark state from voice state or text chat state
-    const markState = useMemo<IdentityMarkState>(() => {
-      if (isVoiceActive && voiceAgentState) {
-        if (voiceAgentState === 'thinking') return 'thinking';
-        if (voiceAgentState === 'speaking') return 'writing';
-        return 'idle';
-      }
-      if (lastAliaIndex < 0) return 'idle';
-      const m = filteredMessages[lastAliaIndex];
-      // Raw text is enough for the presence check — running the full
-      // tag-stripping pipeline here doubled the regex work on every
-      // streaming flush. Worst case a tag-only chunk briefly reads
-      // 'writing' instead of 'thinking'.
-      const text = getRawMessageText(m).trim();
-      const hasActiveTools = m.toolInvocations?.some(
-        (t: ToolInvocation) => t.state === 'call' || t.state === 'partial-call'
-      );
-      if (hasActiveTools) return 'working';
-      if (isLoading && !text) return 'thinking';
-      if (isLoading && text.length > 0) return 'writing';
-      return 'idle';
-    }, [filteredMessages, lastAliaIndex, isLoading, voiceAgentState, isVoiceActive]);
+  /**
+   * This conversation as the thought panel reads it: its messages, whether
+   * they are all here yet, and the turn in flight.
+   *
+   * Keyed on the conversation and its messages, NOT on the panel being open.
+   * Syncing only while the panel was open meant the first press on a tool
+   * row rendered against whatever the store held before — another
+   * conversation's messages, or none — and found nothing by id (#542).
+   * The store accepts this only while the open selection belongs to the
+   * same conversation, so the new-chat screen mounted underneath cannot
+   * blank a panel opened here.
+   *
+   * A load that failed is read off the query cache at the moment the memo
+   * recomputes: the load's end is what flips `conversationLoading`, so the
+   * read is fresh exactly when it matters. The local Message shape is a
+   * structural superset of the conversation Message the store holds.
+   */
+  const liveThoughtScope = useMemo<ThoughtScope>(() => {
+    const loadFailed =
+      activeConversationId !== undefined &&
+      queryClient.getQueryState(
+        queryKeys.conversations.detail(activeConversationId),
+      )?.status === 'error';
+    return {
+      conversationId: activeConversationId ?? null,
+      messages: liveMessages as unknown as ConversationMessage[],
+      status: conversationLoading ? 'loading' : loadFailed ? 'failed' : 'ready',
+      isLoading: isLoading === true,
+      failedTurn: failedTurn ?? null,
+    };
+  }, [
+    activeConversationId,
+    liveMessages,
+    conversationLoading,
+    isLoading,
+    failedTurn,
+    queryClient,
+  ]);
 
-    const markAnimatedStyle = useAnimatedStyle(() => ({
-      position: 'absolute' as const,
-      left: 0,
-      top: markY.value,
-      zIndex: 10,
-    }));
+  useEffect(() => {
+    syncThoughtScope(liveThoughtScope);
+  }, [liveThoughtScope, syncThoughtScope]);
 
-    const handleMarkLayout = useCallback((e: LayoutChangeEvent) => {
-      markY.value = withTiming(e.nativeEvent.layout.y, {
-        duration: 500,
-        easing: Easing.bezier(0.4, 0, 0.2, 1),
-      });
-    }, [markY]);
+  /**
+   * What a press on a row has to hand the store, read at press time through
+   * a ref so the callback the memoized rows receive never changes — it is a
+   * prop of every row, and the live scope changes per streamed token.
+   */
+  const thoughtScopesRef = useRef({ live: liveThoughtScope, history });
+  useEffect(() => {
+    thoughtScopesRef.current = { live: liveThoughtScope, history };
+  });
 
-    /**
-     * This conversation as the thought panel reads it: its messages, whether
-     * they are all here yet, and the turn in flight.
-     *
-     * Keyed on the conversation and its messages, NOT on the panel being open.
-     * Syncing only while the panel was open meant the first press on a tool
-     * row rendered against whatever the store held before — another
-     * conversation's messages, or none — and found nothing by id (#542).
-     * The store accepts this only while the open selection belongs to the
-     * same conversation, so the new-chat screen mounted underneath cannot
-     * blank a panel opened here.
-     *
-     * A load that failed is read off the query cache at the moment the memo
-     * recomputes: the load's end is what flips `conversationLoading`, so the
-     * read is fresh exactly when it matters. The local Message shape is a
-     * structural superset of the conversation Message the store holds.
-     */
-    const liveThoughtScope = useMemo<ThoughtScope>(() => {
-      const loadFailed =
-        activeConversationId !== undefined &&
-        queryClient.getQueryState(queryKeys.conversations.detail(activeConversationId))?.status === 'error';
-      return {
-        conversationId: activeConversationId ?? null,
-        messages: liveMessages as unknown as ConversationMessage[],
-        status: conversationLoading ? 'loading' : loadFailed ? 'failed' : 'ready',
-        isLoading: isLoading === true,
-        failedTurn: failedTurn ?? null,
-      };
-    }, [activeConversationId, liveMessages, conversationLoading, isLoading, failedTurn, queryClient]);
-
-    useEffect(() => {
-      syncThoughtScope(liveThoughtScope);
-    }, [liveThoughtScope, syncThoughtScope]);
-
-    /**
-     * What a press on a row has to hand the store, read at press time through
-     * a ref so the callback the memoized rows receive never changes — it is a
-     * prop of every row, and the live scope changes per streamed token.
-     */
-    const thoughtScopesRef = useRef({ live: liveThoughtScope, history });
-    useEffect(() => {
-      thoughtScopesRef.current = { live: liveThoughtScope, history };
-    });
-
-    /**
-     * Open the panel on a row, with the conversation that row belongs to.
-     *
-     * A live row belongs to the conversation on screen. A history row belongs
-     * to an earlier stretch of the thread, which is persisted and complete, so
-     * its scope is that stretch's messages and nothing about the live turn.
-     * Both are written in the same update as the message id, which is what
-     * makes the first open show the message's own tool history.
-     */
-    const openThought = useCallback((messageId: string, tab?: ThoughtTab, opener?: unknown) => {
+  /**
+   * Open the panel on a row, with the conversation that row belongs to.
+   *
+   * A live row belongs to the conversation on screen. A history row belongs
+   * to an earlier stretch of the thread, which is persisted and complete, so
+   * its scope is that stretch's messages and nothing about the live turn.
+   * Both are written in the same update as the message id, which is what
+   * makes the first open show the message's own tool history.
+   */
+  const openThought = useCallback(
+    (messageId: string, tab?: ThoughtTab, opener?: unknown) => {
       rememberOpener(opener);
       const { live, history: thread } = thoughtScopesRef.current;
-      const past = live.messages.some((m) => m.id === messageId) ? undefined : thread.find((m) => m.id === messageId);
+      const past = live.messages.some((m) => m.id === messageId)
+        ? undefined
+        : thread.find((m) => m.id === messageId);
       if (past === undefined) {
         openThoughtPanel(messageId, live, tab);
         return;
@@ -1006,36 +1222,44 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, threa
         messageId,
         {
           conversationId: past.conversationId,
-          messages: thread.filter((m) => m.conversationId === past.conversationId),
+          messages: thread.filter(
+            (m) => m.conversationId === past.conversationId,
+          ),
           status: 'ready',
           isLoading: false,
           failedTurn: null,
         },
         tab,
       );
-    }, [openThoughtPanel]);
+    },
+    [openThoughtPanel],
+  );
 
-    const handleCopyMessage = useCallback(async (messageId: string, content: string) => {
+  const handleCopyMessage = useCallback(
+    async (messageId: string, content: string) => {
       await Clipboard.setStringAsync(content);
       setCopiedMessageId(messageId);
       setTimeout(() => setCopiedMessageId(null), 2000);
       toast.success(t('chat.copiedToClipboard'));
       onCopyMessage?.(content);
-    }, [onCopyMessage, t]);
+    },
+    [onCopyMessage, t],
+  );
 
-    /**
-     * `conversationId` comes from the ROW, not from the screen.
-     *
-     * The vote is addressed to the conversation the message is in, and a thread
-     * shows several: taking the id of the stretch on screen would send an old
-     * message's vote to a conversation that does not contain it, where it can
-     * only fail — and it fails silently, because the only report is a toast on
-     * success.
-     */
-    const handleVote = useCallback((messageId: string, vote: 'up' | 'down', conversationId?: string) => {
+  /**
+   * `conversationId` comes from the ROW, not from the screen.
+   *
+   * The vote is addressed to the conversation the message is in, and a thread
+   * shows several: taking the id of the stretch on screen would send an old
+   * message's vote to a conversation that does not contain it, where it can
+   * only fail — and it fails silently, because the only report is a toast on
+   * success.
+   */
+  const handleVote = useCallback(
+    (messageId: string, vote: 'up' | 'down', conversationId?: string) => {
       if (voteInFlightRef.current.has(messageId)) return;
       let newVote: 'up' | 'down' | null = null;
-      setVotedMessages(prev => {
+      setVotedMessages((prev) => {
         newVote = prev[messageId] === vote ? null : vote;
         if (newVote) return { ...prev, [messageId]: newVote };
         const { [messageId]: _, ...rest } = prev;
@@ -1043,258 +1267,270 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, threa
       });
       if (conversationId === undefined) return;
       voteInFlightRef.current.add(messageId);
-      apiClient.patch(`/conversations/${conversationId}/messages/${messageId}/vote`, { vote: newVote })
+      apiClient
+        .patch(`/conversations/${conversationId}/messages/${messageId}/vote`, {
+          vote: newVote,
+        })
         .then(() => toast.success(t('chat.thanksFeedback')))
         .catch(() => {
-          setVotedMessages(prev => {
+          setVotedMessages((prev) => {
             const { [messageId]: _, ...rest } = prev;
             return rest;
           });
         })
         .finally(() => voteInFlightRef.current.delete(messageId));
-    }, [t]);
+    },
+    [t],
+  );
 
-    const containerClassName = cn(
-      THREAD_COLUMN,
-      filteredMessages.length === 0 && "flex-1 justify-center"
-    );
+  /** Optional extra thread clearance; the template composer occupies its own row. */
+  const bottomSpacerStyle = useMemo(
+    () => ({ height: bottomPadding }),
+    [bottomPadding],
+  );
 
-    /**
-     * Room under the last turn for whatever floats over it.
-     *
-     * Bloom owns the thread's own `contentContainerStyle` — it carries the
-     * bottom-anchoring and the react-native-web `min-height` workaround — so
-     * this is spacing INSIDE the content instead of a container style. It has
-     * to be here rather than nowhere: the composer floats above the thread and
-     * would otherwise cover the newest answer.
-     */
-    const bottomSpacerStyle = useMemo(
-      () => ({ height: bottomPadding }),
-      [bottomPadding]
-    );
-
-    /**
-     * How tall the history is, reported whenever it changes.
-     *
-     * The height rather than a position: what the anchor needs is how much
-     * content was inserted above the reader, and only the history grows that
-     * way — a streamed answer grows the bottom.
-     */
-    const handleHistoryLayout = useCallback((e: LayoutChangeEvent) => {
+  /**
+   * How tall the history is, reported whenever it changes.
+   *
+   * The height rather than a position: what the anchor needs is how much
+   * content was inserted above the reader, and only the history grows that
+   * way — a streamed answer grows the bottom.
+   */
+  const handleHistoryLayout = useCallback(
+    (e: LayoutChangeEvent) => {
       onHistoryHeight?.(e.nativeEvent.layout.height);
-    }, [onHistoryHeight]);
+    },
+    [onHistoryHeight],
+  );
 
-    /**
-     * Put the message a jump was aimed at under the reader's eyes.
-     *
-     * Re-applied on every layout of that row rather than once, for the same
-     * reason the history anchor is: the rows above it settle in installments,
-     * so the first position it reports is not the one it keeps. Each call
-     * supersedes the last and the final one is right.
-     *
-     * The `y` is measured inside the history block, which begins exactly at the
-     * list's top padding — so scrolling to it lands the message a padding's
-     * width below the top edge rather than flush against it, which is where a
-     * message you went looking for wants to be.
-     */
-    const handleFocusLayout = useCallback((e: LayoutChangeEvent) => {
-      threadRef.current?.scrollToOffset({ offset: Math.max(0, e.nativeEvent.layout.y) });
-    }, [threadRef]);
+  /**
+   * Put the message a jump was aimed at under the reader's eyes.
+   *
+   * Re-applied on every layout of that row rather than once, for the same
+   * reason the history anchor is: the rows above it settle in installments,
+   * so the first position it reports is not the one it keeps. Each call
+   * supersedes the last and the final one is right.
+   *
+   * The `y` is measured inside the history block, which begins exactly at the
+   * list's top padding — so scrolling to it lands the message a padding's
+   * width below the top edge rather than flush against it, which is where a
+   * message you went looking for wants to be.
+   */
+  const handleFocusLayout = useCallback(
+    (e: LayoutChangeEvent) => {
+      threadRef.current?.scrollToOffset({
+        offset: Math.max(0, e.nativeEvent.layout.y),
+      });
+    },
+    [threadRef],
+  );
 
-    /**
-     * One message, wherever it sits in the whole of what is shown.
-     *
-     * `index` is a position in `filteredMessages` — history and live together —
-     * because that is what the flying mark, the day separators and "is this the
-     * last one" are all measured in. The two lists are rendered separately only
-     * so the history can be measured as a block.
-     */
-    const renderMessage = (m: Message, index: number) => {
-      const separator = separatorsByMessage.get(m.id);
-      const fromHistory = index < history.length;
-      // The send before this answer and the answer's own stamp bracket its
-      // work; both are primitives so the memoised row below holds. Looked up
-      // rather than computed: see `timingsByMessage`.
-      const timing = timingsByMessage.get(m.id) ?? EMPTY_TIMING;
+  /**
+   * One message, wherever it sits in the whole of what is shown.
+   *
+   * `index` is a position in `filteredMessages` — history and live together —
+   * because that is what the day separators and "is this the
+   * last one" are all measured in. The two lists are rendered separately only
+   * so the history can be measured as a block.
+   */
+  const renderMessage = (m: Message, index: number) => {
+    const separator = separatorsByMessage.get(m.id);
+    const fromHistory = index < history.length;
+    // The send before this answer and the answer's own stamp bracket its
+    // work; both are primitives so the memoised row below holds. Looked up
+    // rather than computed: see `timingsByMessage`.
+    const timing = timingsByMessage.get(m.id) ?? EMPTY_TIMING;
 
-      return (
-        <React.Fragment key={m.id || `msg-${index}`}>
-          {separator === undefined ? null : (
-            <DaySeparator text={separator} />
-          )}
-          {!seamIds.has(m.id) ? null : (
-            <ConversationSeam text={t('chat.newStretch')} />
-          )}
-          <MessageRow
-            m={m}
-            index={index}
-            // Only a message that arrived since the last render animates in,
-            // and none of the history ever did: it is older than everything on
-            // screen by definition, and the offset is what keeps a page landing
-            // above from animating the whole conversation.
-            isNewMessage={index >= history.length + prevMessageCountRef.current}
-            isAliaMessage={isAliaOwnedMessage(m)}
-            isLastAlia={index === lastAliaIndex}
-            isLoading={isLoading}
-            isLastMessage={index === filteredMessages.length - 1}
-            isCopied={copiedMessageId === m.id}
-            myVote={votedMessages[m.id] ?? null}
-            ttsState={ttsActiveMessageId === m.id ? ttsPlaybackState : 'idle'}
-            chatId={fromHistory ? historyChatIds.get(history[index].conversationId) ?? chatId : chatId}
-            voiceAgentState={voiceAgentState}
-            handleMarkLayout={handleMarkLayout}
-            onRowLayout={
-              fromHistory && focusCursor !== undefined && focusCursor !== null
-                && history[index].cursor === focusCursor
-                ? handleFocusLayout
-                : undefined
-            }
-            handleCopyMessage={handleCopyMessage}
-            handleVote={handleVote}
-            readAloud={readAloud}
-            generateAudio={generateAudio}
-            audioGenRowState={audioGenActiveMessageId === m.id ? audioGenState : 'idle'}
-            openThoughtPanel={openThought}
-            workStartedAt={timing.startedAt}
-            workEndedAt={timing.endedAt}
-            turnFailed={failedTurn !== null && failedTurn !== undefined && failedTurn.anchorMessageId === m.id}
-            onStartEdit={fromHistory ? undefined : onStartEdit}
-            onRegenerate={fromHistory ? undefined : onRegenerate}
-            onApprovePlan={onApprovePlan}
-            onRejectPlan={onRejectPlan}
-          />
-          {failedTurn === null || failedTurn === undefined || failedTurn.anchorMessageId !== m.id ? null : (
-            <FailedTurnCard
-              partial={failedTurn.partial}
-              retryable={failedTurn.retryable}
-              detail={failedTurn.detail}
-              onRetry={onRetryTurn}
-            />
-          )}
-        </React.Fragment>
-      );
-    };
-
-    /*
-     * Bloom's thread, with the four behaviours Alia's own scroll hook had.
-     *
-     * `followAnimated={false}` is the one that is not a default, and it is the
-     * rule `use-scroll-to-bottom.ts` was built around: an ANIMATED
-     * `scrollToEnd` emits a run of intermediate positions from above the end,
-     * and anything reading those as the reader's own scrolling stops following
-     * at the first token — the classic autoscroll that switches itself off and
-     * looks random. Unanimated there are no intermediate positions, so the
-     * trap is unreachable rather than guarded against.
-     *
-     * `onStartReached` rather than an end-reached: a chat pages UPWARD.
-     * `maintainStartPosition` adds the page's growth to the offset so the turn
-     * being read does not slide away under it — without that, a reader near
-     * the top is left near the top, asking for the next page, and the next,
-     * until the whole thread has been pulled in.
-     *
-     * The keyboard is handled by `ChatWorkspace` one level up: Bloom's AI Chat
-     * family imports no keyboard controller at all.
-     */
     return (
-      <AiChatThread
-        ref={threadRef}
-        followAnimated={false}
-        followThreshold={AT_BOTTOM_THRESHOLD}
-        onStartReached={onLoadHistory}
-        onStartReachedThreshold={NEAR_TOP}
-        maintainStartPosition={onLoadHistory !== undefined}
-        onScroll={onScroll}
-        style={{ paddingLeft: 16, paddingRight: 16 }}
-      >
-        <View className={containerClassName}>
-          {!filteredMessages.length && (
-            conversationLoading ? (
-              <View className="gap-5 py-4">
-                <View className="items-end">
-                  <Skeleton.Box width="65%" height={48} borderRadius={24} />
-                </View>
-                <View className="items-start gap-2.5">
-                  <Skeleton.Box width="80%" height={14} borderRadius={8} />
-                  <Skeleton.Box width="70%" height={14} borderRadius={8} />
-                  <Skeleton.Box width="45%" height={14} borderRadius={8} />
-                </View>
-                <View className="items-end">
-                  <Skeleton.Box width="50%" height={40} borderRadius={24} />
-                </View>
-                <View className="items-start gap-2.5">
-                  <Skeleton.Box width="85%" height={14} borderRadius={8} />
-                  <Skeleton.Box width="60%" height={14} borderRadius={8} />
-                </View>
+      <React.Fragment key={m.id || `msg-${index}`}>
+        {separator === undefined ? null : <DaySeparator text={separator} />}
+        {!seamIds.has(m.id) ? null : (
+          <ConversationSeam text={t('chat.newStretch')} />
+        )}
+        <MessageRow
+          m={m}
+          index={index}
+          // Only a message that arrived since the last render animates in,
+          // and none of the history ever did: it is older than everything on
+          // screen by definition, and the offset is what keeps a page landing
+          // above from animating the whole conversation.
+          isNewMessage={index >= history.length + prevMessageCountRef.current}
+          isAliaMessage={isAliaOwnedMessage(m)}
+          isLastAlia={index === lastAliaIndex}
+          isLoading={isLoading}
+          isLastMessage={index === filteredMessages.length - 1}
+          isCopied={copiedMessageId === m.id}
+          myVote={votedMessages[m.id] ?? null}
+          ttsState={ttsActiveMessageId === m.id ? ttsPlaybackState : 'idle'}
+          chatId={
+            fromHistory
+              ? (historyChatIds.get(history[index].conversationId) ?? chatId)
+              : chatId
+          }
+          voiceAgentState={voiceAgentState}
+          onRowLayout={
+            fromHistory &&
+            focusCursor !== undefined &&
+            focusCursor !== null &&
+            history[index].cursor === focusCursor
+              ? handleFocusLayout
+              : undefined
+          }
+          handleCopyMessage={handleCopyMessage}
+          handleVote={handleVote}
+          readAloud={readAloud}
+          generateAudio={generateAudio}
+          audioGenRowState={
+            audioGenActiveMessageId === m.id ? audioGenState : 'idle'
+          }
+          openThoughtPanel={openThought}
+          workStartedAt={timing.startedAt}
+          workEndedAt={timing.endedAt}
+          turnFailed={
+            failedTurn !== null &&
+            failedTurn !== undefined &&
+            failedTurn.anchorMessageId === m.id
+          }
+          onStartEdit={fromHistory ? undefined : onStartEdit}
+          onRegenerate={fromHistory ? undefined : onRegenerate}
+          onApprovePlan={onApprovePlan}
+          onRejectPlan={onRejectPlan}
+        />
+        {failedTurn === null ||
+        failedTurn === undefined ||
+        failedTurn.anchorMessageId !== m.id ? null : (
+          <FailedTurnCard
+            partial={failedTurn.partial}
+            retryable={failedTurn.retryable}
+            detail={failedTurn.detail}
+            onRetry={onRetryTurn}
+          />
+        )}
+      </React.Fragment>
+    );
+  };
+
+  /*
+   * Bloom's thread, with the four behaviours Alia's own scroll hook had.
+   *
+   * `followAnimated={false}` is the one that is not a default, and it is the
+   * rule `use-scroll-to-bottom.ts` was built around: an ANIMATED
+   * `scrollToEnd` emits a run of intermediate positions from above the end,
+   * and anything reading those as the reader's own scrolling stops following
+   * at the first token — the classic autoscroll that switches itself off and
+   * looks random. Unanimated there are no intermediate positions, so the
+   * trap is unreachable rather than guarded against.
+   *
+   * `onStartReached` rather than an end-reached: a chat pages UPWARD.
+   * `maintainStartPosition` adds the page's growth to the offset so the turn
+   * being read does not slide away under it — without that, a reader near
+   * the top is left near the top, asking for the next page, and the next,
+   * until the whole thread has been pulled in.
+   *
+   * The keyboard is handled by `ChatWorkspace` one level up: Bloom's AI Chat
+   * family imports no keyboard controller at all.
+   */
+  return (
+    <AiChatThread
+      ref={threadRef}
+      followAnimated={false}
+      followThreshold={AT_BOTTOM_THRESHOLD}
+      onStartReached={onLoadHistory}
+      onStartReachedThreshold={NEAR_TOP}
+      maintainStartPosition={onLoadHistory !== undefined}
+      onScroll={onScroll}
+    >
+      <View className="w-full">
+        {!filteredMessages.length &&
+          (conversationLoading ? (
+            <View className="gap-5 py-4">
+              <View className="items-end">
+                <Skeleton.Box width="65%" height={48} borderRadius={24} />
               </View>
-            ) : (
-              <WelcomeMessage />
-            )
-          )}
+              <View className="items-start gap-2.5">
+                <Skeleton.Box width="80%" height={14} borderRadius={8} />
+                <Skeleton.Box width="70%" height={14} borderRadius={8} />
+                <Skeleton.Box width="45%" height={14} borderRadius={8} />
+              </View>
+              <View className="items-end">
+                <Skeleton.Box width="50%" height={40} borderRadius={24} />
+              </View>
+              <View className="items-start gap-2.5">
+                <Skeleton.Box width="85%" height={14} borderRadius={8} />
+                <Skeleton.Box width="60%" height={14} borderRadius={8} />
+              </View>
+            </View>
+          ) : (
+            <WelcomeMessage />
+          ))}
 
-          <View style={{ position: 'relative' }}>
-            {/* Single flying IdentityMark */}
-            {lastAliaIndex >= 0 && (
-              <Animated.View style={markAnimatedStyle}>
-                <IdentityMark size={28} color={colors.primary} state={markState} spinOnPress />
-              </Animated.View>
-            )}
-
-            {/* The history, MEASURED as one block. Its height is what the scroll
+        <View style={{ position: 'relative' }}>
+          {/* The history, MEASURED as one block. Its height is what the scroll
                 anchor is restored against, and a block is what react-native-web
                 will report a change for — a marker between the two lists never
                 changes size, so its move goes unobserved and the reader is left
                 looking at the wrong message. */}
-            {history.length === 0 && !isLoadingHistory ? null : (
-              <View onLayout={handleHistoryLayout}>
-                {/* Inside the measured block on purpose: it appears when a page
+          {history.length === 0 && !isLoadingHistory ? null : (
+            <View onLayout={handleHistoryLayout}>
+              {/* Inside the measured block on purpose: it appears when a page
                     is asked for and vanishes when it lands, and both of those
                     are height changes the anchor has to account for. Left
                     outside, its arrival and departure would displace the reader
                     by its own height, twice, with nothing to correct it. */}
-                {!isLoadingHistory ? null : (
-                  <View className="items-center py-4">
-                    <Text className="text-xs text-muted-foreground">{t('chat.loadingHistory')}</Text>
-                  </View>
-                )}
-                {history.map((m, index) => renderMessage(m, index))}
-              </View>
-            )}
-
-            {liveMessages.map((m, index) => renderMessage(m, history.length + index))}
-          </View>
-
-          {/* Agent execution — in-progress card or completed result card */}
-          {agentActivity && agentActivity.eventCount > 0 && (
-            agentActivity.isComplete && agentSessionId ? (
-              <AgentResultCard
-                activity={agentActivity}
-                sessionId={agentSessionId}
-              />
-            ) : (
-              <AgentTaskCard activity={agentActivity} />
-            )
+              {!isLoadingHistory ? null : (
+                <View className="items-center py-4">
+                  <Text className="text-xs text-muted-foreground">
+                    {t('chat.loadingHistory')}
+                  </Text>
+                </View>
+              )}
+              {history.map((m, index) => renderMessage(m, index))}
+            </View>
           )}
 
-          {/* The agent's offer to start the next stretch fresh. Last in the
+          {liveMessages.map((m, index) =>
+            renderMessage(m, history.length + index),
+          )}
+        </View>
+
+        {/* Agent execution — in-progress card or completed result card */}
+        {agentActivity &&
+          agentActivity.eventCount > 0 &&
+          (agentActivity.isComplete && agentSessionId ? (
+            <AgentResultCard
+              activity={agentActivity}
+              sessionId={agentSessionId}
+            />
+          ) : (
+            <AgentTaskCard activity={agentActivity} />
+          ))}
+
+        {/* The agent's offer to start the next stretch fresh. Last in the
               list on purpose: it must not cover what is being read, and
               ignoring it has to leave the thread exactly as it was. */}
-          {suggestedNewConversation === null || suggestedNewConversation === undefined ? null : (
-            <NewConversationOffer
-              reason={suggestedNewConversation}
-              onAccept={onAcceptNewConversation ?? (() => {})}
-              onDismiss={onDismissNewConversation ?? (() => {})}
+        {suggestedNewConversation === null ||
+        suggestedNewConversation === undefined ? null : (
+          <NewConversationOffer
+            reason={suggestedNewConversation}
+            onAccept={onAcceptNewConversation ?? (() => {})}
+            onDismiss={onDismissNewConversation ?? (() => {})}
+          />
+        )}
+
+        {/* Standalone waiting indicator for voice mode — shows when AI is thinking
+              but there's no pending assistant message yet (e.g. right after user speaks) */}
+        {voiceAgentState === 'thinking' &&
+          !isLoading &&
+          (messages.length === 0 ||
+            messages[messages.length - 1]?.role !== 'assistant') && (
+            <AgentThinking
+              variant="wave"
+              label={t('chat.thinking')}
+              showTimer={false}
             />
           )}
-
-          {/* Standalone waiting indicator for voice mode — shows when AI is thinking
-              but there's no pending assistant message yet (e.g. right after user speaks) */}
-          {voiceAgentState === 'thinking' &&
-            !isLoading &&
-            (messages.length === 0 || messages[messages.length - 1]?.role !== 'assistant') && (
-              <AgentThinking variant="wave" label={t('chat.thinking')} showTimer={false} />
-            )}
-        </View>
-        <View style={bottomSpacerStyle} />
-      </AiChatThread>
-    );
+      </View>
+      <View style={bottomSpacerStyle} />
+    </AiChatThread>
+  );
 });

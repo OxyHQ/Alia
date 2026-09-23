@@ -12,31 +12,49 @@
  * systems.
  */
 
-import React, { useCallback, useEffect, useState } from 'react';
-import { View, Pressable, RefreshControl, FlatList } from 'react-native';
-import { useRouter } from 'expo-router';
-import { Text } from '@/components/ui/text';
-import { Button } from '@/components/ui/button';
-import { DrawerToggle } from '@/components/ui/drawer-toggle';
-import { Plus, Mic, ChevronRight, Lock, Link2, Globe } from 'lucide-react-native';
-import { useAuth } from '@oxy.so/services';
-import { ContentPanel } from '@oxy.so/bloom/content-panel';
-import { useShowStore, type ShowSeries, type ShowVisibility } from '@/lib/stores/show-store';
 import { SeriesCreateDialog } from '@/components/show/series-create-dialog';
 import { ShowArtwork } from '@/components/show/show-artwork';
+import { DrawerToggle } from '@/components/ui/drawer-toggle';
 import { useShowProgress } from '@/lib/hooks/use-show-progress';
+import {
+  useShowStore,
+  type ShowSeries,
+  type ShowVisibility,
+} from '@/lib/stores/show-store';
 import { useColorScheme } from '@/lib/useColorScheme';
-import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { formatEpisodeCount } from '@/lib/utils/show-format';
+import { Button } from '@oxy.so/bloom/button';
+import { ContentPanel } from '@oxy.so/bloom/content-panel';
+import * as Skeleton from '@oxy.so/bloom/skeleton';
+import { Text } from '@oxy.so/bloom/typography';
+import { useAuth } from '@oxy.so/services';
+import { useRouter } from 'expo-router';
+import {
+  ChevronRight,
+  Globe,
+  Link2,
+  Lock,
+  Mic,
+  Plus,
+} from 'lucide-react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { FlatList, Pressable, RefreshControl, View } from 'react-native';
 
 /** Who can hear it, as an icon and a word. */
-const VISIBILITY: Record<ShowVisibility, { label: string; icon: typeof Lock }> = {
-  private: { label: 'Private', icon: Lock },
-  unlisted: { label: 'Unlisted', icon: Link2 },
-  public: { label: 'Public', icon: Globe },
-};
+const VISIBILITY: Record<ShowVisibility, { label: string; icon: typeof Lock }> =
+  {
+    private: { label: 'Private', icon: Lock },
+    unlisted: { label: 'Unlisted', icon: Link2 },
+    public: { label: 'Public', icon: Globe },
+  };
 
-function SeriesRow({ series, onOpen }: { series: ShowSeries; onOpen: (id: string) => void }) {
+function SeriesRow({
+  series,
+  onOpen,
+}: {
+  series: ShowSeries;
+  onOpen: (id: string) => void;
+}) {
   const visibility = VISIBILITY[series.visibility];
   const VisibilityIcon = visibility.icon;
   // `nextEpisodeNumber` counts from 1, so it is one past however many have been
@@ -44,7 +62,8 @@ function SeriesRow({ series, onOpen }: { series: ShowSeries; onOpen: (id: string
   const episodeCount = series.nextEpisodeNumber - 1;
   // Syra names a show's author under its title. Alia's author is its cast; a
   // series with no cast yet falls back to what the show is about.
-  const byline = series.speakers.map((speaker) => speaker.name).join(', ') || series.brief;
+  const byline =
+    series.speakers.map((speaker) => speaker.name).join(', ') || series.brief;
 
   return (
     <Pressable
@@ -62,7 +81,10 @@ function SeriesRow({ series, onOpen }: { series: ShowSeries; onOpen: (id: string
 
       <View className="min-w-0 flex-1 gap-0.5">
         <View className="flex-row items-center gap-2">
-          <Text className="flex-1 text-base font-semibold text-foreground" numberOfLines={1}>
+          <Text
+            className="flex-1 text-base font-semibold text-foreground"
+            numberOfLines={1}
+          >
             {series.title}
           </Text>
           <View className="flex-row items-center gap-1 rounded-full bg-muted px-2 py-0.5">
@@ -77,7 +99,10 @@ function SeriesRow({ series, onOpen }: { series: ShowSeries; onOpen: (id: string
           {byline}
         </Text>
 
-        <Text className="text-xs capitalize text-muted-foreground" numberOfLines={1}>
+        <Text
+          className="text-xs capitalize text-muted-foreground"
+          numberOfLines={1}
+        >
           {formatEpisodeCount(episodeCount)} · {series.format}
         </Text>
       </View>
@@ -116,7 +141,10 @@ export default function ShowsScreen() {
     setRefreshing(false);
   }, [fetchSeries]);
 
-  const openSeries = useCallback((id: string) => router.push(`/(app)/shows/${id}`), [router]);
+  const openSeries = useCallback(
+    (id: string) => router.push(`/(app)/shows/${id}`),
+    [router],
+  );
 
   const renderItem = useCallback(
     ({ item }: { item: ShowSeries }) => (
@@ -144,15 +172,21 @@ export default function ShowsScreen() {
                 {/* The drawer opener sits first, as on every top-level page (#532). */}
                 <View className="flex-row items-center gap-2">
                   <DrawerToggle />
-                  <Text className="text-2xl font-bold text-foreground">Shows</Text>
+                  <Text className="text-2xl font-bold text-foreground">
+                    Shows
+                  </Text>
                 </View>
                 <Button
                   size="sm"
                   className="flex-row items-center gap-1.5 rounded-full"
                   onPress={() => setCreateOpen(true)}
+                  leading={
+                    <>
+                      <Plus size={14} className="text-primary-foreground" />
+                    </>
+                  }
                 >
-                  <Plus size={14} className="text-primary-foreground" />
-                  <Text className="text-sm text-primary-foreground">New</Text>
+                  New
                 </Button>
               </View>
               <Text className="mt-0.5 text-[13px] text-muted-foreground">
@@ -174,9 +208,21 @@ export default function ShowsScreen() {
                     >
                       <Skeleton.Box width={64} height={64} borderRadius={12} />
                       <View className="flex-1 gap-2">
-                        <Skeleton.Box width="66.6667%" height={16} borderRadius={4} />
-                        <Skeleton.Box width="50%" height={12} borderRadius={4} />
-                        <Skeleton.Box width="33.3333%" height={12} borderRadius={4} />
+                        <Skeleton.Box
+                          width="66.6667%"
+                          height={16}
+                          borderRadius={4}
+                        />
+                        <Skeleton.Box
+                          width="50%"
+                          height={12}
+                          borderRadius={4}
+                        />
+                        <Skeleton.Box
+                          width="33.3333%"
+                          height={12}
+                          borderRadius={4}
+                        />
                       </View>
                     </View>
                   ))}
@@ -194,15 +240,20 @@ export default function ShowsScreen() {
                   No shows yet
                 </Text>
                 <Text className="text-center text-sm text-muted-foreground">
-                  Start a show and Alia will write, voice and publish each episode to Syra — where
-                  it becomes a real podcast you can share or keep to yourself.
+                  Start a show and Alia will write, voice and publish each
+                  episode to Syra — where it becomes a real podcast you can
+                  share or keep to yourself.
                 </Text>
                 <Button
                   onPress={() => setCreateOpen(true)}
                   className="flex-row items-center gap-1.5 rounded-full"
+                  leading={
+                    <>
+                      <Plus size={14} className="text-primary-foreground" />
+                    </>
+                  }
                 >
-                  <Plus size={14} className="text-primary-foreground" />
-                  <Text className="text-primary-foreground">Start a show</Text>
+                  Start a show
                 </Button>
               </View>
             ) : null
@@ -217,7 +268,11 @@ export default function ShowsScreen() {
         />
       </View>
 
-      <SeriesCreateDialog open={createOpen} onOpenChange={setCreateOpen} onCreated={openSeries} />
+      <SeriesCreateDialog
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        onCreated={openSeries}
+      />
     </ContentPanel>
   );
 }

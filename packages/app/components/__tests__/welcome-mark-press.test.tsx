@@ -37,7 +37,10 @@ vi.mock('react-native', async () => {
   const ReactModule = await import('react');
   const host =
     (name: string) =>
-    ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
+    ({
+      children,
+      ...props
+    }: React.PropsWithChildren<Record<string, unknown>>) =>
       ReactModule.createElement(name, props, children);
   return { View: host('View'), Pressable: host('Pressable') };
 });
@@ -51,7 +54,10 @@ vi.mock('react-native-svg', async () => {
   const ReactModule = await import('react');
   const host =
     (name: string) =>
-    ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
+    ({
+      children,
+      ...props
+    }: React.PropsWithChildren<Record<string, unknown>>) =>
       ReactModule.createElement(name, props, children);
   return { default: host('Svg'), Path: host('Path') };
 });
@@ -59,14 +65,18 @@ vi.mock('react-native-svg', async () => {
 vi.mock('react-native-reanimated', async () => {
   const ReactModule = await import('react');
   const Animated = {
-    View: ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
+    View: ({
+      children,
+      ...props
+    }: React.PropsWithChildren<Record<string, unknown>>) =>
       ReactModule.createElement('AnimatedView', props, children),
   };
   return {
     default: Animated,
     useAnimatedReaction: () => undefined,
     useAnimatedStyle: (factory: () => Record<string, unknown>) => factory(),
-    useSharedValue: <T,>(initial: T) => ReactModule.useRef({ value: initial }).current,
+    useSharedValue: <T,>(initial: T) =>
+      ReactModule.useRef({ value: initial }).current,
     withTiming: <T,>(value: T) => value,
     withRepeat: <T,>(value: T) => value,
     withSequence: <T,>(value: T) => value,
@@ -76,13 +86,19 @@ vi.mock('react-native-reanimated', async () => {
 });
 
 vi.mock('@oxy.so/services', () => ({
-  useAuth: () => ({ user: { name: { displayName: 'Nate' } }, isAuthenticated: true }),
+  useAuth: () => ({
+    user: { name: { displayName: 'Nate' } },
+    isAuthenticated: true,
+  }),
 }));
 
-vi.mock('@/components/ui/text', async () => {
+vi.mock('@oxy.so/bloom/typography', async () => {
   const ReactModule = await import('react');
   return {
-    Text: ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
+    Text: ({
+      children,
+      ...props
+    }: React.PropsWithChildren<Record<string, unknown>>) =>
       ReactModule.createElement('Text', props, children),
   };
 });
@@ -152,7 +168,9 @@ describe('the mark on the welcome greeting', () => {
   it('is not announced as a button, because the press promises no action', () => {
     // Pressable, but there is nowhere for it to take you. Same role it carried
     // before the press target was made opt-in.
-    expect(pressables(render(<WelcomeMessage />))[0]?.props.accessibilityRole).toBe('image');
+    expect(
+      pressables(render(<WelcomeMessage />))[0]?.props.accessibilityRole,
+    ).toBe('image');
   });
 });
 
@@ -169,7 +187,9 @@ describe('a mark that asked for nothing', () => {
   });
 
   it('still spins on press once it asks', () => {
-    const r = render(<IdentityMark size={28} color="rgb(255 0 0)" spinOnPress />);
+    const r = render(
+      <IdentityMark size={28} color="rgb(255 0 0)" spinOnPress />,
+    );
 
     act(() => pressables(r)[0]?.props.onPress());
 

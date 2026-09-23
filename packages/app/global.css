@@ -1,8 +1,4 @@
-@import "tailwindcss/theme.css" layer(theme);
-@import "tailwindcss/preflight.css" layer(base);
-@import "tailwindcss/utilities.css";
-@import "nativewind/theme";
-@import "@oxy.so/bloom/design-tokens/theme.css";
+@import "@oxy.so/app-preset/css/base.css";
 
 @source "./app/**/*.{js,jsx,ts,tsx}";
 @source "./components/**/*.{js,jsx,ts,tsx}";
@@ -10,80 +6,10 @@
 @source "./hooks/**/*.{js,jsx,ts,tsx}";
 @source "../../node_modules/@oxy.so/services/lib/**/*.{js,jsx}";
 @source "../../node_modules/@oxy.so/bloom/lib/**/*.{js,jsx}";
+@source "../../../node_modules/@oxy.so/services/lib/**/*.{js,jsx}";
+@source "../../../node_modules/@oxy.so/bloom/lib/**/*.{js,jsx}";
 @source "../alia-chat/src/**/*.{ts,tsx}";
 
-/* NativeWind's theme.css ships an UNLAYERED `:root { @media ios { --font-sans: System } }`,
-   which outranks anything `@theme` emits — that compiles into `@layer theme`, and
-   unlayered beats layered. Restate Bloom's family here, unlayered and after that
-   import, so `font-sans` keeps resolving to Bloom's UI face (Inter) on every platform.
-   Native gets the bare family name: RN's `fontFamily` takes ONE family, not a CSS
-   stack, and `--bloom-font-*` is web-only (injected at runtime by `applyFontFaces`).
-   The `var()` fallback covers the static export's first paint, before that runs. */
-:root {
-  --font-sans: var(--bloom-font-sans, Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
-
-  @media ios {
-    --font-sans: Inter;
-  }
-
-  @media android {
-    --font-sans: Inter;
-  }
-}
-
-@theme {
-  /* The LAYERED value, which the `:root` above outranks on every platform — so
-     it never decides what is painted. It is here as the fallback that would
-     apply if that block were ever removed: measured, deleting this line leaves
-     `@layer theme` holding Tailwind's stock `ui-sans-serif, system-ui, …`
-     instead of Bloom's family, and the rendered result is unchanged only for as
-     long as the unlayered rule survives. It also registers the token, which is
-     what makes the `font-sans` utility exist at all. */
-  --font-sans: var(--bloom-font-sans);
-
-  --radius-lg: var(--radius);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-sm: calc(var(--radius) - 4px);
-
-  --color-border: var(--border);
-  --color-input: var(--input);
-  --color-ring: var(--ring);
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-
-  --color-primary: var(--primary);
-  --color-primary-foreground: var(--primary-foreground);
-
-  --color-secondary: var(--secondary);
-  --color-secondary-foreground: var(--secondary-foreground);
-
-  --color-destructive: var(--destructive);
-  --color-destructive-foreground: hsl(0 0% 100%);
-
-  --color-muted: var(--muted);
-  --color-muted-foreground: var(--muted-foreground);
-
-  --color-accent: var(--accent);
-  --color-accent-foreground: var(--accent-foreground);
-
-  --color-popover: var(--popover);
-  --color-popover-foreground: var(--popover-foreground);
-
-  --color-card: var(--card);
-  --color-card-foreground: var(--card-foreground);
-
-  --color-surface: var(--surface);
-  --color-surface-foreground: var(--surface-foreground);
-}
-
-@layer base {
-  :root {
-    --radius: 1rem;
-  }
-}
-
 @layer utilities {
-  .squircle {
-    border-radius: 20%;
-  }
+  .squircle { border-radius: 20%; }
 }

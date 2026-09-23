@@ -1,5 +1,5 @@
+import type { Props as BloomIconProps } from '@oxy.so/bloom/icons';
 import React from 'react';
-import type { BloomIconComponent } from '@oxy.so/bloom/icons';
 
 import type { IconComponent } from '@/lib/types/icon';
 
@@ -25,14 +25,28 @@ import type { IconComponent } from '@/lib/types/icon';
  * square (`metrics.row.icon` for both), and Alia's icons take one number, so
  * there is no shape here that could want anything else.
  */
-const wrapped = new WeakMap<IconComponent, BloomIconComponent>();
+const wrapped = new WeakMap<
+  IconComponent,
+  React.FunctionComponent<BloomIconProps>
+>();
 
-export function bloomIcon(Icon: IconComponent): BloomIconComponent {
+export function bloomIcon(
+  Icon: IconComponent,
+): React.FunctionComponent<BloomIconProps> {
   const existing = wrapped.get(Icon);
   if (existing !== undefined) return existing;
 
-  const Adapted: BloomIconComponent = ({ width, height, fill }) => (
-    <Icon size={width ?? height} color={fill} />
+  const Adapted: React.FunctionComponent<BloomIconProps> = ({
+    width,
+    height,
+    fill,
+  }) => (
+    <Icon
+      size={
+        width == null && height == null ? undefined : Number(width ?? height)
+      }
+      color={typeof fill === 'string' ? fill : undefined}
+    />
   );
   Adapted.displayName = `bloomIcon(${Icon.displayName ?? Icon.name ?? 'Icon'})`;
 

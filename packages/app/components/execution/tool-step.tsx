@@ -1,13 +1,17 @@
-import { useRef, type ReactNode } from "react";
-import { View, Pressable, ScrollView, type View as ViewType } from "react-native";
-import { ChevronRight, Globe } from "lucide-react-native";
-import { Text } from "@/components/ui/text";
-import { cn } from "@/lib/utils";
-import { useTranslation } from "@/lib/hooks/use-translation";
-import { LottieLoader } from "@/components/lottie-loader";
-import type { Source, ToolCallStatus } from "@/lib/thought-utils";
-import { MONO_FONT, REF } from "./tokens";
-
+import { Loading } from '@oxy.so/bloom/loading';
+import { useTranslation } from '@/lib/hooks/use-translation';
+import type { Source, ToolCallStatus } from '@/lib/thought-utils';
+import { cn } from '@/lib/utils';
+import { Text } from '@oxy.so/bloom/typography';
+import { ChevronRight, Globe } from 'lucide-react-native';
+import { useRef, type ReactNode } from 'react';
+import {
+  Pressable,
+  ScrollView,
+  View,
+  type View as ViewType,
+} from 'react-native';
+import { MONO_FONT, REF } from './tokens';
 /**
  * One execution row: a tool call, its state, and — expanded — what went in
  * and what came out.
@@ -108,7 +112,7 @@ export function ToolStep({
       <View className="flex-row items-center py-1">
         {/* `w-[20px] flex justify-center shrink-0`: the icon column. */}
         <View className="w-[20px] shrink-0 items-center justify-center">
-          {status === "running" ? <LottieLoader width={14} height={14} /> : icon}
+          {status === "running" ? <Loading size="sm" iconSize={14} /> : icon}
         </View>
         <View className="min-w-0 flex-1">
           <Pressable

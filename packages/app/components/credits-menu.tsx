@@ -1,10 +1,9 @@
-import { Pressable } from "react-native";
-import { Text } from "@/components/ui/text";
-import { Sparkles } from "lucide-react-native";
-import { useCredits } from "@/lib/hooks/use-credits";
-import { useOxy } from "@oxy.so/services";
-import { useUIStore } from "@/lib/stores/ui-store";
-
+import { useCredits } from '@/lib/hooks/use-credits';
+import { useUIStore } from '@/lib/stores/ui-store';
+import { Text } from '@oxy.so/bloom/typography';
+import { useOxy } from '@oxy.so/services';
+import { Sparkles } from 'lucide-react-native';
+import { Pressable } from 'react-native';
 export function CreditsMenu() {
   const { isAuthenticated } = useOxy();
   const { data } = useCredits();

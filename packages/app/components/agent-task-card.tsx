@@ -1,3 +1,29 @@
+import type {
+  AgentActivityState,
+  AgentScreenshot,
+  PlanItem,
+} from '@/lib/hooks/use-agent-activity';
+import { useTheme } from '@oxy.so/bloom/theme';
+import { Text } from '@oxy.so/bloom/typography';
+import {
+  AlertCircle,
+  Check,
+  ChevronDown,
+  ChevronUp,
+  Circle,
+  Loader,
+  Monitor,
+} from 'lucide-react-native';
+import React, { useEffect, useState } from 'react';
+import { Pressable, Image as RNImage, View } from 'react-native';
+import Animated, {
+  FadeIn,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withSequence,
+  withTiming,
+} from 'react-native-reanimated';
 /**
  * AgentTaskCard — Inline card showing real-time agent execution progress.
  *
@@ -5,20 +31,13 @@
  * Shows: plan checklist, current action, screenshots, elapsed time.
  */
 
-import React, { useState, useEffect } from 'react';
-import { View, Pressable, Image as RNImage } from 'react-native';
-import { Text } from '@/components/ui/text';
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withRepeat,
-  withSequence,
-  withTiming,
-  FadeIn,
-} from 'react-native-reanimated';
-import { Check, Circle, Loader, ChevronDown, ChevronUp, Monitor, AlertCircle } from 'lucide-react-native';
-import { useTheme } from '@oxy.so/bloom/theme';
-import type { AgentActivityState, PlanItem, AgentScreenshot } from '@/lib/hooks/use-agent-activity';
+
+
+
+
+
+
+
 
 interface AgentTaskCardProps {
   activity: AgentActivityState;

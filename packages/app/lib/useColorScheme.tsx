@@ -1,6 +1,5 @@
-import { useColorScheme as useNativeWindColorScheme } from 'nativewind';
-import { useCallback, useMemo } from 'react';
 import { useBloomTheme, useTheme, type ThemeMode } from '@oxy.so/bloom/theme';
+import { useCallback, useMemo } from 'react';
 
 export type { ThemeMode };
 
@@ -13,17 +12,10 @@ export type { ThemeMode };
  * `setColorScheme` proxy Bloom's `useBloomTheme()`.
  */
 export function useColorScheme() {
-  const { colorScheme: nwScheme } = useNativeWindColorScheme();
   const { mode, setMode } = useBloomTheme();
   const theme = useTheme();
 
-  const effectiveMode: Exclude<ThemeMode, 'adaptive'> =
-    mode === 'adaptive' ? 'system' : mode;
-  // NativeWind's `colorScheme` is `ColorSchemeName` ('light' | 'dark' |
-  // 'unspecified' | null | undefined); collapse anything that is not an
-  // explicit 'dark' to 'light' for the system case.
-  const resolved: 'light' | 'dark' =
-    effectiveMode === 'system' ? (nwScheme === 'dark' ? 'dark' : 'light') : effectiveMode;
+  const resolved = theme.mode;
 
   const setColorScheme = useCallback(
     (newMode: ThemeMode) => {
@@ -38,7 +30,7 @@ export function useColorScheme() {
       background: c.background,
       // shadcn "foreground" is the primary text color.
       foreground: c.text,
-      // Bloom 0.9.1 has no distinct surface token; surface ≈ card.
+      // Existing surface consumers use the shared card surface.
       surface: c.card,
       muted: c.backgroundSecondary,
       mutedForeground: c.textSecondary,

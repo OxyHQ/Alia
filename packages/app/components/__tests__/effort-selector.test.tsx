@@ -1,19 +1,19 @@
-import React from "react";
-import { act, create, type ReactTestRenderer } from "react-test-renderer";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import React from 'react';
+import { act, create, type ReactTestRenderer } from 'react-test-renderer';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
-  platform: { OS: "web" },
+  platform: { OS: 'web' },
   isLargeScreen: false,
   storedEffort: null as string | null,
-  offered: ["instant", "medium", "high", "max"] as string[],
+  offered: ['instant', 'medium', 'high', 'max'] as string[],
   setReasoningEffort: vi.fn(),
   haptics: vi.fn(),
   useCatalogue: vi.fn(),
 }));
 
-vi.mock("react-native", async () => {
-  const ReactModule = await import("react");
+vi.mock('react-native', async () => {
+  const ReactModule = await import('react');
   const host =
     (name: string) =>
     ({
@@ -24,22 +24,22 @@ vi.mock("react-native", async () => {
 
   return {
     Platform: mocks.platform,
-    Pressable: host("Pressable"),
+    Pressable: host('Pressable'),
     StyleSheet: { create: <T,>(styles: T) => styles },
-    View: host("View"),
+    View: host('View'),
   };
 });
 
-vi.mock("lucide-react-native", async () => {
-  const ReactModule = await import("react");
+vi.mock('lucide-react-native', async () => {
+  const ReactModule = await import('react');
   return {
     ChevronDown: (props: Record<string, unknown>) =>
-      ReactModule.createElement("ChevronDown", props),
+      ReactModule.createElement('ChevronDown', props),
   };
 });
 
-vi.mock("@/components/ui/dropdown-menu", async () => {
-  const ReactModule = await import("react");
+vi.mock('@oxy.so/bloom/dropdown-menu', async () => {
+  const ReactModule = await import('react');
   const host =
     (name: string) =>
     ({
@@ -49,60 +49,59 @@ vi.mock("@/components/ui/dropdown-menu", async () => {
       ReactModule.createElement(name, props, children);
 
   return {
-    Root: host("DropdownRoot"),
-    Trigger: host("DropdownTrigger"),
-    Content: host("DropdownContent"),
-    CheckboxItem: host("DropdownCheckboxItem"),
-    ItemTitle: host("DropdownItemTitle"),
+    DropdownMenu: host('DropdownRoot'),
+    DropdownMenuTrigger: host('DropdownTrigger'),
+    DropdownMenuContent: host('DropdownContent'),
+    DropdownMenuCheckboxItem: host('DropdownCheckboxItem'),
   };
 });
 
-vi.mock("@/components/ui/text", async () => {
-  const ReactModule = await import("react");
+vi.mock('@oxy.so/bloom/typography', async () => {
+  const ReactModule = await import('react');
   return {
     Text: ({
       children,
       ...props
     }: React.PropsWithChildren<Record<string, unknown>>) =>
-      ReactModule.createElement("Text", props, children),
+      ReactModule.createElement('Text', props, children),
   };
 });
 
-vi.mock("@/lib/hooks/use-is-large-screen", () => ({
+vi.mock('@/lib/hooks/use-is-large-screen', () => ({
   useIsLargeScreen: () => mocks.isLargeScreen,
 }));
 
 const translations: Record<string, string> = {
-  "effort.headlinePrefix": "",
-  "effort.headlineSuffix": " effort",
-  "effort.levels.default": "Default",
-  "effort.levels.instant": "Instant",
-  "effort.levels.medium": "Medium",
-  "effort.levels.high": "High",
-  "effort.levels.max": "Extra High",
-  "effort.select": "Effort",
+  'effort.headlinePrefix': '',
+  'effort.headlineSuffix': ' effort',
+  'effort.levels.default': 'Default',
+  'effort.levels.instant': 'Instant',
+  'effort.levels.medium': 'Medium',
+  'effort.levels.high': 'High',
+  'effort.levels.max': 'Extra High',
+  'effort.select': 'Effort',
 };
 
-vi.mock("@/lib/hooks/use-translation", () => ({
+vi.mock('@/lib/hooks/use-translation', () => ({
   useTranslation: () => ({ t: (key: string) => translations[key] ?? key }),
 }));
 
-vi.mock("@/lib/hooks/use-catalogue", () => ({
-  EFFORT_LEVELS: ["instant", "medium", "high", "max"],
+vi.mock('@/lib/hooks/use-catalogue', () => ({
+  EFFORT_LEVELS: ['instant', 'medium', 'high', 'max'],
   resolveSelection: () => ({
     entry: { capabilities: { reasoningLevels: mocks.offered } },
   }),
   useCatalogue: () => {
     mocks.useCatalogue();
-    return { data: [{ id: "test/model" }] };
+    return { data: [{ id: 'test/model' }] };
   },
 }));
 
-vi.mock("@/lib/hooks/use-product-modes", () => ({
+vi.mock('@/lib/hooks/use-product-modes', () => ({
   useProductModes: () => ({ data: [] }),
 }));
 
-vi.mock("@/lib/stores/model-store", () => ({
+vi.mock('@/lib/stores/model-store', () => ({
   effortFor: (stored: string | null, supported: readonly string[]) =>
     stored !== null && supported.includes(stored) ? stored : null,
   useModelStore: (selector: (state: Record<string, unknown>) => unknown) =>
@@ -112,41 +111,41 @@ vi.mock("@/lib/stores/model-store", () => ({
     }),
 }));
 
-vi.mock("@/lib/utils", () => ({
-  cn: (...parts: unknown[]) => parts.filter(Boolean).join(" "),
+vi.mock('@/lib/utils', () => ({
+  cn: (...parts: unknown[]) => parts.filter(Boolean).join(' '),
 }));
 
-vi.mock("@oxy.so/bloom/bottom-sheet", async () => {
-  const ReactModule = await import("react");
+vi.mock('@oxy.so/bloom/bottom-sheet', async () => {
+  const ReactModule = await import('react');
   return {
     BottomSheet: ({
       children,
       ...props
     }: React.PropsWithChildren<Record<string, unknown>>) =>
-      ReactModule.createElement("BottomSheet", props, children),
+      ReactModule.createElement('BottomSheet', props, children),
   };
 });
 
-vi.mock("@oxy.so/bloom/hooks", () => ({
+vi.mock('@oxy.so/bloom/hooks', () => ({
   useHaptics: () => mocks.haptics,
 }));
 
 type GestureBuilder = {
-  kind: "pan" | "tap";
+  kind: 'pan' | 'tap';
   handlers: Record<string, (...args: Array<Record<string, number>>) => void>;
   enabled: (value: boolean) => GestureBuilder;
   activeOffsetX: (value: number[]) => GestureBuilder;
   failOffsetY: (value: number[]) => GestureBuilder;
-  onBegin: (handler: GestureBuilder["handlers"][string]) => GestureBuilder;
-  onStart: (handler: GestureBuilder["handlers"][string]) => GestureBuilder;
-  onUpdate: (handler: GestureBuilder["handlers"][string]) => GestureBuilder;
-  onFinalize: (handler: GestureBuilder["handlers"][string]) => GestureBuilder;
-  onEnd: (handler: GestureBuilder["handlers"][string]) => GestureBuilder;
+  onBegin: (handler: GestureBuilder['handlers'][string]) => GestureBuilder;
+  onStart: (handler: GestureBuilder['handlers'][string]) => GestureBuilder;
+  onUpdate: (handler: GestureBuilder['handlers'][string]) => GestureBuilder;
+  onFinalize: (handler: GestureBuilder['handlers'][string]) => GestureBuilder;
+  onEnd: (handler: GestureBuilder['handlers'][string]) => GestureBuilder;
 };
 
-vi.mock("react-native-gesture-handler", async () => {
-  const ReactModule = await import("react");
-  const gesture = (kind: GestureBuilder["kind"]): GestureBuilder => {
+vi.mock('react-native-gesture-handler', async () => {
+  const ReactModule = await import('react');
+  const gesture = (kind: GestureBuilder['kind']): GestureBuilder => {
     const builder = {} as GestureBuilder;
     Object.assign(builder, {
       kind,
@@ -154,23 +153,23 @@ vi.mock("react-native-gesture-handler", async () => {
       enabled: () => builder,
       activeOffsetX: () => builder,
       failOffsetY: () => builder,
-      onBegin: (handler: GestureBuilder["handlers"][string]) => {
+      onBegin: (handler: GestureBuilder['handlers'][string]) => {
         builder.handlers.onBegin = handler;
         return builder;
       },
-      onStart: (handler: GestureBuilder["handlers"][string]) => {
+      onStart: (handler: GestureBuilder['handlers'][string]) => {
         builder.handlers.onStart = handler;
         return builder;
       },
-      onUpdate: (handler: GestureBuilder["handlers"][string]) => {
+      onUpdate: (handler: GestureBuilder['handlers'][string]) => {
         builder.handlers.onUpdate = handler;
         return builder;
       },
-      onFinalize: (handler: GestureBuilder["handlers"][string]) => {
+      onFinalize: (handler: GestureBuilder['handlers'][string]) => {
         builder.handlers.onFinalize = handler;
         return builder;
       },
-      onEnd: (handler: GestureBuilder["handlers"][string]) => {
+      onEnd: (handler: GestureBuilder['handlers'][string]) => {
         builder.handlers.onEnd = handler;
         return builder;
       },
@@ -180,26 +179,26 @@ vi.mock("react-native-gesture-handler", async () => {
 
   return {
     Gesture: {
-      Pan: () => gesture("pan"),
-      Race: (...gestures: GestureBuilder[]) => ({ kind: "race", gestures }),
-      Tap: () => gesture("tap"),
+      Pan: () => gesture('pan'),
+      Race: (...gestures: GestureBuilder[]) => ({ kind: 'race', gestures }),
+      Tap: () => gesture('tap'),
     },
     GestureDetector: ({
       children,
       ...props
     }: React.PropsWithChildren<Record<string, unknown>>) =>
-      ReactModule.createElement("GestureDetector", props, children),
+      ReactModule.createElement('GestureDetector', props, children),
   };
 });
 
-vi.mock("react-native-reanimated", async () => {
-  const ReactModule = await import("react");
+vi.mock('react-native-reanimated', async () => {
+  const ReactModule = await import('react');
   const Animated = {
     View: ({
       children,
       ...props
     }: React.PropsWithChildren<Record<string, unknown>>) =>
-      ReactModule.createElement("AnimatedView", props, children),
+      ReactModule.createElement('AnimatedView', props, children),
   };
 
   return {
@@ -218,7 +217,7 @@ vi.mock("react-native-reanimated", async () => {
   };
 });
 
-import { EffortSelector } from "../effort-selector";
+import { EffortSelector } from '../effort-selector';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
@@ -230,7 +229,7 @@ function renderSelector() {
     nextRenderer = create(<EffortSelector selectedModel="test/model" />);
   });
   if (nextRenderer === undefined)
-    throw new Error("EffortSelector did not render");
+    throw new Error('EffortSelector did not render');
   renderer = nextRenderer;
   return nextRenderer.root;
 }
@@ -240,8 +239,8 @@ const hosts = (root: ReturnType<typeof renderSelector>, name: string) =>
 
 function openNativeSheet() {
   const root = renderSelector();
-  const trigger = hosts(root, "Pressable").find(
-    (node) => node.props.accessibilityRole === "button",
+  const trigger = hosts(root, 'Pressable').find(
+    (node) => node.props.accessibilityRole === 'button',
   );
   expect(trigger).toBeDefined();
   act(() => trigger?.props.onPress());
@@ -249,10 +248,10 @@ function openNativeSheet() {
 }
 
 beforeEach(() => {
-  mocks.platform.OS = "web";
+  mocks.platform.OS = 'web';
   mocks.isLargeScreen = false;
   mocks.storedEffort = null;
-  mocks.offered = ["instant", "medium", "high", "max"];
+  mocks.offered = ['instant', 'medium', 'high', 'max'];
   mocks.setReasoningEffort.mockReset();
   mocks.haptics.mockReset();
   mocks.useCatalogue.mockReset();
@@ -265,92 +264,92 @@ afterEach(() => {
   }
 });
 
-describe("EffortSelector", () => {
-  it("keeps the menu on web and on large native screens, sourced from catalogue and Zustand", () => {
+describe('EffortSelector', () => {
+  it('keeps the menu on web and on large native screens, sourced from catalogue and Zustand', () => {
     let root = renderSelector();
-    expect(hosts(root, "DropdownRoot")).toHaveLength(1);
-    expect(hosts(root, "BottomSheet")).toHaveLength(0);
+    expect(hosts(root, 'DropdownRoot')).toHaveLength(1);
+    expect(hosts(root, 'BottomSheet')).toHaveLength(0);
     expect(mocks.useCatalogue).toHaveBeenCalledOnce();
 
-    const webItems = hosts(root, "DropdownCheckboxItem");
+    const webItems = hosts(root, 'DropdownCheckboxItem');
     expect(webItems).toHaveLength(4);
-    act(() => webItems[1].props.onValueChange());
-    expect(mocks.setReasoningEffort).toHaveBeenCalledWith("medium");
+    act(() => webItems[1].props.onCheckedChange(true));
+    expect(mocks.setReasoningEffort).toHaveBeenCalledWith('medium');
 
     act(() => renderer?.unmount());
     renderer = null;
-    mocks.platform.OS = "android";
+    mocks.platform.OS = 'android';
     mocks.isLargeScreen = true;
     root = renderSelector();
-    expect(hosts(root, "DropdownRoot")).toHaveLength(1);
-    expect(hosts(root, "BottomSheet")).toHaveLength(0);
+    expect(hosts(root, 'DropdownRoot')).toHaveLength(1);
+    expect(hosts(root, 'BottomSheet')).toHaveLength(0);
   });
 
-  it("renders the sheet only on a small native screen and exposes offered a11y steps", () => {
-    mocks.platform.OS = "android";
-    mocks.offered = ["instant", "high"];
+  it('renders the sheet only on a small native screen and exposes offered a11y steps', () => {
+    mocks.platform.OS = 'android';
+    mocks.offered = ['instant', 'high'];
     const root = openNativeSheet();
 
-    expect(hosts(root, "DropdownRoot")).toHaveLength(0);
-    expect(hosts(root, "BottomSheet")).toHaveLength(1);
+    expect(hosts(root, 'DropdownRoot')).toHaveLength(0);
+    expect(hosts(root, 'BottomSheet')).toHaveLength(1);
 
     const slider = root.find(
-      (node) => node.props.accessibilityRole === "adjustable",
+      (node) => node.props.accessibilityRole === 'adjustable',
     );
     expect(slider.props.accessibilityValue).toEqual({
       min: 0,
       max: 3,
       now: 1,
-      text: "Default",
+      text: 'Default',
     });
     expect(slider.props.accessibilityState).toEqual({ disabled: false });
 
     act(() =>
       slider.props.onAccessibilityAction({
-        nativeEvent: { actionName: "increment" },
+        nativeEvent: { actionName: 'increment' },
       }),
     );
     act(() =>
       slider.props.onAccessibilityAction({
-        nativeEvent: { actionName: "decrement" },
+        nativeEvent: { actionName: 'decrement' },
       }),
     );
     expect(mocks.setReasoningEffort.mock.calls).toEqual([
-      ["high"],
-      ["instant"],
+      ['high'],
+      ['instant'],
     ]);
     expect(mocks.haptics).toHaveBeenCalledTimes(2);
   });
 
-  it("disables a slider with no offered levels", () => {
-    mocks.platform.OS = "ios";
+  it('disables a slider with no offered levels', () => {
+    mocks.platform.OS = 'ios';
     mocks.offered = [];
     const root = openNativeSheet();
     const slider = root.find(
-      (node) => node.props.accessibilityRole === "adjustable",
+      (node) => node.props.accessibilityRole === 'adjustable',
     );
 
     expect(slider.props.accessibilityState).toEqual({ disabled: true });
     act(() =>
       slider.props.onAccessibilityAction({
-        nativeEvent: { actionName: "increment" },
+        nativeEvent: { actionName: 'increment' },
       }),
     );
     expect(mocks.setReasoningEffort).not.toHaveBeenCalled();
     expect(mocks.haptics).not.toHaveBeenCalled();
   });
 
-  it("snaps gestures to offered levels, prefers the cheaper tie, and ticks once per boundary", () => {
-    mocks.platform.OS = "android";
-    mocks.offered = ["instant", "high"];
+  it('snaps gestures to offered levels, prefers the cheaper tie, and ticks once per boundary', () => {
+    mocks.platform.OS = 'android';
+    mocks.offered = ['instant', 'high'];
     const root = openNativeSheet();
     const slider = root.find(
-      (node) => node.props.accessibilityRole === "adjustable",
+      (node) => node.props.accessibilityRole === 'adjustable',
     );
-    const [detector] = hosts(root, "GestureDetector");
+    const [detector] = hosts(root, 'GestureDetector');
     expect(detector).toBeDefined();
     const race = detector.props.gesture as { gestures: GestureBuilder[] };
-    const pan = race.gestures.find((candidate) => candidate.kind === "pan");
+    const pan = race.gestures.find((candidate) => candidate.kind === 'pan');
     expect(pan).toBeDefined();
 
     act(() =>
@@ -368,8 +367,8 @@ describe("EffortSelector", () => {
     });
 
     expect(mocks.setReasoningEffort.mock.calls).toEqual([
-      ["instant"],
-      ["high"],
+      ['instant'],
+      ['high'],
     ]);
     expect(mocks.haptics).toHaveBeenCalledTimes(2);
   });

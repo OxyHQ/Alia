@@ -1,10 +1,42 @@
 ---
 title: "Bloom adoption"
-description: "What Alia's app resolves from Bloom today, which Bloom 3.2.1 export owns each capability, and the contract gaps that block a direct swap."
+description: "Current Bloom 4 migration, shared UI ownership, and verification limits."
 order: 7
 ---
 
 # Bloom adoption
+
+## Current app composition (September 2026)
+
+The Expo app declares Bloom `^4.3.1`, Services `^4.0.0`, Core `^1.7.3` and app-preset `^2.0.1`. It uses the AI Chat template's real component families. The router still owns URLs and conversation identity; Bloom owns navigation surfaces, geometry, controls and theme. App state, streaming, pagination, authentication, voice, tools and inference contracts remain in Alia.
+
+| Previous app UI | Shared owner now |
+| --- | --- |
+| BaseSidebar, custom navigation and New Chat button | Sidebar account/search/navigation/tree/plan slots with real app data and callbacks |
+| Per-screen gutters and absolute chat header/composer | AiChatShell, AiChatContainer breadcrumbs/actions, AiChatMobileHeader, ComposerPill/StatusBar and AiChatThread |
+| Separate mobile/desktop right-panel frame | AiChatShell panel slot; width persists to the existing UI store |
+| Settings route chrome, header and sidebar | One SettingsModal; route bridges open the requested page after props commit |
+| Custom settings cards and groups | SettingsGeneralPage, SettingsProfilePage, SettingsSection/Card/Row and shared fields |
+| Zeego/Radix dropdown wrappers | Direct Bloom DropdownMenu parts and focusable asChild triggers |
+| Local Button, Input, Text and auth control wrappers | Direct Bloom Button, TextFieldInput and Typography imports |
+| Local CSS token defaults and navigator's light background | app-preset CSS plus useNavigationTheme; one BloomProvider is the theme authority |
+
+The sidebar uses the template account/search/navigation/tree composition. Real conversations retain grouping, favorites, pinning, folder/project menus, prefetch and cursor pagination under one Sidebar scroller. There is no separate New Chat FAB or second profile footer.
+
+`ChatWorkspace` composes the native keyboard authority around AiChatContainer. The chat uses the template surface, full thread width, compact breadcrumb actions and a bottom-anchored empty state; no ambient overlay or floating identity mark changes that frame. ComposerStatusBar exposes the actual Chat/Agent mode and omits unavailable branch/context metrics. Its KeyboardAvoidingView resizes the whole workspace; the Composer's inner avoidance is disabled. Web uses the existing View-backed keyboard adapter. There is no second composer positioning system.
+
+Settings authentication gates apply to both navigation and deep links. OAuth connector parameters survive the route bridge. Oxy account/language surfaces open only after the app settings modal has closed; the SDK owns their forms.
+
+### Validation and limits
+
+The current fidelity pass uses the rebuilt shared library and real browser captures at 1440×900 and 390×844. Its app suite union passes: 97 suites / 757 tests (96 suites in the full run, then the thought-panel suite after replacing its remaining legacy tool spinner). TypeScript passes. Chat menu keyboard/focus and panel Escape/focus restoration pass in both viewport sizes. The added Sidebar tree/search APIs and AiChatContainer actions slot are still a local preview; the final dependency floor and web/Android exports must be refreshed after publication and visual review. The broader results below describe the preceding migration snapshot.
+
+Before the final template fidelity pass, all app Vitest suites passed (98 suites, 766 tests; the unchanged timing benchmark also passed in isolation after a loaded run), including chat lifecycle/streaming, composer keys, history pagination, agent editing and settings request sequencing. TypeScript and Expo web/Android exports passed. Browser checks use the real app at port 8087 with external requests blocked: guest chat, desktop/mobile settings, mobile reveal, theme switching and sidebar collapse. A temporary local row fixture also verified actual desktop hover, keyboard Tab/Enter and touch menu visibility with local callbacks only; it is not a shipped app route. No real inference, account mutation or message send was performed. Authenticated histories/settings business behavior is covered through existing mocked model tests; there was no authenticated end-to-end account fixture. Android export is a bundle check, not a device runtime or physical keyboard test. The requested Pixel 8a was not connected.
+
+## Historical 3.2.1 audit
+
+The following is retained as an explicitly historical contract audit. Its version table and gap statements do not describe the current app.
+
 
 The deliverable issue [#608](https://github.com/OxyHQ/Alia/issues/608) §2 asks for: one
 row per Alia capability, the Bloom export that would own it, and a justified
