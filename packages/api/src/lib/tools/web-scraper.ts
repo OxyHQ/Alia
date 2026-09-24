@@ -30,9 +30,9 @@ export const webScraperTool = tool({
 
       if (!document) {
         return {
-          error: item?.operationId
+          error: item?.status === 'queued' && item.operationId
             ? `Clarity is still indexing this page (operation ${item.operationId})`
-            : 'Clarity could not extract this page',
+            : 'Clarity could not fetch this page',
         };
       }
 
