@@ -196,6 +196,8 @@ export function useNotificationSetup() {
       if (event.conversationId) {
         queryClient.invalidateQueries({ queryKey: queryKeys.conversations.detail(event.conversationId) });
       }
+      // The message may be the agent asking for an approval.
+      queryClient.invalidateQueries({ queryKey: ['agent-approvals'] });
       if (event.agentHandle) {
         queryClient.invalidateQueries({ queryKey: queryKeys.agents.thread(event.agentHandle) });
         queryClient.invalidateQueries({ queryKey: queryKeys.agents.threadMessages(event.agentHandle) });
