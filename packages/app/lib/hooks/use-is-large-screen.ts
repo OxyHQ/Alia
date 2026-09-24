@@ -5,7 +5,7 @@ import { useWindowDimensions } from 'react-native';
  * this hook ONLY where logic branches on screen size (navigation props,
  * conditionally rendered trees, imperative handlers).
  */
-export const MD_BREAKPOINT = 768;
+const MD_BREAKPOINT = 768;
 
 export function useIsLargeScreen(): boolean {
   return useWindowDimensions().width >= MD_BREAKPOINT;

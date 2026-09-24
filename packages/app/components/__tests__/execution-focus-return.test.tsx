@@ -77,9 +77,6 @@ vi.mock('@react-native-async-storage/async-storage', () => ({
     removeItem: async () => {},
   },
 }));
-vi.mock('expo-crypto', () => ({
-  getRandomValues: (array: Uint8Array) => array,
-}));
 
 import {
   rememberOpener,

@@ -99,7 +99,7 @@ export type StartRead = (file: Blob, handlers: ReadHandlers) => ReadHandle;
  * The real reader: `FileReader`, the app's ONLY genuine cancellation point in
  * the whole attachment path.
  */
-export const startFileRead: StartRead = (file, handlers) => {
+const startFileRead: StartRead = (file, handlers) => {
   const reader = new FileReader();
   reader.onprogress = (event) => handlers.onProgress(readFraction(event));
   reader.onload = () => {

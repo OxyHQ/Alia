@@ -19,11 +19,11 @@ const COLORS = [
   "#10b981", "#06b6d4", "#f97316", "#ef4444",
 ];
 
-export function getRandomColor(): string {
+function getRandomColor(): string {
   return COLORS[Math.floor(Math.random() * COLORS.length)];
 }
 
-export function getRandomIcon(icons: string[]): string {
+function getRandomIcon(icons: string[]): string {
   return icons[Math.floor(Math.random() * icons.length)];
 }
 

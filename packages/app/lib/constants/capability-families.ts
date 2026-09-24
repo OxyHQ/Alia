@@ -32,32 +32,30 @@
  * the same server. `packages/api/src/domain/capability-grants.ts` argues why
  * that one may and the other three may not.
  *
- * ## `color`, not a NativeWind class
+ * ## Bloom's icon contract
  *
- * Six of these glyphs are an `Svg` whose fill can only be a value, and the rows
- * read as one list only if every icon takes it the same way. Same call shape
- * `agent-permission-toggles` established for its six.
+ * Every glyph here — Bloom's own and the three drawn for Alia — takes Bloom's
+ * icon props (`width`, `height`, `fill`), so the rows read as one list and the
+ * colour is a value, which is all an `Svg` fill can be.
  */
 
-import {
-  AppWindow,
-  Brain,
-  Globe,
-  MessageSquare,
-  Shapes,
-  Users,
-} from 'lucide-react-native';
+import type { BloomIconComponent } from '@oxy.so/bloom/icons';
+import { RiGlobalLine } from '@oxy.so/bloom/icons/RiGlobalLine';
+import { RiLightbulbFlashLine } from '@oxy.so/bloom/icons/RiLightbulbFlashLine';
+import { RiMessage2Line } from '@oxy.so/bloom/icons/RiMessage2Line';
+import { RiShapesLine } from '@oxy.so/bloom/icons/RiShapesLine';
+import { RiTeamLine } from '@oxy.so/bloom/icons/RiTeamLine';
+import { RiWindowLine } from '@oxy.so/bloom/icons/RiWindowLine';
 import { ActionKeyIcon } from '@/components/ui/action-key-icon';
 import { AgentRobotIcon } from '@/components/ui/icons/agent-robot-icon';
 import { ClockIcon } from '@/components/ui/icons/clock-icon';
-import type { IconComponent } from '@/lib/types/icon';
 
 export interface CapabilityFamily {
   /** The grant string, exactly as it is stored and sent. */
   id: string;
   label: string;
   description: string;
-  icon: IconComponent;
+  icon: BloomIconComponent;
 }
 
 /**
@@ -87,31 +85,31 @@ export const CAPABILITY_FAMILIES: readonly CapabilityFamily[] = [
     id: 'web',
     label: 'Web',
     description: 'Search the web, read pages and run deep research',
-    icon: Globe,
+    icon: RiGlobalLine,
   },
   {
     id: 'browser',
     label: 'Browser',
     description: 'Search and read web pages step by step during a long-running task',
-    icon: AppWindow,
+    icon: RiWindowLine,
   },
   {
     id: 'artifacts',
     label: 'Artifacts',
     description: 'Produce charts, tables, code blocks and downloadable files',
-    icon: Shapes,
+    icon: RiShapesLine,
   },
   {
     id: 'memory',
     label: 'Memory',
     description: 'Read and update what Alia remembers about you',
-    icon: Brain,
+    icon: RiLightbulbFlashLine,
   },
   {
     id: 'messaging',
     label: 'Messaging',
     description: 'Send and read messages on your Telegram and WhatsApp',
-    icon: MessageSquare,
+    icon: RiMessage2Line,
   },
   {
     id: 'automation',
@@ -145,7 +143,7 @@ export const CAPABILITY_FAMILIES: readonly CapabilityFamily[] = [
  * `agent-editor-autosave.test.ts`, so it cannot quietly disagree with the
  * assembler about which family owns a tool.
  */
-export const RUNTIME_TOOL_FAMILIES: Readonly<Record<string, string>> = {
+const RUNTIME_TOOL_FAMILIES: Readonly<Record<string, string>> = {
   browser: 'browser',
   delegate: 'delegation',
 };
@@ -160,7 +158,7 @@ export const RUNTIME_TOOL_FAMILIES: Readonly<Record<string, string>> = {
  * something that is not a component — the shape
  * `packages/api/src/__tests__/prototype-keyed-lookups.test.ts` exists for.
  */
-export function capabilityIconForTool(toolName: string): IconComponent | undefined {
+export function capabilityIconForTool(toolName: string): BloomIconComponent | undefined {
   if (!Object.hasOwn(RUNTIME_TOOL_FAMILIES, toolName)) return undefined;
   const family = RUNTIME_TOOL_FAMILIES[toolName];
   return CAPABILITY_FAMILIES.find((entry) => entry.id === family)?.icon;
@@ -196,7 +194,7 @@ export const INSTANCED_FAMILY_LABELS: Readonly<Record<string, string>> = {
 };
 
 /**
- * `Users` for `agent`, and deliberately NOT `AgentRobotIcon`.
+ * A team for `agent`, and deliberately NOT `AgentRobotIcon`.
  *
  * That glyph is `delegation` two lists up — finding, hiring and creating agents
  * — and this family is the other half of the same sentence: the agents you
@@ -204,8 +202,8 @@ export const INSTANCED_FAMILY_LABELS: Readonly<Record<string, string>> = {
  * has to tell apart under the same picture, which is the duplication #365
  * removed rather than a consistency to preserve.
  */
-export const INSTANCED_FAMILY_ICONS: Readonly<Record<string, IconComponent>> = {
-  agent: Users,
+export const INSTANCED_FAMILY_ICONS: Readonly<Record<string, BloomIconComponent>> = {
+  agent: RiTeamLine,
   mcp: ActionKeyIcon,
-  integration: AppWindow,
+  integration: RiWindowLine,
 };

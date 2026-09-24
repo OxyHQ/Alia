@@ -1,4 +1,3 @@
-import React from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ComposerPanelAddMenuGroup } from '@oxy.so/bloom/composer-panel';
@@ -75,7 +74,7 @@ vi.mock('@oxy.so/bloom/icons/RiPencilLine', icon('RiPencilLine'));
 vi.mock('@oxy.so/bloom/icons/RiBookOpenLine', icon('RiBookOpenLine'));
 vi.mock('@oxy.so/bloom/icons/RiPlugLine', icon('RiPlugLine'));
 
-vi.mock('expo-image', async () => {
+vi.mock('@/components/ui/image', async () => {
   const ReactModule = await import('react');
   return { Image: (props: Record<string, unknown>) => ReactModule.createElement('Image', props) };
 });

@@ -64,9 +64,6 @@ vi.mock('@oxy.so/bloom/toast', () => ({
     dismiss: vi.fn(),
   },
 }));
-vi.mock('expo-crypto', () => ({
-  getRandomValues: (array: Uint8Array) => array,
-}));
 vi.mock('@oxy.so/bloom/surfaces', () => ({
   confirm: vi.fn(async () => false),
 }));

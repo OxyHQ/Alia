@@ -261,7 +261,7 @@ export const EFFORT_LEVELS = ['instant', 'medium', 'high', 'max'] as const;
 
 export type EffortLevel = (typeof EFFORT_LEVELS)[number];
 
-export function isEffortLevel(value: unknown): value is EffortLevel {
+function isEffortLevel(value: unknown): value is EffortLevel {
   return (EFFORT_LEVELS as readonly unknown[]).includes(value);
 }
 

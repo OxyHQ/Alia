@@ -52,9 +52,6 @@ vi.mock('@/lib/hooks/use-translation', () => ({
             .join(',')})`,
   }),
 }));
-vi.mock('expo-crypto', () => ({
-  getRandomValues: (array: Uint8Array) => array,
-}));
 
 import { FilesAndSources } from '@/components/execution/files-and-sources';
 import type { OutputFile, Source } from '@/lib/thought-utils';

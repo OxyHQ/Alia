@@ -420,7 +420,7 @@ export function AmbientField({
 
   return (
     <View
-      style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 }}
+      className="absolute inset-0"
       pointerEvents="none"
       onLayout={handleLayout}
     >

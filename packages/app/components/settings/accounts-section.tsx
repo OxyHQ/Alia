@@ -34,7 +34,7 @@ const ACCOUNT_STATUSES: readonly ConnectedAccount['status'][] = [
 
 export function AccountsSection() {
   const { t } = useTranslation();
-  const { accounts, loading, connect, disconnect, remove } =
+  const { accounts, loading, connect, remove } =
     useConnectedAccounts();
   // The platform whose connect is in flight; every connect waits on it.
   const [connectingPlatform, setConnectingPlatform] = useState<string | null>(

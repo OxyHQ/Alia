@@ -1,9 +1,7 @@
-import { NavRegion } from '@/components/app-shell/nav-region';
 import {
   ShellPageHeader,
   type PageHeaderOptions,
 } from '@/components/app-shell/page-chrome';
-import { ShellNavProvider } from '@/components/app-shell/shell-nav';
 import { CommandPalette } from '@/components/command-palette';
 import { AppErrorBoundary } from '@/components/error-boundary';
 import { restoreOpenerFocus } from '@/components/execution/focus-return';
@@ -98,18 +96,11 @@ export default function AppLayout() {
 
   /**
    * The template's two sidebars: the in-flow panel from `lg` up, and the drawer
-   * copy (`mobile`, plain surface) below it. `NavRegion` keeps the closed drawer
+   * copy (`mobile`, plain surface) below it. The shell keeps the closed drawer
    * out of the tab order and the screen-reader tree (#532).
    */
   const sidebar = useMemo(() => <Sidebar />, []);
-  const mobileSidebar = useMemo(
-    () => (
-      <NavRegion>
-        <Sidebar mobile />
-      </NavRegion>
-    ),
-    [],
-  );
+  const mobileSidebar = useMemo(() => <Sidebar mobile />, []);
 
   /** Names the veil that closes the nav drawer, and the shell's own controls. */
   const shellLabels = useMemo(
@@ -192,24 +183,22 @@ export default function AppLayout() {
           panelIcon={panelChrome.icon}
           panel={rightPanel === null ? undefined : (width) => <WorkspacePanel width={width} />}
         >
-          <ShellNavProvider>
-            {Platform.OS === 'web' ? (
-              // The page flows in the document, which is what scrolls on web;
-              // native-stack's web scene is absolutely positioned and would
-              // pin it to one screen.
-              <Navigator screenOptions={screenOptions}>
-                <Navigator.Screen name="c/[id]/index" options={{ title: i18n.t('nav.chat') }} />
-                <FocusedPage layout={screenLayout} />
-              </Navigator>
-            ) : (
-              <Stack screenOptions={screenOptions} screenLayout={screenLayout}>
-                <Stack.Screen
-                  name="c/[id]/index"
-                  options={{ title: i18n.t('nav.chat') }}
-                />
-              </Stack>
-            )}
-          </ShellNavProvider>
+          {Platform.OS === 'web' ? (
+            // The page flows in the document, which is what scrolls on web;
+            // native-stack's web scene is absolutely positioned and would
+            // pin it to one screen.
+            <Navigator screenOptions={screenOptions}>
+              <Navigator.Screen name="c/[id]/index" options={{ title: i18n.t('nav.chat') }} />
+              <FocusedPage layout={screenLayout} />
+            </Navigator>
+          ) : (
+            <Stack screenOptions={screenOptions} screenLayout={screenLayout}>
+              <Stack.Screen
+                name="c/[id]/index"
+                options={{ title: i18n.t('nav.chat') }}
+              />
+            </Stack>
+          )}
         </AiChatShell>
         <CommandPalette />
         <KeyboardShortcutsDialog />
