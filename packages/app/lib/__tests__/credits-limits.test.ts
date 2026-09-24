@@ -70,3 +70,32 @@ describe('credits → AgentLimitsCard props', () => {
     expect(limits).toHaveLength(1);
   });
 });
+
+describe('the plan usage window', () => {
+  it('comes first, as the share of the window spent and when its oldest spend ages out', () => {
+    const { limits } = agentLimitsProps(
+      credits({ window: { hours: 5, used: 250, limit: 1000, resetsAt: '2026-09-23T13:30:00Z' } }),
+      subscription('active'),
+      NOW,
+      t,
+    );
+    expect(limits[0]).toEqual({
+      label: 'chat.bloom.limits.window{"hours":5}',
+      used: 0.25,
+      resets: 'chat.bloom.limits.resetsInHours{"hours":1,"minutes":30}',
+    });
+    expect(limits[1].label).toBe('chat.bloom.limits.dailyFree');
+  });
+
+  it('says when a fresh window starts when nothing is spent, and clamps an overspent one', () => {
+    const fresh = agentLimitsProps(credits({ window: { hours: 5, used: 0, limit: 1000, resetsAt: null } }), null, NOW, t);
+    expect(fresh.limits[0].resets).toBe('chat.bloom.limits.windowFresh{"hours":5}');
+    const over = agentLimitsProps(credits({ window: { hours: 5, used: 1400, limit: 1000, resetsAt: '2026-09-23T12:10:00Z' } }), null, NOW, t);
+    expect(over.limits[0].used).toBe(1);
+  });
+
+  it('draws no window bar for a plan without one, or an API older than the window', () => {
+    expect(agentLimitsProps(credits({ window: null }), null, NOW, t).limits).toHaveLength(1);
+    expect(agentLimitsProps(credits(), null, NOW, t).limits).toHaveLength(1);
+  });
+});

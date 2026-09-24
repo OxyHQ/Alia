@@ -150,6 +150,28 @@ export async function creditSpendByDay(
     .orderBy(day);
 }
 
+/**
+ * One user's spend inside a rolling window: the credits since `since`, and the
+ * oldest spending turn still inside it — the one whose ageing out frees the
+ * window first, which is when a refused turn can be tried again.
+ */
+export async function creditSpendWindow(
+  db: Executor,
+  oxyUserId: string,
+  since: Date,
+): Promise<{ used: number; oldest: Date | null }> {
+  const [row] = await db
+    .select({
+      used: sql<number>`coalesce(sum(${effectiveCredits}), 0)::int`,
+      oldest: sql<Date | null>`min(${apiKeyUsage.timestamp})`,
+    })
+    .from(apiKeyUsage)
+    .where(
+      and(eq(apiKeyUsage.oxyUserId, oxyUserId), gte(apiKeyUsage.timestamp, since), spentSomething),
+    );
+  return { used: row.used, oldest: row.oldest === null ? null : new Date(row.oldest) };
+}
+
 /** Total credits one user has spent since an instant. */
 export async function creditSpendTotal(
   db: Executor,

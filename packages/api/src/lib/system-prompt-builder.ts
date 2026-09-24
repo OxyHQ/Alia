@@ -85,6 +85,15 @@ export interface OxyUserProfile {
   username?: string;
 }
 
+/** A built system prompt and how many of its characters each measured part holds. */
+export interface SystemPromptParts {
+  text: string;
+  /** Recalled memories and the person's own memory (facts, preferences, context). */
+  memoryChars: number;
+  /** The installed skills' index and the skills active on this turn. */
+  skillsChars: number;
+}
+
 export interface SystemPromptOptions {
   /** Canonical Kaana routing profile (for example, `route:auto`). */
   routingProfileId: string;
@@ -161,6 +170,17 @@ export class SystemPromptBuilder {
    *  10. Skills index (name and description of each installed skill)
    */
   static async build(opts: SystemPromptOptions): Promise<string> {
+    return (await SystemPromptBuilder.buildMeasured(opts)).text;
+  }
+
+  /**
+   * The same prompt, with how much of it is the person's memory and how much
+   * the skills — the context-window breakdown's own categories, measured where
+   * they are added rather than guessed afterwards.
+   */
+  static async buildMeasured(opts: SystemPromptOptions): Promise<SystemPromptParts> {
+    let memoryChars = 0;
+    let skillsChars = 0;
     const {
       routingProfileId,
       clientContext,
@@ -244,7 +264,9 @@ export class SystemPromptBuilder {
     // 4. Recalled memories from hooks
     if (mayReadMemory && recalledMemories?.length) {
       const memoryLines = recalledMemories.slice(0, 12).map((m) => `- ${m.title}: ${m.summary}`).join('\n');
-      systemMessage += `\n\n## Recalled Memories\n${memoryLines}`;
+      const recalled = `\n\n## Recalled Memories\n${memoryLines}`;
+      systemMessage += recalled;
+      memoryChars += recalled.length;
     }
 
     /**
@@ -298,6 +320,7 @@ export class SystemPromptBuilder {
 
     // 7. User memory (direct sessions only)
     if (mayReadMemory && userMemory && isDirectUserSession) {
+      const beforeUserMemory = systemMessage.length;
       systemMessage += '\n\n## User Information';
 
       if (userMemory.memories && userMemory.memories.length > 0) {
@@ -319,6 +342,7 @@ export class SystemPromptBuilder {
           systemMessage += '\n### Context:\n' + ctx.join('\n');
         }
       }
+      memoryChars += systemMessage.length - beforeUserMemory;
     }
 
     /**
@@ -366,9 +390,11 @@ export class SystemPromptBuilder {
     // one account's material into another's request.
     if (mayReadSkills && skills?.index) {
       systemMessage += skills.index;
+      skillsChars += skills.index.length;
     }
     if (mayReadSkills && skills?.active) {
       systemMessage = `${skills.active}\n\n---\n\n${systemMessage}`;
+      skillsChars += skills.active.length;
       log.general.info({ chars: skills.active.length }, 'Skills activated');
     }
 
@@ -408,6 +434,6 @@ export class SystemPromptBuilder {
       modelName: routingProfile?.name,
     })}\n\n---\n\n${systemMessage}`;
 
-    return systemMessage;
+    return { text: systemMessage, memoryChars, skillsChars };
   }
 }

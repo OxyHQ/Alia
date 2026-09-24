@@ -215,16 +215,6 @@ const PLAN_FEATURES: PlanFeatureSeed[] = [
   { planId: 'ultra', featureId: 'channels-discord', enabled: true },
   { planId: 'ultra', featureId: 'concurrent-tasks', enabled: true, limitValue: 100, displayLabel: '100 concurrent tasks' },
   { planId: 'ultra', featureId: 'response-length', enabled: true, limitValue: 5, displayLabel: 'Maximum response length' },
-
-  // ═══ Codea Pro ═══
-  { planId: 'codea-pro', featureId: 'credits-display', enabled: true, displayLabel: '10,000 credits / month', displayDescription: 'Shared with your Alia plan — 300 daily refresh on top' },
-  { planId: 'codea-pro', featureId: 'concurrent-tasks', enabled: true, limitValue: 20, displayLabel: '20 concurrent tasks' },
-  { planId: 'codea-pro', featureId: 'context-window', enabled: true, limitValue: 2, displayLabel: 'Extended context windows' },
-
-  // ═══ Codea Max ═══
-  { planId: 'codea-max', featureId: 'credits-display', enabled: true, displayLabel: '50,000 credits / month', displayDescription: 'Shared with your Alia plan — 300 daily refresh on top' },
-  { planId: 'codea-max', featureId: 'concurrent-tasks', enabled: true, limitValue: 50, displayLabel: '50 concurrent tasks' },
-  { planId: 'codea-max', featureId: 'context-window', enabled: true, limitValue: 3, displayLabel: 'Maximum context windows' },
 ];
 
 // ─── Seed functions ──────────────────────────────────────────

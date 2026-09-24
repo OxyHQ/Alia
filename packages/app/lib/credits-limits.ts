@@ -21,12 +21,12 @@ function resetsIn(msLeft: number, t: Translate): string {
  * `AgentLimitsCard`'s plan section, from what `/credits` and the subscription
  * really say.
  *
- * One rolling limit exists: the daily free allowance (`freeCredits` left of
- * `freeLimit`, refilled 24h after `lastRefresh`). The paid balance is not a
- * limit — it accumulates from plan renewals and purchases alike, and nothing
- * records how much of a month's plan credits were spent — so it is not drawn
- * as a share. There is no context-window number in Alia either, so the card
- * gets no `context`.
+ * Two rolling limits exist: the plan's usage window (credits spent in the
+ * last five hours of what the plan allows, freed as the oldest spend ages out;
+ * the API refuses a turn once it is spent), and the daily free allowance
+ * (`freeCredits` left of `freeLimit`, refilled 24h after `lastRefresh`). The
+ * paid balance is not a limit — it accumulates from plan renewals and purchases
+ * alike — so it is not drawn as a share.
  */
 export function agentLimitsProps(
   credits: CreditsInfo | undefined,
@@ -36,6 +36,17 @@ export function agentLimitsProps(
 ): { plan: string; limits: AgentLimitsUsageLimit[] } {
   const plan = subscription?.status === 'active' ? subscription.plan.name : t('credits.free');
   const limits: AgentLimitsUsageLimit[] = [];
+  const window = credits?.window;
+  if (window && window.limit > 0) {
+    const resetsAt = window.resetsAt === null ? Number.NaN : Date.parse(window.resetsAt);
+    limits.push({
+      label: t('chat.bloom.limits.window', { hours: window.hours }),
+      used: Math.min(1, Math.max(0, window.used / window.limit)),
+      resets: Number.isNaN(resetsAt)
+        ? t('chat.bloom.limits.windowFresh', { hours: window.hours })
+        : resetsIn(resetsAt - now, t),
+    });
+  }
   if (credits && credits.freeLimit > 0) {
     const used = (credits.freeLimit - credits.freeCredits) / credits.freeLimit;
     const refreshed = Date.parse(credits.lastRefresh);

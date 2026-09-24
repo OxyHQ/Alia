@@ -626,10 +626,22 @@
         "resetsSoon": "Se renueva pronto",
         "resetsDaily": "Se renueva cada 24 horas",
         "planUsage": "Límites de uso del plan",
-        "close": "Cerrar panel de créditos"
+        "close": "Cerrar panel de créditos",
+        "window": "Límite de {{hours}} horas",
+        "windowFresh": "Se renueva {{hours}} horas después de tu próximo mensaje"
       },
       "searchFailed": "La búsqueda falló",
-      "noResults": "Sin resultados"
+      "noResults": "Sin resultados",
+      "context": {
+        "system": "Prompt del sistema",
+        "tools": "Herramientas",
+        "mcp": "Herramientas MCP",
+        "memory": "Memoria",
+        "skills": "Skills",
+        "messages": "Mensajes",
+        "title": "Ventana de contexto",
+        "freeSpace": "Espacio libre"
+      }
     },
     "voiceStartFailed": "No se pudo iniciar la sesión de voz",
     "exportMarkdown": "Exportar como Markdown",
@@ -896,7 +908,10 @@
     "buyMore": "Comprar más",
     "switchToModel": "Cambia a {{model}} para ~{{ratio}}x menos créditos.",
     "switchToModelAlt": "Cambia a {{model}} para menos créditos.",
-    "spendingHighToday": "Estás gastando más de lo habitual hoy."
+    "spendingHighToday": "Estás gastando más de lo habitual hoy.",
+    "windowTitle": "Límite de uso alcanzado",
+    "windowDescription": "Has usado lo que tu plan permite en 5 horas. Se libera en {{time}}, o mejora tu plan para tener más.",
+    "windowFreed": "Tu límite de uso se ha liberado. Puedes continuar."
   },
   "forgotPassword": {
     "title": "Restablecer contraseña",
@@ -937,7 +952,8 @@
     "searchThread": "Buscar en este hilo",
     "moreOptions": "Más opciones",
     "showPanel": "Mostrar panel",
-    "hidePanel": "Ocultar panel"
+    "hidePanel": "Ocultar panel",
+    "usage": "Uso y contexto"
   },
   "welcome": {
     "greetingNamed": "Hola {{name}}, ¿qué tienes en mente?",

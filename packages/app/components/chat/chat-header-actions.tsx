@@ -14,6 +14,7 @@ import { RiDownloadLine } from '@oxy.so/bloom/icons/RiDownloadLine';
 import { RiMoreFill } from '@oxy.so/bloom/icons/RiMoreFill';
 import { RiSearchLine } from '@oxy.so/bloom/icons/RiSearchLine';
 import { RiSideBarLine } from '@oxy.so/bloom/icons/RiSideBarLine';
+import { RiDashboardLine } from '@oxy.so/bloom/icons/RiDashboardLine';
 import React from 'react';
 
 export interface ChatHeaderActionsProps {
@@ -73,6 +74,12 @@ export const ChatHeaderActions = React.memo(function ChatHeaderActions({
         )}
         <DropdownMenuItem onPress={togglePanel} leading={<RiSideBarLine size="sm" />}>
           {panelOpen ? t('chatHeader.hidePanel') : t('chatHeader.showPanel')}
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onPress={() => useUIStore.getState().setRightPanel('credits')}
+          leading={<RiDashboardLine size="sm" />}
+        >
+          {t('chatHeader.usage')}
         </DropdownMenuItem>
         <DropdownMenuItem onPress={onExport} leading={<RiDownloadLine size="sm" />}>
           {t('chat.exportMarkdown')}

@@ -652,10 +652,22 @@
         "resetsSoon": "Resets soon",
         "resetsDaily": "Resets every 24 hours",
         "planUsage": "Plan usage limits",
-        "close": "Close credits panel"
+        "close": "Close credits panel",
+        "window": "{{hours}}-hour limit",
+        "windowFresh": "Resets {{hours}} hours after your next message"
       },
       "searchFailed": "Search failed",
-      "noResults": "No results"
+      "noResults": "No results",
+      "context": {
+        "system": "System prompt",
+        "tools": "Tools",
+        "mcp": "MCP tools",
+        "memory": "Memory",
+        "skills": "Skills",
+        "messages": "Messages",
+        "title": "Context window",
+        "freeSpace": "Free space"
+      }
     },
     "voiceStartFailed": "Could not start the voice session",
     "exportMarkdown": "Export as Markdown",
@@ -923,7 +935,10 @@
     "buyMore": "Buy more",
     "switchToModel": "Switch to {{model}} for ~{{ratio}}x fewer credits.",
     "switchToModelAlt": "Switch to {{model}} for fewer credits.",
-    "spendingHighToday": "Spending more than usual today."
+    "spendingHighToday": "Spending more than usual today.",
+    "windowTitle": "Usage limit reached",
+    "windowDescription": "You've used what your plan allows in 5 hours. It frees up in {{time}}, or upgrade for more.",
+    "windowFreed": "Your usage limit has freed up. You can continue."
   },
   "forgotPassword": {
     "title": "Reset password",
@@ -964,7 +979,8 @@
     "searchThread": "Search this thread",
     "moreOptions": "More options",
     "showPanel": "Show panel",
-    "hidePanel": "Hide panel"
+    "hidePanel": "Hide panel",
+    "usage": "Usage and context"
   },
   "welcome": {
     "greetingNamed": "Hi {{name}}, what's on your mind?",
