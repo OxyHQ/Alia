@@ -230,7 +230,7 @@
             "lib/user-credits-helpers.ts"
           ],
           "reachable": true,
-          "entrypoint": "One direct caller, and eleven surfaces behind it \u2014 see balanceSurfaces. Mints the row with the default free allowance; touches no paid balance."
+          "entrypoint": "One direct caller, and twelve surfaces behind it \u2014 see balanceSurfaces. Mints the row with the default free allowance; touches no paid balance."
         },
         {
           "fn": "refreshFreeCreditsIfDue",
@@ -299,6 +299,7 @@
   "balanceSurfaces": {
     "note": "Every non-test module reaching the balance row through lib/user-credits-helpers.ts, the one hop between the repository and the product. Hosted voice, image and audio provider paths are absent after the Kaana cutover and therefore are not balance surfaces in Alia.",
     "modules": [
+      "lib/agent/deferred-approvals.ts",
       "lib/agent/session-handoff.ts",
       "lib/automation-dispatcher.ts",
       "lib/chat/request-context.ts",

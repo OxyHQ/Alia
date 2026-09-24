@@ -660,8 +660,9 @@ describe('the billing path audit matches the tree it describes (#139 ws12)', () 
     // count is read from the surviving product tree rather than preserved as a
     // compatibility floor for deleted modules. `routes/codea.ts` left with the
     // `alia_sk_*` keys it was the only lane for. `lib/automation-dispatcher.ts`
-    // joined when automation runs started holding credits like a goal does.
-    expect(derived.length).toBe(11);
+    // joined when automation runs started holding credits like a goal does, and
+    // `lib/agent/deferred-approvals.ts` when an approved action got its own run.
+    expect(derived.length).toBe(12);
   });
 });
 

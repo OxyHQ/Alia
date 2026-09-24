@@ -204,7 +204,7 @@ function buildPatternKey(toolName: string, threat: ThreatResult): string {
   return `${toolName}:${categories}`;
 }
 
-function sanitizeArgsForDisplay(args: Record<string, unknown>): Record<string, unknown> {
+export function sanitizeArgsForDisplay(args: Record<string, unknown>): Record<string, unknown> {
   const safe: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(args)) {
     if (typeof value === 'string') {

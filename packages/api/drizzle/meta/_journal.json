@@ -540,6 +540,13 @@
       "when": 1790258975081,
       "tag": "0076_agent_session_runner_lease",
       "breakpoints": true
+    },
+    {
+      "idx": 77,
+      "version": "7",
+      "when": 1790260405276,
+      "tag": "0077_agent_approval_deferred",
+      "breakpoints": true
     }
   ]
 }

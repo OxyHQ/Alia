@@ -20,7 +20,12 @@ export const AGENT_THREAD_APPROVAL_MODES = ['ask', 'supervised_auto'] as const;
  */
 export const AGENT_EXECUTION_TARGETS = ['sandbox', 'cowork'] as const;
 export const AGENT_GOAL_STATUSES = ['active', 'paused', 'blocked', 'candidate', 'completed', 'cancelled'] as const;
-export const AGENT_APPROVAL_STATUSES = ['pending', 'approved', 'denied', 'expired', 'cancelled'] as const;
+/**
+ * `executed`: an approval a background run asked for was granted and the
+ * action it covered has now been performed, once. It is what stops one "yes"
+ * from authorizing the same action again.
+ */
+export const AGENT_APPROVAL_STATUSES = ['pending', 'approved', 'denied', 'expired', 'cancelled', 'executed'] as const;
 export const AGENT_TEAM_ROLES = ['coordinator', 'member'] as const;
 export const COWORK_DEVICE_STATUSES = ['online', 'offline', 'revoked'] as const;
 
@@ -98,7 +103,8 @@ export const agentGoals = pgTable('agent_goals', {
 export const agentApprovalRequests = pgTable('agent_approval_requests', {
   id: generatedId(),
   turnId: text().notNull(),
-  threadId: text().notNull(),
+  /** NULL for a background run with no thread: an automation, a follow-up. */
+  threadId: text(),
   oxyUserId: text().notNull(),
   agentId: text().notNull(),
   toolName: text().notNull(),

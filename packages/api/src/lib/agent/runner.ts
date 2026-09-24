@@ -60,6 +60,7 @@ import { orchestrate, shouldOrchestrate } from './orchestrator.js';
 import { postAgentMessage } from './agent-outreach.js';
 import type { AgentRuntimeContext } from './actions.js';
 import { scheduleAgentFollowUp } from './follow-ups.js';
+import { deferredApprovalsFor } from './deferred-approvals.js';
 import { compactContext } from './context-compaction.js';
 import { redactSecrets } from './secret-scanner.js';
 import { readCapabilityGrants } from '../../domain/capability-grants.js';
@@ -475,7 +476,10 @@ async function driveAgentSession(session: AgentSessionRecord, lease: RunLease, r
       onHireAgent,
       // A child run (delegated, orchestrated) reports to its parent, not to
       // the person, so only a top-level run may write to them.
-      ...(session.parentSessionId ? {} : { outreach: runOutreach(session, eventStream) }),
+      ...(session.parentSessionId ? {} : {
+        outreach: runOutreach(session, eventStream),
+        approvals: deferredApprovalsFor(session),
+      }),
       todoManager,
       browserSession,
       eventStream,
