@@ -98,7 +98,7 @@ in [#244](https://github.com/OxyHQ/Alia/issues/244), which closed on that decisi
 | Raw model access — a completion with nothing around it | Kaana through Oxy: `api.oxy.so/v1` |
 | The generic model catalogue | The Oxy catalogue |
 | Usage and invoices | Oxy |
-| The assistant — conversations, memory, agents, tools, approvals, research, automations, the `alia.*` stream | Alia's product API: `api.alia.onl/v1/*` or `/alia/chat`, with the Oxy credential above; Alia's own catalogue of routing profiles at `GET /catalogue` |
+| The assistant — conversations, memory, agents, tools, approvals, research, automations, the `alia.*` stream | Alia's product API: `api.alia.onl/v1/*` or `/alia/chat`, with the Oxy credential above; the models its chat can use — Oxy's catalogue filtered to text models with tools — at `GET /catalogue` |
 
 Alia does not own a generic model catalogue, and it does not hold the authoritative
 balance for anything.
