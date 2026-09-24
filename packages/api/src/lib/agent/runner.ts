@@ -61,6 +61,7 @@ import { postAgentMessage } from './agent-outreach.js';
 import type { AgentRuntimeContext } from './actions.js';
 import { scheduleAgentFollowUp } from './follow-ups.js';
 import { deferredApprovalsFor } from './deferred-approvals.js';
+import { agentMemoryPromptSection } from './agent-memory-runtime.js';
 import { compactContext } from './context-compaction.js';
 import { redactSecrets } from './secret-scanner.js';
 import { readCapabilityGrants } from '../../domain/capability-grants.js';
@@ -98,6 +99,9 @@ function actionLines(agent: HydratedAgent, options: { automation: boolean; outre
     lines.push("**browser** — Research the web: search for a query, read a public URL's main text with goto, and read the current page again with get_text. Pages come back as extracted text; you cannot click, type or take screenshots.");
   }
   lines.push("**plan** — Create and update your task plan, or signal completion. Your plan persists as a checklist. Update it as you make progress. Call plan(action='complete', result='...') when done.");
+  if (grants.allows('memory')) {
+    lines.push('**memory** — Your own long-term memory of this person (MEMORY.md, memory/<topic>.md). Read it when you need detail; save what will still matter in a later conversation.');
+  }
   if (!options.automation && grants.allows('delegation')) {
     lines.push('**delegate** — Hire a specialist agent for a subtask outside your expertise.');
   }
@@ -491,7 +495,9 @@ async function driveAgentSession(session: AgentSessionRecord, lease: RunLease, r
   // boundary holds even for custom / archetype agent prompts. The runner picks
   // a model per step, so no single model name is passed here.
   // The agent's OWN name. It used to be told it was Alia, above its own prompt.
-  const systemPrompt = `${buildIdentityGuard({ agentName: agentPromptName(agent) })}\n\n---\n\n${buildSystemPrompt(agent, session.config, { automation: Boolean(session.automationRunId), outreach: !session.parentSessionId })}`;
+  const grantsMemory = readCapabilityGrants(agent.capabilityGrants).allows('memory');
+  const memorySection = grantsMemory ? await agentMemoryPromptSection(session.oxyUserId, agent._id) : '';
+  const systemPrompt = `${buildIdentityGuard({ agentName: agentPromptName(agent) })}\n\n---\n\n${buildSystemPrompt(agent, session.config, { automation: Boolean(session.automationRunId), outreach: !session.parentSessionId })}${memorySection}`;
 
   // Persisted every step, so a resumed run keeps counting against the SAME
   // budget instead of starting a fresh one.
