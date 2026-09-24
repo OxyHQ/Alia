@@ -16,7 +16,6 @@
 
 import { streamAliaChat, type AuthenticatedResponseClient } from './chat-transport';
 import { resolveModelId } from './catalogue';
-import { PREFERRED_CHAT_MODEL_ID } from './config';
 
 export interface VoiceTurnMessage {
   readonly role: 'user' | 'assistant';
@@ -50,18 +49,18 @@ interface LinkedClientFactory {
 export interface AliaVoiceTurnSenderOptions {
   readonly oxyServices: LinkedClientFactory;
   readonly apiUrl: string;
-  /** Chat routing profile, checked against `GET /catalogue` like `useAliaChat`'s. */
+  /** `publisher/model`, checked against `GET /catalogue` like `useAliaChat`'s; omitted, the server's default. */
   readonly model?: string;
   readonly agentId?: string;
 }
 
 /** The default sender: `POST /v1/chat/completions` as `useAliaChat` sends it, marked as voice. */
 export function createAliaVoiceTurnSender(options: AliaVoiceTurnSenderOptions): VoiceTurnSender {
-  const { oxyServices, apiUrl, model = PREFERRED_CHAT_MODEL_ID, agentId } = options;
+  const { oxyServices, apiUrl, model, agentId } = options;
   return async ({ text, history, signal, onText }) => {
     const linked = oxyServices.createLinkedClient({ baseURL: apiUrl });
     try {
-      const effectiveModel = await resolveModelId(apiUrl, model, undefined, PREFERRED_CHAT_MODEL_ID);
+      const effectiveModel = await resolveModelId(apiUrl, model);
       signal.throwIfAborted();
       let answer = '';
       await streamAliaChat(

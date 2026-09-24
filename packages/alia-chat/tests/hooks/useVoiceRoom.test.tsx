@@ -155,7 +155,7 @@ describe('the on-device voice loop', () => {
     await act(async () => sender.turns[0]!.onText('Hace sol. Mañana'));
     await settle();
     expect(fx.clips.map((clip) => clip.input)).toEqual(['Hace sol.']);
-    expect(fx.clips[0]).toMatchObject({ voice: 'male', model: 'route:voice' });
+    expect(fx.clips[0]).toMatchObject({ voice: 'male', model: undefined });
     expect(fx.playbacks.map((playback) => playback.uri)).toEqual(['clip:Hace sol.']);
     expect(latest.agentState).toBe('speaking');
 

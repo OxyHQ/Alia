@@ -5,7 +5,7 @@ import type { UseAliaChatReturn } from '../../src/hooks/useAliaChat';
 
 const mocks = vi.hoisted(() => ({
   oxyServices: null as unknown,
-  resolveModelId: vi.fn(async (_apiUrl: string, model: string) => model),
+  resolveModelId: vi.fn(async (_apiUrl: string, model?: string) => model),
 }));
 
 vi.mock('@oxy.so/services', () => ({
@@ -37,8 +37,8 @@ interface MockSession {
 function successfulResponse(content = 'Hola'): Response {
   const escaped = JSON.stringify(content);
   return new Response(
-    `data: {"id":"c1","object":"chat.completion.chunk","created":1,"model":"profile:auto","choices":[{"index":0,"delta":{"content":${escaped}},"finish_reason":null}]}\n\n` +
-      'data: {"id":"c1","object":"chat.completion.chunk","created":1,"model":"profile:auto","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}\n\n' +
+    `data: {"id":"c1","object":"chat.completion.chunk","created":1,"model":"example/model","choices":[{"index":0,"delta":{"content":${escaped}},"finish_reason":null}]}\n\n` +
+      'data: {"id":"c1","object":"chat.completion.chunk","created":1,"model":"example/model","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}\n\n' +
       'data: [DONE]\n\n',
     { headers: { 'content-type': 'text/event-stream' } },
   );
@@ -69,7 +69,7 @@ function current(): UseAliaChatReturn {
 let hookOptions: Parameters<typeof useAliaChat>[0];
 
 function Harness(): null {
-  latest = useAliaChat({ apiUrl: 'https://api.alia.onl', model: 'profile:auto', ...hookOptions });
+  latest = useAliaChat({ apiUrl: 'https://api.alia.onl', model: 'example/model', ...hookOptions });
   return null;
 }
 
@@ -162,7 +162,7 @@ describe('useAliaChat request lifecycle', () => {
   });
 
   it('does not wait for a cold catalogue request after unmounting', async () => {
-    mocks.resolveModelId.mockImplementationOnce(() => new Promise<string>(() => undefined));
+    mocks.resolveModelId.mockImplementationOnce(() => new Promise<string | undefined>(() => undefined));
     const session = createSession(async () => successfulResponse());
     const renderer = await renderHarness();
 
@@ -272,7 +272,7 @@ describe('useAliaChat request lifecycle', () => {
 
   it('turns a terminal stream with no answer into a visible failure', async () => {
     const empty = new Response(
-      'data: {"id":"c1","object":"chat.completion.chunk","created":1,"model":"profile:auto","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}\n\n' +
+      'data: {"id":"c1","object":"chat.completion.chunk","created":1,"model":"example/model","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}\n\n' +
         'data: [DONE]\n\n',
       { headers: { 'content-type': 'text/event-stream' } },
     );
