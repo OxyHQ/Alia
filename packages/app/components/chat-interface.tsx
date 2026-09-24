@@ -656,6 +656,24 @@ export const ChatInterface = React.memo(function ChatInterface({
     syncThoughtScope(liveThoughtScope);
   }, [liveThoughtScope, syncThoughtScope]);
 
+  /**
+   * The agent's first tool of a turn — a search, a page it reads, a command —
+   * opens the thought panel on that turn, unless a panel is already open. Once
+   * per turn: a reader who closes it keeps it closed.
+   */
+  const openThoughtPanel = useUIStore((s) => s.openThoughtPanel);
+  const autoOpenedTurn = useRef<string | null>(null);
+  const workingTurn = isLoading ? liveMessages[liveMessages.length - 1] : undefined;
+  const workingTurnId =
+    workingTurn?.role === 'assistant' && (workingTurn.toolInvocations?.length ?? 0) > 0
+      ? workingTurn.id
+      : null;
+  useEffect(() => {
+    if (workingTurnId === null || autoOpenedTurn.current === workingTurnId) return;
+    autoOpenedTurn.current = workingTurnId;
+    if (useUIStore.getState().rightPanel === null) openThoughtPanel(workingTurnId, liveThoughtScope);
+  }, [workingTurnId, liveThoughtScope, openThoughtPanel]);
+
   const handleCopyMessage = useCallback(
     async (content: string) => {
       await Clipboard.setStringAsync(content);
