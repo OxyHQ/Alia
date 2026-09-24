@@ -460,6 +460,16 @@ a notification that opens `/@handle`.
   person and agent). Its result is NOT posted; the agent speaks through
   `sendMessageToUser` only if it found something worth saying.
 
+### An agent's own memory of a person
+
+`agent_memory_documents` (MEMORY.md plus `memory/<topic>.md`, per agent and
+person) is the agent's, not only the person's to edit: with the `memory` grant
+its MEMORY.md is in the prompt of every chat turn and background run
+(`agentMemoryPromptSection`), and the `memory` tool lists, reads, appends and
+replaces its files. Writes carry the hash the tool just read, so the agent and
+the person editing the same file never overwrite each other, and every write is
+journaled with origin `agent`. Reads are R0, writes R1 (journaled).
+
 ### Approvals nobody is waiting for
 
 A top-level background run does not wait for an R2 approval (or one the threat

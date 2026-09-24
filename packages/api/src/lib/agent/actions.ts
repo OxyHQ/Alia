@@ -65,6 +65,7 @@ import { getDb } from '../../db/index.js';
 import { updateAgentSession, type AgentSessionRecord } from '../../db/agents/agentSessionRepository.js';
 import type { EventStream } from './event-stream.js';
 import type { DeferredApprovals } from './deferred-approvals.js';
+import { buildAgentMemoryTool } from './agent-memory-runtime.js';
 import { RepeatDetector, repeatedToolCallKey } from './repeat-detector.js';
 
 export interface AgentRuntimeContext {
@@ -225,6 +226,16 @@ export function buildRuntimeTools(
           return `Error hiring agent: ${getErrorMessage(err)}`;
         }
       },
+    });
+  }
+
+  // ── memory — the agent's own files about this person ──
+
+  if (grants.allows('memory')) {
+    actions.memory = buildAgentMemoryTool({
+      oxyUserId: session.oxyUserId,
+      agentId: session.agentId,
+      actorOxyAccountId: session.agentId,
     });
   }
 

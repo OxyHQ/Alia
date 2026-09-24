@@ -417,6 +417,7 @@ describe('every action carries the wrapper, and the exemption is exactly one', (
     expect(executable).toEqual([
       'browser',
       'delegate',
+      'memory',
       'plan',
       'read_file',
       'send_message',

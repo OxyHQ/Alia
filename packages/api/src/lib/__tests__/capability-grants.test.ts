@@ -246,7 +246,9 @@ describe('an agent reaches exactly what it was granted', () => {
 
     // `browser` is read-only research, which is what a scheduled stage is for;
     // `delegate` is withheld because it would start an unreserved session.
-    expect(names).toEqual(['browser', 'getCurrentDate', 'plan']);
+    // `memory` is the agent's own files about the person, which a scheduled
+    // stage may read and keep current like any other run.
+    expect(names).toEqual(['browser', 'getCurrentDate', 'memory', 'plan']);
     expect(asked.oxy_service).toEqual([undefined]);
     expect(asked.mcp).toEqual([]);
     expect(asked.integration).toEqual([]);
