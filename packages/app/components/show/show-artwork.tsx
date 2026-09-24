@@ -26,7 +26,7 @@ import { SYRA_API_URL } from '@/lib/config';
 import { Card, type CardRadius } from '@oxy.so/bloom/card';
 import { RiMic2Line } from '@oxy.so/bloom/icons/RiMic2Line';
 import { useTheme } from '@oxy.so/bloom/theme';
-import { Image } from 'expo-image';
+import { Image } from '@/components/ui/image';
 
 interface ShowArtworkProps {
   /** Syra's image id, or `null` when this show has no cover. */
@@ -63,7 +63,7 @@ export function ShowArtwork({ assetId, title, size, radius, iconSize }: ShowArtw
           accessibilityRole="image"
           accessibilityLabel={`${title} cover art`}
           source={{ uri: `${SYRA_API_URL}/api/images/${assetId}` }}
-          style={{ width: size, height: size }}
+          className="h-full w-full"
           contentFit="cover"
           transition={150}
         />

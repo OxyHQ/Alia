@@ -200,8 +200,8 @@ export function SeriesCreateDialog({
       ]}
     >
       {/* Stacking only: the form's fields, in a scroller capped at 384. */}
-      <ScrollView style={{ maxHeight: 384 }} showsVerticalScrollIndicator={false}>
-        <View style={{ gap: 16, paddingVertical: 8 }}>
+      <ScrollView className="max-h-96" showsVerticalScrollIndicator={false}>
+        <View className="gap-4 py-2">
           <View>
             <TextFieldLabel>Name</TextFieldLabel>
             <TextFieldInput
