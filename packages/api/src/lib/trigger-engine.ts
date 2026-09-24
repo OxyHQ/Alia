@@ -1,7 +1,9 @@
 /** Elected cron scheduler for normalized automation definitions. */
 
 import cron, { type ScheduledTask, type TaskContext } from 'node-cron';
+import cronParser from 'cron-parser';
 import {
+  automationRunExists,
   findAutomationDefinitionById,
   listSchedulableAutomationDefinitions,
   listSchedulableAutomationVersions,
@@ -19,6 +21,25 @@ import { log } from './logger.js';
 const scheduledTasks = new Map<string, ScheduledTask>();
 const scheduledUpdatedAt = new Map<string, number>();
 const RECONCILE_INTERVAL_MS = 30_000;
+
+/**
+ * How far back a missed occurrence is still run.
+ *
+ * `node-cron` fires only while this process leads and is up. A deploy replaces
+ * every task, and leadership takes up to its lease to move, so an occurrence
+ * that fell in that gap never fired — and a one-off task (`runOnce`) that never
+ * fires is never disabled, so its five-field cron comes round again next year.
+ * Each reconcile runs the latest occurrence inside this window that has no run
+ * yet; the run is keyed by the same occurrence id the live cron uses, so the
+ * two cannot both run it.
+ */
+const CATCH_UP_WINDOW_MS = 30 * 60 * 1000;
+/**
+ * Occurrences this leader already dispatched or tried to. A denied dispatch
+ * (no eligible agent, no credits) creates no run, so without this the catch-up
+ * would retry it — and notify the person — every reconcile.
+ */
+const attemptedOccurrences = new Set<string>();
 let reconcileTimer: ReturnType<typeof setInterval> | null = null;
 let electionHandle: LeaderElectionHandle | null = null;
 
@@ -46,12 +67,66 @@ function unscheduleAutomation(automationId: string): void {
 }
 
 function scheduleOccurrence(automationId: string, context: TaskContext) {
-  const occurredAt = new Date(context.date);
+  return occurrenceAt(automationId, new Date(context.date));
+}
+
+function occurrenceAt(automationId: string, date: Date) {
+  const occurredAt = new Date(date);
   occurredAt.setMilliseconds(0);
   return {
     occurredAt,
     id: `schedule:${automationId}:${occurredAt.toISOString()}`,
   };
+}
+
+/**
+ * The latest occurrence of this schedule inside the catch-up window, if any,
+ * that falls after the definition last changed (an edit is not a missed run).
+ */
+export function missedOccurrence(
+  automation: Pick<AutomationDefinitionRecord, 'id' | 'enabled' | 'trigger' | 'updatedAt'>,
+  now: Date = new Date(),
+): { occurredAt: Date; id: string } | null {
+  if (!automation.enabled || automation.trigger.type !== 'schedule') return null;
+  const { cron: expression, timezone } = automation.trigger;
+  if (!expression || !timezone || automationScheduleError(expression, timezone)) return null;
+  try {
+    const previous = cronParser.parseExpression(expression, { currentDate: now, tz: timezone }).prev().toDate();
+    const since = Math.max(now.getTime() - CATCH_UP_WINDOW_MS, automation.updatedAt.getTime());
+    if (previous.getTime() <= since) return null;
+    return occurrenceAt(automation.id, previous);
+  } catch {
+    return null;
+  }
+}
+
+async function catchUpMissedOccurrences(now: Date = new Date()): Promise<void> {
+  // An occurrence older than the window can never be caught up again.
+  for (const id of attemptedOccurrences) {
+    // `schedule:<automation uuid>:<ISO instant>` — the instant is everything
+    // after the second colon.
+    const at = Date.parse(id.split(':').slice(2).join(':'));
+    if (!Number.isNaN(at) && at < now.getTime() - 2 * CATCH_UP_WINDOW_MS) attemptedOccurrences.delete(id);
+  }
+  const automations = await listSchedulableAutomationDefinitions(getDb());
+  for (const automation of automations) {
+    const occurrence = missedOccurrence(automation, now);
+    if (!occurrence || attemptedOccurrences.has(occurrence.id)) continue;
+    attemptedOccurrences.add(occurrence.id);
+    try {
+      // Checked first so a run the live cron already made costs one read here,
+      // not a credit hold and its refund.
+      if (await automationRunExists(getDb(), automation.id, occurrence.id)) continue;
+      // Idempotent by occurrence id: a run the live cron already claimed is a
+      // `duplicate` here, and nothing else happens.
+      const result = await dispatchStructuredAutomation(automation, { kind: 'schedule', ...occurrence });
+      if (result.status === 'queued') {
+        log.triggers.warn({ automationId: automation.id, occurrence: occurrence.id }, 'Ran a missed scheduled occurrence');
+      }
+    } catch (error: unknown) {
+      log.triggers.error({ err: error, automationId: automation.id }, 'Could not catch up a missed occurrence');
+    }
+  }
 }
 
 function scheduleAutomation(automation: AutomationDefinitionRecord): void {
@@ -78,10 +153,9 @@ function scheduleAutomation(automation: AutomationDefinitionRecord): void {
       try {
         const fresh = await findAutomationDefinitionById(getDb(), automationId);
         if (!fresh?.enabled || fresh.trigger.type !== 'schedule') return;
-        await dispatchStructuredAutomation(fresh, {
-          kind: 'schedule',
-          ...scheduleOccurrence(automationId, context),
-        });
+        const occurrence = scheduleOccurrence(automationId, context);
+        attemptedOccurrences.add(occurrence.id);
+        await dispatchStructuredAutomation(fresh, { kind: 'schedule', ...occurrence });
       } catch (error: unknown) {
         log.triggers.error({ err: error, automationId }, 'Scheduled automation failed');
       }
@@ -107,6 +181,7 @@ async function reconcileScheduledAutomations(): Promise<void> {
     for (const automationId of [...scheduledUpdatedAt.keys()]) {
       if (!seen.has(automationId)) unscheduleAutomation(automationId);
     }
+    await catchUpMissedOccurrences();
   } catch (error: unknown) {
     log.triggers.error({ err: error }, 'Automation schedule reconciliation failed');
   }
@@ -142,6 +217,8 @@ export async function startTriggerScheduler(): Promise<void> {
     const automations = await listSchedulableAutomationDefinitions(getDb());
     log.triggers.info({ automationCount: automations.length }, 'Found enabled automation schedules');
     for (const automation of automations) scheduleAutomation(automation);
+    // A new leader first runs what fell in the gap before it took over.
+    await catchUpMissedOccurrences();
     if (!reconcileTimer) {
       reconcileTimer = setInterval(
         () => { void reconcileScheduledAutomations(); },
@@ -163,6 +240,7 @@ export function stopAllScheduledTasks(): void {
   }
   scheduledTasks.clear();
   scheduledUpdatedAt.clear();
+  attemptedOccurrences.clear();
   if (reconcileTimer) {
     clearInterval(reconcileTimer);
     reconcileTimer = null;

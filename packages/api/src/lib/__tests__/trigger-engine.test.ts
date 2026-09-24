@@ -5,6 +5,7 @@ vi.mock('node-cron', () => ({
 }));
 vi.mock('../../db/index.js', () => ({ getDb: vi.fn(() => ({})) }));
 vi.mock('../../db/automation/automationDefinitionRepository.js', () => ({
+  automationRunExists: vi.fn(async () => false),
   findAutomationDefinitionById: vi.fn(),
   listSchedulableAutomationDefinitions: vi.fn(async () => []),
   listSchedulableAutomationVersions: vi.fn(async () => []),
@@ -19,13 +20,14 @@ vi.mock('../logger.js', () => ({
 
 import cron, { type TaskContext } from 'node-cron';
 import {
+  automationRunExists,
   findAutomationDefinitionById,
   listSchedulableAutomationDefinitions,
   listSchedulableAutomationVersions,
   type AutomationDefinitionRecord,
 } from '../../db/automation/automationDefinitionRepository.js';
 import { dispatchStructuredAutomation } from '../automation-dispatcher.js';
-import { startTriggerScheduler, stopAllScheduledTasks } from '../trigger-engine.js';
+import { missedOccurrence, startTriggerScheduler, stopAllScheduledTasks } from '../trigger-engine.js';
 
 type MockFn = ReturnType<typeof vi.fn>;
 const cronMock = cron as unknown as { schedule: MockFn; validate: MockFn };
@@ -124,3 +126,64 @@ describe('normalized automation schedule reconciliation', () => {
     });
   });
 });
+
+describe('an occurrence missed while nobody led the scheduler', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    cronMock.validate.mockReturnValue(true);
+    listVersions.mockResolvedValue([]);
+  });
+
+  afterEach(() => {
+    stopAllScheduledTasks();
+  });
+
+  const monday9 = automation('weekly', new Date('2026-09-02T00:00:00.000Z')); // '0 9 * * 1', UTC
+
+  it('is the latest occurrence inside the window, keyed like the live cron', () => {
+    expect(missedOccurrence(monday9, new Date('2026-09-07T09:10:00.000Z'))).toEqual({
+      occurredAt: new Date('2026-09-07T09:00:00.000Z'),
+      id: 'schedule:weekly:2026-09-07T09:00:00.000Z',
+    });
+  });
+
+  it('is nothing once the window has passed, or before the definition last changed', () => {
+    expect(missedOccurrence(monday9, new Date('2026-09-07T10:00:00.000Z'))).toBeNull();
+    const editedAfter = automation('weekly', new Date('2026-09-07T09:05:00.000Z'));
+    expect(missedOccurrence(editedAfter, new Date('2026-09-07T09:10:00.000Z'))).toBeNull();
+    expect(missedOccurrence({ ...monday9, enabled: false }, new Date('2026-09-07T09:10:00.000Z'))).toBeNull();
+  });
+
+  it('is run once by a new leader, and not again while a run exists or it was tried', async () => {
+    vi.useFakeTimers({ now: new Date('2026-09-07T09:10:00.000Z'), toFake: ['Date', 'setInterval', 'clearInterval'] });
+    cronMock.schedule.mockReturnValue({ stop: vi.fn() });
+    listDefinitions.mockResolvedValue([monday9]);
+    dispatchAutomation.mockResolvedValue({ status: 'denied', reason: 'no_eligible_actor_plan' });
+
+    await startTriggerScheduler();
+    expect(dispatchAutomation).toHaveBeenCalledTimes(1);
+    expect(dispatchAutomation).toHaveBeenCalledWith(monday9, expect.objectContaining({
+      kind: 'schedule',
+      id: 'schedule:weekly:2026-09-07T09:00:00.000Z',
+    }));
+
+    // A denied dispatch made no run; it must still not be retried (and the
+    // person notified) on every reconcile.
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(dispatchAutomation).toHaveBeenCalledTimes(1);
+    vi.useRealTimers();
+  });
+
+  it('is skipped without dispatching when the live cron already made its run', async () => {
+    cronMock.schedule.mockReturnValue({ stop: vi.fn() });
+    const recent = automation('recent', new Date('2026-09-02T00:00:00.000Z'));
+    vi.useFakeTimers({ now: new Date('2026-09-14T09:05:00.000Z'), toFake: ['Date'] });
+    listDefinitions.mockResolvedValue([recent]);
+    vi.mocked(automationRunExists).mockResolvedValueOnce(true);
+
+    await startTriggerScheduler();
+    expect(dispatchAutomation).not.toHaveBeenCalled();
+    vi.useRealTimers();
+  });
+});
+
