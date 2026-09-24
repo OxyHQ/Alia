@@ -37,6 +37,8 @@ import {
 import { ComposerPanelStatusTab } from '@oxy.so/bloom/composer-panel';
 import { useAuth } from '@oxy.so/services';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { ScrollToBottomButton } from '@oxy.so/bloom/chat-screen';
+import { useAtBottom } from '@/lib/hooks/use-at-bottom';
 import { View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -261,6 +263,12 @@ export const ChatPageContent = ({
   }, [onLoadHistory, hasMoreHistory, isLoadingHistory]);
 
   const threadRef = useRef<AiChatThreadHandle | null>(null);
+  /**
+   * Whether the reader has left the end, for Bloom's jump to the newest turn.
+   * The button rides the composer, which stays pinned while the page scrolls.
+   */
+  const { isAtBottom, onScroll: onThreadScroll } = useAtBottom();
+  const jumpToEnd = useCallback(() => threadRef.current?.scrollToEnd({ animated: false }), []);
 
   /**
    * Voice mode, from the send slot while the composer is empty — as it was
@@ -433,6 +441,13 @@ export const ChatPageContent = ({
               disableKeyboardAvoidance
               {...composer.props}
               emptyAction={voiceAction}
+              accessory={
+                <ScrollToBottomButton
+                  visible={!isAtBottom}
+                  onPress={jumpToEnd}
+                  accessibilityLabel={t('chat.bloom.scrollToLatest')}
+                />
+              }
               placeholder={
                 disabled ? t('usageLimit.inputDisabledPlaceholder') : t('composer.placeholder')
               }
@@ -450,6 +465,7 @@ export const ChatPageContent = ({
       <ChatInterface
         messages={messages}
         threadRef={threadRef}
+        onScroll={onThreadScroll}
         onLoadHistory={
           onLoadHistory === undefined ? undefined : handleLoadHistory
         }
