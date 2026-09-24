@@ -118,7 +118,7 @@ export interface ShowEpisode {
 export interface ShowVoice {
   voiceId: string;
   name: string;
-  gender: 'male' | 'female';
+  gender: 'male' | 'female' | 'neutral';
   accent: string;
   description: string;
 }

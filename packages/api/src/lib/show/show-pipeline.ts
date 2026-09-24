@@ -50,6 +50,8 @@ import { syraForTicket } from '../syra/syra.js';
 import { buildScriptSystemPrompt, buildScriptUserPrompt } from './script-prompt.js';
 import { cleanTitle } from './episode-title.js';
 import { concatenateAudioSegments, measureAudioDurationMs } from './show-audio.js';
+import { speakableText, splitForSpeech } from './audio-text.js';
+import { speakingVoices } from './voice-roster.js';
 import { log } from '../logger.js';
 import { getSafeErrorMessage } from '../errors/sanitize.js';
 import { getIO } from '../../socket.js';
@@ -546,6 +548,7 @@ async function renderSegments(
   const dialogue = segments.filter((segment) => segment.type === 'dialogue');
   const effects = segments.filter((segment) => segment.type !== 'dialogue');
   const ordered = [...dialogue, ...effects];
+  const voices = speakingVoices(cast);
   let completed = 0;
 
   for (let start = 0; start < ordered.length; start += TTS_BATCH_SIZE) {
@@ -553,7 +556,7 @@ async function renderSegments(
     const results = await Promise.allSettled(
       batch.map(async (segment) =>
         segment.type === 'dialogue'
-          ? renderSpeech(segment.text, cast, segment.speaker, episode.userId)
+          ? renderSpeech(segment.text, voices, segment.speaker, episode.userId)
           : renderSoundEffect(segment.sfxPrompt ?? 'short transition sound, 2 seconds'),
       ),
     );
@@ -684,11 +687,9 @@ async function generateScript(
  *    it has a placeholder to fall back on, and refusing a whole script over a
  *    name would be absurd.
  *
- * A dialogue line is stored and forwarded EXACTLY as the model wrote it, and
- * that is deliberate. `[laughs]` is a tag a tag-capable voice performs, so
- * taking it out here would rob the one model that could have voiced it;
- * `synthesize-speech.ts` decides per attempt, because only that loop knows
- * which model in the failover chain actually answered.
+ * A dialogue line is STORED exactly as the model wrote it, and that is
+ * deliberate: the row is the script, not what one speech endpoint could say.
+ * `renderSpeech` reduces it to speakable text at the moment it is voiced.
  */
 function parseScript(
   reply: string,
@@ -737,28 +738,40 @@ interface RenderedAudio {
 
 /**
  * Speak one line, in the voice the SERIES assigned to that speaker.
+ *
+ * `voices` comes from `speakingVoices`, so a series cast before the current
+ * roster is spoken in the current voices, and two speakers never share one.
+ *
+ * The line is reduced to what the speech endpoint can say: Kaana's speech
+ * deployment declares no audio-tag support, so `[laughs]` would be read aloud
+ * as a word — `speakableText` removes it. A line longer than one request may
+ * carry is spoken in pieces and joined, rather than refused whole by Kaana.
  */
 async function renderSpeech(
   text: string,
-  cast: readonly ShowSpeaker[],
+  voices: ReadonlyMap<string, string>,
   speakerName: string,
   userId: string,
 ): Promise<RenderedAudio | null> {
-  const speaker = cast.find((member) => member.name === speakerName);
-  if (!speaker) {
+  const voice = voices.get(speakerName);
+  if (voice === undefined) {
     // The script parser already refuses a reply naming somebody outside the
     // cast, so reaching here means the cast changed under a queued episode.
     log.general.warn({ speakerName }, 'Speaker is not in this series\' cast');
     return null;
   }
 
-  const synthesized = await synthesizeSpeech({
-    input: text,
-    voice: speaker.voiceId,
-    userId,
-    format: 'mp3',
-  });
-  return synthesized ? { buffer: synthesized.audio, format: synthesized.format } : null;
+  const pieces = splitForSpeech(speakableText(text, { audioTags: false }));
+  if (pieces.length === 0) return null;
+
+  const parts: Buffer[] = [];
+  for (const input of pieces) {
+    const synthesized = await synthesizeSpeech({ input, voice, userId, format: 'mp3' });
+    parts.push(synthesized.audio);
+  }
+  const [only] = parts;
+  const buffer = parts.length === 1 && only !== undefined ? only : await concatenateAudioSegments(parts);
+  return { buffer, format: 'mp3' };
 }
 
 /**
