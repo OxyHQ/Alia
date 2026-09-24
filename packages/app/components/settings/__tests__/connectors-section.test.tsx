@@ -50,7 +50,12 @@ vi.mock('@oxy.so/bloom/surfaces', () => ({ confirm: mocks.confirm }));
 vi.mock('@oxy.so/bloom/dialog', () => ({ Dialog: () => null }));
 vi.mock('@oxy.so/bloom/search', () => ({ Search: () => null }));
 vi.mock('@oxy.so/bloom/text-field', () => ({ TextFieldInput: () => null, TextFieldLabel: () => null }));
-vi.mock('@rn-primitives/collapsible', () => ({ Root: () => null, Trigger: () => null, Content: () => null }));
+vi.mock('@oxy.so/bloom/accordion', () => ({
+  Accordion: () => null,
+  AccordionItem: () => null,
+  AccordionTrigger: () => null,
+  AccordionContent: () => null,
+}));
 vi.mock('@oxy.so/bloom/icons/RiArrowDownSLine', () => ({ RiArrowDownSLine: () => null }));
 vi.mock('@oxy.so/bloom/icons/RiArrowRightSLine', () => ({ RiArrowRightSLine: () => null }));
 vi.mock('@oxy.so/bloom/icons/RiCheckLine', () => ({ RiCheckLine: () => null }));
