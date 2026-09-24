@@ -11,7 +11,7 @@
  * `http://a-name-i-control.example/` whose A record answered `169.254.169.254`
  * passed every check and was fetched. The address judgement now lives in
  * `lib/public-host.ts`, which resolves the name and refuses if ANY address it
- * answers with is non-public, and which `favicon.ts` uses for the same reason.
+ * answers with is non-public.
  *
  * The syntactic checks below are kept in front of it: they refuse the obvious
  * cases without spending a lookup, and a null byte or a `file://` scheme is not
