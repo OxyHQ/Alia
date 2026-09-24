@@ -131,6 +131,9 @@ export const API_ROUTES = {
     update: (id: string) => `/agents/${id}`,
     delete: (id: string) => `/agents/${id}`,
     threads: (id: string) => `/agents/${id}/threads`,
+    /** Actions a background run asked the person to approve, and their answer. */
+    approvals: '/agents/approvals',
+    approvalDecision: (approvalId: string) => `/agents/approvals/${encodeURIComponent(approvalId)}/decision`,
     threadById: (threadId: string) => `/agents/threads/${threadId}`,
     goals: (threadId: string) => `/agents/threads/${threadId}/goals`,
     teams: '/agents/teams',

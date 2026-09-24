@@ -18,12 +18,19 @@
 
 import { generateText, stepCountIs, type ModelMessage } from 'ai';
 import { getDb } from '../../db/index.js';
+import { hostname } from 'node:os';
+import { randomUUID } from 'node:crypto';
 import {
+  claimAgentSessionRun,
   createAgentSession,
   findAgentSessionById,
   findAgentSessionStatus,
+  releaseAgentSessionRunLease,
+  renewAgentSessionRunLease,
+  RUNNER_MAX_ATTEMPTS,
   updateAgentSession,
   type AgentSessionConfig,
+  type AgentSessionRecord,
 } from '../../db/agents/agentSessionRepository.js';
 import { findAgentById } from '../../db/agents/agentRepository.js';
 import {
@@ -50,6 +57,11 @@ import { classifyError, getErrorMessage } from '../errors/failover-error.js';
 import { finalizeCredits, safeRefund } from '../credits-manager.js';
 import { MAX_DELEGATION_DEPTH, EVENT_STREAM_BUDGET } from '../constants.js';
 import { orchestrate, shouldOrchestrate } from './orchestrator.js';
+import { postAgentMessage } from './agent-outreach.js';
+import type { AgentRuntimeContext } from './actions.js';
+import { scheduleAgentFollowUp } from './follow-ups.js';
+import { deferredApprovalsFor } from './deferred-approvals.js';
+import { agentMemoryPromptSection } from './agent-memory-runtime.js';
 import { compactContext } from './context-compaction.js';
 import { redactSecrets } from './secret-scanner.js';
 import { readCapabilityGrants } from '../../domain/capability-grants.js';
@@ -80,15 +92,22 @@ const CONTINUATION_PROMPTS = [
  *
  * `plan` is always listed because it is ungranted: it is how a run ends.
  */
-function actionLines(agent: HydratedAgent, options: { automation: boolean }): string {
+function actionLines(agent: HydratedAgent, options: { automation: boolean; outreach: boolean }): string {
   const grants = readCapabilityGrants(agent.capabilityGrants);
   const lines: string[] = [];
   if (grants.allows('browser')) {
     lines.push("**browser** — Research the web: search for a query, read a public URL's main text with goto, and read the current page again with get_text. Pages come back as extracted text; you cannot click, type or take screenshots.");
   }
   lines.push("**plan** — Create and update your task plan, or signal completion. Your plan persists as a checklist. Update it as you make progress. Call plan(action='complete', result='...') when done.");
+  if (grants.allows('memory')) {
+    lines.push('**memory** — Your own long-term memory of this person (MEMORY.md, memory/<topic>.md). Read it when you need detail; save what will still matter in a later conversation.');
+  }
   if (!options.automation && grants.allows('delegation')) {
     lines.push('**delegate** — Hire a specialist agent for a subtask outside your expertise.');
+  }
+  if (options.outreach) {
+    lines.push('**sendMessageToUser** — Write to the person in your conversation with them; they are notified. Only for something they would want to know now. Your final result is delivered to them anyway, so do not repeat it.');
+    lines.push('**scheduleFollowUp** — Schedule yourself to come back to this at a given time, with a note for your future self.');
   }
   return `You have ${lines.length} action${lines.length === 1 ? '' : 's'}:\n\n${lines
     .map((line, i) => `${i + 1}. ${line}`)
@@ -118,7 +137,7 @@ function actionLines(agent: HydratedAgent, options: { automation: boolean }): st
  * else entirely and could contradict it in either direction. What the agent
  * can do is the tools it was handed, each with its own description.
  */
-function buildSystemPrompt(agent: HydratedAgent, config: AgentSessionConfig, options: { automation: boolean }): string {
+function buildSystemPrompt(agent: HydratedAgent, config: AgentSessionConfig, options: { automation: boolean; outreach: boolean }): string {
   return `${agentRemitPrompt(agent)}
 
 ## Actions
@@ -182,18 +201,122 @@ function buildContextMessages(
 
 // ── Main Runner ──
 
-export async function runAgentSession(sessionId: string): Promise<void> {
-  const session = await findAgentSessionById(getDb(), sessionId);
-  if (!session) {
-    log.agents.error({ sessionId }, 'Session not found');
-    return;
-  }
+/** How often a worker renews its claim; well inside `RUNNER_LEASE_MS`. */
+const RUNNER_LEASE_RENEW_MS = 20_000;
 
-  // Respect pre-cancelled or terminal sessions (e.g. cancelled while queued).
-  if (session.status === 'cancelled' || session.status === 'completed' || session.status === 'failed') {
-    log.agents.info({ sessionId, status: session.status }, 'Session is already terminal, skipping execution');
-    return;
+/** This worker's hold on one run, renewed until it is stopped or lost. */
+interface RunLease {
+  readonly owner: string;
+  /** Set when a renewal found the run no longer ours: stop driving it. */
+  lost: boolean;
+  stop(): void;
+}
+
+function holdRunLease(sessionId: string, owner: string): RunLease {
+  const lease: RunLease = {
+    owner,
+    lost: false,
+    stop: () => clearInterval(timer),
+  };
+  const timer = setInterval(() => {
+    renewAgentSessionRunLease(getDb(), sessionId, owner)
+      .then((held) => {
+        if (!held) {
+          lease.lost = true;
+          clearInterval(timer);
+        }
+      })
+      // A failed renewal is not a lost lease: the next one may land, and the
+      // lease outlives several missed renewals.
+      .catch((err: unknown) => log.agents.warn({ err, sessionId }, 'Could not renew the run lease'));
+  }, RUNNER_LEASE_RENEW_MS);
+  timer.unref?.();
+  return lease;
+}
+
+/**
+ * Run a background session, if this worker can claim it.
+ *
+ * `skipped` means the run was not this worker's to drive — it is settled,
+ * another worker holds a live lease on it, or this worker lost the lease
+ * mid-run — so the caller must not notify or advance anything on its behalf.
+ * `ran` means this worker drove it to wherever it stopped.
+ *
+ * A run whose worker died is claimed again once its lease lapses (by BullMQ
+ * redelivering the stalled job, or by the reaper re-enqueueing it) and
+ * RESUMES: its events, plan and step/token counters are persisted every step.
+ */
+export async function runAgentSession(sessionId: string): Promise<'ran' | 'skipped'> {
+  const owner = `${hostname()}:${process.pid}:${randomUUID()}`;
+  const claim = await claimAgentSessionRun(getDb(), sessionId, owner);
+  if (!claim.claimed) {
+    log.agents.info({ sessionId }, 'Session is settled or owned by another worker, skipping execution');
+    return 'skipped';
   }
+  const lease = holdRunLease(sessionId, owner);
+  try {
+    if (claim.attempt > RUNNER_MAX_ATTEMPTS) {
+      await abandonExhaustedRun(claim.session);
+      return 'ran';
+    }
+    await driveAgentSession(claim.session, lease, claim.attempt > 1);
+    return lease.lost ? 'skipped' : 'ran';
+  } finally {
+    lease.stop();
+    await releaseAgentSessionRunLease(getDb(), sessionId, owner).catch((err: unknown) => {
+      log.agents.warn({ err, sessionId }, 'Could not release the run lease');
+    });
+  }
+}
+
+/** The agent's way to write to the person, and to schedule its own next look. */
+function runOutreach(session: AgentSessionRecord, eventStream: EventStream): NonNullable<AgentRuntimeContext['outreach']> {
+  return {
+    messageUser: async (message) => {
+      const outcome = await postAgentMessage({
+        oxyUserId: session.oxyUserId,
+        agentId: session.agentId,
+        kind: 'check_in',
+        content: message,
+      });
+      if (outcome.posted) {
+        eventStream.append('observation', 'Message delivered to the person.', { toolName: 'sendMessageToUser' });
+        return 'Delivered. The person was notified.';
+      }
+      return outcome.reason === 'daily_limit'
+        ? 'Not sent: you have reached today\'s limit of messages to this person. Put it in your final result instead.'
+        : outcome.reason === 'unanswered'
+          ? 'Not sent: the person has not answered your last messages. Do not message them again until they reply.'
+          : `Not sent (${outcome.reason}).`;
+    },
+    scheduleFollowUp: async (at, note) => {
+      const outcome = await scheduleAgentFollowUp({
+        ownerAccountId: session.oxyUserId,
+        agentId: session.agentId,
+        at,
+        note,
+      });
+      return outcome.scheduled
+        ? `Scheduled for ${outcome.at}.`
+        : `Not scheduled (${outcome.reason}).`;
+    },
+  };
+}
+
+/** A run that has now killed its worker too many times is failed and refunded. */
+async function abandonExhaustedRun(session: AgentSessionRecord): Promise<void> {
+  log.agents.error({ sessionId: session._id, attempts: RUNNER_MAX_ATTEMPTS }, 'Agent run interrupted too many times, stopping it');
+  await updateAgentSession(getDb(), session._id, {
+    status: 'failed',
+    result: 'The run was interrupted too many times and was stopped',
+    stats: { completedAt: new Date() },
+  });
+  if (session.creditReservation) await safeRefund(session.creditReservation, 'run interrupted too many times');
+  await markAutomationRunForSession(getDb(), session._id, 'failed');
+}
+
+async function driveAgentSession(session: AgentSessionRecord, lease: RunLease, resuming: boolean): Promise<void> {
+  const sessionId = session._id;
 
   const found = await findAgentById(getDb(), session.agentId);
   if (!found) {
@@ -235,16 +358,16 @@ export async function runAgentSession(sessionId: string): Promise<void> {
     todoManager.loadFromPersisted(sessionPlan);
   }
 
-  // Mark session as running
-  const startedAt = new Date();
-  await updateAgentSession(getDb(), sessionId, {
-    status: 'running',
-    stats: { startedAt, lastActivityAt: startedAt },
-  });
+  // The claim already marked the row running and stamped its start.
   await markAutomationRunForSession(getDb(), sessionId, 'running');
 
-  eventStream.append('system_message', `Task received: ${session.task}`);
-  eventStream.append('user_message', session.task);
+  if (resuming) {
+    // The events and plan were restored above; the task is already in them.
+    eventStream.append('system_message', 'Resumed after an interruption. Continue from the plan and the events so far; do not repeat actions already taken.');
+  } else {
+    eventStream.append('system_message', `Task received: ${session.task}`);
+    eventStream.append('user_message', session.task);
+  }
 
   // Track completion signal
   let taskCompleted = false;
@@ -355,6 +478,12 @@ export async function runAgentSession(sessionId: string): Promise<void> {
       session,
       onComplete,
       onHireAgent,
+      // A child run (delegated, orchestrated) reports to its parent, not to
+      // the person, so only a top-level run may write to them.
+      ...(session.parentSessionId ? {} : {
+        outreach: runOutreach(session, eventStream),
+        approvals: deferredApprovalsFor(session),
+      }),
       todoManager,
       browserSession,
       eventStream,
@@ -366,10 +495,16 @@ export async function runAgentSession(sessionId: string): Promise<void> {
   // boundary holds even for custom / archetype agent prompts. The runner picks
   // a model per step, so no single model name is passed here.
   // The agent's OWN name. It used to be told it was Alia, above its own prompt.
-  const systemPrompt = `${buildIdentityGuard({ agentName: agentPromptName(agent) })}\n\n---\n\n${buildSystemPrompt(agent, session.config, { automation: Boolean(session.automationRunId) })}`;
+  const grantsMemory = readCapabilityGrants(agent.capabilityGrants).allows('memory');
+  const memorySection = grantsMemory ? await agentMemoryPromptSection(session.oxyUserId, agent._id) : '';
+  const systemPrompt = `${buildIdentityGuard({ agentName: agentPromptName(agent) })}\n\n---\n\n${buildSystemPrompt(agent, session.config, { automation: Boolean(session.automationRunId), outreach: !session.parentSessionId })}${memorySection}`;
 
-  let totalSteps = 0;
-  let totalTokens = 0;
+  // Persisted every step, so a resumed run keeps counting against the SAME
+  // budget instead of starting a fresh one.
+  let totalSteps = session.stats.totalSteps ?? 0;
+  let totalTokens = session.stats.totalTokens ?? 0;
+  /** Set when this worker lost the run mid-way: somebody else settles it. */
+  let abandoned = false;
   /**
    * Set when the orchestrator ran the task. It then skips the loop and falls
    * through to the SAME settlement as every other run: it used to write its own
@@ -393,7 +528,7 @@ export async function runAgentSession(sessionId: string): Promise<void> {
 
   try {
     // ── Orchestrator mode check ──
-    if (!session.automationRunId && shouldOrchestrate(session.task, session.depth)) {
+    if (!resuming && !session.automationRunId && shouldOrchestrate(session.task, session.depth)) {
       eventStream.append('system_message', 'Task complexity detected — activating orchestrated execution');
 
       const orchResult = await orchestrate({
@@ -427,6 +562,11 @@ export async function runAgentSession(sessionId: string): Promise<void> {
     // ── Main execution loop ──
 
     while (orchestrated === null && !stateMachine.isTerminal() && totalSteps < session.config.maxSteps && totalTokens < session.config.maxTokens) {
+      if (lease.lost) {
+        abandoned = true;
+        break;
+      }
+
       // Check for cancellation
       const currentStatus = await findAgentSessionStatus(getDb(), sessionId);
       if (currentStatus === null || currentStatus === 'cancelled') {
@@ -676,6 +816,11 @@ export async function runAgentSession(sessionId: string): Promise<void> {
       }
     }
 
+    if (abandoned) {
+      log.agents.warn({ sessionId }, 'Lost the run lease; leaving the run to the worker that holds it');
+      return;
+    }
+
     // ── Session Complete ──
 
     const machineState = stateMachine.current();
@@ -760,6 +905,8 @@ export async function runAgentSession(sessionId: string): Promise<void> {
 
   } catch (err: unknown) {
     log.agents.error({ err, sessionId }, 'Agent session failed');
+    // A worker that lost the run must not settle it: the new owner will.
+    if (lease.lost) return;
 
     // Refund credits on failure
     if (session.creditReservation) {

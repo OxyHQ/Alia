@@ -17,7 +17,9 @@ self.addEventListener('push', (event) => {
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   const data = event.notification.data;
-  const url = data?.conversationId ? `/c/${data.conversationId}` : '/';
+  const url = data?.agentHandle
+    ? `/@${data.agentHandle}`
+    : data?.conversationId ? `/c/${data.conversationId}` : '/';
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
       // Prefer a focused/visible tab, then any matching tab

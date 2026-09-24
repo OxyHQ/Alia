@@ -344,3 +344,75 @@ describe('saveConversation (append-only)', () => {
     expect((await stored()).map((row) => row.clientMessageId)).toEqual(['msg-0', 'msg-1']);
   });
 });
+
+describe('a message an agent wrote on its own survives the client that has not seen it', () => {
+  async function agentWrote(content: string, seq: number) {
+    await db.insert(messages).values({
+      oxyUserId: USER,
+      conversationId: CONV,
+      clientMessageId: `agent-push-${seq}`,
+      role: 'assistant',
+      content,
+      agentInfoId: 'agent-1',
+      agentInfoName: 'Scout',
+      agentInfoHandle: 'scout',
+      seq,
+    });
+  }
+
+  it('keeps it, in place, when the next turn comes from a client that never saw it', async () => {
+    await saveConversation({
+      userId: USER,
+      conversationId: CONV,
+      messages: [{ role: 'user', content: 'U1' }],
+      assistantResponse: 'A1',
+    });
+    // While the person was away the agent reported back.
+    await agentWrote('The price dropped', 2);
+
+    // Their client still holds U1/A1 and sends U2 on top of it — which used to
+    // make storage converge on the client's copy and delete the report.
+    await saveConversation({
+      userId: USER,
+      conversationId: CONV,
+      messages: THREE_TURNS.map((m) => (m.content === 'U2' ? { role: 'user', content: 'Great, buy it' } : m)),
+      assistantResponse: 'Done',
+    });
+
+    const rows = await stored();
+    expect(rows.map((row) => [row.seq, row.role, row.content])).toEqual([
+      [0, 'user', 'U1'],
+      [1, 'assistant', 'A1'],
+      [2, 'assistant', 'The price dropped'],
+      [3, 'user', 'Great, buy it'],
+      [4, 'assistant', 'Done'],
+    ]);
+    expect(rows[2]).toMatchObject({ clientMessageId: 'agent-push-2', agentInfoId: 'agent-1' });
+  });
+
+  it('does not duplicate it when the client did see it and echoes it back', async () => {
+    await saveConversation({
+      userId: USER,
+      conversationId: CONV,
+      messages: [{ role: 'user', content: 'U1' }],
+      assistantResponse: 'A1',
+    });
+    await agentWrote('The price dropped', 2);
+
+    await saveConversation({
+      userId: USER,
+      conversationId: CONV,
+      messages: [
+        { role: 'user', content: 'U1' },
+        { role: 'assistant', content: 'A1' },
+        { role: 'assistant', content: 'The price dropped' },
+        { role: 'user', content: 'Great' },
+      ],
+      assistantResponse: 'Done',
+    });
+
+    const rows = await stored();
+    expect(rows.map((row) => row.content)).toEqual(['U1', 'A1', 'The price dropped', 'Great', 'Done']);
+  });
+});
+

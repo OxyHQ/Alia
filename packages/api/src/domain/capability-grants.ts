@@ -181,6 +181,9 @@ export const FIXED_FAMILY_TOOLS: Readonly<Record<FixedCapabilityFamily, readonly
    * separate family would let it recall the whole thread anyway.
    */
   memory: [
+    // The agent's own MEMORY.md and topic files about this person
+    // (`lib/agent/agent-memory-runtime.ts`), beside the person's global memory.
+    'memory',
     'saveUserMemory',
     'updateUserMemory',
     'updateUserPreferences',

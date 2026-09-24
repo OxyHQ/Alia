@@ -64,12 +64,30 @@ import { autonomyFlags } from '../autonomy/flags.js';
 import { getDb } from '../../db/index.js';
 import { updateAgentSession, type AgentSessionRecord } from '../../db/agents/agentSessionRepository.js';
 import type { EventStream } from './event-stream.js';
+import type { DeferredApprovals } from './deferred-approvals.js';
+import { buildAgentMemoryTool } from './agent-memory-runtime.js';
 import { RepeatDetector, repeatedToolCallKey } from './repeat-detector.js';
 
 export interface AgentRuntimeContext {
   session: AgentSessionRecord;
   onComplete: (result: string) => void;
   onHireAgent?: (handle: string, task: string) => Promise<string>;
+  /**
+   * Present only on a BACKGROUND run, where nobody is reading the agent's
+   * output as it streams: its way of writing to the person, and of scheduling
+   * its own next look. A chat turn already talks to the person directly.
+   */
+  outreach?: {
+    messageUser: (message: string) => Promise<string>;
+    scheduleFollowUp: (at: Date, note: string) => Promise<string>;
+  };
+  /**
+   * Present only on a top-level BACKGROUND run: approvals are asked for
+   * asynchronously instead of waited for (`deferred-approvals.ts`).
+   */
+  approvals?: DeferredApprovals;
+  /** Present only on a CHAT turn: hand long work to a durable background run. */
+  continueInBackground?: (task: string) => Promise<string>;
   todoManager: TodoManager;
   browserSession: BrowserSession;
   eventStream?: EventStream;
@@ -213,6 +231,72 @@ export function buildRuntimeTools(
     });
   }
 
+  // ── continueInBackground — work longer than a chat turn ──
+
+  if (ctx.continueInBackground) {
+    const continueInBackground = ctx.continueInBackground;
+    actions.continueInBackground = tool({
+      description: 'Hand work that needs more than a quick answer — many searches, a long analysis, anything that will take minutes — to a background run of yourself. It keeps working after this reply ends and posts its result in this conversation. Write the task so your background self can do it without this chat: goal, what you know so far, what to deliver.',
+      inputSchema: z.object({
+        task: z.string().min(1).describe('The complete, self-contained task for the background run'),
+      }),
+      execute: async ({ task }) => {
+        try {
+          return await continueInBackground(task);
+        } catch (err: unknown) {
+          return `Error starting background work: ${getErrorMessage(err)}`;
+        }
+      },
+    });
+  }
+
+  // ── memory — the agent's own files about this person ──
+
+  if (grants.allows('memory')) {
+    actions.memory = buildAgentMemoryTool({
+      oxyUserId: session.oxyUserId,
+      agentId: session.agentId,
+      actorOxyAccountId: session.agentId,
+    });
+  }
+
+  // ── sendMessageToUser / scheduleFollowUp — the agent speaking first ──
+  //
+  // Ungranted, like `plan`: writing into its OWN conversation with the person
+  // is how an agent reports, not a capability an owner hands out. Budgeted in
+  // `agent-outreach.ts`, which is what stops an agent from pestering.
+
+  if (ctx.outreach) {
+    const { messageUser, scheduleFollowUp } = ctx.outreach;
+    actions.sendMessageToUser = tool({
+      description: 'Write a message to the person in your conversation with them; they get a notification. Use it only for something they would want to know now: a finding, a change, a question you need answered. Do not use it for progress chatter. Limited to a few per day, and it stops if they have not answered your last messages.',
+      inputSchema: z.object({
+        message: z.string().min(1).describe('The message, written to the person, in their language'),
+      }),
+      execute: async ({ message }) => {
+        try {
+          return await messageUser(message);
+        } catch (err: unknown) {
+          return `Error sending the message: ${getErrorMessage(err)}`;
+        }
+      },
+    });
+    actions.scheduleFollowUp = tool({
+      description: 'Schedule yourself to come back to this later — to check something again, or to follow up at a time the person asked for. At that time you run again with your note; if you find something worth saying you tell them with sendMessageToUser. At most a few pending at once.',
+      inputSchema: z.object({
+        at: z.string().describe('When, as an ISO 8601 date-time with timezone offset, e.g. 2026-09-25T09:00:00+02:00'),
+        note: z.string().min(1).describe('What to do then, written for your future self'),
+      }),
+      execute: async ({ at, note }) => {
+        try {
+          return await scheduleFollowUp(new Date(at), note);
+        } catch (err: unknown) {
+          return `Error scheduling the follow-up: ${getErrorMessage(err)}`;
+        }
+      },
+    });
+  }
+
   return actions;
 }
 
@@ -316,7 +400,18 @@ export async function applyRuntimePolicy(
         return `Error: Action blocked by policy — ${risk.reason}`;
       }
 
-      if (risk.riskLevel === 'R2' && autonomyFlags.approvalsEnabled) {
+      const earlyThreat = analyzeThreat(name, inputArgs);
+      const needsApproval = !earlyThreat.shouldBlock && autonomyFlags.approvalsEnabled
+        && (risk.riskLevel === 'R2' || earlyThreat.shouldApprove);
+      // Nobody is watching a background run: ask the person asynchronously and
+      // let the run carry on, unless they already approved exactly this call.
+      if (needsApproval && ctx.approvals) {
+        if (!(await ctx.approvals.granted(name, inputArgs))) {
+          eventStream?.append('system_message', `APPROVAL REQUESTED (deferred): ${name}`);
+          return ctx.approvals.request(name, inputArgs, risk.reason);
+        }
+        eventStream?.append('system_message', `APPROVED EARLIER: ${name}`);
+      } else if (risk.riskLevel === 'R2' && autonomyFlags.approvalsEnabled) {
         const syntheticThreat: ThreatResult = {
           threats: [{
             pattern: {
@@ -358,7 +453,7 @@ export async function applyRuntimePolicy(
         return `Error: Action blocked by security policy — ${threat.threats[0]?.pattern.description || 'security violation'}`;
       }
 
-      if (threat.shouldApprove) {
+      if (threat.shouldApprove && !ctx.approvals) {
         const summary = formatThreatSummary(threat);
         if (autonomyFlags.approvalsEnabled) {
           const approval = await requestApproval({
