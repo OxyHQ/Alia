@@ -4,7 +4,8 @@ import { CreditsLimits } from '@/components/credits-limits';
 import { ThoughtPanel } from '@/components/thought-panel';
 import { useTranslation } from '@/lib/hooks/use-translation';
 import { useLibraryStore } from '@/lib/stores/library-store';
-import { useUIStore, type CanvasArtifact, type RightPanel } from '@/lib/stores/ui-store';
+import { useUIStore, type CanvasArtifact } from '@/lib/stores/ui-store';
+import { workspacePanelKind, type WorkspacePanelKind } from '@/lib/workspace-panel-kind';
 import {
   AiChatCodePanel,
   AiChatGalleryPanel,
@@ -22,25 +23,15 @@ import { useEffect, useMemo } from 'react';
 import { View } from 'react-native';
 
 /**
- * The template's right panel, always mounted from `xl` and a drawer below it.
+ * The right panel: in flow from `xl`, a drawer below it — and only while
+ * something has opened it (`rightPanel`), so a plain conversation has the
+ * whole width.
  *
- * By default it is one of the template's two panels: the code panel over the
- * files Alia wrote in this chat (the canvas), or the gallery over images. The
- * thought, credits and agent panels take the same slot while something has
- * opened them, and give it back when closed.
+ * What opens it: the agent at work (its first tool of a turn opens the thought
+ * panel, a file it writes the canvas, a run the agent panel), the chat menu's
+ * "Show panel" (the code panel over the files Alia wrote in this chat, or the
+ * gallery over images), and the credits page.
  */
-export type WorkspacePanelKind = 'code' | 'gallery' | 'thought' | 'credits' | 'agent';
-
-export function workspacePanelKind(
-  rightPanel: RightPanel,
-  artifacts: readonly CanvasArtifact[],
-): WorkspacePanelKind {
-  if (rightPanel === 'thought' || rightPanel === 'credits' || rightPanel === 'agent') return rightPanel;
-  if (rightPanel === 'gallery') return 'gallery';
-  if (rightPanel === 'canvas') return 'code';
-  return artifacts[artifacts.length - 1]?.type === 'image' ? 'gallery' : 'code';
-}
-
 const PANEL_ICON: Record<WorkspacePanelKind, BloomIconComponent> = {
   code: RiCodeSLine,
   gallery: RiGalleryLine,

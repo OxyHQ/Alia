@@ -24,7 +24,7 @@ import { AiChatContainer, AiChatShell } from '@oxy.so/bloom/ai-chat';
 import { useOxy } from '@oxy.so/services';
 import { useScrollRestoration } from '@oxy.so/bloom/scroll';
 import { Navigator, Stack, usePathname, useRouter, type Href } from 'expo-router';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -66,8 +66,6 @@ export default function AppLayout() {
   const rightPanel = useUIStore((state) => state.rightPanel);
   const setRightPanel = useUIStore((state) => state.setRightPanel);
   const rightPanelWidth = useUIStore((state) => state.rightPanelWidth);
-  /** The panel drawer below `xl`, opened from the mobile header's panel button. */
-  const [panelDrawerOpen, setPanelDrawerOpen] = useState(false);
   const panelChrome = useWorkspacePanelChrome();
 
   // Prefetch welcome suggestions so they're ready before any chat screen mounts
@@ -181,17 +179,18 @@ export default function AppLayout() {
           mobileSidebar={mobileSidebar}
           labels={shellLabels}
           defaultPanelWidth={rightPanelWidth}
-          panelOpen={panelDrawerOpen || rightPanel !== null}
+          // The panel exists only while something has opened it: the agent at
+          // work (its tools, the files it writes, a run) or the chat's menu.
+          // Closed, the conversation has the whole width.
+          panelOpen={rightPanel !== null}
           onPanelOpenChange={(open) => {
-            setPanelDrawerOpen(open);
-            if (!open && rightPanel !== null) {
-              setRightPanel(null);
-              if (rightPanel === 'thought') restoreOpenerFocus();
-            }
+            if (open || rightPanel === null) return;
+            setRightPanel(null);
+            if (rightPanel === 'thought') restoreOpenerFocus();
           }}
           panelLabel={panelChrome.label}
           panelIcon={panelChrome.icon}
-          panel={(width) => <WorkspacePanel width={width} />}
+          panel={rightPanel === null ? undefined : (width) => <WorkspacePanel width={width} />}
         >
           <ShellNavProvider>
             {Platform.OS === 'web' ? (

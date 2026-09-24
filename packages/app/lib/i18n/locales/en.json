@@ -962,7 +962,9 @@
     "temporaryChat": "Temporary chat",
     "searchConversations": "Search conversations",
     "searchThread": "Search this thread",
-    "moreOptions": "More options"
+    "moreOptions": "More options",
+    "showPanel": "Show panel",
+    "hidePanel": "Hide panel"
   },
   "welcome": {
     "greetingNamed": "Hi {{name}}, what's on your mind?",
