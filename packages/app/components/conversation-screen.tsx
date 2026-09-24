@@ -16,7 +16,6 @@ import {
   useConversation,
   useCreateConversation,
   useDeleteConversation,
-  useSaveConversation,
 } from '@/lib/hooks/use-conversations';
 import { useProductModes } from '@/lib/hooks/use-product-modes';
 import { useVoiceSoundEffects } from '@/lib/hooks/use-sound-effects';
@@ -118,7 +117,6 @@ export const ConversationScreen = ({
     sendMessage,
     stopGeneration,
     clearError,
-    setMessages,
     approvePlan,
     rejectPlan,
     suggestedNewConversation,
@@ -171,7 +169,6 @@ export const ConversationScreen = ({
   const handleSearchOpen = useCallback(() => setSearchOpen(true), []);
   const handleSearchClose = useCallback(() => setSearchOpen(false), []);
 
-  const saveConversation = useSaveConversation();
   const createConversation = useCreateConversation();
   const queryClient = useQueryClient();
 
@@ -300,13 +297,6 @@ export const ConversationScreen = ({
   const activeAgentId = useUIStore((s) => s.activeAgentId);
   const agentActivity = useAgentActivity(activeAgentSessionId, activeAgentId);
 
-  // Save voice transcripts when voice mode ends
-  const handleVoiceDeactivate = useCallback(() => {
-    if (conversationId && messages.length > 0) {
-      saveConversation.mutate({ id: conversationId, messages });
-    }
-  }, [conversationId, messages, saveConversation]);
-
   /**
    * Writing is done in the present, so it ends a jump.
    *
@@ -323,13 +313,12 @@ export const ConversationScreen = ({
     [sendMessage],
   );
 
-  const voice = useVoiceMode({
-    chatMessages: messages,
-    setMessages,
-    conversationId,
-    agentId,
-    onDeactivate: handleVoiceDeactivate,
-  });
+  /**
+   * A call speaks through this conversation's own send, so its turns are
+   * ordinary turns of it — persisted by the server as they happen, which is
+   * why nothing is saved when the call ends.
+   */
+  const voice = useVoiceMode({ sendMessage: handleSubmit, stopGeneration });
 
   // Auto-activate voice when navigated with startVoice (once only)
   const voiceAutoStartedRef = useRef(false);

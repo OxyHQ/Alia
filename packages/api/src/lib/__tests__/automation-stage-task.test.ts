@@ -32,7 +32,6 @@ function automation(destinations = [destination]): AutomationDefinitionRecord {
     maximumAutonomy: 'autonomous',
     limits: [],
     enabled: true,
-    legacyTriggerId: null,
     createdAt: new Date(),
     updatedAt: new Date(),
   };

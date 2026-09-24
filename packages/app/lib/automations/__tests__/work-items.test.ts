@@ -31,7 +31,6 @@ function automation(
 ): AutomationDefinition {
   return {
     id,
-    name: null,
     objective: `objective ${id}`,
     trigger: { type: 'schedule', cron: '0 9 * * *', timezone: 'UTC' },
     actorSelection: { mode: 'automatic', eligibleAgentIds: [] },
@@ -42,7 +41,6 @@ function automation(
     maximumAutonomy: 'autonomous',
     limits: [],
     enabled: true,
-    legacyTriggerId: null,
     createdAt: '2026-09-01T00:00:00.000Z',
     updatedAt: '2026-09-01T00:00:00.000Z',
     ...overrides,

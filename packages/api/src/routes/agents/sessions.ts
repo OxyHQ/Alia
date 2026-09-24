@@ -1,6 +1,5 @@
 import { Router } from 'express';
 import { authenticateToken } from '../../middleware/auth.js';
-import { cleanupSessionResources } from '../../lib/agent/session-resources.js';
 import { getJobStatus, cancelJob } from '../../lib/task-queue.js';
 import { getDb } from '../../db/index.js';
 import {
@@ -180,7 +179,6 @@ router.patch('/:id/status', authenticateToken, async (req: Request, res: Respons
 
       for (const session of running) {
         await cancelJob(session._id).catch(() => false);
-        await cleanupSessionResources(session._id, session.oxyUserId);
         await updateAgentSession(getDb(), session._id, {
           status: 'cancelled',
           stats: { completedAt: new Date() },
@@ -221,7 +219,6 @@ router.post('/:id/sessions/:sid/cancel', authenticateToken, async (req: Request,
     }
 
     await cancelJob(sessionId).catch(() => false);
-    await cleanupSessionResources(sessionId, session.oxyUserId);
     await updateAgentSession(getDb(), sessionId, {
       status: 'cancelled',
       stats: { completedAt: new Date() },

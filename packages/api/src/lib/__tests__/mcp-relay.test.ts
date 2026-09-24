@@ -2,20 +2,7 @@ import http from 'node:http';
 import { WebSocket } from 'ws';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { hashDeveloperApiKey } from '../api-key-crypto.js';
 import { getLocalTools, initMcpRelay, shutdownMcpRelay } from '../mcp-relay.js';
-
-/**
- * The `alia_sk_*` lane resolves against Alia's OWN database, so its store is
- * the one thing here that has to be stubbed. It is an Alia credential, not an
- * Oxy one, and this suite exists partly to hold that distinction still.
- */
-const apiKeyRows = new Map<string, { oxyUserId: string }>();
-
-vi.mock('../../db/index.js', () => ({ getDb: vi.fn(() => ({})) }));
-vi.mock('../../db/developers/developerRepository.js', () => ({
-  findActiveKeyByHash: vi.fn((_db: unknown, keyHash: string) => apiKeyRows.get(keyHash) ?? null),
-}));
 
 /**
  * The relay's WebSocket handshake, driven end to end against a fake Oxy API.
@@ -119,7 +106,6 @@ const observeRelay = vi.fn();
 beforeEach(async () => {
   observeRelay.mockClear();
   sessions.clear();
-  apiKeyRows.clear();
   fetchCalls = [];
   vi.stubGlobal('fetch', vi.fn(fakeOxyApi));
 
@@ -240,29 +226,8 @@ describe('MCP relay authentication', () => {
     expect(fetchCalls).toEqual([]);
   });
 
-  it('still resolves an alia_sk_ key against Alia’s own store, asking Oxy nothing', async () => {
-    apiKeyRows.set(hashDeveloperApiKey('alia_sk_live'), { oxyUserId: 'key-owner' });
-
-    const { socket, reply } = await authenticate('alia_sk_live');
-    expect(reply.type).toBe('auth-ok');
-    expect(fetchCalls).toEqual([]);
-
-    socket.send(
-      JSON.stringify({
-        type: 'register-tools',
-        serverId: 'srv-1',
-        serverName: 'Local',
-        tools: [{ name: 'echo', description: 'echo', inputSchema: {} }],
-      }),
-    );
-
-    await vi.waitFor(() => {
-      expect(getLocalTools('key-owner')).toHaveLength(1);
-    });
-  });
-
-  it('refuses an alia_sk_ key with no active row', async () => {
-    const { reply } = await authenticate('alia_sk_revoked');
+  it('refuses a retired alia_sk_ key, asking Oxy nothing', async () => {
+    const { reply } = await authenticate('alia_sk_' + 'A1b2C3d4'.repeat(5));
 
     expect(reply.type).toBe('auth-error');
     expect(fetchCalls).toEqual([]);

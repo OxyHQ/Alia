@@ -97,7 +97,6 @@ const AGENT_SHAPE = {
   access: 'private',
   status: 'active',
   systemPrompt: 'nobody else’s business',
-  allowedModels: ['route:auto'],
   capabilityGrants: [] as string[],
   archetype: 'general',
   createdAt: new Date(),

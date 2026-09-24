@@ -2,10 +2,10 @@
  * Agent Runner — Autonomous Agent Execution Engine (v3)
  *
  * Manus-level architecture:
- *   - Up to 5 action primitives (shell, browser, file_edit, plan, delegate),
- *     partitioned by the agent's capability grants — see `actionLines`
- *   - Persistent terminal session with CWD/env tracking
- *   - Real browser with screenshots (Playwright/Stagehand)
+ *   - Up to 3 action primitives (browser, plan, delegate), partitioned by the
+ *     agent's capability grants — see `actionLines`. There is no shell or
+ *     workspace filesystem: the sandbox they needed never existed in production
+ *   - Web research through Clarity (search and page text; no local browser)
  *   - Stable tool context across iterations (KV-cache optimized): the set is
  *     fixed for the whole run, because a grant is a stored property of the
  *     agent and cannot change between steps
@@ -19,7 +19,6 @@
 import { generateText, stepCountIs, type ModelMessage } from 'ai';
 import { getDb } from '../../db/index.js';
 import {
-  claimAgentSessionResource,
   createAgentSession,
   findAgentSessionById,
   findAgentSessionStatus,
@@ -32,13 +31,10 @@ import {
   type EventStreamEntryMetadata,
 } from '../../db/agents/eventStreamEntryRepository.js';
 import { resolveOxyRoutingProfileId, getAIModel } from '../chat-core.js';
-import { cleanupSessionResources } from './session-resources.js';
 import { log } from '../logger.js';
 import { EventStream } from './event-stream.js';
 import { AgentStateMachine } from './state-machine.js';
 import { TodoManager } from './todo-manager.js';
-import { WorkspaceMemory } from './workspace-memory.js';
-import { TerminalSession, inferImage } from './terminal-session.js';
 import { BrowserSession } from './browser-session.js';
 import { ToolPipeline } from '../tool-pipeline.js';
 import { oxyExecutionAuthorizationKey } from '../tools/oxy-services.js';
@@ -63,9 +59,6 @@ import {
   markAutomationRunForSession,
 } from '../../db/automation/automationDefinitionRepository.js';
 
-/** Regex to detect browser-related tasks for pre-initialization */
-const BROWSER_HINT_RE = /\b(browse|browser|website|web page|screenshot|http|https|www\.|\.com|\.org|url|navigate|click|open site)\b/i;
-
 /** Continuation prompts — varied to prevent brittle pattern mimicry */
 const CONTINUATION_PROMPTS = [
   'Continue working on the task.',
@@ -82,7 +75,7 @@ const CONTINUATION_PROMPTS = [
  * Derived from the same grants `buildRuntimeTools` reads, so the prompt cannot
  * promise an action the tool set withheld. It used to be a fixed "You have 5
  * actions" list, which was true only while every agent got all five — under
- * deny-by-default it would tell an agent with no shell to run bash, and the
+ * deny-by-default it would tell an agent with no browser to browse, and the
  * model would spend steps calling a tool that is not there.
  *
  * `plan` is always listed because it is ungranted: it is how a run ends.
@@ -90,14 +83,8 @@ const CONTINUATION_PROMPTS = [
 function actionLines(agent: HydratedAgent): string {
   const grants = readCapabilityGrants(agent.capabilityGrants);
   const lines: string[] = [];
-  if (grants.allows('shell')) {
-    lines.push("**shell** — Run any bash command in a persistent terminal. Your working directory and environment persist between calls. Use this for installing packages, running code, git operations, and anything you'd do in a terminal.");
-  }
   if (grants.allows('browser')) {
-    lines.push('**browser** — Interact with a web browser. Navigate to URLs, search the web, click elements, fill forms, take screenshots. Use for web research and testing.');
-  }
-  if (grants.allows('files')) {
-    lines.push("**file_edit** — Read, write, edit, or list files directly. More precise than shell for file modifications. Use search-replace for targeted edits. Use action='list' to see directory contents.");
+    lines.push("**browser** — Research the web: search for a query, read a public URL's main text with goto, and read the current page again with get_text. Pages come back as extracted text; you cannot click, type or take screenshots.");
   }
   lines.push("**plan** — Create and update your task plan, or signal completion. Your plan persists as a checklist. Update it as you make progress. Call plan(action='complete', result='...') when done.");
   if (grants.allows('delegation')) {
@@ -142,9 +129,7 @@ ${actionLines(agent)}
 - For multi-step tasks, create a plan with the plan action. For simple questions, respond directly.
 - Execute your plan step by step. Update the plan after each step.
 - When done, call plan with action='complete' and your final result.
-- A container is created automatically on your first shell command. You don't need to manage containers.
 - When an action fails, analyze the error and adjust. Do not repeat the same failed action.
-- Large results are automatically saved to /workspace/.alia/observations/. Use file_edit(action='read') to retrieve them.
 
 ## Budget
 - Maximum ${config.maxSteps} steps. Be efficient.
@@ -159,7 +144,6 @@ function buildContextMessages(
   todoManager: TodoManager,
   stateMachine: AgentStateMachine,
   iteration: number,
-  screenshotBase64?: string | null,
 ): ModelMessage[] {
   const messages: ModelMessage[] = [];
 
@@ -191,19 +175,7 @@ function buildContextMessages(
   const continuationPrompt = CONTINUATION_PROMPTS[iteration % CONTINUATION_PROMPTS.length];
   const tailContent = tailParts.length > 0 ? tailParts.join('\n\n') + '\n\n' : '';
 
-  // 5. Include browser screenshot as vision content if available
-  if (screenshotBase64) {
-    messages.push({
-      role: 'user',
-      content: [
-        { type: 'text', text: tailContent + continuationPrompt },
-        { type: 'image', image: screenshotBase64, mediaType: 'image/png' },
-        { type: 'text', text: '[This is a screenshot of the current browser page. Use it to understand what you see and decide your next action.]' },
-      ],
-    });
-  } else {
-    messages.push({ role: 'user', content: tailContent + continuationPrompt });
-  }
+  messages.push({ role: 'user', content: tailContent + continuationPrompt });
 
   return messages;
 }
@@ -255,33 +227,7 @@ export async function runAgentSession(sessionId: string): Promise<void> {
   const eventStream = new EventStream({ agentId, sessionId });
   const stateMachine = new AgentStateMachine();
   const todoManager = new TodoManager();
-  const workspaceMemory = new WorkspaceMemory();
-  const terminalSession = new TerminalSession({
-    sessionId,
-    agentId,
-    userId,
-    workspaceMemory,
-    image: inferImage(session.task, agent.preferredImage ?? undefined),
-    onContainerCreated: async (containerId: string) => {
-      // `ON CONFLICT DO NOTHING`, where this used to be a `.some()` over the
-      // in-memory array followed by a push — a read-then-write two concurrent
-      // tool calls both passed.
-      try {
-        await claimAgentSessionResource(getDb(), sessionId, {
-          type: 'container',
-          resourceId: containerId,
-        });
-      } catch (saveErr: unknown) {
-        log.agents.warn({ saveErr, sessionId, containerId }, 'Failed to persist container resource on session');
-      }
-    },
-  });
-  const browserSession = new BrowserSession({ agentId, sessionId });
-
-  // Pre-initialize browser if the task likely needs it (saves 5-15s cold start)
-  if (BROWSER_HINT_RE.test(session.task)) {
-    browserSession.preInit();
-  }
+  const browserSession = new BrowserSession();
 
   // Restore event stream and plan if resuming
   await eventStream.loadFromDB();
@@ -406,8 +352,6 @@ export async function runAgentSession(sessionId: string): Promise<void> {
       onComplete,
       onHireAgent,
       todoManager,
-      workspaceMemory,
-      terminalSession,
       browserSession,
       eventStream,
     },
@@ -469,9 +413,6 @@ export async function runAgentSession(sessionId: string): Promise<void> {
           },
         });
 
-        await cleanupSessionResources(sessionId, userId);
-        await terminalSession.destroy();
-        await browserSession.close();
         return;
       }
       eventStream.append('system_message', 'Single subtask — falling back to standard execution');
@@ -542,10 +483,9 @@ export async function runAgentSession(sessionId: string): Promise<void> {
       const model = getAIModel(activeResolved, 'agent_run');
       const startMs = Date.now();
 
-      // Build context (stable prefix + event stream + todo/state tail + browser screenshot)
+      // Build context (stable prefix + event stream + todo/state tail)
       const messages = buildContextMessages(
         systemPrompt, eventStream, todoManager, stateMachine, iteration,
-        browserSession.consumeLastScreenshot(),
       );
 
       try {
@@ -586,17 +526,15 @@ export async function runAgentSession(sessionId: string): Promise<void> {
               }
             }
 
-            // Record tool results — with workspace memory offloading + error loop detection
+            // Record tool results — with error loop detection
             if (step.toolResults.length > 0) {
               for (const tr of step.toolResults) {
                 const resultStr = typeof tr.output === 'string'
                   ? tr.output
                   : (tr.output != null ? JSON.stringify(tr.output) : '');
 
-                const offloaded = await workspaceMemory.maybeOffload(resultStr, eventStream.currentSeq());
-
                 // Secret scanning — redact API keys, tokens, passwords before logging
-                const { redacted: safeContent, matches: secretMatches } = redactSecrets(offloaded.content || '');
+                const { redacted: safeContent, matches: secretMatches } = redactSecrets(resultStr);
                 if (secretMatches.length > 0) {
                   eventStream.append('system_message',
                     `SECRET DETECTED: ${secretMatches.length} secret(s) redacted. Types: ${secretMatches.map(m => m.type).join(', ')}`,
@@ -638,8 +576,8 @@ export async function runAgentSession(sessionId: string): Promise<void> {
                   }
                 } else {
                   // Only reset consecutive error count for the specific tool that succeeded.
-                  // A successful plan(update) between two failed shell calls should NOT
-                  // reset the counter — only a successful shell call should.
+                  // A successful plan(update) between two failed browser calls should NOT
+                  // reset the counter — only a successful browser call should.
                   const successKey = tr.toolName || 'unknown';
                   if (toolErrorTracker.has(successKey)) {
                     toolErrorTracker.delete(successKey);
@@ -711,7 +649,7 @@ export async function runAgentSession(sessionId: string): Promise<void> {
         }
 
         // Context compaction if event stream is large
-        await compactContext(eventStream, workspaceMemory);
+        await compactContext(eventStream);
 
         iteration++;
         if (taskCompleted) break;
@@ -745,15 +683,9 @@ export async function runAgentSession(sessionId: string): Promise<void> {
      */
     let finalStatus: 'completed' | 'cancelled' | undefined;
     if (machineState === 'CANCELLED') {
-      // Cancelled sessions should not keep idle workspaces around.
-      await terminalSession.destroy().catch(() => {});
-      await browserSession.close().catch(() => {});
       finalStatus = 'cancelled';
       sessionResult = sessionResult || 'Session cancelled';
     } else {
-      await terminalSession.idle();
-      await browserSession.close();
-
       if (taskCompleted) {
         finalStatus = 'completed';
         sessionResult = taskResult;
@@ -818,11 +750,6 @@ export async function runAgentSession(sessionId: string): Promise<void> {
 
   } catch (err: unknown) {
     log.agents.error({ err, sessionId }, 'Agent session failed');
-
-    // Cleanup resources
-    await terminalSession.destroy().catch(() => {});
-    await browserSession.close().catch(() => {});
-    await cleanupSessionResources(sessionId, userId);
 
     // Refund credits on failure
     if (session.creditReservation) {

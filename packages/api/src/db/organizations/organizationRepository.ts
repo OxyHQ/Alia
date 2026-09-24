@@ -59,8 +59,10 @@ export type OrganizationInviteRow = typeof organizationInvites.$inferSelect;
  * ## `_id`, `credits` and `settings` are a versioned contract, and dropping any
  * of them corrupts a page rather than erroring
  *
- * `packages/alia-console/src/hooks/use-workspace.ts` declares all three on
- * `ApiOrganization` and does not merely display them:
+ * The developer console that consumed this (retired since, with the
+ * `alia_sk_*` keys) declared all three on `ApiOrganization` and did not merely
+ * display them — and a future client reading the same contract would break the
+ * same way:
  *
  *  - it compares on `_id` (`org._id === updatedOrg._id`), so serving a row with
  *    `id` alone leaves `undefined === undefined` reading TRUE for every
@@ -70,9 +72,7 @@ export type OrganizationInviteRow = typeof organizationInvites.$inferSelect;
  *    silently wrong;
  *  - it reads `org.settings?.billingEmail`, which simply disappears.
  *
- * So the two flattened sub-documents are reassembled here. That is the opposite
- * call to `developer_apps`' `rateLimit*`, and deliberately: those columns were
- * measured to have NO client reader, these were measured to have three.
+ * So the two flattened sub-documents are reassembled here.
  */
 export interface OrganizationResponse {
   readonly _id: string;
@@ -137,14 +137,12 @@ export function toMemberResponse(row: OrganizationMemberRow): OrganizationMember
  * route served the whole document from `GET /:id/invites`, which put an
  * unexpired join-link for the organization into every administrator's browser
  * cache and every proxy between. Measured before narrowing it: `useOrgInvites`
- * in `packages/app` has **zero** call sites and `packages/alia-console` has no
- * invitations hook at all, so nothing reads it. The one response that must carry
+ * in `packages/app` has **zero** call sites, so nothing reads it. The one response that must carry
  * a token is the CREATE, which is where the inviter is handed the link, and that
  * route builds its own literal.
  *
- * Omitted BY TYPE rather than by deletion, exactly as `DeveloperApiKeyResponse`
- * drops `keyHash`: a new response shape has to opt in rather than remember to
- * opt out.
+ * Omitted BY TYPE rather than by deletion: a new response shape has to opt in
+ * rather than remember to opt out.
  */
 export type OrganizationInviteResponse = Omit<OrganizationInviteRow, 'token'> & {
   readonly _id: string;
@@ -557,7 +555,7 @@ export interface PendingInviteWithOrganization {
 /**
  * A live invitation and the organization it names, by token.
  *
- * An INNER join, unlike the developer platform's `populate` replacement: the
+ * An INNER join rather than a `populate`-style LEFT join: the
  * foreign key is `NOT NULL` and cascades, so an invitation without its
  * organization cannot exist, and answering with a null organization would put
  * the accept page into a state it has no rendering for.

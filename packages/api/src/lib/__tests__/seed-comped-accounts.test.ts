@@ -231,8 +231,8 @@ describe('the row it writes', () => {
       currentPeriodStart: Date;
       currentPeriodEnd: Date;
     };
-    // A period frozen in the past is how the voice-minutes allowance silently
-    // becomes zero: it is measured from `current_period_start`.
+    // A period frozen in the past misstates the plan's current period to every
+    // reader of it (it is how the retired voice-minutes allowance went to zero).
     expect(currentPeriodEnd.getTime()).toBeGreaterThan(Date.now());
     expect(currentPeriodStart.getTime()).toBeLessThanOrEqual(Date.now());
     expect(currentPeriodStart.getUTCDate()).toBe(1);

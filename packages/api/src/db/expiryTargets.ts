@@ -11,11 +11,10 @@
  * no entry here. A hand-maintained list only ever falls as far behind as the
  * last time somebody remembered it.
  *
- * The active registry covers product/auth telemetry, developer API usage,
- * automation, notifications, moderation, OAuth state and organization invites.
- * Historical Mongo TTL models for Alia's former hosted-provider runtime are
- * excluded while their Postgres tables remain frozen as rollback assets. The
- * first cutover release must neither mutate nor destroy that snapshot.
+ * The active registry covers API usage, notifications, moderation, OAuth state
+ * and organization invites. Historical Mongo TTL models whose tables have since
+ * been dropped (hosted-provider telemetry, auth health counters, routing logs,
+ * legacy trigger runs) have no entry because there is nothing left to sweep.
  *
  * ## The one that cannot be copied, and what to do about it
  *
@@ -38,17 +37,11 @@
  *
  * ## Every entry is checked for INTENT, not just replicated
  *
- * A Mongo TTL index DELETES, unconditionally, once the deadline passes. None of
- * these holds unprocessed work or history anyone reads afterwards:
- *
- *  - `auth_health_metrics` are hourly counters; the health summary reads a
- *    rolling window far shorter than 7 days.
- *  - `routing_logs` are product routing diagnostics. Their read paths filter by
- *    their own time range independently of the sweep.
+ * A Mongo TTL index DELETES, unconditionally, once the deadline passes. The
+ * per-entry comments below say why that is safe for each table.
  */
 
 import type { ExpirySweepTarget } from '@oxy.so/db/expiry';
-import { triggerExecutions } from './schema/automation';
 import { moderationEvents, moderationOutboxes } from './schema/moderation';
 import { audioJobs, notifications } from './schema/notifications';
 import {
@@ -57,27 +50,11 @@ import {
   oauthStates,
 } from './schema/integrations';
 import { organizationInvites } from './schema/organizations';
-import {
-  apiKeyUsage,
-  authHealthMetrics,
-  routingLogs,
-} from './schema/telemetry';
+import { apiKeyUsage } from './schema/telemetry';
 
 const DAY = 24 * 60 * 60;
 
 export const EXPIRY_TARGETS: readonly ExpirySweepTarget[] = [
-  {
-    table: authHealthMetrics,
-    column: authHealthMetrics.createdAt,
-    retentionSeconds: 7 * DAY,
-    reason: 'Hourly auth counters; the health summary reads a far shorter window.',
-  },
-  {
-    table: routingLogs,
-    column: routingLogs.createdAt,
-    retentionSeconds: 90 * DAY,
-    reason: 'Routing diagnostics; readers filter by their own range.',
-  },
   {
     table: apiKeyUsage,
     /**
@@ -89,17 +66,6 @@ export const EXPIRY_TARGETS: readonly ExpirySweepTarget[] = [
     retentionSeconds: 90 * DAY,
     reason:
       'Developer API request records. The longest retention here on purpose: the billing and rate-limit reads work in monthly windows, so a shorter sweep would delete the period being measured.',
-  },
-  {
-    table: triggerExecutions,
-    /**
-     * From `started_at`, which is this table's ONLY clock — Mongoose sets
-     * `timestamps: false`, so there is no `created_at` to measure from and no
-     * risk of picking the wrong one.
-     */
-    column: triggerExecutions.startedAt,
-    retentionSeconds: 30 * DAY,
-    reason: 'Trigger run history; the readers page by their own range and nothing waits on an old run.',
   },
   {
     table: notifications,

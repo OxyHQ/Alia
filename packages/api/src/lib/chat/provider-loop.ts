@@ -169,7 +169,6 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
     tokenUsage,
     requestStartTime,
     skillNames: skills.activated().map((skill: { name: string }) => skill.name),
-    isApiKey: !!req.apiKey,
     autonomyRuntime,
   });
 

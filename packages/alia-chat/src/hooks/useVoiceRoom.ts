@@ -1,505 +1,649 @@
 /**
- * Hook for real-time voice conversations via LiveKit rooms.
+ * A voice conversation, run on the device as a turn loop.
  *
- * Connects to a LiveKit room (created by POST /v1/voice/token),
- * publishes the user's microphone, and receives agent audio + data
- * messages (transcripts, state, cohost events) over WebRTC.
+ *   listening ──(the person stops talking)──▶ thinking ──(first sentence)──▶ speaking
+ *       ▲                                         │                              │
+ *       └──────────(answer spoken, or the person talks over it)──────────────────┘
+ *
+ * - **Listening** is on-device speech recognition (`lib/speech-recognition*`).
+ *   An utterance ends after `endOfUtteranceMs` without a new word.
+ * - **Thinking** sends the utterance through the ordinary chat path — a
+ *   `VoiceTurnSender`, by default `POST /v1/chat/completions` marked
+ *   `responseMode: 'voice'` — and streams the answer into the transcript.
+ * - **Speaking** synthesizes the answer through `POST /v1/audio/speech`
+ *   sentence by sentence as it streams, so the first sentence plays while the
+ *   rest is still being written, and the next clip is fetched while the
+ *   current one plays.
+ * - **Barge-in:** the microphone stays open while Alia thinks and speaks. When
+ *   the person says a few words that are not the answer echoing back, the turn
+ *   is aborted — playback stops, the chat request is cancelled — and what they
+ *   are saying becomes the next utterance.
+ *
+ * It replaced a LiveKit room (`POST /v1/voice/token`) whose realtime model and
+ * transcription called providers directly; Alia's only inference path is
+ * Alia → Oxy → Kaana, which serves chat and speech but no realtime session or
+ * transcription. The public shape — `connect` / `disconnect`, `roomState`,
+ * `agentState`, `messages`, `toggleMute` — is unchanged, so its consumers did
+ * not change with it.
  */
 
-import { useState, useCallback, useRef, useEffect } from 'react';
-import {
-  Room,
-  RoomEvent,
-  Track,
-  DisconnectReason,
-  type RemoteTrack,
-  type RemoteTrackPublication,
-  type RemoteParticipant,
-  type DataPublishOptions,
-} from 'livekit-client';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useOxy } from '@oxy.so/services';
 import { errorMessage } from '../lib/utils';
-import type { RoomState, AgentState, VoiceMessage, VoiceToolInvocation } from '../types';
+import type { RoomState, AgentState, VoiceMessage } from '../types';
 import { PREFERRED_VOICE_MODEL_ID } from '../lib/config';
+import {
+  isSpeechRecognitionAvailable,
+  requestSpeechRecognitionPermission,
+  startSpeechRecognition,
+} from '../lib/speech-recognition';
+import type { SpeechRecognitionFailure, SpeechRecognitionSession } from '../lib/speech-recognition-types';
+import { speechFailureMessage } from '../lib/speech-messages';
+import { defaultSpeechLanguage } from '../lib/speech-language';
+import { playSpeechClip, requestSpeechClip, type ProductVoice } from '../lib/speech-synthesis';
+import { VoiceLevelChannel, type VoiceLevelSource } from '../lib/voice-levels';
+import {
+  createAliaVoiceTurnSender,
+  type VoiceTurnMessage,
+  type VoiceTurnSender,
+} from '../lib/voice-turn';
+import {
+  dropEchoPrefix,
+  isInterruption,
+  stripTitleTags,
+  stripTitleTagsPartial,
+  takeSpeechChunks,
+} from '../lib/voice-text';
 
 const API_URL = process.env.EXPO_PUBLIC_ALIA_API_URL ?? 'https://api.alia.onl';
-
-/** On web, audio tracks must be attached to a DOM element to play.
- *  On native (React Native), the WebRTC layer plays them automatically. */
-const hasDOM = typeof document !== 'undefined';
 
 // ============== OPTIONS ==============
 
 export interface UseVoiceRoomOptions {
   apiUrl?: string;
-  voicePreference?: 'male' | 'female';
+  /** Which of the product's two voices answers. Sent to `/v1/audio/speech` as is. */
+  voicePreference?: ProductVoice;
+  /** Bearer for speech synthesis; defaults to the surrounding Oxy session's. */
   accessToken?: string;
   /**
-   * Voice session model. Defaults to the build's `PREFERRED_VOICE_MODEL_ID`.
+   * Speech model for the answers. Defaults to the build's
+   * `PREFERRED_VOICE_MODEL_ID`, the one profile `/v1/audio/speech` accepts.
    *
    * Not checked against `GET /catalogue`, for the reason given in
-   * `lib/config.ts`: the chat resolver filters to `chat_visible` entries and
-   * would substitute something that cannot hold a voice session.
+   * `lib/config.ts`.
    */
   model?: string;
   /**
-   * The agent this session belongs to, when it is a thread with one.
+   * Chat routing profile the default sender asks for. Ignored when `sendTurn`
+   * is given — that sender carries its own conversation's choice.
+   */
+  chatModel?: string;
+  /**
+   * The agent this call belongs to, when it is a thread with one.
    *
-   * Without it the session is ordinary Alia: the API composes the generic
-   * prompt and the identity guard says the model's name, so an agent's voice
-   * answers as Alia. It is the caller's to supply because only the screen knows
-   * whose thread is open.
+   * Without it the call is ordinary Alia. Only the default sender reads it; a
+   * custom `sendTurn` is already bound to its conversation's agent.
    */
   agentId?: string;
+  /** Language to recognize (BCP-47). Defaults to the platform's. */
+  lang?: string;
+  /**
+   * How each turn reaches Alia. Defaults to `createAliaVoiceTurnSender`. The
+   * Alia app passes its conversation's own send, so a call's turns are that
+   * conversation's turns — persisted and shown like typed ones.
+   */
+  sendTurn?: VoiceTurnSender;
+  /** Silence, in ms, that ends an utterance. */
+  endOfUtteranceMs?: number;
+  /** Let the person interrupt by talking. On by default. */
+  bargeIn?: boolean;
 }
 
-// ============== TITLE TAG UTILITIES ==============
+// ============== TUNING ==============
 
-const TAG = String.raw`ALIA_TITLE|TITLE|TÍTULO|TITRE|TITOLO|TITEL|ЗАГОЛОВОК`;
+const DEFAULT_END_OF_UTTERANCE_MS = 1_100;
+/** How long a requested stop may take to deliver the final words. */
+const COMMIT_TIMEOUT_MS = 1_500;
+/** Words needed before talking over the answer counts as an interruption. */
+const BARGE_IN_MIN_WORDS = 2;
+/** A recognizer that keeps ending within this of starting is failing, not idling. */
+const RAPID_END_MS = 400;
+const MAX_RAPID_ENDS = 5;
 
-const TITLE_STRIP_RE = new RegExp(
-  String.raw`\[(${TAG})\].*?\[\/\1\]|<(${TAG})>.*?<\/\2>`, 'gi',
-);
+// ============== INTERNAL STATE ==============
 
-const TITLE_PARTIAL_RE = new RegExp(
-  String.raw`\[(${TAG})\].*?(\[\/\1\])?$|<(${TAG})>.*?(<\/\3>)?$`, 'si',
-);
+type Phase = 'off' | 'listening' | 'thinking' | 'speaking';
 
-function stripTitleTags(content: string): string {
-  return content.replace(TITLE_STRIP_RE, '').trim();
-}
-
-function stripTitleTagsPartial(content: string): string {
-  return content.replace(TITLE_STRIP_RE, '').replace(TITLE_PARTIAL_RE, '').trim();
-}
-
-// ============== INTERNAL DATA MESSAGE TYPES ==============
-
-interface AgentStateMsg { type: 'agent.state'; state: 'listening' | 'thinking' | 'speaking'; speaker: 'primary' | 'cohost' }
-interface TranscriptDeltaMsg { type: 'transcript.delta'; delta: string; speaker: 'primary' | 'cohost' }
-interface TranscriptDoneMsg { type: 'transcript.done'; transcript: string; speaker: 'primary' | 'cohost' }
-interface TranscriptUserMsg { type: 'transcript.user'; transcript: string }
-interface CohostEnabledMsg { type: 'cohost.enabled' }
-interface CohostDisabledMsg { type: 'cohost.disabled' }
-interface CohostTurnMsg { type: 'cohost.turn_changed'; speaker: 'primary' | 'cohost' | 'user' }
-interface CohostRoundMsg { type: 'cohost.round_complete'; turns: number }
-interface ToolCallMsg { type: 'tool.call'; toolName: string; callId: string; args?: Record<string, unknown>; speaker: 'primary' | 'cohost' }
-interface ToolResultMsg { type: 'tool.result'; callId: string; speaker: 'primary' | 'cohost' }
-interface SessionEndedMsg { type: 'session.ended'; reason: string }
-interface ErrorMsg { type: 'error'; code: string; message: string }
-
-type AgentDataMessage =
-  | AgentStateMsg | TranscriptDeltaMsg | TranscriptDoneMsg | TranscriptUserMsg
-  | CohostEnabledMsg | CohostDisabledMsg | CohostTurnMsg | CohostRoundMsg
-  | ToolCallMsg | ToolResultMsg | SessionEndedMsg | ErrorMsg;
-
-// ============== MIC DEVICE ERRORS ==============
-
-/**
- * Map a microphone-acquisition failure to actionable copy. When
- * `setMicrophoneEnabled(true)` calls getUserMedia and the device is missing,
- * blocked, or busy, it surfaces a DOMException whose `.name` identifies the
- * cause (legacy aliases included). Returns null for anything that isn't a known
- * device error so the caller can fall back to generic handling.
- */
-function micDeviceErrorMessage(name: string): string | null {
-  switch (name) {
-    case 'NotFoundError':
-    case 'DevicesNotFoundError':
-      return 'No microphone found — connect one and try again';
-    case 'NotAllowedError':
-    case 'PermissionDeniedError':
-      return 'Microphone access denied — allow it in your browser';
-    case 'NotReadableError':
-    case 'TrackStartError':
-      return 'Microphone is in use by another app';
-    default:
-      return null;
-  }
+interface ActiveTurn {
+  readonly controller: AbortController;
+  readonly assistantId: string;
+  /** Characters of the answer already handed to the speech queue. */
+  consumed: number;
+  chunkCount: number;
+  /** The answer so far, title tags stripped and whitespace kept (see `stripTitleTags`). */
+  text: string;
+  /** Everything this turn has said aloud so far, for telling echo from the person. */
+  speaking: string;
+  readonly clips: Array<{ readonly text: string; clip: Promise<string | null> | null }>;
+  closed: boolean;
+  /** Wakes the player when a clip is queued or the answer ends. */
+  wake: (() => void) | null;
+  synthesisFailed: boolean;
 }
 
 // ============== HOOK ==============
 
 export function useVoiceRoom(options: UseVoiceRoomOptions = {}) {
   const apiUrl = options.apiUrl || API_URL;
-  const voicePref = options.voicePreference ?? 'female';
-  const voiceModel = options.model ?? PREFERRED_VOICE_MODEL_ID;
-  const agentId = options.agentId;
+  const voicePref: ProductVoice = options.voicePreference ?? 'female';
+  const speechModel = options.model ?? PREFERRED_VOICE_MODEL_ID;
+  const endOfUtteranceMs = options.endOfUtteranceMs ?? DEFAULT_END_OF_UTTERANCE_MS;
+  const bargeIn = options.bargeIn ?? true;
 
   const [roomState, setRoomState] = useState<RoomState>('disconnected');
-  const [agentState, setAgentState] = useState<AgentState>('idle');
+  const [agentState, setAgentStateValue] = useState<AgentState>('idle');
   const [isMuted, setIsMuted] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [messages, setMessages] = useState<VoiceMessage[]>([]);
-  const [cohostActive, setCohostActive] = useState(false);
-  const [currentSpeaker, setCurrentSpeaker] = useState<'primary' | 'cohost' | 'user' | null>(null);
-  const [roundComplete, setRoundComplete] = useState(false);
-
-  const roomRef = useRef<Room | null>(null);
-  const sessionIdRef = useRef<string | null>(null);
-  const msgIdRef = useRef(0);
-  const sessionPrefixRef = useRef(`vm-${Date.now().toString(36)}`);
-
-  // Per-speaker streaming transcript refs
-  const primaryTextRef = useRef('');
-  const cohostTextRef = useRef('');
+  /** A turn that failed without ending the call: no answer, or no audio for it. */
+  const [turnError, setTurnError] = useState<string | null>(null);
+  const [messages, setMessagesState] = useState<VoiceMessage[]>([]);
+  const [currentSpeaker, setCurrentSpeaker] = useState<'primary' | 'user' | null>(null);
 
   const { oxyServices } = useOxy();
 
-  // ============== AUTH ==============
+  const levels = useMemo(() => new VoiceLevelChannel(), []);
 
-  const getToken = useCallback((): string | null => {
-    if (options.accessToken) return options.accessToken;
-    return oxyServices.httpService.getAccessToken();
-  }, [options.accessToken, oxyServices]);
+  // Everything the loop reads from callbacks lives in refs: recognizer events
+  // arrive outside React, and a value closed over at `connect` would be stale.
+  const phaseRef = useRef<Phase>('off');
+  const mutedRef = useRef(false);
+  const mountedRef = useRef(true);
+  const messagesRef = useRef<VoiceMessage[]>([]);
+  const sessionRef = useRef<SpeechRecognitionSession | null>(null);
+  const heardRef = useRef('');
+  const committingRef = useRef(false);
+  const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const commitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const turnRef = useRef<ActiveTurn | null>(null);
+  const draftIdRef = useRef<string | null>(null);
+  /** What the call had said when the person cut in; this session's echo of it is not theirs. */
+  const echoContextRef = useRef('');
+  const sessionStartedAtRef = useRef(0);
+  const rapidEndsRef = useRef(0);
+  const sessionFailedRef = useRef<SpeechRecognitionFailure | null>(null);
+  const msgIdRef = useRef(0);
+  const sessionPrefixRef = useRef(`vm-${Date.now().toString(36)}`);
 
-  // ============== CLEANUP ==============
+  const config = {
+    apiUrl,
+    voicePref,
+    speechModel,
+    endOfUtteranceMs,
+    bargeIn,
+    lang: options.lang ?? defaultSpeechLanguage(),
+    accessToken: options.accessToken,
+    sendTurn:
+      options.sendTurn ??
+      createAliaVoiceTurnSender({
+        oxyServices,
+        apiUrl,
+        ...(options.chatModel === undefined ? {} : { model: options.chatModel }),
+        ...(options.agentId === undefined ? {} : { agentId: options.agentId }),
+      }),
+  };
+  const configRef = useRef(config);
+  configRef.current = config;
 
-  const cleanup = useCallback(() => {
-    if (roomRef.current) {
-      // On web, detach all remote audio tracks before disconnecting
-      if (hasDOM) {
-        roomRef.current.remoteParticipants.forEach((p) => {
-          p.trackPublications.forEach((pub) => {
-            pub.track?.detach();
-          });
-        });
-      }
-      roomRef.current.disconnect();
-      roomRef.current = null;
-    }
-    sessionIdRef.current = null;
-    primaryTextRef.current = '';
-    cohostTextRef.current = '';
+  // ============== STATE HELPERS ==============
+
+  const setAgent = useCallback((phase: Phase) => {
+    phaseRef.current = phase;
+    if (!mountedRef.current) return;
+    setAgentStateValue(phase === 'off' ? 'idle' : phase);
+    setCurrentSpeaker(phase === 'thinking' || phase === 'speaking' ? 'primary' : null);
   }, []);
 
-  // ============== DATA MESSAGE HANDLER ==============
+  const updateMessages = useCallback((update: (previous: VoiceMessage[]) => VoiceMessage[]) => {
+    messagesRef.current = update(messagesRef.current);
+    if (mountedRef.current) setMessagesState(messagesRef.current);
+  }, []);
 
-  const handleDataMessage = useCallback((payload: Uint8Array) => {
-    try {
-      const msg: AgentDataMessage = JSON.parse(new TextDecoder().decode(payload));
+  const nextId = (): string => {
+    msgIdRef.current += 1;
+    return `${sessionPrefixRef.current}-${msgIdRef.current}`;
+  };
 
-      switch (msg.type) {
-        case 'agent.state': {
-          // Always update agentState so both primary and cohost drive wave animation
-          setAgentState(msg.state);
-          setCurrentSpeaker(msg.speaker);
-          break;
-        }
+  const patchMessage = useCallback((id: string, patch: Partial<VoiceMessage>) => {
+    updateMessages((previous) => previous.map((message) => (message.id === id ? { ...message, ...patch } : message)));
+  }, [updateMessages]);
 
-        case 'transcript.delta': {
-          const textRef = msg.speaker === 'cohost' ? cohostTextRef : primaryTextRef;
-          textRef.current += msg.delta;
-          const text = stripTitleTagsPartial(textRef.current);
-          setMessages(prev => {
-            const last = prev[prev.length - 1];
-            if (last && last.role === 'assistant' && last.isStreaming && last.speaker === msg.speaker) {
-              return [...prev.slice(0, -1), { ...last, content: text }];
-            }
-            msgIdRef.current++;
-            return [...prev, {
-              id: `${sessionPrefixRef.current}-${msgIdRef.current}`,
-              role: 'assistant',
-              speaker: msg.speaker,
-              content: text,
-              timestamp: Date.now(),
-              isStreaming: true,
-            }];
-          });
-          break;
-        }
+  const getToken = useCallback((): string | null => {
+    const { accessToken } = configRef.current;
+    if (accessToken) return accessToken;
+    return oxyServices.httpService.getAccessToken();
+  }, [oxyServices]);
 
-        case 'transcript.done': {
-          const textRef = msg.speaker === 'cohost' ? cohostTextRef : primaryTextRef;
-          textRef.current = '';
-          const clean = stripTitleTags(msg.transcript);
-          setMessages(prev => {
-            const last = prev[prev.length - 1];
-            if (last && last.role === 'assistant' && last.isStreaming && last.speaker === msg.speaker) {
-              return [...prev.slice(0, -1), { ...last, content: clean, isStreaming: false }];
-            }
-            return prev;
-          });
-          break;
-        }
+  const clearTimers = (): void => {
+    if (silenceTimerRef.current !== null) clearTimeout(silenceTimerRef.current);
+    if (commitTimerRef.current !== null) clearTimeout(commitTimerRef.current);
+    silenceTimerRef.current = null;
+    commitTimerRef.current = null;
+  };
 
-        case 'transcript.user': {
-          if (!msg.transcript.trim()) break;
-          const transcript = msg.transcript.trim();
-          setMessages(prev => {
-            const last = prev[prev.length - 1];
-            // Update existing user message instead of creating duplicates
-            if (last && last.role === 'user') {
-              return [...prev.slice(0, -1), { ...last, content: transcript }];
-            }
-            msgIdRef.current++;
-            return [...prev, {
-              id: `${sessionPrefixRef.current}-${msgIdRef.current}`,
-              role: 'user',
-              content: transcript,
-              timestamp: Date.now(),
-              isStreaming: false,
-            }];
-          });
-          break;
-        }
+  // ============== TEARDOWN ==============
 
-        case 'cohost.enabled':
-          setCohostActive(true);
-          break;
-
-        case 'cohost.disabled':
-          setCohostActive(false);
-          setCurrentSpeaker(null);
-          break;
-
-        case 'cohost.turn_changed':
-          setCurrentSpeaker(msg.speaker);
-          break;
-
-        case 'cohost.round_complete':
-          setRoundComplete(true);
-          break;
-
-        case 'tool.call': {
-          const tool: VoiceToolInvocation = { toolCallId: msg.callId, toolName: msg.toolName, state: 'call', args: msg.args };
-          setMessages(prev => {
-            const last = prev[prev.length - 1];
-            if (last && last.role === 'assistant' && last.speaker === msg.speaker) {
-              return [...prev.slice(0, -1), {
-                ...last,
-                toolInvocations: [...(last.toolInvocations || []), tool],
-              }];
-            }
-            msgIdRef.current++;
-            return [...prev, {
-              id: `${sessionPrefixRef.current}-${msgIdRef.current}`,
-              role: 'assistant' as const,
-              speaker: msg.speaker,
-              content: '',
-              timestamp: Date.now(),
-              isStreaming: true,
-              toolInvocations: [tool],
-            }];
-          });
-          break;
-        }
-
-        case 'tool.result': {
-          setMessages(prev => prev.map(m => {
-            if (!m.toolInvocations) return m;
-            const updated = m.toolInvocations.map(t =>
-              t.toolCallId === msg.callId ? { ...t, state: 'result' as const } : t
-            );
-            return { ...m, toolInvocations: updated };
-          }));
-          break;
-        }
-
-        case 'session.ended': {
-          cleanup();
-          setRoomState('disconnected');
-          setAgentState('idle');
-          const reason = msg.reason;
-          setError(
-            reason === 'user_silent' ? 'Call ended due to inactivity'
-            : reason === 'user_unresponsive' ? 'Call ended — no response'
-            : reason === 'max_duration_exceeded' ? 'Voice minutes limit reached. Upgrade for more.'
-            : reason === 'credits_exhausted' ? 'Not enough credits to continue. Add more or upgrade your plan.'
-            : 'Voice session ended'
-          );
-          break;
-        }
-
-        case 'error':
-          setError(msg.message);
-          break;
+  const endTurn = useCallback((turn: ActiveTurn) => {
+    turn.controller.abort();
+    turn.closed = true;
+    turn.wake?.();
+    if (turnRef.current === turn) turnRef.current = null;
+    const message = messagesRef.current.find((candidate) => candidate.id === turn.assistantId);
+    if (message?.isStreaming) {
+      if (message.content.trim() === '') {
+        updateMessages((previous) => previous.filter((candidate) => candidate.id !== turn.assistantId));
+      } else {
+        patchMessage(turn.assistantId, { isStreaming: false });
       }
-    } catch {
-      // Ignore non-JSON data
     }
-  }, [cleanup]);
+    levels.setPlayback(0);
+  }, [levels, patchMessage, updateMessages]);
+
+  const discardDraft = useCallback(() => {
+    const draftId = draftIdRef.current;
+    draftIdRef.current = null;
+    if (draftId !== null) updateMessages((previous) => previous.filter((message) => message.id !== draftId));
+  }, [updateMessages]);
+
+  /** Stop everything; the caller decides what state the room is left in. */
+  const teardown = useCallback(() => {
+    phaseRef.current = 'off';
+    clearTimers();
+    committingRef.current = false;
+    const turn = turnRef.current;
+    if (turn !== null) endTurn(turn);
+    sessionRef.current?.abort();
+    sessionRef.current = null;
+    heardRef.current = '';
+    levels.reset();
+  }, [endTurn, levels]);
+
+  const fail = useCallback((message: string) => {
+    teardown();
+    discardDraft();
+    if (!mountedRef.current) return;
+    setError(message);
+    setRoomState('error');
+    setAgentStateValue('idle');
+    setCurrentSpeaker(null);
+  }, [discardDraft, teardown]);
+
+  // ============== SPEAKING ==============
+
+  const synthesize = useCallback((turn: ActiveTurn, text: string): Promise<string | null> => {
+    const token = getToken();
+    if (token === null) {
+      turn.synthesisFailed = true;
+      return Promise.resolve(null);
+    }
+    const { apiUrl: url, speechModel: model, voicePref: voice } = configRef.current;
+    return requestSpeechClip({ apiUrl: url, token, model, input: text, voice, signal: turn.controller.signal })
+      .catch((caught: unknown) => {
+        if (!turn.controller.signal.aborted) {
+          console.error('[useVoiceRoom] Speech synthesis failed:', caught);
+          turn.synthesisFailed = true;
+        }
+        return null;
+      });
+  }, [getToken]);
+
+  /** Play the turn's clips in order as they arrive, fetching one ahead. */
+  const playTurn = useCallback(async (turn: ActiveTurn): Promise<void> => {
+    const signal = turn.controller.signal;
+    for (let index = 0; ; index += 1) {
+      while (index >= turn.clips.length && !turn.closed) {
+        await new Promise<void>((resolve) => {
+          turn.wake = resolve;
+        });
+        turn.wake = null;
+      }
+      if (signal.aborted || index >= turn.clips.length) return;
+      const item = turn.clips[index];
+      item.clip ??= synthesize(turn, item.text);
+      const next = turn.clips[index + 1];
+      if (next !== undefined) next.clip ??= synthesize(turn, next.text);
+
+      const uri = await item.clip;
+      if (signal.aborted) return;
+      if (uri === null) continue;
+      turn.speaking = `${turn.speaking} ${item.text}`;
+      setAgent('speaking');
+      try {
+        await playSpeechClip(uri, { signal, onLevel: (level) => levels.setPlayback(level) });
+      } catch (caught: unknown) {
+        console.error('[useVoiceRoom] Playback failed:', caught);
+        turn.synthesisFailed = true;
+      }
+    }
+  }, [levels, setAgent, synthesize]);
+
+  const queueChunks = useCallback((turn: ActiveTurn, final: boolean) => {
+    const pending = turn.text.slice(turn.consumed);
+    const { chunks, rest } = takeSpeechChunks(pending, { final, isFirst: turn.chunkCount === 0 });
+    turn.consumed = turn.text.length - rest.length;
+    for (const text of chunks) {
+      turn.chunkCount += 1;
+      // The next clip is fetched now if the player is waiting on it; the
+      // player fetches the rest one ahead of what it is playing.
+      turn.clips.push({ text, clip: null });
+    }
+    if (chunks.length > 0) turn.wake?.();
+  }, []);
+
+  // ============== LISTENING ==============
+
+  // Declared through refs so the recognizer callbacks and the turn runner can
+  // call each other without a cycle in their dependency lists.
+  const startListeningRef = useRef<() => void>(() => undefined);
+  const runTurnRef = useRef<(text: string) => void>(() => undefined);
+
+  const commitUtterance = useCallback(() => {
+    const session = sessionRef.current;
+    if (session === null || committingRef.current) return;
+    committingRef.current = true;
+    session.stop();
+    commitTimerRef.current = setTimeout(() => {
+      commitTimerRef.current = null;
+      sessionRef.current?.abort();
+    }, COMMIT_TIMEOUT_MS);
+  }, []);
+
+  const showDraft = useCallback((transcript: string) => {
+    const draftId = draftIdRef.current;
+    if (draftId !== null) {
+      patchMessage(draftId, { content: transcript });
+      return;
+    }
+    const id = nextId();
+    draftIdRef.current = id;
+    updateMessages((previous) => [
+      ...previous,
+      { id, role: 'user', content: transcript, timestamp: Date.now(), isStreaming: true },
+    ]);
+    if (mountedRef.current) setCurrentSpeaker('user');
+  }, [patchMessage, updateMessages]);
+
+  const startListening = useCallback(() => {
+    if (phaseRef.current === 'off' || mutedRef.current || sessionRef.current !== null) return;
+    heardRef.current = '';
+    committingRef.current = false;
+    sessionFailedRef.current = null;
+    echoContextRef.current = '';
+    sessionStartedAtRef.current = Date.now();
+
+    sessionRef.current = startSpeechRecognition(
+      { lang: configRef.current.lang, echoCancellation: true },
+      {
+        onResult: ({ transcript }) => {
+          if (phaseRef.current === 'off' || committingRef.current) return;
+
+          const turn = turnRef.current;
+          if (turn !== null) {
+            // Alia is thinking or speaking: this is the person cutting in, or
+            // the answer coming back through the microphone.
+            heardRef.current = '';
+            if (!configRef.current.bargeIn) return;
+            if (!isInterruption(transcript, turn.speaking, BARGE_IN_MIN_WORDS)) return;
+            echoContextRef.current = turn.speaking;
+            endTurn(turn);
+            setAgent('listening');
+          }
+
+          const utterance = dropEchoPrefix(transcript, echoContextRef.current);
+          heardRef.current = utterance;
+          if (utterance === '') return;
+          showDraft(utterance);
+          if (silenceTimerRef.current !== null) clearTimeout(silenceTimerRef.current);
+          silenceTimerRef.current = setTimeout(() => {
+            silenceTimerRef.current = null;
+            commitUtterance();
+          }, configRef.current.endOfUtteranceMs);
+        },
+        onLevel: (level) => {
+          levels.setCapture(mutedRef.current ? 0 : level);
+        },
+        onError: (failure) => {
+          if (failure.code === 'no-speech' || failure.code === 'aborted') return;
+          sessionFailedRef.current = failure;
+        },
+        onEnd: () => {
+          sessionRef.current = null;
+          clearTimers();
+          const committing = committingRef.current;
+          committingRef.current = false;
+          const heard = heardRef.current.trim();
+          heardRef.current = '';
+          if (phaseRef.current === 'off') return;
+
+          const failure = sessionFailedRef.current;
+          if (failure !== null && failure.code !== 'other') {
+            fail(speechFailureMessage(failure) ?? 'Speech recognition failed');
+            return;
+          }
+
+          // An utterance in progress when the engine ended is still an utterance.
+          if ((committing || draftIdRef.current !== null) && heard !== '' && turnRef.current === null) {
+            rapidEndsRef.current = 0;
+            runTurnRef.current(heard);
+            return;
+          }
+
+          if (Date.now() - sessionStartedAtRef.current < RAPID_END_MS) {
+            rapidEndsRef.current += 1;
+            if (rapidEndsRef.current >= MAX_RAPID_ENDS) {
+              fail(speechFailureMessage(failure ?? { code: 'other' }) ?? 'Speech recognition failed');
+              return;
+            }
+          } else {
+            rapidEndsRef.current = 0;
+          }
+          startListeningRef.current();
+        },
+      },
+    );
+  }, [commitUtterance, endTurn, fail, levels, setAgent, showDraft]);
+  startListeningRef.current = startListening;
+
+  // ============== THINKING ==============
+
+  const runTurn = useCallback((text: string) => {
+    // Settle the person's words as a message of their own.
+    const draftId = draftIdRef.current;
+    draftIdRef.current = null;
+    if (draftId !== null) {
+      patchMessage(draftId, { content: text, isStreaming: false });
+    } else {
+      updateMessages((previous) => [
+        ...previous,
+        { id: nextId(), role: 'user', content: text, timestamp: Date.now(), isStreaming: false },
+      ]);
+    }
+
+    const history: VoiceTurnMessage[] = messagesRef.current
+      .filter((message) => message.content.trim() !== '' && message.id !== draftId)
+      .map((message) => ({ role: message.role, content: message.content }))
+      // The turn itself is `text`, not history.
+      .slice(0, draftId === null ? -1 : undefined);
+
+    const assistantId = nextId();
+    updateMessages((previous) => [
+      ...previous,
+      { id: assistantId, role: 'assistant', speaker: 'primary', content: '', timestamp: Date.now(), isStreaming: true },
+    ]);
+
+    const turn: ActiveTurn = {
+      controller: new AbortController(),
+      assistantId,
+      consumed: 0,
+      chunkCount: 0,
+      text: '',
+      speaking: '',
+      clips: [],
+      closed: false,
+      wake: null,
+      synthesisFailed: false,
+    };
+    turnRef.current = turn;
+    setAgent('thinking');
+    if (mountedRef.current) setTurnError(null);
+
+    // The microphone stays open through thinking and speaking, for barge-in.
+    startListeningRef.current();
+
+    const playing = playTurn(turn);
+    const signal = turn.controller.signal;
+
+    void (async () => {
+      let lastText = '';
+      try {
+        await configRef.current.sendTurn({
+          text,
+          history,
+          signal,
+          onText: (answerSoFar) => {
+            if (signal.aborted) return;
+            lastText = answerSoFar;
+            turn.text = stripTitleTagsPartial(answerSoFar, { trim: false });
+            patchMessage(assistantId, { content: turn.text.trim() });
+            queueChunks(turn, false);
+          },
+        });
+      } catch (caught: unknown) {
+        if (signal.aborted) return;
+        console.error('[useVoiceRoom] Turn failed:', caught);
+        fail(errorMessage(caught, 'Voice request failed'));
+        return;
+      }
+      if (signal.aborted) return;
+
+      turn.text = stripTitleTags(lastText, { trim: false });
+      patchMessage(assistantId, { content: turn.text.trim(), isStreaming: false });
+      queueChunks(turn, true);
+      turn.closed = true;
+      turn.wake?.();
+      await playing;
+      if (signal.aborted || turnRef.current !== turn) return;
+
+      turnRef.current = null;
+      levels.setPlayback(0);
+      // The session that listened through the answer has heard the answer; a
+      // fresh one starts the next utterance clean.
+      sessionRef.current?.abort();
+      if (turn.text.trim() === '') {
+        updateMessages((previous) => previous.filter((message) => message.id !== assistantId));
+        if (mountedRef.current) setTurnError('No answer came back — try saying it again');
+      } else if (turn.synthesisFailed) {
+        if (mountedRef.current) setTurnError('The answer could not be played aloud');
+      }
+      setAgent('listening');
+      startListeningRef.current();
+    })();
+  }, [fail, levels, patchMessage, playTurn, queueChunks, setAgent, updateMessages]);
+  runTurnRef.current = runTurn;
 
   // ============== CONNECT ==============
 
   const connect = useCallback(async () => {
-    try {
-      setError(null);
-      setRoomState('connecting');
+    if (phaseRef.current !== 'off') return;
+    setError(null);
+    setTurnError(null);
+    setRoomState('connecting');
 
-      // Guard: WebRTC must be available (requires registerGlobals on RN)
-      if (typeof globalThis.RTCPeerConnection === 'undefined') {
-        setError('Voice is not available on this device');
-        setRoomState('error');
-        return;
-      }
-
-      const token = getToken();
-      if (!token) {
-        setError('Not authenticated');
-        setRoomState('error');
-        return;
-      }
-
-      // Request session creation from backend
-      const resp = await fetch(`${apiUrl}/v1/voice/token`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          model: voiceModel,
-          voice: voicePref === 'male' ? 'echo' : 'nova',
-          // Omitted rather than sent as undefined: the API branches on the key
-          // being a string, and a session with no agent must look exactly as it
-          // did before this existed.
-          ...(agentId ? { agentId } : {}),
-        }),
-      });
-
-      if (!resp.ok) {
-        const body = await resp.json().catch(() => ({}));
-        const errMsg = body?.error?.message || body?.error || `Voice session failed (${resp.status})`;
-        setError(errMsg);
-        setRoomState('error');
-        return;
-      }
-
-      const { token: livekitToken, url, roomName, sessionId } = await resp.json();
-      sessionIdRef.current = sessionId;
-
-      // Create LiveKit room and connect
-      const room = new Room();
-      roomRef.current = room;
-
-      // Event: remote audio tracks (agent speaking)
-      // On web, must attach to a DOM element to play. On native, WebRTC plays audio automatically.
-      room.on(RoomEvent.TrackSubscribed, (track: RemoteTrack) => {
-        if (track.kind === Track.Kind.Audio && hasDOM) {
-          track.attach();
-        }
-      });
-
-      room.on(RoomEvent.TrackUnsubscribed, (track: RemoteTrack) => {
-        if (hasDOM && track.kind === Track.Kind.Audio) {
-          track.detach();
-        }
-      });
-
-      // Event: data messages from agent
-      room.on(RoomEvent.DataReceived, (payload: Uint8Array) => {
-        handleDataMessage(payload);
-      });
-
-      // Event: disconnected
-      room.on(RoomEvent.Disconnected, (reason?: DisconnectReason) => {
-        setRoomState('disconnected');
-        setAgentState('idle');
-        setCohostActive(false);
-      });
-
-      // Connect to the room
-      await room.connect(url, livekitToken, { autoSubscribe: true });
-
-      // Enable microphone — audio goes to LiveKit, agent picks it up server-side.
-      // getUserMedia device failures (no mic, permission blocked, hardware busy)
-      // surface here; map them to actionable copy instead of a generic failure.
-      try {
-        await room.localParticipant.setMicrophoneEnabled(true);
-      } catch (micError: unknown) {
-        // DOMException is not `instanceof Error`, so read `.name` off the object.
-        const name =
-          typeof micError === 'object' && micError !== null && 'name' in micError &&
-          typeof micError.name === 'string'
-            ? micError.name
-            : '';
-        const friendly = micDeviceErrorMessage(name);
-        if (!friendly) throw micError; // unknown failure — let the generic handler report it
-        console.error(`[useVoiceRoom] Microphone error (${name || 'unknown'}):`, micError);
-        setError(friendly);
-        setRoomState('error');
-        cleanup();
-        return;
-      }
-
-      setRoomState('connected');
-      setAgentState('listening');
-
-    } catch (e: unknown) {
-      console.error('[useVoiceRoom] Connection error:', e);
-      setError(errorMessage(e, 'Failed to connect'));
+    if (!isSpeechRecognitionAvailable()) {
+      setError('Voice is not available on this device');
       setRoomState('error');
-      cleanup();
+      return;
     }
-  }, [getToken, cleanup, handleDataMessage, apiUrl, voicePref, voiceModel, agentId]);
+    if (getToken() === null) {
+      setError('Not authenticated');
+      setRoomState('error');
+      return;
+    }
+
+    const refusal = await requestSpeechRecognitionPermission();
+    if (!mountedRef.current) return;
+    if (refusal !== null) {
+      setError(speechFailureMessage(refusal) ?? 'Microphone permission required');
+      setRoomState('error');
+      return;
+    }
+
+    rapidEndsRef.current = 0;
+    setRoomState('connected');
+    setAgent('listening');
+    startListeningRef.current();
+  }, [getToken, setAgent]);
 
   // ============== DISCONNECT ==============
 
   const disconnect = useCallback(() => {
-    cleanup();
+    teardown();
+    draftIdRef.current = null;
+    messagesRef.current = [];
+    mutedRef.current = false;
     setRoomState('disconnected');
-    setAgentState('idle');
+    setAgentStateValue('idle');
     setError(null);
+    setTurnError(null);
     setIsMuted(false);
-    setMessages([]);
-    setCohostActive(false);
+    setMessagesState([]);
     setCurrentSpeaker(null);
-    setRoundComplete(false);
-  }, [cleanup]);
+  }, [teardown]);
 
   // ============== MUTE ==============
 
   const toggleMute = useCallback(() => {
-    const room = roomRef.current;
-    if (!room) return;
-    const next = !isMuted;
-    room.localParticipant.setMicrophoneEnabled(!next);
+    if (phaseRef.current === 'off') return;
+    const next = !mutedRef.current;
+    mutedRef.current = next;
     setIsMuted(next);
-  }, [isMuted]);
-
-  // ============== COHOST CONTROLS ==============
-
-  const sendClientData = useCallback((data: object) => {
-    const room = roomRef.current;
-    if (!room?.localParticipant) return;
-    const encoded = new TextEncoder().encode(JSON.stringify(data));
-    room.localParticipant.publishData(encoded, { reliable: true } as DataPublishOptions);
-  }, []);
-
-  const enableCohost = useCallback(() => {
-    sendClientData({ type: 'cohost.enable' });
-  }, [sendClientData]);
-
-  const disableCohost = useCallback(() => {
-    sendClientData({ type: 'cohost.disable' });
-  }, [sendClientData]);
-
-  const continueCohost = useCallback(() => {
-    setRoundComplete(false);
-    sendClientData({ type: 'cohost.continue' });
-  }, [sendClientData]);
+    if (next) {
+      // What was half-said is dropped, not sent: muting mid-sentence means "not that".
+      clearTimers();
+      committingRef.current = false;
+      heardRef.current = '';
+      discardDraft();
+      sessionRef.current?.abort();
+      levels.setCapture(0);
+    } else {
+      startListeningRef.current();
+    }
+  }, [discardDraft, levels]);
 
   // ============== CLEANUP ON UNMOUNT ==============
 
-  useEffect(() => cleanup, [cleanup]);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      teardown();
+    };
+  }, [teardown]);
+
+  const room: VoiceLevelSource = levels;
 
   return {
-    room: roomRef.current,
+    /** The call's live levels, for `useAudioLevelMonitor`. Named for the room it replaced. */
+    room,
     roomState,
     agentState,
     isMuted,
     error,
+    turnError,
     messages,
-    cohostActive,
     currentSpeaker,
-    roundComplete,
     connect,
     disconnect,
     toggleMute,
-    enableCohost,
-    disableCohost,
-    continueCohost,
     isConnected: roomState === 'connected',
   };
 }

@@ -23,12 +23,6 @@ export interface PlanProgress {
   total: number;
 }
 
-export interface AgentScreenshot {
-  base64: string;
-  url: string;
-  timestamp: number;
-}
-
 export interface AgentActivityEvent {
   type: 'system' | 'thinking' | 'response' | 'tool_call' | 'tool_result' | 'error' | 'complete' | 'screenshot' | 'plan_progress' | 'file_change' | 'source_found' | 'threat' | 'approval_request' | 'approval_result';
   content: string;
@@ -46,10 +40,8 @@ export interface AgentActivityEvent {
     decision?: 'approved' | 'denied' | 'timeout';
   };
   data?: {
-    base64?: string;
     url?: string;
     plan?: PlanProgress;
-    files?: string[];
     currentStep?: number;
     maxSteps?: number;
     approval?: {
@@ -74,8 +66,6 @@ export interface AgentSource {
 export interface AgentActivityState {
   /** Current plan with checklist items */
   plan: PlanProgress | null;
-  /** Most recent screenshots (last 5) */
-  screenshots: AgentScreenshot[];
   /** Current action being executed */
   currentAction: { toolName: string; content: string } | null;
   /** Whether the agent has completed */
@@ -92,8 +82,6 @@ export interface AgentActivityState {
   startedAt: number | null;
   /** Sources found during browsing */
   sources: AgentSource[];
-  /** Files created/modified in workspace */
-  files: string[];
   /** Latest text response from agent */
   latestResponse: string | null;
   /** Pending approval request for this session */
@@ -120,7 +108,6 @@ export interface UseAgentActivityResult extends AgentActivityState {
 
 const INITIAL_STATE: AgentActivityState = {
   plan: null,
-  screenshots: [],
   currentAction: null,
   isComplete: false,
   hasError: false,
@@ -129,13 +116,11 @@ const INITIAL_STATE: AgentActivityState = {
   events: [],
   startedAt: null,
   sources: [],
-  files: [],
   latestResponse: null,
   approvalRequest: null,
   approvalResult: null,
 };
 
-const MAX_SCREENSHOTS = 5;
 const MAX_EVENTS = 50;
 
 type PersistedAgentEvent = {
@@ -205,15 +190,6 @@ export function useAgentActivity(sessionId: string | null, agentId?: string | nu
           }
           break;
 
-        case 'screenshot':
-          if (event.data?.base64) {
-            updated.screenshots = [
-              ...prev.screenshots.slice(-(MAX_SCREENSHOTS - 1)),
-              { base64: event.data.base64, url: event.data.url || '', timestamp: event.timestamp },
-            ];
-          }
-          break;
-
         case 'tool_call':
           updated.currentAction = {
             toolName: event.metadata?.toolName || 'action',
@@ -249,15 +225,6 @@ export function useAgentActivity(sessionId: string | null, agentId?: string | nu
             // Deduplicate by URL
             if (!prev.sources.some(s => s.url === newSource.url)) {
               updated.sources = [...prev.sources, newSource];
-            }
-          }
-          break;
-
-        case 'file_change':
-          if (event.data?.files) {
-            const newFiles = event.data.files.filter(f => !prev.files.includes(f));
-            if (newFiles.length > 0) {
-              updated.files = [...prev.files, ...newFiles];
             }
           }
           break;

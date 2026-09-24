@@ -80,10 +80,10 @@ holds a provider credential. Their core cross-service bindings are:
 The last column is `capability_grants`, and it is published in the same hashed
 manifest as the ids beside it rather than decided in Alia alone — a grant is
 what the agent may DO, so widening one is a change both repositories merge.
-Sindi reads and answers: `web` (search, scraping, browsing, deep research and
+Sindi reads and answers: `web` (search, page reading, deep research and
 the weather/quote/FairCoin cards), `artifacts` (canvas, generated files) and
 `memory` (saving and searching what the person has already said). It has no
-`shell`, `browser`, `files`, `messaging`, `automation` or `delegation`, and no
+`browser`, `messaging`, `automation` or `delegation`, and no
 connector row of any kind. Clarity's `(none)` is a decision that denies
 everything, not an unset field. Oxy app tools are not expressible here at all:
 Oxy's normalized DelegationGrant records are their sole authority.
@@ -147,6 +147,27 @@ expect rather than repairing it.
   independently paginated result sets breaks `limit`/`offset` the same way —
   ask for ten, receive two, with no way to ask for the rest.
 
+## Who pays for an agent's turn
+
+The payer is chosen once, before anything is reserved, and one reservation
+carries exactly one account (`lib/agent/turn-funding.ts`).
+
+- **Somebody present asked for it — they pay.** A hire (`session-handoff.ts`)
+  is paid by the person hiring; an agent asked inside another turn
+  (`tools/agent-turn.ts`) is paid by whoever funds that outer turn.
+- **Nobody present asked — the agent's own Telegram bot.** `reserveAgentTurn`
+  tries the agent's own account (`agents.oxy_account_id`) first, then the bot
+  owner's, but only if that owner turned on "Pay for its replies with my
+  credits" (`bots.owner_pays_agent_turns`, writable only by the bot's owner
+  through `PATCH /bots/:id`). Otherwise the bot tells the person it is not
+  available, and says whether that is a missing permission or missing credit.
+
+An agent's account is never provisioned with the free allowance: its balance
+arrives only by an explicit transfer from its owner, so N agents never become
+300N free credits a day. No transfer path exists yet, so in practice the owner
+pays when they consented. Bots bound to an agent before migration 0071 were set
+to consent, because their owners were already paying for every turn.
+
 ## Talking to one is a durable execution thread
 
 ADR 0009 supersedes the pair-view model below. `agent_threads` is now the
@@ -162,9 +183,12 @@ second paid session beside the answer.
 - `GET|PATCH /agents/threads/:threadId` reads or changes title, lifecycle,
   approval mode and execution target.
 - `POST /agents/threads/:threadId/goals` starts explicitly priced work and
-  requires `Idempotency-Key`.
+  requires `Idempotency-Key`. It is the only paid hire: the legacy
+  `POST /agents/:id/hire` is gone. It re-asks `canReachAgent` at goal time, so a
+  thread does not outlive a revoked membership, and the price the goal records
+  is the one `startAgentSession` reserves — both read `agentHirePrice`.
 - A thread stores only an opaque reviewed Oxy routing-profile ID. Tools remain
-  deny-by-default and sandbox resources are lazy.
+  deny-by-default.
 - PostgreSQL serializes admission by agent before a queued or running session
   is created, enforcing `max_concurrent_threads` across API replicas.
 - R2 approvals are durable rows. Socket.IO carries prompts and immediate
@@ -324,6 +348,23 @@ What an agent may reach is `agents.capability_grants`: one list of
 `domain/capability-grants.ts`; the table of which tools each contributes is in
 `docs/chat-runtime.mdx`.
 
+`shell` and `files` are **retired**, not merely unused. They granted the
+runner's `shell` and `file_edit` primitives, which acted through a sandbox
+container production never had, so the switches could be turned on and never
+do anything. `RETIRED_CAPABILITY_FAMILIES` names them so the wire can drop an
+echoed one instead of refusing the whole save, the reader ignores them, and
+migration 0071 (post phase) removed them from `agents.capability_grants`. An
+agent has no shell and no workspace filesystem; `plan` keeps its checklist on
+the session row.
+
+`browser` is **Clarity-only**. The runtime image ships no Chromium, so the
+runner's `browser` primitive offers exactly what works without one: `search`,
+`goto` (read a public URL's extracted text) and `get_text`, each behind
+`validateUrl`. Screenshot, click, type, scroll and back are gone with the
+Stagehand/Playwright fallback, and so is the chat tool `browse`, which launched
+Chromium and, rebuilt on Clarity, would only have been `webSearch` plus
+`webScraper` under a third name.
+
 Two properties are worth stating outright, because both reverse what came before:
 
 - **Empty denies.** An agent whose owner has granted nothing reaches only
@@ -383,10 +424,10 @@ its objective, actor selection, trigger, resources, exact actions, allowed data 
 limits, autonomy policy and `observe | execute` mode. Runs and their correlated policy
 and tool decisions are persisted in `automation_runs` and `automation_steps`.
 
-Legacy rows and their `trigger_executions` remain queryable through `GET /triggers` for
-audit history. They are not scheduled or dispatched. Every former trigger write,
-manual-run, token-regeneration and webhook route returns `410 Gone`; active work is
-created and edited only through `/automations`.
+The legacy trigger model is gone: the `/triggers` routes, the `triggers` and
+`trigger_executions` tables and the definitions that indexed them were removed by
+migrations 0069 and 0070. Active work is created and edited only through
+`/automations`.
 
 ## Oxy Event Autonomy
 

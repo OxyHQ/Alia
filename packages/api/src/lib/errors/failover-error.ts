@@ -133,7 +133,7 @@ export function getErrorMessage(err: unknown): string {
   return '';
 }
 
-export function getRetryAfterHeader(err: unknown): number | undefined {
+function getRetryAfterHeader(err: unknown): number | undefined {
   if (!err || typeof err !== 'object') {
     return undefined;
   }
@@ -240,7 +240,7 @@ function hasTimeoutHint(err: unknown): boolean {
  * Checks if an error is a timeout error.
  * Handles TimeoutError, AbortError with timeout hints, and network timeout codes.
  */
-export function isTimeoutError(err: unknown): boolean {
+function isTimeoutError(err: unknown): boolean {
   if (hasTimeoutHint(err)) {
     return true;
   }

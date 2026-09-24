@@ -164,8 +164,7 @@ jobs:
       # environment variables), which is why they are `env:` rather than
       # arguments. The emptiness check is not paranoia: an organisation secret
       # scoped to public repositories reaches a private one as an EMPTY STRING
-      # with no error of its own, and `bind-pages-domain.yml` carries the same
-      # guard for the same reason.
+      # with no error of its own.
       - name: Deploy the Worker
         working-directory: packages/alia-canvas
         run: |

@@ -15,7 +15,7 @@ import { agentGoals } from '../../db/schema/agent-runtime.js';
 import { agentSessions } from '../../db/schema/agent-sessions.js';
 import { createConversation, findActiveAgentThreadConversation } from '../../db/chat/conversationRepository.js';
 import { canReachAgent } from '../../lib/agent-account.js';
-import { startAgentSession } from '../../lib/agent/session-handoff.js';
+import { agentHirePrice, startAgentSession } from '../../lib/agent/session-handoff.js';
 import { authenticateToken } from '../../middleware/auth.js';
 import { OXY_KAANA_ROUTING_PROFILE_ID_LIST } from '../../config/oxy-inference-routing-profile-ids.js';
 import { randomUUID } from 'node:crypto';
@@ -128,7 +128,21 @@ router.post('/threads/:threadId/goals', authenticateToken, route(async (req: Req
   const thread = await findAgentThread(getDb(), req.user.id, String(req.params.threadId));
   if (!thread || thread.status !== 'open') return res.status(404).json({ error: 'Thread not found' });
   const agent = await findAgentById(getDb(), thread.agentId);
-  if (!agent || agent.status !== 'active') return res.status(404).json({ error: 'Agent not found' });
+  /**
+   * Reachability is asked AGAIN here, not inherited from the thread.
+   *
+   * A goal is the paid hire — the only one, since `POST /agents/:id/hire` was
+   * retired — so it answers the question that route answered: may this person
+   * use this agent NOW? Owning a thread says they could when it was opened; a
+   * membership on a private agent's bot account can be revoked since, and a
+   * thread must not outlive it as a way to keep spending on the agent. 404, as
+   * everywhere here, so a refusal does not confirm the agent exists.
+   */
+  if (!agent || agent.status !== 'active' || await canReachAgent(agent, {
+    oxyUserId: req.user.id,
+    accessToken: req.accessToken,
+    applicationId: req.serviceApp?.appId,
+  }) !== 'reachable') return res.status(404).json({ error: 'Agent not found' });
 
   const supplied: string[] = Array.isArray(req.body?.criteria)
     ? req.body.criteria.filter((value: unknown): value is string => typeof value === 'string' && value.trim() !== '').slice(0, 5)
@@ -148,7 +162,8 @@ router.post('/threads/:threadId/goals', authenticateToken, route(async (req: Req
       ? req.body.verificationPlan.trim()
       : 'Run the repository or domain checks relevant to the requested outcome and attach evidence.',
     idempotencyKey,
-    priceCredits: agent.price ?? 0,
+    // What `startAgentSession` below reserves, from the same resolver.
+    priceCredits: agentHirePrice(agent),
   });
   if (!created.created) {
     const [session] = await getDb().select().from(agentSessions).where(eq(agentSessions.goalId, created.goal.id)).limit(1);

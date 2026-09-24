@@ -1,13 +1,15 @@
 /**
- * Batch 9c — what an agent DID, who reviewed it, the teams it belongs to, and
- * the container images it can be started from. Eight tables, all of which
- * reference `agents` (batch 9b) and none of which `agents` references back.
+ * Batch 9c — what an agent DID, who reviewed it, and the teams it belongs to.
+ * Every table here references `agents` (batch 9b) and `agents` references none
+ * of them back. The sandbox tables this batch also carried —
+ * `agent_session_resources` and `container_templates` — were dropped by
+ * `0073_drop_sandbox_containers`: the agent sandbox never ran in production.
  *
  * ## Deleting an agent cleans up NOTHING today, and each child answers that
  * differently
  *
- * `routes/agents/crud.ts:323` is a bare `Agent.deleteOne` — no session, review,
- * container, template or team membership is touched, so all of them orphan in
+ * `routes/agents/crud.ts:323` is a bare `Agent.deleteOne` — no session, review
+ * or team membership is touched, so all of them orphan in
  * Mongo right now. That fact does not settle the foreign keys; it means every
  * one of them is a decision this file has to make and state:
  *
@@ -22,13 +24,6 @@
  *   opinion of one agent; there is nothing left to read once it is gone, and
  *   `recalculateAgentRating` already returns `null` rather than recomputing when
  *   the agent has been deleted. The `plan_features` case.
- * - **`agent_session_resources.session_id` CASCADES**, and it is the least
- *   arguable in the batch: these rows WERE the session document in Mongo, an
- *   embedded array, so they cannot outlive it by construction.
- * - **`container_templates.agent_id` gets `SET NULL`.** The column is OPTIONAL
- *   in Mongoose, so unlike `api_usage.key_id` the null is representable and does
- *   not erase the row's content — a template is a snapshot image that stands on
- *   its own, and losing its association with a deleted agent costs nothing.
  *
  * ## `agent_sessions.event_stream` is `jsonb`, and `event_stream_entries` is a
  * table — both are live
@@ -74,7 +69,7 @@ import { check } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import { createdAt, generatedId, timestamptz, updatedAt } from '@oxy.so/db';
 import { checkOneOf } from './columns';
-import { AGENT_SESSION_RESOURCE_STATUSES, AGENT_SESSION_RESOURCE_TYPES, AGENT_SESSION_STATUSES } from '../../domain/agent-session.js';
+import { AGENT_SESSION_STATUSES } from '../../domain/agent-session.js';
 import { agents } from './agents';
 import { automationRuns } from './agency';
 
@@ -242,58 +237,6 @@ export const agentSessions = pgTable(
 );
 
 /**
- * A VM or container a session claimed.
- *
- * A child table and not `jsonb`, on the strongest version of the identity test
- * in this batch: `lib/agent/tools.ts` filters these elements by their own
- * `status` in ten places (`session.resources.find(r => r.status === 'active')`),
- * `:488` iterates them at cleanup, and `routes/agents/files.ts:86` reads the
- * list to resolve a container. A per-element toggle that something filters on is
- * exactly what `routing_profile_provider_mappings` was.
- *
- * `UNIQUE(session_id, resource_id)` is new — Mongo could not index inside a
- * sub-document array — and `lib/agent/runner.ts:272` already checks
- * `resources.some(...)` before pushing, which is a read-then-write that two
- * concurrent tool calls can both pass. The constraint makes what that check was
- * reaching for structural.
- */
-export const agentSessionResources = pgTable(
-  'agent_session_resources',
-  {
-    id: generatedId(),
-    sessionId: text().notNull(),
-    type: text({ enum: AGENT_SESSION_RESOURCE_TYPES as unknown as [string, ...string[]] }).notNull(),
-    /** The provider's id for the VM or container. Not a Mercaria/Alia key. */
-    resourceId: text().notNull(),
-    ip: text(),
-    previewUrl: text(),
-    status: text({ enum: AGENT_SESSION_RESOURCE_STATUSES as unknown as [string, ...string[]] })
-      .notNull()
-      .default('active'),
-    createdAt: createdAt(),
-  },
-  (t) => [
-    foreignKey({
-      name: 'agent_session_resources_session_id_fk',
-      columns: [t.sessionId],
-      foreignColumns: [agentSessions.id],
-    }).onDelete('cascade'),
-    uniqueIndex('agent_session_resources_session_resource_key').on(t.sessionId, t.resourceId),
-    index('agent_session_resources_session_status_idx').on(t.sessionId, t.status),
-    checkOneOf(
-      'agent_session_resources_type_check',
-      t.type,
-      AGENT_SESSION_RESOURCE_TYPES,
-    ),
-    checkOneOf(
-      'agent_session_resources_status_check',
-      t.status,
-      AGENT_SESSION_RESOURCE_STATUSES,
-    ),
-  ],
-);
-
-/**
  * One account's review of one agent.
  *
  * `hidden_by_moderation` is a flag rather than a delete, and the model's own
@@ -337,40 +280,3 @@ export const agentReviews = pgTable(
   ],
 );
 
-/**
- * A saved container image an agent's sandbox can be started from.
- *
- * `agent_id` is OPTIONAL in Mongoose and therefore gets `ON DELETE SET NULL` —
- * the one place in this batch where that answer is available. The contrast with
- * `api_usage.key_id` is the whole reason it works: there the column was
- * `notNull` and the id WAS the row's content, so nulling it erased the record;
- * here the row is a snapshot tag that stands on its own and the association is
- * an optional convenience.
- */
-export const containerTemplates = pgTable(
-  'container_templates',
-  {
-    id: generatedId(),
-    name: text().notNull(),
-    description: text(),
-    baseImage: text().notNull(),
-    snapshotTag: text().notNull(),
-    /** An Oxy account. No foreign key: Oxy owns identity. */
-    oxyUserId: text().notNull(),
-    agentId: text(),
-    createdAt: createdAt(),
-    updatedAt: updatedAt(),
-  },
-  (t) => [
-    foreignKey({
-      name: 'container_templates_agent_id_fk',
-      columns: [t.agentId],
-      foreignColumns: [agents.id],
-    }).onDelete('set null'),
-    uniqueIndex('container_templates_snapshot_tag_key').on(t.snapshotTag),
-    index('container_templates_oxy_user_id_idx').on(t.oxyUserId),
-    index('container_templates_agent_id_idx')
-      .on(t.agentId)
-      .where(sql`${t.agentId} is not null`),
-  ],
-);

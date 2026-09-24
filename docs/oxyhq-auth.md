@@ -6,7 +6,7 @@
 
 | Where | Package | What you mount / import |
 |-------|---------|-------------------------|
-| **Frontend — web** (Vite) | `@oxy.so/services` | `OxyProvider` + `useAuth()`/`useOxy()`. Bundle the React-Native graph in Vite with `rolldown-vite` + `vite-plugin-react-native-web` (see `packages/alia-console`, `packages/alia-canvas`). |
+| **Frontend — web** (Vite) | `@oxy.so/services` | `OxyProvider` + `useAuth()`/`useOxy()`. Bundle the React-Native graph in Vite with `rolldown-vite` + `vite-plugin-react-native-web` (see `packages/alia-canvas`). |
 | **Frontend — native** (Expo/RN) | `@oxy.so/services` | Same `OxyProvider` + `useAuth()`/`useOxy()`. |
 | **Backend** (Node/Express) | `@oxy.so/core/server` | `createOxyAuthMiddleware`, `createOptionalOxyAuth`, `requireOxyAuth`, `getRequiredOxyUserId`, `authSocket`. Never mount a frontend provider on the server. |
 
@@ -35,7 +35,7 @@ const { user, isAuthenticated, isLoading, signIn, signOut, oxyServices } = useAu
 // signIn() with no args opens the in-app SDK sign-in dialog.
 ```
 
-Vite config: use `rolldown-vite` + `vite-plugin-react-native-web` (+ the `react-native-screens` shim) so the RN graph bundles for the browser — copy `packages/alia-console/vite.config.ts`.
+Vite config: use `rolldown-vite` + `vite-plugin-react-native-web` (+ the `react-native-screens` shim) so the RN graph bundles for the browser — copy `packages/alia-canvas/vite.config.ts`.
 
 ## Backend setup (Express)
 
@@ -72,4 +72,4 @@ EXPO_PUBLIC_OXY_API_URL=https://api.oxy.so
 - **"useAuth/useOxy must be used within OxyProvider"** — the hook is called outside the `<OxyProvider>` tree; hoist the provider to the app root.
 - **`/users/me` and `/session/device/*` return 401 together** — the persisted device pair did not mint a valid access token. Treat the user as signed out and let `OxyProvider` present the user-initiated sign-in flow; do not retry protected product requests or build an app-local refresh loop.
 - **A preceding 429** — inspect the exact URL and `Retry-After`; a rate-limited unrelated asset request does not prove the device session failed. The browser console line without its URL is insufficient for correlation.
-- **Web build fails resolving `react-native-*` / `codegenNativeComponent`** — the Vite app is missing `vite-plugin-react-native-web` or the `react-native-screens` shim; mirror `packages/alia-console`. (Next.js/Turbopack cannot bundle the RN graph — Alia web apps are Vite.)
+- **Web build fails resolving `react-native-*` / `codegenNativeComponent`** — the Vite app is missing `vite-plugin-react-native-web` or the `react-native-screens` shim; mirror `packages/alia-canvas`. (Next.js/Turbopack cannot bundle the RN graph — Alia web apps are Vite.)

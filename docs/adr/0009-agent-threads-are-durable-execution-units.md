@@ -65,6 +65,9 @@ the agent's marketplace price and an idempotency key.
 - `agent_threads_routing_profile_id_check` admits only reviewed opaque IDs.
 - Agent chat constructs `AgentTurnCoordinator` and no longer calls
   `startAgentSession` as a parallel escalation.
+- The old Hire endpoint (`POST /agents/:id/hire`) is deleted (2026-09-24): a goal
+  is the only caller of `startAgentSession`, and `goal-credit-leak.pgdb.test.ts`
+  holds the credit-leak and recorded-price guarantees on that path.
 - App tests require profile actions to create an agent thread and goals to carry
   an `Idempotency-Key`.
 - Migration integrity tests require explicit deployment phases.

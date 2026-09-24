@@ -188,11 +188,6 @@ const RESTATED = /(?:\|\||\?\?)\s*'(route:[a-z0-9-]+)'|:\s*string\s*=\s*'(route:
  */
 const RESTATED_DEFAULTS: readonly { file: string; value: string; why: string }[] = [
   {
-    file: 'packages/api/src/lib/credits-manager.ts',
-    value: 'route:voice',
-    why: 'Voice billing parameter default. Capability-scoped: the chat default cannot price a voice minute.',
-  },
-  {
     file: 'packages/api/src/lib/tools/delegate.ts',
     value: 'route:auto',
     why: 'DELIBERATE and documented in place: names the alias the fallback engine already resolved to, so the tool stops reporting a model it did not run. Its comment states it is explicitly not the default.',
@@ -213,7 +208,10 @@ describe('every site that restates a Kaana routing-profile default is accounted 
     const at = (suffix: string) => observed.filter((o) => o.file.endsWith(suffix)).map((o) => o.value);
     expect(at('lib/tools/delegate.ts')).toContain('route:auto'); // `||` with a space
     expect(at('lib/tools/agent-turn.ts')).toEqual([]); // agent turns require their stored routing-profile PK
-    expect(at('lib/credits-manager.ts')).toContain('route:voice'); // parameter default
+    // The parameter-default spelling has no live instance since voice billing
+    // by the minute left `credits-manager.ts`, so it is controlled by a probe.
+    RESTATED.lastIndex = 0;
+    expect([...'function f(model: string = \'route:probe\') {}'.matchAll(RESTATED)].map((m) => m[2])).toEqual(['route:probe']);
     // 8 -> 7 because `/v1/responses` stopped restating a default, then 7 -> 6
     // because `routes/webhooks.ts` did: #244 made a bot's stored preference a
     // canonical profile, so that site reads `getDefaultRoutingProfile()` instead of
@@ -228,7 +226,9 @@ describe('every site that restates a Kaana routing-profile default is accounted 
     // therefore no longer chooses a routing profile locally.
     // 4 -> 3: `agent-turn.ts` stopped deriving a route from `allowedModels[0]`;
     // nested turns now require the agent's exact stored routing-profile PK.
-    expect(observed.length).toBeGreaterThanOrEqual(3);
+    // 3 -> 2: `credits-manager.ts` lost `reserveVoiceCredits`, whose
+    // `'route:voice'` parameter default priced a LiveKit voice minute.
+    expect(observed.length).toBeGreaterThanOrEqual(2);
   });
 
   it('is exactly the frozen list, in both directions', () => {
@@ -240,8 +240,8 @@ describe('every site that restates a Kaana routing-profile default is accounted 
   });
 
   it('the frozen list is as long as it says, so it cannot grow a line at a time', () => {
-    expect(RESTATED_DEFAULTS).toHaveLength(2);
-    expect(new Set(RESTATED_DEFAULTS.map((r) => r.file)).size).toBe(2);
+    expect(RESTATED_DEFAULTS).toHaveLength(1);
+    expect(new Set(RESTATED_DEFAULTS.map((r) => r.file)).size).toBe(1);
     for (const entry of RESTATED_DEFAULTS) expect(entry.why.length).toBeGreaterThan(40);
   });
 
@@ -252,9 +252,8 @@ describe('every site that restates a Kaana routing-profile default is accounted 
     // with it rather than being deleted — a census that merely stopped
     // mentioning the defect would look identical to one that never saw it.
     //
-    // Every remaining entry is capability-scoped (a voice minute cannot be
-    // priced by the chat default) or deliberate and documented in place. None
-    // is a second answer to "what does the general chat path default to".
+    // The remaining entry is deliberate and documented in place. It is not
+    // a second answer to "what does the general chat path default to".
     expect(RESTATED_DEFAULTS.find((r) => r.file.endsWith('routes/v1/responses.ts'))).toBeUndefined();
 
     // And the route now restates nothing at all, so there is no value left to
@@ -278,14 +277,11 @@ describe('every site that restates a Kaana routing-profile default is accounted 
    * one. Each entry's reasoning is already written in its `why` above and is
    * deliberately not copied here, where it would drift.
    *
-   *  - `credits-manager.ts` prices a voice minute, which the general chat
-   *    default cannot serve.
    *  - `lib/tools/delegate.ts` names the alias the fallback engine ALREADY
    *    resolved to, so the tool stops reporting a model it did not run on. Its
    *    own comment states it is explicitly not the default.
    */
   const CAPABILITY_SCOPED: readonly string[] = [
-    'packages/api/src/lib/credits-manager.ts',
     'packages/api/src/lib/tools/delegate.ts',
   ];
 
@@ -309,7 +305,7 @@ describe('every site that restates a Kaana routing-profile default is accounted 
     // The exemption list needs its own exact count, or it erodes one defensible
     // entry at a time until every restatement is "capability-scoped" and this
     // check is vacuous. It may shrink; growing it is a reviewed line.
-    expect(CAPABILITY_SCOPED).toHaveLength(2);
+    expect(CAPABILITY_SCOPED).toHaveLength(1);
     // And every exempted file must still BE in the census. A renamed or deleted
     // entry would otherwise leave a name here that excuses nothing, which is how
     // an exemption list stops describing the code it exempts.

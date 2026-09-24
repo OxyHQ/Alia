@@ -112,8 +112,8 @@ afterEach(() => {
 
 describe('what an event reads as', () => {
   it('translates every line it writes, and keeps the run’s own words as data', () => {
-    expect(agentStepLabel(event({ metadata: { toolName: 'shell', args: { command: 'ls -la' } } }), t)).toBe(
-      'panels.agent.step.shell(command=ls -la)',
+    expect(agentStepLabel(event({ metadata: { toolName: 'browser', args: { action: 'read', url: 'https://oxy.so' } } }), t)).toBe(
+      'panels.agent.step.browser(action=read,target=https://oxy.so)',
     );
     expect(agentStepLabel(event({ metadata: { toolName: 'plan', args: { action: 'complete' } } }), t)).toBe(
       'panels.agent.step.completing',

@@ -1,23 +1,22 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { errorMessage } from '../lib/utils';
-import {
-  useAudioRecorder,
-  useAudioRecorderState,
-  RecordingPresets,
-  getRecordingPermissionsAsync,
-  setAudioModeAsync,
-} from 'expo-audio';
-import { useOxy } from '@oxy.so/services';
 import { create } from 'zustand';
-import { levelFromDbfs } from '../lib/audio-level';
-
-const API_URL = process.env.EXPO_PUBLIC_ALIA_API_URL ?? 'https://api.alia.onl';
+import {
+  isSpeechRecognitionAvailable,
+  requestSpeechRecognitionPermission,
+  startSpeechRecognition,
+} from '../lib/speech-recognition';
+import type { SpeechRecognitionSession } from '../lib/speech-recognition-types';
+import { speechFailureMessage } from '../lib/speech-messages';
+import { defaultSpeechLanguage } from '../lib/speech-language';
 
 // ============== OPTIONS ==============
 
 export interface UseSTTOptions {
-  apiUrl?: string;
-  accessToken?: string;
+  /**
+   * Language to recognize, as a BCP-47 tag (`es-ES`). Defaults to the
+   * platform's own language. The Alia app passes its UI locale.
+   */
+  lang?: string;
 }
 
 // ============== INLINE STT STORE ==============
@@ -40,169 +39,185 @@ export const useSTTStore = create<STTStoreState>((set) => ({
 
 type STTState = 'idle' | 'recording' | 'transcribing';
 
-const METERING_PRESET = { ...RecordingPresets.HIGH_QUALITY, isMeteringEnabled: true };
+/** How long `stopAndTranscribe` waits for the engine's final words. */
+const FINAL_RESULT_TIMEOUT_MS = 2_000;
 
+/**
+ * How many times one dictation may quietly re-open the recognizer.
+ *
+ * Browsers end a continuous session on their own — Chrome after a stretch of
+ * silence or about a minute of audio — and the person is still looking at a
+ * dictation bar that says it is listening. Re-opening keeps what was already
+ * heard and carries on. The cap is what stops an engine that ends the instant
+ * it starts from spinning.
+ */
+const MAX_SILENT_RESTARTS = 20;
+
+/**
+ * Dictation, recognized on the device.
+ *
+ * The public shape is the one the recorder-and-upload version had —
+ * `startRecording`, `stopAndTranscribe`, `cancel`, the three states and
+ * `useSTTStore`'s metering — so the composer and the dictation bar did not
+ * change. What changed underneath: words arrive while the person speaks
+ * (`speech-recognition.ts` on web, `.native.ts` on iOS/Android), so
+ * `transcribing` is now the moment between "stop" and the engine's final
+ * result rather than an upload, and there is no transcription endpoint.
+ */
 export function useSpeechToText(options: UseSTTOptions = {}) {
-  const apiUrl = options.apiUrl || API_URL;
+  const lang = options.lang ?? defaultSpeechLanguage();
 
   const [state, setState] = useState<STTState>('idle');
   const [error, setError] = useState<string | null>(null);
-  const isRecordingRef = useRef(false);
-  const { oxyServices } = useOxy();
+  const [isSupported] = useState(isSpeechRecognitionAvailable);
 
-  const audioRecorder = useAudioRecorder(METERING_PRESET);
-  const recorderState = useAudioRecorderState(audioRecorder, 100);
-
-  const sttStore = useSTTStore;
-
-  // ============== AUTH ==============
-
-  const getToken = useCallback((): string | null => {
-    if (options.accessToken) return options.accessToken;
-    return oxyServices.httpService.getAccessToken();
-  }, [options.accessToken, oxyServices]);
-
-  // Push metering to store while recording (with epsilon guard to avoid thrashing subscribers)
+  const stateRef = useRef<STTState>('idle');
+  const sessionRef = useRef<SpeechRecognitionSession | null>(null);
+  /** Text from sessions that already ended during this dictation. */
+  const earlierTextRef = useRef('');
+  /** Text from the live session. */
+  const currentTextRef = useRef('');
+  const restartsRef = useRef(0);
+  const endWaitersRef = useRef<Array<() => void>>([]);
   const lastMeteringRef = useRef(0);
-  useEffect(() => {
-    if (state === 'recording') {
-      let target: number;
-      if (recorderState.metering != null) {
-        // The same curve read-aloud playback uses, so one background answers
-        // both the same way — see `lib/audio-level.ts`.
-        target = levelFromDbfs(recorderState.metering);
-      } else {
-        // Metering unavailable — simulate gentle activity
-        target = 0.12 + Math.random() * 0.18;
-      }
-      if (Math.abs(target - lastMeteringRef.current) >= 0.02) {
-        lastMeteringRef.current = target;
-        sttStore.getState().setMetering(target);
-      }
-    }
-  }, [state, recorderState.metering, recorderState.durationMillis]);
+  const mountedRef = useRef(true);
+
+  const setPhase = useCallback((next: STTState) => {
+    stateRef.current = next;
+    if (mountedRef.current) setState(next);
+  }, []);
 
   // Sync recording state to store + reset metering on stop
   useEffect(() => {
-    sttStore.getState().setRecording(state === 'recording');
+    useSTTStore.getState().setRecording(state === 'recording');
     if (state !== 'recording') {
       lastMeteringRef.current = 0;
-      sttStore.getState().setMetering(0);
+      useSTTStore.getState().setMetering(0);
     }
   }, [state]);
 
+  const fullText = (): string =>
+    `${earlierTextRef.current} ${currentTextRef.current}`.replace(/\s+/g, ' ').trim();
+
+  const openSession = useCallback(() => {
+    currentTextRef.current = '';
+    let failed = false;
+    sessionRef.current = startSpeechRecognition(
+      { lang },
+      {
+        onResult: ({ transcript }) => {
+          currentTextRef.current = transcript;
+        },
+        onLevel: (level) => {
+          if (stateRef.current !== 'recording') return;
+          // Epsilon guard: quiet should not thrash the store's subscribers.
+          if (Math.abs(level - lastMeteringRef.current) < 0.02) return;
+          lastMeteringRef.current = level;
+          useSTTStore.getState().setMetering(level);
+        },
+        onError: (failure) => {
+          const message = speechFailureMessage(failure);
+          if (message === null) return;
+          failed = true;
+          if (mountedRef.current) setError(message);
+        },
+        onEnd: () => {
+          sessionRef.current = null;
+          earlierTextRef.current = fullText();
+          currentTextRef.current = '';
+          const waiters = endWaitersRef.current;
+          endWaitersRef.current = [];
+          for (const resolve of waiters) resolve();
+          if (waiters.length > 0) return;
+
+          // The engine ended on its own while the person is still dictating.
+          if (stateRef.current !== 'recording') return;
+          if (failed || restartsRef.current >= MAX_SILENT_RESTARTS) {
+            setPhase('idle');
+            return;
+          }
+          restartsRef.current += 1;
+          openSession();
+        },
+      },
+    );
+  }, [lang, setPhase]);
+
   const startRecording = useCallback(async () => {
-    try {
-      setError(null);
+    if (stateRef.current !== 'idle') return;
+    setError(null);
 
-      // getRecordingPermissionsAsync consults the Permissions API first (and
-      // only falls back to a real getUserMedia prompt when undetermined), so an
-      // already-granted permission never gets misreported as denied when the
-      // device itself is missing/busy — that failure surfaces from
-      // prepareToRecordAsync below with an accurate message.
-      const permStatus = await getRecordingPermissionsAsync();
-      if (!permStatus.granted) {
-        setError('Microphone permission required');
-        return;
-      }
-
-      setState('recording');
-
-      await setAudioModeAsync({
-        allowsRecording: true,
-        playsInSilentMode: true,
-      });
-
-      await audioRecorder.prepareToRecordAsync();
-      audioRecorder.record();
-      isRecordingRef.current = true;
-    } catch (e: unknown) {
-      const name = e instanceof Error ? e.name : '';
-      if (name === 'NotFoundError' || name === 'OverconstrainedError') {
-        setError('No microphone found — check your input devices');
-      } else if (name === 'NotAllowedError') {
-        setError('Microphone permission required');
-      } else if (name === 'NotReadableError') {
-        setError('Microphone is in use by another application');
-      } else {
-        setError('Failed to start recording');
-      }
-      setState('idle');
-      isRecordingRef.current = false;
+    if (!isSpeechRecognitionAvailable()) {
+      setError(speechFailureMessage({ code: 'unsupported' }));
+      return;
     }
-  }, [audioRecorder]);
+
+    // Claim the state before the first await so a double tap cannot open two.
+    setPhase('recording');
+    const refusal = await requestSpeechRecognitionPermission();
+    if ((stateRef.current as STTState) !== 'recording') return; // cancelled while asking
+    if (refusal !== null) {
+      setError(speechFailureMessage(refusal));
+      setPhase('idle');
+      return;
+    }
+
+    earlierTextRef.current = '';
+    currentTextRef.current = '';
+    restartsRef.current = 0;
+    openSession();
+  }, [openSession, setPhase]);
+
+  const waitForEnd = useCallback((): Promise<void> => {
+    if (sessionRef.current === null) return Promise.resolve();
+    return new Promise<void>((resolve) => {
+      const timer = setTimeout(() => {
+        sessionRef.current?.abort();
+        resolve();
+      }, FINAL_RESULT_TIMEOUT_MS);
+      endWaitersRef.current.push(() => {
+        clearTimeout(timer);
+        resolve();
+      });
+    });
+  }, []);
 
   const stopAndTranscribe = useCallback(async (): Promise<string | null> => {
-    if (!isRecordingRef.current) return null;
-
-    try {
-      setState('transcribing');
-      isRecordingRef.current = false;
-      await audioRecorder.stop();
-      const uri = audioRecorder.uri;
-
-      if (!uri) {
-        setState('idle');
-        return null;
-      }
-
-      // Read audio file as base64
-      const response = await fetch(uri);
-      const blob = await response.blob();
-      // Detect actual MIME type (web records webm, native records m4a)
-      const detectedFormat = blob.type?.split(';')[0] || 'audio/m4a';
-      const base64 = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-          const result = reader.result as string;
-          resolve(result.split(',')[1]);
-        };
-        reader.onerror = reject;
-        reader.readAsDataURL(blob);
-      });
-
-      // Send to transcription API
-      const token = getToken();
-      const transcribeResponse = await fetch(`${apiUrl}/v1/voice/transcribe`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          audio: base64,
-          format: detectedFormat,
-        }),
-      });
-
-      if (!transcribeResponse.ok) {
-        const errorData = await transcribeResponse.json().catch(() => ({}));
-        throw new Error(errorData.error || 'Transcription failed');
-      }
-
-      const result = await transcribeResponse.json() as { text: string };
-      setState('idle');
-      return result.text || null;
-    } catch (e: unknown) {
-      console.error('[STT] Transcription error:', e);
-      setError(errorMessage(e, 'Transcription failed'));
-      setState('idle');
-      return null;
-    }
-  }, [audioRecorder, getToken, apiUrl]);
+    if (stateRef.current !== 'recording') return null;
+    setPhase('transcribing');
+    const ended = waitForEnd();
+    sessionRef.current?.stop();
+    await ended;
+    const text = fullText();
+    earlierTextRef.current = '';
+    currentTextRef.current = '';
+    setPhase('idle');
+    return text === '' ? null : text;
+  }, [setPhase, waitForEnd]);
 
   const cancel = useCallback(() => {
-    if (isRecordingRef.current) {
-      isRecordingRef.current = false;
-      Promise.resolve(audioRecorder.stop()).catch(() => {});
-    }
-    setState('idle');
+    const session = sessionRef.current;
+    setPhase('idle');
+    earlierTextRef.current = '';
+    currentTextRef.current = '';
+    session?.abort();
     setError(null);
-  }, [audioRecorder]);
+  }, [setPhase]);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      stateRef.current = 'idle';
+      sessionRef.current?.abort();
+    };
+  }, []);
 
   return {
     state,
     error,
+    /** False where the platform cannot recognize speech at all (Firefox). */
+    isSupported,
     startRecording,
     stopAndTranscribe,
     cancel,

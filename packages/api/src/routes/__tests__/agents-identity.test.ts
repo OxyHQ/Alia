@@ -114,18 +114,12 @@ const repository = vi.hoisted(() => ({
 
 vi.mock('../../db/agents/agentRepository.js', () => repository);
 vi.mock('../../db/index.js', () => ({ getDb: () => ({}) }));
-vi.mock('../../lib/agent/health.js', () => ({ getAgentCapabilities: async () => ({}) }));
 vi.mock('../../lib/logger.js', () => ({
   log: { agents: { info: vi.fn(), warn: vi.fn(), error: vi.fn() }, general: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } },
 }));
 vi.mock('../../lib/trigger-engine.js', () => ({
   reloadTrigger: vi.fn(),
   generateWebhookToken: () => 'tok',
-}));
-vi.mock('../../db/automation/triggerRepository.js', () => ({
-  createTrigger: vi.fn(),
-  findAgentTriggerByType: vi.fn(async () => null),
-  updateTrigger: vi.fn(),
 }));
 
 const { default: crudRouter } = await import('../agents/crud.js');
@@ -156,8 +150,6 @@ const AGENT_ROW = {
   status: 'active',
   allowHiring: false,
   systemPrompt: null,
-  preferredImage: null,
-  allowedModels: ['route:auto'],
   scheduleInterval: null,
   archetype: 'general',
   archetypeConfig: null,

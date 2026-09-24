@@ -1,26 +1,19 @@
 /**
- * Bottom voice control bar that replaces PromptInput when voice mode is active.
- * Contains status text, mute/cohost/end buttons, and "Continue" for cohost rounds.
+ * Bottom voice control bar that replaces the composer when voice mode is active.
+ * Contains status text and mute/end buttons.
  */
 
 import { View, Text, Pressable, ActivityIndicator, StyleSheet } from 'react-native';
 import Mic from 'lucide-react-native/icons/mic';
 import MicOff from 'lucide-react-native/icons/mic-off';
 import PhoneOff from 'lucide-react-native/icons/phone-off';
-import Users from 'lucide-react-native/icons/users';
 import type { RoomState, AgentState } from '../../types';
 
 interface VoiceControlsProps {
   roomState: RoomState;
   agentState: AgentState;
   isMuted: boolean;
-  cohostActive: boolean;
-  currentSpeaker: 'primary' | 'cohost' | 'user' | null;
-  roundComplete: boolean;
   onToggleMute: () => void;
-  onEnableCohost: () => void;
-  onDisableCohost: () => void;
-  onContinueCohost: () => void;
   onEnd: () => void;
   /** Override theme primary color (resolved hex/hsl value, not CSS var) */
   primaryColor?: string;
@@ -30,13 +23,9 @@ function getStatusText(
   roomState: RoomState,
   agentState: AgentState,
   isMuted: boolean,
-  cohostActive: boolean,
-  currentSpeaker: string | null,
 ): string {
   if (roomState === 'connecting') return 'Connecting...';
   if (roomState === 'connected') {
-    if (cohostActive && currentSpeaker === 'cohost') return 'Cohost speaking...';
-    if (cohostActive && currentSpeaker === 'primary') return 'Alia speaking...';
     if (agentState === 'listening') return isMuted ? 'Muted' : 'Listening...';
     if (agentState === 'thinking') return 'Thinking...';
     if (agentState === 'speaking') return 'Speaking...';
@@ -49,17 +38,11 @@ export function VoiceControls({
   roomState,
   agentState,
   isMuted,
-  cohostActive,
-  currentSpeaker,
-  roundComplete,
   onToggleMute,
-  onEnableCohost,
-  onDisableCohost,
-  onContinueCohost,
   onEnd,
   primaryColor,
 }: VoiceControlsProps) {
-  const statusText = getStatusText(roomState, agentState, isMuted, cohostActive, currentSpeaker);
+  const statusText = getStatusText(roomState, agentState, isMuted);
 
   return (
     <View style={styles.container}>
@@ -68,18 +51,6 @@ export function VoiceControls({
           {statusText}
         </Text>
       ) : null}
-
-      {roundComplete && (
-        <Pressable
-          onPress={onContinueCohost}
-          className="bg-primary/30"
-          style={[styles.continueButton, primaryColor ? { backgroundColor: primaryColor + '4D' } : undefined]}
-        >
-          <Text className="text-sm font-medium text-primary" style={primaryColor ? { color: primaryColor } : undefined}>
-            Continue conversation
-          </Text>
-        </Pressable>
-      )}
 
       {roomState === 'connected' && (
         <View style={styles.buttonRow}>
@@ -97,22 +68,6 @@ export function VoiceControls({
             </Pressable>
             <Text className="text-xs text-muted-foreground">
               {isMuted ? 'Unmute' : 'Mute'}
-            </Text>
-          </View>
-
-          <View style={styles.buttonWrapper}>
-            <Pressable
-              onPress={cohostActive ? onDisableCohost : onEnableCohost}
-              className={cohostActive ? 'bg-primary' : 'bg-muted'}
-              style={[
-                styles.button,
-                cohostActive && primaryColor ? { backgroundColor: primaryColor } : undefined,
-              ]}
-            >
-              <Users size={24} color="white" />
-            </Pressable>
-            <Text className="text-xs text-muted-foreground">
-              {cohostActive ? 'Solo' : 'Cohost'}
             </Text>
           </View>
 
@@ -156,11 +111,5 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  continueButton: {
-    marginBottom: 16,
-    paddingHorizontal: 20,
-    paddingVertical: 8,
-    borderRadius: 24,
   },
 });

@@ -178,8 +178,14 @@ const WAVE_SOURCE = readFileSync(
   fileURLToPath(new URL('../../alia-chat/src/hooks/useAmbientWave.ts', import.meta.url)),
   'utf8',
 );
+/**
+ * Dictation's level is measured where the microphone is opened: in the web
+ * recognizer, on an analyser over the stream. (Native reports the recognizer's
+ * own volume scale, which is not dBFS and is mapped in
+ * `speech-recognition.native.ts`.)
+ */
 const STT_SOURCE = readFileSync(
-  fileURLToPath(new URL('../../alia-chat/src/hooks/useSpeechToText.ts', import.meta.url)),
+  fileURLToPath(new URL('../../alia-chat/src/lib/speech-recognition.ts', import.meta.url)),
   'utf8',
 );
 
@@ -213,7 +219,7 @@ describe('the read-aloud player', () => {
 
 describe('both sources reach the field the same way', () => {
   it('leaves neither with a curve or a time constant of its own', () => {
-    expect(STT_SOURCE).toContain('levelFromDbfs(recorderState.metering)');
+    expect(STT_SOURCE).toContain('levelFromDbfs(20 * Math.log10(rms))');
     expect(STT_SOURCE).not.toContain('+ 60) / 60');
     expect(WAVE_SOURCE).toContain('LEVEL_ATTACK_MS : LEVEL_RELEASE_MS');
   });

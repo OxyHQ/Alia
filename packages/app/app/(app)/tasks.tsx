@@ -167,11 +167,7 @@ export default function TasksPage() {
             `Automation stopped, but ${result.revocation.failed} authorization revocation failed`,
           );
         } else {
-          toast.success(
-            automation.legacyTriggerId
-              ? 'Automation stopped'
-              : 'Automation stopped and access revoked',
-          );
+          toast.success('Automation stopped and access revoked');
         }
       } catch (error: unknown) {
         toast.error(getErrorMessage(error, 'Failed to stop automation'));
@@ -187,11 +183,7 @@ export default function TasksPage() {
       setBusyId(automation.id);
       try {
         await runAutomation.mutateAsync(automation);
-        toast.success(
-          automation.legacyTriggerId
-            ? 'Automation completed'
-            : 'Automation queued',
-        );
+        toast.success('Automation queued');
       } catch (error: unknown) {
         toast.error(getErrorMessage(error, 'Automation run failed'));
       } finally {

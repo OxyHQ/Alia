@@ -216,7 +216,7 @@ option until both conditions change.
 
 **`OxyHQ/oxy#981` is not this blocker, and it is CLOSED** (2026-08-15). Its subject is an unmetered
 public inference exposure on Oxy's proxy *into* Alia, not "Oxy API → Kaana is not mounted".
-[`kaana-client-gap.md`](./kaana-client-gap.md) cites it as OPEN, which was already stale when
+The pre-cutover gap analysis `kaana-client-gap.md` (since removed) cited it as OPEN, which was already stale when
 written; anyone reasoning from that citation should re-read the issue. **`kaana-client-gap.md` §1 is
 now stale in the other direction too** — it says the Oxy edge is not mounted, and it is.
 
@@ -729,7 +729,7 @@ Recorded here because each contradicts something written down elsewhere in this 
 stale blocker costs more than an open one.
 
 **1. `@oxy.so/contracts` now ships the inference module, and Alia already depends on it.**
-[`kaana-client-gap.md`](./kaana-client-gap.md) §0 recorded (2026-08-16, against `0.26.0`) that the
+The pre-cutover gap analysis `kaana-client-gap.md` (since removed) §0 recorded (2026-08-16, against `0.26.0`) that the
 inference module was unpublished and that *"Alia adds no `@oxy.so/contracts` dependency in this
 workstream"*. Both halves have changed. `packages/api/package.json:34` depends on `^0.27.0`; the
 installed `0.27.0` ships twelve inference modules under `dist/types/inference/`; and **eleven Alia

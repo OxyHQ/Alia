@@ -33,7 +33,6 @@ export interface LifecycleContext {
   tokenUsage: CreditUsage;
   requestStartTime: number;
   skillNames?: string[];
-  isApiKey: boolean;
   autonomyRuntime: AutonomyRuntimeContext | null;
 }
 
@@ -245,7 +244,7 @@ export function runPostChatHooks(
   observation: TurnObservation,
   errorClass: string | null,
 ): void {
-  const { userId, messages, routingProfileId, requestedModel, reasoningEffort, tokenUsage, requestStartTime, skillNames, isApiKey, autonomyRuntime } = ctx;
+  const { userId, messages, routingProfileId, requestedModel, reasoningEffort, tokenUsage, requestStartTime, skillNames, autonomyRuntime } = ctx;
 
   runAfterChatHooks({
     userId,
@@ -253,7 +252,7 @@ export function runPostChatHooks(
     messages,
     model: routingProfileId,
     skillNames,
-    platform: isApiKey ? 'telegram' as const : 'app' as const,
+    platform: 'app' as const,
     metadata: { model: routingProfileId },
     response: assistantResponse,
     tokenUsage,

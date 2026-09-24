@@ -415,7 +415,7 @@ describe('the census reads what it claims to read', () => {
     expect(files).toContain('docs/model-abstraction.mdx');
     expect(files).toContain('docs/api-reference.md');
     expect(new Set(SOURCE.map((entry) => entry.file))).toContain(
-      'packages/alia-console/src/routes/_layout/documentation/models.tsx',
+      'packages/alia-chat/src/components/AliaChatScreen.tsx',
     );
   });
 

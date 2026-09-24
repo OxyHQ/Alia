@@ -17,7 +17,6 @@ import { emitAgentActivity, type AgentActivityEvent } from '../../socket.js';
 import { getDb } from '../../db/index.js';
 import {
   appendEventStreamEntries,
-  archiveEventStreamEntriesBelow,
   listEventStreamEntries,
 } from '../../db/agents/eventStreamEntryRepository.js';
 import { log } from '../logger.js';
@@ -211,11 +210,6 @@ export class EventStream {
     );
   }
 
-  /** Current sequence number */
-  currentSeq(): number {
-    return this.seq;
-  }
-
   /** Number of entries */
   length(): number {
     return this.entries.length;
@@ -263,21 +257,6 @@ export class EventStream {
   replaceEntries(entries: EventStreamEntry[]): void {
     this.entries = entries;
     this.seq = entries.length > 0 ? entries[entries.length - 1].seq + 1 : 0;
-  }
-
-  /**
-   * Mark entries as archived in the database.
-   * Used after context compaction summarizes older entries.
-   */
-  async archiveOlderThan(seq: number): Promise<number> {
-    if (!this.sessionId) return 0;
-
-    try {
-      return await archiveEventStreamEntriesBelow(getDb(), this.sessionId, seq);
-    } catch (err) {
-      log.agents.warn({ err }, 'EventStream: failed to archive entries');
-      return 0;
-    }
   }
 
   /** Export the in-memory view stored with the session snapshot. */

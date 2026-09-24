@@ -8,9 +8,9 @@ import { Platform } from 'react-native';
  */
 
 // Default API URLs for different environments
-export const DEV_API_BASE_URL = 'http://localhost:4150';
-export const STAGING_API_BASE_URL = 'https://staging-api.alia.onl';
-export const PROD_API_BASE_URL = 'https://api.alia.onl';
+const DEV_API_BASE_URL = 'http://localhost:4150';
+const STAGING_API_BASE_URL = 'https://staging-api.alia.onl';
+const PROD_API_BASE_URL = 'https://api.alia.onl';
 
 const ENV = {
   dev: {

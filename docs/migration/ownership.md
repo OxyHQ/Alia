@@ -4,8 +4,11 @@
 > adapter/key/fallback runtime. The post-rollout
 > `0061_remove_alia_provider_credentials.sql` migration drops `provider_keys`
 > without reading or copying it; Kaana is the sole credential custodian.
-> `provider_health`, `api_usage` and `fallback_events` are non-runtime historical
-> tables. References below describe the measured source state and extraction plan.
+> The owner's clean cut (2026-09-23, migration `0070_clean_cut_dormant_tables`)
+> then dropped `provider_health`, `api_usage`, `fallback_events`, the model
+> catalogue tables, `external_models`, `cost_entries`, the legacy trigger tables and
+> the `alia_sk_*` developer tables, and deleted `packages/alia-console`. References
+> below describe the measured source state and extraction plan at the time.
 
 The human half of the deliverable for [issue #139](https://github.com/OxyHQ/Alia/issues/139)
 workstreams 0 and 1. The machine-readable half is
@@ -346,10 +349,10 @@ them.
 > Oxy ecosystem and by third parties through `@alia.onl/sdk`, all authorized by Oxy —
 > and it does not sunset. Generic model access is
 > Kaana through Oxy (`api.oxy.so/v1`); Alia's API is a product API that accepts an
-> OpenAI-compatible shape. What still sunsets is Alia's own credential system —
-> `alia_sk_*`, `developer_apps`, `developer_api_keys`, the `/developer` routes — on the
-> gate in `compatibility-window.md` § (c); a key for this surface is an Oxy application
-> credential issued in Oxy Console. ADR 0010 § 2 states precisely which credentials Alia
+> OpenAI-compatible shape. Alia's own credential system —
+> `alia_sk_*`, `developer_apps`, `developer_api_keys`, the `/developer` routes — was
+> retired outright on 2026-09-23 (`compatibility-window.md` § (c), closed); a key for
+> this surface is an Oxy application credential issued in Oxy Console. ADR 0010 § 2 states precisely which credentials Alia
 > accepts today and that the Oxy-issued application-key path is not yet built.
 >
 > [#244](https://github.com/OxyHQ/Alia/issues/244) closes with it: `@alia.onl/sdk` stays
@@ -409,7 +412,7 @@ is the product unit — Kaana bills Alia in dollars, Alia bills the user in cred
   `FREE_MODEL_IDS`. No error.
 - An empty `api_key_usage` makes every rate-limit window read zero, so every developer key
   becomes unlimited. Same for `api_usage` and provider keys.
-- An empty `voice_call_usage` reads as "zero minutes used", removing the only enforcement
+- (Resolved by retirement: 0072 dropped `voice_call_usage` and the `voice-minutes` allowance together, so there is no minute count to read as zero — see [Voice](../voice.mdx).) An empty `voice_call_usage` reads as "zero minutes used", removing the only enforcement
   of a plan's voice-minute entitlement.
 - Losing `chat_analytics.alia_model_id` empties `GET /analytics/models` for every user,
   because unresolvable entries are SKIPPED by the model-abstraction rule — it looks
@@ -479,7 +482,8 @@ package up as the canonical reference for bundling React Native under Vite
 The Cloudflare Pages project must be deleted out of band; deleting the workflow only stops
 future deploys and leaves the last build served forever.
 
-**`packages/alia-console` splits cleanly.** The developer-platform screens (apps, keys,
+**`packages/alia-console` splits cleanly.** *(Superseded 2026-09-23: the owner deleted
+the whole package with the `alia_sk_*` keys rather than splitting it.)* The developer-platform screens (apps, keys,
 usage, dashboard, workspace settings, the API client) go to Oxy Console; the model
 catalogue, playground and documentation pages stay as Alia product surfaces.
 `console-screen-models` is the pattern the whole epic should copy: an Alia-branded catalog

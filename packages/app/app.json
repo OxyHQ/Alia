@@ -42,8 +42,13 @@
       "expo-router",
       "expo-localization",
       "expo-audio",
-      "@livekit/react-native-expo-plugin",
-      "@config-plugins/react-native-webrtc",
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "Allow Alia to hear what you dictate and what you say in voice calls.",
+          "speechRecognitionPermission": "Allow Alia to turn your speech into text."
+        }
+      ],
       "expo-font",
       "expo-image",
       [

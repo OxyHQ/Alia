@@ -4,9 +4,8 @@
  * ## Why this file exists
  *
  * `docs/mongodb-runtime-boundary.md` says the gate "fails if any workspace adds
- * a direct Mongo dependency, runtime source imports a Mongo driver, the console
- * was not built, or its emitted JS/JSON contains a Mongo import/driver
- * fingerprint". That is a claim about a script that, until now, had only ever
+ * a direct Mongo dependency, runtime source imports a Mongo driver, or
+ * `bun.lock` resolves a Mongo package". That is a claim about a script that, until now, had only ever
  * been observed passing — and a gate that has stopped looking passes exactly
  * the way a clean repository does.
  *
@@ -45,9 +44,9 @@ const GATE = resolve(
 const workspace = mkdtempSync(join(tmpdir(), 'check-no-mongo-'));
 process.on('exit', () => rmSync(workspace, { recursive: true, force: true }));
 
-/** A clean console build artefact, so cases can fail for the reason they name. */
-const BUILT_CONSOLE = {
-  'packages/alia-console/.output/server/index.mjs': 'export default {};\n',
+/** A clean lockfile, so cases can fail for the reason they name. */
+const CLEAN_LOCK = {
+  'bun.lock': JSON.stringify({ packages: { pg: ['pg@8.0.0'] } }),
 };
 
 /** Build a tracked tree under a fresh directory. `files` maps a path to contents. */
@@ -101,7 +100,7 @@ function check(name, { root, status, contains }) {
 // everything.
 check('a clean tree passes', {
   root: tree('clean', {
-    ...BUILT_CONSOLE,
+    ...CLEAN_LOCK,
     'packages/api/package.json': JSON.stringify({ dependencies: { pg: '^8' } }),
     'packages/api/src/index.ts': "import pg from 'pg';\n",
     'packages/app/lib/db.ts': "import { drizzle } from 'drizzle-orm';\n",
@@ -113,7 +112,7 @@ check('a clean tree passes', {
 // ── What the documentation promises ─────────────────────────────────────────
 check('a direct mongodb dependency fails', {
   root: tree('direct-dep', {
-    ...BUILT_CONSOLE,
+    ...CLEAN_LOCK,
     'packages/api/package.json': JSON.stringify({ dependencies: { mongodb: '^7' } }),
   }),
   status: 1,
@@ -122,7 +121,7 @@ check('a direct mongodb dependency fails', {
 
 check('a mongoose optionalDependency fails', {
   root: tree('optional-dep', {
-    ...BUILT_CONSOLE,
+    ...CLEAN_LOCK,
     'packages/api/package.json': JSON.stringify({ optionalDependencies: { mongoose: '^8' } }),
   }),
   status: 1,
@@ -131,7 +130,7 @@ check('a mongoose optionalDependency fails', {
 
 check('a source file importing a Mongo driver fails', {
   root: tree('import', {
-    ...BUILT_CONSOLE,
+    ...CLEAN_LOCK,
     'packages/api/package.json': '{}',
     'packages/api/src/db.ts': "import { MongoClient } from 'mongodb';\n",
   }),
@@ -139,31 +138,31 @@ check('a source file importing a Mongo driver fails', {
   contains: ['imports a Mongo runtime'],
 });
 
-check('an unbuilt console fails', {
+check('a missing lockfile fails', {
   // Carries a manifest AND a source file, so the two vacuity floors are
   // satisfied and this case can only fail for the reason it names.
-  root: tree('unbuilt', {
+  root: tree('no-lock', {
     'packages/api/package.json': '{}',
     'packages/api/src/index.ts': "import pg from 'pg';\n",
   }),
   status: 1,
-  contains: ['build alia-console before this gate'],
+  contains: ['bun.lock is absent'],
 });
 
-check('a Mongo fingerprint in the built console fails', {
-  root: tree('built-fingerprint', {
-    'packages/alia-console/.output/server/index.mjs':
-      "const x = require('node_modules/mongodb/lib/index.js');\n",
+check('a lockfile that resolves mongodb transitively fails', {
+  root: tree('lock-mongodb', {
+    'bun.lock': JSON.stringify({ packages: { mongodb: ['mongodb@7.2.0'] } }),
     'packages/api/package.json': '{}',
+    'packages/api/src/index.ts': "import pg from 'pg';\n",
   }),
   status: 1,
-  contains: ['built Mongo runtime fingerprint'],
+  contains: ['bun.lock resolves "mongodb"'],
 });
 
 // ── The case the old pattern missed ─────────────────────────────────────────
 check('the case the old pattern missed: a nested workspace manifest', {
   root: tree('nested-manifest', {
-    ...BUILT_CONSOLE,
+    ...CLEAN_LOCK,
     'packages/api/package.json': '{}',
     // A real workspace: `packages/alia-codea/webview-ui` is in the root
     // `workspaces` array, and `^packages/[^/]+/package.json$` cannot see it.
@@ -177,7 +176,7 @@ check('the case the old pattern missed: a nested workspace manifest', {
 
 check('the case the old pattern missed: source outside a src/ directory', {
   root: tree('no-src-dir', {
-    ...BUILT_CONSOLE,
+    ...CLEAN_LOCK,
     'packages/api/package.json': '{}',
     // `packages/app` keeps its code in `app/`, `lib/` and `components/`; it has
     // no `src/` at all, so `^packages/[^/]+/src/…` saw none of it.
@@ -192,13 +191,13 @@ check('the case the old pattern missed: source outside a src/ directory', {
 // rather than green. Asserted, because a self-check nobody exercises is the
 // same silent no-op it was written to prevent.
 check('a tree with no workspace manifests fails rather than passing vacuously', {
-  root: tree('no-manifests', { ...BUILT_CONSOLE, 'README.md': '# nothing here\n' }),
+  root: tree('no-manifests', { ...CLEAN_LOCK, 'README.md': '# nothing here\n' }),
   status: 1,
   contains: ['matched no workspace manifests at all'],
 });
 
 check('a tree with no source files fails rather than passing vacuously', {
-  root: tree('no-sources', { ...BUILT_CONSOLE, 'packages/api/package.json': '{}' }),
+  root: tree('no-sources', { ...CLEAN_LOCK, 'packages/api/package.json': '{}' }),
   status: 1,
   contains: ['matched no source files at all'],
 });

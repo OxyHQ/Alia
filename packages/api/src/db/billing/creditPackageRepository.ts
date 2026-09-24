@@ -11,11 +11,8 @@ import { asc, eq, type SQL } from 'drizzle-orm';
 import type { ApiDatabase } from '../index';
 import { creditPackages } from '../schema/billing';
 
-export type CreditPackageRow = typeof creditPackages.$inferSelect;
-export type CreditPackageInsert = typeof creditPackages.$inferInsert;
-export type CreditPackageUpdate = Partial<
-  Omit<CreditPackageInsert, 'id' | 'packageId' | 'createdAt'>
->;
+type CreditPackageRow = typeof creditPackages.$inferSelect;
+type CreditPackageInsert = typeof creditPackages.$inferInsert;
 
 /** Packages, optionally only the active ones, in display order. */
 export async function selectCreditPackages(
@@ -25,52 +22,6 @@ export async function selectCreditPackages(
   const where: SQL | undefined =
     filter.isActive === undefined ? undefined : eq(creditPackages.isActive, filter.isActive);
   return db.select().from(creditPackages).where(where).orderBy(asc(creditPackages.sortOrder));
-}
-
-export async function findCreditPackageByPackageId(
-  db: ApiDatabase,
-  packageId: string,
-): Promise<CreditPackageRow | null> {
-  const [row] = await db
-    .select()
-    .from(creditPackages)
-    .where(eq(creditPackages.packageId, packageId));
-  return row ?? null;
-}
-
-export async function insertCreditPackage(
-  db: ApiDatabase,
-  values: CreditPackageInsert,
-): Promise<CreditPackageRow> {
-  const [row] = await db.insert(creditPackages).values(values).returning();
-  if (!row) throw new Error('insert returned no row');
-  return row;
-}
-
-/** Apply an update to one package; `null` means there is no such package. */
-export async function updateCreditPackageByPackageId(
-  db: ApiDatabase,
-  packageId: string,
-  updates: CreditPackageUpdate,
-): Promise<CreditPackageRow | null> {
-  if (Object.keys(updates).length === 0) return findCreditPackageByPackageId(db, packageId);
-  const [row] = await db
-    .update(creditPackages)
-    .set(updates)
-    .where(eq(creditPackages.packageId, packageId))
-    .returning();
-  return row ?? null;
-}
-
-export async function deleteCreditPackageByPackageId(
-  db: ApiDatabase,
-  packageId: string,
-): Promise<CreditPackageRow | null> {
-  const [row] = await db
-    .delete(creditPackages)
-    .where(eq(creditPackages.packageId, packageId))
-    .returning();
-  return row ?? null;
 }
 
 /**

@@ -1,98 +1,20 @@
 /**
- * What a request cost, and what it did.
+ * What a request did.
  *
- * `cost_entries` is the per-request spend ledger; `chat_analytics` is the
- * per-request usage record. They stay separate tables because they are written
- * by different subsystems for different reasons, and merging them would couple a
- * billing figure to an analytics hook.
+ * `chat_analytics` is the per-request usage record. (`cost_entries`, a
+ * per-request provider-spend ledger that never had a writer, was dropped.)
  *
- * `voice_call_usage` is the same pair of concerns for a REALTIME VOICE session
- * rather than a completion — it is both the usage record and the billing figure,
- * because a voice call is charged by elapsed minutes rather than by tokens, so
- * there is no second subsystem to separate it from.
+ * `voice_call_usage`, the record and minute meter of a realtime voice session,
+ * was dropped by 0072: its only writer left with the LiveKit voice route in
+ * #477, and voice now runs on the device as ordinary chat and speech turns,
+ * each billed per call through Oxy like any other (ADR 0005).
  *
- * None of the three carried a TTL index, so none appears in
- * `db/expiryTargets.ts`. `cost_entries` and `voice_call_usage` in particular are
- * spend history and must NOT acquire one by analogy with the short-lived tables
- * elsewhere in this schema.
+ * `chat_analytics` carries no TTL index, so it does not appear in
+ * `db/expiryTargets.ts`.
  */
 
-import { boolean, doublePrecision, index, integer, pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
-import { createdAt, generatedId, timestamptz, updatedAt } from '@oxy.so/db';
-import { checkOneOf } from './columns';
-import { CREDIT_FUNDING_SOURCES } from '../../domain/credit-funding.js';
-
-/**
- * One request's cost, in USD.
- *
- * **`cost_usd` is `double precision`, deliberately, and this is the one place in
- * the schema where that needs defending.** Oxy's convention for money is
- * `bigint` minor units, because a price is an exact amount somebody is charged
- * and binary floating point cannot represent it. This is not that: it is a
- * derived estimate — tokens multiplied by a published per-token rate that is
- * itself a fraction of a cent — and no minor unit exists to hold it. Rounding it
- * to cents at write time would destroy the per-request figure entirely, since a
- * single completion routinely costs less than one cent.
- *
- * Two consequences that follow, and must not be forgotten when somebody reports
- * a total looking wrong: sums of many rows accumulate float error, and equality
- * comparison on this column is meaningless. Aggregate with `sum()` for display
- * and never compare a total for exactness. If per-user BILLING is ever taken
- * from this table rather than from a payment provider's own figures, that is the
- * moment to reconsider the type — not before.
- *
- * `user_id` is an Oxy account, so no foreign key.
- */
-export const costEntries = pgTable(
-  'cost_entries',
-  {
-    id: generatedId(),
-    userId: text().notNull(),
-    sessionId: text(),
-    routingProfileId: text().notNull(),
-    /**
-     * The real provider and model behind the Kaana routing profile. This is
-     * INTERNAL: it must never reach a user-facing response, an error message or
-     * a public API surface — the whole point of the alias is that a caller sees
-     * `route:auto`, not whoever served it.
-     */
-    actualProvider: text().notNull(),
-    actualModelId: text().notNull(),
-    inputTokens: integer().notNull(),
-    outputTokens: integer().notNull(),
-    totalTokens: integer().notNull(),
-    costUsd: doublePrecision().notNull(),
-    /**
-     * Which balance funded the credits the customer was charged for this
-     * request — `domain/credit-funding.ts` for what each value asserts.
-     *
-     * It is here rather than beside the balance because of what the two columns
-     * mean TOGETHER: `cost_usd` is what the request cost Alia and `grant_kind`
-     * is who paid for it, so a free-tier turn stays a row with a real cost and a
-     * label saying the customer was not billed. ADR 0005: "not billed to the
-     * customer" and "not attributed" are different statements, and only the
-     * first is ever true.
-     *
-     * **Nullable, and NULL is not "free".** It means the row was written by a
-     * path that held no credit reservation, or before this column existed. A
-     * default would invent a funding source for rows nobody measured, which is
-     * the one reading that turns an attribution gap into a false claim.
-     */
-    grantKind: text({ enum: CREDIT_FUNDING_SOURCES }),
-    savedFromCache: boolean().notNull().default(false),
-    timestamp: timestamptz().notNull(),
-    createdAt: createdAt(),
-  },
-  (t) => [
-    index('cost_entries_user_timestamp_idx').on(t.userId, t.timestamp.desc()),
-    index('cost_entries_routing_profile_timestamp_idx').on(t.routingProfileId, t.timestamp.desc()),
-    index('cost_entries_user_routing_profile_idx').on(t.userId, t.routingProfileId),
-    index('cost_entries_session_id_idx').on(t.sessionId),
-    // `col in (…)` is NULL for a NULL column and a CHECK rejects only FALSE, so
-    // this constrains the value without making the column required.
-    checkOneOf('cost_entries_grant_kind_check', t.grantKind, CREDIT_FUNDING_SOURCES),
-  ],
-);
+import { boolean, index, integer, pgTable, text } from 'drizzle-orm/pg-core';
+import { createdAt, generatedId } from '@oxy.so/db';
 
 /**
  * One completion's usage, recorded by the analytics hook.
@@ -296,132 +218,4 @@ export const chatAnalytics = pgTable(
     createdAt: createdAt(),
   },
   (t) => [index('chat_analytics_oxy_user_created_at_idx').on(t.oxyUserId, t.createdAt.desc())],
-);
-
-/**
- * One realtime voice session: how long it ran and what it charged.
- *
- * ## The number types are three different things, and the split is not cosmetic
- *
- * - **Durations are `double precision`.** `voice-session-manager.ts:1228`
- *   computes `(endTime - startTime) / 60000`, so a two-and-a-half minute call
- *   stores `2.5`. An `integer` would silently truncate every call to a whole
- *   minute, and it is the BILLING quantity.
- * - **`cost_per_minute` is `double precision`.** A published per-minute rate, a
- *   fraction of a cent — `cost_entries.cost_usd`'s reasoning exactly, and not
- *   the `bigint` minor-unit convention, which applies to an amount somebody is
- *   charged rather than to a rate.
- * - **Credits are `integer`.** A count, per CONVENTIONS.md.
- *
- * **The aggregate trap lands on the durations, and they are the safe side of it
- * by luck rather than by design.** `lib/voice-usage.ts:41` sums
- * `duration_minutes + cohost_duration_minutes` to enforce a plan's voice-minute
- * entitlement. `sum(double precision)` returns `double precision`, which
- * postgres.js decodes as a JS number — so that reader ports cleanly. The same
- * sum over `credits_charged` would NOT: `sum(integer)` returns `bigint`, which
- * decodes as a STRING, and `total + 1` becomes string concatenation. Nothing
- * sums credits today. Whoever adds the obvious "credits spent this period"
- * figure has to coerce at that boundary, and a test that aggregates ONE row
- * cannot tell the two apart.
- *
- * ## `provider` gets no CHECK, though `PROVIDER_NAMES` exists
- *
- * That tuple renders CHECKs on three columns in `providers.ts`. Not here: this
- * Mongoose field is a bare `String` with no `enum`, so production may already
- * hold anything the voice manager wrote, and a CHECK would fail on the first
- * unexpected value in the session-teardown path — where the alternative to
- * writing the row is losing the billing record for a call that already
- * happened. `auth_health_metrics.method` and `chat_analytics.platform` are the
- * same call. `audio_format`, `disconnect_reason` and `client_type` are bare
- * strings for the same reason. Revisit after the backfill audits the values.
- *
- * ## Two columns are declared and never written
- *
- * `average_latency_ms` and `client_type` are in the Mongoose schema and appear
- * in no write anywhere in the package — verified whole-package, not just around
- * the writer. They are ported so the shape is faithful; confirm they are
- * entirely absent before anybody reads one as meaningful.
- *
- * `session_id` is the historical provider session identifier and is UNIQUE.
- * The first cutover release keeps the table and constraint unchanged for the
- * rollback window; hosted voice is refused and the active Alia runtime writes
- * no new rows. It is NOT a primary key — CONVENTIONS.md keeps Mongo's `_id`.
- *
- * `oxy_user_id` is a plain Oxy account id: no foreign key, and unlike its
- * neighbours in this file it was declared a bare `String` in Mongoose rather
- * than `ref: 'User'`, so nothing ever tried to populate it.
- */
-export const voiceCallUsage = pgTable(
-  'voice_call_usage',
-  {
-    id: generatedId(),
-    sessionId: text().notNull(),
-    oxyUserId: text().notNull(),
-    routingProfileId: text().notNull(),
-    /** No CHECK, deliberately — see the table comment. */
-    provider: text().notNull(),
-    providerModel: text().notNull(),
-
-    startTime: timestamptz().notNull(),
-    /** Absent while the session is still running. */
-    endTime: timestamptz(),
-    /** Fractional minutes. See the table comment. */
-    durationMinutes: doublePrecision().notNull().default(0),
-
-    creditsCharged: integer().notNull().default(0),
-    /**
-     * Which balance funded `credits_charged` — `domain/credit-funding.ts`.
-     *
-     * This table is the ONE place in the service where a cost record and the
-     * reservation that paid for it already coexist: it is both the usage record
-     * and the billing figure (see the file comment), and
-     * `voice-session-manager.ts` holds the `CreditReservation` while it writes
-     * the row. `cost_entries` carries the same column and no writer yet.
-     *
-     * **Nullable for the same reason as `cost_entries.grant_kind`**, plus one of
-     * its own: `saveUsageRecord` reads `session.creditReservation` through an
-     * optional, and inventing a funding source for a record that had none would
-     * be a lie about who paid. A session cannot actually reach that state —
-     * `startSession` throws on a null reservation before the session object
-     * exists — so NULL is unreachable rather than merely rare.
-     */
-    grantKind: text({ enum: CREDIT_FUNDING_SOURCES }),
-    /**
-     * `required` in Mongoose with no default. A `required` binds only writes
-     * made after it was added, so a session predating it may have none —
-     * a backfill audit item, listed in CONVENTIONS.md.
-     */
-    costPerMinute: doublePrecision().notNull(),
-
-    /** Declared, never written. See the table comment. */
-    averageLatencyMs: doublePrecision(),
-    disconnectReason: text(),
-
-    audioFormat: text().notNull().default('pcm16'),
-    sampleRate: integer().notNull().default(24000),
-    /** Declared, never written. See the table comment. */
-    clientType: text(),
-
-    cohostEnabled: boolean().notNull().default(false),
-    cohostProvider: text(),
-    cohostProviderModel: text(),
-    cohostDurationMinutes: doublePrecision().notNull().default(0),
-    cohostCreditsCharged: integer().notNull().default(0),
-
-    createdAt: createdAt(),
-    updatedAt: updatedAt(),
-  },
-  (t) => [
-    uniqueIndex('voice_call_usage_session_id_key').on(t.sessionId),
-    // Serves the entitlement check in `lib/voice-usage.ts`.
-    index('voice_call_usage_oxy_user_start_time_idx').on(t.oxyUserId, t.startTime.desc()),
-    index('voice_call_usage_provider_start_time_idx').on(t.provider, t.startTime.desc()),
-    index('voice_call_usage_routing_profile_start_time_idx').on(t.routingProfileId, t.startTime.desc()),
-    checkOneOf('voice_call_usage_grant_kind_check', t.grantKind, CREDIT_FUNDING_SOURCES),
-    // Mongoose also declared single-field indexes on `oxyUserId`, `routingProfileId`
-    // and `provider`; each is the PREFIX of a compound above, so the compound
-    // serves it and a separate index would only cost writes. Its fourth,
-    // `startTime` alone, has no reader in this package — every query that
-    // filters on time also filters on one of the three leading columns.
-  ],
 );

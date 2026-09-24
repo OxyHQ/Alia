@@ -74,8 +74,6 @@ function agent(overrides: Record<string, unknown> = {}) {
     status: 'active',
     allowHiring: false,
     systemPrompt: 'YOU ARE A SPECIALIST IN BOTANY.',
-    preferredImage: null,
-    allowedModels: [],
     scheduleInterval: null,
     archetype: 'general',
     archetypeConfig: null,

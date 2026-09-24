@@ -2,10 +2,8 @@ import { Request, Response, NextFunction } from 'express';
 import { recordApiKeyUsage, usageWindow } from '../db/telemetry/apiKeyUsageRepository.js';
 import { API_KEY_USAGE_METHODS, type ApiKeyUsageMethod } from '../domain/api-key-usage.js';
 import { getDb } from '../db/index.js';
-import { findKeyById } from '../db/developers/developerRepository.js';
 import { findActiveSubscription } from '../db/billing/subscriptionRepository.js';
 import { checkLimit } from '../lib/sliding-window-limiter.js';
-import { getRedisClient, withRedisTimeout as withTimeout } from '../lib/redis.js';
 import { log } from '../lib/logger.js';
 
 /**
@@ -31,7 +29,7 @@ interface RateLimitStatus {
   resetInSeconds?: number;
 }
 
-type UsageAuthType = 'api_key' | 'session' | 'internal';
+type UsageAuthType = 'session' | 'internal';
 
 interface UsageRecord {
   oxyUserId: string;
@@ -45,8 +43,6 @@ interface UsageRecord {
   timestamp: Date;
   authType: UsageAuthType;
   serviceApp?: string;
-  apiKeyId?: string;
-  appId?: string;
 }
 
 // Rate limits by subscription tier for session-based users
@@ -110,86 +106,8 @@ export async function getUserTier(userId: string): Promise<string> {
 }
 
 /**
- * Check if an API key has exceeded its rate limits using Redis sorted sets.
- * Falls back to allowing requests if Redis is unavailable.
- */
-async function checkApiKeyRateLimits(
-  apiKeyId: string,
-  rateLimit: IRateLimitConfig
-): Promise<RateLimitStatus> {
-  const redis = getRedisClient();
-  if (!redis) return { limited: false }; // Fail-open
-
-  const now = Date.now();
-  const windowMs = 60_000;
-  const windowStart = now - windowMs;
-
-  try {
-    // Check requests per minute
-    if (rateLimit.requestsPerMinute !== null) {
-      const key = `rl:apikey:${apiKeyId}:rpm`;
-      const pipeline = redis.pipeline();
-      pipeline.zremrangebyscore(key, 0, windowStart);
-      pipeline.zcard(key);
-      pipeline.zadd(key, now, `${now}:${Math.random().toString(36).slice(2, 8)}`);
-      pipeline.expire(key, 120);
-
-      const results = await withTimeout(pipeline.exec());
-      const currentCount = (results?.[1]?.[1] as number) || 0;
-
-      if (currentCount >= rateLimit.requestsPerMinute) {
-        await withTimeout(redis.zremrangebyscore(key, now, now));
-        const oldest = await withTimeout(redis.zrange(key, 0, 0, 'WITHSCORES'));
-        const oldestTs = oldest.length >= 2 ? parseInt(oldest[1]) : now;
-        const resetInSeconds = Math.max(Math.ceil((oldestTs + windowMs - now) / 1000), 1);
-        return {
-          limited: true,
-          limitType: 'requestsPerMinute',
-          current: currentCount,
-          limit: rateLimit.requestsPerMinute,
-          resetInSeconds,
-        };
-      }
-    }
-
-    // Check requests per day
-    if (rateLimit.requestsPerDay !== null) {
-      const dailyKey = `rl:apikey:${apiKeyId}:daily`;
-      const dailyCount = parseInt(await withTimeout(redis.get(dailyKey)) || '0');
-
-      if (dailyCount >= rateLimit.requestsPerDay) {
-        const now_ = new Date();
-        const midnight = new Date(now_.getFullYear(), now_.getMonth(), now_.getDate() + 1);
-        const resetInSeconds = Math.ceil((midnight.getTime() - now_.getTime()) / 1000);
-        return {
-          limited: true,
-          limitType: 'requestsPerDay',
-          current: dailyCount,
-          limit: rateLimit.requestsPerDay,
-          resetInSeconds: Math.max(resetInSeconds, 60),
-        };
-      }
-
-      // Increment daily counter with midnight expiry
-      const pipeline = redis.pipeline();
-      pipeline.incr(dailyKey);
-      const now_ = new Date();
-      const midnight = new Date(now_.getFullYear(), now_.getMonth(), now_.getDate() + 1);
-      const ttl = Math.ceil((midnight.getTime() - now_.getTime()) / 1000);
-      pipeline.expire(dailyKey, ttl);
-      await withTimeout(pipeline.exec());
-    }
-
-    return { limited: false };
-  } catch (err) {
-    log.rateLimit.error({ err }, 'Redis API key rate limit check failed, allowing request');
-    return { limited: false }; // Fail-open
-  }
-}
-
-/**
- * Rate limiting middleware for Developer API Keys
- * Must be used AFTER authenticateApiKey or authenticateTokenOrApiKey middleware
+ * Per-user rate limiting for Alia's API surfaces.
+ * Must be used AFTER `authenticateTokenOrApiKey` (or another Oxy auth middleware).
  */
 export async function apiKeyRateLimit(
   req: Request,
@@ -201,38 +119,8 @@ export async function apiKeyRateLimit(
     return next();
   }
 
-  // Handle API key rate limiting
-  if (req.apiKey) {
-    try {
-      const apiKey = await findKeyById(getDb(), req.apiKey.id);
-
-      if (!apiKey) {
-        res.status(401).json({ error: 'API key not found' });
-        return;
-      }
-
-      // The flattened `rate_limit_*` columns. NULL is UNLIMITED, never zero.
-      const rateLimit: IRateLimitConfig = {
-        requestsPerMinute: apiKey.rateLimitRequestsPerMinute,
-        requestsPerDay: apiKey.rateLimitRequestsPerDay,
-        tokensPerMinute: apiKey.rateLimitTokensPerMinute,
-        tokensPerDay: apiKey.rateLimitTokensPerDay,
-      };
-      const status = await checkApiKeyRateLimits(req.apiKey.id, rateLimit);
-
-      if (status.limited) {
-        return sendRateLimitResponse(res, status);
-      }
-
-      return next();
-    } catch (error) {
-      log.rateLimit.error({ err: error }, 'API key rate limit check error');
-      return next();
-    }
-  }
-
   // Handle session-based user rate limiting (Redis-backed sliding window)
-  if (req.user?.id && !req.apiKey) {
+  if (req.user?.id) {
     try {
       const tier = await getUserTier(req.user.id);
       const result = await checkLimit(req.user.id, tier);
@@ -240,7 +128,7 @@ export async function apiKeyRateLimit(
       if (!result.allowed) {
         return sendRateLimitResponse(res, {
           limited: true,
-          limitType: result.limitType === 'rpm' ? 'requestsPerMinute' : 'tokensPerDay',
+          limitType: 'requestsPerMinute',
           current: result.current,
           limit: result.limit,
           resetInSeconds: result.resetInSeconds,
@@ -289,34 +177,6 @@ function sendRateLimitResponse(
       },
     },
   });
-}
-
-/**
- * Get current usage stats for an API key
- */
-export async function getApiKeyUsageStats(apiKeyId: string): Promise<{
-  requestsLastMinute: number;
-  requestsLastDay: number;
-  tokensLastMinute: number;
-  tokensLastDay: number;
-}> {
-  const now = new Date();
-  const oneMinuteAgo = new Date(now.getTime() - 60 * 1000);
-  const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-
-  // Two statements where there were four: counting and summing the same window
-  // together is exactly equivalent, and this runs on every request.
-  const [minute, day] = await Promise.all([
-    usageWindow(getDb(), { apiKeyId }, oneMinuteAgo),
-    usageWindow(getDb(), { apiKeyId }, oneDayAgo),
-  ]);
-
-  return {
-    requestsLastMinute: minute.requests,
-    requestsLastDay: day.requests,
-    tokensLastMinute: minute.tokens,
-    tokensLastDay: day.tokens,
-  };
 }
 
 /**
@@ -402,14 +262,7 @@ export async function recordUsage(
     if (req.serviceApp) {
       usageRecord.authType = 'internal';
       usageRecord.serviceApp = req.serviceApp.appName;
-    } else if (req.apiKey) {
-      usageRecord.apiKeyId = req.apiKey.id;
-      usageRecord.appId = req.apiKey.appId;
-      usageRecord.authType = 'api_key';
     }
-
-    // Mark that usage was explicitly recorded, so the auth middleware skips its own logging
-    req._usageRecorded = true;
 
     await recordApiKeyUsage(getDb(), usageRecord);
   } catch (error) {

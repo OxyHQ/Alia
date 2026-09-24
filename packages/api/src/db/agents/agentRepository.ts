@@ -29,9 +29,9 @@
  * ## `_id` is served from the Postgres `id`
  *
  * Every shipped client addresses an agent by the id the API handed out —
- * `PATCH /agents/:id`, `DELETE /agents/:id`, `POST /agents/:id/hire`. This is a
+ * `PATCH /agents/:id`, `DELETE /agents/:id`, `POST /agents/:id/threads`. This is a
  * versioned contract, not a compat shim: it retires when no supported client
- * reads `_id`. Same call `triggerRepository` and `developerRepository` made.
+ * reads `_id`.
  *
  * ## Searching `tags` is an EXISTS over `unnest`, not a comparison
  *
@@ -71,6 +71,7 @@ import { conversations } from '../schema/chat';
 import { libraryFiles } from '../schema/library';
 import { skills } from '../schema/skills';
 import type { AgentAccess, AgentArchetype, AgentStatus } from '../../domain/agent';
+import { withoutRetiredGrants } from '../../domain/capability-grants';
 import type { OxyKaanaRoutingProfileId } from '../../config/oxy-inference-routing-profile-ids';
 import { escapeLikePattern } from '@oxy.so/utils/sql';
 
@@ -144,7 +145,6 @@ export interface AgentRecord {
   status: AgentStatus;
   access: AgentAccess;
   systemPrompt: string | null;
-  preferredImage: string | null;
   /** Exact Oxy routing-profile PK; null only on unreconciled legacy rows. */
   routingProfileId: string | null;
   scheduleInterval: number | null;
@@ -224,14 +224,19 @@ export function toAgentRecord(row: AgentRow): AgentRecord {
     hireCount: row.hireCount,
     maxConcurrentThreads: row.maxConcurrentThreads,
     price: row.price,
-    capabilityGrants: row.capabilityGrants,
+    /**
+     * Without the RETIRED families (`shell`, `files`). The turn's reader already
+     * ignores them; serving them would hand an editor a switch it cannot draw
+     * and a value it would echo into the next save. Only retired ones: anything
+     * else is stored and served exactly as written.
+     */
+    capabilityGrants: withoutRetiredGrants(row.capabilityGrants),
     isFeatured: row.isFeatured,
     isTrending: row.isTrending,
     isPublished: row.isPublished,
     status: row.status as AgentStatus,
     access: row.access as AgentAccess,
     systemPrompt: row.systemPrompt,
-    preferredImage: row.preferredImage,
     routingProfileId: row.routingProfileId,
     scheduleInterval: row.scheduleInterval,
     soul: toSoul(row),

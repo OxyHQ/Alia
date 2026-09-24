@@ -3,16 +3,21 @@
  * Guards the root-entry / voice-entry split.
  *
  * `@alia.onl/sdk` ships raw source, so a consumer's Metro compiles whatever the
- * root entry can reach. The `./voice` entry exists precisely so a text-chat
- * consumer never compiles `livekit-client` (~1.2 MB raw / ~250 KiB gzip). That
- * split is nominal unless something enforces it: v4.0.0 moved the voice exports
- * out of the root barrel, and a single deep `import` in AliaChatContent quietly
- * put livekit back in every text consumer's graph anyway.
+ * root entry can reach. The `./voice` entry exists so a text-chat consumer
+ * never compiles the voice call — the turn loop, speech playback and call UI.
+ * That split is nominal unless something enforces it: v4.0.0 moved the voice
+ * exports out of the root barrel, and a single deep `import` in
+ * AliaChatContent quietly put the call back in every text consumer's graph.
+ *
+ * It was built to keep `livekit-client` (~1.2 MB raw / ~250 KiB gzip) out of
+ * text consumers. LiveKit is gone since 8.0.0 — the call runs on the device —
+ * and this now also holds that line from both entries.
  *
  * This walks the real import graph from each entry and asserts:
- *   - `src/index.ts` cannot reach `livekit-client`
+ *   - neither entry reaches `livekit-client`
+ *   - `src/index.ts` cannot reach the voice loop (`hooks/useVoiceRoom.ts`)
  *   - `src/voice.ts` still can (otherwise the voice surface has been gutted and
- *     the first assertion would pass for the wrong reason)
+ *     the previous assertion would pass for the wrong reason)
  *
  * Type-only imports are ignored — they are erased before the bundler sees them.
  */
@@ -22,7 +27,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const SRC = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'src');
-const HEAVY_MODULE = 'livekit-client';
+const RETIRED_MODULE = 'livekit-client';
+const VOICE_LOOP = path.join(SRC, 'hooks', 'useVoiceRoom.ts');
 /** Below this, the walker itself is broken and a "pass" would be meaningless. */
 const MIN_MODULES_FROM_ROOT = 20;
 
@@ -91,8 +97,8 @@ function chainTo(file, importedBy) {
   return chain.join(' -> ');
 }
 
-const root = walk('index.ts', HEAVY_MODULE);
-const voice = walk('voice.ts', HEAVY_MODULE);
+const root = walk('index.ts', RETIRED_MODULE);
+const voice = walk('voice.ts', RETIRED_MODULE);
 const failures = [];
 
 if (root.visited.size < MIN_MODULES_FROM_ROOT) {
@@ -102,17 +108,27 @@ if (root.visited.size < MIN_MODULES_FROM_ROOT) {
   );
 }
 
-if (root.hits.length > 0) {
+for (const [entry, result] of [['src/index.ts', root], ['src/voice.ts', voice]]) {
+  if (result.hits.length > 0) {
+    failures.push(
+      `${entry} reaches ${RETIRED_MODULE}, which the SDK no longer depends on. ` +
+        `Voice runs on the device (lib/speech-recognition*, hooks/useVoiceRoom.ts).\n` +
+        result.hits.map((file) => `    ${chainTo(file, result.importedBy)}`).join('\n'),
+    );
+  }
+}
+
+if (root.visited.has(VOICE_LOOP)) {
   failures.push(
-    `src/index.ts reaches ${HEAVY_MODULE}. Text-chat consumers must not compile it — ` +
+    `src/index.ts reaches the voice loop. Text-chat consumers must not compile it — ` +
       `move the import behind the ./voice entry.\n` +
-      root.hits.map((file) => `    ${chainTo(file, root.importedBy)}`).join('\n'),
+      `    ${chainTo(VOICE_LOOP, root.importedBy)}`,
   );
 }
 
-if (voice.hits.length === 0) {
+if (!voice.visited.has(VOICE_LOOP)) {
   failures.push(
-    `src/voice.ts no longer reaches ${HEAVY_MODULE}. Either the voice surface was ` +
+    `src/voice.ts no longer reaches hooks/useVoiceRoom.ts. Either the voice surface was ` +
       `removed or the walker stopped resolving — either way the root-entry check above ` +
       `is passing for the wrong reason.`,
   );
@@ -125,6 +141,7 @@ if (failures.length > 0) {
 }
 
 console.log(
-  `Entry isolation OK — ${HEAVY_MODULE} is unreachable from src/index.ts ` +
-    `(${root.visited.size} modules walked) and reachable from src/voice.ts.`,
+  `Entry isolation OK — the voice loop is unreachable from src/index.ts ` +
+    `(${root.visited.size} modules walked) and reachable from src/voice.ts; ` +
+    `${RETIRED_MODULE} is reachable from neither.`,
 );

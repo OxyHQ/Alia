@@ -13,11 +13,6 @@ import {
   listSessionActivity,
   listSessionEntriesOfType,
 } from '../../db/agents/eventStreamEntryRepository.js';
-import {
-  countTriggerExecutions,
-  findAgentTriggerByType,
-  listTriggerExecutions,
-} from '../../db/automation/triggerRepository.js';
 import { log } from '../../lib/logger.js';
 import type { Request, Response } from 'express';
 
@@ -189,113 +184,6 @@ router.get('/sessions/:sid/sources', authenticateToken, async (req: Request, res
   } catch (error: unknown) {
     log.agents.error({ err: error }, 'Error getting session sources');
     res.status(500).json({ error: 'Failed to get sources' });
-  }
-});
-
-// GET /agents/:id/reports - list report executions for a status_update agent
-router.get('/:id/reports', authenticateToken, async (req: Request, res: Response) => {
-  try {
-    if (!req.user?.id) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
-
-    const agent = await findAgentById(getDb(), String(req.params.id));
-    if (!agent) {
-      return res.status(404).json({ error: 'Agent not found' });
-    }
-    if (agent.author !== req.user.id) {
-      return res.status(403).json({ error: 'Access denied' });
-    }
-
-    // Find the trigger linked to this agent
-    const trigger = await findAgentTriggerByType(
-      getDb(),
-      req.user.id,
-      String(req.params.id),
-      'schedule',
-    );
-
-    if (!trigger) {
-      return res.json({ reports: [], total: 0 });
-    }
-
-    const { page = '1', limit = '20' } = req.query;
-    const pageNum = Math.max(1, parseInt(page as string, 10) || 1);
-    const limitNum = Math.min(50, Math.max(1, parseInt(limit as string, 10) || 20));
-
-    const [reports, total] = await Promise.all([
-      listTriggerExecutions(getDb(), trigger._id, {
-        limit: limitNum,
-        offset: (pageNum - 1) * limitNum,
-      }),
-      countTriggerExecutions(getDb(), trigger._id),
-    ]);
-
-    res.json({ reports, total, page: pageNum, limit: limitNum });
-  } catch (error: unknown) {
-    log.agents.error({ err: error }, 'Error listing agent reports');
-    res.status(500).json({ error: 'Failed to list reports' });
-  }
-});
-
-// GET /agents/:id/routing-logs - list routing decisions for a task_router agent
-router.get('/:id/routing-logs', authenticateToken, async (req: Request, res: Response) => {
-  try {
-    if (!req.user?.id) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
-
-    const agent = await findAgentById(getDb(), String(req.params.id));
-    if (!agent) {
-      return res.status(404).json({ error: 'Agent not found' });
-    }
-    if (agent.author !== req.user.id) {
-      return res.status(403).json({ error: 'Access denied' });
-    }
-
-    const { listRoutingLogsForAgent } = await import('../../db/telemetry/routingLogRepository.js');
-
-    const { page = '1', limit = '20' } = req.query;
-    const pageNum = Math.max(1, parseInt(page as string, 10) || 1);
-    const limitNum = Math.min(50, Math.max(1, parseInt(limit as string, 10) || 20));
-
-    const { logs, total } = await listRoutingLogsForAgent(
-      getDb(),
-      String(req.params.id),
-      (pageNum - 1) * limitNum,
-      limitNum,
-    );
-
-    res.json({ logs, total, page: pageNum, limit: limitNum });
-  } catch (error: unknown) {
-    log.agents.error({ err: error }, 'Error listing routing logs');
-    res.status(500).json({ error: 'Failed to list routing logs' });
-  }
-});
-
-// GET /agents/:id/routing-stats - aggregate routing stats for a task_router agent
-router.get('/:id/routing-stats', authenticateToken, async (req: Request, res: Response) => {
-  try {
-    if (!req.user?.id) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
-
-    const agent = await findAgentById(getDb(), String(req.params.id));
-    if (!agent || agent.author !== req.user.id) {
-      return res.status(404).json({ error: 'Agent not found' });
-    }
-
-    const { routingStatsForAgent } = await import('../../db/telemetry/routingLogRepository.js');
-
-    // `agent._id` and `req.params.id` were two spellings of one id — the former
-    // an ObjectId an aggregation pipeline would not cast, the latter a string
-    // Mongoose did. Against a `text` column they are the same value.
-    const stats = await routingStatsForAgent(getDb(), agent._id);
-
-    res.json(stats);
-  } catch (error: unknown) {
-    log.agents.error({ err: error }, 'Error getting routing stats');
-    res.status(500).json({ error: 'Failed to get routing stats' });
   }
 });
 

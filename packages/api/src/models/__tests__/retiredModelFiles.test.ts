@@ -19,8 +19,8 @@ import { RETIRED_MODEL_FILES } from './retiredModelFiles';
  *
  * There are none. `packages/api` registers no Mongoose model and can register
  * none: `db/__tests__/bootWiring.test.ts` freezes the set of files in this
- * package that import the driver at exactly one, an operator one-shot that
- * nothing imports. So the ref walk, the foreign-owner list and the populate scan
+ * package that import a Mongo driver at exactly zero, and the package declares
+ * no Mongo dependency. So the ref walk, the foreign-owner list and the populate scan
  * were deleted rather than inverted — a scan over a set that is empty by
  * construction reports "no violations" for the same reason a scan that read
  * nothing does, and cannot be made to tell them apart. The gate that goes red the

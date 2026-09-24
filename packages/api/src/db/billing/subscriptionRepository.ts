@@ -5,8 +5,7 @@
  *
  * Six call sites read one subscription with `findOne({ oxyUserId, status: { $in:
  * ['active','trialing'] } })`. Two of them sorted; four did not — and a user can
- * genuinely hold more than one, which `routes/codea.ts` says out loud ("user may
- * have both Alia and Codea"). So those four returned whichever document the
+ * genuinely hold more than one (both Alia and Codea, say). So those four returned whichever document the
  * index happened to yield, and three of them fed `getMemoryLimit()`: an
  * arbitrary memory allowance for anyone holding two subscriptions.
  *
@@ -16,8 +15,7 @@
  * sort already asked for, and what the field is read as meaning everywhere it is
  * displayed. A deliberate behaviour change, called out because it is one.
  *
- * `created_at` is `notNull`, so no `NULLS LAST` is needed here — unlike the
- * `last_failure` ordering in `authHealthRepository`, where it was load-bearing.
+ * `created_at` is `notNull`, so no `NULLS LAST` is needed here.
  *
  * ## `plan_snapshot_*` is what was SOLD
  *
@@ -81,26 +79,6 @@ export async function findActiveSubscriptions(
     .from(subscriptions)
     .where(liveFor(oxyUserId))
     .orderBy(desc(subscriptions.createdAt));
-}
-
-/**
- * The live subscription whose billing period started most recently.
- *
- * A different ordering from `findActiveSubscription`, and deliberately so: the
- * voice-minutes entitlement is measured from the CURRENT period's start, which
- * is not necessarily the newest subscription's creation date.
- */
-export async function findActiveSubscriptionByPeriodStart(
-  db: ApiDatabase,
-  oxyUserId: string,
-): Promise<SubscriptionRow | null> {
-  const [row] = await db
-    .select()
-    .from(subscriptions)
-    .where(liveFor(oxyUserId))
-    .orderBy(desc(subscriptions.currentPeriodStart))
-    .limit(1);
-  return row ?? null;
 }
 
 export async function findSubscriptionByStripeId(

@@ -1,6 +1,5 @@
 import { Router } from 'express';
 import { authenticateToken, optionalAuth } from '../../middleware/auth.js';
-import { getAgentCapabilities } from '../../lib/agent/health.js';
 import { getDb } from '../../db/index.js';
 import {
   createAgent,
@@ -42,7 +41,7 @@ import {
 import { log } from '../../lib/logger.js';
 import { z } from 'zod';
 import { OXY_KAANA_ROUTING_PROFILE_IDS } from '../../config/oxy-inference-routing-profile-ids.js';
-import { formatCapabilityGrant, isCapabilityGrant } from '../../domain/capability-grants.js';
+import { formatCapabilityGrant, isCapabilityGrant, withoutRetiredGrants } from '../../domain/capability-grants.js';
 import {
   listMcpServersForUser,
   type McpServerRow,
@@ -149,17 +148,6 @@ router.get('/me', authenticateToken, async (req: Request, res: Response) => {
   } catch (error: unknown) {
     log.agents.error({ err: error }, 'Error listing user agents');
     res.status(500).json({ error: 'Failed to list your agents' });
-  }
-});
-
-// GET /agents/health - infrastructure status
-router.get('/health', async (_req: Request, res: Response) => {
-  try {
-    const capabilities = await getAgentCapabilities();
-    res.json({ capabilities });
-  } catch (error: unknown) {
-    log.agents.error({ err: error }, 'Error checking agent health');
-    res.status(500).json({ error: 'Failed to check health' });
   }
 });
 
@@ -359,6 +347,20 @@ const capabilityGrantSchema = z
   .refine(isCapabilityGrant, { message: 'Not a capability grant' });
 
 /**
+ * The whole list, with RETIRED families dropped before each entry is checked.
+ *
+ * The one exception to "refused rather than dropped", and a narrow one: a
+ * family that used to exist (`RETIRED_CAPABILITY_FAMILIES`) is not a mistake
+ * the sender can fix — an editor that loaded the agent before `shell`/`files`
+ * were retired echoes them back on every autosave, and refusing that would 400
+ * the whole save, prompt and all. Any other unknown grant is still a 400.
+ */
+const capabilityGrantsSchema = z
+  .array(z.string())
+  .transform(withoutRetiredGrants)
+  .pipe(z.array(capabilityGrantSchema));
+
+/**
  * What `POST /agents` accepts.
  *
  * `oxyAccountId` is REQUIRED and is the only identity field on the whole
@@ -389,7 +391,7 @@ const createAgentSchema = z
     category: z.string().min(1).max(100),
     tags: z.array(z.string()).optional(),
     price: z.number().int().nullable().optional(),
-    capabilityGrants: z.array(capabilityGrantSchema).optional(),
+    capabilityGrants: capabilityGrantsSchema.optional(),
     skills: z.array(z.string()).optional(),
     knowledge: z.array(z.string()).optional(),
     isPublished: z.boolean().optional(),
@@ -479,7 +481,7 @@ const updateAgentSchema = z
     category: z.string().min(1).max(100).optional(),
     tags: z.array(z.string()).optional(),
     price: z.number().int().nullable().optional(),
-    capabilityGrants: z.array(capabilityGrantSchema).optional(),
+    capabilityGrants: capabilityGrantsSchema.optional(),
     isPublished: z.boolean().optional(),
     status: statusSchema.optional(),
     access: accessSchema.optional(),

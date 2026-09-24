@@ -74,7 +74,7 @@ import { toast } from '@oxy.so/bloom/toast';
 import { Muted, Text } from '@oxy.so/bloom/typography';
 import { useOxy } from '@oxy.so/services';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import { ScrollView, View } from 'react-native';
 
 type LinkedSkill = {
@@ -326,7 +326,7 @@ function AgentEditor({ agent }: { agent: Agent }) {
   const [sidebarTab, setSidebarTab] = useState<SidebarTab>('resources');
 
   // Telegram bot binding for this agent
-  const { bots: agentBots, registerBot, removeBot } = useAgentBots(agent._id);
+  const { bots: agentBots, registerBot, removeBot, setOwnerPaysAgentTurns } = useAgentBots(agent._id);
   const [showBotDialog, setShowBotDialog] = useState(false);
   const [botToken, setBotToken] = useState('');
   const [connectingBot, setConnectingBot] = useState(false);
@@ -614,6 +614,17 @@ function AgentEditor({ agent }: { agent: Agent }) {
       setConnectingBot(false);
     }
   }, [botToken, connectingBot, registerBot, t]);
+
+  const handleOwnerPaysToggle = useCallback(
+    async (bot: AgentBot, next: boolean) => {
+      try {
+        await setOwnerPaysAgentTurns(bot._id, next);
+      } catch {
+        toast.error(t("agents.telegramBot.errorGeneric"));
+      }
+    },
+    [setOwnerPaysAgentTurns, t]
+  );
 
   const handleRemoveBot = useCallback(
     async (bot: AgentBot) => {
@@ -949,8 +960,8 @@ function AgentEditor({ agent }: { agent: Agent }) {
               }
             >
               {agentBots.map((bot) => (
+                <Fragment key={bot._id}>
                 <SettingsListItem
-                  key={bot._id}
                   icon={<RiSendPlaneLine size="md" />}
                   title={bot.username ? `@${bot.username}` : bot.name}
                   rightElement={
@@ -976,6 +987,19 @@ function AgentEditor({ agent }: { agent: Agent }) {
                     </View>
                   }
                 />
+                {/* Who pays when the agent's own balance runs out. */}
+                <SettingsListItem
+                  title={t('agents.telegramBot.ownerPaysLabel')}
+                  description={t('agents.telegramBot.ownerPaysHint')}
+                  rightElement={
+                    <Switch
+                      accessibilityLabel={t('agents.telegramBot.ownerPaysLabel')}
+                      value={bot.ownerPaysAgentTurns === true}
+                      onValueChange={(next) => handleOwnerPaysToggle(bot, next)}
+                    />
+                  }
+                />
+                </Fragment>
               ))}
               <SettingsListItem
                 icon={<RiAddLine size="md" />}

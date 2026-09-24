@@ -1,7 +1,4 @@
-import type {
-  AgentActivityState,
-  AgentScreenshot,
-} from '@/lib/hooks/use-agent-activity';
+import type { AgentActivityState } from '@/lib/hooks/use-agent-activity';
 import { useTranslation } from '@/lib/hooks/use-translation';
 import { getToolPillLabel } from '@/lib/task-utils';
 import { Admonition } from '@oxy.so/bloom/admonition';
@@ -10,9 +7,8 @@ import { AgentThinking } from '@oxy.so/bloom/agent-thinking';
 import { Badge } from '@oxy.so/bloom/badge';
 import { Card, CardBody, CardHeader } from '@oxy.so/bloom/card';
 import { Muted } from '@oxy.so/bloom/typography';
-import { Image } from 'expo-image';
 import React, { useEffect, useState } from 'react';
-import { Pressable, View } from 'react-native';
+import { View } from 'react-native';
 
 /**
  * AgentTaskCard — an agent run in progress, inline in the chat.
@@ -50,27 +46,9 @@ export function uniqueStepLabels(texts: readonly string[]): string[] {
   });
 }
 
-function ScreenshotThumbnail({ screenshot }: { screenshot: AgentScreenshot }) {
-  const [expanded, setExpanded] = useState(false);
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={screenshot.url}
-      onPress={() => setExpanded((open) => !open)}
-      className="overflow-hidden rounded-lg"
-    >
-      <Image
-        source={{ uri: `data:image/png;base64,${screenshot.base64}` }}
-        className={expanded ? 'h-[200px] w-[320px]' : 'h-[75px] w-[120px]'}
-        contentFit="cover"
-      />
-    </Pressable>
-  );
-}
-
 export const AgentTaskCard = React.memo(function AgentTaskCard({ activity }: AgentTaskCardProps) {
   const { t } = useTranslation();
-  const { plan, screenshots, currentAction, isComplete, hasError, lastError, eventCount, startedAt, latestResponse } =
+  const { plan, currentAction, isComplete, hasError, lastError, eventCount, startedAt, latestResponse } =
     activity;
   const [now, setNow] = useState(() => Date.now());
 
@@ -135,16 +113,6 @@ export const AgentTaskCard = React.memo(function AgentTaskCard({ activity }: Age
 
           {hasError && lastError ? <Admonition type="error">{lastError}</Admonition> : null}
 
-          {screenshots.length > 0 ? (
-            <View className="gap-1.5">
-              <Muted>{t('chat.agentRun.browser')}</Muted>
-              <View className="flex-row flex-wrap gap-2">
-                {screenshots.map((s, i) => (
-                  <ScreenshotThumbnail key={`ss-${i}`} screenshot={s} />
-                ))}
-              </View>
-            </View>
-          ) : null}
         </View>
       </CardBody>
     </Card>

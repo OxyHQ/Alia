@@ -11,7 +11,6 @@ const mailbox = {
 
 const automation: AutomationDefinition = {
   id: 'automation-1',
-  name: 'Important email reply',
   objective: 'Reply to important email',
   trigger: {
     type: 'event',
@@ -37,7 +36,6 @@ const automation: AutomationDefinition = {
     { key: 'recipients', value: ['customer@example.test'] },
   ],
   enabled: true,
-  legacyTriggerId: null,
   createdAt: '2026-09-01T10:00:00.000Z',
   updatedAt: '2026-09-01T10:00:00.000Z',
 };

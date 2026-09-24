@@ -107,7 +107,6 @@ export interface Agent {
    */
   access: 'private' | 'public';
   systemPrompt?: string;
-  allowedModels?: string[];
   archetype?: AgentArchetype;
   archetypeConfig?: ArchetypeConfig;
   createdAt: string;

@@ -50,7 +50,6 @@ import {
 } from '@oxy.so/bloom/settings-list';
 import { confirm } from '@oxy.so/bloom/surfaces';
 import { Switch } from '@oxy.so/bloom/switch';
-import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
 import { Textarea } from '@oxy.so/bloom/textarea';
 import { toast } from '@oxy.so/bloom/toast';
 import { Muted, Text } from '@oxy.so/bloom/typography';
@@ -65,14 +64,6 @@ const STATUS_TONE = {
   active: 'success',
   idle: 'warning',
   offline: 'default',
-} as const;
-
-/** A routing log's priority, as a badge tone. */
-const PRIORITY_TONE = {
-  urgent: 'error',
-  high: 'warning',
-  medium: 'info',
-  low: 'success',
 } as const;
 
 function formatCount(n: number): string {
@@ -93,115 +84,6 @@ function formatRelativeTime(dateStr: string): string {
   const days = Math.floor(hours / 24);
   return `${days}d ago`;
 }
-
-function formatDuration(ms: number): string {
-  if (ms < 1000) return `${ms}ms`;
-  const s = (ms / 1000).toFixed(1);
-  return `${s}s`;
-}
-
-// ─── Report Item ────────────────────────────────────────────────────────────
-
-interface ReportItem {
-  _id: string;
-  status: 'success' | 'failed' | string;
-  createdAt: string;
-  durationMs?: number;
-  result?: string;
-}
-
-function ReportCard({ item }: { item: ReportItem }) {
-  const isSuccess = item.status === 'success';
-  const preview = (item.result || '').slice(0, 200);
-  return (
-    <Card appearance="outline">
-      <CardBody>
-        <View className="gap-2 py-1">
-          <View className="flex-row items-center gap-3">
-            <Badge
-              size="label-small"
-              variant="subtle"
-              color={isSuccess ? 'success' : 'error'}
-              content={item.status}
-            />
-            <View className="flex-1" />
-            {item.durationMs != null && (
-              <Muted>{formatDuration(item.durationMs)}</Muted>
-            )}
-            <Muted>{formatRelativeTime(item.createdAt)}</Muted>
-          </View>
-          {preview ? (
-            <Text variant="body-regular">
-              {preview}
-              {(item.result || '').length > 200 ? '…' : ''}
-            </Text>
-          ) : null}
-        </View>
-      </CardBody>
-    </Card>
-  );
-}
-
-// ─── Routing Log Item ───────────────────────────────────────────────────────
-
-interface RoutingLogItem {
-  _id: string;
-  classification?: {
-    category?: string;
-    priority?: 'urgent' | 'high' | 'medium' | 'low' | string;
-    confidence?: number;
-  };
-  inboundSummary?: string;
-  routedTo?: { type?: string; id?: string; name?: string } | null;
-  reasoning?: string;
-  status?: string;
-  createdAt: string;
-}
-
-function RoutingLogCard({ item }: { item: RoutingLogItem }) {
-  const priority = item.classification?.priority ?? 'medium';
-  const category = item.classification?.category;
-  const tone =
-    PRIORITY_TONE[priority as keyof typeof PRIORITY_TONE] ?? 'default';
-  return (
-    <Card appearance="outline">
-      <CardBody>
-        <View className="gap-2 py-1">
-          <View className="flex-row items-center gap-2">
-            <Badge
-              size="label-small"
-              variant="subtle"
-              color={tone}
-              content={priority}
-            />
-            {category ? <Text variant="body-medium">{category}</Text> : null}
-            <View className="flex-1" />
-            <Muted>{formatRelativeTime(item.createdAt)}</Muted>
-          </View>
-          {item.inboundSummary ? (
-            <Text variant="body-regular">{item.inboundSummary}</Text>
-          ) : null}
-          {item.routedTo?.name || item.status ? (
-            <View className="flex-row items-center gap-2">
-              {item.routedTo?.name ? (
-                <Muted>→ {item.routedTo.name}</Muted>
-              ) : null}
-              {item.status ? (
-                <Badge
-                  size="label-small"
-                  variant="outlined"
-                  content={item.status}
-                />
-              ) : null}
-            </View>
-          ) : null}
-        </View>
-      </CardBody>
-    </Card>
-  );
-}
-
-type DetailTab = 'overview' | 'reports' | 'routing';
 
 /** A section of the overview: its heading, then its content. */
 function Section({
@@ -271,13 +153,6 @@ export default function AgentDetailScreen() {
   const isFavorite = useAgentFavoritesStore((s) => s.isFavorite);
   const loadFavorites = useAgentFavoritesStore((s) => s.loadFavorites);
 
-  // Archetype tab state
-  const [detailTab, setDetailTab] = useState<DetailTab>('overview');
-  const [reports, setReports] = useState<ReportItem[]>([]);
-  const [reportsLoading, setReportsLoading] = useState(false);
-  const [routingLogs, setRoutingLogs] = useState<RoutingLogItem[]>([]);
-  const [routingLoading, setRoutingLoading] = useState(false);
-
   // Review state
   const [reviews, setReviews] = useState<any[]>([]);
   const [userReview, setUserReview] = useState<any>(null);
@@ -306,29 +181,6 @@ export default function AgentDetailScreen() {
         .catch((err) => console.error('Failed to load reviews:', err));
     }
   }, [id]);
-
-  // Load reports when reports tab becomes active (status_update archetype)
-  const archetype = agent?.archetype;
-  useEffect(() => {
-    if (detailTab !== 'reports' || !id || archetype !== 'status_update') return;
-    setReportsLoading(true);
-    apiClient
-      .get(`/agents/${id}/reports`)
-      .then((res) => setReports(res.data?.reports || res.data || []))
-      .catch((err) => console.error('Failed to load reports:', err))
-      .finally(() => setReportsLoading(false));
-  }, [detailTab, id, archetype]);
-
-  // Load routing logs when routing tab becomes active (task_router archetype)
-  useEffect(() => {
-    if (detailTab !== 'routing' || !id || archetype !== 'task_router') return;
-    setRoutingLoading(true);
-    apiClient
-      .get(`/agents/${id}/routing-logs`)
-      .then((res) => setRoutingLogs(res.data?.logs || res.data || []))
-      .catch((err) => console.error('Failed to load routing logs:', err))
-      .finally(() => setRoutingLoading(false));
-  }, [detailTab, id, archetype]);
 
   const isOwner = !!(user && agent && user.id === agent.author);
   const bookmarked = agent ? isFavorite(agent._id) : false;
@@ -741,211 +593,161 @@ export default function AgentDetailScreen() {
             />
           )}
 
-          {/* Archetype tabs */}
-          {(agent.archetype === 'status_update' ||
-            agent.archetype === 'task_router') && (
-            <Tabs
-              value={detailTab}
-              onValueChange={(next) => setDetailTab(next as DetailTab)}
-            >
-              <TabsTrigger value="overview" label="Overview" />
-              {agent.archetype === 'status_update' ? (
-                <TabsTrigger value="reports" label="Reports" />
-              ) : (
-                <TabsTrigger value="routing" label="Routing" />
-              )}
-            </Tabs>
+          {/* Overview */}
+          {agentThreads.length > 0 && (
+            <SettingsListGroup title={t('agents.threads')}>
+              {agentThreads.slice(0, 8).map((thread) => (
+                <SettingsListItem
+                  key={thread.id}
+                  title={thread.title}
+                  titleNumberOfLines={1}
+                  description={`${thread.executionTarget === 'cowork' ? 'Cowork' : 'Sandbox'} · ${thread.status}`}
+                  value={formatRelativeTime(thread.updatedAt)}
+                  onPress={() => {
+                    if (handle)
+                      router.push({
+                        pathname: '/(app)/[username]',
+                        params: {
+                          username: `@${handle}`,
+                          threadId: thread.id,
+                        },
+                      });
+                  }}
+                />
+              ))}
+            </SettingsListGroup>
           )}
 
-          {/* Reports */}
-          {detailTab === 'reports' &&
-            agent.archetype === 'status_update' &&
-            (reportsLoading ? (
-              <Loading variant="spinner" size="sm" />
-            ) : reports.length === 0 ? (
-              <EmptyState variant="compact" title="No reports yet" />
-            ) : (
-              <View className="gap-2">
-                {reports.map((item) => (
-                  <ReportCard key={item._id} item={item} />
-                ))}
-              </View>
-            ))}
+          <Section title={t('agents.activity')}>
+            <ActivityGrid agentId={agent._id} />
+          </Section>
 
-          {/* Routing */}
-          {detailTab === 'routing' &&
-            agent.archetype === 'task_router' &&
-            (routingLoading ? (
-              <Loading variant="spinner" size="sm" />
-            ) : routingLogs.length === 0 ? (
-              <EmptyState variant="compact" title="No routing activity yet" />
-            ) : (
-              <View className="gap-2">
-                {routingLogs.map((item) => (
-                  <RoutingLogCard key={item._id} item={item} />
-                ))}
-              </View>
-            ))}
+          <Divider />
 
-          {/* Overview (every archetype, while the overview is active) */}
-          {detailTab === 'overview' && (
+          <Section title={t('agents.about')}>
+            <Text variant="body-regular">{agent.description}</Text>
+          </Section>
+
+          {/* Capabilities — the families this agent was granted, by their
+              own labels. A connector grant (`mcp:<id>`) is deliberately not
+              shown: the id is meaningless to a reader and the connector
+              belongs to the owner, not to this public listing. */}
+          {grantedFamilyLabels.length > 0 && (
             <>
-              {agentThreads.length > 0 && (
-                <SettingsListGroup title={t('agents.threads')}>
-                  {agentThreads.slice(0, 8).map((thread) => (
-                    <SettingsListItem
-                      key={thread.id}
-                      title={thread.title}
-                      titleNumberOfLines={1}
-                      description={`${thread.executionTarget === 'cowork' ? 'Cowork' : 'Sandbox'} · ${thread.status}`}
-                      value={formatRelativeTime(thread.updatedAt)}
-                      onPress={() => {
-                        if (handle)
-                          router.push({
-                            pathname: '/(app)/[username]',
-                            params: {
-                              username: `@${handle}`,
-                              threadId: thread.id,
-                            },
-                          });
-                      }}
+              <Divider />
+              <Section title={t('agents.capabilities')}>
+                <ChipList items={grantedFamilyLabels} />
+              </Section>
+            </>
+          )}
+
+          {agent.tags.length > 0 && (
+            <>
+              <Divider />
+              <Section title={t('agents.tags')}>
+                <ChipList items={agent.tags} />
+              </Section>
+            </>
+          )}
+
+          <Divider />
+          <Section
+            title={t('agents.reviews')}
+            action={
+              user && !isOwner && !showReviewForm ? (
+                <Button
+                  size="sm"
+                  appearance="plain"
+                  onPress={() => setShowReviewForm(true)}
+                >
+                  {userReview
+                    ? t('agents.editReview')
+                    : t('agents.writeReview')}
+                </Button>
+              ) : null
+            }
+          >
+            {showReviewForm && (
+              <Card appearance="outline">
+                <CardBody>
+                  <View className="gap-3 py-1">
+                    <RatingInput
+                      value={reviewRating || null}
+                      onChange={setReviewRating}
+                      accessibilityLabel={t('agents.reviews')}
                     />
-                  ))}
-                </SettingsListGroup>
-              )}
-
-              <Section title={t('agents.activity')}>
-                <ActivityGrid agentId={agent._id} />
-              </Section>
-
-              <Divider />
-
-              <Section title={t('agents.about')}>
-                <Text variant="body-regular">{agent.description}</Text>
-              </Section>
-
-              {/* Capabilities — the families this agent was granted, by their
-                  own labels. A connector grant (`mcp:<id>`) is deliberately not
-                  shown: the id is meaningless to a reader and the connector
-                  belongs to the owner, not to this public listing. */}
-              {grantedFamilyLabels.length > 0 && (
-                <>
-                  <Divider />
-                  <Section title={t('agents.capabilities')}>
-                    <ChipList items={grantedFamilyLabels} />
-                  </Section>
-                </>
-              )}
-
-              {agent.tags.length > 0 && (
-                <>
-                  <Divider />
-                  <Section title={t('agents.tags')}>
-                    <ChipList items={agent.tags} />
-                  </Section>
-                </>
-              )}
-
-              <Divider />
-              <Section
-                title={t('agents.reviews')}
-                action={
-                  user && !isOwner && !showReviewForm ? (
-                    <Button
-                      size="sm"
-                      appearance="plain"
-                      onPress={() => setShowReviewForm(true)}
-                    >
-                      {userReview
-                        ? t('agents.editReview')
-                        : t('agents.writeReview')}
-                    </Button>
-                  ) : null
-                }
-              >
-                {showReviewForm && (
-                  <Card appearance="outline">
-                    <CardBody>
-                      <View className="gap-3 py-1">
-                        <RatingInput
-                          value={reviewRating || null}
-                          onChange={setReviewRating}
-                          accessibilityLabel={t('agents.reviews')}
-                        />
-                        <Textarea
-                          value={reviewComment}
-                          onValueChange={setReviewComment}
-                          placeholder={t('agents.reviewPlaceholder')}
-                          rows={3}
-                          autoResize
-                        />
-                        <View className="flex-row justify-end gap-2">
-                          <Button
-                            size="sm"
-                            tone="neutral"
-                            appearance="plain"
-                            onPress={() => setShowReviewForm(false)}
-                          >
-                            {t('common.cancel')}
-                          </Button>
-                          <Button
-                            size="sm"
-                            tone="action"
-                            onPress={handleSubmitReview}
-                            disabled={!reviewRating}
-                            loading={submittingReview}
-                          >
-                            {t('agents.writeReview')}
-                          </Button>
-                        </View>
-                      </View>
-                    </CardBody>
-                  </Card>
-                )}
-
-                {reviews.length === 0 && !showReviewForm ? (
-                  <Muted>{t('agents.noReviews')}</Muted>
-                ) : (
-                  <View className="gap-3">
-                    {reviews.map((review: any) => (
-                      <View key={review._id} className="gap-1">
-                        <View className="flex-row items-center gap-2">
-                          <Text variant="body-medium">
-                            {review.userId?.username || 'User'}
-                          </Text>
-                          <Rating value={review.rating} size="small" />
-                          <View className="flex-1" />
-                          {user && review.userId?._id === user.id && (
-                            <Button
-                              size="xs"
-                              tone="neutral"
-                              appearance="plain"
-                              icon={RiDeleteBinLine}
-                              accessibilityLabel={t('agents.deleteReview')}
-                              onPress={handleDeleteReview}
-                            />
-                          )}
-                        </View>
-                        {review.comment ? (
-                          <Text variant="body-regular">{review.comment}</Text>
-                        ) : null}
-                      </View>
-                    ))}
-                  </View>
-                )}
-              </Section>
-
-              {/* Activity terminal — mobile only; desktop has it beside. */}
-              {!isLargeScreen && (
-                <>
-                  <Divider />
-                  <Section title={t('agents.activity')}>
-                    <View className="h-[300px]">
-                      <AgentTerminal agentId={agent._id} />
+                    <Textarea
+                      value={reviewComment}
+                      onValueChange={setReviewComment}
+                      placeholder={t('agents.reviewPlaceholder')}
+                      rows={3}
+                      autoResize
+                    />
+                    <View className="flex-row justify-end gap-2">
+                      <Button
+                        size="sm"
+                        tone="neutral"
+                        appearance="plain"
+                        onPress={() => setShowReviewForm(false)}
+                      >
+                        {t('common.cancel')}
+                      </Button>
+                      <Button
+                        size="sm"
+                        tone="action"
+                        onPress={handleSubmitReview}
+                        disabled={!reviewRating}
+                        loading={submittingReview}
+                      >
+                        {t('agents.writeReview')}
+                      </Button>
                     </View>
-                  </Section>
-                </>
-              )}
+                  </View>
+                </CardBody>
+              </Card>
+            )}
+
+            {reviews.length === 0 && !showReviewForm ? (
+              <Muted>{t('agents.noReviews')}</Muted>
+            ) : (
+              <View className="gap-3">
+                {reviews.map((review: any) => (
+                  <View key={review._id} className="gap-1">
+                    <View className="flex-row items-center gap-2">
+                      <Text variant="body-medium">
+                        {review.userId?.username || 'User'}
+                      </Text>
+                      <Rating value={review.rating} size="small" />
+                      <View className="flex-1" />
+                      {user && review.userId?._id === user.id && (
+                        <Button
+                          size="xs"
+                          tone="neutral"
+                          appearance="plain"
+                          icon={RiDeleteBinLine}
+                          accessibilityLabel={t('agents.deleteReview')}
+                          onPress={handleDeleteReview}
+                        />
+                      )}
+                    </View>
+                    {review.comment ? (
+                      <Text variant="body-regular">{review.comment}</Text>
+                    ) : null}
+                  </View>
+                ))}
+              </View>
+            )}
+          </Section>
+
+          {/* Activity terminal — mobile only; desktop has it beside. */}
+          {!isLargeScreen && (
+            <>
+              <Divider />
+              <Section title={t('agents.activity')}>
+                <View className="h-[300px]">
+                  <AgentTerminal agentId={agent._id} />
+                </View>
+              </Section>
             </>
           )}
         </View>

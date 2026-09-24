@@ -461,7 +461,6 @@ function agentFixture(
     status: 'active',
     access: 'private',
     systemPrompt: 'you are helpful',
-    allowedModels: ['route:auto'],
     archetype: 'general',
     archetypeConfig: null,
     createdAt: '2026-08-01T00:00:00.000Z',

@@ -84,13 +84,20 @@ jobs:
       #
       # Enumerating is also least privilege. The old loop copied every secret
       # visible to the repo, so the org-wide CI credentials (NPM_TOKEN,
-      # CLOUDFLARE_API_TOKEN, ADD_TO_PROJECT_TOKEN) ended up in this app's SSM
+      # CLOUDFLARE_API_TOKEN) ended up in this app's SSM
       # namespace.
       #
       # The list is the GitHub-owned secrets the `alia` task definition
       # consumes. Oxy's ApplicationCredential is intentionally absent: Oxy
       # provisions it from its database into SSM, and the inference stage below
       # only validates and binds those existing parameters.
+      #
+      # LIVEKIT_API_KEY and LIVEKIT_API_SECRET are deliberately absent. Alia
+      # read them only for the LiveKit voice room, and voice runs on the device
+      # since SDK 8.0.0 (docs/voice.mdx), so no Alia code reads them. The
+      # /oxy/_shared/ parameters belong to OxyHQServices, which writes them for
+      # the services that still use LiveKit; this workflow must not overwrite
+      # them.
       - name: Sync GitHub secrets -> SSM (GitHub is the source of truth)
         env:
           APP_DATABASE_URL: ${{ secrets.DATABASE_URL }}
@@ -99,8 +106,6 @@ jobs:
           APP_VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
           SHARED_AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           SHARED_AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          SHARED_LIVEKIT_API_KEY: ${{ secrets.LIVEKIT_API_KEY }}
-          SHARED_LIVEKIT_API_SECRET: ${{ secrets.LIVEKIT_API_SECRET }}
           SHARED_REDIS_URL: ${{ secrets.REDIS_URL }}
         run: |
           sync_secret() {
@@ -119,8 +124,6 @@ jobs:
           sync_secret VAPID_PRIVATE_KEY "$APP_VAPID_PRIVATE_KEY" "/oxy/$APP/VAPID_PRIVATE_KEY"
           sync_secret AWS_ACCESS_KEY_ID "$SHARED_AWS_ACCESS_KEY_ID" "/oxy/_shared/AWS_ACCESS_KEY_ID"
           sync_secret AWS_SECRET_ACCESS_KEY "$SHARED_AWS_SECRET_ACCESS_KEY" "/oxy/_shared/AWS_SECRET_ACCESS_KEY"
-          sync_secret LIVEKIT_API_KEY "$SHARED_LIVEKIT_API_KEY" "/oxy/_shared/LIVEKIT_API_KEY"
-          sync_secret LIVEKIT_API_SECRET "$SHARED_LIVEKIT_API_SECRET" "/oxy/_shared/LIVEKIT_API_SECRET"
 
           # Valkey lives in the cluster's region; a URL from another region
           # leaves the service silently without a cache, so it is rejected.

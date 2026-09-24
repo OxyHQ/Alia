@@ -24,7 +24,7 @@
  * The collapse is a UNION, not an intersection. A capability that existed on
  * any path exists on all of them now, and what still differs does so because it
  * has a structural precondition — an SSE emitter to push events through, a live
- * container and browser to act on, a device to describe — never because of
+ * session and plan to act on, a device to describe — never because of
  * which function happened to build the set.
  *
  * ## The agent is an INPUT, and its GRANTS are what partition the set
@@ -58,7 +58,6 @@ import type { ToolSet } from 'ai';
 import {
   getCurrentDateTool,
   webSearchTool,
-  browseTool,
   webScraperTool,
   generateFileTool,
   saveUserMemoryTool,
@@ -118,7 +117,7 @@ export interface ForUserOptions {
   userId: string;
   accessToken?: string;
   /**
-   * The caller holds a live user SESSION — an Oxy bearer, not an `alia_sk_` key.
+   * The caller holds a live user SESSION — an Oxy bearer, not a service token.
    *
    * Governs only what needs that bearer to exist: minting an agent under the
    * caller's own Oxy tree, and the agent-mode search and delegation tools.
@@ -175,10 +174,10 @@ export interface ForUserOptions {
    */
   deviceInfo?: DeviceInfo | null;
   /**
-   * A live autonomous-agent session: its container, its browser, its plan.
+   * A live autonomous-agent session: its browser, its plan.
    *
-   * The other structural precondition. `shell`, `browser`, `file_edit`, `plan`
-   * and `delegate` act ON these objects, so they exist only for a turn that has
+   * The other structural precondition. `browser`, `plan` and `delegate` act ON
+   * these objects, so they exist only for a turn that has
    * them — which is the runner's, and no other. Absent everywhere else, and
    * that is why they are not simply always-on like the rest.
    */
@@ -235,7 +234,7 @@ export interface ForUserOptions {
   /**
    * Restrict a normalized background stage to its protocol tools and the exact
    * Oxy actions named by `oxyExecutionAuthorizations`. No user-bound, web,
-   * editor, skill, connector, shell, file, browser or delegation tool is built.
+   * editor, skill, connector, browser or delegation tool is built.
    */
   toolScope?: 'standard' | 'preauthorized_oxy_automation';
   /**
@@ -364,8 +363,7 @@ export class ToolPipeline {
      * `getCurrentDate` is ungranted — it is the clock, and it is already
      * unconditional above for a trigger that switched tools off entirely.
      * `generateFile` and `canvas` both produce something to RENDER rather than
-     * writing anywhere, which is why they are one family and why neither sits
-     * with `file_edit`.
+     * writing anywhere, which is why they are one family.
      */
     const aliaTools: ToolSet = { getCurrentDate: getCurrentDateTool };
     if (grants.allows('artifacts')) {
@@ -376,16 +374,20 @@ export class ToolPipeline {
     /**
      * The web reaches this turn only if it was asked for.
      *
-     * These three were unconditional, and the composer's "Web search" switch
+     * These were unconditional, and the composer's "Web search" switch
      * toggled a local `Set` that reached no request field and no backend read —
      * so the switch was meaningless in both directions at once: it could not
      * enable searching (already on) and could not disable it (no flag). The
      * flag exists now and this is what it does.
+     *
+     * There is no `browse` beside them any more. It drove a local Chromium the
+     * runtime image does not ship, so it failed at launch in production; a
+     * Clarity-backed rewrite would have been `webSearch` plus `webScraper` under
+     * a third name.
      */
     if (webSearch && grants.allows('web')) {
       aliaTools.webSearch = webSearchTool;
       aliaTools.webScraper = webScraperTool;
-      aliaTools.browse = browseTool;
       // The card tools ride the same grant: each one is the assistant reaching
       // the open internet on the reader's behalf, just at a named service
       // rather than at whatever a search turns up.
@@ -558,8 +560,7 @@ export class ToolPipeline {
         ]);
     Object.assign(aliaTools, mcpTools, integrationTools, oxyServiceTools, ownAgentTools);
 
-    // Skills: `loadSkill`, `readSkillFile` and — where a sandbox exists —
-    // `runSkillScript`. Present for API-key callers too: a skill reaches the
+    // Skills: `loadSkill` and `readSkillFile`. Present for API-key callers too: a skill reaches the
     // model only through the candidate set `lib/skills/runtime.ts` already
     // resolved, so the tools carry their own authorization rather than
     // depending on the session kind.

@@ -410,13 +410,7 @@ export const ChatPageContent = ({
               roomState={voice.roomState}
               agentState={voice.agentState}
               isMuted={voice.isMuted}
-              cohostActive={voice.cohostActive}
-              currentSpeaker={voice.currentSpeaker}
-              roundComplete={voice.roundComplete}
               onToggleMute={voice.toggleMute}
-              onEnableCohost={voice.enableCohost}
-              onDisableCohost={voice.disableCohost}
-              onContinueCohost={voice.continueCohost}
               onEnd={voice.deactivateVoice}
               primaryColor={colors.primary}
             />

@@ -1,12 +1,11 @@
 /**
- * Chat: conversations, the messages in them, and the canvas attached to one.
+ * Chat: conversations and the messages in them.
  *
- * These three land together because they are keyed the same way. A conversation
- * is addressed by `(oxy_user_id, conversation_id)` — a client-supplied business
- * key, NOT the row's `_id` — and both `messages` and `canvas_sessions` reference
- * it by that pair rather than by an id. Deciding what constraint that pair earns
- * is one decision, and splitting it across two changes is how it ends up with
- * two different answers.
+ * These land together because they are keyed the same way. A conversation is
+ * addressed by `(oxy_user_id, conversation_id)` — a client-supplied business
+ * key, NOT the row's `_id` — and `messages` references it by that pair rather
+ * than by an id. (`canvas_sessions`, keyed the same way, never had a writer
+ * and was dropped.)
  *
  * None declared a TTL index, so none appears in `db/expiryTargets.ts`. This is
  * user content: a conversation is deleted when its owner deletes it
@@ -16,7 +15,6 @@
 import { boolean, index, integer, jsonb, pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import { createdAt, generatedId, updatedAt } from '@oxy.so/db';
-import type { CanvasComponent } from '../../domain/canvas-session.js';
 import { CONVERSATION_SOURCES, MESSAGE_ROLES, MESSAGE_VOTES } from '../../domain/conversation.js';
 import { checkOneOf } from './columns';
 
@@ -267,41 +265,5 @@ export const messages = pgTable(
     index('messages_search_idx')
       .using('gin', sql`to_tsvector('simple', alia_message_text(${t.content}))`)
       .where(sql`${t.role} in ('user', 'assistant')`),
-  ],
-);
-
-/**
- * The canvas components attached to one conversation.
- *
- * **This table has no writer.** All three call sites are reads or a delete —
- * `socket.ts`'s `subscribe-canvas` check and `GET /api/sessions/:conversationId`
- * load it, `DELETE /api/sessions/:conversationId` clears it — and nothing in the
- * package creates or updates one. Recorded because a table with only readers looks
- * active from any single call site, and because it decides the column below: the
- * question "should `components` be a child table" cannot turn on how elements
- * are written when nothing writes them.
- *
- * `components` is therefore `jsonb`: `GET /api/sessions/:conversationId` returns
- * the array verbatim as the response body and nothing addresses an element. Its
- * `data` is `Mixed` per component, so a child table would hold an opaque value
- * anyway — the `fallback_events.attempts` precedent.
- *
- * `conversation_id` gets no foreign key, for the same reason as `messages`, and
- * the unique pair below is Mongo's own.
- */
-export const canvasSessions = pgTable(
-  'canvas_sessions',
-  {
-    id: generatedId(),
-    /** An Oxy account. No foreign key: Oxy owns identity. */
-    oxyUserId: text().notNull(),
-    conversationId: text().notNull(),
-    components: jsonb().$type<CanvasComponent[]>().notNull().default([]),
-    createdAt: createdAt(),
-    updatedAt: updatedAt(),
-  },
-  (t) => [
-    uniqueIndex('canvas_sessions_oxy_user_conversation_id_key').on(t.oxyUserId, t.conversationId),
-    index('canvas_sessions_conversation_id_idx').on(t.conversationId),
   ],
 );

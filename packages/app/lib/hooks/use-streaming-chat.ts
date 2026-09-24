@@ -55,6 +55,19 @@ export interface SendOptions {
    * system prompt, which is what the format is for.
    */
   skillNames?: string[];
+  /**
+   * `'voice'` when the turn was spoken in a voice call: the API answers it
+   * with its voice response profile — short, conversational, nothing that
+   * cannot be read aloud. Omitted for every typed turn.
+   */
+  responseMode?: 'voice';
+  /**
+   * Called with the whole answer so far each time real content arrives, before
+   * it is batched for rendering. Voice mode speaks from this: it needs every
+   * fragment the moment it lands, and the final text before `append` resolves,
+   * neither of which the rendered message list guarantees.
+   */
+  onAnswerText?: (answerSoFar: string) => void;
 }
 
 /** Server tools that mutate the user's memory document (see packages/api `lib/tools/user-memory.ts`). */
@@ -296,7 +309,10 @@ export function useStreamingChat(apiUrl: string, conversationId?: string, reason
         // pre-send snapshot here. `prev` is always the queue's own truth.
         setMessagesAndRef((prev) => prev.filter((m) => m.id !== assistantMessage.id));
       }
-      retryRef.current = { message, options, userMessageId: userMessage.id };
+      // A retry is pressed on screen, long after the call that asked for this
+      // turn may have moved on: it gets the options, not the live listener.
+      const { onAnswerText: _listener, ...retryOptions } = options ?? {};
+      retryRef.current = { message, options: retryOptions, userMessageId: userMessage.id };
       setFailedTurn({
         userMessageId: userMessage.id,
         anchorMessageId: partial ? assistantMessage.id : userMessage.id,
@@ -407,6 +423,7 @@ export function useStreamingChat(apiUrl: string, conversationId?: string, reason
           ...(options?.mcpServerId === undefined
             ? {}
             : { mcpServerId: options.mcpServerId }),
+          ...(options?.responseMode === undefined ? {} : { responseMode: options.responseMode }),
         }),
         signal: controller.signal,
       });
@@ -502,6 +519,8 @@ export function useStreamingChat(apiUrl: string, conversationId?: string, reason
        */
       const sse = createSseFrameReader();
       let lastHapticAt = 0;
+      /** The answer so far, for `options.onAnswerText`. */
+      let answerText = '';
 
       while (true) {
         const { done, value } = await reader.read();
@@ -838,6 +857,10 @@ export function useStreamingChat(apiUrl: string, conversationId?: string, reason
 
                 pendingContentRef.current += delta.content;
                 scheduleFlush();
+                if (options?.onAnswerText !== undefined) {
+                  answerText += delta.content;
+                  options.onAnswerText(answerText);
+                }
               }
             }
 

@@ -22,8 +22,8 @@
  * provider tree at all — so it was a billing seeder filed inside the subtree
  * ADR 0001 is emptying. Moving it is what lets `src/index.ts` call it at boot
  * without a product-module exemption on gate 1's allowlist, a list whose only
- * permitted direction is down. It now sits beside `seed-skills.ts`,
- * `seed-suggestions.ts` and `seed-bots.ts`, which is where the boot seeders are.
+ * permitted direction is down. It now sits beside `skills/seed.ts` and
+ * `seed-suggestions.ts`, which is where the other seeders are.
  */
 
 import { isUniqueViolation } from '@oxy.so/db';

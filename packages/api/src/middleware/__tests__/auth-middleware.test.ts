@@ -2,36 +2,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Request, Response, NextFunction } from 'express';
 
 // Mock dependencies.
-//
-// The seam is the REPOSITORY, not the model: what these cases exercise is the
-// middleware's refusal logic — inactive key, expired key, inactive app — which
-// is JavaScript and has nothing to do with which store the row came from. The
-// statements themselves are covered against a real server in
-// `db/__tests__/developerRepository.pgdb.test.ts`.
-//
-// `hashDeveloperApiKey` is deliberately NOT mocked: it is pure crypto with no
-// database, and letting it run is one fewer stub that could disagree with the
-// real thing.
-vi.mock('../../db/index.js', () => ({
-  getDb: vi.fn(() => ({})),
-}));
-
-vi.mock('../../db/developers/developerRepository.js', () => ({
-  findKeyByHash: vi.fn(),
-  findAppById: vi.fn(),
-  touchKeyLastUsed: vi.fn().mockResolvedValue(undefined),
-}));
-
-/**
- * Usage recording moved to Postgres. Both halves are mocked: without the
- * `getDb` stub the middleware would reach a real connection, throw, and be
- * swallowed by its own catch — so the test would still pass while exercising
- * the error path instead of the one it means to.
- */
-vi.mock('../../db/telemetry/apiKeyUsageRepository.js', () => ({
-  recordApiKeyUsage: vi.fn(),
-}));
-
 vi.mock('../../db/index.js', () => ({
   getDb: vi.fn(() => ({})),
 }));
@@ -56,18 +26,13 @@ vi.mock('@oxy.so/core', () => {
   return { OxyServices: MockOxyServices };
 });
 
-import { findAppById, findKeyByHash } from '../../db/developers/developerRepository.js';
 import {
-  authenticateApiKey,
   authenticateTelegramBot,
   authenticateTokenOrApiKey,
-  requireScope,
+  optionalAuth,
 } from '../auth.js';
 
 type MockFn = ReturnType<typeof vi.fn>;
-
-const developerApiKeyMock = { findOne: findKeyByHash as unknown as MockFn };
-const developerAppMock = { findById: findAppById as unknown as MockFn };
 
 function mockReq(overrides: Partial<Request> = {}): Request {
   return {
@@ -99,129 +64,6 @@ describe('auth middleware', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     delete process.env.TELEGRAM_BOT_SECRET;
-  });
-
-  describe('authenticateApiKey', () => {
-    it('rejects missing authorization header', async () => {
-      const req = mockReq();
-      const res = mockRes();
-      const next = vi.fn();
-
-      await authenticateApiKey(req, res, next);
-
-      expect(res.status).toHaveBeenCalledWith(401);
-      expect(res.json).toHaveBeenCalledWith({ error: 'API key required' });
-      expect(next).not.toHaveBeenCalled();
-    });
-
-    it('rejects non-alia_sk_ prefix', async () => {
-      const req = mockReq({ headers: { authorization: 'Bearer sk_invalid_key' } });
-      const res = mockRes();
-      const next = vi.fn();
-
-      await authenticateApiKey(req, res, next);
-
-      expect(res.status).toHaveBeenCalledWith(401);
-      expect(res.json).toHaveBeenCalledWith({ error: 'Invalid API key format' });
-    });
-
-    it('rejects unknown API key', async () => {
-      developerApiKeyMock.findOne.mockResolvedValue(null);
-
-      const req = mockReq({ headers: { authorization: 'Bearer alia_sk_test123' } });
-      const res = mockRes();
-      const next = vi.fn();
-
-      await authenticateApiKey(req, res, next);
-
-      expect(res.status).toHaveBeenCalledWith(401);
-      expect(res.json).toHaveBeenCalledWith({ error: 'Invalid API key' });
-    });
-
-    it('rejects inactive API key', async () => {
-      developerApiKeyMock.findOne.mockResolvedValue({
-        id: 'key-1',
-        isActive: false,
-        appId: 'app-1',
-        oxyUserId: 'user-1',
-        scopes: [],
-      });
-
-      const req = mockReq({ headers: { authorization: 'Bearer alia_sk_test123' } });
-      const res = mockRes();
-      const next = vi.fn();
-
-      await authenticateApiKey(req, res, next);
-
-      expect(res.status).toHaveBeenCalledWith(401);
-      expect(res.json).toHaveBeenCalledWith({ error: 'API key is inactive' });
-    });
-
-    it('rejects expired API key', async () => {
-      developerApiKeyMock.findOne.mockResolvedValue({
-        id: 'key-1',
-        isActive: true,
-        expiresAt: new Date('2020-01-01'),
-        appId: 'app-1',
-        oxyUserId: 'user-1',
-        scopes: [],
-      });
-
-      const req = mockReq({ headers: { authorization: 'Bearer alia_sk_test123' } });
-      const res = mockRes();
-      const next = vi.fn();
-
-      await authenticateApiKey(req, res, next);
-
-      expect(res.status).toHaveBeenCalledWith(401);
-      expect(res.json).toHaveBeenCalledWith({ error: 'API key has expired' });
-    });
-
-    it('rejects when app is inactive', async () => {
-      developerApiKeyMock.findOne.mockResolvedValue({
-        id: 'key-1',
-        isActive: true,
-        appId: 'app-1',
-        oxyUserId: 'user-1',
-        scopes: ['chat'],
-      });
-      developerAppMock.findById.mockResolvedValue({ isActive: false });
-
-      const req = mockReq({ headers: { authorization: 'Bearer alia_sk_test123' } });
-      const res = mockRes();
-      const next = vi.fn();
-
-      await authenticateApiKey(req, res, next);
-
-      expect(res.status).toHaveBeenCalledWith(401);
-      expect(res.json).toHaveBeenCalledWith({ error: 'Associated app is inactive' });
-    });
-
-    it('succeeds with valid API key', async () => {
-      developerApiKeyMock.findOne.mockResolvedValue({
-        id: 'key-1',
-        isActive: true,
-        appId: 'app-1',
-        oxyUserId: 'user-1',
-        scopes: ['chat', 'memory'],
-      });
-      developerAppMock.findById.mockResolvedValue({ isActive: true });
-
-      const req = mockReq({ headers: { authorization: 'Bearer alia_sk_test123' } });
-      const res = mockRes();
-      const next = vi.fn();
-
-      await authenticateApiKey(req, res, next);
-
-      expect(next).toHaveBeenCalled();
-      expect(req.apiKey).toEqual({
-        id: 'key-1',
-        appId: 'app-1',
-        userId: 'user-1',
-        scopes: ['chat', 'memory'],
-      });
-      expect(req.userId).toBe('user-1');
-    });
   });
 
   describe('authenticateTelegramBot', () => {
@@ -338,6 +180,20 @@ describe('auth middleware', () => {
       expect(res.json).toHaveBeenCalledWith({ error: 'Authentication required' });
     });
 
+    it('refuses a retired alia_sk_ key by name, without reaching the Oxy SDK', () => {
+      const req = mockReq({ headers: { authorization: `Bearer alia_sk_${'A1b2C3d4'.repeat(5)}` } });
+      const res = mockRes();
+      const next = vi.fn();
+
+      authenticateTokenOrApiKey(req, res, next);
+
+      // The SDK mock passes everything through, so reaching it would call next.
+      expect(next).not.toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(401);
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ error: 'credential_retired' }));
+      expect(req.user).toBeUndefined();
+    });
+
     it('delegates Oxy bearer verification to the SDK middleware', () => {
       const req = mockReq({ headers: { authorization: 'Bearer signed-oxy-token' } });
       const res = mockRes();
@@ -349,44 +205,20 @@ describe('auth middleware', () => {
     });
   });
 
-  describe('requireScope', () => {
-    it('passes session users without checking scope', () => {
-      const req = mockReq();
-      req.user = { id: 'user-1' };
+  describe('optionalAuth', () => {
+    it('gives a retired alia_sk_ key no bypass: it is just an unverified bearer', () => {
+      // It used to skip Oxy entirely for an `alia_sk_` token, so the key lane
+      // could run after it. There is no key lane any more; the token reaches
+      // the optional Oxy verifier like any other string (passed through here
+      // by the SDK mock), which leaves the request unauthenticated in reality.
+      const req = mockReq({ headers: { authorization: 'Bearer alia_sk_whatever' } });
       const res = mockRes();
       const next = vi.fn();
 
-      requireScope('chat')(req, res, next);
+      optionalAuth(req, res, next);
 
       expect(next).toHaveBeenCalled();
-    });
-
-    it('passes API key users with matching scope', () => {
-      const req = mockReq();
-      req.user = { id: 'user-1' };
-      req.apiKey = { id: 'key-1', appId: 'app-1', userId: 'user-1', scopes: ['chat', 'memory'] };
-      const res = mockRes();
-      const next = vi.fn();
-
-      requireScope('chat')(req, res, next);
-
-      expect(next).toHaveBeenCalled();
-    });
-
-    it('rejects API key users without matching scope', () => {
-      const req = mockReq();
-      req.user = { id: 'user-1' };
-      req.apiKey = { id: 'key-1', appId: 'app-1', userId: 'user-1', scopes: ['memory'] };
-      const res = mockRes();
-      const next = vi.fn();
-
-      requireScope('chat')(req, res, next);
-
-      expect(res.status).toHaveBeenCalledWith(403);
-      expect(res.json).toHaveBeenCalledWith({
-        error: 'Insufficient permissions',
-        required_scope: 'chat',
-      });
+      expect(res.status).not.toHaveBeenCalled();
     });
   });
 });

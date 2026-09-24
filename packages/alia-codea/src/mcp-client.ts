@@ -111,13 +111,7 @@ export class McpLocalClient implements vscode.Disposable {
   }
 
   private async getToken(): Promise<string | null> {
-    // Try OAuth token first, then legacy API key
-    const oauthToken = await this.authProvider.getAccessToken();
-    if (oauthToken) return oauthToken;
-
-    const config = vscode.workspace.getConfiguration('codea');
-    const apiKey = config.get<string>('apiKey');
-    return apiKey || null;
+    return this.authProvider.getAccessToken();
   }
 
   private getBaseUrl(): string {

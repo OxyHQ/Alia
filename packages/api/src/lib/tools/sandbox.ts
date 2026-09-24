@@ -1,9 +1,10 @@
 /**
  * URL validation for the tools that fetch a URL Alia did not choose.
  *
- * `webScraper` and `browse` are handed whatever the model produces, which is
- * shaped by search results and by what the person typed. Both requests leave
- * from inside the VPC.
+ * `webScraper` and the runner's `browser` are handed whatever the model
+ * produces, which is shaped by search results and by what the person typed.
+ * Clarity fetches on their behalf, and a URL is not trusted because it came
+ * back through a service.
  *
  * This used to be entirely syntactic — a set of internal hostnames plus private
  * addresses written literally into the URL — so it never resolved anything, and

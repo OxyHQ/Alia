@@ -2,12 +2,11 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { eq, sql } from 'drizzle-orm';
 import { closePostgres, connectPostgres, type ApiDatabase } from '../index';
 import { agentSessions } from '../schema/agent-sessions';
-import { eventStreamEntries } from '../schema/containers';
+import { eventStreamEntries } from '../schema/event-stream-entries';
 import { createAgent } from '../agents/agentRepository';
 import { createAgentSession } from '../agents/agentSessionRepository';
 import {
   appendEventStreamEntries,
-  archiveEventStreamEntriesBelow,
   countEventStreamEntriesByType,
   listAuditEventStreamEntries,
   listEventStreamEntries,
@@ -185,37 +184,6 @@ describe('what the routes read', () => {
     const sessionId = await seedSession();
     await appendEventStreamEntries(db, sessionId, [entry(0)]);
     expect((await listEventStreamEntries(db, sessionId))[0].metadata).toBeNull();
-  });
-});
-
-describe('compaction archives a PREFIX, once', () => {
-  /**
-   * `archived = false` is in the predicate, so a second compaction reports zero
-   * rather than reporting the whole prefix again — the difference between a
-   * matched count and a modified one, which the caller logs.
-   */
-  it('counts only the rows it actually changed', async () => {
-    const sessionId = await seedSession();
-    await appendEventStreamEntries(db, sessionId, [entry(0), entry(1), entry(2), entry(3)]);
-
-    expect(await archiveEventStreamEntriesBelow(db, sessionId, 2)).toBe(2);
-    expect(await archiveEventStreamEntriesBelow(db, sessionId, 2)).toBe(0);
-    expect(await archiveEventStreamEntriesBelow(db, sessionId, 4)).toBe(2);
-  });
-
-  it('does not touch another session’s entries', async () => {
-    const mine = await seedSession();
-    const theirs = await seedSession();
-    await appendEventStreamEntries(db, mine, [entry(0)]);
-    await appendEventStreamEntries(db, theirs, [entry(0)]);
-
-    await archiveEventStreamEntriesBelow(db, mine, 10);
-
-    const [row] = await db
-      .select({ archived: eventStreamEntries.archived })
-      .from(eventStreamEntries)
-      .where(eq(eventStreamEntries.sessionId, theirs));
-    expect(row.archived).toBe(false);
   });
 });
 

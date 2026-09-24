@@ -337,10 +337,6 @@ const AssistantMessage = React.memo(function AssistantMessage({
       {/* Message Content */}
       {(hasContent || message.isStreaming) && (
         <View className="flex-col items-start gap-0.5">
-          {/* Voice cohost label */}
-          {message.source === 'voice' && message.speaker === 'cohost' && (
-            <Text className="text-xs text-indigo-400 mb-0.5">Cohost</Text>
-          )}
           {/* Agent identity */}
           {message.agentInfo && (
             <View className="flex-row items-center gap-2 mb-0.5">

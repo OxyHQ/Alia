@@ -48,10 +48,8 @@ import {
   Users,
 } from 'lucide-react-native';
 import { ActionKeyIcon } from '@/components/ui/action-key-icon';
-import { FilesIcon } from '@/components/ui/files-icon';
 import { AgentRobotIcon } from '@/components/ui/icons/agent-robot-icon';
 import { ClockIcon } from '@/components/ui/icons/clock-icon';
-import { TerminalIcon } from '@/components/ui/terminal-icon';
 import type { IconComponent } from '@/lib/types/icon';
 
 export interface CapabilityFamily {
@@ -63,16 +61,20 @@ export interface CapabilityFamily {
 }
 
 /**
- * The nine families granted whole, in the order they are shown.
+ * The seven families granted whole, in the order they are shown.
  *
  * Ordered by how much of the world the family reaches — reading the web, then
- * driving a browser and a shell, then the person's own files, memory and
- * messages, then acting through other agents. Not alphabetical: the ones with
- * the widest blast radius are the ones an owner should decide about first.
+ * reading pages step by step, then what the agent produces, the
+ * person's memory and messages, then acting through other agents. Not
+ * alphabetical: the ones with the widest blast radius are the ones an owner
+ * should decide about first.
  *
- * `shell`, `files` and `mcp` keep the Material Symbols the two lists this
- * replaces already carried — `TerminalIcon`, `FilesIcon` and, on the instanced
- * family below, `ActionKeyIcon`.
+ * `shell` and `files` are not here and must not come back as switches: they
+ * granted a sandbox container production never had, so they could be turned
+ * on and never do anything. The API drops them on read and on write.
+ *
+ * `mcp` keeps the Material Symbol the two lists this replaces already carried —
+ * `ActionKeyIcon`, on the instanced family below.
  *
  * `delegation` and `automation` do not, and for the same reason #365 existed:
  * the SIDEBAR names both concepts too, so a glyph chosen only here would be the
@@ -90,20 +92,8 @@ export const CAPABILITY_FAMILIES: readonly CapabilityFamily[] = [
   {
     id: 'browser',
     label: 'Browser',
-    description: 'Drive a real browser — navigate, click, fill forms, screenshot',
+    description: 'Search and read web pages step by step during a long-running task',
     icon: AppWindow,
-  },
-  {
-    id: 'shell',
-    label: 'Shell',
-    description: 'Run commands in its own container',
-    icon: TerminalIcon,
-  },
-  {
-    id: 'files',
-    label: 'Files',
-    description: 'Read, write and edit files in its workspace',
-    icon: FilesIcon,
   },
   {
     id: 'artifacts',
@@ -140,7 +130,7 @@ export const CAPABILITY_FAMILIES: readonly CapabilityFamily[] = [
 /**
  * The autonomous runner's session primitives, by the family that grants each.
  *
- * Four of the five: `plan` is ungranted — it carries the completion signal, so
+ * Two of the three: `plan` is ungranted — it carries the completion signal, so
  * an agent denied it could never end its own run — and has no family to take an
  * icon from.
  *
@@ -156,9 +146,7 @@ export const CAPABILITY_FAMILIES: readonly CapabilityFamily[] = [
  * assembler about which family owns a tool.
  */
 export const RUNTIME_TOOL_FAMILIES: Readonly<Record<string, string>> = {
-  shell: 'shell',
   browser: 'browser',
-  file_edit: 'files',
   delegate: 'delegation',
 };
 

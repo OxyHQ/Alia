@@ -97,8 +97,9 @@ ADR 0004. It must not misrepresent a routing profile as a concrete model.
 Provider credentials belong to Kaana's database. Alia does not read provider
 API keys from its environment and cannot enable hosted inference with one.
 
-The routing catalogue and its foreign keys use `routing_profiles` and
-`routing_profile_id`; older names survive only inside immutable migration history.
+The routing-profile catalogue is code (`routing-profile-catalogue.ts`); the
+`routing_profiles`, `routing_profile_provider_mappings` and `model_configs` tables were
+dropped by migration 0070, and agents carry the exact `routing_profile_id`.
 The post-rollout migration
 `packages/api/drizzle/0061_remove_alia_provider_credentials.sql` drops Alia's
 legacy `provider_keys` table without reading or copying its contents. Current

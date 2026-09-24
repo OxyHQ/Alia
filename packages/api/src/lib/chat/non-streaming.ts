@@ -122,7 +122,6 @@ export async function runNonStreaming(params: NonStreamingParams): Promise<void>
     tokenUsage,
     requestStartTime,
     skillNames: skills.activated().map((skill) => skill.name),
-    isApiKey: !!req.apiKey,
     autonomyRuntime,
   };
 

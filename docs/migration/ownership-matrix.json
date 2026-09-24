@@ -569,7 +569,8 @@
       ],
       "removalGate": "Keep. Recorded so the epic's edit list is complete: these four files must be visited if the model id's TYPE changes, even though none of them hard-codes a value.",
       "provenance": "inventory-frontend-admin",
-      "evidence": "packages/app/components/chat-header.tsx:8,20-21,93-95; packages/app/components/chat-page-content.tsx; packages/app/lib/hooks/use-chat-conversation.ts; packages/app/lib/hooks/use-streaming-chat.ts"
+      "evidence": "packages/app/components/chat-header.tsx:8,20-21,93-95; packages/app/components/chat-page-content.tsx; packages/app/lib/hooks/use-chat-conversation.ts; packages/app/lib/hooks/use-streaming-chat.ts",
+      "removedIn": "feat/bloom-v4-migration"
     },
     {
       "id": "app-chat-screen-default",
@@ -601,7 +602,8 @@
       ],
       "removalGate": "Keep the feature, but this map must become server-driven during the epic: it hard-codes both the alias graph AND the credit multipliers in a client, and it already omits two of the twelve defined aliases (route:instant and route:audio have no entry — correct for route:instant as the floor, unexamined for route:audio). Every alias change requires an app release to stay correct.",
       "provenance": "inventory-frontend-admin",
-      "evidence": "packages/app/components/credit-warning-banner.tsx:24-35"
+      "evidence": "packages/app/components/credit-warning-banner.tsx:24-35",
+      "removedIn": "feat/bloom-v4-migration"
     },
     {
       "id": "app-entitlements-fallback",
@@ -633,7 +635,8 @@
       ],
       "removalGate": "The ?chat=true filter is served by the chatVisible flag on the model record. Removing that flag silently empties the app's model picker.  || frontend-admin inventory adds: Keep — this is the user-facing picker and must stay Alia-branded and API-driven. Two things to fix while the epic is open: (a) the thinking-model detection is a substring test, modelId.includes('thinking') (:26,:36), which silently misclassifies any future alias containing that word; (b) `cachedModels` is a module-level mutable `let` read from render (:21,:98), which is exactly the external-mutable-state-in-a-memoized-position hazard the React Compiler rules warn about.",
       "provenance": "inventory-product-api",
-      "evidence": "packages/app/components/model-selector.tsx:114,104,132; packages/api/src/routes/v1/models.ts:55,62; packages/app/components/model-selector.tsx:21,26,31,36,94,104,114,132"
+      "evidence": "packages/app/components/model-selector.tsx:114,104,132; packages/api/src/routes/v1/models.ts:55,62; packages/app/components/model-selector.tsx:21,26,31,36,94,104,114,132",
+      "removedIn": "feat/bloom-v4-migration"
     },
     {
       "id": "app-model-store",
@@ -801,7 +804,8 @@
       ],
       "removalGate": "The base64-to-FormData conversion lives in gateway-client.ts:355-366; Kaana's contract must accept audio directly.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/routes/v1/voice.ts:265, :304-347; packages/api/src/lib/gateway-client.ts:355-366"
+      "evidence": "packages/api/src/routes/v1/voice.ts:265, :304-347; packages/api/src/lib/gateway-client.ts:355-366",
+      "removedIn": "voz-en-dispositivo"
     },
     {
       "id": "behaviour-tts",
@@ -1045,7 +1049,8 @@
       ],
       "removalGate": "Same as codea-resolve-model-410.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/routes/codea.ts:246"
+      "evidence": "packages/api/src/routes/codea.ts:246",
+      "removedIn": "corte-db-alia-keys"
     },
     {
       "id": "codea-resolve-model-410",
@@ -1061,7 +1066,8 @@
       ],
       "removalGate": "packages/alia-codea/README.md:17 already states clients no longer call it. Gate on access logs; a stale published VS Code extension version may still.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/routes/codea.ts:235"
+      "evidence": "packages/api/src/routes/codea.ts:235",
+      "removedIn": "corte-db-alia-keys"
     },
     {
       "id": "codea-surface",
@@ -1075,7 +1081,8 @@
       "dependsOn": [],
       "removalGate": "Published VS Code extension versions in the wild may call /codea/user and /codea/token. Gate on marketplace version telemetry, not on the repo.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/routes/codea.ts:38,129,166,188,199; packages/alia-codea-cli/src/commands/auth.ts:162"
+      "evidence": "packages/api/src/routes/codea.ts:38,129,166,188,199; packages/alia-codea-cli/src/commands/auth.ts:162",
+      "removedIn": "corte-db-alia-keys"
     },
     {
       "id": "codea-webview-model-picker",
@@ -1259,7 +1266,8 @@
       "dependsOn": [],
       "removalGate": "Whatever host absorbs the console screens provides the equivalent client. Note it sets withCredentials: true (:11) despite the Oxy session model being device-first and zero-cookie — worth checking during the move, though it is not a provider-decoupling concern.",
       "provenance": "inventory-frontend-admin",
-      "evidence": "packages/alia-console/src/lib/api/client.ts:5-12,29-45,48-72; packages/alia-console/src/lib/config.ts:2"
+      "evidence": "packages/alia-console/src/lib/api/client.ts:5-12,29-45,48-72; packages/alia-console/src/lib/config.ts:2",
+      "removedIn": "corte-db-console"
     },
     {
       "id": "console-hook-models-stats",
@@ -1275,7 +1283,8 @@
       ],
       "removalGate": "Keep. This hook plus its DTO is the contract that keeps the console's two model screens abstraction-safe — treat the absence of a provider field in ModelStats as a load-bearing invariant and gate it, since nothing today would fail if a provider field were added.",
       "provenance": "inventory-frontend-admin",
-      "evidence": "packages/alia-console/src/hooks/use-developer.ts:327-359"
+      "evidence": "packages/alia-console/src/hooks/use-developer.ts:327-359",
+      "removedIn": "corte-db-console"
     },
     {
       "id": "console-playground-consumer",
@@ -1292,7 +1301,8 @@
       ],
       "removalGate": "Breaks the moment /v1 loses origin:'*' CORS, because console.alia.onl is a different origin from api.alia.onl.",
       "provenance": "inventory-product-api",
-      "evidence": "packages/alia-console/src/routes/_layout/playground.tsx:141"
+      "evidence": "packages/alia-console/src/routes/_layout/playground.tsx:141",
+      "removedIn": "corte-db-console"
     },
     {
       "id": "console-screen-app-detail",
@@ -1308,7 +1318,8 @@
       ],
       "removalGate": "Oxy Console owns first-party key issuance. The key here is an ALIA-issued customer credential (alia_sk_*), not an upstream provider key — so it is in scope for a normal developer console and must not be conflated with ga-screen-keys.",
       "provenance": "inventory-frontend-admin",
-      "evidence": "packages/alia-console/src/routes/_layout/apps/$appId/index.tsx:38,46-48,92 (copy to clipboard),:222 (renders key.keyPrefix)"
+      "evidence": "packages/alia-console/src/routes/_layout/apps/$appId/index.tsx:38,46-48,92 (copy to clipboard),:222 (renders key.keyPrefix)",
+      "removedIn": "corte-db-console"
     },
     {
       "id": "console-screen-app-settings",
@@ -1324,7 +1335,8 @@
       ],
       "removalGate": "Moves with the apps list.",
       "provenance": "inventory-frontend-admin",
-      "evidence": "packages/alia-console/src/routes/_layout/apps/$appId/settings.tsx:13,20-21"
+      "evidence": "packages/alia-console/src/routes/_layout/apps/$appId/settings.tsx:13,20-21",
+      "removedIn": "corte-db-console"
     },
     {
       "id": "console-screen-app-usage",
@@ -1340,7 +1352,8 @@
       ],
       "removalGate": "Moves with the apps list.",
       "provenance": "inventory-frontend-admin",
-      "evidence": "packages/alia-console/src/routes/_layout/apps/$appId/usage.tsx:8,22-23"
+      "evidence": "packages/alia-console/src/routes/_layout/apps/$appId/usage.tsx:8,22-23",
+      "removedIn": "corte-db-console"
     },
     {
       "id": "console-screen-apps-index",
@@ -1356,7 +1369,8 @@
       ],
       "removalGate": "Oxy Console owns developer app registration. Nothing provider-aware.",
       "provenance": "inventory-frontend-admin",
-      "evidence": "packages/alia-console/src/routes/_layout/apps/index.tsx:49,55-57"
+      "evidence": "packages/alia-console/src/routes/_layout/apps/index.tsx:49,55-57",
+      "removedIn": "corte-db-console"
     },
     {
       "id": "console-screen-billing",
@@ -1374,7 +1388,8 @@
       ],
       "removalGate": "Oxy Console owns billing for Oxy products AND the plans/packages this screen reads are administered somewhere (see ga-screen-plans, ga-screen-credit-packages). Note the coupling: the ADMIN side of these same objects currently lives in the gateway admin, so the two must be planned together or the read side outlives its editor.",
       "provenance": "inventory-frontend-admin",
-      "evidence": "packages/alia-console/src/routes/_layout/billing.tsx:39-45 (useSubscription('alia'), useSubscriptionPlans('alia'))"
+      "evidence": "packages/alia-console/src/routes/_layout/billing.tsx:39-45 (useSubscription('alia'), useSubscriptionPlans('alia'))",
+      "removedIn": "corte-db-console"
     },
     {
       "id": "console-screen-dashboard",
@@ -1390,7 +1405,8 @@
       ],
       "removalGate": "Oxy Console has a developer landing surface. Nothing here is provider-aware, so this is a relocation for consistency, not a decoupling requirement — it can move last.",
       "provenance": "inventory-frontend-admin",
-      "evidence": "packages/alia-console/src/routes/_layout/dashboard.tsx:17-18; packages/alia-console/src/hooks/use-developer.ts:314; packages/alia-console/src/hooks/use-billing.ts:88"
+      "evidence": "packages/alia-console/src/routes/_layout/dashboard.tsx:17-18; packages/alia-console/src/hooks/use-developer.ts:314; packages/alia-console/src/hooks/use-billing.ts:88",
+      "removedIn": "corte-db-console"
     },
     {
       "id": "console-screen-docs-authentication",
@@ -1404,7 +1420,8 @@
       "dependsOn": [],
       "removalGate": "Keep.",
       "provenance": "inventory-frontend-admin",
-      "evidence": "packages/alia-console/src/routes/_layout/documentation/authentication.tsx:90"
+      "evidence": "packages/alia-console/src/routes/_layout/documentation/authentication.tsx:90",
+      "removedIn": "corte-db-console"
     },
     {
       "id": "console-screen-docs-chat-completions",
@@ -1418,7 +1435,8 @@
       "dependsOn": [],
       "removalGate": "Keep.",
       "provenance": "inventory-frontend-admin",
-      "evidence": "packages/alia-console/src/routes/_layout/documentation/chat-completions.tsx:109,160,186,219"
+      "evidence": "packages/alia-console/src/routes/_layout/documentation/chat-completions.tsx:109,160,186,219",
+      "removedIn": "corte-db-console"
     },
     {
       "id": "console-screen-docs-index",
@@ -1432,7 +1450,8 @@
       "dependsOn": [],
       "removalGate": "Keep with the docs set.",
       "provenance": "inventory-frontend-admin",
-      "evidence": "packages/alia-console/src/routes/_layout/documentation/index.tsx:14"
+      "evidence": "packages/alia-console/src/routes/_layout/documentation/index.tsx:14",
+      "removedIn": "corte-db-console"
     },
     {
       "id": "console-screen-docs-models",
@@ -1448,7 +1467,8 @@
       ],
       "removalGate": "Keep the screen, but this is a real defect to fix during the epic: it duplicates the catalog rather than reading GET /models/stats like its sibling /models screen does, so it is already stale by eight aliases and will silently drift further as kaana takes over the catalog.",
       "provenance": "inventory-frontend-admin",
-      "evidence": "packages/alia-console/src/routes/_layout/documentation/models.tsx:13,23,33,43 vs the 12 aliases in packages/api/src/internal/providers/lib/alia-models.ts:62-212"
+      "evidence": "packages/alia-console/src/routes/_layout/documentation/models.tsx:13,23,33,43 vs the 12 aliases in packages/api/src/internal/providers/lib/alia-models.ts:62-212",
+      "removedIn": "corte-db-console"
     },
     {
       "id": "console-screen-docs-quickstart",
@@ -1462,7 +1482,8 @@
       "dependsOn": [],
       "removalGate": "Keep.",
       "provenance": "inventory-frontend-admin",
-      "evidence": "packages/alia-console/src/routes/_layout/documentation/quickstart.tsx:127,162; :76,81,95"
+      "evidence": "packages/alia-console/src/routes/_layout/documentation/quickstart.tsx:127,162; :76,81,95",
+      "removedIn": "corte-db-console"
     },
     {
       "id": "console-screen-docs-sdks",
@@ -1476,7 +1497,8 @@
       "dependsOn": [],
       "removalGate": "Keep, but have a human rule on it explicitly. Every occurrence is about the CLIENT LIBRARY and the wire format ('point the OpenAI SDK at api.alia.onl'), which is a legitimate and commercially useful compatibility claim — it says nothing about who serves inference. It is nonetheless the page most likely to be read as a provider disclosure, so it deserves a decision on the record rather than a silent pass.",
       "provenance": "inventory-frontend-admin",
-      "evidence": "packages/alia-console/src/routes/_layout/documentation/sdks.tsx:67,69,71,76,92,96,120,122,146,149,196,198,223,226,258"
+      "evidence": "packages/alia-console/src/routes/_layout/documentation/sdks.tsx:67,69,71,76,92,96,120,122,146,149,196,198,223,226,258",
+      "removedIn": "corte-db-console"
     },
     {
       "id": "console-screen-examples",
@@ -1490,7 +1512,8 @@
       "dependsOn": [],
       "removalGate": "Keep — it documents the Alia public API. It does name the OpenAI SDK as a client library (:47,63,120), which is a wire-format compatibility claim about the CLIENT, not a statement about who serves inference. Judgment call flagged, not a violation.",
       "provenance": "inventory-frontend-admin",
-      "evidence": "packages/alia-console/src/routes/_layout/examples.tsx:37,55,71,83,96,146,176 (route:auto); :47,63,120 (openai SDK)"
+      "evidence": "packages/alia-console/src/routes/_layout/examples.tsx:37,55,71,83,96,146,176 (route:auto); :47,63,120 (openai SDK)",
+      "removedIn": "corte-db-console"
     },
     {
       "id": "console-screen-index-redirect",
@@ -1506,7 +1529,8 @@
       ],
       "removalGate": "Moves with the dashboard. Listed for completeness so the console screen count reconciles against the route tree.",
       "provenance": "inventory-frontend-admin",
-      "evidence": "packages/alia-console/src/routes/index.tsx:3"
+      "evidence": "packages/alia-console/src/routes/index.tsx:3",
+      "removedIn": "corte-db-console"
     },
     {
       "id": "console-screen-key-detail",
@@ -1522,7 +1546,8 @@
       ],
       "removalGate": "Moves with the apps list. Explicitly NOT a provider secret: the value shown is the caller's own Alia key prefix, and the base URL is api.alia.onl/v1. The clipboard action copies the PREFIX only, not a full key.",
       "provenance": "inventory-frontend-admin",
-      "evidence": "packages/alia-console/src/routes/_layout/apps/$appId/keys/$keyId.tsx:52-55, :91, :161-162"
+      "evidence": "packages/alia-console/src/routes/_layout/apps/$appId/keys/$keyId.tsx:52-55, :91, :161-162",
+      "removedIn": "corte-db-console"
     },
     {
       "id": "console-screen-models",
@@ -1538,7 +1563,8 @@
       ],
       "removalGate": "Keep. This is the correct pattern for the whole epic: an Alia-branded catalog with health metrics and zero provider identity, entirely driven by GET /models/stats. Preserve that contract — the moment /models/stats gains a provider field this screen leaks it.",
       "provenance": "inventory-frontend-admin",
-      "evidence": "packages/alia-console/src/routes/_layout/models.tsx:13,44-127; packages/alia-console/src/hooks/use-developer.ts:327-345 (ModelStats has no provider field)"
+      "evidence": "packages/alia-console/src/routes/_layout/models.tsx:13,44-127; packages/alia-console/src/hooks/use-developer.ts:327-345 (ModelStats has no provider field)",
+      "removedIn": "corte-db-console"
     },
     {
       "id": "console-screen-playground",
@@ -1554,7 +1580,8 @@
       ],
       "removalGate": "Keep as an Alia product surface wherever the console lands — it exercises the public Alia inference API and must keep showing Alia aliases only. The one hard-coded default (:103) should read from the fetched list instead.",
       "provenance": "inventory-frontend-admin",
-      "evidence": "packages/alia-console/src/routes/_layout/playground.tsx:89,103,141"
+      "evidence": "packages/alia-console/src/routes/_layout/playground.tsx:89,103,141",
+      "removedIn": "corte-db-console"
     },
     {
       "id": "console-screen-settings-workspace",
@@ -1570,7 +1597,8 @@
       ],
       "removalGate": "Oxy Console owns organizations and membership. Strongest move candidate in the console: it is already a pure Oxy-org CRUD screen that happens to be hosted in Alia, and the X-Workspace-Id header it drives is set globally in the console's API client.",
       "provenance": "inventory-frontend-admin",
-      "evidence": "packages/alia-console/src/routes/_layout/settings/workspace.tsx:62,79-95; packages/alia-console/src/hooks/use-workspace.ts:85,90,242,263,282,298,316,330,343; packages/alia-console/src/lib/api/client.ts:37-39"
+      "evidence": "packages/alia-console/src/routes/_layout/settings/workspace.tsx:62,79-95; packages/alia-console/src/hooks/use-workspace.ts:85,90,242,263,282,298,316,330,343; packages/alia-console/src/lib/api/client.ts:37-39",
+      "removedIn": "corte-db-console"
     },
     {
       "id": "console-screen-usage",
@@ -1586,7 +1614,8 @@
       ],
       "removalGate": "Oxy Console serves developer usage for Alia-issued keys. Distinct from ga-screen-usage (upstream COGS) — do not merge the two.",
       "provenance": "inventory-frontend-admin",
-      "evidence": "packages/alia-console/src/routes/_layout/usage.tsx:19; packages/alia-console/src/hooks/use-developer.ts:268"
+      "evidence": "packages/alia-console/src/routes/_layout/usage.tsx:19; packages/alia-console/src/hooks/use-developer.ts:268",
+      "removedIn": "corte-db-console"
     },
     {
       "id": "cost-calculator",
@@ -1620,7 +1649,8 @@
       ],
       "removalGate": "Second of the three direct internal/providers importers outside gateway-client.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/lib/cost-tracker.ts:17-25 (nothing calls recordCost), :39"
+      "evidence": "packages/api/src/lib/cost-tracker.ts:17-25 (nothing calls recordCost), :39",
+      "removedIn": "chore/corte-api"
     },
     {
       "id": "cowork-built-bundle-endpoint",
@@ -1734,7 +1764,8 @@
       "dependsOn": [],
       "removalGate": "Statements against external_models, the ZeroEval mirror. Not routing data. Stays with Alia unless external_models itself is retired; do not sweep it up with the provider repositories.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/db/providers/externalModelRepository.ts"
+      "evidence": "packages/api/src/db/providers/externalModelRepository.ts",
+      "removedIn": "corte-db-catalogue"
     },
     {
       "id": "db-repo-model-config",
@@ -1748,7 +1779,8 @@
       "dependsOn": [],
       "removalGate": "Statements against model_configs. Moves with table-model-configs. Measured test-only today: no runtime-reachable file imports it.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/db/providers/modelConfigRepository.ts"
+      "evidence": "packages/api/src/db/providers/modelConfigRepository.ts",
+      "removedIn": "corte-db-catalogue"
     },
     {
       "id": "db-repo-provider-key",
@@ -2329,7 +2361,8 @@
       ],
       "removalGate": "These pages are React components, not markdown, so a docs-only sweep of docs/** MISSES all 31 mentions. Include packages/alia-console/src/routes/_layout/ in every docs audit.",
       "provenance": "inventory-product-api",
-      "evidence": "packages/alia-console/src/routes/_layout/documentation/models.tsx:13,23,33,43,171,178,185,186; .../examples.tsx:30,79,89; .../documentation/sdks.tsx:169"
+      "evidence": "packages/alia-console/src/routes/_layout/documentation/models.tsx:13,23,33,43,171,178,185,186; .../examples.tsx:30,79,89; .../documentation/sdks.tsx:169",
+      "removedIn": "corte-db-console"
     },
     {
       "id": "doc-deployment-smoke-list",
@@ -2628,7 +2661,8 @@
       ],
       "removalGate": "production row count audited AND every value rotated upstream AND the six read sites above re-pointed at the kaana. The schema comment states there is NO protected-column mechanism in this service — the comment and CONVENTIONS.md are the whole of the protection.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/db/schema/providers.ts:315"
+      "evidence": "packages/api/src/db/schema/providers.ts:315",
+      "removedIn": "corte-db-migration"
     },
     {
       "id": "field-provider-keys-key-hash",
@@ -2644,7 +2678,8 @@
       ],
       "removalGate": "production row count audited. Moves with the key; a hash left behind after the key moves is a standalone oracle with no owner.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/db/schema/providers.ts:311"
+      "evidence": "packages/api/src/db/schema/providers.ts:311",
+      "removedIn": "corte-db-migration"
     },
     {
       "id": "ga-api-client",
@@ -3509,7 +3544,8 @@
       ],
       "removalGate": "Two distinct gates: transcription needs a Kaana endpoint; realtime needs the voice-session-manager split.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/routes/v1/voice.ts:3-4, :8, :118, :265 (TRANSCRIBE_TIMEOUT_MS 55s), :304-329 (15s, 1 attempt), :347"
+      "evidence": "packages/api/src/routes/v1/voice.ts:3-4, :8, :118, :265 (TRANSCRIBE_TIMEOUT_MS 55s), :304-329 (15s, 1 attempt), :347",
+      "removedIn": "voz-en-dispositivo"
     },
     {
       "id": "hazard-do-app-yaml-gateway-url",
@@ -3595,7 +3631,8 @@
       ],
       "removalGate": "n/a for deletion. If it moves: the digest must stay byte-identical or every existing key silently 401s. The logger already redacts `alia_sk_*` (packages/api/src/lib/logger.ts:86) — keep that redaction wherever the minting goes.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/lib/api-key-crypto.ts:36"
+      "evidence": "packages/api/src/lib/api-key-crypto.ts:36",
+      "removedIn": "corte-db-alia-keys"
     },
     {
       "id": "hostname-anthropic",
@@ -3809,7 +3846,8 @@
       ],
       "removalGate": "Unrelated to the epic.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/scripts/sync-zeroeval.ts:8"
+      "evidence": "packages/api/src/scripts/sync-zeroeval.ts:8",
+      "removedIn": "corte-db-catalogue"
     },
     {
       "id": "image-providers",
@@ -3932,7 +3970,8 @@
       ],
       "removalGate": "Unaffected by the Kaana migration; listed so a provider-name sweep does not mistake it for a leak (or does so knowingly).",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/routes/external-models.ts:16-40; mounted unauthenticated at packages/api/src/index.ts:240; packages/api/src/db/schema/providers.ts:415-425 (comment: 'NOT the routing catalogue')"
+      "evidence": "packages/api/src/routes/external-models.ts:16-40; mounted unauthenticated at packages/api/src/index.ts:240; packages/api/src/db/schema/providers.ts:415-425 (comment: 'NOT the routing catalogue')",
+      "removedIn": "corte-db-catalogue"
     },
     {
       "id": "leak-provider-api-error",
@@ -4574,7 +4613,8 @@
       ],
       "removalGate": "Not provider inference — a marketing/leaderboard feature. Keep, but its dead-on-boot state should be fixed independently.  || data-billing inventory adds: production row count audited on external_models. No scheduler wiring was found for this script; treat it as manually run until proven otherwise.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/scripts/sync-zeroeval.ts:8; called packages/api/src/index.ts:350; packages/api/src/scripts/sync-zeroeval.ts:122"
+      "evidence": "packages/api/src/scripts/sync-zeroeval.ts:8; called packages/api/src/index.ts:350; packages/api/src/scripts/sync-zeroeval.ts:122",
+      "removedIn": "corte-db-catalogue"
     },
     {
       "id": "sdk-ai-api",
@@ -4834,7 +4874,7 @@
         "model-id-route:voice",
         "v1-voice-token"
       ],
-      "removalGate": "Published package. Same gate as sdk-tts-consumer.",
+      "removalGate": "Published package. Same gate as sdk-tts-consumer. || Since @alia.onl/sdk 8.0.0 the hook recognizes speech on the device and sends each turn through /v1/chat/completions; it calls neither /v1/voice route.",
       "provenance": "inventory-product-api",
       "evidence": "packages/alia-chat/src/hooks/useVoiceRoom.ts:325,332"
     },
@@ -5122,7 +5162,8 @@
       "dependsOn": [],
       "removalGate": "UNDECIDED — MEASURED DEAD as a contract: `lib/chat-events.ts` has ZERO importers and `AliaChatEventName` occurs exactly once repo-wide, at its own definition (positive control: lib/sse-emitter.ts has 2 importers). The declared union therefore constrains NOTHING — it is not merely out of step with the emitters, it is unenforced. Either wire it into the emitter and the app, or delete it; \"reconcile the union before the port\" reads as if it were load-bearing.  || inventory gate, kept for the record: Fix the union to match reality BEFORE the port, or the port will faithfully reproduce a type that describes neither the emitter nor the consumer.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/lib/chat-events.ts:3-12; packages/api/src/lib/chat/stream-runner.ts:258"
+      "evidence": "packages/api/src/lib/chat-events.ts:3-12; packages/api/src/lib/chat/stream-runner.ts:258",
+      "removedIn": "chore/corte-api"
     },
     {
       "id": "sse-openai-chunk-frame",
@@ -5171,7 +5212,8 @@
       ],
       "removalGate": "production row count audited. Note the FK is ON DELETE CASCADE on BOTH sides, so dropping either parent silently empties this table — a removal here cannot be observed by a functional test.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/db/schema/providers.ts:228"
+      "evidence": "packages/api/src/db/schema/providers.ts:228",
+      "removedIn": "corte-db-migration"
     },
     {
       "id": "table-alia-models",
@@ -5188,7 +5230,8 @@
       ],
       "removalGate": "production row count audited AND getAvailableModels() (internal/providers/lib/alia-models.ts:304) re-pointed, since it is the one LIVE reader — it merges DB rows with the code catalogue to compute availability. Removing the table without that makes every model read as unavailable, which looks like an outage rather than a bug.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/db/schema/providers.ts:154"
+      "evidence": "packages/api/src/db/schema/providers.ts:154",
+      "removedIn": "corte-db-migration"
     },
     {
       "id": "table-api-key-usage",
@@ -5284,7 +5327,8 @@
       ],
       "removalGate": "production row count audited AND every live key rotated or the digest scheme preserved EXACTLY. hashDeveloperApiKey is deterministic sha256 on purpose because it is a LOOKUP key — swapping it for a randomized-IV scheme makes authentication match nothing and the symptom is a silent 401 on every request, not an error. key_hash is an exact-match oracle and is as protected as the key.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/db/schema/developers.ts:79"
+      "evidence": "packages/api/src/db/schema/developers.ts:79",
+      "removedIn": "corte-db-migration"
     },
     {
       "id": "table-developer-apps",
@@ -5300,7 +5344,8 @@
       ],
       "removalGate": "production row count audited. developer_api_keys.app_id FKs this with ON DELETE CASCADE, so deleting an app silently revokes every key under it — which is correct behaviour but means a row count of apps understates the blast radius; count keys too.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/db/schema/developers.ts:36"
+      "evidence": "packages/api/src/db/schema/developers.ts:36",
+      "removedIn": "corte-db-migration"
     },
     {
       "id": "table-external-models",
@@ -5317,7 +5362,8 @@
       ],
       "removalGate": "UNDECIDED — the two inventories disagree on the owner (data/billing says delete with the routing tables, provider-runtime says keep as an Alia feature), and issue #139 workstream 10 poses the same question as an open decision: \"Decide whether it remains an Alia research/catalogue feature, moves to Oxy's model discovery surface or is retired.\" It is NOT routing data (schema comment says so) and its public GET /external-models route is mounted and live, so it cannot be swept up with the provider tables either way. Row count on external_models plus a product decision.  || inventory gate, kept for the record: Not part of the inference runtime; do not delete with the provider tables.  || data-billing inventory adds: production row count audited AND GET /external-models confirmed to have no consumer (it is mounted at packages/api/src/index.ts and is publicly reachable, unlike the admin router).",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/db/schema/providers.ts:415-432; packages/api/src/db/schema/providers.ts:432"
+      "evidence": "packages/api/src/db/schema/providers.ts:415-432; packages/api/src/db/schema/providers.ts:432",
+      "removedIn": "corte-db-migration"
     },
     {
       "id": "table-fallback-events",
@@ -5371,7 +5417,8 @@
       ],
       "removalGate": "Before dropping, confirm the row counts and confirm nothing outside the dead admin routes writes them (the seeds that populate them have no callers). alia_models.isLegacy IS read live and must be preserved somewhere Alia-side.  || data-billing inventory adds: production row count audited AND both writers confirmed unreachable (routes/models.ts was mounted only through the unmounted internal/providers/index.ts and both were deleted in #141; seed-model-configs.ts's upsert runs only inside runStartupSeed, which has zero callers) AND the routing path confirmed to read TIER_MODEL_MAPPINGS from code rather than this table.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/db/schema/providers.ts:73, :154, :228; live read packages/api/src/internal/providers/lib/alia-models.ts:311-318; packages/api/src/db/schema/providers.ts:73"
+      "evidence": "packages/api/src/db/schema/providers.ts:73, :154, :228; live read packages/api/src/internal/providers/lib/alia-models.ts:311-318; packages/api/src/db/schema/providers.ts:73",
+      "removedIn": "corte-db-migration"
     },
     {
       "id": "table-plan-features",
@@ -5443,7 +5490,8 @@
       ],
       "removalGate": "MOST DESTRUCTIVE ITEM IN THIS INVENTORY. Count the rows and export them before any drop — these are live third-party credentials that exist nowhere else in the repo or in SSM. Migration must reach Kaana's store before the table is dropped, and rotation is the safer alternative to copying plaintext.  || data-billing inventory adds: production row count audited AND every stored credential ROTATED at the upstream provider before the row is deleted — a deleted row is not a revoked key. The only live writers today are the telemetry updates in key-manager.ts (success/failure/spend/cooldown); the CREATE path (routes/keys.ts) was unreachable because internal/providers/index.ts was unmounted, and #141 deleted both, so keys are inserted by hand and there is no longer any code path that creates one.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/db/schema/providers.ts:300-320 (key/keyHash/keyPrefix), :322-329 (rate limits), :404-411 (unique + rotation indexes); deploy secret list .github/workflows/deploy-aws.yml:66-76 contains NO provider key; packages/api/src/db/schema/providers.ts:300"
+      "evidence": "packages/api/src/db/schema/providers.ts:300-320 (key/keyHash/keyPrefix), :322-329 (rate limits), :404-411 (unique + rotation indexes); deploy secret list .github/workflows/deploy-aws.yml:66-76 contains NO provider key; packages/api/src/db/schema/providers.ts:300",
+      "removedIn": "corte-db-migration"
     },
     {
       "id": "table-subscriptions",
@@ -5503,14 +5551,14 @@
       "domain": "data-billing",
       "kind": "table",
       "currentPath": "packages/api/src/db/schema/usage.ts",
-      "reachable": "live",
+      "reachable": "dead",
       "owner": "alia",
       "targetPath": "alia: it is both the usage record and the entitlement meter (voice minutes per plan). cost_per_minute alone is kaana-upstream-cost",
       "dependsOn": [
         "concept-credit-reservation",
         "table-subscriptions"
       ],
-      "removalGate": "production row count audited AND the entitlement reader migrated in the SAME change — lib/voice-usage.ts is the only thing stopping a user exceeding their plan's voice minutes, and an empty table reads as 'zero minutes used', which is the permissive direction. Two columns (average_latency_ms, client_type) are declared and never written package-wide: confirm they are entirely absent before anybody reads one as meaningful.",
+      "removalGate": "production row count audited AND the entitlement reader migrated in the SAME change — lib/voice-usage.ts is the only thing stopping a user exceeding their plan's voice minutes, and an empty table reads as 'zero minutes used', which is the permissive direction. Two columns (average_latency_ms, client_type) are declared and never written package-wide: confirm they are entirely absent before anybody reads one as meaningful. || Dropped by 0074_voice_minutes_retired (post phase, with the `voice-minutes` feature rows): its only writer left with the LiveKit route in #477, so the allowance it metered enforced nothing, and voice turns are now ordinary chat and speech calls billed per call through Oxy.",
       "provenance": "re-derived",
       "evidence": "packages/api/src/db/schema/usage.ts:181"
     },
@@ -5662,7 +5710,8 @@
       ],
       "removalGate": "The tuple IS a live database constraint — it renders the CHECK on its column — so moving or narrowing it is a MIGRATION, in the same PR as the code change. Do not unify with PROVIDER_KEY_TIERS to make anything pass — that silently widens one of the two.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/domain/model-config.ts:11"
+      "evidence": "packages/api/src/domain/model-config.ts:11",
+      "removedIn": "corte-db-migration"
     },
     {
       "id": "tuple-model-publishers",
@@ -6106,7 +6155,8 @@
       "dependsOn": [],
       "removalGate": "Consumed by the published SDK (packages/alia-chat/src/hooks/useVoiceRoom.ts:325, which sends model:'route:voice'). Any change is a breaking SDK major.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/routes/v1/voice.ts:31"
+      "evidence": "packages/api/src/routes/v1/voice.ts:31",
+      "removedIn": "voz-en-dispositivo"
     },
     {
       "id": "v1-voice-transcribe",
@@ -6122,7 +6172,8 @@
       ],
       "removalGate": "Consumed by the published SDK (useSpeechToText.ts:164) and by integrations (api-client.ts:241). The PATH must survive; only the provider call underneath may move.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/routes/v1/voice.ts:267; packages/api/src/routes/v1/voice.ts:3-4"
+      "evidence": "packages/api/src/routes/v1/voice.ts:267; packages/api/src/routes/v1/voice.ts:3-4",
+      "removedIn": "voz-en-dispositivo"
     },
     {
       "id": "voice-session-manager",

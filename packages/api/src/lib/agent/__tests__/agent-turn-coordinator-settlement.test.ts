@@ -5,8 +5,6 @@ const createAgentSession = vi.fn(async () => ({ _id: 'session-1' }));
 const updateAgentSession = vi.fn(async (_db: unknown, _id: string, patch: { status?: string }) => {
   if (patch.status) events.push(`status:${patch.status}`);
 });
-const closeBrowser = vi.fn(async () => { events.push('browser:closed'); });
-const cleanup = vi.fn(async () => { events.push('resources:cleaned'); });
 
 vi.mock('../../../db/index.js', () => ({ getDb: () => ({}) }));
 vi.mock('../../../db/chat/conversationRepository.js', () => ({ findConversation: vi.fn(async () => undefined) }));
@@ -17,11 +15,8 @@ vi.mock('../../../db/agents/agentRuntimeRepository.js', () => ({
     value: await callback({}),
   })),
 }));
-vi.mock('../session-resources.js', () => ({ cleanupSessionResources: cleanup }));
-vi.mock('../browser-session.js', () => ({ BrowserSession: class { close = closeBrowser; } }));
-vi.mock('../terminal-session.js', () => ({ TerminalSession: class {} }));
+vi.mock('../browser-session.js', () => ({ BrowserSession: class {} }));
 vi.mock('../todo-manager.js', () => ({ TodoManager: class {} }));
-vi.mock('../workspace-memory.js', () => ({ WorkspaceMemory: class {} }));
 vi.mock('../event-stream.js', () => ({ EventStream: class {
   append = vi.fn();
   flush = vi.fn(async () => { events.push('events:flushed'); });
@@ -36,7 +31,7 @@ describe('agent turn settlement', () => {
     vi.clearAllMocks();
   });
 
-  it('releases admission before slow disposable-resource cleanup', async () => {
+  it('releases admission as its last step, with nothing slow after the flush', async () => {
     const turn = await AgentTurnCoordinator.begin({
       agent: { _id: 'agent-1', maxConcurrentThreads: 1 } as never,
       oxyUserId: 'user-1',
@@ -46,11 +41,11 @@ describe('agent turn settlement', () => {
 
     await turn.complete('done');
 
+    // The status write IS the admission release, and it is the final step:
+    // the Clarity-only browser holds nothing to tear down behind it.
     expect(events).toEqual([
       'events:flushed',
       'status:completed',
-      'browser:closed',
-      'resources:cleaned',
     ]);
   });
 
@@ -64,6 +59,6 @@ describe('agent turn settlement', () => {
     await Promise.all([turn.complete('done'), turn.complete('done')]);
 
     expect(events.filter((event) => event === 'status:completed')).toHaveLength(1);
-    expect(cleanup).toHaveBeenCalledOnce();
+    expect(events.filter((event) => event === 'events:flushed')).toHaveLength(1);
   });
 });

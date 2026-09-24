@@ -1,4 +1,3 @@
-import { WorkspaceBrowser } from '@/components/workspace-browser';
 import type { AgentActivityState, PlanItem } from '@/lib/hooks/use-agent-activity';
 import { useTranslation } from '@/lib/hooks/use-translation';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@oxy.so/bloom/accordion';
@@ -17,15 +16,12 @@ import { View } from 'react-native';
  * AgentResultCard — the summary an agent run leaves in the chat when it ends.
  *
  * A Bloom `Card`: the outcome as a `Badge` beside the heading, the run's
- * numbers in one secondary line, an error as an `Admonition`, and the plan and
- * the workspace's files as two `Accordion` sections. The file browser mounts
- * only while its section is open — it fetches the session's files, and a
- * closed section asks for nothing.
+ * numbers in one secondary line, an error as an `Admonition`, and the plan as
+ * an `Accordion` section.
  */
 
 interface AgentResultCardProps {
   activity: AgentActivityState;
-  sessionId: string;
   agentName?: string;
 }
 
@@ -58,7 +54,6 @@ function PlanItemRow({ item }: { item: PlanItem }) {
 
 export const AgentResultCard = React.memo(function AgentResultCard({
   activity,
-  sessionId,
   agentName,
 }: AgentResultCardProps) {
   const { t } = useTranslation();
@@ -101,12 +96,12 @@ export const AgentResultCard = React.memo(function AgentResultCard({
 
           {hasError && lastError ? <Admonition type="error">{lastError}</Admonition> : null}
 
-          <Accordion
-            type="multiple"
-            value={open}
-            onValueChange={(next) => setOpen(Array.isArray(next) ? next : next ? [next] : [])}
-          >
-            {plan && plan.items.length > 0 ? (
+          {plan && plan.items.length > 0 ? (
+            <Accordion
+              type="multiple"
+              value={open}
+              onValueChange={(next) => setOpen(Array.isArray(next) ? next : next ? [next] : [])}
+            >
               <AccordionItem value="plan">
                 <AccordionTrigger>{t('chat.agentRun.planSummary')}</AccordionTrigger>
                 <AccordionContent>
@@ -115,14 +110,8 @@ export const AgentResultCard = React.memo(function AgentResultCard({
                   ))}
                 </AccordionContent>
               </AccordionItem>
-            ) : null}
-            <AccordionItem value="files">
-              <AccordionTrigger>{t('chat.agentRun.files')}</AccordionTrigger>
-              <AccordionContent>
-                {open.includes('files') ? <WorkspaceBrowser sessionId={sessionId} /> : null}
-              </AccordionContent>
-            </AccordionItem>
-          </Accordion>
+            </Accordion>
+          ) : null}
         </View>
       </CardBody>
     </Card>

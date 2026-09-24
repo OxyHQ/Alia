@@ -2,12 +2,22 @@
 
 Binding for every table in this schema. Decision and reason, nothing else.
 
-> Post-cutover note: references below to `provider_keys`, `provider_health`,
-> `api_usage` and `fallback_events` document immutable migration decisions only.
-> Alia has no readers, writers, sweepers or compatibility endpoints for them.
-> Migration `0061_remove_alia_provider_credentials.sql` drops `provider_keys`
-> post-rollout without reading or copying it; Kaana is the sole credential
-> custodian. The other historical telemetry tables remain non-runtime evidence.
+> Post-cutover note: many sections below reason from tables that no longer
+> exist, and those references document immutable decisions only. Migration
+> `0061_remove_alia_provider_credentials.sql` dropped `provider_keys` (Kaana is
+> the sole credential custodian). Migration `0070_clean_cut_dormant_tables.sql`
+> — the owner's clean cut, with no rollback window — dropped `provider_health`,
+> `api_usage`, `fallback_events`, `auth_health_metrics`, `routing_logs`,
+> `cost_entries`, `canvas_sessions`, `triggers`, `trigger_executions`,
+> `external_models`, `model_configs`, `routing_profiles`,
+> `routing_profile_provider_mappings`, `developer_apps` and
+> `developer_api_keys`, plus `agents.allowed_models` and
+> `automation_definitions.legacy_trigger_id`. Migration
+> `0073_drop_sandbox_containers.sql` dropped the agent sandbox's persistence —
+> the sandbox never ran in production: `containers`, `container_templates`,
+> `agent_session_resources` and `agents.preferred_image`. Where a rule below is
+> argued from one of them, the rule stands and the example is historical; the
+> audit rows that name them have nothing left to audit.
 
 `packages/integrations/src/db/schema/CONVENTIONS.md` established the toolchain on
 the smallest service. This file does NOT repeat it — read that one first. What
@@ -115,7 +125,8 @@ decision for **after** the backfill has audited what is actually stored.
 The columns that have taken this answer, so the reasoning is not re-argued per
 column: `auth_health_metrics.method`, `chat_analytics.platform`, and
 `voice_call_usage.provider` / `.audio_format` / `.disconnect_reason` /
-`.client_type`. **`voice_call_usage.provider` is the one worth reading twice**,
+`.client_type` (that table was dropped by 0072, and the reasoning is kept for
+the next column like it). **`voice_call_usage.provider` is the one worth reading twice**,
 because `PROVIDER_NAMES` exists and renders CHECKs on three columns in
 `providers.ts` — so the tempting move is to reuse it. Its Mongoose field is a
 bare `String` with no `enum`, and the write happens during session teardown,
@@ -706,7 +717,7 @@ reason: it accumulates across every step of a session rather than being large to
 begin with. `event_stream_entries.seq` stays `integer` deliberately, because it
 counts events within ONE session and `config_max_steps` bounds it.
 
-The read trap above applies to all three, and `containers.pgdb.test.ts` and
+The read trap above applies to all three, and `eventStreamEntries.pgdb.test.ts` and
 `agentSessions.pgdb.test.ts` each assert BOTH paths — the builder returning a
 number and a raw `db.execute` returning the string — rather than only the one
 their own code happens to use.
@@ -1038,7 +1049,7 @@ about enums, applied to all of them.
 | Where | What to audit | Why it matters |
 |---|---|---|
 | `referral_redemptions_referred_user_key` | one account appearing under TWO referrers | The double-credit race is real (`routes/referrals.ts` pays before it records). A hit here is a customer who was credited twice. |
-| `voice_call_usage_session_id_key` | two rows for one provider `sessionId` | Mongoose declared this unique, so a hit means a row predating it. It matters because `lib/voice-usage.ts` sums minutes per user: a duplicated session double-counts against a plan's voice entitlement. |
+| `voice_call_usage_session_id_key` | two rows for one provider `sessionId` | Mongoose declared this unique, so a hit means a row predating it. It mattered because `lib/voice-usage.ts` summed minutes per user; the table, that reader and the allowance were dropped by 0072. |
 | `organizations_slug_lower_key` | two slugs differing only in case | Mongoose's `lowercase` setter folded them; a row written around it did not. |
 | `routing_profiles.routing_profile_id` | a value that is not already lowercase | Same setter, no CHECK added — the port stores whatever is there. |
 | `user_memory_entries_memory_title_lower_key` | two memories under one profile whose titles differ only in case or surrounding whitespace | Mongo could not index inside a sub-document array, so nothing enforced this; the application already treats such a pair as ONE memory, so a hit is two entries a user sees as duplicates. Merge them rather than relaxing the index. |
