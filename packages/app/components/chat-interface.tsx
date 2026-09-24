@@ -398,7 +398,7 @@ const MessageRow = React.memo(function MessageRow({
                 style={{ width: '100%' }}
               >
                 {workInvocations.length === 0 || turnWorking ? null : (
-                  <AiChatMessageLine tone="secondary">
+                  <AiChatMessageLine tone="secondary" selectable={false}>
                     {workStartedAt !== null && workEndedAt !== null
                       ? rowT('thought.workedFor', {
                           elapsed: formatElapsed(workEndedAt - workStartedAt),
@@ -656,6 +656,24 @@ export const ChatInterface = React.memo(function ChatInterface({
     syncThoughtScope(liveThoughtScope);
   }, [liveThoughtScope, syncThoughtScope]);
 
+  /**
+   * The agent's first tool of a turn — a search, a page it reads, a command —
+   * opens the thought panel on that turn, unless a panel is already open. Once
+   * per turn: a reader who closes it keeps it closed.
+   */
+  const openThoughtPanel = useUIStore((s) => s.openThoughtPanel);
+  const autoOpenedTurn = useRef<string | null>(null);
+  const workingTurn = isLoading ? liveMessages[liveMessages.length - 1] : undefined;
+  const workingTurnId =
+    workingTurn?.role === 'assistant' && (workingTurn.toolInvocations?.length ?? 0) > 0
+      ? workingTurn.id
+      : null;
+  useEffect(() => {
+    if (workingTurnId === null || autoOpenedTurn.current === workingTurnId) return;
+    autoOpenedTurn.current = workingTurnId;
+    if (useUIStore.getState().rightPanel === null) openThoughtPanel(workingTurnId, liveThoughtScope);
+  }, [workingTurnId, liveThoughtScope, openThoughtPanel]);
+
   const handleCopyMessage = useCallback(
     async (content: string) => {
       await Clipboard.setStringAsync(content);
@@ -854,8 +872,9 @@ export const ChatInterface = React.memo(function ChatInterface({
         maintainStartPosition={onLoadHistory !== undefined}
         onScroll={onScroll}
       >
-        {/* Bloom's transcript column (`AgentChat`): 768 at most, centred. */}
-        <View className="w-full max-w-[768px] self-center">
+        {/* The transcript column, centred: a little wider than the composer
+            (896 against its 768), so the answer has room to breathe. */}
+        <View className="w-full max-w-4xl self-center">
           {!filteredMessages.length && conversationLoading ? (
               <View className="gap-5 py-4">
                 <View className="items-end">

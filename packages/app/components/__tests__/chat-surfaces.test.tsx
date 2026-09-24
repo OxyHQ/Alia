@@ -12,6 +12,19 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 const shell = vi.hoisted(() => ({
   value: null as null | Record<string, unknown>,
 }));
+const ui = vi.hoisted(() => ({
+  rightPanel: null as null | string,
+  canvasArtifacts: [] as { type: string }[],
+  setRightPanel: (panel: string | null) => {
+    ui.rightPanel = panel;
+  },
+}));
+vi.mock('@oxy.so/bloom/icons/RiSideBarLine', () => ({ RiSideBarLine: () => null }));
+vi.mock('@/lib/stores/ui-store', () => {
+  const useUIStore = (select: (state: Record<string, unknown>) => unknown) => select(ui);
+  useUIStore.getState = () => ui;
+  return { useUIStore };
+});
 
 vi.mock('react-native', async () => {
   const ReactModule = await import('react');
@@ -92,14 +105,34 @@ describe('ChatHeaderActions', () => {
   const labels = (r: ReactTestRenderer) =>
     all(r, 'MenuItem').map((item) => item.props.children as string);
 
-  it('offers search, export and delete when the screen can do all three', () => {
+  it('offers search, the panel, export and delete when the screen can do all of them', () => {
     const r = render(<ChatHeaderActions onSearch={vi.fn()} onExport={vi.fn()} onDelete={vi.fn()} />);
-    expect(labels(r)).toEqual(['chatHeader.searchThread', 'chat.exportMarkdown', 'chat.deleteConversation']);
+    expect(labels(r)).toEqual([
+      'chatHeader.searchThread',
+      'chatHeader.showPanel',
+      'chat.exportMarkdown',
+      'chat.deleteConversation',
+    ]);
   });
 
   it('offers no search without a thread and no delete where it cannot delete', () => {
     const r = render(<ChatHeaderActions onExport={vi.fn()} />);
-    expect(labels(r)).toEqual(['chat.exportMarkdown']);
+    expect(labels(r)).toEqual(['chatHeader.showPanel', 'chat.exportMarkdown']);
+  });
+
+  it('shows the workspace — the gallery when the newest file is an image — and hides it again', () => {
+    ui.rightPanel = null;
+    ui.canvasArtifacts = [{ type: 'code' }, { type: 'image' }];
+    let r = render(<ChatHeaderActions onExport={vi.fn()} />);
+    act(() => all(r, 'MenuItem')[0].props.onPress());
+    expect(ui.rightPanel).toBe('gallery');
+
+    act(() => renderer?.unmount());
+    r = render(<ChatHeaderActions onExport={vi.fn()} />);
+    expect(labels(r)[0]).toBe('chatHeader.hidePanel');
+    act(() => all(r, 'MenuItem')[0].props.onPress());
+    expect(ui.rightPanel).toBeNull();
+    ui.canvasArtifacts = [];
   });
 
   it('never offers a share it could not honour', () => {
@@ -110,7 +143,7 @@ describe('ChatHeaderActions', () => {
   it('runs the matching handler', () => {
     const onDelete = vi.fn();
     const r = render(<ChatHeaderActions onExport={vi.fn()} onDelete={onDelete} />);
-    act(() => all(r, 'MenuItem')[1].props.onPress());
+    act(() => all(r, 'MenuItem')[2].props.onPress());
     expect(onDelete).toHaveBeenCalledOnce();
   });
 });

@@ -935,7 +935,9 @@
     "temporaryChat": "Chat temporal",
     "searchConversations": "Buscar conversaciones",
     "searchThread": "Buscar en este hilo",
-    "moreOptions": "Más opciones"
+    "moreOptions": "Más opciones",
+    "showPanel": "Mostrar panel",
+    "hidePanel": "Ocultar panel"
   },
   "welcome": {
     "greetingNamed": "Hola {{name}}, ¿qué tienes en mente?",

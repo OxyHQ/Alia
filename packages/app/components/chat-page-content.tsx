@@ -14,7 +14,7 @@ import {
   type Suggestion,
 } from '@/lib/hooks/use-suggestions';
 import { Button } from '@oxy.so/bloom/button';
-import { RiHeadphoneLine } from '@oxy.so/bloom/icons/RiHeadphoneLine';
+import { VoiceModeIcon } from '@/components/icons/voice-mode-icon';
 import { toast } from '@oxy.so/bloom/toast';
 import { useRouter } from 'expo-router';
 import type { Attachment } from '@/components/chat/composer/types';
@@ -297,11 +297,13 @@ export const ChatPageContent = ({
   }, [isAuthenticated, signIn, entitlements, creditsInfo, t, router, voice, onVoiceStart]);
   const voiceAction =
     voice || onVoiceStart ? (
+      // Alia's voice button: its own glyph (as it has always been), in the
+      // composer's action tone.
       <Button
         iconOnly
         size="md"
         tone="action"
-        leadingIcon={RiHeadphoneLine}
+        leadingIcon={VoiceModeIcon}
         accessibilityLabel={t('modes.voiceMode')}
         onPress={handleVoiceActivate}
       />
