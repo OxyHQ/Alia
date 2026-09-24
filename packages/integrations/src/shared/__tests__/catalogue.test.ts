@@ -1,202 +1,140 @@
-/**
- * The bots say the product's words, not an identifier.
- *
- * Every payload below is a verbatim slice of what `https://api.alia.onl`
- * served on 2026-08-19 — the shapes, the `display_name` values still carrying
- * the alias names, and the four `chat_visible` entries. A fixture invented from
- * the types would agree with the parser by construction and measure nothing.
- */
-
 import { describe, expect, it } from 'vitest';
 import {
-  labelForPreference,
-  modeForProfile,
-  offeredModes,
+  currentModelLabel,
+  defaultLabel,
+  fitLines,
+  modelsForListing,
   parseCatalogue,
-  parseModes,
-  presentation,
+  resolveModelCommand,
+  resolveRequestModel,
+  searchModels,
+  storedChoice,
 } from '../catalogue';
 
-/** `GET /catalogue`, trimmed to the fields this module reads. */
-const CATALOGUE = {
-  object: 'list',
-  data: [
-    {
-      id: 'route:instant',
-      display_name: 'Instant',
-      description: 'Fast responses for simple tasks',
-      emoji: '⚡',
-      chat_visible: true,
-      object: 'routing_profile',
-      availability: { status: 'available' },
-      pricing: { credit_multiplier: 0.5 },
-    },
-    {
-      id: 'route:auto',
-      display_name: 'Auto',
-      description: 'Balanced performance for everyday tasks',
-      emoji: '🤖',
-      chat_visible: true,
-      object: 'routing_profile',
-      availability: { status: 'available' },
-      pricing: { credit_multiplier: 1 },
-    },
-    {
-      id: 'route:pro-standard',
-      display_name: 'Codea Pro',
-      description: 'Advanced coding assistance',
-      emoji: '💻',
-      chat_visible: true,
-      object: 'routing_profile',
-      availability: { status: 'available' },
-      pricing: { credit_multiplier: 2 },
-    },
-    {
-      id: 'route:code',
-      display_name: 'Codea',
-      description: 'Coding assistant',
-      emoji: '💻',
-      chat_visible: false,
-      object: 'routing_profile',
-      availability: { status: 'available' },
-      pricing: { credit_multiplier: 1 },
-    },
-  ],
-};
+import { CATALOGUE } from './catalogue.fixture';
 
-/** `GET /catalogue/modes`, verbatim for the three modes these entries reach. */
-const MODES = {
-  object: 'list',
-  data: [
-    {
-      id: 'mode:auto',
-      object: 'product_mode',
-      label: 'Automatic',
-      description: 'Alia picks how to answer.',
-      routing: { kind: 'profile', profile_id: 'route:instant' },
-      deep_research: false,
-    },
-    {
-      id: 'mode:instant',
-      object: 'product_mode',
-      label: 'Fast',
-      description: 'Quick answers to straightforward questions.',
-      routing: { kind: 'profile', profile_id: 'route:instant' },
-      deep_research: false,
-    },
-    {
-      id: 'mode:thinking',
-      object: 'product_mode',
-      label: 'Balanced',
-      description: 'The everyday default: quick enough, capable enough.',
-      routing: { kind: 'profile', profile_id: 'route:auto' },
-      deep_research: false,
-    },
-    {
-      id: 'mode:research',
-      object: 'product_mode',
-      label: 'Deep research',
-      description: 'Multi-step research across sources, answered with citations.',
-      routing: { kind: 'profile', profile_id: 'route:instant' },
-      deep_research: true,
-    },
-  ],
-};
+const catalogue = parseCatalogue(CATALOGUE);
 
-const entries = parseCatalogue(CATALOGUE);
-const modes = parseModes(MODES);
-
-describe('parsing', () => {
-  it('reads every entry and every mode', () => {
-    expect(entries).toHaveLength(4);
-    expect(modes).toHaveLength(4);
+describe('parseCatalogue', () => {
+  it('reads the wire shape', () => {
+    expect(catalogue.defaultModelId).toBe('acme/rocket-1');
+    expect(catalogue.featuredIds).toEqual(['acme/rocket-1', 'globex/sage']);
+    expect(catalogue.models.map((model) => model.id)).toEqual([
+      'acme/rocket-1', 'acme/rocket-1-mini', 'globex/sage', 'initech/tps',
+    ]);
+    const first = catalogue.models[0];
+    expect(first?.publisher).toEqual({ id: 'acme', name: 'Acme' });
+    expect(first?.reasoningEfforts).toEqual(['low', 'high']);
+    expect(first?.pricing).toEqual({ inputPerMTok: '3.00', outputPerMTok: '15.00' });
   });
 
-  it('throws rather than reading an unreadable response as an empty one', () => {
+  it('throws on a shape it cannot read, rather than reporting an empty catalogue', () => {
+    expect(() => parseCatalogue(null)).toThrow();
     expect(() => parseCatalogue({ object: 'list' })).toThrow();
-    expect(() => parseModes({ object: 'list' })).toThrow();
-    // Every entry unparseable is a shape break, not an empty catalogue.
-    expect(() => parseCatalogue({ object: 'list', data: [{ id: 7 }] })).toThrow();
-    expect(() => parseModes({ object: 'list', data: [{ ...MODES.data[0], routing: { kind: 'default' } }] })).toThrow();
-    expect(() => parseModes({ object: 'list', data: [{ ...MODES.data[0], id: ' mode:auto' }] })).toThrow();
-    expect(() => parseModes({ object: 'list', data: [{ ...MODES.data[0], routing: { kind: 'profile', profile_id: 'route:instant ' } }] })).toThrow();
+    expect(() => parseCatalogue({ object: 'list', data: [], featuredIds: [] })).toThrow();
+    expect(() => parseCatalogue({ ...CATALOGUE, data: [{ id: 7 }] })).toThrow();
   });
 
-  it('drops an entry whose object is neither known value', () => {
+  it('drops malformed entries, retired profile entries and duplicates', () => {
     const parsed = parseCatalogue({
-      object: 'list',
-      data: [CATALOGUE.data[0], { id: 'x', display_name: 'X', object: 'something_new' }],
+      ...CATALOGUE,
+      data: [
+        CATALOGUE.data[0],
+        CATALOGUE.data[0],
+        { ...CATALOGUE.data[1], object: 'routing_profile' },
+        { ...CATALOGUE.data[2], id: 'no-publisher' },
+        { ...CATALOGUE.data[3], publisher: null },
+      ],
     });
-    expect(parsed.map((entry) => entry.id)).toEqual(['route:instant']);
+    expect(parsed.models.map((model) => model.id)).toEqual(['acme/rocket-1']);
   });
 
-  it('reads an empty list as an empty list', () => {
-    expect(parseCatalogue({ object: 'list', data: [] })).toEqual([]);
-  });
-});
-
-describe('presentation', () => {
-  it("uses the product's word for a profile a mode selects", () => {
-    const lite = entries.find((entry) => entry.id === 'route:instant');
-    expect(lite?.displayName).toBe('Instant');
-    expect(presentation(lite ?? entries[0], modes).label).toBe('Instant');
-  });
-
-  it("falls back to the catalogue's own name for a profile no mode selects", () => {
-    const pro = entries.find((entry) => entry.id === 'route:pro-standard');
-    expect(presentation(pro ?? entries[0], modes).label).toBe('Codea Pro');
-  });
-
-  it('fails closed when two presentation modes claim the same exact profile', () => {
-    const balanced = modes.find((mode) => mode.id === 'mode:thinking');
-    expect(balanced).toBeDefined();
-    if (balanced === undefined) throw new Error('fixture is missing mode:thinking');
-
-    const ambiguous = modes.map((mode) => mode.id === balanced.id
-      ? { ...mode, routing: { kind: 'profile' as const, profileId: 'route:instant' } }
-      : mode);
-    expect(modeForProfile('route:instant', ambiguous)).toBeNull();
+  it('accepts an empty catalogue', () => {
+    expect(parseCatalogue({ ...CATALOGUE, data: [] }).models).toEqual([]);
   });
 });
 
-describe('offeredModes', () => {
-  const offered = offeredModes(entries, modes);
+describe('storedChoice', () => {
+  it('keeps a publisher/model id and reads every retired identifier as unset', () => {
+    expect(storedChoice(' acme/rocket-1 ')).toBe('acme/rocket-1');
+    for (const retired of [undefined, null, '', 'mode:' + 'auto', 'route:' + 'instant', 'profile:' + 'chat', 'alia-' + 'lite']) {
+      expect(storedChoice(retired)).toBeNull();
+    }
+  });
+});
 
-  it('offers only what the catalogue marks chat-visible', () => {
-    expect(offered.map((mode) => mode.id)).toEqual([
-      'route:instant',
-      'route:auto',
-      'route:pro-standard',
+describe('resolveRequestModel', () => {
+  it('sends a chosen model the catalogue lists', () => {
+    expect(resolveRequestModel('initech/tps', catalogue)).toBe('initech/tps');
+  });
+
+  it('omits model when unset, retired, or no longer listed', () => {
+    expect(resolveRequestModel(undefined, catalogue)).toBeUndefined();
+    expect(resolveRequestModel('route:' + 'auto', catalogue)).toBeUndefined();
+    expect(resolveRequestModel('acme/withdrawn', catalogue)).toBeUndefined();
+  });
+
+  it('sends the chosen id as-is when the catalogue is unreadable', () => {
+    expect(resolveRequestModel('acme/withdrawn', null)).toBe('acme/withdrawn');
+    expect(resolveRequestModel(undefined, null)).toBeUndefined();
+    expect(resolveRequestModel('mode:' + 'pro', null)).toBeUndefined();
+  });
+});
+
+describe('listing and search', () => {
+  it('lists featured first, in featuredIds order', () => {
+    expect(modelsForListing(catalogue).map((model) => model.id)).toEqual([
+      'acme/rocket-1', 'globex/sage', 'acme/rocket-1-mini', 'initech/tps',
     ]);
   });
 
-  it('never puts an alias display name in front of a person', () => {
-    // The negative control the whole change exists for: `Instant` and
-    // `Auto` are in the payload above and must not reach a label.
-    expect(offered.map((mode) => mode.label)).toEqual(['Instant', 'Balanced', 'Codea Pro']);
+  it('matches id, name and publisher case-insensitively, exact id first', () => {
+    expect(searchModels(catalogue, 'ROCKET').map((model) => model.id)).toEqual([
+      'acme/rocket-1', 'acme/rocket-1-mini',
+    ]);
+    expect(searchModels(catalogue, 'acme/rocket-1-mini').map((model) => model.id)).toEqual([
+      'acme/rocket-1-mini',
+    ]);
+    expect(searchModels(catalogue, 'globex').map((model) => model.id)).toEqual(['globex/sage']);
+    expect(searchModels(catalogue, '  ')).toEqual([]);
+  });
+
+  it('labels the current model, or the default', () => {
+    expect(defaultLabel(catalogue)).toBe('Default (Rocket 1)');
+    expect(currentModelLabel('globex/sage', catalogue)).toBe('Sage');
+    expect(currentModelLabel(undefined, catalogue)).toBe('Default (Rocket 1)');
+    expect(currentModelLabel('acme/withdrawn', catalogue)).toBe('Default (Rocket 1)');
   });
 });
 
-describe('labelForPreference', () => {
-  it('calls no stored preference by the automatic mode, which is what it is', () => {
-    expect(labelForPreference(undefined, entries, modes)).toBe('Automatic');
-    expect(labelForPreference(null, entries, modes)).toBe('Automatic');
-    expect(labelForPreference('', entries, modes)).toBe('Automatic');
+describe('resolveModelCommand', () => {
+  it('lists with no argument and resets on default/reset', () => {
+    expect(resolveModelCommand('', catalogue)).toEqual({ kind: 'list' });
+    expect(resolveModelCommand(undefined, catalogue)).toEqual({ kind: 'list' });
+    expect(resolveModelCommand('Default', catalogue)).toEqual({ kind: 'reset' });
+    expect(resolveModelCommand('reset', catalogue)).toEqual({ kind: 'reset' });
   });
 
-  it('does not mistake deep research for the automatic mode', () => {
-    const deepResearchOnly = modes.filter((mode) => mode.deepResearch || mode.id === 'mode:instant');
-    expect(labelForPreference(undefined, entries, deepResearchOnly)).toBeNull();
+  it('selects an exact id even when other models also match', () => {
+    const command = resolveModelCommand('ACME/rocket-1', catalogue);
+    expect(command.kind === 'select' && command.model.id).toBe('acme/rocket-1');
   });
 
-  it("uses the product's word for a stored profile", () => {
-    expect(labelForPreference('route:instant', entries, modes)).toBe('Instant');
+  it('selects a single match and lists several', () => {
+    const one = resolveModelCommand('sage', catalogue);
+    expect(one.kind === 'select' && one.model.id).toBe('globex/sage');
+    const several = resolveModelCommand('acme', catalogue);
+    expect(several.kind).toBe('matches');
+    expect(resolveModelCommand('nothing-like-it', catalogue)).toEqual({ kind: 'none', query: 'nothing-like-it' });
   });
+});
 
-  it('reports no word for a legacy identifier rather than inventing one', () => {
-    // A preference saved before `GET /v1/models` closed. It still routes on the
-    // server; the product simply has no word for it, and reporting `Fast` here
-    // would claim a routing this request does not make.
-    expect(labelForPreference('route:pro', entries, modes)).toBeNull();
+describe('fitLines', () => {
+  it('keeps everything that fits, and counts what does not', () => {
+    const lines = ['aaaa', 'bbbb', 'cccc', 'dddd'];
+    expect(fitLines(lines, 100, (n) => `+${n}`)).toBe('aaaa\nbbbb\ncccc\ndddd');
+    const fitted = fitLines(lines, 12, (n) => `+${n}`);
+    expect(fitted).toBe('aaaa\nbbbb\n+2');
+    expect(fitted.length).toBeLessThanOrEqual(12);
   });
 });

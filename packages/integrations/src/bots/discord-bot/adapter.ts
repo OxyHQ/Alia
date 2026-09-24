@@ -8,10 +8,9 @@ import {
   registerSlashCommands,
   handleTextCommand,
   sendAuthRequest,
-  describeModes,
-  resolveModeChoice,
+  runModelCommand,
 } from './commands';
-import { labelForPreference } from '../../shared/catalogue';
+import { currentModelLabel } from '../../shared/catalogue';
 import { createLogger } from '../../shared/logger';
 
 const apiClient = new APIClient('discord', process.env.DISCORD_BOT_SECRET || '');
@@ -95,14 +94,13 @@ export class DiscordBotAdapter implements BotAdapter {
             if (!botUser?.isLinked) {
               await interaction.editReply('Not linked. Use /start to connect.');
             } else {
-              // Omitted when the stored preference is a legacy identifier the
-              // catalogue does not describe — see `shared/catalogue.ts`.
-              const offeredModes = await apiClient.fetchOfferedModes();
-              const modeLabel = offeredModes === null
+              // The model row is omitted only when the catalogue could not be read.
+              const catalogue = await apiClient.fetchCatalogue();
+              const modelLabel = catalogue === null
                 ? null
-                : labelForPreference(botUser.preferredModel, offeredModes.entries, offeredModes.modes);
+                : currentModelLabel(botUser.preferredModel, catalogue);
               await interaction.editReply(
-                modeLabel === null ? 'Connected' : `Connected | Mode: ${modeLabel}`,
+                modelLabel === null ? 'Connected' : `Connected | Model: ${modelLabel}`,
               );
             }
           } catch {
@@ -124,20 +122,19 @@ export class DiscordBotAdapter implements BotAdapter {
           await interaction.deferReply({ ephemeral: true });
           try {
             const botUser = await apiClient.getBotUser(interaction.user.id);
-            const modeArg = interaction.options.getString('mode');
-            if (!modeArg) {
-              await interaction.editReply(await describeModes(botUser?.preferredModel));
-            } else {
-              const choice = await resolveModeChoice(modeArg, botUser?.preferredModel);
-              if (choice.ok) {
-                await apiClient.updateModel(interaction.user.id, choice.id);
-                await interaction.editReply(`Alia will now answer in **${choice.label}** mode.`);
-              } else {
-                await interaction.editReply(choice.message);
-              }
+            if (!botUser?.isLinked) {
+              await interaction.editReply('Not linked. Use /start to connect.');
+              break;
             }
+            await interaction.editReply(
+              await runModelCommand(
+                interaction.user.id,
+                botUser.preferredModel,
+                interaction.options.getString('model'),
+              ),
+            );
           } catch {
-            await interaction.editReply('Error with the mode command.');
+            await interaction.editReply('Error with the model command.');
           }
           break;
 
@@ -151,7 +148,7 @@ export class DiscordBotAdapter implements BotAdapter {
                 { name: '/start', value: 'Link account' },
                 { name: '/status', value: 'Check status' },
                 { name: '/new', value: 'New conversation' },
-                { name: '/model [mode]', value: 'Choose how Alia answers' },
+                { name: '/model [text]', value: 'Choose the model Alia answers with' },
                 { name: '/logout', value: 'Disconnect' },
               ],
             }],
@@ -260,9 +257,9 @@ export class DiscordBotAdapter implements BotAdapter {
           botUser.oxyUserId,
           apiMessages,
           {
-            // Unset means no preference; the request names no model and the
-            // server's default applies. See `shared/api-client.ts`.
-            model: botUser.preferredModel,
+            // Unset, or no longer in the catalogue, means the request names no
+            // model and the server's default applies. See `shared/catalogue.ts`.
+            model: await apiClient.requestModel(botUser.preferredModel),
             conversationId,
           },
         );
