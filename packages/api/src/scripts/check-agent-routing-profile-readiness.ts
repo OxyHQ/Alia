@@ -27,50 +27,28 @@ export function agentRoutingReadinessReport(rows: readonly AgentRoutingReadiness
   return { ready: unresolved.length === 0, unresolvedCount: unresolved.length, unresolved };
 }
 
-/** Compare against what the authenticated Alia application can actually see in
- * Oxy. Source constants alone cannot prove that the reviewed bootstrap ran.
+/**
+ * Every Oxy profile this image names at call time: the chat and agent profiles
+ * resolved per turn, and the speech-only profile `lib/synthesize-speech.ts`
+ * names on every read-aloud and voice answer.
  *
- * CHAT AND AGENT PROFILES ONLY, and that boundary is the point. Every one of
- * these is resolved per turn by the runtime this deploy is shipping, so a
- * missing one means the next conversation fails — worth refusing to deploy
- * over. The speech profile is not in that set; see {@link speechReadinessReport}. */
+ * Speech was reported-not-blocking while Oxy had not provisioned it (#576
+ * blocked every deploy on a capability Alia could not create). Oxy provisioned
+ * it on 2026-09-24 (OxyHQ/oxy #1360, bootstrap run 36055026625), so it is a
+ * required profile again: a missing one now means read-aloud fails, which is
+ * worth refusing to deploy over.
+ */
+export const REQUIRED_OXY_ROUTING_PROFILE_IDS: readonly string[] = [
+  ...OXY_KAANA_ROUTING_PROFILE_ID_LIST,
+  OXY_KAANA_SPEECH_ROUTING_PROFILE_ID,
+];
+
+/** Compare against what the authenticated Alia application can actually see in
+ * Oxy. Source constants alone cannot prove that the reviewed bootstrap ran. */
 export function oxyRoutingReadinessReport(routingProfileIds: readonly string[]) {
   const visible = new Set(routingProfileIds);
-  const missing = OXY_KAANA_ROUTING_PROFILE_ID_LIST.filter((id) => !visible.has(id));
+  const missing = REQUIRED_OXY_ROUTING_PROFILE_IDS.filter((id) => !visible.has(id));
   return { ready: missing.length === 0, missingCount: missing.length, missing };
-}
-
-/**
- * Whether Oxy has provisioned the speech-only profile yet. REPORTED, NOT BLOCKING.
- *
- * This assertion used to sit inside {@link oxyRoutingReadinessReport}, where it
- * blocked the deploy. It was added by #576 — "PREPARE Oxy-backed read-aloud" —
- * and the first deploy created after that commit failed on it, 17 seconds later.
- * Every deploy since has been blocked, so no unrelated fix could reach
- * production either.
- *
- * The profile is not missing by accident and Alia cannot create it. Oxy's
- * `docs/inference/speech-recovery-2026-09-13.md` reserves this exact id for
- * Alia and states that provisioning it needs "normal reviewer authority,
- * immutable price/score records and exact credential binding", that "no speech
- * catalogue provisioning is included in this candidate", and that speech must
- * not be called live before that lands. So this gate was refusing to deploy
- * until an upstream decision it does not control was taken.
- *
- * Blocking also bought nothing. `lib/synthesize-speech.ts` names this profile on
- * the request itself, so with the profile absent read-aloud fails at call time
- * whether or not this deploy happens — the gate could not keep speech working,
- * only keep everything else from shipping.
- *
- * MAKE IT BLOCKING AGAIN once Oxy provisions the profile: move the id back into
- * the list above and delete this. A gate for a capability that exists is worth
- * having; this one guarded a capability that had not been built yet.
- */
-export function speechReadinessReport(routingProfileIds: readonly string[]) {
-  return {
-    provisioned: new Set(routingProfileIds).has(OXY_KAANA_SPEECH_ROUTING_PROFILE_ID),
-    routingProfileId: OXY_KAANA_SPEECH_ROUTING_PROFILE_ID,
-  };
 }
 
 async function main(): Promise<void> {
@@ -90,9 +68,7 @@ async function main(): Promise<void> {
   const profiles = await client.listRoutingProfiles({ signal: AbortSignal.timeout(10_000) });
   const visibleIds = profiles.map((profile) => profile.routingProfileId);
   const oxyReport = oxyRoutingReadinessReport(visibleIds);
-  const speechReport = speechReadinessReport(visibleIds);
-  // `speech` is deliberately absent from this conjunction — see its report.
-  const report = { ready: agentsReport.ready && oxyReport.ready, agents: agentsReport, oxy: oxyReport, speech: speechReport };
+  const report = { ready: agentsReport.ready && oxyReport.ready, agents: agentsReport, oxy: oxyReport };
   process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
   if (!report.ready) process.exitCode = 1;
 }
