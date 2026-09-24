@@ -21,19 +21,16 @@ import type { ToolCallOptions, ToolSet } from 'ai';
  * row (`db/agents/rollbackRecordRepository.ts`). `governance.ts`, `threat-detector.ts` and
  * the wrapper itself all run for real.
  *
- * ## Where R0 and R1 come from, and why that is honest
+ * ## Where each level comes from
  *
- * `classifyActionRisk` matches on the TOOL NAME against three frozen sets. None
- * of the five action primitives (`shell`, `browser`, `file_edit`, `plan`,
- * `delegate`) appears in any of them, so none of them can be classified R0 or
- * R1 — a fact this file records explicitly below rather than working around.
- * The names in the R0/R1 sets (`read_file`, `write_file`, …) reach the wrapper
- * today through MCP: `ToolPipeline` merges `buildMcpTools`' output into the
- * same set and `applyRuntimePolicy` wraps everything in it identically, and a
- * filesystem MCP server publishes exactly those names. So the R0 and R1 paths
- * exercised here are reachable in production, through the door they are actually
- * reachable through. The merge moved from `buildActions` to the assembler when
- * the five assemblers became one; what the wrapper sees did not change.
+ * The action primitives (`browser`, `plan`, `delegate`) are classified by
+ * what the CALL does: they search and read, plan, or hire another Alia agent,
+ * so they are R0 or R1 and run unattended. Named tools (`read_file`,
+ * `write_file`, `sendEmail`, …) keep their name sets, and they reach the
+ * wrapper through MCP here exactly as in production: `ToolPipeline` merges
+ * `buildMcpTools`' output into the same set and `applyRuntimePolicy` wraps
+ * everything in it identically. `send_message` is an MCP tool no set names, so
+ * it is the unknown-tool default: R2.
  */
 
 const H = vi.hoisted(() => {
@@ -91,6 +88,14 @@ vi.mock('../../tools/mcp.js', () => ({
         return 'written';
       },
     },
+    send_message: {
+      description: 'send a message over MCP',
+      execute: async () => {
+        H.timeline.push('exec:send_message');
+        H.state.mcpRuns.push('send_message');
+        return 'sent';
+      },
+    },
   })),
 }));
 
@@ -106,6 +111,7 @@ import {
 } from '../actions.js';
 import { buildMcpTools } from '../../tools/mcp.js';
 import { classifyActionRisk } from '../governance.js';
+import { declareReadOnly } from '../tool-effects.js';
 import { requestApproval } from '../action-approval.js';
 import { insertRollbackRecord } from '../../../db/agents/rollbackRecordRepository.js';
 import { GRANTS_EVERYTHING, readCapabilityGrants } from '../../../domain/capability-grants.js';
@@ -138,16 +144,6 @@ function actionContext(): AgentRuntimeContext {
       update: () => undefined,
       toJSON: () => ({ items: [] }),
       serialize: () => 'plan',
-    },
-    workspaceMemory: { syncTodo: async () => undefined },
-    terminalSession: {
-      run: async (command: string) => {
-        H.timeline.push(`exec:shell(${command})`);
-        return 'shell output';
-      },
-      readFile: async () => 'contents',
-      writeFile: async () => undefined,
-      getContainerId: () => null,
     },
     browserSession: {
       execute: async (action: string) => {
@@ -191,16 +187,26 @@ beforeEach(() => {
  * the classifier stopped distinguishing anything) still fails somewhere.
  */
 describe('the risk classifier answers each level for a distinct reason', () => {
-  it('reads a destructive PAYLOAD as R3, whatever the tool is called', () => {
-    expect(classifyActionRisk('shell', { command: 'rm -rf /workspace' })).toEqual({
+  it('reads a destructive COMMAND as R3, whatever the tool is called', () => {
+    expect(classifyActionRisk('mcp_db__execute', { sql: 'DROP DATABASE prod' })).toEqual({
       riskLevel: 'R3',
       reason: 'Destructive or irreversible operation blocked by policy',
       reversible: false,
       externalImpact: false,
     });
+    expect(classifyActionRisk('mcp_host__run', { command: 'rm -rf /workspace' }).riskLevel).toBe('R3');
     // The same tool with a harmless payload is NOT R3 — without this the check
     // above would pass for a classifier that returned R3 unconditionally.
-    expect(classifyActionRisk('shell', { command: 'ls -la' }).riskLevel).not.toBe('R3');
+    expect(classifyActionRisk('mcp_host__run', { command: 'ls -la' }).riskLevel).not.toBe('R3');
+  });
+
+  it('reads only command arguments, so prose that names a destructive word is not R3', () => {
+    // These were R3 when every string argument was scanned: a file whose
+    // content said "format", a search for "delete from".
+    expect(classifyActionRisk('write_file', { path: 'a.md', content: 'npm run format; rm -rf is bad' }).riskLevel).toBe('R1');
+    expect(classifyActionRisk('webSearch', { q: 'sql delete from syntax' }).riskLevel).toBe('R0');
+    // A search primitive's `query` is text to look up, never a command.
+    expect(classifyActionRisk('browser', { action: 'search', query: 'how to reboot a router' }).riskLevel).toBe('R0');
   });
 
   it('reads an external-impact name as R2 and a reversible write as R1', () => {
@@ -218,20 +224,19 @@ describe('the risk classifier answers each level for a distinct reason', () => {
   });
 
   /**
-   * MEASURED, and a finding rather than a design: the three name sets predate
-   * the five action primitives, so no primitive can ever be R0 or R1. Every one
-   * of them falls through to the unknown-tool default, which is R2 — meaning an
-   * agent's `shell`, `browser`, `file_edit` and `delegate` calls all require an
-   * interactive approval, and `createRollbackRecord` is unreachable from them.
-   *
-   * Recorded rather than corrected because correcting it is a product decision
-   * about agent autonomy, not a preservation guard. When the sets are repaired,
-   * this assertion is the one that says so out loud.
+   * None of the primitives needs a person watching. They used to fall through
+   * to the unknown-tool default (R2), which made every unattended `browser` or
+   * `delegate` call wait 60s for an approval nobody could give and then fail.
    */
-  it('classifies EVERY action primitive as R2 today, so R0 and R1 are MCP-only', () => {
-    const primitives = ['shell', 'browser', 'file_edit', 'delegate'];
-    const levels = primitives.map((name) => classifyActionRisk(name, {}).riskLevel);
-    expect(levels).toEqual(['R2', 'R2', 'R2', 'R2']);
+  it('classifies the action primitives by what the call does, never R2', () => {
+    expect(classifyActionRisk('browser', { action: 'goto', url: 'https://example.com' }).riskLevel).toBe('R0');
+    expect(classifyActionRisk('delegate', { task: 'x' })).toMatchObject({ riskLevel: 'R1', reversible: false });
+    expect(classifyActionRisk('plan', { action: 'update' }).riskLevel).toBe('R0');
+  });
+
+  it('reads a tool its source declared read-only as R0, and the same name undeclared as R2', () => {
+    expect(classifyActionRisk('oxy_inbox__list_threads', {}, { declaredReadOnly: true }).riskLevel).toBe('R0');
+    expect(classifyActionRisk('oxy_inbox__list_threads', {}).riskLevel).toBe('R2');
   });
 });
 
@@ -261,11 +266,11 @@ async function policyApplied(ctx: AgentRuntimeContext, grants = GRANTS_EVERYTHIN
 describe('the governance wrapper enforces the level it classified', () => {
   it('R3 blocks before the tool runs, and says so on the event stream', async () => {
     const actions = await policyApplied(actionContext());
-    const result = await run(actions, 'browser', { action: 'search', query: 'rm -rf /workspace' });
+    const result = await run(actions, 'send_message', { command: 'psql -c "DROP DATABASE prod"' });
 
     // The refusal reaches the model as a tool result, so the agent can react.
     expect(result).toBe('Error: Action blocked by policy — Destructive or irreversible operation blocked by policy');
-    // The whole point: the terminal never saw the command. `exec:shell(...)` is
+    // The whole point: the tool never saw the command. `exec:send_message` is
     // pushed by the double the wrapper wraps, so its ABSENCE is the measurement.
     expect(H.timeline).toEqual([
       'event:system_message(POLICY BLOCKED [R3]: Destructive or irreversible operation blocked by policy)',
@@ -277,12 +282,12 @@ describe('the governance wrapper enforces the level it classified', () => {
   it('R2 asks for approval and refuses when the answer is not yes', async () => {
     H.state.approval = 'denied';
     const actions = await policyApplied(actionContext());
-    const result = await run(actions, 'browser', { action: 'search', query: 'hello' });
+    const result = await run(actions, 'send_message', { to: 'someone', text: 'hello' });
 
     expect(result).toBe('Error: Action requires approval (denied).');
     expect(H.timeline).toEqual([
-      'approval:request(browser)',
-      'event:system_message(APPROVAL DENIED: browser)',
+      'approval:request(send_message)',
+      'event:system_message(APPROVAL DENIED: send_message)',
     ]);
     expect(H.timeline.filter((entry) => entry.startsWith('exec:'))).toEqual([]);
   });
@@ -292,10 +297,40 @@ describe('the governance wrapper enforces the level it classified', () => {
     // executed anything would report.
     H.state.approval = 'approved';
     const actions = await policyApplied(actionContext());
-    const result = await run(actions, 'browser', { action: 'search', query: 'hello' });
+    const result = await run(actions, 'send_message', { to: 'someone', text: 'hello' });
+
+    expect(result).toBe('sent');
+    expect(H.timeline).toEqual(['approval:request(send_message)', 'exec:send_message']);
+  });
+
+  it('a browser read runs unattended: no approval, no rollback window', async () => {
+    // The approval double would answer "denied", which is what an unattended
+    // run gets; the read must not depend on it.
+    H.state.approval = 'denied';
+    const actions = await policyApplied(actionContext());
+    const result = await run(actions, 'browser', { action: 'search', query: 'how to reboot a router' });
 
     expect(result).toBe('page text');
-    expect(H.timeline).toEqual(['approval:request(browser)', 'exec:browser(search)']);
+    expect(H.timeline).toEqual(['exec:browser(search)']);
+    expect(vi.mocked(requestApproval)).not.toHaveBeenCalled();
+    expect(vi.mocked(insertRollbackRecord)).not.toHaveBeenCalled();
+  });
+
+  it('a read-only declaration reaches the wrapper through the tool object', async () => {
+    H.state.approval = 'denied';
+    const ctx = actionContext();
+    const tools: ToolSet = {
+      oxy_inbox__list_threads: declareReadOnly({
+        description: 'list threads',
+        execute: async () => {
+          H.timeline.push('exec:list_threads');
+          return 'threads';
+        },
+      }) as unknown as ToolSet[string],
+    };
+    const actions = await applyRuntimePolicy(tools, ctx, new Set());
+    expect(await run(actions, 'oxy_inbox__list_threads', {})).toBe('threads');
+    expect(vi.mocked(requestApproval)).not.toHaveBeenCalled();
   });
 
   it('R1 executes, then opens a rollback window recording what was done', async () => {
@@ -362,34 +397,32 @@ describe('every action carries the wrapper, and the exemption is exactly one', (
       'delegate',
       'plan',
       'read_file',
+      'send_message',
       'write_file',
     ]);
 
     /**
-     * The probe is R3, not R2, because R3 is the one branch that does not
-     * depend on the tool's NAME: `hasDestructivePayload` reads the string
-     * arguments (`governance.ts:55`), so the same input is classified R3 for
-     * every action. That makes "is this action wrapped?" one question with one
-     * answer, rather than a different question per risk level — `read_file` is
-     * R0 and asks for no approval, so an approval-based probe would read an
-     * unwrapped R0 tool as an unwrapped tool.
+     * The probe is the repeat detector, because it is the one branch of the
+     * wrapper that depends on neither the tool's NAME nor its arguments' risk:
+     * the same call five times is stopped for every wrapped action, whatever it
+     * classifies as. `browser` is R0 and cannot be R3 — its query is text to
+     * look up — so a destructive-payload probe would read it as unwrapped.
      */
-    const destructive = { command: 'rm -rf /workspace', path: 'rm -rf /workspace' };
+    H.state.approval = 'approved';
+    const probe = { action: 'search', query: 'same call again' };
     for (const name of executable) {
       if (name === 'plan') continue;
-      H.timeline.length = 0;
-      vi.clearAllMocks();
-      const refusal = await run(actions, name, destructive);
-      expect(String(refusal), `${name} is not governed`).toContain('Action blocked by policy');
-      expect(H.timeline.filter((entry) => entry.startsWith('exec:')), `${name} ran anyway`).toEqual([]);
+      let last: unknown;
+      for (let call = 0; call < 5; call += 1) last = await run(actions, name, probe);
+      expect(String(last), `${name} is not governed`).toContain('Repeated identical tool call stopped');
     }
 
-    // `plan` is the single exemption (`actions.ts:317`), so the same payload
-    // reaches its own executor untouched. This is what makes the loop above a
-    // statement about the wrapper rather than about an unconditional refusal.
-    H.timeline.length = 0;
+    // `plan` is the single exemption, so the same five calls all reach its own
+    // executor. This is what makes the loop above a statement about the
+    // wrapper rather than about an unconditional refusal.
     vi.clearAllMocks();
-    const planResult = await run(actions, 'plan', { action: 'update', items: ['a'], ...destructive });
+    let planResult: unknown;
+    for (let call = 0; call < 5; call += 1) planResult = await run(actions, 'plan', { action: 'update', items: ['a'] });
     expect(vi.mocked(requestApproval)).not.toHaveBeenCalled();
     expect(planResult).toBe('plan');
   });

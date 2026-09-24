@@ -14,7 +14,6 @@ export interface ActionRisk {
 const READ_ONLY_TOOLS = new Set([
   'getCurrentDate',
   'webSearch',
-  'browse',
   'webScraper',
   'read_file',
   'list_files',
@@ -43,26 +42,69 @@ const EXTERNAL_IMPACT_TOOLS = new Set([
   'createCalendarEvent',
 ]);
 
+/**
+ * Irreversible operations, matched only in the arguments that carry a command
+ * or a query — what an MCP server or connector would run on the agent's behalf.
+ *
+ * Scanning every string argument blocked a file whose content said "format"
+ * and a web search for "truncate".
+ */
 const DESTRUCTIVE_TOKENS = [
   /\brm\s+-rf\b/i,
   /\bdel\s+\/f\b/i,
-  /\bdrop\s+database\b/i,
-  /\btruncate\b/i,
+  /\bmkfs\b/i,
+  /\b(?:shutdown|reboot)\b/i,
+  /\bdrop\s+(?:database|schema|table)\b/i,
+  /\btruncate\s+table\b/i,
   /\bdelete\s+from\b/i,
-  /\bformat\b/i,
-  /\bshutdown\b/i,
-  /\breboot\b/i,
 ];
 
+const COMMAND_ARGUMENTS = ['command', 'cmd', 'script', 'sql', 'query', 'statement'];
+
 function hasDestructivePayload(args: Record<string, unknown>): boolean {
-  const values = Object.values(args)
+  const values = COMMAND_ARGUMENTS
+    .map((key) => args[key])
     .filter((value): value is string => typeof value === 'string')
     .join('\n');
 
   return DESTRUCTIVE_TOKENS.some((pattern) => pattern.test(values));
 }
 
-export function classifyActionRisk(toolName: string, args: Record<string, unknown>): ActionRisk {
+const R0 = (reason: string): ActionRisk => ({ riskLevel: 'R0', reason, reversible: false, externalImpact: false });
+const R1 = (reason: string, reversible: boolean): ActionRisk => ({ riskLevel: 'R1', reason, reversible, externalImpact: false });
+
+/**
+ * The runtime primitives, classified by what the CALL does rather than by name.
+ *
+ * `browser` only searches and reads through Clarity, `plan` is internal to the
+ * session and `delegate` runs another Alia agent under this session's budget,
+ * so none of them needs a person watching. They used to fall through to the
+ * unknown-tool default: R2, a 60s wait for an approval nobody could give in a
+ * background run, then a denial.
+ */
+function classifyPrimitive(toolName: string): ActionRisk | null {
+  switch (toolName) {
+    case 'plan':
+      return R0('Planning is internal to the session');
+    case 'browser':
+      return R0('Search and page reading is autonomous');
+    case 'delegate':
+      return R1('Delegation runs another Alia agent under this session budget', false);
+    default:
+      return null;
+  }
+}
+
+export function classifyActionRisk(
+  toolName: string,
+  args: Record<string, unknown>,
+  options: { declaredReadOnly?: boolean } = {},
+): ActionRisk {
+  const primitive = classifyPrimitive(toolName);
+  // A search or a plan cannot run what its text names: "how to reboot a
+  // router" is a query, not a command.
+  if (primitive?.riskLevel === 'R0') return primitive;
+
   if (hasDestructivePayload(args) || toolName === 'delete_file') {
     return {
       riskLevel: 'R3',
@@ -71,6 +113,8 @@ export function classifyActionRisk(toolName: string, args: Record<string, unknow
       externalImpact: false,
     };
   }
+
+  if (primitive) return primitive;
 
   if (EXTERNAL_IMPACT_TOOLS.has(toolName)) {
     return {
@@ -82,21 +126,11 @@ export function classifyActionRisk(toolName: string, args: Record<string, unknow
   }
 
   if (REVERSIBLE_WRITE_TOOLS.has(toolName)) {
-    return {
-      riskLevel: 'R1',
-      reason: 'Reversible write action allowed with rollback window',
-      reversible: true,
-      externalImpact: false,
-    };
+    return R1('Reversible write action allowed with rollback window', true);
   }
 
-  if (READ_ONLY_TOOLS.has(toolName)) {
-    return {
-      riskLevel: 'R0',
-      reason: 'Read-only action is autonomous',
-      reversible: false,
-      externalImpact: false,
-    };
+  if (READ_ONLY_TOOLS.has(toolName) || options.declaredReadOnly) {
+    return R0('Read-only action is autonomous');
   }
 
   // Unknown tools default to approval-required.

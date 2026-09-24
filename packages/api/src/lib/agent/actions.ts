@@ -59,6 +59,7 @@ import { analyzeThreat, formatThreatSummary } from './threat-detector.js';
 import type { ThreatResult } from './threat-detector.js';
 import { requestApproval } from './action-approval.js';
 import { classifyActionRisk, createRollbackRecord } from './governance.js';
+import { isDeclaredReadOnly } from './tool-effects.js';
 import { autonomyFlags } from '../autonomy/flags.js';
 import { getDb } from '../../db/index.js';
 import { updateAgentSession, type AgentSessionRecord } from '../../db/agents/agentSessionRepository.js';
@@ -301,7 +302,7 @@ export async function applyRuntimePolicy(
           return `Error: Repeated identical tool call stopped after ${repeated.count} attempts. Inspect the previous result and choose a different action.`;
         }
       }
-      const risk = classifyActionRisk(name, inputArgs);
+      const risk = classifyActionRisk(name, inputArgs, { declaredReadOnly: isDeclaredReadOnly(action) });
 
       if (risk.riskLevel === 'R3') {
         eventStream?.append('system_message', `POLICY BLOCKED [R3]: ${risk.reason}`);
@@ -375,7 +376,9 @@ export async function applyRuntimePolicy(
 
       const result = await originalExecute(input, options);
 
-      if (risk.riskLevel === 'R1' && autonomyFlags.rollbackEnabled) {
+      // Only a write that CAN be undone opens a window; a delegation has no
+      // inverse to offer, and a record promising one would lie.
+      if (risk.riskLevel === 'R1' && risk.reversible && autonomyFlags.rollbackEnabled) {
         await createRollbackRecord({
           userId,
           sessionId: session._id,
