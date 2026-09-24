@@ -236,6 +236,7 @@ describe('the risk classifier answers each level for a distinct reason', () => {
     // budgeted where they are implemented, so they need nobody watching either.
     expect(classifyActionRisk('sendMessageToUser', { message: 'x' }).riskLevel).toBe('R1');
     expect(classifyActionRisk('scheduleFollowUp', { at: 'x', note: 'y' }).riskLevel).toBe('R1');
+    expect(classifyActionRisk('continueInBackground', { task: 'x' }).riskLevel).toBe('R1');
   });
 
   it('reads a tool its source declared read-only as R0, and the same name undeclared as R2', () => {

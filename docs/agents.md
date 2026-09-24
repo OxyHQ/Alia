@@ -460,6 +460,14 @@ a notification that opens `/@handle`.
   person and agent). Its result is NOT posted; the agent speaks through
   `sendMessageToUser` only if it found something worth saying.
 
+### Work longer than a chat turn
+
+A chat turn has 80 seconds. An agent's chat turn has `continueInBackground`
+(R1): it starts a durable background run of the same agent for this person —
+admitted per person, holding credits like a goal, linked to the thread — and
+that run's result is posted into the conversation when it finishes. The model
+is told to say it is on it rather than do the work twice.
+
 ### An agent's own memory of a person
 
 `agent_memory_documents` (MEMORY.md plus `memory/<topic>.md`, per agent and

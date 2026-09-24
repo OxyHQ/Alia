@@ -11,6 +11,7 @@ import { TodoManager } from './todo-manager.js';
 import { BrowserSession } from './browser-session.js';
 import { EventStream } from './event-stream.js';
 import { withAgentAdmission } from '../../db/agents/agentRuntimeRepository.js';
+import { startAgentSession } from './session-handoff.js';
 import { log } from '../logger.js';
 
 export interface CoordinatedAgentTurn {
@@ -61,6 +62,33 @@ export class AgentTurnCoordinator {
       browserSession,
       eventStream,
       onComplete: (result) => { completedResult = result; },
+      /**
+       * A chat turn has 80 seconds. Work that needs longer is handed to a
+       * durable background run of the same agent, which resumes across
+       * restarts and writes its result into this conversation when it is done.
+       */
+      continueInBackground: async (task) => {
+        const admission = await withAgentAdmission(
+          getDb(),
+          { agentId: input.agent._id, oxyUserId: input.oxyUserId },
+          input.agent.maxConcurrentThreads,
+          () => startAgentSession({
+            agent: input.agent,
+            userId: input.oxyUserId,
+            task: task.slice(0, 2000),
+            origin: 'delegation',
+            ...(conversation?.agentThreadId ? { threadId: conversation.agentThreadId } : {}),
+          }),
+        );
+        if (!admission.admitted) return 'Not started: you already have as much work running for this person as you may. Tell them, and do what you can now.';
+        const handoff = admission.value;
+        if (!handoff.ok) {
+          return handoff.reason === 'insufficient_credits'
+            ? 'Not started: the person does not have enough credits for background work. Tell them.'
+            : 'Not started: the background run could not be queued. Do what you can now.';
+        }
+        return 'Started. It runs in the background and its result will be posted in this conversation when done. Tell the person briefly that you are on it; do not do the same work now.';
+      },
     };
     eventStream.append('user_message', input.task);
 
