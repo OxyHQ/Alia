@@ -191,10 +191,11 @@
           "module": "db/billing/subscriptionRepository.ts",
           "classification": "FINANCIAL",
           "callers": [
+            "lib/seed-comped-accounts.ts",
             "routes/billing.ts"
           ],
           "reachable": true,
-          "entrypoint": "POST /billing/subscription/cancel, POST /billing/subscription/change-plan, and the webhook's customer.subscription.deleted and invoice.payment_failed. Four of the five subscription write sites entitlements.test.ts accounts for."
+          "entrypoint": "POST /billing/subscription/cancel, POST /billing/subscription/change-plan, and the webhook's customer.subscription.deleted and invoice.payment_failed. Four of the five subscription write sites entitlements.test.ts accounts for. Also the comp withdrawal at the DEPLOY boundary: lib/seed-comped-accounts.ts cancels a comp_<userId>_<product> row whose product no longer has an active paid plan \u2014 only the comp's own id, never a Stripe subscription, and it moves no money."
         }
       ]
     },
