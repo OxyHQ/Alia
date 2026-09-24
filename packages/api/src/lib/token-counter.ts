@@ -15,13 +15,15 @@
  */
 export function estimateTokenCount(text: string): number {
   if (!text) return 0;
+  return estimateTokensForChars(text.length);
+}
 
-  // Rough approximation: 1 token ≈ 4 characters
-  // This is conservative - actual tokenizers may count fewer tokens
-  const charCount = text.length;
-  const tokenEstimate = Math.ceil(charCount / 4);
-
-  return tokenEstimate;
+/**
+ * The same estimate for a length already known — a part of a prompt measured
+ * where it was added. Rough approximation: 1 token ≈ 4 characters.
+ */
+export function estimateTokensForChars(charCount: number): number {
+  return charCount <= 0 ? 0 : Math.ceil(charCount / 4);
 }
 
 /**

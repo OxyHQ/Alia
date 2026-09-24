@@ -1,3 +1,4 @@
+import { parseContextUsage } from '@/lib/chat/context-usage';
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useAgentRowPreview } from './use-agent-row-preview';
 import { fetch as expoFetch } from 'expo/fetch';
@@ -752,6 +753,17 @@ export function useStreamingChat(apiUrl: string, conversationId?: string, reason
                   });
                   continue;
                 }
+                case 'alia.context': {
+                  // What this turn put in the context window, for the usage card.
+                  const usage = parseContextUsage(parsed);
+                  if (usage) {
+                    const { useUIStore } = await import('@/lib/stores/ui-store');
+                    useUIStore
+                      .getState()
+                      .setContextUsage(typeof parsed.conversationId === 'string' ? parsed.conversationId : conversationId ?? null, usage);
+                  }
+                  continue;
+                }
                 case 'alia.model_switch': {
                   if (parsed.model) {
                     useModelStore.getState().setSelectedModel(parsed.model);
@@ -794,12 +806,21 @@ export function useStreamingChat(apiUrl: string, conversationId?: string, reason
               const err = parsed.error;
               // Check for usage limit errors (rate limit, credits, model access)
               if (errorCode(err) === 'MODEL_NOT_IN_PLAN' || errorCode(err) === 'INSUFFICIENT_CREDITS' || err.type === 'rate_limit_error') {
+                const isRateLimit = err.type === 'rate_limit_error';
                 throw new UsageLimitError({
                   type: errorCode(err) === 'MODEL_NOT_IN_PLAN' ? 'model_access' : errorCode(err) === 'INSUFFICIENT_CREDITS' ? 'credits' : 'rate_limit',
                   code: String(errorCode(err) ?? ''),
                   message: getErrorMessage(err),
-                  retryable: false,
-                  suggestedAction: 'upgrade',
+                  retryable: isRateLimit,
+                  // A limit to wait out (the plan's usage window, the request
+                  // rate) carries when to retry, which drives the dialog's
+                  // countdown; running out of credits or a model's plan is an
+                  // upgrade.
+                  retryAfterSeconds: isRateLimit && typeof err.retryAfter === 'number' ? err.retryAfter : undefined,
+                  suggestedAction: isRateLimit ? 'wait' : 'upgrade',
+                  limitType: typeof err.details?.limitType === 'string' ? err.details.limitType : undefined,
+                  current: typeof err.details?.current === 'number' ? err.details.current : undefined,
+                  limit: typeof err.details?.limit === 'number' ? err.details.limit : undefined,
                 });
               }
 

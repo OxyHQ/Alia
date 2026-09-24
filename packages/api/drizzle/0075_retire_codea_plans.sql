@@ -1,0 +1,14 @@
+-- oxy:deploy-phase=post
+--
+-- The Codea plans leave the offer: Free, Go, Pro, Max and Ultra are the plans,
+-- and every one of them includes programming, as the other assistants' plans do.
+--
+-- Retired, not deleted. A subscription names its plan (a foreign key) and a
+-- person subscribed to Codea Pro or Codea Max keeps their plan until it ends;
+-- `is_active = false` takes the plans off `GET /billing/plans` and off
+-- checkout, which is what leaving the offer means. `lib/seed-plans.ts` no
+-- longer seeds them, and the seed only inserts, so they do not come back.
+--
+-- Post phase: the image this rollout replaces still offers Codea checkout, and
+-- must be gone before its plans stop resolving as active.
+UPDATE "plans" SET "is_active" = false WHERE "plan_id" IN ('codea-pro', 'codea-max');

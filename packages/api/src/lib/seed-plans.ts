@@ -42,7 +42,7 @@ const SEED_ACTOR: ConfigAuditActor = { kind: 'seed', id: 'lib/seed-plans.ts' };
 interface PlanSeed {
   planId: string;
   name: string;
-  product: 'alia' | 'codea';
+  product: 'alia';
   creditsPerMonth: number;
   dailyFreeCredits: number;
   monthlyPrice: number;
@@ -164,40 +164,7 @@ const SEED_PLANS: PlanSeed[] = [
     isFree: false,
     modelIds: PRO_MODEL_IDS,
   },
-
-  // ─── Codea Plans ──────────────────────────────────────────
-  {
-    planId: 'codea-pro',
-    name: 'Codea Pro',
-    product: 'codea',
-    creditsPerMonth: 10000,
-    dailyFreeCredits: 300,
-    monthlyPrice: 999,
-    annualPrice: 9590,
-    currency: 'usd',
-    subtitle: 'subscribe.codeaProUsage',
-    creditsLabel: '10,000 credits / mo',
-    isFeatured: false,
-    sortOrder: 0,
-    isFree: false,
-    modelIds: ['route:code', 'route:pro-standard', 'route:thinking'],
-  },
-  {
-    planId: 'codea-max',
-    name: 'Codea Max',
-    product: 'codea',
-    creditsPerMonth: 50000,
-    dailyFreeCredits: 300,
-    monthlyPrice: 4999,
-    annualPrice: 47990,
-    currency: 'usd',
-    subtitle: 'subscribe.codeaMaxUsage',
-    creditsLabel: '50,000 credits / mo',
-    isFeatured: true,
-    sortOrder: 1,
-    isFree: false,
-    modelIds: ['route:code', 'route:pro-standard', 'route:thinking'],
-  },
+  // No Codea plans: every plan includes programming (drizzle/0075 retired them).
 ];
 
 export async function seedPlans(): Promise<{ seeded: number; skipped: number }> {

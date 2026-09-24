@@ -7,6 +7,8 @@ import { createResponseSSEEmitter } from '../../lib/sse-emitter.js';
 import { SystemPromptBuilder } from '../../lib/system-prompt-builder.js';
 import { convertToAISDKMessages, type ChatMessage } from '../../lib/message-converter.js';
 import { estimateMessageTokens } from '../../lib/token-counter.js';
+import { guaranteedContextWindow, measureContext } from '../../lib/chat/context-breakdown.js';
+import { getModelMappingsForTier } from '../../lib/gateway-client.js';
 import { wrapToolsWithTruncation, getToolResultBudget } from '../../lib/tools/result-truncation.js';
 import { log } from '../../lib/logger.js';
 import { recordEvent } from '../../lib/observability/index.js';
@@ -177,8 +179,9 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
       log.v1.info({ toolCount: body.tools.length }, 'Received tools from client');
     }
 
-    // Build complete system message via SystemPromptBuilder
-    const systemMessage = await SystemPromptBuilder.build({
+    // Build complete system message via SystemPromptBuilder, measured for the
+    // context-window breakdown below.
+    const systemPrompt = await SystemPromptBuilder.buildMeasured({
       // The product's routing-profile id, or the product default for a model
       // running on the caller's own machine.
       routingProfileId: promptModelId,
@@ -196,7 +199,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
       reasoningEffort,
       responseMode,
     });
-
+    const systemMessage = systemPrompt.text;
 
     // Replace or inject system message
     const rawMessages = [...messages];
@@ -217,6 +220,31 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
     // Wrap tools with truncation to cap large results (saves tokens)
     const truncatedTools = wrapToolsWithTruncation(allTools, getToolResultBudget(128_000));
     log.v1.info({ toolNames: Object.keys(truncatedTools), toolCount: Object.keys(truncatedTools).length }, 'Tools passed to model');
+
+    /**
+     * What this turn puts in the context window, by category, for the app's
+     * context card (`lib/chat/context-breakdown.ts`). Streaming turns only —
+     * the app's — and never at the turn's expense: a measurement that fails is
+     * a card that does not update.
+     */
+    if (body.stream === true && state.resolved) {
+      try {
+        const breakdown = measureContext({
+          systemPrompt,
+          tools: allTools,
+          messages,
+          maxContextTokens: guaranteedContextWindow(
+            await getModelMappingsForTier(state.resolved.routingProfile.tier),
+          ),
+        });
+        sse.ensureHeaders();
+        res.write(
+          `event: alia.context\ndata: ${JSON.stringify({ eventVersion: 1, conversationId: conversationId ?? null, ...breakdown })}\n\n`,
+        );
+      } catch (error) {
+        log.v1.warn({ err: error }, 'Context breakdown not sent');
+      }
+    }
 
     // Record agent.start for observability
     recordEvent({
