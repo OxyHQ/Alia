@@ -62,11 +62,18 @@ const DECLARATIONS = [
   { file: 'packages/app/lib/constants/agent-colors.ts', binding: 'AGENT_SWATCHES' },
 ];
 
-/** The screen that offers the swatches, and what it must hand the picker. */
+/**
+ * The screen that offers the swatches, and the list it must render them from.
+ *
+ * Since Bloom v4 the choices are a radio `ChipRow` labelled with the colour
+ * label, one `Chip` per entry of a `.map(...)` — not a `ColorPicker` handed a
+ * `colors` prop. What matters is unchanged: the list mapped into that group is
+ * the checked constant, not some other list a person would see instead.
+ */
 const PICKER_SITE = {
   file: 'packages/app/app/(app)/agents/edit/[id].tsx',
-  component: 'ColorPicker',
-  prop: 'colors',
+  component: 'ChipRow',
+  labelKey: 'agents.colorLabel',
   expected: 'AGENT_SWATCHES',
 };
 
@@ -123,7 +130,7 @@ function readStringList(relativePath, binding) {
 }
 
 /** What the picker is actually handed, as written — an identifier or `null`. */
-function pickerArgument({ file, component, prop }) {
+function pickerArgument({ file, component, labelKey }) {
   const source = ts.createSourceFile(
     file,
     readFileSync(resolve(ROOT, file), 'utf8'),
@@ -131,29 +138,36 @@ function pickerArgument({ file, component, prop }) {
     true,
   );
 
+  // The group: a `<ChipRow>` whose accessibility label names the colour label.
+  const isColourGroup = (opening) =>
+    ts.isIdentifier(opening.tagName) &&
+    opening.tagName.text === component &&
+    opening.attributes.properties.some(
+      (attribute) =>
+        ts.isJsxAttribute(attribute) &&
+        attribute.name.getText() === 'accessibilityLabel' &&
+        attribute.initializer !== undefined &&
+        attribute.initializer.getText().includes(labelKey),
+    );
+
   let passed = null;
   const visit = (node) => {
-    const opening = ts.isJsxElement(node)
-      ? node.openingElement
-      : ts.isJsxSelfClosingElement(node)
-        ? node
-        : null;
-    if (
-      opening !== null &&
-      ts.isIdentifier(opening.tagName) &&
-      opening.tagName.text === component
-    ) {
-      for (const attribute of opening.attributes.properties) {
+    if (ts.isJsxElement(node) && isColourGroup(node.openingElement)) {
+      // The list the chips are rendered from: `<list>.map(...)` among its children.
+      const findMap = (child) => {
         if (
-          ts.isJsxAttribute(attribute) &&
-          attribute.name.getText() === prop &&
-          attribute.initializer !== undefined &&
-          ts.isJsxExpression(attribute.initializer) &&
-          attribute.initializer.expression !== undefined
+          passed === null &&
+          ts.isCallExpression(child) &&
+          ts.isPropertyAccessExpression(child.expression) &&
+          child.expression.name.text === 'map'
         ) {
-          passed = attribute.initializer.expression.getText();
+          passed = child.expression.expression.getText();
+          return;
         }
-      }
+        ts.forEachChild(child, findMap);
+      };
+      for (const child of node.children) findMap(child);
+      return;
     }
     ts.forEachChild(node, visit);
   };
@@ -238,8 +252,8 @@ function main() {
   const passed = pickerArgument(PICKER_SITE);
   if (passed !== PICKER_SITE.expected) {
     failures.push(
-      `${PICKER_SITE.file}: <${PICKER_SITE.component} ${PICKER_SITE.prop}={${passed ?? 'nothing'}}> ` +
-        `— it must be handed \`${PICKER_SITE.expected}\`, or the constant above is checked ` +
+      `${PICKER_SITE.file}: the colour <${PICKER_SITE.component}> renders ${passed ?? 'no list'} ` +
+        `— it must render \`${PICKER_SITE.expected}\`, or the constant above is checked ` +
         'while a different list is what a person sees.',
     );
   }
