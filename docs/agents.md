@@ -189,8 +189,10 @@ second paid session beside the answer.
   is the one `startAgentSession` reserves — both read `agentHirePrice`.
 - A thread stores only an opaque reviewed Oxy routing-profile ID. Tools remain
   deny-by-default.
-- PostgreSQL serializes admission by agent before a queued or running session
-  is created, enforcing `max_concurrent_threads` across API replicas.
+- PostgreSQL serializes admission per person with an agent before a queued or
+  running session is created, enforcing `max_concurrent_threads` across API
+  replicas. The limit bounds one person's concurrent work with the agent; it is
+  not a global cap on everyone using it.
 - R2 approvals are durable rows. Socket.IO carries prompts and immediate
   decisions, while the executing replica observes PostgreSQL as the authority.
 - A completed run moves its goal to `candidate`; `POST

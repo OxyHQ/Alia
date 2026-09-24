@@ -101,7 +101,7 @@ vi.mock('../../../db/agents/agentRuntimeRepository.js', () => ({
     goal: { id: 'goal-1', status: 'active', ...input },
     created: true,
   })),
-  withAgentAdmission: vi.fn(async (_db: unknown, _agentId: string, _max: number, callback: () => Promise<unknown>) => ({
+  withAgentAdmission: vi.fn(async (_db: unknown, _admission: unknown, _max: number, callback: () => Promise<unknown>) => ({
     admitted: true,
     value: await callback(),
   })),
@@ -156,6 +156,7 @@ vi.mock('../../../lib/logger.js', () => ({
 
 const { default: agentsRouter } = await import('../index.js');
 const { clearAgentAccountVerdicts } = await import('../../../lib/agent-account.js');
+const { withAgentAdmission } = await import('../../../db/agents/agentRuntimeRepository.js');
 
 const AGENT = {
   _id: 'agent-1',
@@ -288,6 +289,22 @@ describe('hiring a PUBLIC agent', () => {
 
     expect(res.status).toBe(202);
     expect(res.body).toMatchObject({ sessionId: 'sess-1' });
+  });
+
+  it('creates the run already linked to its goal and thread, and admits it per person', async () => {
+    /**
+     * The link used to be patched on AFTER the job was enqueued, so a worker
+     * that picked it up first read `goalId: null` and the goal never became a
+     * candidate. It is part of the insert now, and nothing patches it later.
+     */
+    const res = await hire();
+
+    expect(res.status).toBe(202);
+    expect(session.start).toHaveBeenCalledWith(expect.objectContaining({
+      threadId: 'thread-1',
+      goalId: 'goal-1',
+    }));
+    expect(vi.mocked(withAgentAdmission).mock.calls[0]?.[1]).toEqual({ agentId: 'agent-1', oxyUserId: state.userId });
   });
 
   it('is still refused when the agent is not active', async () => {

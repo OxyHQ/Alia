@@ -170,8 +170,15 @@ router.post('/threads/:threadId/goals', authenticateToken, route(async (req: Req
     return res.json({ goal: created.goal, sessionId: session?.id ?? null, idempotent: true });
   }
 
-  const admission = await withAgentAdmission(getDb(), agent._id, agent.maxConcurrentThreads, () =>
-    startAgentSession({ agent, userId: req.user!.id, task: objective.slice(0, 2000), origin: 'hire' }),
+  const admission = await withAgentAdmission(getDb(), { agentId: agent._id, oxyUserId: req.user.id }, agent.maxConcurrentThreads, () =>
+    startAgentSession({
+      agent,
+      userId: req.user!.id,
+      task: objective.slice(0, 2000),
+      origin: 'hire',
+      threadId: thread.id,
+      goalId: created.goal.id,
+    }),
   );
   if (!admission.admitted) {
     await getDb().update(agentGoals).set({ status: 'paused', updatedAt: new Date() }).where(eq(agentGoals.id, created.goal.id));
@@ -187,10 +194,6 @@ router.post('/threads/:threadId/goals', authenticateToken, route(async (req: Req
     }
     return res.status(500).json({ error: 'Failed to start agent goal' });
   }
-  await getDb().update(agentSessions).set({
-    threadId: thread.id,
-    goalId: created.goal.id,
-  }).where(eq(agentSessions.id, handoff.sessionId));
   res.status(202).json({ goal: created.goal, sessionId: handoff.sessionId, queued: handoff.queued });
 }));
 

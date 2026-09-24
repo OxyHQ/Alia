@@ -10,7 +10,7 @@ vi.mock('../../../db/index.js', () => ({ getDb: () => ({}) }));
 vi.mock('../../../db/chat/conversationRepository.js', () => ({ findConversation: vi.fn(async () => undefined) }));
 vi.mock('../../../db/agents/agentSessionRepository.js', () => ({ createAgentSession, updateAgentSession }));
 vi.mock('../../../db/agents/agentRuntimeRepository.js', () => ({
-  withAgentAdmission: vi.fn(async (_db: unknown, _agent: string, _max: number, callback: (tx: unknown) => Promise<unknown>) => ({
+  withAgentAdmission: vi.fn(async (_db: unknown, _admission: unknown, _max: number, callback: (tx: unknown) => Promise<unknown>) => ({
     admitted: true,
     value: await callback({}),
   })),

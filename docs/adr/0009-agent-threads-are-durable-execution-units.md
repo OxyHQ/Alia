@@ -44,8 +44,10 @@ the agent's marketplace price and an idempotency key.
   handle.
 - Approval decisions are durable rows; Socket.IO is only their real-time
   transport. Executing replicas poll the database authority.
-- Admission is serialized per agent in PostgreSQL, so replicas cannot exceed
-  `max_concurrent_threads` through a race.
+- Admission is serialized per person with an agent in PostgreSQL, so replicas
+  cannot exceed `max_concurrent_threads` through a race. (It was per agent
+  until 2026-09-24, which let three people in the world use a public agent at
+  once.)
 - A run produces a candidate goal. Completion requires evidence for every
   stored criterion.
 - Team packages and Cowork devices use exact stored IDs and owner checks; no
