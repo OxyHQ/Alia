@@ -112,7 +112,9 @@ export const TaskCard = React.memo(function TaskCard({
 
   return (
     <Animated.View entering={FadeIn.duration(300)}>
-      <Card appearance="outline" onPress={onPress} accessibilityRole="button">
+      {/* It opens the task, so it is a link — and not a `<button>` on web,
+          which could not hold the card's own buttons. */}
+      <Card appearance="outline" onPress={onPress} accessibilityRole="link">
         {/* Header: agent marks, elapsed time and the status badge */}
         <Item
           title={<AgentMarkRow agents={agents} />}
