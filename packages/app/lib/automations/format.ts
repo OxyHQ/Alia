@@ -1,6 +1,5 @@
 import type {
   AutomationActorSelection,
-  AutomationAutonomy,
   AutomationDefinition,
   AutomationResource,
   AutomationRun,
@@ -33,10 +32,6 @@ export function humanizeIdentifier(value: string): string {
     .filter(Boolean)
     .map((word) => `${word.charAt(0).toUpperCase()}${word.slice(1)}`)
     .join(' ');
-}
-
-export function autonomyLabel(autonomy: AutomationAutonomy): string {
-  return humanizeIdentifier(autonomy);
 }
 
 const CRON_DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -139,7 +134,7 @@ export function policyReason(run: AutomationRun | undefined): string | null {
   return decisionReason(run?.policyDecision);
 }
 
-export function decisionReason(decision: Record<string, unknown> | null | undefined): string | null {
+function decisionReason(decision: Record<string, unknown> | null | undefined): string | null {
   const reason = decision?.reason;
   return typeof reason === 'string' ? humanizeIdentifier(reason) : null;
 }

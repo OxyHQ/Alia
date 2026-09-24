@@ -58,11 +58,6 @@ vi.mock('@/lib/api/client', () => ({
 }));
 
 vi.mock('@oxy.so/bloom/toast', () => ({ toast: toastCalls }));
-// `cn` (via `lib/utils.ts`) reaches `expo-crypto` through `random-uuid`, whose
-// native module does not exist under this runner.
-vi.mock('expo-crypto', () => ({
-  getRandomValues: (array: Uint8Array) => array,
-}));
 vi.mock('@oxy.so/bloom/surfaces', () => ({
   confirm: vi.fn(async () => false),
 }));

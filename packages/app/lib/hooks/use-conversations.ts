@@ -8,6 +8,7 @@ import { queryKeys } from './query-keys';
 import type { ToolInvocation } from '../types/messages';
 import type { ResearchProgress, PendingPlan } from '@alia.onl/sdk';
 import { errorMessage as getErrorMessage, errorStatus } from '../errors/error-utils';
+import { createRandomUuid } from '../utils/random-uuid';
 import { normalizeConversationMessages } from '../chat-message-history';
 
 /** Human-in-the-loop approval requested mid-stream for a sensitive tool call. */
@@ -570,8 +571,7 @@ export function useCreateConversation() {
       } catch (error: unknown) {
         // If unauthorized, create locally
         if (errorStatus(error) === 401) {
-          const { generateUUID } = await import('../utils');
-          const id = generateUUID();
+          const id = createRandomUuid();
           const conversation: Conversation = {
             id,
             title: "New chat",

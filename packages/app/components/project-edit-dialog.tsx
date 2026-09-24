@@ -14,7 +14,7 @@ import { View } from 'react-native';
  * The store keeps the hex it always kept (older projects hold one of these),
  * so the value is the hex and the chip is only how it is shown.
  */
-export const PROJECT_COLORS: readonly { value: string; hue: ChipHue; labelKey: string }[] = [
+const PROJECT_COLORS: readonly { value: string; hue: ChipHue; labelKey: string }[] = [
   { value: '#3b82f6', hue: 'blue', labelKey: 'sidebar.colors.blue' },
   { value: '#8b5cf6', hue: 'purple', labelKey: 'sidebar.colors.purple' },
   { value: '#ec4899', hue: 'rose', labelKey: 'sidebar.colors.rose' },

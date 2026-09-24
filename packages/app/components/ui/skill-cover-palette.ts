@@ -44,7 +44,7 @@ export function hashSeed(str: string): number {
   return Math.abs(hash);
 }
 
-export function createRng(seed: number): () => number {
+function createRng(seed: number): () => number {
   let state = seed;
   return () => {
     state = (state + 0x6d_2b_79_f5) | 0;
@@ -54,7 +54,7 @@ export function createRng(seed: number): () => number {
   };
 }
 
-export function hexToHsl(hex: string): [number, number, number] {
+function hexToHsl(hex: string): [number, number, number] {
   const r = parseInt(hex.slice(1, 3), 16) / 255;
   const g = parseInt(hex.slice(3, 5), 16) / 255;
   const b = parseInt(hex.slice(5, 7), 16) / 255;

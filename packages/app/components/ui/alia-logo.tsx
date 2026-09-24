@@ -65,19 +65,3 @@ export function AliaLogo({ width, height, color }: AliaLogoProps) {
     </Svg>
   );
 }
-
-/** The existing script artwork without the flower, for shared navigation lockups. */
-export function AliaWordmark({
-  height = 28,
-  color,
-}: Pick<AliaLogoProps, 'height' | 'color'>) {
-  const { colors } = useColorScheme();
-  return (
-    <Svg width={height * 2} height={height} viewBox="82 14 244 122">
-      <G transform={WORD_TRANSFORM} fill={color ?? colors.foreground}>
-        <Path d={WORD_PATH_1} />
-        <Path d={WORD_PATH_2} />
-      </G>
-    </Svg>
-  );
-}
