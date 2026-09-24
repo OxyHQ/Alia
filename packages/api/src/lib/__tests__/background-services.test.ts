@@ -37,7 +37,7 @@ const STOPPER_FOR: Readonly<Record<string, string>> = {
   // Fire-and-forget work with no running resource behind it. Each of these
   // is one call that settles; there is nothing left to stop.
   failOrphanedAudioJobs: '',
-  reclaimOrphanedAgentSessions: '',
+  startAgentRunReaper: 'stopAgentRunReaper',
   startWorker: 'shutdownTaskQueue',
   startShowWorker: 'shutdownShowQueue',
   startSkillRegistrySync: 'stopSkillRegistrySync',
@@ -63,7 +63,8 @@ const shutdownShowQueue = traced('shutdownShowQueue');
 const startSkillRegistrySync = tracedSync('startSkillRegistrySync');
 const stopSkillRegistrySync = traced('stopSkillRegistrySync');
 const failOrphanedAudioJobs = vi.fn(() => { order.push('failOrphanedAudioJobs'); return Promise.resolve(0); });
-const reclaimOrphanedAgentSessions = vi.fn(() => { order.push('reclaimOrphanedAgentSessions'); return Promise.resolve(0); });
+const startAgentRunReaper = tracedSync('startAgentRunReaper');
+const stopAgentRunReaper = tracedSync('stopAgentRunReaper');
 
 /** A sentinel, so the audio-job cleanup can be asserted to receive the handle `getDb()` returned. */
 const DB_HANDLE = Symbol('db') as unknown as ReturnType<typeof getDbSignature>;
@@ -77,7 +78,7 @@ vi.mock('../task-queue.js', () => ({ initTaskQueue, startWorker, shutdownTaskQue
 vi.mock('../show/show-queue.js', () => ({ initShowQueue, startShowWorker, shutdownShowQueue }));
 vi.mock('../skills/scheduler.js', () => ({ startSkillRegistrySync, stopSkillRegistrySync }));
 vi.mock('../../db/notifications/audioJobRepository.js', () => ({ failOrphanedAudioJobs }));
-vi.mock('../agent/session-handoff.js', () => ({ reclaimOrphanedAgentSessions }));
+vi.mock('../agent/run-reaper.js', () => ({ startAgentRunReaper, stopAgentRunReaper }));
 vi.mock('../../db/index.js', () => ({ getDb }));
 vi.mock('../logger.js', () => ({
   log: { general: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } },
@@ -111,7 +112,7 @@ describe('startBackgroundServices', () => {
     expect(initTaskQueue).toHaveBeenCalledTimes(1);
     expect(startWorker).toHaveBeenCalledTimes(1);
     expect(failOrphanedAudioJobs).toHaveBeenCalledTimes(1);
-    expect(reclaimOrphanedAgentSessions).toHaveBeenCalledTimes(1);
+    expect(startAgentRunReaper).toHaveBeenCalledTimes(1);
     expect(initShowQueue).toHaveBeenCalledTimes(1);
     expect(startShowWorker).toHaveBeenCalledTimes(1);
     expect(startSkillRegistrySync).toHaveBeenCalledTimes(1);
@@ -153,7 +154,7 @@ describe('startBackgroundServices', () => {
       'dispatcher.start',
       'initTaskQueue',
       'failOrphanedAudioJobs',
-      'reclaimOrphanedAgentSessions',
+      'startAgentRunReaper',
       'initShowQueue',
       'startSkillRegistrySync',
       'startWorker',
@@ -296,6 +297,8 @@ describe('stopBackgroundServices', () => {
       'stopTriggerEngine',
       'stopSkillRegistrySync',
       'dispatcher.stop',
+      // Stop re-enqueueing lapsed runs before the queue it enqueues into closes.
+      'stopAgentRunReaper',
       'shutdownTaskQueue',
       'shutdownShowQueue',
     ]);
