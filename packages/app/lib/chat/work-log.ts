@@ -1,3 +1,4 @@
+import { resolveFaviconUrl } from '@clarity.surf/sdk';
 import { extractCitationSources } from '@/lib/citations';
 import { getToolDoneLabel, getToolPillLabel } from '@/lib/task-utils';
 import { toolCallStatus } from '@/lib/thought-utils';
@@ -88,10 +89,17 @@ function brandOf(domain: string): WebSearchBrand | undefined {
   return BRANDS.find(([site]) => host === site || host.endsWith(`.${site}`))?.[1];
 }
 
-function source(url: string, title?: string): WebSearchSource {
+/**
+ * One source row. Its favicon is Clarity's copy of the site's icon: the one a
+ * search result carries, or the URL Clarity serves it at for anything else
+ * (a page Alia read). Bloom draws a brand mark over it, and the dot when
+ * Clarity has not fetched that site yet.
+ */
+function source(url: string, title?: string, faviconUrl?: string): WebSearchSource {
   const domain = domainOf(url);
   const brand = brandOf(domain);
-  return { title: title ?? domain, domain, href: url, ...(brand ? { brand } : {}) };
+  const favicon = faviconUrl ?? resolveFaviconUrl(url);
+  return { title: title ?? domain, domain, href: url, ...(brand ? { brand } : {}), ...(favicon ? { faviconUrl: favicon } : {}) };
 }
 
 function uniqueSources(list: WebSearchSource[]): WebSearchSource[] {
@@ -144,7 +152,7 @@ function webStep(inv: ToolInvocation, live: LiveResearch | undefined, t: Transla
     const sources = uniqueSources(
       results.flatMap((r) => {
         const url = str((r as { url?: unknown })?.url);
-        return url ? [source(url, str((r as { title?: unknown }).title))] : [];
+        return url ? [source(url, str((r as { title?: unknown }).title), str((r as { faviconUrl?: unknown }).faviconUrl))] : [];
       }),
     );
     const count = typeof inv.result?.count === 'number' ? inv.result.count : results.length;

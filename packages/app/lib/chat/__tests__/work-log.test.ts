@@ -33,7 +33,7 @@ const search: ToolInvocation = {
   result: {
     count: 3,
     results: [
-      { title: 'The best budget keyboards', url: 'https://www.pcgamer.com/best', snippet: '…' },
+      { title: 'The best budget keyboards', url: 'https://www.pcgamer.com/best', snippet: '…', faviconUrl: 'https://clarity.test/favicons/www.pcgamer.com' },
       { title: 'Keyboards under $100?', url: 'https://old.reddit.com/r/keyboards/1', snippet: '' },
       { title: 'The best budget keyboards', url: 'https://www.pcgamer.com/best', snippet: 'dupe' },
     ],
@@ -50,8 +50,8 @@ describe('tool calls → WebSearch steps and sources', () => {
         icon: RiSearchLine,
         meta: 'chat.bloom.resultCount{"count":3}',
         sources: [
-          { title: 'The best budget keyboards', domain: 'www.pcgamer.com', href: 'https://www.pcgamer.com/best' },
-          { title: 'Keyboards under $100?', domain: 'old.reddit.com', href: 'https://old.reddit.com/r/keyboards/1', brand: 'reddit' },
+          { title: 'The best budget keyboards', domain: 'www.pcgamer.com', href: 'https://www.pcgamer.com/best', faviconUrl: 'https://clarity.test/favicons/www.pcgamer.com' },
+          { title: 'Keyboards under $100?', domain: 'old.reddit.com', href: 'https://old.reddit.com/r/keyboards/1', brand: 'reddit', faviconUrl: 'https://api.clarity.surf/favicons/old.reddit.com' },
         ],
       },
     ]);
@@ -80,7 +80,7 @@ describe('tool calls → WebSearch steps and sources', () => {
       ['chat.bloom.visited', 'github.com', RiGlobalLine],
     ]);
     expect(log.steps[1].sources).toEqual([
-      { title: 'oxy/bloom', domain: 'github.com', href: 'https://github.com/oxy/bloom', brand: 'github' },
+      { title: 'oxy/bloom', domain: 'github.com', href: 'https://github.com/oxy/bloom', brand: 'github', faviconUrl: 'https://api.clarity.surf/favicons/github.com' },
     ]);
     expect(log.revealed).toBe(4);
   });
@@ -145,8 +145,8 @@ describe('tool calls → WebSearch steps and sources', () => {
       icon: RiBookOpenLine,
       meta: 'chat.bloom.searchCount{"count":12}',
       sources: [
-        { title: 'First', domain: 'a.test', href: 'https://a.test/1' },
-        { title: 'Second', domain: 'b.test', href: 'https://b.test/2' },
+        { title: 'First', domain: 'a.test', href: 'https://a.test/1', faviconUrl: 'https://api.clarity.surf/favicons/a.test' },
+        { title: 'Second', domain: 'b.test', href: 'https://b.test/2', faviconUrl: 'https://api.clarity.surf/favicons/b.test' },
       ],
     });
   });
@@ -159,13 +159,13 @@ describe('tool calls → WebSearch steps and sources', () => {
       query: 'battery density 2026',
       icon: RiBookOpenLine,
       meta: 'chat.bloom.sourceCount{"count":4}',
-      sources: [{ title: 'First', domain: 'a.test', href: 'https://a.test/1' }],
+      sources: [{ title: 'First', domain: 'a.test', href: 'https://a.test/1', faviconUrl: 'https://api.clarity.surf/favicons/a.test' }],
     });
     const saved: ToolInvocation = { toolCallId: 'r', toolName: 'deepResearch', state: 'result', args: { query: 'x' }, result: { sources: [] } };
     const log = webSearchLog([saved], live, t);
     expect(log.steps.map((s) => s.label)).toEqual(['chat.bloom.researched']);
     // The live sources still fill in what the saved invocation lacks.
-    expect(log.steps[0].sources).toEqual([{ title: 'First', domain: 'a.test', href: 'https://a.test/1' }]);
+    expect(log.steps[0].sources).toEqual([{ title: 'First', domain: 'a.test', href: 'https://a.test/1', faviconUrl: 'https://api.clarity.surf/favicons/a.test' }]);
   });
 
   it('ignores every other tool', () => {
