@@ -64,6 +64,7 @@ import { autonomyFlags } from '../autonomy/flags.js';
 import { getDb } from '../../db/index.js';
 import { updateAgentSession, type AgentSessionRecord } from '../../db/agents/agentSessionRepository.js';
 import type { EventStream } from './event-stream.js';
+import type { DeferredApprovals } from './deferred-approvals.js';
 import { RepeatDetector, repeatedToolCallKey } from './repeat-detector.js';
 
 export interface AgentRuntimeContext {
@@ -79,6 +80,11 @@ export interface AgentRuntimeContext {
     messageUser: (message: string) => Promise<string>;
     scheduleFollowUp: (at: Date, note: string) => Promise<string>;
   };
+  /**
+   * Present only on a top-level BACKGROUND run: approvals are asked for
+   * asynchronously instead of waited for (`deferred-approvals.ts`).
+   */
+  approvals?: DeferredApprovals;
   todoManager: TodoManager;
   browserSession: BrowserSession;
   eventStream?: EventStream;
@@ -362,7 +368,18 @@ export async function applyRuntimePolicy(
         return `Error: Action blocked by policy — ${risk.reason}`;
       }
 
-      if (risk.riskLevel === 'R2' && autonomyFlags.approvalsEnabled) {
+      const earlyThreat = analyzeThreat(name, inputArgs);
+      const needsApproval = !earlyThreat.shouldBlock && autonomyFlags.approvalsEnabled
+        && (risk.riskLevel === 'R2' || earlyThreat.shouldApprove);
+      // Nobody is watching a background run: ask the person asynchronously and
+      // let the run carry on, unless they already approved exactly this call.
+      if (needsApproval && ctx.approvals) {
+        if (!(await ctx.approvals.granted(name, inputArgs))) {
+          eventStream?.append('system_message', `APPROVAL REQUESTED (deferred): ${name}`);
+          return ctx.approvals.request(name, inputArgs, risk.reason);
+        }
+        eventStream?.append('system_message', `APPROVED EARLIER: ${name}`);
+      } else if (risk.riskLevel === 'R2' && autonomyFlags.approvalsEnabled) {
         const syntheticThreat: ThreatResult = {
           threats: [{
             pattern: {
@@ -404,7 +421,7 @@ export async function applyRuntimePolicy(
         return `Error: Action blocked by security policy — ${threat.threats[0]?.pattern.description || 'security violation'}`;
       }
 
-      if (threat.shouldApprove) {
+      if (threat.shouldApprove && !ctx.approvals) {
         const summary = formatThreatSummary(threat);
         if (autonomyFlags.approvalsEnabled) {
           const approval = await requestApproval({

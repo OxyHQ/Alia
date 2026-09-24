@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, lt, sql } from 'drizzle-orm';
+import { and, desc, eq, gt, inArray, lt, sql } from 'drizzle-orm';
 import type { ApiDatabase, Executor } from '../index.js';
 import {
   agentApprovalRequests,
@@ -100,7 +100,7 @@ export type AgentApprovalRow = typeof agentApprovalRequests.$inferSelect;
 export async function createAgentApprovalRequest(db: ApiDatabase, input: {
   id: string;
   turnId: string;
-  threadId: string;
+  threadId: string | null;
   oxyUserId: string;
   agentId: string;
   toolName: string;
@@ -240,4 +240,43 @@ export async function verifyAgentGoal(db: ApiDatabase, input: {
       .where(and(eq(agentGoals.id, goal.id), eq(agentGoals.status, 'candidate'))).returning();
     return updated;
   });
+}
+
+/**
+ * A granted, not yet used approval for exactly this action by this agent for
+ * this person — what lets a background run perform what it asked for earlier.
+ * Matched on the action hash, so a different action is not covered.
+ */
+export async function findGrantedApproval(db: ApiDatabase, input: {
+  oxyUserId: string;
+  agentId: string;
+  actionHash: string;
+  decidedAfter: Date;
+}): Promise<AgentApprovalRow | undefined> {
+  const [row] = await db.select().from(agentApprovalRequests).where(and(
+    eq(agentApprovalRequests.oxyUserId, input.oxyUserId),
+    eq(agentApprovalRequests.agentId, input.agentId),
+    eq(agentApprovalRequests.actionHash, input.actionHash),
+    eq(agentApprovalRequests.status, 'approved'),
+    gt(agentApprovalRequests.decidedAt, input.decidedAfter),
+  )).orderBy(desc(agentApprovalRequests.decidedAt)).limit(1);
+  return row;
+}
+
+/** Spend a granted approval. `false` means another run already used it. */
+export async function markApprovalExecuted(db: ApiDatabase, approvalId: string): Promise<boolean> {
+  const updated = await db.update(agentApprovalRequests)
+    .set({ status: 'executed', updatedAt: new Date() })
+    .where(and(eq(agentApprovalRequests.id, approvalId), eq(agentApprovalRequests.status, 'approved')))
+    .returning({ id: agentApprovalRequests.id });
+  return updated.length > 0;
+}
+
+/** A person's approvals still waiting on them, newest first. */
+export async function listPendingApprovals(db: ApiDatabase, oxyUserId: string, now = new Date()) {
+  return db.select().from(agentApprovalRequests).where(and(
+    eq(agentApprovalRequests.oxyUserId, oxyUserId),
+    eq(agentApprovalRequests.status, 'pending'),
+    gt(agentApprovalRequests.expiresAt, now),
+  )).orderBy(desc(agentApprovalRequests.createdAt)).limit(100);
 }

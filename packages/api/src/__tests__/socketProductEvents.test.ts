@@ -310,6 +310,7 @@ describe('every socket event the app listens for is one the API emits', () => {
     // the exemption is checkable rather than a hole.
     emitted.add('notification'); // lib/notification-service.ts:116, driven above
     emitted.add('show:progress'); // lib/show/show-pipeline.ts, emitProgress()
+    emitted.add('conversation:message'); // lib/agent/agent-outreach.ts, postAgentMessage()
     /**
      * The two frames a device serving a local model receives. They are emitted
      * from `lib/inference/user-runtime-bridge.ts` rather than `socket.ts`,

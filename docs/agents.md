@@ -460,6 +460,18 @@ a notification that opens `/@handle`.
   person and agent). Its result is NOT posted; the agent speaks through
   `sendMessageToUser` only if it found something worth saying.
 
+### Approvals nobody is waiting for
+
+A top-level background run does not wait for an R2 approval (or one the threat
+detector asks for). `lib/agent/deferred-approvals.ts` files a durable request
+(`thread_id` may be NULL), tells the person in the agent's conversation, and
+tells the model to carry on. `GET /agents/approvals` lists what is pending;
+`POST /agents/approvals/:id/decision {approved}` answers. Approving one whose
+run has moved on starts a held, queued run with the exact arguments; the
+policy lets that call through because a granted approval matches its hash
+(agent, tool, sorted args), and spends it (`executed`) so one "yes" covers one
+action. Interactive chat turns keep the in-process wait.
+
 The saver keeps an agent-written message the client has not seen yet
 (`keepAgentOutreach`): storage converges on the client's copy for what the
 client sent, not for what arrived while it was away.
