@@ -2,22 +2,12 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
- * Which model the personality sample asks for.
+ * Which model the personality sample asks for: none.
  *
- * The hook sent the literal `route:instant`. That is a de-advertised compatibility
- * alias (ADR 0003): `GET /catalogue` does not list it and `GET /v1/models`
- * returns `[]`, so the one request in the app that named a model directly named
- * something the product no longer publishes — and named it in a place no
- * configuration could reach, so an operator repointing
- * The shared product default once repointed every request except this one.
- *
- * The assertion is on the OUTGOING body, which is normally the weaker of the
- * two things a request test can check — a payload assertion passes happily
- * while the server 400s every call. It is the right one HERE because the
- * property under change is entirely client-side: which identifier this app
- * chooses to name. Nothing about the response can distinguish `route:instant` from
- * `profile:auto`; both resolve and both stream. So the fetch is counted as well
- * as read, because "no alias was sent" is also what sending nothing looks like.
+ * The app ships no model identifier. A request that names none is answered by
+ * the server's default model, so the assertion is on the OUTGOING body — the
+ * property under test is entirely client-side: which identifier this app
+ * chooses to name.
  */
 
 // `lib/config.ts` and `lib/generate-api-url.ts` reach for the native runtime for
@@ -46,7 +36,6 @@ vi.mock('@oxy.so/services', () => ({
   useOxy: () => ({ oxyServices: { getAccessToken: () => 'test-token' } }),
 }));
 
-import { DEFAULT_MODEL_ID } from '@/lib/config';
 import { usePersonalitySamplePhrase } from '../use-personality-sample-phrase';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
@@ -102,27 +91,11 @@ describe('the personality sample names a model', () => {
     expect(fetchCalls[0].body.messages).toBeInstanceOf(Array);
   });
 
-  it("asks for the app's configured default, not a hardcoded identifier", async () => {
+  it('names no model, so the server default answers', async () => {
     await requestOneSample();
 
-    // Compared against the exported constant rather than against `'profile:auto'`:
-    // the point is that this request follows the app's default wherever it is
-    // pointed. Asserting the
-    // literal would go green on a second hardcoded copy that merely happened to
-    // agree today.
-    expect(fetchCalls[0].body.model).toBe(DEFAULT_MODEL_ID);
-  });
-
-  it('never names a compatibility alias', async () => {
-    await requestOneSample();
-
-    /**
-     * The half that survives the default moving. `DEFAULT_MODEL_ID` is
-     * configurable, so the assertion above is satisfied by any value it is set
-     * to — including an `alia-*` one. This says the request names a routing
-     * profile, which is the vocabulary the catalogue actually publishes.
-     */
-    expect(String(fetchCalls[0].body.model).startsWith('alia-')).toBe(false);
-    expect(String(fetchCalls[0].body.model).startsWith('mode:')).toBe(true);
+    // The app ships no model identifier: a request that names none is
+    // answered by the server's default model.
+    expect(fetchCalls[0].body).not.toHaveProperty('model');
   });
 });

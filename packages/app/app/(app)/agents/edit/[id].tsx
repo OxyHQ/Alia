@@ -17,6 +17,7 @@ import {
 } from '@/lib/hooks/use-agents';
 import { useIsLargeScreen } from '@/lib/hooks/use-is-large-screen';
 import { useTranslation } from '@/lib/hooks/use-translation';
+import { AgentModelField } from '@/components/agent-model-field';
 import { useLibraryStore } from '@/lib/stores/library-store';
 import type {
   Agent,
@@ -146,6 +147,8 @@ interface AgentDraft {
   access: 'private' | 'public';
   archetype: AgentArchetype;
   archetypeConfig: ArchetypeConfig;
+  /** `publisher/model`, or `null` for the server's default. */
+  modelId: string | null;
 }
 
 /**
@@ -281,6 +284,7 @@ function AgentEditor({ agent }: { agent: Agent }) {
     access: agent.access,
     archetype: agent.archetype || 'general',
     archetypeConfig: agent.archetypeConfig || {},
+    modelId: agent.modelId ?? null,
   }));
   const [identity, setIdentity] = useState<IdentityDraft>(() => ({
     name: agent.name ?? '',
@@ -299,6 +303,7 @@ function AgentEditor({ agent }: { agent: Agent }) {
     access,
     archetype,
     archetypeConfig,
+    modelId,
   } = draft;
 
   /** What Oxy last confirmed, so a rejected rename can be put back. */
@@ -414,6 +419,7 @@ function AgentEditor({ agent }: { agent: Agent }) {
             access: next.access,
             archetype: next.archetype,
             archetypeConfig: next.archetypeConfig,
+            modelId: next.modelId,
           },
         });
         toast.success(t('agents.autoSaved'), { id: SAVE_TOAST_ID });
@@ -1175,6 +1181,9 @@ function AgentEditor({ agent }: { agent: Agent }) {
               ))}
             </ChipRow>
           </View>
+
+          {/* The model the agent answers with; the server's default until one is picked. */}
+          <AgentModelField value={modelId} onChange={(next) => editDraft({ modelId: next })} />
 
           {/* System prompt / instructions: the page-sized writing surface. */}
           <Textarea
