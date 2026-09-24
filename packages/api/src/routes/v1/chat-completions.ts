@@ -56,6 +56,22 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
   const globalTimer = setTimeout(() => {
     state.globalTimedOut = true;
     log.v1.error('Global request timeout after 80s');
+    /**
+     * The agent turn fails NOW, with the response the person is shown.
+     *
+     * It used to be settled only when the provider loop returned: a call
+     * already in flight could still finish `completed` and record a success
+     * the person never saw, and a loop that hung left the turn holding its
+     * admission slot until the 120s chat lease lapsed. Cleared first, so the
+     * later `complete()`/`fail()` calls find nothing to settle.
+     */
+    if (coordinatedTurn) {
+      const turn = coordinatedTurn;
+      coordinatedTurn = null;
+      void turn.fail(new Error('The request timed out')).catch((err: unknown) => {
+        log.v1.warn({ err, turnId: turn.id }, 'Failed to settle a timed-out agent turn');
+      });
+    }
     if (!res.headersSent) {
       // Return synthetic response instead of raw error
       res.json(buildCompletionResponse({
