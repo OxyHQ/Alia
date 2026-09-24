@@ -57,6 +57,9 @@ export const AgentCard = React.memo(function AgentCard({
     <Card
       appearance="outline"
       onPress={() => onPress(agent._id)}
+      // It opens the agent's page, so it is a link — and not a `<button>`
+      // on web, which could not hold the card's own buttons.
+      accessibilityRole="link"
       accessibilityLabel={agentDisplayName(agent)}
       className={isFeatured ? 'w-[300px]' : 'flex-1'}
     >
