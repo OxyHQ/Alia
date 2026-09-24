@@ -3,7 +3,6 @@ import { OXY_KAANA_ROUTING_PROFILE_IDS, OXY_KAANA_SPEECH_ROUTING_PROFILE_ID } fr
 import {
   agentRoutingReadinessReport,
   oxyRoutingReadinessReport,
-  speechReadinessReport,
 } from '../check-agent-routing-profile-readiness.js';
 
 describe('agent routing-profile rollout readiness', () => {
@@ -59,7 +58,10 @@ describe('agent routing-profile rollout readiness', () => {
 
 describe('live Oxy routing-profile readiness', () => {
   it('requires every reviewed primary key to be visible to Alia', () => {
-    expect(oxyRoutingReadinessReport([...Object.values(OXY_KAANA_ROUTING_PROFILE_IDS)])).toEqual({
+    expect(oxyRoutingReadinessReport([
+      ...Object.values(OXY_KAANA_ROUTING_PROFILE_IDS),
+      OXY_KAANA_SPEECH_ROUTING_PROFILE_ID,
+    ])).toEqual({
       ready: true,
       missingCount: 0,
       missing: [],
@@ -68,7 +70,7 @@ describe('live Oxy routing-profile readiness', () => {
 
   it('reports the exact missing key instead of accepting matching slugs', () => {
     const ids = Object.values(OXY_KAANA_ROUTING_PROFILE_IDS).filter((id) => id !== OXY_KAANA_ROUTING_PROFILE_IDS['route:instant']);
-    expect(oxyRoutingReadinessReport(['route:instant', ...ids])).toEqual({
+    expect(oxyRoutingReadinessReport(['route:instant', ...ids, OXY_KAANA_SPEECH_ROUTING_PROFILE_ID])).toEqual({
       ready: false,
       missingCount: 1,
       missing: [OXY_KAANA_ROUTING_PROFILE_IDS['route:instant']],
@@ -76,34 +78,24 @@ describe('live Oxy routing-profile readiness', () => {
   });
 
   /**
-   * The regression this file exists to stop repeating. #576 put the speech id
-   * into the blocking set, and every deploy after it failed — the profile is
-   * reserved in Oxy but deliberately not provisioned yet, so nothing Alia
-   * shipped could satisfy it.
+   * Speech is required again now that Oxy provisions it (OxyHQ/oxy #1360).
+   * #576 made it blocking before Oxy could serve it and every deploy failed;
+   * the difference now is that the profile exists, so a missing one is a real
+   * read-aloud outage rather than a capability nobody built yet.
    */
-  it('does not block the deploy on the unprovisioned speech profile', () => {
+  it('blocks the deploy when the provisioned speech profile is not visible', () => {
     const chatOnly = Object.values(OXY_KAANA_ROUTING_PROFILE_IDS);
     expect(chatOnly).not.toContain(OXY_KAANA_SPEECH_ROUTING_PROFILE_ID);
-    expect(oxyRoutingReadinessReport(chatOnly).ready).toBe(true);
-  });
-});
-
-describe('speech profile provisioning, reported but never blocking', () => {
-  it('says it is unprovisioned when Oxy does not expose it to Alia', () => {
-    expect(speechReadinessReport(Object.values(OXY_KAANA_ROUTING_PROFILE_IDS))).toEqual({
-      provisioned: false,
-      routingProfileId: OXY_KAANA_SPEECH_ROUTING_PROFILE_ID,
+    expect(oxyRoutingReadinessReport(chatOnly)).toEqual({
+      ready: false,
+      missingCount: 1,
+      missing: [OXY_KAANA_SPEECH_ROUTING_PROFILE_ID],
     });
+    expect(oxyRoutingReadinessReport([...chatOnly, OXY_KAANA_SPEECH_ROUTING_PROFILE_ID]).ready).toBe(true);
   });
 
-  it('says it is provisioned once Oxy exposes that exact id', () => {
-    expect(speechReadinessReport([OXY_KAANA_SPEECH_ROUTING_PROFILE_ID])).toEqual({
-      provisioned: true,
-      routingProfileId: OXY_KAANA_SPEECH_ROUTING_PROFILE_ID,
-    });
-  });
-
-  it('reads the exact id rather than any speech-shaped profile', () => {
-    expect(speechReadinessReport(['cc2471c8-807e-46ec-b5da-000000000000']).provisioned).toBe(false);
+  it('reads the exact speech id rather than any speech-shaped profile', () => {
+    const chatOnly = Object.values(OXY_KAANA_ROUTING_PROFILE_IDS);
+    expect(oxyRoutingReadinessReport([...chatOnly, 'cc2471c8-807e-46ec-b5da-000000000000']).ready).toBe(false);
   });
 });
