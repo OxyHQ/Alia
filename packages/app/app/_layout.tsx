@@ -1,26 +1,30 @@
-import { Stack } from 'expo-router';
-import { useMemo, useRef } from 'react';
-import { OxyProvider, useOxy } from '@oxy.so/services';
-import { BloomProvider } from '@oxy.so/bloom/provider';
-import { ImageResolverProvider } from '@oxy.so/bloom/image-resolver';
+import '../global.css';
+import { useNavigationTheme } from '@oxy.so/bloom/theme';
 import { ConnectionStatusToasts } from '@oxy.so/bloom/connection-status';
+import { ImageResolverProvider } from '@oxy.so/bloom/image-resolver';
+import { BloomProvider } from '@oxy.so/bloom/provider';
 import {
   preventNativeSplashAutoHide,
   useHideNativeSplashWhenReady,
 } from '@oxy.so/expo-splash';
+import { OxyProvider, useOxy } from '@oxy.so/services';
 import * as Linking from 'expo-linking';
+import { Slot, Stack, ThemeProvider } from 'expo-router';
+import { useMemo, useRef } from 'react';
 import { Platform } from 'react-native';
 
 import { AppErrorBoundary } from '@/components/error-boundary';
-import { KeyboardProvider } from '@/lib/keyboard';
-import { useColorScheme } from '@/lib/useColorScheme';
 import { setTokenGetter } from '@/lib/api/client';
-import { BLOOM_THEME_PERSIST_KEY, BLOOM_THEME_STORAGE } from '@/lib/themePersistence';
-import { useI18nStore } from '@/lib/stores/i18n-store';
-import { SUPPORTED_LOCALES, DEFAULT_LOCALE } from '@/lib/i18n';
-import 'react-native-reanimated';
-import '../global.css';
 import '@/lib/i18n';
+import { DEFAULT_LOCALE, SUPPORTED_LOCALES } from '@/lib/i18n';
+import { KeyboardProvider } from '@/lib/keyboard';
+import { useI18nStore } from '@/lib/stores/i18n-store';
+import {
+  BLOOM_THEME_PERSIST_KEY,
+  BLOOM_THEME_STORAGE,
+} from '@/lib/themePersistence';
+import { useColorScheme } from '@/lib/useColorScheme';
+import 'react-native-reanimated';
 
 export { ErrorBoundary } from 'expo-router';
 
@@ -32,7 +36,8 @@ preventNativeSplashAutoHide();
 
 const OXY_API_URL = process.env.EXPO_PUBLIC_OXY_API_URL || 'https://api.oxy.so';
 const OXY_CLIENT_ID =
-  process.env.EXPO_PUBLIC_OXY_CLIENT_ID ?? 'oxy_dk_06488927793f96922ef4f366a9800547b34c6aec025fece3';
+  process.env.EXPO_PUBLIC_OXY_CLIENT_ID ??
+  'oxy_dk_06488927793f96922ef4f366a9800547b34c6aec025fece3';
 const AUTH_REDIRECT_URI = Linking.createURL('/');
 
 function AuthSetup({ children }: { children: React.ReactNode }) {
@@ -52,14 +57,20 @@ function AuthSetup({ children }: { children: React.ReactNode }) {
   // canonical cloud.oxy.so URL. Defaults to the 'thumb' rendition when a caller
   // omits the variant so list/sidebar avatars stay light.
   const resolveImageSource = useMemo(
-    () => (id: string, variant?: string) => oxyServices.getFileDownloadUrl(id, variant ?? 'thumb'),
+    () => (id: string, variant?: string) =>
+      oxyServices.getFileDownloadUrl(id, variant ?? 'thumb'),
     [oxyServices],
   );
 
-  return <ImageResolverProvider value={resolveImageSource}>{children}</ImageResolverProvider>;
+  return (
+    <ImageResolverProvider value={resolveImageSource}>
+      {children}
+    </ImageResolverProvider>
+  );
 }
 
 function AppContent() {
+  const navigationTheme = useNavigationTheme();
   const { colors } = useColorScheme();
 
   // Mounted only after BloomProvider's FontLoader resolves the default
@@ -67,18 +78,25 @@ function AppContent() {
   useHideNativeSplashWhenReady(true);
 
   return (
+    <ThemeProvider value={navigationTheme}>
     <AuthSetup>
       <KeyboardProvider>
-        <Stack
-          screenOptions={{
-            contentStyle: {
-              backgroundColor: colors.background,
-            },
-          }}
-        >
-          <Stack.Screen name="(app)" options={{ headerShown: false }} />
-          <Stack.Screen name="(biglayout)" options={{ headerShown: false }} />
-        </Stack>
+        {/* Web scrolls the document: native-stack's web scene is absolutely
+            positioned, which would pin every page to one screen. */}
+        {Platform.OS === 'web' ? (
+          <Slot />
+        ) : (
+          <Stack
+            screenOptions={{
+              contentStyle: {
+                backgroundColor: colors.background,
+              },
+            }}
+          >
+            <Stack.Screen name="(app)" options={{ headerShown: false }} />
+            <Stack.Screen name="(biglayout)" options={{ headerShown: false }} />
+          </Stack>
+        )}
       </KeyboardProvider>
       {/* Neither a <ToastOutlet /> nor a <SurfaceHost /> here, for the same
           reason: OxyProvider mounts both (its <SurfaceProvider> renders the
@@ -88,6 +106,7 @@ function AppContent() {
           independently and visibly desync. */}
       <ConnectionStatusToasts />
     </AuthSetup>
+    </ThemeProvider>
   );
 }
 
@@ -107,7 +126,9 @@ function RootLayout() {
         <OxyProvider
           baseURL={OXY_API_URL}
           clientId={OXY_CLIENT_ID}
-          authRedirectUri={Platform.OS !== 'web' ? AUTH_REDIRECT_URI : undefined}
+          authRedirectUri={
+            Platform.OS !== 'web' ? AUTH_REDIRECT_URI : undefined
+          }
           // Wires Alia's own i18n-js instance to Oxy's resolved language (the
           // signed-in account's primary locale, or the device/guest locale
           // when signed out) — Oxy decides WHICH language; `useI18nStore`
@@ -118,7 +139,11 @@ function RootLayout() {
             fallbackLocale: DEFAULT_LOCALE,
             onChange: useI18nStore.getState().setLocale,
             onError: (error, locale) => {
-              console.error('Failed to follow the Oxy-resolved language', error, { locale });
+              console.error(
+                'Failed to follow the Oxy-resolved language',
+                error,
+                { locale },
+              );
             },
           }}
         >

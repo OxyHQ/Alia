@@ -1,41 +1,23 @@
-import { useState, useEffect, useCallback } from "react";
-import { View } from "react-native";
-import { useLocalSearchParams, useRouter } from "expo-router";
-import Head from "expo-router/head";
-import Animated, {
-  Easing,
-  useAnimatedStyle,
-  useSharedValue,
-  withDelay,
-  withTiming,
-} from "react-native-reanimated";
-import { useAuth } from "@oxy.so/services";
-import { WelcomeIntro } from "@/components/welcome-intro";
-import { useStore } from "@/lib/stores/global-store";
-import { useModelStore } from "@/lib/stores/model-store";
-import { resolveSelection, useCatalogue } from "@/lib/hooks/use-catalogue";
-import { useProductModes } from "@/lib/hooks/use-product-modes";
-import { useChatConversation } from "@/lib/hooks/use-chat-conversation";
-import { useCreateConversation } from "@/lib/hooks/use-conversations";
-import { ChatPageContent } from "@/components/chat-page-content";
-import { toast } from "@oxy.so/bloom/toast";
-import { ContentPanel } from "@oxy.so/bloom/content-panel";
-
-/** The chat rises into view as the intro leaves: 600ms, 450ms after it starts. */
-const CHAT_RISE_DURATION = 600;
-const CHAT_RISE_DELAY = 450;
-const CHAT_RISE_EASE = Easing.bezier(0.16, 0.84, 0.28, 1);
-const CHAT_RISE_DISTANCE = 22;
+import { ChatPageContent } from '@/components/chat-page-content';
+import { WelcomeIntro, type WelcomeIntroSlots } from '@/components/welcome-intro';
+import { resolveSelection, useCatalogue } from '@/lib/hooks/use-catalogue';
+import { useChatConversation } from '@/lib/hooks/use-chat-conversation';
+import { useProductModes } from '@/lib/hooks/use-product-modes';
+import { useStore } from '@/lib/stores/global-store';
+import { useModelStore } from '@/lib/stores/model-store';
+import { useAuth } from '@oxy.so/services';
+import { useCreateConversation } from '@/lib/hooks/use-conversations';
+import { useTranslation } from '@/lib/hooks/use-translation';
+import { toast } from '@oxy.so/bloom/toast';
+import { useRouter } from 'expo-router';
+import Head from 'expo-router/head';
+import { useCallback, useState } from 'react';
 
 const ChatPage = () => {
-  const router = useRouter();
-  const createConversationMutation = useCreateConversation();
-
   // The store holds what the user chose; the catalogue decides what a request
   // may carry. They differ only when the chosen identifier is no longer one the
   // product offers, and sending that identifier would be a 400.
   const selectedModel = useModelStore((s) => s.selectedModel);
-  const setSelectedModel = useModelStore((s) => s.setSelectedModel);
   /**
    * The effort level, on the FIRST turn too.
    *
@@ -49,7 +31,12 @@ const ChatPage = () => {
   const reasoningEffort = useModelStore((s) => s.reasoningEffort);
   const { data: catalogue } = useCatalogue();
   const { data: modes } = useProductModes();
-  const selection = resolveSelection(selectedModel, catalogue, undefined, modes);
+  const selection = resolveSelection(
+    selectedModel,
+    catalogue,
+    undefined,
+    modes,
+  );
 
   const ghostMode = useStore((state) => state.ghostMode);
 
@@ -70,23 +57,13 @@ const ChatPage = () => {
    * signs the user in while its exit is still playing, and letting
    * `isAuthenticated` flip the gate mid-animation would tear it off the screen.
    */
-  const [introState, setIntroState] = useState<"idle" | "showing" | "done">("idle");
-  if (introState === "idle" && isAuthResolved && !isAuthenticated) {
-    setIntroState("showing");
+  const [introState, setIntroState] = useState<'idle' | 'showing' | 'done'>(
+    'idle',
+  );
+  if (introState === 'idle' && isAuthResolved && !isAuthenticated) {
+    setIntroState('showing');
   }
-  const introShown = introState !== "idle";
-  const chatRise = useSharedValue(0);
-  const chatStyle = useAnimatedStyle(() => ({
-    opacity: introShown ? chatRise.value : 1,
-    transform: [{ translateY: introShown ? (1 - chatRise.value) * CHAT_RISE_DISTANCE : 0 }],
-  }));
-  const handleIntroExitStart = useCallback(() => {
-    chatRise.value = withDelay(
-      CHAT_RISE_DELAY,
-      withTiming(1, { duration: CHAT_RISE_DURATION, easing: CHAT_RISE_EASE }),
-    );
-  }, [chatRise]);
-  const handleIntroDismissed = useCallback(() => setIntroState("done"), []);
+  const handleIntroDismissed = useCallback(() => setIntroState('done'), []);
 
   /**
    * The whole of the hook, because the whole of it applies here.
@@ -105,11 +82,8 @@ const ChatPage = () => {
     messages,
     isLoading,
     conversationLoading,
-    scrollViewRef,
     sendMessage,
     createNewConversation,
-    editMessage,
-    regenerateMessage,
     stopGeneration,
     clearConversation,
     approvePlan,
@@ -118,7 +92,10 @@ const ChatPage = () => {
     dismissSuggestedNewConversation,
     failedTurn,
     retryFailedTurn,
-  } = useChatConversation({ reasoningEffort, selectedModel: selection.effectiveId ?? undefined });
+  } = useChatConversation({
+    reasoningEffort,
+    selectedModel: selection.effectiveId ?? undefined,
+  });
 
   const handleSubmit = ghostMode ? sendMessage : createNewConversation;
 
@@ -130,9 +107,8 @@ const ChatPage = () => {
    * an agent's thread — a persisted conversation, a handle to re-read. None of
    * that applies here: this screen is already the empty one, and nothing has
    * been written yet in ghost mode by design. So accepting stops whatever is
-   * streaming and empties the thread, which is the same act the header's
-   * "Clear" performs and is genuinely "start a new conversation" on a screen
-   * that has no id.
+   * streaming and empties the thread, which is genuinely "start a new
+   * conversation" on a screen that has no id.
    *
    * It is not simply `dismiss`. The card's primary button says the offer will
    * be acted on, and a button that only retires the card it sits in would be a
@@ -144,65 +120,78 @@ const ChatPage = () => {
     void clearConversation();
   }, [dismissSuggestedNewConversation, clearConversation]);
 
+  /** Voice from the new-chat screen: a conversation to hold it, opened in voice. */
+  const createConversation = useCreateConversation();
+  const router = useRouter();
+  const { t } = useTranslation();
   const handleVoiceStart = useCallback(async () => {
     try {
-      const conv = await createConversationMutation.mutateAsync({});
-      router.replace({ pathname: "/(app)/c/[id]", params: { id: conv.id, startVoice: "true" } });
+      const conversation = await createConversation.mutateAsync({});
+      router.replace({
+        pathname: '/(app)/c/[id]',
+        params: { id: conversation.id, startVoice: 'true' },
+      });
     } catch {
-      toast.error("Failed to start voice session");
+      toast.error(t('chat.voiceStartFailed'));
     }
-  }, [createConversationMutation, router]);
+  }, [createConversation, router, t]);
+
+  /** The chat, or the welcome inside the same container while it shows. */
+  const chat = (intro?: WelcomeIntroSlots) => (
+      <ChatPageContent
+        intro={intro}
+        onVoiceStart={handleVoiceStart}
+        // No `conversationId`, deliberately: this is the new-chat screen,
+        // and its absence is what `ChatPageContent` reads to decide which
+        // mounted instance a `composerDraft` belongs to. The drawer keeps
+        // every visited chat alive, so naming an id here would hand this
+        // screen's draft to a persisted conversation.
+        messages={messages}
+        isLoading={isLoading}
+        conversationLoading={conversationLoading}
+        onSubmit={handleSubmit}
+        onStop={stopGeneration}
+        onApprovePlan={approvePlan}
+        onRejectPlan={rejectPlan}
+        suggestedNewConversation={suggestedNewConversation}
+        onAcceptNewConversation={handleAcceptNewConversation}
+        onDismissNewConversation={dismissSuggestedNewConversation}
+        failedTurn={failedTurn}
+        onRetryTurn={retryFailedTurn}
+      />
+  );
 
   return (
-    <ContentPanel surfaceClassName="bg-background">
+    <>
       <>
         <Head>
           <title>Alia \ Oxy</title>
-          <meta name="description" content="Meet Alia, your intelligent AI assistant. Chat naturally, remember everything, and switch between the best AI models seamlessly." />
+          <meta
+            name="description"
+            content="Meet Alia, your intelligent AI assistant. Chat naturally, remember everything, and switch between the best AI models seamlessly."
+          />
           <link rel="canonical" href="https://alia.onl/" />
           <meta property="og:title" content="Alia \ Oxy" />
-          <meta property="og:description" content="Meet Alia, your intelligent AI assistant. Chat naturally, remember everything, and switch between the best AI models seamlessly." />
-          <meta property="og:image" content="https://alia.onl/og-image-default.png" />
-        </Head>
-        <Animated.View style={[{ flex: 1 }, chatStyle]}>
-          <ChatPageContent
-            // No `conversationId`, deliberately: this is the new-chat screen,
-            // and its absence is what `ChatPageContent` reads to decide which
-            // mounted instance a `composerDraft` belongs to. The drawer keeps
-            // every visited chat alive, so naming an id here would hand this
-            // screen's draft to a persisted conversation.
-            messages={messages}
-            scrollViewRef={scrollViewRef}
-            isLoading={isLoading}
-            conversationLoading={conversationLoading}
-            onSubmit={handleSubmit}
-            onEditMessage={editMessage}
-            onRegenerateMessage={regenerateMessage}
-            onStop={stopGeneration}
-            onClear={clearConversation}
-            selectedModel={selectedModel}
-            onModelChange={setSelectedModel}
-            onVoiceStart={handleVoiceStart}
-            onApprovePlan={approvePlan}
-            onRejectPlan={rejectPlan}
-            suggestedNewConversation={suggestedNewConversation}
-            onAcceptNewConversation={handleAcceptNewConversation}
-            onDismissNewConversation={dismissSuggestedNewConversation}
-            failedTurn={failedTurn}
-            onRetryTurn={retryFailedTurn}
+          <meta
+            property="og:description"
+            content="Meet Alia, your intelligent AI assistant. Chat naturally, remember everything, and switch between the best AI models seamlessly."
           />
-        </Animated.View>
-
-        {introState === "showing" ? (
-          <View style={{ position: "absolute", top: 0, right: 0, bottom: 0, left: 0, zIndex: 20 }}>
-            <WelcomeIntro
-              onExitStart={handleIntroExitStart}
-              onDismissed={handleIntroDismissed}
-            />
-          </View>
-        ) : null}
+          <meta
+            property="og:image"
+            content="https://alia.onl/og-image-default.png"
+          />
+        </Head>
+        {introState === 'showing' ? (
+          <WelcomeIntro
+            onDismissed={handleIntroDismissed}
+          >
+            {(intro) => chat(intro)}
+          </WelcomeIntro>
+        ) : (
+          chat()
+        )}
       </>
-    </ContentPanel>
+    </>
   );
 };
 

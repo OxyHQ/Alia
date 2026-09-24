@@ -1,15 +1,11 @@
-import * as React from "react";
-import { View } from "react-native";
-import { cn } from "@/lib/utils";
-import { AliaLogo } from "@/components/ui/alia-logo";
+import * as React from 'react';
+import { View } from 'react-native';
+import { AliaLogo } from '@/components/ui/alia-logo';
 
-export interface AuthLogoProps {
-  className?: string;
-}
-
-export function AuthLogo({ className }: AuthLogoProps) {
+/** The Alia lockup, centred above an auth-style page's content. */
+export function AuthLogo() {
   return (
-    <View className={cn("items-center mb-6", className)}>
+    <View className="items-center">
       <AliaLogo width={160} />
     </View>
   );

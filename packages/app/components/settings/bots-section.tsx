@@ -1,83 +1,20 @@
-import { View, Pressable, ActivityIndicator, Linking } from "react-native";
-import { Text } from "@/components/ui/text";
-import { Button } from "@/components/ui/button";
-import { useBots, type SystemBot, type BotLinkStatus } from "@/lib/hooks/use-bots";
-import { toast } from "@oxy.so/bloom/toast";
-import { SettingsListGroup, SettingsListItem } from "@oxy.so/bloom/settings-list";
-import { Bot, ExternalLink } from "lucide-react-native";
+import { useBots, type SystemBot } from '@/lib/hooks/use-bots';
+import { useTranslation } from '@/lib/hooks/use-translation';
+import { Button } from '@oxy.so/bloom/button';
+import { RiExternalLinkLine } from '@oxy.so/bloom/icons/RiExternalLinkLine';
+import { SettingsProfilePage } from '@oxy.so/bloom/settings-modal';
+import * as Skeleton from '@oxy.so/bloom/skeleton';
+import { toast } from '@oxy.so/bloom/toast';
+import { Linking } from 'react-native';
 
-const PLATFORM_COLORS: Record<string, string> = {
-  telegram: "#0088CC",
-  discord: "#5865F2",
-  slack: "#4A154B",
-};
-
-function StatusDot({ status }: { status: SystemBot["status"] }) {
-  const color = {
-    active: "bg-green-500",
-    inactive: "bg-gray-400",
-    error: "bg-red-500",
-  }[status];
-
-  return <View className={`w-2 h-2 rounded-full ${color}`} />;
-}
-
-function BotRow({
-  bot,
-  linkStatus,
-  onLink,
-  onUnlink,
-}: {
-  bot: SystemBot;
-  linkStatus: BotLinkStatus | undefined;
-  onLink: (bot: SystemBot) => void;
-  onUnlink: (botId: string) => void;
-}) {
-  const color = PLATFORM_COLORS[bot.platform] ?? "#6b7280";
-  const isLinked = linkStatus?.linked ?? false;
-
-  const detail =
-    `${bot.platform}${bot.username ? ` @${bot.username}` : ""}` +
-    (isLinked && linkStatus?.username ? ` \u2022 Linked as @${linkStatus.username}` : "");
-
-  return (
-    <SettingsListItem
-      icon={<Bot size={18} color={color} />}
-      title={bot.name}
-      description={detail}
-      showChevron={false}
-      rightElement={
-        <View className="flex-row items-center gap-2">
-          <StatusDot status={bot.status} />
-          {isLinked ? (
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-7 px-2.5"
-              onPress={() => onUnlink(bot._id)}
-            >
-              <Text className="text-xs text-destructive">Unlink</Text>
-            </Button>
-          ) : (
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-7 px-2.5"
-              onPress={() => onLink(bot)}
-            >
-              <View className="flex-row items-center gap-1">
-                <ExternalLink size={12} className="text-foreground" />
-                <Text className="text-xs">Link</Text>
-              </View>
-            </Button>
-          )}
-        </View>
-      }
-    />
-  );
-}
+const BOT_STATUSES: readonly SystemBot['status'][] = [
+  'active',
+  'inactive',
+  'error',
+];
 
 export function BotsSection() {
+  const { t } = useTranslation();
   const { bots, linkStatuses, loading, unlink, refresh } = useBots();
 
   const handleLink = async (bot: SystemBot) => {
@@ -87,7 +24,11 @@ export function BotsSection() {
 
     const url = deepLinks[bot.platform];
     if (!url) {
-      toast.error(`Linking not supported for ${bot.platform} yet`);
+      toast.error(
+        t('settings.connections.bots.linkUnsupported', {
+          platform: bot.platform,
+        }),
+      );
       return;
     }
 
@@ -96,62 +37,104 @@ export function BotsSection() {
       if (canOpen) {
         await Linking.openURL(url);
       } else {
-        toast.error(`Cannot open ${bot.platform}`);
+        toast.error(
+          t('settings.connections.bots.cannotOpen', { platform: bot.platform }),
+        );
       }
     } catch (err) {
-      console.error("Failed to open link URL:", err);
-      toast.error("Failed to open link");
+      console.error('Failed to open link URL:', err);
+      toast.error(t('settings.connections.bots.openFailed'));
     }
   };
 
   const handleUnlink = async (botId: string) => {
     try {
       await unlink(botId);
-      toast.success("Bot unlinked");
+      toast.success(t('settings.connections.bots.unlinkedToast'));
     } catch (err) {
-      console.error("Failed to unlink bot:", err);
-      toast.error("Failed to unlink bot");
+      console.error('Failed to unlink bot:', err);
+      toast.error(t('settings.connections.bots.unlinkFailed'));
     }
+  };
+
+  const description = (bot: SystemBot) => {
+    const linkStatus = linkStatuses[bot._id];
+    const parts = [
+      `${bot.platform}${bot.username ? ` @${bot.username}` : ''}`,
+      BOT_STATUSES.includes(bot.status)
+        ? t(`settings.connections.bots.status.${bot.status}`)
+        : bot.status,
+    ];
+    if (linkStatus?.linked && linkStatus.username) {
+      parts.push(
+        t('settings.connections.bots.linkedAs', {
+          username: linkStatus.username,
+        }),
+      );
+    }
+    return parts.join(' · ');
   };
 
   if (loading) {
     return (
-      <View className="flex-1 items-center justify-center py-12">
-        <ActivityIndicator size="small" />
-      </View>
+      <SettingsProfilePage
+        sections={[
+          {
+            key: 'loading',
+            rows: [
+              {
+                key: 'loading',
+                label: t('common.loading'),
+                control: (
+                  <Skeleton.Box width={202} height={32} borderRadius={10} />
+                ),
+              },
+            ],
+          },
+        ]}
+      />
     );
   }
 
   return (
-    <View className="gap-4">
-      <Text className="text-xs text-muted-foreground">
-        System bots allow others to interact with Alia and enable Alia to send messages on your
-        behalf. To give one of your own agents a dedicated Telegram bot, open the agent and use
-        its Telegram bot section.
-      </Text>
-
-      {bots.length === 0 ? (
-        <View className="items-center py-10 gap-3">
-          <View className="bg-muted/50 p-3 rounded-full">
-            <Bot size={24} className="text-muted-foreground" />
-          </View>
-          <Text className="text-sm text-muted-foreground text-center">
-            No system bots available.
-          </Text>
-        </View>
-      ) : (
-        <SettingsListGroup>
-          {bots.map((bot) => (
-            <BotRow
-              key={bot._id}
-              bot={bot}
-              linkStatus={linkStatuses[bot._id]}
-              onLink={handleLink}
-              onUnlink={handleUnlink}
-            />
-          ))}
-        </SettingsListGroup>
-      )}
-    </View>
+    <SettingsProfilePage
+      sections={[
+        {
+          key: 'bots',
+          label: t('settings.connections.bots.title'),
+          description: t('settings.connections.bots.description'),
+          rows: bots.length
+            ? bots.map((bot) => {
+                const isLinked = linkStatuses[bot._id]?.linked ?? false;
+                return {
+                  key: bot._id,
+                  label: bot.name,
+                  description: description(bot),
+                  control: isLinked ? (
+                    <Button
+                      size="sm"
+                      appearance="outline"
+                      tone="neutral"
+                      onPress={() => handleUnlink(bot._id)}
+                    >
+                      {t('settings.connections.bots.unlink')}
+                    </Button>
+                  ) : (
+                    <Button
+                      size="sm"
+                      appearance="outline"
+                      tone="neutral"
+                      leadingIcon={RiExternalLinkLine}
+                      onPress={() => handleLink(bot)}
+                    >
+                      {t('settings.connections.bots.link')}
+                    </Button>
+                  ),
+                };
+              })
+            : [{ key: 'empty', label: t('settings.connections.bots.empty') }],
+        },
+      ]}
+    />
   );
 }

@@ -1,8 +1,6 @@
-import React from "react";
-import { View, Pressable } from "react-native";
-import { Text } from "@/components/ui/text";
-import { useTranslation } from "@/lib/hooks/use-translation";
-
+import { useTranslation } from '@/lib/hooks/use-translation';
+import { Notification } from '@oxy.so/bloom/notification';
+import React from 'react';
 interface NewConversationOfferProps {
   /**
    * The model's own sentence for why it is offering, in the model's own words,
@@ -30,6 +28,9 @@ interface NewConversationOfferProps {
  *
  * Accepting is the person's act: it starts a conversation with the same agent.
  * The agent cannot do that itself, by construction rather than by policy.
+ *
+ * Bloom's `Notification` with the two answers as its actions: "Not now" the
+ * quiet one, "Start new conversation" the solid one.
  */
 export const NewConversationOffer = React.memo(function NewConversationOffer({
   reason,
@@ -39,33 +40,15 @@ export const NewConversationOffer = React.memo(function NewConversationOffer({
   const { t } = useTranslation();
 
   return (
-    <View className="my-4 gap-2 rounded-2xl border border-border bg-muted/40 p-4">
-      <Text className="text-sm font-medium text-foreground">
-        {t("chat.newConversationOffer")}
-      </Text>
-      {reason === "" ? null : (
-        <Text className="text-sm text-muted-foreground">{reason}</Text>
-      )}
-      <View className="flex-row items-center gap-2 pt-1">
-        <Pressable
-          accessibilityRole="button"
-          onPress={onAccept}
-          className="rounded-full bg-primary px-4 py-2 active:opacity-80"
-        >
-          <Text className="text-sm font-medium text-primary-foreground">
-            {t("chat.newConversationAccept")}
-          </Text>
-        </Pressable>
-        <Pressable
-          accessibilityRole="button"
-          onPress={onDismiss}
-          className="rounded-full px-4 py-2 active:opacity-70"
-        >
-          <Text className="text-sm text-muted-foreground">
-            {t("chat.newConversationDismiss")}
-          </Text>
-        </Pressable>
-      </View>
-    </View>
+    <Notification
+      status="information"
+      title={t('chat.newConversationOffer')}
+      description={reason === '' ? undefined : reason}
+      actions={[
+        { label: t('chat.newConversationDismiss'), onPress: onDismiss },
+        { label: t('chat.newConversationAccept'), onPress: onAccept },
+      ]}
+      dismissible={false}
+    />
   );
 });

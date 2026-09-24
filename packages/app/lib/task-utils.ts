@@ -1,54 +1,3 @@
-import React from 'react';
-import {
-  CheckCircle,
-  XCircle,
-  Clock,
-  Loader2,
-  Ban,
-} from 'lucide-react-native';
-import type { TaskSession } from '@/lib/hooks/use-tasks';
-
-export interface StatusConfig {
-  icon: React.ReactElement;
-  label: string;
-  color: string;
-}
-
-export function getStatusConfig(status: TaskSession['status'], colors: { mutedForeground: string }): StatusConfig {
-  switch (status) {
-    case 'queued':
-      return {
-        icon: React.createElement(Clock, { size: 12, color: colors.mutedForeground }),
-        label: 'Queued',
-        color: colors.mutedForeground,
-      };
-    case 'running':
-      return {
-        icon: React.createElement(Loader2, { size: 12, color: '#3b82f6' }),
-        label: 'Running',
-        color: '#3b82f6',
-      };
-    case 'completed':
-      return {
-        icon: React.createElement(CheckCircle, { size: 12, color: '#22c55e' }),
-        label: 'Completed',
-        color: '#22c55e',
-      };
-    case 'failed':
-      return {
-        icon: React.createElement(XCircle, { size: 12, color: '#ef4444' }),
-        label: 'Failed',
-        color: '#ef4444',
-      };
-    case 'cancelled':
-      return {
-        icon: React.createElement(Ban, { size: 12, color: colors.mutedForeground }),
-        label: 'Cancelled',
-        color: colors.mutedForeground,
-      };
-  }
-}
-
 export function formatDuration(ms: number): string {
   const seconds = Math.floor(ms / 1000);
   if (seconds < 60) return `${seconds}s`;
@@ -88,4 +37,27 @@ export function getToolPillLabel(toolName: string): string {
 
   // Fallback: camelCase → "Camel Case"
   return toolName.replace(/([A-Z])/g, ' $1').replace(/^./, c => c.toUpperCase()).trim();
+}
+
+/**
+ * The finished form of a tool's label, for a task whose call has returned
+ * (`TaskList` swaps `runningTitle` for this once the task's steps land).
+ * Labels that are already names ("Telegram", "Email") read the same either
+ * way, so they fall back to `getToolPillLabel`.
+ */
+const TOOL_DONE_LABELS: Record<string, string> = {
+  browse: 'Browsed',
+  webScraper: 'Read page',
+  generateFile: 'Generated file',
+  delegateToAgent: 'Delegated',
+  askAgent: 'Asked an agent',
+  agentSearch: 'Searched agents',
+  userMemory: 'Remembered',
+  shellExec: 'Ran command',
+  fileEdit: 'Edited file',
+  codeInterpreter: 'Ran code',
+};
+
+export function getToolDoneLabel(toolName: string): string {
+  return Object.hasOwn(TOOL_DONE_LABELS, toolName) ? TOOL_DONE_LABELS[toolName] : getToolPillLabel(toolName);
 }

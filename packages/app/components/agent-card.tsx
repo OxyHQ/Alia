@@ -1,22 +1,23 @@
-import React from "react";
-import { View, Pressable } from "react-native";
-import { Text } from "@/components/ui/text";
-import { IdentityMark } from "@alia.onl/sdk";
-import { Button } from "@/components/ui/button";
-import { BadgeCheck, Zap } from "lucide-react-native";
-import { cn } from "@/lib/utils";
-import { useTranslation } from "@/lib/hooks/use-translation";
-import type { Agent } from "@/lib/types/agents";
-import { agentDisplayName, agentHandle } from "@/lib/agents/identity";
-import { agentTint } from "@/lib/agents/agent-color";
-import { useColorScheme } from "@/lib/useColorScheme";
+import { agentTint } from '@/lib/agents/agent-color';
+import { agentDisplayName, agentHandle } from '@/lib/agents/identity';
+import { useTranslation } from '@/lib/hooks/use-translation';
+import type { Agent } from '@/lib/types/agents';
+import { useColorScheme } from '@/lib/useColorScheme';
+import { IdentityMark } from '@alia.onl/sdk';
+import { Badge } from '@oxy.so/bloom/badge';
+import { Button } from '@oxy.so/bloom/button';
+import { Card, CardBody, CardTitle } from '@oxy.so/bloom/card';
+import { RiFlashlightLine } from '@oxy.so/bloom/icons/RiFlashlightLine';
+import { Muted, Text } from '@oxy.so/bloom/typography';
+import React from 'react';
+import { View } from 'react-native';
 
 interface AgentCardProps {
   agent: Agent;
   onPress: (id: string) => void;
   onChat?: (id: string) => void;
   onHire?: (id: string) => void;
-  variant?: "featured" | "grid";
+  variant?: 'featured' | 'grid';
 }
 
 function formatCount(n: number): string {
@@ -24,151 +25,110 @@ function formatCount(n: number): string {
   return String(n);
 }
 
-const STATUS_COLORS: Record<Agent["status"], string> = {
-  active: "bg-green-500",
-  idle: "bg-yellow-500",
-  offline: "bg-gray-400",
-};
+/** The agent's status, as the tone of Bloom's status dot. */
+const STATUS_TONE = {
+  active: 'success',
+  idle: 'warning',
+  offline: 'default',
+} as const satisfies Record<Agent['status'], string>;
 
+/**
+ * One agent in the catalogue: a Bloom `Card` holding the agent's mark, name,
+ * handle, tagline and numbers, with Chat and — for a public agent — Start task.
+ */
 export const AgentCard = React.memo(function AgentCard({
   agent,
   onPress,
   onChat,
   onHire,
-  variant = "grid",
+  variant = 'grid',
 }: AgentCardProps) {
   const { t } = useTranslation();
   const { colors } = useColorScheme();
-  const isFeatured = variant === "featured";
-  const markSize = isFeatured ? 64 : 56;
-  const statusDotSize = isFeatured
-    ? "w-3.5 h-3.5 border-[2.5px]"
-    : "w-3 h-3 border-2";
+  const isFeatured = variant === 'featured';
+  const handle = agentHandle(agent);
+  const stats = [
+    `${formatCount(agent.hireCount)} ${t('agents.hires')}`,
+    `${formatCount(agent.usageCount)} ${t('agents.uses')}`,
+    ...(agent.rating > 0 ? [`${agent.rating} ${t('agents.rating')}`] : []),
+  ].join(' · ');
 
   return (
-    <Pressable
+    <Card
+      appearance="outline"
       onPress={() => onPress(agent._id)}
-      className="active:opacity-80"
-      style={isFeatured ? { width: 300 } : { flex: 1 }}
+      // It opens the agent's page, so it is a link — and not a `<button>`
+      // on web, which could not hold the card's own buttons.
+      accessibilityRole="link"
+      accessibilityLabel={agentDisplayName(agent)}
+      className={isFeatured ? 'w-[300px]' : 'flex-1'}
     >
-      <View className="rounded-2xl border border-border bg-surface p-4 flex-1">
-        {/* Top row: the agent's mark (left) + Chat button (right) — like Twitter avatar + Follow */}
-        <View className="flex-row items-start justify-between">
-          <View className="relative">
-            <IdentityMark
-              size={markSize}
-              color={agentTint(agent.color, colors)}
-              accessibilityLabel={agentDisplayName(agent)}
-            />
-            <View
-              className={cn(
-                "absolute bottom-0 right-0 rounded-full border-surface",
-                statusDotSize,
-                STATUS_COLORS[agent.status]
-              )}
-            />
+      {/* Two bodies with a spring between them: the grid equalises a row's
+          heights, and the spring keeps every card's numbers and task action
+          on the same bottom line. */}
+      <CardBody>
+        <View className="gap-2 pt-2">
+          {/* The mark, carrying the status dot, and Chat beside it. */}
+          <View className="flex-row items-start justify-between">
+            <Badge
+              dot
+              color={STATUS_TONE[agent.status]}
+              placement="bottom-right"
+            >
+              <IdentityMark
+                size={isFeatured ? 64 : 56}
+                color={agentTint(agent.color, colors)}
+                accessibilityLabel={agentDisplayName(agent)}
+              />
+            </Badge>
+            <Button
+              size="sm"
+              tone="neutral"
+              stopPropagation
+              onPress={() => onChat?.(agent._id)}
+            >
+              {t('agents.chat')}
+            </Button>
           </View>
-          <Button
-            variant="default"
-            size="sm"
-            className="rounded-full h-8 px-4 bg-foreground"
-            onPress={(e) => {
-              e.stopPropagation?.();
-              onChat?.(agent._id);
-            }}
-          >
-            <Text className="text-[13px] font-semibold text-background">
-              {t("agents.chat")}
-            </Text>
-          </Button>
-        </View>
 
-        {/* Name + native badge */}
-        <View className="flex-row items-center gap-1 mt-3">
-          <Text
-            className={cn(
-              "font-bold text-foreground",
-              isFeatured ? "text-[16px]" : "text-[15px]"
-            )}
-            numberOfLines={1}
-          >
-            {agentDisplayName(agent)}
+          <View>
+            <CardTitle numberOfLines={1}>{agentDisplayName(agent)}</CardTitle>
+            {/* Handle — absent when Oxy could not resolve the bot account. */}
+            {handle !== '' && <Muted numberOfLines={1}>@{handle}</Muted>}
+          </View>
+
+          <Text variant="body-regular" numberOfLines={2}>
+            {agent.tagline}
           </Text>
         </View>
+      </CardBody>
 
-        {/* Handle — absent when Oxy could not resolve the bot account. */}
-        {agentHandle(agent) !== "" && (
-          <Text className="text-[13px] text-muted-foreground mt-0.5" numberOfLines={1}>
-            @{agentHandle(agent)}
-          </Text>
-        )}
+      {/* Pushes the numbers and the task action to the bottom of the card. */}
+      <View className="flex-1" />
 
-        {/* Tagline */}
-        <Text
-          className="text-[14px] text-foreground leading-5 mt-2.5"
-          numberOfLines={2}
-        >
-          {agent.tagline}
-        </Text>
+      <CardBody>
+        <View className="gap-2 pb-2">
+          <Muted>{stats}</Muted>
 
-        {/* Spacer to push stats + task action to bottom */}
-        <View className="flex-1" />
-
-        {/* Stats */}
-        <View className="flex-row flex-wrap items-center gap-x-3 gap-y-0.5 mt-3">
-          <View className="flex-row items-center gap-1">
-            <Text className="text-[13px] font-bold text-foreground">
-              {formatCount(agent.hireCount)}
-            </Text>
-            <Text className="text-[13px] text-muted-foreground">
-              {t("agents.hires")}
-            </Text>
-          </View>
-          <View className="flex-row items-center gap-1">
-            <Text className="text-[13px] font-bold text-foreground">
-              {formatCount(agent.usageCount)}
-            </Text>
-            <Text className="text-[13px] text-muted-foreground">
-              {t("agents.uses")}
-            </Text>
-          </View>
-          {agent.rating > 0 && (
-            <View className="flex-row items-center gap-1">
-              <Text className="text-[13px] font-bold text-foreground">
-                {agent.rating}
-              </Text>
-              <Text className="text-[13px] text-muted-foreground">
-                {t("agents.rating")}
-              </Text>
-            </View>
-          )}
-        </View>
-
-        {/* Hire button — full width outline at bottom, like Twitter "Profile Summary" */}
-        {/* Only an agent anyone may use offers the button to everyone; a
+          {/* Only an agent anyone may use offers the button to everyone; a
             private one is reached through its own thread, by people who were
             given access. */}
-        {agent.access === 'public' && (
-          <Button
-            variant="outline"
-            size="sm"
-            className="rounded-full h-9 w-full mt-3"
-            onPress={(e) => {
-              e.stopPropagation?.();
-              onHire?.(agent._id);
-            }}
-          >
-            <View className="flex-row items-center justify-center gap-1.5">
-              <Zap size={13} className="text-foreground" />
-              <Text className="text-[12px] font-semibold text-foreground">
-                {agent.price != null
-                  ? `${t("agents.startTask")} · ${agent.price} credits`
-                  : t("agents.startTask")}
-              </Text>
-            </View>
-          </Button>
-        )}
-      </View>
-    </Pressable>
+          {agent.access === 'public' && (
+            <Button
+              size="sm"
+              tone="neutral"
+              appearance="outline"
+              leadingIcon={RiFlashlightLine}
+              stopPropagation
+              onPress={() => onHire?.(agent._id)}
+            >
+              {agent.price != null
+                ? `${t('agents.startTask')} · ${agent.price} credits`
+                : t('agents.startTask')}
+            </Button>
+          )}
+        </View>
+      </CardBody>
+    </Card>
   );
 });

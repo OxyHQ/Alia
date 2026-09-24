@@ -3,7 +3,7 @@ import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'rea
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 /**
- * The four guarantees Alia moved onto Bloom, checked against the real pill.
+ * The four guarantees Alia moved onto Bloom, checked against the real panel.
  *
  * This file replaces three that went with the old composer —
  * `components/__tests__/prompt-input-stop.test.tsx`,
@@ -35,7 +35,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
  *     voice-call button lives in that slot, and a turn in flight is the one
  *     thing a person has to be able to reach.
  *
- * The pill is MOUNTED, not stubbed. `vitest.config.ts` inlines
+ * The panel is MOUNTED, not stubbed. `vitest.config.ts` inlines
  * `@oxy.so/bloom` for exactly this: an adoption proven against a stub is a
  * test of the stub.
  */
@@ -43,10 +43,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 /**
  * react-native as host elements.
  *
- * Bloom's pill reaches for rather more of it than most components here do —
+ * Bloom's panel reaches for rather more of it than most components here do —
  * `useWindowDimensions` decides the placeholder, `TextInput` is the field, and
  * `Pressable` is every control — so the shim is wider than the usual two
- * entries and every one of them is something the pill actually calls.
+ * entries and every one of them is something the panel actually calls.
  */
 vi.mock('react-native', async () => {
   const ReactModule = await import('react');
@@ -72,7 +72,7 @@ vi.mock('react-native', async () => {
     ScrollView: host('ScrollView'),
     ActivityIndicator: host('ActivityIndicator'),
     // Bloom's `styled-primitives` wraps this whole family, so every one of
-    // them has to exist even though the pill draws none of them.
+    // them has to exist even though the panel draws none of them.
     Image: host('Image'),
     ImageBackground: host('ImageBackground'),
     FlatList: host('FlatList'),
@@ -115,7 +115,7 @@ vi.mock('react-native', async () => {
     InteractionManager: { runAfterInteractions: (fn: () => void) => { fn(); return { cancel: () => {} }; } },
     Keyboard: { dismiss: () => {}, addListener: () => ({ remove: () => {} }) },
     AccessibilityInfo: { isReduceMotionEnabled: async () => true, addEventListener: () => ({ remove: () => {} }) },
-    // The pill asks below 640 for a shorter placeholder. A desktop width keeps
+    // The panel asks below 640 for a shorter placeholder. A desktop width keeps
     // the full one, which is the string this file names.
     useWindowDimensions: () => ({ width: 1280, height: 800, scale: 1, fontScale: 1 }),
     Platform: { OS: 'web', select: (spec: Record<string, unknown>) => spec.web ?? spec.default },
@@ -130,7 +130,7 @@ vi.mock('react-native', async () => {
 /**
  * Reanimated, as the identity it would be with motion turned off.
  *
- * The pill animates a chevron, a glass chip's fade and the effort thumb.
+ * The panel animates a chevron, a glass chip's fade and the effort thumb.
  * None of those is what this file is about, and the real library needs a
  * native module and a frame clock to say so.
  */
@@ -187,7 +187,7 @@ vi.mock('react-native-svg', async () => {
   };
 });
 
-import { ComposerPill } from '@oxy.so/bloom/composer-panel';
+import { ComposerPanel } from '@oxy.so/bloom/composer-panel';
 import { BloomThemeProvider } from '@oxy.so/bloom/theme';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
@@ -207,21 +207,21 @@ afterEach(() => {
  * asked of it: the real provider otherwise waits on persisted storage this
  * runner does not have, and renders nothing while it waits.
  */
-function mount(props: Partial<React.ComponentProps<typeof ComposerPill>>) {
+function mount(props: Partial<React.ComponentProps<typeof ComposerPanel>>) {
   let next: ReactTestRenderer | undefined;
   act(() => {
     next = create(
       <BloomThemeProvider defaultMode="light" awaitHydration={false}>
-        <ComposerPill {...props} />
+        <ComposerPanel {...props} />
       </BloomThemeProvider>,
     );
   });
-  if (next === undefined) throw new Error('the pill did not render');
+  if (next === undefined) throw new Error('the panel did not render');
   renderer = next;
   return next;
 }
 
-/** The field, which is the only `TextInput` the pill mounts. */
+/** The field, which is the only `TextInput` the panel mounts. */
 function field(r: ReactTestRenderer): ReactTestInstance {
   return r.root.findAllByType('TextInput' as never)[0];
 }
@@ -241,7 +241,7 @@ function key(
   return event;
 }
 
-describe('the pill Alia sends with', () => {
+describe('the panel Alia sends with', () => {
   it('sends on Enter', () => {
     const onSubmit = vi.fn();
     const r = mount({ value: 'hola', onSubmit });
@@ -301,7 +301,7 @@ describe('the host sees the keys first', () => {
 });
 
 describe('stop, and what it outlives', () => {
-  /** Every control the pill exposes a name for. */
+  /** Every control the panel exposes a name for. */
   function named(r: ReactTestRenderer): Record<string, ReactTestInstance> {
     const byName: Record<string, ReactTestInstance> = {};
     for (const node of r.root.findAllByType('Pressable' as never)) {
@@ -377,9 +377,15 @@ describe('the model menu keys by id, never by the name it draws', () => {
     const onModelChange = vi.fn();
     const r = mount({
       value: 'hola',
-      models: [
-        { id: 'mode:auto', name: 'Automatic' },
-        { id: 'profile:deep', name: 'Deep thinking' },
+      providers: [
+        {
+          id: 'alia',
+          name: 'Alia',
+          models: [
+            { id: 'mode:auto', name: 'Automatic' },
+            { id: 'profile:deep', name: 'Deep thinking' },
+          ],
+        },
       ],
       model: 'mode:auto',
       onModelChange,
@@ -389,16 +395,17 @@ describe('the model menu keys by id, never by the name it draws', () => {
     // contract buys: an id with no row would show as itself.
     const chip = r.root
       .findAllByType('Pressable' as never)
-      .find((node) => node.props.accessibilityLabel === 'Automatic');
+      .find((node) => String(node.props.accessibilityLabel).endsWith(': Automatic'));
     expect(chip).toBeDefined();
     act(() => chip?.props.onPress());
 
     const rows = r.root
       .findAllByType('Pressable' as never)
       .filter((node) => node.props.accessibilityRole === 'radio');
+    // Each row is named by its provider and its model, and reports the id.
     expect(rows.map((row) => row.props.accessibilityLabel)).toEqual([
-      'Automatic',
-      'Deep thinking',
+      'Alia Automatic',
+      'Alia Deep thinking',
     ]);
     act(() => rows[1].props.onPress());
     expect(onModelChange).toHaveBeenCalledWith('profile:deep');

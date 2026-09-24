@@ -1,12 +1,15 @@
-import { View } from "react-native";
-import { useLocalSearchParams } from "expo-router";
-import { BloomColorScope } from "@oxy.so/bloom/theme";
-import { ContentPanel } from "@oxy.so/bloom/content-panel";
-import { Text } from "@/components/ui/text";
-import { ConversationScreen } from "@/components/conversation-screen";
-import { agentColorPreset } from "@/lib/agents/agent-color";
-import { useAgentThread } from "@/lib/hooks/use-agent-thread";
-import { useTranslation } from "@/lib/hooks/use-translation";
+import { ChatWorkspace } from '@/components/chat/chat-workspace';
+import { ConversationScreen } from '@/components/conversation-screen';
+import { agentColorPreset } from '@/lib/agents/agent-color';
+import { useAgentThread } from '@/lib/hooks/use-agent-thread';
+import { useTranslation } from '@/lib/hooks/use-translation';
+import { AiChatMobileHeader } from '@oxy.so/bloom/ai-chat';
+import { EmptyState } from '@oxy.so/bloom/empty-state';
+import { RiRobot2Line } from '@oxy.so/bloom/icons/RiRobot2Line';
+import { Loading } from '@oxy.so/bloom/loading';
+import { BloomColorScope } from '@oxy.so/bloom/theme';
+import { useLocalSearchParams } from 'expo-router';
+import { View } from 'react-native';
 
 /**
  * `/@pepe` — the permanent thread with one agent.
@@ -40,7 +43,10 @@ import { useTranslation } from "@/lib/hooks/use-translation";
  * why this file is short — see `components/conversation-screen.tsx`.
  */
 const AgentThreadPage = () => {
-  const { username, threadId } = useLocalSearchParams<{ username: string; threadId?: string }>();
+  const { username, threadId } = useLocalSearchParams<{
+    username: string;
+    threadId?: string;
+  }>();
   const { t } = useTranslation();
 
   /**
@@ -64,23 +70,25 @@ const AgentThreadPage = () => {
    * distinguished "not found" from "we couldn't ask" would leak the same fact
    * whenever the second only ever happens for one of them.
    */
+  // Both inside the chat's own frame: this is a chat route, so no layout
+  // container wraps it, and a phone still needs the menu to leave.
   if (isError) {
     return (
-      <ContentPanel surfaceClassName="bg-background">
-        <View className="flex-1 items-center justify-center">
-          <Text className="text-muted-foreground">{t("agents.notFound")}</Text>
+      <ChatWorkspace header={<AiChatMobileHeader title="Alia" />}>
+        <View className="flex-1 justify-center">
+          <EmptyState icon={RiRobot2Line} title={t('agents.notFound')} />
         </View>
-      </ContentPanel>
+      </ChatWorkspace>
     );
   }
 
   if (isPending || thread === undefined) {
     return (
-      <ContentPanel surfaceClassName="bg-background">
+      <ChatWorkspace header={<AiChatMobileHeader title="Alia" />}>
         <View className="flex-1 items-center justify-center">
-          <Text className="text-muted-foreground">{t("common.loading")}</Text>
+          <Loading variant="spinner" text={t('common.loading')} />
         </View>
-      </ContentPanel>
+      </ChatWorkspace>
     );
   }
 
@@ -93,7 +101,8 @@ const AgentThreadPage = () => {
    * Oxy account resolved nothing still gets called what they called it rather
    * than being renamed to a noun.
    */
-  const headerName = thread.agent.name?.trim() || thread.agent.handle?.trim() || handle;
+  const headerName =
+    thread.agent.name?.trim() || thread.agent.handle?.trim() || handle;
 
   /**
    * The agent's own Bloom recipe, applied to this screen and nothing else.
@@ -139,12 +148,11 @@ const AgentThreadPage = () => {
    */
   return (
     <BloomColorScope colorPreset={agentColorPreset(thread.agent.color)} asChild>
-      <View className="flex-1 bg-background web:z-auto">
+      <View className="flex-1 web:z-auto">
         <ConversationScreen
           conversationId={thread.conversationId}
           agentId={thread.agent._id}
           agentName={headerName}
-          agentColor={thread.agent.color}
           /**
            * The handle is what makes this screen a THREAD rather than one
            * conversation: it is what the history is paged from, and what is

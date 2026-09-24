@@ -52,7 +52,36 @@
     },
     "account": {
       "title": "Configuración de cuenta",
-      "description": "Administra tu cuenta"
+      "description": "Administra tu cuenta",
+      "currentPlan": "Plan actual",
+      "manage": "Gestionar",
+      "billing": {
+        "freePlan": "Gratis",
+        "freePlanDescription": "Mejora tu plan para tener más créditos cada mes.",
+        "subscription": "Suscripción",
+        "customCredits": "{{count}} créditos"
+      },
+      "security": {
+        "never": "Nunca",
+        "severity": {
+          "info": "Información",
+          "warning": "Aviso",
+          "critical": "Crítico"
+        },
+        "auditSummary": "Resumen de auditoría",
+        "auditSummaryDetail": "{{sessions}} sesiones · {{steps}} pasos · {{threats}} amenazas",
+        "fromDate": "Fecha de inicio",
+        "toDate": "Fecha de fin",
+        "exportFormat": "Formato de exportación",
+        "downloadAudit": "Descargar auditoría"
+      },
+      "storage": {
+        "signedOut": "Inicia sesión para gestionar tus archivos",
+        "signedOutDescription": "Los archivos que subas a tu Biblioteca aparecen aquí.",
+        "openFile": "Abrir archivo",
+        "copyLink": "Copiar enlace",
+        "linkCopied": "Enlace copiado"
+      }
     },
     "appLanguage": {
       "title": "Idioma de la aplicación",
@@ -125,7 +154,9 @@
       "connectors": "Conectores",
       "integrations": "Integraciones",
       "writingStyle": "Estilo de Escritura",
-      "localModels": "Modelos locales"
+      "localModels": "Modelos locales",
+      "profile": "Perfil",
+      "storage": "Almacenamiento"
     },
     "accentColor": {
       "title": "Color de la app",
@@ -171,7 +202,201 @@
     "groups": {
       "assistant": "Asistente",
       "connections": "Conexiones",
-      "app": "Aplicación"
+      "app": "Aplicación",
+      "device": "Este dispositivo"
+    },
+    "general": {
+      "limits": "Límites",
+      "creditsLeft": "Te quedan {{count}} créditos",
+      "manageLimits": "Gestionar límites",
+      "currentPlan": "Plan actual",
+      "freePlan": "Gratis",
+      "perMonth": "mes",
+      "perYear": "año",
+      "creditsPerMonth": "{{count}} créditos al mes"
+    },
+    "profile": {
+      "name": "Nombre",
+      "username": "Usuario",
+      "email": "Correo",
+      "oxyAccount": "Cuenta de Oxy",
+      "oxyAccountDescription": "Tu nombre, foto e inicio de sesión los gestiona Oxy",
+      "manage": "Gestionar",
+      "userId": "ID de usuario",
+      "logoutAll": "Cerrar sesión en todos los dispositivos",
+      "logoutAllConfirm": "Se cerrará tu sesión de Alia y de todas las apps de Oxy en todos tus dispositivos.",
+      "logout": "Cerrar sesión"
+    },
+    "connections": {
+      "catalog": "Catálogo de conectores",
+      "viewDetails": "Ver detalles",
+      "noOutput": "No hay salida disponible",
+      "noTools": "No hay herramientas disponibles",
+      "notConnected": "No conectado",
+      "toolCount": {
+        "zero": "Ninguna herramienta activada",
+        "one": "1 herramienta activada",
+        "other": "{{count}} herramientas activadas"
+      },
+      "serverStatus": {
+        "installed": "Instalado",
+        "running": "En ejecución",
+        "stopped": "Detenido",
+        "error": "Error"
+      },
+      "capability": {
+        "read": "Lectura",
+        "readWrite": "Lectura, escritura"
+      },
+      "auth": {
+        "oauth": "OAuth",
+        "apiKey": "Clave de API",
+        "none": "Ninguna"
+      },
+      "disconnect": "Desconectar",
+      "disconnectNamed": "Desconectar {{name}}",
+      "integrations": {
+        "connected": "Conectadas",
+        "available": "Disponibles",
+        "empty": "Aún no hay integraciones conectadas.",
+        "status": {
+          "active": "Activa",
+          "expired": "Caducada",
+          "revoked": "Revocada",
+          "error": "Error"
+        },
+        "oauthError": "La conexión se canceló o falló",
+        "connectedToast": "{{name}} se conectó correctamente",
+        "finishFailed": "No se pudo completar la conexión",
+        "startFailed": "No se pudo iniciar la conexión",
+        "disconnectTitle": "Desconectar integración",
+        "disconnectDescription": "¿Seguro que quieres desconectar esta integración? Puedes volver a conectarla cuando quieras.",
+        "disconnectedToast": "Integración desconectada",
+        "disconnectFailed": "No se pudo desconectar la integración"
+      },
+      "bots": {
+        "title": "Bots del sistema",
+        "description": "Los bots del sistema permiten que otras personas interactúen con Alia y que Alia envíe mensajes en tu nombre. Para dar a uno de tus agentes su propio bot de Telegram, abre el agente y usa su sección de bot de Telegram.",
+        "empty": "No hay bots del sistema disponibles.",
+        "status": {
+          "active": "Activo",
+          "inactive": "Inactivo",
+          "error": "Error"
+        },
+        "linkedAs": "Vinculado como @{{username}}",
+        "link": "Vincular",
+        "unlink": "Desvincular",
+        "linkUnsupported": "Aún no se puede vincular con {{platform}}",
+        "cannotOpen": "No se puede abrir {{platform}}",
+        "openFailed": "No se pudo abrir el enlace",
+        "unlinkedToast": "Bot desvinculado",
+        "unlinkFailed": "No se pudo desvincular el bot"
+      },
+      "accounts": {
+        "title": "Cuentas conectadas",
+        "description": "Vincula tus cuentas de mensajería para que Alia pueda leer y responder en tu nombre.",
+        "empty": "Aún no hay cuentas conectadas. Conecta tu primera cuenta para empezar.",
+        "connectTitle": "Conectar cuenta",
+        "status": {
+          "connected": "Conectada",
+          "connecting": "Conectando",
+          "disconnected": "Desconectada",
+          "error": "Error",
+          "expired": "Caducada"
+        },
+        "connectingToast": "Conectando {{name}}",
+        "connectFailed": "No se pudo conectar la cuenta",
+        "disconnectTitle": "Desconectar cuenta",
+        "disconnectDescription": "¿Seguro que quieres desconectar esta cuenta? Puedes volver a conectarla cuando quieras.",
+        "disconnectedToast": "Cuenta desconectada",
+        "disconnectFailed": "No se pudo desconectar la cuenta"
+      }
+    },
+    "assistant": {
+      "memory": {
+        "manage": "Gestionar",
+        "newMemoryDescription": "Abre un chat para decirle a Alia qué recordar",
+        "duplicatesDescription": "Busca memorias que se repiten entre sí",
+        "findDuplicates": "Buscar duplicados",
+        "count": {
+          "one": "1 memoria",
+          "other": "{{count}} memorias"
+        }
+      },
+      "writingStyle": {
+        "emptyTitle": "Aún no hay perfil de estilo",
+        "emptyDescription": "Tras {{min}} mensajes, tu perfil de estilo de escritura empezará a crearse automáticamente.",
+        "statusActive": "Perfil activo",
+        "statusBuilding": "Creando perfil",
+        "messagesAnalyzed": "{{n}} mensajes analizados",
+        "aiSummary": "Resumen de IA",
+        "overview": "Resumen",
+        "formalityLabel": "Formalidad",
+        "vocabulary": "Vocabulario",
+        "avgSentence": "Frase media",
+        "avgSentenceValue": "~{{n}} palabras",
+        "emojiLabel": "Emojis",
+        "languageLabel": "Idioma",
+        "capitalization": "Mayúsculas",
+        "patterns": "Patrones",
+        "tone": "Tono",
+        "greetings": "Saludos",
+        "closings": "Despedidas",
+        "signOff": "Firma",
+        "words": "Palabras características",
+        "jargon": "Términos del ámbito",
+        "otherLanguages": "Otros idiomas",
+        "multilingual": "Mensajes multilingües",
+        "multilingualDescription": "A veces mezclas idiomas en tus mensajes",
+        "notDetected": "Aún no detectado",
+        "noneDetected": "Ninguno detectado",
+        "preferences": "Preferencias",
+        "aiAnalysis": "Análisis con IA",
+        "aiAnalysisLocked": "Disponible tras {{min}} mensajes ({{n}} hasta ahora)",
+        "refresh": "Actualizar",
+        "refreshing": "Actualizando…",
+        "refreshed": "Perfil de estilo actualizado",
+        "refreshFailed": "No se pudo actualizar",
+        "refreshFailedLong": "No se pudo actualizar el perfil de estilo",
+        "resetProfile": "Restablecer perfil",
+        "reset": "Restablecer",
+        "resetTitle": "Restablecer estilo de escritura",
+        "resetDescription": "Se eliminará tu perfil de estilo de escritura. Alia volverá a aprender desde cero.",
+        "resetDone": "Perfil de estilo restablecido",
+        "resetFailed": "No se pudo restablecer el perfil de estilo",
+        "updated": "Perfil de estilo guardado",
+        "saveFailed": "No se pudieron guardar los cambios",
+        "editTitle": "Editar preferencias de estilo",
+        "editDescription": "Personaliza cómo escribe Alia en tu nombre.",
+        "signOffPlaceholder": "p. ej., Un saludo, Gracias",
+        "greetingPatterns": "Patrones de saludo",
+        "greetingPlaceholder": "p. ej., Hola, Buenas, Qué tal",
+        "closingPatterns": "Patrones de despedida",
+        "closingPlaceholder": "p. ej., Gracias, Un abrazo, Saludos",
+        "toneDescriptors": "Descriptores de tono",
+        "tonePlaceholder": "p. ej., cercano, directo, profesional",
+        "commaSeparated": "Separados por comas",
+        "formality": {
+          "very_informal": "Muy informal",
+          "informal": "Informal",
+          "neutral": "Neutral",
+          "formal": "Formal",
+          "very_formal": "Muy formal"
+        },
+        "emoji": {
+          "never": "Nunca",
+          "rare": "Rara vez",
+          "moderate": "A veces",
+          "frequent": "A menudo"
+        },
+        "language": {
+          "en": "Inglés",
+          "es": "Español",
+          "fr": "Francés",
+          "pt": "Portugués",
+          "de": "Alemán"
+        }
+      }
     }
   },
   "nav": {
@@ -228,7 +453,44 @@
     "earlier": "Anteriores",
     "collapse": "Contraer barra lateral",
     "expand": "Expandir barra lateral",
-    "noAgentMessages": "Sin mensajes todavía"
+    "noAgentMessages": "Sin mensajes todavía",
+    "recent": "Recientes",
+    "chats": "Chats",
+    "support": "Soporte",
+    "tasks": "Tareas",
+    "shows": "Shows",
+    "newConversation": "Nueva conversación",
+    "chatOptions": "Opciones de {{title}}",
+    "rename": "Renombrar",
+    "renameTitle": "Renombrar chat",
+    "renameLabel": "Nombre del chat",
+    "moveToProject": "Mover a proyecto",
+    "noProject": "Sin proyecto",
+    "deleteChat": "Eliminar chat",
+    "deleteChatTitle": "¿Eliminar este chat?",
+    "deleteChatDescription": "Se eliminarán «{{title}}» y sus mensajes. No se puede deshacer.",
+    "projectOptions": "Opciones de {{name}}",
+    "newProject": "Nuevo proyecto",
+    "deleteProjectTitle": "¿Eliminar este proyecto?",
+    "deleteProjectDescription": "Se elimina «{{name}}». Sus chats se conservan y vuelven a Recientes.",
+    "inviteFriends": "Invitar amigos",
+    "projectDialog": {
+      "newTitle": "Nuevo proyecto",
+      "editTitle": "Editar proyecto",
+      "newDescription": "Crea un proyecto para organizar tus conversaciones",
+      "editDescription": "Actualiza los datos del proyecto",
+      "name": "Nombre",
+      "description": "Descripción (opcional)",
+      "color": "Color"
+    },
+    "colors": {
+      "blue": "Azul",
+      "purple": "Morado",
+      "rose": "Rosa",
+      "yellow": "Ámbar",
+      "lime": "Verde",
+      "cyan": "Cian"
+    }
   },
   "billing": {
     "title": "Facturación",
@@ -333,7 +595,68 @@
     "turnInterrupted": "Alia se interrumpió antes de terminar.",
     "turnFailedRetryHint": "Inténtalo de nuevo.",
     "retry": "Reintentar",
-    "exportFailed": "No se pudo exportar esta conversación."
+    "exportFailed": "No se pudo exportar esta conversación.",
+    "bloom": {
+      "searchedWeb": "Buscó en la web",
+      "visited": "Visitó",
+      "researched": "Investigó",
+      "researching": "Investigando",
+      "resultCount": {
+        "one": "1 resultado",
+        "other": "{{count}} resultados"
+      },
+      "searchCount": {
+        "one": "1 búsqueda",
+        "other": "{{count}} búsquedas"
+      },
+      "sourceCount": {
+        "one": "1 fuente",
+        "other": "{{count}} fuentes"
+      },
+      "createdFile": "Creó",
+      "writingFile": "Escribiendo",
+      "taskInput": "Con",
+      "taskFailed": "Devolvió un error",
+      "taskStopped": "No terminó",
+      "scrollToLatest": "Ir a los últimos mensajes",
+      "limits": {
+        "dailyFree": "Créditos gratis diarios",
+        "resetsInHours": "Se renueva en {{hours}} h {{minutes}} min",
+        "resetsInMinutes": "Se renueva en {{minutes}} min",
+        "resetsSoon": "Se renueva pronto",
+        "resetsDaily": "Se renueva cada 24 horas",
+        "planUsage": "Límites de uso del plan",
+        "close": "Cerrar panel de créditos"
+      },
+      "searchFailed": "La búsqueda falló",
+      "noResults": "Sin resultados"
+    },
+    "voiceStartFailed": "No se pudo iniciar la sesión de voz",
+    "exportMarkdown": "Exportar como Markdown",
+    "deleteConversation": "Eliminar conversación",
+    "deleteConversationTitle": "¿Eliminar esta conversación?",
+    "deleteConversationDescription": "Se eliminarán todos sus mensajes. No se puede deshacer.",
+    "deleteConversationConfirm": "Eliminar",
+    "toolCard": {
+      "scheduled": "Programada",
+      "paused": "En pausa",
+      "openTask": "Abrir la tarea programada %{objective}"
+    },
+    "agentRun": {
+      "working": "Agente trabajando",
+      "complete": "Tarea completada",
+      "error": "Error",
+      "completed": "Completada",
+      "failed": "Fallida",
+      "unknown": "Desconocido",
+      "taskComplete": "Tarea completada",
+      "taskFailed": "La tarea falló",
+      "by": "por %{name}",
+      "steps": "%{count} pasos",
+      "planItems": "%{done}/%{total} pasos del plan",
+      "credits": "%{count} créditos",
+      "planSummary": "Resumen del plan"
+    }
   },
   "credits": {
     "title": "Créditos",
@@ -532,7 +855,22 @@
     "confirmDowngrade": "Confirmar",
     "upgradeSuccess": "¡Plan mejorado exitosamente!",
     "downgradeSuccess": "Plan cambiado exitosamente.",
-    "failedPlanChange": "Error al cambiar de plan. Inténtalo de nuevo."
+    "failedPlanChange": "Error al cambiar de plan. Inténtalo de nuevo.",
+    "billingPeriod": "Periodo de facturación",
+    "popular": "Popular",
+    "free": "Gratis",
+    "loadError": "No se han podido cargar los planes. Inténtalo de nuevo en un momento.",
+    "download": {
+      "pageTitle": "Descargar Alia",
+      "metaDescription": "Descarga la app de Alia para Android e iOS.",
+      "title": "Lleva Alia en tu móvil",
+      "back": "Volver a Alia",
+      "platform": "Plataforma",
+      "scanTitle": "Escanea para descargar",
+      "scanDescription": "Escanea el código QR con el móvil para obtener la app.",
+      "iosTitle": "Muy pronto",
+      "iosDescription": "La app de iOS está en camino."
+    }
   },
   "usageLimit": {
     "outOfCreditsTitle": "Sin créditos",
@@ -1241,9 +1579,259 @@
     "capabilitiesGroup": "Capacidades",
     "appsGroup": "Apps",
     "canvas": "Lienzo",
-    "connectorTools": "%{count} herramientas"
+    "connectorTools": "%{count} herramientas",
+    "searchDescription": "Buscar en la web",
+    "deepResearchDescription": "A fondo en un tema",
+    "ghostDescription": "No guardar este chat",
+    "agentDescription": "Trabajar en tareas largas",
+    "canvasDescription": "Escribir y editar archivos",
+    "modes": "Modo",
+    "removeShort": "Quitar",
+    "models": "Modelos",
+    "quickSearch": "Búsqueda rápida",
+    "searchModels": "Buscar modelos",
+    "noModels": "Ningún modelo coincide",
+    "providers": "Proveedores",
+    "effort": "Esfuerzo",
+    "faster": "Más rápido",
+    "smarter": "Más listo",
+    "modelsGroup": "Modelos",
+    "deviceGroup": "Este dispositivo",
+    "modeChat": "Chat",
+    "modeChatDescription": "Responde y usa herramientas cuando ayuda",
+    "placeholder": "Pregúntale lo que quieras a Alia"
   },
   "panel": {
-    "resize": "Redimensionar el panel"
+    "resize": "Redimensionar el panel",
+    "code": "Canvas",
+    "gallery": "Galería",
+    "credits": "Créditos",
+    "agent": "Agente",
+    "new": "Nuevo",
+    "emptyCanvas": "// Los archivos que Alia escriba en este chat aparecerán aquí.",
+    "files": {
+      "one": "1 archivo",
+      "other": "{{count}} archivos"
+    }
+  },
+  "pages": {
+    "automations": {
+      "heading": "¿Qué debería hacer Alia más tarde?",
+      "description": "Describe el trabajo y cuándo debe hacerse. Alia solo te preguntará los detalles que realmente falten antes de guardar la tarea.",
+      "placeholder": "Programa una tarea",
+      "startFailed": "No se pudo empezar a programar. Tu descripción sigue aquí.",
+      "suggestionsTitle": "Prueba una tarea",
+      "suggestions": {
+        "brief": {
+          "title": "Empezar el día informado",
+          "prompt": "Cada día laborable a las 8:00, dame un breve resumen de lo que importa para mi trabajo."
+        },
+        "remind": {
+          "title": "Recordar algo una vez",
+          "prompt": "Mañana a las 10:00, recuérdame hacer seguimiento del proyecto."
+        },
+        "topic": {
+          "title": "Seguir un tema",
+          "prompt": "Cada lunes a las 9:00, investiga las últimas novedades de un tema que elija y resúmelas."
+        },
+        "review": {
+          "title": "Preparar un repaso semanal",
+          "prompt": "Cada viernes por la tarde, ayúdame a repasar la semana y planificar la siguiente."
+        }
+      },
+      "notStarted": "Sin empezar",
+      "unknownTime": "Hora desconocida",
+      "historyLoadFailed": "No se pudo cargar el historial de esta automatización.",
+      "notFound": "Automatización no encontrada.",
+      "saved": "Automatización actualizada y autoridad revalidada",
+      "savedRevocationFailed": {
+        "one": "Guardado, pero no se pudo revocar 1 autorización antigua",
+        "other": "Guardado, pero no se pudieron revocar %{count} autorizaciones antiguas"
+      },
+      "saveFailed": "No se pudo actualizar la automatización",
+      "active": "Activa",
+      "stopped": "Detenida",
+      "actors": "Actores: %{actors}",
+      "usesConnectedApps": "Usa apps conectadas aprobadas",
+      "runHistory": "Historial de ejecuciones",
+      "runCount": {
+        "one": "1 ejecución",
+        "other": "%{count} ejecuciones"
+      },
+      "noRuns": "Aún no hay ejecuciones registradas.",
+      "showMore": "Mostrar más"
+    },
+    "skills": {
+      "installSkill": "Instalar %{name}",
+      "installedSkill": "%{name} está instalada"
+    },
+    "tasks": {
+      "view": "Vista de tareas",
+      "typeFilter": "Filtrar por tipo"
+    },
+    "library": {
+      "categories": "Categorías de archivos",
+      "resultCount": {
+        "one": "1 archivo",
+        "other": "{{count}} archivos"
+      }
+    },
+    "notifications": {
+      "unread": {
+        "one": "1 sin leer",
+        "other": "{{count}} sin leer"
+      },
+      "markAllRead": "Marcar todo como leído",
+      "emptyTitle": "Aún no hay notificaciones",
+      "emptyDescription": "Configura disparadores y rutinas para recibir novedades proactivas de Alia.",
+      "dismiss": "Descartar notificación"
+    },
+    "agents": {
+      "teams": "Equipos",
+      "categories": "Categorías",
+      "back": "Atrás",
+      "teamsTitle": "Equipos de agentes",
+      "teamsDescription": "Grupos duraderos con un coordinador",
+      "teamsEmpty": "Aún no hay equipos",
+      "teamsEmptyDetail": "Importa un paquete alia.team a través de la API.",
+      "noPlaybook": "Aún sin guía",
+      "agentType": "Tipo de agente",
+      "sessionTitle": "Actividad de la sesión",
+      "sessionSteps": "%{count} pasos",
+      "sessionEvents": "%{count} eventos",
+      "sessionThreats": "%{count} amenazas",
+      "sessionErrors": "%{count} errores",
+      "sessionEmpty": "No hay actividad registrada",
+      "agentActions": "Acciones del agente",
+      "moreActions": "Más acciones",
+      "addRoutingRule": "Añadir regla de enrutamiento",
+      "removeRoutingRule": "Quitar regla de enrutamiento"
+    }
+  },
+  "panels": {
+    "agent": {
+      "tabs": {
+        "steps": "Pasos",
+        "sources": "Fuentes"
+      },
+      "close": "Cerrar el panel del agente",
+      "working": "El agente está trabajando",
+      "complete": "Tarea completada",
+      "failed": "La tarea falló",
+      "waitingToStart": "Esperando a que el agente empiece",
+      "noSteps": "Aún no hay pasos",
+      "noSources": "Aún no se han encontrado fuentes",
+      "websites": {
+        "one": "Sitios web (1)",
+        "other": "Sitios web ({{count}})"
+      },
+      "approvalRequired": "Se necesita aprobación",
+      "approve": "Aprobar",
+      "deny": "Denegar",
+      "planSteps": "{{completed}}/{{total}} pasos",
+      "stepsLeft": {
+        "one": "Queda 1 paso",
+        "other": "Quedan {{count}} pasos"
+      },
+      "allCompleted": "Todos los pasos completados",
+      "minimizeSteps": "Minimizar pasos",
+      "expandSteps": "Expandir pasos",
+      "step": {
+        "thinking": "Pensando…",
+        "complete": "Tarea completada",
+        "error": "Se produjo un error",
+        "threat": "Amenaza detectada",
+        "browser": "Navegador: {{action}} {{target}}",
+        "action": "acción",
+        "completing": "Completando la tarea",
+        "updatingPlan": "Actualizando el plan",
+        "delegate": "Contratando a @{{agent}}",
+        "result": "Resultado recibido",
+        "found": "Encontrado: {{title}}",
+        "source": "fuente"
+      }
+    },
+    "workspace": {
+      "title": "Archivos del espacio de trabajo",
+      "fileCount": {
+        "one": "1 archivo",
+        "other": "{{count}} archivos"
+      },
+      "loading": "Cargando el espacio de trabajo…",
+      "loadFailed": "No se pudieron cargar los archivos. Puede que el contenedor haya caducado.",
+      "empty": "Aún no hay archivos en el espacio de trabajo.",
+      "previewFailed": "(no se pudo cargar el archivo)",
+      "truncated": "[recortado]",
+      "download": "Descargar {{name}}"
+    },
+    "code": {
+      "copy": "Copiar código",
+      "copied": "Código copiado"
+    },
+    "canvas": {
+      "image": "Imagen",
+      "unsupported": "Tipo de componente no compatible: {{type}}"
+    },
+    "chart": {
+      "share": "Porcentaje",
+      "value": "Valor"
+    },
+    "form": {
+      "enter": "Escribe {{field}}",
+      "select": "Selecciona…",
+      "submit": "Enviar"
+    }
+  },
+  "dialogs": {
+    "commandPalette": {
+      "placeholder": "Escribe un comando o busca…",
+      "empty": "No hay resultados.",
+      "groupActions": "Acciones",
+      "groupNavigate": "Ir a",
+      "groupSettings": "Ajustes",
+      "groupConversations": "Conversaciones",
+      "groupRecentConversations": "Conversaciones recientes",
+      "newChat": "Nuevo chat",
+      "searchLibrary": "Buscar en la biblioteca",
+      "agents": "Agentes",
+      "library": "Biblioteca",
+      "automations": "Automatizaciones",
+      "skills": "Habilidades",
+      "settings": "Ajustes",
+      "billing": "Facturación",
+      "notifications": "Notificaciones",
+      "upgrade": "Mejorar a Pro"
+    },
+    "errorBoundary": {
+      "title": "Esta pantalla no se ha cargado",
+      "message": "Algo falló al mostrarla. Vuelve a intentarlo; si sigue pasando, ya nos ha llegado el aviso."
+    },
+    "notFound": {
+      "pageTitle": "404 - Página no encontrada | Alia",
+      "metaDescription": "La página que buscas no existe. Vuelve a Alia para seguir con tus conversaciones.",
+      "title": "Esta página no existe",
+      "description": "Puede que el enlace esté roto o que la página se haya movido.",
+      "home": "Ir a Alia"
+    },
+    "invite": {
+      "title": "Invita y consigue créditos",
+      "description": "Comparte tu enlace de invitación con amigos y ganad 500 créditos cada uno.",
+      "tabShare": "Compartir",
+      "tabRedeem": "Canjear",
+      "tabHistory": "Historial",
+      "linkLabel": "Enlace de invitación",
+      "copy": "Copiar",
+      "copied": "¡Copiado!",
+      "shareOn": "Compartir en",
+      "share": "Compartir enlace de invitación",
+      "shareText": "Prueba Alia: regístrate con mi enlace y los dos conseguimos 500 créditos.",
+      "creditsEarned": "Créditos ganados",
+      "referrals": "Invitaciones",
+      "codeLabel": "Código de invitación",
+      "redeem": "Canjear",
+      "redeemSuccess": "¡Has conseguido {{count}} créditos!",
+      "redeemInvalid": "Código de invitación no válido",
+      "noReferrals": "Aún no hay invitaciones"
+    }
   }
 }

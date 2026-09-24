@@ -15,13 +15,18 @@
  * is a rival default.
  */
 
-import React, { useCallback, useState } from 'react';
-import { View, ScrollView } from 'react-native';
-import { Text } from '@/components/ui/text';
-import { Input } from '@/components/ui/input';
-import { Dialog } from '@oxy.so/bloom/dialog';
-import { toast } from '@oxy.so/bloom/toast';
 import { useShowStore } from '@/lib/stores/show-store';
+import { Dialog } from '@oxy.so/bloom/dialog';
+import {
+  TextFieldHint,
+  TextFieldInput,
+  TextFieldLabel,
+} from '@oxy.so/bloom/text-field';
+import { Textarea } from '@oxy.so/bloom/textarea';
+import { toast } from '@oxy.so/bloom/toast';
+import { Muted } from '@oxy.so/bloom/typography';
+import { useCallback, useState } from 'react';
+import { ScrollView, View } from 'react-native';
 
 interface EpisodeCreateDialogProps {
   open: boolean;
@@ -60,7 +65,9 @@ export function EpisodeCreateDialog({
       return;
     }
     if (titleTooShort) {
-      toast.error('That name is too short — leave it blank to have one written');
+      toast.error(
+        'That name is too short — leave it blank to have one written',
+      );
       return;
     }
 
@@ -110,51 +117,48 @@ export function EpisodeCreateDialog({
         },
       ]}
     >
-      <ScrollView className="max-h-96" showsVerticalScrollIndicator={false}>
-        <View className="gap-4 py-2">
-          <View className="gap-1.5">
-            <Text className="text-sm font-medium text-foreground">
-              Anything specific this time?
-            </Text>
-            <Input
-              value={topic}
-              onChangeText={setTopic}
-              placeholder="Leave blank and the show picks something it has not covered."
-              multiline
-              numberOfLines={3}
-              className="min-h-[80px]"
-            />
-          </View>
+      {/*
+        Stacking only: the form's fields, in a scroller capped at 384. The topic
+        and notes stay form fields rather than the chat composer — they are
+        optional overrides submitted together by the dialog's "Record it"
+        action, and the composer would add a second send button.
+      */}
+      <ScrollView style={{ maxHeight: 384 }} showsVerticalScrollIndicator={false}>
+        <View style={{ gap: 16, paddingVertical: 8 }}>
+          <Textarea
+            label="Anything specific this time?"
+            value={topic}
+            onChangeText={setTopic}
+            placeholder="Leave blank and the show picks something it has not covered."
+            rows={3}
+          />
 
-          <View className="gap-1.5">
-            <Text className="text-sm font-medium text-foreground">Source material (optional)</Text>
-            <Input
-              value={notes}
-              onChangeText={setNotes}
-              placeholder="Paste articles, notes or talking points to work from..."
-              multiline
-              numberOfLines={4}
-              className="min-h-[100px]"
-            />
-          </View>
+          <Textarea
+            label="Source material (optional)"
+            value={notes}
+            onChangeText={setNotes}
+            placeholder="Paste articles, notes or talking points to work from..."
+            rows={4}
+          />
 
-          <View className="gap-1.5">
-            <Text className="text-sm font-medium text-foreground">Name (optional)</Text>
-            <Input
+          <View>
+            <TextFieldLabel>Name (optional)</TextFieldLabel>
+            <TextFieldInput
+              label="Name (optional)"
               value={title}
               onChangeText={setTitle}
               placeholder="Leave blank and it is named once it is written"
             />
-            <Text className="text-xs text-muted-foreground">
-              This is the name listeners see. Left blank, the script names the episode after what
-              it turned out to say.
-            </Text>
+            <TextFieldHint>
+              This is the name listeners see. Left blank, the script names the
+              episode after what it turned out to say.
+            </TextFieldHint>
           </View>
 
-          <Text className="text-xs text-muted-foreground">
-            Either way the script knows what every earlier episode covered, so it will not repeat
-            one.
-          </Text>
+          <Muted>
+            Either way the script knows what every earlier episode covered, so
+            it will not repeat one.
+          </Muted>
         </View>
       </ScrollView>
     </Dialog>

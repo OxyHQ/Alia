@@ -1,211 +1,71 @@
+import { useTranslation } from '@/lib/hooks/use-translation';
+import { EmptyState } from '@oxy.so/bloom/empty-state';
+import { ErrorBoundary } from '@oxy.so/bloom/error-boundary';
+import { RiErrorWarningLine } from '@oxy.so/bloom/icons/RiErrorWarningLine';
+import { Screen } from '@oxy.so/bloom/screen';
 import React from 'react';
-import { View, Pressable, ScrollView, Platform } from 'react-native';
-import { Text } from '@/components/ui/text';
-import { useTheme, withAlpha } from '@oxy.so/bloom/theme';
+import { View } from 'react-native';
 
-interface ErrorBoundaryProps {
+interface AppErrorBoundaryProps {
   children: React.ReactNode;
   /** Optional fallback component. If not provided, the default error screen is used. */
   fallback?: React.ComponentType<{ error: Error; resetError: () => void }>;
 }
 
-interface ErrorBoundaryState {
-  hasError: boolean;
-  error: Error | null;
+/** Report a render error to Sentry when it is installed, and to the console in development. */
+function reportError(error: Error, errorInfo: React.ErrorInfo) {
+  try {
+    const Sentry = require('@sentry/react-native');
+    Sentry.captureException(error, {
+      contexts: {
+        react: {
+          componentStack: errorInfo.componentStack ?? undefined,
+        },
+      },
+    });
+  } catch {
+    // Sentry not installed — skip
+  }
+
+  if (__DEV__) {
+    console.error('AppErrorBoundary caught an error:', error, errorInfo);
+  }
 }
 
 /**
- * A reusable error boundary that catches JavaScript errors in its child
- * component tree, reports them to Sentry, and displays a user-friendly
- * recovery screen.
+ * Bloom's `ErrorBoundary`, with Alia's reporting and a themed recovery screen.
+ *
+ * The fallback is Bloom's `EmptyState` on a `Screen`, so it paints in the
+ * theme rather than in the boundary's literal white. The error message itself
+ * is never shown: it is written for us and cannot be acted on.
  */
-export class AppErrorBoundary extends React.Component<
-  ErrorBoundaryProps,
-  ErrorBoundaryState
-> {
-  constructor(props: ErrorBoundaryProps) {
-    super(props);
-    this.state = { hasError: false, error: null };
-  }
-
-  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
-    return { hasError: true, error };
-  }
-
-  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    // If Sentry is configured, report the error
-    try {
-      const Sentry = require('@sentry/react-native');
-      Sentry.captureException(error, {
-        contexts: {
-          react: {
-            componentStack: errorInfo.componentStack ?? undefined,
-          },
-        },
-      });
-    } catch {
-      // Sentry not installed — skip
-    }
-
-    if (__DEV__) {
-      console.error('AppErrorBoundary caught an error:', error, errorInfo);
-    }
-  }
-
-  resetError = () => {
-    this.setState({ hasError: false, error: null });
-  };
-
-  render() {
-    if (this.state.hasError && this.state.error) {
-      if (this.props.fallback) {
-        const FallbackComponent = this.props.fallback;
-        return (
-          <FallbackComponent
-            error={this.state.error}
-            resetError={this.resetError}
-          />
-        );
+export function AppErrorBoundary({ children, fallback: Fallback }: AppErrorBoundaryProps) {
+  return (
+    <ErrorBoundary
+      onError={reportError}
+      fallback={({ error, retry }) =>
+        Fallback ? <Fallback error={error} resetError={retry} /> : <ErrorFallback onRetry={retry} />
       }
-
-      return (
-        <ErrorFallback
-          error={this.state.error}
-          resetError={this.resetError}
-        />
-      );
-    }
-
-    return this.props.children;
-  }
+    >
+      {children}
+    </ErrorBoundary>
+  );
 }
 
 /** Default full-screen error fallback UI. */
-function ErrorFallback({
-  error,
-  resetError,
-}: {
-  error: Error;
-  resetError: () => void;
-}) {
-  const { colors } = useTheme();
+function ErrorFallback({ onRetry }: { onRetry: () => void }) {
+  const { t } = useTranslation();
   return (
-    <View
-      style={{
-        flex: 1,
-        backgroundColor: colors.background,
-        justifyContent: 'center',
-        alignItems: 'center',
-        padding: 24,
-      }}
-    >
-      <View
-        style={{
-          maxWidth: 400,
-          width: '100%',
-          alignItems: 'center',
-        }}
-      >
-        {/* Icon */}
-        <View
-          style={{
-            width: 56,
-            height: 56,
-            borderRadius: 28,
-            backgroundColor: withAlpha(colors.error, 0.15),
-            justifyContent: 'center',
-            alignItems: 'center',
-            marginBottom: 20,
-          }}
-        >
-          <Text
-            style={{
-              fontSize: 24,
-              color: colors.error,
-              fontWeight: '600',
-            }}
-          >
-            !
-          </Text>
-        </View>
-
-        {/* Title */}
-        <Text
-          style={{
-            fontSize: 20,
-            fontWeight: '700',
-            color: colors.text,
-            textAlign: 'center',
-            marginBottom: 8,
-          }}
-        >
-          Something went wrong
-        </Text>
-
-        {/* Description */}
-        <Text
-          style={{
-            fontSize: 15,
-            color: colors.textSecondary,
-            textAlign: 'center',
-            lineHeight: 22,
-            marginBottom: 24,
-          }}
-        >
-          An unexpected error occurred. You can try again, and if the problem
-          persists, our team has been notified.
-        </Text>
-
-        {/* Error details (collapsible in dev) */}
-        {__DEV__ && (
-          <ScrollView
-            style={{
-              maxHeight: 120,
-              width: '100%',
-              backgroundColor: withAlpha(colors.text, 0.05),
-              borderRadius: 8,
-              padding: 12,
-              marginBottom: 24,
-            }}
-          >
-            <Text
-              style={{
-                fontSize: 12,
-                color: colors.textSecondary,
-                fontFamily: Platform.OS === 'web' ? 'monospace' : 'JetBrains Mono',
-              }}
-              selectable
-            >
-              {error.message}
-            </Text>
-          </ScrollView>
-        )}
-
-        {/* Retry button */}
-        <Pressable
-          onPress={resetError}
-          style={({ pressed }) => ({
-            backgroundColor: pressed ? withAlpha(colors.primary, 0.85) : colors.primary,
-            paddingHorizontal: 28,
-            paddingVertical: 12,
-            borderRadius: 12,
-            width: '100%',
-            alignItems: 'center',
-          })}
-          accessibilityRole="button"
-          accessibilityLabel="Try again"
-        >
-          <Text
-            style={{
-              fontSize: 15,
-              fontWeight: '600',
-              color: colors.primaryForeground,
-            }}
-          >
-            Try Again
-          </Text>
-        </Pressable>
+    <Screen>
+      <View className="flex-1 items-center justify-center p-6">
+        <EmptyState
+          icon={RiErrorWarningLine}
+          media="circle"
+          title={t('dialogs.errorBoundary.title')}
+          description={t('dialogs.errorBoundary.message')}
+          action={{ label: t('common.tryAgain'), onPress: onRetry }}
+        />
       </View>
-    </View>
+    </Screen>
   );
 }

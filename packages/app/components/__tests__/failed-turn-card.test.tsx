@@ -10,25 +10,37 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
  * that pressing it calls back — rather than merely that a card renders.
  */
 
-vi.mock('react-native', async () => {
-  const ReactModule = await import('react');
-  const host =
-    (name: string) =>
-    ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
-      ReactModule.createElement(name, props, children);
-  return { View: host('View'), Pressable: host('Pressable') };
-});
-
-vi.mock('lucide-react-native', async () => {
-  const ReactModule = await import('react');
-  return { AlertTriangle: (props: Record<string, unknown>) => ReactModule.createElement('AlertTriangle', props) };
-});
-
-vi.mock('@/components/ui/text', async () => {
+/**
+ * Bloom's `Notification`, reduced to what it is handed: its role, its title and
+ * description as text, and each action as a pressable named by its label.
+ */
+vi.mock('@oxy.so/bloom/notification', async () => {
   const ReactModule = await import('react');
   return {
-    Text: ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
-      ReactModule.createElement('Text', props, children),
+    Notification: ({
+      title,
+      description,
+      actions = [],
+      role,
+    }: {
+      title: React.ReactNode;
+      description?: React.ReactNode;
+      actions?: { label: string; onPress?: () => void }[];
+      role?: string;
+    }) =>
+      ReactModule.createElement(
+        'View',
+        { accessibilityRole: role },
+        ReactModule.createElement('Text', null, title),
+        description === undefined ? null : ReactModule.createElement('Text', null, description),
+        ...actions.map((action) =>
+          ReactModule.createElement(
+            'Pressable',
+            { key: action.label, accessibilityLabel: action.label, onPress: action.onPress },
+            ReactModule.createElement('Text', null, action.label),
+          ),
+        ),
+      ),
   };
 });
 
@@ -63,24 +75,36 @@ afterEach(() => {
 function text(r: ReactTestRenderer): string {
   const out: string[] = [];
   const walk = (node: unknown): void => {
-    if (typeof node === 'string') { out.push(node); return; }
-    if (Array.isArray(node)) { node.forEach(walk); return; }
-    if (node && typeof node === 'object' && 'children' in node) walk((node as { children: unknown }).children);
+    if (typeof node === 'string') {
+      out.push(node);
+      return;
+    }
+    if (Array.isArray(node)) {
+      node.forEach(walk);
+      return;
+    }
+    if (node && typeof node === 'object' && 'children' in node)
+      walk((node as { children: unknown }).children);
   };
   walk(r.toJSON());
   return out.join(' ');
 }
 
 /** Host nodes by name — `name` is typed as `string` so `type` stays wide. */
-const nodes = (r: ReactTestRenderer, name: string) => r.root.findAll((node) => node.type === name);
+const nodes = (r: ReactTestRenderer, name: string) =>
+  r.root.findAll((node) => node.type === name);
 
 const retryButton = (r: ReactTestRenderer) =>
-  nodes(r, 'Pressable').filter((node) => node.props.accessibilityLabel === 'chat.retry');
+  nodes(r, 'Pressable').filter(
+    (node) => node.props.accessibilityLabel === 'chat.retry',
+  );
 
 describe('FailedTurnCard', () => {
   it('says Alia could not answer, and offers to try again', () => {
     const onRetry = vi.fn();
-    const r = render(<FailedTurnCard partial={false} retryable onRetry={onRetry} />);
+    const r = render(
+      <FailedTurnCard partial={false} retryable onRetry={onRetry} />,
+    );
 
     expect(text(r)).toContain('chat.turnFailed');
     expect(text(r)).toContain('chat.turnFailedRetryHint');
@@ -94,20 +118,31 @@ describe('FailedTurnCard', () => {
     const r = render(<FailedTurnCard partial retryable onRetry={() => {}} />);
 
     expect(text(r)).toContain('chat.turnInterrupted');
-    expect(text(r)).not.toContain('chat.turnFailed ');
+    expect(text(r)).not.toMatch(/chat\.turnFailed(?!RetryHint)/);
   });
 
   it('offers no retry when the server said not to, and drops the hint with it', () => {
-    const r = render(<FailedTurnCard partial={false} retryable={false} onRetry={() => {}} />);
+    const r = render(
+      <FailedTurnCard partial={false} retryable={false} onRetry={() => {}} />,
+    );
 
     expect(retryButton(r)).toHaveLength(0);
     expect(text(r)).not.toContain('chat.turnFailedRetryHint');
   });
 
   it('is announced as an alert and repeats the server’s own words as detail', () => {
-    const r = render(<FailedTurnCard partial={false} retryable detail="Server error (503)" onRetry={() => {}} />);
+    const r = render(
+      <FailedTurnCard
+        partial={false}
+        retryable
+        detail="Server error (503)"
+        onRetry={() => {}}
+      />,
+    );
 
-    const alert = nodes(r, 'View').filter((node) => node.props.accessibilityRole === 'alert');
+    const alert = nodes(r, 'View').filter(
+      (node) => node.props.accessibilityRole === 'alert',
+    );
     expect(alert).toHaveLength(1);
     expect(text(r)).toContain('Server error (503)');
   });

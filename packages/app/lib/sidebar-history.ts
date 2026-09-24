@@ -23,3 +23,16 @@ export function conversationsForHistory(
     && !projects.some((project) => project.conversationIds.includes(conversation.id))
   );
 }
+
+/** The primary sidebar rows that are routes, keyed by the first path segment they own. */
+const ROUTE_ITEMS = ['agents', 'library', 'tasks', 'automations', 'skills', 'shows', 'notifications'] as const;
+
+/**
+ * The sidebar's selected primary row for a pathname: its first segment, when
+ * that is one of the rows (`/agents/abc` selects Agents). A chat is selected
+ * through the tree instead, and every other route selects nothing.
+ */
+export function selectedItemForPath(pathname: string): string | undefined {
+  const first = pathname.split('/').filter(Boolean)[0];
+  return first !== undefined && (ROUTE_ITEMS as readonly string[]).includes(first) ? first : undefined;
+}

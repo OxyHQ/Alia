@@ -23,8 +23,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('react-native', async () => {
   const ReactModule = await import('react');
-  const host = (name: string) => ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
-    ReactModule.createElement(name, props, children);
+  const host =
+    (name: string) =>
+    ({
+      children,
+      ...props
+    }: React.PropsWithChildren<Record<string, unknown>>) =>
+      ReactModule.createElement(name, props, children);
   return {
     View: host('View'),
     Pressable: host('Pressable'),
@@ -33,68 +38,66 @@ vi.mock('react-native', async () => {
   };
 });
 
-vi.mock('react-native-reanimated', async () => {
-  const ReactModule = await import('react');
-  const Animated = {
-    View: ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
-      ReactModule.createElement('AnimatedView', props, children),
-  };
-  return {
-    default: Animated,
-    useAnimatedStyle: (factory: () => Record<string, unknown>) => factory(),
-    useSharedValue: <T,>(initial: T) => ReactModule.useRef({ value: initial }).current,
-    withTiming: <T,>(value: T) => value,
-    withRepeat: <T,>(value: T) => value,
-    withSequence: <T,>(value: T) => value,
-  };
-});
 
-vi.mock('lucide-react-native', async () => {
-  const ReactModule = await import('react');
-  const icon = (name: string) => (props: Record<string, unknown>) => ReactModule.createElement(name, props);
-  return {
-    Brain: icon('Brain'), CheckCircle2: icon('CheckCircle2'), X: icon('X'), Globe: icon('Globe'),
-    ChevronRight: icon('ChevronRight'), XCircle: icon('XCircle'), Ban: icon('Ban'), Clock: icon('Clock'),
-    FileText: icon('FileText'),
-  };
-});
 
 // `@/lib/utils` owns `cn`, which the execution rows really use, and a UUID
 // helper that pulls the Expo native module in on import. The leaf is stubbed.
-vi.mock('expo-crypto', () => ({ getRandomValues: (array: Uint8Array) => array }));
+vi.mock('expo-crypto', () => ({
+  getRandomValues: (array: Uint8Array) => array,
+}));
 
-vi.mock('@/components/ui/text', async () => {
+
+vi.mock('@oxy.so/bloom/loading', async () => {
   const ReactModule = await import('react');
   return {
-    Text: ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
-      ReactModule.createElement('Text', props, children),
+    Loading: (props: Record<string, unknown>) =>
+      ReactModule.createElement('Loading', props),
   };
 });
 
-vi.mock('@/components/lottie-loader', async () => {
-  const ReactModule = await import('react');
-  return { LottieLoader: (props: Record<string, unknown>) => ReactModule.createElement('LottieLoader', props) };
-});
-
+vi.mock('@oxy.so/bloom/agent-log', async () => (await import('./panel-bloom-stubs')).agentLogModule());
+vi.mock('@oxy.so/bloom/accordion', async () => (await import('./panel-bloom-stubs')).accordionModule());
+vi.mock('@oxy.so/bloom/item', async () => (await import('./panel-bloom-stubs')).itemModule());
+vi.mock('@oxy.so/bloom/empty-state', async () => (await import('./panel-bloom-stubs')).emptyStateModule());
+vi.mock('@oxy.so/bloom/typography', async () => (await import('./panel-bloom-stubs')).typographyModule());
+vi.mock('@oxy.so/bloom/theme', async () => (await import('./panel-bloom-stubs')).themeModule());
+vi.mock('@oxy.so/bloom/chip', async () => ({ Chip: (await import('./panel-bloom-stubs')).host('Chip') }));
+vi.mock('@oxy.so/bloom/code', async () => ({ CodeBlock: (await import('./panel-bloom-stubs')).host('CodeBlock') }));
+vi.mock('expo-clipboard', () => ({ setStringAsync: async () => true }));
+vi.mock('@oxy.so/bloom/icons/RiArrowDownSLine', async () => (await import('./panel-bloom-stubs')).iconModule('RiArrowDownSLine'));
+vi.mock('@oxy.so/bloom/icons/RiArrowRightSLine', async () => (await import('./panel-bloom-stubs')).iconModule('RiArrowRightSLine'));
+vi.mock('@oxy.so/bloom/icons/RiCheckboxCircleLine', async () => (await import('./panel-bloom-stubs')).iconModule('RiCheckboxCircleLine'));
+vi.mock('@oxy.so/bloom/icons/RiCloseCircleLine', async () => (await import('./panel-bloom-stubs')).iconModule('RiCloseCircleLine'));
+vi.mock('@oxy.so/bloom/icons/RiCloseLine', async () => (await import('./panel-bloom-stubs')).iconModule('RiCloseLine'));
+vi.mock('@oxy.so/bloom/icons/RiFileTextLine', async () => (await import('./panel-bloom-stubs')).iconModule('RiFileTextLine'));
+vi.mock('@oxy.so/bloom/icons/RiForbidLine', async () => (await import('./panel-bloom-stubs')).iconModule('RiForbidLine'));
+vi.mock('@oxy.so/bloom/icons/RiGlobalLine', async () => (await import('./panel-bloom-stubs')).iconModule('RiGlobalLine'));
+vi.mock('@oxy.so/bloom/icons/RiTimeLine', async () => (await import('./panel-bloom-stubs')).iconModule('RiTimeLine'));
 vi.mock('expo-web-browser', () => ({ openBrowserAsync: async () => {} }));
-vi.mock('@oxy.so/bloom/theme', () => ({
-  useTheme: () => ({ colors: { success: 'green', warning: 'orange', info: 'blue', error: 'red', primary: 'black' } }),
+vi.mock('@/lib/hooks/use-translation', () => ({
+  useTranslation: () => ({ t: (key: string) => key }),
 }));
-vi.mock('@/lib/hooks/use-translation', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
 vi.mock('@/lib/tool-registry', async () => {
   const ReactModule = await import('react');
-  return { getToolIcon: () => (props: Record<string, unknown>) => ReactModule.createElement('ToolIcon', props) };
+  return {
+    getToolIcon: () => (props: Record<string, unknown>) =>
+      ReactModule.createElement('ToolIcon', props),
+  };
 });
 // `thought-utils` reaches the SDK barrel for `getToolLabel`, which drags the
 // whole React Native component library in.
 vi.mock('@alia.onl/sdk', () => ({ getToolLabel: (n: string) => n }));
 vi.mock('@react-native-async-storage/async-storage', () => ({
-  default: { getItem: async () => null, setItem: async () => {}, removeItem: async () => {} },
+  default: {
+    getItem: async () => null,
+    setItem: async () => {},
+    removeItem: async () => {},
+  },
 }));
 
 import { ThoughtPanel } from '@/components/thought-panel';
-import { useUIStore, type ThoughtScope } from '@/lib/stores/ui-store';
 import type { Message } from '@/lib/hooks/use-conversations';
+import { useUIStore, type ThoughtScope } from '@/lib/stores/ui-store';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
@@ -107,21 +110,36 @@ const persistedSearch = (id: string, url: string) => ({
   result: { results: [{ title: `Result ${id}`, url, snippet: 's' }], count: 1 },
 });
 
-const assistant = (id: string, partial: Partial<Message> = {}): Message => ({ id, role: 'assistant', content: '', ...partial });
+const assistant = (id: string, partial: Partial<Message> = {}): Message => ({
+  id,
+  role: 'assistant',
+  content: '',
+  ...partial,
+});
 const user = (id: string): Message => ({ id, role: 'user', content: 'q' });
 
 /** A persisted conversation with tool rows on its first and last answers. */
 const persisted: Message[] = [
   user('u1'),
-  assistant('a1', { content: 'first answer', toolInvocations: [persistedSearch('t1', 'https://one.test/')] }),
+  assistant('a1', {
+    content: 'first answer',
+    toolInvocations: [persistedSearch('t1', 'https://one.test/')],
+  }),
   user('u2'),
   assistant('a2', {
     content: 'last answer',
-    toolInvocations: [persistedSearch('t2', 'https://two.test/'), persistedSearch('t3', 'https://three.test/')],
+    toolInvocations: [
+      persistedSearch('t2', 'https://two.test/'),
+      persistedSearch('t3', 'https://three.test/'),
+    ],
   }),
 ];
 
-const scope = (conversationId: string | null, messages: Message[], partial: Partial<ThoughtScope> = {}): ThoughtScope => ({
+const scope = (
+  conversationId: string | null,
+  messages: Message[],
+  partial: Partial<ThoughtScope> = {},
+): ThoughtScope => ({
   conversationId,
   messages,
   status: 'ready',
@@ -134,7 +152,9 @@ let renderer: ReactTestRenderer | null = null;
 
 function render() {
   let next: ReactTestRenderer | undefined;
-  act(() => { next = create(<ThoughtPanel />); });
+  act(() => {
+    next = create(<ThoughtPanel />);
+  });
   if (next === undefined) throw new Error('the panel did not render');
   renderer = next;
   return next;
@@ -144,23 +164,48 @@ function render() {
 function text(r: ReactTestRenderer): string {
   const out: string[] = [];
   const walk = (node: unknown): void => {
-    if (typeof node === 'string') { out.push(node); return; }
-    if (Array.isArray(node)) { node.forEach(walk); return; }
-    if (node && typeof node === 'object' && 'children' in node) walk((node as { children: unknown }).children);
+    if (typeof node === 'string') {
+      out.push(node);
+      return;
+    }
+    if (Array.isArray(node)) {
+      node.forEach(walk);
+      return;
+    }
+    if (node && typeof node === 'object' && 'children' in node)
+      walk((node as { children: unknown }).children);
   };
   walk(r.toJSON());
   return out.join(' | ');
 }
 
-const hosts = (r: ReactTestRenderer, name: string) => r.root.findAll((node) => node.type === name);
+const hosts = (r: ReactTestRenderer, name: string) =>
+  r.root.findAll((node) => node.type === name);
 
-const open = (messageId: string, s: ThoughtScope, tab?: 'steps' | 'sources' | 'activity') =>
-  act(() => { useUIStore.getState().openThoughtPanel(messageId, s, tab); });
-const sync = (s: ThoughtScope) => act(() => { useUIStore.getState().syncThoughtScope(s); });
-const setTab = (tab: 'steps' | 'sources' | 'activity') => act(() => { useUIStore.getState().setThoughtTab(tab); });
+const open = (
+  messageId: string,
+  s: ThoughtScope,
+  tab?: 'steps' | 'sources' | 'activity',
+) =>
+  act(() => {
+    useUIStore.getState().openThoughtPanel(messageId, s, tab);
+  });
+const sync = (s: ThoughtScope) =>
+  act(() => {
+    useUIStore.getState().syncThoughtScope(s);
+  });
+const setTab = (tab: 'steps' | 'sources' | 'activity') =>
+  act(() => {
+    useUIStore.getState().setThoughtTab(tab);
+  });
 
 beforeEach(() => {
-  useUIStore.setState({ rightPanel: null, thoughtMessageId: null, thoughtScope: null, thoughtTab: 'steps' });
+  useUIStore.setState({
+    rightPanel: null,
+    thoughtMessageId: null,
+    thoughtScope: null,
+    thoughtTab: 'steps',
+  });
 });
 
 afterEach(() => {
@@ -232,7 +277,10 @@ describe('opened from a persisted tool row (#542)', () => {
     expect(text(r)).toContain('thought.messageGone');
 
     // A message that IS here and truly has nothing.
-    open('a3', scope('c1', [...persisted, assistant('a3', { content: 'plain' })]));
+    open(
+      'a3',
+      scope('c1', [...persisted, assistant('a3', { content: 'plain' })]),
+    );
     setTab('activity');
     // The Activity tab is the whole conversation's, so the earlier tools are
     // still listed; the empty wording is reserved for a conversation with none.
@@ -244,7 +292,12 @@ describe('opened from a persisted tool row (#542)', () => {
 });
 
 describe('watching a turn run (#543)', () => {
-  const searching = { toolCallId: 't1', toolName: 'webSearch', state: 'call' as const, args: { query: 'q' } };
+  const searching = {
+    toolCallId: 't1',
+    toolName: 'webSearch',
+    state: 'call' as const,
+    args: { query: 'q' },
+  };
 
   it('reads the first token as still writing, and only the settled turn as done', () => {
     let messages = [user('u1'), assistant('a1', { isStreaming: true })];
@@ -252,72 +305,187 @@ describe('watching a turn run (#543)', () => {
     const r = render();
     expect(text(r)).toContain('thought.thinking');
     expect(text(r)).not.toContain('thought.done');
+    // The live phase is the agent log's working row at the tail, not a settled line.
+    expect(hosts(r, 'AgentLogWorkingRow')).toHaveLength(1);
 
     // A tool starts, then finishes; the model has not written yet.
-    messages = [user('u1'), assistant('a1', { isStreaming: true, toolInvocations: [searching] })];
+    messages = [
+      user('u1'),
+      assistant('a1', { isStreaming: true, toolInvocations: [searching] }),
+    ];
     sync(scope('c1', messages, { isLoading: true }));
-    expect(hosts(r, 'LottieLoader')).toHaveLength(1);
+    expect(hosts(r, 'Loading')).toHaveLength(1);
 
-    messages = [user('u1'), assistant('a1', { isStreaming: true, toolInvocations: [persistedSearch('t1', 'https://one.test/')] })];
+    messages = [
+      user('u1'),
+      assistant('a1', {
+        isStreaming: true,
+        toolInvocations: [persistedSearch('t1', 'https://one.test/')],
+      }),
+    ];
     sync(scope('c1', messages, { isLoading: true }));
     expect(text(r)).toContain('thought.writing');
 
     // The first token — the moment the old panel said "Done".
     for (const content of ['The', 'The first', 'The first answer']) {
-      messages = [user('u1'), assistant('a1', { content, isStreaming: true, toolInvocations: [persistedSearch('t1', 'https://one.test/')] })];
+      messages = [
+        user('u1'),
+        assistant('a1', {
+          content,
+          isStreaming: true,
+          toolInvocations: [persistedSearch('t1', 'https://one.test/')],
+        }),
+      ];
       sync(scope('c1', messages, { isLoading: true }));
       expect(text(r)).toContain('thought.writing');
       expect(text(r)).not.toContain('thought.done');
     }
 
     // Settled by the hook: the stamp is cleared and the outcome written.
-    messages = [user('u1'), assistant('a1', { content: 'The first answer', isStreaming: false, turnOutcome: 'completed', toolInvocations: [persistedSearch('t1', 'https://one.test/')] })];
+    messages = [
+      user('u1'),
+      assistant('a1', {
+        content: 'The first answer',
+        isStreaming: false,
+        turnOutcome: 'completed',
+        toolInvocations: [persistedSearch('t1', 'https://one.test/')],
+      }),
+    ];
     sync(scope('c1', messages, { isLoading: false }));
     expect(text(r)).toContain('thought.done');
     expect(text(r)).not.toContain('thought.writing');
+    expect(hosts(r, 'AgentLogWorkingRow')).toHaveLength(0);
+    // Every step is one row of the log: the tool and the ending.
+    expect(hosts(r, 'AgentLogRow')).toHaveLength(2);
   });
 
   it('shows a finished tool-only turn as done, not as still running', () => {
-    open('a1', scope('c1', [user('u1'), assistant('a1', { turnOutcome: 'completed', toolInvocations: [persistedSearch('t1', 'https://one.test/')] })]));
+    open(
+      'a1',
+      scope('c1', [
+        user('u1'),
+        assistant('a1', {
+          turnOutcome: 'completed',
+          toolInvocations: [persistedSearch('t1', 'https://one.test/')],
+        }),
+      ]),
+    );
     const r = render();
     expect(text(r)).toContain('thought.done');
-    expect(hosts(r, 'LottieLoader')).toHaveLength(0);
+    expect(hosts(r, 'Loading')).toHaveLength(0);
   });
 
   it('keeps a running tool spinning after an earlier one finished', () => {
-    const inv = [persistedSearch('t1', 'https://one.test/'), { ...searching, toolCallId: 't2' }];
-    open('a1', scope('c1', [user('u1'), assistant('a1', { isStreaming: true, toolInvocations: inv })], { isLoading: true }));
+    const inv = [
+      persistedSearch('t1', 'https://one.test/'),
+      { ...searching, toolCallId: 't2' },
+    ];
+    open(
+      'a1',
+      scope(
+        'c1',
+        [
+          user('u1'),
+          assistant('a1', { isStreaming: true, toolInvocations: inv }),
+        ],
+        { isLoading: true },
+      ),
+    );
     const r = render();
-    expect(hosts(r, 'LottieLoader')).toHaveLength(1);
+    expect(hosts(r, 'Loading')).toHaveLength(1);
     expect(hosts(r, 'ToolIcon')).toHaveLength(1);
   });
 
   it('ends a failed turn with "failed", never "done"', () => {
-    const failed = [user('u1'), assistant('a1', { content: 'partial', isStreaming: false, turnOutcome: 'failed' })];
-    open('a1', scope('c1', failed, { failedTurn: { userMessageId: 'u1', anchorMessageId: 'a1', retryable: true, partial: true } }));
+    const failed = [
+      user('u1'),
+      assistant('a1', {
+        content: 'partial',
+        isStreaming: false,
+        turnOutcome: 'failed',
+      }),
+    ];
+    open(
+      'a1',
+      scope('c1', failed, {
+        failedTurn: {
+          userMessageId: 'u1',
+          anchorMessageId: 'a1',
+          retryable: true,
+          partial: true,
+        },
+      }),
+    );
     const r = render();
     expect(text(r)).toContain('thought.failed');
     expect(text(r)).not.toContain('thought.done');
-    expect(hosts(r, 'XCircle')).toHaveLength(1);
+    expect(hosts(r, 'RiCloseCircleLine')).toHaveLength(1);
   });
 
   it('ends a stopped turn with "stopped", and stops its tool from spinning', () => {
-    open('a1', scope('c1', [user('u1'), assistant('a1', { content: 'partial', isStreaming: false, turnOutcome: 'cancelled', toolInvocations: [searching] })]));
+    open(
+      'a1',
+      scope('c1', [
+        user('u1'),
+        assistant('a1', {
+          content: 'partial',
+          isStreaming: false,
+          turnOutcome: 'cancelled',
+          toolInvocations: [searching],
+        }),
+      ]),
+    );
     const r = render();
     expect(text(r)).toContain('thought.cancelled');
     expect(text(r)).not.toContain('thought.done');
-    expect(hosts(r, 'LottieLoader')).toHaveLength(0);
+    expect(hosts(r, 'Loading')).toHaveLength(0);
 
     setTab('activity');
-    expect(hosts(r, 'Ban')).toHaveLength(1);
+    expect(hosts(r, 'RiForbidLine')).toHaveLength(1);
   });
 
   it('shows the pause on an approval', () => {
-    open('a1', scope('c1', [user('u1'), assistant('a1', {
-      isStreaming: true,
-      pendingApproval: { requestId: 'r1', toolName: 'sendEmail', description: '', severity: 'high', timeout: 60 },
-    })], { isLoading: true }));
+    open(
+      'a1',
+      scope(
+        'c1',
+        [
+          user('u1'),
+          assistant('a1', {
+            isStreaming: true,
+            pendingApproval: {
+              requestId: 'r1',
+              toolName: 'sendEmail',
+              description: '',
+              severity: 'high',
+              timeout: 60,
+            },
+          }),
+        ],
+        { isLoading: true },
+      ),
+    );
     const r = render();
     expect(text(r)).toContain('thought.waitingApproval');
   });
+});
+
+vi.mock('@oxy.so/bloom/ai-chat', () => ({
+  useAiChatShell: () => ({ compact: false }),
+}));
+vi.mock('@oxy.so/bloom/button', async () => {
+  const R = await import('react');
+  return {
+    Button: ({ children, icon, ...props }: any) =>
+      R.createElement('Button', props, icon, children),
+  };
+});
+vi.mock('@oxy.so/bloom/tabs', async () => {
+  const R = await import('react');
+  return {
+    Tabs: ({ children, ...props }: any) =>
+      R.createElement('Tabs', props, children),
+    TabsTrigger: ({ label, ...props }: any) =>
+      R.createElement('TabsTrigger', props, label),
+  };
 });

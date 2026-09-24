@@ -569,7 +569,8 @@
       ],
       "removalGate": "Keep. Recorded so the epic's edit list is complete: these four files must be visited if the model id's TYPE changes, even though none of them hard-codes a value.",
       "provenance": "inventory-frontend-admin",
-      "evidence": "packages/app/components/chat-header.tsx:8,20-21,93-95; packages/app/components/chat-page-content.tsx; packages/app/lib/hooks/use-chat-conversation.ts; packages/app/lib/hooks/use-streaming-chat.ts"
+      "evidence": "packages/app/components/chat-header.tsx:8,20-21,93-95; packages/app/components/chat-page-content.tsx; packages/app/lib/hooks/use-chat-conversation.ts; packages/app/lib/hooks/use-streaming-chat.ts",
+      "removedIn": "feat/bloom-v4-migration"
     },
     {
       "id": "app-chat-screen-default",
@@ -601,7 +602,8 @@
       ],
       "removalGate": "Keep the feature, but this map must become server-driven during the epic: it hard-codes both the alias graph AND the credit multipliers in a client, and it already omits two of the twelve defined aliases (route:instant and route:audio have no entry — correct for route:instant as the floor, unexamined for route:audio). Every alias change requires an app release to stay correct.",
       "provenance": "inventory-frontend-admin",
-      "evidence": "packages/app/components/credit-warning-banner.tsx:24-35"
+      "evidence": "packages/app/components/credit-warning-banner.tsx:24-35",
+      "removedIn": "feat/bloom-v4-migration"
     },
     {
       "id": "app-entitlements-fallback",
@@ -633,7 +635,8 @@
       ],
       "removalGate": "The ?chat=true filter is served by the chatVisible flag on the model record. Removing that flag silently empties the app's model picker.  || frontend-admin inventory adds: Keep — this is the user-facing picker and must stay Alia-branded and API-driven. Two things to fix while the epic is open: (a) the thinking-model detection is a substring test, modelId.includes('thinking') (:26,:36), which silently misclassifies any future alias containing that word; (b) `cachedModels` is a module-level mutable `let` read from render (:21,:98), which is exactly the external-mutable-state-in-a-memoized-position hazard the React Compiler rules warn about.",
       "provenance": "inventory-product-api",
-      "evidence": "packages/app/components/model-selector.tsx:114,104,132; packages/api/src/routes/v1/models.ts:55,62; packages/app/components/model-selector.tsx:21,26,31,36,94,104,114,132"
+      "evidence": "packages/app/components/model-selector.tsx:114,104,132; packages/api/src/routes/v1/models.ts:55,62; packages/app/components/model-selector.tsx:21,26,31,36,94,104,114,132",
+      "removedIn": "feat/bloom-v4-migration"
     },
     {
       "id": "app-model-store",

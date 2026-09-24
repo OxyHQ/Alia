@@ -8,10 +8,10 @@
  * for the one call site sits with the module it calls.
  */
 
+import type { AccountNode, CreateAccountInput } from '@oxy.so/core';
 import React from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { AccountNode, CreateAccountInput } from '@oxy.so/core';
 
 import { createBotAccount } from '../bot-account';
 
@@ -28,39 +28,65 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('react-native', async () => {
   const ReactModule = await import('react');
-  const host = (name: string) =>
-    ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
+  const host =
+    (name: string) =>
+    ({
+      children,
+      ...props
+    }: React.PropsWithChildren<Record<string, unknown>>) =>
       ReactModule.createElement(name, props, children);
 
   return {
-    ActivityIndicator: host('ActivityIndicator'),
-    Pressable: host('Pressable'),
     ScrollView: host('ScrollView'),
     View: host('View'),
   };
 });
 
-vi.mock('lucide-react-native', async () => {
-  const ReactModule = await import('react');
-  const icon = (name: string) => (props: Record<string, unknown>) =>
-    ReactModule.createElement(name, props);
+/**
+ * The create screen's Bloom leaves, as host elements carrying their props. None
+ * of them is under test here — what is under test is which account the
+ * composer's submit mints — and each is a real React Native tree this runner
+ * cannot parse under the `react-native` double above.
+ */
+vi.mock('@oxy.so/bloom/icons/RiSparklingLine', () => ({ RiSparklingLine: () => null }));
+vi.mock('@oxy.so/bloom/icons/RiQuestionLine', () => ({ RiQuestionLine: () => null }));
+vi.mock('@oxy.so/bloom/icons/RiRouteLine', () => ({ RiRouteLine: () => null }));
+vi.mock('@oxy.so/bloom/icons/RiCheckLine', () => ({ RiCheckLine: () => null }));
+vi.mock('@oxy.so/bloom/icons/RiBarChartHorizontalLine', () => ({
+  RiBarChartHorizontalLine: () => null,
+}));
 
+vi.mock('@oxy.so/bloom/item', async () => {
+  const ReactModule = await import('react');
   return {
-    BarChart3: icon('BarChart3'),
-    GitBranch: icon('GitBranch'),
-    MessageCircleQuestion: icon('MessageCircleQuestion'),
-    Sparkles: icon('Sparkles'),
+    Item: (props: Record<string, unknown>) =>
+      ReactModule.createElement('Item', props),
   };
 });
 
-vi.mock('@/components/ui/text', async () => {
+vi.mock('@oxy.so/bloom/loading', async () => {
   const ReactModule = await import('react');
   return {
-    Text: ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
-      ReactModule.createElement('Text', props, children),
+    Loading: (props: Record<string, unknown>) =>
+      ReactModule.createElement('Loading', props),
   };
 });
 
+vi.mock('@oxy.so/bloom/typography', async () => {
+  const ReactModule = await import('react');
+  const text =
+    (name: string) =>
+    ({
+      children,
+      ...props
+    }: React.PropsWithChildren<Record<string, unknown>>) =>
+      ReactModule.createElement(name, props, children);
+  return { Text: text('Text'), Muted: text('Muted') };
+});
+
+vi.mock('@/components/chat/composer/use-alia-composer', () => ({
+  useAliaComposer: () => ({ props: {}, attachments: [], turnOptions: {}, restoreTurn: () => {}, clearTurn: () => {} }),
+}));
 vi.mock('@/components/chat/composer/composer', async () => {
   const ReactModule = await import('react');
   return {
@@ -69,16 +95,12 @@ vi.mock('@/components/chat/composer/composer', async () => {
   };
 });
 
-vi.mock('@oxy.so/bloom/content-panel', async () => {
-  const ReactModule = await import('react');
-  return {
-    ContentPanel: ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
-      ReactModule.createElement('ContentPanel', props, children),
-  };
-});
-
 vi.mock('@oxy.so/bloom/toast', () => ({
-  toast: { error: mocks.toastError, success: mocks.toastSuccess, info: mocks.toastInfo },
+  toast: {
+    error: mocks.toastError,
+    success: mocks.toastSuccess,
+    info: mocks.toastInfo,
+  },
 }));
 
 vi.mock('expo-router', () => ({
@@ -107,8 +129,8 @@ vi.mock('@/lib/api/client', () => ({
   default: { post: mocks.post },
 }));
 
-import { Composer } from '@/components/chat/composer/composer';
 import CreateAgentScreen from '@/app/(app)/agents/create';
+import { Composer } from '@/components/chat/composer/composer';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
@@ -143,7 +165,8 @@ describe('createBotAccount', () => {
   });
 
   it('mints the account undiscoverable when the caller asked for private', async () => {
-    const createAccount = vi.fn<(data: CreateAccountInput) => Promise<AccountNode>>()
+    const createAccount = vi
+      .fn<(data: CreateAccountInput) => Promise<AccountNode>>()
       .mockResolvedValue(account);
 
     await createBotAccount({
@@ -159,7 +182,8 @@ describe('createBotAccount', () => {
   });
 
   it('omits the field entirely when the caller said nothing, which is not `false`', async () => {
-    const createAccount = vi.fn<(data: CreateAccountInput) => Promise<AccountNode>>()
+    const createAccount = vi
+      .fn<(data: CreateAccountInput) => Promise<AccountNode>>()
       .mockResolvedValue(account);
 
     await createBotAccount({
@@ -176,7 +200,8 @@ describe('createBotAccount', () => {
   });
 
   it('forwards an explicit `false` as a value, not as silence', async () => {
-    const createAccount = vi.fn<(data: CreateAccountInput) => Promise<AccountNode>>()
+    const createAccount = vi
+      .fn<(data: CreateAccountInput) => Promise<AccountNode>>()
       .mockResolvedValue(account);
 
     await createBotAccount({
@@ -192,7 +217,8 @@ describe('createBotAccount', () => {
   });
 
   it('keeps the account private on the retry a username conflict forces', async () => {
-    const createAccount = vi.fn<(data: CreateAccountInput) => Promise<AccountNode>>()
+    const createAccount = vi
+      .fn<(data: CreateAccountInput) => Promise<AccountNode>>()
       .mockRejectedValueOnce(conflict())
       .mockResolvedValue(account);
 
@@ -216,11 +242,16 @@ describe('createBotAccount', () => {
     // Never executed in production until Oxy stopped suffixing, so its ending
     // is exercised here rather than assumed: a rejection nobody can read is the
     // easy way for an untried path to fail.
-    const createAccount = vi.fn<(data: CreateAccountInput) => Promise<AccountNode>>()
+    const createAccount = vi
+      .fn<(data: CreateAccountInput) => Promise<AccountNode>>()
       .mockRejectedValue(conflict());
 
     await expect(
-      createBotAccount({ createAccount, username: 'helper', displayName: 'Helper' }),
+      createBotAccount({
+        createAccount,
+        username: 'helper',
+        displayName: 'Helper',
+      }),
     ).rejects.toThrow(/taken/i);
 
     // It really tried, rather than giving up on the first refusal — and it
@@ -238,11 +269,15 @@ describe('createBotAccount', () => {
      * it anyway, because free-then-taken is exactly the window the pre-check
      * cannot close. The retry has to carry on from there.
      */
-    const createAccount = vi.fn<(data: CreateAccountInput) => Promise<AccountNode>>()
+    const createAccount = vi
+      .fn<(data: CreateAccountInput) => Promise<AccountNode>>()
       .mockRejectedValueOnce(conflict())
       .mockResolvedValue(account);
-    const checkAvailability = vi.fn<(username: string) => Promise<boolean>>()
-      .mockImplementation((username) => Promise.resolve(username === 'helper2bot'));
+    const checkAvailability = vi
+      .fn<(username: string) => Promise<boolean>>()
+      .mockImplementation((username) =>
+        Promise.resolve(username === 'helper2bot'),
+      );
 
     await createBotAccount({
       createAccount,
@@ -271,10 +306,14 @@ describe('createBotAccount', () => {
      * has already lost. The number sits INSIDE the label either way, because
      * the label is applied to the candidate rather than carried by it.
      */
-    const createAccount = vi.fn<(data: CreateAccountInput) => Promise<AccountNode>>()
+    const createAccount = vi
+      .fn<(data: CreateAccountInput) => Promise<AccountNode>>()
       .mockResolvedValue(accountNamed('claudio2bot'));
-    const checkAvailability = vi.fn<(username: string) => Promise<boolean>>()
-      .mockImplementation((username) => Promise.resolve(username !== 'claudiobot'));
+    const checkAvailability = vi
+      .fn<(username: string) => Promise<boolean>>()
+      .mockImplementation((username) =>
+        Promise.resolve(username !== 'claudiobot'),
+      );
 
     await createBotAccount({
       createAccount,
@@ -283,7 +322,10 @@ describe('createBotAccount', () => {
       displayName: 'Claudio',
     });
 
-    expect(checkAvailability.mock.calls.map(([u]) => u)).toEqual(['claudiobot', 'claudio2bot']);
+    expect(checkAvailability.mock.calls.map(([u]) => u)).toEqual([
+      'claudiobot',
+      'claudio2bot',
+    ]);
     expect(createAccount.mock.calls[0][0].username).toBe('claudio2bot');
   });
 
@@ -295,10 +337,15 @@ describe('createBotAccount', () => {
    * while every request failed.
    */
   it('mints a handle that ends in the label, from a suggestion that does not', async () => {
-    const createAccount = vi.fn<(data: CreateAccountInput) => Promise<AccountNode>>()
+    const createAccount = vi
+      .fn<(data: CreateAccountInput) => Promise<AccountNode>>()
       .mockResolvedValue(account);
 
-    await createBotAccount({ createAccount, username: 'helper', displayName: 'Helper' });
+    await createBotAccount({
+      createAccount,
+      username: 'helper',
+      displayName: 'Helper',
+    });
 
     expect(createAccount.mock.calls[0][0].username).toBe('helperbot');
   });
@@ -310,11 +357,16 @@ describe('createBotAccount', () => {
      * exactly the reason the first one was, then refused four more times, until
      * the loop's own bound turns it into "that name is taken".
      */
-    const createAccount = vi.fn<(data: CreateAccountInput) => Promise<AccountNode>>()
+    const createAccount = vi
+      .fn<(data: CreateAccountInput) => Promise<AccountNode>>()
       .mockRejectedValueOnce(conflict())
       .mockResolvedValue(account);
 
-    await createBotAccount({ createAccount, username: 'helper', displayName: 'Helper' });
+    await createBotAccount({
+      createAccount,
+      username: 'helper',
+      displayName: 'Helper',
+    });
 
     const attempted = createAccount.mock.calls.map(([data]) => data.username);
     expect(attempted).toHaveLength(2);
@@ -330,22 +382,36 @@ describe('createBotAccount', () => {
     // one matters because Oxy's uniqueness index folds: a case-sensitive test
     // would leave `mybot` alone and relabel `MyBot`, two names that index
     // considers one.
-    const createAccount = vi.fn<(data: CreateAccountInput) => Promise<AccountNode>>()
+    const createAccount = vi
+      .fn<(data: CreateAccountInput) => Promise<AccountNode>>()
       .mockResolvedValue(account);
 
-    await createBotAccount({ createAccount, username: 'mybot', displayName: 'Mybot' });
-    await createBotAccount({ createAccount, username: 'MyBot', displayName: 'MyBot' });
+    await createBotAccount({
+      createAccount,
+      username: 'mybot',
+      displayName: 'Mybot',
+    });
+    await createBotAccount({
+      createAccount,
+      username: 'MyBot',
+      displayName: 'MyBot',
+    });
 
-    expect(createAccount.mock.calls.map(([data]) => data.username)).toEqual(['mybot', 'MyBot']);
+    expect(createAccount.mock.calls.map(([data]) => data.username)).toEqual([
+      'mybot',
+      'MyBot',
+    ]);
   });
 
   it('asks about the handle it will mint, not about the name it was given', async () => {
     // A pre-flight that asked about `helper` would be answering for a name
     // nobody is going to take — free or taken, it says nothing about whether
     // `helperbot` is available.
-    const createAccount = vi.fn<(data: CreateAccountInput) => Promise<AccountNode>>()
+    const createAccount = vi
+      .fn<(data: CreateAccountInput) => Promise<AccountNode>>()
       .mockResolvedValue(account);
-    const checkAvailability = vi.fn<(username: string) => Promise<boolean>>()
+    const checkAvailability = vi
+      .fn<(username: string) => Promise<boolean>>()
       .mockResolvedValue(true);
 
     await createBotAccount({
@@ -359,11 +425,17 @@ describe('createBotAccount', () => {
   });
 
   it('rethrows anything that is not a conflict instead of retrying it', async () => {
-    const createAccount = vi.fn<(data: CreateAccountInput) => Promise<AccountNode>>()
+    const createAccount = vi
+      .fn<(data: CreateAccountInput) => Promise<AccountNode>>()
       .mockRejectedValue({ status: 403 });
 
     await expect(
-      createBotAccount({ createAccount, username: 'helper', displayName: 'Helper', private: true }),
+      createBotAccount({
+        createAccount,
+        username: 'helper',
+        displayName: 'Helper',
+        private: true,
+      }),
     ).rejects.toEqual({ status: 403 });
     expect(createAccount).toHaveBeenCalledOnce();
   });
@@ -403,7 +475,9 @@ describe('the create screen', () => {
           },
         });
       }
-      return Promise.reject(new Error(`the create screen called an unexpected route: ${route}`));
+      return Promise.reject(
+        new Error(`the create screen called an unexpected route: ${route}`),
+      );
     });
     mocks.createAccount.mockResolvedValue(account);
     mocks.createAgent.mockResolvedValue({ _id: 'agent_1' });
@@ -412,7 +486,8 @@ describe('the create screen', () => {
     act(() => {
       created = create(<CreateAgentScreen />);
     });
-    if (created === undefined) throw new Error('the create screen did not render');
+    if (created === undefined)
+      throw new Error('the create screen did not render');
     renderer = created;
     const root = created.root;
 
@@ -445,7 +520,9 @@ describe('the create screen', () => {
   it('mints the account with no avatar, and asks Alia for nothing but the config', async () => {
     await createOneAgent();
 
-    expect(mocks.post.mock.calls.map((call) => call[0])).toEqual(['/agents/generate']);
+    expect(mocks.post.mock.calls.map((call) => call[0])).toEqual([
+      '/agents/generate',
+    ]);
     expect(mocks.createAccount.mock.calls[0]?.[0]).not.toHaveProperty('avatar');
   });
 });
@@ -497,7 +574,8 @@ describe('the handle a created agent gets', () => {
     act(() => {
       created = create(<CreateAgentScreen />);
     });
-    if (created === undefined) throw new Error('the create screen did not render');
+    if (created === undefined)
+      throw new Error('the create screen did not render');
     renderer = created;
     const root = created.root;
 
@@ -510,7 +588,8 @@ describe('the handle a created agent gets', () => {
   }
 
   /** The usernames the screen asked about, in order. */
-  const asked = () => mocks.checkUsernameAvailability.mock.calls.map((call) => call[0]);
+  const asked = () =>
+    mocks.checkUsernameAvailability.mock.calls.map((call) => call[0]);
   /** The username it actually minted with. */
   const minted = () => mocks.createAccount.mock.calls[0]?.[0]?.username;
 

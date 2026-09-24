@@ -1,8 +1,12 @@
 import { useState, useEffect } from 'react';
 import { View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Zap, Clock, CreditCard, Lock } from 'lucide-react-native';
 import { Dialog, type DialogAction } from '@oxy.so/bloom/dialog';
+import { IconCircle } from '@oxy.so/bloom/icon-circle';
+import { RiBankCardLine } from '@oxy.so/bloom/icons/RiBankCardLine';
+import { RiFlashlightLine } from '@oxy.so/bloom/icons/RiFlashlightLine';
+import { RiLockLine } from '@oxy.so/bloom/icons/RiLockLine';
+import { RiTimeLine } from '@oxy.so/bloom/icons/RiTimeLine';
 import { UsageLimitError } from '@/lib/errors/usage-limit-error';
 import { useTranslation } from '@/lib/hooks/use-translation';
 
@@ -99,6 +103,16 @@ export function UsageLimitDialog({ error, onDismiss }: UsageLimitDialogProps) {
         ? [upgrade, countdown > 0 ? waiting : { label: t('usageLimit.tryAgain'), color: 'cancel' }]
         : [countdown > 0 ? waiting : { label: t('usageLimit.gotIt'), color: 'cancel' }];
 
+  // What stands between the person and the next reply: the plan, the credits,
+  // the plan's limit, or only a moment's wait.
+  const icon = isModelAccess
+    ? RiLockLine
+    : isCredits
+      ? RiBankCardLine
+      : showUpgrade
+        ? RiFlashlightLine
+        : RiTimeLine;
+
   return (
     <Dialog
       open={!!error}
@@ -108,25 +122,9 @@ export function UsageLimitDialog({ error, onDismiss }: UsageLimitDialogProps) {
       description={description}
       actions={actions}
     >
-        <View className="items-center mb-3">
-          {isModelAccess ? (
-            <View className="w-12 h-12 rounded-full bg-purple-100 dark:bg-purple-900/30 items-center justify-center">
-              <Lock size={24} className="text-purple-500" />
-            </View>
-          ) : isCredits ? (
-            <View className="w-12 h-12 rounded-full bg-orange-100 dark:bg-orange-900/30 items-center justify-center">
-              <CreditCard size={24} className="text-orange-500" />
-            </View>
-          ) : showUpgrade ? (
-            <View className="w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900/30 items-center justify-center">
-              <Zap size={24} className="text-blue-500" />
-            </View>
-          ) : (
-            <View className="w-12 h-12 rounded-full bg-yellow-100 dark:bg-yellow-900/30 items-center justify-center">
-              <Clock size={24} className="text-yellow-500" />
-            </View>
-          )}
-        </View>
+      <View className="items-center">
+        <IconCircle icon={icon} size="lg" />
+      </View>
     </Dialog>
   );
 }

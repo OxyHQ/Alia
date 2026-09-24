@@ -1,0 +1,97 @@
+---
+title: "Bloom AI Chat template: what is still to come back"
+description: "Features removed when the app adopted Bloom's AI Chat template literally, and the Bloom slot each returns through."
+order: 8
+---
+
+# Bloom AI Chat template: what is still to come back
+
+In September 2026 the app adopted Bloom 4.5's AI Chat template
+(`templates/ai-chat/AiChatTemplate.tsx` in Bloom) **as it is**: the shell, the
+sidebar, the chat container, the composer and the turns are the template's
+components with the template's props, and nothing Alia drew itself sits between
+them. The only surface of Alia's own that stayed is the signed-out welcome
+(`welcome-intro.tsx` over `ambient-field.tsx`).
+
+Everything below was removed from the UI to get there. The data behind each item
+(stores, hooks, API) is untouched; each comes back **through a Bloom slot**, never
+as a component of Alia's placed around the template.
+
+## Sidebar
+
+| Removed | Comes back through |
+| --- | --- |
+| Per-chat menu: rename, pin, favorite, move to project/folder, delete | `SidebarTreeItem.actions` / `onLongPress` |
+| Project menu: edit, delete; "New project" / "New folder" | `SidebarTreeFolder.actions`, `SidebarTree.actions` |
+| Folders, pinned and favorites as their own groups | more `tree.folders` |
+| Agents section (one row per agent) | a `tree` folder, or `items` |
+| History grouped Today / Yesterday / 7 days / Earlier | more `tree.folders` (today everything is under "Recent") |
+| Loading skeleton, "Loading conversations…" | `content` |
+| Streaming spinner on the chat being answered | `SidebarTreeItem.actions` |
+| Unread notifications badge | `SidebarNavItem.badge` |
+| Invite a friend, app download, keyboard shortcuts, privacy, terms | `secondaryItems` or the account menu |
+
+Kept, invisible: cursor pagination (`onScroll`) and prefetch on hover (`onPrefetch`).
+
+## Chat container
+
+| Removed | Comes back through |
+| --- | --- |
+| Header menu: ghost mode, clear, search the thread, export Markdown | `AiChatContainer.actions` / `onMore` |
+| Share | `AiChatContainer.onShare` |
+| Credit warning and usage-limit banners | `toast`, or a block in the thread |
+| "Editing message" banner | the composer's `placeholder` + `toast` |
+| Scroll-to-bottom button | `AiChatThread`'s own follow (no Bloom control yet) |
+| Local models invite | `toast` |
+| Agent terminal | the shell's `panel` (a tab of the code panel's `browser`) |
+
+## Composer
+
+| Removed | Comes back through |
+| --- | --- |
+| Suggestion autocomplete | no Bloom slot yet |
+| Voice mode button in the send slot | `ComposerPill.emptyAction` |
+| Dictation bar (cancel / stop / send while recording) | the pill's own mic (`listening`); today it records and transcribes into the draft |
+| Drop-a-file overlay | no Bloom slot yet (paste still works) |
+
+The composer is Bloom's `ComposerPanel` rather than the template's pill: its
+model picker (Alia's modes, the catalogue's models and this device's, each a
+rail group), the effort chip where a level can be sent, the mode selector (Chat,
+Agent, Deep research — the panel's permission pill), the attachment tiles with
+real read progress, and the chat's project as the status tab. A file that could
+not be read is a toast; the tiles have no error state.
+
+## Thread
+
+| Removed | Comes back through |
+| --- | --- |
+| Read aloud, generate audio, regenerate | `AiChatAssistantMessage` feedback row (Bloom has like / dislike / copy) |
+| Copy / edit under the user's turn | no Bloom slot yet |
+| Long-press menu on native | no Bloom slot yet |
+| Weather, market, FairCoin and scheduled-task cards | blocks inside `AiChatAssistantMessage` |
+| Sources under a reply and the reference list | `AiChatLinkChip`s (inline citations are already chips) |
+| Research progress card | `AgentProgress` |
+| "Reasoning" trigger into the thought panel | the shell's `panel` |
+| Day separators and "new stretch" seams | no Bloom slot yet |
+| "Hi {name}, what's on your mind?" | no Bloom slot yet — the template has no empty state |
+| Rich blocks (`[BANNER]`, `[TIMELINE]`, `[COMPARISON]`…) | they render as text today |
+
+Still Alia's, pending a Bloom equivalent: `FailedTurnCard` (retry),
+`NewConversationOffer`, `PlanPreviewCard` (approve / reject a plan),
+`AgentTaskCard` / `AgentResultCard`, and the thread skeleton.
+
+## Also different from the template on purpose
+
+- **Colour preset:** Alia keeps `purple`; Storybook shows the template in `oxy`.
+- **Logo:** Alia passes `logo` (mark + "Alia") as well as `account`; Bloom puts the
+  account switcher on its own row under it.
+- **Signed out:** the account is "Guest" and the plan card "Free Plan"; both sign in.
+- **Breadcrumb and status tab:** the chat's folder as the sidebar files it, its
+  project or "Recent". Moving a chat to another project comes back through the
+  tree's item `actions`.
+- **Effort:** the model menu shows the effort slider only for a mode that can send
+  a level (`packages/api/src/lib/reasoning-effort.ts`: a level is offered only
+  where it can be sent). "Auto" offers none, so its menu has no slider.
+- **Right panel:** the code panel is the canvas (the files Alia wrote in this
+  chat), the gallery shows Library images and the images generated in the chat.
+  Thought, credits and agent open in the same slot and hand it back when closed.

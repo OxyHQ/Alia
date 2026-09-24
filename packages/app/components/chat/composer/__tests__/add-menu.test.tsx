@@ -66,7 +66,7 @@ const icon = vi.hoisted(() => (name: string) => async () => {
 
 vi.mock('@oxy.so/bloom/icons/RiCameraLine', icon('RiCameraLine'));
 vi.mock('@oxy.so/bloom/icons/RiImageLine', icon('RiImageLine'));
-vi.mock('@oxy.so/bloom/icons/RiFileTextLine', icon('RiFileTextLine'));
+vi.mock('@oxy.so/bloom/icons/RiAttachment2', icon('RiAttachment2'));
 vi.mock('@oxy.so/bloom/icons/RiEarthLine', icon('RiEarthLine'));
 vi.mock('@oxy.so/bloom/icons/RiSearchLine', icon('RiSearchLine'));
 vi.mock('@oxy.so/bloom/icons/RiEyeOffLine', icon('RiEyeOffLine'));
@@ -150,8 +150,14 @@ describe('every switch says which way it is', () => {
     expect(row(on.groups, 'cap:ghost').checked).toBe(true);
     // `false`, NOT undefined: the difference is a tick column the row keeps
     // when it is off against a row that never had one.
-    expect(row(on.groups, 'cap:agent').checked).toBe(false);
-    expect(row(on.groups, 'cap:deep-research').checked).toBe(false);
+    const off = run(base({ webSearch: false }));
+    expect(row(off.groups, 'cap:web-search').checked).toBe(false);
+  });
+
+  it('leaves agent and deep research to the composer\'s mode selector', () => {
+    const ids = run(base()).groups.flatMap((g) => g.rows.map((r) => r.id));
+    expect(ids).not.toContain('cap:agent');
+    expect(ids).not.toContain('cap:deep-research');
   });
 
   it('gives canvas no tick column at all, because it is not on or off', () => {
@@ -256,12 +262,8 @@ describe('a press reaches the thing it names', () => {
     menu.onSelect('cap:web-search');
     expect(options.onToggleWebSearch).toHaveBeenCalledTimes(1);
 
-    menu.onSelect('cap:deep-research');
-    expect(options.toggleMode).toHaveBeenLastCalledWith('deepResearch');
     menu.onSelect('cap:ghost');
     expect(options.toggleMode).toHaveBeenLastCalledWith('ghost');
-    menu.onSelect('cap:agent');
-    expect(options.toggleMode).toHaveBeenLastCalledWith('agent');
 
     menu.onSelect('cap:canvas');
     expect(options.onOpenCanvas).toHaveBeenCalledTimes(1);

@@ -12,23 +12,74 @@
  * again.
  */
 
-import React, { useCallback, useState } from 'react';
-import { View, ScrollView } from 'react-native';
-import { Text } from '@/components/ui/text';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import {
+  useShowStore,
+  type ShowFormat,
+  type ShowVisibility,
+} from '@/lib/stores/show-store';
+import { Chip, ChipRow } from '@oxy.so/bloom/chip';
 import { Dialog } from '@oxy.so/bloom/dialog';
+import type { BloomIconComponent } from '@oxy.so/bloom/icons';
+import { RiBookOpenLine } from '@oxy.so/bloom/icons/RiBookOpenLine';
+import { RiChat3Line } from '@oxy.so/bloom/icons/RiChat3Line';
+import { RiGlobalLine } from '@oxy.so/bloom/icons/RiGlobalLine';
+import { RiLink } from '@oxy.so/bloom/icons/RiLink';
+import { RiLockLine } from '@oxy.so/bloom/icons/RiLockLine';
+import { RiMic2Line } from '@oxy.so/bloom/icons/RiMic2Line';
+import { RiNewspaperLine } from '@oxy.so/bloom/icons/RiNewspaperLine';
+import { RiQuestionLine } from '@oxy.so/bloom/icons/RiQuestionLine';
+import {
+  SegmentedControl,
+  SegmentedControlItem,
+  SegmentedControlItemText,
+} from '@oxy.so/bloom/segmented-control';
+import {
+  TextFieldHint,
+  TextFieldInput,
+  TextFieldLabel,
+} from '@oxy.so/bloom/text-field';
+import { Textarea } from '@oxy.so/bloom/textarea';
+import { useTheme } from '@oxy.so/bloom/theme';
 import { toast } from '@oxy.so/bloom/toast';
-import { Mic, Newspaper, MessageSquare, HelpCircle, BookOpen, Lock, Link2, Globe } from 'lucide-react-native';
-import { useShowStore, type ShowFormat, type ShowVisibility } from '@/lib/stores/show-store';
-import { cn } from '@/lib/utils';
+import { useCallback, useState } from 'react';
+import { ScrollView, View } from 'react-native';
 
-const FORMATS: Array<{ id: ShowFormat; label: string; icon: typeof Mic; description: string }> = [
-  { id: 'podcast', label: 'Podcast', icon: Mic, description: 'Casual conversation between two hosts' },
-  { id: 'news', label: 'News', icon: Newspaper, description: 'Professional news broadcast' },
-  { id: 'debate', label: 'Debate', icon: MessageSquare, description: 'Two sides, one moderator' },
-  { id: 'interview', label: 'Interview', icon: HelpCircle, description: 'A host interviews a guest' },
-  { id: 'explainer', label: 'Explainer', icon: BookOpen, description: 'A single narrator explains a topic' },
+const FORMATS: Array<{
+  id: ShowFormat;
+  label: string;
+  icon: BloomIconComponent;
+  description: string;
+}> = [
+  {
+    id: 'podcast',
+    label: 'Podcast',
+    icon: RiMic2Line,
+    description: 'Casual conversation between two hosts',
+  },
+  {
+    id: 'news',
+    label: 'News',
+    icon: RiNewspaperLine,
+    description: 'Professional news broadcast',
+  },
+  {
+    id: 'debate',
+    label: 'Debate',
+    icon: RiChat3Line,
+    description: 'Two sides, one moderator',
+  },
+  {
+    id: 'interview',
+    label: 'Interview',
+    icon: RiQuestionLine,
+    description: 'A host interviews a guest',
+  },
+  {
+    id: 'explainer',
+    label: 'Explainer',
+    icon: RiBookOpenLine,
+    description: 'A single narrator explains a topic',
+  },
 ];
 
 /**
@@ -40,12 +91,27 @@ const FORMATS: Array<{ id: ShowFormat; label: string; icon: typeof Mic; descript
 const VISIBILITIES: Array<{
   id: ShowVisibility;
   label: string;
-  icon: typeof Lock;
+  icon: BloomIconComponent;
   description: string;
 }> = [
-  { id: 'private', label: 'Private', icon: Lock, description: 'Only you can listen' },
-  { id: 'unlisted', label: 'Unlisted', icon: Link2, description: 'Anyone with the link' },
-  { id: 'public', label: 'Public', icon: Globe, description: 'Listed on Syra for everyone' },
+  {
+    id: 'private',
+    label: 'Private',
+    icon: RiLockLine,
+    description: 'Only you can listen',
+  },
+  {
+    id: 'unlisted',
+    label: 'Unlisted',
+    icon: RiLink,
+    description: 'Anyone with the link',
+  },
+  {
+    id: 'public',
+    label: 'Public',
+    icon: RiGlobalLine,
+    description: 'Listed on Syra for everyone',
+  },
 ];
 
 interface SeriesCreateDialogProps {
@@ -54,7 +120,12 @@ interface SeriesCreateDialogProps {
   onCreated?: (seriesId: string) => void;
 }
 
-export function SeriesCreateDialog({ open, onOpenChange, onCreated }: SeriesCreateDialogProps) {
+export function SeriesCreateDialog({
+  open,
+  onOpenChange,
+  onCreated,
+}: SeriesCreateDialogProps) {
+  const { colors } = useTheme();
   const preferences = useShowStore((s) => s.preferences);
   const createSeries = useShowStore((s) => s.createSeries);
 
@@ -68,7 +139,8 @@ export function SeriesCreateDialog({ open, onOpenChange, onCreated }: SeriesCrea
   const [creating, setCreating] = useState(false);
 
   const chosenFormat = format ?? preferences?.defaultFormat ?? 'podcast';
-  const chosenVisibility = visibility ?? preferences?.defaultVisibility ?? 'private';
+  const chosenVisibility =
+    visibility ?? preferences?.defaultVisibility ?? 'private';
 
   const handleCreate = useCallback(async () => {
     if (title.trim().length < 3 || brief.trim().length < 10) {
@@ -97,7 +169,15 @@ export function SeriesCreateDialog({ open, onOpenChange, onCreated }: SeriesCrea
     } finally {
       setCreating(false);
     }
-  }, [title, brief, chosenFormat, chosenVisibility, createSeries, onOpenChange, onCreated]);
+  }, [
+    title,
+    brief,
+    chosenFormat,
+    chosenVisibility,
+    createSeries,
+    onOpenChange,
+    onCreated,
+  ]);
 
   return (
     <Dialog
@@ -111,106 +191,83 @@ export function SeriesCreateDialog({ open, onOpenChange, onCreated }: SeriesCrea
         {
           label: creating ? 'Creating...' : 'Create show',
           onPress: handleCreate,
-          disabled: creating || title.trim().length < 3 || brief.trim().length < 10,
+          disabled:
+            creating || title.trim().length < 3 || brief.trim().length < 10,
           // Creation draws cover art and calls Syra, so the dialog owns the
           // progress label and stays mounted while it runs.
           shouldCloseOnPress: false,
         },
       ]}
     >
-      <ScrollView className="max-h-96" showsVerticalScrollIndicator={false}>
-        <View className="gap-4 py-2">
-          <View className="gap-1.5">
-            <Text className="text-sm font-medium text-foreground">Name</Text>
-            <Input value={title} onChangeText={setTitle} placeholder="The Wednesday Digest" />
-          </View>
-
-          <View className="gap-1.5">
-            <Text className="text-sm font-medium text-foreground">What is it about?</Text>
-            <Input
-              value={brief}
-              onChangeText={setBrief}
-              placeholder="A weekly look at what I have been reading, in plain language."
-              multiline
-              numberOfLines={3}
-              className="min-h-[80px]"
+      {/* Stacking only: the form's fields, in a scroller capped at 384. */}
+      <ScrollView style={{ maxHeight: 384 }} showsVerticalScrollIndicator={false}>
+        <View style={{ gap: 16, paddingVertical: 8 }}>
+          <View>
+            <TextFieldLabel>Name</TextFieldLabel>
+            <TextFieldInput
+              label="Name"
+              value={title}
+              onChangeText={setTitle}
+              placeholder="The Wednesday Digest"
             />
-            <Text className="text-xs text-muted-foreground">
-              This is the only thing an episode is written from, and — unless you say otherwise
-              for one — the only thing its subject is chosen from. Describe the show and the
-              ground it covers, not one episode: a line or two gives a show with nothing to vary
-              along.
-            </Text>
           </View>
 
-          <View className="gap-1.5">
-            <Text className="text-sm font-medium text-foreground">Format</Text>
-            <View className="flex-row flex-wrap gap-2">
+          {/*
+            The brief stays a form field rather than the chat composer: it is
+            one of four inputs submitted together by the dialog's own "Create
+            show" action, and the composer would add a second send button.
+          */}
+          <Textarea
+            label="What is it about?"
+            value={brief}
+            onChangeText={setBrief}
+            placeholder="A weekly look at what I have been reading, in plain language."
+            rows={3}
+            hint="This is the only thing an episode is written from, and — unless you say otherwise for one — the only thing its subject is chosen from. Describe the show and the ground it covers, not one episode: a line or two gives a show with nothing to vary along."
+          />
+
+          <View>
+            <TextFieldLabel>Format</TextFieldLabel>
+            <ChipRow role="radiogroup" accessibilityLabel="Format">
               {FORMATS.map((option) => {
                 const Icon = option.icon;
                 const selected = chosenFormat === option.id;
                 return (
-                  <Button
+                  <Chip
                     key={option.id}
-                    variant={selected ? 'default' : 'outline'}
-                    size="sm"
-                    className={cn('flex-row items-center gap-1.5', selected && 'border-primary')}
+                    size="xl"
+                    role="radio"
+                    selected={selected}
                     onPress={() => setFormat(option.id)}
+                    startIcon={<Icon fill={colors.textSecondary} />}
                   >
-                    <Icon
-                      size={14}
-                      className={selected ? 'text-primary-foreground' : 'text-muted-foreground'}
-                    />
-                    <Text
-                      className={cn(
-                        'text-xs',
-                        selected ? 'text-primary-foreground' : 'text-foreground',
-                      )}
-                    >
-                      {option.label}
-                    </Text>
-                  </Button>
+                    {option.label}
+                  </Chip>
                 );
               })}
-            </View>
-            <Text className="text-xs text-muted-foreground">
+            </ChipRow>
+            <TextFieldHint>
               {FORMATS.find((f) => f.id === chosenFormat)?.description}
-            </Text>
+            </TextFieldHint>
           </View>
 
-          <View className="gap-1.5">
-            <Text className="text-sm font-medium text-foreground">Who can listen?</Text>
-            <View className="flex-row flex-wrap gap-2">
-              {VISIBILITIES.map((option) => {
-                const Icon = option.icon;
-                const selected = chosenVisibility === option.id;
-                return (
-                  <Button
-                    key={option.id}
-                    variant={selected ? 'default' : 'outline'}
-                    size="sm"
-                    className={cn('flex-row items-center gap-1.5', selected && 'border-primary')}
-                    onPress={() => setVisibility(option.id)}
-                  >
-                    <Icon
-                      size={14}
-                      className={selected ? 'text-primary-foreground' : 'text-muted-foreground'}
-                    />
-                    <Text
-                      className={cn(
-                        'text-xs',
-                        selected ? 'text-primary-foreground' : 'text-foreground',
-                      )}
-                    >
-                      {option.label}
-                    </Text>
-                  </Button>
-                );
-              })}
-            </View>
-            <Text className="text-xs text-muted-foreground">
+          <View>
+            <TextFieldLabel>Who can listen?</TextFieldLabel>
+            <SegmentedControl
+              label="Who can listen?"
+              type="radio"
+              value={chosenVisibility}
+              onValueChange={(value) => setVisibility(value as ShowVisibility)}
+            >
+              {VISIBILITIES.map((option) => (
+                <SegmentedControlItem key={option.id} value={option.id}>
+                  <SegmentedControlItemText>{option.label}</SegmentedControlItemText>
+                </SegmentedControlItem>
+              ))}
+            </SegmentedControl>
+            <TextFieldHint>
               {VISIBILITIES.find((v) => v.id === chosenVisibility)?.description}
-            </Text>
+            </TextFieldHint>
           </View>
         </View>
       </ScrollView>

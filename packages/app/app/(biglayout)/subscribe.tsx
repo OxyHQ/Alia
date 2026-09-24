@@ -1,34 +1,36 @@
-import { useState, useMemo, useEffect, useRef } from 'react';
-import { View, ScrollView, useWindowDimensions, ActivityIndicator } from 'react-native';
-import * as Linking from 'expo-linking';
-import { useRouter, useLocalSearchParams } from 'expo-router';
-import { Text } from '@/components/ui/text';
 import {
-  useSubscriptionPlans,
-  useSubscription,
-  useSubscriptionPolling,
-  useCreateSubscriptionCheckout,
-  useChangePlan,
-  useCancelSubscription,
-  type SubscriptionPlan,
-} from '@/lib/hooks/use-billing';
-import { useQueryClient } from '@tanstack/react-query';
-import { useAuth } from '@oxy.so/services';
-import { toast } from '@oxy.so/bloom/toast';
-import { useTranslation } from '@/lib/hooks/use-translation';
-import { queryKeys } from '@/lib/hooks/query-keys';
-import { confirm } from '@oxy.so/bloom/surfaces';
-import {
-  type BillingPeriod,
-  type PricingTier,
   BillingToggle,
-  PlanGrid,
-  BackButton,
   InfoBanners,
   PageFooter,
+  PlanGrid,
+  SubscribeHeader,
+  type BillingPeriod,
+  type PricingTier,
 } from '@/components/subscribe-shared';
+import { queryKeys } from '@/lib/hooks/query-keys';
+import {
+  useCancelSubscription,
+  useChangePlan,
+  useCreateSubscriptionCheckout,
+  useSubscription,
+  useSubscriptionPlans,
+  useSubscriptionPolling,
+  type SubscriptionPlan,
+} from '@/lib/hooks/use-billing';
+import { useTranslation } from '@/lib/hooks/use-translation';
+import { EmptyState } from '@oxy.so/bloom/empty-state';
+import { RiErrorWarningLine } from '@oxy.so/bloom/icons/RiErrorWarningLine';
+import { Loading } from '@oxy.so/bloom/loading';
+import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
+import { confirm } from '@oxy.so/bloom/surfaces';
+import { toast } from '@oxy.so/bloom/toast';
+import { useAuth } from '@oxy.so/services';
+import { useQueryClient } from '@tanstack/react-query';
+import * as Linking from 'expo-linking';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useWindowDimensions, View } from 'react-native';
 import { errorMessage as getErrorMessage } from '../../lib/errors/error-utils';
-
 function buildTiers(
   apiPlans: SubscriptionPlan[],
   t: (key: string) => string,
@@ -205,55 +207,39 @@ export default function SubscribeScreen() {
   };
 
   return (
-    <ScrollView className="flex-1 bg-background">
-      <View className="w-full max-w-[1200px] mx-auto">
-        {/* Header */}
-        <View className="px-6 pt-6 pb-2">
-          <BackButton t={t} />
+    <Screen header={<SubscribeHeader title={t('subscribe.title')} t={t} />}>
+      <ScreenScrollView>
+        <View className="mx-auto w-full max-w-[1200px]">
+          <View className="items-center px-6 pb-8 pt-2">
+            <BillingToggle value={billingPeriod} onChange={setBillingPeriod} t={t} />
+          </View>
 
-          <View className="items-center gap-4 mb-8">
-            <Text className="text-2xl font-bold text-foreground">
-              {t('subscribe.title')}
-            </Text>
-            <BillingToggle
-              value={billingPeriod}
-              onChange={setBillingPeriod}
+          {plansLoading && tiers.length === 0 ? (
+            <View className="py-16">
+              <Loading size="large" />
+            </View>
+          ) : plansError ? (
+            <EmptyState variant="compact" icon={RiErrorWarningLine} title={t('subscribe.loadError')} />
+          ) : (
+            <PlanGrid
+              tiers={tiers}
+              billingPeriod={billingPeriod}
+              currentPlanId={subscription?.plan?.planId}
+              currentBillingPeriod={subscription?.plan?.billingPeriod}
+              cancelAtPeriodEnd={subscription?.cancelAtPeriodEnd}
+              isComped={subscription?.isComped}
+              hasActiveSubscription={!!subscription && subscription.status === 'active'}
+              onSubscribe={handleSubscribe}
+              loadingPlanId={loadingPlanId}
+              isWideLayout={isWideLayout}
               t={t}
             />
-          </View>
+          )}
+
+          <InfoBanners t={t} />
+          <PageFooter t={t} />
         </View>
-
-        {/* Pricing Grid */}
-        {plansLoading && tiers.length === 0 ? (
-          <View className="items-center justify-center py-16">
-            <ActivityIndicator size="large" />
-          </View>
-        ) : plansError ? (
-          <View className="items-center justify-center py-16 gap-2">
-            <Text className="text-sm text-muted-foreground">{t('subscribe.loadError')}</Text>
-          </View>
-        ) : (
-          <PlanGrid
-            tiers={tiers}
-            billingPeriod={billingPeriod}
-            currentPlanId={subscription?.plan?.planId}
-            currentBillingPeriod={subscription?.plan?.billingPeriod}
-            cancelAtPeriodEnd={subscription?.cancelAtPeriodEnd}
-            isComped={subscription?.isComped}
-            hasActiveSubscription={
-              !!subscription && subscription.status === 'active'
-            }
-            onSubscribe={handleSubscribe}
-            loadingPlanId={loadingPlanId}
-            isWideLayout={isWideLayout}
-            t={t}
-          />
-        )}
-
-        {/* Bottom */}
-        <InfoBanners t={t} />
-        <PageFooter t={t} />
-      </View>
-    </ScrollView>
+      </ScreenScrollView>
+    </Screen>
   );
 }

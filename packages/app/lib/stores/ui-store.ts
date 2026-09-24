@@ -4,7 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Message } from '@/lib/hooks/use-conversations';
 import type { FailedTurn } from '@/components/chat/turn-failure';
 
-type RightPanel = 'credits' | 'thought' | 'canvas' | 'agent' | null;
+export type RightPanel = 'credits' | 'thought' | 'canvas' | 'gallery' | 'agent' | null;
 
 /** The panel's tabs. The store owns them because it owns which one opens. */
 export type ThoughtTab = 'steps' | 'sources' | 'activity';
@@ -71,6 +71,8 @@ interface UIState {
   canvasArtifacts: CanvasArtifact[];
   activeAgentSessionId: string | null;
   activeAgentId: string | null;
+  /** The conversation whose turn opened the active agent session, when one did. */
+  activeAgentConversationId: string | null;
   /**
    * Whether the intro screen has been answered on this device — by signing in
    * or by choosing to continue without an account. Persisted, so the home
@@ -95,7 +97,7 @@ interface UIState {
    * dropped, which is what keeps a second mounted chat from blanking the panel.
    */
   syncThoughtScope: (scope: ThoughtScope) => void;
-  openAgentPanel: (sessionId: string, agentId: string) => void;
+  openAgentPanel: (sessionId: string, agentId: string, conversationId?: string | null) => void;
   setShortcutsDialogOpen: (open: boolean) => void;
   toggleShortcutsDialog: () => void;
   addCanvasArtifact: (artifact: CanvasArtifact) => void;
@@ -122,7 +124,8 @@ interface UIState {
 /** What the drag is clamped to. Bloom's own handle defaults to the same range. */
 export const RIGHT_PANEL_MIN_WIDTH = 320;
 export const RIGHT_PANEL_MAX_WIDTH = 560;
-export const RIGHT_PANEL_DEFAULT_WIDTH = 380;
+/** Bloom's `AiChatShell` default, the template's panel width. */
+export const RIGHT_PANEL_DEFAULT_WIDTH = 410;
 
 /** Keeps a restored or dragged width inside the range the layout can honour. */
 export function clampRightPanelWidth(width: number): number {
@@ -142,6 +145,7 @@ export const useUIStore = create<UIState>()(
   canvasArtifacts: [],
   activeAgentSessionId: null,
   activeAgentId: null,
+  activeAgentConversationId: null,
   rightPanelWidth: RIGHT_PANEL_DEFAULT_WIDTH,
 
   toggleSidebar: () =>
@@ -176,8 +180,13 @@ export const useUIStore = create<UIState>()(
     set({ thoughtScope: scope });
   },
 
-  openAgentPanel: (sessionId, agentId) =>
-    set({ rightPanel: 'agent', activeAgentSessionId: sessionId, activeAgentId: agentId }),
+  openAgentPanel: (sessionId, agentId, conversationId = null) =>
+    set({
+      rightPanel: 'agent',
+      activeAgentSessionId: sessionId,
+      activeAgentId: agentId,
+      activeAgentConversationId: conversationId,
+    }),
 
   setShortcutsDialogOpen: (open) =>
     set({ shortcutsDialogOpen: open }),

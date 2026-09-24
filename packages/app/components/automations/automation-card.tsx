@@ -1,7 +1,3 @@
-import { ActivityIndicator, Pressable, View } from 'react-native';
-import { Clock, Play, Square, Users } from 'lucide-react-native';
-import { Switch } from '@oxy.so/bloom/switch';
-import { Text } from '@/components/ui/text';
 import {
   actorLabel,
   canRunNow,
@@ -9,19 +5,66 @@ import {
   policyReason,
   triggerLabel,
 } from '@/lib/automations/format';
-import type { AutomationDefinition, AutomationRun } from '@/lib/automations/types';
-import { automationLifecycle, lifecycleLabel } from '@/lib/automations/work-items';
-import { useColorScheme } from '@/lib/useColorScheme';
-import { AutomationPill, automationStatusTone } from './automation-pill';
+import type {
+  AutomationDefinition,
+  AutomationRun,
+} from '@/lib/automations/types';
+import {
+  automationLifecycle,
+  lifecycleLabel,
+} from '@/lib/automations/work-items';
+import { Badge } from '@oxy.so/bloom/badge';
+import { Button } from '@oxy.so/bloom/button';
+import {
+  Card,
+  CardFooter,
+  CardTitle,
+} from '@oxy.so/bloom/card';
+import { RiPlayLine } from '@oxy.so/bloom/icons/RiPlayLine';
+import { RiStopFill } from '@oxy.so/bloom/icons/RiStopFill';
+import { RiTimeLine } from '@oxy.so/bloom/icons/RiTimeLine';
+import { RiUserLine } from '@oxy.so/bloom/icons/RiUserLine';
+import { Item } from '@oxy.so/bloom/item';
+import { Switch } from '@oxy.so/bloom/switch';
+import { useTheme } from '@oxy.so/bloom/theme';
+import type { AccentTone } from '@oxy.so/bloom/theme';
+import { Muted } from '@oxy.so/bloom/typography';
+import { View } from 'react-native';
+import {
+  automationStatusTone,
+  type AutomationPillTone,
+} from './automation-pill';
+
+/** The lifecycle and run tones, spoken in Bloom's accent vocabulary. */
+const BADGE_TONE: Record<AutomationPillTone, AccentTone> = {
+  neutral: 'default',
+  positive: 'success',
+  warning: 'warning',
+  danger: 'error',
+};
+
+function StatusBadge({
+  label,
+  tone = 'neutral',
+}: {
+  label: string;
+  tone?: AutomationPillTone;
+}) {
+  return (
+    <Badge
+      size="label-small"
+      variant="subtle"
+      color={BADGE_TONE[tone]}
+      content={label}
+    />
+  );
+}
 
 /**
  * One automation, with its controls.
  *
- * The heading is the NAME the person gave it and the objective (for a legacy
- * trigger, the prompt) sits underneath — two automations with the same prompt
- * must read as two different things, and every accessibility label names the
- * automation the same way the heading does (#534). Only when there is no name
- * does the objective stand in.
+ * The heading is the objective, and every accessibility label names the
+ * automation the same way the heading does (#534).
  *
  * `variant="compact"` is the row the unified Tasks list draws (#537): the
  * lifecycle, the schedule, the latest run and the controls, without the actor
@@ -50,127 +93,111 @@ export function AutomationCard({
   onViewHistory: (automation: AutomationDefinition) => void;
   variant?: 'full' | 'compact';
 }) {
-  const { colors } = useColorScheme();
+  const { colors } = useTheme();
   const compact = variant === 'compact';
   const title = automation.objective;
   const lifecycle = lifecycleLabel(automationLifecycle(automation, latestRun));
   const lastReason = policyReason(latestRun);
+  const iconProps = { width: 16, height: 16, fill: colors.textSecondary };
 
   return (
-    <View
-      className="rounded-2xl border border-border bg-surface p-4 gap-3"
-      accessibilityLabel={`Automation ${title}`}
-    >
-      <View className="flex-row items-start justify-between gap-3">
-        <View className="flex-1 gap-1.5">
-          <Text className="text-base font-semibold text-foreground" selectable>{title}</Text>
-          <View className="flex-row flex-wrap gap-2">
-            <AutomationPill label={lifecycle.label} tone={lifecycle.tone} />
-            {compact ? <AutomationPill label="Automation" /> : null}
-          </View>
-        </View>
-        <View accessibilityLabel={`${automation.enabled ? 'Pause' : 'Resume'} ${title}`}>
+    <Card appearance="outline" accessibilityLabel={`Automation ${title}`}>
+      <Item
+        title={<CardTitle>{title}</CardTitle>}
+        trailing={
           <Switch
             accessibilityLabel={`${automation.enabled ? 'Pause' : 'Resume'} ${title}`}
             value={automation.enabled}
             disabled={controlsDisabled}
             onValueChange={(enabled) => onToggle(automation, enabled)}
           />
+        }
+      />
+      <Item density="compact">
+        {/* Stacking only: the badges wrap in a row. */}
+        <View className="flex-row flex-wrap gap-2">
+          <StatusBadge label={lifecycle.label} tone={lifecycle.tone} />
+          {compact ? <StatusBadge label="Automation" /> : null}
         </View>
-      </View>
-
-      <View className="gap-2">
-        <View className="flex-row items-center gap-2">
-          <Clock size={14} color={colors.mutedForeground} />
-          <Text className="flex-1 text-xs text-muted-foreground" selectable>
-            {triggerLabel(automation.trigger)}
-          </Text>
-        </View>
-        {compact ? null : (
-          <View className="flex-row items-center gap-2">
-            <Users size={14} color={colors.mutedForeground} />
-            <Text className="flex-1 text-xs text-muted-foreground" selectable>
+      </Item>
+      <Item
+        density="compact"
+        leading={<RiTimeLine {...iconProps} />}
+        title={<Muted>{triggerLabel(automation.trigger)}</Muted>}
+      />
+      {compact ? null : (
+        <Item
+          density="compact"
+          leading={<RiUserLine {...iconProps} />}
+          title={
+            <Muted>
               {actorLabel(automation.actorSelection, agentName)}
-            </Text>
-          </View>
-        )}
-      </View>
-
+            </Muted>
+          }
+        />
+      )}
       {latestRun ? (
-        compact ? (
-          <View className="flex-row items-center gap-2">
-            <Text className="text-xs text-muted-foreground">Latest run</Text>
-            <AutomationPill
+        <Item
+          density="compact"
+          title={<Muted>{compact ? 'Latest run' : 'Latest decision'}</Muted>}
+          subtitle={lastReason ? <Muted>{lastReason}</Muted> : undefined}
+          trailing={
+            <StatusBadge
               label={humanizeIdentifier(latestRun.status)}
               tone={automationStatusTone(latestRun.status)}
             />
-            {lastReason ? (
-              <Text className="flex-1 text-xs text-muted-foreground" numberOfLines={1} selectable>
-                {lastReason}
-              </Text>
-            ) : null}
-          </View>
-        ) : (
-          <View className="rounded-xl bg-muted p-3 gap-1">
-            <View className="flex-row items-center justify-between gap-2">
-              <Text className="text-xs font-medium text-foreground">Latest decision</Text>
-              <AutomationPill
-                label={humanizeIdentifier(latestRun.status)}
-                tone={automationStatusTone(latestRun.status)}
-              />
-            </View>
-            {lastReason ? (
-              <Text className="text-xs text-muted-foreground" selectable>{lastReason}</Text>
-            ) : null}
-          </View>
-        )
+          }
+        />
       ) : null}
 
-      <View className="flex-row flex-wrap items-center gap-2">
-        {canRunNow(automation) ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`Run ${title}`}
-            disabled={controlsDisabled || !automation.enabled}
-            onPress={() => onRun(automation)}
-            className="flex-row items-center rounded-lg bg-primary/10 px-3 py-2 active:bg-primary/20 disabled:opacity-40"
-          >
-            {busy ? (
-              <ActivityIndicator size="small" color={colors.primary} />
-            ) : (
-              <Play size={14} color={colors.primary} />
-            )}
-            <Text className="ml-1.5 text-xs font-medium text-primary">Run now</Text>
-          </Pressable>
-        ) : null}
-        {automation.enabled ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`Stop ${title}`}
-            disabled={controlsDisabled}
-            onPress={() => onStop(automation)}
-            className="flex-row items-center rounded-lg px-3 py-2 active:bg-destructive/10 disabled:opacity-40"
-          >
-            <Square size={13} className="text-destructive" />
-            <Text className="ml-1.5 text-xs font-medium text-destructive">
+      <CardFooter>
+        {/* The actions read from the start and wrap; history sits at the end. */}
+        <View className="flex-1 flex-row flex-wrap items-center gap-2">
+          {canRunNow(automation) ? (
+            <Button
+              tone="action"
+              appearance="subtle"
+              size="sm"
+              leadingIcon={RiPlayLine}
+              loading={busy}
+              accessibilityRole="button"
+              accessibilityLabel={`Run ${title}`}
+              disabled={controlsDisabled || !automation.enabled}
+              onPress={() => onRun(automation)}
+            >
+              Run now
+            </Button>
+          ) : null}
+          {automation.enabled ? (
+            <Button
+              tone="danger"
+              appearance="plain"
+              size="sm"
+              leadingIcon={RiStopFill}
+              accessibilityRole="button"
+              accessibilityLabel={`Stop ${title}`}
+              disabled={controlsDisabled}
+              onPress={() => onStop(automation)}
+            >
               Stop and revoke
-            </Text>
-          </Pressable>
-        ) : compact ? null : (
-          <AutomationPill label="Stopped" />
-        )}
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={`View history for ${title}`}
-          disabled={controlsDisabled}
-          onPress={() => onViewHistory(automation)}
-          className="ml-auto rounded-lg px-3 py-2 active:bg-muted disabled:opacity-40"
-        >
-          <Text className="text-xs font-medium text-foreground">
+            </Button>
+          ) : compact ? null : (
+            <StatusBadge label="Stopped" />
+          )}
+          <Button
+            tone="neutral"
+            appearance="plain"
+            size="sm"
+            className="ml-auto"
+            accessibilityRole="button"
+            accessibilityLabel={`View history for ${title}`}
+            disabled={controlsDisabled}
+            onPress={() => onViewHistory(automation)}
+          >
             {compact ? 'History' : 'View history'}
-          </Text>
-        </Pressable>
-      </View>
-    </View>
+          </Button>
+        </View>
+      </CardFooter>
+    </Card>
   );
 }

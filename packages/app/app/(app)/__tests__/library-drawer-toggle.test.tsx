@@ -1,27 +1,29 @@
-import React from 'react';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
+import React from 'react';
+import {
+  act,
+  create,
+  type ReactTestInstance,
+  type ReactTestRenderer,
+} from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
- * A way out of the Library at phone width, and a name for its "+".
+ * The Library stands on the layout's surface, and its "+" has a name.
  *
- * At 390×844 the Library page rendered a title, a "+", a search box and four
- * filter chips — and no hamburger, no back button, no bottom bar. The drawer
- * sidebar sat at x = -245px, the only route back to chat, and the only way to
- * reach it was a swipe nobody is told about (#532). The fix is the one shared
- * `DrawerToggle` rendered FIRST in the header row; what is pinned here is that
- * it is there, that it comes before the title, that it is the drawer it opens,
- * and that it is named — because an unlabelled icon button is a second, quieter
- * version of the same fault.
+ * At 390×844 the Library page once rendered a title, a "+", a search box and
+ * four filter chips — and no way back to the sidebar but a swipe nobody is told
+ * about (#532). The page then grew its own `DrawerToggle`. The way out now
+ * belongs to the app layout: every non-chat route is wrapped in Bloom's
+ * `AiChatContainer`, whose `AiChatMobileHeader` carries the menu button and
+ * whose crumb carries the section title. What is pinned here is that the page
+ * no longer draws a second opener, a second title or a surface of its own, and
+ * that the layout really does wrap it — because a page that dropped its opener
+ * before the layout grew one would be #532 again.
  *
- * The "+" beside it had no accessible name either (#536), so that is pinned in
- * the same file: it is the same header, and the same class of mistake.
- *
- * `DrawerToggle` itself is rendered for real. It is the subject, and a stub of
- * it would let this test pass with the page rendering a button that opens
- * nothing.
+ * The "+" had no accessible name either (#536), so that is pinned in the same
+ * file: it is the same header, and the same class of mistake.
  */
 
 const navToggle = vi.hoisted(() => vi.fn());
@@ -35,11 +37,24 @@ const navToggle = vi.hoisted(() => vi.fn());
  * here would also drag reanimated, svg and the whole `ai-chat` barrel through a
  * `react-native` mock that exports four components.
  */
-const shell = vi.hoisted(() => ({ current: null as Record<string, unknown> | null }));
+const shell = vi.hoisted(() => ({
+  current: null as Record<string, unknown> | null,
+}));
 
-vi.mock('@oxy.so/bloom/ai-chat', () => ({ useAiChatShell: () => shell.current }));
+vi.mock('@oxy.so/bloom/ai-chat', () => ({
+  useAiChatShell: () => shell.current,
+}));
 
 vi.mock('expo-router', () => ({
+  // The page's header is declared through the router and drawn by the layout;
+  // rendering its actions here keeps them under test with the page.
+  Stack: {
+    Screen: ({
+      options,
+    }: {
+      options?: { headerRight?: (props: { canGoBack: boolean }) => unknown };
+    }) => options?.headerRight?.({ canGoBack: false }) ?? null,
+  },
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn() }),
 }));
 
@@ -47,12 +62,23 @@ vi.mock('react-native', async () => {
   const ReactModule = await import('react');
   const host =
     (name: string) =>
-    ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
+    ({
+      children,
+      ...props
+    }: React.PropsWithChildren<Record<string, unknown>>) =>
       ReactModule.createElement(name, props, children);
   return {
-    Platform: { OS: 'web', select: (spec: Record<string, unknown>) => spec.web },
+    Platform: {
+      OS: 'web',
+      select: (spec: Record<string, unknown>) => spec.web,
+    },
     // `ShellNavProvider`'s fallback reads the window when there is no shell.
-    useWindowDimensions: () => ({ width: 1280, height: 800, scale: 1, fontScale: 1 }),
+    useWindowDimensions: () => ({
+      width: 1280,
+      height: 800,
+      scale: 1,
+      fontScale: 1,
+    }),
     View: host('View'),
     ScrollView: host('ScrollView'),
     Pressable: host('Pressable'),
@@ -84,36 +110,64 @@ vi.mock('@shopify/flash-list', async () => {
         'FlashList',
         null,
         ListHeaderComponent,
-        data.length === 0 ? ListEmptyComponent : data.map((item) => renderItem({ item })),
+        data.length === 0
+          ? ListEmptyComponent
+          : data.map((item) => renderItem({ item })),
       ),
   };
 });
 
 vi.mock('@oxy.so/bloom/search', async () => {
   const ReactModule = await import('react');
-  return { Search: (props: Record<string, unknown>) => ReactModule.createElement('Search', props) };
+  return {
+    Search: (props: Record<string, unknown>) =>
+      ReactModule.createElement('Search', props),
+  };
 });
 vi.mock('@oxy.so/bloom/toast', () => ({
-  toast: { success: vi.fn(), error: vi.fn(), loading: vi.fn(), dismiss: vi.fn() },
+  toast: {
+    success: vi.fn(),
+    error: vi.fn(),
+    loading: vi.fn(),
+    dismiss: vi.fn(),
+  },
 }));
-vi.mock('@oxy.so/bloom/content-panel', async () => {
+vi.mock('@oxy.so/bloom/chip', async () => {
+  const ReactModule = await import('react');
+  const host =
+    (name: string) =>
+    ({
+      children,
+      ...props
+    }: React.PropsWithChildren<Record<string, unknown>>) =>
+      ReactModule.createElement(name, props, children);
+  return { Chip: host('Chip'), ChipRow: host('ChipRow') };
+});
+vi.mock('@oxy.so/bloom/empty-state', async () => {
   const ReactModule = await import('react');
   return {
-    ContentPanel: ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
-      ReactModule.createElement('ContentPanel', props, children),
+    EmptyState: (props: Record<string, unknown>) =>
+      ReactModule.createElement('EmptyState', props),
   };
 });
-vi.mock('@/components/ui/text', async () => {
+vi.mock('@oxy.so/bloom/typography', async () => {
   const ReactModule = await import('react');
-  return {
-    Text: ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
-      ReactModule.createElement('Text', props, children),
-  };
+  const host =
+    (name: string) =>
+    ({
+      children,
+      ...props
+    }: React.PropsWithChildren<Record<string, unknown>>) =>
+      ReactModule.createElement(name, props, children);
+  return { Text: host('Text'), Muted: host('Muted') };
 });
-vi.mock('@/components/ui/button', async () => {
+vi.mock('@oxy.so/bloom/button', async () => {
   const ReactModule = await import('react');
   return {
-    Button: ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
+    Button: ({
+      children,
+      ...props
+    }: React.PropsWithChildren<Record<string, unknown>>) =>
       ReactModule.createElement('Button', props, children),
   };
 });
@@ -121,36 +175,41 @@ vi.mock('@oxy.so/bloom/skeleton', async () => {
   const ReactModule = await import('react');
   const shape = (name: string) => (props: Record<string, unknown>) =>
     ReactModule.createElement(name, props);
-  return { Box: shape('Skeleton'), Circle: shape('Skeleton'), Pill: shape('Skeleton'), Text: shape('Skeleton') };
+  return {
+    Box: shape('Skeleton'),
+    Circle: shape('Skeleton'),
+    Pill: shape('Skeleton'),
+    Text: shape('Skeleton'),
+    Row: shape('Skeleton'),
+    Col: shape('Skeleton'),
+  };
 });
-vi.mock('@/components/ui/icons/menu-icon', async () => {
-  const ReactModule = await import('react');
-  return { MenuIcon: (props: Record<string, unknown>) => ReactModule.createElement('MenuIcon', props) };
-});
-vi.mock('@/components/ui/dropdown-menu', async () => {
+vi.mock('@oxy.so/bloom/dropdown-menu', async () => {
   const ReactModule = await import('react');
   const host =
     (name: string) =>
-    ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
+    ({
+      children,
+      ...props
+    }: React.PropsWithChildren<Record<string, unknown>>) =>
       ReactModule.createElement(name, props, children);
   return {
-    Root: host('MenuRoot'),
-    Trigger: host('MenuTrigger'),
-    Content: host('MenuContent'),
-    Item: host('MenuItem'),
-    ItemIcon: host('MenuItemIcon'),
-    ItemTitle: host('MenuItemTitle'),
+    DropdownMenu: host('MenuRoot'),
+    DropdownMenuTrigger: host('MenuTrigger'),
+    DropdownMenuContent: host('MenuContent'),
+    DropdownMenuItem: host('MenuItem'),
   };
 });
 vi.mock('@/components/file-card', async () => {
   const ReactModule = await import('react');
-  return { FileCard: (props: Record<string, unknown>) => ReactModule.createElement('FileCard', props) };
+  return {
+    FileCard: (props: Record<string, unknown>) =>
+      ReactModule.createElement('FileCard', props),
+  };
 });
-vi.mock('lucide-react-native', async () => {
-  const ReactModule = await import('react');
-  return { Plus: (props: Record<string, unknown>) => ReactModule.createElement('Glyph', props) };
-});
-vi.mock('@/lib/hooks/use-image-picker', () => ({ useImagePicker: () => ({ pickImage: vi.fn() }) }));
+vi.mock('@/lib/hooks/use-image-picker', () => ({
+  useImagePicker: () => ({ pickImage: vi.fn() }),
+}));
 vi.mock('@/lib/hooks/use-document-picker', () => ({
   useDocumentPicker: () => ({ pickDocument: vi.fn() }),
 }));
@@ -164,14 +223,18 @@ vi.mock('@/lib/stores/library-store', () => {
     addFile: vi.fn(),
     deleteFile: vi.fn(),
   };
-  return { useLibraryStore: (select: (s: typeof state) => unknown) => select(state) };
+  return {
+    useLibraryStore: (select: (s: typeof state) => unknown) => select(state),
+  };
 });
 vi.mock('@/lib/useColorScheme', () => ({
   useColorScheme: () => ({ colors: { mutedForeground: 'rgb(113 113 122)' } }),
 }));
 // `cn` (via `lib/utils.ts`) reaches `expo-crypto` through `random-uuid`, whose
 // native module does not exist under this runner.
-vi.mock('expo-crypto', () => ({ getRandomValues: (array: Uint8Array) => array }));
+vi.mock('expo-crypto', () => ({
+  getRandomValues: (array: Uint8Array) => array,
+}));
 /**
  * `t` returns its key, so an assertion names the KEY the screen reads and not
  * one language's rendering of it — the label is checked to exist in both
@@ -179,7 +242,9 @@ vi.mock('expo-crypto', () => ({ getRandomValues: (array: Uint8Array) => array })
  */
 vi.mock('@/lib/hooks/use-translation', () => {
   const t = (key: string) => key;
-  return { useTranslation: () => ({ t, locale: 'en', changeLocale: () => undefined }) };
+  return {
+    useTranslation: () => ({ t, locale: 'en', changeLocale: () => undefined }),
+  };
 });
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
@@ -239,7 +304,11 @@ async function renderLibrary(): Promise<ReactTestRenderer> {
   let next!: ReactTestRenderer;
   await act(async () => {
     next = create(
-      React.createElement(AppNavProvider, { value: NAV }, React.createElement(LibraryScreen)),
+      React.createElement(
+        AppNavProvider,
+        { value: NAV },
+        React.createElement(LibraryScreen),
+      ),
     );
   });
   renderer = next;
@@ -247,7 +316,10 @@ async function renderLibrary(): Promise<ReactTestRenderer> {
 }
 
 /** Host `Button` nodes carrying the given accessibility label. */
-function buttonsLabelled(root: ReactTestInstance, label: string): ReactTestInstance[] {
+function buttonsLabelled(
+  root: ReactTestInstance,
+  label: string,
+): ReactTestInstance[] {
   return root.findAll(
     (node) => isHost(node, 'Button') && node.props.accessibilityLabel === label,
   );
@@ -265,61 +337,74 @@ afterEach(() => {
   }
 });
 
-describe('the Library header at phone width', () => {
-  it('renders one labelled drawer toggle, hidden from lg up', async () => {
+describe("the Library on the layout's surface", () => {
+  it('draws no drawer toggle of its own — the layout header owns it', async () => {
     const { root } = await renderLibrary();
 
-    const toggles = buttonsLabelled(root, 'nav.openNavigation');
-    expect(toggles, 'exactly one way to open the drawer').toHaveLength(1);
-    const [toggle] = toggles;
-    expect(toggle.props.accessibilityRole).toBe('button');
-    /*
-     * `lg:hidden`, and the number matters more than the utility does.
-     *
-     * It was `md:hidden` for as long as the drawer was expo-router's, because
-     * that drawer became `permanent` at 768. `AiChatShell` holds the nav in
-     * flow only from 1024, so between 768 and 1023 there IS a drawer — and an
-     * opener hidden at 768 would leave that whole band with nothing that opens
-     * it, which is #532 at a width the visual baseline photographs. A
-     * regression to `md:hidden` is the exact fault this line exists to catch,
-     * so it is asserted as an absence as well as a presence.
-     */
-    expect(String(toggle.props.className)).toContain('lg:hidden');
-    expect(String(toggle.props.className)).not.toContain('md:hidden');
+    expect(buttonsLabelled(root, 'nav.openNavigation')).toHaveLength(0);
+    expect(root.findAll((node) => isHost(node, 'MenuIcon'))).toHaveLength(0);
+    // Rendered inside a live nav, so an opener would have had a drawer to open.
+    expect(navToggle).not.toHaveBeenCalled();
   });
 
-  it("opens the drawer — the real one, through the shell's own nav", async () => {
+  it('draws no title of its own — the crumb says "Library"', async () => {
     const { root } = await renderLibrary();
 
-    const [toggle] = buttonsLabelled(root, 'nav.openNavigation');
-    await act(async () => {
-      (toggle.props.onPress as () => void)();
-    });
-    expect(navToggle).toHaveBeenCalledTimes(1);
-  });
-
-  it('puts the toggle before the title, in the same row', async () => {
-    const { root } = await renderLibrary();
-
-    // `findAll` walks the tree in document order, so relative position in the
-    // result IS relative position on screen.
-    const ordered = root.findAll(
-      (node) =>
-        (isHost(node, 'Button') && node.props.accessibilityLabel === 'nav.openNavigation') ||
-        (isHost(node, 'Text') && node.props.children === 'library.title'),
-    );
-    expect(ordered.map((node) => node.type)).toEqual(['Button', 'Text']);
-
-    // And in the same flex row: the toggle's nearest row ancestor contains the title.
-    const [toggle] = buttonsLabelled(root, 'nav.openNavigation');
-    let row: ReactTestInstance | null = toggle.parent;
-    while (row !== null && !String(row.props.className ?? '').includes('flex-row')) {
-      row = row.parent;
-    }
-    expect(row, 'the toggle sits in a flex row').not.toBeNull();
     expect(
-      row?.findAll((node) => isHost(node, 'Text') && node.props.children === 'library.title'),
+      root.findAll((node) => node.props.children === 'library.title'),
+    ).toHaveLength(0);
+    // Its one-line description stays, as Bloom's secondary text.
+    expect(
+      root.findAll(
+        (node) =>
+          isHost(node, 'Muted') && node.props.children === 'library.subtitle',
+      ),
     ).toHaveLength(1);
+  });
+
+  it('paints no surface: no ContentPanel, no frame classes, no background', async () => {
+    const { root } = await renderLibrary();
+
+    expect(root.findAll((node) => isHost(node, 'ContentPanel'))).toHaveLength(0);
+    // Layout classes (rows, gaps, padding) are the page's; a page FRAME — a
+    // background, a border or rounded corners — is the layout's alone.
+    const framed = root.findAll((node) => {
+      if (typeof node.type !== 'string') return false;
+      if (node.props.surfaceClassName !== undefined) return true;
+      const classes = [node.props.className, node.props.contentContainerClassName]
+        .filter((value): value is string => typeof value === 'string')
+        .join(' ');
+      return /(^|\s)(bg-|border|rounded)/.test(classes);
+    });
+    expect(framed, 'no page frame classes on the page').toHaveLength(0);
+    const painted = root.findAll((node) => {
+      if (typeof node.type !== 'string') return false;
+      const style = node.props.style as Record<string, unknown> | undefined;
+      return Boolean(
+        style && (style.backgroundColor !== undefined || style.borderRadius !== undefined),
+      );
+    });
+    expect(painted, 'no background or corner on the page').toHaveLength(0);
+  });
+
+  it('filters by category through Bloom chips, one selected at a time', async () => {
+    const { root } = await renderLibrary();
+
+    const chips = () => root.findAll((node) => isHost(node, 'Chip'));
+    expect(chips().map((chip) => chip.props.children)).toEqual([
+      'common.all',
+      'library.documents',
+      'library.images',
+      'library.other',
+    ]);
+    expect(chips().filter((chip) => chip.props.selected)).toHaveLength(1);
+    expect(chips()[0].props.selected).toBe(true);
+
+    await act(async () => {
+      (chips()[2].props.onPress as () => void)();
+    });
+    expect(chips()[2].props.selected).toBe(true);
+    expect(chips()[0].props.selected).toBe(false);
   });
 
   it('names the "+" that opens the add-files menu (#536)', async () => {
@@ -343,13 +428,28 @@ describe('the Library header at phone width', () => {
 describe('the labels are translated', () => {
   const locales = ['en', 'es'] as const;
   for (const locale of locales) {
-    it(`${locale}: nav.openNavigation, nav.closeNavigation and library.addFiles`, () => {
+    it(`${locale}: nav.openNavigation, nav.closeNavigation, library.addFiles and pages.library.*`, () => {
       const messages = JSON.parse(
-        readFileSync(fileURLToPath(new URL(`../../../lib/i18n/locales/${locale}.json`, import.meta.url)), 'utf8'),
-      ) as { nav: Record<string, string>; library: Record<string, string> };
+        readFileSync(
+          fileURLToPath(
+            new URL(
+              `../../../lib/i18n/locales/${locale}.json`,
+              import.meta.url,
+            ),
+          ),
+          'utf8',
+        ),
+      ) as {
+        nav: Record<string, string>;
+        library: Record<string, string>;
+        pages: { library: { categories: string; resultCount: Record<string, string> } };
+      };
       expect(messages.nav.openNavigation).toMatch(/\S/);
       expect(messages.nav.closeNavigation).toMatch(/\S/);
       expect(messages.library.addFiles).toMatch(/\S/);
+      expect(messages.pages.library.categories).toMatch(/\S/);
+      expect(messages.pages.library.resultCount.one).toMatch(/\S/);
+      expect(messages.pages.library.resultCount.other).toContain('{{count}}');
     });
   }
 });
@@ -362,19 +462,60 @@ describe('the labels are translated', () => {
  */
 describe('the same opener on every top-level page', () => {
   const page = (name: string) =>
-    readFileSync(fileURLToPath(new URL(`../${name}.tsx`, import.meta.url)), 'utf8');
+    readFileSync(
+      fileURLToPath(new URL(`../${name}.tsx`, import.meta.url)),
+      'utf8',
+    );
 
-  for (const name of ['agents', 'skills', 'shows']) {
-    it(`${name}.tsx renders DrawerToggle first in its header row`, () => {
+  /**
+   * Agents stands on the same container; only the opener is pinned here, the
+   * rest of that page belongs to its own tests.
+   */
+  it('agents.tsx leaves the opener to the layout', () => {
+    const source = page('agents');
+    expect(source).not.toMatch(/drawer-toggle/);
+    expect(source).not.toContain('<DrawerToggle');
+  });
+
+  /**
+   * Skills stands on the layout's `AiChatContainer`, whose mobile header owns
+   * the menu button and whose crumb owns the title. A second opener, or a
+   * second title, on the page itself is the duplicate this guards against.
+   */
+  it('skills.tsx leaves the opener and the title to the layout', () => {
+    const source = page('skills');
+    expect(source).not.toMatch(/drawer-toggle/);
+    expect(source).not.toContain('<DrawerToggle');
+    expect(source).not.toContain("t('skills.title')");
+  });
+
+  for (const name of ['library', 'shows']) {
+    it(`${name}.tsx leaves the opener, the title and the surface to the layout`, () => {
       const source = page(name);
-      expect(source).toMatch(/from ["']@\/components\/ui\/drawer-toggle["']/);
-      // The toggle is rendered, and it precedes the page's title in the file.
-      const toggleAt = source.indexOf('<DrawerToggle />');
-      const titleAt = source.indexOf('text-2xl font-bold');
-      expect(toggleAt, `${name}.tsx renders <DrawerToggle />`).toBeGreaterThan(-1);
-      expect(toggleAt, 'and before the title').toBeLessThan(titleAt);
+      expect(source).not.toMatch(/drawer-toggle/);
+      expect(source).not.toContain('<DrawerToggle');
+      expect(source).not.toContain('ContentPanel');
+      // Layout classes (rows, gaps, padding) are the page's; a page FRAME —
+      // a background, a border or rounded corners — is the layout's alone.
+      expect(source).not.toMatch(/surfaceClassName/);
+      expect(source).not.toMatch(/className="[^"]*\b(bg-|border|rounded)/);
     });
   }
+
+  /**
+   * The other half of the pages above: the layout really does give every
+   * non-chat route the opener. `screenLayout` wraps it in `AiChatContainer`
+   * with `ShellPageHeader` (Bloom's `PageHeader` carrying the phone's menu
+   * button) as its header, and only the chat routes (which compose their own
+   * container) are let through bare.
+   */
+  it("wraps every non-chat route in the container whose header has the opener", () => {
+    const layout = page('_layout');
+    expect(layout).toContain('screenLayout={screenLayout}');
+    expect(layout).toMatch(/<AiChatContainer[\s\S]*header=\{\s*<ShellPageHeader/);
+    expect(layout).toMatch(/PAGE_TITLES[\s\S]*library: 'sidebar\.library'/);
+    expect(layout).toMatch(/shows: 'sidebar\.shows'/);
+  });
 
   it('notifications.tsx already has its own way out (a back control)', () => {
     expect(page('notifications')).toContain('router.back()');
@@ -388,19 +529,22 @@ describe('the same opener on every top-level page', () => {
    * of its branches, plus one text pin that it is actually installed. A guard
    * that works and is not wired is the same bug as no guard.
    */
-  it('is wired into both of the shell nav slots', () => {
+  it('is wired around the drawer copy of the sidebar', () => {
     const layout = page('_layout');
     expect(layout).toContain("from '@/components/app-shell/nav-region'");
-    expect(layout).toMatch(/<NavRegion>/);
-    // One `NavRegion`, handed to the column and to the drawer, because the two
-    // are the same sidebar and the gate must not depend on which is showing.
-    expect(layout).toContain('sidebar={nav}');
-    expect(layout).toContain('mobileSidebar={nav}');
+    // The template's two sidebars: the column from `lg` up, and the drawer
+    // copy below it. Only the drawer can be closed while mounted, so the gate
+    // wraps that one; in flow `navPresented` is always true.
+    expect(layout).toMatch(/<NavRegion>\s*<Sidebar mobile \/>\s*<\/NavRegion>/);
+    expect(layout).toContain('sidebar={sidebar}');
+    expect(layout).toContain('mobileSidebar={mobileSidebar}');
   });
 
   it('takes the sidebar out of the accessibility tree AND the tab order while closed', () => {
     shell.current = shellWith(false);
-    const r = mount(React.createElement(NavRegion, null, React.createElement('Rows')));
+    const r = mount(
+      React.createElement(NavRegion, null, React.createElement('Rows')),
+    );
     const region = r.root.find((node) => isHost(node, 'View'));
 
     expect(region.props['aria-hidden']).toBe(true);
@@ -422,7 +566,9 @@ describe('the same opener on every top-level page', () => {
 
   it('puts it back the moment the drawer is presented', () => {
     shell.current = shellWith(true);
-    const r = mount(React.createElement(NavRegion, null, React.createElement('Rows')));
+    const r = mount(
+      React.createElement(NavRegion, null, React.createElement('Rows')),
+    );
     const region = r.root.find((node) => isHost(node, 'View'));
 
     expect(region.props['aria-hidden']).toBe(false);
@@ -434,7 +580,9 @@ describe('the same opener on every top-level page', () => {
 
   it('hides nothing when there is no shell — there is no drawer to be behind', () => {
     shell.current = null;
-    const r = mount(React.createElement(NavRegion, null, React.createElement('Rows')));
+    const r = mount(
+      React.createElement(NavRegion, null, React.createElement('Rows')),
+    );
     const region = r.root.find((node) => isHost(node, 'View'));
 
     expect(region.props['aria-hidden']).toBe(false);
@@ -442,3 +590,8 @@ describe('the same opener on every top-level page', () => {
     act(() => r.unmount());
   });
 });
+
+vi.mock('@oxy.so/bloom/icons/RiAddLine', () => ({ RiAddLine: () => null }));
+vi.mock('@oxy.so/bloom/icons/RiFileTextLine', () => ({ RiFileTextLine: () => null }));
+vi.mock('@oxy.so/bloom/icons/RiFolderLine', () => ({ RiFolderLine: () => null }));
+vi.mock('@oxy.so/bloom/icons/RiImageLine', () => ({ RiImageLine: () => null }));

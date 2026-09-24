@@ -36,8 +36,8 @@ export default defineConfig({
    * reached by anything that mounts one.
    *
    * Inlining is what makes #608 testable rather than assertable: an adoption
-   * can now be proven by mounting the real Bloom component, as
-   * `components/__tests__/panel-resize.test.tsx` does.
+   * can now be proven by mounting the real Bloom component, as the suites
+   * under `components/__tests__` do.
    */
   test: {
     server: {

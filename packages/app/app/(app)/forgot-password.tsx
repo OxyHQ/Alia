@@ -1,16 +1,18 @@
-import React, { useState } from 'react';
-import { View, Text, Pressable } from 'react-native';
-import { useRouter } from 'expo-router';
 import { AuthContainer } from '@/components/auth/auth-container';
-import { AuthLogo } from '@/components/auth/auth-logo';
-import { AuthInput } from '@/components/auth/auth-input';
-import { AuthButton } from '@/components/auth/auth-button';
 import { AuthError } from '@/components/auth/auth-error';
+import { AuthLogo } from '@/components/auth/auth-logo';
 import apiClient from '@/lib/api/client';
-import { toast } from '@oxy.so/bloom/toast';
-import { useTranslation } from '@/lib/hooks/use-translation';
 import { errorMessage as getErrorMessage } from '@/lib/errors/error-utils';
-import { ContentPanel } from "@oxy.so/bloom/content-panel";
+import { useTranslation } from '@/lib/hooks/use-translation';
+import { Button } from '@oxy.so/bloom/button';
+import { EmptyState } from '@oxy.so/bloom/empty-state';
+import { RiMailCheckLine } from '@oxy.so/bloom/icons/RiMailCheckLine';
+import { TextFieldInput } from '@oxy.so/bloom/text-field';
+import { toast } from '@oxy.so/bloom/toast';
+import { Muted, Text } from '@oxy.so/bloom/typography';
+import { useRouter } from 'expo-router';
+import { useState } from 'react';
+import { View } from 'react-native';
 
 export default function ForgotPasswordScreen() {
   const { t } = useTranslation();
@@ -40,7 +42,10 @@ export default function ForgotPasswordScreen() {
       router.back();
     } catch (error: unknown) {
       console.error('Reset password error:', error);
-      const errorMessage = getErrorMessage(error, t('forgotPassword.failedToSend'));
+      const errorMessage = getErrorMessage(
+        error,
+        t('forgotPassword.failedToSend'),
+      );
       setError(errorMessage);
 
       toast.error(errorMessage);
@@ -50,80 +55,64 @@ export default function ForgotPasswordScreen() {
   };
 
   return (
-    <ContentPanel surfaceClassName="bg-background">
-      <AuthContainer>
-        <AuthLogo />
+    <AuthContainer>
+      <AuthLogo />
 
-        {sent ? (
-              // Success State
-              <View className="items-center">
-                <Text className="text-2xl font-bold text-foreground tracking-tight mb-2 text-center">
-                  {t('forgotPassword.checkEmail')}
-                </Text>
-                <Text className="text-sm text-muted-foreground text-center mb-6 leading-5">
-                  {t('forgotPassword.sentInstructions')}{'\n'}
-                  <Text className="font-medium text-foreground">{email}</Text>
-                </Text>
-                <AuthButton
-                  onPress={() => router.back()}
-                  className="w-full"
-                >
-                  {t('forgotPassword.returnToSignIn')}
-                </AuthButton>
-                <Pressable
-                  onPress={() => {
-                    setSent(false);
-                    setEmail('');
-                  }}
-                  className="mt-4"
-                >
-                  <Text className="text-primary text-sm font-medium">
-                    {t('forgotPassword.tryAnotherEmail')}
-                  </Text>
-                </Pressable>
-              </View>
-        ) : (
-          // Form State
-          <>
-            <View className="space-y-2 mb-6">
-              <Text className="text-3xl font-bold text-foreground tracking-tight">
-                {t('forgotPassword.title')}
-              </Text>
-              <Text className="text-base text-muted-foreground">
-                {t('forgotPassword.subtitle')}
-              </Text>
-            </View>
+      {sent ? (
+        // Success state
+        <EmptyState
+          icon={RiMailCheckLine}
+          media="circle"
+          title={t('forgotPassword.checkEmail')}
+          description={`${t('forgotPassword.sentInstructions')} ${email}`}
+          action={{
+            label: t('forgotPassword.returnToSignIn'),
+            onPress: () => router.back(),
+          }}
+          secondaryAction={{
+            label: t('forgotPassword.tryAnotherEmail'),
+            onPress: () => {
+              setSent(false);
+              setEmail('');
+            },
+          }}
+        />
+      ) : (
+        // Form state
+        <View className="gap-6">
+          <View className="gap-2">
+            <Text variant="title-1-bold">{t('forgotPassword.title')}</Text>
+            <Muted>{t('forgotPassword.subtitle')}</Muted>
+          </View>
 
-            <View className="gap-3">
-              <AuthError message={error} />
+          <View className="gap-3">
+            <AuthError message={error} />
 
-              <AuthInput
-                placeholder={t('forgotPassword.emailPlaceholder')}
-                value={email}
-                onChangeText={(text) => {
-                  setEmail(text);
-                  setError('');
-                }}
-                autoCapitalize="none"
-                keyboardType="email-address"
-                editable={!loading}
-                onSubmitEditing={handleResetPassword}
-              />
+            <TextFieldInput
+              label={t('forgotPassword.emailPlaceholder')}
+              placeholder={t('forgotPassword.emailPlaceholder')}
+              value={email}
+              onChangeText={(text) => {
+                setEmail(text);
+                setError('');
+              }}
+              autoCapitalize="none"
+              keyboardType="email-address"
+              editable={!loading}
+              onSubmitEditing={handleResetPassword}
+            />
 
-              <AuthButton
-                onPress={handleResetPassword}
-                disabled={loading || !email}
-                isLoading={loading}
-                loadingText={t('forgotPassword.sending')}
-                className="mt-3"
-              >
-                {t('common.continue')}
-              </AuthButton>
-            </View>
-          </>
-        )}
-
-      </AuthContainer>
-    </ContentPanel>
+            <Button
+              tone="action"
+              onPress={handleResetPassword}
+              disabled={loading || !email}
+              loading={loading}
+            >
+              {t('common.continue')}
+            </Button>
+          </View>
+        </View>
+      )}
+    </AuthContainer>
   );
 }

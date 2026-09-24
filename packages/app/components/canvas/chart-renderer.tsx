@@ -1,5 +1,5 @@
-import { View } from 'react-native';
-import { Text } from '@/components/ui/text';
+import { useTranslation } from '@/lib/hooks/use-translation';
+import { BarListCard, LineChartCard } from '@oxy.so/bloom/chart-cards';
 
 interface ChartData {
   chartType: 'bar' | 'line' | 'pie';
@@ -9,84 +9,64 @@ interface ChartData {
 
 interface ChartRendererProps {
   data: ChartData;
+  /** The canvas component's title, used as the chart's name. */
+  title?: string;
 }
 
-const COLORS = ['#6366f1', '#f43f5e', '#10b981', '#f59e0b', '#8b5cf6', '#06b6d4', '#ec4899', '#84cc16'];
+const NUMBER = new Intl.NumberFormat();
+const format = (value: number) => NUMBER.format(value);
 
-export function ChartRenderer({ data }: ChartRendererProps) {
+/**
+ * A generated chart on Bloom's chart cards, painted from Bloom's chart palette.
+ *
+ *  - one `line` series → `LineChartCard`;
+ *  - a `pie` → `BarListCard` in shares of the whole, which is what a pie says;
+ *  - bars, or several series → `BarListCard` in raw values, one tab per series.
+ */
+export function ChartRenderer({ data, title }: ChartRendererProps) {
+  const { t } = useTranslation();
   const { chartType, labels, datasets } = data;
+  const itemsOf = (values: number[]) => labels.map((label, i) => ({ label, value: values[i] || 0 }));
 
-  if (chartType === 'pie') {
-    const values = datasets[0]?.values || [];
-    const total = values.reduce((sum, v) => sum + v, 0);
-
+  if (chartType === 'line' && datasets.length === 1) {
+    const series = datasets[0];
     return (
-      <View className="gap-2">
-        {labels.map((label, i) => {
-          const value = values[i] || 0;
-          const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : '0';
-          const color = COLORS[i % COLORS.length];
-
-          return (
-            <View key={i} className="flex-row items-center gap-3">
-              <View className="w-3 h-3 rounded-full" style={{ backgroundColor: color }} />
-              <Text className="text-sm text-foreground flex-1">{label}</Text>
-              <Text className="text-sm text-muted-foreground">{percentage}%</Text>
-              <View className="flex-1 h-2 bg-muted rounded-full overflow-hidden max-w-[120px]">
-                <View
-                  className="h-full rounded-full"
-                  style={{ backgroundColor: color, width: `${total > 0 ? (value / total) * 100 : 0}%` }}
-                />
-              </View>
-            </View>
-          );
-        })}
-      </View>
+      <LineChartCard
+        title={series.label || title}
+        data={itemsOf(series.values)}
+        format={format}
+        formatAxisValue={format}
+        getPointTitle={(point) => point.label}
+        accessibilityLabel={title ?? series.label}
+      />
     );
   }
 
-  // Bar chart (also used for line as simplification)
-  const allValues = datasets.flatMap(d => d.values);
-  const maxValue = Math.max(...allValues, 1);
+  if (chartType === 'pie' || datasets.length <= 1) {
+    const series = datasets[0];
+    return (
+      <BarListCard
+        title={series?.label || title}
+        metricLabel={chartType === 'pie' ? t('panels.chart.share') : t('panels.chart.value')}
+        metric={chartType === 'pie' ? 'share' : 'value'}
+        format={format}
+        items={itemsOf(series?.values ?? [])}
+        limit={labels.length}
+      />
+    );
+  }
 
   return (
-    <View className="gap-3">
-      {datasets.length > 1 && (
-        <View className="flex-row flex-wrap gap-3 mb-2">
-          {datasets.map((dataset, i) => (
-            <View key={i} className="flex-row items-center gap-1.5">
-              <View className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
-              <Text className="text-xs text-muted-foreground">{dataset.label}</Text>
-            </View>
-          ))}
-        </View>
-      )}
-
-      <View className="flex-row items-end gap-1" style={{ height: 140 }}>
-        {labels.map((label, labelIdx) => (
-          <View key={labelIdx} className="flex-1 items-center gap-0.5" style={{ height: '100%', justifyContent: 'flex-end' }}>
-            <View className="flex-row gap-0.5 items-end flex-1 w-full justify-center">
-              {datasets.map((dataset, datasetIdx) => {
-                const value = dataset.values[labelIdx] || 0;
-                const heightPercent = (value / maxValue) * 100;
-                return (
-                  <View
-                    key={datasetIdx}
-                    className="rounded-t-sm flex-1 max-w-[24px]"
-                    style={{
-                      backgroundColor: COLORS[datasetIdx % COLORS.length],
-                      height: `${Math.max(heightPercent, 2)}%`,
-                    }}
-                  />
-                );
-              })}
-            </View>
-            <Text className="text-[10px] text-muted-foreground text-center" numberOfLines={1}>
-              {label}
-            </Text>
-          </View>
-        ))}
-      </View>
-    </View>
+    <BarListCard
+      metricLabel={t('panels.chart.value')}
+      metric="value"
+      format={format}
+      tabs={datasets.map((series, i) => ({
+        id: `series-${i}`,
+        label: series.label,
+        items: itemsOf(series.values),
+      }))}
+      limit={labels.length}
+    />
   );
 }

@@ -1,193 +1,120 @@
-/**
- * AgentTaskCard — Inline card showing real-time agent execution progress.
- *
- * Renders in the chat interface when an agent is working on a task.
- * Shows: plan checklist, current action, elapsed time.
- */
+import type { AgentActivityState } from '@/lib/hooks/use-agent-activity';
+import { useTranslation } from '@/lib/hooks/use-translation';
+import { getToolPillLabel } from '@/lib/task-utils';
+import { Admonition } from '@oxy.so/bloom/admonition';
+import { AgentProgress } from '@oxy.so/bloom/agent-progress';
+import { AgentThinking } from '@oxy.so/bloom/agent-thinking';
+import { Badge } from '@oxy.so/bloom/badge';
+import { Card, CardBody, CardHeader } from '@oxy.so/bloom/card';
+import { Muted } from '@oxy.so/bloom/typography';
+import React, { useEffect, useState } from 'react';
+import { View } from 'react-native';
 
-import React, { useState, useEffect } from 'react';
-import { View, Pressable } from 'react-native';
-import { Text } from '@/components/ui/text';
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withRepeat,
-  withSequence,
-  withTiming,
-  FadeIn,
-} from 'react-native-reanimated';
-import { Check, Circle, Loader, ChevronDown, ChevronUp, AlertCircle } from 'lucide-react-native';
-import { useTheme } from '@oxy.so/bloom/theme';
-import type { AgentActivityState, PlanItem } from '@/lib/hooks/use-agent-activity';
+/**
+ * AgentTaskCard — an agent run in progress, inline in the chat.
+ *
+ * Bloom all the way down: a `Card` whose header carries the run's status as a
+ * `Badge` with the elapsed time, the plan as `AgentProgress` (its rings are the
+ * checklist), what the agent is doing right now as `AgentThinking`, and an
+ * error as an `Admonition`. The tool is named by its product label, never by
+ * its internal name.
+ */
 
 interface AgentTaskCardProps {
   activity: AgentActivityState;
 }
 
-function PulsingDot({ color }: { color: string }) {
-  const opacity = useSharedValue(1);
-  useEffect(() => {
-    opacity.value = withRepeat(
-      withSequence(
-        withTiming(0.3, { duration: 600 }),
-        withTiming(1, { duration: 600 }),
-      ),
-      -1,
-    );
-  }, [opacity]);
-  const style = useAnimatedStyle(() => ({ opacity: opacity.value }));
-  return (
-    <Animated.View style={[style, { width: 8, height: 8, borderRadius: 4, backgroundColor: color }]} />
-  );
-}
-
-function formatElapsed(startedAt: number | null): string {
+/** `42s`, `3m 5s` — how long the run has been going. */
+export function formatRunElapsed(startedAt: number | null, now: number): string {
   if (!startedAt) return '';
-  const seconds = Math.floor((Date.now() - startedAt) / 1000);
+  const seconds = Math.max(0, Math.floor((now - startedAt) / 1000));
   if (seconds < 60) return `${seconds}s`;
-  const minutes = Math.floor(seconds / 60);
-  const remaining = seconds % 60;
-  return `${minutes}m ${remaining}s`;
+  return `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
 }
 
-function PlanItemRow({ item }: { item: PlanItem }) {
-  const { colors } = useTheme();
-  const isCompleted = item.status === 'completed';
-  const isInProgress = item.status === 'in_progress';
-
-  return (
-    <View className="flex-row items-start gap-2 py-0.5">
-      {isCompleted ? (
-        <Check size={14} className="text-green-500 mt-0.5" />
-      ) : isInProgress ? (
-        <PulsingDot color={colors.warning} />
-      ) : (
-        <Circle size={14} className="text-muted-foreground mt-0.5" />
-      )}
-      <Text
-        className={`text-sm flex-1 ${isCompleted ? 'text-muted-foreground line-through' : 'text-foreground'}`}
-      >
-        {item.text}
-      </Text>
-    </View>
-  );
+/**
+ * The plan's lines as `AgentProgress` steps. The steps are also its React keys,
+ * and a plan can repeat a line ("Run the tests" twice), so a repeat is told
+ * apart by its position rather than dropped.
+ */
+export function uniqueStepLabels(texts: readonly string[]): string[] {
+  const seen = new Map<string, number>();
+  return texts.map((text) => {
+    const count = (seen.get(text) ?? 0) + 1;
+    seen.set(text, count);
+    return count === 1 ? text : `${text} (${count})`;
+  });
 }
 
 export const AgentTaskCard = React.memo(function AgentTaskCard({ activity }: AgentTaskCardProps) {
-  const { colors } = useTheme();
-  const { plan, currentAction, isComplete, hasError, lastError, eventCount, startedAt, latestResponse } = activity;
-  const [showPlan, setShowPlan] = useState(true);
-  const [elapsed, setElapsed] = useState('');
+  const { t } = useTranslation();
+  const { plan, currentAction, isComplete, hasError, lastError, eventCount, startedAt, latestResponse } =
+    activity;
+  const [now, setNow] = useState(() => Date.now());
 
-  // Update elapsed time
+  // The clock runs while the agent does; a finished run keeps its last reading.
   useEffect(() => {
-    if (!startedAt || isComplete) {
-      if (startedAt) setElapsed(formatElapsed(startedAt));
-      return;
-    }
-    const interval = setInterval(() => setElapsed(formatElapsed(startedAt)), 1000);
+    if (!startedAt || isComplete) return;
+    const interval = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(interval);
   }, [startedAt, isComplete]);
 
   // Nothing to show yet
   if (!plan && !currentAction && eventCount === 0) return null;
 
+  const elapsed = formatRunElapsed(startedAt, now);
+  const status = isComplete
+    ? { color: 'success' as const, label: t('chat.agentRun.complete') }
+    : hasError
+      ? { color: 'error' as const, label: t('chat.agentRun.error') }
+      : { color: 'info' as const, label: t('chat.agentRun.working') };
+
   return (
-    <Animated.View
-      entering={FadeIn.duration(300)}
-      className="rounded-xl border border-border bg-surface/50 overflow-hidden my-1"
-    >
-      {/* Header */}
-      <View className="flex-row items-center justify-between px-3 py-2 border-b border-border">
-        <View className="flex-row items-center gap-2">
-          {isComplete ? (
-            <Check size={14} className="text-green-500" />
-          ) : hasError ? (
-            <AlertCircle size={14} className="text-red-500" />
-          ) : (
-            <PulsingDot color={colors.info} />
-          )}
-          <Text className="text-xs font-semibold text-foreground">
-            {isComplete ? 'Task Complete' : hasError ? 'Error' : 'Agent Working'}
-          </Text>
+    <Card>
+      <CardHeader>
+        <View className="flex-row items-center justify-between gap-2">
+          <Badge variant="subtle" color={status.color} content={status.label} />
+          <Muted>
+            {[elapsed, plan && plan.total > 0 ? `${plan.completed}/${plan.total}` : '']
+              .filter((part) => part !== '')
+              .join(' · ')}
+          </Muted>
         </View>
-        <View className="flex-row items-center gap-2">
-          {elapsed ? (
-            <Text className="text-xs text-muted-foreground">{elapsed}</Text>
+      </CardHeader>
+      <CardBody>
+        <View className="gap-3">
+          {plan && plan.items.length > 0 ? (
+            <AgentProgress
+              steps={uniqueStepLabels(plan.items.map((item) => item.text))}
+              completedCount={plan.completed}
+            />
           ) : null}
-          {plan && plan.total > 0 && (
-            <Text className="text-xs text-muted-foreground">
-              {plan.completed}/{plan.total}
-            </Text>
-          )}
-        </View>
-      </View>
 
-      {/* Progress bar */}
-      {plan && plan.total > 0 && (
-        <View className="h-1 bg-muted">
-          <View
-            className="h-1 bg-primary"
-            style={{ width: `${Math.round((plan.completed / plan.total) * 100)}%` }}
-          />
-        </View>
-      )}
+          {currentAction && !isComplete ? (
+            <AgentThinking
+              variant="wave"
+              label={
+                currentAction.content
+                  ? `${getToolPillLabel(currentAction.toolName)} · ${
+                      currentAction.content.length > 80
+                        ? `${currentAction.content.slice(0, 80)}…`
+                        : currentAction.content
+                    }`
+                  : getToolPillLabel(currentAction.toolName)
+              }
+            />
+          ) : null}
 
-      {/* Plan checklist */}
-      {plan && plan.items.length > 0 && (
-        <View className="px-3 pt-2">
-          <Pressable
-            onPress={() => setShowPlan(!showPlan)}
-            className="flex-row items-center gap-1 mb-1"
-          >
-            {showPlan ? (
-              <ChevronUp size={12} className="text-muted-foreground" />
-            ) : (
-              <ChevronDown size={12} className="text-muted-foreground" />
-            )}
-            <Text className="text-xs font-medium text-muted-foreground">Plan</Text>
-          </Pressable>
-          {showPlan && (
-            <View className="gap-0.5 pb-1">
-              {plan.items.map(item => (
-                <PlanItemRow key={item.id} item={item} />
-              ))}
-            </View>
-          )}
-        </View>
-      )}
+          {latestResponse && !isComplete ? (
+            <Muted numberOfLines={4}>
+              {latestResponse.length > 200 ? `${latestResponse.slice(0, 200)}…` : latestResponse}
+            </Muted>
+          ) : null}
 
-      {/* Current action */}
-      {currentAction && !isComplete && (
-        <View className="flex-row items-center gap-2 px-3 py-2 border-t border-border">
-          <Loader size={12} className="text-yellow-500" />
-          <Text className="text-xs text-muted-foreground flex-1" numberOfLines={1}>
-            <Text className="font-semibold">{currentAction.toolName}</Text>
-            {' '}
-            {currentAction.content.length > 80
-              ? currentAction.content.slice(0, 80) + '...'
-              : currentAction.content}
-          </Text>
-        </View>
-      )}
+          {hasError && lastError ? <Admonition type="error">{lastError}</Admonition> : null}
 
-      {/* Agent response */}
-      {latestResponse && !isComplete && (
-        <View className="px-3 py-2 border-t border-border">
-          <Text className="text-xs text-muted-foreground" numberOfLines={4}>
-            {latestResponse.length > 200 ? latestResponse.slice(0, 200) + '...' : latestResponse}
-          </Text>
         </View>
-      )}
-
-      {/* Error message */}
-      {hasError && lastError && (
-        <View className="px-3 py-2 border-t border-border">
-          <Text className="text-xs text-red-400" numberOfLines={2}>
-            {lastError}
-          </Text>
-        </View>
-      )}
-    </Animated.View>
+      </CardBody>
+    </Card>
   );
 });

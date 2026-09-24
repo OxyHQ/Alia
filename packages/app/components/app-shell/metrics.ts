@@ -20,24 +20,6 @@ import { useWindowDimensions } from 'react-native';
 export const NAV_BREAKPOINT = 1024;
 
 /**
- * The nav column's width while it is in flow.
- *
- * The number the expo-router `Drawer` carried in `drawerStyle.width`, moved
- * here unchanged: the sidebar has never sized itself, and `AiChatShell` leaves
- * the column untouched unless the host names a width.
- */
-export const NAV_PANEL_WIDTH = 255;
-
-/**
- * The collapsed rail. 56 is `AiChatShell`'s own `collapsedSidebarWidth`
- * default AND what Alia's drawer collapsed to, to the pixel — an agreement
- * worth stating out loud, because it is the reason the rail survives the move
- * with nothing re-measured. The 50px New Chat circle still sits in it with
- * three pixels either side.
- */
-export const NAV_RAIL_WIDTH = 56;
-
-/**
  * Whether the nav is a column right now.
  *
  * The shell publishes this too (`!navCollapsed`), and anything INSIDE the shell

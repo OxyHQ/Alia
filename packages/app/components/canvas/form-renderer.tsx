@@ -1,10 +1,20 @@
+import { useTranslation } from '@/lib/hooks/use-translation';
+import { Button } from '@oxy.so/bloom/button';
+import { Checkbox } from '@oxy.so/bloom/checkbox';
+import { Field } from '@oxy.so/bloom/field';
+import {
+  Select,
+  SelectContent,
+  SelectIcon,
+  SelectItem,
+  SelectItemIndicator,
+  SelectItemText,
+  SelectTrigger,
+  SelectValue,
+} from '@oxy.so/bloom/select';
+import { TextFieldInput } from '@oxy.so/bloom/text-field';
 import { useState } from 'react';
-import { View, TextInput, Pressable } from 'react-native';
-import { Switch } from '@oxy.so/bloom/switch';
-import { Text } from '@/components/ui/text';
-import { ChevronDown } from 'lucide-react-native';
-import { Button } from '@/components/ui/button';
-import { useTheme } from '@oxy.so/bloom/theme';
+import { View } from 'react-native';
 
 interface FormField {
   name: string;
@@ -22,89 +32,61 @@ interface FormRendererProps {
   onSubmit?: (formData: Record<string, any>) => void;
 }
 
-function SelectField({ field, value, onChange }: { field: FormField; value: string; onChange: (v: string) => void }) {
-  const [open, setOpen] = useState(false);
-  const options = field.options || [];
-
-  return (
-    <View>
-      <Pressable
-        onPress={() => setOpen(!open)}
-        className="flex-row items-center justify-between border border-border rounded-lg px-3 py-2.5 bg-background"
-      >
-        <Text className={`text-sm ${value ? 'text-foreground' : 'text-muted-foreground'}`}>
-          {value || 'Select...'}
-        </Text>
-        <ChevronDown size={16} className="text-muted-foreground" />
-      </Pressable>
-      {open && (
-        <View className="border border-border rounded-lg mt-1 bg-background overflow-hidden">
-          {options.map((option, i) => (
-            <Pressable
-              key={i}
-              onPress={() => { onChange(option); setOpen(false); }}
-              className={`px-3 py-2.5 ${i > 0 ? 'border-t border-border' : ''} active:bg-muted`}
-            >
-              <Text className={`text-sm ${value === option ? 'text-primary font-medium' : 'text-foreground'}`}>
-                {option}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
-      )}
-    </View>
-  );
-}
-
+/** A generated form on Bloom's own controls: `Field` + `TextFieldInput`, `Select`, `Checkbox`. */
 export function FormRenderer({ data, onSubmit }: FormRendererProps) {
+  const { t } = useTranslation();
   const { fields } = data;
-  const { colors } = useTheme();
   const [formValues, setFormValues] = useState<Record<string, any>>({});
 
   const updateValue = (name: string, value: any) => {
-    setFormValues(prev => ({ ...prev, [name]: value }));
-  };
-
-  const handleSubmit = () => {
-    onSubmit?.(formValues);
+    setFormValues((prev) => ({ ...prev, [name]: value }));
   };
 
   return (
     <View className="gap-4">
-      {fields.map((field, i) => (
-        <View key={i} className="gap-1.5">
-          <Text className="text-sm font-medium text-foreground">{field.label}</Text>
-          {field.type === 'text' && (
-            <TextInput
-              value={formValues[field.name] || ''}
-              onChangeText={(v) => updateValue(field.name, v)}
-              placeholder={`Enter ${field.label.toLowerCase()}`}
-              className="border border-border rounded-lg px-3 py-2.5 text-sm text-foreground bg-background"
-              placeholderTextColor={colors.textSecondary}
-            />
-          )}
-          {field.type === 'select' && (
-            <SelectField
-              field={field}
-              value={formValues[field.name] || ''}
-              onChange={(v) => updateValue(field.name, v)}
-            />
-          )}
-          {field.type === 'checkbox' && (
-            <View className="flex-row items-center gap-2">
-              <Switch
-                accessibilityLabel={field.label}
-                value={!!formValues[field.name]}
+      {fields.map((field, i) =>
+        field.type === 'checkbox' ? (
+          <Checkbox
+            key={i}
+            label={field.label}
+            checked={!!formValues[field.name]}
+            onCheckedChange={(v) => updateValue(field.name, v)}
+          />
+        ) : (
+          <Field key={i} label={field.label}>
+            {field.type === 'select' ? (
+              <Select value={formValues[field.name]} onValueChange={(v) => updateValue(field.name, v)}>
+                <SelectTrigger label={field.label}>
+                  <SelectValue placeholder={t('panels.form.select')} />
+                  <SelectIcon />
+                </SelectTrigger>
+                <SelectContent
+                  label={field.label}
+                  items={(field.options ?? []).map((option) => ({ value: option, label: option }))}
+                  valueExtractor={(item) => item.value}
+                  renderItem={(item) => (
+                    <SelectItem value={item.value} label={item.label}>
+                      <SelectItemIndicator />
+                      <SelectItemText>{item.label}</SelectItemText>
+                    </SelectItem>
+                  )}
+                />
+              </Select>
+            ) : (
+              <TextFieldInput
+                label={field.label}
+                value={formValues[field.name] || ''}
                 onValueChange={(v) => updateValue(field.name, v)}
+                placeholder={t('panels.form.enter', { field: field.label.toLowerCase() })}
               />
-            </View>
-          )}
-        </View>
-      ))}
+            )}
+          </Field>
+        ),
+      )}
 
-      <Button onPress={handleSubmit} className="mt-2">
-        <Text className="text-sm font-medium text-primary-foreground">Submit</Text>
-      </Button>
+      <View className="mt-2">
+        <Button onPress={() => onSubmit?.(formValues)}>{t('panels.form.submit')}</Button>
+      </View>
     </View>
   );
 }

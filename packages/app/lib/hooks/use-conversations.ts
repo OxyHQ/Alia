@@ -148,6 +148,18 @@ async function removeStoredConversation(id: string): Promise<void> {
   }
 }
 
+// Message content is either a plain string or a parts array; previews (titles,
+// lastMessage) need the flattened text either way.
+function messageText(message: Message | undefined): string {
+  const content = message?.content;
+  if (typeof content === "string") return content;
+  if (!content) return "";
+  return content
+    .map((part) => (typeof part.text === "string" ? part.text : ""))
+    .join(" ")
+    .trim();
+}
+
 // Fetch all conversations from local storage (offline fallback)
 async function fetchConversations(): Promise<Conversation[]> {
   const stored = await AsyncStorage.getItem(CONVERSATIONS_STORAGE_KEY);
@@ -283,6 +295,148 @@ export function prefetchConversation(queryClient: QueryClient, id: string) {
     queryKey: queryKeys.conversations.detail(id),
     queryFn: () => fetchConversation(id),
     staleTime: 1000 * 60 * 5,
+  });
+}
+
+// Save conversation mutation
+export function useSaveConversation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    retry: 1,
+    mutationFn: async ({
+      id,
+      messages,
+      title,
+    }: {
+      id: string;
+      messages: Message[];
+      title?: string;
+    }) => {
+      const lastMessage = messageText(messages[messages.length - 1]).slice(0, 100) || undefined;
+
+      try {
+        const response = await apiClient.post('/conversations', {
+          conversationId: id,
+          messages,
+          ...(title && { title }),
+        });
+
+        const data = response.data;
+        return {
+          id: data.id,
+          title: data.title,
+          lastMessage: data.lastMessage,
+          source: data.source,
+          createdAt: new Date(data.createdAt),
+          updatedAt: new Date(data.updatedAt),
+          messages
+        };
+      } catch (error: unknown) {
+        // If unauthorized, save to local storage
+        if (errorStatus(error) === 401) {
+          const conversations = await fetchConversations();
+          const existingIndex = conversations.findIndex((c) => c.id === id);
+
+          const offlineTitle = title || messageText(messages.find((m) => m.role === "user")).slice(0, 50) || "New chat";
+          const conversation: Conversation = {
+            id,
+            title: offlineTitle,
+            lastMessage,
+            createdAt: existingIndex >= 0 ? conversations[existingIndex].createdAt : new Date(),
+            updatedAt: new Date(),
+            messages,
+          };
+
+          const newConversations = [...conversations];
+          if (existingIndex >= 0) {
+            newConversations[existingIndex] = conversation;
+          } else {
+            newConversations.unshift(conversation);
+          }
+
+          await AsyncStorage.setItem(CONVERSATIONS_STORAGE_KEY, JSON.stringify(newConversations));
+          return conversation;
+        }
+        throw error;
+      }
+    },
+    onSuccess: (data) => {
+      // Update infinite query cache
+      queryClient.setQueryData(queryKeys.conversations.all, (oldData: ConversationsInfiniteData | undefined) => {
+        if (!oldData?.pages) {
+          return {
+            pages: [{
+              conversations: [{ ...data, messages: [] }],
+              nextCursor: null,
+              hasMore: false,
+            }],
+            pageParams: [undefined],
+          };
+        }
+
+        const newPages = [...oldData.pages];
+        const conversationMetadata = { ...data, messages: [] };
+
+        // Remove conversation from its current position (if it exists in any page)
+        for (let i = 0; i < newPages.length; i++) {
+          const existingIndex = newPages[i].conversations.findIndex((c: Conversation) => c.id === data.id);
+          if (existingIndex >= 0) {
+            newPages[i] = {
+              ...newPages[i],
+              conversations: [
+                ...newPages[i].conversations.slice(0, existingIndex),
+                ...newPages[i].conversations.slice(existingIndex + 1),
+              ],
+            };
+            break;
+          }
+        }
+
+        // Always add to top of first page (most recently updated first)
+        if (newPages[0]) {
+          newPages[0] = {
+            ...newPages[0],
+            conversations: [conversationMetadata, ...newPages[0].conversations],
+          };
+        }
+
+        return {
+          ...oldData,
+          pages: newPages,
+        };
+      });
+
+      // Update individual conversation cache with full data including messages
+      queryClient.setQueryData(queryKeys.conversations.detail(data.id), data);
+    },
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error) || 'Failed to save conversation');
+    },
+  });
+}
+
+/**
+ * Rename a conversation.
+ *
+ * The API has no title-only route: `POST /conversations` writes the title AND
+ * replaces the messages. So the full thread is read fresh first (`staleTime:
+ * 0` — the sidebar seeds the detail cache from the list with no messages, and
+ * saving that seed would empty the thread) and saved back with the new title.
+ */
+export function useRenameConversation() {
+  const queryClient = useQueryClient();
+  const save = useSaveConversation();
+
+  return useMutation({
+    mutationFn: async ({ id, title }: { id: string; title: string }) => {
+      const conversation = await queryClient.fetchQuery({
+        queryKey: queryKeys.conversations.detail(id),
+        queryFn: () => fetchConversation(id),
+        staleTime: 0,
+      });
+      return save.mutateAsync({ id, messages: conversation.messages, title });
+    },
   });
 }
 

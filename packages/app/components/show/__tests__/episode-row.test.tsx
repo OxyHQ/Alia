@@ -30,40 +30,112 @@ const audio = vi.hoisted(() => ({
 
 vi.mock('react-native', async () => {
   const ReactModule = await import('react');
-  const host = (name: string) =>
-    ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
+  const host =
+    (name: string) =>
+    ({
+      children,
+      ...props
+    }: React.PropsWithChildren<Record<string, unknown>>) =>
       ReactModule.createElement(name, props, children);
 
   return {
-    ActivityIndicator: host('ActivityIndicator'),
-    Pressable: host('Pressable'),
+    Platform: { OS: 'web', select: (spec: Record<string, unknown>) => spec.web },
     View: host('View'),
   };
 });
 
-vi.mock('lucide-react-native', async () => {
+/** Each glyph as a host named for what it shows. */
+vi.mock('@oxy.so/bloom/icons/RiPlayFill', async () => {
   const ReactModule = await import('react');
-  const icon = (name: string) => (props: Record<string, unknown>) =>
-    ReactModule.createElement(name, props);
-
+  return { RiPlayFill: () => ReactModule.createElement('Play') };
+});
+vi.mock('@oxy.so/bloom/icons/RiPauseFill', async () => {
+  const ReactModule = await import('react');
+  return { RiPauseFill: () => ReactModule.createElement('Pause') };
+});
+vi.mock('@oxy.so/bloom/icons/RiErrorWarningLine', async () => {
+  const ReactModule = await import('react');
   return {
-    AlertCircle: icon('AlertCircle'),
-    Pause: icon('Pause'),
-    Play: icon('Play'),
-    Trash2: icon('Trash2'),
+    RiErrorWarningLine: () => ReactModule.createElement('AlertCircle'),
+  };
+});
+vi.mock('@oxy.so/bloom/icons/RiDeleteBinLine', async () => {
+  const ReactModule = await import('react');
+  return { RiDeleteBinLine: () => ReactModule.createElement('Trash2') };
+});
+
+/** A host that draws its icon, so which glyph a control shows is readable. */
+vi.mock('@oxy.so/bloom/button', async () => {
+  const ReactModule = await import('react');
+  return {
+    Button: ({
+      children,
+      icon,
+      ...props
+    }: React.PropsWithChildren<{ icon?: React.ComponentType }>) =>
+      ReactModule.createElement(
+        'Button',
+        props,
+        icon ? ReactModule.createElement(icon) : null,
+        children,
+      ),
   };
 });
 
-vi.mock('@/components/ui/text', async () => {
+vi.mock('@oxy.so/bloom/item', async () => {
   const ReactModule = await import('react');
   return {
-    Text: ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
+    Item: ({
+      children,
+      trailing,
+    }: React.PropsWithChildren<{ trailing?: React.ReactNode }>) =>
+      ReactModule.createElement('Item', null, children, trailing),
+  };
+});
+
+vi.mock('@oxy.so/bloom/admonition', async () => {
+  const ReactModule = await import('react');
+  return {
+    Admonition: ({ children }: React.PropsWithChildren) =>
+      ReactModule.createElement(
+        'Admonition',
+        null,
+        ReactModule.createElement('Text', null, children),
+      ),
+  };
+});
+
+vi.mock('@oxy.so/bloom/loading', async () => {
+  const ReactModule = await import('react');
+  return {
+    Loading: (props: Record<string, unknown>) =>
+      ReactModule.createElement('ActivityIndicator', props),
+  };
+});
+
+vi.mock('@oxy.so/bloom/stat-bar', async () => {
+  const ReactModule = await import('react');
+  return {
+    Meter: (props: Record<string, unknown>) =>
+      ReactModule.createElement('Meter', props),
+  };
+});
+
+vi.mock('@oxy.so/bloom/typography', async () => {
+  const ReactModule = await import('react');
+  return {
+    Text: ({
+      children,
+      ...props
+    }: React.PropsWithChildren<Record<string, unknown>>) =>
       ReactModule.createElement('Text', props, children),
   };
 });
 
-vi.mock('@/lib/useColorScheme', () => ({
-  useColorScheme: () => ({ colors: { foreground: '#000', mutedForeground: '#888' } }),
+vi.mock('@oxy.so/bloom/theme', () => ({
+  useTheme: () => ({
+    colors: { textSecondary: '#888', error: 'red' },
+  }),
 }));
 
 /**
@@ -73,7 +145,11 @@ vi.mock('@/lib/useColorScheme', () => ({
  * re-implementation.
  */
 vi.mock('@/lib/hooks/use-episode-audio', () => ({
-  useEpisodeAudio: () => ({ state: audio.state, problem: audio.problem, toggle: audio.toggle }),
+  useEpisodeAudio: () => ({
+    state: audio.state,
+    problem: audio.problem,
+    toggle: audio.toggle,
+  }),
 }));
 
 /** The real store, with only its transport stubbed — the row reads live progress from it. */
@@ -81,8 +157,8 @@ vi.mock('@/lib/api/client', () => ({
   default: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn() },
 }));
 
-import { EpisodeRow } from '../episode-row';
 import { useShowStore, type ShowEpisode } from '@/lib/stores/show-store';
+import { EpisodeRow } from '../episode-row';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
@@ -132,7 +208,11 @@ function lines(root: Root): string[] {
   return nodes(root, 'Text')
     .map((node) =>
       React.Children.toArray(node.props.children as React.ReactNode)
-        .map((child) => (typeof child === 'string' || typeof child === 'number' ? String(child) : ''))
+        .map((child) =>
+          typeof child === 'string' || typeof child === 'number'
+            ? String(child)
+            : '',
+        )
         .join(''),
     )
     .filter((line) => line !== '');
@@ -166,7 +246,7 @@ describe('EpisodeRow', () => {
     expect(nodes(root, 'Play')).toHaveLength(1);
     expect(nodes(root, 'Pause')).toHaveLength(0);
 
-    const play = nodes(root, 'Pressable').find(
+    const play = nodes(root, 'Button').find(
       (node) => node.props.accessibilityLabel === `Play ${BASE.title}`,
     );
     expect(play).toBeDefined();
@@ -197,7 +277,9 @@ describe('EpisodeRow', () => {
       const root = renderRow(BASE);
       const rendered = lines(root);
 
-      expect(rendered).toContain('Episode 3 · Today · Syra has no recording for this');
+      expect(rendered).toContain(
+        'Episode 3 · Today · Syra has no recording for this',
+      );
       // The words that would misdescribe a finished episode. Syra parks a private
       // episode at `processing` for good; Alia must not repeat that here.
       expect(rendered.join(' ')).not.toMatch(/processing|failed|broken/i);
@@ -227,7 +309,9 @@ describe('EpisodeRow', () => {
       const root = renderRow(BASE);
 
       expect(lines(root)).toContain('Episode 3 · Today · 12 min');
-      expect(lines(root).join(' ')).not.toMatch(/Sign in|reach Syra|no recording|wouldn/);
+      expect(lines(root).join(' ')).not.toMatch(
+        /Sign in|reach Syra|no recording|wouldn/,
+      );
     });
   });
 
@@ -282,10 +366,9 @@ describe('EpisodeRow', () => {
     });
 
     expect(lines(root)).toContain('Writing the script');
-    const bar = nodes(root, 'View').find((node) =>
-      String(node.props.className ?? '').includes('bg-primary'),
-    );
-    expect(bar?.props.style).toEqual({ width: '25%' });
+    const [bar] = nodes(root, 'Meter');
+    expect(bar?.props.value).toBe(25);
+    expect(bar?.props.max).toBe(100);
   });
 
   it('says why a failed episode failed', () => {
@@ -317,10 +400,30 @@ describe('EpisodeRow', () => {
     const withLosses: ShowEpisode = {
       ...BASE,
       segments: [
-        { index: 0, speaker: '', text: '', type: 'sfx', sfxPrompt: 'intro', renderFailed: true },
+        {
+          index: 0,
+          speaker: '',
+          text: '',
+          type: 'sfx',
+          sfxPrompt: 'intro',
+          renderFailed: true,
+        },
         { index: 1, speaker: 'Ana', text: 'Hello.', type: 'dialogue' },
-        { index: 2, speaker: '', text: '', type: 'sfx', sfxPrompt: 'whoosh', renderFailed: true },
-        { index: 3, speaker: 'Ana', text: 'Goodbye.', type: 'dialogue', renderFailed: true },
+        {
+          index: 2,
+          speaker: '',
+          text: '',
+          type: 'sfx',
+          sfxPrompt: 'whoosh',
+          renderFailed: true,
+        },
+        {
+          index: 3,
+          speaker: 'Ana',
+          text: 'Goodbye.',
+          type: 'dialogue',
+          renderFailed: true,
+        },
         { index: 4, speaker: '', text: '', type: 'sfx', sfxPrompt: 'outro' },
       ],
     };
@@ -341,7 +444,10 @@ describe('EpisodeRow', () => {
       // the assertion above and label every show ever made as damaged.
       const root = renderRow({
         ...BASE,
-        segments: withLosses.segments?.map((segment) => ({ ...segment, renderFailed: false })),
+        segments: withLosses.segments?.map((segment) => ({
+          ...segment,
+          renderFailed: false,
+        })),
       });
 
       expect(lines(root)).toContain('Episode 3 · Today · 12 min');
@@ -352,17 +458,30 @@ describe('EpisodeRow', () => {
       const root = renderRow({
         ...BASE,
         segments: [
-          { index: 0, speaker: '', text: '', type: 'sfx', sfxPrompt: 'intro', renderFailed: true },
+          {
+            index: 0,
+            speaker: '',
+            text: '',
+            type: 'sfx',
+            sfxPrompt: 'intro',
+            renderFailed: true,
+          },
         ],
       });
 
-      expect(lines(root)).toContain('Episode 3 · Today · 12 min · 1 sound effect missing');
+      expect(lines(root)).toContain(
+        'Episode 3 · Today · 12 min · 1 sound effect missing',
+      );
     });
 
     it('withholds the count while the episode is still being made', () => {
       // Segments are marked as each batch finishes, so a count shown here is a
       // number that climbs beside a progress bar already saying it is not done.
-      const root = renderRow({ ...withLosses, status: 'generating_audio', durationMs: null });
+      const root = renderRow({
+        ...withLosses,
+        status: 'generating_audio',
+        durationMs: null,
+      });
 
       expect(lines(root).join(' ')).not.toMatch(/missing/);
       expect(lines(root)).toContain('Episode 3 · Today');
@@ -379,10 +498,11 @@ describe('EpisodeRow', () => {
     });
   });
 
-  it('keeps the remove action reachable on native and hover-revealed on web', () => {
+  it('keeps the remove action reachable, and named for what it destroys', () => {
     const root = renderRow(BASE);
-    const remove = nodes(root, 'Pressable').find(
-      (node) => node.props.accessibilityLabel === `Delete ${BASE.title} everywhere`,
+    const remove = nodes(root, 'Button').find(
+      (node) =>
+        node.props.accessibilityLabel === `Delete ${BASE.title} everywhere`,
     );
 
     // The qualifier is part of the contract, not decoration. It said `from
@@ -391,9 +511,9 @@ describe('EpisodeRow', () => {
     // understated label is as wrong as an overstated one, in the other
     // direction, and this is the surface that catches either.
     expect(remove).toBeDefined();
-    // Web-scoped, so the control never disappears on a device with no pointer.
-    expect(String(remove?.props.className)).toContain('web:opacity-0');
-    expect(String(remove?.props.className)).toContain('web:group-hover:opacity-100');
+    // Always drawn — not hidden behind a hover — so it is there on a device
+    // with no pointer, and it is the bin glyph.
+    expect(remove ? nodes(remove, 'Trash2') : []).toHaveLength(1);
 
     act(() => remove?.props.onPress());
     expect(onDelete).toHaveBeenCalledWith('episode-1');
