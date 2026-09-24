@@ -13,6 +13,8 @@ export interface WebSearchResult {
   title: string;
   url: string;
   snippet: string;
+  /** The site's favicon as Clarity serves it, once Clarity has it. */
+  faviconUrl?: string;
 }
 
 export interface WebSearchResponse {
@@ -77,6 +79,7 @@ export const webSearchTool = tool({
         title: result.title || result.canonicalUrl,
         url: result.canonicalUrl,
         snippet: result.snippet || result.description || '',
+        ...(result.faviconUrl ? { faviconUrl: result.faviconUrl } : {}),
       }));
 
       log.tools.info({ count: results.length }, 'Web search found results');
