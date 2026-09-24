@@ -872,3 +872,11 @@ export async function findAutomationInputsForRun(
     .limit(1);
   return row?.inputs ?? null;
 }
+
+/** Whether a run already exists for this occurrence of this automation. */
+export async function automationRunExists(db: Executor, automationId: string, triggerEventId: string): Promise<boolean> {
+  const [row] = await db.select({ id: automationRuns.id }).from(automationRuns)
+    .where(eq(automationRuns.idempotencyKey, `${automationId}:${triggerEventId}`))
+    .limit(1);
+  return row !== undefined;
+}
