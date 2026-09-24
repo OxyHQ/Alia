@@ -87,9 +87,11 @@ import { OxyServices } from '@oxy.so/core';
 import { getDb, type ApiDatabase } from '../db/index.js';
 import {
   findSubscriptionByStripeId,
+  updateSubscriptionByStripeId,
   upsertSubscriptionByStripeId,
   type SubscriptionRow,
 } from '../db/billing/subscriptionRepository.js';
+import { PLAN_PRODUCTS } from '../domain/plan.js';
 import { addCredits } from '../db/billing/userCreditsRepository.js';
 import { insertTransaction, isDuplicateTransaction } from '../db/billing/transactionRepository.js';
 import { getPlans, type PlanData } from './gateway-client.js';
@@ -228,6 +230,7 @@ export async function seedCompedAccounts(): Promise<{
   granted: number;
   unchanged: number;
   credited: number;
+  withdrawn: number;
 }> {
   const db = getDb();
   const period = currentMonth();
@@ -244,6 +247,7 @@ export async function seedCompedAccounts(): Promise<{
   let granted = 0;
   let unchanged = 0;
   let credited = 0;
+  let withdrawn = 0;
 
   for (const username of COMPED_USERNAMES) {
     // The account id is the only thing a request ever carries, and it is not on
@@ -300,8 +304,28 @@ export async function seedCompedAccounts(): Promise<{
         'Comped subscription granted',
       );
     }
+
+    /**
+     * A comp follows the offer. A product with no active paid plan any more
+     * (the Codea plans, retired by drizzle/0075) is not a product to hold, and
+     * a comp has no Stripe to end it — so it is ended here, or it would stay
+     * active forever. Only the comp's own deterministic id is touched: a real
+     * subscription to the same product is Stripe's to end.
+     */
+    for (const product of PLAN_PRODUCTS) {
+      if (plans.has(product)) continue;
+      const stripeSubscriptionId = `${COMPED_ID_PREFIX}${oxyUserId}_${product}`;
+      const existing = await findSubscriptionByStripeId(db, stripeSubscriptionId);
+      if (existing === null || existing.status === 'canceled') continue;
+      await updateSubscriptionByStripeId(db, stripeSubscriptionId, {
+        status: 'canceled',
+        cancelAtPeriodEnd: false,
+      });
+      withdrawn++;
+      log.seed.info({ oxyUserId, username, product }, 'Comped subscription withdrawn: the product is no longer offered');
+    }
   }
 
-  log.seed.info({ granted, unchanged, credited }, 'Comped account seeding complete');
-  return { granted, unchanged, credited };
+  log.seed.info({ granted, unchanged, credited, withdrawn }, 'Comped account seeding complete');
+  return { granted, unchanged, credited, withdrawn };
 }

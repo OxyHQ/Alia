@@ -27,6 +27,8 @@ const H = vi.hoisted(() => ({
   plans: [] as Array<Record<string, unknown>>,
   rows: new Map<string, Record<string, unknown>>(),
   upserts: [] as Array<Record<string, unknown>>,
+  /** Updates applied by Stripe id: the withdrawals of a comp. */
+  updates: [] as Array<{ id: string; values: Record<string, unknown> }>,
   /** Usernames `getProfileByUsername` was asked for, in order. */
   lookups: [] as string[],
   /** Transactions written, and the dedup keys already taken. */
@@ -44,6 +46,12 @@ vi.mock('../../db/billing/subscriptionRepository.js', () => ({
     H.upserts.push(values);
     H.rows.set(values.stripeSubscriptionId as string, values);
     return values;
+  }),
+  updateSubscriptionByStripeId: vi.fn(async (_db: unknown, id: string, values: Record<string, unknown>) => {
+    H.updates.push({ id, values });
+    const row = H.rows.get(id);
+    if (row) H.rows.set(id, { ...row, ...values });
+    return row ?? null;
   }),
 }));
 
@@ -130,6 +138,7 @@ beforeEach(() => {
   ];
   H.rows = new Map();
   H.upserts = [];
+  H.updates = [];
   H.lookups = [];
   H.transactions = [];
   H.takenDedupKeys = new Set();
@@ -169,7 +178,7 @@ describe('which plan', () => {
     const result = await seedCompedAccounts();
     expect(H.upserts.map((u) => u.planId).sort()).toEqual(['codea-max', 'ultra']);
     expect(H.upserts.map((u) => u.status)).toEqual(['active', 'active']);
-    expect(result).toEqual({ granted: 2, unchanged: 0, credited: 2 });
+    expect(result).toEqual({ granted: 2, unchanged: 0, credited: 2, withdrawn: 0 });
   });
 
   it('follows the catalogue rather than a hardcoded id', async () => {
@@ -248,7 +257,7 @@ describe('running it again', () => {
   it('writes nothing when the grant is already in place', async () => {
     await seedCompedAccounts();
     H.upserts = [];
-    expect(await seedCompedAccounts()).toEqual({ granted: 0, unchanged: 2, credited: 0 });
+    expect(await seedCompedAccounts()).toEqual({ granted: 0, unchanged: 2, credited: 0, withdrawn: 0 });
     expect(H.upserts).toEqual([]);
   });
 
@@ -259,7 +268,7 @@ describe('running it again', () => {
     const id = `comp_${OXY_ID}_alia`;
     H.rows.set(id, { ...H.rows.get(id), cancelAtPeriodEnd: true });
     H.upserts = [];
-    expect(await seedCompedAccounts()).toEqual({ granted: 1, unchanged: 1, credited: 0 });
+    expect(await seedCompedAccounts()).toEqual({ granted: 1, unchanged: 1, credited: 0, withdrawn: 0 });
     expect(H.upserts.map((u) => u.stripeSubscriptionId)).toEqual([id]);
   });
 });
@@ -318,5 +327,33 @@ describe('the credits that come with the plan', () => {
     expect(H.creditsAdded).toEqual([]);
     // The floor: the plan was still granted, so this is not "nothing happened".
     expect(H.upserts.map((u) => u.planId)).toEqual(['bare']);
+  });
+});
+
+describe('a comp follows the offer', () => {
+  const retireCodea = () => {
+    H.plans = H.plans.map((p) => (p.product === 'codea' ? { ...p, isActive: false } : p));
+  };
+
+  it('withdraws the comp of a product nobody is offered any more', async () => {
+    await seedCompedAccounts();
+    const codeaComp = `comp_${OXY_ID}_codea`;
+    expect(H.rows.get(codeaComp)?.status).toBe('active');
+
+    retireCodea();
+    const result = await seedCompedAccounts();
+    expect(H.updates).toEqual([{ id: codeaComp, values: { status: 'canceled', cancelAtPeriodEnd: false } }]);
+    expect(result.withdrawn).toBe(1);
+    // The product still offered keeps its comp.
+    expect(H.rows.get(`comp_${OXY_ID}_alia`)?.status).toBe('active');
+  });
+
+  it('withdraws once, and touches nothing it never granted', async () => {
+    retireCodea();
+    // No Codea comp exists: nothing to withdraw.
+    expect((await seedCompedAccounts()).withdrawn).toBe(0);
+    H.rows.set(`comp_${OXY_ID}_codea`, { stripeSubscriptionId: `comp_${OXY_ID}_codea`, status: 'canceled' });
+    expect((await seedCompedAccounts()).withdrawn).toBe(0);
+    expect(H.updates).toEqual([]);
   });
 });
