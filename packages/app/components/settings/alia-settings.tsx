@@ -27,6 +27,7 @@ import { ProfileSection } from './profile-section';
 import { SETTINGS_GROUPS } from './sections';
 import { SecuritySection } from './security-section';
 import { StorageSection } from './storage-section';
+import { UsageSection } from './usage-section';
 import { AliaSettingsContext } from './settings-context';
 import { WritingStyleSection } from './writing-style-section';
 
@@ -41,6 +42,7 @@ const CONTENT: Record<string, ReactNode> = {
   integrations: <IntegrationsSection />,
   'local-models': <LocalModelsSection />,
   usage: <BillingSection />,
+  limits: <UsageSection />,
   security: <SecuritySection />,
   memory: <MemorySection />,
   'writing-style': <WritingStyleSection />,

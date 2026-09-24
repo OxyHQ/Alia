@@ -3,6 +3,7 @@ import type { SettingsIcon } from "@oxy.so/bloom/settings-modal";
 import { RiSettings6Line } from "@oxy.so/bloom/icons/RiSettings6Line";
 import { RiSchoolLine } from "@oxy.so/bloom/icons/RiSchoolLine";
 import { RiBankCardLine } from "@oxy.so/bloom/icons/RiBankCardLine";
+import { RiDashboardLine } from "@oxy.so/bloom/icons/RiDashboardLine";
 import { RiToolsFill } from "@oxy.so/bloom/icons/RiToolsFill";
 import { RiDatabase2Line } from "@oxy.so/bloom/icons/RiDatabase2Line";
 import { RiShieldLine } from "@oxy.so/bloom/icons/RiShieldLine";
@@ -23,7 +24,8 @@ export interface SettingsSection {
 
 /**
  * The settings navigation, grouped as Bloom's settings modal story groups it:
- * the account's own pages first (General, Profile, Billing, Tools, Storage),
+ * the account's own pages first (General, Profile, Billing, Usage, Tools,
+ * Storage),
  * then what shapes the assistant, then connections, then this device.
  */
 export const SETTINGS_GROUPS: { titleKey: string; sections: SettingsSection[] }[] = [
@@ -33,6 +35,7 @@ export const SETTINGS_GROUPS: { titleKey: string; sections: SettingsSection[] }[
       { id: "general", route: "/(app)/settings/general", icon: RiSettings6Line, labelKey: "settings.sections.general" },
       { id: "profile", route: "/(app)/settings/profile", icon: RiSchoolLine, labelKey: "settings.sections.profile" },
       { id: "usage", route: "/(app)/settings/usage", icon: RiBankCardLine, labelKey: "settings.sections.billing" },
+      { id: "limits", route: "/(app)/settings/limits", icon: RiDashboardLine, labelKey: "settings.sections.usage" },
       { id: "connectors", route: "/(app)/settings/connectors", icon: RiToolsFill, labelKey: "settings.sections.connectors" },
       { id: "storage", route: "/(app)/settings/storage", icon: RiDatabase2Line, labelKey: "settings.sections.storage" },
       { id: "security", route: "/(app)/settings/security", icon: RiShieldLine, labelKey: "settings.sections.security" },
