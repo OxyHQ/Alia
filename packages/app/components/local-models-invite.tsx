@@ -1,15 +1,15 @@
-import { useEffect, useState, type ReactNode } from "react";
-import { View } from "react-native";
-import { Image } from "expo-image";
-import { Popover, PopoverContent, PopoverTrigger } from "@oxy.so/bloom/popover";
-import { useAuth } from "@oxy.so/services";
-import { Text } from "@/components/ui/text";
-import { Button } from "@/components/ui/button";
-import { useTranslation } from "@/lib/hooks/use-translation";
-import { useIsLargeScreen } from "@/lib/hooks/use-is-large-screen";
-import { useLocalRuntimeStore } from "@/lib/stores/local-runtime-store";
+import { useIsLargeScreen } from '@/lib/hooks/use-is-large-screen';
+import { useTranslation } from '@/lib/hooks/use-translation';
+import { useLocalRuntimeStore } from '@/lib/stores/local-runtime-store';
+import { Button } from '@oxy.so/bloom/button';
+import { Popover, PopoverContent, PopoverTrigger } from '@oxy.so/bloom/popover';
+import { Text } from '@oxy.so/bloom/typography';
+import { useAuth } from '@oxy.so/services';
+import { Image } from 'expo-image';
+import { useEffect, useState, type ReactNode } from 'react';
+import { View } from 'react-native';
 
-const ARTWORK = require("@/assets/images/local-models.webp");
+const ARTWORK = require('@/assets/images/local-models.webp');
 
 /**
  * The one time Alia asks whether it may look for a model on this machine.
@@ -94,7 +94,8 @@ export function LocalModelsInvite({ children }: { children: ReactNode }) {
    * nobody would read a word of it.
    */
   const [latched, setLatched] = useState(false);
-  const eligible = isAuthenticated && consent === "unasked" && !hidden && isLargeScreen;
+  const eligible =
+    isAuthenticated && consent === 'unasked' && !hidden && isLargeScreen;
   const showing = eligible && (latched || !inviteSeen);
 
   useEffect(() => {
@@ -108,12 +109,17 @@ export function LocalModelsInvite({ children }: { children: ReactNode }) {
   if (!showing) return <>{children}</>;
 
   return (
-    <Popover open onOpenChange={(next) => { if (!next) setHidden(true); }}>
+    <Popover
+      open
+      onOpenChange={(next) => {
+        if (!next) setHidden(true);
+      }}
+    >
       <PopoverTrigger asChild disabled>
         <View>{children}</View>
       </PopoverTrigger>
       <PopoverContent
-        label={t("models.localInvite.title")}
+        label={t('models.localInvite.title')}
         /**
          * The card is 320px and bleeds to its own edge, so Bloom's popover
          * chrome has to step aside — `POPOVER_CLASS` is `w-72 p-space-16`, a
@@ -147,28 +153,30 @@ export function LocalModelsInvite({ children }: { children: ReactNode }) {
           />
           <View className="gap-1 px-4 pt-3">
             <Text className="text-base font-semibold text-foreground">
-              {t("models.localInvite.title")}
+              {t('models.localInvite.title')}
             </Text>
             <Text className="text-sm text-muted-foreground">
-              {t("models.localInvite.body")}
+              {t('models.localInvite.body')}
             </Text>
           </View>
           {/* `flex-row-reverse` + `justify-between`: the affirmative sits on the
               right and the dismissal on the far left, which is the arrangement
               the reference uses. */}
           <View className="flex-row-reverse items-center justify-between p-3 pt-4">
-            <Button size="sm" className="h-8 rounded-full px-2.5" onPress={() => setConsent("granted")}>
-              <Text className="text-sm font-semibold">{t("models.localInvite.accept")}</Text>
+            <Button
+              size="sm"
+              className="h-8 rounded-full px-2.5"
+              onPress={() => setConsent('granted')}
+            >
+              {t('models.localInvite.accept')}
             </Button>
             <Button
               variant="ghost"
               size="sm"
               className="-ml-2 h-8 rounded-full px-2.5"
-              onPress={() => setConsent("declined")}
+              onPress={() => setConsent('declined')}
             >
-              <Text className="text-sm text-muted-foreground">
-                {t("models.localInvite.decline")}
-              </Text>
+              {t('models.localInvite.decline')}
             </Button>
           </View>
         </View>

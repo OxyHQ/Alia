@@ -1,38 +1,59 @@
-import { View, ScrollView, Pressable, Platform } from "react-native";
-import { Switch } from "@oxy.so/bloom/switch";
-import { Text } from "@/components/ui/text";
-import { BellIcon } from "@/components/ui/bell-icon";
-import { useRouter } from "expo-router";
-import { ArrowLeft, Bell, BellOff, CheckCheck, Zap, Clock, Eye, AlertTriangle, MessageSquare, X } from "lucide-react-native";
-import { useState, useEffect, useCallback } from "react";
-import { useAuth } from "@oxy.so/services";
-import * as ExpoNotifications from "expo-notifications";
-import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
-
-import { useTranslation } from "@/lib/hooks/use-translation";
 import {
-  useNotifications,
-  useMarkAsRead,
-  useMarkAllAsRead,
   useDismissNotification,
-} from "@/lib/hooks/use-notifications";
-import { ContentPanel } from "@oxy.so/bloom/content-panel";
+  useMarkAllAsRead,
+  useMarkAsRead,
+  useNotifications,
+} from '@/lib/hooks/use-notifications';
+import { useTranslation } from '@/lib/hooks/use-translation';
+import { Admonition } from '@oxy.so/bloom/admonition';
+import { Badge } from '@oxy.so/bloom/badge';
+import { Button } from '@oxy.so/bloom/button';
+import { EmptyState } from '@oxy.so/bloom/empty-state';
+import { RiAlarmWarningLine } from '@oxy.so/bloom/icons/RiAlarmWarningLine';
+import { RiArrowLeftLine } from '@oxy.so/bloom/icons/RiArrowLeftLine';
+import { RiCheckDoubleLine } from '@oxy.so/bloom/icons/RiCheckDoubleLine';
+import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
+import { RiEyeLine } from '@oxy.so/bloom/icons/RiEyeLine';
+import { RiFlashlightLine } from '@oxy.so/bloom/icons/RiFlashlightLine';
+import { RiMessage2Line } from '@oxy.so/bloom/icons/RiMessage2Line';
+import { RiNotification3Line } from '@oxy.so/bloom/icons/RiNotification3Line';
+import { RiNotificationOffLine } from '@oxy.so/bloom/icons/RiNotificationOffLine';
+import { RiSettings3Line } from '@oxy.so/bloom/icons/RiSettings3Line';
+import { RiTimeLine } from '@oxy.so/bloom/icons/RiTimeLine';
+import { Item } from '@oxy.so/bloom/item';
+import { Loading } from '@oxy.so/bloom/loading';
+import {
+  SettingsListGroup,
+  SettingsListItem,
+} from '@oxy.so/bloom/settings-list';
+import { Switch } from '@oxy.so/bloom/switch';
+import type { AccentTone } from '@oxy.so/bloom/theme';
+import { useTheme } from '@oxy.so/bloom/theme';
+import { Muted, Text } from '@oxy.so/bloom/typography';
+import { useAuth } from '@oxy.so/services';
+import * as ExpoNotifications from 'expo-notifications';
+import { useRouter } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
+import { Platform, ScrollView, View } from 'react-native';
 
-const TYPE_ICONS: Record<string, typeof Zap> = {
-  trigger_result: Zap,
-  proactive_insight: Eye,
-  daily_briefing: Clock,
-  price_alert: AlertTriangle,
-  reminder: Bell,
-  chat_response_ready: MessageSquare,
-  agent_task_complete: Zap,
+type IconComponent = typeof RiFlashlightLine;
+
+const TYPE_ICONS: Record<string, IconComponent> = {
+  trigger_result: RiFlashlightLine,
+  proactive_insight: RiEyeLine,
+  daily_briefing: RiTimeLine,
+  price_alert: RiAlarmWarningLine,
+  reminder: RiNotification3Line,
+  chat_response_ready: RiMessage2Line,
+  agent_task_complete: RiFlashlightLine,
 };
 
-const PRIORITY_COLORS: Record<string, string> = {
-  urgent: 'border-l-red-500',
-  high: 'border-l-orange-400',
-  normal: 'border-l-blue-400',
-  low: 'border-l-muted-foreground',
+/** A notification's priority, as the tone of its unread dot. */
+const PRIORITY_TONES: Record<string, AccentTone> = {
+  urgent: 'error',
+  high: 'warning',
+  normal: 'info',
+  low: 'default',
 };
 
 function timeAgo(dateStr: string): string {
@@ -46,9 +67,17 @@ function timeAgo(dateStr: string): string {
   return `${days}d ago`;
 }
 
+/**
+ * Notifications: plain content on the layout's surface.
+ *
+ * The layout's `AiChatContainer` draws the background, the corners, the mobile
+ * header and the "Notifications" crumb; this page draws the feed and its
+ * controls only.
+ */
 export default function NotificationsScreen() {
   const { t } = useTranslation();
   const router = useRouter();
+  const { colors } = useTheme();
   const { isAuthenticated, signIn } = useAuth();
 
   const [pushEnabled, setPushEnabled] = useState(false);
@@ -80,9 +109,9 @@ export default function NotificationsScreen() {
     try {
       const { status } = await ExpoNotifications.getPermissionsAsync();
       setPermissionStatus(status);
-      setPushEnabled(status === "granted");
+      setPushEnabled(status === 'granted');
     } catch {
-      setPermissionStatus("unavailable");
+      setPermissionStatus('unavailable');
     } finally {
       setPushLoading(false);
     }
@@ -93,158 +122,159 @@ export default function NotificationsScreen() {
     if (value) {
       const { status } = await ExpoNotifications.requestPermissionsAsync();
       setPermissionStatus(status);
-      setPushEnabled(status === "granted");
+      setPushEnabled(status === 'granted');
     } else {
       setPushEnabled(false);
     }
   };
 
-  const handleNotificationPress = useCallback((notification: any) => {
-    if (notification.status !== 'read') {
-      markAsRead.mutate(notification._id);
-    }
-    // If the notification has a conversationId, navigate to that conversation
-    if (notification.conversationId) {
-      router.push(`/(app)/c/${notification.conversationId}`);
-    }
-  }, [markAsRead, router]);
+  const handleNotificationPress = useCallback(
+    (notification: any) => {
+      if (notification.status !== 'read') {
+        markAsRead.mutate(notification._id);
+      }
+      // If the notification has a conversationId, navigate to that conversation
+      if (notification.conversationId) {
+        router.push(`/(app)/c/${notification.conversationId}`);
+      }
+    },
+    [markAsRead, router],
+  );
 
   const notifications = data?.notifications || [];
   const unreadCount = data?.unreadCount || 0;
 
-  const StatusIcon = pushEnabled ? Bell : BellOff;
+  const StatusIcon = pushEnabled ? RiNotification3Line : RiNotificationOffLine;
 
   return (
-    <ContentPanel surfaceClassName="bg-background">
-      <ScrollView className="flex-1 bg-background">
-        {/* Header */}
-        <View className="px-6 py-6 border-b border-border">
-          <View className="flex-row items-center justify-between mb-4">
-            <Pressable onPress={() => router.back()} className="flex-row items-center">
-              <ArrowLeft size={16} className="text-muted-foreground mr-2" />
-              <Text className="text-sm text-muted-foreground">{t('common.back')}</Text>
-            </Pressable>
-            <Pressable onPress={() => setShowSettings(s => !s)} className="p-2">
-              <BellIcon size={18} />
-            </Pressable>
-          </View>
-          <View className="flex-row items-center justify-between">
-            <View>
-              <Text className="text-2xl font-semibold text-foreground">{t('notifications.title')}</Text>
-              {unreadCount > 0 && (
-                <Text className="text-sm text-muted-foreground mt-1">
-                  {unreadCount} unread
-                </Text>
-              )}
-            </View>
-            {unreadCount > 0 && (
-              <Pressable
-                onPress={() => markAllAsRead.mutate()}
-                className="flex-row items-center gap-1.5 px-3 py-1.5 rounded-full bg-muted active:bg-muted/80"
-              >
-                <CheckCheck size={14} className="text-muted-foreground" />
-                <Text className="text-xs text-muted-foreground">Mark all read</Text>
-              </Pressable>
-            )}
-          </View>
+    <ScrollView
+      className="flex-1"
+      contentContainerClassName="gap-4 px-4 pb-6 pt-4"
+    >
+      {/* Top row: the way back, the unread count and the page's actions. */}
+      <View className="flex-row flex-wrap items-center gap-2">
+        <Button
+          tone="neutral"
+          appearance="plain"
+          size="sm"
+          leadingIcon={RiArrowLeftLine}
+          onPress={() => router.back()}
+        >
+          {t('common.back')}
+        </Button>
+        <View className="flex-1">
+          {unreadCount > 0 ? (
+            <Muted>
+              {t('pages.notifications.unread', { count: unreadCount })}
+            </Muted>
+          ) : null}
         </View>
+        {unreadCount > 0 ? (
+          <Button
+            tone="neutral"
+            appearance="subtle"
+            size="sm"
+            leadingIcon={RiCheckDoubleLine}
+            onPress={() => markAllAsRead.mutate()}
+          >
+            {t('pages.notifications.markAllRead')}
+          </Button>
+        ) : null}
+        <Button
+          tone="neutral"
+          appearance={showSettings ? 'subtle' : 'plain'}
+          size="sm"
+          icon={RiSettings3Line}
+          pressed={showSettings}
+          accessibilityLabel={t('notifications.pushNotifications')}
+          onPress={() => setShowSettings((s) => !s)}
+        />
+      </View>
 
-        {/* Push Settings (collapsible) */}
-        {showSettings && (
-          <Animated.View entering={FadeIn.duration(200)} exiting={FadeOut.duration(150)}>
-            <View className="px-6 py-4 border-b border-border bg-muted/30">
-              <View className="flex-row items-center justify-between">
-                <View className="flex-row items-center gap-3 flex-1">
-                  <StatusIcon size={20} className="text-muted-foreground" />
-                  <View className="flex-1">
-                    <Text className="text-sm font-medium text-foreground">{t('notifications.pushNotifications')}</Text>
-                    <Text className="text-xs text-muted-foreground mt-0.5">
-                      {t('notifications.pushDescription')}
+      {/* Push settings (collapsible) */}
+      {showSettings ? (
+        <SettingsListGroup>
+          <SettingsListItem
+            icon={<StatusIcon size="md" fill={colors.textSecondary} />}
+            title={t('notifications.pushNotifications')}
+            description={t('notifications.pushDescription')}
+            rightElement={
+              <Switch
+                accessibilityLabel={t('notifications.pushNotifications')}
+                value={pushEnabled}
+                onValueChange={handleTogglePush}
+                disabled={pushLoading}
+              />
+            }
+          />
+        </SettingsListGroup>
+      ) : null}
+      {showSettings && permissionStatus === 'denied' ? (
+        <Admonition type="warning">
+          {t('notifications.permissionDenied')}
+        </Admonition>
+      ) : null}
+
+      {/* Notification feed */}
+      {isLoading ? (
+        <Loading text={t('common.loading')} />
+      ) : notifications.length === 0 ? (
+        <EmptyState
+          icon={RiNotification3Line}
+          title={t('pages.notifications.emptyTitle')}
+          description={t('pages.notifications.emptyDescription')}
+        />
+      ) : (
+        <View>
+          {notifications.map((notification: any) => {
+            const Icon = TYPE_ICONS[notification.type] || RiNotification3Line;
+            const isUnread =
+              notification.status !== 'read' &&
+              notification.status !== 'dismissed';
+            const tone =
+              PRIORITY_TONES[notification.priority] || PRIORITY_TONES.normal;
+
+            return (
+              <Item
+                key={notification._id}
+                role="listitem"
+                onPress={() => handleNotificationPress(notification)}
+                leading={
+                  <Badge dot color={tone} invisible={!isUnread}>
+                    <Icon size="sm" fill={colors.textSecondary} />
+                  </Badge>
+                }
+                title={
+                  isUnread ? (
+                    <Text variant="body-semibold" numberOfLines={1}>
+                      {notification.title}
                     </Text>
+                  ) : (
+                    <Muted numberOfLines={1}>{notification.title}</Muted>
+                  )
+                }
+                subtitle={
+                  <Muted numberOfLines={3}>{notification.body}</Muted>
+                }
+                trailing={
+                  <View className="flex-row items-center gap-1">
+                    <Muted>{timeAgo(notification.createdAt)}</Muted>
+                    <Button
+                      tone="neutral"
+                      appearance="plain"
+                      size="xs"
+                      icon={RiCloseLine}
+                      stopPropagation
+                      accessibilityLabel={t('pages.notifications.dismiss')}
+                      onPress={() => dismiss.mutate(notification._id)}
+                    />
                   </View>
-                </View>
-                <Switch
-                  accessibilityLabel={t('notifications.pushNotifications')}
-                  value={pushEnabled}
-                  onValueChange={handleTogglePush}
-                  disabled={pushLoading}
-                />
-              </View>
-              {permissionStatus === "denied" && (
-                <View className="mt-3 p-3 rounded-lg bg-muted">
-                  <Text className="text-xs text-muted-foreground">
-                    {t('notifications.permissionDenied')}
-                  </Text>
-                </View>
-              )}
-            </View>
-          </Animated.View>
-        )}
-
-        {/* Notification Feed */}
-        {isLoading ? (
-          <View className="items-center justify-center py-12">
-            <Text className="text-sm text-muted-foreground">Loading...</Text>
-          </View>
-        ) : notifications.length === 0 ? (
-          <View className="items-center justify-center py-16 px-6">
-            <View className="mb-3">
-              <BellIcon size={32} />
-            </View>
-            <Text className="text-base font-medium text-foreground mb-1">No notifications yet</Text>
-            <Text className="text-sm text-muted-foreground text-center">
-              Set up triggers and routines to get proactive updates from Alia.
-            </Text>
-          </View>
-        ) : (
-          <View className="py-2">
-            {notifications.map((notification: any) => {
-              const Icon = TYPE_ICONS[notification.type] || Bell;
-              const isUnread = notification.status !== 'read' && notification.status !== 'dismissed';
-              const priorityBorder = PRIORITY_COLORS[notification.priority] || PRIORITY_COLORS.normal;
-
-              return (
-                <Pressable
-                  key={notification._id}
-                  onPress={() => handleNotificationPress(notification)}
-                  className={`px-6 py-4 border-b border-border border-l-2 ${priorityBorder} ${isUnread ? 'bg-muted/20' : ''} active:bg-muted/40`}
-                >
-                  <View className="flex-row items-start gap-3">
-                    <View className={`mt-0.5 ${isUnread ? 'opacity-100' : 'opacity-50'}`}>
-                      <Icon size={16} className="text-muted-foreground" />
-                    </View>
-                    <View className="flex-1">
-                      <View className="flex-row items-center justify-between mb-1">
-                        <Text className={`text-sm ${isUnread ? 'font-semibold text-foreground' : 'font-medium text-muted-foreground'}`} numberOfLines={1}>
-                          {notification.title}
-                        </Text>
-                        <View className="flex-row items-center gap-2">
-                          <Text className="text-xs text-muted-foreground">
-                            {timeAgo(notification.createdAt)}
-                          </Text>
-                          <Pressable
-                            onPress={(e) => {
-                              e.stopPropagation();
-                              dismiss.mutate(notification._id);
-                            }}
-                            className="p-1"
-                            hitSlop={8}
-                          >
-                            <X size={12} className="text-muted-foreground" />
-                          </Pressable>
-                        </View>
-                      </View>
-                      <Text className="text-xs text-muted-foreground" numberOfLines={3}>
-                        {notification.body}
-                      </Text>
-                    </View>
-                  </View>
-                </Pressable>
-              );
-            })}
-          </View>
-        )}
-      </ScrollView>
-    </ContentPanel>
+                }
+              />
+            );
+          })}
+        </View>
+      )}
+    </ScrollView>
   );
 }

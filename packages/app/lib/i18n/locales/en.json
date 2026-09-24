@@ -52,7 +52,36 @@
     },
     "account": {
       "title": "Account Settings",
-      "description": "Manage your account"
+      "description": "Manage your account",
+      "currentPlan": "Current plan",
+      "manage": "Manage",
+      "billing": {
+        "freePlan": "Free",
+        "freePlanDescription": "Upgrade for more credits every month.",
+        "subscription": "Subscription",
+        "customCredits": "{{count}} credits"
+      },
+      "security": {
+        "never": "Never",
+        "severity": {
+          "info": "Info",
+          "warning": "Warning",
+          "critical": "Critical"
+        },
+        "auditSummary": "Audit summary",
+        "auditSummaryDetail": "{{sessions}} sessions · {{steps}} steps · {{threats}} threats",
+        "fromDate": "From date",
+        "toDate": "To date",
+        "exportFormat": "Export format",
+        "downloadAudit": "Download audit"
+      },
+      "storage": {
+        "signedOut": "Sign in to manage your files",
+        "signedOutDescription": "Files you upload to your Library appear here.",
+        "openFile": "Open file",
+        "copyLink": "Copy link",
+        "linkCopied": "Link copied"
+      }
     },
     "appLanguage": {
       "title": "App Language",
@@ -150,7 +179,9 @@
       "integrations": "Integrations",
       "security": "Security",
       "writingStyle": "Writing Style",
-      "localModels": "Local models"
+      "localModels": "Local models",
+      "profile": "Profile",
+      "storage": "Storage"
     },
     "accentColor": {
       "title": "App Color",
@@ -196,7 +227,201 @@
     "groups": {
       "assistant": "Assistant",
       "connections": "Connections",
-      "app": "App"
+      "app": "App",
+      "device": "This device"
+    },
+    "general": {
+      "limits": "Limits",
+      "creditsLeft": "{{count}} credits left",
+      "manageLimits": "Manage limits",
+      "currentPlan": "Current plan",
+      "freePlan": "Free",
+      "perMonth": "mo",
+      "perYear": "yr",
+      "creditsPerMonth": "{{count}} credits a month"
+    },
+    "profile": {
+      "name": "Name",
+      "username": "Username",
+      "email": "Email",
+      "oxyAccount": "Oxy account",
+      "oxyAccountDescription": "Your name, photo and sign-in are managed by Oxy",
+      "manage": "Manage",
+      "userId": "User ID",
+      "logoutAll": "Log out from all devices",
+      "logoutAllConfirm": "You will be signed out of Alia and every Oxy app on all your devices.",
+      "logout": "Log out"
+    },
+    "connections": {
+      "catalog": "Connector catalog",
+      "viewDetails": "View details",
+      "noOutput": "No output available",
+      "noTools": "No tools available",
+      "notConnected": "Not connected",
+      "toolCount": {
+        "zero": "No tools enabled",
+        "one": "1 tool enabled",
+        "other": "{{count}} tools enabled"
+      },
+      "serverStatus": {
+        "installed": "Installed",
+        "running": "Running",
+        "stopped": "Stopped",
+        "error": "Error"
+      },
+      "capability": {
+        "read": "Read",
+        "readWrite": "Read, Write"
+      },
+      "auth": {
+        "oauth": "OAuth",
+        "apiKey": "API key",
+        "none": "None"
+      },
+      "disconnect": "Disconnect",
+      "disconnectNamed": "Disconnect {{name}}",
+      "integrations": {
+        "connected": "Connected",
+        "available": "Available",
+        "empty": "No integrations connected yet.",
+        "status": {
+          "active": "Active",
+          "expired": "Expired",
+          "revoked": "Revoked",
+          "error": "Error"
+        },
+        "oauthError": "Connection was cancelled or failed",
+        "connectedToast": "{{name}} connected successfully",
+        "finishFailed": "Failed to finish connection",
+        "startFailed": "Failed to start connection",
+        "disconnectTitle": "Disconnect Integration",
+        "disconnectDescription": "Are you sure you want to disconnect this integration? You can reconnect it anytime.",
+        "disconnectedToast": "Integration disconnected",
+        "disconnectFailed": "Failed to disconnect integration"
+      },
+      "bots": {
+        "title": "System bots",
+        "description": "System bots allow others to interact with Alia and enable Alia to send messages on your behalf. To give one of your own agents a dedicated Telegram bot, open the agent and use its Telegram bot section.",
+        "empty": "No system bots available.",
+        "status": {
+          "active": "Active",
+          "inactive": "Inactive",
+          "error": "Error"
+        },
+        "linkedAs": "Linked as @{{username}}",
+        "link": "Link",
+        "unlink": "Unlink",
+        "linkUnsupported": "Linking not supported for {{platform}} yet",
+        "cannotOpen": "Cannot open {{platform}}",
+        "openFailed": "Failed to open link",
+        "unlinkedToast": "Bot unlinked",
+        "unlinkFailed": "Failed to unlink bot"
+      },
+      "accounts": {
+        "title": "Connected accounts",
+        "description": "Link your messaging accounts so Alia can read and respond on your behalf.",
+        "empty": "No accounts connected yet. Connect your first account to get started.",
+        "connectTitle": "Connect Account",
+        "status": {
+          "connected": "Connected",
+          "connecting": "Connecting",
+          "disconnected": "Disconnected",
+          "error": "Error",
+          "expired": "Expired"
+        },
+        "connectingToast": "Started connecting {{name}}",
+        "connectFailed": "Failed to connect account",
+        "disconnectTitle": "Disconnect Account",
+        "disconnectDescription": "Are you sure you want to disconnect this account? You can reconnect it anytime.",
+        "disconnectedToast": "Account disconnected",
+        "disconnectFailed": "Failed to disconnect account"
+      }
+    },
+    "assistant": {
+      "memory": {
+        "manage": "Manage",
+        "newMemoryDescription": "Start a chat telling Alia what to remember",
+        "duplicatesDescription": "Find memories that repeat each other",
+        "findDuplicates": "Find duplicates",
+        "count": {
+          "one": "1 memory",
+          "other": "{{count}} memories"
+        }
+      },
+      "writingStyle": {
+        "emptyTitle": "No style profile yet",
+        "emptyDescription": "After {{min}} messages, your writing style profile will start building automatically.",
+        "statusActive": "Profile active",
+        "statusBuilding": "Building profile",
+        "messagesAnalyzed": "{{n}} messages analyzed",
+        "aiSummary": "AI summary",
+        "overview": "Overview",
+        "formalityLabel": "Formality",
+        "vocabulary": "Vocabulary",
+        "avgSentence": "Average sentence",
+        "avgSentenceValue": "~{{n}} words",
+        "emojiLabel": "Emoji",
+        "languageLabel": "Language",
+        "capitalization": "Capitalization",
+        "patterns": "Patterns",
+        "tone": "Tone",
+        "greetings": "Greetings",
+        "closings": "Closings",
+        "signOff": "Sign-off",
+        "words": "Characteristic words",
+        "jargon": "Domain terms",
+        "otherLanguages": "Other languages",
+        "multilingual": "Multilingual messages",
+        "multilingualDescription": "You sometimes mix languages in messages",
+        "notDetected": "Not detected yet",
+        "noneDetected": "None detected",
+        "preferences": "Preferences",
+        "aiAnalysis": "AI analysis",
+        "aiAnalysisLocked": "Available after {{min}} messages ({{n}} so far)",
+        "refresh": "Refresh",
+        "refreshing": "Refreshing…",
+        "refreshed": "Style profile refreshed",
+        "refreshFailed": "Failed to refresh",
+        "refreshFailedLong": "Failed to refresh style profile",
+        "resetProfile": "Reset profile",
+        "reset": "Reset",
+        "resetTitle": "Reset Writing Style",
+        "resetDescription": "This will delete your writing style profile. Alia will start learning again from scratch.",
+        "resetDone": "Style profile reset",
+        "resetFailed": "Failed to reset style profile",
+        "updated": "Style profile updated",
+        "saveFailed": "Failed to save changes",
+        "editTitle": "Edit Style Preferences",
+        "editDescription": "Customize how Alia writes on your behalf.",
+        "signOffPlaceholder": "e.g., Best regards, Cheers",
+        "greetingPatterns": "Greeting Patterns",
+        "greetingPlaceholder": "e.g., Hey, Hi there, Hello",
+        "closingPatterns": "Closing Patterns",
+        "closingPlaceholder": "e.g., Thanks, Best, Cheers",
+        "toneDescriptors": "Tone Descriptors",
+        "tonePlaceholder": "e.g., friendly, direct, professional",
+        "commaSeparated": "Comma-separated",
+        "formality": {
+          "very_informal": "Very Informal",
+          "informal": "Informal",
+          "neutral": "Neutral",
+          "formal": "Formal",
+          "very_formal": "Very Formal"
+        },
+        "emoji": {
+          "never": "Never",
+          "rare": "Rarely",
+          "moderate": "Sometimes",
+          "frequent": "Frequently"
+        },
+        "language": {
+          "en": "English",
+          "es": "Spanish",
+          "fr": "French",
+          "pt": "Portuguese",
+          "de": "German"
+        }
+      }
     }
   },
   "nav": {
@@ -254,7 +479,44 @@
     "earlier": "Earlier",
     "collapse": "Collapse sidebar",
     "expand": "Expand sidebar",
-    "noAgentMessages": "No messages yet"
+    "noAgentMessages": "No messages yet",
+    "recent": "Recent",
+    "chats": "Chats",
+    "support": "Support",
+    "tasks": "Tasks",
+    "shows": "Shows",
+    "newConversation": "New conversation",
+    "chatOptions": "Options for {{title}}",
+    "rename": "Rename",
+    "renameTitle": "Rename chat",
+    "renameLabel": "Chat name",
+    "moveToProject": "Move to project",
+    "noProject": "No project",
+    "deleteChat": "Delete chat",
+    "deleteChatTitle": "Delete this chat?",
+    "deleteChatDescription": "“{{title}}” and its messages will be deleted. This cannot be undone.",
+    "projectOptions": "Options for {{name}}",
+    "newProject": "New project",
+    "deleteProjectTitle": "Delete this project?",
+    "deleteProjectDescription": "“{{name}}” is removed. Its chats are kept and move back to Recent.",
+    "inviteFriends": "Invite friends",
+    "projectDialog": {
+      "newTitle": "New project",
+      "editTitle": "Edit project",
+      "newDescription": "Create a project to organize your conversations",
+      "editDescription": "Update your project details",
+      "name": "Name",
+      "description": "Description (optional)",
+      "color": "Colour"
+    },
+    "colors": {
+      "blue": "Blue",
+      "purple": "Purple",
+      "rose": "Pink",
+      "yellow": "Amber",
+      "lime": "Green",
+      "cyan": "Cyan"
+    }
   },
   "billing": {
     "title": "Billing",
@@ -359,7 +621,68 @@
     "turnInterrupted": "Alia was interrupted before finishing.",
     "turnFailedRetryHint": "Try again.",
     "retry": "Retry",
-    "exportFailed": "Couldn't export this conversation."
+    "exportFailed": "Couldn't export this conversation.",
+    "bloom": {
+      "searchedWeb": "Searched the web for",
+      "visited": "Visited",
+      "researched": "Researched",
+      "researching": "Researching",
+      "resultCount": {
+        "one": "1 result",
+        "other": "{{count}} results"
+      },
+      "searchCount": {
+        "one": "1 search",
+        "other": "{{count}} searches"
+      },
+      "sourceCount": {
+        "one": "1 source",
+        "other": "{{count}} sources"
+      },
+      "createdFile": "Created",
+      "writingFile": "Writing",
+      "taskInput": "With",
+      "taskFailed": "Returned an error",
+      "taskStopped": "Didn't finish",
+      "scrollToLatest": "Scroll to latest messages",
+      "limits": {
+        "dailyFree": "Daily free credits",
+        "resetsInHours": "Resets in {{hours}} hr {{minutes}} min",
+        "resetsInMinutes": "Resets in {{minutes}} min",
+        "resetsSoon": "Resets soon",
+        "resetsDaily": "Resets every 24 hours",
+        "planUsage": "Plan usage limits",
+        "close": "Close credits panel"
+      },
+      "searchFailed": "Search failed",
+      "noResults": "No results"
+    },
+    "voiceStartFailed": "Could not start the voice session",
+    "exportMarkdown": "Export as Markdown",
+    "deleteConversation": "Delete conversation",
+    "deleteConversationTitle": "Delete this conversation?",
+    "deleteConversationDescription": "Every message in it will be deleted. This can't be undone.",
+    "deleteConversationConfirm": "Delete",
+    "toolCard": {
+      "scheduled": "Scheduled",
+      "paused": "Paused",
+      "openTask": "Open scheduled task %{objective}"
+    },
+    "agentRun": {
+      "working": "Agent working",
+      "complete": "Task complete",
+      "error": "Error",
+      "completed": "Completed",
+      "failed": "Failed",
+      "unknown": "Unknown",
+      "taskComplete": "Task complete",
+      "taskFailed": "Task failed",
+      "by": "by %{name}",
+      "steps": "%{count} steps",
+      "planItems": "%{done}/%{total} plan items",
+      "credits": "%{count} credits",
+      "planSummary": "Plan summary"
+    }
   },
   "credits": {
     "title": "Credits",
@@ -558,7 +881,23 @@
     "confirmDowngrade": "Confirm",
     "upgradeSuccess": "Plan upgraded successfully!",
     "downgradeSuccess": "Plan changed successfully.",
-    "failedPlanChange": "Failed to change plan. Please try again."
+    "failedPlanChange": "Failed to change plan. Please try again.",
+    "billingPeriod": "Billing period",
+    "popular": "Popular",
+    "free": "Free",
+    "loadError": "The plans couldn't be loaded. Try again in a moment.",
+    "download": {
+      "pageTitle": "Download Alia",
+      "metaDescription": "Download the Alia app for Android and iOS.",
+      "title": "Get Alia on your phone",
+      "back": "Back to Alia",
+      "platform": "Platform",
+      "scanTitle": "Scan to download",
+      "scanDescription": "Scan the QR code with your phone to get the app.",
+      "googlePlay": "Get it on Google Play",
+      "iosTitle": "Coming soon",
+      "iosDescription": "The iOS app is on the way."
+    }
   },
   "usageLimit": {
     "outOfCreditsTitle": "Out of credits",
@@ -1277,9 +1616,259 @@
     "capabilitiesGroup": "Capabilities",
     "appsGroup": "Apps",
     "canvas": "Canvas",
-    "connectorTools": "%{count} tools"
+    "connectorTools": "%{count} tools",
+    "searchDescription": "Look things up on the web",
+    "deepResearchDescription": "Go deep on a topic",
+    "ghostDescription": "Don't save this chat",
+    "agentDescription": "Work through longer tasks",
+    "canvasDescription": "Write and edit files",
+    "modes": "Mode",
+    "removeShort": "Remove",
+    "models": "Models",
+    "quickSearch": "Quick Search",
+    "searchModels": "Search models",
+    "noModels": "No models match",
+    "providers": "Providers",
+    "effort": "Effort",
+    "faster": "Faster",
+    "smarter": "Smarter",
+    "modelsGroup": "Models",
+    "deviceGroup": "This device",
+    "modeChat": "Chat",
+    "modeChatDescription": "Answers, and uses tools when it helps",
+    "placeholder": "Ask Alia anything"
   },
   "panel": {
-    "resize": "Resize panel"
+    "resize": "Resize panel",
+    "code": "Canvas",
+    "gallery": "Gallery",
+    "credits": "Credits",
+    "agent": "Agent",
+    "new": "New",
+    "emptyCanvas": "// Files Alia writes in this chat appear here.",
+    "files": {
+      "one": "1 file",
+      "other": "{{count}} files"
+    }
+  },
+  "pages": {
+    "automations": {
+      "heading": "What should Alia do later?",
+      "description": "Describe the work and when it should happen. Alia will ask only for details that are genuinely missing before saving the task.",
+      "placeholder": "Schedule a task",
+      "startFailed": "Could not start scheduling. Your description is still here.",
+      "suggestionsTitle": "Try a task",
+      "suggestions": {
+        "brief": {
+          "title": "Start my day informed",
+          "prompt": "Every weekday at 8:00 AM, give me a short brief of what matters for my work."
+        },
+        "remind": {
+          "title": "Remember something once",
+          "prompt": "Tomorrow at 10:00 AM, remind me to follow up on the project."
+        },
+        "topic": {
+          "title": "Keep up with a topic",
+          "prompt": "Every Monday at 9:00 AM, research the latest developments in a topic I choose and summarize them."
+        },
+        "review": {
+          "title": "Prepare a weekly review",
+          "prompt": "Every Friday afternoon, help me review the week and plan the next one."
+        }
+      },
+      "notStarted": "Not started",
+      "unknownTime": "Unknown time",
+      "historyLoadFailed": "Could not load this automation history.",
+      "notFound": "Automation not found.",
+      "saved": "Automation updated and authority revalidated",
+      "savedRevocationFailed": {
+        "one": "Saved, but 1 old authorization could not be revoked",
+        "other": "Saved, but %{count} old authorizations could not be revoked"
+      },
+      "saveFailed": "Failed to update automation",
+      "active": "Active",
+      "stopped": "Stopped",
+      "actors": "Actors: %{actors}",
+      "usesConnectedApps": "Uses approved connected apps",
+      "runHistory": "Run history",
+      "runCount": {
+        "one": "1 run",
+        "other": "%{count} runs"
+      },
+      "noRuns": "No runs recorded yet.",
+      "showMore": "Show more"
+    },
+    "skills": {
+      "installSkill": "Install %{name}",
+      "installedSkill": "%{name} is installed"
+    },
+    "tasks": {
+      "view": "Task view",
+      "typeFilter": "Filter by type"
+    },
+    "library": {
+      "categories": "File categories",
+      "resultCount": {
+        "one": "1 file",
+        "other": "{{count}} files"
+      }
+    },
+    "notifications": {
+      "unread": {
+        "one": "1 unread",
+        "other": "{{count}} unread"
+      },
+      "markAllRead": "Mark all read",
+      "emptyTitle": "No notifications yet",
+      "emptyDescription": "Set up triggers and routines to get proactive updates from Alia.",
+      "dismiss": "Dismiss notification"
+    },
+    "agents": {
+      "teams": "Teams",
+      "categories": "Categories",
+      "back": "Back",
+      "teamsTitle": "Agent teams",
+      "teamsDescription": "Durable groups with one coordinator",
+      "teamsEmpty": "No teams yet",
+      "teamsEmptyDetail": "Import an alia.team package through the API.",
+      "noPlaybook": "No playbook yet",
+      "agentType": "Agent type",
+      "sessionTitle": "Session activity",
+      "sessionSteps": "%{count} steps",
+      "sessionEvents": "%{count} events",
+      "sessionThreats": "%{count} threats",
+      "sessionErrors": "%{count} errors",
+      "sessionEmpty": "No activity recorded",
+      "agentActions": "Agent actions",
+      "moreActions": "More actions",
+      "addRoutingRule": "Add routing rule",
+      "removeRoutingRule": "Remove routing rule"
+    }
+  },
+  "panels": {
+    "agent": {
+      "tabs": {
+        "steps": "Steps",
+        "sources": "Sources"
+      },
+      "close": "Close agent panel",
+      "working": "Agent working",
+      "complete": "Task complete",
+      "failed": "Task failed",
+      "waitingToStart": "Waiting for the agent to start",
+      "noSteps": "No steps yet",
+      "noSources": "No sources found yet",
+      "websites": {
+        "one": "Websites (1)",
+        "other": "Websites ({{count}})"
+      },
+      "approvalRequired": "Approval required",
+      "approve": "Approve",
+      "deny": "Deny",
+      "planSteps": "{{completed}}/{{total}} steps",
+      "stepsLeft": {
+        "one": "1 step left",
+        "other": "{{count}} steps left"
+      },
+      "allCompleted": "All steps completed",
+      "minimizeSteps": "Minimize steps",
+      "expandSteps": "Expand steps",
+      "step": {
+        "thinking": "Thinking…",
+        "complete": "Task completed",
+        "error": "Error occurred",
+        "threat": "Threat detected",
+        "browser": "Browser: {{action}} {{target}}",
+        "action": "action",
+        "completing": "Completing task",
+        "updatingPlan": "Updating plan",
+        "delegate": "Hiring @{{agent}}",
+        "result": "Result received",
+        "found": "Found: {{title}}",
+        "source": "source"
+      }
+    },
+    "workspace": {
+      "title": "Workspace files",
+      "fileCount": {
+        "one": "1 file",
+        "other": "{{count}} files"
+      },
+      "loading": "Loading workspace…",
+      "loadFailed": "Unable to load workspace files. The container may have expired.",
+      "empty": "No files in workspace yet.",
+      "previewFailed": "(failed to load file)",
+      "truncated": "[truncated]",
+      "download": "Download {{name}}"
+    },
+    "code": {
+      "copy": "Copy code",
+      "copied": "Code copied"
+    },
+    "canvas": {
+      "image": "Image",
+      "unsupported": "Unsupported component type: {{type}}"
+    },
+    "chart": {
+      "share": "Share",
+      "value": "Value"
+    },
+    "form": {
+      "enter": "Enter {{field}}",
+      "select": "Select…",
+      "submit": "Submit"
+    }
+  },
+  "dialogs": {
+    "commandPalette": {
+      "placeholder": "Type a command or search…",
+      "empty": "No results found.",
+      "groupActions": "Actions",
+      "groupNavigate": "Navigate",
+      "groupSettings": "Settings",
+      "groupConversations": "Conversations",
+      "groupRecentConversations": "Recent conversations",
+      "newChat": "New chat",
+      "searchLibrary": "Search library",
+      "agents": "Agents",
+      "library": "Library",
+      "automations": "Automations",
+      "skills": "Skills",
+      "settings": "Settings",
+      "billing": "Billing",
+      "notifications": "Notifications",
+      "upgrade": "Upgrade to Pro"
+    },
+    "errorBoundary": {
+      "title": "This screen didn't load",
+      "message": "Something broke while showing it. Try again; if it keeps happening, we have already been told."
+    },
+    "notFound": {
+      "pageTitle": "404 - Page Not Found | Alia",
+      "metaDescription": "The page you're looking for doesn't exist. Return to Alia to continue your conversations.",
+      "title": "This page doesn't exist",
+      "description": "The link may be broken, or the page may have moved.",
+      "home": "Go to Alia"
+    },
+    "invite": {
+      "title": "Invite to get credits",
+      "description": "Share your invitation link with friends, get 500 credits each.",
+      "tabShare": "Share",
+      "tabRedeem": "Redeem",
+      "tabHistory": "History",
+      "linkLabel": "Invitation link",
+      "copy": "Copy",
+      "copied": "Copied!",
+      "shareOn": "Share on",
+      "share": "Share invite link",
+      "shareText": "Check out Alia — sign up with my link and we both get 500 credits!",
+      "creditsEarned": "Credits earned",
+      "referrals": "Referrals",
+      "codeLabel": "Invite code",
+      "redeem": "Redeem",
+      "redeemSuccess": "You got {{count}} credits!",
+      "redeemInvalid": "Invalid invite code",
+      "noReferrals": "No referrals yet"
+    }
   }
 }

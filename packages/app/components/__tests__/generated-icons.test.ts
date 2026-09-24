@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { ICONS } from '../../scripts/icons/manifest';
-import { OUT_DIR, generate, kebab } from '../../scripts/icons/generate';
+import { OUT_DIR, SHEET, generate, kebab } from '../../scripts/icons/generate';
 
 /**
  * `components/ui/icons` is generated, and this is what makes that true.
@@ -48,19 +48,19 @@ describe('the generated icon set is the sheet', () => {
 
   it('carries each symbol\'s own viewBox rather than one for all of them', () => {
     // The sheet mixes 16, 20 and 24-unit art. Normalising to one box crops the
-    // larger glyphs, so the boxes must still differ after generation — and the
-    // ones that must differ are named, so a set that happened to be uniform
-    // could not pass by being uniform.
-    const boxOf = (name: string) => {
-      const source = expected.get(`${kebab(name)}-icon.tsx`);
-      if (source === undefined) throw new Error(`no generated ${name}`);
-      const box = /viewBox="([^"]+)"/.exec(source);
-      if (box === null) throw new Error(`${name} has no viewBox`);
-      return box[1];
-    };
-    expect(boxOf('ChevronDown')).toBe('0 0 16 16');
-    expect(boxOf('Plus')).toBe('0 0 20 20');
-    expect(boxOf('Microphone')).toBe('0 0 24 24');
+    // larger glyphs, so every component must carry the box of ITS symbol, read
+    // off the sheet here rather than written into the test.
+    const sheet = readFileSync(SHEET, 'utf8');
+    const boxes = new Set([...sheet.matchAll(/<symbol[^>]*viewBox="([^"]+)"/g)].map((m) => m[1]));
+    // Positive control: a sheet of one box would let a normalising generator pass.
+    expect(boxes.size).toBeGreaterThan(1);
+    for (const icon of ICONS) {
+      const symbol = new RegExp(`<symbol[^>]*id="${icon.id}"[^>]*viewBox="([^"]+)"`).exec(sheet);
+      if (symbol === null) throw new Error(`the sheet has no ${icon.id}`);
+      const source = expected.get(`${kebab(icon.name)}-icon.tsx`);
+      if (source === undefined) throw new Error(`no generated ${icon.name}`);
+      expect(/viewBox="([^"]+)"/.exec(source)?.[1], icon.name).toBe(symbol[1]);
+    }
   });
 
   it('takes its colour from the theme, never from the sheet', () => {

@@ -1,10 +1,10 @@
-import React from 'react';
-import { View } from 'react-native';
-import { IdentityMark } from '@alia.onl/sdk';
-import { Text } from '@/components/ui/text';
 import { agentTint } from '@/lib/agents/agent-color';
 import { useColorScheme } from '@/lib/useColorScheme';
-
+import { IdentityMark } from '@alia.onl/sdk';
+import { Badge } from '@oxy.so/bloom/badge';
+import { Muted, Text } from '@oxy.so/bloom/typography';
+import React from 'react';
+import { View } from 'react-native';
 /**
  * The agents that ran a task, drawn as their own marks.
  *
@@ -45,7 +45,7 @@ export const AgentMarkRow = React.memo(function AgentMarkRow({
           color={agentTint(agent.color, colors)}
           accessibilityLabel={agent.name}
         />
-        <Text className="text-sm font-medium text-foreground" numberOfLines={1}>
+        <Text variant="body-medium" numberOfLines={1}>
           {agent.name}
         </Text>
       </View>
@@ -53,11 +53,11 @@ export const AgentMarkRow = React.memo(function AgentMarkRow({
   }
 
   return (
-    <View className="flex-row items-center gap-1">
+    <View className="flex-row items-center gap-2">
       {/* Spaced, not overlapped. The avatar-stack idiom leans on each face being
           an opaque disc that hides the edge of the one behind it; a mark is the
           bare flower, so a negative margin just tangles two of them into a shape
-          that is neither. The ring those discs needed goes with it. */}
+          that is neither. */}
       {visible.map((agent) => (
         <IdentityMark
           key={agent._id}
@@ -66,20 +66,10 @@ export const AgentMarkRow = React.memo(function AgentMarkRow({
           accessibilityLabel={agent.name}
         />
       ))}
-      {/* The counter is a chip rather than a face, so it keeps its own disc. */}
       {overflow > 0 && (
-        <View
-          style={{ width: size, height: size }}
-          className="rounded-full bg-muted items-center justify-center"
-        >
-          <Text className="text-[10px] font-medium text-muted-foreground">
-            +{overflow}
-          </Text>
-        </View>
+        <Badge size="large" variant="subtle" content={`+${overflow}`} />
       )}
-      <Text className="text-xs text-muted-foreground ml-2">
-        {agents.length} agents
-      </Text>
+      <Muted>{agents.length} agents</Muted>
     </View>
   );
 });

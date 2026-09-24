@@ -1,10 +1,9 @@
-import React from "react";
-import { Platform, View } from "react-native";
-import { Text } from "@/components/ui/text";
-import { useTranslation } from "@/lib/hooks/use-translation";
-import { dragCarriesFiles, nextDragDepth } from "@/lib/chat/attachment-intake";
-import { COMPOSER_RADIUS } from "./types";
-
+import { dragCarriesFiles, nextDragDepth } from '@/lib/chat/attachment-intake';
+import { useTranslation } from '@/lib/hooks/use-translation';
+import { Text } from '@oxy.so/bloom/typography';
+import React from 'react';
+import { Platform, View } from 'react-native';
+import { COMPOSER_RADIUS } from './types';
 /**
  * Dropping files onto the composer, on web, where such a gesture exists.
  *

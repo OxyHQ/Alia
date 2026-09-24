@@ -43,30 +43,6 @@ export interface IconEntry {
 }
 
 export const ICONS: readonly IconEntry[] = [
-  {
-    id: 'sidebar',
-    name: 'SidebarToggle',
-    purpose: 'collapsing the sidebar to its rail and opening it again',
-  },
-  { id: 'plus', name: 'Plus', purpose: 'New Chat, and the add action on a section header' },
   { id: 'agent-robot', name: 'AgentRobot', purpose: 'agents — the sidebar section and the delegation capability' },
-  { id: 'sidebar-library', name: 'Library', purpose: 'the Library' },
-  { id: 'tasks', name: 'Tasks', purpose: 'Tasks' },
   { id: 'clock', name: 'Clock', purpose: 'Automations — scheduled triggers, in the sidebar and the agent editor' },
-  { id: 'skills', name: 'Skills', purpose: 'Skills' },
-  { id: 'microphone-regular-24', name: 'Microphone', purpose: 'Shows' },
-  { id: 'sidebar-projects', name: 'Projects', purpose: 'Projects' },
-  { id: 'chevron-down-sm', name: 'ChevronDown', purpose: 'an expanded disclosure' },
-  { id: 'chevron-right-sm', name: 'ChevronRight', purpose: 'a collapsed disclosure, and a row that leads somewhere' },
-  { id: 'dots-horizontal', name: 'DotsHorizontal', purpose: 'the overflow menu on a row' },
-  { id: 'gift', name: 'Gift', purpose: 'the referral banner' },
-  { id: 'upgrade-plan', name: 'UpgradePlan', purpose: 'upgrading the plan' },
-  { id: 'settings-cog', name: 'Settings', purpose: 'Settings' },
-  { id: 'shortcuts', name: 'Shortcuts', purpose: 'the keyboard shortcuts dialog' },
-  { id: 'search', name: 'Search', purpose: 'searching this conversation' },
-  { id: 'menu', name: 'Menu', purpose: 'the drawer trigger, on a screen too narrow for the sidebar' },
-  { id: 'pencil', name: 'Pencil', purpose: 'writing style' },
-  { id: 'plugins', name: 'Plugins', purpose: 'the connector catalogue' },
-  { id: 'lock-shield', name: 'LockShield', purpose: 'security and privacy' },
-  { id: 'currency-dollar', name: 'CurrencyDollar', purpose: 'billing and usage' },
 ];

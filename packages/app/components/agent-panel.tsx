@@ -1,271 +1,156 @@
-/**
- * AgentPanel — Right panel showing real-time agent activity.
- *
- * 2 tabs: Steps | Sources
- *
- * There is no Files tab and no Browser tab. An agent has no workspace
- * filesystem — the `files` capability was retired with the sandbox it needed,
- * which production never had — and its `browser` reads pages through Clarity
- * as text, so there are no screenshots to show. What it read appears under
- * Sources.
- * Follows the same pattern as ThoughtPanel for consistent UX.
- */
-
-import { useState, useMemo, useEffect } from "react";
-import { View, Pressable, ScrollView, Platform } from "react-native";
-import * as WebBrowser from "expo-web-browser";
-import { Text } from "@/components/ui/text";
-import {
-  X,
-  Globe,
-  FileText,
-  ChevronRight,
-  Loader,
-  CheckCircle2,
-  AlertCircle,
-  Search,
-  Code,
-  Eye,
-} from "lucide-react-native";
-import { useUIStore } from "@/lib/stores/ui-store";
-import { useTheme, type ThemeColors } from "@oxy.so/bloom/theme";
-import { capabilityIconForTool } from "@/lib/constants/capability-families";
+import { capabilityIconForTool } from '@/lib/constants/capability-families';
 import {
   useAgentActivity,
   type AgentActivityEvent,
   type AgentSource,
-} from "@/lib/hooks/use-agent-activity";
-import Animated, {
-  useAnimatedStyle,
-  useSharedValue,
-  withRepeat,
-  withTiming,
-  withSequence,
-} from "react-native-reanimated";
+  type PlanProgress,
+} from '@/lib/hooks/use-agent-activity';
+import { useTranslation } from '@/lib/hooks/use-translation';
+import { useUIStore } from '@/lib/stores/ui-store';
+import { AgentLogRow, AgentLogShimmerText, AgentLogWorkingRow, useAgentLogMotion } from '@oxy.so/bloom/agent-log';
+import { AgentProgress } from '@oxy.so/bloom/agent-progress';
+import { AgentThinking } from '@oxy.so/bloom/agent-thinking';
+import { useAiChatShell } from '@oxy.so/bloom/ai-chat';
+import { Button } from '@oxy.so/bloom/button';
+import { EmptyState } from '@oxy.so/bloom/empty-state';
+import { RiCheckboxCircleLine } from '@oxy.so/bloom/icons/RiCheckboxCircleLine';
+import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
+import { RiErrorWarningLine } from '@oxy.so/bloom/icons/RiErrorWarningLine';
+import { RiSearchLine } from '@oxy.so/bloom/icons/RiSearchLine';
+import { LinkPreviewCard } from '@oxy.so/bloom/link-preview';
+import { Notification } from '@oxy.so/bloom/notification';
+import { StatBar } from '@oxy.so/bloom/stat-bar';
+import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
+import { useTheme } from '@oxy.so/bloom/theme';
+import { Muted, Text } from '@oxy.so/bloom/typography';
+import * as WebBrowser from 'expo-web-browser';
+import { useMemo, useState } from 'react';
+import { Platform, ScrollView, View } from 'react-native';
 
-type Tab = "steps" | "sources";
+/**
+ * AgentPanel — the right panel showing an agent run as it happens.
+ *
+ * Two tabs (Steps | Sources) over the run's live events, the plan as Bloom's
+ * `AgentProgress`, a pending approval as a warning `Notification` with its two
+ * answers, and the action in flight as `AgentThinking` at the foot.
+ *
+ * There is no Files tab and no Browser tab. An agent has no workspace
+ * filesystem — the `files` capability was retired with the sandbox it needed —
+ * and its `browser` reads pages through Clarity as text, so there are no
+ * screenshots to show. What it read appears under Sources.
+ */
 
-function TabToggle({
-  value,
-  onChange,
-  sourceCount,
-}: {
-  value: Tab;
-  onChange: (t: Tab) => void;
-  sourceCount: number;
-}) {
-  const tabs: { key: Tab; label: string; badge?: number }[] = [
-    { key: "steps", label: "Steps" },
-    { key: "sources", label: "Sources", badge: sourceCount || undefined },
-  ];
+type Tab = 'steps' | 'sources';
+type Translate = (key: string, params?: Record<string, unknown>) => string;
 
-  return (
-    <View className="flex-row bg-muted rounded-lg overflow-hidden">
-      {tabs.map((tab) => (
-        <Pressable
-          key={tab.key}
-          onPress={() => onChange(tab.key)}
-          className={`flex-1 items-center px-2 py-1.5 flex-row justify-center gap-1 ${
-            value === tab.key ? "bg-background" : ""
-          }`}
-        >
-          <Text
-            className={`text-xs font-medium ${
-              value === tab.key
-                ? "text-foreground"
-                : "text-muted-foreground"
-            }`}
-          >
-            {tab.label}
-          </Text>
-          {tab.badge ? (
-            <View className="bg-primary rounded-full px-1.5 min-w-[18px] items-center">
-              <Text className="text-[10px] text-primary-foreground font-bold">
-                {tab.badge}
-              </Text>
-            </View>
-          ) : null}
-        </Pressable>
-      ))}
-    </View>
-  );
+/** The events worth a line in the log; system noise is left out. */
+const STEP_TYPES = new Set<AgentActivityEvent['type']>([
+  'tool_call',
+  'tool_result',
+  'error',
+  'threat',
+  'complete',
+  'thinking',
+  'source_found',
+  'response',
+]);
+
+function cut(text: string | undefined, max: number): string {
+  return (text ?? '').slice(0, max);
 }
 
-function PulsingDot({ color }: { color: string }) {
-  const opacity = useSharedValue(1);
-  useEffect(() => {
-    opacity.value = withRepeat(
-      withSequence(
-        withTiming(0.3, { duration: 800 }),
-        withTiming(1, { duration: 800 })
-      ),
-      -1,
-      false
-    );
-  }, []);
-  const style = useAnimatedStyle(() => ({ opacity: opacity.value }));
-  return (
-    <Animated.View
-      style={[
-        { width: 8, height: 8, borderRadius: 4, backgroundColor: color },
-        style,
-      ]}
-    />
-  );
-}
-
-function getStepIcon(event: AgentActivityEvent, colors: ThemeColors) {
-  const toolName = event.metadata?.toolName || "";
+/** One event as a line of the log, in the reader's language. */
+export function agentStepLabel(event: AgentActivityEvent, t: Translate): string {
+  const toolName = event.metadata?.toolName || '';
   switch (event.type) {
-    case "thinking":
-      return <PulsingDot color="#a855f7" />;
-    case "complete":
-      return <CheckCircle2 size={14} color={colors.success} />;
-    case "error":
-    case "threat":
-      return <AlertCircle size={14} color={colors.error} />;
-    case "tool_call": {
-      /**
-       * The icon comes from the CAPABILITY FAMILY that grants the tool, so this
-       * panel and the agent editor draw one concept one way.
-       *
-       * They did not. These five were lucide glyphs chosen here while the
-       * editor's rows carried the owner's Material Symbols, so `delegate` was
-       * `Users` in the activity stream and `robot_2` two screens away. One
-       * table decides now, and a glyph the owner sends next lands in it once.
-       *
-       * `color`, not a NativeWind class: four of the family glyphs are `Svg`
-       * and their fill cannot be painted with `className`.
-       */
-      const FamilyIcon = capabilityIconForTool(toolName);
-      if (FamilyIcon) return <FamilyIcon size={14} color={colors.text} />;
-      // `plan` belongs to no family — it is ungranted — so it keeps its own.
-      if (toolName === "plan") return <CheckCircle2 size={14} className="text-foreground" />;
-      return <Code size={14} className="text-foreground" />;
-    }
-    case "tool_result":
-      return <Eye size={14} className="text-muted-foreground" />;
-    case "source_found":
-      return <Search size={14} color={colors.info} />;
-    case "response":
-      return <FileText size={14} className="text-foreground" />;
-    default:
-      return <Globe size={14} className="text-muted-foreground" />;
-  }
-}
-
-function getStepLabel(event: AgentActivityEvent): string {
-  const toolName = event.metadata?.toolName || "";
-  switch (event.type) {
-    case "thinking":
-      return "Thinking...";
-    case "complete":
-      return "Task completed";
-    case "error":
-      return "Error occurred";
-    case "threat":
-      return event.content.slice(0, 80) || "Threat detected";
-    case "system":
-      return event.content.slice(0, 60);
-    case "tool_call": {
+    case 'thinking':
+      return t('panels.agent.step.thinking');
+    case 'complete':
+      return t('panels.agent.step.complete');
+    case 'error':
+      return t('panels.agent.step.error');
+    case 'threat':
+      return cut(event.content, 80) || t('panels.agent.step.threat');
+    case 'system':
+      return cut(event.content, 60);
+    case 'tool_call': {
       const args = event.metadata?.args;
-      if (toolName === "browser") return `Browser: ${args?.action || "action"} ${args?.url?.slice(0, 30) || args?.query?.slice(0, 30) || ""}`;
-      if (toolName === "plan") return args?.action === "complete" ? "Completing task" : "Updating plan";
-      if (toolName === "delegate") return `Hiring @${args?.agent || "agent"}`;
-      return `${toolName}(${event.content.slice(0, 40)})`;
+      if (toolName === 'browser')
+        return t('panels.agent.step.browser', {
+          action: args?.action || t('panels.agent.step.action'),
+          target: cut(args?.url, 30) || cut(args?.query, 30),
+        }).trim();
+      if (toolName === 'plan')
+        return args?.action === 'complete' ? t('panels.agent.step.completing') : t('panels.agent.step.updatingPlan');
+      if (toolName === 'delegate') return t('panels.agent.step.delegate', { agent: args?.agent || 'agent' });
+      return `${toolName}(${cut(event.content, 40)})`;
     }
-    case "tool_result":
-      return event.content.slice(0, 80) || "Result received";
-    case "source_found":
-      return `Found: ${event.metadata?.title || event.metadata?.url || "source"}`;
-    case "response":
-      return event.content.slice(0, 80);
+    case 'tool_result':
+      return cut(event.content, 80) || t('panels.agent.step.result');
+    case 'source_found':
+      return t('panels.agent.step.found', {
+        title: event.metadata?.title || event.metadata?.url || t('panels.agent.step.source'),
+      });
+    case 'response':
+      return cut(event.content, 80);
     default:
-      return event.content.slice(0, 60);
+      return cut(event.content, 60);
   }
+}
+
+function openUrl(url: string) {
+  if (Platform.OS === 'web') {
+    window.open(url, '_blank', 'noopener,noreferrer');
+  } else {
+    void WebBrowser.openBrowserAsync(url);
+  }
+}
+
+/** Plan labels are also `AgentProgress`'s keys, so a repeated one is numbered. */
+function uniqueLabels(plan: PlanProgress): string[] {
+  const seen = new Map<string, number>();
+  return plan.items.map((item) => {
+    const count = (seen.get(item.text) ?? 0) + 1;
+    seen.set(item.text, count);
+    return count === 1 ? item.text : `${item.text} (${count})`;
+  });
 }
 
 function StepsTab({ events, isActive }: { events: AgentActivityEvent[]; isActive: boolean }) {
+  const { t } = useTranslation();
   const { colors } = useTheme();
-  // Filter to meaningful events (skip system noise)
-  const steps = useMemo(() => {
-    return events.filter(
-      (e) =>
-        e.type === "tool_call" ||
-        e.type === "tool_result" ||
-        e.type === "error" ||
-        e.type === "threat" ||
-        e.type === "complete" ||
-        e.type === "thinking" ||
-        e.type === "source_found" ||
-        e.type === "response"
-    );
-  }, [events]);
+  const reduce = useAgentLogMotion();
+  const steps = useMemo(() => events.filter((e) => STEP_TYPES.has(e.type)), [events]);
 
   if (steps.length === 0) {
-    return (
-      <View className="items-center justify-center py-8">
-        {isActive ? (
-          <>
-            <PulsingDot color={colors.info} />
-            <Text className="text-sm text-muted-foreground mt-3">
-              Waiting for agent to start...
-            </Text>
-          </>
-        ) : (
-          <Text className="text-sm text-muted-foreground">No steps yet</Text>
-        )}
-      </View>
+    return isActive ? (
+      <AgentLogWorkingRow label={t('panels.agent.waitingToStart')} reduce={reduce} />
+    ) : (
+      <EmptyState variant="compact" description={t('panels.agent.noSteps')} />
     );
   }
 
   return (
-    <View className="gap-0">
+    <View role="list">
       {steps.map((step, index) => {
-        const isLast = index === steps.length - 1;
-        const isStepActive = isActive && isLast;
-
+        const last = index === steps.length - 1;
+        const label = agentStepLabel(step, t);
+        const failed = step.type === 'error' || step.type === 'threat';
+        // The glyph comes from the CAPABILITY FAMILY that grants the tool, so
+        // this log and the agent editor draw one concept one way. `color`, not
+        // a class: some family glyphs are `Svg` whose fill a class cannot paint.
+        const FamilyIcon = step.type === 'tool_call' ? capabilityIconForTool(step.metadata?.toolName || '') : undefined;
         return (
-          <View key={`${step.timestamp}-${index}`} className="flex-row">
-            {/* Timeline column */}
-            <View className="items-center" style={{ width: 24 }}>
-              <View className="h-3" />
-              <View
-                className="items-center justify-center"
-                style={{ width: 20, height: 20 }}
-              >
-                {isStepActive && step.type === "tool_call" ? (
-                  <PulsingDot color={colors.warning} />
-                ) : (
-                  getStepIcon(step, colors)
-                )}
-              </View>
-              {!isLast && (
-                <View
-                  className="flex-1 border-l border-border"
-                  style={{ minHeight: 16 }}
-                />
-              )}
-            </View>
-
-            {/* Content column */}
-            <View className="flex-1 pl-2 pb-3" style={{ paddingTop: 12 }}>
-              <Text
-                className={`text-sm ${
-                  step.type === "complete"
-                    ? "text-green-500 font-medium"
-                    : step.type === "error" || step.type === "threat"
-                    ? "text-red-400"
-                    : isStepActive
-                    ? "text-foreground font-medium"
-                    : "text-muted-foreground"
-                }`}
-                numberOfLines={2}
-              >
-                {getStepLabel(step)}
+          <AgentLogRow key={`${step.timestamp}-${index}`} first={index === 0} last={last} reduce={reduce}>
+            <View className="flex-row items-center gap-1.5 py-1">
+              {step.type === 'complete' ? <RiCheckboxCircleLine size="sm" fill={colors.success} /> : null}
+              {failed ? <RiErrorWarningLine size="sm" fill={colors.error} /> : null}
+              {FamilyIcon ? <FamilyIcon size={14} color={colors.text} /> : null}
+              <Text variant={step.type === 'complete' ? 'body-medium' : 'body-regular'} numberOfLines={2}>
+                {isActive && last && label ? <AgentLogShimmerText>{label}</AgentLogShimmerText> : label}
               </Text>
             </View>
-          </View>
+          </AgentLogRow>
         );
       })}
     </View>
@@ -273,197 +158,146 @@ function StepsTab({ events, isActive }: { events: AgentActivityEvent[]; isActive
 }
 
 function SourcesTab({ sources }: { sources: AgentSource[] }) {
+  const { t } = useTranslation();
   if (sources.length === 0) {
-    return (
-      <View className="items-center justify-center py-8">
-        <Search size={24} className="text-muted-foreground mb-2" />
-        <Text className="text-sm text-muted-foreground">
-          No sources found yet
-        </Text>
-      </View>
-    );
+    return <EmptyState variant="compact" icon={RiSearchLine} description={t('panels.agent.noSources')} />;
   }
 
   return (
     <View className="gap-2">
-      <Text className="text-xs font-medium text-muted-foreground">
-        Websites ({sources.length})
-      </Text>
+      <Muted>{t('panels.agent.websites', { count: sources.length })}</Muted>
       {sources.map((source, index) => (
-        <Pressable
+        <LinkPreviewCard
           key={`${source.url}-${index}`}
-          onPress={() => {
-            if (Platform.OS === "web") {
-              window.open(source.url, "_blank", "noopener,noreferrer");
-            } else {
-              WebBrowser.openBrowserAsync(source.url);
-            }
-          }}
-          className="rounded-xl border border-border p-3 bg-background active:bg-muted"
-        >
-          <View className="flex-row items-center gap-2 mb-1">
-            <Globe size={12} className="text-muted-foreground" />
-            <Text
-              className="text-xs text-muted-foreground"
-              numberOfLines={1}
-            >
-              {source.domain}
-            </Text>
-            <View className="flex-1" />
-            <ChevronRight size={12} className="text-muted-foreground" />
-          </View>
-          <Text
-            className="text-sm font-medium text-foreground"
-            numberOfLines={2}
-          >
-            {source.title || source.url}
-          </Text>
-          {source.snippet.length > 0 && (
-            <Text
-              className="text-xs text-muted-foreground mt-0.5"
-              numberOfLines={2}
-            >
-              {source.snippet}
-            </Text>
-          )}
-        </Pressable>
+          url={source.url}
+          title={source.title || source.url}
+          siteName={source.domain}
+          description={source.snippet.length > 0 ? source.snippet : undefined}
+          onPress={() => openUrl(source.url)}
+        />
       ))}
     </View>
   );
 }
 
+function PlanProgressView({ plan }: { plan: PlanProgress }) {
+  const { t } = useTranslation();
+  if (plan.items.length > 0) {
+    return (
+      <AgentProgress
+        steps={uniqueLabels(plan)}
+        completedCount={plan.completed}
+        labels={{
+          stepsLeft: (n) => t('panels.agent.stepsLeft', { count: n }),
+          allCompleted: t('panels.agent.allCompleted'),
+          minimize: t('panels.agent.minimizeSteps'),
+          expand: t('panels.agent.expandSteps'),
+        }}
+      />
+    );
+  }
+  return (
+    <StatBar
+      label={t('panels.agent.planSteps', { completed: plan.completed, total: plan.total })}
+      value={plan.completed}
+      max={plan.total}
+    />
+  );
+}
+
 export function AgentPanel() {
+  const shell = useAiChatShell();
+  const { t } = useTranslation();
   const { colors } = useTheme();
-  const [activeTab, setActiveTab] = useState<Tab>("steps");
+  const [activeTab, setActiveTab] = useState<Tab>('steps');
   const setRightPanel = useUIStore((s) => s.setRightPanel);
   const activeAgentSessionId = useUIStore((s) => s.activeAgentSessionId);
   const activeAgentId = useUIStore((s) => s.activeAgentId);
 
   const activity = useAgentActivity(activeAgentSessionId, activeAgentId);
   const isActive = !activity.isComplete && !activity.hasError;
+  const approval = activity.approvalRequest;
+  const current = activity.currentAction;
+  const currentLabel = current
+    ? `${current.toolName} ${current.content.length > 60 ? `${current.content.slice(0, 60)}…` : current.content}`.trim()
+    : null;
+
+  const tabs: { key: Tab; label: string; count?: number }[] = [
+    { key: 'steps', label: t('panels.agent.tabs.steps') },
+    { key: 'sources', label: t('panels.agent.tabs.sources'), count: activity.sources.length || undefined },
+  ];
 
   return (
-    <View className="flex-1 bg-background">
-      {/* Header */}
-      <View className="flex-row items-center justify-between px-4 py-3 border-b border-border">
-        <View className="flex-row items-center gap-2">
-          {isActive ? (
-            <PulsingDot color={colors.info} />
-          ) : activity.isComplete ? (
-            <CheckCircle2 size={16} color={colors.success} />
-          ) : activity.hasError ? (
-            <AlertCircle size={16} color={colors.error} />
-          ) : null}
-          <Text className="text-base font-semibold text-foreground">
-            {activity.isComplete
-              ? "Task Complete"
-              : activity.hasError
-              ? "Task Failed"
-              : "Agent Working"}
-          </Text>
+    <View className="min-h-0 flex-1 gap-2.5 pt-2">
+      <View className="h-[30px] flex-row items-center justify-between">
+        <View className="min-w-0 shrink">
+          <Tabs variant="pill" value={activeTab} onValueChange={(next) => setActiveTab(next as Tab)}>
+            {tabs.map((tab) => (
+              <TabsTrigger key={tab.key} value={tab.key} label={tab.label} count={tab.count} />
+            ))}
+          </Tabs>
         </View>
-        <Pressable
-          className="p-1 rounded-lg active:opacity-70"
-          onPress={() => setRightPanel(null)}
-        >
-          <X size={20} className="text-muted-foreground" />
-        </Pressable>
+        {!shell?.compact && (
+          <Button
+            appearance="plain"
+            tone="neutral"
+            size="xs"
+            accessibilityLabel={t('panels.agent.close')}
+            onPress={() => setRightPanel(null)}
+            icon={<RiCloseLine size="sm" fill={colors.textSecondary} />}
+          />
+        )}
       </View>
 
-      {/* Plan progress bar */}
-      {activity.plan && activity.plan.total > 0 && (
-        <View className="px-4 py-2 border-b border-border">
-          <View className="flex-row items-center justify-between mb-1">
-            <Text className="text-xs text-muted-foreground">
-              {activity.plan.completed}/{activity.plan.total} steps
-            </Text>
-            <Text className="text-xs text-muted-foreground">
-              {Math.round(
-                (activity.plan.completed / activity.plan.total) * 100
-              )}
-              %
-            </Text>
-          </View>
-          <View className="h-1.5 bg-muted rounded-full overflow-hidden">
-            <View
-              className="h-1.5 bg-primary rounded-full"
-              style={{
-                width: `${Math.round(
-                  (activity.plan.completed / activity.plan.total) * 100
-                )}%`,
-              }}
-            />
-          </View>
-        </View>
-      )}
-
-      {/* Approval request */}
-      {activity.approvalRequest && (
-        <View className="mx-4 mt-3 mb-1 rounded-xl border border-yellow-500/40 bg-yellow-500/10 p-3">
-          <Text className="text-xs font-semibold text-yellow-600 mb-1">
-            Approval required
-          </Text>
-          <Text className="text-xs text-foreground mb-2">
-            {activity.approvalRequest.toolName}: {activity.approvalRequest.description}
-          </Text>
-          <View className="flex-row gap-2">
-            <Pressable
-              onPress={() => activity.respondApproval(activity.approvalRequest!.requestId, false)}
-              className="px-3 py-1.5 rounded-lg border border-border bg-background"
-            >
-              <Text className="text-xs text-foreground">Deny</Text>
-            </Pressable>
-            <Pressable
-              onPress={() => activity.respondApproval(activity.approvalRequest!.requestId, true)}
-              className="px-3 py-1.5 rounded-lg bg-yellow-600"
-            >
-              <Text className="text-xs text-white">Approve</Text>
-            </Pressable>
-          </View>
-        </View>
-      )}
-
-      {/* Tab Toggle */}
-      <View className="px-4 py-3">
-        <TabToggle
-          value={activeTab}
-          onChange={setActiveTab}
-          sourceCount={activity.sources.length}
-        />
+      <View className="flex-row items-center gap-2 px-4 py-1">
+        {activity.isComplete ? (
+          <RiCheckboxCircleLine size="sm" fill={colors.success} />
+        ) : activity.hasError ? (
+          <RiErrorWarningLine size="sm" fill={colors.error} />
+        ) : null}
+        <Text variant="headline-semibold">
+          {activity.isComplete
+            ? t('panels.agent.complete')
+            : activity.hasError
+              ? t('panels.agent.failed')
+              : t('panels.agent.working')}
+        </Text>
       </View>
 
-      {/* Content */}
-      <ScrollView
-        className="flex-1 px-4"
-        showsVerticalScrollIndicator={false}
-      >
-        {activeTab === "steps" ? (
+      {activity.plan && activity.plan.total > 0 ? (
+        <View className="px-4">
+          <PlanProgressView plan={activity.plan} />
+        </View>
+      ) : null}
+
+      {approval ? (
+        <View className="px-4">
+          <Notification
+            status="warning"
+            title={t('panels.agent.approvalRequired')}
+            description={`${approval.toolName}: ${approval.description}`}
+            dismissible={false}
+            actions={[
+              { label: t('panels.agent.deny'), onPress: () => activity.respondApproval(approval.requestId, false) },
+              { label: t('panels.agent.approve'), onPress: () => activity.respondApproval(approval.requestId, true) },
+            ]}
+          />
+        </View>
+      ) : null}
+
+      <ScrollView className="flex-1 px-4" contentContainerClassName="pb-6" showsVerticalScrollIndicator={false}>
+        {activeTab === 'steps' ? (
           <StepsTab events={activity.events} isActive={isActive} />
         ) : (
           <SourcesTab sources={activity.sources} />
         )}
-        <View style={{ height: 24 }} />
       </ScrollView>
 
-      {/* Current action footer */}
-      {activity.currentAction && isActive && (
-        <View className="px-4 py-2 border-t border-border bg-muted/30">
-          <View className="flex-row items-center gap-2">
-            <Loader size={12} className="text-yellow-500" />
-            <Text
-              className="text-xs text-muted-foreground flex-1"
-              numberOfLines={1}
-            >
-              <Text className="font-semibold">
-                {activity.currentAction.toolName}
-              </Text>{" "}
-              {activity.currentAction.content.length > 60
-                ? activity.currentAction.content.slice(0, 60) + "..."
-                : activity.currentAction.content}
-            </Text>
-          </View>
+      {currentLabel && isActive ? (
+        <View className="px-4 py-2">
+          <AgentThinking key={currentLabel} label={currentLabel} showTimer />
         </View>
-      )}
+      ) : null}
     </View>
   );
 }

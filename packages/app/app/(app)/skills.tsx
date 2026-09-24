@@ -1,12 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, ScrollView, Pressable, RefreshControl } from 'react-native';
-import { FlashList } from '@shopify/flash-list';
-import { Text } from '@/components/ui/text';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Check, Download, Plus, Search } from 'lucide-react-native';
-import { useTranslation } from '@/lib/hooks/use-translation';
-import { useRouter } from 'expo-router';
+import { SkillCover } from '@/components/ui/skill-cover';
 import {
   useInstallSkill,
   useInstalledSkills,
@@ -14,10 +6,20 @@ import {
   type InstalledSkill,
   type Skill,
 } from '@/lib/hooks/use-skills';
-import { SkillCover } from '@/components/ui/skill-cover';
+import { useTranslation } from '@/lib/hooks/use-translation';
+import { Button } from '@oxy.so/bloom/button';
+import { ButtonGroup, ButtonGroupItem } from '@oxy.so/bloom/button-group';
+import { EmptyState } from '@oxy.so/bloom/empty-state';
+import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
+import { RiCheckLine } from '@oxy.so/bloom/icons/RiCheckLine';
+import { RiDownloadLine } from '@oxy.so/bloom/icons/RiDownloadLine';
+import { Search } from '@oxy.so/bloom/search';
 import * as Skeleton from '@oxy.so/bloom/skeleton';
-import { DrawerToggle } from '@/components/ui/drawer-toggle';
-import { ContentPanel } from '@oxy.so/bloom/content-panel';
+import { Muted, Text } from '@oxy.so/bloom/typography';
+import { FlashList } from '@shopify/flash-list';
+import { Stack, useRouter } from 'expo-router';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
 
 /**
  * The Skills catalogue.
@@ -36,12 +38,18 @@ import { ContentPanel } from '@oxy.so/bloom/content-panel';
 
 const BOOK_WIDTH = 110;
 const BOOK_GAP = 10;
-/** Cover (2:3) + the gap below it + the install button. FlashList needs the height. */
-const SHELF_HEIGHT = BOOK_WIDTH * 1.5 + 6 + 28;
 /** How far past the viewport edge a shelf pre-mounts: about two books. */
 const SHELF_DRAW_DISTANCE = (BOOK_WIDTH + BOOK_GAP) * 2;
 /** Typing pauses this long before a keystroke becomes a request. */
 const SEARCH_DEBOUNCE_MS = 250;
+
+/**
+ * Layout is NativeWind classes. The numbers above that also appear as classes
+ * are restated literally there (Tailwind only sees whole class strings):
+ * `w-[110px]` is BOOK_WIDTH, `mr-[10px]`/`gap-[10px]` is BOOK_GAP and
+ * `h-[199px]` is the shelf height FlashList needs: the 2:3 cover
+ * (BOOK_WIDTH * 1.5) + the 6px gap below it + the 28px install button. Change one, change both.
+ */
 
 /**
  * The server's `query` filter, applied locally to the installed shelf: an
@@ -70,9 +78,17 @@ function SkillBook({
   onPress: () => void;
   onInstall: () => void;
 }) {
+  const { t } = useTranslation();
   return (
-    <View style={{ width: BOOK_WIDTH, marginRight: BOOK_GAP }}>
-      <Pressable onPress={onPress} className="active:opacity-80">
+    <View className="w-[110px] mr-[10px] items-center gap-1.5">
+      {/* The cover is the skill's own artwork, not a control, so the press
+          around it is a bare `Pressable`: Bloom's `PressableScale` animates
+          through reanimated, which the shelf must not load (#545). */}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={skill.displayName}
+        onPress={onPress}
+      >
         <SkillCover
           seed={skill.name}
           width={BOOK_WIDTH}
@@ -83,18 +99,18 @@ function SkillBook({
         />
       </Pressable>
       <Button
-        size="sm"
-        variant={installed ? 'secondary' : 'outline'}
-        className="mt-1.5 h-7 rounded-full"
+        size="xs"
+        tone="neutral"
+        appearance={installed ? 'plain' : 'subtle'}
+        icon={installed ? RiCheckLine : RiDownloadLine}
+        accessibilityLabel={
+          installed
+            ? t('pages.skills.installedSkill', { name: skill.displayName })
+            : t('pages.skills.installSkill', { name: skill.displayName })
+        }
         disabled={installed}
         onPress={onInstall}
-      >
-        {installed ? (
-          <Check size={12} className="text-muted-foreground" />
-        ) : (
-          <Download size={12} className="text-foreground" />
-        )}
-      </Button>
+      />
     </View>
   );
 }
@@ -129,28 +145,26 @@ function Shelf({
 
   if (skills.length === 0) return null;
   return (
-    <ContentPanel surfaceClassName="bg-background">
-      <View className="mb-5">
-        <View className="px-5 mb-2">
-          <Text className="text-[11px] font-semibold text-muted-foreground tracking-wider uppercase">{title}</Text>
-        </View>
-        {/* A horizontal list needs its height from outside; the books are all one size. */}
-        <View style={{ height: SHELF_HEIGHT }}>
-          <FlashList
-            horizontal
-            data={skills}
-            keyExtractor={(skill) => skill._id}
-            renderItem={renderItem}
-            extraData={installedIds}
-            drawDistance={SHELF_DRAW_DISTANCE}
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ paddingHorizontal: 20 }}
-            onEndReached={onEndReached}
-            onEndReachedThreshold={0.5}
-          />
-        </View>
+    <View className="gap-2">
+      <View className="px-4">
+        <Text variant="headline-semibold">{title}</Text>
       </View>
-    </ContentPanel>
+      {/* A horizontal list needs its height from outside; the books are all one size. */}
+      <View className="h-[199px]">
+        <FlashList
+          horizontal
+          data={skills}
+          keyExtractor={(skill) => skill._id}
+          renderItem={renderItem}
+          extraData={installedIds}
+          drawDistance={SHELF_DRAW_DISTANCE}
+          showsHorizontalScrollIndicator={false}
+          contentContainerClassName="px-4"
+          onEndReached={onEndReached}
+          onEndReachedThreshold={0.5}
+        />
+      </View>
+    </View>
   );
 }
 
@@ -178,24 +192,33 @@ export default function SkillsScreen() {
   const install = useInstallSkill();
 
   const installedIds = useMemo(
-    () => new Set((installed.data ?? []).map((skill: InstalledSkill) => skill._id)),
+    () =>
+      new Set((installed.data ?? []).map((skill: InstalledSkill) => skill._id)),
     [installed.data],
   );
 
-  const skills = useMemo(() => catalogue.data?.pages.flat() ?? [], [catalogue.data]);
+  const skills = useMemo(
+    () => catalogue.data?.pages.flat() ?? [],
+    [catalogue.data],
+  );
   // An installed skill lives on the Installed shelf and nowhere else on this
   // screen: the same book twice is twice the covers for no information.
   const official = useMemo(
     () =>
       skills.filter(
-        (skill) => !installedIds.has(skill._id) && (skill.source === 'builtin' || skill.source === 'registry'),
+        (skill) =>
+          !installedIds.has(skill._id) &&
+          (skill.source === 'builtin' || skill.source === 'registry'),
       ),
     [skills, installedIds],
   );
   const community = useMemo(
     () =>
       skills.filter(
-        (skill) => !installedIds.has(skill._id) && skill.source !== 'builtin' && skill.source !== 'registry',
+        (skill) =>
+          !installedIds.has(skill._id) &&
+          skill.source !== 'builtin' &&
+          skill.source !== 'registry',
       ),
     [skills, installedIds],
   );
@@ -204,22 +227,57 @@ export default function SkillsScreen() {
     [installed.data, query],
   );
 
-  const openSkill = useCallback((name: string) => router.push(`/(app)/skills/${name}`), [router]);
-  const installSkill = useCallback((id: string) => install.mutate(id), [install]);
+  const openSkill = useCallback(
+    (name: string) => router.push(`/(app)/skills/${name}`),
+    [router],
+  );
+  const installSkill = useCallback(
+    (id: string) => install.mutate(id),
+    [install],
+  );
   const loadMore = useCallback(() => {
-    if (catalogue.hasNextPage && !catalogue.isFetchingNextPage) void catalogue.fetchNextPage();
+    if (catalogue.hasNextPage && !catalogue.isFetchingNextPage)
+      void catalogue.fetchNextPage();
   }, [catalogue]);
 
   const nothingToShow = skills.length === 0 && installedShelf.length === 0;
 
   return (
-    <View className="flex-1 bg-background">
+    <>
+      <Stack.Screen
+        options={{
+          headerRight: () => (
+            <>
+              <ButtonGroup accessibilityLabel={t('skills.import')}>
+                <ButtonGroupItem
+                  leadingIcon={RiDownloadLine}
+                  onPress={() => router.push('/(app)/skills/import')}
+                >
+                  {t('skills.import')}
+                </ButtonGroupItem>
+              </ButtonGroup>
+              <Button
+                tone="action"
+                size="md"
+                leadingIcon={RiAddLine}
+                onPress={() => router.push('/(app)/skills/create')}
+              >
+                {t('common.create')}
+              </Button>
+            </>
+          ),
+        }}
+      />
       <ScrollView
-        className="flex-1"
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
         refreshControl={
           <RefreshControl
-            refreshing={catalogue.isFetching && !catalogue.isLoading && !catalogue.isFetchingNextPage}
+            refreshing={
+              catalogue.isFetching &&
+              !catalogue.isLoading &&
+              !catalogue.isFetchingNextPage
+            }
             onRefresh={() => {
               void catalogue.refetch();
               void installed.refetch();
@@ -227,53 +285,39 @@ export default function SkillsScreen() {
           />
         }
       >
-        <View className="px-5 pt-6 pb-4">
-          <View className="flex-row items-center justify-between">
-            {/* The drawer opener sits first, as on every top-level page (#532). */}
-            <View className="flex-row items-center gap-2">
-              <DrawerToggle />
-              <Text className="text-2xl font-bold text-foreground">{t('skills.title')}</Text>
-            </View>
-            <View className="flex-row gap-2">
-              <Button
-                size="icon"
-                variant="outline"
-                className="rounded-full h-8 w-8"
-                onPress={() => router.push('/(app)/skills/import')}
-              >
-                <Download size={16} className="text-foreground" />
-              </Button>
-              <Button size="icon" className="rounded-full h-8 w-8" onPress={() => router.push('/(app)/skills/create')}>
-                <Plus size={16} className="text-primary-foreground" />
-              </Button>
-            </View>
-          </View>
-          <Text className="text-[13px] text-muted-foreground mt-0.5">{t('skills.subtitle')}</Text>
-
-          <View className="mt-3 flex-row items-center gap-2 rounded-full border border-border px-3">
-            <Search size={14} className="text-muted-foreground" />
-            <Input
-              value={search}
-              onChangeText={setSearch}
-              placeholder={t('skills.searchPlaceholder')}
-              className="flex-1 border-0 bg-transparent px-0"
-            />
-          </View>
+        <View className="gap-3 px-4 pt-4">
+          <Muted>{t('skills.subtitle')}</Muted>
+          <Search
+            label={t('skills.searchPlaceholder')}
+            value={search}
+            onChangeText={setSearch}
+            onClearText={() => setSearch('')}
+          />
         </View>
 
         {catalogue.isLoading ? (
-          <View className="mb-5">
-            <View className="px-5 mb-2">
-              <Skeleton.Box width={80} height={10} borderRadius={6} />
+          <View className="gap-5 pb-8 pt-5">
+            <View className="gap-2">
+              <View className="ml-4 w-[120px] flex-row">
+                <Skeleton.Text />
+              </View>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerClassName="gap-[10px] px-4"
+              >
+                {Array.from({ length: 4 }).map((_, index) => (
+                  <Skeleton.Box
+                    key={index}
+                    width={BOOK_WIDTH}
+                    height={BOOK_WIDTH * 1.5}
+                  />
+                ))}
+              </ScrollView>
             </View>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, gap: 10 }}>
-              {Array.from({ length: 4 }).map((_, index) => (
-                <Skeleton.Box key={index} width={BOOK_WIDTH} height={BOOK_WIDTH * 1.5} borderRadius={8} />
-              ))}
-            </ScrollView>
           </View>
         ) : (
-          <>
+          <View className="gap-5 pb-8 pt-5">
             <Shelf
               title={t('skills.installed')}
               skills={installedShelf}
@@ -299,44 +343,45 @@ export default function SkillsScreen() {
             />
 
             {/* A failed request is said out loud, with the way back. A blank
-                catalogue after a search that errored reads as "no results". */}
+              catalogue after a search that errored reads as "no results". */}
             {catalogue.isError ? (
-              <View className="px-5 py-6 items-center gap-3">
-                <Text className="text-[13px] text-muted-foreground text-center">{t('skills.loadFailed')}</Text>
-                <Button size="sm" variant="outline" className="rounded-full" onPress={() => void catalogue.refetch()}>
-                  <Text className="text-[13px]">{t('common.tryAgain')}</Text>
-                </Button>
-              </View>
+              <EmptyState
+                variant="compact"
+                title={t('skills.loadFailed')}
+                action={{
+                  label: t('common.tryAgain'),
+                  onPress: () => void catalogue.refetch(),
+                }}
+              />
             ) : null}
 
             {/* An empty catalogue is a real state — a fresh database before the
-                registry sync has run — and saying so beats a blank screen. */}
+              registry sync has run — and saying so beats a blank screen. */}
             {nothingToShow && !catalogue.isError ? (
-              <View className="px-5 py-10 items-center">
-                <Text className="text-[13px] text-muted-foreground text-center">
-                  {query ? t('skills.noResults') : t('skills.empty')}
-                </Text>
-              </View>
+              <EmptyState
+                title={query ? t('skills.noResults') : t('skills.empty')}
+              />
             ) : null}
 
             {/* The shelves ask for more as they are scrolled; this is the same
-                request for anybody who would rather press than scroll. */}
+              request for anybody who would rather press than scroll. */}
             {catalogue.hasNextPage ? (
-              <View className="px-5 pb-6 items-center">
+              <View className="px-4">
                 <Button
+                  tone="neutral"
+                  appearance="subtle"
                   size="sm"
-                  variant="outline"
-                  className="rounded-full"
+                  loading={catalogue.isFetchingNextPage}
                   disabled={catalogue.isFetchingNextPage}
                   onPress={loadMore}
                 >
-                  <Text className="text-[13px]">{t('skills.loadMore')}</Text>
+                  {t('skills.loadMore')}
                 </Button>
               </View>
             ) : null}
-          </>
+          </View>
         )}
       </ScrollView>
-    </View>
+    </>
   );
 }

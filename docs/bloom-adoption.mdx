@@ -1,10 +1,53 @@
 ---
 title: "Bloom adoption"
-description: "What Alia's app resolves from Bloom today, which Bloom 3.2.1 export owns each capability, and the contract gaps that block a direct swap."
+description: "Alia composes Bloom's AI Chat template literally; how, and how it was verified."
 order: 7
 ---
 
 # Bloom adoption
+
+## Current app composition (September 2026)
+
+The Expo app declares Bloom `^4.5.0` and composes Bloom's AI Chat template
+(`templates/ai-chat/AiChatTemplate.tsx` in Bloom) **literally**: the same
+components, in the same order, with the same props. The router still owns URLs
+and conversation identity; app state, streaming, pagination, authentication,
+voice, tools and inference stay in Alia. The one surface of Alia's own is the
+signed-out welcome (`welcome-intro.tsx` over `ambient-field.tsx`).
+
+| Template | Alia |
+| --- | --- |
+| `<View style={TEMPLATE_FRAME}>` → `AiChatShell` | `app/(app)/_layout.tsx` |
+| `sidebar={<Sidebar …/>}`, `mobileSidebar={<Sidebar … mobile surface="plain"/>}` | `components/sidebar.tsx`: `logo`, `items`, `secondaryItems`, `account`, `tree`, `plan`; the drawer copy inside `NavRegion` (#532) |
+| `panel` (always, from `xl`) with `AiChatCodePanel` / `AiChatGalleryPanel` | `components/workspace-panel.tsx`: the canvas as the code panel, Library and generated images as the gallery; thought, credits and agent take the slot while open |
+| `AiChatContainer project title header={<AiChatMobileHeader/>} working composer` | `components/chat-page-content.tsx` through `ChatWorkspace` (the native keyboard authority) |
+| the pill + `ComposerStatusBar` | **`ComposerPanel`** instead (`components/chat/composer/composer.tsx`): provider-rail model picker with effort (`model-lineup.ts`), Chat / Agent / Deep research as its mode selector, attachment tiles, `ComposerPanelStatusTab` with the chat's project; the add menu in two groups (`add-menu.tsx`) |
+| `AiChatThread` → `AiChatUserMessage` / `AiChatAssistantMessage` (feedback row) | `components/chat-interface.tsx` |
+| `AiChatMessageLine`, `AiChatBulletList`, `AiChatStrong`, `AiChatLinkChip`, `CodeBlock` | `components/chat/bloom-markdown.tsx` renders each reply's Markdown into them |
+| `AgentProgress` while working, then "Worked for …" (`tone="secondary"`) | the turn's tool calls, as the runtime reports them |
+
+What the template has no room for was removed, not wrapped; the list, and the
+Bloom slot each item comes back through, is
+[`bloom-template-pending.mdx`](./bloom-template-pending.mdx).
+
+### Validation and limits
+
+Compared against the template running in Bloom's own Storybook (origin/main,
+4.5.0) with Alia's `purple` preset, in a real browser, by measuring every
+`data-bloom-*` box on both pages rather than by eye: 1440×900, 1280, 1100 (panel
+as a drawer), 1023 (sidebar as a push drawer, open and closed) and 390×844, light
+and dark, plus the collapsed rail. The composer pill, the shell frame and the
+drawer land on the same pixels at every width; the remaining deltas are content
+(the template's code panel, its project crumb, its scripted turn in flight). The
+thread was checked through a temporary route rendering fixed messages, idle and
+working; it is not shipped. No authenticated session, message send or inference
+was exercised. TypeScript passes; the app suite passes (94 files, 731 tests); the
+visual baseline was re-recorded and `--check` reproduces it (worst Δ3, ±6).
+
+## Historical 3.2.1 audit
+
+The following is retained as an explicitly historical contract audit. Its version table and gap statements do not describe the current app.
+
 
 The deliverable issue [#608](https://github.com/OxyHQ/Alia/issues/608) §2 asks for: one
 row per Alia capability, the Bloom export that would own it, and a justified

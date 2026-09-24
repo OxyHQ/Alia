@@ -1,10 +1,11 @@
+import { useTranslation } from '@/lib/hooks/use-translation';
+import { Muted, Text } from '@oxy.so/bloom/typography';
 import { View } from 'react-native';
-import { Text } from '@/components/ui/text';
 import { ChartRenderer } from './chart-renderer';
-import { TableRenderer } from './table-renderer';
 import { CodeRenderer } from './code-renderer';
 import { FormRenderer } from './form-renderer';
 import { MarkdownRenderer } from './markdown-renderer';
+import { TableRenderer } from './table-renderer';
 
 interface CanvasComponentProps {
   component: {
@@ -17,43 +18,40 @@ interface CanvasComponentProps {
 }
 
 export function CanvasComponent({ component, onFormSubmit }: CanvasComponentProps) {
-  const renderContent = () => {
+  const { t } = useTranslation();
+
+  // Code carries its own header (the file name), and a chart card its own title.
+  if (component.type === 'code') return <CodeRenderer data={component.data} filename={component.title} />;
+  if (component.type === 'artifact' && component.data.language)
+    return (
+      <CodeRenderer
+        data={{ language: component.data.language, code: component.data.content }}
+        filename={component.title}
+      />
+    );
+  if (component.type === 'chart') return <ChartRenderer data={component.data} title={component.title} />;
+
+  const content = (() => {
     switch (component.type) {
-      case 'chart':
-        return <ChartRenderer data={component.data} />;
       case 'table':
-        return <TableRenderer data={component.data} />;
-      case 'code':
-        return <CodeRenderer data={component.data} />;
+        return <TableRenderer data={component.data} title={component.title} />;
       case 'form':
         return <FormRenderer data={component.data} onSubmit={onFormSubmit} />;
       case 'image':
-        return (
-          <View className="items-center">
-            <Text className="text-sm text-muted-foreground">
-              {component.data.alt || 'Image'}
-            </Text>
-          </View>
-        );
+        return <Muted>{component.data.alt || t('panels.canvas.image')}</Muted>;
       case 'markdown':
         return <MarkdownRenderer data={component.data} />;
       case 'artifact':
-        return component.data.language
-          ? <CodeRenderer data={{ language: component.data.language, code: component.data.content }} />
-          : <MarkdownRenderer data={{ content: component.data.content }} />;
+        return <MarkdownRenderer data={{ content: component.data.content }} />;
       default:
-        return (
-          <Text className="text-sm text-muted-foreground">
-            Unsupported component type: {component.type}
-          </Text>
-        );
+        return <Muted>{t('panels.canvas.unsupported', { type: component.type })}</Muted>;
     }
-  };
+  })();
 
   return (
-    <View className="border border-border rounded-xl bg-card p-4 gap-3">
-      <Text className="text-sm font-semibold text-foreground">{component.title}</Text>
-      {renderContent()}
+    <View className="gap-3">
+      <Text variant="body-semibold">{component.title}</Text>
+      {content}
     </View>
   );
 }

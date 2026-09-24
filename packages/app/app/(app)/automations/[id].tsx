@@ -1,112 +1,132 @@
-import { useCallback, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
-import { ArrowLeft, Pencil } from 'lucide-react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ContentPanel } from '@oxy.so/bloom/content-panel';
-import { toast } from '@oxy.so/bloom/toast';
-import { Text } from '@/components/ui/text';
-import { Button } from '@/components/ui/button';
 import { AutomationEditor } from '@/components/automations/automation-editor';
-import { AutomationPill, automationStatusTone } from '@/components/automations/automation-pill';
+import {
+  automationStatusTone,
+  type AutomationPillTone,
+} from '@/components/automations/automation-pill';
 import {
   actorLabel,
   triggerLabel,
 } from '@/lib/automations/format';
-import type { AutomationRun, AutomationUpdateInput } from '@/lib/automations/types';
-import { useAutomationOverview, useAutomationRuns, useUpdateAutomation } from '@/lib/hooks/use-automations';
-import { useMyAgents } from '@/lib/hooks/use-my-agents';
-import { useColorScheme } from '@/lib/useColorScheme';
+import type { AutomationUpdateInput } from '@/lib/automations/types';
 import { errorMessage } from '@/lib/errors/error-utils';
+import {
+  useAutomationOverview,
+  useAutomationRuns,
+  useUpdateAutomation,
+} from '@/lib/hooks/use-automations';
+import { useMyAgents } from '@/lib/hooks/use-my-agents';
+import { useTranslation } from '@/lib/hooks/use-translation';
+import { Badge } from '@oxy.so/bloom/badge';
+import { Button } from '@oxy.so/bloom/button';
+import { ButtonGroup, ButtonGroupItem } from '@oxy.so/bloom/button-group';
+import { EmptyState } from '@oxy.so/bloom/empty-state';
+import { RiPencilLine } from '@oxy.so/bloom/icons/RiPencilLine';
+import { Loading } from '@oxy.so/bloom/loading';
+import {
+  SettingsListGroup,
+  SettingsListItem,
+} from '@oxy.so/bloom/settings-list';
+import { toast } from '@oxy.so/bloom/toast';
+import { Muted, Text } from '@oxy.so/bloom/typography';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { useCallback, useMemo, useState } from 'react';
+import { ScrollView, View } from 'react-native';
 
 const RUN_PAGE_SIZE = 20;
 
-function timestampLabel(timestamp: string | null): string {
-  if (!timestamp) return 'Not started';
-  const date = new Date(timestamp);
-  return Number.isNaN(date.getTime()) ? 'Unknown time' : date.toLocaleString();
-}
+/** Stacking only: a row of actions or badges. */
+const ROW = 'flex-row flex-wrap items-center gap-2';
 
-function RunCard({
-  run,
-  agentName,
-}: {
-  run: AutomationRun;
-  agentName: (agentId: string) => string;
-}) {
-  return (
-    <View className="rounded-2xl border border-border bg-surface p-4 gap-3">
-      <View className="flex-row items-start justify-between gap-3">
-        <View className="flex-1 gap-1">
-          <Text className="text-sm font-medium text-foreground" selectable>
-            {timestampLabel(run.startedAt)}
-          </Text>
-          <Text className="text-xs text-muted-foreground" selectable>
-            {run.selectedAgentId ? agentName(run.selectedAgentId) : 'Alia'}
-          </Text>
-        </View>
-        <AutomationPill label={run.status} tone={automationStatusTone(run.status)} />
-      </View>
-    </View>
-  );
-}
+/** The run status tones, in `Badge`'s palette. */
+const BADGE_COLOR = {
+  positive: 'success',
+  warning: 'warning',
+  danger: 'error',
+  neutral: 'default',
+} as const satisfies Record<AutomationPillTone, string>;
 
 export default function AutomationHistoryScreen() {
   const { id = '' } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const { colors } = useColorScheme();
+  const { t } = useTranslation();
   const overview = useAutomationOverview();
   const runs = useAutomationRuns(id);
   const agents = useMyAgents();
   const updateAutomation = useUpdateAutomation();
   const [editorOpen, setEditorOpen] = useState(false);
   const [visibleRuns, setVisibleRuns] = useState(RUN_PAGE_SIZE);
-  const automation = overview.data?.automations.find((candidate) => candidate.id === id);
-  const agentNames = useMemo(() => new Map(
-    (agents.data ?? []).map((agent) => [
-      agent._id,
-      agent.name ?? agent.handle ?? `Agent ${agent._id.slice(0, 8)}`,
-    ]),
-  ), [agents.data]);
+  const automation = overview.data?.automations.find(
+    (candidate) => candidate.id === id,
+  );
+  const agentNames = useMemo(
+    () =>
+      new Map(
+        (agents.data ?? []).map((agent) => [
+          agent._id,
+          agent.name ?? agent.handle ?? `Agent ${agent._id.slice(0, 8)}`,
+        ]),
+      ),
+    [agents.data],
+  );
   const agentName = useCallback(
-    (agentId: string) => agentNames.get(agentId) ?? `Agent ${agentId.slice(0, 8)}`,
+    (agentId: string) =>
+      agentNames.get(agentId) ?? `Agent ${agentId.slice(0, 8)}`,
     [agentNames],
   );
-  const agentOptions = useMemo(() => (agents.data ?? []).map((agent) => ({
-    id: agent._id,
-    label: agent.name ?? agent.handle ?? `Agent ${agent._id.slice(0, 8)}`,
-  })), [agents.data]);
+  const agentOptions = useMemo(
+    () =>
+      (agents.data ?? []).map((agent) => ({
+        id: agent._id,
+        label: agent.name ?? agent.handle ?? `Agent ${agent._id.slice(0, 8)}`,
+      })),
+    [agents.data],
+  );
+
+  const timestampLabel = (timestamp: string | null): string => {
+    if (!timestamp) return t('pages.automations.notStarted');
+    const date = new Date(timestamp);
+    return Number.isNaN(date.getTime())
+      ? t('pages.automations.unknownTime')
+      : date.toLocaleString();
+  };
+
+  /** The header while there is no automation to name: just the way back. */
+  const backOnly = <Stack.Screen options={{ headerBackVisible: true }} />;
 
   if (overview.isLoading || runs.isLoading) {
     return (
-      <View className="flex-1 items-center justify-center bg-background">
-        <ActivityIndicator color={colors.mutedForeground} />
-      </View>
+      <>
+        {backOnly}
+        <Loading variant="spinner" />
+      </>
     );
   }
 
   if (overview.isError || runs.isError) {
     return (
-      <View className="flex-1 items-center justify-center bg-background px-6 gap-3">
-        <Text className="text-sm text-muted-foreground text-center" selectable>
-          Could not load this automation history.
-        </Text>
-        <Button
-          size="sm"
-          variant="outline"
-          onPress={() => void Promise.all([overview.refetch(), runs.refetch()])}
-        >
-          Retry
-        </Button>
-      </View>
+      <>
+        {backOnly}
+        <EmptyState
+          title={t('pages.automations.historyLoadFailed')}
+          action={{
+            label: t('common.tryAgain'),
+            onPress: () =>
+              void Promise.all([overview.refetch(), runs.refetch()]),
+          }}
+        />
+      </>
     );
   }
 
   if (!automation) {
     return (
-      <View className="flex-1 items-center justify-center bg-background px-6 gap-3">
-        <Text className="text-sm text-muted-foreground" selectable>Automation not found.</Text>
-        <Button size="sm" variant="outline" onPress={() => router.back()}>Go back</Button>
-      </View>
+      <>
+        {backOnly}
+        <EmptyState
+          title={t('pages.automations.notFound')}
+          action={{ label: t('common.back'), onPress: () => router.back() }}
+        />
+      </>
     );
   }
 
@@ -114,87 +134,114 @@ export default function AutomationHistoryScreen() {
   const displayedRuns = history.slice(0, visibleRuns);
   const saveUpdate = async (update: AutomationUpdateInput) => {
     try {
-      const result = await updateAutomation.mutateAsync({ automationId: automation.id, update });
+      const result = await updateAutomation.mutateAsync({
+        automationId: automation.id,
+        update,
+      });
       if (result.revocation?.failed) {
-        toast.error(`Saved, but ${result.revocation.failed} old authorizations could not be revoked`);
+        toast.error(
+          t('pages.automations.savedRevocationFailed', {
+            count: result.revocation.failed,
+          }),
+        );
       } else {
-        toast.success('Automation updated and authority revalidated');
+        toast.success(t('pages.automations.saved'));
       }
       setEditorOpen(false);
     } catch (error: unknown) {
-      toast.error(errorMessage(error, 'Failed to update automation'));
+      toast.error(errorMessage(error, t('pages.automations.saveFailed')));
     }
   };
 
   return (
-    <ContentPanel surfaceClassName="bg-background">
+    <>
+      <Stack.Screen
+        options={{
+          title: automation.objective,
+          headerBackVisible: true,
+          headerRight: () => (
+            <ButtonGroup accessibilityLabel={t('common.edit')}>
+              <ButtonGroupItem
+                iconOnly
+                leadingIcon={RiPencilLine}
+                accessibilityLabel={t('common.edit')}
+                onPress={() => setEditorOpen(true)}
+              />
+            </ButtonGroup>
+          ),
+        }}
+      />
       <ScrollView
-        className="flex-1 bg-background"
         contentInsetAdjustmentBehavior="automatic"
-        contentContainerClassName="px-5 py-4 gap-5 max-w-3xl w-full mx-auto"
+        contentContainerClassName="w-full max-w-[768px] self-center gap-5 p-4"
       >
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Back"
-          onPress={() => router.back()}
-          className="h-9 w-9 items-center justify-center rounded-full active:bg-muted"
-        >
-          <ArrowLeft size={18} color={colors.foreground} />
-        </Pressable>
-
-        <View className="gap-3">
-          <View className="flex-row flex-wrap items-center gap-2">
-            <Text className="flex-1 text-2xl font-bold text-foreground" selectable>
-              {automation.objective}
-            </Text>
-            <AutomationPill
-              label={automation.enabled ? 'Active' : 'Stopped'}
-              tone={automation.enabled ? 'positive' : 'neutral'}
+        <View className="gap-2">
+          {/* The heading is the objective (#534). */}
+          <Text variant="title-2-semibold" selectable>
+            {automation.objective}
+          </Text>
+          <View className={ROW}>
+            <Badge
+              size="label-medium"
+              variant="subtle"
+              color={automation.enabled ? 'success' : 'default'}
+              content={
+                automation.enabled
+                  ? t('pages.automations.active')
+                  : t('pages.automations.stopped')
+              }
             />
-            <Button
-              size="sm"
-              variant="outline"
-              onPress={() => setEditorOpen(true)}
-              className="ml-auto"
-            >
-              <Pencil size={14} color={colors.foreground} />
-              <Text>Edit</Text>
-            </Button>
           </View>
-          <Text className="text-sm text-muted-foreground" selectable>
-            {triggerLabel(automation.trigger)}
-          </Text>
-          <Text className="text-sm text-muted-foreground" selectable>
-            Actors: {actorLabel(automation.actorSelection, agentName)}
-          </Text>
+          <Muted selectable>{triggerLabel(automation.trigger)}</Muted>
+          <Muted selectable>
+            {t('pages.automations.actors', {
+              actors: actorLabel(automation.actorSelection, agentName),
+            })}
+          </Muted>
           {automation.actions.length > 0 ? (
-            <Text className="text-xs text-muted-foreground" selectable>
-              Uses approved connected apps
-            </Text>
+            <Muted selectable>{t('pages.automations.usesConnectedApps')}</Muted>
           ) : null}
         </View>
 
-        <View className="gap-3">
-          <View className="flex-row items-center justify-between gap-3">
-            <Text className="text-lg font-semibold text-foreground">Run history</Text>
-            <Text className="text-xs text-muted-foreground" selectable>{history.length} runs</Text>
-          </View>
-          {displayedRuns.length > 0 ? displayedRuns.map((run) => (
-            <RunCard key={run.id} run={run} agentName={agentName} />
-          )) : (
-            <View className="rounded-2xl border border-border bg-surface p-4">
-              <Text className="text-sm text-muted-foreground" selectable>No runs recorded yet.</Text>
-            </View>
-          )}
-          {visibleRuns < history.length ? (
-            <Button
-              variant="outline"
-              onPress={() => setVisibleRuns((count) => count + RUN_PAGE_SIZE)}
-            >
-              Show more
-            </Button>
-          ) : null}
-        </View>
+        {displayedRuns.length > 0 ? (
+          <SettingsListGroup
+            title={t('pages.automations.runHistory')}
+            footer={t('pages.automations.runCount', { count: history.length })}
+          >
+            {displayedRuns.map((run) => (
+              <SettingsListItem
+                key={run.id}
+                title={timestampLabel(run.startedAt)}
+                description={
+                  run.selectedAgentId ? agentName(run.selectedAgentId) : 'Alia'
+                }
+                rightElement={
+                  <Badge
+                    size="label-small"
+                    variant="subtle"
+                    color={BADGE_COLOR[automationStatusTone(run.status)]}
+                    content={run.status}
+                  />
+                }
+              />
+            ))}
+          </SettingsListGroup>
+        ) : (
+          <EmptyState
+            variant="compact"
+            title={t('pages.automations.runHistory')}
+            description={t('pages.automations.noRuns')}
+          />
+        )}
+        {visibleRuns < history.length ? (
+          <Button
+            tone="neutral"
+            appearance="subtle"
+            onPress={() => setVisibleRuns((count) => count + RUN_PAGE_SIZE)}
+          >
+            {t('pages.automations.showMore')}
+          </Button>
+        ) : null}
       </ScrollView>
       <AutomationEditor
         key={`${automation.updatedAt}:${editorOpen}`}
@@ -205,6 +252,6 @@ export default function AutomationHistoryScreen() {
         onClose={() => setEditorOpen(false)}
         onSave={saveUpdate}
       />
-    </ContentPanel>
+    </>
   );
 }

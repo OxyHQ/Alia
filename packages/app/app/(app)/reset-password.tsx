@@ -1,17 +1,17 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text } from 'react-native';
-import { useRouter, useLocalSearchParams } from 'expo-router';
-import { useAuth } from '@oxy.so/services';
 import { AuthContainer } from '@/components/auth/auth-container';
-import { AuthLogo } from '@/components/auth/auth-logo';
-import { AuthInput } from '@/components/auth/auth-input';
-import { AuthButton } from '@/components/auth/auth-button';
 import { AuthError } from '@/components/auth/auth-error';
+import { AuthLogo } from '@/components/auth/auth-logo';
 import apiClient from '@/lib/api/client';
-import { toast } from '@oxy.so/bloom/toast';
-import { useTranslation } from '@/lib/hooks/use-translation';
 import { errorMessage as getErrorMessage } from '@/lib/errors/error-utils';
-import { ContentPanel } from "@oxy.so/bloom/content-panel";
+import { useTranslation } from '@/lib/hooks/use-translation';
+import { Button } from '@oxy.so/bloom/button';
+import { TextFieldInput } from '@oxy.so/bloom/text-field';
+import { toast } from '@oxy.so/bloom/toast';
+import { Muted, Text } from '@oxy.so/bloom/typography';
+import { useAuth } from '@oxy.so/services';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
+import { View } from 'react-native';
 
 export default function ResetPasswordScreen() {
   const { t } = useTranslation();
@@ -66,7 +66,10 @@ export default function ResetPasswordScreen() {
       signIn().catch(() => {});
     } catch (error: unknown) {
       console.error('Reset password error:', error);
-      const errorMessage = getErrorMessage(error, t('resetPassword.failedToReset'));
+      const errorMessage = getErrorMessage(
+        error,
+        t('resetPassword.failedToReset'),
+      );
       setError(errorMessage);
 
       toast.error(errorMessage);
@@ -76,58 +79,51 @@ export default function ResetPasswordScreen() {
   };
 
   return (
-    <ContentPanel surfaceClassName="bg-background">
-      <AuthContainer>
-        <AuthLogo />
+    <AuthContainer>
+      <AuthLogo />
 
-        {/* Header */}
-        <View className="space-y-2 mb-6">
-          <Text className="text-3xl font-bold text-foreground tracking-tight">
-            {t('resetPassword.title')}
-          </Text>
-          <Text className="text-base text-muted-foreground">
-            {t('resetPassword.subtitle')}
-          </Text>
-        </View>
+      <View className="gap-2">
+        <Text variant="title-1-bold">{t('resetPassword.title')}</Text>
+        <Muted>{t('resetPassword.subtitle')}</Muted>
+      </View>
 
-        {/* Form */}
-        <View className="gap-3">
-          <AuthError message={error} />
+      <View className="gap-3">
+        <AuthError message={error} />
 
-          <AuthInput
-            placeholder={t('resetPassword.newPasswordPlaceholder')}
-            value={password}
-            onChangeText={(text) => {
-              setPassword(text);
-              setError('');
-            }}
-            secureTextEntry
-            editable={!loading && !!token}
-          />
+        <TextFieldInput
+          label={t('resetPassword.newPasswordPlaceholder')}
+          placeholder={t('resetPassword.newPasswordPlaceholder')}
+          value={password}
+          onChangeText={(text) => {
+            setPassword(text);
+            setError('');
+          }}
+          secureTextEntry
+          editable={!loading && !!token}
+        />
 
-          <AuthInput
-            placeholder={t('resetPassword.confirmPasswordPlaceholder')}
-            value={confirmPassword}
-            onChangeText={(text) => {
-              setConfirmPassword(text);
-              setError('');
-            }}
-            secureTextEntry
-            editable={!loading && !!token}
-            onSubmitEditing={handleResetPassword}
-          />
+        <TextFieldInput
+          label={t('resetPassword.confirmPasswordPlaceholder')}
+          placeholder={t('resetPassword.confirmPasswordPlaceholder')}
+          value={confirmPassword}
+          onChangeText={(text) => {
+            setConfirmPassword(text);
+            setError('');
+          }}
+          secureTextEntry
+          editable={!loading && !!token}
+          onSubmitEditing={handleResetPassword}
+        />
 
-          <AuthButton
-            onPress={handleResetPassword}
-            disabled={loading || !password || !confirmPassword || !token}
-            isLoading={loading}
-            loadingText={t('resetPassword.resetting')}
-            className="mt-3"
-          >
-            {t('resetPassword.resetButton')}
-          </AuthButton>
-        </View>
-      </AuthContainer>
-    </ContentPanel>
+        <Button
+          tone="action"
+          onPress={handleResetPassword}
+          disabled={loading || !password || !confirmPassword || !token}
+          loading={loading}
+        >
+          {t('resetPassword.resetButton')}
+        </Button>
+      </View>
+    </AuthContainer>
   );
 }

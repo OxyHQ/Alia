@@ -11,37 +11,45 @@
  * What is deliberately NOT here: Syra's Subscribe toggle, which makes no sense
  * on a show you own; its cover-derived ambient theming, which needs colours
  * Syra extracts server-side and Alia's series row does not carry; and its
- * resume-progress bars, which need listening history Alia does not keep.
+ * resume-progress bars, which need listening history Alia does not keep; and
+ * the hero's gradient wash, because the page's surface is the app layout's
+ * (`AiChatContainer`) and a page paints no background of its own.
  *
  * The one action a Syra show page cannot offer is the one this screen exists
  * for: another episode.
  */
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, Pressable, RefreshControl, FlatList, Linking, StyleSheet } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Text } from '@/components/ui/text';
-import { Button } from '@/components/ui/button';
-import { Avatar } from '@oxy.so/bloom/avatar';
-import { Plus, Trash2, ChevronLeft, ExternalLink, Lock, Link2, Globe, Pencil } from 'lucide-react-native';
-import { toast } from '@oxy.so/bloom/toast';
-import { confirm } from '@oxy.so/bloom/surfaces';
-import { ContentPanel } from '@oxy.so/bloom/content-panel';
-import { withAlpha } from '@oxy.so/bloom/theme';
+import { EpisodeCreateDialog } from '@/components/show/episode-create-dialog';
+import { EpisodeRow } from '@/components/show/episode-row';
+import { ShowArtwork } from '@/components/show/show-artwork';
+import { useShowProgress } from '@/lib/hooks/use-show-progress';
 import {
-  useShowStore,
   useSeriesEpisodes,
+  useShowStore,
   type ShowEpisode,
   type ShowVisibility,
 } from '@/lib/stores/show-store';
-import { EpisodeRow } from '@/components/show/episode-row';
-import { ShowArtwork } from '@/components/show/show-artwork';
-import { EpisodeCreateDialog } from '@/components/show/episode-create-dialog';
-import { useShowProgress } from '@/lib/hooks/use-show-progress';
-import { useColorScheme } from '@/lib/useColorScheme';
-import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { formatEpisodeCount } from '@/lib/utils/show-format';
+import { Avatar } from '@oxy.so/bloom/avatar';
+import { Badge, type BadgeIcon } from '@oxy.so/bloom/badge';
+import { Button } from '@oxy.so/bloom/button';
+import { EmptyState } from '@oxy.so/bloom/empty-state';
+import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
+import { RiDeleteBinLine } from '@oxy.so/bloom/icons/RiDeleteBinLine';
+import { RiExternalLinkLine } from '@oxy.so/bloom/icons/RiExternalLinkLine';
+import { RiGlobalLine } from '@oxy.so/bloom/icons/RiGlobalLine';
+import { RiLink } from '@oxy.so/bloom/icons/RiLink';
+import { RiLockLine } from '@oxy.so/bloom/icons/RiLockLine';
+import { RiPencilLine } from '@oxy.so/bloom/icons/RiPencilLine';
+import { Item } from '@oxy.so/bloom/item';
+import * as Skeleton from '@oxy.so/bloom/skeleton';
+import { confirm } from '@oxy.so/bloom/surfaces';
+import { useTheme } from '@oxy.so/bloom/theme';
+import { toast } from '@oxy.so/bloom/toast';
+import { H5, Muted, Text } from '@oxy.so/bloom/typography';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { FlatList, Linking, RefreshControl, View } from 'react-native';
 
 /** Where a listener would go to see the podcast itself. */
 const SYRA_WEB_URL = 'https://syra.fm';
@@ -54,19 +62,21 @@ const SYRA_WEB_URL = 'https://syra.fm';
 const DESCRIPTION_CLAMP_CHARS = 170;
 
 /** Who can hear it, as an icon and a word. */
-const VISIBILITY: Record<ShowVisibility, { label: string; icon: typeof Lock }> = {
-  private: { label: 'Private', icon: Lock },
-  unlisted: { label: 'Unlisted', icon: Link2 },
-  public: { label: 'Public', icon: Globe },
+const VISIBILITY: Record<ShowVisibility, { label: string; icon: BadgeIcon }> = {
+  private: { label: 'Private', icon: RiLockLine },
+  unlisted: { label: 'Unlisted', icon: RiLink },
+  public: { label: 'Public', icon: RiGlobalLine },
 };
 
 export default function SeriesDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const seriesId = typeof id === 'string' ? id : '';
   const router = useRouter();
-  const { colors } = useColorScheme();
+  const { colors } = useTheme();
 
-  const series = useShowStore((s) => s.series.find((entry) => entry.id === seriesId));
+  const series = useShowStore((s) =>
+    s.series.find((entry) => entry.id === seriesId),
+  );
   const episodes = useSeriesEpisodes(seriesId);
   const fetchOneSeries = useShowStore((s) => s.fetchOneSeries);
   const createEpisode = useShowStore((s) => s.createEpisode);
@@ -137,7 +147,9 @@ export default function SeriesDetailScreen() {
 
       const removed = await deleteEpisode(seriesId, episodeId);
       if (!removed) {
-        toast.error(useShowStore.getState().error ?? 'Could not remove the episode');
+        toast.error(
+          useShowStore.getState().error ?? 'Could not remove the episode',
+        );
         return;
       }
       toast.success('Episode deleted from Alia and Syra');
@@ -186,34 +198,33 @@ export default function SeriesDetailScreen() {
 
   const renderItem = useCallback(
     ({ item }: { item: ShowEpisode }) => (
-      <View className="px-2">
-        <EpisodeRow episode={item} onDelete={handleDeleteEpisode} />
-      </View>
+      <EpisodeRow episode={item} onDelete={handleDeleteEpisode} />
     ),
     [handleDeleteEpisode],
   );
 
   const hosts = useMemo(
-    () => (series ? series.speakers.map((speaker) => speaker.name).join(', ') : ''),
+    () =>
+      series ? series.speakers.map((speaker) => speaker.name).join(', ') : '',
     [series],
   );
 
   if (!series) {
     return (
-      <ContentPanel surfaceClassName="bg-background">
-        <View className="flex-1 gap-4 bg-background p-4">
-          <View className="flex-row gap-4">
-            <Skeleton.Box width={112} height={112} borderRadius={16} />
-            <View className="flex-1 justify-center gap-2">
-              <Skeleton.Box width="75%" height={24} borderRadius={8} />
-              <Skeleton.Box width="50%" height={16} borderRadius={8} />
-              <Skeleton.Box width={128} height={32} borderRadius={9999} />
-            </View>
+      <View className="flex-1 gap-4 p-4">
+        <Stack.Screen options={{ headerBackVisible: true }} />
+        <View className="flex-row gap-4">
+          <Skeleton.Box width={112} height={112} borderRadius={16} />
+          <View className="flex-1 justify-center gap-2">
+            {/* Bars 0.7 of the 24px title line and the 16px byline. */}
+            <Skeleton.Box width="75%" height={17} />
+            <Skeleton.Box width="50%" height={11} />
+            <Skeleton.Pill size={32} />
           </View>
-          <Skeleton.Box width="100%" height={56} borderRadius={8} />
-          <Skeleton.Box width="100%" height={64} borderRadius={12} />
         </View>
-      </ContentPanel>
+        <Skeleton.Box width="100%" height={56} />
+        <Skeleton.Box width="100%" height={64} />
+      </View>
     );
   }
 
@@ -222,165 +233,129 @@ export default function SeriesDetailScreen() {
   const description = series.description?.trim() || series.brief;
   const isClampable = description.length > DESCRIPTION_CLAMP_CHARS;
 
+  /*
+   * No surface and no wash of its own: the layout's `AiChatContainer` paints
+   * the page and carries the "Shows" crumb. The show's own title stays — it is
+   * content, not the page's name.
+   */
   const header = (
-    <View>
-      {/*
-        Syra's hero bleeds a cover-derived gradient to the panel edges. Alia has
-        no cover colours — Syra extracts those server-side and keeps them on its
-        own podcast, not on the series row — so the wash is the app's own accent.
-        It fades to a fully transparent BACKGROUND, never to `transparent`, which
-        renders as black on some Android surfaces.
-      */}
-      <View className="overflow-hidden">
-        <LinearGradient
-          colors={[
-            withAlpha(colors.primary, 0.14),
-            withAlpha(colors.primary, 0.04),
-            withAlpha(colors.background, 0),
-          ]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 0.6, y: 1 }}
-          style={StyleSheet.absoluteFill}
+    // Stacking only: the hero, the description, the hosts and the heading.
+    <View className="gap-5 pb-1">
+      <View className="flex-row gap-4">
+        <ShowArtwork
+          assetId={series.coverImageAssetId}
+          title={series.title}
+          size={112}
+          radius="radius-16"
+          iconSize={40}
         />
 
-        <View className="flex-row items-center px-2 pt-3">
-          <Pressable
-            onPress={() => router.back()}
-            accessibilityRole="button"
-            accessibilityLabel="Back to shows"
-            className="h-9 w-9 items-center justify-center rounded-full active:opacity-70 web:hover:bg-muted"
-          >
-            <ChevronLeft size={20} className="text-foreground" />
-          </Pressable>
-        </View>
+        <View className="min-w-0 flex-1 justify-center gap-1.5">
+          <Text variant="title-2-bold" numberOfLines={3}>
+            {series.title}
+          </Text>
 
-        <View className="flex-row gap-4 px-4 pb-6 pt-1 md:gap-5">
-          <ShowArtwork
-            assetId={series.coverImageAssetId}
-            title={series.title}
-            className="h-28 w-28 rounded-2xl md:h-36 md:w-36"
-            iconSize={40}
-          />
+          {hosts ? <Muted numberOfLines={2}>{hosts}</Muted> : null}
 
-          <View className="min-w-0 flex-1 justify-center gap-1.5">
-            <Text
-              className="text-xl font-bold leading-7 text-foreground md:text-2xl md:leading-8"
-              numberOfLines={3}
-            >
-              {series.title}
+          <View className="flex-row flex-wrap items-center gap-2">
+            <Badge
+              size="label-small"
+              variant="subtle"
+              icon={visibility.icon}
+              content={visibility.label}
+            />
+            <Text className="text-xs capitalize text-muted-foreground">
+              {series.format}
             </Text>
+            <Text className="text-xs text-muted-foreground">
+              {formatEpisodeCount(episodes.length)}
+            </Text>
+          </View>
 
-            {hosts ? (
-              <Text className="text-sm text-muted-foreground" numberOfLines={2}>
-                {hosts}
-              </Text>
-            ) : null}
-
-            <View className="flex-row flex-wrap items-center gap-x-2 gap-y-1">
-              <View className="flex-row items-center gap-1 rounded-full bg-muted px-2 py-0.5">
-                <VisibilityIcon size={11} className="text-muted-foreground" />
-                <Text className="text-[11px] font-medium text-muted-foreground">
-                  {visibility.label}
-                </Text>
-              </View>
-              <Text className="text-xs capitalize text-muted-foreground">{series.format}</Text>
-              <Text className="text-xs text-muted-foreground">
-                {formatEpisodeCount(episodes.length)}
-              </Text>
-            </View>
-
-            <View className="flex-row flex-wrap items-center gap-2 pt-1.5">
-              <Button
-                size="sm"
-                className="flex-row items-center gap-1.5 rounded-full"
-                onPress={handleNewEpisode}
-                disabled={starting}
-              >
-                <Plus size={14} className="text-primary-foreground" />
-                <Text className="text-sm text-primary-foreground">
-                  {starting ? 'Starting...' : 'New episode'}
-                </Text>
-              </Button>
-              {/*
-                The other case, kept and kept QUIET: usually there is nothing
-                specific to say, and occasionally there is an article to work
-                from or a subject that will not wait.
-              */}
-              <Pressable
-                onPress={() => setCreateOpen(true)}
-                disabled={starting}
-                accessibilityRole="button"
-                accessibilityLabel="Say what this episode should cover"
-                className="h-8 flex-row items-center gap-1.5 rounded-full border border-border px-3 active:opacity-70 web:hover:bg-muted"
-              >
-                <Pencil size={13} className="text-muted-foreground" />
-                <Text className="text-xs font-medium text-muted-foreground">Something specific</Text>
-              </Pressable>
-              <Pressable
-                onPress={openOnSyra}
-                accessibilityRole="link"
-                accessibilityLabel="Open this podcast on Syra"
-                className="h-8 flex-row items-center gap-1.5 rounded-full border border-border px-3 active:opacity-70 web:hover:bg-muted"
-              >
-                <ExternalLink size={13} className="text-muted-foreground" />
-                <Text className="text-xs font-medium text-muted-foreground">Open on Syra</Text>
-              </Pressable>
-            </View>
+          <View className="flex-row flex-wrap gap-2 pt-1.5">
+            <Button
+              tone="action"
+              size="sm"
+              leadingIcon={RiAddLine}
+              onPress={handleNewEpisode}
+              disabled={starting}
+            >
+              {starting ? 'Starting...' : 'New episode'}
+            </Button>
+            {/*
+              The other case, kept and kept QUIET: usually there is nothing
+              specific to say, and occasionally there is an article to work
+              from or a subject that will not wait.
+            */}
+            <Button
+              tone="neutral"
+              appearance="outline"
+              size="sm"
+              leadingIcon={RiPencilLine}
+              onPress={() => setCreateOpen(true)}
+              disabled={starting}
+              accessibilityRole="button"
+              accessibilityLabel="Say what this episode should cover"
+            >
+              Something specific
+            </Button>
+            <Button
+              tone="neutral"
+              appearance="outline"
+              size="sm"
+              leadingIcon={RiExternalLinkLine}
+              onPress={openOnSyra}
+              accessibilityRole="link"
+              accessibilityLabel="Open this podcast on Syra"
+            >
+              Open on Syra
+            </Button>
           </View>
         </View>
       </View>
 
-      <Pressable
-        onPress={() => setDescriptionExpanded((value) => !value)}
-        disabled={!isClampable}
-        accessibilityRole={isClampable ? 'button' : undefined}
-        className="gap-1 px-4 pb-5"
-      >
-        <Text
-          className="text-sm leading-5 text-muted-foreground"
+      <View className="items-start gap-1">
+        <Muted
           numberOfLines={descriptionExpanded || !isClampable ? undefined : 3}
         >
           {description}
-        </Text>
+        </Muted>
         {isClampable ? (
-          <Text className="text-[13px] font-semibold text-primary">
+          <Button
+            tone="accent"
+            appearance="plain"
+            size="xs"
+            onPress={() => setDescriptionExpanded((value) => !value)}
+          >
             {descriptionExpanded ? 'Show less' : 'Show more'}
-          </Text>
+          </Button>
         ) : null}
-      </Pressable>
+      </View>
 
       {series.speakers.length > 0 ? (
-        <View className="gap-3 px-4 pb-6">
-          <Text className="text-base font-bold text-foreground">Hosts</Text>
+        <View className="gap-1">
+          <H5>Hosts</H5>
           {series.speakers.map((speaker) => (
-            <View key={`${speaker.name}-${speaker.voiceId}`} className="flex-row items-center gap-3">
-              {/*
-                A host has no photo anywhere in the Shows model, so this was
-                only ever the initials disc — three nested components and a
-                hand-sliced first letter to draw one grey circle. Bloom's
-                Avatar derives the initial itself and, unlike the slice this
-                replaces, walks the letter along its ramp until it clears AA
-                in whichever mode is on. `color="neutral"` pins the quiet grey
-                the wrapper's `bg-muted` had; dropping it would tint the disc
-                per host, which is a product decision and not this refactor's
-                to make.
-              */}
-              <Avatar name={speaker.name} size={44} color="neutral" />
-              <View className="min-w-0 flex-1">
-                <Text className="text-[15px] font-semibold text-foreground" numberOfLines={1}>
-                  {speaker.name}
-                </Text>
-                <Text className="text-[13px] capitalize text-muted-foreground" numberOfLines={1}>
-                  {speaker.role} · {speaker.voiceName}
-                </Text>
-              </View>
-            </View>
+            <Item
+              key={`${speaker.name}-${speaker.voiceId}`}
+              role="listitem"
+              leading={
+                // A host has no photo anywhere in the Shows model; Bloom's
+                // Avatar derives the initial and clears AA in either mode.
+                // `color="neutral"` keeps the quiet grey rather than tinting
+                // the disc per host, which is a product decision.
+                <Avatar name={speaker.name} size={44} color="neutral" />
+              }
+              title={speaker.name}
+              subtitle={`${speaker.role} · ${speaker.voiceName}`}
+              subtitleStyle={{ textTransform: 'capitalize' }}
+            />
           ))}
         </View>
       ) : null}
 
-      <View className="flex-row items-baseline justify-between px-4 pb-1">
-        <Text className="text-lg font-bold text-foreground">Episodes</Text>
+      <View className="flex-row items-baseline justify-between">
+        <H5>Episodes</H5>
         {episodes.length > 0 ? (
           <Text className="text-xs text-muted-foreground">
             {formatEpisodeCount(episodes.length)}
@@ -391,70 +366,61 @@ export default function SeriesDetailScreen() {
   );
 
   return (
-    <ContentPanel surfaceClassName="bg-background">
-      <View className="flex-1 bg-background">
-        <FlatList
-          data={episodes}
-          renderItem={renderItem}
-          keyExtractor={(item) => item.id}
-          ListHeaderComponent={header}
-          ListEmptyComponent={
-            <View className="items-center gap-3 px-8 py-12">
-              <Text className="text-center text-base font-semibold text-foreground">
-                No episodes yet
-              </Text>
-              <Text className="text-center text-sm text-muted-foreground">
-                Alia will work out what the first one covers from what this show is about, write
-                it, voice it with {series.speakers.map((speaker) => speaker.name).join(' and ')},
-                and publish it.
-              </Text>
-              <Button
-                onPress={handleNewEpisode}
-                disabled={starting}
-                className="flex-row items-center gap-1.5 rounded-full"
-              >
-                <Plus size={14} className="text-primary-foreground" />
-                <Text className="text-primary-foreground">
-                  {starting ? 'Starting...' : 'Record the first episode'}
-                </Text>
-              </Button>
-              <Pressable
-                onPress={() => setCreateOpen(true)}
-                disabled={starting}
-                accessibilityRole="button"
-                accessibilityLabel="Say what the first episode should cover"
-                className="active:opacity-70"
-              >
-                <Text className="text-[13px] font-semibold text-primary">
-                  Or say what it should cover
-                </Text>
-              </Pressable>
-            </View>
-          }
-          ListFooterComponent={
-            <View className="px-4 pt-6">
-              <Pressable
-                onPress={handleDeleteSeries}
-                accessibilityRole="button"
-                accessibilityLabel="Remove this show from Alia"
-                className="flex-row items-center justify-center gap-1.5 p-2 active:opacity-70"
-              >
-                <Trash2 size={14} className="text-destructive" />
-                <Text className="text-xs text-destructive">Remove this show from Alia</Text>
-              </Pressable>
-            </View>
-          }
-          contentContainerStyle={{ paddingBottom: 32 }}
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              tintColor={colors.primary}
-            />
-          }
-        />
-      </View>
+    <>
+      <Stack.Screen
+        options={{ title: series.title, headerBackVisible: true }}
+      />
+      <FlatList
+        className="flex-1"
+        data={episodes}
+        renderItem={renderItem}
+        keyExtractor={(item) => item.id}
+        ListHeaderComponent={header}
+        ListEmptyComponent={
+          <EmptyState
+            title="No episodes yet"
+            description={`Alia will work out what the first one covers from what this show is about, write it, voice it with ${series.speakers
+              .map((speaker) => speaker.name)
+              .join(' and ')}, and publish it.`}
+            action={{
+              label: starting ? 'Starting...' : 'Record the first episode',
+              icon: RiAddLine,
+              onPress: handleNewEpisode,
+              disabled: starting,
+            }}
+            secondaryAction={{
+              label: 'Or say what it should cover',
+              onPress: () => setCreateOpen(true),
+              disabled: starting,
+              accessibilityLabel: 'Say what the first episode should cover',
+            }}
+          />
+        }
+        ListFooterComponent={
+          <View className="items-center pt-6">
+            <Button
+              tone="danger"
+              appearance="plain"
+              size="sm"
+              leadingIcon={RiDeleteBinLine}
+              onPress={handleDeleteSeries}
+              accessibilityRole="button"
+              accessibilityLabel="Remove this show from Alia"
+            >
+              Remove this show from Alia
+            </Button>
+          </View>
+        }
+        contentContainerClassName="gap-1 px-4 pt-2 pb-8"
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.primary}
+          />
+        }
+      />
 
       <EpisodeCreateDialog
         open={createOpen}
@@ -462,6 +428,6 @@ export default function SeriesDetailScreen() {
         seriesId={seriesId}
         nextEpisodeNumber={series.nextEpisodeNumber}
       />
-    </ContentPanel>
+    </>
   );
 }

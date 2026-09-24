@@ -1,15 +1,13 @@
-import { useState } from 'react';
-import { View, ScrollView, ActivityIndicator, Pressable } from 'react-native';
-import { Text } from '@/components/ui/text';
-import { Button } from '@/components/ui/button';
-import { Textarea } from '@oxy.so/bloom/textarea';
-import { ArrowLeft, Sparkles } from 'lucide-react-native';
-import { useRouter } from 'expo-router';
-import { toast } from "@oxy.so/bloom/toast";
+import { Composer } from '@/components/chat/composer/composer';
+import { useAliaComposer } from '@/components/chat/composer/use-alia-composer';
+import { useCreateSkill, useGenerateSkillDraft } from '@/lib/hooks/use-skills';
 import { useTranslation } from '@/lib/hooks/use-translation';
 import { useI18nStore } from '@/lib/stores/i18n-store';
-import { useCreateSkill, useGenerateSkillDraft } from '@/lib/hooks/use-skills';
-
+import { toast } from '@oxy.so/bloom/toast';
+import { Muted } from '@oxy.so/bloom/typography';
+import { Stack, useRouter } from 'expo-router';
+import { useState } from 'react';
+import { ScrollView } from 'react-native';
 /**
  * Writing a skill, starting from a sentence.
  *
@@ -28,55 +26,52 @@ export default function CreateSkillScreen() {
   const draft = useGenerateSkillDraft();
   const create = useCreateSkill();
   const busy = draft.isPending || create.isPending;
+  const composer = useAliaComposer({ locked: busy });
 
   const handleCreate = async () => {
     if (prompt.trim().length < 10) return;
     try {
-      const drafted = await draft.mutateAsync({ prompt: prompt.trim(), language: locale });
+      const drafted = await draft.mutateAsync({
+        prompt: prompt.trim(),
+        language: locale,
+      });
       const skill = await create.mutateAsync({ document: drafted.document });
       toast.success(t('skills.created'));
       router.replace(`/(app)/skills/edit/${skill._id}`);
     } catch (error) {
-      const message = (error as { response?: { data?: { error?: { message?: string } } } }).response?.data?.error?.message;
+      const message = (
+        error as { response?: { data?: { error?: { message?: string } } } }
+      ).response?.data?.error?.message;
       toast.error(message ?? t('skills.generateFailed'));
     }
   };
 
   return (
-    <View className="flex-1 bg-background">
-      <View className="flex-row items-center px-4 pt-4">
-        <Pressable onPress={() => router.back()} className="h-9 w-9 items-center justify-center rounded-full active:bg-muted">
-          <ArrowLeft size={18} className="text-foreground" />
-        </Pressable>
-      </View>
+    <>
+      <Stack.Screen
+        options={{ title: t('skills.createTitle'), headerBackVisible: true }}
+      />
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        contentContainerClassName="w-full max-w-[768px] self-center gap-4 px-4 pb-12 pt-4"
+      >
+        <Muted>{t('skills.createSubtitle')}</Muted>
 
-      <ScrollView className="flex-1 px-5" showsVerticalScrollIndicator={false}>
-        <Text className="text-2xl font-bold text-foreground mt-2">{t('skills.createTitle')}</Text>
-        <Text className="text-[13px] text-muted-foreground mt-1">{t('skills.createSubtitle')}</Text>
-
-        <Textarea
+        {/* The chat's own composer: describing a skill is the same gesture as
+          asking Alia anything. The ten-character floor stays in the handler. */}
+        <Composer
+          {...composer.props}
           value={prompt}
-          onChangeText={setPrompt}
+          onValueChange={setPrompt}
+          onSubmit={() => void handleCreate()}
+          busy={busy}
+          disabled={busy}
           placeholder={t('skills.createPlaceholder')}
-          style={{ marginTop: 20 }}
-          autoResize
-          rows={7}
-          editable={!busy}
         />
 
-        <Button className="mt-4 rounded-full" disabled={busy || prompt.trim().length < 10} onPress={handleCreate}>
-          {busy ? (
-            <ActivityIndicator size="small" />
-          ) : (
-            <>
-              <Sparkles size={14} className="text-primary-foreground" />
-              <Text className="ml-1.5">{t('skills.generate')}</Text>
-            </>
-          )}
-        </Button>
-
-        {busy ? <Text className="text-[12px] text-muted-foreground mt-2 text-center">{t('skills.generating')}</Text> : null}
+        {busy ? <Muted>{t('skills.generating')}</Muted> : null}
       </ScrollView>
-    </View>
+    </>
   );
 }

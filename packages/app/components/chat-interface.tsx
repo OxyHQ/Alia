@@ -1,61 +1,69 @@
-import { View, Pressable, Platform, type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent } from "react-native";
-import { toast } from "@oxy.so/bloom/toast";
-import { Image } from "expo-image";
-import { CustomMarkdown } from "@/components/ui/markdown";
-import { Text } from "@/components/ui/text";
-import { WelcomeMessage } from "@/components/welcome-message";
-import React, { useEffect, useState, useCallback, useRef, useMemo } from "react";
-import { processMessage } from "@/lib/message-processor";
-import { cn } from "@/lib/utils";
-import { THREAD_COLUMN } from "@/lib/chat-layout";
-import { IdentityMark, type IdentityMarkState } from '@alia.onl/sdk';
-import { AgentThinking } from '@oxy.so/bloom/agent-thinking';
-import { AiChatAssistantMessage, AiChatThread, AiChatUserMessage, type AiChatThreadHandle } from '@oxy.so/bloom/ai-chat';
-import { useColorScheme } from "@/lib/useColorScheme";
-import { agentTint } from "@/lib/agents/agent-color";
-import { Copy, ThumbsUp, ThumbsDown, Pencil, Check, Volume2, Square, Music, RotateCcw } from "lucide-react-native";
-import * as DropdownMenu from "@/components/ui/dropdown-menu";
-import { useTTS } from "@/lib/hooks/use-tts";
-import { useAudioGen } from "@/lib/hooks/use-audio-gen";
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withTiming,
-  Easing,
-} from "react-native-reanimated";
-import * as Clipboard from "expo-clipboard";
-import { Reasoning, ReasoningTrigger } from "@/components/ui/reasoning";
-import { getToolActiveLabel, getResearchActiveLabel, getTextFromContent, getImagesFromContent } from '@alia.onl/sdk';
-import { useUIStore, type ThoughtTab, type ThoughtScope } from "@/lib/stores/ui-store";
-import { useStore, type ChatIdState } from "@/lib/stores/global-store";
-import { useQueryClient } from "@tanstack/react-query";
-import { queryKeys } from "@/lib/hooks/query-keys";
-import type { ToolInvocation } from "@/lib/types/messages";
-import type { Message as ConversationMessage } from "@/lib/hooks/use-conversations";
-import { AgentTaskCard } from "@/components/agent-task-card";
-import { AgentResultCard } from "@/components/agent-result-card";
-import { ResearchProgressCard, PlanPreviewCard } from '@alia.onl/sdk';
+import { AgentResultCard } from '@/components/agent-result-card';
+import { AgentTaskCard } from '@/components/agent-task-card';
+import { WelcomeMessage } from '@/components/welcome-message';
+import { FailedTurnCard } from '@/components/chat/failed-turn-card';
+import { MessageBlockBoundary } from '@/components/chat/message-block-boundary';
+import { ToolResultCard } from '@/components/chat/tool-result-card';
+import type { FailedTurn } from '@/components/chat/turn-failure';
+import { cardOf } from '@/lib/chat/tool-cards';
+import { getToolPillLabel } from '@/lib/task-utils';
+import { isWebInvocation, taskListLog, webSearchLog } from '@/lib/chat/work-log';
+import { daySeparators } from '@/lib/message-days';
+import { AgentProgress } from '@oxy.so/bloom/agent-progress';
+import { ChatDateHeader } from '@oxy.so/bloom/chat-screen';
+import { TaskList } from '@oxy.so/bloom/task-list';
+import { WebSearch } from '@oxy.so/bloom/web-search';
+import { NewConversationOffer } from '@/components/new-conversation-offer';
+import { CustomMarkdown } from '@/components/ui/markdown';
+import { agentTint } from '@/lib/agents/agent-color';
+import apiClient from '@/lib/api/client';
+import { queryKeys } from '@/lib/hooks/query-keys';
+import type { AgentActivityState } from '@/lib/hooks/use-agent-activity';
+import type { Message as ConversationMessage } from '@/lib/hooks/use-conversations';
+import { useTranslation } from '@/lib/hooks/use-translation';
+import { processMessage } from '@/lib/message-processor';
+import { useStore, type ChatIdState } from '@/lib/stores/global-store';
+import { useUIStore, type ThoughtScope } from '@/lib/stores/ui-store';
+import { formatElapsed, turnTimings } from '@/lib/thought-utils';
+import type { ThreadMessage } from '@/lib/thread-history';
+import type { ToolInvocation } from '@/lib/types/messages';
+import { useColorScheme } from '@/lib/useColorScheme';
 import type { ResearchProgress as ResearchProgressData } from '@alia.onl/sdk';
-import type { AgentActivityState } from "@/lib/hooks/use-agent-activity";
-import * as Skeleton from "@oxy.so/bloom/skeleton";
-import apiClient from "@/lib/api/client";
-import { useTranslation } from "@/lib/hooks/use-translation";
-import { MessageSources } from "@/components/message-sources";
-import { WeatherCard, type WeatherCardData } from "@/components/cards/weather-card";
-import { MarketCard, type MarketCardData } from "@/components/cards/market-card";
-import { FairCoinCard, type FairCoinCardData } from "@/components/cards/faircoin-card";
-import { ScheduledTaskCard, type ScheduledTaskCardData } from "@/components/cards/scheduled-task-card";
-import { NewConversationOffer } from "@/components/new-conversation-offer";
-import { daySeparators } from "@/lib/message-days";
-import { threadSeamIds, type ThreadMessage } from "@/lib/thread-history";
-import { FailedTurnCard } from "@/components/chat/failed-turn-card";
-import { MessageBlockBoundary } from "@/components/chat/message-block-boundary";
-import type { FailedTurn } from "@/components/chat/turn-failure";
-import { WorkSummary } from "@/components/execution/work-summary";
-import { rememberOpener } from "@/components/execution/focus-return";
-import { turnLifecycle, turnTimings } from "@/lib/thought-utils";
-
-const isWeb = Platform.OS === "web";
+import {
+  getImagesFromContent,
+  getTextFromContent,
+  IdentityMark,
+  PlanPreviewCard,
+} from '@alia.onl/sdk';
+import { AgentThinking } from '@oxy.so/bloom/agent-thinking';
+import {
+  AiChatAssistantMessage,
+  AiChatMessageLine,
+  AiChatThread,
+  AiChatUserMessage,
+  type AiChatThreadHandle,
+  useAiChatChromeInsets,
+} from '@oxy.so/bloom/ai-chat';
+import { Loading } from '@oxy.so/bloom/loading';
+import * as Skeleton from '@oxy.so/bloom/skeleton';
+import { toast } from '@oxy.so/bloom/toast';
+import { Text } from '@oxy.so/bloom/typography';
+import { useQueryClient } from '@tanstack/react-query';
+import * as Clipboard from 'expo-clipboard';
+import { Image } from 'expo-image';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+} from 'react';
+import {
+  View,
+  type LayoutChangeEvent,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
+} from 'react-native';
+import Animated from 'react-native-reanimated';
 
 /** How near the end still counts as being at the bottom, px. */
 export const AT_BOTTOM_THRESHOLD = 50;
@@ -76,22 +84,6 @@ const NEAR_TOP = 300;
  */
 const EMPTY_TIMING = Object.freeze({ startedAt: null, endedAt: null });
 
-// The action bar reveals on hover where a hover EXISTS, and is simply always
-// present where it does not — on touch these actions were reachable only
-// through a long-press menu, which nothing on screen advertises.
-//
-// `focus-within` beside `hover`: the buttons are real, focusable controls, and
-// a keyboard reaching one by Tab has no hover to reveal it with. Without this
-// the focus ring landed on an invisible button and the reader had no idea
-// what they were about to activate. The bar shows for as long as focus is in
-// it, on the row (`group-`) or on the bar itself.
-const ACTION_BAR = isWeb
-  ? "flex-row gap-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 focus-within:opacity-100"
-  : "flex-row gap-1";
-const ACTION_BTN = isWeb
-  ? "p-1.5 rounded-lg hover:bg-muted active:bg-muted"
-  : "p-2.5 rounded-lg active:bg-muted";
-
 type MessagePart = {
   type: string;
   text?: string;
@@ -107,7 +99,7 @@ type PendingPlan = {
 
 type Message = {
   id: string;
-  role: "user" | "assistant" | "system" | "function" | "data" | "tool";
+  role: 'user' | 'assistant' | 'system' | 'function' | 'data' | 'tool';
   content?: string | Array<{ type: string; [key: string]: unknown }>;
   thinking?: string; // Extended thinking content
   parts?: MessagePart[];
@@ -133,7 +125,7 @@ type Message = {
 type ChatInterfaceProps = {
   messages: Message[];
   /**
-   * Bloom's thread handle, for the jump-to-present button and for a restore.
+   * Bloom's thread handle, for a jump to a cursor and for a restore.
    *
    * It replaced a `ScrollView` ref: the thread owns its scroll view now, and
    * `AiChatThreadHandle` is the seam — `scrollToEnd`, `scrollToOffset`, and
@@ -149,11 +141,8 @@ type ChatInterfaceProps = {
   onLoadHistory?: () => void;
   isLoading?: boolean;
   conversationLoading?: boolean;
-  onStartEdit?: (messageId: string, content: string) => void;
-  onRegenerate?: (messageId: string) => void;
   onCopyMessage?: (content: string) => void;
   bottomPadding?: number;
-  isVoiceActive?: boolean;
   voiceAgentState?: 'idle' | 'listening' | 'thinking' | 'speaking';
   onScroll?: (e: NativeSyntheticEvent<NativeScrollEvent>) => void;
   agentActivity?: AgentActivityState | null;
@@ -176,7 +165,7 @@ type ChatInterfaceProps = {
    * reader on the message they were reading while a page lands above them.
    */
   onHistoryHeight?: (height: number) => void;
-  /** The conversation being streamed into, which is what a seam is drawn against. */
+  /** The conversation being streamed into, which is what the thought panel reads. */
   activeConversationId?: string;
   /**
    * The message a jump was aimed at, by cursor, or `null` at the present.
@@ -218,9 +207,9 @@ function getRawMessageText(message: Message): string {
   }
   if (message.parts && Array.isArray(message.parts)) {
     return message.parts
-      .filter((part) => part.type === "text")
-      .map((part) => part.text || "")
-      .join("");
+      .filter((part) => part.type === 'text')
+      .map((part) => part.text || '')
+      .join('');
   }
   return '';
 }
@@ -240,107 +229,26 @@ function getMessageImages(message: Message): string[] {
   return [];
 }
 
-/**
- * The card a finished tool call draws in the conversation, or `null` for a
- * call that has none. A call with a card is shown as the card; every other
- * call is a row of the turn's work summary (#544) — the pulsing bullet rows
- * that used to list them are that summary now, collapsed behind
- * "Worked for Ns".
- */
-const CARD_TYPES = new Set(['weather', 'market', 'faircoin', 'scheduled-task']);
-
-/** The card a finished call returned, if it is one this conversation draws. */
-function cardOf(t: ToolInvocation): { type: string; data: unknown } | null {
-  if (t.state !== 'result') return null;
-  const card = (t.result as { card?: { type?: string; data?: unknown } } | undefined)?.card;
-  if (card?.type === undefined || !CARD_TYPES.has(card.type) || !card.data) return null;
-  return { type: card.type, data: card.data };
-}
-
-function toolCard(t: ToolInvocation, key: string): React.ReactElement | null {
-  const card = cardOf(t);
-  if (card === null) return null;
-  if (card.type === 'weather') return <WeatherCard key={key} data={card.data as WeatherCardData} />;
-  if (card.type === 'market') return <MarketCard key={key} data={card.data as MarketCardData} />;
-  if (card.type === 'scheduled-task') {
-    return <ScheduledTaskCard key={key} data={card.data as ScheduledTaskCardData} />;
-  }
-  return <FairCoinCard key={key} data={card.data as FairCoinCardData} />;
-}
-
-/** Whether a call draws a card, without building it. */
+/** Whether a call returned a card, and so is left out of the work summary. */
 function hasToolCard(t: ToolInvocation): boolean {
   return cardOf(t) !== null;
 }
-
-/**
- * The line between two days, Messenger-style.
- *
- * It takes the finished string, not a label to resolve: `t` is rebuilt on every
- * render of the hook that returns it, so a component taking it as a prop is a
- * memo that never holds — and this one is rendered inside a list that re-renders
- * per streamed token.
- */
-/**
- * Where one conversation ended and the next began.
- *
- * A different line from the day one on purpose: a date is derived from when a
- * message was written, while this is a fact about the thread — the model was
- * given a fresh context here, and everything above is out of its sight. Drawing
- * them the same way would suggest a break happened every midnight.
- */
-const ConversationSeam = React.memo(function ConversationSeam({ text }: { text: string }) {
-  return (
-    <View className="flex-row items-center gap-3 py-6">
-      <View className="h-px flex-1 bg-border" />
-      <Text className="text-xs font-medium text-muted-foreground">{text}</Text>
-      <View className="h-px flex-1 bg-border" />
-    </View>
-  );
-});
-
-const DaySeparator = React.memo(function DaySeparator({ text }: { text: string }) {
-  return (
-    <View className="items-center py-4">
-      <View className="rounded-full bg-muted px-3 py-1">
-        <Text className="text-xs font-medium text-muted-foreground">{text}</Text>
-      </View>
-    </View>
-  );
-});
 
 type MessageRowProps = {
   m: Message;
   index: number;
   isNewMessage: boolean;
-  isAliaMessage: boolean;
   isLastAlia: boolean;
   isLoading?: boolean;
-  isLastMessage: boolean;
-  isCopied: boolean;
-  myVote: 'up' | 'down' | null;
-  // Per-row TTS state: 'idle' unless this row is the active one. Passing the
-  // raw activeMessageId + playbackState to every row re-renders all rows on a
-  // playback transition; deriving per row keeps the memo for inactive rows.
-  ttsState: string;
   chatId: ChatIdState;
-  voiceAgentState?: 'idle' | 'listening' | 'thinking' | 'speaking';
-  handleMarkLayout: (e: LayoutChangeEvent) => void;
   /** Where this row ended up, for the one row a jump is aimed at. */
   onRowLayout?: (e: LayoutChangeEvent) => void;
-  handleCopyMessage: (messageId: string, content: string) => void;
-  handleVote: (messageId: string, vote: 'up' | 'down', conversationId?: string) => void;
-  readAloud: (id: string, text: string, chatId?: string, audioUrl?: string) => void;
-  generateAudio: (messageId: string, prompt: string, conversationId?: string) => void;
-  // Per-row audio-gen state: 'idle' unless this row is the active one (same
-  // rationale as ttsState above).
-  audioGenRowState: string;
-  /**
-   * Open the execution panel on this message. `opener` is the control that was
-   * pressed, when the caller has it, so the panel can hand focus back to it on
-   * close; without one the panel remembers whatever is focused at the time.
-   */
-  openThoughtPanel: (messageId: string, tab?: ThoughtTab, opener?: unknown) => void;
+  handleCopyMessage: (content: string) => void;
+  handleVote: (
+    messageId: string,
+    vote: 'up' | 'down',
+    conversationId?: string,
+  ) => void;
   /**
    * The turn's timing for its work summary, as primitives so the row's memo
    * holds: epoch ms of the send, and of the persisted end or `null` for a
@@ -348,22 +256,24 @@ type MessageRowProps = {
    */
   workStartedAt: number | null;
   workEndedAt: number | null;
-  /** The failed-turn card is anchored on this message: the turn failed, whatever the message says. */
-  turnFailed: boolean;
-  onStartEdit?: (messageId: string, content: string) => void;
-  onRegenerate?: (messageId: string) => void;
   onApprovePlan?: (planId: string) => void;
   onRejectPlan?: (planId: string) => void;
 };
 
 const MessageRow = React.memo(function MessageRow({
-  m, index, isNewMessage, isAliaMessage, isLastAlia,
-  isLoading, isLastMessage, isCopied, myVote,
-  ttsState, chatId, voiceAgentState,
-  handleMarkLayout, onRowLayout, handleCopyMessage, handleVote, readAloud,
-  generateAudio, audioGenRowState,
-  openThoughtPanel, onStartEdit, onRegenerate, onApprovePlan, onRejectPlan,
-  workStartedAt, workEndedAt, turnFailed,
+  m,
+  index,
+  isNewMessage,
+  isLastAlia,
+  isLoading,
+  chatId,
+  onRowLayout,
+  handleCopyMessage,
+  handleVote,
+  onApprovePlan,
+  onRejectPlan,
+  workStartedAt,
+  workEndedAt,
 }: MessageRowProps) {
   const { colors } = useColorScheme();
   const { t: rowT } = useTranslation();
@@ -375,17 +285,38 @@ const MessageRow = React.memo(function MessageRow({
    * card. Read on each render — the list changes per streamed tool event and
    * the row is memoised on `m` already.
    */
-  const workInvocations = m.role === 'assistant' ? (m.toolInvocations ?? []).filter((t) => !hasToolCard(t)) : [];
-  // The same cast the scope below makes: the local Message is a structural
-  // superset of the conversation Message the lifecycle reads, with `content`
-  // optional here — and `turnLifecycle` reads an absent one as empty.
-  const workLifecycle = workInvocations.length === 0
-    ? null
-    : turnLifecycle(m as unknown as ConversationMessage, {
-        isLoading,
-        isLastAssistant: isLastAlia,
-        failedTurn: turnFailed ? { userMessageId: '', anchorMessageId: m.id, retryable: false, partial: true } : null,
-      });
+  const workInvocations =
+    m.role === 'assistant'
+      ? (m.toolInvocations ?? []).filter((t) => !hasToolCard(t))
+      : [];
+  /** The template swaps the steps for the reply once the turn is done. */
+  const turnWorking = isLoading && isLastAlia && m.isStreaming === true;
+  /**
+   * Where the turn went — searches, page visits, research — as a `WebSearch`
+   * trail with its sources, and everything else it did as a `TaskList`. Both
+   * are driven by `revealed` from the calls that have really arrived
+   * (`lib/chat/work-log.ts`), never by their own demo ticker.
+   */
+  const webLog =
+    m.role === 'assistant'
+      ? webSearchLog(workInvocations, m.researchProgress, rowT)
+      : null;
+  const taskInvocations = workInvocations.filter((t) => !isWebInvocation(t));
+  const taskLog =
+    taskInvocations.length === 0 || turnWorking
+      ? null
+      : taskListLog(taskInvocations, false, rowT);
+  const hasWorkLog =
+    (webLog !== null && webLog.steps.length > 0) ||
+    (workInvocations.length > 0 && !turnWorking);
+  /** The calls that returned a card, drawn inside the turn where the answer is read. */
+  const toolCards =
+    m.role === 'assistant'
+      ? (m.toolInvocations ?? []).flatMap((t, ti) => {
+          const card = cardOf(t);
+          return card === null ? [] : [{ key: t.toolCallId || `tool-${m.id}-${ti}`, card }];
+        })
+      : [];
 
   return (
     /**
@@ -398,106 +329,50 @@ const MessageRow = React.memo(function MessageRow({
      * reply's blocks and it honours reduced motion — so it is the one that
      * stays, and the row is a plain layout element again.
      */
-    <Animated.View
-      key={m.id || `msg-${index}`}
-      style={isAliaMessage && isLastAlia ? { paddingTop: 36 } : undefined}
-      /**
-       * Two things want this row's position and one element can report it: the
-       * flying mark follows the last Alia message, and a jump aims at whichever
-       * message was searched for. They coincide often enough to matter.
-       */
-      onLayout={
-        isAliaMessage && isLastAlia
-          ? (onRowLayout === undefined
-              ? handleMarkLayout
-              : (e: LayoutChangeEvent) => { handleMarkLayout(e); onRowLayout(e); })
-          : onRowLayout
-      }
-    >
+    <Animated.View key={m.id || `msg-${index}`} onLayout={onRowLayout}>
       {/* Plan Preview — shown before tool execution */}
-      {m.pendingPlan && (() => {
-        const plan = m.pendingPlan;
-        return (
-          <MessageBlockBoundary>
-            <PlanPreviewCard
-              steps={plan.steps}
-              approved={plan.approved}
-              rejected={plan.rejected}
-              onApprove={() => onApprovePlan?.(plan.planId)}
-              onReject={() => onRejectPlan?.(plan.planId)}
-            />
-          </MessageBlockBoundary>
-        );
-      })()}
+      {m.pendingPlan &&
+        (() => {
+          const plan = m.pendingPlan;
+          return (
+            <MessageBlockBoundary>
+              <PlanPreviewCard
+                steps={plan.steps}
+                approved={plan.approved}
+                rejected={plan.rejected}
+                onApprove={() => onApprovePlan?.(plan.planId)}
+                onReject={() => onRejectPlan?.(plan.planId)}
+              />
+            </MessageBlockBoundary>
+          );
+        })()}
 
-      {/* A tool that produced a card draws it where the answer is read.
-          Each inside its own boundary: `cardOf` checks the card's NAME, not
-          the shape of its `data`, which is then cast unchecked — so a
-          malformed result reaches a card that reads it without guards. */}
-      {m.toolInvocations?.map((t, ti) => {
-        const key = t.toolCallId || `tool-${m.id}-${ti}`;
-        const card = toolCard(t, key);
-        return card === null ? null : (
-          <MessageBlockBoundary key={`${key}-block`}>{card}</MessageBlockBoundary>
-        );
-      })}
-
-      {/* Every other call sits behind the work summary: "Worked for Ns", with
-          the execution rows under it and the panel a press away (#544). It
-          reads the lifecycle the runtime stamps, so a running turn is
-          "Working", a stopped one "Stopped" and a failed one "Failed" — never
-          "Done" because text arrived (#543). */}
-      {workLifecycle === null ? null : (
-        <View className="my-1 w-full">
-          <WorkSummary
-            messageId={m.id}
-            invocations={workInvocations}
-            lifecycle={workLifecycle}
-            startedAt={workStartedAt}
-            endedAt={workEndedAt}
-            onOpenDetails={(opener) => openThoughtPanel(m.id, 'steps', opener)}
-          />
-        </View>
+      {/* The template's steps: Bloom's AgentProgress, driven by the tool
+          calls as the runtime reports them. Web calls are left to the
+          WebSearch trail inside the turn, which streams them itself. */}
+      {taskInvocations.length === 0 || !turnWorking ? null : (
+        <AgentProgress
+          steps={taskInvocations.map((t) => getToolPillLabel(t.toolName))}
+          completedCount={
+            taskInvocations.filter((t) => t.state === 'result').length
+          }
+        />
       )}
-
-      {/* Deep Research Progress */}
-      {m.role === "assistant" && m.researchProgress && (
-        <MessageBlockBoundary>
-          <ResearchProgressCard progress={m.researchProgress as ResearchProgressData} />
-        </MessageBlockBoundary>
-      )}
-
-      {/* Thinking Content (Extended Thinking Mode) */}
-      {m.role === "assistant" && m.thinking && (
-        <View key="thinking-content" className="mb-3 w-full">
-          <Reasoning
-            isStreaming={
-              isLoading &&
-              isLastMessage &&
-              !messageText
-            }
-          >
-            <ReasoningTrigger
-              onPress={() => openThoughtPanel(m.id)}
-            />
-          </Reasoning>
-        </View>
-      )}
-
 
       {/* Message Content. `isStreaming` opens the block for VOICE only: a
           voice row shows its cursor before it has words, while a text turn's
           placeholder — stamped `isStreaming` too, now — is the thinking
           indicator's until its first token arrives. */}
-      {(messageText.length > 0 || messageImages.length > 0 || (m.isStreaming && m.source === 'voice')) && (
-        <View key="message-content" className={cn("w-full", m.role === "user" && "mt-2")}>
-          {m.role === "assistant" ? (
-            // Assistant message: text below (flying face handles avatar)
-            <DropdownMenu.Root>
-            <DropdownMenu.Trigger asChild>
-            <Pressable className="group">
+      {(messageText.length > 0 ||
+        messageImages.length > 0 ||
+        (m.role === 'assistant' && (hasWorkLog || toolCards.length > 0)) ||
+        (m.isStreaming && m.source === 'voice')) && (
+        <View
+          key="message-content"
+          className="w-full"
+        >
+          {m.role === 'assistant' ? (
             <View className="flex-col items-start">
-              {/* Agent identity (Alia face is floating) */}
               {m.agentInfo ? (
                 <View className="flex-row items-center gap-2 mb-0.5">
                   <IdentityMark
@@ -510,25 +385,55 @@ const MessageRow = React.memo(function MessageRow({
                   </Text>
                 </View>
               ) : null}
-              {/* The reply, as Bloom composes one: a container that fades in
-                  while its blocks rise and un-blur 180ms apart.
-
-                  `feedback={false}` because Alia's own action bar below is a
-                  superset of Bloom's like / dislike / copy row — read aloud,
-                  generate audio, regenerate — and two feedback rows under one
-                  reply would be two answers to the same question.
-
-                  `animate={isNewMessage}` for the same reason as the user
-                  turn. The reveal is mount-only inside Bloom, so a streaming
-                  reply does not restart it on each token; what it must not do
-                  is play at all for a message restored from history. */}
+              {/* The template's reply: Bloom's reveal and its own feedback
+                  row (like / dislike / copy). */}
               <AiChatAssistantMessage
                 animate={isNewMessage}
-                feedback={false}
+                feedback={!m.isStreaming && messageText.length > 0}
+                feedbackProps={{
+                  onLike: () => handleVote(m.id, 'up', chatId?.id),
+                  onDislike: () => handleVote(m.id, 'down', chatId?.id),
+                  onCopy: () => handleCopyMessage(messageText),
+                }}
                 style={{ width: '100%' }}
               >
+                {workInvocations.length === 0 || turnWorking ? null : (
+                  <AiChatMessageLine tone="secondary">
+                    {workStartedAt !== null && workEndedAt !== null
+                      ? rowT('thought.workedFor', {
+                          elapsed: formatElapsed(workEndedAt - workStartedAt),
+                        })
+                      : rowT('thought.worked')}
+                  </AiChatMessageLine>
+                )}
+                {taskLog === null ? null : (
+                  <TaskList
+                    tasks={taskLog.tasks}
+                    revealed={taskLog.revealed}
+                    collapseOnComplete="all"
+                    working={false}
+                  />
+                )}
+                {webLog === null || webLog.steps.length === 0 ? null : (
+                  <WebSearch
+                    steps={webLog.steps}
+                    revealed={webLog.revealed}
+                    working={turnWorking ? rowT('chat.working') : false}
+                    labels={{ sources: rowT('chat.sources') }}
+                  />
+                )}
+                {/* Each card in its own boundary: `cardOf` checks the card's
+                    NAME, and its data is cast unchecked. */}
+                {toolCards.map(({ key, card }) => (
+                  <MessageBlockBoundary key={key}>
+                    <ToolResultCard card={card} />
+                  </MessageBlockBoundary>
+                ))}
+                {/* The reply's text as Alia always drew it: its own Markdown
+                    renderer (tables, headings, lists, code, citations), which
+                    reads better than a line-per-block transcript. */}
                 {m.source === 'voice' ? (
-                  <Text className="text-base text-foreground leading-7">
+                  <Text className="text-base leading-7 text-foreground">
                     {messageText}
                     {m.isStreaming ? '\u258C' : ''}
                   </Text>
@@ -539,656 +444,407 @@ const MessageRow = React.memo(function MessageRow({
                     researchSources={m.researchProgress?.sources}
                   />
                 )}
-                {m.isStreaming && m.source === 'voice' ? null : (
-                  <MessageSources
-                    toolInvocations={m.toolInvocations}
-                    researchSources={m.researchProgress?.sources}
-                    onPress={() => openThoughtPanel(m.id, 'sources')}
-                  />
-                )}
               </AiChatAssistantMessage>
-              {/* Action Buttons for Assistant Messages */}
-              <View className={ACTION_BAR}>
-                <Pressable
-                  key="read-aloud"
-                  className={ACTION_BTN}
-                  onPress={() => readAloud(m.id, messageText, chatId?.id, m.audioUrl)}
-                  accessibilityRole="button"
-                  accessibilityLabel={rowT('chat.readAloud')}
-                  accessibilityState={{ selected: ttsState === 'playing' || ttsState === 'paused', busy: ttsState === 'loading' }}
-                >
-                  {ttsState === 'playing' || ttsState === 'paused' ? (
-                    <Square size={14} className={ttsState === 'playing' ? "text-primary" : "text-muted-foreground"} />
-                  ) : (
-                    <Volume2 size={14} className={ttsState === 'loading' ? "text-primary opacity-50" : "text-muted-foreground"} />
-                  )}
-                </Pressable>
-                <Pressable
-                  key="generate-audio"
-                  className={ACTION_BTN}
-                  onPress={() => generateAudio(m.id, messageText, chatId?.id)}
-                  accessibilityRole="button"
-                  accessibilityLabel={rowT('chat.generateAudio')}
-                  accessibilityState={{ selected: audioGenRowState === 'playing', busy: audioGenRowState === 'generating' }}
-                >
-                  {audioGenRowState === 'playing' ? (
-                    <Square size={14} className="text-primary" />
-                  ) : (
-                    <Music size={14} className={audioGenRowState === 'generating' ? "text-primary opacity-50" : "text-muted-foreground"} />
-                  )}
-                </Pressable>
-                <Pressable
-                  key="copy"
-                  className={ACTION_BTN}
-                  onPress={() => handleCopyMessage(m.id, messageText)}
-                  accessibilityRole="button"
-                  accessibilityLabel={rowT('chat.copy')}
-                >
-                  {isCopied ? (
-                    <Check size={14} className="text-green-500" />
-                  ) : (
-                    <Copy size={14} className="text-muted-foreground" />
-                  )}
-                </Pressable>
-                {onRegenerate === undefined || m.isStreaming ? null : (
-                  <Pressable
-                    key="regenerate"
-                    className={ACTION_BTN}
-                    onPress={() => onRegenerate(m.id)}
-                    accessibilityRole="button"
-                    accessibilityLabel={rowT('chat.regenerate')}
-                  >
-                    <RotateCcw size={14} className="text-muted-foreground" />
-                  </Pressable>
-                )}
-                <Pressable
-                  key="thumbs-up"
-                  className={ACTION_BTN}
-                  onPress={() => handleVote(m.id, 'up', chatId?.id)}
-                  accessibilityRole="button"
-                  accessibilityLabel={rowT('chat.like')}
-                  accessibilityState={{ selected: myVote === 'up' }}
-                >
-                  <ThumbsUp size={14} className={myVote === 'up' ? "text-primary" : "text-muted-foreground"} />
-                </Pressable>
-                <Pressable
-                  key="thumbs-down"
-                  className={ACTION_BTN}
-                  onPress={() => handleVote(m.id, 'down', chatId?.id)}
-                  accessibilityRole="button"
-                  accessibilityLabel={rowT('chat.dislike')}
-                  accessibilityState={{ selected: myVote === 'down' }}
-                >
-                  <ThumbsDown size={14} className={myVote === 'down' ? "text-primary" : "text-muted-foreground"} />
-                </Pressable>
-              </View>
             </View>
-            </Pressable>
-            </DropdownMenu.Trigger>
-            {!isWeb && (
-            <DropdownMenu.Content>
-              <DropdownMenu.Item key="read-aloud" onSelect={() => readAloud(m.id, messageText, chatId?.id, m.audioUrl)}>
-                <DropdownMenu.ItemIcon ios={{ name: "speaker.wave.2" }} />
-                <DropdownMenu.ItemTitle>{rowT('chat.readAloud')}</DropdownMenu.ItemTitle>
-              </DropdownMenu.Item>
-              <DropdownMenu.Item key="generate-audio" onSelect={() => generateAudio(m.id, messageText, chatId?.id)}>
-                <DropdownMenu.ItemIcon ios={{ name: "music.note" }} />
-                <DropdownMenu.ItemTitle>{rowT('chat.generateAudio')}</DropdownMenu.ItemTitle>
-              </DropdownMenu.Item>
-              <DropdownMenu.Item key="copy" onSelect={() => handleCopyMessage(m.id, messageText)}>
-                <DropdownMenu.ItemIcon ios={{ name: "doc.on.doc" }} />
-                <DropdownMenu.ItemTitle>{rowT('chat.copy')}</DropdownMenu.ItemTitle>
-              </DropdownMenu.Item>
-              {onRegenerate === undefined ? null : (
-                <DropdownMenu.Item key="regenerate" onSelect={() => onRegenerate(m.id)}>
-                  <DropdownMenu.ItemIcon ios={{ name: "arrow.clockwise" }} />
-                  <DropdownMenu.ItemTitle>{rowT('chat.regenerate')}</DropdownMenu.ItemTitle>
-                </DropdownMenu.Item>
-              )}
-              <DropdownMenu.Item key="thumbs-up" onSelect={() => handleVote(m.id, 'up', chatId?.id)}>
-                <DropdownMenu.ItemIcon ios={{ name: "hand.thumbsup" }} />
-                <DropdownMenu.ItemTitle>{rowT('chat.like')}</DropdownMenu.ItemTitle>
-              </DropdownMenu.Item>
-              <DropdownMenu.Item key="thumbs-down" onSelect={() => handleVote(m.id, 'down', chatId?.id)}>
-                <DropdownMenu.ItemIcon ios={{ name: "hand.thumbsdown" }} />
-                <DropdownMenu.ItemTitle>{rowT('chat.dislike')}</DropdownMenu.ItemTitle>
-              </DropdownMenu.Item>
-            </DropdownMenu.Content>
-            )}
-            </DropdownMenu.Root>
           ) : (
-            // User message: bubble only
-            <DropdownMenu.Root>
-            <DropdownMenu.Trigger asChild>
-            <Pressable className="group">
-            <View className="flex-col items-end gap-0.5">
-                {/* Bloom's turn, not a bubble of our own: radius, column half,
-                    the 6px bleed past the column, the card shadow and the
-                    reveal all come from `AiChatUserMessage`. It reveals only
-                    for a message that has just arrived — `animate` is the same
-                    `isNewMessage` the row used to hand `FadeInUp`, which is
-                    what keeps restored history and a page loaded above from
-                    replaying as if the whole conversation were new. */}
-                <AiChatUserMessage animate={isNewMessage}>
-                  {messageImages.length > 0 && (
-                    <View className="flex-row flex-wrap gap-2">
-                      {messageImages.map((imgUrl, imgIdx) => (
-                        <View key={`img-${imgIdx}`} className="rounded-xl overflow-hidden" style={imageThumbStyle}>
-                          <Image
-                            source={{ uri: imgUrl }}
-                            className="w-full h-full"
-                            contentFit="cover"
-                          />
-                        </View>
-                      ))}
-                    </View>
-                  )}
-                  {messageText}
-                </AiChatUserMessage>
-              {/* Action Buttons for User Messages */}
-                <View className={ACTION_BAR}>
-                  <Pressable
-                    key="copy"
-                    className={ACTION_BTN}
-                    onPress={() => handleCopyMessage(m.id, messageText)}
-                    accessibilityRole="button"
-                    accessibilityLabel={rowT('chat.copy')}
-                  >
-                    {isCopied ? (
-                      <Check size={14} className="text-green-500" />
-                    ) : (
-                      <Copy size={14} className="text-muted-foreground" />
-                    )}
-                  </Pressable>
-                  {/* Absent on a message from an earlier conversation. Editing
-                      truncates the live thread at that message and re-sends —
-                      and a message this screen is not streaming is not in that
-                      list, so the truncation finds nothing and the "edit"
-                      silently becomes a brand-new turn. */}
-                  {onStartEdit === undefined ? null : (
-                    <Pressable
-                      key="edit"
-                      className={ACTION_BTN}
-                      onPress={() => onStartEdit(m.id, messageText)}
-                      accessibilityRole="button"
-                      accessibilityLabel={rowT('chat.edit')}
-                    >
-                      <Pencil size={14} className="text-muted-foreground" />
-                    </Pressable>
-                  )}
-                </View>
+            // The template's user turn: Bloom's bubble, nothing under it, with
+            // the breathing room above it the thread had before the refactor.
+            <View className="mt-2 flex-col items-end">
+              <AiChatUserMessage animate={isNewMessage}>
+                {messageImages.length > 0 && (
+                  <View className="flex-row flex-wrap gap-2">
+                    {messageImages.map((imgUrl, imgIdx) => (
+                      <View
+                        key={`img-${imgIdx}`}
+                        className="rounded-xl overflow-hidden"
+                        style={imageThumbStyle}
+                      >
+                        <Image
+                          source={{ uri: imgUrl }}
+                          className="w-full h-full"
+                          contentFit="cover"
+                        />
+                      </View>
+                    ))}
+                  </View>
+                )}
+                {messageText}
+              </AiChatUserMessage>
             </View>
-            </Pressable>
-            </DropdownMenu.Trigger>
-            {!isWeb && (
-            <DropdownMenu.Content>
-              <DropdownMenu.Item key="copy" onSelect={() => handleCopyMessage(m.id, messageText)}>
-                <DropdownMenu.ItemIcon ios={{ name: "doc.on.doc" }} />
-                <DropdownMenu.ItemTitle>{rowT('chat.copy')}</DropdownMenu.ItemTitle>
-              </DropdownMenu.Item>
-              {onStartEdit === undefined ? null : (
-                <DropdownMenu.Item key="edit" onSelect={() => onStartEdit(m.id, messageText)}>
-                  <DropdownMenu.ItemIcon ios={{ name: "pencil" }} />
-                  <DropdownMenu.ItemTitle>{rowT('chat.edit')}</DropdownMenu.ItemTitle>
-                </DropdownMenu.Item>
-              )}
-            </DropdownMenu.Content>
-            )}
-            </DropdownMenu.Root>
           )}
         </View>
       )}
-
-      {/* Waiting on the turn, while the last reply still has no words.
-       *
-       * Bloom's `AgentThinking`, in place of the SDK's indicator. The one it
-       * replaces typed out a phrase picked at random from ten — "Cooking...",
-       * "Brewing...", "Conjuring..." — whenever no real status was available,
-       * which is a sentence about nothing dressed as a report on the turn.
-       * What is shown now is either a status the runtime actually emitted (the
-       * running tool, the research phase, reasoning) or the plain word for
-       * what is happening.
-       *
-       * `showTimer={false}` deliberately. Bloom's timer counts from when the
-       * indicator MOUNTED, which is not how long the turn has run: it restarts
-       * whenever this remounts and it knows nothing about a turn that began
-       * before the screen did. The duration Alia can stand behind is the one
-       * the runtime stamps, and `WorkSummary` above already reads it. */}
-      {(isLoading || voiceAgentState === 'thinking') &&
-        m.role === "assistant" &&
-        isLastMessage &&
-        !messageText && (() => {
-          const activeTool = m.toolInvocations?.find(t => t.state === 'call' || t.state === 'partial-call');
-          const rp = m.researchProgress;
-          const isWorking = (m.toolInvocations?.length ?? 0) > 0;
-          let activeStatus: string | undefined;
-          if (activeTool) {
-            activeStatus = getToolActiveLabel(activeTool.toolName);
-          } else if (rp?.phase && rp.phase !== 'complete') {
-            activeStatus = getResearchActiveLabel(rp.phase);
-          } else if (m.thinking) {
-            activeStatus = rowT('chat.reasoning');
-          }
-          return (
-            <AgentThinking
-              variant={isWorking ? 'infinity' : 'wave'}
-              label={activeStatus ?? rowT(isWorking ? 'chat.working' : 'chat.thinking')}
-              showTimer={false}
-            />
-          );
-        })()}
     </Animated.View>
   );
 });
 
 const imageThumbStyle = { width: 120, height: 120 };
 
-export const ChatInterface = React.memo(function ChatInterface({ messages, threadRef, onLoadHistory, isLoading, conversationLoading, onStartEdit, onRegenerate, onCopyMessage, bottomPadding = 160, isVoiceActive = false, voiceAgentState, onScroll, agentActivity, agentSessionId, onApprovePlan, onRejectPlan, suggestedNewConversation, onAcceptNewConversation, onDismissNewConversation, historyMessages, isLoadingHistory = false, onHistoryHeight, activeConversationId, focusCursor, failedTurn, onRetryTurn }: ChatInterfaceProps) {
-    const { t, locale } = useTranslation();
-    const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
-    const [votedMessages, setVotedMessages] = useState<Record<string, 'up' | 'down'>>({});
-    const voteInFlightRef = useRef<Set<string>>(new Set());
-    const openThoughtPanel = useUIStore((s) => s.openThoughtPanel);
-    const syncThoughtScope = useUIStore((s) => s.syncThoughtScope);
-    const queryClient = useQueryClient();
-    const { readAloud, activeMessageId: ttsActiveMessageId, playbackState: ttsPlaybackState } = useTTS();
-    const { generateAudio, activeMessageId: audioGenActiveMessageId, state: audioGenState } = useAudioGen();
-    const chatId = useStore(s => s.chatId);
-    const { colors } = useColorScheme();
+export const ChatInterface = React.memo(function ChatInterface({
+  messages,
+  threadRef,
+  onLoadHistory,
+  isLoading,
+  conversationLoading,
+  onCopyMessage,
+  bottomPadding = 0,
+  voiceAgentState,
+  onScroll,
+  agentActivity,
+  agentSessionId,
+  onApprovePlan,
+  onRejectPlan,
+  suggestedNewConversation,
+  onAcceptNewConversation,
+  onDismissNewConversation,
+  historyMessages,
+  isLoadingHistory = false,
+  onHistoryHeight,
+  activeConversationId,
+  focusCursor,
+  failedTurn,
+  onRetryTurn,
+}: ChatInterfaceProps) {
+  const { t, locale } = useTranslation();
+  /** This screen's votes, read to decide whether a press casts or retracts one. */
+  const votesRef = useRef<Record<string, 'up' | 'down'>>({});
+  const voteInFlightRef = useRef<Set<string>>(new Set());
+  const syncThoughtScope = useUIStore((s) => s.syncThoughtScope);
+  const queryClient = useQueryClient();
+  const chatId = useStore((s) => s.chatId);
 
-    // Track previous message count — only animate newly added messages
-    const prevMessageCountRef = useRef(messages.length);
-    useEffect(() => {
-      prevMessageCountRef.current = messages.length;
-    }, [messages.length]);
+  // Track previous message count — only animate newly added messages
+  const prevMessageCountRef = useRef(messages.length);
+  useEffect(() => {
+    prevMessageCountRef.current = messages.length;
+  }, [messages.length]);
 
-    // ── Flying IdentityMark ──
-    const markY = useSharedValue(0);
+  const liveMessages = useMemo(
+    () => messages.filter((m) => m != null && m.role),
+    [messages],
+  );
+  const history = historyMessages ?? NO_HISTORY;
+  /**
+   * Everything on screen, in reading order: the thread's history first, the
+   * conversation being streamed into after it.
+   *
+   * Every position below — which row is last, and which is the last of
+   * Alia's — is an index into THIS, not into the live messages, which is why it
+   * is built once here rather than concatenated at each use.
+   */
+  const filteredMessages = useMemo(
+    () => (history.length === 0 ? liveMessages : [...history, ...liveMessages]),
+    [history, liveMessages],
+  );
 
-    const liveMessages = useMemo(() => messages.filter(m => m != null && m.role), [messages]);
-    const history = historyMessages ?? NO_HISTORY;
-    /**
-     * Everything on screen, in reading order: the thread's history first, the
-     * conversation being streamed into after it.
-     *
-     * Every position below — the separators, the flying mark, which row is
-     * last — is an index into THIS, not into the live messages, which is why it
-     * is built once here rather than concatenated at each use.
-     */
-    const filteredMessages = useMemo(
-      () => (history.length === 0 ? liveMessages : [...history, ...liveMessages]),
-      [history, liveMessages],
-    );
+  /**
+   * Every turn's start and end, computed once for the whole thread.
+   *
+   * `renderMessage` used to ask `turnTiming(m, filteredMessages)` per row,
+   * handing it the entire list each time — and that function has to FIND the
+   * row before it can answer, so each call opened with a `findIndex` across
+   * the thread and then walked backwards for the send. Two scans per row
+   * makes drawing n messages O(n²), and this list re-renders roughly twenty
+   * times a second while an answer streams. Measured: 8.3ms per render at
+   * 1,000 messages and 80ms at 5,000, recomputing on every token an answer
+   * that only changes when the thread does.
+   *
+   * One pass over the same list gives the same answers — pinned row by row
+   * against the old function in `lib/__tests__/turn-timings-scale.test.ts` —
+   * and the memo means a streamed token does not trigger even that.
+   */
+  const timingsByMessage = useMemo(
+    () => turnTimings(filteredMessages as unknown as ConversationMessage[]),
+    [filteredMessages],
+  );
 
-    /**
-     * Every turn's start and end, computed once for the whole thread.
-     *
-     * `renderMessage` used to ask `turnTiming(m, filteredMessages)` per row,
-     * handing it the entire list each time — and that function has to FIND the
-     * row before it can answer, so each call opened with a `findIndex` across
-     * the thread and then walked backwards for the send. Two scans per row
-     * makes drawing n messages O(n²), and this list re-renders roughly twenty
-     * times a second while an answer streams. Measured: 8.3ms per render at
-     * 1,000 messages and 80ms at 5,000, recomputing on every token an answer
-     * that only changes when the thread does.
-     *
-     * One pass over the same list gives the same answers — pinned row by row
-     * against the old function in `lib/__tests__/turn-timings-scale.test.ts` —
-     * and the memo means a streamed token does not trigger even that.
-     */
-    const timingsByMessage = useMemo(
-      () => turnTimings(filteredMessages as unknown as ConversationMessage[]),
-      [filteredMessages],
-    );
-
-    /**
-     * The conversation each history message belongs to, as the id a row's own
-     * actions address.
-     *
-     * A vote goes to `/conversations/:id/messages/:id/vote` and audio is cached
-     * against a conversation, and both used to take the id of the stretch on
-     * screen — right for a live message and wrong for every history one, which
-     * belongs to a conversation that ended. It would have written to a
-     * conversation that does not contain the message, and failed quietly.
-     *
-     * One entry per conversation rather than per message: these are props of a
-     * memoized row, so a fresh object per row would re-render every one of them
-     * on every streamed token.
-     */
-    const historyChatIds = useMemo(() => {
-      const byConversation = new Map<string, ChatIdState>();
-      for (const message of history) {
-        if (byConversation.has(message.conversationId)) continue;
-        byConversation.set(message.conversationId, { id: message.conversationId, from: 'url' });
-      }
-      return byConversation;
-    }, [history]);
-
-    /**
-     * Which messages begin a new conversation, deduced from the data rather
-     * than from how long the gap was. Empty on `/c/:id`, which is one
-     * conversation and therefore has no seams.
-     */
-    const seamIds = useMemo(
-      () => threadSeamIds(history, liveMessages, activeConversationId ?? ''),
-      [history, liveMessages, activeConversationId],
-    );
-
-    /**
-     * Where the thread changes day, as the finished line, keyed by the message
-     * each one sits above.
-     *
-     * `new Date()` is read here rather than passed in because "today" is a fact
-     * about when the list is being LOOKED at. It is re-read whenever the list
-     * changes, which is what relabels a thread left open across midnight on the
-     * next message rather than on a timer nobody needs.
-     *
-     * Keyed on `locale`, not on `t`: `useTranslation` builds a new `t` on every
-     * render, so depending on it would recompute this per streamed token, and
-     * `i18n.t` reads the locale this depends on at call time anyway.
-     */
-    const separatorsByMessage = useMemo(() => {
-      const separators = daySeparators(filteredMessages, new Date(), locale);
-      return new Map(separators.map(({ messageId, label }) => [
-        messageId,
-        label.kind === 'date' ? label.text : t(`chat.${label.kind}`),
-      ]));
-    }, [filteredMessages, locale]);
-    const lastAliaIndex = useMemo(() => filteredMessages.reduce((acc, m, i) =>
-      isAliaOwnedMessage(m) ? i : acc, -1), [filteredMessages]);
-
-    // Derive mark state from voice state or text chat state
-    const markState = useMemo<IdentityMarkState>(() => {
-      if (isVoiceActive && voiceAgentState) {
-        if (voiceAgentState === 'thinking') return 'thinking';
-        if (voiceAgentState === 'speaking') return 'writing';
-        return 'idle';
-      }
-      if (lastAliaIndex < 0) return 'idle';
-      const m = filteredMessages[lastAliaIndex];
-      // Raw text is enough for the presence check — running the full
-      // tag-stripping pipeline here doubled the regex work on every
-      // streaming flush. Worst case a tag-only chunk briefly reads
-      // 'writing' instead of 'thinking'.
-      const text = getRawMessageText(m).trim();
-      const hasActiveTools = m.toolInvocations?.some(
-        (t: ToolInvocation) => t.state === 'call' || t.state === 'partial-call'
-      );
-      if (hasActiveTools) return 'working';
-      if (isLoading && !text) return 'thinking';
-      if (isLoading && text.length > 0) return 'writing';
-      return 'idle';
-    }, [filteredMessages, lastAliaIndex, isLoading, voiceAgentState, isVoiceActive]);
-
-    const markAnimatedStyle = useAnimatedStyle(() => ({
-      position: 'absolute' as const,
-      left: 0,
-      top: markY.value,
-      zIndex: 10,
-    }));
-
-    const handleMarkLayout = useCallback((e: LayoutChangeEvent) => {
-      markY.value = withTiming(e.nativeEvent.layout.y, {
-        duration: 500,
-        easing: Easing.bezier(0.4, 0, 0.2, 1),
+  /**
+   * The conversation each history message belongs to, as the id a row's own
+   * actions address.
+   *
+   * A vote goes to `/conversations/:id/messages/:id/vote`, and it used to
+   * take the id of the stretch on screen — right for a live message and wrong for every history one, which
+   * belongs to a conversation that ended. It would have written to a
+   * conversation that does not contain the message, and failed quietly.
+   *
+   * One entry per conversation rather than per message: these are props of a
+   * memoized row, so a fresh object per row would re-render every one of them
+   * on every streamed token.
+   */
+  const historyChatIds = useMemo(() => {
+    const byConversation = new Map<string, ChatIdState>();
+    for (const message of history) {
+      if (byConversation.has(message.conversationId)) continue;
+      byConversation.set(message.conversationId, {
+        id: message.conversationId,
+        from: 'url',
       });
-    }, [markY]);
+    }
+    return byConversation;
+  }, [history]);
 
-    /**
-     * This conversation as the thought panel reads it: its messages, whether
-     * they are all here yet, and the turn in flight.
-     *
-     * Keyed on the conversation and its messages, NOT on the panel being open.
-     * Syncing only while the panel was open meant the first press on a tool
-     * row rendered against whatever the store held before — another
-     * conversation's messages, or none — and found nothing by id (#542).
-     * The store accepts this only while the open selection belongs to the
-     * same conversation, so the new-chat screen mounted underneath cannot
-     * blank a panel opened here.
-     *
-     * A load that failed is read off the query cache at the moment the memo
-     * recomputes: the load's end is what flips `conversationLoading`, so the
-     * read is fresh exactly when it matters. The local Message shape is a
-     * structural superset of the conversation Message the store holds.
-     */
-    const liveThoughtScope = useMemo<ThoughtScope>(() => {
-      const loadFailed =
-        activeConversationId !== undefined &&
-        queryClient.getQueryState(queryKeys.conversations.detail(activeConversationId))?.status === 'error';
-      return {
-        conversationId: activeConversationId ?? null,
-        messages: liveMessages as unknown as ConversationMessage[],
-        status: conversationLoading ? 'loading' : loadFailed ? 'failed' : 'ready',
-        isLoading: isLoading === true,
-        failedTurn: failedTurn ?? null,
-      };
-    }, [activeConversationId, liveMessages, conversationLoading, isLoading, failedTurn, queryClient]);
-
-    useEffect(() => {
-      syncThoughtScope(liveThoughtScope);
-    }, [liveThoughtScope, syncThoughtScope]);
-
-    /**
-     * What a press on a row has to hand the store, read at press time through
-     * a ref so the callback the memoized rows receive never changes — it is a
-     * prop of every row, and the live scope changes per streamed token.
-     */
-    const thoughtScopesRef = useRef({ live: liveThoughtScope, history });
-    useEffect(() => {
-      thoughtScopesRef.current = { live: liveThoughtScope, history };
-    });
-
-    /**
-     * Open the panel on a row, with the conversation that row belongs to.
-     *
-     * A live row belongs to the conversation on screen. A history row belongs
-     * to an earlier stretch of the thread, which is persisted and complete, so
-     * its scope is that stretch's messages and nothing about the live turn.
-     * Both are written in the same update as the message id, which is what
-     * makes the first open show the message's own tool history.
-     */
-    const openThought = useCallback((messageId: string, tab?: ThoughtTab, opener?: unknown) => {
-      rememberOpener(opener);
-      const { live, history: thread } = thoughtScopesRef.current;
-      const past = live.messages.some((m) => m.id === messageId) ? undefined : thread.find((m) => m.id === messageId);
-      if (past === undefined) {
-        openThoughtPanel(messageId, live, tab);
-        return;
-      }
-      openThoughtPanel(
-        messageId,
-        {
-          conversationId: past.conversationId,
-          messages: thread.filter((m) => m.conversationId === past.conversationId),
-          status: 'ready',
-          isLoading: false,
-          failedTurn: null,
-        },
-        tab,
+  /**
+   * The day each message starts, when it starts a new one: Bloom's inline
+   * `ChatDateHeader` above it, with the label pre-formatted here as the
+   * component asks — the app owns the locale and the timezone.
+   */
+  const dayLabels = useMemo(() => {
+    const labels = new Map<string, string>();
+    for (const separator of daySeparators(filteredMessages, new Date(), locale)) {
+      const { label } = separator;
+      labels.set(
+        separator.messageId,
+        label.kind === 'today'
+          ? t('chat.today')
+          : label.kind === 'yesterday'
+            ? t('chat.yesterday')
+            : label.text,
       );
-    }, [openThoughtPanel]);
+    }
+    return labels;
+  }, [filteredMessages, locale, t]);
 
-    const handleCopyMessage = useCallback(async (messageId: string, content: string) => {
+  const lastAliaIndex = useMemo(
+    () =>
+      filteredMessages.reduce(
+        (acc, m, i) => (isAliaOwnedMessage(m) ? i : acc),
+        -1,
+      ),
+    [filteredMessages],
+  );
+
+  /**
+   * This conversation as the thought panel reads it: its messages, whether
+   * they are all here yet, and the turn in flight.
+   *
+   * Keyed on the conversation and its messages, NOT on the panel being open.
+   * Syncing only while the panel was open meant the first press on a tool
+   * row rendered against whatever the store held before — another
+   * conversation's messages, or none — and found nothing by id (#542).
+   * The store accepts this only while the open selection belongs to the
+   * same conversation, so the new-chat screen mounted underneath cannot
+   * blank a panel opened here.
+   *
+   * A load that failed is read off the query cache at the moment the memo
+   * recomputes: the load's end is what flips `conversationLoading`, so the
+   * read is fresh exactly when it matters. The local Message shape is a
+   * structural superset of the conversation Message the store holds.
+   */
+  const liveThoughtScope = useMemo<ThoughtScope>(() => {
+    const loadFailed =
+      activeConversationId !== undefined &&
+      queryClient.getQueryState(
+        queryKeys.conversations.detail(activeConversationId),
+      )?.status === 'error';
+    return {
+      conversationId: activeConversationId ?? null,
+      messages: liveMessages as unknown as ConversationMessage[],
+      status: conversationLoading ? 'loading' : loadFailed ? 'failed' : 'ready',
+      isLoading: isLoading === true,
+      failedTurn: failedTurn ?? null,
+    };
+  }, [
+    activeConversationId,
+    liveMessages,
+    conversationLoading,
+    isLoading,
+    failedTurn,
+    queryClient,
+  ]);
+
+  useEffect(() => {
+    syncThoughtScope(liveThoughtScope);
+  }, [liveThoughtScope, syncThoughtScope]);
+
+  const handleCopyMessage = useCallback(
+    async (content: string) => {
       await Clipboard.setStringAsync(content);
-      setCopiedMessageId(messageId);
-      setTimeout(() => setCopiedMessageId(null), 2000);
       toast.success(t('chat.copiedToClipboard'));
       onCopyMessage?.(content);
-    }, [onCopyMessage, t]);
+    },
+    [onCopyMessage, t],
+  );
 
-    /**
-     * `conversationId` comes from the ROW, not from the screen.
-     *
-     * The vote is addressed to the conversation the message is in, and a thread
-     * shows several: taking the id of the stretch on screen would send an old
-     * message's vote to a conversation that does not contain it, where it can
-     * only fail — and it fails silently, because the only report is a toast on
-     * success.
-     */
-    const handleVote = useCallback((messageId: string, vote: 'up' | 'down', conversationId?: string) => {
+  /**
+   * `conversationId` comes from the ROW, not from the screen.
+   *
+   * The vote is addressed to the conversation the message is in, and a thread
+   * shows several: taking the id of the stretch on screen would send an old
+   * message's vote to a conversation that does not contain it, where it can
+   * only fail — and it fails silently, because the only report is a toast on
+   * success.
+   */
+  const handleVote = useCallback(
+    (messageId: string, vote: 'up' | 'down', conversationId?: string) => {
       if (voteInFlightRef.current.has(messageId)) return;
-      let newVote: 'up' | 'down' | null = null;
-      setVotedMessages(prev => {
-        newVote = prev[messageId] === vote ? null : vote;
-        if (newVote) return { ...prev, [messageId]: newVote };
-        const { [messageId]: _, ...rest } = prev;
-        return rest;
-      });
+      const newVote = votesRef.current[messageId] === vote ? null : vote;
+      if (newVote) votesRef.current[messageId] = newVote;
+      else delete votesRef.current[messageId];
       if (conversationId === undefined) return;
       voteInFlightRef.current.add(messageId);
-      apiClient.patch(`/conversations/${conversationId}/messages/${messageId}/vote`, { vote: newVote })
+      apiClient
+        .patch(`/conversations/${conversationId}/messages/${messageId}/vote`, {
+          vote: newVote,
+        })
         .then(() => toast.success(t('chat.thanksFeedback')))
         .catch(() => {
-          setVotedMessages(prev => {
-            const { [messageId]: _, ...rest } = prev;
-            return rest;
-          });
+          delete votesRef.current[messageId];
         })
         .finally(() => voteInFlightRef.current.delete(messageId));
-    }, [t]);
+    },
+    [t],
+  );
 
-    const containerClassName = cn(
-      THREAD_COLUMN,
-      filteredMessages.length === 0 && "flex-1 justify-center"
-    );
+  /** Optional extra thread clearance; the template composer occupies its own row. */
+  const bottomSpacerStyle = useMemo(
+    () => ({ height: bottomPadding }),
+    [bottomPadding],
+  );
 
-    /**
-     * Room under the last turn for whatever floats over it.
-     *
-     * Bloom owns the thread's own `contentContainerStyle` — it carries the
-     * bottom-anchoring and the react-native-web `min-height` workaround — so
-     * this is spacing INSIDE the content instead of a container style. It has
-     * to be here rather than nowhere: the composer floats above the thread and
-     * would otherwise cover the newest answer.
-     */
-    const bottomSpacerStyle = useMemo(
-      () => ({ height: bottomPadding }),
-      [bottomPadding]
-    );
-
-    /**
-     * How tall the history is, reported whenever it changes.
-     *
-     * The height rather than a position: what the anchor needs is how much
-     * content was inserted above the reader, and only the history grows that
-     * way — a streamed answer grows the bottom.
-     */
-    const handleHistoryLayout = useCallback((e: LayoutChangeEvent) => {
+  /**
+   * How tall the history is, reported whenever it changes.
+   *
+   * The height rather than a position: what the anchor needs is how much
+   * content was inserted above the reader, and only the history grows that
+   * way — a streamed answer grows the bottom.
+   */
+  const handleHistoryLayout = useCallback(
+    (e: LayoutChangeEvent) => {
       onHistoryHeight?.(e.nativeEvent.layout.height);
-    }, [onHistoryHeight]);
+    },
+    [onHistoryHeight],
+  );
 
-    /**
-     * Put the message a jump was aimed at under the reader's eyes.
-     *
-     * Re-applied on every layout of that row rather than once, for the same
-     * reason the history anchor is: the rows above it settle in installments,
-     * so the first position it reports is not the one it keeps. Each call
-     * supersedes the last and the final one is right.
-     *
-     * The `y` is measured inside the history block, which begins exactly at the
-     * list's top padding — so scrolling to it lands the message a padding's
-     * width below the top edge rather than flush against it, which is where a
-     * message you went looking for wants to be.
-     */
-    const handleFocusLayout = useCallback((e: LayoutChangeEvent) => {
-      threadRef.current?.scrollToOffset({ offset: Math.max(0, e.nativeEvent.layout.y) });
-    }, [threadRef]);
+  /**
+   * Put the message a jump was aimed at under the reader's eyes.
+   *
+   * Re-applied on every layout of that row rather than once, for the same
+   * reason the history anchor is: the rows above it settle in installments,
+   * so the first position it reports is not the one it keeps. Each call
+   * supersedes the last and the final one is right.
+   *
+   * The `y` is measured inside the history block, which begins exactly at the
+   * list's top padding — so scrolling to it lands the message a padding's
+   * width below the top edge rather than flush against it, which is where a
+   * message you went looking for wants to be.
+   */
+  const handleFocusLayout = useCallback(
+    (e: LayoutChangeEvent) => {
+      threadRef.current?.scrollToOffset({
+        offset: Math.max(0, e.nativeEvent.layout.y),
+      });
+    },
+    [threadRef],
+  );
 
-    /**
-     * One message, wherever it sits in the whole of what is shown.
-     *
-     * `index` is a position in `filteredMessages` — history and live together —
-     * because that is what the flying mark, the day separators and "is this the
-     * last one" are all measured in. The two lists are rendered separately only
-     * so the history can be measured as a block.
-     */
-    const renderMessage = (m: Message, index: number) => {
-      const separator = separatorsByMessage.get(m.id);
-      const fromHistory = index < history.length;
-      // The send before this answer and the answer's own stamp bracket its
-      // work; both are primitives so the memoised row below holds. Looked up
-      // rather than computed: see `timingsByMessage`.
-      const timing = timingsByMessage.get(m.id) ?? EMPTY_TIMING;
+  /**
+   * One message, wherever it sits in the whole of what is shown.
+   *
+   * `index` is a position in `filteredMessages` — history and live together —
+   * because that is what "is this the last one" is measured in. The two lists are rendered separately only
+   * so the history can be measured as a block.
+   */
+  const renderMessage = (m: Message, index: number) => {
+    const fromHistory = index < history.length;
+    // The send before this answer and the answer's own stamp bracket its
+    // work; both are primitives so the memoised row below holds. Looked up
+    // rather than computed: see `timingsByMessage`.
+    const timing = timingsByMessage.get(m.id) ?? EMPTY_TIMING;
+    const dayLabel = dayLabels.get(m.id);
 
-      return (
-        <React.Fragment key={m.id || `msg-${index}`}>
-          {separator === undefined ? null : (
-            <DaySeparator text={separator} />
-          )}
-          {!seamIds.has(m.id) ? null : (
-            <ConversationSeam text={t('chat.newStretch')} />
-          )}
-          <MessageRow
-            m={m}
-            index={index}
-            // Only a message that arrived since the last render animates in,
-            // and none of the history ever did: it is older than everything on
-            // screen by definition, and the offset is what keeps a page landing
-            // above from animating the whole conversation.
-            isNewMessage={index >= history.length + prevMessageCountRef.current}
-            isAliaMessage={isAliaOwnedMessage(m)}
-            isLastAlia={index === lastAliaIndex}
-            isLoading={isLoading}
-            isLastMessage={index === filteredMessages.length - 1}
-            isCopied={copiedMessageId === m.id}
-            myVote={votedMessages[m.id] ?? null}
-            ttsState={ttsActiveMessageId === m.id ? ttsPlaybackState : 'idle'}
-            chatId={fromHistory ? historyChatIds.get(history[index].conversationId) ?? chatId : chatId}
-            voiceAgentState={voiceAgentState}
-            handleMarkLayout={handleMarkLayout}
-            onRowLayout={
-              fromHistory && focusCursor !== undefined && focusCursor !== null
-                && history[index].cursor === focusCursor
-                ? handleFocusLayout
-                : undefined
-            }
-            handleCopyMessage={handleCopyMessage}
-            handleVote={handleVote}
-            readAloud={readAloud}
-            generateAudio={generateAudio}
-            audioGenRowState={audioGenActiveMessageId === m.id ? audioGenState : 'idle'}
-            openThoughtPanel={openThought}
-            workStartedAt={timing.startedAt}
-            workEndedAt={timing.endedAt}
-            turnFailed={failedTurn !== null && failedTurn !== undefined && failedTurn.anchorMessageId === m.id}
-            onStartEdit={fromHistory ? undefined : onStartEdit}
-            onRegenerate={fromHistory ? undefined : onRegenerate}
-            onApprovePlan={onApprovePlan}
-            onRejectPlan={onRejectPlan}
-          />
-          {failedTurn === null || failedTurn === undefined || failedTurn.anchorMessageId !== m.id ? null : (
-            <FailedTurnCard
-              partial={failedTurn.partial}
-              retryable={failedTurn.retryable}
-              detail={failedTurn.detail}
-              onRetry={onRetryTurn}
-            />
-          )}
-        </React.Fragment>
-      );
-    };
-
-    /*
-     * Bloom's thread, with the four behaviours Alia's own scroll hook had.
-     *
-     * `followAnimated={false}` is the one that is not a default, and it is the
-     * rule `use-scroll-to-bottom.ts` was built around: an ANIMATED
-     * `scrollToEnd` emits a run of intermediate positions from above the end,
-     * and anything reading those as the reader's own scrolling stops following
-     * at the first token — the classic autoscroll that switches itself off and
-     * looks random. Unanimated there are no intermediate positions, so the
-     * trap is unreachable rather than guarded against.
-     *
-     * `onStartReached` rather than an end-reached: a chat pages UPWARD.
-     * `maintainStartPosition` adds the page's growth to the offset so the turn
-     * being read does not slide away under it — without that, a reader near
-     * the top is left near the top, asking for the next page, and the next,
-     * until the whole thread has been pulled in.
-     *
-     * The keyboard is handled by `ChatWorkspace` one level up: Bloom's AI Chat
-     * family imports no keyboard controller at all.
-     */
     return (
+      <React.Fragment key={m.id || `msg-${index}`}>
+        {dayLabel === undefined ? null : (
+          <ChatDateHeader label={dayLabel} placement="inline" />
+        )}
+        <MessageRow
+          m={m}
+          index={index}
+          // Only a message that arrived since the last render animates in,
+          // and none of the history ever did: it is older than everything on
+          // screen by definition, and the offset is what keeps a page landing
+          // above from animating the whole conversation.
+          isNewMessage={index >= history.length + prevMessageCountRef.current}
+          isLastAlia={index === lastAliaIndex}
+          isLoading={isLoading}
+          chatId={
+            fromHistory
+              ? (historyChatIds.get(history[index].conversationId) ?? chatId)
+              : chatId
+          }
+          onRowLayout={
+            fromHistory &&
+            focusCursor !== undefined &&
+            focusCursor !== null &&
+            history[index].cursor === focusCursor
+              ? handleFocusLayout
+              : undefined
+          }
+          handleCopyMessage={handleCopyMessage}
+          handleVote={handleVote}
+          workStartedAt={timing.startedAt}
+          workEndedAt={timing.endedAt}
+          onApprovePlan={onApprovePlan}
+          onRejectPlan={onRejectPlan}
+        />
+        {failedTurn === null ||
+        failedTurn === undefined ||
+        failedTurn.anchorMessageId !== m.id ? null : (
+          <FailedTurnCard
+            partial={failedTurn.partial}
+            retryable={failedTurn.retryable}
+            detail={failedTurn.detail}
+            onRetry={onRetryTurn}
+          />
+        )}
+      </React.Fragment>
+    );
+  };
+
+  /*
+   * Bloom's thread, with the four behaviours Alia's own scroll hook had.
+   *
+   * `followAnimated={false}` is the one that is not a default, and it is the
+   * rule `use-scroll-to-bottom.ts` was built around: an ANIMATED
+   * `scrollToEnd` emits a run of intermediate positions from above the end,
+   * and anything reading those as the reader's own scrolling stops following
+   * at the first token — the classic autoscroll that switches itself off and
+   * looks random. Unanimated there are no intermediate positions, so the
+   * trap is unreachable rather than guarded against.
+   *
+   * `onStartReached` rather than an end-reached: a chat pages UPWARD.
+   * `maintainStartPosition` adds the page's growth to the offset so the turn
+   * being read does not slide away under it — without that, a reader near
+   * the top is left near the top, asking for the next page, and the next,
+   * until the whole thread has been pulled in.
+   *
+   * The keyboard is handled by `ChatWorkspace` one level up: Bloom's AI Chat
+   * family imports no keyboard controller at all.
+   */
+  const chromeInsets = useAiChatChromeInsets();
+  /**
+   * Nothing said yet and nothing on its way: Alia's greeting, centred in the
+   * space the composer leaves, as it has always been.
+   */
+  const isEmpty =
+    filteredMessages.length === 0 &&
+    !conversationLoading &&
+    !isLoading &&
+    !isLoadingHistory &&
+    voiceAgentState !== 'thinking';
+  if (isEmpty) {
+    return (
+      // Above the floating composer: the container measures it for us.
+      <View className="flex-1 justify-center px-4" style={{ paddingBottom: chromeInsets?.bottom ?? 0 }}>
+        <View className="w-full max-w-[768px] self-center">
+          <WelcomeMessage />
+        </View>
+      </View>
+    );
+  }
+
+  return (
+    <View className="flex-1">
       <AiChatThread
         ref={threadRef}
         followAnimated={false}
@@ -1197,11 +853,10 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, threa
         onStartReachedThreshold={NEAR_TOP}
         maintainStartPosition={onLoadHistory !== undefined}
         onScroll={onScroll}
-        style={{ paddingLeft: 16, paddingRight: 16 }}
       >
-        <View className={containerClassName}>
-          {!filteredMessages.length && (
-            conversationLoading ? (
+        {/* Bloom's transcript column (`AgentChat`): 768 at most, centred. */}
+        <View className="w-full max-w-[768px] self-center">
+          {!filteredMessages.length && conversationLoading ? (
               <View className="gap-5 py-4">
                 <View className="items-end">
                   <Skeleton.Box width="65%" height={48} borderRadius={24} />
@@ -1219,56 +874,49 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, threa
                   <Skeleton.Box width="60%" height={14} borderRadius={8} />
                 </View>
               </View>
-            ) : (
-              <WelcomeMessage />
-            )
-          )}
+          ) : null}
 
           <View style={{ position: 'relative' }}>
-            {/* Single flying IdentityMark */}
-            {lastAliaIndex >= 0 && (
-              <Animated.View style={markAnimatedStyle}>
-                <IdentityMark size={28} color={colors.primary} state={markState} spinOnPress />
-              </Animated.View>
-            )}
-
             {/* The history, MEASURED as one block. Its height is what the scroll
-                anchor is restored against, and a block is what react-native-web
-                will report a change for — a marker between the two lists never
-                changes size, so its move goes unobserved and the reader is left
-                looking at the wrong message. */}
+                  anchor is restored against, and a block is what react-native-web
+                  will report a change for — a marker between the two lists never
+                  changes size, so its move goes unobserved and the reader is left
+                  looking at the wrong message. */}
             {history.length === 0 && !isLoadingHistory ? null : (
               <View onLayout={handleHistoryLayout}>
                 {/* Inside the measured block on purpose: it appears when a page
-                    is asked for and vanishes when it lands, and both of those
-                    are height changes the anchor has to account for. Left
-                    outside, its arrival and departure would displace the reader
-                    by its own height, twice, with nothing to correct it. */}
+                      is asked for and vanishes when it lands, and both of those
+                      are height changes the anchor has to account for. Left
+                      outside, its arrival and departure would displace the reader
+                      by its own height, twice, with nothing to correct it. */}
                 {!isLoadingHistory ? null : (
                   <View className="items-center py-4">
-                    <Text className="text-xs text-muted-foreground">{t('chat.loadingHistory')}</Text>
+                    <Loading variant="inline" text={t('chat.loadingHistory')} />
                   </View>
                 )}
                 {history.map((m, index) => renderMessage(m, index))}
               </View>
             )}
 
-            {liveMessages.map((m, index) => renderMessage(m, history.length + index))}
+            {liveMessages.map((m, index) =>
+              renderMessage(m, history.length + index),
+            )}
           </View>
 
           {/* Agent execution — in-progress card or completed result card */}
-          {agentActivity && agentActivity.eventCount > 0 && (
-            agentActivity.isComplete && agentSessionId ? (
+          {agentActivity &&
+            agentActivity.eventCount > 0 &&
+            (agentActivity.isComplete && agentSessionId ? (
               <AgentResultCard activity={agentActivity} />
             ) : (
               <AgentTaskCard activity={agentActivity} />
-            )
-          )}
+            ))}
 
           {/* The agent's offer to start the next stretch fresh. Last in the
-              list on purpose: it must not cover what is being read, and
-              ignoring it has to leave the thread exactly as it was. */}
-          {suggestedNewConversation === null || suggestedNewConversation === undefined ? null : (
+                list on purpose: it must not cover what is being read, and
+                ignoring it has to leave the thread exactly as it was. */}
+          {suggestedNewConversation === null ||
+          suggestedNewConversation === undefined ? null : (
             <NewConversationOffer
               reason={suggestedNewConversation}
               onAccept={onAcceptNewConversation ?? (() => {})}
@@ -1277,14 +925,34 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, threa
           )}
 
           {/* Standalone waiting indicator for voice mode — shows when AI is thinking
-              but there's no pending assistant message yet (e.g. right after user speaks) */}
+                but there's no pending assistant message yet (e.g. right after user speaks) */}
           {voiceAgentState === 'thinking' &&
             !isLoading &&
-            (messages.length === 0 || messages[messages.length - 1]?.role !== 'assistant') && (
-              <AgentThinking variant="wave" label={t('chat.thinking')} showTimer={false} />
+            (messages.length === 0 ||
+              messages[messages.length - 1]?.role !== 'assistant') && (
+              <AgentThinking
+                variant="wave"
+                label={t('chat.thinking')}
+                showTimer={false}
+              />
             )}
+
+          {/* Bloom's `AgentChat`: while a turn is busy and its reply has no
+              word yet, AgentThinking sits under the transcript, in its column.
+              A turn already running tools shows their own working line. */}
+          {isLoading &&
+            (() => {
+              const last = messages[messages.length - 1];
+              if (last === undefined || last.role === 'user') return true;
+              return (
+                last.role === 'assistant' &&
+                getMessageText(last).length === 0 &&
+                (last.toolInvocations?.length ?? 0) === 0
+              );
+            })() && <AgentThinking variant="wave" label={t('chat.thinking')} />}
         </View>
         <View style={bottomSpacerStyle} />
       </AiChatThread>
-    );
+    </View>
+  );
 });

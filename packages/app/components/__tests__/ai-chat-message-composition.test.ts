@@ -82,10 +82,12 @@ describe('the thread renders Bloom AI Chat turns', () => {
     expect(code).not.toContain('FadeInUp');
   });
 
-  it('draws one feedback row, the one Alia owns', () => {
-    // Bloom's like / dislike / copy row is switched off: Alia's action bar is
-    // a superset of it (read aloud, generate audio, regenerate, vote), and two
-    // rows under one reply would be two answers to the same question.
-    expect(code).toContain('feedback={false}');
+  it("draws the template's feedback row, and only once the reply is done", () => {
+    // Bloom's like / dislike / copy row, wired to Alia's votes and clipboard;
+    // there is no action bar of Alia's own under a reply. A turn that is only
+    // its work log (no words) has nothing to copy or rate.
+    expect(code).toContain('feedback={!m.isStreaming && messageText.length > 0}');
+    expect(code).toMatch(/feedbackProps=\{\{\s*onLike:/);
+    expect(code).not.toContain('ACTION_BAR');
   });
 });

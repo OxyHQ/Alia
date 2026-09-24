@@ -1,20 +1,21 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { View, ActivityIndicator, Linking, Platform } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
-import Head from 'expo-router/head';
 import { AuthContainer } from '@/components/auth/auth-container';
 import { AuthLogo } from '@/components/auth/auth-logo';
-import { useAuth, useOxy } from '@oxy.so/services';
 import apiClient, { getSocketToken } from '@/lib/api/client';
 import config from '@/lib/config';
-import { Button } from '@/components/ui/button';
-import { Card, CardBody } from '@oxy.so/bloom/card';
-import { Text } from '@/components/ui/text';
-import { io as socketIO } from 'socket.io-client';
-import { useTranslation } from '@/lib/hooks/use-translation';
-import { useColorScheme } from '@/lib/useColorScheme';
 import { errorMessage as getErrorMessage } from '@/lib/errors/error-utils';
-import { ContentPanel } from "@oxy.so/bloom/content-panel";
+import { useTranslation } from '@/lib/hooks/use-translation';
+import { EmptyState } from '@oxy.so/bloom/empty-state';
+import { RiCheckboxCircleLine } from '@oxy.so/bloom/icons/RiCheckboxCircleLine';
+import { RiCloseCircleLine } from '@oxy.so/bloom/icons/RiCloseCircleLine';
+import { RiLockLine } from '@oxy.so/bloom/icons/RiLockLine';
+import { Loading } from '@oxy.so/bloom/loading';
+import { Muted } from '@oxy.so/bloom/typography';
+import { useAuth, useOxy } from '@oxy.so/services';
+import { useLocalSearchParams } from 'expo-router';
+import Head from 'expo-router/head';
+import { useCallback, useEffect, useState } from 'react';
+import { Linking, Platform } from 'react-native';
+import { io as socketIO } from 'socket.io-client';
 
 /**
  * Links a chat channel (Telegram, Discord, ...) to the signed-in account.
@@ -39,7 +40,6 @@ export default function AuthorizeScreen() {
   const { isLoading: authLoading, signIn } = useAuth();
   const { isAuthenticated: isOxyAuth } = useOxy();
   const { t } = useTranslation();
-  const { colors } = useColorScheme();
 
   const app = typeof params.app === 'string' && params.app ? params.app : 'telegram';
   const channel = params.channel as string | undefined;
@@ -146,119 +146,74 @@ export default function AuthorizeScreen() {
     return (
       <AuthContainer>
         <AuthLogo />
-        <View className="items-center py-8">
-          <ActivityIndicator size="large" color={colors.primary} />
-          <Text className="text-muted-foreground mt-4">{t('common.loading')}</Text>
-        </View>
+        <Loading text={t('common.loading')} />
       </AuthContainer>
     );
   }
 
+  const requestNewLink = () => {
+    const botUsername = process.env.EXPO_PUBLIC_TELEGRAM_BOT_USERNAME || 'alia_onlbot';
+    const botUrl = `https://t.me/${botUsername}?start=link`;
+    if (Platform.OS === 'web') {
+      window.open(botUrl, '_blank');
+    } else {
+      Linking.openURL(botUrl);
+    }
+  };
+
   return (
-    <ContentPanel surfaceClassName="bg-background">
-      <>
-        <Head>
-          <title>{t('authorize.authorizeApp', { app: displayName })}</title>
-          <meta name="description" content={t('authorize.appWantsAccess', { app: displayName })} />
-          <meta name="robots" content="noindex, nofollow" />
-        </Head>
-        <AuthContainer>
-          <AuthLogo />
+    <>
+      <Head>
+        <title>{t('authorize.authorizeApp', { app: displayName })}</title>
+        <meta name="description" content={t('authorize.appWantsAccess', { app: displayName })} />
+        <meta name="robots" content="noindex, nofollow" />
+      </Head>
+      <AuthContainer>
+        <AuthLogo />
 
-          {status === 'authorizing' && (
-            <Card>
-              <CardBody>
-                <View className="items-center py-4 gap-3">
-                  <ActivityIndicator size="large" color={colors.primary} />
-                  <Text className="text-xl font-semibold text-foreground">
-                    {t('authorize.linkingAccount')}
-                  </Text>
-                  <Text className="text-muted-foreground text-center">
-                    {t('authorize.pleaseWait')}
-                  </Text>
-                </View>
-              </CardBody>
-            </Card>
-          )}
+        {status === 'authorizing' && (
+          <EmptyState
+            illustration={<Loading />}
+            title={t('authorize.linkingAccount')}
+            description={t('authorize.pleaseWait')}
+          />
+        )}
 
-          {status === 'needLogin' && (
-            <Card>
-              <CardBody>
-                <View className="items-center py-4 gap-3">
-                  <Text className="text-4xl">🔐</Text>
-                  <View className="gap-2 items-center">
-                    <Text className="text-xl font-semibold text-foreground">
-                      {t('authorize.authRequired')}
-                    </Text>
-                    <Text className="text-muted-foreground text-center">
-                      {message}
-                    </Text>
-                  </View>
-                </View>
-              </CardBody>
-            </Card>
-          )}
+        {status === 'needLogin' && (
+          <EmptyState
+            icon={RiLockLine}
+            media="circle"
+            title={t('authorize.authRequired')}
+            description={message}
+          />
+        )}
 
-          {status === 'success' && (
-            <Card>
-              <CardBody>
-                <View className="items-center py-4 gap-4">
-                  <Text className="text-4xl">✅</Text>
-                  <View className="gap-2 items-center">
-                    <Text className="text-xl font-semibold text-foreground">
-                      {t('authorize.linked')}
-                    </Text>
-                    <Text className="text-muted-foreground text-center">
-                      {message}
-                    </Text>
-                  </View>
-                  <Text className="text-xs text-muted-foreground text-center">
-                    {t('authorize.returnToApp', { app: displayName })}
-                  </Text>
-                </View>
-              </CardBody>
-            </Card>
-          )}
+        {status === 'success' && (
+          <EmptyState
+            icon={RiCheckboxCircleLine}
+            media="circle"
+            title={t('authorize.linked')}
+            description={message}
+            footer={
+              <Muted className="text-center">{t('authorize.returnToApp', { app: displayName })}</Muted>
+            }
+          />
+        )}
 
-          {status === 'error' && (
-            <Card>
-              <CardBody>
-                <View className="items-center py-4 gap-4">
-                  <Text className="text-4xl">❌</Text>
-                  <View className="gap-2 items-center">
-                    <Text className="text-xl font-semibold text-foreground">
-                      {t('authorize.linkFailed')}
-                    </Text>
-                    <Text className="text-muted-foreground text-center">
-                      {message}
-                    </Text>
-                  </View>
-                  {message.includes('expired') ? (
-                    <Button
-                      onPress={() => {
-                        const botUsername = process.env.EXPO_PUBLIC_TELEGRAM_BOT_USERNAME || 'alia_onlbot';
-                        const botUrl = `https://t.me/${botUsername}?start=link`;
-                        if (Platform.OS === 'web') {
-                          window.open(botUrl, '_blank');
-                        } else {
-                          Linking.openURL(botUrl);
-                        }
-                      }}
-                      size="lg"
-                    >
-                      <Text>{t('authorize.requestNewLink')}</Text>
-                    </Button>
-                  ) : (
-                    <Button onPress={handleChannelAuth} size="lg">
-                      <Text>Try Again</Text>
-                    </Button>
-                  )}
-                </View>
-              </CardBody>
-            </Card>
-          )}
-        </AuthContainer>
-      </>
-    </ContentPanel>
+        {status === 'error' && (
+          <EmptyState
+            icon={RiCloseCircleLine}
+            media="circle"
+            title={t('authorize.linkFailed')}
+            description={message}
+            action={
+              message.includes('expired')
+                ? { label: t('authorize.requestNewLink'), onPress: requestNewLink }
+                : { label: t('common.tryAgain'), onPress: handleChannelAuth }
+            }
+          />
+        )}
+      </AuthContainer>
+    </>
   );
 }

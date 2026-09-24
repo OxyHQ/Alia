@@ -1,5 +1,10 @@
 import React from 'react';
-import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
+import {
+  act,
+  create,
+  type ReactTestInstance,
+  type ReactTestRenderer,
+} from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
@@ -46,6 +51,8 @@ vi.mock('@oxy.so/bloom/toast', () => ({
 vi.mock('@oxy.so/bloom/surfaces', () => ({ confirm: confirmSurface }));
 
 vi.mock('expo-router', () => ({
+  // The header is the layout's; the page only declares it.
+  Stack: { Screen: () => null },
   useLocalSearchParams: () => ({ id: 'series-abc' }),
   useRouter: () => ({ back: routerBack, push: vi.fn() }),
 }));
@@ -54,7 +61,10 @@ vi.mock('react-native', async () => {
   const ReactModule = await import('react');
   const host =
     (name: string) =>
-    ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
+    ({
+      children,
+      ...props
+    }: React.PropsWithChildren<Record<string, unknown>>) =>
       ReactModule.createElement(name, props, children);
 
   type ListProps = {
@@ -95,56 +105,89 @@ vi.mock('react-native', async () => {
 
   return {
     View: host('View'),
-    Pressable: host('Pressable'),
     FlatList,
     RefreshControl: host('RefreshControl'),
     Linking: { openURL: vi.fn() },
-    StyleSheet: { absoluteFill: {}, create: (styles: unknown) => styles },
-  };
-});
-
-vi.mock('expo-linear-gradient', async () => {
-  const ReactModule = await import('react');
-  return {
-    LinearGradient: ({ children }: React.PropsWithChildren) =>
-      ReactModule.createElement('LinearGradient', null, children),
   };
 });
 
 /**
- * Named one by one, NOT via a `Proxy` — a proxy that answers every key also
- * answers `then`, which makes the module namespace thenable and hangs
- * `await import()` forever rather than failing.
+ * The glyphs, one subpath each, named one by one — NOT via a `Proxy`: a proxy
+ * that answers every key also answers `then`, which makes the module namespace
+ * thenable and hangs `await import()` forever rather than failing.
  */
-vi.mock('lucide-react-native', async () => {
-  const ReactModule = await import('react');
-  const icon = (name: string) => (props: Record<string, unknown>) =>
-    ReactModule.createElement(name, props);
+vi.mock('@oxy.so/bloom/icons/RiAddLine', () => ({ RiAddLine: () => null }));
+vi.mock('@oxy.so/bloom/icons/RiArrowLeftSLine', () => ({ RiArrowLeftSLine: () => null }));
+vi.mock('@oxy.so/bloom/icons/RiDeleteBinLine', () => ({ RiDeleteBinLine: () => null }));
+vi.mock('@oxy.so/bloom/icons/RiExternalLinkLine', () => ({ RiExternalLinkLine: () => null }));
+vi.mock('@oxy.so/bloom/icons/RiGlobalLine', () => ({ RiGlobalLine: () => null }));
+vi.mock('@oxy.so/bloom/icons/RiLink', () => ({ RiLink: () => null }));
+vi.mock('@oxy.so/bloom/icons/RiLockLine', () => ({ RiLockLine: () => null }));
+vi.mock('@oxy.so/bloom/icons/RiPencilLine', () => ({ RiPencilLine: () => null }));
 
+vi.mock('@oxy.so/bloom/typography', async () => {
+  const ReactModule = await import('react');
+  const text = ({
+    children,
+    ...props
+  }: React.PropsWithChildren<Record<string, unknown>>) =>
+    ReactModule.createElement('Text', props, children);
+  return { Text: text, H5: text, Muted: text };
+});
+
+vi.mock('@oxy.so/bloom/badge', async () => {
+  const ReactModule = await import('react');
   return {
-    Plus: icon('Plus'),
-    Trash2: icon('Trash2'),
-    ChevronLeft: icon('ChevronLeft'),
-    ExternalLink: icon('ExternalLink'),
-    Lock: icon('Lock'),
-    Link2: icon('Link2'),
-    Globe: icon('Globe'),
-    Pencil: icon('Pencil'),
+    Badge: (props: Record<string, unknown>) =>
+      ReactModule.createElement('Badge', props),
   };
 });
 
-vi.mock('@/components/ui/text', async () => {
+vi.mock('@oxy.so/bloom/item', async () => {
   const ReactModule = await import('react');
   return {
-    Text: ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
-      ReactModule.createElement('Text', props, children),
+    Item: (props: Record<string, unknown>) =>
+      ReactModule.createElement('Item', props),
   };
 });
 
-vi.mock('@/components/ui/button', async () => {
+/** The empty state's actions, drawn as buttons so they can be pressed. */
+vi.mock('@oxy.so/bloom/empty-state', async () => {
+  const ReactModule = await import('react');
+  type Action = { label: string; onPress?: () => void; accessibilityLabel?: string };
+  return {
+    EmptyState: ({
+      title,
+      action,
+      secondaryAction,
+    }: {
+      title?: string;
+      action?: Action;
+      secondaryAction?: Action;
+    }) =>
+      ReactModule.createElement(
+        'EmptyState',
+        { title },
+        [action, secondaryAction]
+          .filter((entry): entry is Action => entry !== undefined)
+          .map((entry) =>
+            ReactModule.createElement('Button', {
+              key: entry.label,
+              accessibilityLabel: entry.accessibilityLabel ?? entry.label,
+              onPress: entry.onPress,
+            }),
+          ),
+      ),
+  };
+});
+
+vi.mock('@oxy.so/bloom/button', async () => {
   const ReactModule = await import('react');
   return {
-    Button: ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
+    Button: ({
+      children,
+      ...props
+    }: React.PropsWithChildren<Record<string, unknown>>) =>
       ReactModule.createElement('Button', props, children),
   };
 });
@@ -158,18 +201,21 @@ vi.mock('@oxy.so/bloom/skeleton', async () => {
   const ReactModule = await import('react');
   const shape = (name: string) => (props: Record<string, unknown>) =>
     ReactModule.createElement(name, props);
-  return { Box: shape('Skeleton'), Circle: shape('Skeleton'), Pill: shape('Skeleton'), Text: shape('Skeleton') };
-});
-
-vi.mock('@oxy.so/bloom/content-panel', async () => {
-  const ReactModule = await import('react');
+  const group = ({ children }: React.PropsWithChildren) =>
+    ReactModule.createElement('SkeletonGroup', null, children);
   return {
-    ContentPanel: ({ children }: React.PropsWithChildren) =>
-      ReactModule.createElement('ContentPanel', null, children),
+    Box: shape('Skeleton'),
+    Circle: shape('Skeleton'),
+    Pill: shape('Skeleton'),
+    Text: shape('Skeleton'),
+    Col: group,
+    Row: group,
   };
 });
 
-vi.mock('@oxy.so/bloom/theme', () => ({ withAlpha: (color: string) => color }));
+vi.mock('@oxy.so/bloom/theme', () => ({
+  useTheme: () => ({ colors: { primary: '#000', textSecondary: '#888' } }),
+}));
 
 vi.mock('@/components/show/show-artwork', async () => {
   const ReactModule = await import('react');
@@ -178,13 +224,21 @@ vi.mock('@/components/show/show-artwork', async () => {
 
 vi.mock('@/components/show/episode-create-dialog', async () => {
   const ReactModule = await import('react');
-  return { EpisodeCreateDialog: () => ReactModule.createElement('EpisodeCreateDialog') };
+  return {
+    EpisodeCreateDialog: () => ReactModule.createElement('EpisodeCreateDialog'),
+  };
 });
 
 vi.mock('@/components/show/episode-row', async () => {
   const ReactModule = await import('react');
   return {
-    EpisodeRow: ({ episode, onDelete }: { episode: { id: string }; onDelete: (id: string) => void }) =>
+    EpisodeRow: ({
+      episode,
+      onDelete,
+    }: {
+      episode: { id: string };
+      onDelete: (id: string) => void;
+    }) =>
       ReactModule.createElement('EpisodeRow', {
         accessibilityLabel: `row ${episode.id}`,
         onDelete: () => onDelete(episode.id),
@@ -192,10 +246,8 @@ vi.mock('@/components/show/episode-row', async () => {
   };
 });
 
-vi.mock('@/lib/hooks/use-show-progress', () => ({ useShowProgress: () => undefined }));
-
-vi.mock('@/lib/useColorScheme', () => ({
-  useColorScheme: () => ({ colors: { primary: '#000', background: '#fff', foreground: '#000' } }),
+vi.mock('@/lib/hooks/use-show-progress', () => ({
+  useShowProgress: () => undefined,
 }));
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
@@ -249,14 +301,18 @@ async function renderScreen(episodes: (typeof EPISODE)[] = []) {
  * `type: string` rather than a literal — `node.type` is `ElementType`, and TS
  * calls a comparison against a string LITERAL an unintentional one.
  */
-function byLabel(rendered: ReactTestRenderer, type: string, label: string): ReactTestInstance {
+function byLabel(
+  rendered: ReactTestRenderer,
+  type: string,
+  label: string,
+): ReactTestInstance {
   return rendered.root.find(
     (node) => node.type === type && node.props.accessibilityLabel === label,
   );
 }
 
 function pressRemoveShow(rendered: ReactTestRenderer): Promise<void> {
-  const control = byLabel(rendered, 'Pressable', 'Remove this show from Alia');
+  const control = byLabel(rendered, 'Button', 'Remove this show from Alia');
   return act(async () => {
     await control.props.onPress();
   });
@@ -286,11 +342,15 @@ describe('removing a show', () => {
     expect(routerBack).not.toHaveBeenCalled();
 
     const { useShowStore } = await import('@/lib/stores/show-store');
-    expect(useShowStore.getState().series.map((s) => s.id)).toEqual(['series-abc']);
+    expect(useShowStore.getState().series.map((s) => s.id)).toEqual([
+      'series-abc',
+    ]);
   });
 
   it('says it is gone from both, when the request succeeded', async () => {
-    httpDelete.mockResolvedValueOnce({ data: { deleted: true, syraPodcastDeleted: true } });
+    httpDelete.mockResolvedValueOnce({
+      data: { deleted: true, syraPodcastDeleted: true },
+    });
     const rendered = await renderScreen();
 
     await pressRemoveShow(rendered);
@@ -299,7 +359,9 @@ describe('removing a show', () => {
     expect(toastError).not.toHaveBeenCalled();
     // The message names both places, because both is what happened. It used to
     // promise the podcast survived on Syra, which stopped being true.
-    expect(toastSuccess).toHaveBeenCalledWith('Show deleted from Alia and Syra');
+    expect(toastSuccess).toHaveBeenCalledWith(
+      'Show deleted from Alia and Syra',
+    );
     expect(routerBack).toHaveBeenCalled();
   });
 
@@ -320,7 +382,10 @@ describe('removing a show', () => {
      * the confirmation has to say that at the moment of the decision, not in a
      * toast once it is too late to decline.
      */
-    const asked = confirmSurface.mock.calls[0]?.[0] as { title: string; description: string };
+    const asked = confirmSurface.mock.calls[0]?.[0] as {
+      title: string;
+      description: string;
+    };
     expect(asked.title).toContain('everywhere');
     expect(asked.description).toContain('deleted from Syra too');
     expect(asked.description).toContain('cannot be undone');
@@ -341,8 +406,8 @@ describe('removing an episode', () => {
 
     expect(toastSuccess).not.toHaveBeenCalled();
     expect(toastError).toHaveBeenCalled();
-    expect(useShowStore.getState().episodesBySeries['series-abc']?.map((e) => e.id)).toEqual([
-      'episode-xyz',
-    ]);
+    expect(
+      useShowStore.getState().episodesBySeries['series-abc']?.map((e) => e.id),
+    ).toEqual(['episode-xyz']);
   });
 });

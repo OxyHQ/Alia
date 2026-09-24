@@ -28,19 +28,23 @@ vi.mock('expo-image', async () => {
   };
 });
 
-/**
- * `cn` (via `lib/utils.ts`) reaches `expo-crypto` through `random-uuid`, and
- * `expo-modules-core` needs the Expo runtime that only a device build has.
- * Nothing here generates an id; this only keeps the import graph loadable.
- */
-vi.mock('expo-crypto', () => ({
-  getRandomValues: (values: Uint8Array) => values,
-}));
-
-vi.mock('lucide-react-native', async () => {
+/** Bloom's `Card` is the tile; rendered as a host so its props can be read. */
+vi.mock('@oxy.so/bloom/card', async () => {
   const ReactModule = await import('react');
   return {
-    Mic: (props: Record<string, unknown>) => ReactModule.createElement('Mic', props),
+    Card: ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
+      ReactModule.createElement('Card', props, children),
+  };
+});
+
+vi.mock('@oxy.so/bloom/theme', () => ({
+  useTheme: () => ({ colors: { textSecondary: 'grey' } }),
+}));
+
+vi.mock('@oxy.so/bloom/icons/RiMic2Line', async () => {
+  const ReactModule = await import('react');
+  return {
+    RiMic2Line: (props: Record<string, unknown>) => ReactModule.createElement('Mic', props),
   };
 });
 
@@ -58,7 +62,8 @@ function render(assetId: string | null | undefined) {
       <ShowArtwork
         assetId={assetId}
         title="The Wednesday Digest"
-        className="h-16 w-16 rounded-xl"
+        size={64}
+        radius="radius-12"
         iconSize={26}
       />,
     );
@@ -93,7 +98,11 @@ describe('ShowArtwork', () => {
       uri: `${SYRA_API_URL}/api/images/01925f3c-cover`,
     });
     expect(image.props.accessibilityLabel).toBe('The Wednesday Digest cover art');
-    expect(String(image.props.className)).toContain('h-16 w-16 rounded-xl');
+    expect(image.props.style).toEqual({ width: 64, height: 64 });
+    // The tile is Bloom's Card at the asked-for size and corner rung.
+    const [tile] = nodes(root, 'Card');
+    expect(tile.props.radius).toBe('radius-12');
+    expect(tile.props.style).toMatchObject({ width: 64, height: 64 });
   });
 
   it.each([
@@ -109,7 +118,7 @@ describe('ShowArtwork', () => {
 
     expect(nodes(root, 'Image')).toHaveLength(0);
     expect(nodes(root, 'Mic')).toHaveLength(1);
-    expect(nodes(root, 'View')[0].props.accessibilityLabel).toBe(
+    expect(nodes(root, 'Card')[0].props.accessibilityLabel).toBe(
       'The Wednesday Digest has no cover art',
     );
   });

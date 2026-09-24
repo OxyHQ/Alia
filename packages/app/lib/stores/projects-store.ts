@@ -25,7 +25,7 @@ interface ProjectsStoreState {
    * the one-time legacy migration and the stale-load guard.
    */
   loadProjects: (userId: string | null) => Promise<void>;
-  createProject: (name: string, description?: string, icon?: string) => Promise<void>;
+  createProject: (name: string, description?: string, icon?: string, color?: string) => Promise<void>;
   updateProject: (id: string, updates: Partial<Project>) => Promise<void>;
   deleteProject: (id: string) => Promise<void>;
   setCurrentProject: (id: string | null) => void;
@@ -67,9 +67,13 @@ export const useProjectsStore = create<ProjectsStoreState>((set, get) => {
       }
     },
 
-    createProject: async (name: string, description?: string, icon?: string) => {
+    createProject: async (name: string, description?: string, icon?: string, color?: string) => {
       try {
-        const project = persister.newItem(name, { description, ...(icon && { icon }) } as Partial<Project>);
+        const project = persister.newItem(name, {
+          description,
+          ...(icon && { icon }),
+          ...(color && { color }),
+        } as Partial<Project>);
         await commit([...get().projects, project]);
       } catch (error) {
         console.error("Error creating project:", error);

@@ -1,22 +1,38 @@
-import React, { useEffect, useState, useMemo, useCallback } from 'react';
-import { View, ScrollView, Pressable, RefreshControl } from 'react-native';
-import { FlashList } from '@shopify/flash-list';
-import { Search } from '@oxy.so/bloom/search';
-import { Text } from '@/components/ui/text';
-import { Button } from '@/components/ui/button';
-import { Plus } from 'lucide-react-native';
-import * as DropdownMenu from '@/components/ui/dropdown-menu';
-import { useLibraryStore, FileCategory } from '@/lib/stores/library-store';
-import { useImagePicker } from '@/lib/hooks/use-image-picker';
-import { useDocumentPicker } from '@/lib/hooks/use-document-picker';
 import { FileCard } from '@/components/file-card';
-import { cn } from '@/lib/utils';
-import { toast } from '@oxy.so/bloom/toast';
+import { useDocumentPicker } from '@/lib/hooks/use-document-picker';
+import { useImagePicker } from '@/lib/hooks/use-image-picker';
 import { useTranslation } from '@/lib/hooks/use-translation';
+import { useLibraryStore } from '@/lib/stores/library-store';
+import { Button } from '@oxy.so/bloom/button';
+import { Chip, ChipRow } from '@oxy.so/bloom/chip';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@oxy.so/bloom/dropdown-menu';
+import { EmptyState } from '@oxy.so/bloom/empty-state';
+import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
+import { RiFileTextLine } from '@oxy.so/bloom/icons/RiFileTextLine';
+import { RiFolderLine } from '@oxy.so/bloom/icons/RiFolderLine';
+import { RiImageLine } from '@oxy.so/bloom/icons/RiImageLine';
+import { Search } from '@oxy.so/bloom/search';
 import * as Skeleton from '@oxy.so/bloom/skeleton';
-import { DrawerToggle } from '@/components/ui/drawer-toggle';
-import { ContentPanel } from "@oxy.so/bloom/content-panel";
+import { toast } from '@oxy.so/bloom/toast';
+import { Muted } from '@oxy.so/bloom/typography';
+import { FlashList } from '@shopify/flash-list';
+import { Stack } from 'expo-router';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { RefreshControl, View } from 'react-native';
 
+/**
+ * The Library: plain content on the layout's surface.
+ *
+ * `AiChatContainer` (the app layout) draws the page's background, its corners,
+ * the mobile header with the menu button and the "Library" crumb, so this page
+ * draws none of them — only its description, its "Add files" action, the search
+ * field, the category filter and the files.
+ */
 export default function LibraryScreen() {
   const files = useLibraryStore((state) => state.files);
   const loading = useLibraryStore((state) => state.loading);
@@ -42,29 +58,35 @@ export default function LibraryScreen() {
     setRefreshing(false);
   }, [loadFiles]);
 
-  const categories = useMemo(() => [
-    { value: null, label: t('common.all') },
-    { value: 'documents', label: t('library.documents') },
-    { value: 'images', label: t('library.images') },
-    { value: 'other', label: t('library.other') },
-  ], [t]);
+  const categories = useMemo(
+    () => [
+      { value: null, label: t('common.all') },
+      { value: 'documents', label: t('library.documents') },
+      { value: 'images', label: t('library.images') },
+      { value: 'other', label: t('library.other') },
+    ],
+    [t],
+  );
 
   const filteredFiles = useMemo(() => {
     let filtered = files;
 
     if (selectedCategory) {
-      filtered = filtered.filter(file => file.category === selectedCategory);
+      filtered = filtered.filter((file) => file.category === selectedCategory);
     }
 
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(file =>
-        file.name.toLowerCase().includes(query) ||
-        file.type.toLowerCase().includes(query)
+      filtered = filtered.filter(
+        (file) =>
+          file.name.toLowerCase().includes(query) ||
+          file.type.toLowerCase().includes(query),
       );
     }
 
-    return filtered.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    return filtered.sort(
+      (a, b) => b.createdAt.getTime() - a.createdAt.getTime(),
+    );
   }, [files, searchQuery, selectedCategory]);
 
   const handleUploadImage = async () => {
@@ -105,173 +127,158 @@ export default function LibraryScreen() {
     }
   };
 
-  const handleDeleteFile = useCallback(async (fileId: string) => {
-    try {
-      await deleteFile(fileId);
-      toast.success(t('library.fileDeleted'));
-    } catch (error) {
-      toast.error(t('library.failedDeleteFile'));
-    }
-  }, [deleteFile, t]);
+  const handleDeleteFile = useCallback(
+    async (fileId: string) => {
+      try {
+        await deleteFile(fileId);
+        toast.success(t('library.fileDeleted'));
+      } catch (error) {
+        toast.error(t('library.failedDeleteFile'));
+      }
+    },
+    [deleteFile, t],
+  );
 
-  const renderItem = useCallback(({ item: file }: { item: typeof filteredFiles[0] }) => (
-    <FileCard
-      file={file}
-      onDelete={(f) => handleDeleteFile(f._id)}
-    />
-  ), [handleDeleteFile]);
+  const renderItem = useCallback(
+    ({ item: file }: { item: (typeof filteredFiles)[0] }) => (
+      <FileCard file={file} onDelete={(f) => handleDeleteFile(f._id)} />
+    ),
+    [handleDeleteFile],
+  );
 
-  const listHeader = useMemo(() => (
-    <>
-      {/* Header */}
-      <View className="px-5 pt-6 pb-1">
-        <View className="flex-row items-center justify-between">
-          {/* The drawer opener sits first: below `md` this header is the only
-              thing on screen, and without it the sidebar was reachable only by
-              a swipe nobody is told about (#532). */}
-          <View className="flex-row items-center gap-2">
-            <DrawerToggle />
-            <Text className="text-2xl font-bold text-foreground">
-              {t('library.title')}
-            </Text>
-          </View>
-          <DropdownMenu.Root>
-            <DropdownMenu.Trigger>
-              {/* A bare "+" has no name a screen reader can say (#536). */}
-              <Button
-                size="icon"
-                className="rounded-full h-8 w-8"
-                accessibilityRole="button"
-                accessibilityLabel={t('library.addFiles')}
-              >
-                <Plus size={16} className="text-primary-foreground" />
-              </Button>
-            </DropdownMenu.Trigger>
-            <DropdownMenu.Content>
-              <DropdownMenu.Item key="photos" onSelect={handleUploadImage}>
-                <DropdownMenu.ItemIcon ios={{ name: "photo" }} />
-                <DropdownMenu.ItemTitle>{t('library.addImages')}</DropdownMenu.ItemTitle>
-              </DropdownMenu.Item>
-              <DropdownMenu.Item key="document" onSelect={handleUploadDocument}>
-                <DropdownMenu.ItemIcon ios={{ name: "doc" }} />
-                <DropdownMenu.ItemTitle>{t('library.uploadFiles')}</DropdownMenu.ItemTitle>
-              </DropdownMenu.Item>
-            </DropdownMenu.Content>
-          </DropdownMenu.Root>
-        </View>
-        <Text className="text-[13px] text-muted-foreground mt-0.5">
-          {t('library.subtitle')}
-        </Text>
-      </View>
+  const isFiltered = Boolean(searchQuery || selectedCategory);
 
-      {/* Search */}
-      <View className="px-5 pt-3 pb-2">
+  const listHeader = useMemo(
+    () => (
+      <View className="gap-3 pb-2">
+        {/* The page's one-line description; its action is in the header. */}
+        <Muted>{t('library.subtitle')}</Muted>
+
         <Search
           label={t('library.searchPlaceholder')}
           value={searchQuery}
           onChangeText={setSearchQuery}
           onClearText={() => setSearchQuery('')}
         />
-      </View>
 
-      {/* Category Chips */}
-      <View className="py-2">
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ paddingHorizontal: 20 }}
+        <ChipRow
+          role="radiogroup"
+          accessibilityLabel={t('pages.library.categories')}
         >
-          <View className="flex-row gap-1.5">
-            {categories.map((category) => {
-              const isActive = selectedCategory === category.value ||
-                (!selectedCategory && category.value === null);
-              return (
-                <Pressable
-                  key={category.label}
-                  onPress={() => setSelectedCategory(category.value)}
-                  className="active:opacity-70"
-                >
-                  <View className={cn(
-                    "px-3 py-1 rounded-full",
-                    isActive ? "bg-foreground" : "bg-muted/70"
-                  )}>
-                    <Text className={cn(
-                      "text-xs font-medium",
-                      isActive ? "text-background" : "text-muted-foreground"
-                    )}>
-                      {category.label}
-                    </Text>
-                  </View>
-                </Pressable>
-              );
-            })}
-          </View>
-        </ScrollView>
-      </View>
-
-      {/* Section Title */}
-      <View className="px-5">
-        {(searchQuery || selectedCategory) ? (
-          <View className="mb-2">
-            <Text className="text-[11px] font-semibold text-muted-foreground tracking-wider uppercase">
-              {filteredFiles.length} {filteredFiles.length === 1 ? 'file' : 'files'}
-            </Text>
-          </View>
-        ) : (
-          <View className="mb-2">
-            <Text className="text-[11px] font-semibold text-muted-foreground tracking-wider uppercase">
-              {t('common.all')}
-            </Text>
-          </View>
-        )}
-      </View>
-
-      {/* Skeleton when loading */}
-      {loading && files.length === 0 && (
-        <View className="px-5 gap-1">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <View key={i} className="flex-row items-center gap-3 py-2.5">
-              <Skeleton.Box width={36} height={36} borderRadius={8} />
-              <View className="flex-1 gap-1.5">
-                <Skeleton.Box width="60%" height={12} borderRadius={6} />
-                <Skeleton.Box width="35%" height={10} borderRadius={6} />
-              </View>
-            </View>
+          {categories.map((category) => (
+            <Chip
+              key={category.label}
+              size="xl"
+              role="radio"
+              selected={selectedCategory === category.value}
+              onPress={() => setSelectedCategory(category.value)}
+            >
+              {category.label}
+            </Chip>
           ))}
-        </View>
-      )}
-    </>
-  ), [t, searchQuery, selectedCategory, categories, filteredFiles, loading, files, handleUploadImage, handleUploadDocument]);
+        </ChipRow>
+
+        {isFiltered ? (
+          <Muted>
+            {t('pages.library.resultCount', { count: filteredFiles.length })}
+          </Muted>
+        ) : null}
+
+        {loading && files.length === 0 ? (
+          <View className="gap-4 pt-1">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <View key={i} className="flex-row items-center gap-3">
+                <Skeleton.Circle size={36} />
+                <View className="flex-1 gap-1.5">
+                  <View className="w-3/5 flex-row">
+                    <Skeleton.Text />
+                  </View>
+                  <View className="w-[35%] flex-row">
+                    <Skeleton.Text />
+                  </View>
+                </View>
+              </View>
+            ))}
+          </View>
+        ) : null}
+      </View>
+    ),
+    [
+      t,
+      searchQuery,
+      selectedCategory,
+      categories,
+      filteredFiles,
+      isFiltered,
+      loading,
+      files,
+    ],
+  );
 
   const listEmpty = useMemo(() => {
     if (loading) return null;
     return (
-      <View className="items-center justify-center py-16 px-5">
-        <Text className="text-sm font-medium text-foreground">
-          {searchQuery ? t('library.noFilesFound') : t('library.noFiles')}
-        </Text>
-        <Text className="text-xs text-muted-foreground text-center mt-1">
-          {searchQuery
+      <EmptyState
+        icon={RiFolderLine}
+        title={searchQuery ? t('library.noFilesFound') : t('library.noFiles')}
+        description={
+          searchQuery
             ? t('common.tryDifferentSearch')
-            : t('library.uploadToStart')}
-        </Text>
-      </View>
+            : t('library.uploadToStart')
+        }
+      />
     );
   }, [loading, t, searchQuery]);
 
   return (
-    <ContentPanel surfaceClassName="bg-background">
-      <View className="flex-1 bg-background">
-        <FlashList
-          data={loading && files.length === 0 ? [] : filteredFiles}
-          renderItem={renderItem}
-          ListHeaderComponent={listHeader}
-          ListEmptyComponent={listEmpty}
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 24 }}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-        />
-      </View>
-    </ContentPanel>
+    <>
+      <Stack.Screen
+        options={{
+          headerRight: () => (
+            <DropdownMenu>
+              <DropdownMenuTrigger label={t('library.addFiles')} asChild>
+                {/* The trigger IS the button, and it is named (#536). */}
+                <Button
+                  tone="action"
+                  size="md"
+                  leadingIcon={RiAddLine}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('library.addFiles')}
+                >
+                  {t('library.addFiles')}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                <DropdownMenuItem
+                  key="photos"
+                  onPress={handleUploadImage}
+                  leading={<RiImageLine size="sm" />}
+                >
+                  {t('library.addImages')}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  key="document"
+                  onPress={handleUploadDocument}
+                  leading={<RiFileTextLine size="sm" />}
+                >
+                  {t('library.uploadFiles')}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ),
+        }}
+      />
+      <FlashList
+        data={loading && files.length === 0 ? [] : filteredFiles}
+        renderItem={renderItem}
+        ListHeaderComponent={listHeader}
+        ListEmptyComponent={listEmpty}
+        showsVerticalScrollIndicator={false}
+        contentContainerClassName="px-4 pb-6 pt-4"
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+      />
+    </>
   );
 }

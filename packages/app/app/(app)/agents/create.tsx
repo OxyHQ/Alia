@@ -1,27 +1,39 @@
-import React, { useState, useCallback } from "react";
-import { View, ActivityIndicator, Pressable, ScrollView } from "react-native";
-import { Text } from "@/components/ui/text";
-import { Composer } from "@/components/chat/composer/composer";
-import { useRouter } from "expo-router";
-import { useCreateAgent } from "@/lib/hooks/use-agents";
-import { useOxy } from "@oxy.so/services";
-import { SELECTABLE_ACCOUNT_CATEGORY_IDS, type AccountCategoryId } from "@oxy.so/core";
-import { applyBotUsernameSuffix, createBotAccount } from "@/lib/agents/bot-account";
-import { useTranslation } from "@/lib/hooks/use-translation";
-import { toast } from "@oxy.so/bloom/toast";
-import apiClient from "@/lib/api/client";
-import { API_ROUTES } from "@/lib/api/routes";
-import { Sparkles, MessageCircleQuestion, GitBranch, BarChart3 } from "lucide-react-native";
+import { Composer } from '@/components/chat/composer/composer';
+import { useAliaComposer } from '@/components/chat/composer/use-alia-composer';
+import {
+  applyBotUsernameSuffix,
+  createBotAccount,
+} from '@/lib/agents/bot-account';
+import apiClient from '@/lib/api/client';
+import { API_ROUTES } from '@/lib/api/routes';
 import { errorMessage as getErrorMessage } from '@/lib/errors/error-utils';
-import { ContentPanel } from "@oxy.so/bloom/content-panel";
-
+import { useCreateAgent } from '@/lib/hooks/use-agents';
+import { useTranslation } from '@/lib/hooks/use-translation';
+import type { BloomIconComponent } from '@oxy.so/bloom/icons';
+import { RiBarChartHorizontalLine } from '@oxy.so/bloom/icons/RiBarChartHorizontalLine';
+import { RiCheckLine } from '@oxy.so/bloom/icons/RiCheckLine';
+import { RiQuestionLine } from '@oxy.so/bloom/icons/RiQuestionLine';
+import { RiRouteLine } from '@oxy.so/bloom/icons/RiRouteLine';
+import { RiSparklingLine } from '@oxy.so/bloom/icons/RiSparklingLine';
+import { Item } from '@oxy.so/bloom/item';
+import { Loading } from '@oxy.so/bloom/loading';
+import { toast } from '@oxy.so/bloom/toast';
+import { Muted, Text } from '@oxy.so/bloom/typography';
+import {
+  SELECTABLE_ACCOUNT_CATEGORY_IDS,
+  type AccountCategoryId,
+} from '@oxy.so/core';
+import { useOxy } from '@oxy.so/services';
+import { useRouter } from 'expo-router';
+import { useCallback, useState } from 'react';
+import { ScrollView, View } from 'react-native';
 type Archetype = 'general' | 'qa' | 'task_router' | 'status_update';
 
 interface ArchetypeOption {
   value: Archetype;
   label: string;
   description: string;
-  Icon: React.ComponentType<{ size: number; className?: string }>;
+  Icon: BloomIconComponent;
 }
 
 /** Whether a value IS one of Oxy's offered categories. See the note at the call site. */
@@ -35,25 +47,25 @@ const ARCHETYPE_OPTIONS: ArchetypeOption[] = [
     value: 'general',
     label: 'General',
     description: 'Build any custom agent',
-    Icon: Sparkles,
+    Icon: RiSparklingLine,
   },
   {
     value: 'qa',
     label: 'Q&A',
     description: 'Answers questions from your knowledge',
-    Icon: MessageCircleQuestion,
+    Icon: RiQuestionLine,
   },
   {
     value: 'task_router',
     label: 'Task Router',
     description: 'Triages and routes incoming tasks',
-    Icon: GitBranch,
+    Icon: RiRouteLine,
   },
   {
     value: 'status_update',
     label: 'Status Update',
     description: 'Generates scheduled reports',
-    Icon: BarChart3,
+    Icon: RiBarChartHorizontalLine,
   },
 ];
 
@@ -65,6 +77,7 @@ export default function CreateAgentScreen() {
 
   const [inputValue, setInputValue] = useState("");
   const [generating, setGenerating] = useState(false);
+  const composer = useAliaComposer({ locked: generating });
   const [selectedArchetype, setSelectedArchetype] = useState<Archetype>('general');
 
   const handleGenerate = useCallback(async () => {
@@ -174,91 +187,61 @@ export default function CreateAgentScreen() {
 
   if (generating) {
     return (
-      <View className="flex-1 bg-background items-center justify-center gap-4">
-        <ActivityIndicator size="large" />
-        <Text className="text-base text-muted-foreground">
-          {t("agents.generating")}
-        </Text>
+      <View className="flex-1 items-center justify-center">
+        <Loading variant="spinner" size="lg" text={t("agents.generating")} />
       </View>
     );
   }
 
   return (
-    <ContentPanel surfaceClassName="bg-background">
-      <ScrollView
-        className="flex-1 bg-background"
-        contentContainerClassName="items-center justify-center px-5 py-10 min-h-full"
-        keyboardShouldPersistTaps="handled"
-      >
-        <View className="w-full max-w-2xl gap-6">
-          {/* Title */}
-          <Text className="text-2xl font-semibold text-foreground text-center">
-            {t("agents.createTitle")}
-          </Text>
+    <ScrollView
+      contentContainerClassName="grow items-center justify-center px-4 py-10"
+      keyboardShouldPersistTaps="handled"
+    >
+      <View className="w-full max-w-[672px] gap-6">
+        <Text className="text-center text-lg font-semibold leading-[26px] text-foreground">
+          {t("agents.createTitle")}
+        </Text>
 
-          {/* Archetype Picker */}
-          <View className="gap-2">
-            <Text className="text-sm font-medium text-muted-foreground">
-              Agent type
-            </Text>
-            <View className="flex-row flex-wrap gap-3">
-              {ARCHETYPE_OPTIONS.map((option) => {
-                const isSelected = selectedArchetype === option.value;
-                return (
-                  <Pressable
-                    key={option.value}
-                    onPress={() => setSelectedArchetype(option.value)}
-                    className={`flex-1 min-w-[45%] rounded-xl border p-4 gap-2 ${
-                      isSelected
-                        ? "bg-primary/10 border-primary"
-                        : "bg-card border-border"
-                    }`}
-                  >
-                    <option.Icon
-                      size={20}
-                      className={isSelected ? "text-primary" : "text-muted-foreground"}
-                    />
-                    <Text
-                      className={`text-sm font-semibold ${
-                        isSelected ? "text-primary" : "text-foreground"
-                      }`}
-                    >
-                      {option.label}
-                    </Text>
-                    <Text className="text-xs text-muted-foreground leading-4">
-                      {option.description}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
+        {/* Archetype picker: one radio row per archetype. */}
+        <View className="gap-2">
+          <Muted>{t("pages.agents.agentType")}</Muted>
+          <View accessibilityRole="radiogroup" accessibilityLabel={t("pages.agents.agentType")}>
+            {ARCHETYPE_OPTIONS.map((option) => (
+              <Item
+                key={option.value}
+                role="radio"
+                selected={selectedArchetype === option.value}
+                onPress={() => setSelectedArchetype(option.value)}
+                leading={<option.Icon width={20} height={20} />}
+                trailing={
+                  selectedArchetype === option.value ? <RiCheckLine size="md" /> : null
+                }
+                title={option.label}
+                subtitle={option.description}
+              />
+            ))}
           </View>
-
-          {/*
-            The simple composer: a field, a send control and a suggestion list.
-            No attachments and no model chip — `models` is omitted, which is how
-            Bloom's pill is told to draw none. `busy` and `disabled` carry the
-            same flag on purpose: there is no stream to cancel here, so
-            generating greys send rather than offering a stop, and with no
-            `onStop` Bloom draws no stop control at all.
-
-            It gains a growing field and a dictate button it did not have, both
-            of which come with the pill and neither of which this screen has to
-            ask for.
-          */}
-          <Composer
-            value={inputValue}
-            onValueChange={setInputValue}
-            onSubmit={handleGenerate}
-            busy={generating}
-            disabled={generating}
-            placeholder={t("agents.createPlaceholder")}
-            autocomplete
-            autocompletePosition="bottom"
-          />
         </View>
-      </ScrollView>
-    </ContentPanel>
 
+        {/*
+          The simple composer: a field, a send control and a suggestion list.
+          No attachments and no model chip — `models` is omitted, which is how
+          Bloom's pill is told to draw none. `busy` and `disabled` carry the
+          same flag on purpose: there is no stream to cancel here, so
+          generating greys send rather than offering a stop, and with no
+          `onStop` Bloom draws no stop control at all.
+        */}
+        <Composer
+          {...composer.props}
+          value={inputValue}
+          onValueChange={setInputValue}
+          onSubmit={handleGenerate}
+          busy={generating}
+          disabled={generating}
+          placeholder={t("agents.createPlaceholder")}
+        />
+      </View>
+    </ScrollView>
   );
 }

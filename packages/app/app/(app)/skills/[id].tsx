@@ -1,11 +1,5 @@
-import { View, ScrollView, Pressable, ActivityIndicator, Linking } from 'react-native';
-import { Text } from '@/components/ui/text';
-import { Button } from '@/components/ui/button';
-import { Switch } from '@oxy.so/bloom/switch';
-import { ArrowLeft, Check, Download, ExternalLink, FileText, Pencil, Play, Trash2 } from 'lucide-react-native';
-import { useRouter, useLocalSearchParams } from 'expo-router';
-import { useOxy } from '@oxy.so/services';
-import { useTranslation } from '@/lib/hooks/use-translation';
+import { CustomMarkdown } from '@/components/ui/markdown';
+import { SkillCover } from '@/components/ui/skill-cover';
 import {
   useInstallSkill,
   useInstalledSkills,
@@ -14,10 +8,28 @@ import {
   useUpdateInstall,
   type InstalledSkill,
 } from '@/lib/hooks/use-skills';
-import { SectionLabel } from '@/components/detail/section-label';
-import { CustomMarkdown } from '@/components/ui/markdown';
-import { SkillCover } from '@/components/ui/skill-cover';
-import { ContentPanel } from '@oxy.so/bloom/content-panel';
+import { useTranslation } from '@/lib/hooks/use-translation';
+import { Badge } from '@oxy.so/bloom/badge';
+import { Button } from '@oxy.so/bloom/button';
+import { ButtonGroup, ButtonGroupItem } from '@oxy.so/bloom/button-group';
+import { EmptyState } from '@oxy.so/bloom/empty-state';
+import { RiCheckLine } from '@oxy.so/bloom/icons/RiCheckLine';
+import { RiDownloadLine } from '@oxy.so/bloom/icons/RiDownloadLine';
+import { RiExternalLinkLine } from '@oxy.so/bloom/icons/RiExternalLinkLine';
+import { RiFileTextLine } from '@oxy.so/bloom/icons/RiFileTextLine';
+import { RiPencilLine } from '@oxy.so/bloom/icons/RiPencilLine';
+import { RiPlayLine } from '@oxy.so/bloom/icons/RiPlayLine';
+import { Loading } from '@oxy.so/bloom/loading';
+import {
+  SettingsListGroup,
+  SettingsListItem,
+} from '@oxy.so/bloom/settings-list';
+import { Switch } from '@oxy.so/bloom/switch';
+import { useTheme } from '@oxy.so/bloom/theme';
+import { Muted, Text } from '@oxy.so/bloom/typography';
+import { useOxy } from '@oxy.so/services';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { Linking, ScrollView, View } from 'react-native';
 
 /**
  * One skill, in full.
@@ -30,9 +42,9 @@ import { ContentPanel } from '@oxy.so/bloom/content-panel';
  */
 
 const KIND_ICON = {
-  reference: FileText,
-  script: Play,
-  asset: FileText,
+  reference: RiFileTextLine,
+  script: RiPlayLine,
+  asset: RiFileTextLine,
 } as const;
 
 function formatBytes(bytes: number): string {
@@ -46,6 +58,7 @@ export default function SkillDetailScreen() {
   const router = useRouter();
   const { t } = useTranslation();
   const { user } = useOxy();
+  const { colors } = useTheme();
 
   const detail = useSkill(id);
   const installed = useInstalledSkills();
@@ -55,194 +68,222 @@ export default function SkillDetailScreen() {
 
   if (detail.isLoading) {
     return (
-      <View className="flex-1 bg-background items-center justify-center">
-        <ActivityIndicator />
-      </View>
+      <>
+        <Stack.Screen options={{ headerBackVisible: true }} />
+        <Loading variant="spinner" />
+      </>
     );
   }
 
   if (!detail.data) {
     return (
-      <View className="flex-1 bg-background items-center justify-center">
-        <Text className="text-muted-foreground">{t('skills.notFound')}</Text>
-      </View>
+      <>
+        <Stack.Screen options={{ headerBackVisible: true }} />
+        <EmptyState
+          title={t('skills.notFound')}
+          action={{ label: t('common.back'), onPress: () => router.back() }}
+        />
+      </>
     );
   }
 
   const { skill, version, files } = detail.data;
-  const shelf: InstalledSkill | undefined = (installed.data ?? []).find((entry) => entry._id === skill._id);
+  const shelf: InstalledSkill | undefined = (installed.data ?? []).find(
+    (entry) => entry._id === skill._id,
+  );
   const isOwner = Boolean(user?.id && skill.ownerOxyUserId === user.id);
 
   return (
-    <View className="flex-1 bg-background">
-      <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
-        <View className="flex-row items-center justify-between px-4 pt-4">
-          <Pressable onPress={() => router.back()} className="h-9 w-9 items-center justify-center rounded-full active:bg-muted">
-            <ArrowLeft size={18} className="text-foreground" />
-          </Pressable>
-          {isOwner ? (
-            <Pressable
-              onPress={() => router.push(`/(app)/skills/edit/${skill._id}`)}
-              className="h-9 w-9 items-center justify-center rounded-full active:bg-muted"
-            >
-              <Pencil size={16} className="text-foreground" />
-            </Pressable>
-          ) : null}
+    <>
+      <Stack.Screen
+        options={{
+          title: skill.displayName,
+          headerBackVisible: true,
+          headerRight: isOwner
+            ? () => (
+                <ButtonGroup accessibilityLabel={t('common.edit')}>
+                  <ButtonGroupItem
+                    iconOnly
+                    leadingIcon={RiPencilLine}
+                    accessibilityLabel={t('common.edit')}
+                    onPress={() =>
+                      router.push(`/(app)/skills/edit/${skill._id}`)
+                    }
+                  />
+                </ButtonGroup>
+              )
+            : undefined,
+        }}
+      />
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerClassName="w-full max-w-[768px] self-center gap-6 px-4 pb-12 pt-4"
+      >
+        <View className="flex-row gap-4">
+          {/* The one cover on this screen is the one that may move: an
+            explicit opt-in, honoured on native only and not under reduced
+            motion. Shelves never pass it (#545). */}
+          <SkillCover
+            seed={skill.name}
+            width={96}
+            color={skill.color ?? undefined}
+            title={skill.displayName}
+            animated
+          />
+          <View className="flex-1 items-start gap-1">
+            <Text variant="title-2-semibold">{skill.displayName}</Text>
+            <Muted>{skill.name}</Muted>
+            {skill.publisher ? (
+              <Muted>
+                {t('skills.publisher')}: {skill.publisher}
+              </Muted>
+            ) : null}
+            {skill.license ? (
+              <Muted>
+                {t('skills.license')}: {skill.license}
+              </Muted>
+            ) : null}
+            {shelf ? (
+              <Button
+                size="sm"
+                tone="neutral"
+                appearance="subtle"
+                leadingIcon={RiCheckLine}
+                onPress={() => uninstall.mutate(skill._id)}
+              >
+                {t('skills.uninstall')}
+              </Button>
+            ) : (
+              <Button
+                size="sm"
+                tone="action"
+                leadingIcon={RiDownloadLine}
+                disabled={install.isPending}
+                onPress={() => install.mutate(skill._id)}
+              >
+                {install.isPending
+                  ? t('skills.installing')
+                  : t('skills.install')}
+              </Button>
+            )}
+          </View>
         </View>
 
-        <ContentPanel surfaceClassName="bg-background">
-          <View className="px-5 pt-2 pb-4 flex-row gap-4">
-            {/* The one cover on this screen is the one that may move: an
-                explicit opt-in, honoured on native only and not under reduced
-                motion. Shelves never pass it (#545). */}
-            <SkillCover seed={skill.name} width={96} color={skill.color ?? undefined} title={skill.displayName} animated />
-            <View className="flex-1">
-              <Text className="text-xl font-bold text-foreground">{skill.displayName}</Text>
-              <Text className="text-[12px] text-muted-foreground mt-0.5">{skill.name}</Text>
-              {skill.publisher ? (
-                <Text className="text-[12px] text-muted-foreground mt-1">
-                  {t('skills.publisher')}: {skill.publisher}
-                </Text>
-              ) : null}
-              {skill.license ? (
-                <Text className="text-[12px] text-muted-foreground">
-                  {t('skills.license')}: {skill.license}
-                </Text>
-              ) : null}
-
-              <View className="mt-3">
-                {shelf ? (
-                  <Button size="sm" variant="outline" className="rounded-full" onPress={() => uninstall.mutate(skill._id)}>
-                    <Check size={13} className="text-foreground" />
-                    <Text className="ml-1.5">{t('skills.uninstall')}</Text>
-                  </Button>
-                ) : (
-                  <Button size="sm" className="rounded-full" disabled={install.isPending} onPress={() => install.mutate(skill._id)}>
-                    <Download size={13} className="text-primary-foreground" />
-                    <Text className="ml-1.5">{install.isPending ? t('skills.installing') : t('skills.install')}</Text>
-                  </Button>
-                )}
-              </View>
-            </View>
-          </View>
-
-          <View className="px-5 pb-4">
-            <Text className="text-[14px] leading-5 text-foreground">{skill.description}</Text>
-          </View>
-        </ContentPanel>
+        <Text variant="body-regular">{skill.description}</Text>
 
         {shelf ? (
-          <ContentPanel surfaceClassName="bg-background">
-            <View className="px-5 py-4 gap-4">
-              <View className="flex-row items-center justify-between">
-                <View className="flex-1 pr-4">
-                  <Text className="text-[14px] text-foreground">{t('skills.enabled')}</Text>
-                  <Text className="text-[12px] text-muted-foreground mt-0.5">{t('skills.enabledHint')}</Text>
-                </View>
+          <SettingsListGroup
+            footer={
+              shelf.pinnedVersion === null
+                ? t('skills.versionFollowLatest')
+                : t('skills.versionPinned', { version: shelf.pinnedVersion })
+            }
+          >
+            <SettingsListItem
+              title={t('skills.enabled')}
+              description={t('skills.enabledHint')}
+              rightElement={
                 <Switch
                   accessibilityLabel={t('skills.enabled')}
                   value={shelf.enabled}
-                  onValueChange={(enabled: boolean) => updateInstall.mutate({ id: skill._id, patch: { enabled } })}
+                  onValueChange={(enabled: boolean) =>
+                    updateInstall.mutate({ id: skill._id, patch: { enabled } })
+                  }
                 />
-              </View>
-              <View className="flex-row items-center justify-between">
-                <View className="flex-1 pr-4">
-                  <Text className="text-[14px] text-foreground">{t('skills.autoInvoke')}</Text>
-                  <Text className="text-[12px] text-muted-foreground mt-0.5">{t('skills.autoInvokeHint')}</Text>
-                </View>
+              }
+            />
+            <SettingsListItem
+              title={t('skills.autoInvoke')}
+              description={t('skills.autoInvokeHint')}
+              rightElement={
                 <Switch
                   accessibilityLabel={t('skills.autoInvoke')}
                   value={shelf.autoInvoke}
-                  onValueChange={(autoInvoke: boolean) => updateInstall.mutate({ id: skill._id, patch: { autoInvoke } })}
+                  onValueChange={(autoInvoke: boolean) =>
+                    updateInstall.mutate({
+                      id: skill._id,
+                      patch: { autoInvoke },
+                    })
+                  }
                 />
-              </View>
-              <Text className="text-[12px] text-muted-foreground">
-                {shelf.pinnedVersion === null
-                  ? t('skills.versionFollowLatest')
-                  : t('skills.versionPinned', { version: shelf.pinnedVersion })}
-              </Text>
-            </View>
-          </ContentPanel>
+              }
+            />
+          </SettingsListGroup>
         ) : null}
 
         {skill.compatibility ? (
-          <ContentPanel surfaceClassName="bg-background">
-            <View className="px-5 py-3">
-              <SectionLabel>{t('skills.compatibility')}</SectionLabel>
-              <Text className="text-[13px] text-muted-foreground mt-1">{skill.compatibility}</Text>
-            </View>
-          </ContentPanel>
+          <View className="gap-2">
+            <Text variant="headline-semibold">{t('skills.compatibility')}</Text>
+            <Muted>{skill.compatibility}</Muted>
+          </View>
         ) : null}
 
         {skill.allowedTools.length > 0 ? (
-          <ContentPanel surfaceClassName="bg-background">
-            <View className="px-5 py-3">
-              <SectionLabel>{t('skills.declaredTools')}</SectionLabel>
-              <View className="flex-row flex-wrap gap-1.5 mt-2">
-                {skill.allowedTools.map((tool) => (
-                  <View key={tool} className="rounded-full border border-border px-2.5 py-1">
-                    <Text className="text-[11px] text-muted-foreground">{tool}</Text>
-                  </View>
-                ))}
-              </View>
+          <View className="gap-2">
+            <Text variant="headline-semibold">{t('skills.declaredTools')}</Text>
+            <View className="flex-row flex-wrap gap-1.5">
+              {skill.allowedTools.map((tool) => (
+                <Badge
+                  key={tool}
+                  size="label-small"
+                  variant="outlined"
+                  color="default"
+                  content={tool}
+                />
+              ))}
             </View>
-          </ContentPanel>
+          </View>
         ) : null}
 
-        <ContentPanel surfaceClassName="bg-background">
-          <View className="px-5 py-3">
-            <SectionLabel>{t('skills.instructions')}</SectionLabel>
-            {skill.publisher ? (
-              <Text className="text-[11px] text-muted-foreground mt-1 mb-2">
-                {t('skills.untrusted', { publisher: skill.publisher })}
-              </Text>
-            ) : null}
-            {version ? <CustomMarkdown content={version.body} /> : null}
-          </View>
-        </ContentPanel>
+        <View className="gap-2">
+          <Text variant="headline-semibold">{t('skills.instructions')}</Text>
+          {skill.publisher ? (
+            <Muted>
+              {t('skills.untrusted', { publisher: skill.publisher })}
+            </Muted>
+          ) : null}
+          {version ? <CustomMarkdown content={version.body} /> : null}
+        </View>
 
-        <ContentPanel surfaceClassName="bg-background">
-          <View className="px-5 py-3">
-            <SectionLabel>{t('skills.files')}</SectionLabel>
-            {files.length === 0 ? (
-              <Text className="text-[13px] text-muted-foreground mt-1">{t('skills.noFiles')}</Text>
-            ) : (
-              <View className="mt-2 gap-1.5">
-                {files.map((file) => {
-                  const Icon = KIND_ICON[file.kind];
-                  return (
-                    <View key={file.path} className="flex-row items-center gap-2">
-                      <Icon size={13} className="text-muted-foreground" />
-                      <Text className="text-[13px] text-foreground flex-1">{file.path}</Text>
-                      <Text className="text-[11px] text-muted-foreground">{formatBytes(file.bytes)}</Text>
-                    </View>
-                  );
-                })}
-              </View>
-            )}
-          </View>
-        </ContentPanel>
+        <View className="gap-2">
+          <Text variant="headline-semibold">{t('skills.files')}</Text>
+          {files.length === 0 ? (
+            <Muted>{t('skills.noFiles')}</Muted>
+          ) : (
+            <SettingsListGroup>
+              {files.map((file) => {
+                const Icon = KIND_ICON[file.kind];
+                return (
+                  <SettingsListItem
+                    key={file.path}
+                    icon={<Icon width={18} height={18} fill={colors.icon} />}
+                    title={file.path}
+                    value={formatBytes(file.bytes)}
+                  />
+                );
+              })}
+            </SettingsListGroup>
+          )}
+        </View>
 
         {skill.sourceUrl ? (
-          <ContentPanel surfaceClassName="bg-background">
-            <Pressable
-              className="px-5 py-3 flex-row items-center gap-2 active:opacity-70"
+          <SettingsListGroup>
+            <SettingsListItem
+              icon={
+                <RiExternalLinkLine width={18} height={18} fill={colors.icon} />
+              }
+              title={t('skills.viewSource')}
+              description={`${skill.sourceRepo ?? ''}${
+                version?.sourceCommit
+                  ? ` · ${version.sourceCommit.slice(0, 7)}`
+                  : ''
+              }`}
+              accessibilityRole="link"
               onPress={() => void Linking.openURL(skill.sourceUrl!)}
-            >
-              <ExternalLink size={14} className="text-muted-foreground" />
-              <View className="flex-1">
-                <Text className="text-[13px] text-foreground">{t('skills.viewSource')}</Text>
-                <Text className="text-[11px] text-muted-foreground">
-                  {skill.sourceRepo}
-                  {version?.sourceCommit ? ` · ${version.sourceCommit.slice(0, 7)}` : ''}
-                </Text>
-              </View>
-            </Pressable>
-          </ContentPanel>
+            />
+          </SettingsListGroup>
         ) : null}
-
-        <View className="h-10" />
       </ScrollView>
-    </View>
+    </>
   );
 }

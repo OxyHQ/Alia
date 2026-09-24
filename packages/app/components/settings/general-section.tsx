@@ -1,172 +1,157 @@
-import React from "react";
-import { View, Pressable } from "react-native";
-import { vars } from "nativewind";
-import { Text } from "@/components/ui/text";
-import { useColorScheme } from "@/lib/useColorScheme";
-import { getPresetVars } from "@oxy.so/bloom/design-tokens";
-import { useBloomTheme, APP_COLOR_PRESETS, APP_COLOR_NAMES, type AppColorName } from "@oxy.so/bloom/theme";
-import { useTranslation } from "@/lib/hooks/use-translation";
-import { LanguageSelector } from "@/components/language-selector";
-import { cn } from "@/lib/utils";
-import { SettingsListGroup } from "@oxy.so/bloom/settings-list";
+import { useSubscription } from '@/lib/hooks/use-billing';
+import { useCredits } from '@/lib/hooks/use-credits';
+import { useTranslation } from '@/lib/hooks/use-translation';
+import { Button } from '@oxy.so/bloom/button';
+import {
+  SettingsGeneralPage,
+  type SettingsPageSection,
+} from '@oxy.so/bloom/settings-modal';
+import { APP_COLOR_NAMES, useBloomTheme } from '@oxy.so/bloom/theme';
+import { getNativeLanguageName } from '@oxy.so/core';
+import { useOxy } from '@oxy.so/services';
+import { useRouter } from 'expo-router';
+import { SettingsPreferenceSelect } from './preference-select';
+import { useAliaSettings } from './settings-context';
 
-/** Miniature app layout using real theme tokens via NativeWind vars() */
-const AppMiniature = React.memo(function AppMiniature({ variant, presetName }: { variant: "light" | "dark"; presetName: AppColorName }) {
-  const themeVars = vars(getPresetVars(presetName, variant));
-
-  return (
-    <View className="flex-row flex-1 rounded overflow-hidden" style={themeVars}>
-      {/* Sidebar */}
-      <View className="bg-background p-1 gap-0.5 justify-between" style={{ width: "27%" }}>
-        <View className="gap-0.5">
-          <View className="h-1.5 rounded-sm bg-primary" />
-          <View className="h-[1px] w-3/4 rounded-full mt-0.5 bg-border" />
-          <View className="h-[1px] w-2/3 rounded-full bg-border" />
-          <View className="h-[1px] w-3/4 rounded-full bg-border" />
-          <View className="h-[1px] w-1/2 rounded-full bg-border" />
-        </View>
-        <View className="gap-0.5">
-          <View className="h-[1px] w-2/3 rounded-full bg-border" />
-          <View className="h-[1px] w-3/4 rounded-full bg-border" />
-        </View>
-      </View>
-      {/* Main content */}
-      <View className="flex-1 bg-background justify-between">
-        {/* Chat header */}
-        <View className="flex-row items-center justify-between px-1 py-0.5">
-          <View className="h-[2px] w-1/4 rounded-full bg-border" />
-          <View className="h-[2px] w-2 rounded-full bg-border" />
-        </View>
-        {/* Greeting */}
-        <View className="items-center gap-0.5">
-          <View className="h-[2px] w-3/5 rounded-full bg-muted-foreground" />
-          <View className="h-[1px] w-2/5 rounded-full bg-border" />
-        </View>
-        {/* Suggestion cards 2x2 */}
-        <View className="gap-[2px] px-1">
-          <View className="flex-row gap-[2px]">
-            <View className="flex-1 h-1.5 rounded-sm bg-muted" />
-            <View className="flex-1 h-1.5 rounded-sm bg-muted" />
-          </View>
-          <View className="flex-row gap-[2px]">
-            <View className="flex-1 h-1.5 rounded-sm bg-muted" />
-            <View className="flex-1 h-1.5 rounded-sm bg-muted" />
-          </View>
-        </View>
-        {/* Input bar */}
-        <View className="px-1 pb-0.5 gap-[2px]">
-          <View className="flex-row gap-[2px]">
-            <View className="h-1 w-3 rounded-full bg-primary/50" />
-            <View className="h-1 w-2 rounded-full bg-border" />
-          </View>
-          <View className="h-2 rounded-sm bg-muted" />
-        </View>
-      </View>
-    </View>
-  );
-});
-
+/**
+ * The story's General page: the plan card, then the limits row, then the
+ * app's own preferences. Signed out there is no plan and no limits.
+ */
 export function GeneralSection() {
-  const { mode, setColorScheme } = useColorScheme();
-  const { colorPreset, setColorPreset } = useBloomTheme();
+  const { mode, setMode, colorPreset, setColorPreset } = useBloomTheme();
+  const { currentLanguage, currentLanguages, showBottomSheet, isAuthenticated } =
+    useOxy();
+  const { afterClose, open } = useAliaSettings();
+  const { data: subscription } = useSubscription();
+  const { data: credits } = useCredits();
+  const router = useRouter();
   const { t } = useTranslation();
+  const languages = currentLanguages.length
+    ? currentLanguages
+    : [currentLanguage];
+
+  const plan = subscription?.plan;
+  const price =
+    plan && plan.price > 0
+      ? new Intl.NumberFormat(undefined, {
+          style: 'currency',
+          currency: plan.currency,
+          maximumFractionDigits: 0,
+        }).format(plan.price)
+      : null;
+
+  const sections: SettingsPageSection[] = [
+    ...(isAuthenticated
+      ? [
+          {
+            key: 'limits',
+            rows: [
+              {
+                key: 'limits',
+                label: t('settings.general.limits'),
+                description:
+                  credits === undefined
+                    ? undefined
+                    : t('settings.general.creditsLeft', { count: credits.credits }),
+                control: (
+                  <Button
+                    size="sm"
+                    appearance="outline"
+                    tone="neutral"
+                    onPress={() => open('usage')}
+                  >
+                    {t('settings.general.manageLimits')}
+                  </Button>
+                ),
+              },
+            ],
+          },
+        ]
+      : []),
+    {
+      key: 'app',
+      label: t('settings.groups.app'),
+      rows: [
+        {
+          key: 'language',
+          label: t('settings.appLanguage.title'),
+          description: t('settings.appLanguage.description'),
+          control: (
+            <Button
+              size="sm"
+              appearance="outline"
+              tone="neutral"
+              onPress={() =>
+                afterClose(() => showBottomSheet?.('LanguageSelector'))
+              }
+            >
+              {languages.map(getNativeLanguageName).join(', ')}
+            </Button>
+          ),
+        },
+        {
+          key: 'appearance',
+          label: t('settings.appearance.title'),
+          control: (
+            <SettingsPreferenceSelect
+              label={t('settings.appearance.title')}
+              value={mode}
+              onChange={setMode}
+              items={[
+                { value: 'system', label: t('settings.appearance.system') },
+                { value: 'light', label: t('settings.appearance.light') },
+                { value: 'dark', label: t('settings.appearance.dark') },
+              ]}
+            />
+          ),
+        },
+        {
+          key: 'color',
+          label: t('settings.accentColor.title'),
+          control: (
+            <SettingsPreferenceSelect
+              label={t('settings.accentColor.title')}
+              value={colorPreset}
+              onChange={setColorPreset}
+              items={APP_COLOR_NAMES.map((value) => ({
+                value,
+                label: value.charAt(0).toUpperCase() + value.slice(1),
+              }))}
+            />
+          ),
+        },
+      ],
+    },
+  ];
 
   return (
-    <View className="gap-5">
-      {/* App Language */}
-      <LanguageSelector />
-
-      <SettingsListGroup title={t("settings.appearance.title")}>
-        <View className="flex-row gap-2 p-3">
-          {/* Light */}
-          <Pressable onPress={() => setColorScheme("light")} className="flex-1">
-            <View
-              className={`rounded-lg p-1.5 ${
-                mode === "light" ? "border-2 border-primary" : "border border-border"
-              }`}
-            >
-              <View className="mb-1.5 aspect-[5/3]">
-                <AppMiniature variant="light" presetName={colorPreset} />
-              </View>
-              <Text className="text-center text-xs font-medium text-foreground">
-                {t("settings.appearance.light")}
-              </Text>
-            </View>
-          </Pressable>
-
-          {/* Follow System */}
-          <Pressable onPress={() => setColorScheme("system")} className="flex-1">
-            <View
-              className={`rounded-lg p-1.5 ${
-                mode === "system" ? "border-2 border-primary" : "border border-border"
-              }`}
-            >
-              <View className="rounded overflow-hidden mb-1.5 aspect-[5/3]">
-                <View className="flex-row flex-1">
-                  <View className="flex-1 overflow-hidden">
-                    <AppMiniature variant="light" presetName={colorPreset} />
-                  </View>
-                  <View className="flex-1 overflow-hidden">
-                    <AppMiniature variant="dark" presetName={colorPreset} />
-                  </View>
-                </View>
-              </View>
-              <Text className="text-center text-xs font-medium text-foreground">
-                {t("settings.appearance.system")}
-              </Text>
-            </View>
-          </Pressable>
-
-          {/* Dark */}
-          <Pressable onPress={() => setColorScheme("dark")} className="flex-1">
-            <View
-              className={`rounded-lg p-1.5 ${
-                mode === "dark" ? "border-2 border-primary" : "border border-border"
-              }`}
-            >
-              <View className="mb-1.5 aspect-[5/3]">
-                <AppMiniature variant="dark" presetName={colorPreset} />
-              </View>
-              <Text className="text-center text-xs font-medium text-foreground">
-                {t("settings.appearance.dark")}
-              </Text>
-            </View>
-          </Pressable>
-        </View>
-      </SettingsListGroup>
-
-      <SettingsListGroup title={t("settings.accentColor.title")}>
-        <View className="flex-row gap-3 flex-wrap p-3">
-          {APP_COLOR_NAMES.map((key) => {
-            const p = APP_COLOR_PRESETS[key];
-            const isSelected = colorPreset === key;
-            return (
-              <Pressable
-                key={key}
-                onPress={() => setColorPreset(key)}
-                className="items-center gap-1.5"
-              >
-                <View
-                  className={cn(
-                    "w-8 h-8 rounded-full border-2 overflow-hidden",
-                    isSelected ? "border-foreground scale-110" : "border-transparent"
-                  )}
+    <SettingsGeneralPage
+      plan={
+        isAuthenticated
+          ? {
+              badge: t('settings.general.currentPlan'),
+              title: price
+                ? `${plan?.name} ${price}/${plan?.billingPeriod === 'annual' ? t('settings.general.perYear') : t('settings.general.perMonth')}`
+                : (plan?.name ?? t('settings.general.freePlan')),
+              description: plan
+                ? t('settings.general.creditsPerMonth', { count: plan.creditsPerMonth })
+                : undefined,
+              action: (
+                <Button
+                  size="sm"
+                  appearance="outline"
+                  tone="neutral"
+                  onPress={() =>
+                    afterClose(() => router.push('/(biglayout)/subscribe'))
+                  }
                 >
-                  <View style={{ backgroundColor: p.hex, flex: 1 }} />
-                </View>
-                <Text
-                  className={cn(
-                    "text-[10px]",
-                    isSelected ? "text-foreground font-medium" : "text-muted-foreground"
-                  )}
-                >
-                  {t(`settings.accentColor.${key}`)}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-      </SettingsListGroup>
-    </View>
+                  {t('sidebar.upgradeToPro')}
+                </Button>
+              ),
+            }
+          : undefined
+      }
+      sections={sections}
+    />
   );
 }

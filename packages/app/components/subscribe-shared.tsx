@@ -1,16 +1,35 @@
-import React, { useCallback, useEffect, useRef } from 'react';
-import { View, Pressable, ScrollView } from 'react-native';
+import { Announcement } from '@oxy.so/bloom/announcement';
+import { Button } from '@oxy.so/bloom/button';
+import { Card, CardBody, CardDescription, CardHeader, CardTitle } from '@oxy.so/bloom/card';
+import { Chip } from '@oxy.so/bloom/chip';
+import { RiBuilding2Line } from '@oxy.so/bloom/icons/RiBuilding2Line';
+import { RiCheckLine } from '@oxy.so/bloom/icons/RiCheckLine';
+import { RiShieldLine } from '@oxy.so/bloom/icons/RiShieldLine';
+import { PageHeader } from '@oxy.so/bloom/page-header';
+import {
+  SegmentedControl,
+  SegmentedControlItem,
+  SegmentedControlItemText,
+} from '@oxy.so/bloom/segmented-control';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableColumn,
+  TableHeader,
+  TableRow,
+} from '@oxy.so/bloom/table';
+import { useTheme } from '@oxy.so/bloom/theme';
+import { Muted, Text } from '@oxy.so/bloom/typography';
 import { useRouter } from 'expo-router';
+import React, { useEffect } from 'react';
+import { View } from 'react-native';
 import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withTiming,
   Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
 } from 'react-native-reanimated';
-import { ArrowLeft, Shield, Building2, Check } from 'lucide-react-native';
-import { Text } from '@/components/ui/text';
-import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -39,11 +58,30 @@ export interface PricingTier {
   sortOrder: number;
 }
 
+type Translate = (key: string) => string;
+
 // ─── Helpers ─────────────────────────────────────────────────────────
 
 export function formatPrice(cents: number): string {
   const dollars = cents / 100;
   return dollars % 1 === 0 ? `$${dollars}` : `$${dollars.toFixed(2)}`;
+}
+
+// ─── Header ──────────────────────────────────────────────────────────
+
+/**
+ * The page's header: Bloom's `PageHeader` with the way back. A page opened
+ * straight from a link has nothing to go back to, so it goes home instead.
+ */
+export function SubscribeHeader({ title, t }: { title?: string; t: Translate }) {
+  const router = useRouter();
+  return (
+    <PageHeader
+      title={title}
+      backLabel={t('subscribe.back')}
+      onBack={() => (router.canGoBack() ? router.back() : router.replace('/(app)'))}
+    />
+  );
 }
 
 // ─── BillingToggle ───────────────────────────────────────────────────
@@ -55,52 +93,35 @@ export function BillingToggle({
 }: {
   value: BillingPeriod;
   onChange: (v: BillingPeriod) => void;
-  t: (key: string) => string;
+  t: Translate;
 }) {
+  // The control sizes itself to its segments (`alignSelf: flex-start`); the
+  // wrapper is what lets a centred parent centre it.
   return (
-    <View className="flex-row bg-muted rounded-full p-1">
-      <Pressable
-        onPress={() => onChange('monthly')}
-        className={cn(
-          'px-5 py-2 rounded-full',
-          value === 'monthly' && 'bg-background',
-        )}
-      >
-        <Text
-          className={cn(
-            'text-sm font-medium',
-            value === 'monthly' ? 'text-foreground' : 'text-muted-foreground',
-          )}
-        >
-          {t('subscribe.monthly')}
-        </Text>
-      </Pressable>
-      <Pressable
-        onPress={() => onChange('annual')}
-        className={cn(
-          'px-5 py-2 rounded-full',
-          value === 'annual' && 'bg-background',
-        )}
-      >
-        <Text
-          className={cn(
-            'text-sm font-medium',
-            value === 'annual' ? 'text-foreground' : 'text-muted-foreground',
-          )}
-        >
-          {t('subscribe.annuallySave')}
-        </Text>
-      </Pressable>
+    <View>
+      <SegmentedControl type="radio" label={t('subscribe.billingPeriod')} value={value} onValueChange={onChange}>
+        <SegmentedControlItem value="monthly">
+          <SegmentedControlItemText>{t('subscribe.monthly')}</SegmentedControlItemText>
+        </SegmentedControlItem>
+        <SegmentedControlItem value="annual">
+          <SegmentedControlItemText>{t('subscribe.annuallySave')}</SegmentedControlItemText>
+        </SegmentedControlItem>
+      </SegmentedControl>
     </View>
   );
 }
 
 // ─── Slot-machine odometer ───────────────────────────────────────────
 
+/** One digit's window: the `display-4` line (32 over 40), and each glyph's advance. */
 const DIGIT_HEIGHT = 40;
 const DIGITS = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
+/** The line box the column scrolls by; a Reanimated geometry, so a value. */
+const DIGIT_LINE = { height: DIGIT_HEIGHT, lineHeight: DIGIT_HEIGHT };
+/** A digit sits centred in its fixed-width window, so a narrow `1` leaves no lopsided gap. */
+const DIGIT_CELL = { ...DIGIT_LINE, textAlign: 'center' as const };
 
-function OdometerDigit({ digit, fontSize }: { digit: string; fontSize: number }) {
+function OdometerDigit({ digit }: { digit: string }) {
   const idx = DIGITS.indexOf(digit);
   const translateY = useSharedValue(-idx * DIGIT_HEIGHT);
 
@@ -109,21 +130,17 @@ function OdometerDigit({ digit, fontSize }: { digit: string; fontSize: number })
       duration: 350,
       easing: Easing.out(Easing.cubic),
     });
-  }, [idx]);
+  }, [idx, translateY]);
 
   const columnStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: translateY.value }],
   }));
 
   return (
-    <View style={{ height: DIGIT_HEIGHT, width: fontSize * 0.65, overflow: 'hidden' }}>
+    <View className="h-10 w-[21px] overflow-hidden">
       <Animated.View style={columnStyle}>
         {DIGITS.map((d) => (
-          <Text
-            key={d}
-            className="text-foreground font-bold text-center"
-            style={{ height: DIGIT_HEIGHT, lineHeight: DIGIT_HEIGHT, fontSize }}
-          >
+          <Text key={d} variant="display-4-bold" style={DIGIT_CELL}>
             {d}
           </Text>
         ))}
@@ -132,23 +149,17 @@ function OdometerDigit({ digit, fontSize }: { digit: string; fontSize: number })
   );
 }
 
-function SlotPrice({ cents, fontSize = 32 }: { cents: number; fontSize?: number }) {
-  const text = formatPrice(cents);
-  const chars = text.split('');
-
+function SlotPrice({ cents }: { cents: number }) {
+  const chars = formatPrice(cents).split('');
   return (
     <View className="flex-row items-center">
       {chars.map((char, i) => {
-        const key = `${chars.length - i}-${char >= '0' && char <= '9' ? 'd' : char}`;
-        if (char >= '0' && char <= '9') {
-          return <OdometerDigit key={key} digit={char} fontSize={fontSize} />;
-        }
-        return (
-          <Text
-            key={key}
-            className="text-foreground font-bold"
-            style={{ height: DIGIT_HEIGHT, lineHeight: DIGIT_HEIGHT, fontSize }}
-          >
+        const isDigit = char >= '0' && char <= '9';
+        const key = `${chars.length - i}-${isDigit ? 'd' : char}`;
+        return isDigit ? (
+          <OdometerDigit key={key} digit={char} />
+        ) : (
+          <Text key={key} variant="display-4-bold" style={DIGIT_LINE}>
             {char}
           </Text>
         );
@@ -157,39 +168,25 @@ function SlotPrice({ cents, fontSize = 32 }: { cents: number; fontSize?: number 
   );
 }
 
-// ─── Animated subtext ────────────────────────────────────────────────
-
-function AnimatedSubtext({
-  text,
-  billingPeriod,
-}: {
-  text: string;
-  billingPeriod: BillingPeriod;
-}) {
+/** The yearly total under an annual price, fading in each time the period changes. */
+function AnimatedSubtext({ text, billingPeriod }: { text: string; billingPeriod: BillingPeriod }) {
   const opacity = useSharedValue(1);
 
   useEffect(() => {
     opacity.value = 0;
-    opacity.value = withTiming(1, {
-      duration: 300,
-      easing: Easing.out(Easing.cubic),
-    });
-  }, [billingPeriod]);
+    opacity.value = withTiming(1, { duration: 300, easing: Easing.out(Easing.cubic) });
+  }, [billingPeriod, opacity]);
 
-  const animStyle = useAnimatedStyle(() => ({
-    opacity: opacity.value,
-  }));
+  const animStyle = useAnimatedStyle(() => ({ opacity: opacity.value }));
 
   return (
     <Animated.View style={animStyle}>
-      <Text className="text-xs text-muted-foreground">{text}</Text>
+      <Muted>{text}</Muted>
     </Animated.View>
   );
 }
 
 // ─── PlanGrid ────────────────────────────────────────────────────────
-
-const COL_WIDTH = 220;
 
 function getButtonState(
   tier: PricingTier,
@@ -201,7 +198,8 @@ function getButtonState(
   tiers: PricingTier[],
 ): { label: string; disabled: boolean } {
   if (tier.isFree) {
-    if (!hasActiveSubscription) return { label: 'subscribe.currentPlan', disabled: true };
+    if (!hasActiveSubscription)
+      return { label: 'subscribe.currentPlan', disabled: true };
     return { label: 'subscribe.downgrade', disabled: false };
   }
 
@@ -210,36 +208,28 @@ function getButtonState(
   }
 
   if (currentPlanId === tier.id) {
-    if (cancelAtPeriodEnd) return { label: 'subscribe.reactivate', disabled: false };
+    if (cancelAtPeriodEnd)
+      return { label: 'subscribe.reactivate', disabled: false };
     if (currentBillingPeriod && currentBillingPeriod !== billingPeriod) {
       return {
-        label: billingPeriod === 'annual' ? 'subscribe.switchToAnnual' : 'subscribe.switchToMonthly',
+        label:
+          billingPeriod === 'annual'
+            ? 'subscribe.switchToAnnual'
+            : 'subscribe.switchToMonthly',
         disabled: false,
       };
     }
     return { label: 'subscribe.currentPlan', disabled: true };
   }
 
-  const currentTier = tiers.find(t => t.id === currentPlanId);
+  const currentTier = tiers.find((t) => t.id === currentPlanId);
   if (currentTier && tier.sortOrder > currentTier.sortOrder) {
     return { label: 'subscribe.upgrade', disabled: false };
   }
   return { label: 'subscribe.downgrade', disabled: false };
 }
 
-export function PlanGrid({
-  tiers,
-  billingPeriod,
-  currentPlanId,
-  currentBillingPeriod,
-  cancelAtPeriodEnd,
-  hasActiveSubscription,
-  isComped,
-  onSubscribe,
-  loadingPlanId,
-  isWideLayout,
-  t,
-}: {
+interface PlanGridProps {
   tiers: PricingTier[];
   billingPeriod: BillingPeriod;
   currentPlanId?: string | null;
@@ -253,33 +243,118 @@ export function PlanGrid({
   isComped?: boolean;
   onSubscribe: (planId: string) => void;
   loadingPlanId?: string;
+  /** A table of every tier side by side; below it, one card per tier. */
   isWideLayout: boolean;
-  t: (key: string) => string;
-}) {
-  const scrollRef = useRef<ScrollView>(null);
-  const scrollTimeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  t: Translate;
+}
 
-  const snapToNearest = useCallback(
-    (offsetX: number) => {
-      if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
-      const idx = Math.round(offsetX / COL_WIDTH);
-      const clamped = Math.max(0, Math.min(idx, tiers.length - 1));
-      scrollRef.current?.scrollTo({ x: clamped * COL_WIDTH, animated: true });
-    },
-    [tiers.length],
+/** A tier's name and, on the featured one, the "Popular" chip. */
+function TierName({ tier, t }: { tier: PricingTier; t: Translate }) {
+  return (
+    <View className="flex-row flex-wrap items-center gap-2">
+      <Text variant="title-3-bold">{tier.name}</Text>
+      {tier.isFeatured ? (
+        <Chip size="small" variant="solid" color="primary">
+          {t('subscribe.popular')}
+        </Chip>
+      ) : null}
+    </View>
   );
+}
 
-  const handleScroll = useCallback(
-    (offsetX: number) => {
-      if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
-      scrollTimeoutRef.current = setTimeout(() => snapToNearest(offsetX), 80);
-    },
-    [snapToNearest],
+/** Price, credits and the action — the part of a tier that is not its features. */
+function TierSummary({ tier, props }: { tier: PricingTier; props: PlanGridProps }) {
+  const { billingPeriod, t, isComped, loadingPlanId, onSubscribe } = props;
+  const price = billingPeriod === 'annual' ? Math.round(tier.annualPrice / 12) : tier.monthlyPrice;
+  const button = getButtonState(
+    tier,
+    props.currentPlanId,
+    props.currentBillingPeriod,
+    props.hasActiveSubscription,
+    props.cancelAtPeriodEnd,
+    billingPeriod,
+    props.tiers,
   );
+  return (
+    <View className="w-full gap-3">
+      {tier.monthlyPrice === 0 ? (
+        <Text variant="display-4-bold">{t('subscribe.free')}</Text>
+      ) : (
+        <View className="gap-1">
+          <View className="flex-row items-center gap-1">
+            <SlotPrice cents={price} />
+            <Muted>{t('subscribe.perMonth')}</Muted>
+          </View>
+          {billingPeriod === 'annual' ? (
+            <AnimatedSubtext
+              text={`${formatPrice(tier.annualPrice)}${t('subscribe.perYear')}`}
+              billingPeriod={billingPeriod}
+            />
+          ) : null}
+        </View>
+      )}
+      <Muted>{tier.creditsLabel}</Muted>
+      <Button
+        variant={tier.isFeatured && !button.label.includes('downgrade') ? 'primary' : 'secondary'}
+        size="sm"
+        className="w-full"
+        onPress={() => onSubscribe(tier.id)}
+        disabled={button.disabled || isComped || !!loadingPlanId}
+        loading={loadingPlanId === tier.id}
+      >
+        {t(button.label)}
+      </Button>
+    </View>
+  );
+}
 
+/** One feature: a check and its label, with the description under it. */
+function Feature({ feature }: { feature: FeatureItem }) {
+  const { colors } = useTheme();
+  return (
+    <View className="flex-row items-start gap-2">
+      <RiCheckLine width={16} height={16} fill={colors.primary} />
+      <View className="flex-1 gap-0.5">
+        <Text variant="body-regular">{feature.label}</Text>
+        {feature.description ? <Muted>{feature.description}</Muted> : null}
+      </View>
+    </View>
+  );
+}
+
+export function PlanGrid(props: PlanGridProps) {
+  const { tiers, isWideLayout, t } = props;
   if (tiers.length === 0) return null;
 
-  // Collect unique categories in order across all tiers
+  if (!isWideLayout) {
+    return (
+      <View className="gap-4 px-4">
+        {tiers.map((tier) => (
+          <Card key={tier.id} appearance={tier.isFeatured ? 'solid' : 'outline'}>
+            <CardHeader>
+              <TierName tier={tier} t={t} />
+              {tier.subtitle ? <CardDescription>{tier.subtitle}</CardDescription> : null}
+            </CardHeader>
+            <CardBody>
+              <View className="gap-4">
+                <TierSummary tier={tier} props={props} />
+                {tier.features.map((group) => (
+                  <View key={group.category} className="gap-2">
+                    <CardTitle>{group.category}</CardTitle>
+                    {group.items.map((feature) => (
+                      <Feature key={feature.label} feature={feature} />
+                    ))}
+                  </View>
+                ))}
+              </View>
+            </CardBody>
+          </Card>
+        ))}
+      </View>
+    );
+  }
+
+  // Categories in the order they first appear across the tiers.
   const categories: string[] = [];
   for (const tier of tiers) {
     for (const group of tier.features) {
@@ -287,208 +362,106 @@ export function PlanGrid({
     }
   }
 
-  const tableContent = (
-    <View style={isWideLayout ? undefined : { width: tiers.length * COL_WIDTH }}>
-      {/* Header band: name + price + button */}
-      <View className="flex-row border-b border-border">
-        {tiers.map((tier, i) => {
-          const price = billingPeriod === 'annual' ? Math.round(tier.annualPrice / 12) : tier.monthlyPrice;
-          const btnState = getButtonState(tier, currentPlanId, currentBillingPeriod, hasActiveSubscription, cancelAtPeriodEnd, billingPeriod, tiers);
-          return (
-            <View key={tier.id} className={cn(isWideLayout ? 'flex-1' : '', 'py-5 px-4 gap-3 border-l border-border', i === 0 && 'border-l-0', tier.isFeatured && 'bg-primary/5')} style={isWideLayout ? undefined : { width: COL_WIDTH }}>
-              <View className="flex-row items-center gap-2">
-                <Text className="text-lg font-bold text-foreground">{tier.name}</Text>
-                {tier.isFeatured && (
-                  <View className="bg-primary px-2 py-0.5 rounded-full">
-                    <Text className="text-[10px] font-semibold text-primary-foreground">Popular</Text>
-                  </View>
-                )}
-              </View>
-              <Text className="text-xs text-muted-foreground">{tier.subtitle}</Text>
-              {tier.monthlyPrice === 0 ? (
-                <View className="gap-1">
-                  <Text className="text-3xl font-bold text-foreground">Free</Text>
-                  <Text className="text-sm text-muted-foreground">{tier.creditsLabel}</Text>
-                </View>
-              ) : (
-                <View className="gap-1">
-                  <View className="flex-row items-center gap-1">
-                    <SlotPrice cents={price} />
-                    <Text className="text-sm text-muted-foreground">{t('subscribe.perMonth')}</Text>
-                  </View>
-                  {billingPeriod === 'annual' && (
-                    <AnimatedSubtext
-                      text={`${formatPrice(tier.annualPrice)}${t('subscribe.perYear')}`}
-                      billingPeriod={billingPeriod}
-                    />
-                  )}
-                  <Text className="text-sm text-muted-foreground">{tier.creditsLabel}</Text>
-                </View>
-              )}
-              <Button
-                variant={tier.isFeatured && !btnState.label.includes('downgrade') ? 'default' : 'outline'}
-                size="sm"
-                className="w-full rounded-full"
-                onPress={() => onSubscribe(tier.id)}
-                disabled={btnState.disabled || isComped || !!loadingPlanId}
-                isLoading={loadingPlanId === tier.id}
-              >
-                <Text className={cn('text-sm font-medium', tier.isFeatured && !btnState.label.includes('downgrade') ? 'text-primary-foreground' : 'text-foreground')}>
-                  {t(btnState.label)}
-                </Text>
-              </Button>
-            </View>
-          );
-        })}
-      </View>
-
-      {/* Feature rows by category */}
-      {categories.map((cat) => {
-        // Max number of feature items in this category across all plans
-        let maxItems = 0;
-        for (const tier of tiers) {
-          const group = tier.features.find((g) => g.category === cat);
-          if (group && group.items.length > maxItems) maxItems = group.items.length;
-        }
-
-        return (
-          <React.Fragment key={cat}>
-            {/* Category header row */}
-            <View className="flex-row border-b border-border">
-              {tiers.map((tier, i) => (
-                <View key={tier.id} className={cn(isWideLayout ? 'flex-1' : '', 'py-2 px-4 border-l border-border', i === 0 && 'border-l-0', tier.isFeatured && 'bg-primary/5')} style={isWideLayout ? undefined : { width: COL_WIDTH }}>
-                  <Text className="text-xs font-semibold text-foreground uppercase tracking-wider">
-                    {cat}
-                  </Text>
-                </View>
-              ))}
-            </View>
-
-            {/* Feature rows aligned by position */}
-            {Array.from({ length: maxItems }, (_, rowIdx) => (
-              <Pressable key={rowIdx} className="flex-row border-b border-border hover:bg-primary/10">
-                {tiers.map((tier, i) => {
-                  const group = tier.features.find((g) => g.category === cat);
-                  const feature = group?.items[rowIdx];
-                  return (
-                    <View key={tier.id} className={cn(isWideLayout ? 'flex-1' : '', 'py-2.5 px-4 border-l border-border', i === 0 && 'border-l-0', tier.isFeatured && 'bg-primary/5')} style={isWideLayout ? undefined : { width: COL_WIDTH }}>
-                      {feature ? (
-                        <View className="flex-row items-start gap-2">
-                          <Check size={14} className="text-primary mt-0.5 shrink-0" />
-                          <View className="flex-1">
-                            <Text className="text-sm text-muted-foreground">{feature.label}</Text>
-                            {feature.description && (
-                              <Text className="text-xs text-muted-foreground/70 mt-0.5">{feature.description}</Text>
-                            )}
-                          </View>
-                        </View>
-                      ) : (
-                        <Text className="text-sm text-muted-foreground/30">—</Text>
-                      )}
-                    </View>
-                  );
-                })}
-              </Pressable>
-            ))}
-          </React.Fragment>
-        );
-      })}
-    </View>
-  );
-
-  if (isWideLayout) {
-    return <View className="px-2">{tableContent}</View>;
+  const rows: React.ReactElement[] = [
+    <TableRow key="summary">
+      {tiers.map((tier) => (
+        <TableCell key={tier.id}>
+          <View className="w-full gap-3 py-2">
+            {tier.subtitle ? <Muted>{tier.subtitle}</Muted> : null}
+            <TierSummary tier={tier} props={props} />
+          </View>
+        </TableCell>
+      ))}
+    </TableRow>,
+  ];
+  for (const category of categories) {
+    rows.push(
+      <TableRow key={`category-${category}`}>
+        {tiers.map((tier) => (
+          <TableCell key={tier.id}>
+            <Text variant="caption-1-semibold">{category}</Text>
+          </TableCell>
+        ))}
+      </TableRow>,
+    );
+    // Features line up by position within a category, as the plans list them.
+    const depth = Math.max(
+      0,
+      ...tiers.map((tier) => tier.features.find((g) => g.category === category)?.items.length ?? 0),
+    );
+    for (let index = 0; index < depth; index++) {
+      rows.push(
+        <TableRow key={`${category}-${index}`}>
+          {tiers.map((tier) => {
+            const feature = tier.features.find((g) => g.category === category)?.items[index];
+            return (
+              <TableCell key={tier.id}>
+                {feature ? <Feature feature={feature} /> : <Muted>—</Muted>}
+              </TableCell>
+            );
+          })}
+        </TableRow>,
+      );
+    }
   }
 
   return (
-    <ScrollView
-      ref={scrollRef}
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      snapToInterval={COL_WIDTH}
-      decelerationRate="fast"
-      contentContainerStyle={{ paddingHorizontal: 8 }}
-      onScrollEndDrag={(e) => snapToNearest(e.nativeEvent.contentOffset.x)}
-      onMomentumScrollEnd={(e) => snapToNearest(e.nativeEvent.contentOffset.x)}
-      onScroll={(e) => handleScroll(e.nativeEvent.contentOffset.x)}
-      scrollEventThrottle={16}
-    >
-      {tableContent}
-    </ScrollView>
+    <View className="px-2">
+      <Table accessibilityLabel={t('subscribe.title')}>
+        <TableHeader>
+          {tiers.map((tier) => (
+            <TableColumn key={tier.id} accessibilityLabel={tier.name}>
+              <TierName tier={tier} t={t} />
+            </TableColumn>
+          ))}
+        </TableHeader>
+        <TableBody>{rows}</TableBody>
+      </Table>
+    </View>
   );
 }
 
 // ─── Banners ─────────────────────────────────────────────────────────
 
-export function InfoBanners({ t }: { t: (key: string) => string }) {
+export function InfoBanners({ t }: { t: Translate }) {
   return (
-    <View className="flex-row flex-wrap gap-4 mx-4 mt-8 mb-8">
-      {/* Team */}
-      <View className="flex-1 min-w-[260px] p-5 rounded-2xl bg-muted/50 gap-3">
-        <Building2 size={24} className="text-primary" />
-        <Text className="text-base font-bold text-foreground">
-          {t('subscribe.teamTitle')}
-        </Text>
-        <Text className="text-sm text-muted-foreground">
-          {t('subscribe.teamDescription')}
-        </Text>
-        <Button variant="outline" size="sm" className="rounded-full self-start mt-1">
-          <Text className="text-xs font-medium text-foreground">
-            {t('subscribe.getTeam')}
-          </Text>
-        </Button>
+    <View className="mx-4 my-8 flex-row flex-wrap gap-4">
+      <View className="min-w-[260px] flex-1">
+        <Announcement
+          icon={RiBuilding2Line}
+          title={t('subscribe.teamTitle')}
+          description={t('subscribe.teamDescription')}
+          actionLabel={t('subscribe.getTeam')}
+        />
       </View>
-
-      {/* Security & Compliance */}
-      <View className="flex-1 min-w-[260px] p-5 rounded-2xl bg-muted/50 gap-3">
-        <Shield size={24} className="text-primary" />
-        <Text className="text-base font-bold text-foreground">
-          {t('subscribe.securityTitle')}
-        </Text>
-        <Text className="text-sm text-muted-foreground">
-          {t('subscribe.securityDescription')}
-        </Text>
-        <Button variant="outline" size="sm" className="rounded-full self-start mt-1">
-          <Text className="text-xs font-medium text-foreground">
-            {t('subscribe.learnMore')}
-          </Text>
-        </Button>
+      <View className="min-w-[260px] flex-1">
+        <Announcement
+          icon={RiShieldLine}
+          title={t('subscribe.securityTitle')}
+          description={t('subscribe.securityDescription')}
+          actionLabel={t('subscribe.learnMore')}
+        />
       </View>
     </View>
   );
 }
 
-export function PageFooter({ t }: { t: (key: string) => string }) {
+export function PageFooter({ t }: { t: Translate }) {
   const router = useRouter();
 
   return (
-    <View className="flex-row items-center justify-between px-6 py-4">
-      <Text className="text-xs text-muted-foreground">
-        {t('subscribe.helpText')}{' '}
-        <Text className="text-xs text-foreground underline">
-          {t('subscribe.helpCenter')}
-        </Text>
-        .
-      </Text>
-      <Pressable onPress={() => router.push('/(app)/settings/usage')}>
-        <Text className="text-xs text-muted-foreground">
-          {t('subscribe.editBilling')} &rsaquo;
-        </Text>
-      </Pressable>
+    <View className="flex-row flex-wrap items-center justify-between gap-2 px-6 py-4">
+      <Muted>
+        {t('subscribe.helpText')} {t('subscribe.helpCenter')}.
+      </Muted>
+      <Button
+        appearance="plain"
+        tone="neutral"
+        size="sm"
+        onPress={() => router.push('/(app)/settings/usage')}
+      >
+        {`${t('subscribe.editBilling')} ›`}
+      </Button>
     </View>
-  );
-}
-
-export function BackButton({ t }: { t: (key: string) => string }) {
-  const router = useRouter();
-
-  return (
-    <Pressable
-      onPress={() => router.back()}
-      className="flex-row items-center mb-6"
-    >
-      <ArrowLeft size={16} className="text-muted-foreground mr-2" />
-      <Text className="text-sm text-muted-foreground">{t('subscribe.back')}</Text>
-    </Pressable>
   );
 }
