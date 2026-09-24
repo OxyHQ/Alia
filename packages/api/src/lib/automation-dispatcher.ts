@@ -23,6 +23,7 @@ import { sendNotification } from './notification-service.js';
 import { automationStageTaskInputs, renderAutomationStageTask } from './automation-stage-task.js';
 import { automationExecutionPolicyError } from './automation-execution-policy.js';
 import { enqueueAgentSession } from './task-queue.js';
+import { mayRunForAutomationOwner } from './automation-actors.js';
 import { reserveCredits, safeRefund, type CreditReservation } from './credits-manager.js';
 import { getOrCreateUserCredits } from './user-credits-helpers.js';
 
@@ -54,28 +55,14 @@ export type AutomationDispatchResult =
   | { status: 'duplicate' }
   | { status: 'denied'; reason: string };
 
-/**
- * The agents this automation may run, decided without a person present.
- *
- * `author` is listing metadata and never authority (`docs/agents.md`). An
- * unattended stage has no bearer to ask Oxy about membership with, so the rule
- * is the part of `canReachAgent` that needs none: the owner's own agent (its
- * reconciled Oxy owner), or a public, active marketplace agent. A private agent
- * shared by membership fails closed here, and a product-bound agent is never a
- * marketplace actor.
- */
+/** The agents this automation may run — see {@link mayRunForAutomationOwner}. */
 async function eligibleAgents(automation: AutomationDefinitionRecord) {
   const candidateIds = automation.actorSelection.mode === 'fixed'
     ? [automation.actorSelection.agentId].filter((id): id is string => Boolean(id))
     : automation.actorSelection.eligibleAgentIds;
   const agents = await Promise.all(candidateIds.map((agentId) => findAgentById(getDb(), agentId)));
   return agents.filter((agent): agent is NonNullable<typeof agent> => (
-    agent !== null
-    && agent.applicationId == null
-    && (
-      agent.ownerOxyAccountId === automation.ownerAccountId
-      || (agent.access === 'public' && agent.status === 'active')
-    )
+    agent !== null && mayRunForAutomationOwner(agent, automation.ownerAccountId)
   ));
 }
 

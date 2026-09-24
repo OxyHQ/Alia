@@ -90,6 +90,10 @@ function classifyPrimitive(toolName: string): ActionRisk | null {
       return R0('Search and page reading is autonomous');
     case 'delegate':
       return R1('Delegation runs another Alia agent under this session budget', false);
+    case 'sendMessageToUser':
+      return R1('Writes into the agent\'s own conversation with the person, under the outreach budget', false);
+    case 'scheduleFollowUp':
+      return R1('Schedules the agent\'s own one-off follow-up, under the pending limit', false);
     default:
       return null;
   }

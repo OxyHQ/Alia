@@ -18,9 +18,13 @@ import {
   deleteMessages,
   findLastMessage,
   insertMessages,
+  listMessages,
+  toStoredMessage,
+  type MessageRow,
   type NewMessage,
 } from '../db/chat/messageRepository.js';
 import {
+  isAgentOutreachMessageId,
   type AgentInfo,
   type ConversationSource,
   type MessageContent,
@@ -117,6 +121,9 @@ export async function saveConversation(params: SaveConversationParams): Promise<
       role: m.role,
       content: m.content,
       toolInvocations: m.toolInvocations,
+      // An agent-written message keeps its mark when the client echoes it
+      // back, so the next rewrite still recognises it.
+      ...(isAgentOutreachMessageId(m.id) ? { id: m.id, agentInfo: m.agentInfo } : {}),
     }));
 
   const turnTail: InputMessage[] = [
@@ -173,7 +180,11 @@ export async function saveConversation(params: SaveConversationParams): Promise<
   }
 
   // Divergence / legacy / no-seq / race → full rewrite. seq is the absolute index.
-  const allMessages = [...clientHistory, ...turnTail];
+  // Messages an agent wrote on its own that this client has not seen yet are
+  // kept, in place: the client's copy is authoritative for what IT sent, not
+  // for what arrived while it was away.
+  const stored = await listMessages(getDb(), userId, conversationId);
+  const allMessages = [...keepAgentOutreach(stored, clientHistory), ...turnTail];
   await deleteMessages(getDb(), userId, conversationId);
   if (allMessages.length > 0) {
     await insertMessages(
@@ -181,6 +192,46 @@ export async function saveConversation(params: SaveConversationParams): Promise<
       allMessages.map((message, index) => buildStoredMessage(message, userId, conversationId, index)),
     );
   }
+}
+
+/**
+ * The client's history with every agent-written message it does not have put
+ * back where it was stored: right after the last stored message before it that
+ * the client DOES have (or first, if none).
+ *
+ * "Has" is by id when the client echoed the agent's id, else by role and
+ * content — the same equality the append fast path uses.
+ */
+export function keepAgentOutreach(stored: readonly MessageRow[], client: readonly InputMessage[]): InputMessage[] {
+  const present = (row: MessageRow) => client.some((message) => (
+    (message.id !== undefined && message.id === row.clientMessageId) || sameMessage(row, message)
+  ));
+  const insertAfter = new Map<number, InputMessage[]>();
+  for (const [index, row] of stored.entries()) {
+    if (!isAgentOutreachMessageId(row.clientMessageId) || present(row)) continue;
+    let anchor = -1;
+    for (let back = index - 1; back >= 0 && anchor === -1; back--) {
+      const previous = stored[back]!;
+      if (isAgentOutreachMessageId(previous.clientMessageId)) continue;
+      for (let j = client.length - 1; j >= 0; j--) {
+        if (sameMessage(previous, client[j]!)) { anchor = j; break; }
+      }
+    }
+    const message = toStoredMessage(row);
+    const kept: InputMessage = {
+      role: message.role,
+      content: message.content,
+      ...(row.clientMessageId ? { id: row.clientMessageId } : {}),
+      ...(message.agentInfo ? { agentInfo: message.agentInfo } : {}),
+    };
+    insertAfter.set(anchor, [...(insertAfter.get(anchor) ?? []), kept]);
+  }
+  if (insertAfter.size === 0) return [...client];
+  const merged: InputMessage[] = [...(insertAfter.get(-1) ?? [])];
+  for (const [j, message] of client.entries()) {
+    merged.push(message, ...(insertAfter.get(j) ?? []));
+  }
+  return merged;
 }
 
 /**

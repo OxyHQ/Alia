@@ -35,7 +35,9 @@ vi.mock('../../db/agents/agentRepository.js', () => ({
   findAgentById: vi.fn(async (_db, id: string) => ({
     id,
     _id: id,
-    author: 'owner-1',
+    ownerOxyAccountId: 'owner-1',
+    access: 'private',
+    applicationId: null,
     oxyAccountId: `bot-${id}`,
     status: 'active',
   })),

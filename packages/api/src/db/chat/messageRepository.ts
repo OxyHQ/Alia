@@ -35,6 +35,7 @@ import type {
 } from '../../domain/conversation.js';
 import type { ApiDatabase, Executor } from '../index';
 import { conversations, messages } from '../schema/chat';
+import { AGENT_OUTREACH_MESSAGE_ID_PREFIX } from '../../domain/conversation.js';
 
 /** A stored message, as this repository reads it. */
 export interface MessageRow {
@@ -760,4 +761,45 @@ export async function setMessageAudioUrl(
 
   const result = await db.update(messages).set({ audioUrl }).where(inArray(messages.id, target));
   return result.count;
+}
+
+// ---------------------------------------------------------------------------
+// Agent outreach
+// ---------------------------------------------------------------------------
+
+/**
+ * How many messages an agent wrote on its own to this person since `since`,
+ * across all their conversations with it. The outreach budget reads this.
+ */
+export async function countAgentOutreachSince(
+  db: ApiDatabase,
+  oxyUserId: string,
+  agentId: string,
+  since: Date,
+): Promise<number> {
+  const [row] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(messages)
+    .where(and(
+      eq(messages.oxyUserId, oxyUserId),
+      eq(messages.agentInfoId, agentId),
+      sql`${messages.clientMessageId} like ${`${AGENT_OUTREACH_MESSAGE_ID_PREFIX}%`}`,
+      sql`${messages.createdAt} >= ${since.toISOString()}::timestamptz`,
+    ));
+  return row?.count ?? 0;
+}
+
+/** The newest `limit` messages of a conversation, newest first, id and role only. */
+export async function listLatestMessageMarks(
+  db: ApiDatabase,
+  oxyUserId: string,
+  conversationId: string,
+  limit: number,
+): Promise<Array<{ role: string; clientMessageId: string | null }>> {
+  return db
+    .select({ role: messages.role, clientMessageId: messages.clientMessageId })
+    .from(messages)
+    .where(and(eq(messages.oxyUserId, oxyUserId), eq(messages.conversationId, conversationId)))
+    .orderBy(sql`${messages.seq} desc nulls last`, desc(messages.createdAt))
+    .limit(limit);
 }

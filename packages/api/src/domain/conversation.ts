@@ -103,3 +103,19 @@ export interface MessageContentPart {
  * the column.
  */
 export type MessageContent = string | MessageContentPart[];
+
+/**
+ * The client-message-id prefix of a message an agent wrote on its own — a
+ * result it delivered, a check-in it chose to send — rather than one the
+ * person's client sent or streamed.
+ *
+ * It is the only mark such a row carries (`messages` has no metadata column),
+ * and it matters because the saver otherwise makes storage converge on the
+ * client's copy of the conversation: a client that had not yet seen the
+ * agent's message would delete it with its next turn.
+ */
+export const AGENT_OUTREACH_MESSAGE_ID_PREFIX = 'agent-push-';
+
+export function isAgentOutreachMessageId(id: string | null | undefined): boolean {
+  return typeof id === 'string' && id.startsWith(AGENT_OUTREACH_MESSAGE_ID_PREFIX);
+}

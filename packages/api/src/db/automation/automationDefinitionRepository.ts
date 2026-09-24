@@ -858,3 +858,17 @@ export async function automationRunProgressForSession(
     taskInput: next.taskInput,
   };
 }
+
+/** The `inputs` of the automation a run belongs to, or null for no such run. */
+export async function findAutomationInputsForRun(
+  db: Executor,
+  runId: string,
+): Promise<Record<string, unknown> | null> {
+  const [row] = await db
+    .select({ inputs: automationDefinitions.inputs })
+    .from(automationRuns)
+    .innerJoin(automationDefinitions, eq(automationDefinitions.id, automationRuns.automationId))
+    .where(eq(automationRuns.id, runId))
+    .limit(1);
+  return row?.inputs ?? null;
+}

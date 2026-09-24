@@ -232,6 +232,10 @@ describe('the risk classifier answers each level for a distinct reason', () => {
     expect(classifyActionRisk('browser', { action: 'goto', url: 'https://example.com' }).riskLevel).toBe('R0');
     expect(classifyActionRisk('delegate', { task: 'x' })).toMatchObject({ riskLevel: 'R1', reversible: false });
     expect(classifyActionRisk('plan', { action: 'update' }).riskLevel).toBe('R0');
+    // Writing into its own conversation and scheduling its own follow-up are
+    // budgeted where they are implemented, so they need nobody watching either.
+    expect(classifyActionRisk('sendMessageToUser', { message: 'x' }).riskLevel).toBe('R1');
+    expect(classifyActionRisk('scheduleFollowUp', { at: 'x', note: 'y' }).riskLevel).toBe('R1');
   });
 
   it('reads a tool its source declared read-only as R0, and the same name undeclared as R2', () => {

@@ -70,6 +70,15 @@ export interface AgentRuntimeContext {
   session: AgentSessionRecord;
   onComplete: (result: string) => void;
   onHireAgent?: (handle: string, task: string) => Promise<string>;
+  /**
+   * Present only on a BACKGROUND run, where nobody is reading the agent's
+   * output as it streams: its way of writing to the person, and of scheduling
+   * its own next look. A chat turn already talks to the person directly.
+   */
+  outreach?: {
+    messageUser: (message: string) => Promise<string>;
+    scheduleFollowUp: (at: Date, note: string) => Promise<string>;
+  };
   todoManager: TodoManager;
   browserSession: BrowserSession;
   eventStream?: EventStream;
@@ -208,6 +217,43 @@ export function buildRuntimeTools(
           return `Agent @${handle} completed:\n${result}`;
         } catch (err: unknown) {
           return `Error hiring agent: ${getErrorMessage(err)}`;
+        }
+      },
+    });
+  }
+
+  // ── sendMessageToUser / scheduleFollowUp — the agent speaking first ──
+  //
+  // Ungranted, like `plan`: writing into its OWN conversation with the person
+  // is how an agent reports, not a capability an owner hands out. Budgeted in
+  // `agent-outreach.ts`, which is what stops an agent from pestering.
+
+  if (ctx.outreach) {
+    const { messageUser, scheduleFollowUp } = ctx.outreach;
+    actions.sendMessageToUser = tool({
+      description: 'Write a message to the person in your conversation with them; they get a notification. Use it only for something they would want to know now: a finding, a change, a question you need answered. Do not use it for progress chatter. Limited to a few per day, and it stops if they have not answered your last messages.',
+      inputSchema: z.object({
+        message: z.string().min(1).describe('The message, written to the person, in their language'),
+      }),
+      execute: async ({ message }) => {
+        try {
+          return await messageUser(message);
+        } catch (err: unknown) {
+          return `Error sending the message: ${getErrorMessage(err)}`;
+        }
+      },
+    });
+    actions.scheduleFollowUp = tool({
+      description: 'Schedule yourself to come back to this later — to check something again, or to follow up at a time the person asked for. At that time you run again with your note; if you find something worth saying you tell them with sendMessageToUser. At most a few pending at once.',
+      inputSchema: z.object({
+        at: z.string().describe('When, as an ISO 8601 date-time with timezone offset, e.g. 2026-09-25T09:00:00+02:00'),
+        note: z.string().min(1).describe('What to do then, written for your future self'),
+      }),
+      execute: async ({ at, note }) => {
+        try {
+          return await scheduleFollowUp(new Date(at), note);
+        } catch (err: unknown) {
+          return `Error scheduling the follow-up: ${getErrorMessage(err)}`;
         }
       },
     });
