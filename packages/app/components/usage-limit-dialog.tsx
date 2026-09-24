@@ -60,9 +60,14 @@ export function UsageLimitDialog({ error, onDismiss }: UsageLimitDialogProps) {
     router.push('/(app)/settings/usage');
   };
 
+  /** The plan's rolling usage window: wait it out, or move to a bigger plan. */
+  const isWindow = error?.details.limitType === 'usage_window';
+
   // Title
   let title: string;
-  if (isModelAccess) {
+  if (isWindow) {
+    title = t('usageLimit.windowTitle');
+  } else if (isModelAccess) {
     title = t('usageLimit.modelLockedTitle');
   } else if (isCredits) {
     title = t('usageLimit.outOfCreditsTitle');
@@ -74,7 +79,11 @@ export function UsageLimitDialog({ error, onDismiss }: UsageLimitDialogProps) {
 
   // Description
   let description: string;
-  if (isModelAccess) {
+  if (isWindow) {
+    description = countdown > 0
+      ? t('usageLimit.windowDescription', { time: formatCountdown(countdown) })
+      : t('usageLimit.windowFreed');
+  } else if (isModelAccess) {
     description = t('usageLimit.modelLockedDesc');
   } else if (isCredits) {
     description = t('usageLimit.outOfCreditsDescription');
@@ -95,7 +104,9 @@ export function UsageLimitDialog({ error, onDismiss }: UsageLimitDialogProps) {
     disabled: true,
   };
   const upgrade: DialogAction = { label: t('usageLimit.upgradePlan'), onPress: handleUpgrade };
-  const actions: DialogAction[] = isModelAccess
+  const actions: DialogAction[] = isWindow
+    ? [upgrade, countdown > 0 ? waiting : { label: t('usageLimit.tryAgain'), color: 'cancel' }]
+    : isModelAccess
     ? [upgrade, { label: t('usageLimit.gotIt'), color: 'cancel' }]
     : isCredits
       ? [upgrade, { label: t('usageLimit.buyCredits'), color: 'cancel', onPress: handleBuyCredits }]

@@ -626,7 +626,9 @@
         "resetsSoon": "Se renueva pronto",
         "resetsDaily": "Se renueva cada 24 horas",
         "planUsage": "Límites de uso del plan",
-        "close": "Cerrar panel de créditos"
+        "close": "Cerrar panel de créditos",
+        "window": "Límite de {{hours}} horas",
+        "windowFresh": "Se renueva {{hours}} horas después de tu próximo mensaje"
       },
       "searchFailed": "La búsqueda falló",
       "noResults": "Sin resultados"
@@ -896,7 +898,10 @@
     "buyMore": "Comprar más",
     "switchToModel": "Cambia a {{model}} para ~{{ratio}}x menos créditos.",
     "switchToModelAlt": "Cambia a {{model}} para menos créditos.",
-    "spendingHighToday": "Estás gastando más de lo habitual hoy."
+    "spendingHighToday": "Estás gastando más de lo habitual hoy.",
+    "windowTitle": "Límite de uso alcanzado",
+    "windowDescription": "Has usado lo que tu plan permite en 5 horas. Se libera en {{time}}, o mejora tu plan para tener más.",
+    "windowFreed": "Tu límite de uso se ha liberado. Puedes continuar."
   },
   "forgotPassword": {
     "title": "Restablecer contraseña",

@@ -50,6 +50,7 @@ import {
   type CreditReservation,
 } from '../credits-manager.js';
 import { getUserEntitlements, type Entitlements } from '../plan-access.js';
+import { readUsageWindow, secondsUntilReset, type UsageWindow } from '../usage-window.js';
 import type { OxyUserProfile } from '../system-prompt-builder.js';
 import { oxyClient } from '../../middleware/auth.js';
 import { findAgentSkills } from '../../db/agents/agentRepository.js';
@@ -703,13 +704,21 @@ export async function buildChatRequestContext(
      */
     (req.user && !req.serviceApp && localRuntime === null) ? (async () => {
           await getOrCreateUserCredits(req.user!.id);
+          // The rolling window first (`lib/usage-window.ts`): a turn that
+          // would start with it spent reserves nothing and is refused below.
+          // It fails OPEN — a window that cannot be read never stops a turn;
+          // the balance still bounds it.
+          const window = await usageWindowFor(req.user!.id);
+          if (window?.exhausted) {
+            return { reservation: null, error: false as const, window };
+          }
           const reservation = await reserveCredits(req.user!.id);
-          return { reservation, error: false as const };
+          return { reservation, error: false as const, window: null };
         })().catch((error) => {
           log.v1.error({ err: error }, 'Error reserving credits');
-          return { reservation: null, error: true as const };
+          return { reservation: null, error: true as const, window: null };
         })
-      : Promise.resolve({ reservation: null, error: false as const }),
+      : Promise.resolve({ reservation: null, error: false as const, window: null as UsageWindow | null }),
 
     /**
      * Model resolution against the Kaana routing profile catalogue.
@@ -801,6 +810,31 @@ export async function buildChatRequestContext(
    * every local turn 402s before reaching a model, and the person is told to
    * buy credits for running a model on their own hardware.
    */
+  /**
+   * The plan's rolling window is spent. A 429 the clients already read as a
+   * limit to wait out: `retryAfter` is when the oldest spending turn in the
+   * window ages out, and it drives the usage dialog's countdown.
+   */
+  if (creditResult.window?.exhausted) {
+    clearTimeout(globalTimer);
+    const window = creditResult.window;
+    const windowError = {
+      message: `You've reached your ${window.hours}-hour usage limit. It frees up as your earlier messages age out.`,
+      type: 'rate_limit_error',
+      param: null,
+      code: 'USAGE_WINDOW_EXCEEDED',
+      retryAfter: secondsUntilReset(window),
+      suggestedAction: 'wait',
+      details: { limitType: 'usage_window', current: window.used, limit: window.limit, tier: entitlements?.planId ?? null },
+    };
+    if (sse.sent) {
+      sse.writeError(windowError);
+    } else {
+      res.status(429).json({ error: windowError });
+    }
+    return null;
+  }
+
   if (
     req.user &&
     !req.serviceApp &&
@@ -1116,4 +1150,18 @@ export async function buildChatRequestContext(
     autonomyRuntime,
     recalledMemories,
   };
+}
+
+/**
+ * The requester's rolling usage window, or `null` when their plan has none or
+ * it cannot be read — the window fails open.
+ */
+async function usageWindowFor(oxyUserId: string): Promise<UsageWindow | null> {
+  try {
+    const entitlements = await getUserEntitlements(oxyUserId);
+    return entitlements?.planId ? await readUsageWindow(oxyUserId, entitlements.planId) : null;
+  } catch (error) {
+    log.v1.warn({ err: error }, 'Usage window unavailable; the turn goes ahead on the balance alone');
+    return null;
+  }
 }
