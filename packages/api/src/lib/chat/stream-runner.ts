@@ -32,7 +32,7 @@ import { writeTextChunk, writeStopChunk, writeContentChunk, makeChunk } from '..
 import type { SSEWriter } from './sse-writer.js';
 
 /** Extended stream chunk types not yet exported by AI SDK */
-type ExtendedChunk = { type: string; text?: string; thoughtDelta?: string; reasoningDelta?: string; toolName?: string; error?: Error & { message: string }; [key: string]: unknown };
+type ExtendedChunk = { type: string; text?: string; thoughtDelta?: string; reasoningDelta?: string; toolName?: string; error?: unknown; [key: string]: unknown };
 
 /**
  * The tools whose result IS another agent's answer, and is drawn as one.
@@ -340,15 +340,31 @@ export async function runStream<TOOLS extends ToolSet>(params: RunStreamParams<T
         });
       }
     } else if (chunk.type === 'tool-error') {
-      // Handle tool execution errors
+      const originalToolName = toolNameMapping.get((chunk as ExtendedChunk).toolName ?? '') || (chunk as ExtendedChunk).toolName;
+      const rawToolError = (chunk as ExtendedChunk).error;
+
+      /**
+       * A STRING is an invalid call, not a failed one.
+       *
+       * The AI SDK reports a call it refused before `execute` — a tool this turn
+       * was not given, or input its schema rejects — with the error already
+       * flattened to a message, and hands that same message back to the model,
+       * which retries or answers without it in the next step. It is the model's
+       * to read. Written into the answer it was "Tool error (createAgent): Tool
+       * execution failed" — `.message` of a string is undefined — or, read
+       * correctly, the turn's whole list of internal tool names.
+       */
+      if (typeof rawToolError === 'string') {
+        log.v1.warn({ err: rawToolError, toolName: originalToolName }, 'Invalid tool call');
+        continue;
+      }
+      // A tool that ran and failed: the person is told, so the turn has spoken.
       sse.ensureHeaders();
       state.hasStreamedContent = true;
-
-      const originalToolName = toolNameMapping.get((chunk as ExtendedChunk).toolName ?? '') || (chunk as ExtendedChunk).toolName;
-      log.v1.error({ err: (chunk as ExtendedChunk).error, toolName: originalToolName }, 'Tool error');
+      log.v1.error({ err: rawToolError, toolName: originalToolName }, 'Tool error');
 
       // Send tool error as text content so the user sees what happened
-      const errorMessage = (chunk as ExtendedChunk).error?.message || 'Tool execution failed';
+      const errorMessage = (rawToolError instanceof Error && rawToolError.message) || 'Tool execution failed';
       const toolErrorContent = `\n\nTool error (${originalToolName}): ${errorMessage}`;
       writeContentChunk(res, requestId, routingProfileId, toolErrorContent);
       assistantResponse += toolErrorContent;
