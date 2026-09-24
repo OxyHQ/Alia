@@ -14,6 +14,7 @@ import {
 } from '../../db/memory/userMemoryRepository.js';
 import { getOrCreateUserMemory } from "../memory/user-memory-service.js";
 import { log } from '../logger.js';
+import { KaanaCapabilityUnavailableError } from '../inference/hosted-capability-error.js';
 import { getErrorMessage } from '../errors/index.js';
 import { PERSONALITY_STYLES, isPersonalityStyle, type PersonalityStyleId } from '../personality-styles.js';
 
@@ -93,9 +94,14 @@ export const saveUserMemoryTool = (oxyUserId: string, opts?: { initiatedBy?: Ini
       await saveEntryByTitle(db, memory._id, { title, summary, type });
       const totalMemories = await countEntries(db, memory._id);
 
-      // Generate embedding in background — never block the tool response
+      // Generate embedding in background — never block the tool response.
+      // Embeddings fail closed until Kaana serves them; that is a known state,
+      // not an error to log on every save.
       import('../memory/index.js').then(async ({ generateEmbedding, upsertMemoryEmbedding }) => {
-        const embedding = await generateEmbedding(`${title}: ${summary}`);
+        const embedding = await generateEmbedding(`${title}: ${summary}`).catch((err: unknown) => {
+          if (err instanceof KaanaCapabilityUnavailableError) return null;
+          throw err;
+        });
         if (embedding) {
           await upsertMemoryEmbedding(oxyUserId, title, embedding);
         }

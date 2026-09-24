@@ -24,6 +24,8 @@ export interface ExecutorResult {
   success: boolean;
   sessionId: string;
   durationMs: number;
+  /** What the executor's own session spent, so the parent can bill it. */
+  totalTokens: number;
 }
 
 export interface ExecutorPoolOptions {
@@ -202,6 +204,7 @@ async function executeSubtask(
       success,
       sessionId: executorSession._id,
       durationMs: Date.now() - startMs,
+      totalTokens: completed?.stats?.totalTokens ?? 0,
     };
   } catch (err: unknown) {
     return {
@@ -211,6 +214,7 @@ async function executeSubtask(
       success: false,
       sessionId: '',
       durationMs: Date.now() - startMs,
+      totalTokens: 0,
     };
   }
 }

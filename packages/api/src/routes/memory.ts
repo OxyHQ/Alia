@@ -251,7 +251,8 @@ router.get('/semantic-search', async (req, res) => {
 
     // Try vector search first
     const { generateEmbedding, searchByVector } = await import('../lib/memory/index.js');
-    const queryEmbedding = await generateEmbedding(q);
+    // Embeddings fail closed until Kaana serves them; the text half answers alone.
+    const queryEmbedding = await generateEmbedding(q).catch(() => null);
 
     let vectorResults: { memoryKey: string; score: number }[] = [];
     if (queryEmbedding) {

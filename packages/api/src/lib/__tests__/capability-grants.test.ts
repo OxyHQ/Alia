@@ -237,14 +237,16 @@ describe('an agent reaches exactly what it was granted', () => {
     expect(names).not.toContain('deleteTrigger');
   });
 
-  it('limits a preauthorized Oxy automation stage to protocol and Oxy sources', async () => {
+  it('limits a preauthorized Oxy automation stage to protocol, web reading and Oxy sources', async () => {
     const names = await namesFor([...EVERY_GRANT], {
       isDirectSession: false,
       toolScope: 'preauthorized_oxy_automation',
       oxyExecutionAuthorizations: {},
     });
 
-    expect(names).toEqual(['getCurrentDate', 'plan']);
+    // `browser` is read-only research, which is what a scheduled stage is for;
+    // `delegate` is withheld because it would start an unreserved session.
+    expect(names).toEqual(['browser', 'getCurrentDate', 'plan']);
     expect(asked.oxy_service).toEqual([undefined]);
     expect(asked.mcp).toEqual([]);
     expect(asked.integration).toEqual([]);

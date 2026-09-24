@@ -345,7 +345,7 @@ export class ToolPipeline {
           });
       const tools: ToolSet = {
         getCurrentDate: getCurrentDateTool,
-        ...buildRuntimeTools(runtime, grants, { protocolOnly: true }),
+        ...buildRuntimeTools(runtime, grants, { withoutDelegation: true }),
         ...oxyServiceTools,
       };
       await applyRuntimePolicy(tools, runtime, new Set());

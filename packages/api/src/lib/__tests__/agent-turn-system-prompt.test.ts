@@ -204,7 +204,15 @@ describe('a turn that belongs to an agent', () => {
     });
 
     expect(message).toContain('Granted recall');
-    expect(message).toContain('Granted fact');
+    // Recall already chose the relevant memories, so the whole store is not
+    // appended as well; without a recall result the recent ones stand in.
+    expect(message).not.toContain('Granted fact');
+    const withoutRecall = await SystemPromptBuilder.build({
+      ...turn,
+      linkedAgent: { ...claudio, capabilityGrants: ['memory'] },
+      userMemory: { memories: [{ title: 'Granted fact', summary: 'may also be used' }] },
+    });
+    expect(withoutRecall).toContain('Granted fact');
     expect(message).toContain('sendTelegramMessage');
     expect(message).toContain('AGENT MODE');
     // A profile/name is not one of Alia's grant families. It remains withheld

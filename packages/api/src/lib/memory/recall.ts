@@ -2,6 +2,11 @@
  * Memory Recall Pipeline Step
  * Runs BEFORE the LLM call to inject only relevant memories into context.
  * Uses hybrid search: vector similarity (65%) + BM25-style keyword scoring (35%).
+ *
+ * Embeddings fail closed until Kaana serves them (`embeddings.ts`), and recall
+ * must not fail with them: the throw used to escape this function, the hook
+ * runner swallowed it, and a person with more than `topK` memories got NO
+ * recall at all. Without a query vector the keyword half ranks alone.
  */
 
 import { getCachedOrGenerateEmbedding } from './embedding-cache.js';
@@ -41,7 +46,7 @@ export async function recallRelevantMemories(
   }
 
   // ── Step 1: Vector search ──────────────────────────────────────────
-  const queryEmbedding = await getCachedOrGenerateEmbedding(userMessage);
+  const queryEmbedding = await getCachedOrGenerateEmbedding(userMessage).catch(() => null);
   const vectorScores = new Map<string, number>();
 
   if (queryEmbedding) {
@@ -54,7 +59,8 @@ export async function recallRelevantMemories(
   // ── Step 2: BM25-style keyword scoring ─────────────────────────────
   const terms = userMessage
     .toLowerCase()
-    .split(/\s+/)
+    // Punctuation is not part of a word: "strawberries?" must match "strawberries".
+    .split(/[^\p{L}\p{N}]+/u)
     .filter(t => t.length > 2);
 
   const keywordScores = new Map<string, number>();
@@ -62,15 +68,18 @@ export async function recallRelevantMemories(
   const k1 = 1.2;
 
   if (terms.length > 0) {
-    for (const mem of memory.memories) {
-      const doc = `${mem.title} ${mem.summary}`.toLowerCase();
+    const docs = memory.memories.map((mem) => `${mem.title} ${mem.summary}`.toLowerCase());
+    // Document frequency: how many memories mention the term. It was the number
+    // of terms in the QUERY, which made every term equally rare.
+    const documentFrequency = new Map(terms.map((term) => [term, docs.filter((doc) => doc.includes(term)).length]));
+    for (const [index, mem] of memory.memories.entries()) {
+      const doc = docs[index]!;
       let rawScore = 0;
 
       for (const term of terms) {
         const tf = doc.split(term).length - 1;
         if (tf > 0) {
-          // Simplified IDF: log(N / (1 + df)), approximated
-          const idf = Math.log(memory.memories.length / (1 + terms.length));
+          const idf = Math.log(memory.memories.length / (1 + (documentFrequency.get(term) ?? 0)));
           rawScore += tf * Math.max(idf, 0.1);
         }
       }

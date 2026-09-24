@@ -4,6 +4,8 @@ const state = vi.hoisted(() => ({
   createSession: vi.fn(),
   markRun: vi.fn(),
   progress: vi.fn(),
+  reserve: vi.fn(),
+  refund: vi.fn(),
 }));
 const database = { kind: 'test-db' };
 
@@ -15,6 +17,9 @@ vi.mock('../../db/automation/automationDefinitionRepository.js', () => ({
 vi.mock('../../db/agents/agentSessionRepository.js', () => ({
   createAutomationStageSession: state.createSession,
 }));
+vi.mock('../credits-manager.js', () => ({ reserveCredits: state.reserve, safeRefund: state.refund }));
+
+const RESERVATION = { reservationId: 'hold-2', amount: 1 };
 
 import { advanceAutomationRunAfterSession } from '../automation-run-coordinator.js';
 
@@ -26,6 +31,7 @@ const completedSession = {
 beforeEach(() => {
   vi.clearAllMocks();
   state.markRun.mockResolvedValue(undefined);
+  state.reserve.mockResolvedValue(RESERVATION);
 });
 
 describe('automation run coordinator', () => {
@@ -104,5 +110,45 @@ describe('automation run coordinator', () => {
     state.createSession.mockRejectedValue(new Error('invalid task envelope'));
     await expect(advanceAutomationRunAfterSession(completedSession)).rejects.toThrow();
     expect(state.markRun).toHaveBeenCalledWith(database, 'reader-session', 'failed');
+    expect(state.refund).toHaveBeenCalledWith(RESERVATION, 'automation stage could not be created');
+  });
+
+  it('holds credits for the next stage, and stops the run when the owner cannot cover it', async () => {
+    const next = {
+      kind: 'next',
+      runId: 'run-1',
+      stage: 1,
+      agentId: 'publisher',
+      actorAccountId: 'publisher-bot',
+      ownerAccountId: 'owner-1',
+      taskInput: {
+        objective: 'Publish a weekly summary',
+        trigger: { type: 'prior_stage' },
+        inputs: {},
+        actions: [{
+          resource: {
+            appId: 'mention',
+            effectiveAccountId: 'owner-1',
+            resourceType: 'social_account',
+            resourceId: 'profile-1',
+          },
+          tool: 'publishPost',
+          input: {},
+        }],
+        receivePreviousResult: true,
+      },
+    };
+    state.progress.mockResolvedValue(next);
+    state.createSession.mockResolvedValue({ session: { id: 'stage-1' }, created: true });
+
+    await advanceAutomationRunAfterSession(completedSession);
+    expect(state.createSession).toHaveBeenCalledWith(database, expect.objectContaining({ creditReservation: RESERVATION }));
+
+    vi.clearAllMocks();
+    state.progress.mockResolvedValue(next);
+    state.reserve.mockResolvedValue(null);
+    await expect(advanceAutomationRunAfterSession(completedSession))
+      .resolves.toEqual({ kind: 'terminal', status: 'failed', runId: 'run-1' });
+    expect(state.createSession).not.toHaveBeenCalled();
   });
 });
