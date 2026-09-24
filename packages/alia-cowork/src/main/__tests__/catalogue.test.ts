@@ -1,122 +1,145 @@
-import { describe, expect, it } from 'vitest'
-import { parseCatalogue, resolveSelection, type CatalogueEntry } from '../catalogue'
-import { PREFERRED_BROWSER_MODEL_ID, PREFERRED_CHAT_MODEL_ID } from '../config'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import {
+  isModelId,
+  loadCatalogue,
+  parseCatalogue,
+  resolveModelId,
+  resolveRequiredModelId,
+  resolveSelection
+} from '../catalogue'
 
 /**
- * The model this app asks for is one the server accepts, and the resolver in
- * front of it substitutes only when the server would refuse.
- *
- * The catalogue payload is the shape `GET /catalogue` serves
- * (`packages/api/src/routes/catalogue.ts`): `route:*` ids, `object`,
- * `chat_visible`, `availability` and the `entitlement` block. Cowork's own
- * profile is published `chat_visible: false`, which is the case the previous
- * resolver got wrong.
+ * Cowork names no model. A request carries the person's pick when the
+ * catalogue lists it and omits `model` otherwise, so the server's default
+ * answers; only an unreadable catalogue lets a pick through unchecked. The
+ * fixture ids are invented on purpose — they only have to be `publisher/model`.
  */
 
-const CATALOGUE = {
-  object: 'list',
-  data: [
-    {
-      id: 'route:instant',
-      display_name: 'Instant',
-      chat_visible: true,
-      object: 'routing_profile',
-      availability: { status: 'available' },
-      entitlement: { state: 'known', entitled: true },
-    },
-    {
-      id: 'route:auto',
-      display_name: 'Auto',
-      chat_visible: true,
-      object: 'routing_profile',
-      availability: { status: 'available' },
-      entitlement: { state: 'known', entitled: true },
-    },
-    {
-      id: 'route:cowork',
-      display_name: 'Cowork',
-      chat_visible: false,
-      object: 'routing_profile',
-      availability: { status: 'available' },
-      entitlement: { state: 'known', entitled: true },
-    },
-    {
-      id: 'route:pro',
-      display_name: 'Pro',
-      chat_visible: true,
-      object: 'routing_profile',
-      availability: { status: 'available' },
-      entitlement: { state: 'known', entitled: false, required_plan: 'Alia Pro' },
-    },
-    {
-      id: 'mode:auto',
-      object: 'product_mode',
-      label: 'Auto',
-    },
-  ],
-}
-
-const entries = parseCatalogue(CATALOGUE)
-const withEntitlement = (entitled: boolean | null): CatalogueEntry[] =>
-  entries.map((entry) => ({ ...entry, entitled }))
-
-describe('the build-time preferences', () => {
-  it('are canonical routing profiles, which is the only spelling the request boundary accepts', () => {
-    // `lib/product-modes.ts#toRoutingProfile` refuses `profile:*`; the
-    // previous values were `profile:cowork` and `profile:research`.
-    expect(PREFERRED_CHAT_MODEL_ID).toMatch(/^route:[a-z0-9-]+$/)
-    expect(PREFERRED_BROWSER_MODEL_ID).toMatch(/^route:[a-z0-9-]+$/)
-  })
+const model = (over: Record<string, unknown> = {}) => ({
+  id: 'acme/rocket-1',
+  object: 'model',
+  name: 'Rocket 1',
+  publisher: { id: 'acme', name: 'Acme' },
+  description: null,
+  contextWindow: 200_000,
+  maxOutput: null,
+  inputModalities: ['text'],
+  outputModalities: ['text'],
+  tools: true,
+  reasoningEfforts: ['low', 'high', 'extreme'],
+  pricing: { inputPerMTok: '1.00', outputPerMTok: '2.00' },
+  releasedAt: null,
+  featured: false,
+  ...over
 })
 
+const BODY = {
+  object: 'list',
+  data: [model(), model({ id: 'zeta/bolt', name: 'Bolt', publisher: { id: 'zeta', name: 'Zeta' }, featured: true })],
+  defaultModelId: 'zeta/bolt',
+  featuredIds: ['zeta/bolt']
+}
+
+const catalogue = parseCatalogue(BODY)
+
 describe('parseCatalogue', () => {
-  it('reads entitlement and drops entries that are not models or routing profiles', () => {
-    expect(entries.map((entry) => entry.id)).toEqual(['route:instant', 'route:auto', 'route:cowork', 'route:pro'])
-    expect(entries.find((entry) => entry.id === 'route:cowork')).toMatchObject({ chatVisible: false, entitled: true })
-    expect(entries.find((entry) => entry.id === 'route:pro')).toMatchObject({ entitled: false })
+  it('reads models, the server default and the featured ids', () => {
+    expect(catalogue.models.map((entry) => entry.id)).toEqual(['acme/rocket-1', 'zeta/bolt'])
+    expect(catalogue.defaultModelId).toBe('zeta/bolt')
+    expect(catalogue.featuredIds).toEqual(['zeta/bolt'])
+    expect(catalogue.models[0]).toMatchObject({
+      name: 'Rocket 1',
+      publisher: { id: 'acme', name: 'Acme' },
+      contextWindow: 200_000,
+      reasoningEfforts: ['low', 'high'],
+      featured: false
+    })
   })
 
-  it('reads a missing or unknown entitlement as null, never as false', () => {
-    const [entry] = parseCatalogue({
-      object: 'list',
-      data: [{ id: 'route:x', display_name: 'X', chat_visible: true, object: 'routing_profile', entitlement: { state: 'unknown' } }],
+  it('drops entries that are not `publisher/model` models', () => {
+    const parsed = parseCatalogue({
+      ...BODY,
+      data: [model(), model({ id: 'no-slash' }), model({ object: 'routing_profile', id: 'x/y' }), model({ publisher: null })]
     })
-    expect(entry.entitled).toBeNull()
+    expect(parsed.models.map((entry) => entry.id)).toEqual(['acme/rocket-1'])
+  })
+
+  it('throws on an unreadable response rather than reading it as an empty catalogue', () => {
+    expect(() => parseCatalogue({ nope: true })).toThrow('could not be read')
+    expect(() => parseCatalogue({ object: 'list', data: [{ id: 'a/b' }] })).toThrow('could not be read')
+    expect(parseCatalogue({ object: 'list', data: [] })).toEqual({ models: [], defaultModelId: null, featuredIds: [] })
   })
 })
 
 describe('resolveSelection', () => {
-  it('honours the Cowork preset although it is not chat-visible', () => {
-    expect(resolveSelection('route:cowork', entries)).toEqual({
-      requestedId: 'route:cowork',
-      effectiveId: 'route:cowork',
-      source: 'requested',
-    })
+  it('sends a pick the catalogue lists', () => {
+    expect(resolveSelection('acme/rocket-1', catalogue)).toBe('acme/rocket-1')
   })
 
-  it('replaces an identifier the catalogue does not list with the preference', () => {
-    // A stale `profile:cowork` persisted by an earlier build, for instance.
-    expect(resolveSelection('profile:cowork', entries, 'route:cowork')).toEqual({
-      requestedId: 'profile:cowork',
-      effectiveId: 'route:cowork',
-      source: 'replaced',
-    })
+  it('omits the model when nothing is picked, so the server default answers', () => {
+    expect(resolveSelection(undefined, catalogue)).toBeUndefined()
+    expect(resolveSelection(null, catalogue)).toBeUndefined()
+    expect(resolveSelection('', catalogue)).toBeUndefined()
   })
 
-  it('replaces an entry this caller is not entitled to rather than sending it to a 403', () => {
-    expect(resolveSelection('route:pro', entries, 'route:cowork').effectiveId).toBe('route:cowork')
-    // ...and when the preference is not entitled either, the first entitled
-    // chat-visible entry.
-    const coworkLocked = entries.map((entry) => (entry.id === 'route:cowork' ? { ...entry, entitled: false } : entry))
-    expect(resolveSelection('route:cowork', coworkLocked, 'route:cowork').effectiveId).toBe('route:instant')
+  it('omits a pick the catalogue no longer lists', () => {
+    expect(resolveSelection('gone/model', catalogue)).toBeUndefined()
   })
 
-  it('treats unknown entitlement as no information', () => {
-    expect(resolveSelection('route:pro', withEntitlement(null), 'route:cowork').effectiveId).toBe('route:pro')
+  it('treats a retired non-model identifier an earlier build stored as no pick', () => {
+    for (const retired of ['route' + ':cowork', 'mode' + ':auto', 'profile' + ':research']) {
+      expect(isModelId(retired)).toBe(false)
+      expect(resolveSelection(retired, catalogue)).toBeUndefined()
+      expect(resolveSelection(retired, undefined)).toBeUndefined()
+    }
   })
 
-  it('leaves the request alone with no catalogue, or with nothing usable in it', () => {
-    expect(resolveSelection('route:cowork', undefined).source).toBe('requested')
-    expect(resolveSelection('route:nothing', withEntitlement(false)).effectiveId).toBe('route:nothing')
+  it('sends the pick as-is when the catalogue could not be read', () => {
+    expect(resolveSelection('gone/model', undefined)).toBe('gone/model')
+    expect(resolveSelection(undefined, undefined)).toBeUndefined()
+  })
+})
+
+describe('fetching', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  const stubFetch = (response: () => Response | Promise<Response>) => {
+    const fetchMock = vi.fn(async () => response())
+    vi.stubGlobal('fetch', fetchMock)
+    return fetchMock
+  }
+
+  it('resolves against the fetched catalogue, and caches it per base URL', async () => {
+    const fetchMock = stubFetch(() => new Response(JSON.stringify(BODY), { status: 200 }))
+    const base = 'https://cache.test'
+    expect(await resolveModelId(base, 'acme/rocket-1', 'token')).toBe('acme/rocket-1')
+    expect(await resolveModelId(base, 'gone/model', 'token')).toBeUndefined()
+    await loadCatalogue(base)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(fetchMock).toHaveBeenCalledWith(`${base}/catalogue`, { headers: { Authorization: 'Bearer token' } })
+  })
+
+  it('never throws: an unreachable catalogue leaves the pick alone, and is not cached', async () => {
+    const fetchMock = stubFetch(() => new Response('down', { status: 503 }))
+    const base = 'https://down.test'
+    expect(await resolveModelId(base, 'gone/model')).toBe('gone/model')
+    expect(await resolveModelId(base, undefined)).toBeUndefined()
+    await Promise.resolve()
+    expect(fetchMock.mock.calls.length).toBeGreaterThanOrEqual(2)
+  })
+
+  it('gives a caller that cannot omit a model the pick, else the server-named default', async () => {
+    stubFetch(() => new Response(JSON.stringify(BODY), { status: 200 }))
+    expect(await resolveRequiredModelId('https://required.test', 'acme/rocket-1')).toBe('acme/rocket-1')
+    expect(await resolveRequiredModelId('https://required.test', undefined)).toBe('zeta/bolt')
+    expect(await resolveRequiredModelId('https://required.test', 'gone/model')).toBe('zeta/bolt')
+  })
+
+  it('reports no model for such a caller when neither a pick nor the catalogue is known', async () => {
+    stubFetch(() => new Response('down', { status: 503 }))
+    expect(await resolveRequiredModelId('https://required-down.test', undefined)).toBeNull()
+    expect(await resolveRequiredModelId('https://required-down.test', 'acme/x')).toBe('acme/x')
   })
 })
