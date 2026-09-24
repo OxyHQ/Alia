@@ -28,6 +28,11 @@ interface ConfigSchema {
    */
   apiKey?: string;
   apiBaseUrl: string;
+  /**
+   * A `publisher/model` id from `GET /catalogue`, or empty for the server's
+   * default model. There is no built-in default: empty means the request omits
+   * `model` and the server chooses.
+   */
   defaultModel: string;
   sessions: Session[];
   currentSessionId: string | null;
@@ -37,11 +42,23 @@ export const config = new Conf<ConfigSchema>({
   projectName: 'alia-codea-cli',
   defaults: {
     apiBaseUrl: 'https://api.alia.onl',
-    defaultModel: 'mode:code',
+    defaultModel: '',
     sessions: [],
     currentSessionId: null,
   },
 });
+
+/**
+ * The configured model, or `''` for the server default.
+ *
+ * Older versions wrote a routing identifier (not a `publisher/model` id) into
+ * `defaultModel`. Those no longer name anything, so a stored value without the
+ * `publisher/model` shape reads as "no choice" rather than being sent.
+ */
+export function configuredModel(): string {
+  const stored = config.get('defaultModel');
+  return typeof stored === 'string' && /^[^\s/]+\/\S+$/.test(stored.trim()) ? stored.trim() : '';
+}
 
 export function saveSession(session: Session): void {
   const sessions = config.get('sessions') || [];

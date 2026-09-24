@@ -15,7 +15,8 @@ interface RunOptions {
 }
 
 interface JsonOutput {
-  model: string;
+  /** The model asked for, or null when the server's default was used. */
+  model: string | null;
   prompt: string;
   response: string;
   tool_calls: Array<{ tool: string; args: Record<string, unknown>; result: string; success: boolean }>;
@@ -109,7 +110,7 @@ export async function runPrompt(prompt: string, options: RunOptions): Promise<vo
 
   if (options.json) {
     const output: JsonOutput = {
-      model: options.model,
+      model: options.model || null,
       prompt,
       response: fullResponse,
       tool_calls: toolResults,
