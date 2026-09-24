@@ -27,6 +27,7 @@ export const USAGE_WINDOW_CREDITS: ReadonlyMap<string, number> = new Map([
   ['pro', 1000],
   ['max', 5000],
   ['ultra', 10000],
+  // Retired from the offer (drizzle/0075), honoured for whoever still holds them.
   ['codea-pro', 1000],
   ['codea-max', 5000],
 ]);
