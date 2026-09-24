@@ -5,12 +5,22 @@ import { creditSpendByDay } from '../db/telemetry/apiKeyUsageRepository.js';
 import { getDb } from '../db/index.js';
 import { log } from '../lib/logger.js';
 import { getSafeErrorMessage } from '../lib/errors/sanitize.js';
+import { getUserEntitlements } from '../lib/plan-access.js';
+import { readUsageWindow } from '../lib/usage-window.js';
 
 const router = Router();
 
 router.get('/', authenticateToken, async (req, res) => {
   try {
-    const userCredits = await getRefreshedUserCredits(req.user!.id);
+    const [userCredits, entitlements] = await Promise.all([
+      getRefreshedUserCredits(req.user!.id),
+      getUserEntitlements(req.user!.id).catch(() => null),
+    ]);
+    // The plan's rolling window (`lib/usage-window.ts`), or `null` when the
+    // plan has none or it cannot be read: the balance is still worth showing.
+    const window = entitlements?.planId
+      ? await readUsageWindow(req.user!.id, entitlements.planId).catch(() => null)
+      : null;
 
     res.json({
       credits: userCredits.creditsFree + userCredits.creditsPaid,
@@ -19,6 +29,10 @@ router.get('/', authenticateToken, async (req, res) => {
       paidCredits: userCredits.creditsPaid,
       dailyRefresh: userCredits.creditsDailyRefresh,
       lastRefresh: userCredits.creditsLastRefresh,
+      window:
+        window === null
+          ? null
+          : { hours: window.hours, used: window.used, limit: window.limit, resetsAt: window.resetsAt },
     });
   } catch (error: unknown) {
     log.credits.error({ err: error }, 'Error');

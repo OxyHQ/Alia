@@ -81,6 +81,8 @@ const H = vi.hoisted(() => {
     resolveAnswers: [] as unknown[],
     reservation: null as unknown,
     entitlements: null as unknown,
+    /** The rolling usage window `readUsageWindow` answers, or null for a plan without one. */
+    usageWindow: null as unknown,
     recalledMemories: undefined as unknown,
     userMemory: null as unknown,
     searchResults: [] as Array<{ url: string; title: string; snippet: string }>,
@@ -251,6 +253,14 @@ vi.mock('../../../lib/user-credits-helpers.js', () => ({
 
 vi.mock('../../../lib/plan-access.js', () => ({
   getUserEntitlements: vi.fn(async () => H.state.entitlements),
+}));
+
+vi.mock('../../../lib/usage-window.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../../lib/usage-window.js')>()),
+  readUsageWindow: vi.fn(async () => {
+    H.timeline.push('credits:window');
+    return H.state.usageWindow;
+  }),
 }));
 
 vi.mock('../../../lib/hooks/index.js', () => ({
@@ -599,6 +609,7 @@ beforeEach(() => {
   H.state.resolveAnswers = [RESOLVED];
   H.state.reservation = RESERVATION;
   H.state.entitlements = ENTITLEMENTS;
+  H.state.usageWindow = null;
   H.state.recalledMemories = undefined;
   H.state.userMemory = null;
   H.state.searchResults = [];
@@ -1192,6 +1203,56 @@ describe('fixture: what a failure surfaces to the user', () => {
       'sse:[DONE]',
       'http:end',
     ]);
+  });
+
+  it('refuses before reserving anything when the five-hour window is spent, and says when to retry', async () => {
+    H.state.entitlements = { ...(ENTITLEMENTS as object), planId: 'pro' };
+    H.state.usageWindow = {
+      hours: 5,
+      used: 1000,
+      limit: 1000,
+      resetsAt: new Date(Date.now() + 90 * 60 * 1000),
+      exhausted: true,
+    };
+    const res = recordingRes();
+    await run(recordingReq({ body: { messages: [{ role: 'user', content: 'hi' }], model: 'route:auto', stream: false } }), res);
+
+    // No reservation: nothing to refund, nothing charged.
+    expect(H.timeline).toEqual(['credits:window', 'http:status(429)', 'http:json']);
+    const { error } = res.jsonBody as { error: Record<string, unknown> };
+    expect(error).toMatchObject({
+      type: 'rate_limit_error',
+      code: 'USAGE_WINDOW_EXCEEDED',
+      suggestedAction: 'wait',
+      details: { limitType: 'usage_window', current: 1000, limit: 1000, tier: 'pro' },
+    });
+    expect(error.retryAfter).toBeGreaterThanOrEqual(89 * 60);
+    expect(error.retryAfter).toBeLessThanOrEqual(90 * 60);
+  });
+
+  it('refuses over the open stream when the window is spent', async () => {
+    H.state.entitlements = { ...(ENTITLEMENTS as object), planId: 'pro' };
+    H.state.usageWindow = { hours: 5, used: 1200, limit: 1000, resetsAt: new Date(Date.now() + 60_000), exhausted: true };
+    const res = recordingRes();
+    await run(recordingReq({ body: { messages: [{ role: 'user', content: 'hi' }], model: 'route:auto', stream: true } }), res);
+
+    expect(H.timeline).toEqual([
+      'sse:comment(keep-alive)',
+      'credits:window',
+      'sse:error(USAGE_WINDOW_EXCEEDED)',
+      'sse:[DONE]',
+      'http:end',
+    ]);
+  });
+
+  it('answers when the window cannot be read: it fails open onto the balance', async () => {
+    H.state.entitlements = { ...(ENTITLEMENTS as object), planId: 'pro' };
+    const { readUsageWindow } = await import('../../../lib/usage-window.js');
+    vi.mocked(readUsageWindow).mockRejectedValueOnce(new Error('db down'));
+    const res = recordingRes();
+    await run(recordingReq({ body: { messages: [{ role: 'user', content: 'hi' }], model: 'route:auto', stream: false } }), res);
+    expect(H.timeline).toContain('credits:reserve');
+    expect(H.timeline).not.toContain('http:status(429)');
   });
 
   it('refuses a model the plan does not allow, and refunds', async () => {

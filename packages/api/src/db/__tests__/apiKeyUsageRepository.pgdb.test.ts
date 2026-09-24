@@ -4,6 +4,7 @@ import { closePostgres, connectPostgres, type ApiDatabase } from '../index';
 import {
   creditSpendByDay,
   creditSpendTotal,
+  creditSpendWindow,
   recordApiKeyUsage,
   usageWindow,
   type NewApiKeyUsage,
@@ -211,5 +212,26 @@ describe('credit spend', () => {
     // not a query that reads one day whatever it is asked.
     const unbounded = await creditSpendByDay(db, oxyUserId, new Date(Date.now() - 5 * day));
     expect(unbounded).toHaveLength(2);
+  });
+});
+
+describe('the rolling spend window', () => {
+  it('sums the window and names its oldest spending turn, ignoring what fell out of it', async () => {
+    const oxyUserId = 'aku-spend-window';
+    // Outside the window: not counted, and not the oldest.
+    await recordApiKeyUsage(db, usage({ oxyUserId, creditsUsed: 40, timestamp: minutesAgo(400) }));
+    const oldest = minutesAgo(200);
+    await recordApiKeyUsage(db, usage({ oxyUserId, creditsUsed: 7, timestamp: oldest }));
+    await recordApiKeyUsage(db, usage({ oxyUserId, creditsUsed: 5, timestamp: minutesAgo(10) }));
+    // A free row inside the window cannot be the oldest SPENDING turn.
+    await recordApiKeyUsage(db, usage({ oxyUserId, creditsUsed: 0, tokensUsed: 0, timestamp: minutesAgo(250) }));
+
+    const window = await creditSpendWindow(db, oxyUserId, minutesAgo(300));
+    expect(window.used).toBe(12);
+    expect(window.oldest?.getTime()).toBe(oldest.getTime());
+  });
+
+  it('is empty, with no oldest turn, for somebody who spent nothing', async () => {
+    expect(await creditSpendWindow(db, 'aku-spend-window-none', minutesAgo(300))).toEqual({ used: 0, oldest: null });
   });
 });
