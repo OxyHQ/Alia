@@ -438,6 +438,32 @@ The legacy trigger model is gone: the `/triggers` routes, the `triggers` and
 migrations 0069 and 0070. Active work is created and edited only through
 `/automations`.
 
+Who an automation may run is one rule, shared by creation and dispatch
+(`lib/automation-actors.ts`): the owner's own agent (`owner_oxy_account_id`), or
+a public, active marketplace agent — never by `author`, and never a
+product-bound one. Every stage holds credits like a goal does.
+
+### An agent writing first
+
+`lib/agent/agent-outreach.ts` posts an assistant message INTO the person's
+conversation with the agent (appended with the next `seq`, marked with a
+`agent-push-` client id), emits `conversation:message` on `user:<id>` and sends
+a notification that opens `/@handle`.
+
+- `result`: a finished top-level background run (goal, scheduled task) is
+  delivered this way, never rate-limited — it is what the person asked for.
+- `check_in`: the agent's own `sendMessageToUser` tool, available only on a
+  top-level background run. At most 3 per person and agent per rolling day,
+  and none while its last 2 messages are unanswered.
+- `scheduleFollowUp` lets the agent schedule its own next look: a one-off
+  automation (`inputs.origin = 'agent_follow_up'`, at most 5 pending per
+  person and agent). Its result is NOT posted; the agent speaks through
+  `sendMessageToUser` only if it found something worth saying.
+
+The saver keeps an agent-written message the client has not seen yet
+(`keepAgentOutreach`): storage converges on the client's copy for what the
+client sent, not for what arrived while it was away.
+
 ## Oxy Event Autonomy
 
 `POST /webhooks/oxy` accepts normalized application events and enforces:

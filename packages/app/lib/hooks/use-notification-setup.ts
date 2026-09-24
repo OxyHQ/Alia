@@ -13,6 +13,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useOxy } from '@oxy.so/services';
 import apiClient from '@/lib/api/client';
 import { acquireNotificationsSocket } from '@/lib/api/notifications-socket';
+import { queryKeys } from '@/lib/hooks/query-keys';
 
 // ── Constants ──────────────────────────────────────────────────────
 const PROJECT_ID =
@@ -98,7 +99,11 @@ export function useNotificationSetup() {
       (response) => {
         if (!isAuthenticated) return;
         const data = response.notification.request.content.data;
-        if (data?.conversationId) {
+        // An agent's message opens its permanent thread (`/@handle`), where the
+        // conversation lives, not the plain `/c/:id` screen.
+        if (typeof data?.agentHandle === 'string' && data.agentHandle) {
+          router.push(`/@${data.agentHandle}`);
+        } else if (data?.conversationId) {
           router.push(`/(app)/c/${data.conversationId}`);
         }
       },
@@ -183,10 +188,26 @@ export function useNotificationSetup() {
     };
     socket.on('notification', onNotification);
 
+    // An agent wrote into a conversation on its own. The open chat appends it
+    // itself (`use-chat-conversation`); everything else that shows the
+    // conversation — the sidebar, the thread history — is refetched.
+    const onConversationMessage = (event: { conversationId?: string; agentHandle?: string | null }) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.conversations.all });
+      if (event.conversationId) {
+        queryClient.invalidateQueries({ queryKey: queryKeys.conversations.detail(event.conversationId) });
+      }
+      if (event.agentHandle) {
+        queryClient.invalidateQueries({ queryKey: queryKeys.agents.thread(event.agentHandle) });
+        queryClient.invalidateQueries({ queryKey: queryKeys.agents.threadMessages(event.agentHandle) });
+      }
+    };
+    socket.on('conversation:message', onConversationMessage);
+
     return () => {
       // Remove only THIS listener; the connection belongs to whoever still
       // holds it.
       socket.off('notification', onNotification);
+      socket.off('conversation:message', onConversationMessage);
       release();
     };
   }, [isAuthenticated, user?.id, queryClient]);

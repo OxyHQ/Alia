@@ -57,6 +57,9 @@ import { classifyError, getErrorMessage } from '../errors/failover-error.js';
 import { finalizeCredits, safeRefund } from '../credits-manager.js';
 import { MAX_DELEGATION_DEPTH, EVENT_STREAM_BUDGET } from '../constants.js';
 import { orchestrate, shouldOrchestrate } from './orchestrator.js';
+import { postAgentMessage } from './agent-outreach.js';
+import type { AgentRuntimeContext } from './actions.js';
+import { scheduleAgentFollowUp } from './follow-ups.js';
 import { compactContext } from './context-compaction.js';
 import { redactSecrets } from './secret-scanner.js';
 import { readCapabilityGrants } from '../../domain/capability-grants.js';
@@ -87,7 +90,7 @@ const CONTINUATION_PROMPTS = [
  *
  * `plan` is always listed because it is ungranted: it is how a run ends.
  */
-function actionLines(agent: HydratedAgent, options: { automation: boolean }): string {
+function actionLines(agent: HydratedAgent, options: { automation: boolean; outreach: boolean }): string {
   const grants = readCapabilityGrants(agent.capabilityGrants);
   const lines: string[] = [];
   if (grants.allows('browser')) {
@@ -96,6 +99,10 @@ function actionLines(agent: HydratedAgent, options: { automation: boolean }): st
   lines.push("**plan** — Create and update your task plan, or signal completion. Your plan persists as a checklist. Update it as you make progress. Call plan(action='complete', result='...') when done.");
   if (!options.automation && grants.allows('delegation')) {
     lines.push('**delegate** — Hire a specialist agent for a subtask outside your expertise.');
+  }
+  if (options.outreach) {
+    lines.push('**sendMessageToUser** — Write to the person in your conversation with them; they are notified. Only for something they would want to know now. Your final result is delivered to them anyway, so do not repeat it.');
+    lines.push('**scheduleFollowUp** — Schedule yourself to come back to this at a given time, with a note for your future self.');
   }
   return `You have ${lines.length} action${lines.length === 1 ? '' : 's'}:\n\n${lines
     .map((line, i) => `${i + 1}. ${line}`)
@@ -125,7 +132,7 @@ function actionLines(agent: HydratedAgent, options: { automation: boolean }): st
  * else entirely and could contradict it in either direction. What the agent
  * can do is the tools it was handed, each with its own description.
  */
-function buildSystemPrompt(agent: HydratedAgent, config: AgentSessionConfig, options: { automation: boolean }): string {
+function buildSystemPrompt(agent: HydratedAgent, config: AgentSessionConfig, options: { automation: boolean; outreach: boolean }): string {
   return `${agentRemitPrompt(agent)}
 
 ## Actions
@@ -255,6 +262,40 @@ export async function runAgentSession(sessionId: string): Promise<'ran' | 'skipp
       log.agents.warn({ err, sessionId }, 'Could not release the run lease');
     });
   }
+}
+
+/** The agent's way to write to the person, and to schedule its own next look. */
+function runOutreach(session: AgentSessionRecord, eventStream: EventStream): NonNullable<AgentRuntimeContext['outreach']> {
+  return {
+    messageUser: async (message) => {
+      const outcome = await postAgentMessage({
+        oxyUserId: session.oxyUserId,
+        agentId: session.agentId,
+        kind: 'check_in',
+        content: message,
+      });
+      if (outcome.posted) {
+        eventStream.append('observation', 'Message delivered to the person.', { toolName: 'sendMessageToUser' });
+        return 'Delivered. The person was notified.';
+      }
+      return outcome.reason === 'daily_limit'
+        ? 'Not sent: you have reached today\'s limit of messages to this person. Put it in your final result instead.'
+        : outcome.reason === 'unanswered'
+          ? 'Not sent: the person has not answered your last messages. Do not message them again until they reply.'
+          : `Not sent (${outcome.reason}).`;
+    },
+    scheduleFollowUp: async (at, note) => {
+      const outcome = await scheduleAgentFollowUp({
+        ownerAccountId: session.oxyUserId,
+        agentId: session.agentId,
+        at,
+        note,
+      });
+      return outcome.scheduled
+        ? `Scheduled for ${outcome.at}.`
+        : `Not scheduled (${outcome.reason}).`;
+    },
+  };
 }
 
 /** A run that has now killed its worker too many times is failed and refunded. */
@@ -432,6 +473,9 @@ async function driveAgentSession(session: AgentSessionRecord, lease: RunLease, r
       session,
       onComplete,
       onHireAgent,
+      // A child run (delegated, orchestrated) reports to its parent, not to
+      // the person, so only a top-level run may write to them.
+      ...(session.parentSessionId ? {} : { outreach: runOutreach(session, eventStream) }),
       todoManager,
       browserSession,
       eventStream,
@@ -443,7 +487,7 @@ async function driveAgentSession(session: AgentSessionRecord, lease: RunLease, r
   // boundary holds even for custom / archetype agent prompts. The runner picks
   // a model per step, so no single model name is passed here.
   // The agent's OWN name. It used to be told it was Alia, above its own prompt.
-  const systemPrompt = `${buildIdentityGuard({ agentName: agentPromptName(agent) })}\n\n---\n\n${buildSystemPrompt(agent, session.config, { automation: Boolean(session.automationRunId) })}`;
+  const systemPrompt = `${buildIdentityGuard({ agentName: agentPromptName(agent) })}\n\n---\n\n${buildSystemPrompt(agent, session.config, { automation: Boolean(session.automationRunId), outreach: !session.parentSessionId })}`;
 
   // Persisted every step, so a resumed run keeps counting against the SAME
   // budget instead of starting a fresh one.

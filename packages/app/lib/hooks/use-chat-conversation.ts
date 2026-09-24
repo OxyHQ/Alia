@@ -13,6 +13,7 @@ import type { EffortLevel } from '@/lib/hooks/use-catalogue';
 import { toast } from "@oxy.so/bloom/toast";
 import i18n from "@/lib/i18n";
 import { getTextFromContent } from "@alia.onl/sdk/content";
+import { acquireNotificationsSocket } from "@/lib/api/notifications-socket";
 
 interface UseChatConversationOptions {
   conversationId?: string;
@@ -226,6 +227,25 @@ export function useChatConversation({ conversationId, reasoningEffort, selectedM
       }));
     setMessages(validMessages);
   }, [conversationId, conversation, conversationQueryLoading, setMessages, messages.length]);
+
+  // An agent wrote into THIS conversation on its own (a result, a check-in).
+  // Appended to what is on screen: the detail refetch alone would not reach an
+  // open chat, whose local messages are only replaced when the id changes. The
+  // server keeps it even if the next turn is sent before this arrives.
+  useEffect(() => {
+    if (!conversationId) return;
+    const { socket, release } = acquireNotificationsSocket();
+    const onConversationMessage = (event: { conversationId?: string; message?: Message }) => {
+      const incoming = event.message;
+      if (event.conversationId !== conversationId || !incoming?.id) return;
+      setMessages((prev) => (prev.some((m) => m.id === incoming.id) ? prev : [...prev, incoming]));
+    };
+    socket.on('conversation:message', onConversationMessage);
+    return () => {
+      socket.off('conversation:message', onConversationMessage);
+      release();
+    };
+  }, [conversationId, setMessages]);
 
   // Send pending initial message for new conversations
   useEffect(() => {

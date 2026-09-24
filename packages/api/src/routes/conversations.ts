@@ -16,8 +16,10 @@ import {
   replaceMessages,
   toStoredMessage,
   voteMessage,
+  type MessageRow,
   type NewMessage,
 } from '../db/chat/messageRepository.js';
+import { keepAgentOutreach } from '../lib/conversation-saver.js';
 import {
   CONVERSATION_SOURCES,
   MESSAGE_ROLES,
@@ -72,6 +74,28 @@ function messageFromBody(body: unknown): Omit<NewMessage, 'conversationId' | 'ox
     ...(agentInfoFromBody(raw.agentInfo) ?? {}),
     ...(createdAtFromBody(raw.createdAt) ?? {}),
   };
+}
+
+type BodyMessage = Omit<NewMessage, 'conversationId' | 'oxyUserId' | 'seq'>;
+
+/** {@link keepAgentOutreach}, over the whitelisted body rows this route stores. */
+function withAgentOutreachKept(stored: readonly MessageRow[], rows: readonly BodyMessage[]): BodyMessage[] {
+  const original = new Map<object, BodyMessage>();
+  const inputs = rows.map((row) => {
+    const input = {
+      role: row.role,
+      content: row.content,
+      ...(row.clientMessageId ? { id: row.clientMessageId } : {}),
+    };
+    original.set(input, row);
+    return input;
+  });
+  return keepAgentOutreach(stored, inputs).map((message) => original.get(message) ?? {
+    role: message.role as MessageRole,
+    content: message.content ?? '',
+    ...(message.id ? { clientMessageId: message.id } : {}),
+    ...(message.agentInfo ? { agentInfo: message.agentInfo } : {}),
+  });
 }
 
 /** A body's `content`: a string, or the AI SDK's ordered parts array. */
@@ -350,6 +374,12 @@ router.post('/', authenticateTokenOrApiKey, async (req: Request, res: Response) 
      * race-dependent `23503`, and names this statement as the reason.
      */
     const onInsertSource = sourceFromBody(source);
+    // An agent may have written into this conversation since the client last
+    // loaded it; its message is kept rather than replaced away.
+    const toStore = withAgentOutreachKept(
+      await listMessages(getDb(), req.user.id, conversationId),
+      validMessages,
+    );
     const [conversation] = await Promise.all([
       upsertConversation(getDb(), {
         oxyUserId: req.user.id,
@@ -359,7 +389,7 @@ router.post('/', authenticateTokenOrApiKey, async (req: Request, res: Response) 
         titleOnInsert,
         ...(onInsertSource === undefined ? {} : { source: onInsertSource }),
       }),
-      replaceMessages(getDb(), req.user.id, conversationId, validMessages),
+      replaceMessages(getDb(), req.user.id, conversationId, toStore),
     ]);
 
     res.json({

@@ -24,6 +24,7 @@ import {
   type AutomationActionPlanInput,
 } from './automation-coordination.js';
 import { automationExecutionPolicyError } from './automation-execution-policy.js';
+import { mayRunForAutomationOwner } from './automation-actors.js';
 import { log } from './logger.js';
 import { automationReceipt } from './structured-automation.js';
 import { automationScheduleError, reloadAutomationSchedule } from './trigger-engine.js';
@@ -142,7 +143,7 @@ export class AutomationCreationError extends Error {
 export async function ownedAutomationAgents(ownerAccountId: string, agentIds: readonly string[]) {
   const agents = await Promise.all(agentIds.map((agentId) => findAgentById(getDb(), agentId)));
   if (!agents.every((agent, index) => (
-    agent !== null && agent.author === ownerAccountId && agent.id === agentIds[index]
+    agent !== null && mayRunForAutomationOwner(agent, ownerAccountId) && agent.id === agentIds[index]
   ))) return null;
   return agents.filter((agent): agent is NonNullable<typeof agent> => agent !== null);
 }

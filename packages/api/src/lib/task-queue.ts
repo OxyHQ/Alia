@@ -44,7 +44,7 @@ let worker: Worker<AgentJobData, AgentJobResult> | null = null;
 let redisAvailable = false;
 
 async function processAgentSession(data: AgentJobData): Promise<AgentJobResult> {
-  const { sessionId, userId, agentId, agentName } = data;
+  const { sessionId, userId } = data;
   const { runAgentSession } = await import('./agent/runner.js');
   const outcome = await runAgentSession(sessionId);
   // Not this worker's run to report on: it is settled, or another worker is
@@ -74,23 +74,37 @@ async function processAgentSession(data: AgentJobData): Promise<AgentJobResult> 
     ? (advance.status === 'succeeded' ? 'completed' : 'failed')
     : (session?.status === 'completed' ? 'completed' : 'failed');
   try {
-    const { sendNotification } = await import('./notification-service.js');
-    await sendNotification({
-      userId,
-      type: 'agent_task_complete',
-      title: status === 'completed' ? `${agentName} finished` : `${agentName} failed`,
-      body: result.slice(0, 500),
-      data: {
-        sessionId,
-        agentId,
-        status,
-        ...(advance.kind === 'terminal' ? { automationRunId: advance.runId } : {}),
-      },
-    });
+    // The result goes INTO the person's conversation with the agent, which
+    // also notifies them; a finished run used to reach them only as a push
+    // whose body was the first 500 characters, with nowhere to tap through to.
+    // A child run (delegated, orchestrated) reports to its parent instead.
+    if (session && !session.parentSessionId && !(await isAgentFollowUp(session.automationRunId))) {
+      const { postAgentMessage } = await import('./agent/agent-outreach.js');
+      await postAgentMessage({
+        oxyUserId: userId,
+        agentId: session.agentId,
+        kind: 'result',
+        content: status === 'completed' ? result : `I couldn't finish this task. ${result}`,
+      });
+    }
   } catch (notifErr) {
-    log.agents.warn({ notifErr, sessionId }, 'Failed to send completion notification');
+    log.agents.warn({ notifErr, sessionId }, 'Failed to deliver the run result');
   }
   return { sessionId, status, result };
+}
+
+/**
+ * Whether this run is a follow-up the agent scheduled for ITSELF. Its result
+ * is not posted: the agent tells the person through the budgeted
+ * `sendMessageToUser` if, and only if, it found something worth saying.
+ */
+async function isAgentFollowUp(automationRunId: string | null | undefined): Promise<boolean> {
+  if (!automationRunId) return false;
+  const { getDb } = await import('../db/index.js');
+  const { findAutomationInputsForRun } = await import('../db/automation/automationDefinitionRepository.js');
+  const { AGENT_FOLLOW_UP_ORIGIN } = await import('./agent/follow-ups.js');
+  const inputs = await findAutomationInputsForRun(getDb(), automationRunId);
+  return inputs?.origin === AGENT_FOLLOW_UP_ORIGIN;
 }
 
 /**
