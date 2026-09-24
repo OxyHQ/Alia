@@ -379,15 +379,15 @@ describe('the model menu keys by id, never by the name it draws', () => {
       value: 'hola',
       providers: [
         {
-          id: 'alia',
-          name: 'Alia',
+          id: 'publisher:acme',
+          name: 'Acme',
           models: [
-            { id: 'mode:auto', name: 'Automatic' },
-            { id: 'profile:deep', name: 'Deep thinking' },
+            { id: 'acme/fast', name: 'Automatic' },
+            { id: 'acme/deep', name: 'Deep thinking' },
           ],
         },
       ],
-      model: 'mode:auto',
+      model: 'acme/fast',
       onModelChange,
       effortLevels: [],
     });
@@ -404,10 +404,10 @@ describe('the model menu keys by id, never by the name it draws', () => {
       .filter((node) => node.props.accessibilityRole === 'radio');
     // Each row is named by its provider and its model, and reports the id.
     expect(rows.map((row) => row.props.accessibilityLabel)).toEqual([
-      'Alia Automatic',
-      'Alia Deep thinking',
+      'Acme Automatic',
+      'Acme Deep thinking',
     ]);
     act(() => rows[1].props.onPress());
-    expect(onModelChange).toHaveBeenCalledWith('profile:deep');
+    expect(onModelChange).toHaveBeenCalledWith('acme/deep');
   });
 });

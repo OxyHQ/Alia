@@ -73,6 +73,7 @@ vi.mock('@oxy.so/bloom/icons/RiRobot2Line', icon('RiRobot2Line'));
 vi.mock('@oxy.so/bloom/icons/RiPencilLine', icon('RiPencilLine'));
 vi.mock('@oxy.so/bloom/icons/RiBookOpenLine', icon('RiBookOpenLine'));
 vi.mock('@oxy.so/bloom/icons/RiPlugLine', icon('RiPlugLine'));
+vi.mock('@oxy.so/bloom/icons/RiPushpinLine', icon('RiPushpinLine'));
 
 vi.mock('@/components/ui/image', async () => {
   const ReactModule = await import('react');
@@ -153,10 +154,24 @@ describe('every switch says which way it is', () => {
     expect(row(off.groups, 'cap:web-search').checked).toBe(false);
   });
 
-  it('leaves agent and deep research to the composer\'s mode selector', () => {
+  it('leaves agent to the mode selector, and offers deep research as a tool switch', () => {
     const ids = run(base()).groups.flatMap((g) => g.rows.map((r) => r.id));
     expect(ids).not.toContain('cap:agent');
-    expect(ids).not.toContain('cap:deep-research');
+    const options = base({ modes: { ghost: false, agent: false, deepResearch: true } });
+    const menu = run(options);
+    expect(row(menu.groups, 'cap:deep-research').checked).toBe(true);
+    menu.onSelect('cap:deep-research');
+    expect(options.toggleMode).toHaveBeenLastCalledWith('deepResearch');
+  });
+
+  it('pins the chosen model from the menu, and offers no pin row without one', () => {
+    const ids = run(base()).groups.flatMap((g) => g.rows.map((r) => r.id));
+    expect(ids).not.toContain('cap:pin-model');
+    const onToggle = vi.fn();
+    const menu = run(base({ pinModel: { name: 'Model A', pinned: false, onToggle } }));
+    expect(row(menu.groups, 'cap:pin-model')).toMatchObject({ description: 'Model A', checked: false });
+    menu.onSelect('cap:pin-model');
+    expect(onToggle).toHaveBeenCalledTimes(1);
   });
 
   it('gives canvas no tick column at all, because it is not on or off', () => {

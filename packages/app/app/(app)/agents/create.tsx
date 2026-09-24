@@ -77,7 +77,13 @@ export default function CreateAgentScreen() {
 
   const [inputValue, setInputValue] = useState("");
   const [generating, setGenerating] = useState(false);
-  const composer = useAliaComposer({ locked: generating });
+  /**
+   * The model the new agent answers with: the composer's own picker, kept for
+   * this screen rather than the app's chat choice. `null` is the server's
+   * default, which is what the agent gets unless someone picks one here.
+   */
+  const [modelId, setModelId] = useState<string | null>(null);
+  const composer = useAliaComposer({ locked: generating, selectedModel: modelId, onModelChange: setModelId });
   const [selectedArchetype, setSelectedArchetype] = useState<Archetype>('general');
 
   const handleGenerate = useCallback(async () => {
@@ -150,6 +156,7 @@ export default function CreateAgentScreen() {
         tags: config.tags,
         capabilityGrants: config.capabilityGrants,
         systemPrompt: config.systemPrompt,
+        modelId,
         isPublished: false,
         archetype: config.archetype || selectedArchetype,
       });
@@ -183,7 +190,7 @@ export default function CreateAgentScreen() {
     } finally {
       setGenerating(false);
     }
-  }, [inputValue, generating, createAgent.mutateAsync, router, t, selectedArchetype]);
+  }, [inputValue, generating, createAgent.mutateAsync, router, t, selectedArchetype, modelId]);
 
   if (generating) {
     return (
@@ -225,9 +232,8 @@ export default function CreateAgentScreen() {
         </View>
 
         {/*
-          The simple composer: a field, a send control and a suggestion list.
-          No attachments and no model chip — `models` is omitted, which is how
-          Bloom's pill is told to draw none. `busy` and `disabled` carry the
+          The simple composer: a field, a send control and the model picker,
+          which here chooses the NEW AGENT's model. `busy` and `disabled` carry the
           same flag on purpose: there is no stream to cancel here, so
           generating greys send rather than offering a stop, and with no
           `onStop` Bloom draws no stop control at all.

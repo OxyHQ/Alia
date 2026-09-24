@@ -25,15 +25,6 @@ const ENV = {
 };
 
 /**
- * The selection a user starts with, and the one a selection the catalogue no
- * longer offers falls back to.
- *
- * Product configuration, not deployment configuration: every build starts in
- * Auto and the server owns what Auto routes to.
- */
-export const DEFAULT_MODEL_ID = 'mode:auto';
-
-/**
  * Where Syra lives — `syra.fm` is Oxy's podcast product, and the place a
  * generated show's audio is actually served from.
  *
