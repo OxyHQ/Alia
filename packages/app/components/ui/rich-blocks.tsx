@@ -12,7 +12,7 @@ import { RiExternalLinkLine } from '@oxy.so/bloom/icons/RiExternalLinkLine';
 import { Item } from '@oxy.so/bloom/item';
 import { Rating } from '@oxy.so/bloom/rating';
 import { Muted, Text } from '@oxy.so/bloom/typography';
-import { Image } from 'expo-image';
+import { Image } from '@/components/ui/image';
 import { Linking, View } from 'react-native';
 
 /**

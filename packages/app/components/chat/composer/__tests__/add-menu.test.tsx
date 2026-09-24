@@ -74,7 +74,7 @@ vi.mock('@oxy.so/bloom/icons/RiPencilLine', icon('RiPencilLine'));
 vi.mock('@oxy.so/bloom/icons/RiBookOpenLine', icon('RiBookOpenLine'));
 vi.mock('@oxy.so/bloom/icons/RiPlugLine', icon('RiPlugLine'));
 
-vi.mock('expo-image', async () => {
+vi.mock('@/components/ui/image', async () => {
   const ReactModule = await import('react');
   return { Image: (props: Record<string, unknown>) => ReactModule.createElement('Image', props) };
 });

@@ -69,7 +69,7 @@ export function WorkspacePanel({ width }: { width: number | '100%' }) {
     case 'credits':
     case 'agent':
       return (
-        <View style={{ width, minHeight: 0, height: '100%' }}>
+        <View className="h-full min-h-0" style={{ width }}>
           {kind === 'thought' ? <ThoughtPanel /> : kind === 'credits' ? <CreditsLimits /> : <AgentPanel />}
         </View>
       );

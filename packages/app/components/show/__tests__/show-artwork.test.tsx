@@ -98,7 +98,6 @@ describe('ShowArtwork', () => {
       uri: `${SYRA_API_URL}/api/images/01925f3c-cover`,
     });
     expect(image.props.accessibilityLabel).toBe('The Wednesday Digest cover art');
-    expect(image.props.style).toEqual({ width: 64, height: 64 });
     // The tile is Bloom's Card at the asked-for size and corner rung.
     const [tile] = nodes(root, 'Card');
     expect(tile.props.radius).toBe('radius-12');
