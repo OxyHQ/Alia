@@ -657,7 +657,17 @@
         "windowFresh": "Resets {{hours}} hours after your next message"
       },
       "searchFailed": "Search failed",
-      "noResults": "No results"
+      "noResults": "No results",
+      "context": {
+        "system": "System prompt",
+        "tools": "Tools",
+        "mcp": "MCP tools",
+        "memory": "Memory",
+        "skills": "Skills",
+        "messages": "Messages",
+        "title": "Context window",
+        "freeSpace": "Free space"
+      }
     },
     "voiceStartFailed": "Could not start the voice session",
     "exportMarkdown": "Export as Markdown",
@@ -969,7 +979,8 @@
     "searchThread": "Search this thread",
     "moreOptions": "More options",
     "showPanel": "Show panel",
-    "hidePanel": "Hide panel"
+    "hidePanel": "Hide panel",
+    "usage": "Usage and context"
   },
   "welcome": {
     "greetingNamed": "Hi {{name}}, what's on your mind?",

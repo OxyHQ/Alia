@@ -18,21 +18,23 @@ beforeEach(() => {
 
 describe('the rolling usage window', () => {
   it('holds each plan to its own cap, and a plan with none to no window at all', async () => {
-    expect((await readUsageWindow('u', 'pro', NOW))?.limit).toBe(USAGE_WINDOW_CREDITS.pro);
-    expect((await readUsageWindow('u', 'free', NOW))?.limit).toBe(USAGE_WINDOW_CREDITS.free);
+    expect((await readUsageWindow('u', 'pro', NOW))?.limit).toBe(USAGE_WINDOW_CREDITS.get('pro'));
+    expect((await readUsageWindow('u', 'free', NOW))?.limit).toBe(USAGE_WINDOW_CREDITS.get('free'));
     // An unknown plan id is not a reason to refuse somebody who is paying.
     expect(await readUsageWindow('u', 'enterprise-legacy', NOW)).toBeNull();
+    // Nor a key the object prototype would answer.
+    expect(await readUsageWindow('u', 'constructor', NOW)).toBeNull();
   });
 
   it('is spent at the cap, not before it', async () => {
-    spend.used = USAGE_WINDOW_CREDITS.go - 1;
+    spend.used = USAGE_WINDOW_CREDITS.get('go')! - 1;
     expect((await readUsageWindow('u', 'go', NOW))?.exhausted).toBe(false);
-    spend.used = USAGE_WINDOW_CREDITS.go;
+    spend.used = USAGE_WINDOW_CREDITS.get('go')!;
     expect((await readUsageWindow('u', 'go', NOW))?.exhausted).toBe(true);
   });
 
   it('frees up when the oldest spending turn ages out of the five hours', async () => {
-    spend.used = USAGE_WINDOW_CREDITS.pro;
+    spend.used = USAGE_WINDOW_CREDITS.get('pro')!;
     spend.oldest = new Date(NOW - 3 * HOUR);
     const window = await readUsageWindow('u', 'pro', NOW);
     expect(window?.resetsAt?.getTime()).toBe(NOW + 2 * HOUR);
