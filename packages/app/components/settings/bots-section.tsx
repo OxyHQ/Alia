@@ -15,7 +15,7 @@ const BOT_STATUSES: readonly SystemBot['status'][] = [
 
 export function BotsSection() {
   const { t } = useTranslation();
-  const { bots, linkStatuses, loading, unlink, refresh } = useBots();
+  const { bots, linkStatuses, loading, unlink } = useBots();
 
   const handleLink = async (bot: SystemBot) => {
     const deepLinks: Record<string, string> = {

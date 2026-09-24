@@ -24,7 +24,6 @@
  * An owner with no connectors sees nothing here rather than an empty group.
  */
 
-import React from 'react';
 import { Switch } from '@oxy.so/bloom/switch';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import { useColorScheme } from '@/lib/useColorScheme';

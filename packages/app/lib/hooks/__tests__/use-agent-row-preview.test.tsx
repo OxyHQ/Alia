@@ -1,4 +1,3 @@
-import React from 'react';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';

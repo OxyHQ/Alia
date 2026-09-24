@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import { Image } from "expo-image";
 import { RiCameraLine } from "@oxy.so/bloom/icons/RiCameraLine";
 import { RiImageLine } from "@oxy.so/bloom/icons/RiImageLine";

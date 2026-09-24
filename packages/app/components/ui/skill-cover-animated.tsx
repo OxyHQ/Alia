@@ -1,4 +1,3 @@
-import React from "react";
 import { useReducedMotion } from "react-native-reanimated";
 import SkillCoverCanvas from "./skill-cover-canvas";
 import SkillCoverStaticGrid from "./skill-cover-static";
