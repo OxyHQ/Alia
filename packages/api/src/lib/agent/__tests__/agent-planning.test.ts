@@ -403,7 +403,7 @@ describe('orchestration is gated, and the gate is the plan (#139 ws6)', () => {
     const runner = code('lib/agent/runner.ts');
     expect(runner).toContain('export async function runAgentSession');
     expect(runner).toMatch(
-      /if \(!session\.automationRunId && shouldOrchestrate\(session\.task, session\.depth\)\) \{/,
+      /if \(!resuming && !session\.automationRunId && shouldOrchestrate\(session\.task, session\.depth\)\) \{/,
     );
     expect(runner).toMatch(/await orchestrate\(\{/);
 

@@ -830,3 +830,152 @@ export async function cancelUnsettledAgentSession(
     .returning({ id: agentSessions.id });
   return updated.length > 0;
 }
+
+// ---------------------------------------------------------------------------
+// Background run ownership
+// ---------------------------------------------------------------------------
+
+/**
+ * How long a claim holds without renewal. The runner renews far more often
+ * (`RUNNER_LEASE_RENEW_MS` in the runner), so only a worker that stopped —
+ * crashed, killed by a deploy, wedged — lets it lapse.
+ */
+export const RUNNER_LEASE_MS = 90_000;
+
+/** Claims after which a run that keeps losing its worker is failed, not retried. */
+export const RUNNER_MAX_ATTEMPTS = 3;
+
+export type AgentSessionRunClaim =
+  | { readonly claimed: true; readonly session: AgentSessionRecord; readonly attempt: number }
+  | { readonly claimed: false };
+
+/**
+ * Take ownership of a background run, or learn that somebody else holds it.
+ *
+ * One statement, so two workers handed the same session — BullMQ redelivering a
+ * stalled job while the reaper re-enqueues it, say — cannot both win. Claimable
+ * is `queued`, or `running` with no live owner: a lapsed lease, or none at all
+ * (a row a worker was driving before leases existed). A synchronous chat turn
+ * (`chat_lease_expires_at` set) belongs to its HTTP request and is never taken.
+ */
+export async function claimAgentSessionRun(
+  db: Executor,
+  id: string,
+  owner: string,
+  now: Date = new Date(),
+): Promise<AgentSessionRunClaim> {
+  const [row] = await db
+    .update(agentSessions)
+    .set({
+      status: 'running',
+      runnerLeaseOwner: owner,
+      runnerLeaseExpiresAt: new Date(now.getTime() + RUNNER_LEASE_MS),
+      runnerAttempts: sql`${agentSessions.runnerAttempts} + 1`,
+      statsStartedAt: sql`coalesce(${agentSessions.statsStartedAt}, ${now.toISOString()}::timestamptz)`,
+      statsLastActivityAt: now,
+    })
+    .where(and(
+      eq(agentSessions.id, id),
+      inArray(agentSessions.status, ['queued', 'running']),
+      sql`${agentSessions.chatLeaseExpiresAt} is null`,
+      sql`(${agentSessions.runnerLeaseExpiresAt} is null or ${agentSessions.runnerLeaseExpiresAt} < ${now.toISOString()}::timestamptz)`,
+    ))
+    .returning();
+  if (!row) return { claimed: false };
+  return { claimed: true, session: toAgentSessionRecord(row), attempt: row.runnerAttempts };
+}
+
+/**
+ * Extend this worker's lease. `false` means the lease is no longer ours — it
+ * lapsed and another worker claimed the run, or the run was settled or
+ * cancelled — and the caller must stop driving it.
+ */
+export async function renewAgentSessionRunLease(
+  db: Executor,
+  id: string,
+  owner: string,
+  now: Date = new Date(),
+): Promise<boolean> {
+  const updated = await db
+    .update(agentSessions)
+    .set({ runnerLeaseExpiresAt: new Date(now.getTime() + RUNNER_LEASE_MS) })
+    .where(and(
+      eq(agentSessions.id, id),
+      eq(agentSessions.runnerLeaseOwner, owner),
+      eq(agentSessions.status, 'running'),
+    ))
+    .returning({ id: agentSessions.id });
+  return updated.length > 0;
+}
+
+/** Drop this worker's lease on a run it is leaving, settled or not. */
+export async function releaseAgentSessionRunLease(db: Executor, id: string, owner: string): Promise<void> {
+  await db
+    .update(agentSessions)
+    .set({ runnerLeaseOwner: null, runnerLeaseExpiresAt: null })
+    .where(and(eq(agentSessions.id, id), eq(agentSessions.runnerLeaseOwner, owner)));
+}
+
+/** A run whose worker stopped renewing, as the reaper needs it. */
+export interface LapsedAgentSessionRun {
+  readonly id: string;
+  readonly oxyUserId: string;
+  readonly agentId: string;
+  readonly attempts: number;
+  readonly creditReservation: AgentSessionCreditReservation | undefined;
+}
+
+/** Background runs whose lease lapsed: nobody is driving them any more. */
+export async function listLapsedAgentSessionRuns(
+  db: Executor,
+  now: Date = new Date(),
+  limit = 100,
+): Promise<LapsedAgentSessionRun[]> {
+  const rows = await db
+    .select()
+    .from(agentSessions)
+    .where(and(
+      eq(agentSessions.status, 'running'),
+      sql`${agentSessions.runnerLeaseExpiresAt} is not null`,
+      lt(agentSessions.runnerLeaseExpiresAt, now),
+    ))
+    .limit(limit);
+  return rows.map((row) => ({
+    id: row.id,
+    oxyUserId: row.oxyUserId,
+    agentId: row.agentId,
+    attempts: row.runnerAttempts,
+    creditReservation: toCreditReservation(row),
+  }));
+}
+
+/**
+ * Fail a run that has lost its worker too many times, and RETURN its hold.
+ *
+ * Conditional on the lease still being lapsed, so a worker that claimed it in
+ * the meantime keeps it; the row is returned to exactly one caller, which is
+ * the one that refunds.
+ */
+export async function failExhaustedAgentSessionRun(
+  db: Executor,
+  id: string,
+  now: Date = new Date(),
+): Promise<ClaimedOrphanedAgentSession | null> {
+  const [row] = await db
+    .update(agentSessions)
+    .set({
+      status: 'failed',
+      result: 'The run was interrupted too many times and was stopped',
+      runnerLeaseOwner: null,
+      runnerLeaseExpiresAt: null,
+      statsCompletedAt: now,
+    })
+    .where(and(
+      eq(agentSessions.id, id),
+      eq(agentSessions.status, 'running'),
+      lt(agentSessions.runnerLeaseExpiresAt, now),
+      sql`${agentSessions.runnerAttempts} >= ${RUNNER_MAX_ATTEMPTS}`,
+    ))
+    .returning();
+  return row ? { id: row.id, creditReservation: toCreditReservation(row) } : null;
+}

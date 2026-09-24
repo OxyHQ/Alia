@@ -193,6 +193,13 @@ second paid session beside the answer.
   running session is created, enforcing `max_concurrent_threads` across API
   replicas. The limit bounds one person's concurrent work with the agent; it is
   not a global cap on everyone using it.
+- A background run is owned through a lease (`runner_lease_owner`,
+  `runner_lease_expires_at`, 90s, renewed every 20s). The worker claims the row
+  with one conditional UPDATE before doing anything, so a redelivered job and a
+  re-enqueued one cannot both drive it. When a worker dies the lease lapses and
+  `lib/agent/run-reaper.ts` (every minute, on every task) re-enqueues the run,
+  which RESUMES from its persisted events, plan and step/token counters. After
+  `RUNNER_MAX_ATTEMPTS` (3) claims it is failed and refunded instead.
 - R2 approvals are durable rows. Socket.IO carries prompts and immediate
   decisions, while the executing replica observes PostgreSQL as the authority.
 - A completed run moves its goal to `candidate`; `POST

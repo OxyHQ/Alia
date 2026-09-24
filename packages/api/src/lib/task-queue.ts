@@ -25,7 +25,7 @@ export interface AgentJobData {
 
 export interface AgentJobResult {
   sessionId: string;
-  status: 'completed' | 'failed';
+  status: 'completed' | 'failed' | 'skipped';
   result?: string;
 }
 
@@ -46,7 +46,10 @@ let redisAvailable = false;
 async function processAgentSession(data: AgentJobData): Promise<AgentJobResult> {
   const { sessionId, userId, agentId, agentName } = data;
   const { runAgentSession } = await import('./agent/runner.js');
-  await runAgentSession(sessionId);
+  const outcome = await runAgentSession(sessionId);
+  // Not this worker's run to report on: it is settled, or another worker is
+  // driving it and will advance and notify when it finishes.
+  if (outcome === 'skipped') return { sessionId, status: 'skipped', result: '' };
 
   const { getDb } = await import('../db/index.js');
   const { findAgentSessionById } = await import('../db/agents/agentSessionRepository.js');
@@ -198,12 +201,19 @@ export async function startWorker(): Promise<void> {
  */
 export async function enqueueAgentSession(
   data: AgentJobData,
+  /**
+   * Set by the reaper when it hands a lapsed run back to the queue. The first
+   * job's id is the session id, which BullMQ keeps (completed jobs are retained)
+   * and would dedupe a second `add` into nothing; a resume is a new job.
+   */
+  options: { resumeAttempt?: number } = {},
 ): Promise<{ queued: boolean; jobId?: string }> {
   if (queue && redisAvailable) {
     try {
-      const job = await queue.add(`session:${data.sessionId}`, data, {
-        jobId: data.sessionId, // Dedup by sessionId
-      });
+      const jobId = options.resumeAttempt === undefined
+        ? data.sessionId // Dedup by sessionId
+        : `${data.sessionId}-resume-${options.resumeAttempt}`;
+      const job = await queue.add(`session:${data.sessionId}`, data, { jobId });
       log.agents.info({ sessionId: data.sessionId, jobId: job.id }, 'Agent session enqueued');
       return { queued: true, jobId: job.id ?? undefined };
     } catch (err) {

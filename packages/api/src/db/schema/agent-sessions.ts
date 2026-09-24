@@ -184,6 +184,20 @@ export const agentSessions = pgTable(
      */
     chatLeaseExpiresAt: timestamptz(),
 
+    /**
+     * Ownership of a BACKGROUND run, the counterpart of `chatLeaseExpiresAt`.
+     *
+     * The worker that claims the row writes its id and an expiry, and renews
+     * the expiry while it works. A crashed or redeployed worker stops renewing,
+     * so an expired lease proves nobody is driving the run any more and it may
+     * be claimed again — resumed from its persisted counters and events rather
+     * than restarted. `runnerAttempts` counts claims, so a run that keeps
+     * killing its worker is failed instead of retried forever.
+     */
+    runnerLeaseOwner: text(),
+    runnerLeaseExpiresAt: timestamptz(),
+    runnerAttempts: integer().notNull().default(0),
+
     configMaxSteps: integer().notNull().default(50),
     configMaxTokens: integer().notNull().default(100000),
     configMaxVms: integer().notNull().default(2),
@@ -206,6 +220,9 @@ export const agentSessions = pgTable(
     index('agent_sessions_agent_id_idx').on(t.agentId),
     index('agent_sessions_oxy_user_id_idx').on(t.oxyUserId),
     index('agent_sessions_status_idx').on(t.status),
+    index('agent_sessions_runner_lease_expiry_idx')
+      .on(t.runnerLeaseExpiresAt)
+      .where(sql`${t.status} = 'running' and ${t.runnerLeaseExpiresAt} is not null`),
     index('agent_sessions_chat_lease_expiry_idx')
       .on(t.chatLeaseExpiresAt)
       .where(sql`${t.chatLeaseExpiresAt} is not null`),

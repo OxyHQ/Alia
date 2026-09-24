@@ -18,12 +18,19 @@
 
 import { generateText, stepCountIs, type ModelMessage } from 'ai';
 import { getDb } from '../../db/index.js';
+import { hostname } from 'node:os';
+import { randomUUID } from 'node:crypto';
 import {
+  claimAgentSessionRun,
   createAgentSession,
   findAgentSessionById,
   findAgentSessionStatus,
+  releaseAgentSessionRunLease,
+  renewAgentSessionRunLease,
+  RUNNER_MAX_ATTEMPTS,
   updateAgentSession,
   type AgentSessionConfig,
+  type AgentSessionRecord,
 } from '../../db/agents/agentSessionRepository.js';
 import { findAgentById } from '../../db/agents/agentRepository.js';
 import {
@@ -182,18 +189,88 @@ function buildContextMessages(
 
 // ── Main Runner ──
 
-export async function runAgentSession(sessionId: string): Promise<void> {
-  const session = await findAgentSessionById(getDb(), sessionId);
-  if (!session) {
-    log.agents.error({ sessionId }, 'Session not found');
-    return;
-  }
+/** How often a worker renews its claim; well inside `RUNNER_LEASE_MS`. */
+const RUNNER_LEASE_RENEW_MS = 20_000;
 
-  // Respect pre-cancelled or terminal sessions (e.g. cancelled while queued).
-  if (session.status === 'cancelled' || session.status === 'completed' || session.status === 'failed') {
-    log.agents.info({ sessionId, status: session.status }, 'Session is already terminal, skipping execution');
-    return;
+/** This worker's hold on one run, renewed until it is stopped or lost. */
+interface RunLease {
+  readonly owner: string;
+  /** Set when a renewal found the run no longer ours: stop driving it. */
+  lost: boolean;
+  stop(): void;
+}
+
+function holdRunLease(sessionId: string, owner: string): RunLease {
+  const lease: RunLease = {
+    owner,
+    lost: false,
+    stop: () => clearInterval(timer),
+  };
+  const timer = setInterval(() => {
+    renewAgentSessionRunLease(getDb(), sessionId, owner)
+      .then((held) => {
+        if (!held) {
+          lease.lost = true;
+          clearInterval(timer);
+        }
+      })
+      // A failed renewal is not a lost lease: the next one may land, and the
+      // lease outlives several missed renewals.
+      .catch((err: unknown) => log.agents.warn({ err, sessionId }, 'Could not renew the run lease'));
+  }, RUNNER_LEASE_RENEW_MS);
+  timer.unref?.();
+  return lease;
+}
+
+/**
+ * Run a background session, if this worker can claim it.
+ *
+ * `skipped` means the run was not this worker's to drive — it is settled,
+ * another worker holds a live lease on it, or this worker lost the lease
+ * mid-run — so the caller must not notify or advance anything on its behalf.
+ * `ran` means this worker drove it to wherever it stopped.
+ *
+ * A run whose worker died is claimed again once its lease lapses (by BullMQ
+ * redelivering the stalled job, or by the reaper re-enqueueing it) and
+ * RESUMES: its events, plan and step/token counters are persisted every step.
+ */
+export async function runAgentSession(sessionId: string): Promise<'ran' | 'skipped'> {
+  const owner = `${hostname()}:${process.pid}:${randomUUID()}`;
+  const claim = await claimAgentSessionRun(getDb(), sessionId, owner);
+  if (!claim.claimed) {
+    log.agents.info({ sessionId }, 'Session is settled or owned by another worker, skipping execution');
+    return 'skipped';
   }
+  const lease = holdRunLease(sessionId, owner);
+  try {
+    if (claim.attempt > RUNNER_MAX_ATTEMPTS) {
+      await abandonExhaustedRun(claim.session);
+      return 'ran';
+    }
+    await driveAgentSession(claim.session, lease, claim.attempt > 1);
+    return lease.lost ? 'skipped' : 'ran';
+  } finally {
+    lease.stop();
+    await releaseAgentSessionRunLease(getDb(), sessionId, owner).catch((err: unknown) => {
+      log.agents.warn({ err, sessionId }, 'Could not release the run lease');
+    });
+  }
+}
+
+/** A run that has now killed its worker too many times is failed and refunded. */
+async function abandonExhaustedRun(session: AgentSessionRecord): Promise<void> {
+  log.agents.error({ sessionId: session._id, attempts: RUNNER_MAX_ATTEMPTS }, 'Agent run interrupted too many times, stopping it');
+  await updateAgentSession(getDb(), session._id, {
+    status: 'failed',
+    result: 'The run was interrupted too many times and was stopped',
+    stats: { completedAt: new Date() },
+  });
+  if (session.creditReservation) await safeRefund(session.creditReservation, 'run interrupted too many times');
+  await markAutomationRunForSession(getDb(), session._id, 'failed');
+}
+
+async function driveAgentSession(session: AgentSessionRecord, lease: RunLease, resuming: boolean): Promise<void> {
+  const sessionId = session._id;
 
   const found = await findAgentById(getDb(), session.agentId);
   if (!found) {
@@ -235,16 +312,16 @@ export async function runAgentSession(sessionId: string): Promise<void> {
     todoManager.loadFromPersisted(sessionPlan);
   }
 
-  // Mark session as running
-  const startedAt = new Date();
-  await updateAgentSession(getDb(), sessionId, {
-    status: 'running',
-    stats: { startedAt, lastActivityAt: startedAt },
-  });
+  // The claim already marked the row running and stamped its start.
   await markAutomationRunForSession(getDb(), sessionId, 'running');
 
-  eventStream.append('system_message', `Task received: ${session.task}`);
-  eventStream.append('user_message', session.task);
+  if (resuming) {
+    // The events and plan were restored above; the task is already in them.
+    eventStream.append('system_message', 'Resumed after an interruption. Continue from the plan and the events so far; do not repeat actions already taken.');
+  } else {
+    eventStream.append('system_message', `Task received: ${session.task}`);
+    eventStream.append('user_message', session.task);
+  }
 
   // Track completion signal
   let taskCompleted = false;
@@ -368,8 +445,12 @@ export async function runAgentSession(sessionId: string): Promise<void> {
   // The agent's OWN name. It used to be told it was Alia, above its own prompt.
   const systemPrompt = `${buildIdentityGuard({ agentName: agentPromptName(agent) })}\n\n---\n\n${buildSystemPrompt(agent, session.config, { automation: Boolean(session.automationRunId) })}`;
 
-  let totalSteps = 0;
-  let totalTokens = 0;
+  // Persisted every step, so a resumed run keeps counting against the SAME
+  // budget instead of starting a fresh one.
+  let totalSteps = session.stats.totalSteps ?? 0;
+  let totalTokens = session.stats.totalTokens ?? 0;
+  /** Set when this worker lost the run mid-way: somebody else settles it. */
+  let abandoned = false;
   /**
    * Set when the orchestrator ran the task. It then skips the loop and falls
    * through to the SAME settlement as every other run: it used to write its own
@@ -393,7 +474,7 @@ export async function runAgentSession(sessionId: string): Promise<void> {
 
   try {
     // ── Orchestrator mode check ──
-    if (!session.automationRunId && shouldOrchestrate(session.task, session.depth)) {
+    if (!resuming && !session.automationRunId && shouldOrchestrate(session.task, session.depth)) {
       eventStream.append('system_message', 'Task complexity detected — activating orchestrated execution');
 
       const orchResult = await orchestrate({
@@ -427,6 +508,11 @@ export async function runAgentSession(sessionId: string): Promise<void> {
     // ── Main execution loop ──
 
     while (orchestrated === null && !stateMachine.isTerminal() && totalSteps < session.config.maxSteps && totalTokens < session.config.maxTokens) {
+      if (lease.lost) {
+        abandoned = true;
+        break;
+      }
+
       // Check for cancellation
       const currentStatus = await findAgentSessionStatus(getDb(), sessionId);
       if (currentStatus === null || currentStatus === 'cancelled') {
@@ -676,6 +762,11 @@ export async function runAgentSession(sessionId: string): Promise<void> {
       }
     }
 
+    if (abandoned) {
+      log.agents.warn({ sessionId }, 'Lost the run lease; leaving the run to the worker that holds it');
+      return;
+    }
+
     // ── Session Complete ──
 
     const machineState = stateMachine.current();
@@ -760,6 +851,8 @@ export async function runAgentSession(sessionId: string): Promise<void> {
 
   } catch (err: unknown) {
     log.agents.error({ err, sessionId }, 'Agent session failed');
+    // A worker that lost the run must not settle it: the new owner will.
+    if (lease.lost) return;
 
     // Refund credits on failure
     if (session.creditReservation) {
