@@ -89,12 +89,10 @@ export const API_ROUTES = {
   // Structured automations are the only product control plane for proactive work.
   automations: {
     list: '/automations',
-    create: '/automations',
     runs: '/automations/runs',
     update: (id: string) => `/automations/${id}`,
     stop: (id: string) => `/automations/${id}`,
     run: (id: string) => `/automations/${id}/run`,
-    steps: (runId: string) => `/automations/runs/${runId}/steps`,
   },
 
   // Analytics routes
