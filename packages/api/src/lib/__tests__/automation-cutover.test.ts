@@ -33,7 +33,8 @@ describe('structured automation cutover', () => {
       return /\/triggers\b/.test(source) || /\buseTools\b/.test(source);
     }).map((file) => path.relative(REPOSITORY_ROOT, file));
     expect(offenders).toEqual([]);
-    expect(read('packages/app/lib/hooks/use-automations.ts')).toContain('API_ROUTES.automations.create');
+    // The app edits, runs and stops automations; the chat's tool creates them.
+    expect(read('packages/app/lib/hooks/use-automations.ts')).toContain('API_ROUTES.automations.update');
   });
 
   it('keeps scheduler, dispatcher and agent updates off the legacy runtime', () => {

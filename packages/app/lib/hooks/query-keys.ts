@@ -51,7 +51,6 @@ export const queryKeys = {
   automations: {
     overview: ['automations', 'overview'] as const,
     history: (automationId: string) => ['automations', automationId, 'history'] as const,
-    steps: (runId: string) => ['automations', 'runs', runId, 'steps'] as const,
   },
   conversations: {
     all: ['conversations'] as const,
