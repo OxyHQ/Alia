@@ -11,7 +11,7 @@
 
 import { tool, generateText } from 'ai';
 import { z } from 'zod';
-import { resolveModel, getAIModel } from '../chat-core.js';
+import { resolveModel, resolveUtilityModel, getAIModel, type ResolvedModel } from '../chat-core.js';
 import { log } from '../logger.js';
 import { getErrorMessage } from '../errors/index.js';
 
@@ -37,25 +37,27 @@ async function runSubtask(
 ): Promise<SubtaskResult> {
   const start = Date.now();
   /**
-   * Delegation historically resolved to `route:auto`; naming that profile here
-   * keeps the reported identifier equal to the one sent through the Kaana
-   * boundary. This is deliberately not `getDefaultRoutingProfile()` because
-   * changing the delegation policy is outside this identity cutover.
+   * The model the caller named, when the catalogue offers it; otherwise the
+   * utility model. Nothing here names a model of its own (ADR 0012).
    */
-  const routingProfileId = preferredModel || 'route:auto';
+  let resolved: ResolvedModel;
+  try {
+    resolved = preferredModel
+      ? await resolveModel(preferredModel).catch(() => resolveUtilityModel())
+      : await resolveUtilityModel();
+  } catch {
+    return {
+      task,
+      model: preferredModel ?? 'unavailable',
+      result: null,
+      error: 'No model available for subtask',
+      latencyMs: Date.now() - start,
+      tokensUsed: 0,
+    };
+  }
+  const modelId = resolved.modelId;
 
   try {
-    const resolved = await resolveModel(routingProfileId);
-    if (!resolved) {
-      return {
-        task,
-        model: routingProfileId,
-        result: null,
-        error: 'No model available for subtask',
-        latencyMs: Date.now() - start,
-        tokensUsed: 0,
-      };
-    }
 
     const model = getAIModel(resolved, 'agent_run');
 
@@ -76,7 +78,7 @@ async function runSubtask(
 
       return {
         task,
-        model: routingProfileId,
+        model: modelId,
         result: result.text,
         error: null,
         latencyMs: Date.now() - start,
@@ -88,7 +90,7 @@ async function runSubtask(
   } catch (error: unknown) {
     return {
       task,
-      model: routingProfileId,
+      model: modelId,
       result: null,
       error: error instanceof Error && error.name === 'AbortError' ? 'Subtask timed out (30s)' : getErrorMessage(error),
       latencyMs: Date.now() - start,
@@ -107,8 +109,7 @@ export const delegateSubtaskTool = tool({
   inputSchema: z.object({
     subtasks: z.array(z.object({
       task: z.string().describe('The subtask to complete'),
-      /** The accepted values are product-facing Kaana routing profile IDs. */
-      model: z.string().optional().describe('Optional: which routing profile to run the subtask on (e.g., "route:instant", "route:auto", "route:pro-standard"). These are routing profiles over third-party models, not models Alia owns. Defaults to route:auto.'),
+      model: z.string().optional().describe('Optional: a `publisher/model` id from the catalogue to run the subtask on. Defaults to a fast, inexpensive model.'),
       context: z.string().optional().describe('Optional: additional system context for the subtask'),
     })).min(1).max(MAX_CONCURRENT_SUBTASKS).describe('List of subtasks to run in parallel (max 3)'),
   }),
@@ -133,8 +134,7 @@ export const delegateSubtaskTool = tool({
       }
       return {
         task: tasks[i].task,
-        // Same default as `runSubtask`, for the rejected-promise path.
-        model: tasks[i].model || 'route:auto',
+        model: tasks[i].model ?? 'unavailable',
         result: null,
         error: s.reason?.message || 'Subtask failed',
         latencyMs: Date.now() - start,

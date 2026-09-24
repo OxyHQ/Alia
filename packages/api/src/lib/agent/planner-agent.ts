@@ -10,7 +10,7 @@
 
 import { generateObject } from 'ai';
 import { z } from 'zod';
-import { resolveModel, getAIModel, getDefaultRoutingProfile } from '../chat-core.js';
+import { resolveUtilityModel, getAIModel } from '../chat-core.js';
 import { log } from '../logger.js';
 
 export interface Subtask {
@@ -67,18 +67,8 @@ export async function generatePlan(
 ): Promise<ExecutionPlan> {
   const maxSubtasks = context?.maxSubtasks ?? 10;
 
-  // Use the best available model for planning
-  const plannerModels = ['route:thinking', 'route:pro-standard', 'route:auto'];
-  let resolved: Awaited<ReturnType<typeof resolveModel>> | null = null;
-
-  for (const modelId of plannerModels) {
-    resolved = await resolveModel(modelId);
-    if (resolved) break;
-  }
-
-  if (!resolved) {
-    resolved = await resolveModel(getDefaultRoutingProfile());
-  }
+  // The utility model, chosen from the catalogue (never a named model)
+  const resolved = await resolveUtilityModel().catch(() => null);
 
   if (!resolved) {
     throw new Error('No AI models available for planning');

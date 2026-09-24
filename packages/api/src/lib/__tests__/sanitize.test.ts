@@ -13,18 +13,12 @@
  *    Alia's own identifiers, the shipped user messages, and the real Spanish
  *    translation strings;
  *  - a sanitiser that returned its input would pass every "is it unchanged?"
- *    assertion, so the census walks the LIVE routing table and fails on any
- *    upstream identifier it does not conceal.
+ *    assertion, so the census walks the operator registry the sanitiser itself
+ *    reads (`provider-names.ts`) and fails on any operator it does not conceal.
  *
- * The census is over real data rather than a hand-written list on purpose: a
- * hand-written list agrees with itself forever, and the routing table is what
- * actually grows.
- *
- * That is why this file imports the provider tree and why it is on
- * `architectureGates.test.ts`'s gate-1 allow-list. It reads the routing table as
- * DATA to gate the sanitiser against it; it calls no adapter. When the table
- * moves to Kaana the census repoints at the Kaana catalogue, and this import —
- * with the sanitiser's own `provider-names` import — goes with it.
+ * Alia keeps no routing table any more (ADR 0012) — the models are Oxy's
+ * catalogue — so the census is over the operators, which is what the product
+ * still hides.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -35,14 +29,11 @@ import { fileURLToPath } from 'node:url';
 import { redactUnsafeDetail, sanitizeMessage, getSafeErrorMessage, formatErrorResponse } from '../errors/sanitize.js';
 import { AliaError, AliaErrorCode } from '../errors/error-codes.js';
 import { PROVIDER_NAMES } from '../../internal/providers/lib/provider-names.js';
-import { KAANA_ROUTING_PROFILES, TIER_MODEL_MAPPINGS } from '../../internal/providers/lib/routing-profile-catalogue.js';
 
 const REPO_ROOT = path.resolve(fileURLToPath(new URL('../../../../../', import.meta.url)));
 
-/** Every mapping in the live routing table, flattened. */
-const MAPPINGS = Object.values(TIER_MODEL_MAPPINGS).flat();
-const UPSTREAM_MODEL_IDS = [...new Set(MAPPINGS.map((m) => m.modelId))].sort();
-const UPSTREAM_OPERATORS = [...new Set(MAPPINGS.map((m) => m.provider))].sort();
+/** Every operator the sanitiser is told about. */
+const UPSTREAM_OPERATORS = [...PROVIDER_NAMES].sort();
 
 /** A whole token replaced by a marker, and nothing of it left over. */
 const FULLY_CONCEALED = /^\[(?:model|provider)\]$/;
@@ -52,22 +43,10 @@ const FULLY_CONCEALED = /^\[(?:model|provider)\]$/;
 // ===========================================================================
 
 describe('the census reads a non-trivial corpus', () => {
-  it('walks the live routing table, not an empty one', () => {
-    // The vacuity floor. If `GENERATED_TIER_MAPPINGS` were ever emptied or
-    // renamed, every conceal-the-corpus assertion below would pass over zero
-    // items and report exactly what a working sanitiser reports.
-    expect(MAPPINGS.length).toBeGreaterThan(100);
-    expect(UPSTREAM_MODEL_IDS.length).toBeGreaterThan(30);
+  it('walks the operator registry, not an empty one', () => {
+    // The vacuity floor: every conceal-the-corpus assertion below would pass
+    // over zero items and report exactly what a working sanitiser reports.
     expect(UPSTREAM_OPERATORS.length).toBeGreaterThan(10);
-  });
-
-  it('the corpus contains the shapes the sanitiser claims to handle', () => {
-    // A positive control on the corpus itself: these forms exist in it, so a
-    // gate that conceals them is doing work rather than agreeing with a
-    // degenerate input set.
-    expect(UPSTREAM_MODEL_IDS.some((id) => id.includes('/'))).toBe(true); // publisher-qualified
-    expect(UPSTREAM_MODEL_IDS.some((id) => /[A-Z]/.test(id))).toBe(true); // mixed case
-    expect(UPSTREAM_MODEL_IDS.some((id) => /^[a-z]+$/.test(id) === false && id.includes('-'))).toBe(true);
   });
 });
 
@@ -76,10 +55,6 @@ describe('the census reads a non-trivial corpus', () => {
 // ===========================================================================
 
 describe('sanitizeMessage conceals every upstream identifier the router can pick', () => {
-  it.each(UPSTREAM_MODEL_IDS)('conceals the upstream model id %s', (modelId) => {
-    expect(sanitizeMessage(modelId)).toMatch(FULLY_CONCEALED);
-  });
-
   it.each(UPSTREAM_OPERATORS)('conceals the operator %s written as a brand', (operator) => {
     const brand = operator[0].toUpperCase() + operator.slice(1);
     expect(sanitizeMessage(brand)).toMatch(FULLY_CONCEALED);
@@ -109,11 +84,6 @@ describe('sanitizeMessage conceals every upstream identifier the router can pick
 // ===========================================================================
 
 describe('sanitizeMessage leaves what the product must still be able to say', () => {
-  it.each(Object.keys(KAANA_ROUTING_PROFILES))('leaves the Alia identifier %s untouched', (id) => {
-    expect(sanitizeMessage(id)).toBe(id);
-    expect(sanitizeMessage(`"${id}" is not available right now.`)).toBe(`"${id}" is not available right now.`);
-  });
-
   it('leaves every shipped default user message untouched', () => {
     const messages = Object.values(AliaErrorCode).map(
       (code) => new AliaError({ code, message: 'internal', retryable: false, reason: 'unknown' }).userMessage,

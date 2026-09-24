@@ -1,5 +1,8 @@
-/** Speech generation through the published Oxy client and exact product profile. */
-import { OXY_KAANA_SPEECH_ROUTING_PROFILE_ID } from '../config/oxy-inference-routing-profile-ids.js';
+/**
+ * Speech generation through the published Oxy client, on the speech model the
+ * catalogue offers (the cheapest with audio output — `lib/models/selection.ts`).
+ */
+import { getSpeechModelId } from './models/selection.js';
 import { getOxyInferenceClient } from './inference/oxy-inference.js';
 import { kaanaCapabilityUnavailable } from './inference/hosted-capability-error.js';
 
@@ -17,9 +20,12 @@ export async function synthesizeSpeech(options: SynthesizeSpeechOptions): Promis
   if (!options.userId || options.format !== 'mp3') throw new Error('Speech requires a user and MP3 output');
   const client = getOxyInferenceClient();
   if (client === null) throw kaanaCapabilityUnavailable('speech_synthesis');
+  const model = await getSpeechModelId().catch(() => {
+    throw kaanaCapabilityUnavailable('speech_synthesis');
+  });
   const timeout = AbortSignal.timeout(60_000);
   const result = await client.speech({
-    routingProfileId: OXY_KAANA_SPEECH_ROUTING_PROFILE_ID,
+    model,
     input: options.input,
     voice: options.voice,
     response_format: 'mp3',

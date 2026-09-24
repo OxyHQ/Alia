@@ -101,21 +101,3 @@ export function measureContext({
     mcpServers,
   };
 }
-
-/**
- * The window a profile guarantees: the smallest `maxContextTokens` among its
- * routes, since any of them may answer. `null` when a route does not say — the
- * catalogue's own rule (`lib/catalogue.ts`, `tokenBound`).
- */
-export function guaranteedContextWindow(
-  routes: ReadonlyArray<{ capabilities?: { maxContextTokens?: number | null } | null }>,
-): number | null {
-  if (routes.length === 0) return null;
-  let smallest = Number.POSITIVE_INFINITY;
-  for (const route of routes) {
-    const tokens = route.capabilities?.maxContextTokens;
-    if (typeof tokens !== 'number' || tokens <= 0) return null;
-    smallest = Math.min(smallest, tokens);
-  }
-  return smallest;
-}

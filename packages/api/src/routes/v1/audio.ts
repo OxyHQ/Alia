@@ -30,7 +30,11 @@ function unavailable(res: Response, capability: KaanaUnavailableCapability): Res
 }
 
 const speechBody = z.object({
-  model: z.literal('route:voice').optional(),
+  /**
+   * Ignored: the speech model is chosen from the catalogue (ADR 0012). Still
+   * accepted so an older client that names one is not refused.
+   */
+  model: z.string().max(200).optional(),
   input: z.string().min(1).max(15_000).refine((input) => input.trim().length > 0),
   voice: z.enum(['male', 'female']).default('female'),
   speed: z.number().min(0.7).max(1.5).optional(),

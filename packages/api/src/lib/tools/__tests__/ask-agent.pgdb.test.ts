@@ -76,17 +76,20 @@ vi.mock('../../oxy-user-hydration.js', () => ({
 
 vi.mock('../../chat-core.js', () => ({
   resolveModel: vi.fn(async (id: string) => ({
-    id,
-    oxyInferenceTarget: {
-      kind: 'routing_profile_id',
-      routingProfileId: '01a06477-94f5-74f0-bc25-4c5c13b93ccd',
-    },
+    modelId: id,
+    oxyInferenceTarget: { kind: 'model', model: id },
   })),
-  resolveOxyRoutingProfileId: vi.fn(async (routingProfileId: string) => ({
-    routingProfileId: 'route:instant',
-    oxyInferenceTarget: { kind: 'routing_profile_id', routingProfileId },
+  resolveStoredModel: vi.fn(async () => ({
+    modelId: 'acme/agent-model',
+    oxyInferenceTarget: { kind: 'model', model: 'acme/agent-model' },
   })),
   getAIModel: vi.fn(() => ({ modelId: 'test-model' })),
+}));
+
+/** The agent's model, priced so the settlement arithmetic below is exact. */
+vi.mock('../../models/catalogue.js', () => ({
+  findCatalogueModel: vi.fn(async (id: string) =>
+    id === 'acme/agent-model' ? { id, pricing: { inputPerMTok: '0.5', outputPerMTok: '0.5' } } : null),
 }));
 
 /** ~10% of turns evolve the agent's soul, with a model call of its own. */
@@ -103,7 +106,6 @@ vi.mock('ai', async (importOriginal) => ({
 const { closePostgres, connectPostgres } = await import('../../../db/index.js');
 type ApiDatabase = Awaited<ReturnType<typeof connectPostgres>>;
 const { agents } = await import('../../../db/schema/agents.js');
-const { OXY_KAANA_ROUTING_PROFILE_IDS } = await import('../../../config/oxy-inference-routing-profile-ids.js');
 const { userCredits } = await import('../../../db/schema/billing.js');
 const { getOrCreateUserCredits } = await import('../../../db/billing/userCreditsRepository.js');
 const { buildAskAgentTool } = await import('../ask-agent.js');
@@ -160,7 +162,6 @@ async function seedAgent(input: {
     category: 'research',
     status: input.status ?? 'active',
     systemPrompt,
-    routingProfileId: OXY_KAANA_ROUTING_PROFILE_IDS['route:instant'],
   });
   return { id, oxyAccountId, systemPrompt };
 }
@@ -396,9 +397,9 @@ describe('who pays for the nested turn', () => {
     const owner = await account(100);
     const target = await seedAgent({ author: owner });
     /**
-     * 6000 tokens, `TOKENS_PER_CREDIT` 1000, and the `route:instant` preset's
-     * multiplier of 0.5 — three credits. The agent's OWN model decides the
-     * price, which is why the row above pins `routingProfileId`, and a number
+     * 3000 input + 3000 output tokens at the agent's model's catalogue price of
+     * $0.50/M each — $0.003, three credits. The agent's OWN model decides the
+     * price (the catalogue stub below prices only that model), and a number
      * bigger than the one-credit reservation is what makes the settlement
      * visible: at the minimum charge, "settled correctly" and "never settled"
      * are the same balance.

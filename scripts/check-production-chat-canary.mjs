@@ -12,7 +12,7 @@ requireText(workflow, '.taskDefinition', 'workflow is not bound to the live task
 requireText(workflow, 'expected_live_image_digest', 'workflow is not bound to an immutable live image');
 requireText(workflow, 'stop-task', 'workflow has no EXIT cleanup for its task');
 requireText(workflow, '.synthetic', 'workflow does not fail synthetic HTTP-200 answers');
-for (const mode of ['instant', 'auto', 'thinking', 'research']) requireText(runner, `route:${mode}`, `${mode} is absent`);
+for (const label of ['default-1', 'arithmetic-1', 'research-1']) requireText(runner, label, `${label} is absent`);
 for (const label of ['search-tool', 'controlled-refusal', 'recovery']) requireText(runner, label, `${label} is absent`);
 requireText(runner, 'conversationId: null', 'the no-persistence result contract is absent');
 requireText(runner, 'x-oxy-user-id', 'runner does not send the delegated-user header');

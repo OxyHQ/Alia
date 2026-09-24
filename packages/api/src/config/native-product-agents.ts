@@ -48,7 +48,7 @@
  *
  * ## What is NOT here
  *
- * Everything Alia alone decides — the routing profile, the tagline, the
+ * Everything Alia alone decides — the tagline, the description, the
  * category — lives in `scripts/native-product-agent-bootstrap-plan.ts`. Mixing
  * it in would put values Oxy never published inside the hashed manifest, and the
  * cross-repo gate would fail on Alia's own product decisions.

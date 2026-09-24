@@ -66,8 +66,8 @@ describe('Kaana AI SDK adapter through Oxy', () => {
       error: { code, message: 'Upstream refused the request.', retryable, ...(retryAfterMs === undefined ? {} : { retryAfterMs }) },
     });
     const model = kaanaLanguageModel({
-      target: { kind: 'routing_profile_id', routingProfileId: '01a06477-94f5-74f0-bc25-628b5f45d802' },
-      modelId: 'route:instant', surface: 'chat',
+      target: { kind: 'model', model: 'acme/chat-1' },
+      modelId: 'acme/chat-1', surface: 'chat',
     });
     const { stream } = await model.doStream({ prompt } as never);
     const parts = await drain(stream);
@@ -83,27 +83,43 @@ describe('Kaana AI SDK adapter through Oxy', () => {
     expect(parts.at(-1)).toMatchObject({ type: 'finish', finishReason: { unified: 'error', raw: code } });
   });
 
-  it('sends an exact routing profile and delegated user to Oxy', async () => {
+  it('sends the exact catalogue model and delegated user to Oxy', async () => {
     const model = kaanaLanguageModel({
-      target: {
-        kind: 'routing_profile_id',
-        routingProfileId: '01a06477-94f5-74f0-bc25-628b5f45d802',
-      },
-      modelId: 'route:thinking',
+      target: { kind: 'model', model: 'acme/chat-1' },
+      modelId: 'acme/chat-1',
       surface: 'chat',
       oxyUserId: 'user-id',
     });
     const result = await model.doGenerate({ prompt, maxOutputTokens: 128 } as never);
 
     expect(mocks.requests[0]).toMatchObject({
-      routingProfileId: '01a06477-94f5-74f0-bc25-628b5f45d802',
+      model: 'acme/chat-1',
       maxOutputTokens: 128,
       labels: { 'alia.surface': 'chat' },
     });
-    expect(mocks.requests[0]).not.toHaveProperty('model');
+    expect(mocks.requests[0]).not.toHaveProperty('routingProfileId');
     expect(mocks.requests[0]).not.toHaveProperty('routingProfile');
+    // No effort asked for: the model's own default, and nothing on the wire.
+    expect(mocks.requests[0]).not.toHaveProperty('reasoning');
     expect(mocks.options[0]).toMatchObject({ delegatedUserId: 'user-id' });
     expect(result.content).toEqual([{ type: 'text', text: 'hola' }]);
+  });
+
+  it('forwards a reasoning effort as reasoning.effort on both methods', async () => {
+    const model = kaanaLanguageModel({
+      target: { kind: 'model', model: 'acme/thinker-1' },
+      modelId: 'acme/thinker-1',
+      surface: 'chat',
+      reasoningEffort: 'high',
+    });
+    mocks.events.push({ type: 'done', finishReason: 'stop' });
+    await model.doGenerate({ prompt } as never);
+    await drain((await model.doStream({ prompt } as never)).stream);
+
+    expect(mocks.requests).toHaveLength(2);
+    for (const request of mocks.requests) {
+      expect(request).toMatchObject({ model: 'acme/thinker-1', reasoning: { effort: 'high' } });
+    }
   });
 
   it('sends a pinned canonical model without guessing from its spelling', async () => {
@@ -128,8 +144,8 @@ describe('Kaana AI SDK adapter through Oxy', () => {
      * presence check and refuse every second request in production.
      */
     const model = kaanaLanguageModel({
-      target: { kind: 'routing_profile_id', routingProfileId: '01a06477-94f5-74f0-bc25-628b5f45d802' },
-      modelId: 'route:auto',
+      target: { kind: 'model', model: 'acme/chat-1' },
+      modelId: 'acme/chat-1',
       surface: 'chat',
       oxyUserId: 'user-id',
     });
@@ -159,8 +175,8 @@ describe('Kaana AI SDK adapter through Oxy', () => {
      * two apart. `servingProvider` is on the same wire and must go nowhere.
      */
     const model = kaanaLanguageModel({
-      target: { kind: 'routing_profile_id', routingProfileId: '01a06477-94f5-74f0-bc25-628b5f45d802' },
-      modelId: 'route:auto',
+      target: { kind: 'model', model: 'acme/chat-1' },
+      modelId: 'acme/chat-1',
       surface: 'chat',
     });
     const result = await model.doGenerate({ prompt } as never);
@@ -183,8 +199,8 @@ describe('Kaana AI SDK adapter through Oxy', () => {
       { type: 'done', finishReason: 'stop' },
     );
     const model = kaanaLanguageModel({
-      target: { kind: 'routing_profile_id', routingProfileId: '01a06477-94f5-74f0-bc25-4c5c13b93ccd' },
-      modelId: 'route:auto',
+      target: { kind: 'model', model: 'acme/chat-1' },
+      modelId: 'acme/chat-1',
       surface: 'chat',
     });
     const parts = await drain((await model.doStream({ prompt } as never)).stream);
@@ -204,8 +220,8 @@ describe('Kaana AI SDK adapter through Oxy', () => {
     // requested id. `finish` then has NO providerMetadata key at all.
     mocks.events.push({ type: 'done', finishReason: 'stop' });
     const model = kaanaLanguageModel({
-      target: { kind: 'routing_profile_id', routingProfileId: '01a06477-94f5-74f0-bc25-4c5c13b93ccd' },
-      modelId: 'route:auto',
+      target: { kind: 'model', model: 'acme/chat-1' },
+      modelId: 'acme/chat-1',
       surface: 'chat',
     });
     const parts = await drain((await model.doStream({ prompt } as never)).stream);
@@ -220,11 +236,8 @@ describe('Kaana AI SDK adapter through Oxy', () => {
       { type: 'done', finishReason: 'stop' },
     );
     const model = kaanaLanguageModel({
-      target: {
-        kind: 'routing_profile_id',
-        routingProfileId: '01a06477-94f5-74f0-bc25-4c5c13b93ccd',
-      },
-      modelId: 'route:auto',
+      target: { kind: 'model', model: 'acme/chat-1' },
+      modelId: 'acme/chat-1',
       surface: 'chat',
     });
     const parts = await drain((await model.doStream({ prompt } as never)).stream);

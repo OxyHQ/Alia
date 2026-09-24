@@ -10,7 +10,7 @@
  * - worldview: Core principles ("pragmatic", "user-first")
  * - currentFocus: What the agent has been working on recently
  *
- * Evolution runs on ~10% of interactions using route:instant to keep costs minimal.
+ * Evolution runs on ~10% of interactions using the utility model to keep costs minimal.
  */
 
 import { generateText } from 'ai';
@@ -21,7 +21,7 @@ import {
   findAgentById,
   type AgentSoul,
 } from '../../db/agents/agentRepository.js';
-import { resolveModel, getAIModel } from '../chat-core.js';
+import { resolveUtilityModel, getAIModel } from '../chat-core.js';
 import { log } from '../logger.js';
 
 // ============== FORMATTING ==============
@@ -96,7 +96,7 @@ function stringList(value: unknown, max: number): string[] | undefined {
 /**
  * Evolve an agent's soul based on a completed interaction.
  *
- * Runs on route:instant for cost efficiency. Fire-and-forget.
+ * Runs on the utility model for cost efficiency. Fire-and-forget.
  *
  * The model's answer is parsed into a KNOWN shape rather than spread: it is
  * generated text reaching a write path, and the columns behind it are `text[]`.
@@ -123,8 +123,8 @@ export async function evolveAgentSoul(
       .replace('{{TASK}}', task.slice(0, 500))
       .replace('{{RESPONSE}}', response.slice(0, 500));
 
-    // route:instant, for the cheapest possible evolution.
-    const resolved = await resolveModel('route:instant');
+    // The utility model, for the cheapest possible evolution.
+    const resolved = await resolveUtilityModel();
     if (!resolved) {
       await bumpAgentSoulInteractions(db, agentId, newCount);
       return;

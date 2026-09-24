@@ -3,7 +3,6 @@ import { check, index, integer, jsonb, pgTable, text, uniqueIndex } from 'drizzl
 import { sql } from 'drizzle-orm';
 import { createdAt, generatedId, timestamptz, updatedAt } from '@oxy.so/db';
 import { checkOneOf } from './columns';
-import { OXY_KAANA_ROUTING_PROFILE_ID_LIST } from '../../config/oxy-inference-routing-profile-ids.js';
 
 export const AGENT_THREAD_STATUSES = ['open', 'closed'] as const;
 export const AGENT_THREAD_APPROVAL_MODES = ['ask', 'supervised_auto'] as const;
@@ -49,7 +48,8 @@ export const agentThreads = pgTable('agent_threads', {
   title: text().notNull().default('New thread'),
   folderId: text(),
   status: text({ enum: AGENT_THREAD_STATUSES as unknown as [string, ...string[]] }).notNull().default('open'),
-  routingProfileId: text().notNull(),
+  /** The thread's `publisher/model`; null runs the owner's default (ADR 0012). */
+  modelId: text(),
   reasoningEffort: text(),
   approvalMode: text({ enum: AGENT_THREAD_APPROVAL_MODES as unknown as [string, ...string[]] }).notNull().default('ask'),
   executionTarget: text({ enum: AGENT_EXECUTION_TARGETS as unknown as [string, ...string[]] }).notNull().default('sandbox'),
@@ -65,7 +65,6 @@ export const agentThreads = pgTable('agent_threads', {
   checkOneOf('agent_threads_status_check', t.status, AGENT_THREAD_STATUSES),
   checkOneOf('agent_threads_approval_mode_check', t.approvalMode, AGENT_THREAD_APPROVAL_MODES),
   checkOneOf('agent_threads_execution_target_check', t.executionTarget, AGENT_EXECUTION_TARGETS),
-  checkOneOf('agent_threads_routing_profile_id_check', t.routingProfileId, OXY_KAANA_ROUTING_PROFILE_ID_LIST),
   check('agent_threads_cowork_target_check', sql`(${t.executionTarget} = 'cowork') = (${t.coworkDeviceId} is not null)`),
 ]);
 

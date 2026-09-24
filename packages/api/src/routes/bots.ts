@@ -1,4 +1,6 @@
 import express from 'express';
+import { resolveModel } from '../lib/chat-core.js';
+import { ModelNotFoundError } from '../lib/models/errors.js';
 import crypto from 'crypto';
 import { authenticateToken } from '../middleware/auth.js';
 import { authenticateChannelBot } from '../middleware/channel-auth.js';
@@ -675,10 +677,23 @@ router.post('/internal/:platform/users/:platformUserId/conversation', botAuth, a
 router.post('/internal/:platform/users/:platformUserId/model', botAuth, async (req: express.Request<{ platform: string; platformUserId: string }>, res) => {
   try {
     const { platform, platformUserId } = req.params;
-    const { model } = req.body;
-
-    if (!model) {
-      return res.status(400).json({ error: 'Model is required' });
+    /**
+     * A `publisher/model` from the catalogue, or `null` to go back to the
+     * person's default (ADR 0012).
+     */
+    const model: unknown = req.body?.model ?? null;
+    if (model !== null && typeof model !== 'string') {
+      return res.status(400).json({ error: 'model must be a model id or null' });
+    }
+    if (typeof model === 'string') {
+      try {
+        await resolveModel(model);
+      } catch (error: unknown) {
+        if (error instanceof ModelNotFoundError) {
+          return res.status(400).json({ error: error.userMessage, code: ModelNotFoundError.WIRE_CODE });
+        }
+        throw error;
+      }
     }
 
     const db = getDb();

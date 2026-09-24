@@ -7,7 +7,6 @@ export interface CreditWarning {
   daysRemaining: number;
   todaySpend: number;
   avgDailySpend: number;
-  currentModelMultiplier?: number;
 }
 
 // In-memory per-user anomaly cache (5-min TTL)

@@ -46,13 +46,13 @@ const H = vi.hoisted(() => ({
   /**
    * How many tokens the model spends thinking before its first word.
    *
-   * The default is one of three values measured against the deployment
-   * `route:instant` resolves to in production on 2026-08-25 (UTC) — 104, with 78 and 127
+   * The default is one of three values measured against the cheap title model
+   * in production on 2026-08-25 (UTC) — 104, with 78 and 127
    * on the other two runs of the same prompt. It is a property of the model,
    * not of the prompt, and the caller cannot see it or turn it off.
    */
   reasoningTokens: 104,
-  /** What `resolveModel` answers; `null` is "no provider key was available". */
+  /** Whether `resolveUtilityModel` answers; false makes it throw (no model in the catalogue). */
   resolvesToModel: true,
   /** When set, `generateText` throws it. */
   modelThrows: null as Error | null,
@@ -90,16 +90,14 @@ vi.mock('../../db/chat/messageRepository.js', () => ({
 }));
 
 vi.mock('../chat-core.js', () => ({
-  resolveModel: vi.fn(async (routingProfileId: string) =>
-    H.resolvesToModel
-      ? {
-          routingProfileId,
-          provider: 'upstream',
-          modelId: 'upstream-model',
-          keyConfig: { provider: 'upstream', key: 'secret-not-for-clients', modelId: 'upstream-model' },
-        }
-      : null,
-  ),
+  resolveUtilityModel: vi.fn(async () => {
+    if (!H.resolvesToModel) throw new Error('No utility model is available in the catalogue');
+    return {
+      provider: 'upstream',
+      modelId: 'upstream-model',
+      keyConfig: { provider: 'upstream', modelId: 'upstream-model' },
+    };
+  }),
   getAIModel: vi.fn(() => ({ id: 'title-model' })),
 }));
 
@@ -194,15 +192,15 @@ afterEach(() => {
 /* -------------------------------------------------------------------------- */
 
 describe('a title is generated from the first user message (#139 ws6)', () => {
-  it('asks the cheapest tier, on the user message, and cleans the answer', async () => {
+  it('asks the utility model, on the user message, and cleans the answer', async () => {
     H.titleText = '  "Oat milk preferences."  ';
     const title = await generateTitle('what do I take in my coffee');
 
     expect(title).toBe('Oat milk preferences');
-    // The cheap tier is the point: titling every new conversation on the same
-    // model that answers it would double the cost of a first turn.
-    const { resolveModel } = await import('../chat-core.js');
-    expect(vi.mocked(resolveModel).mock.calls[0]?.[0]).toBe('route:instant');
+    // The utility model is the point: titling every new conversation on the
+    // same model that answers it would double the cost of a first turn.
+    const { resolveUtilityModel } = await import('../chat-core.js');
+    expect(vi.mocked(resolveUtilityModel)).toHaveBeenCalledTimes(1);
     expect(H.titlePrompts).toEqual(['what do I take in my coffee']);
   });
 
@@ -294,11 +292,11 @@ describe('no title is never silent (operator logs, never the response body)', ()
     });
   });
 
-  it('says so when no provider key could serve the cheap tier', async () => {
+  it('says so when the catalogue offers no utility model', async () => {
     H.resolvesToModel = false;
 
     expect(await generateTitle('what do I take in my coffee')).toBeNull();
-    expect(faults()).toEqual(['Title generation skipped: no model available']);
+    expect(faults()).toEqual(['Title generation failed']);
     // And it never reached the model, so this is the resolver and not the call.
     expect(H.titlePrompts).toEqual([]);
   });
@@ -309,15 +307,12 @@ describe('no title is never silent (operator logs, never the response body)', ()
     expect(await generateTitle('what do I take in my coffee')).toBeNull();
     expect(faults()).toEqual(['Title generation failed']);
 
-    // `resolveModel` throws for an unregistered identifier and for a policy that
-    // forbids fallback. Neither is reachable for `route:instant` today — it is
-    // registered and its preset is `cross-model` — but the call used to sit
-    // OUTSIDE the try, so the day a preset narrows, the throw leaves this
-    // function and lands in `provider-loop`'s catch, the one place that cannot
-    // name it. Asserted at the source because the reachable inputs cannot
-    // produce it.
+    // `resolveUtilityModel` throws when the catalogue is unreachable or offers
+    // no fit model. The call used to sit OUTSIDE the try, so the throw left this
+    // function and landed in `provider-loop`'s catch, the one place that cannot
+    // name it. Asserted at the source as well as by the case above.
     const saver = code('lib/conversation-saver.ts');
-    expect(saver).toMatch(/try \{\s*const resolved = await resolveModel\('route:instant'\);/);
+    expect(saver).toMatch(/try \{\s*const resolved = await resolveUtilityModel\(\);/);
   });
 
   it('the provider loop logs what it catches instead of discarding it', () => {

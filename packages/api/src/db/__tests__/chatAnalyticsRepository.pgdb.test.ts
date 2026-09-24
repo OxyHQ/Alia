@@ -4,7 +4,9 @@ import { closePostgres, connectPostgres, type ApiDatabase } from '../index';
 import {
   aggregateCreditsByDay,
   aggregateUsageByDay,
+  aggregateModelTurnsSince,
   aggregateUsageByModel,
+  findLastUsedModel,
   insertChatAnalytics,
 } from '../usage/chatAnalyticsRepository';
 import { chatAnalytics } from '../schema/usage';
@@ -42,27 +44,26 @@ const SINCE = () => daysAgo(365);
 let seq = 0;
 async function seed(row: {
   oxyUserId: string;
-  routingProfileId: string;
+  model: string;
   requestedModelId?: string;
   totalTokens?: number;
   latencyMs?: number;
+  errorClass?: string | null;
   createdAt?: Date;
 }): Promise<void> {
   const marker = `ca-marker-${String(++seq)}`;
   await insertChatAnalytics(db, {
     oxyUserId: row.oxyUserId,
     conversationId: marker,
-    routingProfileId: row.routingProfileId,
-    requestedModelId: row.requestedModelId ?? row.routingProfileId,
-    requestedModelKind: 'routing_profile',
-    requestedProfileId: row.requestedModelId ?? row.routingProfileId,
+    model: row.model,
+    requestedModelId: row.requestedModelId ?? row.model,
     reasoningEffort: null,
     promptTokens: 0,
     completionTokens: 0,
     totalTokens: row.totalTokens ?? 0,
     latencyMs: row.latencyMs ?? 0,
     timeToFirstTokenMs: null,
-    errorClass: null,
+    errorClass: row.errorClass ?? null,
     cancelled: false,
     resolvedModelReference: null,
     platform: 'app',
@@ -82,11 +83,9 @@ describe('insertChatAnalytics', () => {
     await insertChatAnalytics(db, {
       oxyUserId,
       conversationId: 'ca-conv-1',
-      routingProfileId: 'route:pro-standard',
-      requestedModelId: 'route:thinking',
-      requestedModelKind: 'routing_profile',
-      requestedProfileId: 'route:thinking',
-      reasoningEffort: 'extended',
+      model: 'acme/served-1',
+      requestedModelId: 'acme/asked-1',
+      reasoningEffort: 'high',
       promptTokens: 11,
       completionTokens: 22,
       totalTokens: 33,
@@ -106,7 +105,7 @@ describe('insertChatAnalytics', () => {
     if (!row) throw new Error('no row written');
 
     /**
-     * `conversation_id`, `routing_profile_id` and the skill column were absent from
+     * `conversation_id`, the model and the skill column were absent from
      * the table when it landed while the hook wrote all three. A port without
      * them type-checks, inserts cleanly and throws the values away.
      *
@@ -115,23 +114,18 @@ describe('insertChatAnalytics', () => {
      * replaced could only ever record one of them.
      */
     expect(row.conversationId).toBe('ca-conv-1');
-    expect(row.routingProfileId).toBe('route:pro-standard');
+    expect(row.model).toBe('acme/served-1');
     expect(row.skillNames).toEqual(['ca-skill-1', 'ca-skill-2']);
     expect(row.platform).toBe('web');
     expect(row.promptTokens).toBe(11);
 
     /**
      * #139 ws19 and ws5. The requested identifier is a DIFFERENT value from the
-     * resolved profile in this fixture, so a column that silently mirrored the other one
-     * fails here rather than passing on a row where they happen to agree.
+     * served model in this fixture, so a column that silently mirrored the other
+     * one fails here rather than passing on a row where they happen to agree.
      */
-    expect(row.requestedModelId).toBe('route:thinking');
-    // The SHAPE and the profile beside the string, so a later query does not
-    // have to read `route:thinking` as a model choice — and the reasoning
-    // request is in its own column rather than buried in that identifier.
-    expect(row.requestedModelKind).toBe('routing_profile');
-    expect(row.requestedProfileId).toBe('route:thinking');
-    expect(row.reasoningEffort).toBe('extended');
+    expect(row.requestedModelId).toBe('acme/asked-1');
+    expect(row.reasoningEffort).toBe('high');
     expect(row.timeToFirstTokenMs).toBe(55);
     expect(row.resolvedModelReference).toBe('openai/gpt-5-mini@2026-08-18');
     expect(row.errorClass).toBe('RATE_LIMITED');
@@ -147,30 +141,16 @@ describe('insertChatAnalytics', () => {
    * repository already makes both fields required, and a type is not what stops
    * a raw `db.insert` or a backfill script.
    */
-  it('refuses a row that cannot say what was asked for, or what kind of thing it was', async () => {
+  it('refuses a row that cannot say what was asked for', async () => {
     const missingRequested = db
       .insert(chatAnalytics)
-      .values({ oxyUserId: 'ca-null-requested', routingProfileId: 'route:auto', requestedModelKind: 'routing_profile' } as never);
+      .values({ oxyUserId: 'ca-null-requested', model: 'acme/m' } as never);
     await expect(missingRequested).rejects.toThrow(/requested_model_id/);
 
-    // The kind is NOT NULL for the same reason the identifier is: a row that
-    // records `route:pro-standard` without saying it is a routing profile is a row every
-    // later query is free to read as a model choice.
-    const missingKind = db
-      .insert(chatAnalytics)
-      .values({ oxyUserId: 'ca-null-kind', routingProfileId: 'route:auto', requestedModelId: 'route:auto' } as never);
-    await expect(missingKind).rejects.toThrow(/requested_model_kind/);
-
-    // The positive control: the same insert with both present succeeds, so the
-    // two rejections above are about the nulls and not about the statement.
+    // The positive control: the same insert with it present succeeds.
     await db
       .insert(chatAnalytics)
-      .values({
-        oxyUserId: 'ca-null-control',
-        routingProfileId: 'route:auto',
-        requestedModelId: 'route:auto',
-        requestedModelKind: 'routing_profile',
-      });
+      .values({ oxyUserId: 'ca-null-control', model: 'acme/m', requestedModelId: 'acme/m' });
     const rows = await db
       .select()
       .from(chatAnalytics)
@@ -191,7 +171,7 @@ describe('insertChatAnalytics', () => {
    * The test therefore asserts the OPPOSITE of what a tidy-up would: the
    * columns are still there, they are nullable, and a new row leaves them null.
    */
-  it('retains the provider-identifying columns while writing neither', async () => {
+  it('retains the provider column without writing it, and writes the model', async () => {
     // Read off `information_schema`, not off the drizzle table object: the
     // schema module and the migration can disagree, and the server decides.
     const columns = await db.execute<{ column_name: string; is_nullable: string }>(
@@ -201,21 +181,21 @@ describe('insertChatAnalytics', () => {
     const byName = new Map([...columns].map((column) => [column.column_name, column.is_nullable]));
 
     // The floor first: the query found the real table.
-    expect(byName.has('routing_profile_id')).toBe(true);
     expect(byName.has('requested_model_id')).toBe(true);
     expect(byName.size).toBeGreaterThan(10);
 
-    // Retained, and widened so the writer can stop filling them.
+    // Retained and nullable. The routing-profile columns are gone (0079).
     expect(byName.get('model')).toBe('YES');
     expect(byName.get('provider')).toBe('YES');
+    expect(byName.has('routing_profile_id')).toBe(false);
+    expect(byName.has('requested_model_kind')).toBe(false);
+    expect(byName.has('requested_profile_id')).toBe(false);
 
     const oxyUserId = 'ca-retained-columns';
     await insertChatAnalytics(db, {
       oxyUserId,
-      routingProfileId: 'route:auto',
-      requestedModelId: 'route:auto',
-      requestedModelKind: 'routing_profile',
-      requestedProfileId: 'route:auto',
+      model: 'acme/m',
+      requestedModelId: 'acme/m',
       reasoningEffort: null,
       promptTokens: 0,
       completionTokens: 0,
@@ -232,10 +212,9 @@ describe('insertChatAnalytics', () => {
       .select({ model: chatAnalytics.model, provider: chatAnalytics.provider })
       .from(chatAnalytics)
       .where(sql`${chatAnalytics.oxyUserId} = ${oxyUserId}`);
-    // Written by nothing: the repository has no parameter for either, so a new
-    // row leaves them null rather than filling them with the routing profile and the
-    // string 'unknown' as every row since 2026-03-12 did.
-    expect(row?.model).toBeNull();
+    // `model` is the `publisher/model` the turn ran on; the serving operator
+    // is never written.
+    expect(row?.model).toBe('acme/m');
     expect(row?.provider).toBeNull();
   });
 
@@ -243,11 +222,11 @@ describe('insertChatAnalytics', () => {
     // The other half of "replace the provider/model fields": the columns exist
     // and no aggregate selects them, so nothing they hold can reach a response.
     const oxyUserId = 'ca-read-path';
-    await seed({ oxyUserId, routingProfileId: 'route:auto', totalTokens: 3 });
+    await seed({ oxyUserId, model: 'acme/m', totalTokens: 3 });
 
     const [byModel] = await aggregateUsageByModel(db, oxyUserId, SINCE());
     expect(Object.keys(byModel ?? {}).sort()).toEqual(['_id', 'avgLatency', 'count', 'totalTokens']);
-    expect(byModel?._id).toBe('route:auto');
+    expect(byModel?._id).toBe('acme/m');
   });
 
   it('accepts every AliaErrorCode, because the column has no CHECK', async () => {
@@ -261,10 +240,8 @@ describe('insertChatAnalytics', () => {
     for (const code of codes) {
       await insertChatAnalytics(db, {
         oxyUserId,
-        routingProfileId: 'route:auto',
-        requestedModelId: 'route:auto',
-        requestedModelKind: 'routing_profile',
-        requestedProfileId: 'route:auto',
+        model: 'acme/m',
+        requestedModelId: 'acme/m',
         reasoningEffort: null,
         promptTokens: 0,
         completionTokens: 0,
@@ -287,42 +264,33 @@ describe('insertChatAnalytics', () => {
 });
 
 describe('aggregateUsageByModel', () => {
-  it('groups under the resolved Kaana routing profile, not the provider model id', async () => {
-    const oxyUserId = 'ca-profile-grouping';
-    await seed({ oxyUserId, routingProfileId: 'route:pro-standard', requestedModelId: 'route:pro-standard', totalTokens: 10 });
-    await seed({ oxyUserId, routingProfileId: 'route:pro-standard', requestedModelId: 'route:auto', totalTokens: 20 });
+  it('groups under the model the turn ran on, not what was asked for', async () => {
+    const oxyUserId = 'ca-model-grouping';
+    await seed({ oxyUserId, model: 'acme/served', requestedModelId: 'acme/served', totalTokens: 10 });
+    await seed({ oxyUserId, model: 'acme/served', requestedModelId: 'acme/other', totalTokens: 20 });
 
     const rows = await aggregateUsageByModel(db, oxyUserId, SINCE());
-
-    /**
-     * The load-bearing assertion of this whole table. Two turns the caller
-     * asked for under DIFFERENT names, served by ONE Kaana routing profile, must collapse
-     * to one group named by that profile — because the route resolves that key
-     * through `getRoutingProfile()` and DROPS whatever will not resolve. Grouped by
-     * `requested_model_id` this returns two groups, and a caller who asked for
-     * something unregistered would see their usage vanish from the answer.
-     */
     expect(rows).toHaveLength(1);
-    expect(rows[0]?._id).toBe('route:pro-standard');
+    expect(rows[0]?._id).toBe('acme/served');
     expect(rows[0]?.count).toBe(2);
     expect(rows[0]?.totalTokens).toBe(30);
   });
 
   it('orders busiest first and returns NUMBERS for every aggregate', async () => {
     const oxyUserId = 'ca-model-order';
-    await seed({ oxyUserId, routingProfileId: 'route:auto', totalTokens: 100, latencyMs: 200 });
-    await seed({ oxyUserId, routingProfileId: 'route:auto', totalTokens: 300, latencyMs: 400 });
-    await seed({ oxyUserId, routingProfileId: 'route:instant', totalTokens: 1, latencyMs: 10 });
+    await seed({ oxyUserId, model: 'acme/busy', totalTokens: 100, latencyMs: 200 });
+    await seed({ oxyUserId, model: 'acme/busy', totalTokens: 300, latencyMs: 400 });
+    await seed({ oxyUserId, model: 'acme/quiet', totalTokens: 1, latencyMs: 10 });
 
     const rows = await aggregateUsageByModel(db, oxyUserId, SINCE());
-    expect(rows.map((r) => r._id)).toEqual(['route:auto', 'route:instant']);
+    expect(rows.map((r) => r._id)).toEqual(['acme/busy', 'acme/quiet']);
 
     const busy = rows[0];
     /**
      * Three separate decodings, three separate ways to get a string:
      * `count(*)` and `sum(integer)` are `bigint`, and **`avg(integer)` is
      * `numeric`** — the one that does not look like the others. Two rows are
-     * seeded for `route:auto` precisely so a concatenation is visible: without
+     * seeded for `acme/busy` precisely so a concatenation is visible: without
      * the casts `totalTokens` comes back `"100300"` and `avgLatency` `"300.00"`.
      */
     expect(typeof busy?.count).toBe('number');
@@ -344,9 +312,9 @@ describe('aggregateUsageByDay', () => {
       d.setUTCHours(12, 0, 0, 0);
       return d;
     };
-    await seed({ oxyUserId, routingProfileId: 'a', totalTokens: 10, latencyMs: 100, createdAt: day(30) });
-    await seed({ oxyUserId, routingProfileId: 'a', totalTokens: 20, latencyMs: 300, createdAt: day(30) });
-    await seed({ oxyUserId, routingProfileId: 'a', totalTokens: 5, latencyMs: 50, createdAt: day(29) });
+    await seed({ oxyUserId, model: 'acme/a', totalTokens: 10, latencyMs: 100, createdAt: day(30) });
+    await seed({ oxyUserId, model: 'acme/a', totalTokens: 20, latencyMs: 300, createdAt: day(30) });
+    await seed({ oxyUserId, model: 'acme/a', totalTokens: 5, latencyMs: 50, createdAt: day(29) });
 
     const rows = await aggregateUsageByDay(db, oxyUserId, SINCE());
     expect(rows).toHaveLength(2);
@@ -364,7 +332,7 @@ describe('aggregateUsageByDay', () => {
     // readings disagree — which is the whole point.
     const instant = new Date(Date.now() - 60 * DAY_MS);
     instant.setUTCHours(23, 30, 0, 0);
-    await seed({ oxyUserId, routingProfileId: 'a', totalTokens: 1, createdAt: instant });
+    await seed({ oxyUserId, model: 'acme/a', totalTokens: 1, createdAt: instant });
 
     const utcLabel = instant.toISOString().slice(0, 10);
     const localLabel = new Date(instant.getTime() + 14 * 60 * 60 * 1000).toISOString().slice(0, 10);
@@ -395,9 +363,9 @@ describe('aggregateCreditsByDay', () => {
       d.setUTCHours(9, 0, 0, 0);
       return d;
     };
-    await seed({ oxyUserId, routingProfileId: 'a', totalTokens: 7, createdAt: day(11) });
-    await seed({ oxyUserId, routingProfileId: 'a', totalTokens: 3, createdAt: day(10) });
-    await seed({ oxyUserId, routingProfileId: 'a', totalTokens: 4, createdAt: day(10) });
+    await seed({ oxyUserId, model: 'acme/a', totalTokens: 7, createdAt: day(11) });
+    await seed({ oxyUserId, model: 'acme/a', totalTokens: 3, createdAt: day(10) });
+    await seed({ oxyUserId, model: 'acme/a', totalTokens: 4, createdAt: day(10) });
 
     const rows = await aggregateCreditsByDay(db, oxyUserId, SINCE());
     expect(rows.map((r) => r._id)).toEqual([
@@ -416,8 +384,8 @@ describe('the window', () => {
     const oxyUserId = 'ca-window';
     const old = new Date(Date.now() - 400 * DAY_MS);
     const recent = new Date(Date.now() - 2 * DAY_MS);
-    await seed({ oxyUserId, routingProfileId: 'a', totalTokens: 111, createdAt: old });
-    await seed({ oxyUserId, routingProfileId: 'a', totalTokens: 222, createdAt: recent });
+    await seed({ oxyUserId, model: 'acme/a', totalTokens: 111, createdAt: old });
+    await seed({ oxyUserId, model: 'acme/a', totalTokens: 222, createdAt: recent });
 
     const inWindow = await aggregateUsageByModel(db, oxyUserId, daysAgo(30));
     expect(inWindow).toHaveLength(1);
@@ -433,5 +401,33 @@ describe('the window', () => {
   it('answers with no rows rather than an error when nothing matches', async () => {
     const rows = await aggregateUsageByDay(db, 'ca-nobody-at-all', SINCE());
     expect(rows).toEqual([]);
+  });
+});
+
+describe('the usage that drives automatic selection', () => {
+  it('counts successful turns per model across everyone, excluding failures', async () => {
+    await seed({ oxyUserId: 'ca-usage-1', model: 'ca-usage/alpha' });
+    await seed({ oxyUserId: 'ca-usage-2', model: 'ca-usage/alpha' });
+    await seed({ oxyUserId: 'ca-usage-2', model: 'ca-usage/beta' });
+    await seed({ oxyUserId: 'ca-usage-2', model: 'ca-usage/beta', errorClass: 'RATE_LIMITED' });
+    await seed({ oxyUserId: 'ca-usage-3', model: 'ca-usage/old', createdAt: daysAgo(90) });
+
+    // Scoped to this file's own model ids: the table is shared by the whole run.
+    const mine = (await aggregateModelTurnsSince(db, daysAgo(30)))
+      .filter((row) => row.modelId.startsWith('ca-usage/'))
+      .sort((a, b) => a.modelId.localeCompare(b.modelId));
+    expect(mine).toEqual([
+      { modelId: 'ca-usage/alpha', turns: 2 },
+      { modelId: 'ca-usage/beta', turns: 1 },
+    ]);
+  });
+
+  it('a person’s last-used model is their most recent successful turn', async () => {
+    const oxyUserId = 'ca-last-used';
+    await seed({ oxyUserId, model: 'acme/older', createdAt: daysAgo(3) });
+    await seed({ oxyUserId, model: 'acme/newer', createdAt: daysAgo(1) });
+    await seed({ oxyUserId, model: 'acme/failed', errorClass: 'TIMEOUT' });
+    expect(await findLastUsedModel(db, oxyUserId)).toBe('acme/newer');
+    expect(await findLastUsedModel(db, 'ca-last-used-nobody')).toBeNull();
   });
 });

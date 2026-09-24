@@ -3,7 +3,7 @@ import { generateText } from 'ai';
 
 import { buildBaseConfig } from '../model-config.js';
 import type { ResolvedModel } from '../../chat-core.js';
-import type { EffortLevel } from '../../reasoning-effort.js';
+import type { ReasoningEffort } from '../../models/catalogue.js';
 
 const mocks = vi.hoisted(() => ({
   requests: [] as Array<Record<string, unknown>>,
@@ -36,21 +36,17 @@ vi.mock('../../inference/oxy-inference.js', () => {
 
 function resolved(): ResolvedModel {
   return {
-    routingProfileId: 'route:thinking',
     provider: 'kaana',
-    publisher: 'kaana',
-    model: 'route:thinking',
-    modelId: 'route:thinking',
-    keyConfig: { provider: 'kaana', modelId: 'route:thinking' },
-    oxyInferenceTarget: {
-      kind: 'routing_profile_id',
-      routingProfileId: '01a06477-94f5-74f0-bc25-628b5f45d802',
-    },
-    routingProfile: { id: 'route:thinking' },
-  } as ResolvedModel;
+    publisher: 'acme',
+    model: 'thinker-1',
+    modelId: 'acme/thinker-1',
+    keyConfig: { provider: 'kaana', modelId: 'acme/thinker-1' },
+    oxyInferenceTarget: { kind: 'model', model: 'acme/thinker-1' },
+    catalogue: null,
+  };
 }
 
-async function requestFor(reasoningEffort: EffortLevel | null, serviceToken?: string): Promise<Record<string, unknown>> {
+async function requestFor(reasoningEffort: ReasoningEffort | null, serviceToken?: string): Promise<Record<string, unknown>> {
   const { config, clearFirstByteTimer } = buildBaseConfig({
     resolved: resolved(),
     body: {},
@@ -78,15 +74,19 @@ beforeEach(() => {
 });
 
 describe('reasoning crosses the Oxy inference boundary', () => {
-  it('keeps reasoning in the selected routing profile', async () => {
-    expect(await requestFor('max')).toMatchObject({
-      routingProfileId: '01a06477-94f5-74f0-bc25-628b5f45d802',
-    });
-    expect(await requestFor('max')).not.toHaveProperty('routingProfile');
+  it('sends the selected model with the effort as reasoning.effort', async () => {
+    const request = await requestFor('high');
+    expect(request).toMatchObject({ model: 'acme/thinker-1', reasoning: { effort: 'high' } });
+    expect(request).not.toHaveProperty('routingProfileId');
+    expect(request).not.toHaveProperty('routingProfile');
+  });
+
+  it('sends no reasoning field when no effort was asked for', async () => {
+    expect(await requestFor(null)).not.toHaveProperty('reasoning');
   });
 
   it('does not construct provider-specific options in Alia', async () => {
-    const wire = JSON.stringify(await requestFor('max'));
+    const wire = JSON.stringify(await requestFor('medium'));
     expect(wire).not.toContain('providerOptions');
     expect(wire).not.toContain('budgetTokens');
     expect(wire).not.toContain('thinkingConfig');
@@ -132,7 +132,7 @@ describe('the served revision comes back off the wire', () => {
     await generateText(call as Parameters<typeof generateText>[0]);
 
     expect(seen).toEqual(['openai/gpt-5-mini@2026-08-18']);
-    // The served revision, never the requested profile echoed back.
-    expect(seen[0]).not.toBe('route:thinking');
+    // The served revision, never the requested model echoed back.
+    expect(seen[0]).not.toBe('acme/thinker-1');
   });
 });

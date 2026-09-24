@@ -34,7 +34,7 @@ import {
   type ShowEpisodeRow,
   type ShowSeriesRow,
 } from '../../db/shows/showRepository.js';
-import { resolveModel, getAIModel, getDefaultRoutingProfile } from '../chat-core.js';
+import { resolveUtilityModel, getAIModel } from '../chat-core.js';
 import { synthesizeSpeech } from '../synthesize-speech.js';
 import { deleteS3Objects, uploadToS3 } from '../s3.js';
 import {
@@ -629,7 +629,7 @@ async function generateScript(
   // never being asked to choose.
   const needsTopic = episode.topic === null;
 
-  const resolved = await resolveModel(getDefaultRoutingProfile());
+  const resolved = await resolveUtilityModel().catch(() => null);
   for (let attempt = 0; resolved && attempt < MAX_ATTEMPTS; attempt++) {
     try {
       const result = await generateText({

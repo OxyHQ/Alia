@@ -40,7 +40,7 @@ export interface NonStreamingParams {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- AI SDK config is dynamically extended; strict SDK param types don't support this pattern
   baseConfig: any;
   clearFirstByteTimer: () => void;
-  routingProfileId: string;
+  modelId: string;
   /** What the caller asked for, before resolution. Recorded in analytics. */
   requestedModel: string;
   /** The reasoning parameter, computed once by the provider loop. */
@@ -68,7 +68,7 @@ export interface NonStreamingParams {
 export async function runNonStreaming(params: NonStreamingParams): Promise<void> {
   const {
     req, res, requestId, globalTimer, baseConfig, clearFirstByteTimer,
-    routingProfileId, requestedModel, reasoningEffort, conversationId, messages, creditReservation,
+    modelId, requestedModel, reasoningEffort, conversationId, messages, creditReservation,
     systemPromptTokens, requestStartTime, skills, autonomyRuntime, toolNameMapping,
     observation, settlement,
   } = params;
@@ -115,7 +115,7 @@ export async function runNonStreaming(params: NonStreamingParams): Promise<void>
     userId: req.user?.id,
     conversationId,
     messages,
-    routingProfileId,
+    modelId,
     requestedModel,
     reasoningEffort,
     creditReservation,
@@ -153,7 +153,7 @@ export async function runNonStreaming(params: NonStreamingParams): Promise<void>
   // Return OpenAI-compatible non-streaming response
   res.json(buildCompletionResponse({
     requestId,
-    model: routingProfileId,
+    model: modelId,
     content: assistantResponse,
     finishReason: result.finishReason || 'stop',
     toolCalls,

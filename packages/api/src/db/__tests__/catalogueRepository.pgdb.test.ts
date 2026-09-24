@@ -8,7 +8,6 @@ import {
   insertPlan,
   seedPlan,
   selectPlans,
-  setPlanModelIds,
   updatePlanByPlanId,
 } from '../billing/planRepository';
 import type { ConfigAuditActor } from '../../lib/security/config-audit';
@@ -32,12 +31,10 @@ import {
 import { creditPackages, planFeatures, plans } from '../schema/billing';
 
 /**
- * Both audited writers take an actor and neither defaults one, so every call
- * here names who is asking. `seed` and `user` are different answers and the
- * record has to be able to tell them apart.
+ * The audited writer takes an actor and does not default one, so every call
+ * here names who is asking.
  */
 const SEED: ConfigAuditActor = { kind: 'seed', id: 'catalogueRepository.pgdb.test.ts' };
-const ACTOR: ConfigAuditActor = { kind: 'user', id: 'oxy-user-1' };
 
 /**
  * The pricing catalogue — `plans`, `features`, `plan_features`,
@@ -134,7 +131,7 @@ describe('plans', () => {
 
 describe('seedPlan', () => {
   it('reports INSERTED on the first run and not on the second', async () => {
-    const values = aPlan('cat-seed', { modelIds: ['m1'], name: 'Seeded', monthlyPrice: 500 });
+    const values = aPlan('cat-seed', { name: 'Seeded', monthlyPrice: 500 });
 
     expect((await seedPlan(db, values, SEED)).inserted).toBe(true);
     /**
@@ -145,35 +142,16 @@ describe('seedPlan', () => {
      * fresh seed. `DO NOTHING RETURNING` returns NO ROW on conflict, so the
      * empty result IS the conflict branch and `xmax` is not needed.
      */
-    expect((await seedPlan(db, { ...values, modelIds: ['m2'] }, SEED)).inserted).toBe(false);
+    expect((await seedPlan(db, { ...values, name: 'Seeded again' }, SEED)).inserted).toBe(false);
   });
 
-  it('NEVER overwrites the model list of a plan that already exists', async () => {
-    /**
-     * The inverted assertion, and the design change it records.
-     *
-     * This test read *"re-syncs the code-managed modelIds and leaves
-     * admin-managed fields alone"* and asserted `modelIds` came back as the
-     * seed's value. That was the Mongo-era contract, and #139 workstream 14
-     * reverses it: `setPlanModelIds` is the authority for which models a plan
-     * grants, so a boot writer that re-asserted the list would silently revert
-     * every product-team change on the next deploy. A runtime writer and a boot
-     * writer cannot both own one column.
-     *
-     * The old expectation is not deleted, it is inverted: `['new']` was the
-     * pass, and it is now the failure.
-     */
-    await seedPlan(db, aPlan('cat-seed-sync', { modelIds: ['old'], name: 'Original', monthlyPrice: 100 }), SEED);
-    // Somebody changes the plan through the runtime writer and the API...
-    await setPlanModelIds(db, 'cat-seed-sync', ['chosen'], ACTOR);
+  it('NEVER overwrites a plan that already exists', async () => {
+    await seedPlan(db, aPlan('cat-seed-sync', { name: 'Original', monthlyPrice: 100 }), SEED);
     await updatePlanByPlanId(db, 'cat-seed-sync', { name: 'Admin renamed', monthlyPrice: 999 });
     // ...and the next boot re-seeds.
-    await seedPlan(db, aPlan('cat-seed-sync', { modelIds: ['new'], name: 'Original', monthlyPrice: 100 }), SEED);
+    await seedPlan(db, aPlan('cat-seed-sync', { name: 'Original', monthlyPrice: 100 }), SEED);
 
     const row = await findPlanByPlanId(db, 'cat-seed-sync');
-    // Not `['new']`. The seed no longer has an opinion about an existing row.
-    expect(row?.modelIds).toEqual(['chosen']);
-    // And every other field is still untouched, which was always the contract.
     expect(row?.name).toBe('Admin renamed');
     expect(row?.monthlyPrice).toBe(999);
   });
@@ -181,45 +159,16 @@ describe('seedPlan', () => {
   it('still creates a plan a database does not have', async () => {
     // The other direction, so "never overwrites" cannot be satisfied by never
     // writing at all.
-    await seedPlan(db, aPlan('cat-seed-fresh', { modelIds: ['route:instant'], name: 'Fresh' }), SEED);
+    await seedPlan(db, aPlan('cat-seed-fresh', { name: 'Fresh' }), SEED);
     const row = await findPlanByPlanId(db, 'cat-seed-fresh');
-    expect(row?.modelIds).toEqual(['route:instant']);
     expect(row?.name).toBe('Fresh');
   });
-});
 
-describe('setPlanModelIds', () => {
-  it('writes the model list and nothing else', async () => {
-    await insertPlan(
-      db,
-      aPlan('cat-set-models', { modelIds: ['route:instant'], name: 'Go', monthlyPrice: 399, isFree: false }),
-    );
-
-    const row = await setPlanModelIds(db, 'cat-set-models', ['route:instant', 'route:auto'], ACTOR);
-    expect(row?.modelIds).toEqual(['route:instant', 'route:auto']);
-
-    // The columns a caller must not be able to reach through this function.
-    // There is no `updates` object to widen, so this is a signature property
-    // rather than a convention — asserted anyway, because the next change to
-    // this function is the one that would break it.
-    const after = await findPlanByPlanId(db, 'cat-set-models');
-    expect(after?.name).toBe('Go');
-    expect(after?.monthlyPrice).toBe(399);
-    expect(after?.isFree).toBe(false);
-    expect(after?.planId).toBe('cat-set-models');
-  });
-
-  it('answers null for a plan that does not exist, and writes nothing', async () => {
-    expect(await setPlanModelIds(db, 'cat-set-absent', ['route:instant'], ACTOR)).toBeNull();
-    expect(await findPlanByPlanId(db, 'cat-set-absent')).toBeNull();
-  });
-
-  it('empties the list when that is what was asked for', async () => {
-    // `[]` is a decision — "this plan grants no models" — and must not be
-    // confused with "no change", which is the shape a truthy check produces.
-    await insertPlan(db, aPlan('cat-set-empty', { modelIds: ['route:instant'] }));
-    const row = await setPlanModelIds(db, 'cat-set-empty', [], ACTOR);
-    expect(row?.modelIds).toEqual([]);
+  it('plans carry no model list: every plan sees every model (ADR 0012)', async () => {
+    await seedPlan(db, aPlan('cat-seed-no-models', { name: 'Any' }), SEED);
+    const row = await findPlanByPlanId(db, 'cat-seed-no-models');
+    expect(row).not.toBeNull();
+    expect(Object.keys(row ?? {})).not.toContain('modelIds');
   });
 });
 

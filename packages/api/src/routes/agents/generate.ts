@@ -6,7 +6,7 @@ import { FIXED_CAPABILITY_FAMILIES } from '../../domain/capability-grants.js';
 import { accountCategoryChoices, isOfferedAccountCategory } from '../../lib/account-category.js';
 import { fallbackAgentUsername, suggestAgentUsername } from '../../lib/agent-identity.js';
 import { authenticateToken } from '../../middleware/auth.js';
-import { resolveModel, getAIModel, getDefaultRoutingProfile } from '../../lib/chat-core.js';
+import { resolveUtilityModel, getAIModel } from '../../lib/chat-core.js';
 import { log } from '../../lib/logger.js';
 import type { Request, Response } from 'express';
 
@@ -25,12 +25,12 @@ router.post('/generate', authenticateToken, async (req: Request, res: Response) 
       return res.status(400).json({ error: 'A prompt of at least 10 characters is required' });
     }
 
-    // A bounded retry of the same Kaana route: Kaana owns provider selection,
+    // A bounded retry of the same model: Oxy and Kaana own deployment choice,
     // so there is nothing to skip between attempts.
     const MAX_ATTEMPTS = 3;
     let result: Awaited<ReturnType<typeof generateText>> | null = null;
 
-    const resolved = await resolveModel(getDefaultRoutingProfile());
+    const resolved = await resolveUtilityModel().catch(() => null);
     if (!resolved) {
       return res.status(503).json({ error: 'No AI models available' });
     }

@@ -163,6 +163,15 @@ vi.mock('../../../lib/chat-core.js', () => ({
     const answer = answers.length > 1 ? answers.shift() : answers[0];
     return answer ?? null;
   }),
+  resolveDefaultModel: vi.fn(async () => {
+    const answers = H.state.resolveAnswers;
+    const answer = answers.length > 1 ? answers.shift() : answers[0];
+    return answer ?? null;
+  }),
+  // The research engine's own calls: the utility model for its steps and the
+  // turn's model for the write-up. Answered without consuming the queue.
+  resolveUtilityModel: vi.fn(async () => H.state.resolveAnswers[0] ?? null),
+  resolveStoredModel: vi.fn(async () => H.state.resolveAnswers[0] ?? null),
   getAIModel: vi.fn(() => ({
     specificationVersion: 'v3',
     provider: H.UPSTREAM_PROVIDER,
@@ -197,7 +206,6 @@ vi.mock('../../../lib/chat-core.js', () => ({
   reportModelUsage: vi.fn(async (_keyId: unknown, _provider: unknown, _modelId: unknown, success: boolean) => {
     H.timeline.push(`provider:reportUsage:${success ? 'ok' : 'fail'}`);
   }),
-  getDefaultRoutingProfile: vi.fn(() => 'route:auto'),
 }));
 
 /**
@@ -222,11 +230,6 @@ vi.mock('../../../lib/inference/user-runtime-bridge.js', async () => {
   );
   return { ...actual, userRuntimeCanServe: vi.fn(async () => LOCAL.connected) };
 });
-
-vi.mock('../../../lib/gateway-client.js', () => ({
-  getRoutingProfile: vi.fn(async (id: string) => ({ id, name: 'Auto', tier: 'v1', creditMultiplier: 1 })),
-  getModelMappingsForTier: vi.fn(async () => [{ provider: H.UPSTREAM_PROVIDER, modelId: H.UPSTREAM_MODEL_ID, capabilities: { maxContextTokens: 128000 } }]),
-}));
 
 vi.mock('../../../lib/credits-manager.js', () => ({
   reserveCredits: vi.fn(async () => {
@@ -387,6 +390,7 @@ vi.mock('../../../lib/logger.js', () => {
 
 import { handleChatCompletions } from '../chat-completions.js';
 import { resolveModel } from '../../../lib/chat-core.js';
+import { ModelNotFoundError } from '../../../lib/models/errors.js';
 import { clearAgentAccountVerdicts } from '../../../lib/agent-account.js';
 
 // ── Frame classification: the recorder, pinned by its own tests below ───────
@@ -555,12 +559,20 @@ const callTool = (id: string, toolName: string, input: string) => [
   { type: 'tool-call', toolCallId: id, toolName, input },
 ];
 
+/**
+ * The catalogue model every fixture runs on — a real `publisher/model`, which
+ * the product DOES show (ADR 0012). What must never reach a client is the
+ * serving operator and its deployment id (`UPSTREAM_*`).
+ */
+const CHAT_MODEL = 'acme/chat-1';
 const RESOLVED = {
-  routingProfileId: 'route:auto',
-  provider: UPSTREAM_PROVIDER,
-  modelId: UPSTREAM_MODEL_ID,
-  keyConfig: { provider: UPSTREAM_PROVIDER, key: 'secret-not-for-clients', modelId: UPSTREAM_MODEL_ID, keyId: 'key-ws13' },
-  routingProfile: { name: 'Auto', creditMultiplier: 1 },
+  provider: 'kaana',
+  publisher: 'acme',
+  model: 'chat-1',
+  modelId: CHAT_MODEL,
+  keyConfig: { provider: 'kaana', modelId: CHAT_MODEL },
+  oxyInferenceTarget: { kind: 'model', model: CHAT_MODEL },
+  catalogue: { id: CHAT_MODEL, name: 'Chat 1', publisher: { id: 'acme', name: 'Acme' }, contextWindow: 128000, reasoningEfforts: [] },
 };
 
 const RESERVATION = { userId: 'user-ws13', creditsReserved: 1, initialFreeCredits: 100, initialPaidCredits: 0 };
@@ -568,7 +580,6 @@ const RESERVATION = { userId: 'user-ws13', creditsReserved: 1, initialFreeCredit
 const ENTITLEMENTS = {
   tier: 'free',
   features: {},
-  allowedModelIds: ['route:auto', 'route:instant', 'route:code', 'route:cowork'],
 };
 
 /**
@@ -698,7 +709,7 @@ describe('fixture: an explicit agent id is fail-closed at the streaming route', 
     accessToken: 'bearer-user-ws13',
     body: {
       messages: [{ role: 'user', content: 'answer as the selected agent' }],
-      model: 'route:auto',
+      model: CHAT_MODEL,
       stream: true,
       agentId,
     },
@@ -780,7 +791,7 @@ describe('fixture: app chat flow — streaming, direct user session, one server 
     const req = recordingReq({
       body: {
         messages: [{ role: 'user', content: 'what day is it' }],
-        model: 'route:auto',
+        model: CHAT_MODEL,
         stream: true,
         conversationId: 'conv-ws13',
         stream_options: { include_usage: true },
@@ -834,7 +845,7 @@ describe('fixture: app chat flow — streaming, direct user session, one server 
   });
 
   it('recall reaches the model call, not merely precedes it', async () => {
-    const body = { messages: [{ role: 'user', content: 'what day is it' }], model: 'route:auto', stream: true, conversationId: 'conv-ws13' };
+    const body = { messages: [{ role: 'user', content: 'what day is it' }], model: CHAT_MODEL, stream: true, conversationId: 'conv-ws13' };
     await run(recordingReq({ body: { ...body } }), recordingRes());
 
     // Ordering alone is a weak claim: a recall that ran first and was then
@@ -860,7 +871,7 @@ describe('fixture: app chat flow — streaming, direct user session, one server 
 
   it('executes the tool for real between the call frame and the result frame', async () => {
     const req = recordingReq({
-      body: { messages: [{ role: 'user', content: 'what day is it' }], model: 'route:auto', stream: true, conversationId: 'conv-ws13' },
+      body: { messages: [{ role: 'user', content: 'what day is it' }], model: CHAT_MODEL, stream: true, conversationId: 'conv-ws13' },
     });
     const res = recordingRes();
     const before = Date.now();
@@ -893,7 +904,7 @@ describe('fixture: app chat flow — streaming, direct user session, one server 
     const req = recordingReq({
       body: {
         messages: [{ role: 'user', content: 'what day is it' }],
-        model: 'route:auto',
+        model: CHAT_MODEL,
         stream: true,
         conversationId: 'conv-ws13',
         stream_options: { include_usage: true },
@@ -908,15 +919,15 @@ describe('fixture: app chat flow — streaming, direct user session, one server 
     expect(named).toEqual(['alia.context', 'alia.tool_result', 'alia.title']);
 
     // The generic half: every `data:` frame that is not the terminator carries
-    // the OpenAI chunk envelope, and the model field is the ALIA ALIAS — never
-    // the upstream id. This is the model-abstraction invariant, measured on the
+    // the OpenAI chunk envelope, and the model field is the CHOSEN MODEL — never
+    // the operator deployment id. This is the model-abstraction invariant, measured on the
     // bytes rather than trusted.
     const dataFrames = res.raw
       .filter((frame) => frame.startsWith('data: ') && !frame.includes('[DONE]'))
       .map((frame) => JSON.parse(frame.slice(6).trim()) as { object?: string; model?: string });
     expect(dataFrames.length).toBeGreaterThan(0);
     expect(new Set(dataFrames.map((frame) => frame.object))).toEqual(new Set(['chat.completion.chunk']));
-    expect(new Set(dataFrames.map((frame) => frame.model))).toEqual(new Set(['route:auto']));
+    expect(new Set(dataFrames.map((frame) => frame.model))).toEqual(new Set([CHAT_MODEL]));
 
     // And the same invariant over the WHOLE byte stream, named events included.
     // This is the successful path deliberately: on the all-providers-exhausted
@@ -925,14 +936,14 @@ describe('fixture: app chat flow — streaming, direct user session, one server 
     // mutating exactly that line and watching it survive. The place a provider
     // identity can actually escape is a request that resolved.
     const bytes = res.raw.join('');
-    expect(bytes).toContain('route:auto');
+    expect(bytes).toContain(CHAT_MODEL);
     expect(bytes).not.toContain(UPSTREAM_PROVIDER);
     expect(bytes).not.toContain(UPSTREAM_MODEL_ID);
   });
 
   it('does not emit an approval request over SSE — approvals are a socket surface', async () => {
     const req = recordingReq({
-      body: { messages: [{ role: 'user', content: 'what day is it' }], model: 'route:auto', stream: true, conversationId: 'conv-ws13' },
+      body: { messages: [{ role: 'user', content: 'what day is it' }], model: CHAT_MODEL, stream: true, conversationId: 'conv-ws13' },
     });
     const res = recordingRes();
     await run(req, res);
@@ -960,7 +971,7 @@ describe('fixture: app chat flow — streaming, direct user session, one server 
     const req = recordingReq({
       body: {
         messages: [{ role: 'user', content: 'what day is it' }],
-        model: 'route:auto',
+        model: CHAT_MODEL,
         stream: true,
         conversationId: 'conv-ws13',
       },
@@ -999,7 +1010,7 @@ describe('fixture: app chat flow — streaming, direct user session, one server 
     await run(recordingReq({
       body: {
         messages: [{ role: 'user', content: 'what is the weather in Barcelona?' }],
-        model: 'route:auto',
+        model: CHAT_MODEL,
         stream: true,
         conversationId: 'conv-weather',
       },
@@ -1026,7 +1037,7 @@ describe('fixture: app chat flow — streaming, direct user session, one server 
     await run(recordingReq({
       body: {
         messages: [{ role: 'user', content: 'what is the weather in Barcelona?' }],
-        model: 'route:auto',
+        model: CHAT_MODEL,
         stream: true,
         conversationId: 'conv-weather-empty',
       },
@@ -1055,7 +1066,7 @@ describe('fixture: what a failure surfaces to the user', () => {
     }) }]];
     const res = recordingRes();
     await run(recordingReq({
-      body: { messages: [{ role: 'user', content: 'hello' }], model: 'route:auto', stream: true },
+      body: { messages: [{ role: 'user', content: 'hello' }], model: CHAT_MODEL, stream: true },
     }), res);
     const bytes = res.raw.join('');
     expect(bytes).toContain('"synthetic":true');
@@ -1080,7 +1091,7 @@ describe('fixture: what a failure surfaces to the user', () => {
     H.state.streamTurns = [[streamStart, { type: 'error', error: new Error('upstream exploded') }]];
 
     const req = recordingReq({
-      body: { messages: [{ role: 'user', content: 'summarise this file' }], model: 'route:auto', stream: true },
+      body: { messages: [{ role: 'user', content: 'summarise this file' }], model: CHAT_MODEL, stream: true },
     });
     const res = recordingRes();
     await run(req, res);
@@ -1097,11 +1108,11 @@ describe('fixture: what a failure surfaces to the user', () => {
     expect(H.timeline.at(-2)).toBe('sse:[DONE]');
 
     // No provider identity anywhere in the bytes. The positive control for this
-    // scan is the line below it: the alias IS present, so the scan reads the
+    // scan is the line below it: the chosen model IS present, so the scan reads the
     // stream rather than an empty string.
     expect(bytes).not.toContain(UPSTREAM_PROVIDER);
     expect(bytes).not.toContain(UPSTREAM_MODEL_ID);
-    expect(bytes).toContain('route:auto');
+    expect(bytes).toContain(CHAT_MODEL);
   });
 
   /**
@@ -1119,7 +1130,7 @@ describe('fixture: what a failure surfaces to the user', () => {
 
     await run(
       recordingReq({
-        body: { messages: [{ role: 'user', content: 'summarise this file' }], model: 'route:auto', stream: true },
+        body: { messages: [{ role: 'user', content: 'summarise this file' }], model: CHAT_MODEL, stream: true },
       }),
       recordingRes(),
     );
@@ -1130,7 +1141,7 @@ describe('fixture: what a failure surfaces to the user', () => {
     // The response is empty because nothing usable reached the caller, which is
     // also what the autonomy learner reads to score the run.
     expect(recorded.response).toBe('');
-    expect(recorded.requestedModel).toBe('route:auto');
+    expect(recorded.requestedModel).toBe(CHAT_MODEL);
     expect(recorded.cancelled).toBe(false);
   });
 
@@ -1140,7 +1151,7 @@ describe('fixture: what a failure surfaces to the user', () => {
     H.state.streamTurns = [[streamStart, ...say('t1', 'Here you go.'), finish('stop')]];
 
     await run(
-      recordingReq({ body: { messages: [{ role: 'user', content: 'hello' }], model: 'route:auto', stream: true } }),
+      recordingReq({ body: { messages: [{ role: 'user', content: 'hello' }], model: CHAT_MODEL, stream: true } }),
       recordingRes(),
     );
 
@@ -1162,21 +1173,21 @@ describe('fixture: what a failure surfaces to the user', () => {
     H.state.streamTurns = [[streamStart, { type: 'error', error: new Error('upstream exploded') }]];
 
     const spanish = recordingRes();
-    await run(recordingReq({ body: { messages: [{ role: 'user', content: 'hola, ¿qué tal?' }], model: 'route:auto', stream: true } }), spanish);
+    await run(recordingReq({ body: { messages: [{ role: 'user', content: 'hola, ¿qué tal?' }], model: CHAT_MODEL, stream: true } }), spanish);
     expect(spanish.raw.join('')).toContain('todos los modelos están ocupados');
 
     H.timeline.length = 0;
     H.state.resolveAnswers = [RESOLVED, null];
     H.state.streamTurns = [[streamStart, { type: 'error', error: new Error('upstream exploded') }]];
     const english = recordingRes();
-    await run(recordingReq({ body: { messages: [{ role: 'user', content: 'how are you' }], model: 'route:auto', stream: true } }), english);
+    await run(recordingReq({ body: { messages: [{ role: 'user', content: 'how are you' }], model: CHAT_MODEL, stream: true } }), english);
     expect(english.raw.join('')).toContain('all models are currently busy');
   });
 
   it('refuses before the model call when credits are exhausted', async () => {
     H.state.reservation = null;
     const res = recordingRes();
-    await run(recordingReq({ body: { messages: [{ role: 'user', content: 'hi' }], model: 'route:auto', stream: false } }), res);
+    await run(recordingReq({ body: { messages: [{ role: 'user', content: 'hi' }], model: CHAT_MODEL, stream: false } }), res);
 
     expect(H.timeline).toEqual(['credits:reserve', 'http:status(402)', 'http:json']);
     expect(res.jsonBody).toEqual({
@@ -1197,7 +1208,7 @@ describe('fixture: what a failure surfaces to the user', () => {
     // property rather than a surprise.
     H.state.reservation = null;
     const res = recordingRes();
-    await run(recordingReq({ body: { messages: [{ role: 'user', content: 'hi' }], model: 'route:auto', stream: true } }), res);
+    await run(recordingReq({ body: { messages: [{ role: 'user', content: 'hi' }], model: CHAT_MODEL, stream: true } }), res);
 
     expect(H.timeline).toEqual([
       'sse:comment(keep-alive)',
@@ -1218,7 +1229,7 @@ describe('fixture: what a failure surfaces to the user', () => {
       exhausted: true,
     };
     const res = recordingRes();
-    await run(recordingReq({ body: { messages: [{ role: 'user', content: 'hi' }], model: 'route:auto', stream: false } }), res);
+    await run(recordingReq({ body: { messages: [{ role: 'user', content: 'hi' }], model: CHAT_MODEL, stream: false } }), res);
 
     // No reservation: nothing to refund, nothing charged.
     expect(H.timeline).toEqual(['credits:window', 'http:status(429)', 'http:json']);
@@ -1237,7 +1248,7 @@ describe('fixture: what a failure surfaces to the user', () => {
     H.state.entitlements = { ...(ENTITLEMENTS as object), planId: 'pro' };
     H.state.usageWindow = { hours: 5, used: 1200, limit: 1000, resetsAt: new Date(Date.now() + 60_000), exhausted: true };
     const res = recordingRes();
-    await run(recordingReq({ body: { messages: [{ role: 'user', content: 'hi' }], model: 'route:auto', stream: true } }), res);
+    await run(recordingReq({ body: { messages: [{ role: 'user', content: 'hi' }], model: CHAT_MODEL, stream: true } }), res);
 
     expect(H.timeline).toEqual([
       'sse:comment(keep-alive)',
@@ -1253,19 +1264,20 @@ describe('fixture: what a failure surfaces to the user', () => {
     const { readUsageWindow } = await import('../../../lib/usage-window.js');
     vi.mocked(readUsageWindow).mockRejectedValueOnce(new Error('db down'));
     const res = recordingRes();
-    await run(recordingReq({ body: { messages: [{ role: 'user', content: 'hi' }], model: 'route:auto', stream: false } }), res);
+    await run(recordingReq({ body: { messages: [{ role: 'user', content: 'hi' }], model: CHAT_MODEL, stream: false } }), res);
     expect(H.timeline).toContain('credits:reserve');
     expect(H.timeline).not.toContain('http:status(429)');
   });
 
-  it('refuses a model the plan does not allow, and refunds', async () => {
-    H.state.entitlements = { tier: 'free', features: {}, allowedModelIds: ['route:instant'] };
+  it('refuses a model the catalogue does not offer, before holding any credit', async () => {
+    vi.mocked(resolveModel).mockRejectedValueOnce(new ModelNotFoundError('nobody/no-such-model'));
     const res = recordingRes();
-    await run(recordingReq({ body: { messages: [{ role: 'user', content: 'hi' }], model: 'route:auto', stream: false } }), res);
+    await run(recordingReq({ body: { messages: [{ role: 'user', content: 'hi' }], model: 'nobody/no-such-model', stream: false } }), res);
 
-    expect(H.timeline).toEqual(['credits:reserve', 'credits:refund', 'http:status(403)', 'http:json']);
-    expect(res.jsonBody).toEqual({
-      error: { message: 'Upgrade your plan to use this model.', type: 'invalid_request_error', param: 'model', code: 'MODEL_NOT_IN_PLAN' },
+    expect(H.timeline).not.toContain('credits:reserve');
+    expect(H.timeline).toContain('http:status(400)');
+    expect(res.jsonBody).toMatchObject({
+      error: { type: 'invalid_request_error', param: 'model', code: 'model_not_found' },
     });
   });
 });
@@ -1287,7 +1299,7 @@ describe('fixture: Codea flow — Oxy session, non-streaming, no client tools', 
     recordingReq({ user: { id: 'user-ws13' }, body });
 
   beforeEach(() => {
-    H.state.resolveAnswers = [{ ...RESOLVED, routingProfileId: 'route:code' }];
+    H.state.resolveAnswers = [RESOLVED];
     H.state.generateContent = [{ type: 'text', text: 'const total = items.length;' }];
   });
 
@@ -1299,7 +1311,7 @@ describe('fixture: Codea flow — Oxy session, non-streaming, no client tools', 
           { role: 'system', content: 'You are an expert code completion assistant.' },
           { role: 'user', content: 'complete this' },
         ],
-        model: 'route:code',
+        model: CHAT_MODEL, surface: 'codea',
         max_tokens: 500,
         temperature: 0.2,
         stream: false,
@@ -1328,7 +1340,7 @@ describe('fixture: Codea flow — Oxy session, non-streaming, no client tools', 
       alia_usage?: Record<string, unknown>;
     };
     expect(body.object).toBe('chat.completion');
-    expect(body.model).toBe('route:code');
+    expect(body.model).toBe(CHAT_MODEL);
     expect(body.choices?.[0].message?.content).toBe('const total = items.length;');
     // The Alia extension the app reads with a fallback to the standard block; a
     // rename degrades credit reporting silently rather than erroring
@@ -1343,7 +1355,7 @@ describe('fixture: Codea flow — Oxy session, non-streaming, no client tools', 
   });
 
   it('carries the synthetic marker Codea branches on when every provider fails', async () => {
-    H.state.resolveAnswers = [{ ...RESOLVED, routingProfileId: 'route:code' }, null];
+    H.state.resolveAnswers = [RESOLVED, null];
     const boom = new Error('upstream exploded');
     H.state.generateContent = [];
     const { getAIModel } = await import('../../../lib/chat-core.js');
@@ -1362,7 +1374,7 @@ describe('fixture: Codea flow — Oxy session, non-streaming, no client tools', 
     } as never);
 
     const res = recordingRes();
-    await run(codeaReq({ messages: [{ role: 'user', content: 'complete this' }], model: 'route:code', stream: false }), res);
+    await run(codeaReq({ messages: [{ role: 'user', content: 'complete this' }], model: CHAT_MODEL, surface: 'codea', stream: false }), res);
 
     const body = res.jsonBody as { alia_meta?: Record<string, unknown>; choices?: Array<{ message?: { content?: string } }> };
     expect(body.alia_meta).toMatchObject({
@@ -1377,17 +1389,6 @@ describe('fixture: Codea flow — Oxy session, non-streaming, no client tools', 
     expect(JSON.stringify(body)).not.toContain(UPSTREAM_PROVIDER);
   });
 
-  it('holds an editor session to the plan like any app session', async () => {
-    // Codea used to reach this surface with an `alia_sk_*` key, which acted for
-    // nobody and skipped the plan gate. Those keys are retired: the editor
-    // signs in with Oxy, so its request is a direct user session and the plan
-    // decides the model exactly as it does for the app.
-    H.state.entitlements = { tier: 'free', features: {}, allowedModelIds: [] };
-    const res = recordingRes();
-    await run(codeaReq({ messages: [{ role: 'user', content: 'complete this' }], model: 'route:code', stream: false }), res);
-
-    expect(H.timeline).not.toContain('model:doGenerate');
-  });
 });
 
 // ===========================================================================
@@ -1396,7 +1397,7 @@ describe('fixture: Codea flow — Oxy session, non-streaming, no client tools', 
 
 /**
  * `packages/alia-cowork/src/main/chat.ts` drives an `openai` client at
- * `${baseUrl}/v1` with `stream: true`, `model: 'route:cowork'` and its own
+ * `${baseUrl}/v1` with `stream: true`, `model: CHAT_MODEL, surface: 'cowork'` and its own
  * filesystem tools, then executes the returned tool calls locally.
  *
  * The property that matters most for this flow is the NAME ROUND TRIP: Alia
@@ -1410,13 +1411,13 @@ describe('fixture: Cowork flow — Oxy session, streaming, client-supplied edito
 
   const COWORK_BODY = {
     messages: [{ role: 'user', content: 'read the readme' }],
-    model: 'route:cowork',
+    model: CHAT_MODEL, surface: 'cowork',
     stream: true,
     tools: EDITOR_TOOLS,
   };
 
   beforeEach(() => {
-    H.state.resolveAnswers = [{ ...RESOLVED, routingProfileId: 'route:cowork' }];
+    H.state.resolveAnswers = [RESOLVED];
     H.state.streamTurns = [
       [streamStart, ...callTool('call-fs', 'workspace_write_file', '{"path":"README.md"}'), finish('tool-calls')],
       [streamStart, ...say('t1', 'The readme describes the project.'), finish('stop')],
@@ -1544,7 +1545,7 @@ describe('fixture: deep research flow — phase events, report deltas, sources',
     recordingReq({
       body: {
         messages: [{ role: 'user', content: 'compare the two approaches' }],
-        model: 'route:auto',
+        model: CHAT_MODEL,
         stream: true,
         deepResearch: true,
         conversationId: 'conv-research',
@@ -1688,10 +1689,10 @@ describe('fixture: deep research flow — phase events, report deltas, sources',
 
     // The engine swallows per-step model failures and falls back, so the user
     // still gets a report rather than an error — and either way no provider
-    // identity reaches the bytes. Positive control: the alias does.
+    // identity reaches the bytes. Positive control: the chosen model does.
     expect(bytes).not.toContain(UPSTREAM_PROVIDER);
     expect(bytes).not.toContain(UPSTREAM_MODEL_ID);
-    expect(bytes).toContain('route:auto');
+    expect(bytes).toContain(CHAT_MODEL);
   });
 });
 
@@ -1772,7 +1773,7 @@ describe('fixture: a turn served by the user own device', () => {
     expect(vi.mocked(resolveModel)).not.toHaveBeenCalled();
 
     // The id the person selected is the id the response is stamped with. An
-    // alias substituted here would be the silent substitution ADR 0003 forbids.
+    // id substituted here would be a silent substitution.
     const chunk = res.raw.find((frame) => frame.includes('"choices"'));
     expect(chunk).toContain(LOCAL_MODEL);
   });
@@ -1837,7 +1838,7 @@ describe('fixture: a turn served by the user own device', () => {
     const res = recordingRes();
     await run(
       recordingReq({
-        body: { messages: [{ role: 'user', content: 'hola' }], model: 'route:auto', stream: true },
+        body: { messages: [{ role: 'user', content: 'hola' }], model: CHAT_MODEL, stream: true },
       }),
       res,
     );

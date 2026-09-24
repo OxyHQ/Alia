@@ -41,19 +41,15 @@
  * ## What is Alia's, and is therefore NOT in the manifest
  *
  * Oxy publishes identity: the agent id, its bot account, its owner project and
- * its bound application. The routing profile, the tagline, the description and
- * the category are Alia's product decisions and live in
+ * its bound application. The tagline, the description and the category are
+ * Alia's product decisions and live in
  * {@link NATIVE_PRODUCT_AGENT_SEEDS} below. They are applied ONLY on insert. An
  * existing row's prose is never rewritten by this — an operator may have edited
  * it, and a bootstrap that reverts product copy on every run is a bootstrap
  * nobody dares to run.
  *
- * `routing_profile_id` is the exception that proves it, and it is not
- * cosmetic: `scripts/check-agent-routing-profile-readiness.ts` runs as the
- * deploy's PRE-deploy task and FAILS THE DEPLOY when any `active` agent carries
- * a null or unreviewed profile. An insert that left it null would make the next
- * deploy of Alia refuse to roll. So a null is filled with the seed's value, a
- * reviewed value is left exactly as it is, and an unreviewed one is refused.
+ * The agent's model is left null: it runs on its owner's default model, chosen
+ * from the catalogue (ADR 0012).
  *
  * ## `capability_grants` is the other way round, and deliberately so
  *
@@ -62,9 +58,9 @@
  * published list on insert AND on every later run, so a grant added by hand is
  * removed and a grant removed by hand comes back.
  *
- * That is the opposite of the rule for the prose and the routing profile, and
- * the difference is what the field decides. An operator who retuned a routing
- * profile made a performance choice inside a reviewed list; an operator who
+ * That is the opposite of the rule for the prose, and the difference is what
+ * the field decides. An operator who rewrote a tagline made a copy choice; an
+ * operator who
  * edited `capability_grants` changed what a product assistant may DO to
  * something no pull request in either repository contains. "Repair toward the
  * reviewed value" is the only reading of drift that does not make the manifest
@@ -83,11 +79,6 @@ import {
   NATIVE_PRODUCT_AGENT_MANIFEST_SHA256,
   type NativeProductAgent,
 } from '../config/native-product-agents.js';
-import {
-  OXY_KAANA_ROUTING_PROFILE_IDS,
-  OXY_KAANA_ROUTING_PROFILE_ID_LIST,
-  type OxyKaanaRoutingProfileId,
-} from '../config/oxy-inference-routing-profile-ids.js';
 
 /** The columns this bootstrap is allowed to write on an EXISTING row. */
 export const MUTABLE_FIELDS = [
@@ -96,7 +87,6 @@ export const MUTABLE_FIELDS = [
   'access',
   'status',
   'isPublished',
-  'routingProfileId',
   'capabilityGrants',
 ] as const;
 export type MutableField = (typeof MUTABLE_FIELDS)[number];
@@ -116,7 +106,6 @@ export interface NativeProductAgentSeed {
   readonly tagline: string;
   readonly description: string;
   readonly category: string;
-  readonly routingProfileId: OxyKaanaRoutingProfileId;
 }
 
 export const NATIVE_PRODUCT_AGENT_SEEDS: Readonly<
@@ -127,13 +116,11 @@ export const NATIVE_PRODUCT_AGENT_SEEDS: Readonly<
     description:
       'Sindi is Homiio’s in-product assistant. It answers questions about finding a place, what a tenancy really costs, and how to defend one.',
     category: 'housing',
-    routingProfileId: OXY_KAANA_ROUTING_PROFILE_IDS['route:auto'],
   }),
   clarity: Object.freeze({
     tagline: 'Clarity’s in-product assistant',
     description: 'Clarity’s in-product assistant, reachable only from Clarity.',
     category: 'productivity',
-    routingProfileId: OXY_KAANA_ROUTING_PROFILE_IDS['route:auto'],
   }),
 });
 
@@ -146,7 +133,6 @@ export interface NativeAgentRow {
   readonly access: string;
   readonly status: string;
   readonly isPublished: boolean;
-  readonly routingProfileId: string | null;
   /** `NOT NULL DEFAULT '{}'`, so this is an array and never null. */
   readonly capabilityGrants: readonly string[];
 }
@@ -175,9 +161,7 @@ export type RefusalReason =
   /** This id exists under a different owner account than the manifest's. */
   | 'owner_account_mismatch'
   /** This id exists as an ordinary PUBLIC marketplace agent. */
-  | 'public_agent_would_be_repurposed'
-  /** This id carries a routing profile no reviewed list contains. */
-  | 'unreviewed_routing_profile';
+  | 'public_agent_would_be_repurposed';
 
 export interface Refusal {
   readonly agentId: string;
@@ -215,7 +199,6 @@ export interface InsertValues {
   readonly access: 'private';
   readonly status: 'active';
   readonly isPublished: false;
-  readonly routingProfileId: string;
   readonly capabilityGrants: string[];
 }
 
@@ -233,8 +216,6 @@ export interface BootstrapPlan {
 export type PlanResult =
   | { readonly ok: true; readonly plan: BootstrapPlan }
   | { readonly ok: false; readonly refusals: readonly Refusal[] };
-
-const REVIEWED_ROUTING_PROFILES = new Set<string>(OXY_KAANA_ROUTING_PROFILE_ID_LIST);
 
 /** Exact sequence equality — see where it is used for why order counts. */
 function sameGrants(a: readonly string[], b: readonly string[]): boolean {
@@ -291,7 +272,6 @@ function planOne(observation: NativeAgentObservation): { operation: Operation | 
           access: 'private',
           status: 'active',
           isPublished: false,
-          routingProfileId: seed.routingProfileId,
           // The manifest's, not a seed's — see the file comment. Copied so the
           // insert never hands a frozen array to the driver.
           capabilityGrants: [...agent.capabilityGrants],
@@ -325,11 +305,6 @@ function planOne(observation: NativeAgentObservation): { operation: Operation | 
   if (byId.applicationId === null && byId.access === 'public') {
     refusals.push(refusal(agent, 'public_agent_would_be_repurposed', byId.access, 'private'));
   }
-  if (byId.routingProfileId !== null && !REVIEWED_ROUTING_PROFILES.has(byId.routingProfileId)) {
-    refusals.push(
-      refusal(agent, 'unreviewed_routing_profile', byId.routingProfileId, seed.routingProfileId),
-    );
-  }
 
   if (refusals.length > 0) return { operation: null, refusals };
 
@@ -343,10 +318,6 @@ function planOne(observation: NativeAgentObservation): { operation: Operation | 
   if (byId.access !== 'private') changes.push({ field: 'access', from: byId.access, to: 'private' });
   if (byId.status !== 'active') changes.push({ field: 'status', from: byId.status, to: 'active' });
   if (byId.isPublished) changes.push({ field: 'isPublished', from: true, to: false });
-  // A reviewed profile is left exactly as it is; only a null is filled.
-  if (byId.routingProfileId === null) {
-    changes.push({ field: 'routingProfileId', from: null, to: seed.routingProfileId });
-  }
   /**
    * The published list is the COMPLETE list, so drift is repaired in both
    * directions rather than merged. Compared element by element and IN ORDER:

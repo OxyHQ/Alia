@@ -72,7 +72,6 @@ import { libraryFiles } from '../schema/library';
 import { skills } from '../schema/skills';
 import type { AgentAccess, AgentArchetype, AgentStatus } from '../../domain/agent';
 import { withoutRetiredGrants } from '../../domain/capability-grants';
-import type { OxyKaanaRoutingProfileId } from '../../config/oxy-inference-routing-profile-ids';
 import { escapeLikePattern } from '@oxy.so/utils/sql';
 
 type AgentRow = typeof agents.$inferSelect;
@@ -145,8 +144,8 @@ export interface AgentRecord {
   status: AgentStatus;
   access: AgentAccess;
   systemPrompt: string | null;
-  /** Exact Oxy routing-profile PK; null only on unreconciled legacy rows. */
-  routingProfileId: string | null;
+  /** The agent's `publisher/model`; null runs the default model. */
+  modelId: string | null;
   scheduleInterval: number | null;
   /** ABSENT on an agent that has never evolved. */
   soul?: AgentSoul;
@@ -237,7 +236,7 @@ export function toAgentRecord(row: AgentRow): AgentRecord {
     status: row.status as AgentStatus,
     access: row.access as AgentAccess,
     systemPrompt: row.systemPrompt,
-    routingProfileId: row.routingProfileId,
+    modelId: row.modelId,
     scheduleInterval: row.scheduleInterval,
     soul: toSoul(row),
     archetype: row.archetype as AgentArchetype,
@@ -816,8 +815,8 @@ export interface CreateAgentInput {
   isPublished?: boolean;
   access?: AgentAccess;
   systemPrompt?: string;
-  /** Exact reviewed Oxy routing-profile PK. No default or name translation. */
-  routingProfileId: OxyKaanaRoutingProfileId;
+  /** The agent's `publisher/model`; null or absent runs the default model. */
+  modelId?: string | null;
   archetype?: AgentArchetype;
   archetypeConfig?: unknown;
   skillIds?: string[];
@@ -855,7 +854,7 @@ export async function createAgent(
         isPublished: input.isPublished ?? true,
         access: input.access ?? 'private',
         ...(input.systemPrompt !== undefined && { systemPrompt: input.systemPrompt }),
-        routingProfileId: input.routingProfileId,
+        modelId: input.modelId ?? null,
         ...(input.archetype !== undefined && { archetype: input.archetype }),
         ...(input.archetypeConfig !== undefined && { archetypeConfig: input.archetypeConfig }),
       })
@@ -886,6 +885,8 @@ export interface UpdateAgentInput {
   status?: AgentStatus;
   access?: AgentAccess;
   systemPrompt?: string;
+  /** The agent's `publisher/model`; null goes back to the default model. */
+  modelId?: string | null;
   scheduleInterval?: number;
   archetype?: AgentArchetype;
   archetypeConfig?: unknown;

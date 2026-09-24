@@ -64,7 +64,7 @@ async function build(opts: {
   linkedAgent?: HydratedAgent | null;
 }): Promise<string> {
   return SystemPromptBuilder.build({
-    routingProfileId: 'route:auto',
+    surface: 'chat',
     isDirectUserSession: opts.isDirectUserSession ?? true,
     userMemory: opts.userMemory,
     linkedAgent: opts.linkedAgent ?? null,

@@ -79,12 +79,11 @@ describe('Kaana-only hosted inference architecture', () => {
       expect(source(file), `${file}: dynamic import of internal/providers`).not.toMatch(dynamic);
     }
     // Positive control on the regex: the shape it hunts is recognised when present.
-    expect("await import('../internal/providers/lib/routing-profile-catalogue.js')").toMatch(dynamic);
-    // …and the facade still reaches the catalogue, statically, rather than by
-    // having stopped reading it.
-    expect(source('lib/gateway-client.ts')).toMatch(
-      /^import \* as catalogue from '\.\.\/internal\/providers\/lib\/routing-profile-catalogue\.js';$/m,
-    );
+    expect("await import('../internal/providers/lib/seed-features.js')").toMatch(dynamic);
+    // …and the model catalogue is Oxy's, read through the inference client —
+    // never a static table under internal/providers (ADR 0012).
+    expect(source('lib/models/catalogue.ts')).toContain('listModels(');
+    expect(source('lib/gateway-client.ts')).not.toMatch(/internal\/providers/);
   });
 
   it('keeps createOpenAI exclusively behind the local user-runtime branch', () => {

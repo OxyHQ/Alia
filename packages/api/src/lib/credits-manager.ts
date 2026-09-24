@@ -7,13 +7,17 @@ import {
   type UserCreditsRow,
 } from '../db/billing/userCreditsRepository.js';
 import { log } from './logger.js';
-import { getRoutingPreset } from './routing/presets.js';
+import { findCatalogueModel } from './models/catalogue.js';
 import { fundingSourceOf, type CreditFundingSource } from '../domain/credit-funding.js';
 
 /**
  * Credits Manager
- * Centralized utility for managing AI credits based on token usage
- * Supports tier-based credit multipliers for different Kaana routing profiles
+ *
+ * A turn is charged by what it COST (ADR 0012): the metered token units times
+ * the model's unit prices from Oxy's catalogue — the same price list Oxy
+ * settles against — converted at {@link CREDITS_CONFIG.USD_PER_CREDIT}. Plans
+ * differ only by how many credits they grant; no model is priced by a
+ * multiplier Alia invented.
  */
 
 export interface CreditUsage {
@@ -24,11 +28,9 @@ export interface CreditUsage {
   /**
    * The output tokens the model spent THINKING, as the provider reported them.
    *
-   * Already inside {@link totalTokens} — this is not extra volume, it is a
-   * breakdown of volume already counted, and it exists so those tokens can be
-   * weighted rather than counted twice. `ai@6` reports it as
-   * `usage.outputTokenDetails.reasoningTokens`; a provider that does not report
-   * it leaves this `0`, which bills the turn exactly as it billed before.
+   * Already inside {@link completionTokens} — a breakdown, not extra volume —
+   * and priced at the model's output price with the rest of the output. Kept
+   * for the usage log.
    */
   reasoningTokens?: number;
 }
@@ -54,7 +56,15 @@ export interface CreditReservation {
  * Configuration for credit calculations
  */
 export const CREDITS_CONFIG = {
-  // How many tokens per 1 credit
+  /** What one credit is worth, in USD of inference cost. 1000 credits = $1. */
+  USD_PER_CREDIT: 0.001,
+
+  /**
+   * Tokens per credit, for a charge with no model to price it: a caller that
+   * prices its own work (images, audio, deep research, agent runs) and settles
+   * at this base rate deliberately, and a model whose catalogue entry carries
+   * no token prices.
+   */
   TOKENS_PER_CREDIT: 1000,
 
   // Minimum credits to charge per request
@@ -62,157 +72,57 @@ export const CREDITS_CONFIG = {
 
   // Initial credits to reserve (will be adjusted based on actual usage)
   INITIAL_RESERVATION: 1,
-
-  /**
-   * What one reasoning token costs, relative to every other token.
-   *
-   * ## The formula bills all tokens alike; providers do not
-   *
-   * `calculateCreditsFromTokens` charges `totalTokens / TOKENS_PER_CREDIT`
-   * times the model's multiplier, which prices an input token and an output
-   * token identically. Providers price them 4 to 8 times apart, and a reasoning
-   * token is unambiguously an OUTPUT token — so reasoning is the one thing a
-   * person can switch on that makes a turn cost multiples more per token than
-   * the formula charges for it.
-   *
-   * ## 5 is the median of the measured ratio, not a guess
-   *
-   * Output ÷ input price for every model in `model-capabilities-data.ts` that
-   * this product can send a reasoning option to, or would be able to:
-   * claude-sonnet-4 15/3 = 5.0 · claude-opus-4 75/15 = 5.0 · claude-opus-4-5
-   * 25/5 = 5.0 · gemini-2.5-pro 10/1.25 = 8.0 · gemini-2.5-flash 2.5/0.30 =
-   * 8.3 · gemini-3-pro-preview 12/2 = 6.0 · gemini-3-flash-preview 3/0.50 =
-   * 6.0 · o1 60/15 = 4.0 · o3 8/2 = 4.0 · gpt-5 10/1.25 = 8.0 · deepseek-reasoner
-   * 2.19/0.55 = 4.0. Range 4.0–8.3, median 5.0.
-   *
-   * The median rather than the maximum: 8.3 would overcharge everyone who
-   * reasons on Anthropic, which is where the dearest reasoning actually
-   * happens, and this number decides a person's bill.
-   *
-   * ## It is charged on tokens SPENT, never on the budget offered
-   *
-   * The budget is a ceiling the provider may not reach. Weighting the reported
-   * count means a turn that thought for 300 tokens is charged for 300, and the
-   * ceiling only bounds the worst case: at `max`, 6144 reasoning tokens weight
-   * to 30,720 — about 31 credits before the model multiplier, against roughly 2
-   * for an ordinary turn. In money on the models this reaches, 6144 output
-   * tokens is $0.09 on Sonnet at $15/1M and $0.46 on Opus at $75/1M.
-   *
-   * A request that asks for no reasoning is untouched: `reasoningTokens` is 0,
-   * the weighted term vanishes, and the arithmetic is the one that ran before.
-   */
-  REASONING_TOKEN_WEIGHT: 5,
 };
 
-/**
- * A charge that named a model nothing can price.
- *
- * A distinct type rather than a bare `Error` so callers and observability can
- * distinguish an invalid routing profile from an accounting failure. It is
- * raised before any balance moves — see {@link getCreditMultiplier} — and must
- * remain separate from failures that can happen after a reservation.
- */
-export class UnpricedModelError extends Error {
-  constructor(readonly routingProfileId: string) {
-    super(`No credit multiplier is registered for model "${routingProfileId}"`);
-    this.name = 'UnpricedModelError';
-  }
+/** Credits for a USD cost, rounded up and floored at the per-request minimum. */
+export function creditsForCost(usd: number): number {
+  if (!Number.isFinite(usd) || usd <= 0) return CREDITS_CONFIG.MIN_CREDITS_PER_REQUEST;
+  // Rounded to 1e-9 first so float noise (0.1 + 0.2) never adds a credit.
+  const exact = Math.round((usd / CREDITS_CONFIG.USD_PER_CREDIT) * 1e9) / 1e9;
+  return Math.max(Math.ceil(exact), CREDITS_CONFIG.MIN_CREDITS_PER_REQUEST);
+}
+
+/** The base-rate charge for a token count nothing prices. */
+function baseRateCredits(tokens: number): number {
+  return Math.max(Math.ceil(tokens / CREDITS_CONFIG.TOKENS_PER_CREDIT), CREDITS_CONFIG.MIN_CREDITS_PER_REQUEST);
 }
 
 /**
- * What a turn on this model costs, relative to the base rate.
+ * What a turn costs in credits.
  *
- * ## An ABSENT identifier and an UNKNOWN one are different facts
- *
- * `undefined` means the caller priced the turn itself and is saying so.
- * `routes/v1/images.ts`, both handlers in `routes/v1/audio.ts`,
- * `lib/chat-modes/deep-research-handler.ts` and `lib/agent/runner.ts` each compute their own token count from their own
- * formula and settle it at the base rate deliberately. For them 1 is the
- * answer, not a fallback, which is why this case is kept and not folded in
- * below.
- *
- * A STRING that resolves to nothing is the opposite: somebody named a model and
- * nothing can price it. That returned 1 as well — `model?.creditMultiplier || 1`
- * — so the two were indistinguishable and the second was silent. The registered
- * multipliers span 0.5 to 5, so an identifier that stopped resolving repriced
- * every request on it, in either direction, with nothing logged and no test
- * red: `route:instant` at 1 is double what the customer agreed to, and
- * `route:pro` at 1 is a fifth of it. `credit-multipliers.test.ts` names
- * this exact hole, and until now could only pin the values it would have
- * hidden.
- *
- * `|| 1` also swallowed a registered multiplier of 0. That was never reachable
- * through the old catalogue table's `between 0.1 and 10` CHECK, but the read no
- * longer depends on it being unreachable.
- *
- * ## The price comes from the ROUTING PRESET, not from the alias record
- *
- * `lib/routing/presets.ts` owns it. The two tables carry the same numbers and
- * `routing-policy.test.ts` fails if they stop, so this is not a repricing — it
- * is what lets the thirteen `alia-*` identifiers be deleted without taking
- * every price with them. It also takes billing off the model catalogue: this
- * read no longer goes through `gateway-client`, so no charge depends on a
- * catalogue fetch.
- *
- * ## It throws BEFORE any balance moves, and callers rely on that
- *
- * Every route into this function goes through `calculateCreditsFromTokens`,
- * which resolves the multiplier before `_adjustReservation` touches a row. So a throw leaves the reservation exactly
- * as it was found — never half-settled — and each caller's existing release
- * point gives it back: the chat path leaves `creditsSettled` false and
- * `routes/v1/chat-completions.ts` refunds, while both webhook handlers refund
- * in their `finally` blocks.
+ * - `modelId` absent: the caller priced its own work — base rate.
+ * - a catalogue model with token prices: input × input price + output × output
+ *   price, in USD, converted to credits. The system prompt Alia adds is Alia's
+ *   cost, not the person's, so it is taken off the input first. Reasoning
+ *   tokens are output tokens and are already inside `completionTokens`.
+ * - a model the catalogue no longer prices: base rate, logged. The model was
+ *   validated when the turn started; a price that vanished mid-turn is not a
+ *   reason to leave the turn unbilled or to refuse it after the fact.
  */
-export async function getCreditMultiplier(routingProfileId?: string): Promise<number> {
-  if (routingProfileId === undefined) return 1;
-  const preset = getRoutingPreset(routingProfileId);
-  if (preset === null) throw new UnpricedModelError(routingProfileId);
-  return preset.creditMultiplier;
-}
+export async function calculateCredits(usage: CreditUsage, modelId?: string): Promise<number> {
+  const systemTokens = Math.max(0, usage.systemPromptTokens || 0);
+  const totalTokens = Math.max(0, usage.totalTokens || usage.promptTokens + usage.completionTokens);
+  if (totalTokens === 0) return CREDITS_CONFIG.MIN_CREDITS_PER_REQUEST;
 
-/**
- * Calculate credits needed based on token usage and model tier
- * Formula: Math.ceil((billableTokens / TOKENS_PER_CREDIT) * creditMultiplier)
- * Minimum: MIN_CREDITS_PER_REQUEST
- *
- * @param totalTokens - Total tokens reported by the provider
- * @param routingProfileId - The Kaana routing profile being used
- * @param systemPromptTokens - Tokens from our system prompt (not charged to user)
- */
-export async function calculateCreditsFromTokens(
-  totalTokens: number,
-  routingProfileId?: string,
-  systemPromptTokens?: number,
-  reasoningTokens?: number
-): Promise<number> {
-  if (totalTokens === 0) {
-    return CREDITS_CONFIG.MIN_CREDITS_PER_REQUEST;
+  if (modelId === undefined) return baseRateCredits(Math.max(0, totalTokens - systemTokens));
+
+  const model = await findCatalogueModel(modelId).catch((err: unknown) => {
+    log.credits.warn({ err, modelId }, 'Catalogue unavailable while pricing a turn; charging the base rate');
+    return null;
+  });
+  if (model?.pricing == null) {
+    log.credits.warn({ modelId }, 'No catalogue price for this model; charging the base rate');
+    return baseRateCredits(Math.max(0, totalTokens - systemTokens));
   }
 
-  // Subtract system prompt tokens (our cost, not the user's)
-  const systemTokens = systemPromptTokens || 0;
-  const countedTokens = Math.max(0, totalTokens - systemTokens);
-
-  /**
-   * Reasoning tokens, re-weighted rather than re-counted.
-   *
-   * They are ALREADY inside `totalTokens`, so they are removed at weight 1 and
-   * added back at {@link CREDITS_CONFIG.REASONING_TOKEN_WEIGHT} — the surcharge
-   * is `(weight - 1)` per token, not `weight`. Adding the weighted figure to an
-   * unreduced total would charge the first copy of every reasoning token twice.
-   *
-   * Clamped to what is left after the system prompt: a provider reporting more
-   * reasoning tokens than remain would otherwise drive the billable count
-   * negative through the subtraction.
-   */
-  const reasoned = Math.min(Math.max(0, reasoningTokens || 0), countedTokens);
-  const billableTokens = countedTokens - reasoned + reasoned * CREDITS_CONFIG.REASONING_TOKEN_WEIGHT;
-
-  log.credits.info({ totalTokens, systemTokens, reasoningTokens: reasoned, billableTokens }, 'Token breakdown');
-
-  const multiplier = await getCreditMultiplier(routingProfileId);
-  const calculatedCredits = Math.ceil((billableTokens / CREDITS_CONFIG.TOKENS_PER_CREDIT) * multiplier);
-  return Math.max(calculatedCredits, CREDITS_CONFIG.MIN_CREDITS_PER_REQUEST);
+  const inputTokens = Math.max(0, (usage.promptTokens || 0) - systemTokens);
+  const outputTokens = Math.max(0, usage.completionTokens || 0);
+  const usd =
+    (inputTokens * Number(model.pricing.inputPerMTok)) / 1_000_000 +
+    (outputTokens * Number(model.pricing.outputPerMTok)) / 1_000_000;
+  const credits = creditsForCost(usd);
+  log.credits.info({ modelId, inputTokens, outputTokens, systemTokens, usd, credits }, 'Priced turn');
+  return credits;
 }
 
 /**
@@ -329,22 +239,20 @@ async function _adjustReservation(
 }
 
 /**
- * Adjust credits based on actual token usage and model tier
+ * Settle a reservation against what the turn actually cost.
  * If actual usage > reserved: deduct more
  * If actual usage < reserved: refund difference
+ *
+ * @param modelId - the `publisher/model` the turn ran on; omitted by callers
+ *   that settle at the base rate on purpose.
  */
 export async function finalizeCredits(
   reservation: CreditReservation,
   usage: CreditUsage,
-  routingProfileId?: string
+  modelId?: string
 ): Promise<{ creditsCharged: number; creditsRemaining: number }> {
   try {
-    const actualCreditsNeeded = await calculateCreditsFromTokens(
-      usage.totalTokens,
-      routingProfileId,
-      usage.systemPromptTokens,
-      usage.reasoningTokens
-    );
+    const actualCreditsNeeded = await calculateCredits(usage, modelId);
     log.credits.info({ totalTokens: usage.totalTokens, promptTokens: usage.promptTokens, completionTokens: usage.completionTokens, systemTokens: usage.systemPromptTokens || 0, reasoningTokens: usage.reasoningTokens || 0 }, 'Token usage');
     return await _adjustReservation(reservation, actualCreditsNeeded, 'chat');
   } catch (error) {
@@ -364,10 +272,10 @@ export async function finalizeCredits(
  *
  * Before this existed, the show pipeline bridged the gap by inventing a token
  * count — `finalizeCredits(reservation, { totalTokens: credits * 50 })` — which
- * is not a conversion but a coincidence. `calculateCreditsFromTokens` divides by
+ * is not a conversion but a coincidence. `calculateCredits` divides by
  * `TOKENS_PER_CREDIT`, which is 1000, so `credits * 50` tokens settles as
  * `ceil(credits / 20)`: a show intending to charge 8 credits charged 1. The
- * multiplier and the divisor were never related, so nothing about the
+ * factor and the divisor were never related, so nothing about the
  * expression looked wrong, and no test could catch it — both sides typecheck
  * and both are integers.
  *
@@ -379,10 +287,9 @@ export async function finalizeCredits(
  *
  * The obvious repair for the laundering above is to keep going through
  * `finalizeCredits` and pass `credits * TOKENS_PER_CREDIT` instead. That does
- * round-trip — `calculateCreditsFromTokens` returns
- * `ceil(credits * multiplier)` — but only while `routingProfileId` is omitted, so a
- * caller adding one later silently multiplies its own price by that model's
- * credit multiplier. The identity holds by accident of an argument nobody
+ * round-trip at the base rate — but only while `modelId` is omitted, so a
+ * caller adding one later silently reprices its own work at that model's
+ * token prices. The identity holds by accident of an argument nobody
  * passed, which is the same shape as the bug it would be fixing.
  *
  * ## What the CALLER must do with the return value
@@ -403,7 +310,7 @@ export async function finalizeFixedCredits(
   /**
    * Floored at the minimum and rounded UP, here rather than in the caller.
    *
-   * `calculateCreditsFromTokens` ends on
+   * `calculateCredits` ends on
    * `Math.max(Math.ceil(…), MIN_CREDITS_PER_REQUEST)`, so a caller reaching
    * `_adjustReservation` without it would be the one billing path that can
    * charge a fraction of a credit, or zero. Doing it here keeps the two

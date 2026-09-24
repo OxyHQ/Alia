@@ -6,7 +6,7 @@ import {
   aggregateUsageByDay,
   aggregateUsageByModel,
 } from '../db/usage/chatAnalyticsRepository.js';
-import { getRoutingProfile } from '../lib/gateway-client.js';
+import { listCatalogueModels } from '../lib/models/catalogue.js';
 import { log } from '../lib/logger.js';
 
 const router = Router();
@@ -56,25 +56,17 @@ router.get('/models', async (req: Request, res: Response) => {
     const raw = await aggregateUsageByModel(getDb(), req.user!.id, startOfWindow(req.query.days));
 
     /**
-     * An entry whose key does not resolve to a Kaana routing profile is DROPPED, never
-     * shown under the provider's own name — the model-abstraction rule. The
-     * repository groups by `coalesce(routing_profile_id, model)` precisely so this
-     * resolves; grouping by the provider id alone would drop everything.
+     * Named from the live catalogue. A group the catalogue does not know — a
+     * pre-0078 row holding a routing alias or a provider id, a retired model,
+     * a local runtime model, or NULL — is dropped rather than shown under a
+     * name nothing can vouch for.
      */
-    const models = (await Promise.all(raw.map(async (m) => {
-      // The null group first, explicitly: `routing_profile_id` is nullable, so a row
-      // written without one groups under NULL and `getRoutingProfile` has nothing to
-      // be asked. Dropping it here is the same rule as below, stated where the
-      // type makes it reachable rather than left to a coercion.
-      if (m._id === null) return null;
-      const routingProfile = await getRoutingProfile(m._id);
-      if (!routingProfile) return null;
-      return {
-        ...m,
-        name: routingProfile.name,
-        emoji: routingProfile.emoji,
-      };
-    }))).filter(Boolean);
+    const catalogue = await listCatalogueModels().catch(() => []);
+    const byId = new Map(catalogue.map((model) => [model.id, model]));
+    const models = raw.flatMap((m) => {
+      const model = m._id === null ? undefined : byId.get(m._id);
+      return model === undefined ? [] : [{ ...m, name: model.name, publisher: model.publisher }];
+    });
 
     res.json({ models, period: days });
   } catch (error: unknown) {

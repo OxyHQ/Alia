@@ -135,7 +135,7 @@ const verification = await verifyResults(originalTask, executorResults);
 ```
 
 The verifier:
-- Runs on a cost-efficient model (route:instant or route:auto)
+- Runs on the utility model (the cheapest fit catalogue model)
 - Evaluates four criteria:
   - Completeness: All aspects addressed?
   - Correctness: Results accurate and reasonable?
@@ -219,12 +219,9 @@ export interface VerificationResult {
 
 ### Planner: Task Decomposition
 
-**Purpose:** Use a capable thinking model to break a complex task into executable pieces.
+**Purpose:** Break a complex task into executable pieces.
 
-**Model selection:**
-1. Tries `route:thinking` (preferred for planning)
-2. Falls back to `route:pro-standard` or `route:auto`
-3. Last resort: default model
+**Model selection:** the utility model, chosen automatically from Oxy's catalogue (ADR 0012).
 
 **System prompt rules:**
 - Keep subtasks atomic and independently executable

@@ -38,7 +38,6 @@ async function agentWith(grants: string[]): Promise<string> {
     description: 'd',
     authorOxyUserId: OWNER,
     category: 'research',
-    routingProfileId: '01a06477-94f5-74f0-bc25-4c5c13b93ccd',
   });
   // Written raw: the wire refuses or strips these now, and a row from before
   // the retirement is exactly what the migration is for.

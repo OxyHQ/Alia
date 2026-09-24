@@ -20,7 +20,7 @@ import {
   isDuplicateTransaction,
   selectTransactionsForUser,
 } from '../db/billing/transactionRepository.js';
-import { getPlans, getCreditPackages, getFeatures, getPlanFeatures, getAllRoutingProfiles, type PlanFeatureData } from '../lib/gateway-client.js';
+import { getPlans, getCreditPackages, getFeatures, getPlanFeatures, type PlanFeatureData } from '../lib/gateway-client.js';
 import { ensureStripePriceId } from '../lib/stripe-prices.js';
 import { getOrCreateUserCredits } from '../lib/user-credits-helpers.js';
 import { getUserEntitlements, invalidateEntitlementsCache } from '../lib/plan-access.js';
@@ -250,15 +250,6 @@ router.get('/plans', async (req: Request, res: Response) => {
       pfMap[pf.planId][pf.featureId] = pf;
     }
 
-    // Load all Kaana routing profiles from providers API
-    const modelMap: Record<string, { displayName: string; description?: string }> = {};
-    try {
-      const routingProfiles = await getAllRoutingProfiles();
-      for (const m of routingProfiles) {
-        modelMap[m.id] = { displayName: m.name, description: m.description };
-      }
-    } catch { /* ignore */ }
-
     const plans = dbPlans.map(p => {
       const planId = p.planId;
       const planMappings = pfMap[planId] || {};
@@ -288,20 +279,6 @@ router.get('/plans', async (req: Request, res: Response) => {
         if (items && items.length > 0) {
           features.push({ category: feat.category, items });
           seenCategories.add(feat.category);
-        }
-      }
-
-      // Insert "Models" group from modelIds (after Credits if present, else at start)
-      const modelIds: string[] = p.modelIds || [];
-      if (modelIds.length > 0) {
-        const modelItems = modelIds
-          .map(id => modelMap[id])
-          .filter(Boolean)
-          .map(m => ({ label: m!.displayName, description: m!.description }));
-
-        if (modelItems.length > 0) {
-          const insertAt = features.length > 0 && features[0].category === 'Credits' ? 1 : 0;
-          features.splice(insertAt, 0, { category: 'Models', items: modelItems });
         }
       }
 

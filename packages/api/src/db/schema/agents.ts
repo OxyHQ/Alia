@@ -78,7 +78,6 @@ import { sql } from 'drizzle-orm';
 import { createdAt, generatedId, timestamptz, updatedAt } from '@oxy.so/db';
 import { checkOneOf } from './columns';
 import { AGENT_ACCESS, AGENT_ARCHETYPES, AGENT_STATUSES } from '../../domain/agent.js';
-import { OXY_KAANA_ROUTING_PROFILE_ID_LIST } from '../../config/oxy-inference-routing-profile-ids.js';
 import { skills } from './skills';
 import { libraryFiles } from './library';
 
@@ -178,8 +177,8 @@ export const agents = pgTable(
       .notNull()
       .default('private'),
     systemPrompt: text(),
-    /** Exact Oxy routing-profile primary key. Null only on unreconciled legacy rows. */
-    routingProfileId: text(),
+    /** The agent's `publisher/model`; null runs the default model (ADR 0012). */
+    modelId: text(),
     scheduleInterval: integer(),
 
     /** `soul`, flattened. Absent as a group on an agent that has never evolved. */
@@ -216,11 +215,6 @@ export const agents = pgTable(
     checkOneOf('agents_status_check', t.status, AGENT_STATUSES),
     checkOneOf('agents_access_check', t.access, AGENT_ACCESS),
     checkOneOf('agents_archetype_check', t.archetype, AGENT_ARCHETYPES),
-    checkOneOf(
-      'agents_routing_profile_id_check',
-      t.routingProfileId,
-      OXY_KAANA_ROUTING_PROFILE_ID_LIST,
-    ),
     /**
      * Mongoose declares `min: 0, max: 5`. A domain invariant, not input shaping:
      * the value is an average of 1..5 review ratings, so anything outside it
