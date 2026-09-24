@@ -22,7 +22,6 @@
  * sees a nested component as ONE child however many rows it renders.
  */
 
-import React from 'react';
 import { Switch } from '@oxy.so/bloom/switch';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import { useColorScheme } from '@/lib/useColorScheme';
