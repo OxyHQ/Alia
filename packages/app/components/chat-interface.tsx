@@ -398,7 +398,7 @@ const MessageRow = React.memo(function MessageRow({
                 style={{ width: '100%' }}
               >
                 {workInvocations.length === 0 || turnWorking ? null : (
-                  <AiChatMessageLine tone="secondary">
+                  <AiChatMessageLine tone="secondary" selectable={false}>
                     {workStartedAt !== null && workEndedAt !== null
                       ? rowT('thought.workedFor', {
                           elapsed: formatElapsed(workEndedAt - workStartedAt),
@@ -872,8 +872,9 @@ export const ChatInterface = React.memo(function ChatInterface({
         maintainStartPosition={onLoadHistory !== undefined}
         onScroll={onScroll}
       >
-        {/* Bloom's transcript column (`AgentChat`): 768 at most, centred. */}
-        <View className="w-full max-w-[768px] self-center">
+        {/* The transcript column, centred: a little wider than the composer
+            (896 against its 768), so the answer has room to breathe. */}
+        <View className="w-full max-w-4xl self-center">
           {!filteredMessages.length && conversationLoading ? (
               <View className="gap-5 py-4">
                 <View className="items-end">

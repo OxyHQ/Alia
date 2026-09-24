@@ -25,7 +25,9 @@ export const WelcomeMessage = () => {
   return (
     <View className="flex-col items-center justify-center gap-3 md:flex-row">
       <IdentityMark size={38} color={colors.primary} spinOnPress />
-      <Text className="text-center text-4xl tracking-tight text-foreground md:text-left">{greeting}</Text>
+      <Text selectable={false} className="text-center text-4xl tracking-tight text-foreground md:text-left">
+        {greeting}
+      </Text>
     </View>
   );
 };

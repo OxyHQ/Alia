@@ -77,6 +77,9 @@ vi.mock('@/components/settings/local-models-section', () => ({
 vi.mock('@/components/settings/billing-section', () => ({
   BillingSection: () => null,
 }));
+vi.mock('@/components/settings/usage-section', () => ({
+  UsageSection: () => null,
+}));
 vi.mock('@/components/settings/security-section', () => ({
   SecuritySection: () => null,
 }));
