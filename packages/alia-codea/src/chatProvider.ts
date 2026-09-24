@@ -4,8 +4,7 @@ import { fileTools, ToolExecutor, type EditorContext } from './tools';
 import type { AliaAuthenticationProvider } from './authProvider';
 import { errorMessage, errorName } from './errors';
 import { log } from './logger';
-import { PREFERRED_MODEL_ID } from './config';
-import { fetchOfferedModes, resolveModelId } from './catalogue';
+import { fetchPickerCatalogue, resolveModelId } from './catalogue';
 import {
   AliaChatError,
   completedToolCalls,
@@ -94,7 +93,7 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
   private _toolExecutor: ToolExecutor;
   private _isProcessing: boolean = false;
   private _currentMode: string = 'ask';
-  private _lastRequestParams: { baseUrl: string; accessToken: string; model: string; clientContext: string } | null = null;
+  private _lastRequestParams: { baseUrl: string; accessToken: string; model: string | undefined; clientContext: string } | null = null;
 
   constructor(
     private readonly _extensionUri: vscode.Uri,
@@ -131,25 +130,23 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
   }
 
   /**
-   * Send the webview what the product offers, in the product's own words.
+   * Send the webview the real models the server offers (`GET /catalogue`),
+   * featured first and then grouped by publisher.
    *
-   * The webview holds no list of its own — it used to hardcode one, and
-   * `GET /v1/models` has been permanently empty since #178
-   * (`docs/migration/compatibility-window.md`), so that hardcoded entry was
-   * what every user actually saw. An empty list here means the picker offers
-   * nothing and the extension's `codea.model` setting stays in charge, which
-   * is the honest answer when the catalogue cannot be read.
+   * The webview holds no list of its own. When the catalogue cannot be read
+   * the groups are empty and the picker offers only the server default, which
+   * leaves the `codea.model` setting (or, when empty, the server) in charge.
    *
    * The token is the extension host's, and it never reaches the webview: only
    * the identifiers and the words go across.
    */
-  private async fetchAndSendModes(): Promise<void> {
+  private async fetchAndSendModels(): Promise<void> {
     const config = vscode.workspace.getConfiguration('codea');
     const baseUrl = config.get<string>('apiBaseUrl') || 'https://api.alia.onl';
     const accessToken = await this._authProvider.getAccessToken().catch(() => null);
 
-    const modes = await fetchOfferedModes(baseUrl, accessToken ?? undefined);
-    this._view?.webview.postMessage({ type: 'modes', modes });
+    const picker = await fetchPickerCatalogue(baseUrl, accessToken ?? undefined);
+    this._view?.webview.postMessage({ type: 'models', groups: picker.groups, defaultLabel: picker.defaultLabel });
   }
 
   private async handleSignOut(): Promise<void> {
@@ -187,7 +184,7 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
     webviewView.webview.html = this._getHtmlForWebview(webviewView.webview);
 
     this.fetchAndSendUserInfo();
-    this.fetchAndSendModes();
+    this.fetchAndSendModels();
 
     webviewView.webview.onDidReceiveMessage(async (data) => {
       switch (data.type) {
@@ -615,7 +612,9 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
      * every continuation and could change model mid-conversation if the
      * catalogue shifted underneath it.
      */
-    const requestedModel = selectedModel || config.get<string>('model') || PREFERRED_MODEL_ID;
+    // The picker's choice, else the `codea.model` setting; empty in both means
+    // `model` is omitted and the server uses its default model.
+    const requestedModel = selectedModel || config.get<string>('model') || '';
     const model = await resolveModelId(baseUrl, requestedModel, accessToken ?? undefined);
 
     if (!accessToken) {
@@ -730,7 +729,7 @@ You are running inside Visual Studio Code, Microsoft's popular code editor.
    * The final round is sent with `tool_choice: 'none'` so a model that would
    * keep calling tools is made to answer instead of being cut off silently.
    */
-  private async processConversation(baseUrl: string, accessToken: string, model: string, clientContext: string): Promise<void> {
+  private async processConversation(baseUrl: string, accessToken: string, model: string | undefined, clientContext: string): Promise<void> {
     this._view?.webview.postMessage({ type: 'startAssistantMessage' });
     this._abortController = new AbortController();
 
