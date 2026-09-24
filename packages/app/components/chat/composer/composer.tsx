@@ -61,6 +61,11 @@ export interface ComposerProps {
   status?: ReactNode;
   /** Drawn where send would be while there is nothing to send (voice mode). */
   emptyAction?: ReactNode;
+  /**
+   * Drawn over the conversation at the composer's top-right corner, and so
+   * pinned with it — the jump to the newest turn.
+   */
+  accessory?: ReactNode;
   /** The field's keys, before the panel's own Enter rule (suggestions over it). */
   onKeyPress?: (event: NativeSyntheticEvent<TextInputKeyPressEventData>) => void;
   /** The host already avoids the keyboard. */
@@ -91,6 +96,7 @@ export function Composer({
   onRemoveAttachment,
   status,
   emptyAction,
+  accessory,
   onKeyPress,
   disableKeyboardAvoidance = false,
 }: ComposerProps) {
@@ -245,6 +251,11 @@ export function Composer({
         onKeyPress={onKeyPress}
         labels={labels}
       />
+      {accessory ? (
+        <View pointerEvents="box-none" className="absolute bottom-full right-0 mb-2">
+          {accessory}
+        </View>
+      ) : null}
     </View>
   );
 

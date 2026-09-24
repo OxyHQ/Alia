@@ -8,10 +8,9 @@ import type { FailedTurn } from '@/components/chat/turn-failure';
 import { cardOf } from '@/lib/chat/tool-cards';
 import { getToolPillLabel } from '@/lib/task-utils';
 import { isWebInvocation, taskListLog, webSearchLog } from '@/lib/chat/work-log';
-import { useAtBottom } from '@/lib/hooks/use-at-bottom';
 import { daySeparators } from '@/lib/message-days';
 import { AgentProgress } from '@oxy.so/bloom/agent-progress';
-import { ChatDateHeader, ScrollToBottomButton } from '@oxy.so/bloom/chat-screen';
+import { ChatDateHeader } from '@oxy.so/bloom/chat-screen';
 import { TaskList } from '@oxy.so/bloom/task-list';
 import { WebSearch } from '@oxy.so/bloom/web-search';
 import { NewConversationOffer } from '@/components/new-conversation-offer';
@@ -610,22 +609,6 @@ export const ChatInterface = React.memo(function ChatInterface({
     return labels;
   }, [filteredMessages, locale, t]);
 
-  /**
-   * Whether the reader has left the end, for Bloom's jump button. The
-   * screen's own `onScroll`, if it passed one, still hears every event.
-   */
-  const { isAtBottom, onScroll: onScrollAtBottom } = useAtBottom(AT_BOTTOM_THRESHOLD);
-  const handleScroll = useCallback(
-    (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-      onScrollAtBottom(e);
-      onScroll?.(e);
-    },
-    [onScrollAtBottom, onScroll],
-  );
-  const handleJumpToEnd = useCallback(() => {
-    threadRef.current?.scrollToEnd({ animated: false });
-  }, [threadRef]);
-
   const lastAliaIndex = useMemo(
     () =>
       filteredMessages.reduce(
@@ -874,7 +857,7 @@ export const ChatInterface = React.memo(function ChatInterface({
         onStartReached={onLoadHistory}
         onStartReachedThreshold={NEAR_TOP}
         maintainStartPosition={onLoadHistory !== undefined}
-        onScroll={handleScroll}
+        onScroll={onScroll}
       >
         {/* Bloom's transcript column (`AgentChat`): 768 at most, centred. */}
         <View className="w-full max-w-[768px] self-center">
@@ -978,15 +961,6 @@ export const ChatInterface = React.memo(function ChatInterface({
         </View>
         <View style={bottomSpacerStyle} />
       </AiChatThread>
-      {/* Bloom's jump to the newest turn, floating over the thread's corner
-          as the Chat Screen docs place it; unmounted while at the end. */}
-      <View pointerEvents="box-none" className="absolute right-4 bottom-4 gap-2.5">
-        <ScrollToBottomButton
-          visible={!isAtBottom}
-          onPress={handleJumpToEnd}
-          accessibilityLabel={t('chat.bloom.scrollToLatest')}
-        />
-      </View>
     </View>
   );
 });
