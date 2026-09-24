@@ -26,7 +26,6 @@ const HOSTED_RUNTIME_FILES = [
   'lib/chat/stream-runner.ts',
   'lib/gateway-client.ts',
   'lib/image-generation.ts',
-  'lib/synthesize-sound-effect.ts',
   'lib/synthesize-speech.ts',
   'lib/memory/embeddings.ts',
   'routes/v1/audio.ts',

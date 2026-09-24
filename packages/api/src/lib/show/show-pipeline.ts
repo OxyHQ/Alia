@@ -36,7 +36,6 @@ import {
 } from '../../db/shows/showRepository.js';
 import { resolveModel, getAIModel, getDefaultRoutingProfile } from '../chat-core.js';
 import { synthesizeSpeech } from '../synthesize-speech.js';
-import { synthesizeSoundEffect } from '../synthesize-sound-effect.js';
 import { deleteS3Objects, uploadToS3 } from '../s3.js';
 import {
   finalizeFixedCredits,
@@ -127,11 +126,11 @@ interface ShowScript {
   description: string;
   summary: string;
   recap: string;
+  /** Spoken lines only. Anything else the model wrote was dropped on parse. */
   segments: Array<{
-    type: 'dialogue' | 'sfx' | 'transition';
+    type: 'dialogue';
     speaker: string;
     text: string;
-    sfxPrompt?: string;
   }>;
 }
 
@@ -343,7 +342,6 @@ export async function runShowPipeline(episodeId: string): Promise<void> {
       speaker: segment.speaker,
       text: segment.text,
       type: segment.type,
-      ...(segment.sfxPrompt === undefined ? {} : { sfxPrompt: segment.sfxPrompt }),
     }));
 
     await applyUpdate({ status: 'generating_audio', segments, progress: 15, topic: subject, title });
@@ -526,16 +524,15 @@ export async function runShowPipeline(episodeId: string): Promise<void> {
 }
 
 /**
- * Synthesise every segment, in bounded batches, in playback order.
+ * Speak every segment, in bounded batches, in playback order.
  *
- * Dialogue is rendered before sound effects, deliberately: an SFX provider
- * timing out used to poison the key pool before the speech — which is the part a
- * listener cannot do without — had finished.
+ * Every segment is dialogue: the script is spoken lines only (sound effects
+ * were removed — there is no audio-generation seam to render them).
  *
- * A segment that fails is SKIPPED rather than fatal. One missing transition
- * whoosh is a slightly abrupt show; refusing to publish over it is no show — but
- * it is MARKED as it is skipped, so the episode carries what it could not make
- * instead of looking complete.
+ * A line that fails is SKIPPED rather than fatal — one lost line is a slightly
+ * abrupt show, refusing to publish over it is no show — but it is MARKED as it
+ * is skipped, so the episode carries what it could not make instead of looking
+ * complete.
  */
 async function renderSegments(
   episode: ShowEpisodeRow,
@@ -545,19 +542,14 @@ async function renderSegments(
   onProgress: (completed: number) => void,
 ): Promise<Buffer[]> {
   const rendered = new Map<number, Buffer>();
-  const dialogue = segments.filter((segment) => segment.type === 'dialogue');
-  const effects = segments.filter((segment) => segment.type !== 'dialogue');
-  const ordered = [...dialogue, ...effects];
   const voices = speakingVoices(cast);
   let completed = 0;
 
-  for (let start = 0; start < ordered.length; start += TTS_BATCH_SIZE) {
-    const batch = ordered.slice(start, start + TTS_BATCH_SIZE);
+  for (let start = 0; start < segments.length; start += TTS_BATCH_SIZE) {
+    const batch = segments.slice(start, start + TTS_BATCH_SIZE);
     const results = await Promise.allSettled(
       batch.map(async (segment) =>
-        segment.type === 'dialogue'
-          ? renderSpeech(segment.text, voices, segment.speaker, episode.userId)
-          : renderSoundEffect(segment.sfxPrompt ?? 'short transition sound, 2 seconds'),
+        renderSpeech(segment.text, voices, segment.speaker, episode.userId),
       ),
     );
 
@@ -578,9 +570,9 @@ async function renderSegments(
       } else {
         /**
          * On the SEGMENT, not just in the log. Skipping is the right call and
-         * saying nothing about it is not: an episode that quietly loses every
-         * sound cue it asked for reads as a complete episode to everybody who
-         * did not have the container's logs open.
+         * saying nothing about it is not: an episode that quietly loses lines
+         * reads as a complete episode to everybody who did not have the
+         * container's logs open.
          */
         segment.renderFailed = true;
         log.general.warn(
@@ -599,10 +591,9 @@ async function renderSegments(
     onProgress(completed);
   }
 
-  // Back into playback order. `rendered` is keyed by the segment's own index, so
-  // this is the script's order rather than the order things happened to finish
-  // in — and the sort the old version did on a parallel array could not survive
-  // a skipped segment.
+  // In playback order. `rendered` is keyed by the segment's own index, so this
+  // is the script's order rather than the order things happened to finish in,
+  // and a skipped segment leaves no gap.
   return segments
     .map((segment) => rendered.get(segment.index))
     .filter((buffer): buffer is Buffer => buffer !== undefined);
@@ -674,7 +665,7 @@ async function generateScript(
  * Three rejections beyond "is it JSON", and the first two were failures the old
  * version shipped as degraded shows rather than as retries:
  *
- *  - fewer than three segments is not an episode;
+ *  - fewer than three spoken lines is not an episode;
  *  - a dialogue segment naming somebody who is not in the cast has no voice to
  *    be spoken in, so it would be dropped silently later. Rejecting the whole
  *    reply here asks the model again instead, which is what a caller
@@ -686,6 +677,10 @@ async function generateScript(
  *    one and then let the show cover it again. `title` gets no such rejection —
  *    it has a placeholder to fall back on, and refusing a whole script over a
  *    name would be absurd.
+ *
+ * Only `dialogue` segments are kept. A model that still writes a sound cue or
+ * a transition has it dropped here rather than stored: nothing renders one, so
+ * keeping it would only mark the episode with a segment it could never have.
  *
  * A dialogue line is STORED exactly as the model wrote it, and that is
  * deliberate: the row is the script, not what one speech endpoint could say.
@@ -706,12 +701,18 @@ function parseScript(
     return null;
   }
 
-  const segments = parsed.segments;
-  if (!Array.isArray(segments) || segments.length < 3) return null;
+  const written: unknown = parsed.segments;
+  if (!Array.isArray(written)) return null;
 
-  const dialogue = segments.filter((segment) => segment.type === 'dialogue');
-  if (dialogue.length === 0) return null;
-  if (dialogue.some((segment) => !castNames.has(segment.speaker))) return null;
+  const segments: ShowScript['segments'] = (written as Array<Partial<ShowScript['segments'][number]>>)
+    .filter((segment) => segment?.type === 'dialogue')
+    .map((segment) => ({
+      type: 'dialogue',
+      speaker: segment.speaker ?? '',
+      text: segment.text ?? '',
+    }));
+  if (segments.length < 3) return null;
+  if (segments.some((segment) => !castNames.has(segment.speaker))) return null;
 
   // One line, so a model that answered with a paragraph contributes a marker
   // rather than a wall — and bounded, because this is what fifty later prompts
@@ -772,19 +773,4 @@ async function renderSpeech(
   const [only] = parts;
   const buffer = parts.length === 1 && only !== undefined ? only : await concatenateAudioSegments(parts);
   return { buffer, format: 'mp3' };
-}
-
-/**
- * Generate one sound effect, in whichever provider in the SFX tier can.
- *
- * This function used to name `digitalocean` and one fal model INLINE, with no
- * tier and no failover, and that single route holds no credential in production
- * — so every sound cue in every episode was lost, permanently, while the
- * episode published and reported success. `synthesizeSoundEffect` is the same
- * shape `renderSpeech` gets from `synthesizeSpeech`: one loop that owns the
- * chain, and no provider named here.
- */
-async function renderSoundEffect(prompt: string): Promise<RenderedAudio | null> {
-  const effect = await synthesizeSoundEffect({ prompt });
-  return effect ? { buffer: effect.audio, format: effect.format } : null;
 }

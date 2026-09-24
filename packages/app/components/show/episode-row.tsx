@@ -126,23 +126,22 @@ export function EpisodeRow({ episode, onDelete }: EpisodeRowProps) {
    *
    * Derived from the segments the row already carries rather than from a field
    * of its own, so there is one fact and not two. It exists because an episode
-   * that lost every sound cue it wrote looked, here, exactly like one that kept
-   * them — ready, playable, and silent about three missing effects nobody could
-   * see outside the container's logs.
+   * that lost lines looked, here, exactly like one that kept them — ready,
+   * playable, and silent about what nobody could see outside the container's
+   * logs.
+   *
+   * Only spoken lines count. A legacy sound cue on an older episode (`sfx`,
+   * `transition`) is not a line, and sound effects no longer exist, so its
+   * failure is not something to report.
    *
    * Withheld while the episode is still being made: segments are marked as each
    * batch finishes, so a count shown then is a number that climbs, next to a
    * progress bar already saying the work is not done.
    */
-  const missing = episode.segments?.filter((segment) => segment.renderFailed) ?? [];
-  const missingEffects = missing.filter((segment) => segment.type !== 'dialogue').length;
-  const missingLines = missing.length - missingEffects;
-  const missingEffectsLabel =
-    isGenerating || missingEffects === 0
-      ? ''
-      : missingEffects === 1
-        ? '1 sound effect missing'
-        : `${missingEffects} sound effects missing`;
+  const missingLines =
+    episode.segments?.filter(
+      (segment) => segment.type === 'dialogue' && segment.renderFailed,
+    ).length ?? 0;
   const missingLinesLabel =
     isGenerating || missingLines === 0
       ? ''
@@ -159,7 +158,7 @@ export function EpisodeRow({ episode, onDelete }: EpisodeRowProps) {
    * duration it is standing in for. It is a fact about this attempt, not a fault
    * report, and it never claims the episode is still being made. It says WHICH
    * refusal, because "couldn't play this one" is as useless to somebody who is
-   * signed out as the `NotSupportedError` it replaced. A cue that could not be
+   * signed out as the `NotSupportedError` it replaced. A line that could not be
    * produced belongs in the same line for the same reason: the recording IS the
    * episode and it plays, so this states what is not in it rather than raising
    * an alarm about it.
@@ -171,7 +170,6 @@ export function EpisodeRow({ episode, onDelete }: EpisodeRowProps) {
       ? formatEpisodeDuration(episode.durationMs)
       : EPISODE_AUDIO_PROBLEM_LABEL[problem],
     episode.creditsCharged ? `${episode.creditsCharged} credits` : '',
-    missingEffectsLabel,
     missingLinesLabel,
   ]);
 

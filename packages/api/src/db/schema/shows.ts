@@ -95,8 +95,19 @@ export const ACTIVE_SHOW_EPISODE_STATUSES: readonly ShowEpisodeStatus[] = [
   'publishing',
 ];
 
-export const SHOW_SEGMENT_TYPES = ['dialogue', 'sfx', 'transition'] as const;
-export type ShowSegmentType = (typeof SHOW_SEGMENT_TYPES)[number];
+/** What the pipeline writes: spoken lines, and nothing else. */
+export const SHOW_SEGMENT_TYPES = ['dialogue'] as const;
+/**
+ * Segment types only an OLDER episode carries. Sound effects (`sfx`, and the
+ * `transition` cues they rendered) were removed: nothing has rendered one since
+ * the Kaana cutover, so no episode writes them now. Rows written before that are
+ * `jsonb` history and are left as they are — readable, never produced, and
+ * never counted as missing audio.
+ */
+export const LEGACY_SHOW_SEGMENT_TYPES = ['sfx', 'transition'] as const;
+export type ShowSegmentType =
+  | (typeof SHOW_SEGMENT_TYPES)[number]
+  | (typeof LEGACY_SHOW_SEGMENT_TYPES)[number];
 export const SHOW_SPEAKER_ROLES = ['host', 'co-host', 'guest', 'narrator'] as const;
 export type ShowSpeakerRole = (typeof SHOW_SPEAKER_ROLES)[number];
 
@@ -109,7 +120,8 @@ export interface ShowSpeaker {
 }
 
 /**
- * One spoken or sound segment of an episode.
+ * One spoken segment of an episode (or, on an older row, a legacy sound cue —
+ * see `LEGACY_SHOW_SEGMENT_TYPES`).
  *
  * `audioUrl` is an S3 KEY for the working copy of that segment, never an
  * address: it exists so the concatenation step can be resumed and inspected, and
@@ -123,19 +135,19 @@ export interface ShowSegment {
   audioUrl?: string;
   durationMs?: number;
   type: ShowSegmentType;
+  /** Legacy: only on an older row's `sfx` segment. Never written now. */
   sfxPrompt?: string;
   /**
    * This segment asked for audio and got none, so it is not in the episode.
    *
-   * The pipeline is right to publish anyway — one missing transition whoosh is
-   * a slightly abrupt show, and refusing over it is no show — but it used to
-   * publish and say NOTHING. Three sound cues vanished from every episode for
-   * days while the row read `completed` and the owner had no way to know, which
-   * is worse than an episode that admits what it could not make.
+   * The pipeline is right to publish anyway — one lost line is a slightly
+   * abrupt show, and refusing over it is no show — but it used to publish and
+   * say NOTHING, while the row read `completed` and the owner had no way to
+   * know, which is worse than an episode that admits what it could not make.
    *
    * So the loss is recorded where it happened, on the segment, rather than
-   * summarised into a count somewhere else: the row says exactly which cues are
-   * missing and what they were meant to be. `segments` is already in
+   * summarised into a count somewhere else: the row says exactly which lines are
+   * missing and what they were meant to say. `segments` is already in
    * `EPISODE_PUBLIC_COLUMNS`, so the screen derives its notice from this and
    * there is no second copy of the fact to fall out of step.
    *

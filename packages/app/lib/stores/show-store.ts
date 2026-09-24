@@ -50,19 +50,21 @@ export interface ShowSpeaker {
 }
 
 /**
- * One line or sound of an episode, as the API serves it.
+ * One line of an episode, as the API serves it.
  *
  * Declared here because `renderFailed` is the only reason the screen reads
- * `segments` at all: a segment that asked for audio and got none is not in the
- * finished recording, and an episode that lost every sound cue it wrote used to
- * look exactly like one that kept them.
+ * `segments` at all: a line that asked for audio and got none is not in the
+ * finished recording, and an episode that lost lines used to look exactly like
+ * one that kept them.
+ *
+ * `sfx` and `transition` exist only on episodes made before sound effects were
+ * removed. They are tolerated and ignored: never counted, never shown.
  */
 export interface ShowSegment {
   index: number;
   speaker: string;
   text: string;
   type: 'dialogue' | 'sfx' | 'transition';
-  sfxPrompt?: string;
   durationMs?: number;
   /** Absent means it rendered. See the API's own `ShowSegment`. */
   renderFailed?: boolean;

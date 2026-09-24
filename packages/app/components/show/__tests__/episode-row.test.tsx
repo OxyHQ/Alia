@@ -388,35 +388,23 @@ describe('EpisodeRow', () => {
   /**
    * The user-visible half of a fix whose other half is a column in Postgres.
    *
-   * Every sound effect in every generated episode failed for days. The pipeline
-   * skipped each one, published, and wrote `completed` — so this row said
-   * `Episode 3 · Today · 12 min` about a recording missing its intro, its
-   * transition and its outro, and the only record was a warning in a container
-   * log. The API now marks the segments it could not render; these assert that
-   * the mark ARRIVES here, in words, at the person who asked for the episode.
+   * The pipeline skips a line it cannot render, publishes, and writes
+   * `completed` — so this row used to say `Episode 3 · Today · 12 min` about a
+   * recording missing lines. The API marks the segments it could not render;
+   * these assert that the mark ARRIVES here, in words.
+   *
+   * Older episodes also carry `sfx` segments from before sound effects were
+   * removed, most of them marked failed. Those are not lines and the feature is
+   * gone, so they are never counted.
    */
-  describe('a cue the episode could not make', () => {
-    /** Three sfx segments, of which two never rendered, plus a lost line. */
+  describe('a line the episode could not make', () => {
+    /** One lost line, beside legacy sound cues that also never rendered. */
     const withLosses: ShowEpisode = {
       ...BASE,
       segments: [
-        {
-          index: 0,
-          speaker: '',
-          text: '',
-          type: 'sfx',
-          sfxPrompt: 'intro',
-          renderFailed: true,
-        },
+        { index: 0, speaker: '', text: '', type: 'sfx', renderFailed: true },
         { index: 1, speaker: 'Ana', text: 'Hello.', type: 'dialogue' },
-        {
-          index: 2,
-          speaker: '',
-          text: '',
-          type: 'sfx',
-          sfxPrompt: 'whoosh',
-          renderFailed: true,
-        },
+        { index: 2, speaker: '', text: '', type: 'transition', renderFailed: true },
         {
           index: 3,
           speaker: 'Ana',
@@ -424,16 +412,15 @@ describe('EpisodeRow', () => {
           type: 'dialogue',
           renderFailed: true,
         },
-        { index: 4, speaker: '', text: '', type: 'sfx', sfxPrompt: 'outro' },
+        { index: 4, speaker: '', text: '', type: 'sfx' },
       ],
     };
 
-    it('is stated in the same quiet line as the duration, counted by kind', () => {
+    it('is stated in the same quiet line as the duration, counting lines only', () => {
       const root = renderRow(withLosses);
 
-      expect(lines(root)).toContain(
-        'Episode 3 · Today · 12 min · 2 sound effects missing · 1 line missing',
-      );
+      expect(lines(root)).toContain('Episode 3 · Today · 12 min · 1 line missing');
+      expect(lines(root).join(' ')).not.toMatch(/sound effect/);
       // Still an episode: it plays, and nothing calls it broken.
       expect(nodes(root, 'Play')).toHaveLength(1);
       expect(nodes(root, 'AlertCircle')).toHaveLength(0);
@@ -454,24 +441,29 @@ describe('EpisodeRow', () => {
       expect(lines(root).join(' ')).not.toMatch(/missing/);
     });
 
-    it('counts one of a kind in the singular', () => {
+    it('says nothing for an older episode whose only losses are sound cues', () => {
       const root = renderRow({
         ...BASE,
         segments: [
-          {
-            index: 0,
-            speaker: '',
-            text: '',
-            type: 'sfx',
-            sfxPrompt: 'intro',
-            renderFailed: true,
-          },
+          { index: 0, speaker: '', text: '', type: 'sfx', renderFailed: true },
+          { index: 1, speaker: 'Ana', text: 'Hello.', type: 'dialogue' },
         ],
       });
 
-      expect(lines(root)).toContain(
-        'Episode 3 · Today · 12 min · 1 sound effect missing',
-      );
+      expect(lines(root)).toContain('Episode 3 · Today · 12 min');
+      expect(lines(root).join(' ')).not.toMatch(/missing/);
+    });
+
+    it('counts several lines in the plural', () => {
+      const root = renderRow({
+        ...BASE,
+        segments: [
+          { index: 0, speaker: 'Ana', text: 'Hello.', type: 'dialogue', renderFailed: true },
+          { index: 1, speaker: 'Ana', text: 'Bye.', type: 'dialogue', renderFailed: true },
+        ],
+      });
+
+      expect(lines(root)).toContain('Episode 3 · Today · 12 min · 2 lines missing');
     });
 
     it('withholds the count while the episode is still being made', () => {
