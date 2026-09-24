@@ -35,8 +35,9 @@ const ROOT = resolve(import.meta.dirname, "..");
 
 /** Components that render a catalogue entry to a person. */
 const RENDERERS = [
-  "packages/app/components/model-selector.tsx",
-  "packages/app/components/credit-warning-banner.tsx",
+  // The composer's model lineup (Bloom v4 retired `model-selector.tsx` and the
+  // credit warning banner; this is the one place a catalogue entry is named).
+  "packages/app/components/chat/composer/model-lineup.ts",
 ];
 
 /**
