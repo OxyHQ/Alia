@@ -38,7 +38,7 @@
  *  - Named frames `event: alia.<name>\ndata: {…}`: `alia.reasoning`
  *    (`{ content }`), `alia.tool_result` (`{ tool_call_id, name, output }`) and
  *    a handful this process has no use for (`alia.title`, `alia.agent`,
- *    `alia.plan_preview`, `alia.model_switch`, …), passed through as `event`.
+ *    `alia.plan_preview`, …), passed through as `event`.
  *  - `data: {"error": {…}}` followed by `[DONE]`: a refusal AFTER the headers
  *    went out. Surfaced as {@link AliaChatError}, never as text.
  *  - `data: [DONE]` closes the stream.
@@ -190,7 +190,8 @@ export class AliaChatError extends Error {
 // ── Request ─────────────────────────────────────────────────────────────────
 
 export interface AliaChatRequestBody {
-  readonly model: string
+  /** `publisher/model`; omitted for the server's default model. */
+  readonly model?: string
   readonly messages: readonly OpenAI.Chat.ChatCompletionMessageParam[]
   readonly tools?: readonly OpenAI.Chat.ChatCompletionTool[]
   readonly tool_choice?: 'auto' | 'none'

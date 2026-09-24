@@ -23,8 +23,7 @@ import Store from 'electron-store'
 import { ToolExecutor } from './tools'
 import { errorMessage, errorName, errorStack } from './errors'
 import { createLogger } from './logger'
-import { PREFERRED_CHAT_MODEL_ID } from './config'
-import { resolveModelId } from './catalogue'
+import { isModelId, loadCatalogue, resolveModelId, type Catalogue } from './catalogue'
 import { currentAccessToken, refreshAccessToken } from './auth'
 import {
   AliaChatError,
@@ -45,10 +44,14 @@ interface ContextItem {
 
 const logger = createLogger('ChatProvider')
 
-const store = new Store({
+/**
+ * `model` has no default on purpose: unset means "omit `model` and let the
+ * server answer with its own default". It holds the person's pick from the
+ * model picker, a `publisher/model` id from `GET /catalogue`.
+ */
+const store = new Store<{ apiBaseUrl: string; enableTools: boolean; model?: string }>({
   defaults: {
     apiBaseUrl: 'https://api.alia.onl',
-    model: PREFERRED_CHAT_MODEL_ID,
     enableTools: true
   }
 })
@@ -306,7 +309,8 @@ interface StreamOutcome {
 
 interface TurnRequest {
   baseUrl: string
-  model: string
+  /** Omitted from the request when `undefined`: the server uses its default. */
+  model: string | undefined
   tools: OpenAI.Chat.ChatCompletionTool[] | undefined
 }
 
@@ -379,8 +383,10 @@ export class ChatProvider {
      * Resolved once, here, and then carried through every tool-round
      * continuation of this message. Resolving per request could change the
      * model mid-conversation if the catalogue shifted underneath it.
+     * `undefined` — nothing chosen, or a choice the catalogue no longer lists —
+     * omits `model` and the server answers with its default.
      */
-    const requestedModel = model || (store.get('model') as string)
+    const requestedModel = model || store.get('model')
     const selectedModel = await resolveModelId(baseUrl, requestedModel, currentAccessToken() ?? undefined)
     const enableTools = store.get('enableTools') as boolean
 
@@ -399,7 +405,7 @@ export class ChatProvider {
 
     logger.debug('===== NEW MESSAGE =====')
     logger.debug('Mode:', mode)
-    logger.debug('Model:', selectedModel)
+    logger.debug('Model:', selectedModel ?? '(server default)')
     logger.debug('Base URL:', baseUrl)
     logger.debug('Tools enabled:', enableTools)
     logger.debug('Message count:', this.messages.length)
@@ -494,7 +500,7 @@ export class ChatProvider {
    */
   private async streamOnce(request: TurnRequest, finalRound: boolean): Promise<StreamOutcome> {
     const body = {
-      model: request.model,
+      ...(request.model === undefined ? {} : { model: request.model }),
       messages: this.messages,
       tools: finalRound ? undefined : request.tools,
       ...(finalRound && request.tools !== undefined ? { tool_choice: 'none' as const } : {}),
@@ -733,6 +739,32 @@ export class ChatProvider {
       return 'Rate limit exceeded. Please wait a moment and try again.'
     }
     return message
+  }
+
+  /**
+   * The catalogue for the model picker, or `null` when it could not be read
+   * (the picker then offers only the server default).
+   */
+  async getModels(): Promise<Catalogue | null> {
+    const baseUrl = store.get('apiBaseUrl') as string
+    try {
+      return await loadCatalogue(baseUrl, currentAccessToken() ?? undefined)
+    } catch (error: unknown) {
+      logger.debug('model catalogue unavailable:', errorMessage(error))
+      return null
+    }
+  }
+
+  /** The stored pick, or `null` for the server default. */
+  getSelectedModel(): string | null {
+    const stored = store.get('model')
+    return isModelId(stored) ? stored : null
+  }
+
+  /** Persist the picker's choice; `null` (or anything not a model id) clears it. */
+  selectModel(modelId: string | null): void {
+    if (isModelId(modelId)) store.set('model', modelId)
+    else store.delete('model')
   }
 
   async getUserInfo(): Promise<unknown> {

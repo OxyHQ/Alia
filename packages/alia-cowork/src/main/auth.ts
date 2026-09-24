@@ -44,7 +44,6 @@ import {
 } from '@oxy.so/core'
 
 import { createLogger } from './logger'
-import { PREFERRED_CHAT_MODEL_ID } from './config'
 
 const logger = createLogger('Auth')
 
@@ -152,8 +151,6 @@ export async function refreshAccessToken(): Promise<string | null> {
 export interface AuthState {
   isAuthenticated: boolean
   username?: string
-  /** The model this window should ask for when the user has expressed no preference. */
-  preferredModel: string
 }
 
 export class AuthProvider {
@@ -319,8 +316,7 @@ export class AuthProvider {
   getAuthState(): AuthState {
     return {
       isAuthenticated: oxy.getAccessToken() !== null,
-      ...(this.username === null ? {} : { username: this.username }),
-      preferredModel: PREFERRED_CHAT_MODEL_ID
+      ...(this.username === null ? {} : { username: this.username })
     }
   }
 

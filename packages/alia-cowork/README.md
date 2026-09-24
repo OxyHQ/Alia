@@ -17,9 +17,17 @@ Supported named events:
 - `alia.approval_request`
 - `alia.approval_result`
 - `alia.research_progress`
-- `alia.model_switch`
 - `alia.agent_session`
 - `alia.title`
+
+## Models
+
+Alia has no models of its own. The composer's model picker lists the real
+models `GET /catalogue` returns (`publisher/model` ids): featured first, then
+grouped by publisher. "Default" is the absence of a choice — the request omits
+`model` and the server answers with its default (`defaultModelId`). A stored
+pick the catalogue no longer lists is omitted the same way. Nothing in the app
+names a model.
 
 ## Features
 

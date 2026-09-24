@@ -15,6 +15,7 @@ import { OutputPanel } from "./output-panel";
 import { LoadWorkflowDialog } from "./load-workflow-dialog";
 import { NodeEditPanel } from "./node-edit-panel";
 import { RunHistoryDialog } from "./run-history-dialog";
+import { withStoredModels } from "@/lib/catalogue";
 
 // Alia workflow API base (workflows, execute). Overridable at build time.
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:4150";
@@ -39,8 +40,7 @@ const initialNodes: WorkflowNode[] = [
     type: "aiText",
     position: { x: 450, y: 150 },
     data: {
-      // No `model`: the node runs in Automatic, and the server's own default
-      // decides. See `src/lib/product-modes.ts`.
+      // No `model`: the server's default model answers. See `src/lib/catalogue.ts`.
       label: "Generate README",
       prompt:
         "Based on the following repository context, generate a comprehensive README.md file with sections for: Overview, Features, Installation, Usage, API Reference (if applicable), and Contributing guidelines.\n\n{{input}}",
@@ -68,8 +68,8 @@ const initialEdges: Edge[] = [
 // Static per-node-type default data. Module-scoped so it stays referentially
 // stable across renders (no need to thread it through hook dependency arrays).
 const defaultNodeData: Record<WorkflowNodeType, object> = {
-  // Neither AI node names a model. A new node starts in Automatic, which is the
-  // absence of a `model` field rather than a value — see `src/lib/product-modes.ts`.
+  // Neither AI node names a model. A new node starts on the server default, which
+  // is the absence of a `model` field rather than a value — see `src/lib/catalogue.ts`.
   aiText: {
     label: "AI Text",
     prompt: "",
@@ -200,7 +200,7 @@ function WorkflowEditorInner() {
         headers: {
           "Content-Type": "application/json"
         },
-        body: JSON.stringify({ nodes, edges, workflowId }),
+        body: JSON.stringify({ nodes: withStoredModels(nodes), edges, workflowId }),
       });
 
       const result = await response.json();
@@ -291,7 +291,7 @@ function WorkflowEditorInner() {
       if (response.ok && result.workflow) {
         setWorkflowId(result.workflow.id);
         setWorkflowName(result.workflow.name);
-        setNodes(result.workflow.nodes || []);
+        setNodes(withStoredModels(result.workflow.nodes || []));
         setEdges(result.workflow.edges || []);
         setHasChanges(false);
         setShowLoadDialog(false);
