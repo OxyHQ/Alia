@@ -34,7 +34,7 @@ import { useTranslation } from '@/lib/hooks/use-translation';
 
 export type CapabilityMode = 'agent' | 'ghost' | 'deepResearch';
 
-export const CAPABILITY_MODE_CONFIG: Record<CapabilityMode, {
+const CAPABILITY_MODE_CONFIG: Record<CapabilityMode, {
   label: string;
   onToast: string;
   offToast: string;

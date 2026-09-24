@@ -1,24 +1,22 @@
+import type { BloomIconComponent } from "@oxy.so/bloom/icons";
 import Svg, { Path } from "react-native-svg";
 import { useColorScheme } from "@/lib/useColorScheme";
 
-export interface AgentRobotIconProps {
-  size?: number;
-  /** Icon color. Defaults to the theme muted foreground, as the sibling glyph components do. */
-  color?: string;
-}
-
 /**
  * `agent-robot` — agents — the sidebar section and the delegation capability.
+ *
+ * Bloom's icon contract (`width`, `height`, `fill`), so it sits in any list of
+ * Bloom icons; the fill defaults to the theme's muted foreground.
  *
  * Generated from `scripts/icons/shell-sprites.svg`. Change `scripts/icons/manifest.ts`
  * and re-run `bun run generate:icons`; editing this file is reverted by the next run
  * and caught by `components/__tests__/generated-icons.test.ts`.
  */
-export function AgentRobotIcon({ size = 18, color }: AgentRobotIconProps) {
+export const AgentRobotIcon: BloomIconComponent = ({ width = 18, height = width, fill }) => {
   const { colors } = useColorScheme();
-  const tint = color ?? colors.mutedForeground;
+  const tint = fill ?? colors.mutedForeground;
   return (
-    <Svg width={size} height={size} viewBox="0 0 20 20">
+    <Svg width={width} height={height} viewBox="0 0 20 20">
       <Path
         d="M8.195 10.381c.423 0 .767.344.767.767v1.038a.768.768 0 0 1-1.534 0v-1.038c0-.423.344-.766.767-.767M11.715 10.381c.424 0 .767.344.767.767v1.038a.767.767 0 0 1-1.533 0v-1.038c0-.423.343-.766.766-.767"
         fill={tint}
@@ -31,4 +29,4 @@ export function AgentRobotIcon({ size = 18, color }: AgentRobotIconProps) {
       />
     </Svg>
   );
-}
+};

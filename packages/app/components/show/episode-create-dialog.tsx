@@ -123,8 +123,8 @@ export function EpisodeCreateDialog({
         optional overrides submitted together by the dialog's "Record it"
         action, and the composer would add a second send button.
       */}
-      <ScrollView style={{ maxHeight: 384 }} showsVerticalScrollIndicator={false}>
-        <View style={{ gap: 16, paddingVertical: 8 }}>
+      <ScrollView className="max-h-96" showsVerticalScrollIndicator={false}>
+        <View className="gap-4 py-2">
           <Textarea
             label="Anything specific this time?"
             value={topic}

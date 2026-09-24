@@ -3,7 +3,6 @@ import { useTranslation } from '@/lib/hooks/use-translation';
 import { Text } from '@oxy.so/bloom/typography';
 import React from 'react';
 import { Platform, View } from 'react-native';
-import { COMPOSER_RADIUS } from './types';
 /**
  * Dropping files onto the composer, on web, where such a gesture exists.
  *
@@ -155,10 +154,8 @@ export function ComposerDropOverlay({
       pointerEvents="none"
       accessibilityRole="alert"
       accessibilityLiveRegion="polite"
-      className="absolute inset-0 z-20 items-center justify-center border-2 border-dashed border-primary bg-background/90"
-      // Derived from the bar's own corner rather than a class, for the same
-      // reason the tiles are: the radius is a number in one place.
-      style={{ borderRadius: COMPOSER_RADIUS }}
+      // 26: the corner Bloom's composer pill wears at one line and past it.
+      className="absolute inset-0 z-20 items-center justify-center rounded-[26px] border-2 border-dashed border-primary bg-background/90"
     >
       <Text className="text-sm font-medium text-foreground">
         {t(enabled ? "composer.dropHint" : "composer.dropUnavailable")}

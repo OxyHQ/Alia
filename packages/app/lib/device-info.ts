@@ -36,27 +36,3 @@ export async function collectDeviceInfo(): Promise<DeviceInfo> {
   };
   return cachedDeviceInfo;
 }
-
-/**
- * Formats device info as a readable string for AI consumption
- */
-export function formatDeviceInfo(info: DeviceInfo): string {
-  const parts: string[] = [];
-
-  if (info.deviceName) parts.push(`Device: ${info.deviceName}`);
-  if (info.manufacturer && info.modelName) {
-    parts.push(`Model: ${info.manufacturer} ${info.modelName}`);
-  } else if (info.modelName) {
-    parts.push(`Model: ${info.modelName}`);
-  }
-  if (info.osName && info.osVersion) {
-    parts.push(`OS: ${info.osName} ${info.osVersion}`);
-  }
-  if (info.brand) parts.push(`Brand: ${info.brand}`);
-  if (info.totalMemory) {
-    const memoryGB = (info.totalMemory / (1024 * 1024 * 1024)).toFixed(2);
-    parts.push(`RAM: ${memoryGB} GB`);
-  }
-
-  return parts.join('\n');
-}

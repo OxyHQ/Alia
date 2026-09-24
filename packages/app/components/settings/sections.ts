@@ -64,15 +64,3 @@ export const SETTINGS_GROUPS: { titleKey: string; sections: SettingsSection[] }[
     ],
   },
 ];
-
-export const SETTINGS_SECTIONS = SETTINGS_GROUPS.flatMap((group) => group.sections);
-
-/** Path of the section the two-pane layout opens when none is selected yet. */
-export const FIRST_SETTINGS_SECTION = SETTINGS_SECTIONS[0].route;
-
-/** Which section a pathname belongs to, or undefined at the /settings root. */
-export function activeSettingsSection(pathname: string): string | undefined {
-  return SETTINGS_SECTIONS.find((section) =>
-    pathname.startsWith(String(section.route).replace("/(app)", "")),
-  )?.id;
-}

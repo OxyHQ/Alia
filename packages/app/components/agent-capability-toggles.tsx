@@ -22,7 +22,6 @@
  * sees a nested component as ONE child however many rows it renders.
  */
 
-import React from 'react';
 import { Switch } from '@oxy.so/bloom/switch';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import { useColorScheme } from '@/lib/useColorScheme';
@@ -65,7 +64,7 @@ export function AgentCapabilityToggles({
         return (
           <SettingsListItem
             key={id}
-            icon={<Icon size={18} color={granted ? colors.foreground : colors.mutedForeground} />}
+            icon={<Icon width={18} fill={granted ? colors.foreground : colors.mutedForeground} />}
             title={label}
             description={description}
             disabled={disabled}

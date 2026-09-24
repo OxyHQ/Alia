@@ -1,4 +1,3 @@
-import React from "react";
 import { View } from "react-native";
 import type { SkillCoverCanvasProps } from "./skill-cover-palette";
 

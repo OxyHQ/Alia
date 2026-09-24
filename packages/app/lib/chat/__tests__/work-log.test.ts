@@ -11,7 +11,6 @@ const ICONS = ['RiBookOpenLine', 'RiFileTextLine', 'RiGlobalLine', 'RiSearchLine
 for (const name of ICONS) {
   vi.doMock(`@oxy.so/bloom/icons/${name}`, () => ({ [name]: { icon: name } }));
 }
-vi.mock('lucide-react-native', () => ({}));
 vi.mock('@alia.onl/sdk', () => ({ getToolLabel: (name: string) => name }));
 
 const { isWebInvocation, taskListLog, webSearchLog } = await import('../work-log');

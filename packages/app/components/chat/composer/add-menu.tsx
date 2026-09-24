@@ -1,5 +1,5 @@
-import React, { useCallback, useMemo } from "react";
-import { Image } from "expo-image";
+import { useCallback, useMemo } from "react";
+import { Image } from "@/components/ui/image";
 import { RiCameraLine } from "@oxy.so/bloom/icons/RiCameraLine";
 import { RiImageLine } from "@oxy.so/bloom/icons/RiImageLine";
 import { RiAttachment2 } from "@oxy.so/bloom/icons/RiAttachment2";
@@ -78,10 +78,10 @@ const CONNECTOR_PREFIX = "connector:";
 function ConnectorMark({ icon }: { icon?: string }) {
   if (icon !== undefined && /^https?:\/\//i.test(icon)) {
     return (
-      <Image source={{ uri: icon }} style={{ width: 24, height: 24 }} contentFit="contain" />
+      <Image source={{ uri: icon }} className="h-6 w-6" contentFit="contain" />
     );
   }
-  return <ActionKeyIcon size={24} />;
+  return <ActionKeyIcon width={24} />;
 }
 
 export interface ComposerAddMenuOptions {

@@ -50,7 +50,7 @@ import { toast } from '@oxy.so/bloom/toast';
 import { Text } from '@oxy.so/bloom/typography';
 import { useQueryClient } from '@tanstack/react-query';
 import * as Clipboard from 'expo-clipboard';
-import { Image } from 'expo-image';
+import { Image } from '@/components/ui/image';
 import React, {
   useCallback,
   useEffect,
@@ -372,7 +372,7 @@ const MessageRow = React.memo(function MessageRow({
           className="w-full"
         >
           {m.role === 'assistant' ? (
-            <View className="flex-col items-start">
+            <View className="flex-col">
               {m.agentInfo ? (
                 <View className="flex-row items-center gap-2 mb-0.5">
                   <IdentityMark
@@ -395,7 +395,6 @@ const MessageRow = React.memo(function MessageRow({
                   onDislike: () => handleVote(m.id, 'down', chatId?.id),
                   onCopy: () => handleCopyMessage(messageText),
                 }}
-                style={{ width: '100%' }}
               >
                 {workInvocations.length === 0 || turnWorking ? null : (
                   <AiChatMessageLine tone="secondary" selectable={false}>
@@ -456,8 +455,7 @@ const MessageRow = React.memo(function MessageRow({
                     {messageImages.map((imgUrl, imgIdx) => (
                       <View
                         key={`img-${imgIdx}`}
-                        className="rounded-xl overflow-hidden"
-                        style={imageThumbStyle}
+                        className="h-[120px] w-[120px] overflow-hidden rounded-xl"
                       >
                         <Image
                           source={{ uri: imgUrl }}
@@ -477,8 +475,6 @@ const MessageRow = React.memo(function MessageRow({
     </Animated.View>
   );
 });
-
-const imageThumbStyle = { width: 120, height: 120 };
 
 export const ChatInterface = React.memo(function ChatInterface({
   messages,
@@ -895,7 +891,7 @@ export const ChatInterface = React.memo(function ChatInterface({
               </View>
           ) : null}
 
-          <View style={{ position: 'relative' }}>
+          <View className="relative">
             {/* The history, MEASURED as one block. Its height is what the scroll
                   anchor is restored against, and a block is what react-native-web
                   will report a change for — a marker between the two lists never

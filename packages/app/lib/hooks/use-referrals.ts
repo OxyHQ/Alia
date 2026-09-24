@@ -30,15 +30,6 @@ export function useReferralHistory() {
   return useAuthQuery<ReferralHistory>(queryKeys.referrals.history, '/referrals/history', undefined, { staleTime: 60_000 });
 }
 
-export function useSendInviteEmail() {
-  return useMutation({
-    mutationFn: async (email: string) => {
-      const response = await apiClient.post('/referrals/send-invite', { email });
-      return response.data as { success: boolean; inviteUrl: string; mailtoUrl: string };
-    },
-  });
-}
-
 export function useRedeemInviteCode() {
   const queryClient = useQueryClient();
 

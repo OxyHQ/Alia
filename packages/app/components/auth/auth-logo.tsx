@@ -1,4 +1,3 @@
-import * as React from 'react';
 import { View } from 'react-native';
 import { AliaLogo } from '@/components/ui/alia-logo';
 

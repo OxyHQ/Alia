@@ -7,8 +7,6 @@ import {
 import { useTranslation } from '@/lib/hooks/use-translation';
 import { Button } from '@oxy.so/bloom/button';
 import { Dialog } from '@oxy.so/bloom/dialog';
-import { RiArrowDownSLine } from '@oxy.so/bloom/icons/RiArrowDownSLine';
-import { RiArrowRightSLine } from '@oxy.so/bloom/icons/RiArrowRightSLine';
 import { RiCheckLine } from '@oxy.so/bloom/icons/RiCheckLine';
 import { Search } from '@oxy.so/bloom/search';
 import {
@@ -24,7 +22,7 @@ import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { confirm } from '@oxy.so/bloom/surfaces';
 import { TextFieldInput, TextFieldLabel } from '@oxy.so/bloom/text-field';
 import { toast } from '@oxy.so/bloom/toast';
-import * as Collapsible from '@rn-primitives/collapsible';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@oxy.so/bloom/accordion';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Linking, Platform, View } from 'react-native';
 import { SettingsPreferenceSelect } from './preference-select';
@@ -236,7 +234,8 @@ export function ConnectorsSection() {
   const [customHeaderKey, setCustomHeaderKey] = useState('');
   const [customHeaderValue, setCustomHeaderValue] = useState('');
   const [customInstalling, setCustomInstalling] = useState(false);
-  const [advancedOpen, setAdvancedOpen] = useState(false);
+  /** The custom connector's advanced settings (its auth header), folded away until asked for. */
+  const [advanced, setAdvanced] = useState<string | undefined>(undefined);
 
   // Guards against re-processing the same OAuth callback (keyed on the unique
   // state so sequential connects each finalize exactly once).
@@ -473,7 +472,7 @@ export function ConnectorsSection() {
     setCustomUrl('');
     setCustomHeaderKey('');
     setCustomHeaderValue('');
-    setAdvancedOpen(false);
+    setAdvanced(undefined);
   };
 
   const handleInstallCustom = async () => {
@@ -716,18 +715,14 @@ export function ConnectorsSection() {
             />
           </View>
 
-          <Collapsible.Root open={advancedOpen} onOpenChange={setAdvancedOpen}>
-            <Collapsible.Trigger asChild>
-              <Button
-                size="sm"
-                appearance="plain"
-                tone="neutral"
-                leadingIcon={advancedOpen ? RiArrowDownSLine : RiArrowRightSLine}
-              >
-                {t('connectors.advancedSettings')}
-              </Button>
-            </Collapsible.Trigger>
-            <Collapsible.Content>
+          <Accordion
+            type="single"
+            value={advanced}
+            onValueChange={(next) => setAdvanced(typeof next === 'string' ? next : undefined)}
+          >
+            <AccordionItem value="advanced">
+              <AccordionTrigger>{t('connectors.advancedSettings')}</AccordionTrigger>
+              <AccordionContent>
               <View className="gap-3">
                 <View>
                   <TextFieldLabel>
@@ -757,8 +752,9 @@ export function ConnectorsSection() {
                   />
                 </View>
               </View>
-            </Collapsible.Content>
-          </Collapsible.Root>
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
         </View>
       </Dialog>
     </View>

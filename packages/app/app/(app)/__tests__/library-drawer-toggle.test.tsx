@@ -7,7 +7,7 @@ import {
   type ReactTestInstance,
   type ReactTestRenderer,
 } from 'react-test-renderer';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 /**
  * The Library stands on the layout's surface, and its "+" has a name.
@@ -25,25 +25,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
  * The "+" had no accessible name either (#536), so that is pinned in the same
  * file: it is the same header, and the same class of mistake.
  */
-
-const navToggle = vi.hoisted(() => vi.fn());
-
-/**
- * What `AiChatShell` publishes, as this file hands it out.
- *
- * The shell itself is mocked and the guard is NOT: `useAiChatShell` is the
- * source of the signal, and stubbing a signal to see what something does with
- * it is the only way to see both of its branches. Mounting a real `AiChatShell`
- * here would also drag reanimated, svg and the whole `ai-chat` barrel through a
- * `react-native` mock that exports four components.
- */
-const shell = vi.hoisted(() => ({
-  current: null as Record<string, unknown> | null,
-}));
-
-vi.mock('@oxy.so/bloom/ai-chat', () => ({
-  useAiChatShell: () => shell.current,
-}));
 
 vi.mock('expo-router', () => ({
   // The page's header is declared through the router and drawn by the layout;
@@ -72,13 +53,6 @@ vi.mock('react-native', async () => {
       OS: 'web',
       select: (spec: Record<string, unknown>) => spec.web,
     },
-    // `ShellNavProvider`'s fallback reads the window when there is no shell.
-    useWindowDimensions: () => ({
-      width: 1280,
-      height: 800,
-      scale: 1,
-      fontScale: 1,
-    }),
     View: host('View'),
     ScrollView: host('ScrollView'),
     Pressable: host('Pressable'),
@@ -230,11 +204,6 @@ vi.mock('@/lib/stores/library-store', () => {
 vi.mock('@/lib/useColorScheme', () => ({
   useColorScheme: () => ({ colors: { mutedForeground: 'rgb(113 113 122)' } }),
 }));
-// `cn` (via `lib/utils.ts`) reaches `expo-crypto` through `random-uuid`, whose
-// native module does not exist under this runner.
-vi.mock('expo-crypto', () => ({
-  getRandomValues: (array: Uint8Array) => array,
-}));
 /**
  * `t` returns its key, so an assertion names the KEY the screen reads and not
  * one language's rendering of it — the label is checked to exist in both
@@ -258,57 +227,13 @@ function isHost(node: ReactTestInstance, name: string): boolean {
 }
 
 const { default: LibraryScreen } = await import('../library');
-const { AppNavProvider } = await import('@/components/app-shell/nav-context');
-const { NavRegion } = await import('@/components/app-shell/nav-region');
-type AppNav = import('@/components/app-shell/nav-context').AppNav;
-
-/** The nav the Library page is rendered inside: a closed drawer on a phone. */
-const NAV: AppNav = {
-  inFlow: false,
-  presented: false,
-  open: () => undefined,
-  close: () => undefined,
-  toggle: navToggle,
-};
-
-/** A shell state with the one field under test set, and the rest plausible. */
-function shellWith(navPresented: boolean): Record<string, unknown> {
-  return {
-    compact: true,
-    navCollapsed: true,
-    hasNav: true,
-    hasPanel: false,
-    navPresented,
-    sidebarCollapsed: false,
-    openNav: () => undefined,
-    closeNav: () => undefined,
-    openPanel: () => undefined,
-    panelLabel: 'Code',
-    panelIcon: null,
-    labels: { openNavigation: 'Open navigation', openPanel: () => '' },
-  };
-}
-
-/** Mounts a node and hands back its renderer, unmounted by the caller. */
-function mount(node: React.ReactElement): ReactTestRenderer {
-  let next!: ReactTestRenderer;
-  act(() => {
-    next = create(node);
-  });
-  return next;
-}
-
 let renderer: ReactTestRenderer | null = null;
 
 async function renderLibrary(): Promise<ReactTestRenderer> {
   let next!: ReactTestRenderer;
   await act(async () => {
     next = create(
-      React.createElement(
-        AppNavProvider,
-        { value: NAV },
-        React.createElement(LibraryScreen),
-      ),
+React.createElement(LibraryScreen)
     );
   });
   renderer = next;
@@ -325,11 +250,6 @@ function buttonsLabelled(
   );
 }
 
-beforeEach(() => {
-  navToggle.mockClear();
-  shell.current = null;
-});
-
 afterEach(() => {
   if (renderer !== null) {
     act(() => renderer?.unmount());
@@ -343,8 +263,6 @@ describe("the Library on the layout's surface", () => {
 
     expect(buttonsLabelled(root, 'nav.openNavigation')).toHaveLength(0);
     expect(root.findAll((node) => isHost(node, 'MenuIcon'))).toHaveLength(0);
-    // Rendered inside a live nav, so an opener would have had a drawer to open.
-    expect(navToggle).not.toHaveBeenCalled();
   });
 
   it('draws no title of its own — the crumb says "Library"', async () => {
@@ -522,72 +440,15 @@ describe('the same opener on every top-level page', () => {
   });
 
   /**
-   * The guard left `_layout.tsx` and left `useDrawerStatus`, which went with the
-   * expo-router `Drawer` itself. `AiChatShell` publishes `navPresented` in its
-   * place — true in flow, and below `lg` only while the drawer is open — so what
-   * was four `toContain`s over a file's text is now a component MOUNTED on both
-   * of its branches, plus one text pin that it is actually installed. A guard
-   * that works and is not wired is the same bug as no guard.
+   * A closed drawer stays mounted offscreen (#532). `AiChatShell` takes it out
+   * of the accessibility tree and the tab order itself (`inert` on web, Bloom
+   * 4.14.1), so the layout hands both sidebars over as they are.
    */
-  it('is wired around the drawer copy of the sidebar', () => {
+  it('hands both sidebars straight to the shell', () => {
     const layout = page('_layout');
-    expect(layout).toContain("from '@/components/app-shell/nav-region'");
-    // The template's two sidebars: the column from `lg` up, and the drawer
-    // copy below it. Only the drawer can be closed while mounted, so the gate
-    // wraps that one; in flow `navPresented` is always true.
-    expect(layout).toMatch(/<NavRegion>\s*<Sidebar mobile \/>\s*<\/NavRegion>/);
     expect(layout).toContain('sidebar={sidebar}');
     expect(layout).toContain('mobileSidebar={mobileSidebar}');
-  });
-
-  it('takes the sidebar out of the accessibility tree AND the tab order while closed', () => {
-    shell.current = shellWith(false);
-    const r = mount(
-      React.createElement(NavRegion, null, React.createElement('Rows')),
-    );
-    const region = r.root.find((node) => isHost(node, 'View'));
-
-    expect(region.props['aria-hidden']).toBe(true);
-    expect(region.props.importantForAccessibility).toBe('no-hide-descendants');
-    expect(region.props.accessibilityElementsHidden).toBe(true);
-    /*
-     * The half that neither `aria-hidden` nor the shell's own
-     * `pointerEvents="none"` covers. `aria-hidden` stops a screen reader
-     * announcing the rows and does nothing about Tab reaching them, and
-     * reachable-but-unannounced IS #532. `inert` is the one attribute that says
-     * both at once, and react-native-web forwards it.
-     */
-    expect(region.props.inert).toBe(true);
-
-    // Gated, not unmounted — which is the whole reason gating is necessary.
-    expect(r.root.findAll((node) => isHost(node, 'Rows'))).toHaveLength(1);
-    act(() => r.unmount());
-  });
-
-  it('puts it back the moment the drawer is presented', () => {
-    shell.current = shellWith(true);
-    const r = mount(
-      React.createElement(NavRegion, null, React.createElement('Rows')),
-    );
-    const region = r.root.find((node) => isHost(node, 'View'));
-
-    expect(region.props['aria-hidden']).toBe(false);
-    expect(region.props.importantForAccessibility).toBe('auto');
-    expect(region.props.accessibilityElementsHidden).toBe(false);
-    expect(region.props.inert).toBeUndefined();
-    act(() => r.unmount());
-  });
-
-  it('hides nothing when there is no shell — there is no drawer to be behind', () => {
-    shell.current = null;
-    const r = mount(
-      React.createElement(NavRegion, null, React.createElement('Rows')),
-    );
-    const region = r.root.find((node) => isHost(node, 'View'));
-
-    expect(region.props['aria-hidden']).toBe(false);
-    expect(region.props.inert).toBeUndefined();
-    act(() => r.unmount());
+    expect(layout).toMatch(/<Sidebar mobile \/>/);
   });
 });
 

@@ -23,7 +23,7 @@ import { RiTimeLine } from '@oxy.so/bloom/icons/RiTimeLine';
 import { Loading } from '@oxy.so/bloom/loading';
 import { Muted, Text } from '@oxy.so/bloom/typography';
 import { Stack, useLocalSearchParams } from 'expo-router';
-import React, { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { FlatList, RefreshControl, View } from 'react-native';
 
 /**

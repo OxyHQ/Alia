@@ -893,19 +893,8 @@ export function useStreamingChat(apiUrl: string, conversationId?: string, reason
                 if (!old) return old;
                 return { ...old, credits: aliaUsage.credits_remaining };
               });
-              queryClient.invalidateQueries({ queryKey: queryKeys.credits.usage() });
-
-              // Proactive warning when spending anomaly detected
-              if (aliaUsage.credit_warning) {
-                const w = aliaUsage.credit_warning;
-                queryClient.setQueryData(queryKeys.credits.usageWarning, {
-                  level: w.level,
-                  daysRemaining: w.daysRemaining,
-                  todaySpend: w.todaySpend,
-                  avgDailySpend: w.avgDailySpend,
-                  currentModelMultiplier: w.currentModelMultiplier,
-                });
-              }
+              // The balance is set from the frame; the rest (the usage window) is refetched.
+              queryClient.invalidateQueries({ queryKey: queryKeys.credits.info });
             }
 
             // Handle tool calls (OpenAI format: delta.tool_calls)

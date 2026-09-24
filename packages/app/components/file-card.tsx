@@ -1,5 +1,5 @@
 import { LibraryFile } from '@/lib/stores/library-store';
-import { formatFileSize } from '@/lib/utils';
+import { formatFileSize } from '@/lib/utils/format-file-size';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import { Button } from '@oxy.so/bloom/button';
 import {

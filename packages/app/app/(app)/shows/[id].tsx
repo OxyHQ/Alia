@@ -229,7 +229,6 @@ export default function SeriesDetailScreen() {
   }
 
   const visibility = VISIBILITY[series.visibility];
-  const VisibilityIcon = visibility.icon;
   const description = series.description?.trim() || series.brief;
   const isClampable = description.length > DESCRIPTION_CLAMP_CHARS;
 

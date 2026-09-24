@@ -1,24 +1,22 @@
+import type { BloomIconComponent } from "@oxy.so/bloom/icons";
 import Svg, { Circle, Path } from "react-native-svg";
 import { useColorScheme } from "@/lib/useColorScheme";
 
-export interface ClockIconProps {
-  size?: number;
-  /** Icon color. Defaults to the theme muted foreground, as the sibling glyph components do. */
-  color?: string;
-}
-
 /**
  * `clock` — Automations — scheduled triggers, in the sidebar and the agent editor.
+ *
+ * Bloom's icon contract (`width`, `height`, `fill`), so it sits in any list of
+ * Bloom icons; the fill defaults to the theme's muted foreground.
  *
  * Generated from `scripts/icons/shell-sprites.svg`. Change `scripts/icons/manifest.ts`
  * and re-run `bun run generate:icons`; editing this file is reverted by the next run
  * and caught by `components/__tests__/generated-icons.test.ts`.
  */
-export function ClockIcon({ size = 18, color }: ClockIconProps) {
+export const ClockIcon: BloomIconComponent = ({ width = 18, height = width, fill }) => {
   const { colors } = useColorScheme();
-  const tint = color ?? colors.mutedForeground;
+  const tint = fill ?? colors.mutedForeground;
   return (
-    <Svg width={size} height={size} viewBox="0 0 20 20" fill="none">
+    <Svg width={width} height={height} viewBox="0 0 20 20" fill="none">
       <Circle
         cx={10}
         cy={10}
@@ -36,4 +34,4 @@ export function ClockIcon({ size = 18, color }: ClockIconProps) {
       />
     </Svg>
   );
-}
+};

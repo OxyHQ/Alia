@@ -668,6 +668,9 @@
       "planItems": "%{done}/%{total} pasos del plan",
       "credits": "%{count} créditos",
       "planSummary": "Resumen del plan"
+    },
+    "richBlocks": {
+      "source": "Fuente: {{source}}"
     }
   },
   "credits": {

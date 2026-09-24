@@ -59,10 +59,7 @@ export const queryKeys = {
   },
   credits: {
     info: ['credits'] as const,
-    usage: (period?: string) => period ? ['credits-usage', period] as const : ['credits-usage'] as const,
-    analytics: (period: string) => ['analytics', period] as const,
     price: ['credit-price'] as const,
-    usageWarning: ['usage-warning'] as const,
   },
   billing: {
     packages: ['credit-packages'] as const,

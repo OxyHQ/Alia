@@ -40,11 +40,6 @@ vi.mock('react-native', async () => {
 
 
 
-// `@/lib/utils` owns `cn`, which the execution rows really use, and a UUID
-// helper that pulls the Expo native module in on import. The leaf is stubbed.
-vi.mock('expo-crypto', () => ({
-  getRandomValues: (array: Uint8Array) => array,
-}));
 
 
 vi.mock('@oxy.so/bloom/loading', async () => {

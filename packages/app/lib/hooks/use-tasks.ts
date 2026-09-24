@@ -85,18 +85,3 @@ export function useTaskHistory(page = 1, limit = 20) {
     enabled: isAuthenticated,
   });
 }
-
-export function useTaskStatus(sessionId: string | null) {
-  const { isAuthenticated } = useOxy();
-
-  return useQuery({
-    queryKey: ['tasks', 'status', sessionId],
-    queryFn: async () => {
-      const res = await apiClient.get(`/agents/sessions/${sessionId}/status`);
-      return res.data;
-    },
-    staleTime: 5_000,
-    refetchInterval: 10_000,
-    enabled: isAuthenticated && !!sessionId,
-  });
-}
