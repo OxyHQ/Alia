@@ -137,15 +137,14 @@ function StepsTab({ events, isActive }: { events: AgentActivityEvent[]; isActive
         const label = agentStepLabel(step, t);
         const failed = step.type === 'error' || step.type === 'threat';
         // The glyph comes from the CAPABILITY FAMILY that grants the tool, so
-        // this log and the agent editor draw one concept one way. `color`, not
-        // a class: some family glyphs are `Svg` whose fill a class cannot paint.
+        // this log and the agent editor draw one concept one way.
         const FamilyIcon = step.type === 'tool_call' ? capabilityIconForTool(step.metadata?.toolName || '') : undefined;
         return (
           <AgentLogRow key={`${step.timestamp}-${index}`} first={index === 0} last={last} reduce={reduce}>
             <View className="flex-row items-center gap-1.5 py-1">
               {step.type === 'complete' ? <RiCheckboxCircleLine size="sm" fill={colors.success} /> : null}
               {failed ? <RiErrorWarningLine size="sm" fill={colors.error} /> : null}
-              {FamilyIcon ? <FamilyIcon size={14} color={colors.text} /> : null}
+              {FamilyIcon ? <FamilyIcon width={14} fill={colors.text} /> : null}
               <Text variant={step.type === 'complete' ? 'body-medium' : 'body-regular'} numberOfLines={2}>
                 {isActive && last && label ? <AgentLogShimmerText>{label}</AgentLogShimmerText> : label}
               </Text>

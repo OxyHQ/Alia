@@ -81,7 +81,7 @@ function ConnectorMark({ icon }: { icon?: string }) {
       <Image source={{ uri: icon }} style={{ width: 24, height: 24 }} contentFit="contain" />
     );
   }
-  return <ActionKeyIcon size={24} />;
+  return <ActionKeyIcon width={24} />;
 }
 
 export interface ComposerAddMenuOptions {
