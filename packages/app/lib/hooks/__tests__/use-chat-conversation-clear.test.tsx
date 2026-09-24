@@ -97,6 +97,10 @@ vi.mock('@oxy.so/bloom/toast', () => ({ toast }));
 vi.mock('@/lib/attachment-utils', () => ({ buildMessageContent: (text: string) => text }));
 vi.mock('@/lib/generate-api-url', () => ({ generateAPIUrl: () => 'http://test.invalid/chat' }));
 vi.mock('@/lib/i18n', () => ({ default: { t: (k: string) => k } }));
+// The live agent-message listener opens the shared socket; nothing here emits on it.
+vi.mock('@/lib/api/notifications-socket', () => ({
+  acquireNotificationsSocket: () => ({ socket: { on: vi.fn(), off: vi.fn() }, release: vi.fn() }),
+}));
 
 import { useChatConversation } from '@/lib/hooks/use-chat-conversation';
 

@@ -232,6 +232,11 @@ describe('the risk classifier answers each level for a distinct reason', () => {
     expect(classifyActionRisk('browser', { action: 'goto', url: 'https://example.com' }).riskLevel).toBe('R0');
     expect(classifyActionRisk('delegate', { task: 'x' })).toMatchObject({ riskLevel: 'R1', reversible: false });
     expect(classifyActionRisk('plan', { action: 'update' }).riskLevel).toBe('R0');
+    // Writing into its own conversation and scheduling its own follow-up are
+    // budgeted where they are implemented, so they need nobody watching either.
+    expect(classifyActionRisk('sendMessageToUser', { message: 'x' }).riskLevel).toBe('R1');
+    expect(classifyActionRisk('scheduleFollowUp', { at: 'x', note: 'y' }).riskLevel).toBe('R1');
+    expect(classifyActionRisk('continueInBackground', { task: 'x' }).riskLevel).toBe('R1');
   });
 
   it('reads a tool its source declared read-only as R0, and the same name undeclared as R2', () => {
@@ -316,6 +321,24 @@ describe('the governance wrapper enforces the level it classified', () => {
     expect(vi.mocked(insertRollbackRecord)).not.toHaveBeenCalled();
   });
 
+  it('a background run asks asynchronously instead of waiting, and runs a call approved earlier', async () => {
+    const approvals = { granted: vi.fn(async () => false), request: vi.fn(async () => 'asked the person') };
+    const ctx = { ...actionContext(), approvals } as unknown as AgentRuntimeContext;
+    const actions = await policyApplied(ctx);
+
+    // Not approved yet: the person is asked, the run is told, nothing runs and
+    // nothing waits on the in-process prompt.
+    expect(await run(actions, 'send_message', { to: 'a', text: 'hi' })).toBe('asked the person');
+    expect(approvals.request).toHaveBeenCalledWith('send_message', { to: 'a', text: 'hi' }, expect.any(String));
+    expect(H.state.mcpRuns).toEqual([]);
+    expect(vi.mocked(requestApproval)).not.toHaveBeenCalled();
+
+    // Approved earlier for exactly this call: it runs.
+    approvals.granted.mockResolvedValueOnce(true);
+    expect(await run(actions, 'send_message', { to: 'a', text: 'hi' })).toBe('sent');
+    expect(H.state.mcpRuns).toEqual(['send_message']);
+  });
+
   it('a read-only declaration reaches the wrapper through the tool object', async () => {
     H.state.approval = 'denied';
     const ctx = actionContext();
@@ -395,6 +418,7 @@ describe('every action carries the wrapper, and the exemption is exactly one', (
     expect(executable).toEqual([
       'browser',
       'delegate',
+      'memory',
       'plan',
       'read_file',
       'send_message',

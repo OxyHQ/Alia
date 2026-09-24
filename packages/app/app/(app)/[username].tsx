@@ -1,3 +1,4 @@
+import { AgentApprovalsBanner } from '@/components/agent-approvals-banner';
 import { ChatWorkspace } from '@/components/chat/chat-workspace';
 import { ConversationScreen } from '@/components/conversation-screen';
 import { agentColorPreset } from '@/lib/agents/agent-color';
@@ -149,6 +150,7 @@ const AgentThreadPage = () => {
   return (
     <BloomColorScope colorPreset={agentColorPreset(thread.agent.color)} asChild>
       <View className="flex-1 web:z-auto">
+        <AgentApprovalsBanner agentId={thread.agent._id} />
         <ConversationScreen
           conversationId={thread.conversationId}
           agentId={thread.agent._id}

@@ -61,6 +61,7 @@ import { agentPromptName, type HydratedAgent } from './agent-identity.js';
 import { readCapabilityGrants } from '../domain/capability-grants.js';
 import type { IWritingStyleProfile } from '../domain/writing-style.js';
 import { formatStyleForPrompt } from './style/style-prompt.js';
+import { agentMemoryPromptSection } from './agent/agent-memory-runtime.js';
 
 /** How many recent memories stand in for recall when recall returned nothing. */
 const KNOWN_FACTS_WITHOUT_RECALL = 20;
@@ -425,6 +426,11 @@ export class SystemPromptBuilder {
      * session, which is why this is a trap removed rather than a behaviour
      * changed.
      */
+    // The agent's OWN memory of this person, under the same grant as the rest.
+    if (linkedAgent && mayReadMemory && userId && isDirectUserSession) {
+      systemMessage += await agentMemoryPromptSection(userId, linkedAgent._id);
+    }
+
     if (linkedAgent) {
       systemMessage = `${agentRemitPrompt(linkedAgent)}\n\n---\n\n${systemMessage}`;
       log.general.info(

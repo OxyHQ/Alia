@@ -82,7 +82,7 @@ const R1 = (reason: string, reversible: boolean): ActionRisk => ({ riskLevel: 'R
  * unknown-tool default: R2, a 60s wait for an approval nobody could give in a
  * background run, then a denial.
  */
-function classifyPrimitive(toolName: string): ActionRisk | null {
+function classifyPrimitive(toolName: string, args: Record<string, unknown> = {}): ActionRisk | null {
   switch (toolName) {
     case 'plan':
       return R0('Planning is internal to the session');
@@ -90,6 +90,18 @@ function classifyPrimitive(toolName: string): ActionRisk | null {
       return R0('Search and page reading is autonomous');
     case 'delegate':
       return R1('Delegation runs another Alia agent under this session budget', false);
+    case 'memory': {
+      const action = typeof args.action === 'string' ? args.action : '';
+      return action === 'read' || action === 'list'
+        ? R0('Reading the agent\'s own memory is autonomous')
+        : R1('Writing the agent\'s own memory, journaled and reversible', true);
+    }
+    case 'continueInBackground':
+      return R1('Starts a held, admitted background run of the same agent for this person', false);
+    case 'sendMessageToUser':
+      return R1('Writes into the agent\'s own conversation with the person, under the outreach budget', false);
+    case 'scheduleFollowUp':
+      return R1('Schedules the agent\'s own one-off follow-up, under the pending limit', false);
     default:
       return null;
   }
@@ -100,7 +112,7 @@ export function classifyActionRisk(
   args: Record<string, unknown>,
   options: { declaredReadOnly?: boolean } = {},
 ): ActionRisk {
-  const primitive = classifyPrimitive(toolName);
+  const primitive = classifyPrimitive(toolName, args);
   // A search or a plan cannot run what its text names: "how to reboot a
   // router" is a query, not a command.
   if (primitive?.riskLevel === 'R0') return primitive;

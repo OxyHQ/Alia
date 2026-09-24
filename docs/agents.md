@@ -193,6 +193,13 @@ second paid session beside the answer.
   running session is created, enforcing `max_concurrent_threads` across API
   replicas. The limit bounds one person's concurrent work with the agent; it is
   not a global cap on everyone using it.
+- A background run is owned through a lease (`runner_lease_owner`,
+  `runner_lease_expires_at`, 90s, renewed every 20s). The worker claims the row
+  with one conditional UPDATE before doing anything, so a redelivered job and a
+  re-enqueued one cannot both drive it. When a worker dies the lease lapses and
+  `lib/agent/run-reaper.ts` (every minute, on every task) re-enqueues the run,
+  which RESUMES from its persisted events, plan and step/token counters. After
+  `RUNNER_MAX_ATTEMPTS` (3) claims it is failed and refunded instead.
 - R2 approvals are durable rows. Socket.IO carries prompts and immediate
   decisions, while the executing replica observes PostgreSQL as the authority.
 - A completed run moves its goal to `candidate`; `POST
@@ -430,6 +437,62 @@ The legacy trigger model is gone: the `/triggers` routes, the `triggers` and
 `trigger_executions` tables and the definitions that indexed them were removed by
 migrations 0069 and 0070. Active work is created and edited only through
 `/automations`.
+
+Who an automation may run is one rule, shared by creation and dispatch
+(`lib/automation-actors.ts`): the owner's own agent (`owner_oxy_account_id`), or
+a public, active marketplace agent — never by `author`, and never a
+product-bound one. Every stage holds credits like a goal does.
+
+### An agent writing first
+
+`lib/agent/agent-outreach.ts` posts an assistant message INTO the person's
+conversation with the agent (appended with the next `seq`, marked with a
+`agent-push-` client id), emits `conversation:message` on `user:<id>` and sends
+a notification that opens `/@handle`.
+
+- `result`: a finished top-level background run (goal, scheduled task) is
+  delivered this way, never rate-limited — it is what the person asked for.
+- `check_in`: the agent's own `sendMessageToUser` tool, available only on a
+  top-level background run. At most 3 per person and agent per rolling day,
+  and none while its last 2 messages are unanswered.
+- `scheduleFollowUp` lets the agent schedule its own next look: a one-off
+  automation (`inputs.origin = 'agent_follow_up'`, at most 5 pending per
+  person and agent). Its result is NOT posted; the agent speaks through
+  `sendMessageToUser` only if it found something worth saying.
+
+### Work longer than a chat turn
+
+A chat turn has 80 seconds. An agent's chat turn has `continueInBackground`
+(R1): it starts a durable background run of the same agent for this person —
+admitted per person, holding credits like a goal, linked to the thread — and
+that run's result is posted into the conversation when it finishes. The model
+is told to say it is on it rather than do the work twice.
+
+### An agent's own memory of a person
+
+`agent_memory_documents` (MEMORY.md plus `memory/<topic>.md`, per agent and
+person) is the agent's, not only the person's to edit: with the `memory` grant
+its MEMORY.md is in the prompt of every chat turn and background run
+(`agentMemoryPromptSection`), and the `memory` tool lists, reads, appends and
+replaces its files. Writes carry the hash the tool just read, so the agent and
+the person editing the same file never overwrite each other, and every write is
+journaled with origin `agent`. Reads are R0, writes R1 (journaled).
+
+### Approvals nobody is waiting for
+
+A top-level background run does not wait for an R2 approval (or one the threat
+detector asks for). `lib/agent/deferred-approvals.ts` files a durable request
+(`thread_id` may be NULL), tells the person in the agent's conversation, and
+tells the model to carry on. `GET /agents/approvals` lists what is pending;
+`POST /agents/approvals/:id/decision {approved}` answers. Approving one whose
+run has moved on starts a held, queued run with the exact arguments; the
+policy lets that call through because a granted approval matches its hash
+(agent, tool, sorted args), and spends it (`executed`) so one "yes" covers one
+action. Interactive chat turns keep the in-process wait.
+
+The saver keeps an agent-written message the client has not seen yet
+(`keepAgentOutreach`): storage converges on the client's copy for what the
+client sent, not for what arrived while it was away.
 
 ## Oxy Event Autonomy
 

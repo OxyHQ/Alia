@@ -42,7 +42,7 @@ import { getDb } from '../db/index.js';
 import { failOrphanedAudioJobs } from '../db/notifications/audioJobRepository.js';
 import { moderationOutboxDispatcher } from './crowdsource/dispatcher.js';
 import { log } from './logger.js';
-import { reclaimOrphanedAgentSessions } from './agent/session-handoff.js';
+import { startAgentRunReaper, stopAgentRunReaper } from './agent/run-reaper.js';
 import { initShowQueue, shutdownShowQueue, startShowWorker } from './show/show-queue.js';
 import { initTaskQueue, shutdownTaskQueue, startWorker } from './task-queue.js';
 import { startSkillRegistrySync, stopSkillRegistrySync } from './skills/scheduler.js';
@@ -76,20 +76,13 @@ export function startBackgroundServices(): void {
     })
     .catch((err) => log.general.error({ err }, '[AudioJob] Orphan cleanup error'));
   /**
-   * Give back the credits of agent sessions a previous process enqueued and
-   * nothing ever ran (non-blocking).
-   *
-   * The same event as the line above, one table over, and it costs money rather
-   * than a stuck spinner: hiring an agent DEBITS its price, and the worker that
-   * would settle it never arrives. Not leader-gated, because the claim is the
-   * UPDATE — every task may run it and each row is returned to exactly one of
-   * them.
+   * Keep background agent runs from being lost (non-blocking): resume a run
+   * whose worker died, fail and refund one that keeps dying, give back the
+   * credits of a session nothing ever picked up, and expire unanswered
+   * approvals. At boot and every minute after — a worker can die at any time,
+   * not only across a restart. Not leader-gated; see `run-reaper.ts`.
    */
-  reclaimOrphanedAgentSessions()
-    .then((refunded) => {
-      if (refunded > 0) log.general.warn({ refunded }, 'Refunded agent sessions that were never picked up');
-    })
-    .catch((err) => log.general.error({ err }, '[AgentSession] Orphan reclaim error'));
+  startAgentRunReaper();
   // Initialize show generation queue (non-blocking)
   initShowQueue()
     .then(() => startShowWorker())
@@ -124,6 +117,8 @@ export async function stopBackgroundServices(): Promise<void> {
   // durable state — an abandoned claim is reclaimable, a half-applied one is not.
   await moderationOutboxDispatcher.stop();
   log.general.info('Moderation outbox dispatcher stopped');
+
+  stopAgentRunReaper();
 
   // Close task queue (drains in-flight jobs)
   await shutdownTaskQueue();

@@ -25,7 +25,7 @@ export interface AgentJobData {
 
 export interface AgentJobResult {
   sessionId: string;
-  status: 'completed' | 'failed';
+  status: 'completed' | 'failed' | 'skipped';
   result?: string;
 }
 
@@ -44,9 +44,12 @@ let worker: Worker<AgentJobData, AgentJobResult> | null = null;
 let redisAvailable = false;
 
 async function processAgentSession(data: AgentJobData): Promise<AgentJobResult> {
-  const { sessionId, userId, agentId, agentName } = data;
+  const { sessionId, userId } = data;
   const { runAgentSession } = await import('./agent/runner.js');
-  await runAgentSession(sessionId);
+  const outcome = await runAgentSession(sessionId);
+  // Not this worker's run to report on: it is settled, or another worker is
+  // driving it and will advance and notify when it finishes.
+  if (outcome === 'skipped') return { sessionId, status: 'skipped', result: '' };
 
   const { getDb } = await import('../db/index.js');
   const { findAgentSessionById } = await import('../db/agents/agentSessionRepository.js');
@@ -71,23 +74,37 @@ async function processAgentSession(data: AgentJobData): Promise<AgentJobResult> 
     ? (advance.status === 'succeeded' ? 'completed' : 'failed')
     : (session?.status === 'completed' ? 'completed' : 'failed');
   try {
-    const { sendNotification } = await import('./notification-service.js');
-    await sendNotification({
-      userId,
-      type: 'agent_task_complete',
-      title: status === 'completed' ? `${agentName} finished` : `${agentName} failed`,
-      body: result.slice(0, 500),
-      data: {
-        sessionId,
-        agentId,
-        status,
-        ...(advance.kind === 'terminal' ? { automationRunId: advance.runId } : {}),
-      },
-    });
+    // The result goes INTO the person's conversation with the agent, which
+    // also notifies them; a finished run used to reach them only as a push
+    // whose body was the first 500 characters, with nowhere to tap through to.
+    // A child run (delegated, orchestrated) reports to its parent instead.
+    if (session && !session.parentSessionId && !(await isAgentFollowUp(session.automationRunId))) {
+      const { postAgentMessage } = await import('./agent/agent-outreach.js');
+      await postAgentMessage({
+        oxyUserId: userId,
+        agentId: session.agentId,
+        kind: 'result',
+        content: status === 'completed' ? result : `I couldn't finish this task. ${result}`,
+      });
+    }
   } catch (notifErr) {
-    log.agents.warn({ notifErr, sessionId }, 'Failed to send completion notification');
+    log.agents.warn({ notifErr, sessionId }, 'Failed to deliver the run result');
   }
   return { sessionId, status, result };
+}
+
+/**
+ * Whether this run is a follow-up the agent scheduled for ITSELF. Its result
+ * is not posted: the agent tells the person through the budgeted
+ * `sendMessageToUser` if, and only if, it found something worth saying.
+ */
+async function isAgentFollowUp(automationRunId: string | null | undefined): Promise<boolean> {
+  if (!automationRunId) return false;
+  const { getDb } = await import('../db/index.js');
+  const { findAutomationInputsForRun } = await import('../db/automation/automationDefinitionRepository.js');
+  const { AGENT_FOLLOW_UP_ORIGIN } = await import('./agent/follow-ups.js');
+  const inputs = await findAutomationInputsForRun(getDb(), automationRunId);
+  return inputs?.origin === AGENT_FOLLOW_UP_ORIGIN;
 }
 
 /**
@@ -198,12 +215,19 @@ export async function startWorker(): Promise<void> {
  */
 export async function enqueueAgentSession(
   data: AgentJobData,
+  /**
+   * Set by the reaper when it hands a lapsed run back to the queue. The first
+   * job's id is the session id, which BullMQ keeps (completed jobs are retained)
+   * and would dedupe a second `add` into nothing; a resume is a new job.
+   */
+  options: { resumeAttempt?: number } = {},
 ): Promise<{ queued: boolean; jobId?: string }> {
   if (queue && redisAvailable) {
     try {
-      const job = await queue.add(`session:${data.sessionId}`, data, {
-        jobId: data.sessionId, // Dedup by sessionId
-      });
+      const jobId = options.resumeAttempt === undefined
+        ? data.sessionId // Dedup by sessionId
+        : `${data.sessionId}-resume-${options.resumeAttempt}`;
+      const job = await queue.add(`session:${data.sessionId}`, data, { jobId });
       log.agents.info({ sessionId: data.sessionId, jobId: job.id }, 'Agent session enqueued');
       return { queued: true, jobId: job.id ?? undefined };
     } catch (err) {

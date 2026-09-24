@@ -9,6 +9,7 @@ import threadsRouter from './threads.js';
 import memoryRouter from './memory.js';
 import teamsRouter from './teams.js';
 import coworkDevicesRouter from './cowork-devices.js';
+import approvalsRouter from './approvals.js';
 
 const router = Router();
 
@@ -30,6 +31,7 @@ router.use('/', threadsRouter);
 router.use('/', memoryRouter);
 router.use('/', teamsRouter);
 router.use('/', coworkDevicesRouter);
+router.use('/', approvalsRouter);
 
 // Session-specific routes (sessions/:sid/...) before parameterized /:id routes
 router.use('/', sessionsRouter);

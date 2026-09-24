@@ -54,14 +54,13 @@ vi.mock('../../task-queue.js', () => ({
   enqueueAgentSession: vi.fn(async () => ({ queued: true, jobId: 'job-1' })),
 }));
 
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
 import { closePostgres, connectPostgres, getDb, type ApiDatabase } from '../../../db/index.js';
 import { userCredits } from '../../../db/schema/billing.js';
 import { agentSessions } from '../../../db/schema/agent-sessions.js';
 import { agents } from '../../../db/schema/agents.js';
 import { createAgent } from '../../../db/agents/agentRepository.js';
 import {
+  claimAgentSessionRun,
   createAgentSession,
   findAgentSessionById,
 } from '../../../db/agents/agentSessionRepository.js';
@@ -431,30 +430,22 @@ describe('reclaimOrphanedAgentSessions', () => {
  * the sweep had already given the credits back. Refund plus charge is the
  * double settle this whole file exists to avoid.
  *
- * It cannot happen, and the reason is one predicate in the runner: it reads the
- * row first and returns without doing anything when the status is terminal. The
- * sweep writes `failed`, which is in that set — so the interlock is that the two
- * agree on a specific word, in two files, with nothing that would fail if they
- * stopped agreeing. Hence this: it asserts the word, not the mechanism.
- *
- * Read from source because importing `runAgentSession` pulls in the container
- * host, the browser session and the terminal sandbox.
+ * It cannot happen because the runner does nothing until it has CLAIMED the
+ * row (`claimAgentSessionRun`), and the claim is a conditional UPDATE that only
+ * takes `queued` or `running`. The sweep writes `failed`. Asserted on the real
+ * statement rather than on source text, so the interlock is a fact about rows.
  */
 describe('the reclaim sweep and a late worker cannot both settle', () => {
-  const runnerSource = readFileSync(
-    fileURLToPath(new URL('../runner.ts', import.meta.url)),
-    'utf8',
-  );
+  it('a late worker cannot claim the run the sweep failed', async () => {
+    const userId = await account(100, 0);
+    const agent = await seedAgent(15);
+    const outcome = await startAgentSession({ agent, userId, task: 'stranded', origin: 'hire' });
+    if (!outcome.ok) throw new Error('the balance covers 15; the handoff must succeed');
 
-  it('the runner declines exactly the status the sweep writes', () => {
-    // Vacuity floor: a mistyped path, an empty read or a moved guard all print
-    // the same "not found" as a real regression.
-    expect(runnerSource.length).toBeGreaterThan(1000);
-    expect(runnerSource).toContain('export async function runAgentSession');
+    await backdate(agent._id);
+    await reclaimOrphanedAgentSessions();
 
-    expect(runnerSource).toContain(
-      "if (session.status === 'cancelled' || session.status === 'completed' || session.status === 'failed') {",
-    );
+    expect(await claimAgentSessionRun(db, outcome.sessionId, 'late-worker')).toEqual({ claimed: false });
   });
 
   it('and the sweep really does write that status', async () => {
