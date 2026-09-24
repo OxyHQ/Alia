@@ -297,12 +297,12 @@ export const ChatPageContent = ({
   }, [isAuthenticated, signIn, entitlements, creditsInfo, t, router, voice, onVoiceStart]);
   const voiceAction =
     voice || onVoiceStart ? (
-      // Alia's voice button as it has always been: round, in the brand
-      // colour, with its own glyph.
+      // Alia's voice button: its own glyph (as it has always been), in the
+      // composer's action tone.
       <Button
         iconOnly
         size="md"
-        tone="accent"
+        tone="action"
         leadingIcon={VoiceModeIcon}
         accessibilityLabel={t('modes.voiceMode')}
         onPress={handleVoiceActivate}
