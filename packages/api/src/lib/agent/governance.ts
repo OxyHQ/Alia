@@ -96,6 +96,8 @@ function classifyPrimitive(toolName: string, args: Record<string, unknown> = {})
         ? R0('Reading the agent\'s own memory is autonomous')
         : R1('Writing the agent\'s own memory, journaled and reversible', true);
     }
+    case 'continueInBackground':
+      return R1('Starts a held, admitted background run of the same agent for this person', false);
     case 'sendMessageToUser':
       return R1('Writes into the agent\'s own conversation with the person, under the outreach budget', false);
     case 'scheduleFollowUp':

@@ -86,6 +86,8 @@ export interface AgentRuntimeContext {
    * asynchronously instead of waited for (`deferred-approvals.ts`).
    */
   approvals?: DeferredApprovals;
+  /** Present only on a CHAT turn: hand long work to a durable background run. */
+  continueInBackground?: (task: string) => Promise<string>;
   todoManager: TodoManager;
   browserSession: BrowserSession;
   eventStream?: EventStream;
@@ -224,6 +226,25 @@ export function buildRuntimeTools(
           return `Agent @${handle} completed:\n${result}`;
         } catch (err: unknown) {
           return `Error hiring agent: ${getErrorMessage(err)}`;
+        }
+      },
+    });
+  }
+
+  // ── continueInBackground — work longer than a chat turn ──
+
+  if (ctx.continueInBackground) {
+    const continueInBackground = ctx.continueInBackground;
+    actions.continueInBackground = tool({
+      description: 'Hand work that needs more than a quick answer — many searches, a long analysis, anything that will take minutes — to a background run of yourself. It keeps working after this reply ends and posts its result in this conversation. Write the task so your background self can do it without this chat: goal, what you know so far, what to deliver.',
+      inputSchema: z.object({
+        task: z.string().min(1).describe('The complete, self-contained task for the background run'),
+      }),
+      execute: async ({ task }) => {
+        try {
+          return await continueInBackground(task);
+        } catch (err: unknown) {
+          return `Error starting background work: ${getErrorMessage(err)}`;
         }
       },
     });

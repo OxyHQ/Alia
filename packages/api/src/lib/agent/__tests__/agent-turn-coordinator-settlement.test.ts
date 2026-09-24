@@ -22,6 +22,8 @@ vi.mock('../event-stream.js', () => ({ EventStream: class {
   flush = vi.fn(async () => { events.push('events:flushed'); });
 } }));
 vi.mock('../../logger.js', () => ({ log: { agents: { warn: vi.fn() } } }));
+const startAgentSession = vi.fn(async () => ({ ok: true, sessionId: 'bg-1', queued: true }));
+vi.mock('../session-handoff.js', () => ({ startAgentSession }));
 
 const { AgentTurnCoordinator } = await import('../agent-turn-coordinator.js');
 
@@ -61,4 +63,33 @@ describe('agent turn settlement', () => {
     expect(events.filter((event) => event === 'status:completed')).toHaveLength(1);
     expect(events.filter((event) => event === 'events:flushed')).toHaveLength(1);
   });
+
+  it('hands long work to a durable background run of the same agent, admitted per person', async () => {
+    const turn = await AgentTurnCoordinator.begin({
+      agent: { _id: 'agent-1', maxConcurrentThreads: 3 } as never,
+      oxyUserId: 'user-1',
+      task: 'continue',
+    });
+
+    const told = await turn.runtime.continueInBackground!('Compare the 20 flights and report the three best');
+
+    expect(told).toMatch(/^Started\./);
+    expect(startAgentSession).toHaveBeenCalledWith(expect.objectContaining({
+      userId: 'user-1',
+      task: 'Compare the 20 flights and report the three best',
+      origin: 'delegation',
+    }));
+  });
+
+  it('tells the model plainly when the background run could not be paid for', async () => {
+    startAgentSession.mockResolvedValueOnce({ ok: false, reason: 'insufficient_credits', creditsNeeded: 15 } as never);
+    const turn = await AgentTurnCoordinator.begin({
+      agent: { _id: 'agent-1', maxConcurrentThreads: 3 } as never,
+      oxyUserId: 'user-1',
+      task: 'continue',
+    });
+
+    expect(await turn.runtime.continueInBackground!('x')).toMatch(/not have enough credits/);
+  });
 });
+
