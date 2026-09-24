@@ -22,6 +22,7 @@ import { z, type ZodTypeAny } from 'zod';
 import { jsonSchemaToZod } from './mcp-schema.js';
 import { getErrorMessage } from '../errors/index.js';
 import { log } from '../logger.js';
+import { declareReadOnly } from '../agent/tool-effects.js';
 import {
   createOxyExecutionAuthorization,
   revokeOxyExecutionAuthorization,
@@ -463,7 +464,7 @@ export async function buildOxyServiceTools(
       const baseName = `oxy_${sanitizeName(binding.compiled.catalog.appId)}__${sanitizeName(binding.compiled.definition.name)}`;
       const toolName = binding.suffix ? `${baseName}__${binding.suffix}` : baseName;
       let preauthorizedInvocationStarted = false;
-      tools[toolName] = tool({
+      const built = tool({
         description: `[${appDisplayName(binding.compiled.catalog.appId)}] ${binding.compiled.definition.description} Resource: ${binding.resource.resourceType}/${binding.resource.resourceId}.`,
         inputSchema: binding.compiled.inputSchema,
         execute: async (args: Record<string, unknown>) => {
@@ -479,6 +480,8 @@ export async function buildOxyServiceTools(
           );
         },
       });
+      // The catalog knows the effect; the runtime policy cannot tell it from the name.
+      tools[toolName] = binding.compiled.definition.effect === 'read' ? declareReadOnly(built) : built;
     }
     log.general.info({ userId: oxyUserId, toolCount: Object.keys(tools).length }, 'Oxy capability tools loaded');
     return tools;
