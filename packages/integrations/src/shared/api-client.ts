@@ -1,13 +1,6 @@
 import axios, { AxiosInstance } from 'axios';
 import { errorCode, errorStatus } from './utils';
-import {
-  offeredModes,
-  parseCatalogue,
-  parseModes,
-  type CatalogueEntry,
-  type OfferedMode,
-  type ProductMode,
-} from './catalogue';
+import { parseCatalogue, resolveRequestModel, type Catalogue } from './catalogue';
 
 /** OpenAI-compatible message content — plain string or multi-part array */
 export type MessageContentPart =
@@ -47,19 +40,8 @@ export interface Conversation {
   [key: string]: unknown;
 }
 
-/**
- * What a bot offers and what it calls each one — `GET /catalogue` presented
- * through `GET /catalogue/modes`. See `./catalogue.ts` for why `/v1/models`
- * stopped being an answer.
- */
-/** How long a mode listing is reused before it is asked for again. */
-const MODE_CACHE_TTL_MS = 5 * 60 * 1000;
-
-export interface OfferedModes {
-  readonly entries: readonly CatalogueEntry[];
-  readonly modes: readonly ProductMode[];
-  readonly offered: readonly OfferedMode[];
-}
+/** How long a catalogue is reused before it is asked for again. */
+const CATALOGUE_CACHE_TTL_MS = 5 * 60 * 1000;
 
 /**
  * Parameterized API client — one instance per platform, all sharing the same core logic.
@@ -68,8 +50,8 @@ export class APIClient {
   private client: AxiosInstance;
   private platform: string;
   private secret: string;
-  private cachedModes: OfferedModes | null = null;
-  private cachedModesAt = 0;
+  private cachedCatalogue: Catalogue | null = null;
+  private cachedCatalogueAt = 0;
 
   constructor(platform: string, secret: string) {
     this.platform = platform;
@@ -168,43 +150,43 @@ export class APIClient {
   }
 
   /**
-   * What this bot may offer, and the product's word for each.
+   * The model catalogue (`GET /catalogue`), or `null` when it could not be read.
    *
-   * Both requests go out without the channel secret: `GET /catalogue` is
-   * `optionalAuth` and `GET /catalogue/modes` takes no credential at all, so
-   * sending one would buy nothing and widen where it travels.
+   * Sent without the channel secret: the route is `optionalAuth`, so one would
+   * buy nothing and widen where it travels. `null` rather than an empty
+   * catalogue, because "no models" and "we could not ask" are different
+   * answers. A failure is NOT cached, and the previous success is not kept
+   * across it: a stale listing can still offer a withdrawn model.
    *
-   * `null` on failure rather than an empty result, because "the product offers
-   * nothing" and "we could not ask" are different answers, and only one of them
-   * should make a bot claim there are no modes. A failure is NOT cached, so an
-   * outage does not outlive itself by the cache window; neither is the previous
-   * success kept across it, because a stale listing is one that can still offer
-   * a mode the product has withdrawn.
-   *
-   * Cached here rather than per bot, so `/status` and `/model` on both
-   * platforms share one pair of requests.
+   * Cached per client, so `/status`, `/model` and every chat turn share one
+   * request per window.
    */
-  async fetchOfferedModes(): Promise<OfferedModes | null> {
-    if (this.cachedModes !== null && Date.now() - this.cachedModesAt < MODE_CACHE_TTL_MS) {
-      return this.cachedModes;
+  async fetchCatalogue(): Promise<Catalogue | null> {
+    if (this.cachedCatalogue !== null && Date.now() - this.cachedCatalogueAt < CATALOGUE_CACHE_TTL_MS) {
+      return this.cachedCatalogue;
     }
     try {
-      const [catalogue, modes] = await Promise.all([
-        this.client.get('/catalogue'),
-        this.client.get('/catalogue/modes'),
-      ]);
-      const entries = parseCatalogue(catalogue.data);
-      const parsedModes = parseModes(modes.data);
-      this.cachedModes = { entries, modes: parsedModes, offered: offeredModes(entries, parsedModes) };
-      this.cachedModesAt = Date.now();
-      return this.cachedModes;
+      const response = await this.client.get('/catalogue');
+      this.cachedCatalogue = parseCatalogue(response.data);
+      this.cachedCatalogueAt = Date.now();
+      return this.cachedCatalogue;
     } catch {
-      this.cachedModes = null;
+      this.cachedCatalogue = null;
       return null;
     }
   }
 
-  async updateModel(platformUserId: string, model: string): Promise<void> {
+  /**
+   * The `model` a chat request should carry for a stored choice, or
+   * `undefined` to omit it and let the server use its default. See
+   * `resolveRequestModel` in `./catalogue.ts`.
+   */
+  async requestModel(chosen: string | null | undefined): Promise<string | undefined> {
+    return resolveRequestModel(chosen, await this.fetchCatalogue());
+  }
+
+  /** Store a person's model, or clear it (`null`) back to the server default. */
+  async updateModel(platformUserId: string, model: string | null): Promise<void> {
     await this.client.post(
       `/bots/internal/${this.platform}/users/${platformUserId}/model`,
       { model },
@@ -269,12 +251,11 @@ export class APIClient {
         'X-Oxy-User-Id': oxyUserId,
       },
       body: JSON.stringify({
-        // Omitted when the person has expressed no preference, exactly like
-        // `conversationId` beneath it: `JSON.stringify` drops an `undefined`
-        // value, and a request that names no model routes through the server's
-        // own default — which is what the Automatic product mode IS. Naming an
-        // identifier here would bake a second, silent default into this
-        // service, one no catalogue change could ever reach.
+        // Omitted when unset, exactly like `conversationId` beneath it:
+        // `JSON.stringify` drops an `undefined` value, and a request that names
+        // no model uses the server's own default. Callers resolve it through
+        // `requestModel`. Naming an id here would bake a second, silent default
+        // into this service, one no catalogue change could ever reach.
         messages,
         model: options.model,
         stream: false,
