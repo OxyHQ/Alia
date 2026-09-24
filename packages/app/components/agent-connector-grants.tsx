@@ -79,8 +79,8 @@ export function AgentConnectorGrants({
                   key={connector.grant}
                   icon={
                     <Icon
-                      size={18}
-                      color={granted ? colors.foreground : colors.mutedForeground}
+                      width={18}
+                      fill={granted ? colors.foreground : colors.mutedForeground}
                     />
                   }
                   title={connector.label}

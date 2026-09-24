@@ -185,31 +185,29 @@ function render(entry: IconEntry, symbol: Element): string {
   const imports = [...new Set(leaves.map((leaf) => (leaf.tag === 'path' ? 'Path' : 'Circle')))].sort();
   const component = `${entry.name}Icon`;
 
-  return `import Svg, { ${imports.join(', ')} } from "react-native-svg";
+  return `import type { BloomIconComponent } from "@oxy.so/bloom/icons";
+import Svg, { ${imports.join(', ')} } from "react-native-svg";
 import { useColorScheme } from "@/lib/useColorScheme";
-
-export interface ${component}Props {
-  size?: number;
-  /** Icon color. Defaults to the theme muted foreground, as the sibling glyph components do. */
-  color?: string;
-}
 
 /**
  * \`${entry.id}\` — ${entry.purpose}.
+ *
+ * Bloom's icon contract (\`width\`, \`height\`, \`fill\`), so it sits in any list of
+ * Bloom icons; the fill defaults to the theme's muted foreground.
  *
  * Generated from \`scripts/icons/shell-sprites.svg\`. Change \`scripts/icons/manifest.ts\`
  * and re-run \`bun run generate:icons\`; editing this file is reverted by the next run
  * and caught by \`components/__tests__/generated-icons.test.ts\`.
  */
-export function ${component}({ size = 18, color }: ${component}Props) {
+export const ${component}: BloomIconComponent = ({ width = 18, height = width, fill }) => {
   const { colors } = useColorScheme();
-  const tint = color ?? colors.mutedForeground;
+  const tint = fill ?? colors.mutedForeground;
   return (
-    <Svg width={size} height={size} viewBox="${symbol.attrs.viewBox}"${rootFill}>
+    <Svg width={width} height={height} viewBox="${symbol.attrs.viewBox}"${rootFill}>
 ${leaves.map((leaf) => jsxFor(leaf, entry)).join('\n')}
     </Svg>
   );
-}
+};
 `;
 }
 

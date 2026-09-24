@@ -26,18 +26,30 @@ vi.mock('react-native', async () => {
   return { View: host('View'), Pressable: host('Pressable'), Text: host('Text') };
 });
 
-vi.mock('lucide-react-native', async () => {
+/** The Bloom glyphs the family list imports, as named hosts. */
+vi.mock('@oxy.so/bloom/icons/RiGlobalLine', async () => {
   const ReactModule = await import('react');
-  const icon = (name: string) => (props: Record<string, unknown>) =>
-    ReactModule.createElement(name, props);
-  return {
-    AppWindow: icon('AppWindow'),
-    Brain: icon('Brain'),
-    Globe: icon('Globe'),
-    MessageSquare: icon('MessageSquare'),
-    Shapes: icon('Shapes'),
-    Users: icon('Users'),
-  };
+  return { RiGlobalLine: (props: Record<string, unknown>) => ReactModule.createElement('RiGlobalLine', props) };
+});
+vi.mock('@oxy.so/bloom/icons/RiLightbulbFlashLine', async () => {
+  const ReactModule = await import('react');
+  return { RiLightbulbFlashLine: (props: Record<string, unknown>) => ReactModule.createElement('RiLightbulbFlashLine', props) };
+});
+vi.mock('@oxy.so/bloom/icons/RiMessage2Line', async () => {
+  const ReactModule = await import('react');
+  return { RiMessage2Line: (props: Record<string, unknown>) => ReactModule.createElement('RiMessage2Line', props) };
+});
+vi.mock('@oxy.so/bloom/icons/RiShapesLine', async () => {
+  const ReactModule = await import('react');
+  return { RiShapesLine: (props: Record<string, unknown>) => ReactModule.createElement('RiShapesLine', props) };
+});
+vi.mock('@oxy.so/bloom/icons/RiTeamLine', async () => {
+  const ReactModule = await import('react');
+  return { RiTeamLine: (props: Record<string, unknown>) => ReactModule.createElement('RiTeamLine', props) };
+});
+vi.mock('@oxy.so/bloom/icons/RiWindowLine', async () => {
+  const ReactModule = await import('react');
+  return { RiWindowLine: (props: Record<string, unknown>) => ReactModule.createElement('RiWindowLine', props) };
 });
 
 /**

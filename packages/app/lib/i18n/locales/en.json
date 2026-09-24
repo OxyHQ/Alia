@@ -694,6 +694,9 @@
       "planItems": "%{done}/%{total} plan items",
       "credits": "%{count} credits",
       "planSummary": "Plan summary"
+    },
+    "richBlocks": {
+      "source": "Source: {{source}}"
     }
   },
   "credits": {

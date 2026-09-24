@@ -65,7 +65,7 @@ export function AgentCapabilityToggles({
         return (
           <SettingsListItem
             key={id}
-            icon={<Icon size={18} color={granted ? colors.foreground : colors.mutedForeground} />}
+            icon={<Icon width={18} fill={granted ? colors.foreground : colors.mutedForeground} />}
             title={label}
             description={description}
             disabled={disabled}

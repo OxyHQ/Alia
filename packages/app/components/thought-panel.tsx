@@ -138,6 +138,7 @@ function StepsTab({
   lifecycle: TurnLifecycle;
 }) {
   const { t } = useTranslation();
+  const { colors } = useTheme();
   const reduce = useAgentLogMotion();
   const live = isLiveLifecycle(lifecycle);
   const [openRows, setOpenRows] = useState<Record<string, boolean>>({});
@@ -174,10 +175,7 @@ function StepsTab({
                 title={step.label}
                 status={status}
                 icon={
-                  <ToolIcon
-                    size={14}
-                    className={status === 'error' ? 'text-destructive' : 'text-foreground'}
-                  />
+                  <ToolIcon width={14} height={14} fill={status === 'error' ? colors.error : colors.text} />
                 }
                 input={inv === undefined ? '' : toolCallText(inv.args)}
                 output={inv === undefined ? '' : toolCallText(inv.result)}

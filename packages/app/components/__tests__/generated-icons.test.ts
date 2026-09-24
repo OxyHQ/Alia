@@ -68,7 +68,7 @@ describe('the generated icon set is the sheet', () => {
     // rule in this package is that colour comes from the scheme. Every emitted
     // paint slot is either the tint or an explicit `none`.
     for (const [file, source] of expected) {
-      expect(source, file).toContain('color ?? colors.mutedForeground');
+      expect(source, file).toContain('fill ?? colors.mutedForeground');
       expect(source, file).not.toMatch(/(fill|stroke)="#/);
     }
   });
