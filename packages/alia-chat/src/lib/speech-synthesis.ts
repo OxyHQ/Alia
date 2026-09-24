@@ -15,8 +15,8 @@ export type ProductVoice = 'male' | 'female';
 export interface SpeechClipRequest {
   readonly apiUrl: string;
   readonly token: string;
-  /** The speech routing profile; the route accepts only its own. */
-  readonly model: string;
+  /** A speech model; omitted, the server's own speech model answers. */
+  readonly model?: string;
   readonly input: string;
   readonly voice: ProductVoice;
   readonly speed?: number;

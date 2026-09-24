@@ -1,58 +1,56 @@
 /**
- * The model catalogue, as the SDK consumes it (`GET /catalogue`, epic #139
- * workstream 5).
+ * The model catalogue, as the SDK consumes it (`GET /catalogue`).
  *
- * Every surface used to hardcode an `alia-*` identifier as its default —
- * `useAliaChat` sent `route:auto`, `useTTS` and `useVoiceRoom` sent `route:voice`
- * — which meant a retired identifier became a 400 in a consumer's app with
- * nothing the consumer could do about it, since the string was baked into the
- * package they installed. This module is how the SDK asks the server what it
- * offers instead.
+ * Alia has no models of its own: the catalogue lists the real models Oxy serves
+ * (ids `publisher/model`), and the server decides which one a request with no
+ * `model` gets (`defaultModelId`) and which ones a picker shows first
+ * (`featuredIds`). This package therefore ships NO model identifier: a caller
+ * that names no model sends no `model`, and the server answers with its default.
  *
  * ## Deliberately not React, and deliberately not react-query
  *
- * `packages/app` reads the same surface through `useCatalogue`, a react-query
- * hook. The SDK cannot copy that: it declares `@tanstack/react-query` as a
- * dependency but imports it in **zero** modules today — measured — so a consumer
- * mounting `<AliaChatSheet>` is not required to have a `QueryClientProvider`
- * anywhere above it. Introducing one here would turn "the model default came
- * from the server" into a breaking change for every consumer, which is a bad
- * trade for a fallback.
+ * The SDK imports `@tanstack/react-query` in no module, so a consumer mounting
+ * `<AliaChatSheet>` is not required to have a `QueryClientProvider`. Resolution
+ * happens inside `send`, at the moment a request is about to name a model, and a
+ * module-level cache keeps that from becoming a fetch per message.
  *
- * Resolution therefore happens where it matters — inside `send`, at the moment a
- * request is about to name a model — rather than at render. A module-level cache
- * keeps that from becoming a fetch per message.
+ * ## Parsing does not invent
  *
- * ## The parsing rules are the app's, because the contract is the same one
- *
- * Two rules, both about not inventing (see `packages/app/lib/hooks/use-catalogue.ts`,
- * which states them at length):
- *
- *  - An entry whose `object` is neither known value is DROPPED. Defaulting it to
- *    either kind would break ADR 0003 invariant 1 in one direction or the other.
- *  - A response whose entries all fail to parse THROWS rather than reading as an
- *    empty catalogue, because "no models" and "we could not read the models"
- *    look identical to every caller below and one of them means "offer nothing".
- *
- * This file is a second implementation of that contract rather than a shared
- * one, and that is forced rather than chosen: `@alia.onl/sdk` ships as raw
- * source, so it cannot depend on an unpublished workspace package — a consumer's
- * Metro would fail to resolve it. The three Node-side clients (Codea, Cowork,
- * the CLI) share one instead.
+ * An entry without an id or a name is dropped, and a response whose entries all
+ * fail to parse THROWS rather than reading as an empty catalogue: "no models"
+ * and "we could not read the models" look identical to every caller below, and
+ * one of them means "offer nothing".
  */
 
-/** A product-owned policy that picks a model per request, or a reference to one named model. */
-export type CatalogueEntryKind = 'routing_profile' | 'model';
+/** A reasoning effort a model accepts. */
+export type ReasoningEffort = 'low' | 'medium' | 'high';
+
+const REASONING_EFFORTS: readonly ReasoningEffort[] = ['low', 'medium', 'high'];
 
 export interface CatalogueEntry {
+  /** `publisher/model`. */
   readonly id: string;
-  readonly kind: CatalogueEntryKind;
-  readonly displayName: string;
-  readonly description: string;
-  /** Product policy: whether a chat picker surfaces this entry. */
-  readonly chatVisible: boolean;
-  /** The server states this as a claim; an entry that omits it is not called unavailable. */
-  readonly unavailable: boolean;
+  readonly name: string;
+  readonly publisher: { readonly id: string; readonly name: string };
+  readonly description: string | null;
+  readonly contextWindow: number | null;
+  readonly maxOutput: number | null;
+  readonly inputModalities: readonly string[];
+  readonly outputModalities: readonly string[];
+  readonly tools: boolean;
+  /** The efforts the model accepts, cheapest first. Empty: send none. */
+  readonly reasoningEfforts: readonly ReasoningEffort[];
+  readonly pricing: { readonly inputPerMTok: string; readonly outputPerMTok: string } | null;
+  readonly releasedAt: string | null;
+  readonly featured: boolean;
+}
+
+export interface Catalogue {
+  readonly entries: readonly CatalogueEntry[];
+  /** What a request without `model` is answered with, or `null` if the server did not say. */
+  readonly defaultModelId: string | null;
+  /** The ids a picker shows first, in order. */
+  readonly featuredIds: readonly string[];
 }
 
 type JsonObject = Record<string, unknown>;
@@ -64,7 +62,15 @@ function asObject(value: unknown): JsonObject | null {
 }
 
 function asText(value: unknown): string | null {
-  return typeof value === 'string' ? value : null;
+  return typeof value === 'string' && value !== '' ? value : null;
+}
+
+function asCount(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : null;
+}
+
+function asTexts(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
 }
 
 function parseEntry(value: unknown): CatalogueEntry | null {
@@ -72,27 +78,41 @@ function parseEntry(value: unknown): CatalogueEntry | null {
   if (raw === null) return null;
 
   const id = asText(raw.id);
-  const displayName = asText(raw.display_name);
-  if (id === null || displayName === null) return null;
+  const name = asText(raw.name);
+  if (id === null || name === null) return null;
 
-  if (raw.object !== 'model' && raw.object !== 'routing_profile') return null;
-  const availability = asObject(raw.availability) ?? {};
+  const publisher = asObject(raw.publisher);
+  const publisherId = asText(publisher?.id) ?? id.split('/')[0] ?? id;
+  const pricing = asObject(raw.pricing);
+  const input = asText(pricing?.inputPerMTok);
+  const output = asText(pricing?.outputPerMTok);
 
   return {
     id,
-    kind: raw.object,
-    displayName,
-    description: asText(raw.description) ?? '',
-    chatVisible: raw.chat_visible === true,
-    unavailable: availability.status === 'unavailable',
+    name,
+    publisher: { id: publisherId, name: asText(publisher?.name) ?? publisherId },
+    description: asText(raw.description),
+    contextWindow: asCount(raw.contextWindow),
+    maxOutput: asCount(raw.maxOutput),
+    inputModalities: asTexts(raw.inputModalities),
+    outputModalities: asTexts(raw.outputModalities),
+    tools: raw.tools === true,
+    reasoningEfforts: REASONING_EFFORTS.filter((effort) =>
+      asTexts(raw.reasoningEfforts).includes(effort),
+    ),
+    pricing: input !== null && output !== null ? { inputPerMTok: input, outputPerMTok: output } : null,
+    releasedAt: asText(raw.releasedAt),
+    featured: raw.featured === true,
   };
 }
 
-/** Turn a catalogue response into entries, or throw. */
-export function parseCatalogue(payload: unknown): CatalogueEntry[] {
+/** Turn a catalogue response into a {@link Catalogue}, or throw. */
+export function parseCatalogue(payload: unknown): Catalogue {
   const body = asObject(payload);
   const data = body === null ? null : body.data;
-  if (!Array.isArray(data)) throw new Error('The model catalogue response could not be read.');
+  if (body === null || !Array.isArray(data)) {
+    throw new Error('The model catalogue response could not be read.');
+  }
 
   const entries: CatalogueEntry[] = [];
   for (const value of data) {
@@ -102,57 +122,53 @@ export function parseCatalogue(payload: unknown): CatalogueEntry[] {
   if (data.length > 0 && entries.length === 0) {
     throw new Error('The model catalogue response could not be read.');
   }
-  return entries;
+  return {
+    entries,
+    defaultModelId: asText(body.defaultModelId),
+    featuredIds: asTexts(body.featuredIds),
+  };
 }
 
 export interface ModelSelection {
-  /** What the caller asked for, which is what a picker keeps showing as chosen. */
-  readonly requestedId: string;
-  /** What a request should carry. Differs from `requestedId` only when replaced. */
-  readonly effectiveId: string;
+  /** What the caller asked for; `undefined` is "the server's default". */
+  readonly requestedId: string | undefined;
+  /** What a request should carry as `model`; `undefined` means omit it. */
+  readonly effectiveId: string | undefined;
+  /** The entry the request will be answered by, when the catalogue says. */
+  readonly entry: CatalogueEntry | null;
   /** `replaced` when the requested identifier is not one the catalogue offers. */
-  readonly source: 'requested' | 'replaced';
+  readonly source: 'requested' | 'default' | 'replaced';
 }
 
 /**
  * Resolve a requested identifier against the catalogue.
  *
- * The same three deliberate non-behaviours as the app's `resolveSelection`:
- *
+ *  - **Nothing requested** → omit `model`; the server's default answers.
  *  - **No catalogue — not loaded, or the request failed — leaves the choice
- *    alone.** Replacing on missing data changes the model under the user on any
- *    slow cold start, which is the same wrong answer as a retirement.
- *  - **An entry reported UNAVAILABLE is still honoured.** That is a health
- *    signal about the models behind an entry and the server already falls back
- *    among them; picking a different one is a product decision nobody made.
- *  - **`preferredId` is never trusted.** It is a build-time value, so it is
- *    checked against the catalogue like any other and falls through when the
- *    catalogue does not offer it.
+ *    alone.** Replacing on missing data would change the model under the user
+ *    on any slow cold start.
+ *  - **An identifier the catalogue no longer lists** is not sent (it would be
+ *    refused); the request omits `model` and the server's default answers.
  */
 export function resolveSelection(
-  requestedId: string,
-  entries: readonly CatalogueEntry[] | undefined,
-  preferredId?: string,
+  requestedId: string | null | undefined,
+  catalogue: Catalogue | undefined,
 ): ModelSelection {
-  if (entries === undefined) {
-    return { requestedId, effectiveId: requestedId, source: 'requested' };
-  }
+  const requested = requestedId === null || requestedId === '' ? undefined : requestedId;
+  const defaultEntry = (): CatalogueEntry | null =>
+    catalogue?.entries.find((entry) => entry.id === catalogue.defaultModelId) ?? null;
 
-  const offered = entries.filter((entry) => entry.chatVisible);
-  if (offered.some((entry) => entry.id === requestedId)) {
-    return { requestedId, effectiveId: requestedId, source: 'requested' };
+  if (requested === undefined) {
+    return { requestedId: undefined, effectiveId: undefined, entry: defaultEntry(), source: 'default' };
   }
-
-  const replacement =
-    (preferredId === undefined
-      ? undefined
-      : offered.find((entry) => entry.id === preferredId)) ??
-    offered.find((entry) => !entry.unavailable) ??
-    offered[0];
-  if (replacement === undefined) {
-    return { requestedId, effectiveId: requestedId, source: 'requested' };
+  if (catalogue === undefined) {
+    return { requestedId: requested, effectiveId: requested, entry: null, source: 'requested' };
   }
-  return { requestedId, effectiveId: replacement.id, source: 'replaced' };
+  const entry = catalogue.entries.find((candidate) => candidate.id === requested);
+  if (entry !== undefined) {
+    return { requestedId: requested, effectiveId: requested, entry, source: 'requested' };
+  }
+  return { requestedId: requested, effectiveId: undefined, entry: defaultEntry(), source: 'replaced' };
 }
 
 /**
@@ -162,9 +178,9 @@ export function resolveSelection(
  * request. A REJECTED promise is evicted, because caching a failure would make a
  * single cold-start network blip permanent for the life of the process.
  */
-const inFlight = new Map<string, Promise<CatalogueEntry[]>>();
+const inFlight = new Map<string, Promise<Catalogue>>();
 
-export function fetchCatalogue(apiUrl: string, accessToken?: string): Promise<CatalogueEntry[]> {
+export function fetchCatalogue(apiUrl: string, accessToken?: string): Promise<Catalogue> {
   const cached = inFlight.get(apiUrl);
   if (cached !== undefined) return cached;
 
@@ -187,23 +203,20 @@ export function clearCatalogueCache(): void {
 }
 
 /**
- * The identifier a request should carry, given what the caller asked for.
+ * The `model` a request should carry, given what the caller asked for, or
+ * `undefined` to omit it and let the server's default answer.
  *
  * Never throws: a catalogue that cannot be read leaves the requested identifier
- * alone, which is the same answer as "the catalogue has not loaded yet". A
- * consumer that wants to KNOW the catalogue is unreadable calls
- * {@link fetchCatalogue} directly.
+ * alone, which is the same answer as "the catalogue has not loaded yet".
  */
 export async function resolveModelId(
   apiUrl: string,
-  requestedId: string,
+  requestedId: string | undefined,
   accessToken?: string,
-  preferredId?: string,
-): Promise<string> {
-  if (requestedId.startsWith('mode:')) return requestedId;
+): Promise<string | undefined> {
+  if (requestedId === undefined || requestedId === '') return undefined;
   try {
-    const entries = await fetchCatalogue(apiUrl, accessToken);
-    return resolveSelection(requestedId, entries, preferredId).effectiveId;
+    return resolveSelection(requestedId, await fetchCatalogue(apiUrl, accessToken)).effectiveId;
   } catch {
     return requestedId;
   }

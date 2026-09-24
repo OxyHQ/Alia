@@ -177,11 +177,6 @@ function validateIgnoredNamedEvent(eventName: string, payload: JsonObject): void
   requireEventVersion(payload, eventName);
 
   switch (eventName) {
-    case 'alia.model_switch':
-      assertOnlyKeys(payload, ['eventVersion', 'model', 'modelName'], eventName);
-      asString(payload.model, `${eventName} model`);
-      asString(payload.modelName, `${eventName} modelName`);
-      return;
     case 'alia.suggest_new_conversation':
       assertOnlyKeys(payload, ['eventVersion', 'reason'], eventName);
       asString(payload.reason, `${eventName} reason`);
