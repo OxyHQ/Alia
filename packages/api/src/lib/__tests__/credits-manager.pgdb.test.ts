@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import postgres from 'postgres';
 import { closePostgres, connectPostgres } from '../../db/index';
 import {
@@ -14,12 +14,22 @@ import {
   finalizeCredits,
   refundReservation,
   safeRefund,
-  calculateCreditsFromTokens,
+  calculateCredits,
   getUserCredits,
   CREDITS_CONFIG,
-  UnpricedModelError,
   type CreditReservation,
 } from '../credits-manager.js';
+
+/**
+ * The one model this suite prices: $1/M input, $3/M output. Everything else is
+ * absent from the catalogue and settles at the base rate.
+ */
+vi.mock('../models/catalogue.js', () => ({
+  findCatalogueModel: async (id: string) =>
+    id === 'acme/priced'
+      ? { id, pricing: { inputPerMTok: '1', outputPerMTok: '3' } }
+      : null,
+}));
 
 /**
  * `credits-manager`, against a REAL Postgres server.
@@ -32,12 +42,8 @@ import {
  * server would reject. Asserting the arithmetic against real rows is the only
  * version of these tests that means anything.
  *
- * `chat-core` used to be stubbed here, because the credit multiplier came from
- * the model catalogue over HTTP. It does not any more: `getCreditMultiplier`
- * reads `lib/routing/presets.ts`, a static table, so the multiplier in these
- * assertions is the REAL price of the profile named rather than the stub's 1×.
- * Nothing in the billing path fetches anything now, which is why the stub is
- * gone rather than repointed.
+ * A turn is priced from the model's catalogue prices (ADR 0012); the catalogue
+ * is stubbed with one priced model so the arithmetic is exact.
  *
  * Account ids are namespaced `cm-` — the pgdb suite shares one database per run
  * and `user_credits.id` is the account id, so an unqualified `'user-1'` would
@@ -74,34 +80,37 @@ const balanceOf = async (id: string) => {
   return { free: row.creditsFree, paid: row.creditsPaid };
 };
 
-describe('calculateCreditsFromTokens', () => {
+describe('calculateCredits at the base rate (no model named)', () => {
+  const tokens = (totalTokens: number, systemPromptTokens?: number) => ({
+    promptTokens: totalTokens,
+    completionTokens: 0,
+    totalTokens,
+    ...(systemPromptTokens === undefined ? {} : { systemPromptTokens }),
+  });
+
   it('returns minimum credits for 0 tokens', async () => {
-    expect(await calculateCreditsFromTokens(0)).toBe(CREDITS_CONFIG.MIN_CREDITS_PER_REQUEST);
+    expect(await calculateCredits(tokens(0))).toBe(CREDITS_CONFIG.MIN_CREDITS_PER_REQUEST);
   });
 
   it('calculates credits from token count', async () => {
     // 5000 tokens / 1000 tokens per credit = 5 credits
-    expect(await calculateCreditsFromTokens(5000)).toBe(5);
+    expect(await calculateCredits(tokens(5000))).toBe(5);
   });
 
   it('rounds up partial credits', async () => {
-    // 1500 tokens / 1000 = 1.5 → ceil = 2
-    expect(await calculateCreditsFromTokens(1500)).toBe(2);
+    expect(await calculateCredits(tokens(1500))).toBe(2);
   });
 
   it('subtracts system prompt tokens', async () => {
-    // 5000 total - 3000 system = 2000 billable / 1000 = 2
-    expect(await calculateCreditsFromTokens(5000, undefined, 3000)).toBe(2);
+    expect(await calculateCredits(tokens(5000, 3000))).toBe(2);
   });
 
   it('floors billable tokens at 0 when system > total', async () => {
-    expect(await calculateCreditsFromTokens(1000, undefined, 5000)).toBe(
-      CREDITS_CONFIG.MIN_CREDITS_PER_REQUEST,
-    );
+    expect(await calculateCredits(tokens(1000, 5000))).toBe(CREDITS_CONFIG.MIN_CREDITS_PER_REQUEST);
   });
 
   it('enforces minimum credits', async () => {
-    expect(await calculateCreditsFromTokens(1)).toBe(1);
+    expect(await calculateCredits(tokens(1))).toBe(1);
   });
 });
 
@@ -257,46 +266,29 @@ describe('finalizeCredits', () => {
     ).rejects.toThrow('User credits not found');
   });
 
-  /**
-   * A `finalizeCredits` that THROWS has moved no credits, which is the
-   * assumption every release path in the product rests on.
-   *
-   * `routes/v1/chat-completions.ts`, `lib/chat-lifecycle.ts` and
-   * `routes/webhooks.ts` all mark the reservation settled only AFTER
-   * `finalizeCredits` returns, and refund it in a `finally` when it did not. If a
-   * throw could leave a partial charge behind, that refund would pay the account
-   * twice for one turn.
-   *
-   * It cannot, and the reason is structural rather than lucky: every branch of
-   * `_adjustReservation` issues exactly one statement and throws only when that
-   * statement matched no row. The realistic throw is earlier still — an
-   * identifier no routing preset prices — and that is what is driven here, with
-   * a real identifier rather than a stub, since the multiplier is now a static
-   * read that cannot be made to fail any other way.
-   */
-  it('moves nothing when the model resolves to no price at all', async () => {
-    const id = await account('cm-final-unpriced', 40, 60);
+  it('settles a priced model at its real cost, and an unpriced one at the base rate', async () => {
+    const reservation = (userId: string): CreditReservation => ({
+      userId, creditsReserved: 5, initialFreeCredits: 40, initialPaidCredits: 60, grantKind: 'free_allowance',
+    });
 
-    await expect(
-      finalizeCredits(
-        { userId: id, creditsReserved: 5, initialFreeCredits: 40, initialPaidCredits: 60, grantKind: 'free_allowance' },
-        { promptTokens: 1000, completionTokens: 1000, totalTokens: 2000 },
-        'alia-not-a-registered-model',
-      ),
-    ).rejects.toThrow(UnpricedModelError);
-
-    expect(await balanceOf(id)).toEqual({ free: 40, paid: 60 });
-
-    // The positive control the assertion above needs: the SAME call on a priced
-    // identifier settles and does move the balance, so "nothing moved" is a
-    // property of the refusal and not of the call shape.
-    const priced = await account('cm-final-priced', 40, 60);
-    await finalizeCredits(
-      { userId: priced, creditsReserved: 5, initialFreeCredits: 40, initialPaidCredits: 60, grantKind: 'free_allowance' },
-      { promptTokens: 1000, completionTokens: 1000, totalTokens: 2000 },
-      'route:auto',
+    // 1,000,000 input × $1/M + 1,000,000 output × $3/M = $4 = 4000 credits.
+    const priced = await account('cm-final-priced', 5000, 0);
+    const charged = await finalizeCredits(
+      reservation(priced),
+      { promptTokens: 1_000_000, completionTokens: 1_000_000, totalTokens: 2_000_000 },
+      'acme/priced',
     );
-    expect(await balanceOf(priced)).toEqual({ free: 43, paid: 60 });
+    expect(charged.creditsCharged).toBe(4000);
+    expect(await balanceOf(priced)).toEqual({ free: 1005, paid: 0 });
+
+    // Not in the catalogue: 2000 tokens at the base rate = 2 credits, refund 3.
+    const unpriced = await account('cm-final-unpriced', 40, 60);
+    await finalizeCredits(
+      reservation(unpriced),
+      { promptTokens: 1000, completionTokens: 1000, totalTokens: 2000 },
+      'gone/model',
+    );
+    expect(await balanceOf(unpriced)).toEqual({ free: 43, paid: 60 });
   });
 
   it('throws when the account vanished before the refund', async () => {

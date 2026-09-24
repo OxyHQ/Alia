@@ -21,23 +21,15 @@ export interface AfterChatContext extends ChatHookContext {
     completionTokens: number;
     totalTokens: number;
   };
-  /** The Alia alias that served the turn. */
+  /** The `publisher/model` (or local runtime model) the turn ran on. */
   modelUsed: string;
   /**
-   * What the caller asked for, before resolution.
-   *
-   * Separate from `model`/`modelUsed` because they are the alias the provider
-   * loop settled on, and the two diverge on exactly the turns worth looking
-   * at — see `db/schema/usage.ts`.
+   * What the caller asked for, before resolution — separate from `modelUsed`,
+   * the `publisher/model` the turn ran on. They differ when the caller named
+   * nothing and the person's default was used.
    */
   requestedModel: string;
-  /**
-   * How much reasoning the caller asked for, or null for the default.
-   *
-   * Computed where `thinkingMode` is in scope, because a caller can express the
-   * same intent through the flag or through `route:thinking` and the hook sees
-   * only the identifier.
-   */
+  /** How much reasoning the caller asked for (`low`|`medium`|`high`), or null. */
   reasoningEffort: string | null;
   latencyMs: number;
   /**

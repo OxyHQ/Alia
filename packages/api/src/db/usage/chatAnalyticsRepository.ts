@@ -25,7 +25,7 @@
  *   wrong answer that looks like a plausible one.
  */
 
-import { and, desc, eq, gte, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, isNotNull, isNull, sql } from 'drizzle-orm';
 import type { ApiDatabase } from '../index';
 import { chatAnalytics } from '../schema/usage';
 
@@ -34,14 +34,10 @@ export interface ChatAnalyticsRecord {
   readonly conversationId?: string;
   /** What the caller asked for, verbatim. Required, so a row cannot fail to say. */
   readonly requestedModelId: string;
-  /** Which of the four shapes that identifier is. Required for the same reason. */
-  readonly requestedModelKind: string;
-  /** The product mode it selects, when it selects one. */
-  readonly requestedProfileId: string | null;
   /** The reasoning parameter, kept out of the model identifier. */
   readonly reasoningEffort: string | null;
-  /** The alias that served the turn. Required for the same reason. */
-  readonly routingProfileId: string;
+  /** The `publisher/model` (or `local/...`) the turn ran on. */
+  readonly model: string;
   readonly promptTokens: number;
   readonly completionTokens: number;
   readonly totalTokens: number;
@@ -66,10 +62,8 @@ export async function insertChatAnalytics(
     oxyUserId: record.oxyUserId,
     conversationId: record.conversationId ?? null,
     requestedModelId: record.requestedModelId,
-    requestedModelKind: record.requestedModelKind,
-    requestedProfileId: record.requestedProfileId,
     reasoningEffort: record.reasoningEffort,
-    routingProfileId: record.routingProfileId,
+    model: record.model,
     promptTokens: record.promptTokens,
     completionTokens: record.completionTokens,
     totalTokens: record.totalTokens,
@@ -119,12 +113,8 @@ export async function aggregateUsageByDay(
 
 export interface UsageByModel {
   /**
-   * The Alia alias the group is named by.
-   *
-   * `null` is reachable and typed rather than assumed away: `routing_profile_id` is
-   * nullable (see `db/schema/usage.ts` on why it is not narrowed), so a row
-   * written without one groups under NULL. The route drops that group, which is
-   * the same answer the old `coalesce` produced by a longer route.
+   * The model the group is named by. `null` is reachable — rows from before
+   * `model` was written group under NULL — and the route drops it.
    */
   readonly _id: string | null;
   readonly count: number;
@@ -133,22 +123,11 @@ export interface UsageByModel {
 }
 
 /**
- * One row per Kaana routing profile, busiest first.
+ * One row per model a person ran, busiest first.
  *
- * Grouped by `routing_profile_id` ALONE. It was `coalesce(routing_profile_id, model)`,
- * ported from the source's `$ifNull`, and the fallback arm is gone: `model`
- * holds a provider model id for rows from a 29-day window in early 2026 and a
- * second copy of the alias for every row since (see the table comment), so the
- * coalesce could only ever surface a key `getRoutingProfile()` refuses — the route
- * drops it either way. A null alias is therefore dropped by the route rather
- * than shown under a provider's own name, which is the same answer with one
- * fewer way to be wrong.
- *
- * The caller resolves each key through `getRoutingProfile()`, which is keyed by the
- * ALIAS, and DROPS what will not resolve — which is why this groups by the
- * alias and not by `requested_model_id`: a caller may ask for any string, and
- * grouping by what they asked for would answer an empty list for a caller who
- * asked for something unregistered and was served an alias anyway.
+ * Grouped by `model`, the `publisher/model` the turn ran on. The route names
+ * each group from the live catalogue and drops what the catalogue no longer
+ * offers (including pre-0078 rows holding a routing alias).
  */
 export async function aggregateUsageByModel(
   db: ApiDatabase,
@@ -157,15 +136,43 @@ export async function aggregateUsageByModel(
 ): Promise<UsageByModel[]> {
   return db
     .select({
-      _id: chatAnalytics.routingProfileId,
+      _id: chatAnalytics.model,
       count: rowCount,
       totalTokens: sumTokens,
       avgLatency,
     })
     .from(chatAnalytics)
     .where(ownedSince(oxyUserId, since))
-    .groupBy(chatAnalytics.routingProfileId)
+    .groupBy(chatAnalytics.model)
     .orderBy(desc(rowCount));
+}
+
+/**
+ * Successful turns per model across ALL of Alia since `since` — the usage
+ * signal that ranks featured models and picks a new person's default
+ * (`lib/models/selection.ts`). Failed turns are not usage.
+ */
+export async function aggregateModelTurnsSince(
+  db: ApiDatabase,
+  since: Date,
+): Promise<{ modelId: string; turns: number }[]> {
+  const rows = await db
+    .select({ modelId: chatAnalytics.model, turns: rowCount })
+    .from(chatAnalytics)
+    .where(and(gte(chatAnalytics.createdAt, since), isNotNull(chatAnalytics.model), isNull(chatAnalytics.errorClass)))
+    .groupBy(chatAnalytics.model);
+  return rows.flatMap((row) => (row.modelId === null ? [] : [{ modelId: row.modelId, turns: Number(row.turns) }]));
+}
+
+/** The model of a person's most recent successful turn, or `null`. */
+export async function findLastUsedModel(db: ApiDatabase, oxyUserId: string): Promise<string | null> {
+  const [row] = await db
+    .select({ model: chatAnalytics.model })
+    .from(chatAnalytics)
+    .where(and(eq(chatAnalytics.oxyUserId, oxyUserId), isNotNull(chatAnalytics.model), isNull(chatAnalytics.errorClass)))
+    .orderBy(desc(chatAnalytics.createdAt))
+    .limit(1);
+  return row?.model ?? null;
 }
 
 export interface CreditsByDay {

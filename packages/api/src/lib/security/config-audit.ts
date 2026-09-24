@@ -5,10 +5,10 @@
  *
  * ## What counts as such a change
  *
- * One table is left: `plans`. It is a BILLING table, but `plans.model_ids` is
- * the input to `lib/plan-access.ts`, which decides whether a request may name a
- * model at all — so a write to it changes which model a caller can reach. The
- * provider catalogue tables this module was first written for
+ * One table is left: `plans` — whether a plan is live decides what a caller can
+ * use at all. Plans no longer carry a model allowlist (ADR 0012: every plan
+ * sees every model; `plans.model_ids` was dropped by 0078). The provider
+ * catalogue tables this module was first written for
  * (`routing_profiles`, `routing_profile_provider_mappings`, `model_configs`,
  * `external_models`) were dropped: the routing-profile catalogue is code, and
  * Kaana owns everything behind it.
@@ -97,10 +97,9 @@ export interface ConfigAuditChange {
  * counter moving is not a configuration change.
  */
 export const AUDITED_FIELDS: Readonly<Record<ConfigAuditResource, readonly string[]>> = {
-  // Which models a plan grants, and whether the plan is live at all. Price and
-  // Stripe identifiers are money rather than routing and are deliberately out:
-  // this module records what changes model ACCESS.
-  plan: ['planId', 'product', 'modelIds', 'isActive'],
+  // Whether the plan is live at all. Price and Stripe identifiers are money
+  // rather than access and are deliberately out.
+  plan: ['planId', 'product', 'isActive'],
 };
 
 /**

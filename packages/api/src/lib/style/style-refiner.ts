@@ -5,7 +5,7 @@
  */
 
 import { generateText } from 'ai';
-import { resolveModel, getAIModel } from '../chat-core.js';
+import { resolveUtilityModel, getAIModel } from '../chat-core.js';
 import { log } from '../logger.js';
 import type { IWritingStyleProfile } from '../../domain/writing-style.js';
 import { getDb } from '../../db/index.js';
@@ -13,7 +13,7 @@ import { listRecentUserText } from '../../db/chat/messageRepository.js';
 
 /**
  * Refine the writing style profile using an LLM.
- * Uses the cheapest available model (route:instant).
+ * Uses the utility model (the cheapest fit catalogue model).
  */
 export async function refineStyleWithLLM(
   userId: string,
@@ -35,7 +35,7 @@ export async function refineStyleWithLLM(
     }
 
     // Resolve cheapest model
-    const resolved = await resolveModel('route:instant');
+    const resolved = await resolveUtilityModel();
     if (!resolved) {
       log.chat.warn('No model available for style refinement');
       return {};

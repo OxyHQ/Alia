@@ -3,12 +3,31 @@
  *
  * Two directions matter equally here and they fail differently. Letting an
  * `alia/*` identifier through occupies a namespace that is supposed to mean
- * something; refusing an `alia-*` alias breaks all thirteen live identifiers at
- * once. So the negative cases are as load-bearing as the positive ones, and the
- * hyphenated alias set is asserted whole rather than by example.
+ * something; refusing a real `publisher/model` from the catalogue breaks chat.
+ * So the negative cases are as load-bearing as the positive ones.
  */
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+
+vi.mock('../models/catalogue.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../models/catalogue.js')>()),
+  listCatalogueModels: vi.fn(async () => [
+    {
+      id: 'example/model-1',
+      name: 'Model 1',
+      publisher: { id: 'example', name: 'Example' },
+      description: null,
+      contextWindow: 128_000,
+      maxOutput: 8_192,
+      inputModalities: ['text'],
+      outputModalities: ['text'],
+      tools: true,
+      reasoningEfforts: [],
+      pricing: null,
+      releasedAt: null,
+    },
+  ]),
+}));
 
 import {
   ReservedNamespaceError,
@@ -16,8 +35,7 @@ import {
   isReservedModelNamespace,
 } from '../reserved-namespace.js';
 import { resolveModel } from '../chat-core.js';
-import { KAANA_ROUTING_PROFILE_IDS } from '../routing/kaana-profiles.js';
-import { UnregisteredModelError } from '../routing/policy.js';
+import { ModelNotFoundError } from '../models/errors.js';
 
 describe('the alia/* publisher namespace is reserved', () => {
   const reserved = [
@@ -56,14 +74,6 @@ describe('the alia/* publisher namespace is reserved', () => {
 });
 
 describe('the reservation does not touch anything that is not in it', () => {
-  it('lets every canonical Kaana routing profile through', () => {
-    expect(KAANA_ROUTING_PROFILE_IDS.length).toBe(13);
-    for (const profileId of KAANA_ROUTING_PROFILE_IDS) {
-      expect(isReservedModelNamespace(profileId)).toBe(false);
-      expect(() => assertUnreservedModelIdentifier(profileId)).not.toThrow();
-    }
-  });
-
   const unreserved = [
     ['/alia/chat', 'a route this service mounts; its first segment is empty, not "alia"'],
     ['alia', 'a bare publisher with no model is not the <publisher>/<model> form'],
@@ -94,16 +104,13 @@ describe('the serving chokepoint refuses it, not just the validator', () => {
     await expect(resolveModel('alia/atlas@2026-08-01')).rejects.toBeInstanceOf(ReservedNamespaceError);
   });
 
-  it('translates a registered product profile to its exact reviewed Oxy ID', async () => {
-    const outcome = await resolveModel('route:auto');
-    expect(outcome?.oxyInferenceTarget).toEqual({
-      kind: 'routing_profile_id',
-      routingProfileId: '01a06477-94f5-74f0-bc25-4c5c13b93ccd',
-    });
-    expect(outcome?.modelId).toBe('route:auto');
+  it('resolves a catalogue model to itself as the Oxy target', async () => {
+    const outcome = await resolveModel('example/model-1');
+    expect(outcome.oxyInferenceTarget).toEqual({ kind: 'model', model: 'example/model-1' });
+    expect(outcome.modelId).toBe('example/model-1');
   });
 
-  it('refuses a local profile with no reviewed Oxy ID instead of falling back', async () => {
-    await expect(resolveModel('route:vision')).rejects.toBeInstanceOf(UnregisteredModelError);
+  it('refuses a model the catalogue does not offer instead of falling back', async () => {
+    await expect(resolveModel('example/not-listed')).rejects.toBeInstanceOf(ModelNotFoundError);
   });
 });

@@ -46,9 +46,8 @@ let synthesisWorks = true;
 const refusedLines = new Set<string>();
 
 vi.mock('../../chat-core.js', () => ({
-  resolveModel: vi.fn(async () => ({ provider: 'stub', modelId: 'stub-model' })),
+  resolveUtilityModel: vi.fn(async () => ({ provider: 'stub', modelId: 'acme/stub-model' })),
   getAIModel: vi.fn(() => ({ id: 'stub-model' })),
-  getDefaultRoutingProfile: vi.fn(() => 'route:auto'),
   getRoutingProfile: vi.fn(async () => ({ creditMultiplier: 1 })),
 }));
 

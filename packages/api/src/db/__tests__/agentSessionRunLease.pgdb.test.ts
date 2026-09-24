@@ -45,7 +45,6 @@ async function seedSession(overrides: Record<string, unknown> = {}) {
     description: 'd',
     authorOxyUserId: OWNER,
     category: 'research',
-    routingProfileId: '01a06477-94f5-74f0-bc25-4c5c13b93ccd',
   });
   return createAgentSession(db, { agentId: agent._id, oxyUserId: OWNER, task: 'work', status: 'queued', ...overrides });
 }

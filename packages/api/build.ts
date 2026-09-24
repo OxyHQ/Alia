@@ -91,37 +91,6 @@ await esbuild.build({
   logLevel: 'info',
 });
 
-// The plan-model one-shot. `plans.model_ids` has a seeder that will not touch an existing row and
-// an audited writer with no runtime caller, so correcting a stale list needs a
-// command, and a command needs a bundle.
-await esbuild.build({
-  entryPoints: ['src/scripts/plan-models.ts'],
-  bundle: true,
-  platform: 'node',
-  target: 'node20',
-  format: 'esm',
-  outfile: 'dist/scripts/plan-models.js',
-  plugins: [externalizeNodeModules],
-  sourcemap: false,
-  minify: false,
-  logLevel: 'info',
-});
-
-// Read-only rollout gate: list active agent IDs that lack a reviewed exact Oxy
-// routing-profile PK before ECS points at an image that refuses legacy arrays.
-await esbuild.build({
-  entryPoints: ['src/scripts/check-agent-routing-profile-readiness.ts'],
-  bundle: true,
-  platform: 'node',
-  target: 'node20',
-  format: 'esm',
-  outfile: 'dist/scripts/check-agent-routing-profile-readiness.js',
-  plugins: [externalizeNodeModules],
-  sourcemap: false,
-  minify: false,
-  logLevel: 'info',
-});
-
 // The native product-agent bootstrap. Oxy publishes the Sindi/Clarity manifest
 // and Alia owns the `agents` rows it describes, so applying it is a one-shot
 // against the live image — and a one-shot invokes a FILE PATH, which the

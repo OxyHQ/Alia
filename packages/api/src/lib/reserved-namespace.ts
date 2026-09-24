@@ -2,7 +2,7 @@
  * The `alia/*` publisher namespace is reserved (ADR 0002).
  *
  * ADR 0003 makes `<publisher>/<model>` the canonical form of a model identity,
- * and ADR 0002 reserves the `alia` publisher for real released Kaana routing profiles —
+ * and ADR 0002 reserves the `alia` publisher for real released models —
  * weights that exist and are addressable, an immutable revision, a signed
  * release manifest, and a model card. Nothing qualifies today, and the release
  * pipeline that could produce those four things does not live in this
@@ -18,9 +18,8 @@
  *
  * `alia/<model>` — a SLASH — is the reserved publisher namespace. Refused here.
  *
- * `alia-<name>` — a HYPHEN — is the frozen thirteen-alias set. Untouched by
- * this module: `route:instant` and friends have no slash, so no call below can
- * reject one. That is asserted, not assumed, in the test beside this file.
+ * Any other publisher's `publisher/model` passes untouched: Alia serves real
+ * models from Oxy's catalogue (ADR 0012) and reserves only its own name.
  *
  * ## Where this is enforced
  *

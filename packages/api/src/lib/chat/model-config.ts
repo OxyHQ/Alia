@@ -3,9 +3,9 @@
  *
  * Assembles the `baseConfig` object shared by the streaming (`streamText`) and
  * non-streaming (`generateText`) paths — temperature, tool set, `stopWhen`,
- * the token-usage `onFinish` capture and the optional `max_tokens` cap. The
- * selected routing profile expresses reasoning intent; Alia never constructs
- * provider-specific options. This also wires the first-byte abort: a 20s timer
+ * the token-usage `onFinish` capture and the optional `max_tokens` cap. A
+ * reasoning effort travels to Oxy as `reasoning: { effort }` on the request;
+ * Alia never constructs provider-specific options. This also wires the first-byte abort: a 20s timer
  * that aborts the attempt if the inference stream sends
  * nothing, plus `clearFirstByteTimer()` to cancel it once a byte arrives.
  *
@@ -25,7 +25,7 @@ import { getAIModel, type ResolvedModel } from '../chat-core.js';
 import { log } from '../logger.js';
 import type { CreditUsage } from '../credits-manager.js';
 import type { StreamRunnerState } from './stream-runner.js';
-import type { EffortLevel } from '../reasoning-effort.js';
+import type { ReasoningEffort } from '../models/catalogue.js';
 
 export interface BuildBaseConfigParams {
   /** The resolved provider/model for this attempt. */
@@ -36,14 +36,9 @@ export interface BuildBaseConfigParams {
   truncatedTools: ToolSet;
   /**
    * How hard the caller asked this request to think, or `null` for the model's
-   * own default.
-   *
-   * A LEVEL rather than the boolean it replaced. The boolean's two states never
-   * reached a provider at all — both hooks it wrote were AI SDK v4 names
-   * against an `ai@6` install — so there is no behaviour here to preserve, only
-   * a defect to stop repeating.
+   * own default. Validated against the model's catalogue entry upstream.
    */
-  reasoningEffort: EffortLevel | null;
+  reasoningEffort: ReasoningEffort | null;
   systemPromptTokens: number;
   /** Shared with the stream runner; the first-byte timer reads it. */
   streamState: StreamRunnerState;
@@ -75,7 +70,7 @@ export interface BaseConfigResult {
 export function buildBaseConfig(params: BuildBaseConfigParams): BaseConfigResult {
   const { resolved, body, convertedMessages, truncatedTools, reasoningEffort, systemPromptTokens, streamState, oxyUserId, serviceToken, onUsage, onResolvedModel } = params;
 
-  const model = getAIModel(resolved, 'chat', oxyUserId, serviceToken);
+  const model = getAIModel(resolved, 'chat', oxyUserId, serviceToken, { reasoningEffort });
 
   // Build common config for both streaming and non-streaming
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- AI SDK config is dynamically extended; strict SDK param types don't support this pattern
@@ -146,20 +141,6 @@ export function buildBaseConfig(params: BuildBaseConfigParams): BaseConfigResult
    */
   if (body.max_tokens) {
     baseConfig.maxOutputTokens = body.max_tokens;
-  }
-
-  /**
-   * Reasoning is product intent, not an upstream wire option in Alia.
-   * `request-context` resolves that intent to a canonical Oxy routing profile;
-   * Oxy and Kaana own any provider-specific translation. Logging the selected
-   * level here preserves product observability without leaking provider dialect
-   * into this request.
-   */
-  if (reasoningEffort) {
-    log.v1.info(
-      { level: reasoningEffort, routingProfileId: resolved.routingProfileId },
-      'Reasoning effort is expressed by the selected Oxy routing profile',
-    );
   }
 
   if (process.env.NODE_ENV !== 'production') {

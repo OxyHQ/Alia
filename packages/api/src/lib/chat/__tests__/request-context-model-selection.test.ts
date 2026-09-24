@@ -1,23 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
- * What a request's `model` becomes, measured on the REAL boundary
- * (ADR 0003 invariants 1 and 2).
+ * What a request's `model` becomes, measured on the REAL boundary (ADR 0012).
  *
- * `lib/routing/model-selection.ts` decides which models a person may name and
- * which profile each is served under; `internal/providers/lib/fallback-engine.ts`
- * narrows the candidate list once it is told. Both are tested on their own. The
- * thing neither can see is whether the request path CONNECTS them — a pin that
- * is computed and then not passed on is green in both suites and answers from
- * the profile's default in production.
- *
- * So this drives `buildChatRequestContext` itself and reads what it handed to
- * the resolver. The model-selection module is the real one, over the real
- * routing table; only the surroundings a request needs — the database, credits,
- * the resolver — are replaced.
+ * This drives `buildChatRequestContext` itself and reads what it handed to the
+ * resolver: a `publisher/model` goes to `resolveModel`, an absent one to the
+ * person's default, and an unknown one is a 400 `model_not_found` before any
+ * credit is held. Only the surroundings a request needs — the database,
+ * credits, the catalogue-backed resolver — are replaced.
  */
 
 const resolveModel = vi.fn();
+const resolveDefaultModel = vi.fn();
 const findAgentById = vi.fn();
 const findMcpServerForUser = vi.fn();
 const reserveCredits = vi.fn();
@@ -58,26 +52,8 @@ vi.mock('@oxy.so/core', async () => {
 
 vi.mock('../../chat-core.js', () => ({
   resolveModel: (...args: unknown[]) => resolveModel(...args),
-  getDefaultRoutingProfile: () => 'route:instant',
+  resolveDefaultModel: (...args: unknown[]) => resolveDefaultModel(...args),
 }));
-
-/**
- * The seam the selection reads, backed by the REAL tables.
- *
- * Replacing it with fixtures would make this file measure a routing table
- * nobody ships, and the identifiers below — `anthropic/claude-sonnet-4.6`,
- * `openai/gpt-5.2-pro` — are only interesting because of what the shipped
- * prices say about them.
- */
-vi.mock('../../gateway-client.js', async () => {
-  const actual = await vi.importActual<typeof import('../../../internal/providers/lib/routing-profile-catalogue.js')>(
-    '../../../internal/providers/lib/routing-profile-catalogue.js',
-  );
-  return {
-    getTierMappings: async () => actual.TIER_MODEL_MAPPINGS,
-    getAllRoutingProfiles: async () => Object.values(actual.KAANA_ROUTING_PROFILES),
-  };
-});
 
 vi.mock('../../../db/index.js', () => ({ getDb: () => ({}) }));
 vi.mock('../../../db/memory/userMemoryRepository.js', () => ({
@@ -118,6 +94,22 @@ vi.mock('../../logger.js', () => {
 });
 
 const { buildChatRequestContext } = await import('../request-context.js');
+const { ModelNotFoundError } = await import('../../models/errors.js');
+
+/** The one model the fake catalogue offers, and the person's default. */
+const KNOWN = 'acme/chat-1';
+const DEFAULT = 'acme/default-1';
+function hosted(id: string) {
+  return {
+    provider: 'kaana',
+    publisher: 'acme',
+    model: id.slice(5),
+    modelId: id,
+    keyConfig: { provider: 'kaana', modelId: id },
+    oxyInferenceTarget: { kind: 'model', model: id },
+    catalogue: { id, name: id, publisher: { id: 'acme', name: 'Acme' }, reasoningEfforts: ['low', 'high'] },
+  };
+}
 const { clearAgentAccountVerdicts } = await import('../../agent-account.js');
 
 interface Captured {
@@ -142,6 +134,8 @@ async function run(
     accessToken?: string;
     /** A streaming request: headers are already out, so a refusal is an SSE event. */
     sseSent?: boolean;
+    /** Any other body fields. */
+    body?: Record<string, unknown>;
   } = {},
 ) {
   const captured: Captured = { status: null, body: null };
@@ -162,6 +156,7 @@ async function run(
       messages: [{ role: 'user', content: 'hi' }],
       ...(model === undefined ? {} : { model }),
       ...('mcpServerId' in options ? { mcpServerId: options.mcpServerId } : {}),
+      ...(options.body ?? {}),
     },
     ...(options.directUserId === undefined ? {} : { user: { id: options.directUserId } }),
     ...(options.serviceApp === undefined
@@ -198,13 +193,11 @@ async function run(
 
 beforeEach(() => {
   vi.clearAllMocks();
-  resolveModel.mockResolvedValue({
-    routingProfileId: 'route:pro-standard',
-    provider: 'an-operator',
-    modelId: 'a-deployment',
-    keyConfig: { provider: 'an-operator', key: 'secret', modelId: 'a-deployment' },
-    routingProfile: { name: 'x', creditMultiplier: 1 },
+  resolveModel.mockImplementation(async (id: string) => {
+    if (id !== KNOWN) throw new ModelNotFoundError(id);
+    return hosted(id);
   });
+  resolveDefaultModel.mockResolvedValue(hosted(DEFAULT));
   findMcpServerForUser.mockResolvedValue(null);
   reserveCredits.mockResolvedValue({ reservationId: 'reservation-1' });
   findAgentById.mockResolvedValue(null);
@@ -676,77 +669,72 @@ describe('one MCP connector can be selected for one direct-user turn', () => {
   });
 });
 
-describe('hosted chat routes only through reviewed Oxy profiles', () => {
-  it('resolves product modes by exact id before routing', async () => {
-    const auto = await run('mode:auto');
-    expect(resolveModel.mock.calls[0][0]).toBe('route:auto');
-    expect(auto.ctx?.deepResearch).toBe(false);
-
-    resolveModel.mockClear();
-    const research = await run('mode:research');
-    expect(resolveModel.mock.calls[0][0]).toBe('route:research');
-    expect(research.ctx?.deepResearch).toBe(true);
+describe('a hosted turn runs on a real catalogue model', () => {
+  it('resolves a named publisher/model exactly', async () => {
+    const { ctx } = await run(KNOWN, { directUserId: 'user-1' });
+    expect(resolveModel).toHaveBeenCalledWith(KNOWN);
+    expect(resolveDefaultModel).not.toHaveBeenCalled();
+    expect(ctx?.modelId).toBe(KNOWN);
+    expect(ctx?.requestedModel).toBe(KNOWN);
+    expect(ctx?.surface).toBe('chat');
   });
 
-  it('refuses a concrete model before model resolution or credit reservation', async () => {
-    const { ctx, captured } = await run('anthropic/claude-sonnet-4.6');
+  it('runs the person\'s default when the request names no model', async () => {
+    const { ctx } = await run(undefined, { directUserId: 'user-1' });
+    expect(resolveDefaultModel).toHaveBeenCalledWith('user-1');
+    expect(resolveModel).not.toHaveBeenCalled();
+    expect(ctx?.modelId).toBe(DEFAULT);
+    // What the caller asked for is recorded as the default it resolved to.
+    expect(ctx?.requestedModel).toBe(DEFAULT);
+  });
+
+  it('refuses an unknown model as 400 model_not_found, before any credit is held', async () => {
+    const { ctx, captured } = await run('nobody/no-such-model', { directUserId: 'user-1' });
     expect(ctx).toBeNull();
     expect(captured.status).toBe(400);
-    expect(captured.body?.error?.code).toBe('unknown_model');
-    expect(resolveModel).not.toHaveBeenCalled();
+    expect(captured.body?.error).toMatchObject({ code: 'model_not_found', param: 'model' });
+    expect(reserveCredits).not.toHaveBeenCalled();
   });
 
-  it('does not pin anything when a canonical Kaana profile was named', async () => {
-    // The control. Without it, a `pinnedModel` set unconditionally — to the
-    // tier's default, say — would satisfy every assertion above.
-    const { ctx } = await run('route:auto');
-    const [alias, options] = resolveModel.mock.calls[0];
-    expect(alias).toBe('route:auto');
-    expect(options).toEqual({});
-    expect(ctx?.routingOptions).toEqual({});
-  });
-
-  it('does not pin anything for another canonical Kaana profile', async () => {
-    const { ctx } = await run('route:instant');
-    expect(resolveModel.mock.calls[0][0]).toBe('route:instant');
-    expect(ctx?.routingOptions).toEqual({});
-  });
-
-  it('does not pin anything when the request names no model at all', async () => {
-    const { ctx } = await run(undefined);
-    expect(resolveModel.mock.calls[0][0]).toBe('route:instant');
-    expect(ctx?.routingOptions).toEqual({});
-  });
-
-  it('does not let a fallback policy make a concrete model valid', async () => {
-    const captured: Captured = { status: null, body: null };
-    const res = {
-      status(code: number) {
-        captured.status = code;
-        return res;
-      },
-      json(body: Captured['body']) {
-        captured.body = body;
-        return res;
-      },
-    };
-    const timer = setTimeout(() => undefined, 60_000);
-    const ctx = await buildChatRequestContext(
-      {
-        body: {
-          messages: [{ role: 'user', content: 'hi' }],
-          model: 'deepseek/deepseek-chat',
-        },
-      } as never,
-      res as never,
-      { sent: false, openEarly: vi.fn(), writeError: vi.fn() } as never,
-      timer as never,
-    );
-    clearTimeout(timer);
+  it('refuses a model that is not a string', async () => {
+    const { ctx, captured } = await run(undefined, { body: { model: 42 } });
     expect(ctx).toBeNull();
     expect(captured.status).toBe(400);
-    expect(captured.body?.error?.code).toBe('unknown_model');
-    expect(resolveModel).not.toHaveBeenCalled();
+    expect(captured.body?.error?.param).toBe('model');
+  });
+
+  it('takes deep research only from body.deepResearch', async () => {
+    expect((await run(KNOWN)).ctx?.deepResearch).toBeUndefined();
+    expect((await run(KNOWN, { body: { deepResearch: true } })).ctx?.deepResearch).toBe(true);
+  });
+
+  it('reads the prompt surface from body.surface and refuses an unknown one', async () => {
+    expect((await run(KNOWN, { body: { surface: 'codea' } })).ctx?.surface).toBe('codea');
+    const refused = await run(KNOWN, { body: { surface: 'nope' } });
+    expect(refused.ctx).toBeNull();
+    expect(refused.captured.body?.error?.param).toBe('surface');
+  });
+});
+
+describe('reasoningEffort is validated against the model', () => {
+  it('accepts a level the model declares', async () => {
+    const { ctx } = await run(KNOWN, { body: { reasoningEffort: 'high' } });
+    expect(ctx?.reasoningEffort).toBe('high');
+  });
+
+  it('is null when the request asks for none', async () => {
+    expect((await run(KNOWN)).ctx?.reasoningEffort).toBeNull();
+  });
+
+  it.each(['medium', 'max', 'instant', 7])('refuses %p, which the model does not declare', async (level) => {
+    const { ctx, captured } = await run(KNOWN, { body: { reasoningEffort: level } });
+    expect(ctx).toBeNull();
+    expect(captured.status).toBe(400);
+    expect(captured.body?.error).toMatchObject({ code: 'invalid_reasoning_effort', param: 'reasoningEffort' });
+  });
+
+  it('ignores the retired thinkingMode flag', async () => {
+    expect((await run(KNOWN, { body: { thinkingMode: true } })).ctx?.reasoningEffort).toBeNull();
   });
 });
 
@@ -773,7 +761,7 @@ describe('fallbackPolicy is refused, because this API cannot carry it', () => {
     const sse = { sent: sseSent, openEarly: vi.fn(), writeError: vi.fn() };
     const timer = setTimeout(() => undefined, 60_000);
     const ctx = await buildChatRequestContext(
-      { body: { messages: [{ role: 'user', content: 'hi' }], model: 'route:auto', ...body } } as never,
+      { body: { messages: [{ role: 'user', content: 'hi' }], model: KNOWN, ...body } } as never,
       res as never,
       sse as never,
       timer as never,
@@ -791,7 +779,7 @@ describe('fallbackPolicy is refused, because this API cannot carry it', () => {
       code: 'invalid_request',
       param: 'fallbackPolicy',
     });
-    expect(captured.body?.error?.message).toContain('GET /catalogue');
+    expect(captured.body?.error?.message).toContain('decided by Oxy');
     // Nothing was resolved and nothing was reserved: the refusal is upstream of both.
     expect(resolveModel).not.toHaveBeenCalled();
     expect(reserveCredits).not.toHaveBeenCalled();
@@ -833,31 +821,6 @@ describe('fallbackPolicy is refused, because this API cannot carry it', () => {
 });
 
 describe('a refusal names the thing the caller got wrong', () => {
-  it('refuses a model no profile prices, as a MODEL', async () => {
-    /**
-     * `openai/gpt-5.2-pro` EXISTS in the routing table. It is refused because
-     * it costs $168 per million output tokens against a profile whose own
-     * default is $75, so no multiplier the product sells covers it — and the
-     * refusal has to say so as a model, not send the caller to the profile
-     * list.
-     */
-    const { ctx, captured } = await run('openai/gpt-5.2-pro');
-    expect(ctx).toBeNull();
-    expect(captured.status).toBe(400);
-    expect(captured.body?.error?.code).toBe('unknown_model');
-    expect(captured.body?.error?.message).toContain('openai/gpt-5.2-pro');
-    // Nothing was resolved, so no credits and no upstream call.
-    expect(resolveModel).not.toHaveBeenCalled();
-  });
-
-  it('refuses a profile nobody defines, as a PROFILE', async () => {
-    const { ctx, captured } = await run('profile:nonsense');
-    expect(ctx).toBeNull();
-    expect(captured.status).toBe(400);
-    expect(captured.body?.error?.code).toBe('unknown_routing_profile');
-    expect(resolveModel).not.toHaveBeenCalled();
-  });
-
   it('redacts a credential a caller pasted into the model field', async () => {
     /**
      * The echo is the caller's own text, which is what makes the refusal

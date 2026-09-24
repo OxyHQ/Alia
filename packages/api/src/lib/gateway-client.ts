@@ -1,21 +1,13 @@
 /**
- * Product catalogue and billing facade.
+ * Billing facade — plans, credit packages and features.
  *
- * Hosted inference does not cross this module: Kaana is invoked through the
- * inference seam, and unsupported modalities fail before a provider adapter is
- * imported. The routing-profile catalogue is Alia product METADATA — names,
- * tiers, credit multipliers — and is imported statically: the dynamic
- * `import()` it used to hide behind existed so that loading this facade did
- * not load a provider SDK, and no provider SDK is reachable from that module
- * any more (`kaana-only-runtime.test.ts`). The billing repositories below stay
- * dynamic because they pull in the database.
+ * It used to also carry a static "routing-profile catalogue" of Alia-branded
+ * aliases and a tier→provider mapping table. Alia has no models of its own
+ * (ADR 0012): the model catalogue is Oxy's, read by `lib/models/catalogue.ts`.
+ * The billing repositories below stay dynamic because they pull in the database.
  */
 
-import * as catalogue from '../internal/providers/lib/routing-profile-catalogue.js';
 import type { PlanFilter } from '../db/billing/planRepository.js';
-import type { AvailabilityScope } from './availability-scope.js';
-import type { RequiredAttribution } from './model-attribution.js';
-import type { ModelIdentity } from './routing/model-identity.js';
 
 // ============== TYPES ==============
 
@@ -34,107 +26,6 @@ export interface KeyConfig {
   userRuntime?: { userId: string; runtimeId: string };
 }
 
-export interface RoutingProfile {
-  id: string;
-  name: string;
-  tier: string;
-  description: string;
-  creditMultiplier: number;
-  maxTokens: number;
-  supportsTools: boolean;
-  supportsVision: boolean;
-  category: string;
-  emoji?: string;
-}
-
-export interface ModelMapping {
-  provider: string;
-  /**
-   * Who RELEASED this model, which is never who serves it.
-   *
-   * Optional for the same reason `availabilityScope` is: this module is the
-   * seam a Kaana catalogue arrives through, and Kaana does not carry the field
-   * yet. The LOCAL branch reads `TIER_MODEL_MAPPINGS`, where every one of the
-   * 115 mappings has it (`internal/providers/lib/model-publishers.ts`).
-   *
-   * Absent is UNKNOWN, never a guess. `lib/catalogue.ts` counts the routes that
-   * arrived without one and publishes the count, so a provenance list built
-   * from half a table cannot be mistaken for a complete one.
-   */
-  publisher?: string;
-  /**
-   * The publisher's own name for the model — the second half of ADR 0003's
-   * `<publisher>/<model>` identity, and never what an operator calls its
-   * deployment.
-   *
-   * Optional for the same reason `publisher` is, and absent for the same
-   * reason: Kaana does not carry it yet. The LOCAL branch reads
-   * `TIER_MODEL_MAPPINGS`, where every mapping carries it because it is
-   * authored beside each route — 29 of the 58 deployment ids differ from their
-   * model's name, so it cannot be recovered from `modelId`.
-   */
-  model?: string;
-  modelId: string;
-  priority: number;
-  qualityScore: number;
-  pricingTier: string;
-  costPer1MInput?: number;
-  costPer1MOutput?: number;
-  costPerMinute?: number;
-  averageLatencyMs?: number;
-  capabilities: Record<string, unknown>;
-  /**
-   * Who this route may be served to (#139 workstream 17).
-   *
-   * Optional and populated by NOTHING in this repository: an availability scope
-   * is a property of a deployment in the Oxy catalogue, and the local branch of
-   * this facade reads `TIER_MODEL_MAPPINGS`, which has no such column. It is
-   * declared here because this module is the seam a Kaana catalogue arrives
-   * through, so the field lands where the data will, and `lib/catalogue.ts`
-   * consumes it today against fixtures.
-   *
-   * Absent is UNCLASSIFIED, never "public": `lib/availability-scope.ts` keeps
-   * those apart and `GET /catalogue` publishes how many routes were classified,
-   * so a filter with nothing to filter cannot be mistaken for one that works.
-   */
-  availabilityScope?: AvailabilityScope;
-  /** What this route's licence requires be displayed. Same seam, same absence. */
-  attribution?: RequiredAttribution;
-}
-
-/**
- * Per-request routing options.
- *
- * No `fallbackPolicy`: fallback is not a per-request choice on this API. The
- * public Oxy inference request carries no such field and Oxy resolves routes
- * from the application's routing policy (ADR 0017), so
- * `lib/chat/request-context.ts` refuses the parameter rather than carrying a
- * value nothing downstream could honour.
- */
-export interface RoutingOptions {
-  /**
-   * The model identity the caller named, when it named a model rather than a
-   * profile (`lib/routing/model-selection.ts`).
-   *
-   * It travels beside the alias rather than replacing it because the two answer
-   * different questions: the alias says which tier, price, plan and prompt
-   * apply, and this says which of that tier's models may answer. Folding them
-   * into one string would mean every consumer of the alias learning a second
-   * vocabulary — the translation this seam exists to do once.
-   */
-  pinnedModel?: ModelIdentity;
-}
-
-export interface RoutingProfileWithAvailability extends RoutingProfile {
-  isAvailable: boolean;
-}
-
-// No `RoutingTier` here. It was `= string`, imported by nothing and constraining
-// nothing, while being the fourth declaration of a list whose whole problem was
-// having four. `internal/providers/lib/routing-tiers.ts` owns it.
-export type ModelCategory = string;
-export type PricingTier = string;
-
 // Plain (non-Document) interfaces for billing data returned by API or .lean()
 export interface PlanData {
   planId: string;
@@ -149,7 +40,6 @@ export interface PlanData {
   creditsLabel: string;
   isFeatured: boolean;
   sortOrder: number;
-  modelIds: string[];
   isActive: boolean;
   isFree: boolean;
   stripeProductId?: string;
@@ -189,95 +79,6 @@ export interface PlanFeatureData {
   limitValue?: number;
   displayLabel?: string;
   displayDescription?: string;
-}
-
-// ============== MODEL DATA ==============
-
-/**
- * Get all alia models.
- */
-export async function getAllRoutingProfiles(): Promise<RoutingProfile[]> {
-  return catalogue.getAllRoutingProfiles();
-}
-
-/**
- * Get all product profiles without consulting Alia provider health.
- *
- * Kaana owns live availability. Alia adds no database overlay to the signed
- * routing-profile catalogue.
- */
-export async function getAvailableModels(): Promise<RoutingProfileWithAvailability[]> {
-  const models = await getAllRoutingProfiles();
-  return models.map((model) => ({
-    ...model,
-    isAvailable: true,
-  }));
-}
-
-/**
- * Get a specific alia model by ID.
- */
-export async function getRoutingProfile(modelId: string): Promise<RoutingProfile | null> {
-  return catalogue.getRoutingProfile(modelId);
-}
-
-/**
- * Check if a model ID is an alia model.
- */
-export async function isRoutingProfile(modelId: string): Promise<boolean> {
-  return catalogue.isRoutingProfile(modelId);
-}
-
-/**
- * Get all alia models by category.
- */
-export async function getRoutingProfilesByCategory(category: string): Promise<RoutingProfile[]> {
-  return catalogue.getRoutingProfilesByCategory(category as never);
-}
-
-/**
- * Get default model for a category.
- */
-export async function getDefaultModelForCategory(category: string): Promise<RoutingProfile | null> {
-  return catalogue.getDefaultModelForCategory(category as never);
-}
-
-/**
- * THE default chat model: what a request that named none runs on.
- *
- * This is the single owner used by chat, agents, webhooks and canvas execution.
- *
- * Which profile a caller gets by default is Alia's product decision, not
- * something an inference provider may answer differently.
- *
- * It agrees with `getDefaultModelForCategory('general')`, which is what
- * `GET /v1/models?category=general` advertises as `default_model` — the two are
- * derived independently (this is a constant, that one minimises
- * `creditMultiplier`), so `defaultChatModel.test.ts` asserts they still match
- * rather than assuming it.
- *
- * Anything needing the default IMPORTS it. Restating the literal is what
- * produced the divergence this replaced; the frozen census in that test names
- * every site still holding its own.
- */
-export function getDefaultRoutingProfile(): string {
-  return 'route:instant';
-}
-
-// ============== TIER MAPPINGS ==============
-
-/**
- * Get tier-to-model mappings.
- */
-export async function getTierMappings(): Promise<Record<string, ModelMapping[]>> {
-  return catalogue.TIER_MODEL_MAPPINGS as unknown as Record<string, ModelMapping[]>;
-}
-
-/**
- * Get model mappings for a specific tier.
- */
-export async function getModelMappingsForTier(tier: string): Promise<ModelMapping[]> {
-  return catalogue.getModelMappingsForTier(tier as never) as unknown as ModelMapping[];
 }
 
 // ============== BILLING DATA ==============

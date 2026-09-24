@@ -255,11 +255,12 @@ describe('the answer the model is asked for', () => {
     expect(JSON.stringify(format?.schema)).toContain('suggestions');
   });
 
-  it('sends the reviewed lite routing-profile primary key', async () => {
+  it('names no model, leaving it to the automatic utility selection', async () => {
     H.kaanaAnswer = COMPLETE_ANSWER;
     await generate();
 
-    expect(H.kaanaRequest?.routingProfileId).toBe('01a06477-94f5-74f0-bc25-4a1ff59d6945');
+    expect(H.kaanaRequest).toBeDefined();
+    expect(H.kaanaRequest?.model).toBeUndefined();
   });
 
   it('holds the single Oxy call to one deadline', async () => {
@@ -363,7 +364,7 @@ describe('when Oxy cannot route the request', () => {
       retryable: false,
       requestId: 'request-1',
       status: 503,
-      param: 'routingProfileId',
+      param: 'model',
     });
     const res = await generate();
 

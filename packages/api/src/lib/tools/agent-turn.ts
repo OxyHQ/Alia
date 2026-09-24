@@ -57,7 +57,7 @@ import { generateText, stepCountIs } from 'ai';
 import { agentPromptName, type HydratedAgent } from '../agent-identity.js';
 import { agentRemitPrompt } from '../agent/archetype-prompts.js';
 import { buildIdentityGuard } from '../identity-guard.js';
-import { resolveOxyRoutingProfileId, getAIModel } from '../chat-core.js';
+import { resolveStoredModel, getAIModel } from '../chat-core.js';
 import { evolveAgentSoul } from '../agent/soul.js';
 import {
   finalizeCredits,
@@ -134,12 +134,9 @@ export async function runAgentTurn(input: {
     agentName: agentPromptName(agent),
   })}\n\n---\n\n${agentRemitPrompt(agent)}`;
 
-  if (agent.routingProfileId === null) {
-    return failed('That agent has no exact routing profile configured');
-  }
-  const resolved = await resolveOxyRoutingProfileId(agent.routingProfileId);
-  if (resolved === null) return failed('That agent has no valid routing profile configured');
-  const routingProfileId = resolved.routingProfileId;
+  const resolved = await resolveStoredModel(agent.modelId, payerOxyUserId).catch(() => null);
+  if (resolved === null) return failed('No model is available for that agent right now');
+  const modelId = resolved.modelId;
 
   const model = getAIModel(resolved, 'agent_run');
 
@@ -198,7 +195,7 @@ export async function runAgentTurn(input: {
         completionTokens: result.usage?.outputTokens || 0,
         totalTokens: tokensUsed,
       },
-      routingProfileId,
+      modelId,
     );
     // Only once the charge returned. A finalize that threw leaves the
     // reservation unsettled, and therefore refunded rather than kept.

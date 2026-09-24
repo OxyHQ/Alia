@@ -77,15 +77,12 @@ vi.mock('../../oxy-user-hydration.js', () => ({ hydrateOxyUsers: vi.fn(async () 
 
 vi.mock('../../chat-core.js', () => ({
   resolveModel: vi.fn(async (id: string) => ({
-    id,
-    oxyInferenceTarget: {
-      kind: 'routing_profile_id',
-      routingProfileId: '01a06477-94f5-74f0-bc25-4c5c13b93ccd',
-    },
+    modelId: id,
+    oxyInferenceTarget: { kind: 'model', model: id },
   })),
-  resolveOxyRoutingProfileId: vi.fn(async (routingProfileId: string) => ({
-    routingProfileId: 'route:instant',
-    oxyInferenceTarget: { kind: 'routing_profile_id', routingProfileId },
+  resolveStoredModel: vi.fn(async () => ({
+    modelId: 'acme/agent-model',
+    oxyInferenceTarget: { kind: 'model', model: 'acme/agent-model' },
   })),
   getAIModel: vi.fn(() => ({ modelId: 'test-model' })),
 }));
@@ -100,7 +97,6 @@ vi.mock('ai', async (importOriginal) => ({
 
 const { closePostgres, connectPostgres } = await import('../../../db/index.js');
 const { agents } = await import('../../../db/schema/agents.js');
-const { OXY_KAANA_ROUTING_PROFILE_IDS } = await import('../../../config/oxy-inference-routing-profile-ids.js');
 const { userCredits } = await import('../../../db/schema/billing.js');
 const { getOrCreateUserCredits } = await import('../../../db/billing/userCreditsRepository.js');
 const { clearAgentAccountVerdicts } = await import('../../agent-account.js');
@@ -148,7 +144,6 @@ async function seedAgent(input: {
     access: input.access ?? 'private',
     status: input.status ?? 'active',
     systemPrompt: 'You are the seeded agent.',
-    routingProfileId: OXY_KAANA_ROUTING_PROFILE_IDS['route:instant'],
   });
   return { id, oxyAccountId };
 }
@@ -284,7 +279,7 @@ describe('a delegation that runs is paid for by the delegating account', () => {
   it('settles the nested turn against the caller', async () => {
     const caller = await account(100);
     const target = await seedAgent({ author: uniqueId('other'), access: 'public' });
-    // 1000 tokens, `TOKENS_PER_CREDIT` 1000, `route:instant`'s multiplier 0.5 —
+    // 1000 tokens at the base rate (the catalogue prices nothing here) —
     // one credit, which is also the floor, so the assertion is the balance.
     answers('billed');
 

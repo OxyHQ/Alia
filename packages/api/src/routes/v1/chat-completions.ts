@@ -7,8 +7,7 @@ import { createResponseSSEEmitter } from '../../lib/sse-emitter.js';
 import { SystemPromptBuilder } from '../../lib/system-prompt-builder.js';
 import { convertToAISDKMessages, type ChatMessage } from '../../lib/message-converter.js';
 import { estimateMessageTokens } from '../../lib/token-counter.js';
-import { guaranteedContextWindow, measureContext } from '../../lib/chat/context-breakdown.js';
-import { getModelMappingsForTier } from '../../lib/gateway-client.js';
+import { measureContext } from '../../lib/chat/context-breakdown.js';
 import { wrapToolsWithTruncation, getToolResultBudget } from '../../lib/tools/result-truncation.js';
 import { log } from '../../lib/logger.js';
 import { recordEvent } from '../../lib/observability/index.js';
@@ -19,7 +18,6 @@ import { SSEWriter } from '../../lib/chat/sse-writer.js';
 import { buildChatRequestContext } from '../../lib/chat/request-context.js';
 import type { AgentMessage } from '../../lib/chat/stream-runner.js';
 import { runProviderLoop, type ChatLoopState } from '../../lib/chat/provider-loop.js';
-import { getDefaultRoutingProfile } from '../../lib/chat-core.js';
 import { AgentTurnCoordinator, type CoordinatedAgentTurn } from '../../lib/agent/agent-turn-coordinator.js';
 
 const router = Router();
@@ -37,15 +35,12 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
   // Retry-mutable state shared with the provider loop, the global-timeout timer,
   // the outer catch, and the last-resort synthetic response.
   //
-  // The seed value is READ, not merely overwritten: the global-timeout timer is
-  // armed below at :44 and reports `state.routingProfileId` back to the client,
-  // while `ctx.routingProfileId` only lands at :78. A request that times out during
-  // resolution therefore names this value. It used to restate `'route:auto'`, so
-  // that report named a model the request would not have run on — the default
-  // is `route:instant`. It reads the owner now instead of restating a literal.
+  // The seed value is READ, not merely overwritten: the global-timeout timer
+  // reports `state.modelId` back to the client before `ctx.modelId` lands, so a
+  // request that times out during resolution names what the caller asked for.
   const state: ChatLoopState = {
     resolved: null,
-    routingProfileId: getDefaultRoutingProfile(),
+    modelId: typeof req.body?.model === 'string' ? req.body.model : 'alia',
     creditReservation: null,
     creditsSettled: false,
     globalTimedOut: false,
@@ -76,14 +71,14 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
       // Return synthetic response instead of raw error
       res.json(buildCompletionResponse({
         requestId,
-        model: state.routingProfileId,
+        model: state.modelId,
         content: "I'm sorry, the request took too long. Please try again.",
         aliaMeta: { synthetic: true, retryable: true },
       }));
     } else if (!res.writableEnded) {
       // Mid-stream timeout: send graceful finish
-      writeContentChunk(res, requestId, state.routingProfileId, '\n\nI encountered a brief interruption. Please send your message again.', { synthetic: true, retryable: true });
-      writeStopChunk(res, requestId, state.routingProfileId);
+      writeContentChunk(res, requestId, state.modelId, '\n\nI encountered a brief interruption. Please send your message again.', { synthetic: true, retryable: true });
+      writeStopChunk(res, requestId, state.modelId);
       res.write('data: [DONE]\n\n');
       res.end();
     }
@@ -98,13 +93,13 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
     const {
       body, messages, conversationId, reasoningEffort, responseMode, deepResearch, webSearch,
       mcpServerId,
-      includeUsage, isDirectUserSession, requestedModel, clientContext, promptModelId,
+      includeUsage, isDirectUserSession, requestedModel, clientContext, surface,
       isLocalRuntime,
       userMemory, oxyUser, skills, linkedAgent,
     } = ctx;
     state.creditReservation = ctx.creditReservation;
     state.resolved = ctx.resolved;
-    state.routingProfileId = ctx.routingProfileId;
+    state.modelId = ctx.modelId;
     const { autonomyRuntime, recalledMemories } = ctx;
     // A linked agent is always on its agent runtime. There is no client mode
     // switch and, critically, no second paid session launched beside this turn.
@@ -125,7 +120,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
       const handled = await handleDeepResearch({
         res,
         requestId,
-        routingProfileId: state.routingProfileId,
+        modelId: state.modelId,
         userId: req.user.id,
         conversationId,
         messages,
@@ -198,9 +193,8 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
     // Build complete system message via SystemPromptBuilder, measured for the
     // context-window breakdown below.
     const systemPrompt = await SystemPromptBuilder.buildMeasured({
-      // The product's routing-profile id, or the product default for a model
-      // running on the caller's own machine.
-      routingProfileId: promptModelId,
+      surface,
+      model: ctx.resolved.catalogue,
       clientContext,
       isDirectUserSession,
       userId: req.user?.id,
@@ -212,7 +206,6 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
       linkedAgent,
       agentMode: agentRuntimeEnabled,
       autonomyRuntime,
-      reasoningEffort,
       responseMode,
     });
     const systemMessage = systemPrompt.text;
@@ -249,9 +242,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
           systemPrompt,
           tools: allTools,
           messages,
-          maxContextTokens: guaranteedContextWindow(
-            await getModelMappingsForTier(state.resolved.routingProfile.tier),
-          ),
+          maxContextTokens: state.resolved.catalogue?.contextWindow ?? null,
         });
         sse.ensureHeaders();
         res.write(
@@ -266,7 +257,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
     recordEvent({
       type: 'agent.start',
       timestamp: requestStartTime,
-      modelId: state.routingProfileId,
+      modelId: state.modelId,
       provider: state.resolved?.provider,
     });
 
@@ -357,16 +348,16 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
       // Non-streaming: return standard JSON response
       res.json(buildCompletionResponse({
         requestId,
-        model: state.routingProfileId,
+        model: state.modelId,
         content: syntheticMessage,
         aliaMeta: failureMeta,
       }));
     } else {
       // Streaming: send synthetic message as normal SSE chunks
       sse.ensureHeaders();
-      const syntheticChunk = { ...makeChunk(requestId, state.routingProfileId, [{ index: 0, delta: { content: syntheticMessage }, finish_reason: null }]), alia_meta: failureMeta };
+      const syntheticChunk = { ...makeChunk(requestId, state.modelId, [{ index: 0, delta: { content: syntheticMessage }, finish_reason: null }]), alia_meta: failureMeta };
       res.write(`data: ${JSON.stringify(syntheticChunk)}\n\n`);
-      writeStopChunk(res, requestId, state.routingProfileId);
+      writeStopChunk(res, requestId, state.modelId);
       res.write('data: [DONE]\n\n');
       res.end();
     }
@@ -400,8 +391,8 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
       res.status(aliaError.retryable ? 503 : 500).json(formatErrorResponse(aliaError));
     } else if (!res.writableEnded) {
       // Headers already sent (streaming started) — send graceful recovery message
-      writeContentChunk(res, requestId, state.routingProfileId, '\n\nI encountered a brief interruption. Please send your message again and I\'ll complete my response.', { synthetic: true, retryable: true });
-      writeStopChunk(res, requestId, state.routingProfileId);
+      writeContentChunk(res, requestId, state.modelId, '\n\nI encountered a brief interruption. Please send your message again and I\'ll complete my response.', { synthetic: true, retryable: true });
+      writeStopChunk(res, requestId, state.modelId);
       res.write('data: [DONE]\n\n');
       res.end();
     }

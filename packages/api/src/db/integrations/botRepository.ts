@@ -561,7 +561,7 @@ export async function setBotUserConversation(
 export async function setBotUserPreferredModel(
   db: ApiDatabase,
   id: string,
-  preferredModel: string,
+  preferredModel: string | null,
 ): Promise<void> {
   await db.update(botUsers).set({ preferredModel }).where(eq(botUsers.id, id));
 }

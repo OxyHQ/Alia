@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+vi.mock('../../models/selection.js', () => ({ getUtilityModelId: async () => 'acme/small-1' }));
+
 const mocks = vi.hoisted(() => ({
   request: null as Record<string, unknown> | null,
   options: null as Record<string, unknown> | null,
@@ -27,19 +29,19 @@ describe('one-shot product inference through Oxy', () => {
     mocks.options = null;
   });
 
-  it('sends the exact reviewed opaque routing-profile primary key', async () => {
+  it('sends the named catalogue model', async () => {
     await expect(generateTextViaKaana({
-      routingProfileId: '01a06477-94f5-74f0-bc25-4c5c13b93ccd',
+      model: 'acme/big-2',
       prompt: 'resume esto',
       surface: 'background',
       maxOutputTokens: 128,
       oxyUserId: 'user-id',
     })).resolves.toBe('resultado');
 
-    expect(mocks.request).not.toHaveProperty('model');
     expect(mocks.request).not.toHaveProperty('routingProfile');
+    expect(mocks.request).not.toHaveProperty('routingProfileId');
     expect(mocks.request).toMatchObject({
-      routingProfileId: '01a06477-94f5-74f0-bc25-4c5c13b93ccd',
+      model: 'acme/big-2',
       labels: { 'alia.surface': 'background', 'alia.visibility': 'derived' },
     });
     expect(mocks.options).toMatchObject({ delegatedUserId: 'user-id' });
@@ -53,7 +55,6 @@ describe('one-shot product inference through Oxy', () => {
       strict: false,
     };
     await generateTextViaKaana({
-      routingProfileId: '01a06477-94f5-74f0-bc25-4c5c13b93ccd',
       prompt: 'resume esto',
       surface: 'authoring',
       maxOutputTokens: 128,
@@ -61,6 +62,8 @@ describe('one-shot product inference through Oxy', () => {
     });
 
     expect(mocks.request?.responseFormat).toEqual(responseFormat);
+    // No model named: the utility model the catalogue selects.
+    expect(mocks.request?.model).toBe('acme/small-1');
     expect(mocks.request).not.toHaveProperty('providerOptions');
   });
 });
