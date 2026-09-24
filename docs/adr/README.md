@@ -7,9 +7,9 @@ An ADR records a decision that is **in force now**, the context that forced it, 
 | ADR | Title | Status | Date |
 | --- | --- | --- | --- |
 | [0001](./0001-alia-oxy-kaana-responsibility-boundary.md) | Alia / Oxy / Kaana responsibility boundary | Accepted | 2026-08-15 |
-| [0002](./0002-alia-is-a-kaana-consumer-and-future-model-publisher.md) | Alia is a Kaana consumer, and a future model publisher | Accepted | 2026-08-15 |
-| [0003](./0003-model-revision-deployment-provider-routing-profile.md) | Model, revision, deployment, provider and routing profile are five distinct things | Accepted | 2026-08-15 |
-| [0004](./0004-product-endpoints-versus-generic-inference-endpoints.md) | Alia product endpoints versus generic inference endpoints | Accepted | 2026-08-15 |
+| [0002](./0002-alia-is-a-kaana-consumer-and-future-model-publisher.md) | Alia is a Kaana consumer, and a future model publisher | Accepted; superseded in part by 0012 | 2026-08-15 |
+| [0003](./0003-model-revision-deployment-provider-routing-profile.md) | Model, revision, deployment, provider and routing profile are five distinct things | Accepted; superseded in part by 0012 | 2026-08-15 |
+| [0004](./0004-product-endpoints-versus-generic-inference-endpoints.md) | Alia product endpoints versus generic inference endpoints | Accepted; superseded in part by 0012 | 2026-08-15 |
 | [0005](./0005-product-entitlements-versus-financial-ledger.md) | Product entitlements versus the financial ledger | Accepted | 2026-08-15 |
 | [0006](./0006-the-destination-of-api-alia-onl-v1-is-recorded-twice.md) | The destination of `api.alia.onl/v1/*` is recorded twice, differently | Superseded by 0010 | 2026-08-19 |
 | [0007](./0007-a-users-own-machine-as-an-inference-runtime.md) | A user's own machine as an inference runtime | Accepted | 2026-08-24 |
@@ -17,12 +17,15 @@ An ADR records a decision that is **in force now**, the context that forced it, 
 | [0009](./0009-agent-threads-are-durable-execution-units.md) | Agent threads are durable execution units | Accepted | 2026-09-10 |
 | [0010](./0010-alia-keeps-a-product-api-credentials-come-from-oxy-console.md) | Alia keeps a product API; credentials come from Oxy Console | Accepted | 2026-09-10 |
 | [0011](./0011-autonomous-agents-run-durably-and-speak-first.md) | Autonomous agents run durably and may speak first | Proposed | 2026-09-24 |
+| [0012](./0012-alia-uses-real-models.md) | Alia uses real models from Oxy's catalogue | Accepted | 2026-09-25 |
 
 Companion document: [the compatibility window and sunset criteria](../migration/compatibility-window.md), which binds ADR 0002, ADR 0003 and ADR 0004 to measurable removal gates — for paths (a) and (c); path (b) left the window under ADR 0010.
 
 ADRs 0001 through 0005 were written together for epic #139 and are consistent by construction. Read 0001 first: the other four are consequences of the boundary it draws.
 
 ADR 0006 recorded, without deciding, that four derived notes under `docs/migration/` contradicted ADR 0004 about whether `api.alia.onl/v1/*` ever goes away, and asked the repository owner which was authoritative. ADR 0010 is the owner's answer: the surface is Alia's permanent product API, generic inference is Kaana through Oxy, and every key — for Alia's API, Kaana's or Mention's — is issued in Oxy Console. It amends ADR 0004 §3 by a note at the top of that record rather than by editing its body.
+
+ADR 0012 is the owner's decision that Alia has no models of its own: a person picks a real `<publisher>/<model>` from Oxy's catalogue, and the default, featured, utility and speech models are computed rather than configured. It retires product modes and `route:*` routing profiles, and supersedes the parts of ADRs 0002, 0003 and 0004 that relied on them, by notes at the top of those records.
 
 ## Conventions
 

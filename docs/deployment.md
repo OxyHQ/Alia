@@ -186,19 +186,13 @@ still verify the deployed Alia task revision, Oxy route and Kaana health, and
 must census the live task definition for retired provider variables and direct
 Kaana signing material.
 
-Before ECS is repointed, `check-agent-routing-profile-readiness` performs two
-different checks and both are required:
-
-1. every active Alia agent stores one of the reviewed opaque profile IDs;
-2. the authenticated Alia application can read every one of those exact IDs
-   from Oxy's live `/v1/models/routing-profiles` catalogue.
-
-The second check is deliberately remote. Equality with Oxy's source constants
-does not prove that the reviewed catalogue bootstrap ran. If it reports missing
-IDs, stop the Alia rollout and use Oxy's dry-run-first **Bootstrap reviewed
-Kaana catalogue** workflow. Its dedicated bootstrap task definition must carry
-the same immutable image digest as the live Oxy API; renewing or bypassing that
-guard from Alia is forbidden.
+Agents no longer store routing-profile IDs, so the former
+`check-agent-routing-profile-readiness` gate has nothing to check: an agent or
+thread stores a real `<publisher>/<model>` or `NULL`, and a model the catalogue
+no longer carries falls back to the default at run time
+([ADR 0012](./adr/0012-alia-uses-real-models.md)). What must be true before a
+rollout is that Oxy returns a non-empty catalogue to the Alia application
+(`GET /catalogue` lists at least one model).
 
 ### Secrets
 
@@ -259,12 +253,10 @@ healthy and still receives traffic. Moving the target group to `/health/ready` i
 ## Post-deploy validation
 
 1. `GET /health/ready` returns ready.
-2. The pre-deploy readiness report confirms every reviewed routing-profile ID
-   is visible to the Alia service identity, then a chat stream works on `POST
-   /v1/chat/completions`.
-3. `GET /v1/models` returns the intentional empty OpenAI-compatible list, and
-   `GET /catalogue` lists only the reviewed Kaana product-routing profiles and
-   concrete model references.
+2. `GET /catalogue` lists real `<publisher>/<model>` entries with a
+   `defaultModelId`, and a chat stream works on `POST /v1/chat/completions`
+   without a `model`.
+3. `GET /v1/models` returns the same models in the OpenAI-compatible shape.
 4. Automation create and manual run work via `/automations`.
 5. `POST /webhooks/oxy` accepts a normalized event from an authorized Oxy service and
    deduplicates on `(appId, eventId)`; `POST /webhooks/oxy/:serviceId` returns `410`.
@@ -293,10 +285,10 @@ healthy and still receives traffic. Moving the target group to `/health/ready` i
   that positive marker with the existing capability-loading and Kaana-inference failure
   chokepoints. It creates no synthetic inference: silence is unknown, never success.
 
-### Auditing a change to model or routing configuration
+### Auditing a change to plan configuration
 
-Every write to `plans.model_ids` (the one configuration table left since the model
-catalogue tables were dropped) emits a structured record on the `config-audit`
+Alia keeps no model configuration: models come from Oxy's catalogue and
+`plans.model_ids` is dropped (ADR 0012). Every write to `plans` emits a structured record on the `config-audit`
 subsystem, from inside the repository function rather than from a caller — so any future
 caller is audited without being changed
 (`packages/api/src/lib/security/config-audit.ts`). In CloudWatch:

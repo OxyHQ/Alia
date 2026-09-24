@@ -3,6 +3,11 @@
 Status: implementation candidate, **not deployed**. Production speech remains
 unavailable. Chat incident fixes and Clarity status have separate runbooks.
 
+> **Superseded in part by [ADR 0012](../adr/0012-alia-uses-real-models.md), 2026-09-25.**
+> The reserved speech profile ID below is retired: speech now uses the cheapest
+> catalogue model with audio output, computed from Oxy's catalogue. The rest of
+> this record stands as history.
+
 ## Failure and implementation
 
 The read-aloud request reached a route that unconditionally returned 503

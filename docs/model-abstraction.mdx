@@ -1,132 +1,211 @@
 ---
-title: "Kaana model abstraction"
-description: "How Alia names product choices while Oxy authorizes routes and Kaana executes them."
+title: "Models in Alia"
+description: "Alia has no models of its own: it offers real models from Oxy's catalogue and chooses the rest automatically."
 order: 2
 ---
 
-# Kaana model abstraction
+# Models in Alia
 
-Alia is a product consumer of Kaana through Oxy. Alia owns product modes,
-prompts, conversation state and user-facing presentation. Oxy authenticates,
-authorizes and orders the exact deployment routes. Kaana owns provider
-credentials, deployment execution, health, retries, failover within that signed
-order and technical usage against the upstream execution plane.
+Alia has no models of its own. It is a multi-provider assistant: a person picks a
+real model — `<publisher>/<model>` — and Alia answers with it through Kaana via
+Oxy. Oxy authenticates, authorizes and resolves the deployment; Kaana owns
+provider credentials, deployment execution, health and failover. The decision is
+[ADR 0012](./adr/0012-alia-uses-real-models.md).
+
+**Nothing about models is hardcoded.** There are no model ids in code or in
+environment variables, and no curated lists. The catalogue comes from Oxy, and
+every choice Alia makes on a person's behalf — featured models, the default
+model, the utility model, the speech model — is computed from that catalogue and
+from Alia's own usage.
 
 There is no hosted direct-provider mode in Alia. Provider environment keys and
 `GATEWAY_API_URL` are refused at boot rather than treated as alternate
 configuration.
 
-## Product vocabulary
+## Model identity
 
-The public vocabulary deliberately separates three things:
+A request's `model` is one of:
 
-- A **product mode** is what a person selects in Alia: Auto, Instant, Thinking,
-  Pro, Research or Code. Modes are serialized as
-  `object: "product_mode"`.
-- A **product routing profile** is a canonical `kaana-*` identifier at Alia's
-  public boundary. It is configuration with no weights, is matched only by
-  exact ID and is never serialized as a concrete model. Alia's reviewed closed
-  map translates it to an opaque Oxy profile primary key; Oxy validates that
-  exact row before the Kaana v2 envelope. Neither Oxy nor Kaana looks up the
-  product spelling.
-- A concrete `<publisher>/<model>[@<revision>]` reference is platform catalogue
-  vocabulary, not a selectable Alia product route. Hosted chat rejects it.
+- **`<publisher>/<model>`** — a model from the catalogue, e.g. the id a picker
+  entry carries. It is sent to Oxy as `model` unchanged.
+- **`local/<runtime>/<model>`** — a model served by the person's own device
+  ([ADR 0007](./adr/0007-a-users-own-machine-as-an-inference-runtime.md)). It
+  never reaches Oxy and reserves no credits.
+- **absent** — the person's default model (below).
 
-The canonical routing-profile set is defined in
-`packages/api/src/lib/routing/kaana-profiles.ts`. Product visibility belongs to
-`packages/api/src/lib/product-modes.ts`; changing what Alia offers does not
-change Kaana's provider routing. The subset provisioned in Oxy and its exact
-opaque IDs are pinned in
-`packages/api/src/config/oxy-inference-routing-profile-ids.ts`; an absent entry
-fails closed.
+Anything else, including the retired `mode:*` and `route:*` spellings and any id
+the catalogue does not carry, is refused before credits are reserved:
+
+```json
+{
+  "error": {
+    "message": "\"acme/unknown\" is not an available model. List them at GET /catalogue.",
+    "type": "invalid_request_error",
+    "param": "model",
+    "code": "model_not_found"
+  }
+}
+```
+
+There are no product modes, routing profiles, aliases or an "Auto" that is not a
+model. Deep research is a request flag (`deepResearch: true`) and runs with the
+chosen model.
+
+## The catalogue
+
+`GET /catalogue` is built from `OxyInferenceClient.listModels()` (`@oxy.so/core`),
+cached for five minutes, and filtered to what the chat can use: **text in, text
+out, and tool calls supported**. A model a provider retires disappears on the
+next refresh without a deploy.
+
+```json
+{
+  "object": "list",
+  "defaultModelId": "acme/chat-large",
+  "featuredIds": ["acme/chat-large", "example/reasoner-2"],
+  "data": [
+    {
+      "id": "acme/chat-large",
+      "object": "model",
+      "name": "Chat Large",
+      "publisher": { "id": "acme", "name": "Acme" },
+      "description": null,
+      "contextWindow": 131072,
+      "maxOutput": 16384,
+      "inputModalities": ["text", "image"],
+      "outputModalities": ["text"],
+      "tools": true,
+      "reasoningEfforts": ["low", "medium", "high"],
+      "pricing": { "inputPerMTok": "0.15", "outputPerMTok": "0.60" },
+      "releasedAt": "2026-08-01",
+      "featured": true
+    }
+  ]
+}
+```
+
+| Field | Meaning |
+| --- | --- |
+| `id` | `<publisher>/<model>`; what a request sends as `model`. |
+| `name`, `publisher` | Display name and publisher (`id` is the publisher slug). |
+| `description` | Oxy's description, or `null`. |
+| `contextWindow`, `maxOutput` | Token limits, or `null` when unknown. |
+| `inputModalities`, `outputModalities` | `text`, `image`, `audio`, `video`, `embedding`. |
+| `tools` | Always `true` in this list; kept so clients need no inference. |
+| `reasoningEfforts` | Effort levels the model accepts; `[]` hides the effort control. |
+| `pricing` | USD per million input/output tokens as decimal strings, or `null`. |
+| `releasedAt` | Release date from the catalogue, or `null`. |
+| `featured` | Whether the model is in `featuredIds`. |
+
+`defaultModelId` is the requesting person's default; `featuredIds` is ordered.
+
+`GET /v1/models` returns the same list in the OpenAI shape
+(`{ "object": "list", "data": [{ "id", "object": "model", "created", "owned_by" }] }`,
+`owned_by` being the publisher id). `GET /catalogue/modes` no longer exists.
+
+## Automatic choices
+
+The selection rules are pure functions over the catalogue and usage data
+(`packages/api/src/lib/models/`):
+
+- **Featured** — for each publisher, its newest chat-usable model (by
+  `releasedAt`), ranked by Alia's real usage over the last 30 days
+  (`chat_analytics`), top dozen. Recomputed daily.
+- **Default model for a person** — the model they last used; otherwise the
+  most-used featured model in Alia; on a cold start, the cheapest featured model.
+- **Utility model** — titles, summaries, compaction, suggestions, soul, style
+  refinement, planner, verifier and other internal calls use the cheapest
+  chat-usable model with a context window of at least 32k tokens.
+- **Speech model** — the cheapest catalogue model with audio output.
+
+Stored choices hold a real model id or `NULL`: `agents.model_id`,
+`agent_threads.model_id`, a bot's default/preferred model and a canvas node's
+model. `NULL` means "use the default", and a stored id the catalogue no longer
+carries falls back the same way.
+
+## Reasoning effort
+
+`reasoningEffort` is `low`, `medium` or `high`. It is accepted only when the
+chosen model lists that level in `reasoningEfforts`; otherwise the request is
+refused with `param: "reasoningEffort"`. It is forwarded to Oxy as
+`reasoning: { effort }`, and Oxy and Kaana translate it for each provider. Alia
+keeps no per-provider reasoning table, and no model name encodes a reasoning
+level.
 
 ## Hosted request path
 
 For hosted text inference:
 
-1. The request boundary validates the requested product mode or Kaana profile.
+1. The request boundary resolves `model` against the catalogue (or the person's
+   default) and validates `reasoningEffort`.
 2. `packages/api/src/lib/chat-core.ts` produces a credential-free resolution
-   carrying an explicit `routing_profile_id` target.
+   whose Oxy target is `{ kind: 'model', model: '<publisher>/<model>' }`.
 3. `getAIModel()` returns the Kaana AI SDK adapter.
 4. `@oxy.so/core`'s `OxyInferenceClient` authenticates to Oxy with Alia's
    short-lived service credential.
-5. Oxy resolves identity and authorised routing policy, then signs and forwards
-   the request to Kaana. Kaana owns every provider-side execution decision.
+5. Oxy resolves identity and authorised routes, then signs and forwards the
+   request to Kaana. Kaana owns every provider-side execution decision.
 
 Alia performs one hosted attempt. It does not rotate provider keys, construct
-provider clients or widen a policy after an error. Provider health and
-credentials stored for migration cannot influence this request path.
+provider clients or substitute a different model after an error.
 
 The one explicit exception is a user's connected local runtime. That path uses
 the user's own runtime binding and intercepted fetch bridge; it never becomes a
 hosted fallback and never uses a provider environment key.
 
+## Prompts
+
+The system prompt is chosen by the **surface** the turn comes from — chat,
+Codea, Cowork or voice — never by the model. There is no extended-reasoning
+prompt layer; effort is a model parameter.
+
+## Credits and plans
+
+A turn is charged by its real cost: the model's unit prices as published by
+Oxy, applied to the units metered for that turn, converted at one fixed rate
+(`USD_PER_CREDIT` in `packages/api/src/lib/credits-manager.ts`). A model without
+published prices is charged at the base token rate and logged. There are no
+per-model multipliers.
+
+Every plan can use every model. Plans differ only in how many credits they
+grant; `plans.model_ids` no longer exists.
+
 ## Capabilities
 
-Text chat uses the Kaana seam. The speech implementation uses the typed
-`OxyInferenceClient.speech` operation with delegated user identity and the exact
-speech-only profile in `oxy-inference-routing-profile-ids.ts`. This profile is
-excluded from agent/chat routing. MP3 output is stored privately and returned
-as a short-lived playback link.
+Text chat uses the Kaana seam. Speech uses the typed
+`OxyInferenceClient.speech` operation with delegated user identity and the
+computed speech model. MP3 output is stored privately and returned as a
+short-lived playback link. See the
+[speech recovery record](./runbooks/speech-recovery-2026-09-13.md) for rollout
+history.
 
-Speech rollout is still pending publication of the candidate Oxy packages,
-Kaana deployment and reviewed catalogue provisioning; source code and a direct
-provider probe do not prove production availability. See the
-[speech recovery record](./runbooks/speech-recovery-2026-09-13.md).
+Hosted image generation, transcription, voice sessions and embeddings do not
+yet have a Kaana capability seam. Those routes fail closed with HTTP 503 and
+`KAANA_CAPABILITY_UNAVAILABLE` before provider selection, billing or egress.
 
-Hosted image generation, audio generation, transcription, voice sessions and
-embeddings do not yet have a Kaana capability seam. Those routes fail closed with HTTP
-503 and `KAANA_CAPABILITY_UNAVAILABLE` before provider selection, billing or
-egress.
+## Names on the product surface
 
-A new hosted modality is complete only when its typed Kaana/Oxy contract and
-transport exist. Reconnecting an old provider adapter is not an implementation
-of that capability.
-
-## Catalogue surfaces
-
-`GET /catalogue` is the product catalogue. It publishes product modes and
-routing profiles; concrete models remain an Oxy platform concern and are not
-selectable in Alia.
-
-`GET /v1/models` remains the bounded OpenAI-compatible surface documented by
-ADR 0004. It must not misrepresent a routing profile as a concrete model.
+Model and publisher names **are** shown: in the picker, in responses and in
+analytics. The **operator serving a deployment** (Groq, Cerebras, OpenRouter and
+the like) and **deployment identifiers** stay off the product surface — product
+API responses, errors, the UI and customer-facing analytics. `sanitizeMessage()`
+remains the product-surface guard; logs, audit and licence attribution may carry
+what they need.
 
 ## Credentials and retained migration data
 
 Provider credentials belong to Kaana's database. Alia does not read provider
 API keys from its environment and cannot enable hosted inference with one.
-
-The routing-profile catalogue is code (`routing-profile-catalogue.ts`); the
-`routing_profiles`, `routing_profile_provider_mappings` and `model_configs` tables were
-dropped by migration 0070, and agents carry the exact `routing_profile_id`.
-The post-rollout migration
-`packages/api/drizzle/0061_remove_alia_provider_credentials.sql` drops Alia's
-legacy `provider_keys` table without reading or copying its contents. Current
-source contains no hosted credential reader. Historical health, usage and
-fallback tables remain non-runtime migration evidence; their presence does not
-restore a direct-provider path. Applying the destructive migration in
-production still requires the exact deployed-migration readback in the
+Migration `packages/api/drizzle/0061_remove_alia_provider_credentials.sql`
+dropped Alia's legacy `provider_keys` table without reading its contents; the
+routing-profile tables were dropped by migration 0070, and the routing-profile
+catalogue that replaced them in code is deleted under ADR 0012. Applying
+destructive migrations in production still requires the readback in the
 [Kaana cutover runbook](./runbooks/kaana-cutover.md).
-
-Alia contains no hosted provider adapter tree or administrative provider-key script.
-Product inference cannot import or construct a direct provider client.
-
-## Errors and observability
-
-Product errors expose Kaana profile vocabulary, never an upstream operator,
-credential or endpoint. `sanitizeMessage()` remains the product-surface guard,
-while logs and migration tooling may retain the exact historical identity they
-need to reconcile data.
-
-The runtime boundary is enforced by architecture tests that require the
-published Oxy SDK, reject retired signing/transport files and forbid provider
-or direct-Kaana configuration. The boot guard also refuses provider-host egress
-before a socket opens. The local user-runtime exception remains explicit and
-can never become a hosted fallback.
 
 See also:
 
 - [ADR 0001: Alia, Oxy and Kaana responsibility boundary](./adr/0001-alia-oxy-kaana-responsibility-boundary.md)
 - [ADR 0003: model, revision, deployment, provider and routing profile](./adr/0003-model-revision-deployment-provider-routing-profile.md)
+- [ADR 0012: Alia uses real models from Oxy's catalogue](./adr/0012-alia-uses-real-models.md)
 - [Kaana cutover runbook](./runbooks/kaana-cutover.md)

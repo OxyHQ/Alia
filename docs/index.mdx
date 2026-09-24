@@ -28,8 +28,9 @@ Alia is one of three things, and the three are not nested
 For raw model access use Kaana through Oxy (`api.oxy.so/v1`); for the assistant use
 Alia's API. Either way the key is issued in Oxy Console — Alia issues none.
 
-Hosted inference follows `Alia -> Oxy -> Kaana`. Alia exposes canonical
-`kaana-*` product routing identifiers and modes. Oxy authenticates the caller
+Hosted inference follows `Alia -> Oxy -> Kaana`. Alia has no models of its own:
+a person picks a real `<publisher>/<model>` from Oxy's catalogue, and Alia computes
+its defaults ([ADR 0012](./adr/0012-alia-uses-real-models.md)). Oxy authenticates the caller
 and signs the exact ordered deployments; Kaana owns provider credentials,
 deployment execution, health and failover within that order. [Model
 abstraction](./model-abstraction.mdx) describes the boundary, and [ADR
@@ -173,10 +174,11 @@ Approvals are real-time. The client receives `alia.approval_request` while the s
 
 ### Model abstraction
 
-The product exposes modes and canonical `kaana-*` routing profiles. Alia sends
-the selected profile or concrete model reference to Oxy without selecting an
-upstream deployment itself. Oxy resolves policy; Kaana owns provider credentials, health, routing,
-retry and fallback; provider names and endpoints do not appear on the product
+The product offers real models from Oxy's catalogue, named `<publisher>/<model>`,
+and computes the featured, default, utility and speech models from that catalogue
+and Alia's usage. Alia sends the chosen model to Oxy without selecting an upstream
+deployment itself. Oxy resolves policy; Kaana owns provider credentials, health, routing,
+retry and fallback; the serving operator and endpoints do not appear on the product
 surface.
 
 `packages/api/src/internal/providers` and the provider-labelled database tables

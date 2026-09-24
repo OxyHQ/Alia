@@ -83,13 +83,12 @@ Do not enable production traffic until all of these pass:
    fallback.
 6. Verify `runningCount == desiredCount`, `pendingCount == 0`, rollout state
    `COMPLETED` and the exact task-definition revision.
-7. Run a concrete-model canary and a routing-profile canary through Alia and
-   Oxy. The latter must prove policy resolution without logging routes or
-   credentials.
+7. Run a concrete-model canary through Alia and Oxy, without logging routes or
+   credentials. (Routing-profile canaries were retired with ADR 0012.)
 8. Verify `/health` reports its canonical `kaana` field and a real request
    returns expected Oxy attribution and Kaana usage.
 
-For the mode/tool acceptance run, use the manual **Alia production chat
+For the model/tool acceptance run, use the manual **Alia production chat
 canary** workflow. It runs only the exact live image as a private ECS one-shot,
 starts that image's API and enters its loopback HTTP endpoint with Alia's
 short-lived Oxy service bearer plus `X-Oxy-User-Id`. The ordinary Oxy auth
@@ -103,7 +102,7 @@ application consent through the normal OAuth/service acting-as control plane,
 and verify the exact grant with Oxy before setting the protected variable. Do
 not insert a user, grant or bearer in SQL/SSM, and do not use a customer account.
 The runner supplies no conversation id, so it creates no durable thread or
-retryable tool side effects. Its result contains only product mode labels,
+retryable tool side effects. Its result contains only model ids,
 Alia correlation references, allowlisted classified product error codes and
 booleans; it never emits the QA identity, prompts, answers, credentials,
 provider names or deployments.

@@ -13,16 +13,14 @@ is delegated to Kaana.
 
 ## Identity
 
-The request `model` field names an exact Alia product routing identifier.
-The identifier is matched by exact string equality, never by display name,
-database order or a first-row fallback. Alia translates an accepted public
-profile through the reviewed closed map in
-`packages/api/src/config/oxy-inference-routing-profile-ids.ts` and sends Oxy its
-opaque routing-profile primary key as `routingProfileId`. Oxy validates that
-exact row before building the Kaana v2 envelope; Kaana never receives or looks
-up the product spelling. A routing profile is a policy choice, not an
-Alia-branded model and not a provider alias. Removed `alia-*` identifiers are
-unregistered; there is no translation or deprecation shim for them.
+The request `model` field is a real `<publisher>/<model>` from Oxy's catalogue
+(`GET /catalogue`), or absent for the person's default model
+([ADR 0012](./adr/0012-alia-uses-real-models.md)). Alia checks it against the
+cached catalogue and sends it to Oxy unchanged as `model`. An id the catalogue
+does not carry — including the retired `mode:*` and `route:*` spellings — is
+refused `400 model_not_found` with `param: "model"` before credits are reserved.
+Alia has no models, modes or routing profiles of its own, and never substitutes
+another model for the one requested.
 
 User-owned runtimes are a separate explicit path. Their user-supplied model and
 credential never join Kaana's hosted credential pool.
@@ -30,17 +28,17 @@ credential never join Kaana's hosted credential pool.
 ## Hosted request path
 
 1. Auth resolves the Oxy user or application credential.
-2. `buildChatRequestContext` validates the requested identity, entitlement,
-   product mode and capabilities, then reserves product credits.
+2. `buildChatRequestContext` resolves the model (or the person's default),
+   validates `reasoningEffort` against it, then reserves product credits.
 3. Alia assembles conversation context, memory, agent instructions and tools.
-4. The inference seam calls `@oxy.so/core`'s `OxyInferenceClient` with an exact
-   opaque `routingProfileId` and Alia's service credential.
+4. The inference seam calls `@oxy.so/core`'s `OxyInferenceClient` with the
+   `model`, `reasoning: { effort }` when requested, and Alia's service credential.
 5. Oxy authenticates that credential and resolves routing policy into ordered
    `authorizedRoutes`, signs the final envelope, and sends it to Kaana.
 6. Kaana executes only those authorized deployments, streams contract events
    and emits metered usage.
 7. Alia translates the result into its product stream, persists the turn and
-   finalizes product accounting.
+   charges credits from the model's catalogue prices and the metered units.
 
 Alia never constructs `authorizedRoutes`, signs an edge envelope or calls a
 Kaana URL. Those are Oxy-owned responsibilities. No provider, deployment,
@@ -50,7 +48,7 @@ region or permissive fallback may be invented in Alia.
 
 ```json
 {
-  "model": "<kaana-routing-profile-id>",
+  "model": "<publisher>/<model>",
   "messages": [
     { "role": "user", "content": "Prepare my meeting with Sarah" }
   ],
@@ -64,7 +62,8 @@ region or permissive fallback may be invented in Alia.
 }
 ```
 
-The profile expresses intent. Oxy and Kaana own route authorization and
+`reasoningEffort` (`low` | `medium` | `high`) is accepted only when the model
+lists that level in its `reasoningEfforts`. Oxy and Kaana own route authorization and
 execution; Alia never sees an upstream-provider key. There is no per-request
 fallback parameter: a body carrying `fallbackPolicy` (or `fallback_policy`) is
 refused with `400 invalid_request` before any credit is reserved, because the
@@ -75,8 +74,7 @@ application's routing policy (`lib/chat/request-context.ts`).
 
 Standard OpenAI-compatible chunks are emitted beside Alia product events. The
 `alia.*` namespace belongs to the product runtime, not to Kaana's generic
-inference contract. Active event families include plan previews, model/profile
-switches, reasoning, tool results, delegated-agent output, agent-session state,
+inference contract. Active event families include plan previews, reasoning, tool results, delegated-agent output, agent-session state,
 titles and research progress.
 
 Approval requests/results use the authenticated Socket.IO agent-session room,
@@ -133,14 +131,14 @@ closed on that decision.
 ## Persistence and failure
 
 Conversations and messages are stored through the Postgres repositories. Usage
-records persist the requested identity separately from the routing profile that
+records persist the requested model and the revision-pinned model reference that
 served it. Provider/deployment detail remains internal to the Oxy/Kaana receipt
 and must not be exposed through Alia responses or errors.
 
 If Oxy or Kaana is unavailable, hosted inference fails visibly with the typed
 product error. Alia does not fall back to an in-process provider adapter.
 Background derivations follow the same rule: they make one Oxy request and do
-not retry an identical profile locally. An Oxy routing refusal is a `503`, an
+not retry an identical request locally. An Oxy routing refusal is a `503`, an
 empty or invalid upstream result is a `502`, and a safe Oxy request ID is kept
 for correlation without exposing provider or deployment details.
 
