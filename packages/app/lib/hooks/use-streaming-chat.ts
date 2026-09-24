@@ -1,3 +1,4 @@
+import { parseContextUsage } from '@/lib/chat/context-usage';
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useAgentRowPreview } from './use-agent-row-preview';
 import { fetch as expoFetch } from 'expo/fetch';
@@ -750,6 +751,17 @@ export function useStreamingChat(apiUrl: string, conversationId?: string, reason
                     }
                     return updated;
                   });
+                  continue;
+                }
+                case 'alia.context': {
+                  // What this turn put in the context window, for the usage card.
+                  const usage = parseContextUsage(parsed);
+                  if (usage) {
+                    const { useUIStore } = await import('@/lib/stores/ui-store');
+                    useUIStore
+                      .getState()
+                      .setContextUsage(typeof parsed.conversationId === 'string' ? parsed.conversationId : conversationId ?? null, usage);
+                  }
                   continue;
                 }
                 case 'alia.model_switch': {

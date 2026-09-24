@@ -21,15 +21,15 @@ const WINDOW_MS = USAGE_WINDOW_HOURS * 60 * 60 * 1000;
  * floor. A plan missing here has no window: an unknown plan id is not a reason
  * to refuse somebody who is paying.
  */
-export const USAGE_WINDOW_CREDITS: Readonly<Record<string, number>> = {
-  free: 150,
-  go: 400,
-  pro: 1000,
-  max: 5000,
-  ultra: 10000,
-  'codea-pro': 1000,
-  'codea-max': 5000,
-};
+export const USAGE_WINDOW_CREDITS: ReadonlyMap<string, number> = new Map([
+  ['free', 150],
+  ['go', 400],
+  ['pro', 1000],
+  ['max', 5000],
+  ['ultra', 10000],
+  ['codea-pro', 1000],
+  ['codea-max', 5000],
+]);
 
 export interface UsageWindow {
   hours: number;
@@ -48,7 +48,7 @@ export async function readUsageWindow(
   planId: string,
   now: number = Date.now(),
 ): Promise<UsageWindow | null> {
-  const limit = USAGE_WINDOW_CREDITS[planId];
+  const limit = USAGE_WINDOW_CREDITS.get(planId);
   if (limit === undefined) return null;
   const { used, oldest } = await creditSpendWindow(getDb(), oxyUserId, new Date(now - WINDOW_MS));
   return {

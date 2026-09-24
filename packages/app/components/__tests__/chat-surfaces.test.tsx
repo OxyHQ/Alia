@@ -20,6 +20,7 @@ const ui = vi.hoisted(() => ({
   },
 }));
 vi.mock('@oxy.so/bloom/icons/RiSideBarLine', () => ({ RiSideBarLine: () => null }));
+vi.mock('@oxy.so/bloom/icons/RiDashboardLine', () => ({ RiDashboardLine: () => null }));
 vi.mock('@/lib/stores/ui-store', () => {
   const useUIStore = (select: (state: Record<string, unknown>) => unknown) => select(ui);
   useUIStore.getState = () => ui;
@@ -110,6 +111,7 @@ describe('ChatHeaderActions', () => {
     expect(labels(r)).toEqual([
       'chatHeader.searchThread',
       'chatHeader.showPanel',
+      'chatHeader.usage',
       'chat.exportMarkdown',
       'chat.deleteConversation',
     ]);
@@ -117,7 +119,15 @@ describe('ChatHeaderActions', () => {
 
   it('offers no search without a thread and no delete where it cannot delete', () => {
     const r = render(<ChatHeaderActions onExport={vi.fn()} />);
-    expect(labels(r)).toEqual(['chatHeader.showPanel', 'chat.exportMarkdown']);
+    expect(labels(r)).toEqual(['chatHeader.showPanel', 'chatHeader.usage', 'chat.exportMarkdown']);
+  });
+
+  it('opens usage and context in the panel', () => {
+    ui.rightPanel = null;
+    const r = render(<ChatHeaderActions onExport={vi.fn()} />);
+    act(() => all(r, 'MenuItem')[1].props.onPress());
+    expect(ui.rightPanel).toBe('credits');
+    ui.rightPanel = null;
   });
 
   it('shows the workspace — the gallery when the newest file is an image — and hides it again', () => {
@@ -143,7 +153,7 @@ describe('ChatHeaderActions', () => {
   it('runs the matching handler', () => {
     const onDelete = vi.fn();
     const r = render(<ChatHeaderActions onExport={vi.fn()} onDelete={onDelete} />);
-    act(() => all(r, 'MenuItem')[2].props.onPress());
+    act(() => all(r, 'MenuItem')[3].props.onPress());
     expect(onDelete).toHaveBeenCalledOnce();
   });
 });

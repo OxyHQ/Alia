@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
+import type { ContextUsage } from '@/lib/chat/context-usage';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Message } from '@/lib/hooks/use-conversations';
 import type { FailedTurn } from '@/components/chat/turn-failure';
@@ -67,6 +68,15 @@ interface UIState {
   thoughtTab: ThoughtTab;
   /** The conversation the selected message lives in, or `null` with nothing selected. */
   thoughtScope: ThoughtScope | null;
+  /**
+   * What each conversation's latest turn put in the context window, by
+   * conversation id, as the `alia.context` event reported it; and the latest of
+   * any, for Settings › Usage. Session state: a reload shows it again after the
+   * next turn.
+   */
+  contextUsage: Record<string, ContextUsage>;
+  lastContextUsage: ContextUsage | null;
+  setContextUsage: (conversationId: string | null, usage: ContextUsage) => void;
   shortcutsDialogOpen: boolean;
   canvasArtifacts: CanvasArtifact[];
   activeAgentSessionId: string | null;
@@ -138,6 +148,13 @@ export const useUIStore = create<UIState>()(
     (set, get) => ({
   sidebarOpen: true,
   rightPanel: null,
+  contextUsage: {},
+  lastContextUsage: null,
+  setContextUsage: (conversationId, usage) =>
+    set((state) => ({
+      lastContextUsage: usage,
+      contextUsage: conversationId === null ? state.contextUsage : { ...state.contextUsage, [conversationId]: usage },
+    })),
   thoughtMessageId: null,
   thoughtTab: "steps",
   thoughtScope: null,

@@ -631,7 +631,17 @@
         "windowFresh": "Se renueva {{hours}} horas después de tu próximo mensaje"
       },
       "searchFailed": "La búsqueda falló",
-      "noResults": "Sin resultados"
+      "noResults": "Sin resultados",
+      "context": {
+        "system": "Prompt del sistema",
+        "tools": "Herramientas",
+        "mcp": "Herramientas MCP",
+        "memory": "Memoria",
+        "skills": "Skills",
+        "messages": "Mensajes",
+        "title": "Ventana de contexto",
+        "freeSpace": "Espacio libre"
+      }
     },
     "voiceStartFailed": "No se pudo iniciar la sesión de voz",
     "exportMarkdown": "Exportar como Markdown",
@@ -942,7 +952,8 @@
     "searchThread": "Buscar en este hilo",
     "moreOptions": "Más opciones",
     "showPanel": "Mostrar panel",
-    "hidePanel": "Ocultar panel"
+    "hidePanel": "Ocultar panel",
+    "usage": "Uso y contexto"
   },
   "welcome": {
     "greetingNamed": "Hola {{name}}, ¿qué tienes en mente?",

@@ -1,7 +1,9 @@
+import { contextCardProps } from '@/lib/chat/context-usage';
 import { agentLimitsProps } from '@/lib/credits-limits';
 import { useSubscription } from '@/lib/hooks/use-billing';
 import { useCredits } from '@/lib/hooks/use-credits';
 import { useTranslation } from '@/lib/hooks/use-translation';
+import { useStore } from '@/lib/stores/global-store';
 import { useUIStore } from '@/lib/stores/ui-store';
 import { AgentLimitsCard } from '@oxy.so/bloom/agent-limits-card';
 import { useAiChatShell } from '@oxy.so/bloom/ai-chat';
@@ -14,7 +16,7 @@ import { View } from 'react-native';
 
 /**
  * The right panel's credits slot: Bloom's `AgentLimitsCard` over `/credits`
- * and the subscription. Buying credits, the balance in numbers and the
+ * and the subscription, with the open conversation's context window. Buying credits, the balance in numbers and the
  * transactions live in Settings › Usage (`components/settings/billing-section.tsx`),
  * one press away through the card's plan arrow.
  */
@@ -27,6 +29,9 @@ export function CreditsLimits() {
   const { data: subscription } = useSubscription();
   const { plan, limits } = agentLimitsProps(credits, subscription, Date.now(), t);
   const subscribed = subscription?.status === 'active';
+  // The open conversation's context window, as its latest turn filled it.
+  const conversationId = useStore((s) => s.chatId?.id);
+  const context = contextCardProps(useUIStore((s) => (conversationId ? s.contextUsage[conversationId] : undefined)), t);
 
   const openPlan = () => {
     setRightPanel(null);
@@ -58,7 +63,10 @@ export function CreditsLimits() {
             plan={plan}
             limits={limits}
             onPlanPress={openPlan}
+            context={context}
             labels={{
+              contextWindow: t('chat.bloom.context.title'),
+              freeSpace: t('chat.bloom.context.freeSpace'),
               planUsageLimits: t('chat.bloom.limits.planUsage'),
               managePlan: subscribed ? t('credits.manageBilling') : t('credits.upgrade'),
             }}
