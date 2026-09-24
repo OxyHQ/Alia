@@ -30,7 +30,7 @@ export class AgentTurnCoordinator {
     const conversation = input.conversationId
       ? await findConversation(getDb(), input.oxyUserId, input.conversationId)
       : undefined;
-    const admission = await withAgentAdmission(getDb(), input.agent._id, input.agent.maxConcurrentThreads, (tx) =>
+    const admission = await withAgentAdmission(getDb(), { agentId: input.agent._id, oxyUserId: input.oxyUserId }, input.agent.maxConcurrentThreads, (tx) =>
       createAgentSession(tx, {
         agentId: input.agent._id,
         oxyUserId: input.oxyUserId,

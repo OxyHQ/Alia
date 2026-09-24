@@ -156,15 +156,25 @@ export async function expireAgentApprovals(db: ApiDatabase, now = new Date()): P
   return rows.map((row) => row.id);
 }
 
-/** Serialize admission across API replicas; the callback must create the active session before returning. */
+/**
+ * Serialize admission across API replicas; the callback must create the active
+ * session before returning.
+ *
+ * The limit is per PERSON with this agent, not per agent. Counted per agent, a
+ * public agent with the default of 3 served three people in the whole world
+ * and everybody else was told it was busy. A thread is one person with one
+ * agent (ADR 0009), and `max_concurrent_threads` bounds how much of that
+ * agent one person can keep busy at once.
+ */
 export async function withAgentAdmission<T>(
   db: ApiDatabase,
-  agentId: string,
+  admission: { agentId: string; oxyUserId: string },
   maxConcurrentThreads: number,
   callback: (tx: Executor) => Promise<T>,
 ): Promise<{ admitted: true; value: T } | { admitted: false }> {
+  const { agentId, oxyUserId } = admission;
   return db.transaction(async (tx) => {
-    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`alia-agent:${agentId}`}))`);
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`alia-agent:${agentId}:${oxyUserId}`}))`);
     // Reclaim only synchronous chat work whose explicit ownership lease has
     // expired. A generic `lastActivityAt` cutoff would be a guess and could
     // terminate legitimate autonomous work; NULL leases are deliberately not
@@ -175,11 +185,13 @@ export async function withAgentAdmission<T>(
       statsCompletedAt: new Date(),
     }).where(and(
       eq(agentSessions.agentId, agentId),
+      eq(agentSessions.oxyUserId, oxyUserId),
       eq(agentSessions.status, 'running'),
       lt(agentSessions.chatLeaseExpiresAt, new Date()),
     ));
     const [counted] = await tx.select({ count: sql<number>`count(*)::int` }).from(agentSessions).where(and(
       eq(agentSessions.agentId, agentId),
+      eq(agentSessions.oxyUserId, oxyUserId),
       inArray(agentSessions.status, ['queued', 'running']),
     ));
     if ((counted?.count ?? 0) >= maxConcurrentThreads) return { admitted: false as const };

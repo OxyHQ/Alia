@@ -128,6 +128,13 @@ export async function startAgentSession(input: {
   readonly task: string;
   readonly origin: AgentSessionOrigin;
   readonly depth?: number;
+  /**
+   * The goal and thread this run serves, written WITH the row. They used to be
+   * patched on after the enqueue, so a worker that picked the job up first read
+   * `goalId: null` and never moved the goal to `candidate`.
+   */
+  readonly threadId?: string;
+  readonly goalId?: string;
 }): Promise<AgentSessionHandoff> {
   const { agent, userId, task, origin } = input;
   const price = agentHirePrice(agent);
@@ -177,6 +184,8 @@ export async function startAgentSession(input: {
       status: 'queued',
       depth: input.depth ?? 0,
       creditReservation: reservation,
+      ...(input.threadId === undefined ? {} : { threadId: input.threadId }),
+      ...(input.goalId === undefined ? {} : { goalId: input.goalId }),
     });
     sessionId = session._id;
 

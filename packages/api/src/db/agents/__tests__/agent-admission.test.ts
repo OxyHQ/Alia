@@ -18,6 +18,8 @@ function databaseWithActiveCount(count: number) {
   return { db: db as unknown as ApiDatabase, tx };
 }
 
+const PAIR = { agentId: 'agent-1', oxyUserId: 'user-1' };
+
 describe('agent admission', () => {
   it('creates the admitted session with the locked transaction executor', async () => {
     const { db, tx } = databaseWithActiveCount(0);
@@ -26,7 +28,7 @@ describe('agent admission', () => {
       return 'session-1';
     });
 
-    await expect(withAgentAdmission(db, 'agent-1', 1, create)).resolves.toEqual({
+    await expect(withAgentAdmission(db, PAIR, 1, create)).resolves.toEqual({
       admitted: true,
       value: 'session-1',
     });
@@ -47,7 +49,7 @@ describe('agent admission', () => {
       }) })),
     }));
 
-    await withAgentAdmission(db, 'agent-1', 1, async () => 'session-2');
+    await withAgentAdmission(db, PAIR, 1, async () => 'session-2');
 
     expect(order).toEqual(['reclaim-expired-lease', 'count-active']);
   });
@@ -56,7 +58,18 @@ describe('agent admission', () => {
     const { db } = databaseWithActiveCount(1);
     const create = vi.fn();
 
-    await expect(withAgentAdmission(db, 'agent-1', 1, create)).resolves.toEqual({ admitted: false });
+    await expect(withAgentAdmission(db, PAIR, 1, create)).resolves.toEqual({ admitted: false });
     expect(create).not.toHaveBeenCalled();
+  });
+
+  it('locks per person with this agent, so one person at the limit does not block another', async () => {
+    const first = databaseWithActiveCount(0);
+    await withAgentAdmission(first.db, PAIR, 1, async () => 'session-a');
+    const second = databaseWithActiveCount(0);
+    await withAgentAdmission(second.db, { agentId: 'agent-1', oxyUserId: 'user-2' }, 1, async () => 'session-b');
+
+    const lockKey = (tx: typeof first.tx) => JSON.stringify(tx.execute.mock.calls[0]?.[0]);
+    expect(lockKey(first.tx)).toContain('alia-agent:agent-1:user-1');
+    expect(lockKey(second.tx)).toContain('alia-agent:agent-1:user-2');
   });
 });
