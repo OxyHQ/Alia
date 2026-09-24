@@ -90,7 +90,13 @@ export interface AgentRuntimeContext {
 export function buildRuntimeTools(
   ctx: AgentRuntimeContext,
   grants: CapabilityGrantSet,
-  options: { protocolOnly?: boolean } = {},
+  /**
+   * An automation stage runs unattended on authority its owner granted in
+   * advance, so it never hires: `delegate` would start another agent's session
+   * with no reservation of its own. Reading the web stays, because a scheduled
+   * "research X every morning" is the point of an automation.
+   */
+  options: { withoutDelegation?: boolean } = {},
 ): ToolSet {
   const {
     session, onComplete, onHireAgent,
@@ -106,7 +112,7 @@ export function buildRuntimeTools(
   // screenshot/click/type/scroll/back actions that needed one are gone rather
   // than offered and failing. See `browser-session.ts`.
 
-  if (!options.protocolOnly && grants.allows('browser')) actions.browser = tool({
+  if (grants.allows('browser')) actions.browser = tool({
     description: 'Research the web. Actions: search (search the web for a query), goto (read the main text of a public URL and make it the current page), get_text (read the current page again). Pages are read as extracted text; there is no clicking, typing or screenshots.',
     inputSchema: z.object({
       action: z.enum(BROWSER_ACTIONS),
@@ -188,7 +194,7 @@ export function buildRuntimeTools(
 
   // ── delegate — Hire specialist agents ──
 
-  if (!options.protocolOnly && onHireAgent && grants.allows('delegation')) {
+  if (!options.withoutDelegation && onHireAgent && grants.allows('delegation')) {
     actions.delegate = tool({
       description: 'Hire a specialist agent for a subtask. The agent works autonomously and returns the result. Use for tasks outside your expertise or to parallelize work.',
       inputSchema: z.object({

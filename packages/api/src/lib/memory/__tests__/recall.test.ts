@@ -23,6 +23,7 @@ vi.mock('../../../db/memory/userMemoryRepository.js', () => ({
 
 import { recallRelevantMemories } from '../recall.js';
 import { findUserMemory } from '../../../db/memory/userMemoryRepository.js';
+import { getCachedOrGenerateEmbedding } from '../embedding-cache.js';
 
 const mockFindOne = findUserMemory as unknown as ReturnType<typeof vi.fn>;
 
@@ -64,5 +65,42 @@ describe('recallRelevantMemories', () => {
     const result = await recallRelevantMemories('user-1', 'anything', 7);
 
     expect(result).toEqual([]);
+  });
+
+  it('still recalls by keyword when embeddings are unavailable, past topK', async () => {
+    // Embeddings fail closed (`embeddings.ts`). The throw used to escape recall,
+    // so anyone with more than topK memories got nothing at all.
+    vi.mocked(getCachedOrGenerateEmbedding).mockRejectedValueOnce(new Error('embedding unavailable'));
+    const filler = Array.from({ length: 10 }, (_, i) => ({
+      title: `Filler ${i}`, summary: 'Something unrelated', type: 'topic', createdAt: new Date(), updatedAt: new Date(),
+    }));
+    mockFindOne.mockResolvedValue({
+      memories: [
+        ...filler,
+        { title: 'Food', summary: 'Loves strawberries', type: 'topic', createdAt: new Date(), updatedAt: new Date() },
+      ],
+      settings: { autoSaveEnabled: true, recallEnabled: true },
+    });
+
+    const result = await recallRelevantMemories('user-1', 'do you remember the strawberries?', 3);
+
+    expect(result[0]).toMatchObject({ title: 'Food' });
+  });
+
+  it('weighs a term by how many memories mention it, so a rare term outranks a common one', async () => {
+    const common = Array.from({ length: 9 }, (_, i) => ({
+      title: `Work ${i}`, summary: 'meeting notes', type: 'topic', createdAt: new Date(), updatedAt: new Date(),
+    }));
+    mockFindOne.mockResolvedValue({
+      memories: [
+        ...common,
+        { title: 'Pet', summary: 'meeting with the vet about the iguana', type: 'topic', createdAt: new Date(), updatedAt: new Date() },
+      ],
+      settings: { autoSaveEnabled: true, recallEnabled: true },
+    });
+
+    const result = await recallRelevantMemories('user-1', 'meeting iguana', 3);
+
+    expect(result[0]).toMatchObject({ title: 'Pet' });
   });
 });

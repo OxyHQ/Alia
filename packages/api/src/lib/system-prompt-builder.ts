@@ -62,6 +62,9 @@ import { readCapabilityGrants } from '../domain/capability-grants.js';
 import type { IWritingStyleProfile } from '../domain/writing-style.js';
 import { formatStyleForPrompt } from './style/style-prompt.js';
 
+/** How many recent memories stand in for recall when recall returned nothing. */
+const KNOWN_FACTS_WITHOUT_RECALL = 20;
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -323,8 +326,14 @@ export class SystemPromptBuilder {
       const beforeUserMemory = systemMessage.length;
       systemMessage += '\n\n## User Information';
 
-      if (userMemory.memories && userMemory.memories.length > 0) {
-        systemMessage += '\n### Known Facts:\n' + userMemory.memories.map(m => `- ${m.title}: ${m.summary}`).join('\n');
+      // Recall chose the relevant memories above; dumping every one here as
+      // well defeated it and grew the prompt with the person's whole history.
+      // Without a recall result, the most recent few stand in for it. A person
+      // who switched recall off gets neither.
+      const recallOff = userMemory.settings?.recallEnabled === false;
+      const knownFacts = recallOff || recalledMemories?.length ? [] : (userMemory.memories ?? []).slice(-KNOWN_FACTS_WITHOUT_RECALL);
+      if (knownFacts.length > 0) {
+        systemMessage += '\n### Known Facts:\n' + knownFacts.map(m => `- ${m.title}: ${m.summary}`).join('\n');
       }
       if (userMemory.preferences && Object.keys(userMemory.preferences).length > 0) {
         const prefs = Object.entries(userMemory.preferences)

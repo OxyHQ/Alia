@@ -659,8 +659,9 @@ describe('the billing path audit matches the tree it describes (#139 ws12)', () 
     // Hosted provider voice/image/audio surfaces are absent after cutover; this
     // count is read from the surviving product tree rather than preserved as a
     // compatibility floor for deleted modules. `routes/codea.ts` left with the
-    // `alia_sk_*` keys it was the only lane for.
-    expect(derived.length).toBe(10);
+    // `alia_sk_*` keys it was the only lane for. `lib/automation-dispatcher.ts`
+    // joined when automation runs started holding credits like a goal does.
+    expect(derived.length).toBe(11);
   });
 });
 

@@ -12,6 +12,8 @@ const state = vi.hoisted(() => ({
   observe: vi.fn(),
   oxyMap: vi.fn(),
   updateSession: vi.fn(),
+  reserve: vi.fn(),
+  refund: vi.fn(),
 }));
 
 const database = {
@@ -35,6 +37,8 @@ vi.mock('../../db/agents/agentSessionRepository.js', () => ({
 vi.mock('../tools/oxy-services.js', () => ({ getOxyAgentCapabilityMap: state.oxyMap }));
 vi.mock('../task-queue.js', () => ({ enqueueAgentSession: state.enqueue }));
 vi.mock('../notification-service.js', () => ({ sendNotification: state.notify }));
+vi.mock('../credits-manager.js', () => ({ reserveCredits: state.reserve, safeRefund: state.refund }));
+vi.mock('../user-credits-helpers.js', () => ({ getOrCreateUserCredits: vi.fn(async () => undefined) }));
 vi.mock('../logger.js', () => {
   const child = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };
   return { log: { triggers: child } };
@@ -103,12 +107,17 @@ const manualTrigger = {
   requesterAccountId: 'owner-1',
 };
 
+const RESERVATION = { reservationId: 'hold-1', amount: 1 };
+
 beforeEach(() => {
   vi.clearAllMocks();
+  state.reserve.mockResolvedValue(RESERVATION);
   database.transaction.mockImplementation(async (callback) => callback(database));
   state.findAgent.mockImplementation(async (_db, id: string) => ({
     id,
-    author: 'owner-1',
+    ownerOxyAccountId: 'owner-1',
+    access: 'private',
+    applicationId: null,
     oxyAccountId: `bot-${id}`,
     status: 'active',
   }));
@@ -175,7 +184,9 @@ describe('normalized automation dispatch', () => {
   it('does not select an unavailable agent', async () => {
     state.findAgent.mockImplementation(async (_db, id: string) => ({
       id,
-      author: 'owner-1',
+      ownerOxyAccountId: 'owner-1',
+      access: 'private',
+      applicationId: null,
       oxyAccountId: `bot-${id}`,
       status: 'offline',
     }));
@@ -186,6 +197,39 @@ describe('normalized automation dispatch', () => {
     });
     expect(state.oxyMap).not.toHaveBeenCalled();
     expect(state.observe).not.toHaveBeenCalled();
+  });
+
+  it('never takes the listing author for the owner', async () => {
+    // `author` is who published the listing; it grants nothing. An agent whose
+    // only tie to the owner is that field is somebody else's private agent.
+    state.findAgent.mockImplementation(async (_db, id: string) => ({
+      id,
+      author: 'owner-1',
+      ownerOxyAccountId: 'someone-else',
+      access: 'private',
+      applicationId: null,
+      oxyAccountId: `bot-${id}`,
+      status: 'active',
+    }));
+
+    await expect(dispatchStructuredAutomation(automation(), scheduleTrigger)).resolves.toEqual({
+      status: 'denied',
+      reason: 'no_eligible_actor_plan',
+    });
+  });
+
+  it('may run a public, active agent that somebody else owns', async () => {
+    state.findAgent.mockImplementation(async (_db, id: string) => ({
+      id,
+      ownerOxyAccountId: 'someone-else',
+      access: 'public',
+      applicationId: null,
+      oxyAccountId: `bot-${id}`,
+      status: 'active',
+    }));
+
+    const result = await dispatchStructuredAutomation(automation(), scheduleTrigger);
+    expect(result).not.toEqual({ status: 'denied', reason: 'no_eligible_actor_plan' });
   });
 
   it('queues an execute run only for an actor with live per-action authority', async () => {
@@ -360,5 +404,26 @@ describe('normalized automation dispatch', () => {
     )).resolves.toEqual({ status: 'duplicate' });
     expect(state.createSession).not.toHaveBeenCalled();
     expect(state.enqueue).not.toHaveBeenCalled();
+    // The hold taken before the claim is given back: nothing will settle it.
+    expect(state.refund).toHaveBeenCalledWith(RESERVATION, 'duplicate automation run');
+  });
+
+  it('holds credits for the run and hands the hold to the session the runner settles', async () => {
+    await dispatchStructuredAutomation(automation({ executionMode: 'execute' }), scheduleTrigger);
+
+    expect(state.reserve).toHaveBeenCalledWith('owner-1');
+    expect(state.createSession).toHaveBeenCalledWith(database, expect.objectContaining({
+      creditReservation: RESERVATION,
+    }));
+  });
+
+  it('does not run, and says why, when the owner cannot cover the hold', async () => {
+    state.reserve.mockResolvedValueOnce(null);
+
+    await expect(dispatchStructuredAutomation(automation({ executionMode: 'execute' }), scheduleTrigger))
+      .resolves.toEqual({ status: 'denied', reason: 'insufficient_credits' });
+    expect(state.createRun).not.toHaveBeenCalled();
+    expect(state.createSession).not.toHaveBeenCalled();
+    expect(state.notify).toHaveBeenCalled();
   });
 });

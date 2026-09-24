@@ -10,6 +10,7 @@ import {
 } from '../db/agents/agentSessionRepository.js';
 import { getDb } from '../db/index.js';
 import { renderAutomationStageTask } from './automation-stage-task.js';
+import { reserveCredits, safeRefund } from './credits-manager.js';
 
 export type AutomationAdvanceResult =
   | { kind: 'not_automation' }
@@ -27,6 +28,13 @@ export async function advanceAutomationRunAfterSession(
   if (progress.kind !== 'next') return progress.kind === 'none'
     ? { kind: 'not_automation' }
     : progress;
+  // Every stage is its own session and settles its own hold, as the first one
+  // does (`automation-dispatcher.ts`); a later stage used to run unbilled.
+  const reservation = await reserveCredits(progress.ownerAccountId);
+  if (!reservation) {
+    await markAutomationRunForSession(getDb(), completedSession.id, 'failed');
+    return { kind: 'terminal', status: 'failed', runId: progress.runId };
+  }
   try {
     const task = renderAutomationStageTask(progress.taskInput, completedSession.result);
     const next = await createAutomationStageSession(getDb(), {
@@ -37,9 +45,13 @@ export async function advanceAutomationRunAfterSession(
       task,
       status: 'queued',
       messages: [{ role: 'user', content: task, timestamp: new Date() }],
+      creditReservation: reservation,
     });
+    // An earlier attempt already created this stage, with its own hold.
+    if (!next.created) await safeRefund(reservation, 'automation stage already created');
     return { kind: 'next', ...next, runId: progress.runId };
   } catch (error: unknown) {
+    await safeRefund(reservation, 'automation stage could not be created');
     await markAutomationRunForSession(getDb(), completedSession.id, 'failed');
     throw error;
   }

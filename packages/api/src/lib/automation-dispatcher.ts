@@ -23,6 +23,8 @@ import { sendNotification } from './notification-service.js';
 import { automationStageTaskInputs, renderAutomationStageTask } from './automation-stage-task.js';
 import { automationExecutionPolicyError } from './automation-execution-policy.js';
 import { enqueueAgentSession } from './task-queue.js';
+import { reserveCredits, safeRefund, type CreditReservation } from './credits-manager.js';
+import { getOrCreateUserCredits } from './user-credits-helpers.js';
 
 export type AutomationDispatchTrigger =
   | {
@@ -52,14 +54,49 @@ export type AutomationDispatchResult =
   | { status: 'duplicate' }
   | { status: 'denied'; reason: string };
 
+/**
+ * The agents this automation may run, decided without a person present.
+ *
+ * `author` is listing metadata and never authority (`docs/agents.md`). An
+ * unattended stage has no bearer to ask Oxy about membership with, so the rule
+ * is the part of `canReachAgent` that needs none: the owner's own agent (its
+ * reconciled Oxy owner), or a public, active marketplace agent. A private agent
+ * shared by membership fails closed here, and a product-bound agent is never a
+ * marketplace actor.
+ */
 async function eligibleAgents(automation: AutomationDefinitionRecord) {
   const candidateIds = automation.actorSelection.mode === 'fixed'
     ? [automation.actorSelection.agentId].filter((id): id is string => Boolean(id))
     : automation.actorSelection.eligibleAgentIds;
   const agents = await Promise.all(candidateIds.map((agentId) => findAgentById(getDb(), agentId)));
   return agents.filter((agent): agent is NonNullable<typeof agent> => (
-    agent !== null && agent.author === automation.ownerAccountId
+    agent !== null
+    && agent.applicationId == null
+    && (
+      agent.ownerOxyAccountId === automation.ownerAccountId
+      || (agent.access === 'public' && agent.status === 'active')
+    )
   ));
+}
+
+/**
+ * Hold credits for an automation run BEFORE it is claimed, as a goal does.
+ *
+ * Automation sessions used to carry no reservation, so the runner's
+ * `finalizeCredits` had nothing to settle and every scheduled run — including
+ * one that runs somebody else's public agent — was free. The hold is the
+ * default one; the runner settles it against the tokens actually spent.
+ */
+async function reserveAutomationRun(
+  automation: AutomationDefinitionRecord,
+  trigger: AutomationDispatchTrigger,
+): Promise<CreditReservation | null> {
+  await getOrCreateUserCredits(automation.ownerAccountId);
+  const reservation = await reserveCredits(automation.ownerAccountId);
+  if (!reservation) {
+    await notifyNoExecution(automation, trigger, 'Not enough credits to run this task.');
+  }
+  return reservation;
 }
 
 async function notifyNoExecution(
@@ -164,6 +201,8 @@ export async function dispatchStructuredAutomation(
       });
       return { status: created ? 'observed' : 'duplicate' };
     }
+    const reservation = await reserveAutomationRun(automation, trigger);
+    if (!reservation) return { status: 'denied', reason: 'insufficient_credits' };
     const runId = uuidv7();
     const session = await getDb().transaction(async (transaction) => {
       const claimed = await claimAutomationRunPlan({
@@ -193,9 +232,13 @@ export async function dispatchStructuredAutomation(
         task,
         status: 'queued',
         messages: [{ role: 'user', content: task, timestamp: new Date() }],
+        creditReservation: reservation,
       });
     });
-    if (!session) return { status: 'duplicate' };
+    if (!session) {
+      await safeRefund(reservation, 'duplicate automation run');
+      return { status: 'duplicate' };
+    }
     try {
       await enqueueAgentSession({
         sessionId: session.id,
@@ -207,6 +250,7 @@ export async function dispatchStructuredAutomation(
       await Promise.all([
         updateAgentSession(getDb(), session.id, { status: 'failed', result: 'Could not queue automation run' }),
         markAutomationRunForSession(getDb(), session.id, 'failed'),
+        safeRefund(reservation, 'automation run could not be queued'),
       ]);
       throw error;
     }
@@ -259,6 +303,8 @@ export async function dispatchStructuredAutomation(
     return { status: created ? 'observed' : 'duplicate' };
   }
 
+  const reservation = await reserveAutomationRun(automation, trigger);
+  if (!reservation) return { status: 'denied', reason: 'insufficient_credits' };
   const runId = uuidv7();
   const session = await getDb().transaction(async (transaction) => {
     const claimed = await claimAutomationRunPlan({
@@ -280,9 +326,13 @@ export async function dispatchStructuredAutomation(
       task,
       status: 'queued',
       messages: [{ role: 'user', content: task, timestamp: new Date() }],
+      creditReservation: reservation,
     });
   });
-  if (!session) return { status: 'duplicate' };
+  if (!session) {
+    await safeRefund(reservation, 'duplicate automation run');
+    return { status: 'duplicate' };
+  }
   try {
     await enqueueAgentSession({
       sessionId: session.id,
@@ -294,6 +344,7 @@ export async function dispatchStructuredAutomation(
     await Promise.all([
       updateAgentSession(getDb(), session.id, { status: 'failed', result: 'Could not queue automation run' }),
       markAutomationRunForSession(getDb(), session.id, 'failed'),
+      safeRefund(reservation, 'automation run could not be queued'),
     ]);
     throw error;
   }

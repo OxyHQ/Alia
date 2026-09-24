@@ -80,14 +80,14 @@ const CONTINUATION_PROMPTS = [
  *
  * `plan` is always listed because it is ungranted: it is how a run ends.
  */
-function actionLines(agent: HydratedAgent): string {
+function actionLines(agent: HydratedAgent, options: { automation: boolean }): string {
   const grants = readCapabilityGrants(agent.capabilityGrants);
   const lines: string[] = [];
   if (grants.allows('browser')) {
     lines.push("**browser** — Research the web: search for a query, read a public URL's main text with goto, and read the current page again with get_text. Pages come back as extracted text; you cannot click, type or take screenshots.");
   }
   lines.push("**plan** — Create and update your task plan, or signal completion. Your plan persists as a checklist. Update it as you make progress. Call plan(action='complete', result='...') when done.");
-  if (grants.allows('delegation')) {
+  if (!options.automation && grants.allows('delegation')) {
     lines.push('**delegate** — Hire a specialist agent for a subtask outside your expertise.');
   }
   return `You have ${lines.length} action${lines.length === 1 ? '' : 's'}:\n\n${lines
@@ -118,12 +118,12 @@ function actionLines(agent: HydratedAgent): string {
  * else entirely and could contradict it in either direction. What the agent
  * can do is the tools it was handed, each with its own description.
  */
-function buildSystemPrompt(agent: HydratedAgent, config: AgentSessionConfig): string {
+function buildSystemPrompt(agent: HydratedAgent, config: AgentSessionConfig, options: { automation: boolean }): string {
   return `${agentRemitPrompt(agent)}
 
 ## Actions
 
-${actionLines(agent)}
+${actionLines(agent, options)}
 
 ## How to Work
 - For multi-step tasks, create a plan with the plan action. For simple questions, respond directly.
@@ -284,6 +284,10 @@ export async function runAgentSession(sessionId: string): Promise<void> {
 
         const completed = await findAgentSessionById(getDb(), childSession._id);
         const result = completed?.result || 'No result returned';
+        // The child session holds no reservation of its own: what it spent is
+        // this session's, billed against this session's reservation and counted
+        // against this session's token budget.
+        totalTokens += completed?.stats?.totalTokens ?? 0;
 
         eventStream.append('observation', `Agent @${handle} returned: ${result.slice(0, 500)}`, {
           toolName: 'delegate',
@@ -362,10 +366,18 @@ export async function runAgentSession(sessionId: string): Promise<void> {
   // boundary holds even for custom / archetype agent prompts. The runner picks
   // a model per step, so no single model name is passed here.
   // The agent's OWN name. It used to be told it was Alia, above its own prompt.
-  const systemPrompt = `${buildIdentityGuard({ agentName: agentPromptName(agent) })}\n\n---\n\n${buildSystemPrompt(agent, session.config)}`;
+  const systemPrompt = `${buildIdentityGuard({ agentName: agentPromptName(agent) })}\n\n---\n\n${buildSystemPrompt(agent, session.config, { automation: Boolean(session.automationRunId) })}`;
 
   let totalSteps = 0;
   let totalTokens = 0;
+  /**
+   * Set when the orchestrator ran the task. It then skips the loop and falls
+   * through to the SAME settlement as every other run: it used to write its own
+   * status and `return`, which skipped `finalizeCredits`, the automation-run
+   * mark and the goal record — an orchestrated hire held its reservation
+   * forever and its goal never became a candidate.
+   */
+  let orchestrated: { success: boolean } | null = null;
   let lastStepHadToolCalls: boolean;
   let iteration = 0;
   let textOnlyCount = 0;
@@ -399,28 +411,22 @@ export async function runAgentSession(sessionId: string): Promise<void> {
       });
 
       if (orchResult.executorResults.length > 0) {
+        orchestrated = { success: orchResult.success };
+        taskCompleted = orchResult.success;
+        taskResult = orchResult.result;
         sessionResult = orchResult.result;
-        await eventStream.flush();
-        const finishedAt = new Date();
-        await updateAgentSession(getDb(), sessionId, {
-          status: orchResult.success ? 'completed' : 'failed',
-          result: orchResult.result,
-          eventStream: eventStream.toJSON(),
-          stats: {
-            completedAt: finishedAt,
-            totalSteps: orchResult.executorResults.length,
-            lastActivityAt: finishedAt,
-          },
-        });
-
-        return;
+        totalSteps = orchResult.executorResults.length;
+        // The executors' sessions carry no reservation of their own; what they
+        // spent is billed here, against this session's.
+        totalTokens = orchResult.executorResults.reduce((sum, r) => sum + r.totalTokens, 0);
+      } else {
+        eventStream.append('system_message', 'Single subtask — falling back to standard execution');
       }
-      eventStream.append('system_message', 'Single subtask — falling back to standard execution');
     }
 
     // ── Main execution loop ──
 
-    while (!stateMachine.isTerminal() && totalSteps < session.config.maxSteps && totalTokens < session.config.maxTokens) {
+    while (orchestrated === null && !stateMachine.isTerminal() && totalSteps < session.config.maxSteps && totalTokens < session.config.maxTokens) {
       // Check for cancellation
       const currentStatus = await findAgentSessionStatus(getDb(), sessionId);
       if (currentStatus === null || currentStatus === 'cancelled') {
@@ -681,8 +687,10 @@ export async function runAgentSession(sessionId: string): Promise<void> {
      * held — `running`. Left undefined here, the SET clause omits it and the
      * stored value is likewise untouched.
      */
-    let finalStatus: 'completed' | 'cancelled' | undefined;
-    if (machineState === 'CANCELLED') {
+    let finalStatus: 'completed' | 'cancelled' | 'failed' | undefined;
+    if (orchestrated !== null && !orchestrated.success) {
+      finalStatus = 'failed';
+    } else if (machineState === 'CANCELLED') {
       finalStatus = 'cancelled';
       sessionResult = sessionResult || 'Session cancelled';
     } else {
@@ -733,6 +741,8 @@ export async function runAgentSession(sessionId: string): Promise<void> {
         await markAutomationRunForSession(getDb(), sessionId, 'succeeded');
       } else if (finalStatus === 'cancelled') {
         await markAutomationRunForSession(getDb(), sessionId, 'cancelled');
+      } else if (finalStatus === 'failed') {
+        await markAutomationRunForSession(getDb(), sessionId, 'failed');
       }
       if (session.goalId) {
         const { recordAgentGoalRun } = await import('../../db/agents/agentRuntimeRepository.js');

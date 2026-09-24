@@ -84,6 +84,7 @@ vi.mock('../../../db/agents/agentSessionRepository.js', () => ({
   findAgentSessionById: vi.fn(async (_db: unknown, id: string) => ({
     status: 'completed',
     result: H.results.get(id) ?? `output of ${id}`,
+    stats: { totalTokens: 100 * Number(id.replace('exec-', '')) },
   })),
   cancelUnsettledAgentSession: vi.fn(async () => true),
 }));
@@ -317,6 +318,9 @@ describe('a plan is an ordering, not a list (#139 ws6)', () => {
     const results = await drainUntil(running);
 
     expect(results.map((r) => r.subtaskId)).toEqual([1, 2, 3]);
+    // What each executor spent rides back, because the parent session is the
+    // only one holding a reservation and bills it.
+    expect(results.map((r) => r.totalTokens)).toEqual([100, 200, 300]);
     // Three sessions, and the third was created only after the other two
     // finished — the ordering claim, read off creation order rather than off the
     // returned array, which is sorted by subtask id regardless.
