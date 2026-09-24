@@ -109,16 +109,9 @@ Every dialogue segment's "speaker" must be one of the names above, spelled exact
 - Include natural interruptions and agreements ("Yeah", "Exactly", "Hmm")
 - A performed sound goes in an audio tag, and ONLY these tags exist: ${AUDIO_TAG_LIST}
 - Audio tag names are ALWAYS these ENGLISH words, no matter what language the script is written in. A Spanish line laughing is "Ya, claro... [laughs]" — NEVER "[ríe]". Do not translate a tag, do not invent one, do not add a word inside it ("[laughs nervously]" is not a tag). A tag that is not on the list above is deleted before the voice ever sees it
-- Nothing else goes in brackets. No stage directions ("[he looks away]"), no tone notes, and nothing in parentheses or asterisks either. Apart from the tags above, write only what the speaker says out loud; a sound that is not part of someone's speech is its own "sfx" segment
+- Nothing else goes in brackets. No stage directions ("[he looks away]"), no tone notes, and nothing in parentheses or asterisks either. Apart from the tags above, write only what the speaker says out loud. There are no sound effects, jingles or music: the script is spoken lines only
 - Each dialogue segment should be 1-4 sentences (15-60 words). Never write a single segment longer than 80 words.
 - Aim for ~150 words per minute of target duration
-
-## Sound Effects
-Include sound effect segments at natural break points:
-- Always start with an intro sound effect appropriate for the format
-- Add transition sounds between major topic changes
-- End with an outro sound effect
-- Keep SFX prompts short and descriptive (e.g., "upbeat show intro jingle, 4 seconds", "smooth transition whoosh, 2 seconds")
 
 ## Output Format
 Respond with ONLY valid JSON (no markdown, no explanation). Use this exact schema, with the keys in this order:
@@ -128,10 +121,8 @@ Respond with ONLY valid JSON (no markdown, no explanation). Use this exact schem
   "description": "One or two sentences describing this episode, for a podcast app's episode list",
   "summary": "A longer paragraph summarising what this episode covers",
   "segments": [
-    { "type": "sfx", "speaker": "", "text": "", "sfxPrompt": "upbeat show intro jingle, 4 seconds" },
     { "type": "dialogue", "speaker": "${exampleSpeaker}", "text": "Hey everyone, welcome back to..." },
     { "type": "dialogue", "speaker": "${exampleSecond}", "text": "Thanks for having me..." },
-    { "type": "sfx", "speaker": "", "text": "", "sfxPrompt": "smooth transition sound, 2 seconds" },
     { "type": "dialogue", "speaker": "${exampleSpeaker}", "text": "So let's dive into..." }
   ],
   "recap": "Two or three sentences a LATER episode can read to remember what this one said",

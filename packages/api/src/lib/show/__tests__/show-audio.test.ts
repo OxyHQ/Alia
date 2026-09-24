@@ -194,9 +194,8 @@ describe('joining segments', () => {
   });
 
   it('joins segments of DIFFERENT bitrates into one consistent file', async () => {
-    // The real shape: TTS and sound effects come from different providers at
-    // different bitrates. This is the case where a byte-based duration is
-    // wrong no matter which constant it assumes.
+    // Segments need not share a bitrate. This is the case where a byte-based
+    // duration is wrong no matter which constant it assumes.
     const parts = await Promise.all([
       synthesize(2, '64k'),
       synthesize(2, '128k'),

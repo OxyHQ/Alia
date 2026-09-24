@@ -42,6 +42,8 @@ const OWNER = 'show-pipeline-credits-owner';
 /** Set by each test before the pipeline runs; decides where the run fails. */
 let scriptReply: string | null = null;
 let synthesisWorks = true;
+/** Lines the stubbed speech refuses even while `synthesisWorks` is true. */
+const refusedLines = new Set<string>();
 
 vi.mock('../../chat-core.js', () => ({
   resolveModel: vi.fn(async () => ({ provider: 'stub', modelId: 'stub-model' })),
@@ -80,27 +82,12 @@ vi.mock('ai', () => ({
  * Throws rather than answering null when it "fails", because the real
  * `synthesizeSpeech` never answers null: Kaana refusing a voice is an error.
  */
-const synthesizeSpeech = vi.fn(async (_options: { input: string; voice: string }) => {
-  if (!synthesisWorks) throw new Error('stubbed speech refused');
+const synthesizeSpeech = vi.fn(async (options: { input: string; voice: string }) => {
+  if (!synthesisWorks || refusedLines.has(options.input)) throw new Error('stubbed speech refused');
   return { audio: Buffer.from('fake-mp3-bytes'), format: 'mp3', requestId: 'req' };
 });
 vi.mock('../../synthesize-speech.js', () => ({
   synthesizeSpeech: (options: { input: string; voice: string }) => synthesizeSpeech(options),
-}));
-
-/**
- * The sound-effect chain, stubbed at the SAME seam speech is stubbed at.
- *
- * Left real it would reach `provider_keys` on the test database, find nothing
- * and answer null — which is the production failure and would make every
- * assertion below about an episode with no effects, quietly.
- */
-let effectsWork = true;
-const synthesizeSoundEffect = vi.fn(async (_options: { prompt: string }) =>
-  effectsWork ? { audio: Buffer.from('fake-sfx-bytes'), format: 'mp3' } : null,
-);
-vi.mock('../../synthesize-sound-effect.js', () => ({
-  synthesizeSoundEffect: (options: { prompt: string }) => synthesizeSoundEffect(options),
 }));
 
 vi.mock('../../s3.js', () => ({
@@ -159,11 +146,10 @@ afterAll(async () => {
 beforeEach(async () => {
   scriptReply = null;
   synthesisWorks = true;
-  effectsWork = true;
+  refusedLines.clear();
   measuredDurationMs = 90_000;
   ingestEpisode.mockClear();
   abandonEpisodeIngest.mockClear();
-  synthesizeSoundEffect.mockClear();
   synthesizeSpeech.mockClear();
   generateText.mockClear();
   scriptPrompts.length = 0;
@@ -287,34 +273,24 @@ const GOOD_SCRIPT = JSON.stringify({
 });
 
 /**
- * The same script with the sound cues a real one carries: an intro, a
- * transition and an outro, which is what `script-prompt.ts` asks for on every
- * episode.
+ * A reply that still writes sound cues, the way every script did while the
+ * prompt asked for them. Nothing renders a cue, so the pipeline must drop them
+ * rather than store segments it can never make.
  */
-const SCRIPT_WITH_SFX = JSON.stringify({
+const SCRIPT_WITH_STRAY_CUES = JSON.stringify({
   description: 'A short episode.',
   summary: 'A longer summary of the episode.',
   recap: 'They discussed what happened this week.',
   segments: [
     { type: 'sfx', speaker: '', text: '', sfxPrompt: 'upbeat show intro jingle, 4 seconds' },
     { type: 'dialogue', speaker: 'Marcus', text: 'Welcome back to the show.' },
-    { type: 'sfx', speaker: '', text: '', sfxPrompt: 'smooth transition whoosh, 2 seconds' },
+    { type: 'transition', speaker: '', text: '' },
     { type: 'dialogue', speaker: 'Sarah', text: 'Glad to be here.' },
     { type: 'dialogue', speaker: 'Marcus', text: 'So, what happened this week?' },
     { type: 'sfx', speaker: '', text: '', sfxPrompt: 'warm outro sting, 3 seconds' },
   ],
 });
 
-/**
- * THE ENTRYPOINT, which is the assertion every unit test of the failover loop
- * cannot make.
- *
- * `synthesize-sound-effect.ts` can be perfectly correct and never reached — a
- * mechanism green and inert — and that is close to what shipped: the pipeline
- * called one provider inline and no chain existed to walk. So this asserts the
- * pipeline ASKS, once per cue, with the script's own words, and that what comes
- * back reaches the finished file.
- */
 /**
  * The voices actually SENT. Every series created before the roster switch
  * stores retired voice ids, and sending one is Kaana refusing `speech.voice` on
@@ -347,55 +323,38 @@ describe('the pipeline speaks a stored cast in voices the speech endpoint accept
   });
 });
 
-describe('the pipeline asks the sound-effect chain for every cue the script wrote', () => {
-  it('sends each sfxPrompt, and puts the audio into the join', async () => {
+describe('the script is spoken lines only', () => {
+  it('asks the model for no sound cues', async () => {
     await fund(50);
     const episodeId = await queueEpisode();
-    scriptReply = SCRIPT_WITH_SFX;
+    scriptReply = GOOD_SCRIPT;
 
     const { runShowPipeline } = await import('../show-pipeline.js');
     await runShowPipeline(episodeId);
 
-    expect(synthesizeSoundEffect).toHaveBeenCalledTimes(3);
-    expect(synthesizeSoundEffect.mock.calls.map((call) => call[0].prompt)).toEqual([
-      'upbeat show intro jingle, 4 seconds',
-      'smooth transition whoosh, 2 seconds',
-      'warm outro sting, 3 seconds',
-    ]);
-
-    /**
-     * And the bytes are really in the episode. `concatenateAudioSegments` is
-     * stubbed to `Buffer.concat`, so the blob handed to Syra is the segments in
-     * playback order — the one place an effect that was generated but dropped
-     * on the floor would show up.
-     */
-    const published = ingestEpisode.mock.calls[0] as unknown as [unknown, Blob];
-    const joined = Buffer.from(await published[1].arrayBuffer()).toString();
-    expect(joined).toBe(
-      'fake-sfx-bytes' +
-        'fake-mp3-bytes' +
-        'fake-sfx-bytes' +
-        'fake-mp3-bytes' +
-        'fake-mp3-bytes' +
-        'fake-sfx-bytes',
-    );
-    expect((await findEpisodeById(db, episodeId))?.status).toBe('completed');
+    expect(scriptPrompts[0]?.system).toBeDefined();
+    expect(scriptPrompts[0]?.system).not.toMatch(/"sfx"|sfxPrompt|"transition"/);
   });
 
-  it('still publishes when no effect can be produced, because a whoosh is not the show', async () => {
+  it('drops a cue the model still writes, and publishes the dialogue alone', async () => {
     await fund(50);
     const episodeId = await queueEpisode();
-    scriptReply = SCRIPT_WITH_SFX;
-    effectsWork = false;
+    scriptReply = SCRIPT_WITH_STRAY_CUES;
 
     const { runShowPipeline } = await import('../show-pipeline.js');
     await runShowPipeline(episodeId);
 
     const episode = await findEpisodeById(db, episodeId);
     expect(episode?.status).toBe('completed');
-    expect(ingestEpisode).toHaveBeenCalledTimes(1);
+    expect(episode?.segments.map((segment) => [segment.index, segment.type])).toEqual([
+      [0, 'dialogue'],
+      [1, 'dialogue'],
+      [2, 'dialogue'],
+    ]);
+    expect(episode?.segments.some((segment) => segment.renderFailed === true)).toBe(false);
 
-    // The dialogue survives, in order, with the three cues missing.
+    // `concatenateAudioSegments` is stubbed to `Buffer.concat`, so the blob
+    // handed to Syra is exactly the rendered segments in playback order.
     const published = ingestEpisode.mock.calls[0] as unknown as [unknown, Blob];
     expect(Buffer.from(await published[1].arrayBuffer()).toString()).toBe(
       'fake-mp3-bytes' + 'fake-mp3-bytes' + 'fake-mp3-bytes',
@@ -404,22 +363,21 @@ describe('the pipeline asks the sound-effect chain for every cue the script wrot
 });
 
 /**
- * A lost cue reaches the OWNER, not just the container's logs.
+ * A lost line reaches the OWNER, not just the container's logs.
  *
- * This is the half that was missing while the bug ran. Every sound effect in
- * every episode failed for days; the pipeline logged a warning, skipped the
- * segment, published, and wrote `completed` — so the row, the screen and the
+ * The pipeline skips a segment it cannot render and publishes the rest, which
+ * is right; it used to say nothing about it, so the row, the screen and the
  * notification all described an episode that had everything it asked for. The
  * assertion is therefore about the stored row and about what a ROUTE can read
  * from it, because a flag the pipeline writes and no reader can see is the same
  * silence with more steps.
  */
 describe('an episode says which of its segments never rendered', () => {
-  it('marks the cues that were lost, and only those', async () => {
+  it('marks the lines that were lost, and only those', async () => {
     await fund(50);
     const episodeId = await queueEpisode();
-    scriptReply = SCRIPT_WITH_SFX;
-    effectsWork = false;
+    scriptReply = GOOD_SCRIPT;
+    refusedLines.add('Glad to be here.');
 
     const { runShowPipeline } = await import('../show-pipeline.js');
     await runShowPipeline(episodeId);
@@ -428,16 +386,14 @@ describe('an episode says which of its segments never rendered', () => {
     expect(episode?.status).toBe('completed');
 
     const failed = (episode?.segments ?? []).filter((segment) => segment.renderFailed === true);
-    expect(failed.map((segment) => segment.index)).toEqual([0, 2, 5]);
-    // The prompt survives beside the flag, so the row says what the missing
-    // sound was meant to be rather than only that something is missing.
-    expect(failed[0]?.sfxPrompt).toBe('upbeat show intro jingle, 4 seconds');
+    expect(failed.map((segment) => segment.index)).toEqual([1]);
+    // The line survives beside the flag, so the row says what is missing.
+    expect(failed[0]?.text).toBe('Glad to be here.');
 
-    // And nothing that DID render is marked. Marking everything would satisfy
-    // the assertion above and tell the owner their whole episode is broken.
-    const spoken = (episode?.segments ?? []).filter((segment) => segment.type === 'dialogue');
-    expect(spoken).toHaveLength(3);
-    expect(spoken.every((segment) => segment.renderFailed === undefined)).toBe(true);
+    const published = ingestEpisode.mock.calls[0] as unknown as [unknown, Blob];
+    expect(Buffer.from(await published[1].arrayBuffer()).toString()).toBe(
+      'fake-mp3-bytes' + 'fake-mp3-bytes',
+    );
   });
 
   /**
@@ -448,21 +404,21 @@ describe('an episode says which of its segments never rendered', () => {
   it('marks nothing when every segment rendered', async () => {
     await fund(50);
     const episodeId = await queueEpisode();
-    scriptReply = SCRIPT_WITH_SFX;
+    scriptReply = GOOD_SCRIPT;
 
     const { runShowPipeline } = await import('../show-pipeline.js');
     await runShowPipeline(episodeId);
 
     const episode = await findEpisodeById(db, episodeId);
-    expect(episode?.segments).toHaveLength(6);
+    expect(episode?.segments).toHaveLength(3);
     expect(episode?.segments.some((segment) => segment.renderFailed === true)).toBe(false);
   });
 
   it('serves the mark to the screen, through the projection a route reads', async () => {
     await fund(50);
     const episodeId = await queueEpisode();
-    scriptReply = SCRIPT_WITH_SFX;
-    effectsWork = false;
+    scriptReply = GOOD_SCRIPT;
+    refusedLines.add('Glad to be here.');
 
     const { runShowPipeline } = await import('../show-pipeline.js');
     await runShowPipeline(episodeId);
@@ -477,7 +433,7 @@ describe('an episode says which of its segments never rendered', () => {
     const page = await listEpisodesForSeries(db, episode?.seriesId ?? '', 10, 0);
     const served = page.episodes.find((row) => row.id === episodeId);
 
-    expect(served?.segments.filter((segment) => segment.renderFailed === true)).toHaveLength(3);
+    expect(served?.segments.filter((segment) => segment.renderFailed === true)).toHaveLength(1);
   });
 });
 

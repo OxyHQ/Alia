@@ -18,10 +18,9 @@
  * ## Why the duration is MEASURED rather than computed from the file size
  *
  * The previous pipeline divided the byte length by 128 kbps. That is only right
- * when the file really is 128 kbps constant, and a show's is routinely not: TTS
- * and sound-effect segments arrive from different providers at different
- * bitrates, and when ffmpeg is unavailable they are concatenated verbatim rather
- * than re-encoded. Measured on a 6-second 64 kbps file, the estimate answers
+ * when the file really is 128 kbps constant, and a show's need not be: speech
+ * segments can arrive at different bitrates, and when ffmpeg is unavailable
+ * they are concatenated verbatim rather than re-encoded. Measured on a 6-second 64 kbps file, the estimate answers
  * 2961 ms — less than half.
  *
  * That number is not cosmetic. Syra's ingest writes the duration it is handed
