@@ -135,7 +135,7 @@ function inTab(lifecycle: WorkLifecycle, tab: WorkTab): boolean {
   return tab === 'history' ? over : !over;
 }
 
-export function compareWorkItems(a: WorkItem, b: WorkItem): number {
+function compareWorkItems(a: WorkItem, b: WorkItem): number {
   const byRank = LIFECYCLE_RANK[a.lifecycle] - LIFECYCLE_RANK[b.lifecycle];
   if (byRank !== 0) return byRank;
   if (a.activityAt !== b.activityAt) return b.activityAt - a.activityAt;

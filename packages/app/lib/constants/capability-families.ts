@@ -143,7 +143,7 @@ export const CAPABILITY_FAMILIES: readonly CapabilityFamily[] = [
  * `agent-editor-autosave.test.ts`, so it cannot quietly disagree with the
  * assembler about which family owns a tool.
  */
-export const RUNTIME_TOOL_FAMILIES: Readonly<Record<string, string>> = {
+const RUNTIME_TOOL_FAMILIES: Readonly<Record<string, string>> = {
   browser: 'browser',
   delegate: 'delegation',
 };

@@ -126,18 +126,6 @@ export function useInstalledSkills() {
   });
 }
 
-export function useMySkills() {
-  const { isAuthenticated } = useOxy();
-  return useQuery({
-    queryKey: queryKeys.skills.mine,
-    enabled: isAuthenticated,
-    queryFn: async (): Promise<Skill[]> => {
-      const response = await apiClient.get(API_ROUTES.skills.mine);
-      return response.data.skills ?? [];
-    },
-  });
-}
-
 export function useSkill(idOrName: string | undefined) {
   return useQuery({
     queryKey: queryKeys.skills.detail(idOrName ?? ''),

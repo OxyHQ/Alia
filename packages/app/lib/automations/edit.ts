@@ -58,7 +58,7 @@ function editableActor(
     : { mode: 'automatic', eligibleAgentIds: [...actorSelection.eligibleAgentIds] };
 }
 
-export function formatAutomationLimitValue(
+function formatAutomationLimitValue(
   value: string | number | boolean | string[],
 ): string {
   return typeof value === 'string' ? value : JSON.stringify(value);

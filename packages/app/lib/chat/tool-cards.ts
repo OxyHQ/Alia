@@ -14,7 +14,7 @@ import type { ToolInvocation } from '@/lib/types/messages';
 type Translate = (key: string, params?: Record<string, string>) => string;
 
 /** The tool results that are a card rather than a step of the turn's work. */
-export const CARD_TYPES = new Set(['weather', 'market', 'faircoin', 'scheduled-task']);
+const CARD_TYPES = new Set(['weather', 'market', 'faircoin', 'scheduled-task']);
 
 export type ToolCard =
   | { type: 'weather'; data: WeatherCardData }
@@ -69,7 +69,7 @@ export function formatPrice(value: number, currency: string, locale: string): st
  * significant digits — the chart's axis is 44px wide, and "60,000" does not fit
  * in it where "60K" does.
  */
-export const formatAxis = (value: number, locale: string) =>
+const formatAxis = (value: number, locale: string) =>
   value.toLocaleString(locale, { notation: 'compact', maximumSignificantDigits: 3 });
 
 /**
@@ -156,7 +156,7 @@ export interface MarketCardData {
 }
 
 /** The order the switcher offers, not the order the tool happens to store. */
-export const MARKET_RANGES = ['1D', '5D', '1M', '6M', 'YTD', '1Y', '5Y', 'MAX'] as const;
+const MARKET_RANGES = ['1D', '5D', '1M', '6M', 'YTD', '1Y', '5Y', 'MAX'] as const;
 
 /**
  * A quote as a line chart, or `null` when no range has two points to draw —
@@ -237,7 +237,7 @@ export interface FairCoinCardData {
 }
 
 /** Exactly what the explorer retains, in the order the switcher offers them. */
-export const FAIRCOIN_RANGES = ['24h', '7d', '30d', '1y', 'all'] as const;
+const FAIRCOIN_RANGES = ['24h', '7d', '30d', '1y', 'all'] as const;
 
 /**
  * FairCoin's price as a line chart, with its provenance ALWAYS in the notes.

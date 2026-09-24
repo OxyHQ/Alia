@@ -73,7 +73,7 @@ export type LifecycleMessage = Pick<
 >;
 
 /** A tool that was called and never came back — `call` or `partial-call`. */
-export function hasUnresolvedTool(message: Pick<LifecycleMessage, 'toolInvocations'>): boolean {
+function hasUnresolvedTool(message: Pick<LifecycleMessage, 'toolInvocations'>): boolean {
   return message.toolInvocations?.some((inv) => inv.state !== 'result') ?? false;
 }
 
@@ -495,7 +495,7 @@ export function toolCallStatus(inv: Pick<ToolInvocation, 'state' | 'result'>, li
 }
 
 /** Upper bound on the text an expanded row prints for one side of a call. */
-export const TOOL_TEXT_LIMIT = 4000;
+const TOOL_TEXT_LIMIT = 4000;
 
 /**
  * One side of a tool call — its arguments or its result — as text a reader
@@ -567,8 +567,7 @@ export function extractOutputs(toolInvocations?: ToolInvocation[]): OutputFile[]
  * send time on both rows, and an older thread saved before clients stamped
  * their sends carries the save time on both; either way the gap is nothing,
  * which is not an elapsed time. Under a second is therefore read as "the
- * conversation does not say", and the live end is observed by the row instead
- * (see `recordTurnEnd`).
+ * conversation does not say".
  */
 export interface TurnTiming {
   startedAt: number | null;
@@ -655,31 +654,6 @@ export function turnTiming(
   const endedAt =
     sendStamp !== null && ownStamp !== null && ownStamp - sendStamp >= MIN_PERSISTED_ELAPSED_MS ? ownStamp : null;
   return { startedAt, endedAt };
-}
-
-/**
- * The moment a turn was SEEN to end on this device, by message id.
- *
- * A locally streamed turn has no persisted end until the thread is reloaded,
- * so the row that watched it settle records the moment here; a row mounted
- * later for the same message — the panel, or the thread after navigating away
- * and back — reads it instead of guessing. Bounded so a long session does not
- * grow it without limit; the oldest entries go first.
- */
-const observedTurnEnds = new Map<string, number>();
-const OBSERVED_TURN_ENDS_LIMIT = 200;
-
-export function recordTurnEnd(messageId: string, endedAt: number): void {
-  if (observedTurnEnds.has(messageId)) return;
-  observedTurnEnds.set(messageId, endedAt);
-  if (observedTurnEnds.size > OBSERVED_TURN_ENDS_LIMIT) {
-    const oldest = observedTurnEnds.keys().next().value;
-    if (oldest !== undefined) observedTurnEnds.delete(oldest);
-  }
-}
-
-export function recordedTurnEnd(messageId: string): number | null {
-  return observedTurnEnds.get(messageId) ?? null;
 }
 
 /**

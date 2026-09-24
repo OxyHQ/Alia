@@ -1,6 +1,6 @@
 // Web: re-export React Native built-in components as keyboard-controller substitutes
 import React from 'react';
-import { View, type ViewProps, ScrollView, type ScrollViewProps, KeyboardAvoidingView } from 'react-native';
+import { ScrollView, type ScrollViewProps, KeyboardAvoidingView } from 'react-native';
 
 // Accept native-only props so shared components don't cause TS errors
 type KeyboardAwareScrollViewProps = ScrollViewProps & {
@@ -17,18 +17,7 @@ const KeyboardAwareScrollView = React.forwardRef<ScrollView, KeyboardAwareScroll
 );
 KeyboardAwareScrollView.displayName = 'KeyboardAwareScrollView';
 
-// No-op on web — keyboard sticky behavior is native-only
-type KeyboardStickyViewProps = ViewProps & {
-  offset?: { closed?: number; opened?: number };
-  enabled?: boolean;
-};
-
-const KeyboardStickyView = React.forwardRef<View, KeyboardStickyViewProps>(
-  ({ offset, enabled, ...props }, ref) => <View ref={ref} {...props} />
-);
-KeyboardStickyView.displayName = 'KeyboardStickyView';
-
-export { KeyboardAwareScrollView, KeyboardAvoidingView, KeyboardStickyView };
+export { KeyboardAwareScrollView, KeyboardAvoidingView };
 
 // No-op provider on web — keyboard-controller is native-only
 export function KeyboardProvider({ children }: { children: React.ReactNode }) {

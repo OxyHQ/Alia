@@ -495,11 +495,10 @@ the fix is built on.
 Both are closed. Bloom 3.3.0 added `sidebarWidth`, `sidebarCollapsed` and
 `collapsedSidebarWidth` (default 56 — Alia's rail width exactly), and exported
 `useAiChatShell()` with `navPresented`, which is the signal the #532 guard
-needed. `AiChatShell` is the app's shell now; `components/app-shell/nav-region.tsx`
-carries the guard and is STRONGER than what it replaced, because it adds
-`inert` — the one attribute covering focus, tab order, assistive tech and
-find-in-page at once, where the old guard and Bloom's own wrapper reach only
-the AT tree and the pointer.
+needed. `AiChatShell` is the app's shell now, and since Bloom 4.14.1 it guards
+the closed drawer itself: `inert` on web — the one attribute covering focus, tab
+order, assistive tech and find-in-page at once — and the VoiceOver/TalkBack
+flags on native. Alia's own `NavRegion` wrapper went with that.
 
 Two things did not survive the move, and neither has a Bloom contract yet:
 

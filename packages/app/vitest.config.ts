@@ -17,6 +17,8 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('.', import.meta.url)),
+      // Its native module does not exist under vitest; see the stub.
+      'expo-crypto': fileURLToPath(new URL('./test/expo-crypto.ts', import.meta.url)),
     },
   },
   /**

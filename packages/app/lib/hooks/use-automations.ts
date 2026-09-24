@@ -3,12 +3,10 @@ import { useOxy } from '@oxy.so/services';
 import apiClient from '../api/client';
 import { API_ROUTES } from '../api/routes';
 import type {
-  AutomationCreateInput,
   AutomationDefinition,
   AutomationOverview,
   AutomationReceipt,
   AutomationRun,
-  AutomationStep,
   AutomationUpdateInput,
 } from '../automations/types';
 import { createRandomUuid } from '../utils/random-uuid';
@@ -52,38 +50,6 @@ export function useAutomationRuns(automationId: string) {
     },
     enabled: isAuthenticated && Boolean(automationId),
     staleTime: 30_000,
-  });
-}
-
-export function useAutomationRunSteps(runId: string, enabled: boolean) {
-  const { isAuthenticated } = useOxy();
-  return useQuery({
-    queryKey: queryKeys.automations.steps(runId),
-    queryFn: async (): Promise<AutomationStep[]> => {
-      const response = await apiClient.get<{ steps: AutomationStep[] }>(
-        API_ROUTES.automations.steps(runId),
-      );
-      return response.data.steps;
-    },
-    enabled: isAuthenticated && enabled && Boolean(runId),
-    staleTime: 30_000,
-  });
-}
-
-export function useCreateAutomation() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (input: AutomationCreateInput): Promise<{
-      automation: AutomationDefinition;
-      receipt: AutomationReceipt;
-    }> => {
-      const response = await apiClient.post<{
-        automation: AutomationDefinition;
-        receipt: AutomationReceipt;
-      }>(API_ROUTES.automations.create, input);
-      return response.data;
-    },
-    onSuccess: () => invalidateOverview(queryClient),
   });
 }
 
