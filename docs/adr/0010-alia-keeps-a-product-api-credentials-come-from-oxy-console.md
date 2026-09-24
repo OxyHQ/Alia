@@ -4,6 +4,14 @@
 
 **Date:** 2026-09-10
 
+> **Amended 2026-09-23 by the repository owner.** § 2 kept the existing `alia_sk_*` keys
+> authenticating until section (c) of the compatibility window was satisfied. The owner
+> retired them outright instead — a clean cut with no rollback window: the API refuses
+> them `401 credential_retired`, the `/developer` and `/codea` routes and the developer
+> tables are gone, and `packages/alia-console` is deleted. The table in § 2 therefore
+> reads *refused* for `alia_sk_*`; everything else below stands, as the record of the
+> decision as taken.
+
 ## Context
 
 [ADR 0006](./0006-the-destination-of-api-alia-onl-v1-is-recorded-twice.md) recorded

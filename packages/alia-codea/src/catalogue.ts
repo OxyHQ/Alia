@@ -223,7 +223,7 @@ const cache = new Map<string, Promise<CatalogueEntry[]>>();
  * A rejected promise is evicted: an extension host lives for days, so caching a
  * failure would outlast the outage that caused it by a very long way.
  */
-export function fetchCatalogue(apiBaseUrl: string, accessToken?: string): Promise<CatalogueEntry[]> {
+function fetchCatalogue(apiBaseUrl: string, accessToken?: string): Promise<CatalogueEntry[]> {
   const cached = cache.get(apiBaseUrl);
   if (cached !== undefined) return cached;
 
@@ -250,7 +250,7 @@ const modeCache = new Map<string, Promise<ProductMode[]>>();
  * a mode routes through rather than on the mode. Rejections evict, for the same
  * reason they do above.
  */
-export function fetchProductModes(apiBaseUrl: string): Promise<ProductMode[]> {
+function fetchProductModes(apiBaseUrl: string): Promise<ProductMode[]> {
   const cached = modeCache.get(apiBaseUrl);
   if (cached !== undefined) return cached;
 

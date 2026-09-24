@@ -18,6 +18,15 @@ export interface AliaChatRequest {
   readonly url: string;
   readonly model: string;
   readonly messages: ReadonlyArray<{ readonly role: string; readonly content: string }>;
+  /**
+   * `'voice'` asks for an answer meant to be heard: short, conversational, no
+   * formatting (the API layers its voice response profile over the turn's
+   * prompt). Omitted for ordinary text chat, which sends exactly what it
+   * always sent.
+   */
+  readonly responseMode?: 'voice';
+  /** The agent whose thread this turn belongs to, when there is one. */
+  readonly agentId?: string;
 }
 
 /**
@@ -42,6 +51,8 @@ export async function streamAliaChat(
       model: request.model,
       messages: request.messages,
       stream: true,
+      ...(request.responseMode === undefined ? {} : { responseMode: request.responseMode }),
+      ...(request.agentId === undefined ? {} : { agentId: request.agentId }),
     }),
     signal,
   });

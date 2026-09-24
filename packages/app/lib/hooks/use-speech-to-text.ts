@@ -1,14 +1,13 @@
 /**
  * App-specific wrapper around the SDK's useSpeechToText hook.
  *
- * Injects the app's API URL from config.
+ * Dictation is recognized on the device, in the app's language — see
+ * `lib/speech-locale.ts`. Nothing is sent to the API.
  */
 
 import { useSpeechToText as useSpeechToTextSDK } from '@alia.onl/sdk';
-import config from '../config';
+import { speechLocale } from '../speech-locale';
 
 export function useSpeechToText() {
-  return useSpeechToTextSDK({
-    apiUrl: config.apiUrl,
-  });
+  return useSpeechToTextSDK({ lang: speechLocale() });
 }

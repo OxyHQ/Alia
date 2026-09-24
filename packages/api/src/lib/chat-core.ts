@@ -18,22 +18,15 @@ import { UnregisteredModelError } from './routing/policy.js';
 import { assertUnreservedModelIdentifier } from './reserved-namespace.js';
 import {
   getDefaultRoutingProfile,
-  isRoutingProfile,
-  getRoutingProfile,
   getAllRoutingProfiles,
-  getRoutingProfilesByCategory,
-  getDefaultModelForCategory,
-  getAvailableModels,
   type KeyConfig,
   type RoutingProfile,
-  type RoutingProfileWithAvailability,
-  type ModelCategory,
   type RoutingOptions,
 } from './gateway-client.js';
 
-// Re-export types and helpers that chat routes need
-export { getDefaultRoutingProfile, isRoutingProfile, getRoutingProfile, getAllRoutingProfiles, getRoutingProfilesByCategory, getDefaultModelForCategory, getAvailableModels };
-export type { KeyConfig, RoutingProfile, RoutingProfileWithAvailability, ModelCategory, RoutingOptions };
+// Re-export what chat routes import from here.
+export { getDefaultRoutingProfile };
+export type { KeyConfig, RoutingProfile, RoutingOptions };
 
 /**
  * The compatibility shape consumed by Alia's chat orchestration. Hosted
@@ -57,8 +50,6 @@ export interface ResolvedModel {
     | { readonly kind: 'model'; readonly model: string }
     | null;
   routingProfile: RoutingProfile;
-  isFallback: boolean;
-  fallbackIndex?: number;
 }
 
 /**
@@ -71,8 +62,6 @@ export interface ResolvedModel {
  */
 export async function resolveModel(
   routingProfileId: string,
-  _skipProviders?: Set<string>,
-  _skipKeyIds?: Set<string>,
   options?: RoutingOptions
 ): Promise<ResolvedModel | null> {
   assertUnreservedModelIdentifier(routingProfileId);
@@ -107,7 +96,6 @@ export async function resolveModel(
     keyConfig: { provider: 'kaana', modelId: productModelId },
     oxyInferenceTarget: target,
     routingProfile,
-    isFallback: false,
   };
 }
 

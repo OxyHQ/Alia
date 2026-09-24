@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest';
 
 import audioRouter from '../audio.js';
 import imagesRouter from '../images.js';
-import voiceRouter from '../voice.js';
 
 interface RouteAnswer {
   readonly status: number;
@@ -41,8 +40,6 @@ describe('hosted modalities without a Kaana seam', () => {
   const cases = [
     { router: audioRouter, route: '/generate', capability: 'audio generation' },
     { router: imagesRouter, route: '/generations', capability: 'image generation' },
-    { router: voiceRouter, route: '/token', capability: 'voice session' },
-    { router: voiceRouter, route: '/transcribe', capability: 'speech transcription' },
   ] as const;
 
   for (const testCase of cases) {

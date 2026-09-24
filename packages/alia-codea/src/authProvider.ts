@@ -359,8 +359,7 @@ export class AliaAuthenticationProvider
       }
     }
 
-    const apiKey = vscode.workspace.getConfiguration('codea').get<string>('apiKey', '');
-    return apiKey?.startsWith('alia_sk_') ? apiKey : null;
+    return null;
   }
 
   /**

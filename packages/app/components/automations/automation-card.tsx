@@ -1,6 +1,5 @@
 import {
   actorLabel,
-  automationTitle,
   canRunNow,
   humanizeIdentifier,
   policyReason,
@@ -18,7 +17,6 @@ import { Badge } from '@oxy.so/bloom/badge';
 import { Button } from '@oxy.so/bloom/button';
 import {
   Card,
-  CardDescription,
   CardFooter,
   CardTitle,
 } from '@oxy.so/bloom/card';
@@ -65,11 +63,8 @@ function StatusBadge({
 /**
  * One automation, with its controls.
  *
- * The heading is the NAME the person gave it and the objective (for a legacy
- * trigger, the prompt) sits underneath — two automations with the same prompt
- * must read as two different things, and every accessibility label names the
- * automation the same way the heading does (#534). Only when there is no name
- * does the objective stand in.
+ * The heading is the objective, and every accessibility label names the
+ * automation the same way the heading does (#534).
  *
  * `variant="compact"` is the row the unified Tasks list draws (#537): the
  * lifecycle, the schedule, the latest run and the controls, without the actor
@@ -100,8 +95,7 @@ export function AutomationCard({
 }) {
   const { colors } = useTheme();
   const compact = variant === 'compact';
-  const title = automationTitle(automation);
-  const hasName = Boolean(automation.name?.trim());
+  const title = automation.objective;
   const lifecycle = lifecycleLabel(automationLifecycle(automation, latestRun));
   const lastReason = policyReason(latestRun);
   const iconProps = { width: 16, height: 16, fill: colors.textSecondary };
@@ -110,13 +104,6 @@ export function AutomationCard({
     <Card appearance="outline" accessibilityLabel={`Automation ${title}`}>
       <Item
         title={<CardTitle>{title}</CardTitle>}
-        subtitle={
-          hasName ? (
-            <CardDescription numberOfLines={compact ? 2 : undefined}>
-              {automation.objective}
-            </CardDescription>
-          ) : undefined
-        }
         trailing={
           <Switch
             accessibilityLabel={`${automation.enabled ? 'Pause' : 'Resume'} ${title}`}
@@ -130,11 +117,7 @@ export function AutomationCard({
         {/* Stacking only: the badges wrap in a row. */}
         <View className="flex-row flex-wrap gap-2">
           <StatusBadge label={lifecycle.label} tone={lifecycle.tone} />
-          {compact ? (
-            <StatusBadge label="Automation" />
-          ) : automation.legacyTriggerId ? (
-            <StatusBadge label="Legacy transition" tone="warning" />
-          ) : null}
+          {compact ? <StatusBadge label="Automation" /> : null}
         </View>
       </Item>
       <Item
@@ -148,11 +131,7 @@ export function AutomationCard({
           leading={<RiUserLine {...iconProps} />}
           title={
             <Muted>
-              {actorLabel(
-                automation.actorSelection,
-                agentName,
-                Boolean(automation.legacyTriggerId),
-              )}
+              {actorLabel(automation.actorSelection, agentName)}
             </Muted>
           }
         />
@@ -200,7 +179,7 @@ export function AutomationCard({
               disabled={controlsDisabled}
               onPress={() => onStop(automation)}
             >
-              {automation.legacyTriggerId ? 'Stop' : 'Stop and revoke'}
+              Stop and revoke
             </Button>
           ) : compact ? null : (
             <StatusBadge label="Stopped" />

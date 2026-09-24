@@ -8,13 +8,10 @@ import {
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 /**
- * The automation card is headed by the NAME its owner gave it (#534).
- *
- * Two automations created from the same suggestion share a prompt; before
- * this the card, the history heading and every accessibility label used the
- * prompt, so they were one card twice. Now the name is the heading and the
- * label, the objective reads underneath, and the objective stands in only
- * when there is no name at all.
+ * The automation card is headed by its objective: structured definitions have
+ * no name column, and the legacy-trigger name the card once preferred (#534)
+ * went with the `triggers` table. The objective reads once, as the heading, and
+ * every control's accessibility label is named after it.
  */
 
 vi.mock('react-native', async () => {
@@ -110,7 +107,8 @@ vi.mock('@oxy.so/bloom/button', async () => {
       children,
       ...props
     }: React.PropsWithChildren<Record<string, unknown>>) =>
-      ReactModule.createElement('Button', props, children),
+      // Bloom's Button draws its label as text.
+      ReactModule.createElement('Button', props, ReactModule.createElement('Text', null, children)),
   };
 });
 vi.mock('@oxy.so/bloom/theme', () => ({
@@ -129,11 +127,10 @@ type AutomationDefinition =
 
 const PROMPT = 'Review PR comments every hour and share next steps';
 
-function automation(id: string, name: string | null): AutomationDefinition {
+function automation(id: string, objective = PROMPT): AutomationDefinition {
   return {
     id,
-    name,
-    objective: PROMPT,
+    objective,
     trigger: { type: 'schedule', cron: '*/60 * * * *', timezone: 'UTC' },
     actorSelection: { mode: 'automatic', eligibleAgentIds: [] },
     executionMode: 'execute',
@@ -143,7 +140,6 @@ function automation(id: string, name: string | null): AutomationDefinition {
     maximumAutonomy: 'autonomous',
     limits: [],
     enabled: true,
-    legacyTriggerId: `trigger-${id}`,
     createdAt: '2026-09-01T00:00:00.000Z',
     updatedAt: '2026-09-01T00:00:00.000Z',
   };
@@ -187,37 +183,24 @@ function labels(root: ReactTestInstance): string[] {
 }
 
 describe('AutomationCard heading', () => {
-  it('heads the card with the name, keeps the prompt underneath and names every control after it', () => {
-    const root = mount(automation('1', 'Frontend PR watch'));
-    const shown = texts(root);
-    expect(shown[0]).toBe('Frontend PR watch');
-    expect(shown[1]).toBe(PROMPT);
-    expect(labels(root)).toEqual(
-      expect.arrayContaining([
-        'Automation Frontend PR watch',
-        'Pause Frontend PR watch',
-        'Run Frontend PR watch',
-        'Stop Frontend PR watch',
-        'View history for Frontend PR watch',
-      ]),
-    );
-    expect(labels(root).some((label) => label.includes(PROMPT))).toBe(false);
-  });
-
-  it('keeps two automations with the same prompt apart', () => {
-    const first = texts(mount(automation('1', 'Frontend PR watch')));
-    act(() => renderer.unmount());
-    const second = texts(mount(automation('2', 'Backend PR watch')));
-    expect(first[0]).not.toBe(second[0]);
-    expect(first[1]).toBe(second[1]);
-  });
-
-  it('falls back to the objective only when there is no name, without repeating it', () => {
-    const root = mount(automation('3', null));
+  it('heads the card with the objective, once, and names every control after it', () => {
+    const root = mount(automation('1'));
     const shown = texts(root);
     expect(shown[0]).toBe(PROMPT);
     expect(shown.filter((text) => text === PROMPT)).toHaveLength(1);
-    expect(labels(root)).toContain(`Run ${PROMPT}`);
+    expect(labels(root)).toEqual(expect.arrayContaining([
+      `Automation ${PROMPT}`,
+      `Pause ${PROMPT}`,
+      `Run ${PROMPT}`,
+      `Stop ${PROMPT}`,
+      `View history for ${PROMPT}`,
+    ]));
+  });
+
+  it('offers to stop and revoke, and shows no legacy pill', () => {
+    const shown = texts(mount(automation('2')));
+    expect(shown).toContain('Stop and revoke');
+    expect(shown).not.toContain('Legacy transition');
   });
 
   it('reads the schedule as a sentence and the lifecycle as a pill, in both variants', () => {

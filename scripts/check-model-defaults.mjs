@@ -85,7 +85,6 @@ export const TREES = [
   'packages/alia-codea/src',
   'packages/alia-codea/webview-ui/src',
   'packages/alia-codea-cli/src',
-  'packages/alia-console/src',
   'packages/alia-cowork/src',
   'packages/alia-cowork/renderer/src',
   'packages/integrations/src',
@@ -105,8 +104,6 @@ export const NOT_A_CLIENT = {
     'the server. Its `alia-*` literals ARE the routing table — `internal/providers/lib/routing-profile-catalogue.ts` is the frozen set every other package resolves against.',
   'packages/app':
     'its picker reads the catalogue (#156); the literals it keeps are policy tables, reconciled under their own box. See the note on TREES.',
-  'packages/alia-docker-host':
-    'a container manager for agent sandboxes. It runs no inference and offers no picker.',
   'packages/alia-server':
     'a transport. It streams whatever turn a backend hands it and never chooses, defaults or names a routing profile — `model` is an optional pass-through field on its request type.',
 };
@@ -122,25 +119,6 @@ export const NOT_A_CLIENT = {
  * substitute a model that cannot do the job, which fails far from its cause.
  * Both modules state the reasoning at length.
  */
-/**
- * Files whose whole job is SHOWING code to a reader.
- *
- * A documentation page that cannot name an identifier cannot document the API,
- * so a sample here is not a hardcoded default — it is the thing being
- * documented. The discriminator is the file's ROLE, not the literal's shape:
- * `examples.tsx` renders a `sampleAgent` object to the screen, it does not send
- * it.
- *
- * Most of the console's samples never reach this list, because they live inside
- * template literals holding whole code blocks and the matcher below is anchored
- * to a WHOLE literal. Only the one rendered as real data does.
- *
- * Counted, like the preference modules: an exemption that has stopped excusing
- * anything is an exemption to delete, and this says so rather than letting the
- * list rot.
- */
-const SAMPLE_SURFACES = new Set(['packages/alia-console/src/routes/_layout/examples.tsx']);
-
 const PREFERENCE_MODULES = new Map([
   ['packages/alia-chat/src/lib/config.ts', 2],
   ['packages/alia-codea-cli/src/utils/config.ts', 1],
@@ -274,9 +252,9 @@ function main() {
   // Exact counts. Each list may only change in a diff that also changes the
   // number beside it, which is the review this gate exists to force.
   const counts = [
-    ['workspaces', workspaces.length, 12],
-    ['TREES', TREES.length, 9],
-    ['NOT_A_CLIENT', Object.keys(NOT_A_CLIENT).length, 4],
+    ['workspaces', workspaces.length, 10],
+    ['TREES', TREES.length, 8],
+    ['NOT_A_CLIENT', Object.keys(NOT_A_CLIENT).length, 3],
   ];
   const partition = [
     ...counts
@@ -308,8 +286,11 @@ function main() {
   // of the walk that reported "OK, 245 files walked" while canvas, the Codea
   // webview and the bots all showed an alias. A floor left at the old 120 would
   // have passed that. This one cannot.
-  if (files.length < 300) {
-    console.error(`check-model-defaults: walked only ${files.length} files; expected 300+.`);
+  //
+  // 300 -> 200 when `alia-console` (117 files) was deleted: the walk is 275,
+  // and dropping the three #244 trees from it lands near 128, still far below.
+  if (files.length < 200) {
+    console.error(`check-model-defaults: walked only ${files.length} files; expected 200+.`);
     process.exit(1);
   }
 
@@ -328,7 +309,6 @@ function main() {
 
   const offences = [];
   const preferenceCounts = new Map();
-  let sampleHits = 0;
 
   for (const file of files) {
     const rel = relative(ROOT, file);
@@ -338,22 +318,9 @@ function main() {
       preferenceCounts.set(rel, found.length);
       continue;
     }
-    if (SAMPLE_SURFACES.has(rel)) {
-      sampleHits += 1;
-      continue;
-    }
     for (const { text, line } of found) {
       if (!text.startsWith('mode:')) offences.push(`${rel}:${line} hardcodes ${text}`);
     }
-  }
-
-  // A sample surface that has stopped naming an identifier is an exemption to
-  // delete, not one to keep excusing — the same rule the preference counts get.
-  if (sampleHits === 0) {
-    offences.push(
-      `SAMPLE_SURFACES lists ${SAMPLE_SURFACES.size} file(s) but none names an identifier — ` +
-        'delete the entry rather than leaving it to excuse nothing.',
-    );
   }
 
   // The exemptions, by EXACT count. A preference module that quietly grows a

@@ -12,13 +12,10 @@
  * `0049_the_tier_column_cannot_be_correct`: a row there is one
  * `(provider, model_id)` pair, the routing table maps that pair to many tiers,
  * and one column over a many-to-many relation records only whichever tier was
- * written last. So `routing_profiles.tier` is now the single column this tuple
- * constrains — but the tuple is still the routing vocabulary and still keys
- * `GENERATED_TIER_MAPPINGS`, which is where a tier is reachable from whether or
- * not any row names it.
- *
- * `provider-names.ts` is the precedent. The Postgres CHECK is rendered from THIS
- * tuple, so the database and the TypeScript union cannot drift apart.
+ * written last. `routing_profiles` itself was dropped later by the clean cut
+ * (0070), so no column is constrained by this tuple now — but it is still the
+ * routing vocabulary and still keys `GENERATED_TIER_MAPPINGS`, which is where a
+ * tier is reachable from.
  *
  * A THIRD copy survived that unification: `routing-profile-catalogue.ts` kept its own
  * fourteen-value literal, and `v1-image` was the value only it had. The
@@ -39,9 +36,9 @@
  * bracketed cue or reads it aloud — so "promote it to canonical" was never
  * available without first correcting it, and nothing would have said so.
  *
- * Appending to this tuple CHANGES THE DATABASE: ship the `pre` migration
- * widening `routing_profiles_tier_check` in the same commit, exactly as
- * `PROVIDER_NAMES` requires (`db/schema/providers.ts` says so at length).
+ * No database column renders a CHECK from this tuple any more: the
+ * `routing_profiles` table whose `tier_check` it fed was dropped by the clean
+ * cut, so appending to it is a code change only.
  *
  * ## This is the ROUTING vocabulary, not the alias vocabulary
  *

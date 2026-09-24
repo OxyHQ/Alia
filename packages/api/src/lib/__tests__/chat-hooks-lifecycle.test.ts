@@ -162,7 +162,6 @@ function lifecycleContext(overrides: Partial<LifecycleContext> = {}): LifecycleC
     creditReservation: null,
     tokenUsage: { promptTokens: 40, completionTokens: 20, totalTokens: 60, systemPromptTokens: 10 },
     requestStartTime: Date.now() - 1_500,
-    isApiKey: false,
     autonomyRuntime: null,
     ...overrides,
   } as LifecycleContext;

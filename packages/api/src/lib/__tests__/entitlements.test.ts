@@ -173,7 +173,7 @@ describe('the entitlement read model publishes the Oxy contract shape (#139 ws12
     H.subscriptions = [subscription('pro')];
     H.plans = [{ planId: 'pro' }];
     H.planFeatures = [
-      { planId: 'pro', featureId: 'voice-minutes', limitValue: 600 },
+      { planId: 'pro', featureId: 'concurrent-tasks', limitValue: 10 },
       { planId: 'pro', featureId: 'voice-mode', enabled: true },
     ];
 
@@ -187,14 +187,14 @@ describe('the entitlement read model publishes the Oxy contract shape (#139 ws12
       currentPeriodStart: '2026-08-01T00:00:00.000Z',
       currentPeriodEnd: '2026-09-01T00:00:00.000Z',
       cancelAtPeriodEnd: false,
-      allowances: [{ key: 'voice_minutes', included: 600 }],
+      allowances: [{ key: 'concurrent_tasks', included: 10 }],
     });
     // A numeric LIMIT is an allowance; a boolean CAPABILITY is not. Rendering
     // `voice-mode` as `included: 1` would invent a quantity nothing counts down,
     // so its absence here is the assertion.
-    // The key is the CONTRACT's namespace, not Alia's: `voice-minutes` has a
+    // The key is the CONTRACT's namespace, not Alia's: `concurrent-tasks` has a
     // hyphen and `planAllowanceSchema.key` does not permit one.
-    expect(entitlement.allowances).toEqual([{ key: 'voice_minutes', included: 600 }]);
+    expect(entitlement.allowances).toEqual([{ key: 'concurrent_tasks', included: 10 }]);
     expect(entitlement.allowances.map((a) => a.key)).not.toContain('voice_mode');
   });
 
@@ -204,12 +204,12 @@ describe('the entitlement read model publishes the Oxy contract shape (#139 ws12
     H.subscriptions = [subscription('pro')];
     H.plans = [{ planId: 'pro' }];
     H.planFeatures = [
-      { planId: 'pro', featureId: 'voice-minutes', limitValue: 600 },
+      { planId: 'pro', featureId: 'concurrent-tasks', limitValue: 10 },
       { planId: 'pro', featureId: 'voice-mode', enabled: true },
     ];
 
     const entitlements = await getUserEntitlements(account());
-    expect(entitlements.features).toEqual({ 'voice-minutes': 600, 'voice-mode': true });
+    expect(entitlements.features).toEqual({ 'concurrent-tasks': 10, 'voice-mode': true });
   });
 
   it('reports no pay-as-you-go position and no cost centre, because Alia holds neither', async () => {
@@ -470,10 +470,10 @@ describe('the product runtime still runs the check (#139 ws6)', () => {
     // about the request path calling it. `chatFlowFixtures.test.ts` asserts the
     // 403 behaviourally, so what is added here is the SHAPE of the two
     // conditions, which are the parts a refactor would flatten without changing
-    // any transcript: the prefetch skips API keys, and the gate does too.
+    // any transcript: the prefetch needs a user, and so does the gate.
     const context = code('lib/chat/request-context.ts');
     expect(context).toContain('export async function buildChatRequestContext');
-    expect(context).toMatch(/\(req\.user && !req\.apiKey\)\s*\?\s*getUserEntitlements\(req\.user\.id\)/);
+    expect(context).toMatch(/req\.user\s*\?\s*getUserEntitlements\(req\.user\.id\)/);
     /**
      * The third conjunct is the local-runtime skip, and it is spelled out here
      * rather than matched loosely: a model served by the caller's own device is
@@ -482,7 +482,7 @@ describe('the product runtime still runs the check (#139 ws6)', () => {
      * the condition means widening it again is a diff in this file.
      */
     expect(context).toMatch(
-      /if \(req\.user && !req\.apiKey && entitlements && localRuntime === null\) \{\s*if \(!entitlements\.allowedModelIds\.includes\(routingProfileId\)\) \{/,
+      /if \(req\.user && entitlements && localRuntime === null\) \{\s*if \(!entitlements\.allowedModelIds\.includes\(routingProfileId\)\) \{/,
     );
     // Refund before refusal, because the reservation was already taken by the
     // parallel prefetch above it.

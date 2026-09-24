@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import ts from 'typescript';
 import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -325,11 +325,11 @@ describe('the customer charge and the upstream cost share no reader (#139 ws12)'
    * DISAPPEARS fails too, so removing a reader has to be recorded here rather
    * than quietly narrowing what the disjointness below is about.
    */
-  const COST_READERS = [
-    `${API_SRC}/db/schema/usage.ts`,
-    `${API_SRC}/db/usage/costEntryRepository.ts`,
-    `${API_SRC}/lib/cost-tracker.ts`,
-  ];
+  // None. The `cost_entries` repository and `lib/cost-tracker.ts` had no
+  // production caller and were deleted, and the clean cut then dropped the
+  // table itself (0070), so no module can name the estimate. A reader that
+  // appears here is a new upstream-cost figure and needs this gate's review.
+  const COST_READERS: string[] = [];
 
   const CHARGE_WRITERS = [
     `${API_SRC}/lib/credit-anomaly.ts`,
@@ -368,22 +368,27 @@ describe('the customer charge and the upstream cost share no reader (#139 ws12)'
   it('the frozen lists are not empty, and each is what its name says', () => {
     // A vacuity floor for both lists, plus one membership fact per list that a
     // wholesale replacement would break.
-    expect(COST_READERS.length).toBeGreaterThanOrEqual(3);
+    // `COST_READERS` is empty by measurement; the scanner that produces it is
+    // pinned by its own positive controls at the top of this file.
+    expect(COST_READERS).toEqual([]);
     expect(CHARGE_WRITERS.length).toBeGreaterThan(3);
-    expect(COST_READERS).toContain(`${API_SRC}/lib/cost-tracker.ts`);
     expect(CHARGE_WRITERS).toContain(`${API_SRC}/routes/billing.ts`);
   });
 
-  it('the schema still says the column is an estimate, in the place a reader looks', () => {
-    // The prose half of ADR 0005's enforcement, which is not redundant with the
-    // structural half: a developer reaching for this column reads the comment
-    // long before they read a test.
-    const usage = readFileSync(path.join(REPO_ROOT, API_SRC, 'db/schema/usage.ts'), 'utf8');
-    // The block-comment margin and the wrapping both come out first: a literal
-    // substring would otherwise be asserting where the line breaks fall.
-    const prose = usage.replace(/^\s*\*/gm, ' ').replace(/\s+/g, ' ');
-    expect(prose).toContain('it is a derived estimate');
-    expect(prose).toContain('If per-user BILLING is ever taken from this table');
+  it('the upstream-cost ledger is gone: no schema declares it and 0070 drops it', () => {
+    // It used to be enough that the schema called `cost_usd` an estimate. The
+    // table never had a writer, and the clean cut dropped it rather than keep an
+    // estimate column waiting for somebody to bill from it.
+    const schemaDir = path.join(REPO_ROOT, API_SRC, 'db/schema');
+    const declared = readdirSync(schemaDir)
+      .filter((f) => f.endsWith('.ts'))
+      .filter((f) => readFileSync(path.join(schemaDir, f), 'utf8').includes("'cost_entries'"));
+    expect(declared).toEqual([]);
+    const migration = readFileSync(
+      path.join(REPO_ROOT, 'packages/api/drizzle/0070_clean_cut_dormant_tables.sql'),
+      'utf8',
+    );
+    expect(migration).toContain('DROP TABLE "cost_entries";');
   });
 });
 
@@ -448,8 +453,7 @@ describe('the financial write half can be deleted without touching the read mode
     // cache invalidation from the Stripe webhook — cannot look like progress.
     const billing = namedImports(parse(`${API_SRC}/routes/billing.ts`));
     const fromReadModel = billing.filter((i) => i.spec.includes('plan-access'));
-    // A SET: the route takes `getUserEntitlements` twice, statically and again
-    // through an awaited `import()` inside the voice-usage handler.
+    // A SET, so a second import of the same binding would not change the answer.
     expect([...new Set(fromReadModel.flatMap((i) => i.names))].sort()).toEqual([
       'getUserEntitlements',
       'invalidateEntitlementsCache',
@@ -597,7 +601,11 @@ describe('the billing path audit matches the tree it describes (#139 ws12)', () 
     // `plans.model_ids`. Read off `derived`, which is the scan of the tree,
     // rather than incremented — the number this file exists to protect is a
     // measurement, and arithmetic on it is how a plausible wrong one lands.
-    expect(derived.length).toBe(27);
+    //
+    // 27 -> 24: `insertCreditPackage`, `updateCreditPackageByPackageId` and
+    // `deleteCreditPackageByPackageId` had no caller outside their own test and
+    // were deleted; the seed is the only writer of `credit_packages`.
+    expect(derived.length).toBe(24);
     expect(audit.tables.length).toBe(7);
   });
 
@@ -616,7 +624,8 @@ describe('the billing path audit matches the tree it describes (#139 ws12)', () 
     // have none, so neither an empty caller map nor a scanner matching
     // everything would pass.
     expect(audited.filter((w) => w.reachable).length).toBeGreaterThan(0);
-    expect(audited.filter((w) => !w.reachable).length).toBe(12);
+    // 12 -> 9 when the three unreachable credit_packages writers were deleted.
+    expect(audited.filter((w) => !w.reachable).length).toBe(9);
   });
 
   it('every writer is classified, from the vocabulary the audit declares', () => {
@@ -649,8 +658,9 @@ describe('the billing path audit matches the tree it describes (#139 ws12)', () 
     expect(derived).toEqual([...audit.balanceSurfaces.modules].sort());
     // Hosted provider voice/image/audio surfaces are absent after cutover; this
     // count is read from the surviving product tree rather than preserved as a
-    // compatibility floor for deleted modules.
-    expect(derived.length).toBe(11);
+    // compatibility floor for deleted modules. `routes/codea.ts` left with the
+    // `alia_sk_*` keys it was the only lane for.
+    expect(derived.length).toBe(10);
   });
 });
 
@@ -666,29 +676,33 @@ describe('the billing path audit matches the tree it describes (#139 ws12)', () 
  * ## re-read
  *
  * `epic-139-status.json` L475 states that free usage "does write a `cost_entries`
- * row, so cost attribution exists". It does not. `recordCost` has **no caller
- * anywhere in this package** — `cost-tracker.ts` says so in its own file comment
- * and the census below re-derives it — so the token-metered paths produce no
- * cost record at all. The last assertion in this block pins that zero, so the
- * day somebody wires the ledger up they are sent back here.
+ * row, so cost attribution exists". It did not. Nothing in this package ever
+ * wrote `cost_entries`: `recordCost` never had a caller and was deleted with its
+ * repository, and the clean cut then dropped the table (0070). The last
+ * assertion in this block pins that, so the day somebody builds a ledger they
+ * are sent back here.
  *
- * The one settlement that DOES write a cost record is the voice session, and it
- * is the one place a `CreditReservation` and the serving provider coexist. That
- * is the live entrypoint; `cost_entries` carries the same column ready for the
- * token paths.
+ * The one settlement that did write a cost record was the voice session, into
+ * `voice_call_usage.grant_kind`. Its writer left with the LiveKit route in
+ * #477 and 0072 dropped the table, so today the funding source is decided on
+ * every reservation and persisted nowhere — the first assertion below pins
+ * that, so whoever builds the ledger starts from the decision, not from a
+ * column that no longer exists.
  */
 describe('a cost record says which balance funded it (#139 ws12)', () => {
-  it('the funding source is a closed set both tables render a CHECK from', () => {
+  it('the funding source is a closed set, and no table persists it since voice_call_usage went', () => {
     expect([...CREDIT_FUNDING_SOURCES]).toEqual(['free_allowance', 'paid_balance']);
 
-    const schema = readFileSync(path.join(REPO_ROOT, API_SRC, 'db/schema/usage.ts'), 'utf8');
-    for (const table of ['cost_entries', 'voice_call_usage']) {
-      expect(schema, `${table} has no funding-source CHECK`).toContain(`${table}_grant_kind_check`);
-    }
-    // Rendered from the tuple, not from a retyped list beside it.
-    const usage = symbols(parse(`${API_SRC}/db/schema/usage.ts`));
-    expect(usage).toContain('CREDIT_FUNDING_SOURCES');
-    expect(usage).not.toContain('free_allowance');
+    // A census, not an aspiration: no schema module renders a column from the
+    // tuple. A cost record that comes back must render its CHECK from it — and
+    // turns this red, which is the moment to restate the gate.
+    const persisting = trackedSources(`${API_SRC}/db/schema`)
+      .filter((f) => !isTestFile(f))
+      .filter((f) => symbols(parse(f)).has('CREDIT_FUNDING_SOURCES'))
+      .sort();
+    expect(persisting, 'a table persists the funding source again — restate this gate').toEqual([]);
+    // The positive control: the same scan finds the tuple where it IS declared.
+    expect(symbols(parse(`${API_SRC}/domain/credit-funding.ts`))).toContain('CREDIT_FUNDING_SOURCES');
   });
 
   it('the reservation carries it, decided from the balance the spend returned', () => {
@@ -717,24 +731,19 @@ describe('a cost record says which balance funded it (#139 ws12)', () => {
     );
   });
 
-  it('the token-metered ledger still has no writer, and this is the count that says so', () => {
-    // Not an aspiration: a measurement, frozen. `recordCost` is the only writer
-    // of `cost_entries`, and outside its own module and its test nothing calls
-    // it — so ADR 0005's cost attribution does NOT yet hold for chat, images or
-    // audio. Wiring it up turns this red, which is the point.
-    const callers = trackedSources(API_SRC)
-      .filter((f) => !isTestFile(f) && f !== `${API_SRC}/lib/cost-tracker.ts`)
-      .filter((f) => symbols(parse(f)).has('recordCost'))
+  it('there is no token-metered ledger, and this is the census that says so', () => {
+    // Not an aspiration: a measurement, frozen. No shipped module names a
+    // `costEntries` table object — the table was dropped — so ADR 0005's cost
+    // attribution does NOT hold for chat, images or audio. Building a ledger
+    // turns this red, which is the point: it has to be designed, not revived.
+    const writers = trackedSources(API_SRC)
+      .filter((f) => !isTestFile(f))
+      .filter((f) => symbols(parse(f)).has('costEntries'))
       .sort();
-    expect(callers, 'recordCost gained a caller — update this gate and the audit').toEqual([]);
+    expect(writers, 'a cost_entries ledger came back — update this gate and the audit').toEqual([]);
 
-    // The positive control: the same scan finds the function where it IS.
-    expect(symbols(parse(`${API_SRC}/lib/cost-tracker.ts`))).toContain('recordCost');
-    // And `recordCost` really does take a funding source, so the day it is wired
-    // in the attribution comes with it rather than being added afterwards.
-    expect(readFileSync(path.join(REPO_ROOT, API_SRC, 'lib/cost-tracker.ts'), 'utf8')).toContain(
-      'grantKind: CreditFundingSource | null,',
-    );
+    // The positive control: the same scan finds a table object where one IS declared.
+    expect(symbols(parse(`${API_SRC}/db/schema/usage.ts`))).toContain('chatAnalytics');
   });
 });
 
@@ -792,9 +801,9 @@ describe('every seeded feature id has a contract allowance key (#139 ws12)', () 
     // Uppercase, a leading digit and an illegal character are all outside the
     // contract's pattern; a mapper that returned its input would pass the test
     // above and this one would catch it.
-    expect(allowanceKeyFor('Voice-Minutes')).toBeNull();
+    expect(allowanceKeyFor('Concurrent-Tasks')).toBeNull();
     expect(allowanceKeyFor('1-minute')).toBeNull();
-    expect(allowanceKeyFor('voice minutes')).toBeNull();
-    expect(allowanceKeyFor('voice-minutes')).toBe('voice_minutes');
+    expect(allowanceKeyFor('concurrent tasks')).toBeNull();
+    expect(allowanceKeyFor('concurrent-tasks')).toBe('concurrent_tasks');
   });
 });

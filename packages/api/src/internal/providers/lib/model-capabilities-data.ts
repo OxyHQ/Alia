@@ -29,7 +29,7 @@ export const DEFAULT_CAPABILITIES: ModelCapabilities = {
 };
 
 // Helper to create capabilities with overrides
-export function createCapabilities(overrides: Partial<ModelCapabilities>): ModelCapabilities {
+function createCapabilities(overrides: Partial<ModelCapabilities>): ModelCapabilities {
   return { ...DEFAULT_CAPABILITIES, ...overrides };
 }
 
@@ -396,14 +396,14 @@ export const MODEL_CAPABILITIES: Record<string, ModelCapabilities> = {
 
 // ============== PRICING DATABASE ==============
 
-export interface ModelPricing {
+interface ModelPricing {
   tier: PricingTier;
   costPer1MInput?: number;
   costPer1MOutput?: number;
   averageLatencyMs?: number;
 }
 
-export const MODEL_PRICING: Record<string, ModelPricing> = {
+const MODEL_PRICING: Record<string, ModelPricing> = {
   // ============== OPENAI ==============
   // Legacy models
   'ada': { tier: 'paid', costPer1MInput: 0.40, costPer1MOutput: 0.40 },

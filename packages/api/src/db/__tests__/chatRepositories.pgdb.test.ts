@@ -34,9 +34,8 @@ import {
  * The chat repositories, against a REAL server.
  *
  * `db/__tests__/chat.pgdb.test.ts` covers the SCHEMA — that the constraints and
- * the partial unique reached the database, for all three of its tables — and
- * `canvasSessionRepository.pgdb.test.ts` covers the third one's queries. This
- * file covers the conversation and message queries, and
+ * the partial unique reached the database. This file covers the conversation
+ * and message queries, and
  * almost every case here exists because the Mongo original and the obvious
  * Postgres translation return different rows without either one erroring:
  * NULL ordering flips in both directions, `$set: { x: undefined }` stops being a

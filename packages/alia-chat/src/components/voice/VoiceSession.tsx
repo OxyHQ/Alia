@@ -1,13 +1,12 @@
 /**
- * A live LiveKit call, mounted only while voice mode is on.
+ * A live voice call, mounted only while voice mode is on.
  *
- * This is the only place the chat UI touches `livekit-client`. The chat shell
- * receives it as the `voiceSession` prop rather than importing it, so a
- * text-only consumer never pulls the LiveKit client into its module graph —
- * which is the whole reason the `@alia.onl/sdk/voice` entry exists.
+ * The chat shell receives it as the `voiceSession` prop rather than importing
+ * it, so a text-only consumer never compiles the voice loop, speech playback or
+ * the call UI — which is the reason the `@alia.onl/sdk/voice` entry exists.
  *
- * Mounting starts the call; unmounting ends it (`useVoiceRoom` tears the room
- * down on unmount), so the shell only has to decide whether to render it.
+ * Mounting starts the call; unmounting ends it (`useVoiceRoom` stops listening
+ * and speaking on unmount), so the shell only has to decide whether to render it.
  */
 
 import { useEffect, useRef } from 'react';
@@ -25,15 +24,9 @@ export function VoiceSession({ apiUrl, onStateChange, onEnd }: VoiceSessionProps
     isMuted,
     error,
     messages,
-    cohostActive,
-    currentSpeaker,
-    roundComplete,
     isConnected,
     connect,
     toggleMute,
-    enableCohost,
-    disableCohost,
-    continueCohost,
   } = useVoiceRoom({ apiUrl });
 
   const { captureLevel, playbackLevel } = useAudioLevelMonitor(room, isConnected);
@@ -75,13 +68,7 @@ export function VoiceSession({ apiUrl, onStateChange, onEnd }: VoiceSessionProps
       roomState={roomState}
       agentState={agentState}
       isMuted={isMuted}
-      cohostActive={cohostActive}
-      currentSpeaker={currentSpeaker}
-      roundComplete={roundComplete}
       onToggleMute={toggleMute}
-      onEnableCohost={enableCohost}
-      onDisableCohost={disableCohost}
-      onContinueCohost={continueCohost}
       onEnd={onEnd}
     />
   );

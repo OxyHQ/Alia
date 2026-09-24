@@ -56,7 +56,7 @@ export interface SurfaceCapability {
    * It is an anchor and not a wire value: `GET /catalogue` echoes the surface
    * NAME a caller declared, so renaming a package cannot change an API
    * response. Written as a PATH rather than a bare directory name because four
-   * of the seven directories are `alia-`-prefixed, and a bare `alia-console` in
+   * of the six directories are `alia-`-prefixed, and a bare `alia-canvas` in
    * product source is alias-shaped — gate 3 of `__tests__/architectureGates`
    * censuses every such literal, and it is right to: adding six workspace names
    * to its not-a-model exemption list is exactly how that list stops meaning
@@ -79,7 +79,7 @@ export interface Surface extends SurfaceCapability {
  * because every entry answers in text.
  */
 export const SURFACE_CAPABILITIES: Readonly<Record<string, SurfaceCapability>> = {
-  /** `packages/app` — the Expo client, web and native. Voice through LiveKit. */
+  /** `packages/app` — the Expo client, web and native. Voice is recognized on the device. */
   chat: { workspace: 'packages/app', modalities: ['text', 'image', 'audio'] },
   /** `packages/alia-chat`, published as `@alia.onl/sdk` and embedded by third parties. */
   embedded: { workspace: 'packages/alia-chat', modalities: ['text', 'image', 'audio'] },
@@ -91,8 +91,6 @@ export const SURFACE_CAPABILITIES: Readonly<Record<string, SurfaceCapability>> =
   editor: { workspace: 'packages/alia-codea', modalities: ['text', 'image'] },
   /** `packages/alia-codea-cli` — the terminal client. */
   terminal: { workspace: 'packages/alia-codea-cli', modalities: ['text'] },
-  /** `packages/alia-console` — the operator dashboard. */
-  console: { workspace: 'packages/alia-console', modalities: ['text'] },
 };
 
 export const SURFACES: readonly string[] = Object.keys(SURFACE_CAPABILITIES).sort();

@@ -40,10 +40,9 @@
  *
  * ## Scope, so this does not silently overlap its neighbours
  *
- * - `middleware/__tests__/credential-deprecation.test.ts` (#139 ws11) owns the
- *   ISSUANCE half of "no Alia-owned API keys": nothing mints one, the generator
- *   is deleted, no module inserts into the developer tables. This file owns the
- *   ACCEPTANCE half: which credentials reach the compatibility surface.
+ * - "No Alia-owned API keys" is now total: the `alia_sk_*` keys, their tables and
+ *   their generator are gone, and `middleware/auth.ts` refuses the prefix by
+ *   name. This file owns which credentials reach the compatibility surface.
  * - `inference-boundary.test.ts` (#139 ws15) owns rate limiting and the global
  *   caller map for provider-key writers. This file owns the routes layer.
  * - `unified-product-runtime.test.ts` (#139 ws13) owns handler identity across
@@ -63,7 +62,6 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import aliaChatRouter from '../chat.js';
 import v1Router from '../v1.js';
 import {
-  authenticateApiKey,
   authenticateChannelBotSecret,
   authenticateRequesterAssertion,
   authenticateTelegramBot,
@@ -121,7 +119,6 @@ const KNOWN_MIDDLEWARE: ReadonlyArray<readonly [unknown, string]> = [
   [optionalAuth, 'optionalAuth'],
   [authenticateToken, 'authenticateToken'],
   [authenticateTokenOrApiKey, 'authenticateTokenOrApiKey'],
-  [authenticateApiKey, 'authenticateApiKey'],
   [authenticateTelegramBot, 'authenticateTelegramBot'],
   [authenticateChannelBotSecret, 'authenticateChannelBotSecret'],
   [authenticateRequesterAssertion, 'authenticateRequesterAssertion'],
@@ -238,6 +235,18 @@ const aliaChat = surface(aliaChatRouter, '/alia/chat');
  *
  * `/v1` therefore LOSES five routes and gains none, which is the only direction
  * ADR 0004 allows.
+ *
+ * ## 15 became 13: `POST /v1/voice/token` and `POST /v1/voice/transcribe` left
+ *
+ * Both had answered `503 KAANA_CAPABILITY_UNAVAILABLE` to every caller since
+ * #477 cut Alia over to Oxy: the first minted a LiveKit room whose realtime
+ * model called providers directly, the second posted audio to a provider's
+ * transcription API, and Oxy serves neither. Their only consumers were
+ * `@alia.onl/sdk`'s `useVoiceRoom` and `useSpeechToText`, which recognize speech
+ * on the device from 8.0.0 and send each spoken turn through
+ * `/v1/chat/completions` — so, as with `/v1/shows`, the consumer moved in the
+ * same change. They are gone (404) rather than `410`: a stub that refused every
+ * request for three weeks is not a surface anyone could have depended on.
  */
 const FROZEN_ROUTES: readonly string[] = [
   'GET /v1',
@@ -253,8 +262,6 @@ const FROZEN_ROUTES: readonly string[] = [
   'POST /v1/report-usage',
   'POST /v1/resolve-model',
   'POST /v1/responses',
-  'POST /v1/voice/token',
-  'POST /v1/voice/transcribe',
 ];
 
 describe('the compatibility surface gains no route (#139 ws6, ADR 0004)', () => {
@@ -263,7 +270,7 @@ describe('the compatibility surface gains no route (#139 ws6, ADR 0004)', () => 
     // controls. Without it, a walk that silently returned nothing would satisfy
     // "no unexpected route" perfectly.
     expect(aliaChat.map((e) => e.signature)).toEqual(['GET /alia/chat', 'POST /alia/chat']);
-    expect(v1.length).toBeGreaterThanOrEqual(15);
+    expect(v1.length).toBeGreaterThanOrEqual(13);
   });
 
   it('mounts exactly the frozen list, in both directions', () => {
@@ -272,7 +279,7 @@ describe('the compatibility surface gains no route (#139 ws6, ADR 0004)', () => 
     // removal is what the compatibility window gates and an unrecorded removal
     // is the other way this list stops describing the surface.
     expect(v1.map((e) => e.signature)).toEqual([...FROZEN_ROUTES].sort());
-    expect(FROZEN_ROUTES).toHaveLength(15);
+    expect(FROZEN_ROUTES).toHaveLength(13);
     expect(new Set(FROZEN_ROUTES).size).toBe(FROZEN_ROUTES.length);
   });
 
@@ -295,7 +302,7 @@ describe('the compatibility surface gains no route (#139 ws6, ADR 0004)', () => 
  *
  * Three regimes, and the difference between them is the whole point of freezing
  * per route rather than per surface: the same file mounts an unauthenticated
- * catalogue, an optional-auth listing and twelve authenticated endpoints, and
+ * catalogue, an optional-auth listing and ten authenticated endpoints, and
  * which regime a route falls into is decided by WHERE IN THE FILE it is
  * declared. Moving `router.use('/chat/completions', ...)` three lines up makes
  * inference public, and nothing about that edit looks like a security change.
@@ -334,8 +341,6 @@ const FROZEN_CHAINS: Readonly<Record<string, readonly string[]>> = {
   'POST /v1/chat/completions': CHAT,
   'GET /v1/chat/completions': CHAT,
   'POST /v1/responses': AUTHENTICATED,
-  'POST /v1/voice/token': AUTHENTICATED,
-  'POST /v1/voice/transcribe': AUTHENTICATED,
   'POST /v1/audio/speech': AUTHENTICATED,
   'POST /v1/audio/generate': AUTHENTICATED,
   'GET /v1/audio/jobs/:jobId': AUTHENTICATED,
@@ -382,14 +387,14 @@ describe('the compatibility surface gains no auth mechanism (#139 ws6, ADR 0004)
 
   it('the one unnamed middleware is the channel-bot pre-auth, and it still compares in constant time', () => {
     /**
-     * `?anonymous` is frozen into twelve chains above, so what it IS has to be
+     * `?anonymous` is frozen into ten chains above, so what it IS has to be
      * asserted somewhere or the freeze pins a shape and not a mechanism. It
      * grants `req.user` from a header, which makes it an auth mechanism reaching
      * the compatibility surface — condition 1 of ADR 0004 — and the only thing
      * standing between that header and a chosen user id is the secret compare.
      */
     const chains = v1.filter((e) => e.chain.includes('?anonymous'));
-    expect(chains).toHaveLength(12);
+    expect(chains).toHaveLength(10);
     // Exactly one distinct unnamed function, and it is first in every chain.
     for (const endpoint of chains) expect(endpoint.chain[0]).toBe('?anonymous');
 
@@ -519,18 +524,16 @@ describe('the compatibility surface accepts no new credential (#139 ws6, ADR 000
     /**
      * Five mechanisms reach `/v1`, and each one is a header this file reads:
      *
-     *  - `authorization` — an Oxy JWT/service token or an `alia_sk_*` key;
+     *  - `authorization` — an Oxy JWT/service token (an `alia_sk_*` key is
+     *    refused by name);
      *  - `x-telegram-bot-secret` with `x-oxy-user-id` and `x-telegram-id`;
      *  - `x-channel-bot-secret` with `x-oxy-user-id`.
      *
      * A sixth would be a new way to authenticate against the compatibility
-     * surface, which is what ADR 0004 condition 1 is about. `user-agent` is on
-     * the list because the file reads it — for the usage record, not for auth —
-     * and leaving it off would mean maintaining a reason to exclude something.
+     * surface, which is what ADR 0004 condition 1 is about.
      */
     expect(headersRead(auth)).toEqual([
       'authorization',
-      'user-agent',
       'x-channel-bot-secret',
       'x-oxy-user-id',
       'x-telegram-bot-secret',
@@ -538,16 +541,17 @@ describe('the compatibility surface accepts no new credential (#139 ws6, ADR 000
     ]);
   });
 
-  it('screens exactly one Alia-owned credential prefix', () => {
-    // `alia_sk_` is the Alia-owned key scheme the compatibility window is
-    // written about, and `Bearer ` is the HTTP scheme it arrives under. A second
-    // Alia-owned prefix here IS the reintroduction ADR 0004 condition 2
-    // forbids — a new key type that authenticates against `/v1`.
-    //
-    // Issuance is somebody else's assertion: nothing MINTS an `alia_sk_*`, and
-    // `middleware/__tests__/credential-deprecation.test.ts` (#139 ws11) is where
-    // that is enforced. This is the acceptance side.
+  it('screens exactly one Alia-owned credential prefix, and only to refuse it', () => {
+    // `alia_sk_` is the retired Alia-owned key scheme, and `Bearer ` is the
+    // HTTP scheme it arrived under. The prefix is screened only so the refusal
+    // can name it. A second Alia-owned prefix here IS the reintroduction ADR
+    // 0004 condition 2 forbids — a new key type that authenticates against `/v1`.
     expect(prefixesScreened(auth)).toEqual(['Bearer ', 'alia_sk_']);
+    const branch = read('middleware/auth.ts').match(
+      /if \(token\.startsWith\('alia_sk_'\)\) \{\s*([\s\S]*?)\n {2}\}/,
+    );
+    expect(branch?.[1]).toContain('refuseRetiredAliaKey(res)');
+    expect(branch?.[1]).not.toContain('next(');
   });
 
   it('holds exactly these four secrets, so a new shared secret is visible', () => {
@@ -578,13 +582,17 @@ describe('the compatibility surface accepts no new credential (#139 ws6, ADR 000
  *
  * Two names, and the boundary between them and Alia's own billing is the
  * distinction ADR 0005 draws: `user_credits`, `transactions` and `subscriptions`
- * are Alia charging its users, which stays; these four are Alia accounting for
+ * are Alia charging its users, which stays; these two are Alia accounting for
  * what it owes upstream, which under ADR 0004 condition 3 moves to Kaana and the
  * Oxy ledger.
  *
- *  - `insertCostEntry` is the only statement that writes `cost_entries`, whose
- *    columns are `actual_provider`, `actual_model_id` and `cost_usd`;
- *  - `recordCost` is its only wrapper.
+ *  - `insertCostEntry` was the only statement that wrote `cost_entries`, whose
+ *    columns were `actual_provider`, `actual_model_id` and `cost_usd`;
+ *  - `recordCost` was its only wrapper.
+ *
+ * Neither ever had a production caller, both were deleted, and the table is
+ * gone too (0070). The names stay here so that neither can come back under the
+ * same name unnoticed.
  *
  * Provider-account health and key spend no longer exist in this service: Kaana
  * owns provider credentials and their operational state.
@@ -636,14 +644,15 @@ describe('the compatibility surface reintroduces no provider billing (#139 ws6, 
     /**
      * Both controls, because both failures print the same comfortable answer.
      *
-     * POSITIVE: `recordApiKeyUsage` is called by `middleware/auth.ts`, so the
-     * pattern and the corpus both work on a real call site.
+     * POSITIVE: `recordApiKeyUsage` is called by
+     * `middleware/api-key-rate-limit.ts`, so the pattern and the corpus both
+     * work on a real call site.
      *
-     * NEGATIVE: THIS FILE names all four provider-cost writers, in prose, and
-     * calls none of them. A census over raw text would report it as four call
+     * NEGATIVE: THIS FILE names both provider-cost writers, in prose, and
+     * calls none of them. A census over raw text would report it as two call
      * sites — and the whole guard below would then be reporting itself.
      */
-    expect(namesCallTo('recordApiKeyUsage', ['middleware/auth.ts'])).toEqual(['middleware/auth.ts']);
+    expect(namesCallTo('recordApiKeyUsage', ['middleware/api-key-rate-limit.ts'])).toEqual(['middleware/api-key-rate-limit.ts']);
 
     const self = 'routes/__tests__/v1-compatibility-surface.test.ts';
     for (const writer of PROVIDER_COST_WRITERS) {
@@ -652,20 +661,13 @@ describe('the compatibility surface reintroduces no provider billing (#139 ws6, 
     }
   });
 
-  it('names the two remaining cost writers, so the list cannot shrink or hold a typo', () => {
+  it('names the two retired cost writers, so the list cannot shrink or hold a typo', () => {
     /**
      * The list's own exact-count assertion, and the reason it needs one: every
-     * assertion below iterates it, so an emptied list makes them all pass, and a
-     * misspelled entry is an emptied slot that still looks occupied.
+     * assertion below iterates it, so an emptied list makes them all pass.
      */
     expect(PROVIDER_COST_WRITERS).toHaveLength(2);
     expect(new Set(PROVIDER_COST_WRITERS).size).toBe(PROVIDER_COST_WRITERS.length);
-
-    const shipped = shippedModules();
-    const undeclared = PROVIDER_COST_WRITERS.filter(
-      (writer) => !shipped.some((module) => new RegExp(`export async function ${writer}\\b`).test(code(module))),
-    );
-    expect(undeclared).toEqual([]);
   });
 
   it('no route module writes provider cost', () => {
@@ -685,29 +687,23 @@ describe('the compatibility surface reintroduces no provider billing (#139 ws6, 
     expect(offenders).toEqual([]);
   });
 
-  it('the cost_entries table has one writer and it has no caller', () => {
+  it('no shipped module declares or calls a cost writer', () => {
     /**
      * The stronger fact behind the route-scoped claim, and the reason that one
      * is not the whole guard: Alia records no provider cost ANYWHERE today, so
      * ADR 0004 condition 3 is currently true rather than merely unenforced, and
      * a reintroduction has to break this to happen.
      *
-     * Frozen as an exact map rather than as an empty set, because
-     * `namesCallTo` matches a declaration as well as a call — which is the
-     * honest thing for it to do here, since a route module DECLARING one of
-     * these would be exactly as bad as calling one.
+     * `namesCallTo` matches a declaration as well as a call, which is the honest
+     * thing for it to do here: declaring one of these again would be exactly as
+     * bad as calling one.
      */
     const shipped = shippedModules();
     expect(shipped.length).toBeGreaterThan(400);
 
-    expect(namesCallTo('insertCostEntry', shipped)).toEqual([
-      // Declares it: the only statement that writes `cost_entries`.
-      'db/usage/costEntryRepository.ts',
-      // Its only wrapper.
-      'lib/cost-tracker.ts',
-    ]);
-    // Declares `recordCost` and is the only module that names it: no caller.
-    expect(namesCallTo('recordCost', shipped)).toEqual(['lib/cost-tracker.ts']);
+    for (const writer of PROVIDER_COST_WRITERS) {
+      expect(namesCallTo(writer, shipped), writer).toEqual([]);
+    }
   });
 });
 
@@ -716,8 +712,7 @@ describe('the compatibility surface reintroduces no provider billing (#139 ws6, 
  *
  * Over comment-stripped source, so this repository's prose about a writer is
  * not counted as a use of it. That distinction is not theoretical: this file
- * names every writer below in a comment, and `lib/cost-tracker.ts` discusses
- * `recordCost` in its own header.
+ * names every writer above in a comment.
  */
 function namesCallTo(name: string, modules: readonly string[]): string[] {
   const pattern = new RegExp(`\\b${name}\\s*\\(`);
@@ -954,5 +949,51 @@ describe('an anonymous caller is refused on both chat surfaces (#139 ws6)', () =
 
     const version = await fetch(`${base}/v1`);
     expect(version.status).toBe(200);
+  });
+});
+
+/**
+ * The two voice stubs, by HTTP rather than by mount: an authenticated caller
+ * reaches the router and finds nothing there. The user is set ahead of the
+ * router the way the channel-bot pre-middleware sets it, so no Oxy call is
+ * made; `POST /v1/report-usage` is the control — a route that IS there, still
+ * answering its deliberate `410`, so a 404 cannot come from a router that was
+ * never reached.
+ */
+describe('the retired voice session and transcription routes are gone', () => {
+  let base: string;
+  let server: Server;
+
+  beforeAll(async () => {
+    const app = express();
+    app.use(express.json());
+    app.use((req, _res, next) => {
+      req.user = { id: 'user-voice-retired' };
+      next();
+    });
+    app.use('/v1', v1Router);
+    server = await new Promise((resolve) => {
+      const listening = app.listen(0, '127.0.0.1', () => resolve(listening));
+    });
+    base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  });
+
+  afterAll(async () => {
+    await new Promise<void>((resolve, reject) => server.close((e) => (e ? reject(e) : resolve())));
+  });
+
+  const post = (route: string): Promise<Response> =>
+    fetch(`${base}${route}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+
+  it.each(['/v1/voice/token', '/v1/voice/transcribe'])('%s answers 404', async (route) => {
+    const response = await post(route);
+    expect(response.status).toBe(404);
+    await response.body?.cancel();
+  });
+
+  it('while the router in front of them still answers an authenticated caller', async () => {
+    const response = await post('/v1/report-usage');
+    expect(response.status).toBe(410);
+    await response.body?.cancel();
   });
 });

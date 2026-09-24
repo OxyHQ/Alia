@@ -6,22 +6,18 @@ import {
   isUniqueViolation,
 } from '@oxy.so/db';
 import { closePostgres, connectPostgres, type ApiDatabase } from '../index';
-import {
-  agentReviews,
-  agentSessionResources,
-  agentSessions,
-  containerTemplates,
-} from '../schema/agent-sessions';
+import { agentReviews, agentSessions } from '../schema/agent-sessions';
 import { agents } from '../schema/agents';
 
 /**
  * Batch 9c against a REAL server.
  *
  * Deleting an agent cleans up nothing in Mongo today, so every child in this
- * batch had to answer that separately — and the four answers are different.
- * Each is pinned here, because a deletion rule is invisible in a schema diff
- * and its damage is the kind nobody notices: a session that vanished, a
- * template that did not, a review that outlived its subject.
+ * batch had to answer that separately — and the answers are different. Each is
+ * pinned here, because a deletion rule is invisible in a schema diff and its
+ * damage is the kind nobody notices: a session that vanished, a review that
+ * outlived its subject. (`agent_session_resources` and `container_templates`
+ * left with the agent sandbox in `0073_drop_sandbox_containers`.)
  */
 
 let db: ApiDatabase;
@@ -189,46 +185,6 @@ describe('agent_sessions', () => {
   });
 });
 
-describe('agent_session_resources', () => {
-  it('goes with the session, because it WAS the session document', async () => {
-    await db.insert(agentSessions).values(sessionValues({ id: 'as-res' }));
-    await db.insert(agentSessionResources).values({
-      id: 'asr-1',
-      sessionId: 'as-res',
-      type: 'container',
-      resourceId: 'ctr-abc',
-    });
-
-    await db.delete(agentSessions).where(eq(agentSessions.id, 'as-res'));
-
-    const rows = await db
-      .select({ id: agentSessionResources.id })
-      .from(agentSessionResources)
-      .where(eq(agentSessionResources.id, 'asr-1'));
-    expect(rows).toEqual([]);
-  });
-
-  it('refuses the same resource twice on one session', async () => {
-    // `lib/agent/runner.ts:272` guards this with `resources.some(...)` before
-    // pushing — a read-then-write two concurrent tool calls can both pass. The
-    // unique makes what that check was reaching for structural.
-    await db.insert(agentSessions).values(sessionValues({ id: 'as-dupres' }));
-    await db
-      .insert(agentSessionResources)
-      .values({ id: 'asr-a', sessionId: 'as-dupres', type: 'vm', resourceId: 'vm-1' });
-
-    const second = db
-      .insert(agentSessionResources)
-      .values({ id: 'asr-b', sessionId: 'as-dupres', type: 'vm', resourceId: 'vm-1' });
-
-    await expect(second).rejects.toSatisfy((error: unknown) => {
-      expect(isUniqueViolation(error)).toBe(true);
-      expect(constraintNameOf(error)).toBe('agent_session_resources_session_resource_key');
-      return true;
-    });
-  });
-});
-
 describe('agent_reviews', () => {
   it('bounds the rating 1..5 — NOT 0..5, unlike the agent average', async () => {
     /**
@@ -298,59 +254,6 @@ describe('agent_reviews', () => {
       .from(agentReviews)
       .where(eq(agentReviews.id, 'ar-doomed'));
     expect(rows).toEqual([]);
-  });
-});
-
-describe('container_templates', () => {
-  it('SURVIVES its agent being deleted, with the association nulled', async () => {
-    /**
-     * The one place `SET NULL` is available in this batch, and the contrast is
-     * the point: `api_usage.key_id` could not take this answer because the
-     * column was `notNull` and the id WAS the row's content. Here the row is a
-     * snapshot tag that stands on its own and `agentId` is optional in Mongoose,
-     * so the association can be dropped without erasing anything.
-     */
-    await db.insert(agents).values(agentValues({ id: 'ag-tpl' }));
-    await db.insert(containerTemplates).values({
-      id: 'ct-1',
-      name: 'node20',
-      baseImage: 'node:20',
-      snapshotTag: 'snap-node20',
-      oxyUserId: 'oxy-user-sessions',
-      agentId: 'ag-tpl',
-    });
-
-    await db.delete(agents).where(eq(agents.id, 'ag-tpl'));
-
-    const [row] = await db
-      .select({ id: containerTemplates.id, agentId: containerTemplates.agentId })
-      .from(containerTemplates)
-      .where(eq(containerTemplates.id, 'ct-1'));
-    expect(row).toEqual({ id: 'ct-1', agentId: null });
-  });
-
-  it('refuses a duplicate snapshot tag', async () => {
-    await db.insert(containerTemplates).values({
-      id: 'ct-dup-a',
-      name: 'a',
-      baseImage: 'node:20',
-      snapshotTag: 'snap-dup',
-      oxyUserId: 'oxy-user-sessions',
-    });
-
-    const second = db.insert(containerTemplates).values({
-      id: 'ct-dup-b',
-      name: 'b',
-      baseImage: 'node:20',
-      snapshotTag: 'snap-dup',
-      oxyUserId: 'oxy-user-sessions',
-    });
-
-    await expect(second).rejects.toSatisfy((error: unknown) => {
-      expect(isUniqueViolation(error)).toBe(true);
-      expect(constraintNameOf(error)).toBe('container_templates_snapshot_tag_key');
-      return true;
-    });
   });
 });
 

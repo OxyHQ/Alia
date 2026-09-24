@@ -7,8 +7,8 @@ import { eq } from 'drizzle-orm';
  *
  * ## The bug this file exists for looks like nothing at all
  *
- * `reserveCredits` DEBITS. Three call sites — `routes/agents/hire.ts`,
- * `lib/agent/routing-handler.ts` and the agent-escalation branch of
+ * `reserveCredits` DEBITS. Three call sites — the since-retired
+ * `routes/agents/hire.ts`, `lib/agent/routing-handler.ts` and the agent-escalation branch of
  * `routes/v1/chat-completions.ts` — reserved an agent's price, created a
  * session, incremented counters and enqueued a job, and answered a failure of
  * any of those with a `log.error`. The request 500s, which somebody notices;

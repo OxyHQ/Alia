@@ -44,7 +44,7 @@ the vocabulary behind it.
      User  ────────────────>|   iOS, Android)   |
                             +---------+---------+
                                       |
-                            POST /v1/chat/completions (SSE)
+                            POST /alia/chat (SSE)
                                       |
                             +---------v---------+
                             |  Express API      |
@@ -67,7 +67,7 @@ the vocabulary behind it.
      +------------------+
 ```
 
-PostgreSQL is Alia's product store. The last domains — conversations, messages, agents, organizations, containers, skills and the rest — are ported, and `packages/api` opens no MongoDB connection and registers no Mongoose model. Under [ADR 0001](./adr/0001-alia-oxy-kaana-responsibility-boundary.md), every hosted inference call crosses the published Oxy inference client and Oxy calls Kaana; only a user's explicitly connected local runtime stays outside that hop.
+PostgreSQL is Alia's product store. The last domains — conversations, messages, agents, organizations, skills and the rest — are ported, and `packages/api` opens no MongoDB connection and registers no Mongoose model. Under [ADR 0001](./adr/0001-alia-oxy-kaana-responsibility-boundary.md), every hosted inference call crosses the published Oxy inference client and Oxy calls Kaana; only a user's explicitly connected local runtime stays outside that hop.
 
 | App | Stack | Purpose |
 | --- | --- | --- |
@@ -76,17 +76,14 @@ PostgreSQL is Alia's product store. The last domains — conversations, messages
 | `packages/alia-codea` | VS Code extension | Coding assistant surface |
 | `packages/alia-codea-cli` | Bun CLI | Terminal coding assistant |
 | `packages/alia-cowork` | Electron | Desktop assistant surface |
-| `packages/alia-console` | TanStack Start + React | Developer console |
 | `packages/alia-canvas` | Vite + React | Canvas / diagram editor |
-| `packages/alia-docker-host` | Express + TypeScript | Sandboxed container host |
 | `packages/integrations` | Express + TypeScript | Telegram / WhatsApp / Discord / browser bridges, and the MCP client |
 | `packages/alia-chat` | React | Published as `@alia.onl/sdk` — the CLIENT SDK (components, hooks, voice) |
 | `packages/alia-server` | TypeScript | Published as `@alia.onl/server` — the SERVER client a consumer backend calls Alia with |
-| `packages/shared-types` | TypeScript | Shared types |
 
 ## Install
 
-The monorepo uses Bun workspaces and Turbo. Bun is the only supported package manager.
+The monorepo uses Bun workspaces — no Turborepo or Nx; root scripts fan out with `bun run --filter`. Bun is the only supported package manager.
 
 ```sh
 bun install
@@ -107,7 +104,6 @@ Or run individual workspaces:
 ```sh
 bun run dev:api          # Express API only
 bun run dev:app          # Expo app (web + tunnel)
-bun run dev:admin        # Admin console
 bun run dev:canvas       # Canvas app
 bun run dev:codea        # VS Code extension
 bun run dev:cowork       # Electron desktop app
@@ -131,7 +127,7 @@ const res = await fetch('https://api.alia.onl/v1/chat/completions', {
 // SSE stream — see "Chat runtime" for the event contract.
 ```
 
-The bearer is an Oxy credential: a user session or service token today (`packages/api/src/middleware/auth.ts`), an application key from Oxy Console once that path is built. Existing `alia_sk_*` keys still authenticate and are being retired — see [developer access](./developers-portal.md).
+The bearer is an Oxy credential: a user session or service token today (`packages/api/src/middleware/auth.ts`), an application key from Oxy Console once that path is built. The `alia_sk_*` keys are retired and refused — see [developer access](./developers-portal.md).
 
 ## Core concepts
 
@@ -195,21 +191,41 @@ resources, actions, data flow, limits, autonomy and `observe | execute` mode. Th
 `trigger-engine.ts` scheduler reads only enabled structured schedule definitions.
 Structured decisions and runs use `automation_runs` and `automation_steps`.
 
-Legacy trigger rows and their `trigger_executions` remain available through historical
-GET routes. They are not scheduled or dispatched; every legacy write or execution route
-returns `410 Gone` and points callers to `/automations`.
+The legacy trigger model, its `/triggers` routes and its tables are gone.
+
+## Guides
+
+- [Developer onboarding](./onboarding.md)
+- [API reference](./api-reference.md)
+- [Developer access to Alia](./developers-portal.md)
+- [Oxy authentication and packages](./oxyhq-auth.md)
+- [Deployment](./deployment.md)
+- [Dependency updates](./dependencies.md)
 
 ## Deep dives
 
 - [Chat runtime and SSE events](./chat-runtime.mdx)
 - [Kaana model abstraction](./model-abstraction.mdx)
-- [The `alia-*` layer: audit before removal](./alias-layer-audit.mdx)
+- [Agents, tools, approvals and tasks](./agents.md)
+- [Memory and the context graph](./memory-system.md)
+- [Proactive intelligence and automations](./proactive-intelligence.md)
+- [Shows: generated podcast series on Syra](./shows.mdx)
+- [Voice: dictation and calls, recognized on the device](./voice.mdx)
 - [Multi-channel integrations and tools](./integrations.mdx)
+- [Ecosystem activity reporting](./platform-activity.md)
+- [PostgreSQL-only runtime and the optional Mongo lock entry](./mongodb-runtime-boundary.md)
 - [Skills: the Agent Skills format, and what an install authorises](./skills.mdx)
 - [Bloom adoption: the matrix, and the contract gaps verified against 3.2.1](./bloom-adoption.mdx)
 - [Bloom AI Chat template: what is still to come back](./bloom-template-pending.mdx)
-- [Dependency audit: what actually reaches each package](./dependency-audit.mdx)
 - [Visual baseline: the reference the refactor is measured against](./visual-baseline.mdx)
 - [Runtime baseline: what booting the web surface costs, and what route changes leak](./runtime-baseline.mdx)
 - [Architecture decision records](./adr/README.md)
 - [Compatibility window and sunset criteria](./migration/compatibility-window.md)
+
+## Runbooks
+
+- [Kaana cutover](./runbooks/kaana-cutover.md)
+- [Rolling Alia back](./runbooks/rollback.md)
+- [Rotating and revoking Alia credentials](./runbooks/credential-rotation.md)
+- [Upstream provider credential exposure](./runbooks/provider-credential-exposure.md)
+- [Integrations service rollout](./runbooks/integrations-service-rollout.md)

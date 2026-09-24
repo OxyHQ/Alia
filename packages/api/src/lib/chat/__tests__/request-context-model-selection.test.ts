@@ -131,7 +131,6 @@ async function run(
   options: {
     mcpServerId?: unknown;
     directUserId?: string;
-    apiKey?: boolean;
     agentId?: unknown;
     serviceApp?: {
       appId: string;
@@ -165,7 +164,6 @@ async function run(
       ...('mcpServerId' in options ? { mcpServerId: options.mcpServerId } : {}),
     },
     ...(options.directUserId === undefined ? {} : { user: { id: options.directUserId } }),
-    ...(options.apiKey ? { apiKey: { id: 'key-1' } } : {}),
     ...(options.serviceApp === undefined
       ? {}
       : {
@@ -206,7 +204,6 @@ beforeEach(() => {
     modelId: 'a-deployment',
     keyConfig: { provider: 'an-operator', key: 'secret', modelId: 'a-deployment' },
     routingProfile: { name: 'x', creditMultiplier: 1 },
-    isFallback: false,
   });
   findMcpServerForUser.mockResolvedValue(null);
   reserveCredits.mockResolvedValue({ reservationId: 'reservation-1' });
@@ -348,18 +345,6 @@ describe('agentId is an exact fail-closed selector', () => {
       expect(captured.status).toBe(400);
       expect(captured.body?.error).toMatchObject({ code: 'invalid_agent_id', param: 'agentId' });
     }
-    expect(findAgentById).not.toHaveBeenCalled();
-    expect(reserveCredits).not.toHaveBeenCalled();
-  });
-
-  it('does not let an API key select an agent or reveal whether it exists', async () => {
-    const { ctx, captured } = await run(undefined, {
-      directUserId: 'user-1', apiKey: true, agentId: 'agent-1',
-    });
-
-    expect(ctx).toBeNull();
-    expect(captured.status).toBe(404);
-    expect(captured.body?.error).toMatchObject({ code: 'agent_unavailable', param: 'agentId' });
     expect(findAgentById).not.toHaveBeenCalled();
     expect(reserveCredits).not.toHaveBeenCalled();
   });
@@ -674,18 +659,19 @@ describe('one MCP connector can be selected for one direct-user turn', () => {
     }
   });
 
-  it('rejects malformed ids and never permits API keys to select a user connector', async () => {
+  it('rejects malformed ids and never permits a service caller to select a user connector', async () => {
     const malformed = await run(undefined, { mcpServerId: 42, directUserId: 'user-1' });
     expect(malformed.ctx).toBeNull();
     expect(malformed.captured.body?.error?.code).toBe('invalid_mcp_server_id');
 
-    const apiKey = await run(undefined, {
+    const service = await run(undefined, {
       mcpServerId: 'server-1',
       directUserId: 'user-1',
-      apiKey: true,
+      serviceApp: { appId: 'homiio-app-id', scopes: ['inference:invoke'] },
+      delegatedScopes: ['inference:invoke'],
     });
-    expect(apiKey.ctx).toBeNull();
-    expect(apiKey.captured.body?.error?.code).toBe('mcp_server_unavailable');
+    expect(service.ctx).toBeNull();
+    expect(service.captured.body?.error?.code).toBe('mcp_server_unavailable');
     expect(findMcpServerForUser).not.toHaveBeenCalled();
   });
 });
@@ -714,7 +700,7 @@ describe('hosted chat routes only through reviewed Oxy profiles', () => {
     // The control. Without it, a `pinnedModel` set unconditionally — to the
     // tier's default, say — would satisfy every assertion above.
     const { ctx } = await run('route:auto');
-    const [alias, , , options] = resolveModel.mock.calls[0];
+    const [alias, options] = resolveModel.mock.calls[0];
     expect(alias).toBe('route:auto');
     expect(options).toEqual({});
     expect(ctx?.routingOptions).toEqual({});

@@ -26,6 +26,7 @@ import { upsertConversation } from '../db/chat/conversationRepository.js';
 import { insertMessages, listRecentTurns } from '../db/chat/messageRepository.js';
 import { getOrCreateUserCredits } from '../lib/user-credits-helpers.js';
 import { reserveCredits, finalizeCredits, safeRefund, type CreditReservation, type CreditUsage } from '../lib/credits-manager.js';
+import { reserveAgentTurn } from '../lib/agent/turn-funding.js';
 import type { ChannelId, ChannelInboundMessage } from '../lib/channels/types.js';
 import { log } from '../lib/logger.js';
 import { toRoutingProfile } from '../lib/product-modes.js';
@@ -365,7 +366,9 @@ export async function processChannelMessage(
  * NEW per-bot inbound path. Runs ONLY when an inbound update matched a user-registered
  * bot by its per-bot webhook secret (the secret match IS the verification). Uses the
  * bound Agent's configuration (system prompt + allowed models) and the bot OWNER's real
- * tool pipeline, bills the owner, and replies with the bot's OWN token. Conversation
+ * tool pipeline, funds the turn through {@link reserveAgentTurn} — the agent's own
+ * balance first, then the owner's if the owner consented — and replies with the bot's
+ * OWN token. Conversation
  * continuity is tracked per Telegram end-user (the BotUser row), while Conversation and
  * Message docs are owned by the bot owner. The existing global-bot path is untouched.
  *
@@ -397,19 +400,58 @@ export async function processAgentBotMessage(
     // Defensive: user-owned bots always carry an owner.
     if (!ownerUserId) return;
 
-    // Bill the bot owner (not the Telegram end-user).
-    await getOrCreateUserCredits(ownerUserId);
-    creditReservation = await reserveCredits(ownerUserId);
-    if (!creditReservation) {
-      const appUrl = process.env.APP_URL || process.env.WEB_URL || 'https://alia.onl';
-      await sendChannelMessage(
-        channelType,
-        message.chatId,
-        `This assistant is temporarily unavailable (its owner is out of credits). More at ${appUrl}.`,
-        outboundOpts,
-      );
+    // Resolve the bound agent's configuration (prompt + preferred model), with
+    // its Oxy identity attached — the assembler takes the agent as an input and
+    // the prompt below names it.
+    //
+    // BEFORE the reservation, because WHO pays depends on it: the agent's own
+    // account is the first payer. A bot with no agent, or an agent with no
+    // model, has nothing to run, so it never reserves at all.
+    const found = bot.agentId ? await findAgentById(getDb(), bot.agentId) : null;
+    const agent = found === null ? null : await attachAgentIdentity(found);
+
+    const resolved = agent === null || agent.routingProfileId === null
+      ? null
+      : await resolveOxyRoutingProfileId(agent.routingProfileId);
+    if (agent === null || resolved === null) {
+      await sendChannelMessage(channelType, message.chatId, 'Sorry, no AI models are available right now.', outboundOpts);
       return;
     }
+
+    /**
+     * Who pays: the agent, else its owner if the owner consented, else nobody.
+     *
+     * This is the case `lib/agent/turn-funding.ts` was written for — the agent
+     * answering a stranger on its own bot, a turn nobody present chose to pay
+     * for. It used to be billed to the owner unconditionally.
+     *
+     * The OWNER is provisioned (a person is entitled to the free allowance);
+     * the AGENT's account is deliberately not — see `turn-funding.ts` on the
+     * free-credit farm. An agent with no balance row simply cannot pay and
+     * falls through to the owner, debiting nothing on the way.
+     *
+     * `ownerPaysAgentTurns` is the owner's consent, stored on the bot row the
+     * owner alone can write. The reservation carries exactly one payer, and
+     * `finalizeCredits` / `safeRefund` below settle against that one — so the
+     * rest of this handler needs no idea which account it was.
+     */
+    await getOrCreateUserCredits(ownerUserId);
+    const funding = await reserveAgentTurn({
+      agentAccountId: agent.oxyAccountId,
+      ownerUserId,
+      ownerFallbackAllowed: bot.ownerPaysAgentTurns,
+    });
+    if (!funding.ok) {
+      const appUrl = process.env.APP_URL || process.env.WEB_URL || 'https://alia.onl';
+      // Two different messages, for the reason the refusal type gives: one is a
+      // permission the owner can GRANT, the other credit somebody must BUY.
+      const text = funding.reason === 'owner_fallback_not_authorised'
+        ? `This assistant is not available yet (its owner has not allowed it to use their credits). More at ${appUrl}.`
+        : `This assistant is temporarily unavailable (its owner is out of credits). More at ${appUrl}.`;
+      await sendChannelMessage(channelType, message.chatId, text, outboundOpts);
+      return;
+    }
+    creditReservation = funding.reservation;
 
     // Per-end-user conversation id lives on the BotUser row.
     let conversationId = botUser.conversationId;
@@ -430,19 +472,6 @@ export async function processAgentBotMessage(
     const userMessageAt = new Date();
     messages.push({ role: 'user', content: message.text });
 
-    // Resolve the bound agent's configuration (prompt + preferred model), with
-    // its Oxy identity attached — the assembler takes the agent as an input and
-    // the prompt below names it.
-    const found = bot.agentId ? await findAgentById(getDb(), bot.agentId) : null;
-    const agent = found === null ? null : await attachAgentIdentity(found);
-
-    const resolved = agent === null || agent.routingProfileId === null
-      ? null
-      : await resolveOxyRoutingProfileId(agent.routingProfileId);
-    if (resolved === null) {
-      await sendChannelMessage(channelType, message.chatId, 'Sorry, no AI models are available right now.', outboundOpts);
-      return;
-    }
     const routingProfileId = resolved.routingProfileId;
     const model = getAIModel(resolved, 'agent_run');
 

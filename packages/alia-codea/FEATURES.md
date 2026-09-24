@@ -122,7 +122,7 @@ webview-ui/                     # React app for custom UI
 
 All extension surfaces use the Alia API:
 - **Endpoint**: `https://api.alia.onl/v1/chat/completions`
-- **Authentication**: Bearer token (API key)
+- **Authentication**: Bearer token (Oxy session)
 - **Streaming**: Supported for chat responses
 - **Models**: Multiple model options
 
@@ -148,7 +148,7 @@ This enables the extension to work in:
 ### Inline completions not showing
 
 1. Check `codea.enableInlineCompletions` is `true`
-2. Verify API key is set correctly
+2. Verify you are signed in (**Codea: Sign In**)
 3. Look for errors in Output panel: View → Output → "Codea by Alia"
 
 ### Chat participant not available

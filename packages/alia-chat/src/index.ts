@@ -64,23 +64,9 @@ export type {
 export { Button, buttonVariants, buttonTextVariants } from './components/ui/button';
 export type { ButtonProps } from './components/ui/button';
 export { Text, TextClassContext } from './components/ui/text';
-export { ChatTextInput } from './components/ui/chat-text-input';
 export { cn, formatFileSize } from './lib/utils';
 export { getToolLabel, getToolActiveLabel, getResearchActiveLabel } from './lib/tool-registry';
 export { getTextFromContent, getImagesFromContent } from './lib/content-utils';
-
-// ── PromptInput ──
-export { PromptInput } from './components/ui/prompt-input/prompt-input';
-export type { PromptInputProps } from './components/ui/prompt-input/prompt-input';
-export { usePromptInput, useIsFullscreen, PromptInputContext } from './components/ui/prompt-input/context';
-export type { Attachment, Completion, PromptInputContextType } from './components/ui/prompt-input/context';
-export { PromptInputTextarea } from './components/ui/prompt-input/textarea';
-export { PromptInputActions } from './components/ui/prompt-input/actions';
-export { PromptInputSubmitButton } from './components/ui/prompt-input/submit-button';
-export { PromptInputMicButton } from './components/ui/prompt-input/mic-button';
-export { PromptInputAddMenu } from './components/ui/prompt-input/add-menu';
-export { PromptInputAttachments } from './components/ui/prompt-input/attachments';
-export { PromptInputAutocomplete } from './components/ui/prompt-input/autocomplete';
 
 // ── Picker hooks ──
 export { useImagePicker } from './hooks/useImagePicker';

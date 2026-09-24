@@ -17,7 +17,6 @@ import {
   listVisibleBots,
   logoutBotUser,
   registerBot,
-  seedSystemBot,
   setBotAgent,
   setBotUserAuthToken,
   setBotUserConversation,
@@ -53,6 +52,11 @@ function newBot(overrides: Partial<NewBot> = {}): NewBot {
     platformConfigWebhookUrl: 'https://api.test/webhooks/telegram',
     ...overrides,
   };
+}
+
+/** A system bot is a row with no owner; nothing in the service creates one any more. */
+async function insertSystemBot(input: { platform: string; botId: string; name: string }): Promise<void> {
+  await db.insert(bots).values({ ...input, status: 'active' });
 }
 
 beforeAll(() => {
@@ -156,7 +160,7 @@ describe('the three credentials are treated OPPOSITELY, on purpose', () => {
 
 describe('the system bot and a user-owned bot never select each other', () => {
   it('finds the system bot by user_id IS NULL', async () => {
-    await seedSystemBot(db, { platform: 'br-sys', botId: 's1', name: 'System' });
+    await insertSystemBot({ platform: 'br-sys', botId: 's1', name: 'System' });
     await registerBot(db, newBot({ platform: 'br-sys', botId: 'u1', userId: 'bru-someone' }));
 
     const system = await findSystemBot(db, 'br-sys');
@@ -214,7 +218,7 @@ describe('the system bot and a user-owned bot never select each other', () => {
   });
 
   it('shows a user the system bots plus their OWN, and nobody else\'s', async () => {
-    await seedSystemBot(db, { platform: 'br-vis', botId: 'sys', name: 'System' });
+    await insertSystemBot({ platform: 'br-vis', botId: 'sys', name: 'System' });
     await registerBot(db, newBot({ platform: 'br-vis', botId: 'mine', userId: 'bru-vis-me' }));
     await registerBot(db, newBot({ platform: 'br-vis', botId: 'theirs', userId: 'bru-vis-them' }));
 
@@ -260,13 +264,6 @@ describe('a platform identity belongs to exactly one bot', () => {
     expect(await findBotByPlatformIdentity(db, 'br-ident', 'nope')).toBeNull();
   });
 
-  it('seeds a system bot ONCE and never overwrites it afterwards', async () => {
-    await seedSystemBot(db, { platform: 'br-seed', botId: 's1', name: 'Original' });
-    await seedSystemBot(db, { platform: 'br-seed', botId: 's1', name: 'Renamed' });
-
-    // `$setOnInsert` semantics: a hand-edited name survives a restart.
-    expect((await findSystemBot(db, 'br-seed'))?.name).toBe('Original');
-  });
 });
 
 describe('the agent binding can be CLEARED', () => {
@@ -296,7 +293,7 @@ describe('the agent binding can be CLEARED', () => {
   });
 
   it('never matches a SYSTEM bot as owned', async () => {
-    await seedSystemBot(db, { platform: 'br-sysown', botId: 's1', name: 'System' });
+    await insertSystemBot({ platform: 'br-sysown', botId: 's1', name: 'System' });
     const system = await findSystemBot(db, 'br-sysown');
     if (!system) throw new Error('system bot missing');
 

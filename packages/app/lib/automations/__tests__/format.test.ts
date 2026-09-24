@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
   actorLabel,
-  automationTitle,
   canRunNow,
   cronLabel,
   latestRunsByAutomation,
@@ -14,9 +13,8 @@ import type { AutomationDefinition, AutomationRun } from '../types';
 
 const baseAutomation = {
   id: 'automation-1',
-  legacyTriggerId: null,
   trigger: { type: 'manual' as const },
-} satisfies Pick<AutomationDefinition, 'id' | 'legacyTriggerId' | 'trigger'>;
+} satisfies Pick<AutomationDefinition, 'id' | 'trigger'>;
 
 function run(id: string, automationId: string, startedAt: string): AutomationRun {
   return {
@@ -50,8 +48,6 @@ describe('automation formatting', () => {
       .toBe('Writer');
     expect(actorLabel({ mode: 'automatic', eligibleAgentIds: [] }, () => 'unused'))
       .toBe('No eligible agents');
-    expect(actorLabel({ mode: 'automatic', eligibleAgentIds: [] }, () => 'unused', true))
-      .toBe('Alia (legacy routine)');
     expect(resourceLabel({
       appId: 'inbox',
       effectiveAccountId: 'company-1',
@@ -86,8 +82,6 @@ describe('automation formatting', () => {
       ...baseAutomation,
       trigger: { type: 'schedule', cron: '0 9 * * 1', timezone: 'UTC' },
     })).toBe(true);
-    expect(canRunNow({ ...baseAutomation, legacyTriggerId: 'trigger-1' }))
-      .toBe(true);
   });
 });
 
@@ -115,13 +109,5 @@ describe('cronLabel', () => {
     expect(cronLabel('0 25 * * *')).toBe('0 25 * * *');
     expect(cronLabel('0 9 * * 8')).toBe('0 9 * * 8');
     expect(cronLabel('not cron')).toBe('not cron');
-  });
-});
-
-describe('automationTitle', () => {
-  it('prefers the name and falls back to the objective', () => {
-    expect(automationTitle({ name: 'PR watch', objective: 'Review PRs' })).toBe('PR watch');
-    expect(automationTitle({ name: null, objective: 'Review PRs' })).toBe('Review PRs');
-    expect(automationTitle({ name: '   ', objective: 'Review PRs' })).toBe('Review PRs');
   });
 });

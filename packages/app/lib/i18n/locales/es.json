@@ -26,7 +26,6 @@
     "processing": "Procesando...",
     "user": "Usuario",
     "done": "Listo",
-    "authorize": "Autorizar",
     "tryAgain": "Reintentar"
   },
   "errors": {
@@ -647,7 +646,6 @@
       "working": "Agente trabajando",
       "complete": "Tarea completada",
       "error": "Error",
-      "browser": "Navegador",
       "completed": "Completada",
       "failed": "Fallida",
       "unknown": "Desconocido",
@@ -657,8 +655,7 @@
       "steps": "%{count} pasos",
       "planItems": "%{done}/%{total} pasos del plan",
       "credits": "%{count} créditos",
-      "planSummary": "Resumen del plan",
-      "files": "Archivos del espacio de trabajo"
+      "planSummary": "Resumen del plan"
     }
   },
   "credits": {
@@ -871,7 +868,6 @@
       "platform": "Plataforma",
       "scanTitle": "Escanea para descargar",
       "scanDescription": "Escanea el código QR con el móvil para obtener la app.",
-      "googlePlay": "Disponible en Google Play",
       "iosTitle": "Muy pronto",
       "iosDescription": "La app de iOS está en camino."
     }
@@ -1048,7 +1044,9 @@
       "removed": "Bot de Telegram eliminado",
       "errorAlreadyRegistered": "Este bot de Telegram ya está registrado",
       "errorInvalidToken": "Token del bot no válido",
-      "errorGeneric": "Algo salió mal. Inténtalo de nuevo."
+      "errorGeneric": "Algo salió mal. Inténtalo de nuevo.",
+      "ownerPaysLabel": "Pagar sus respuestas con mis créditos",
+      "ownerPaysHint": "Si está activado, las respuestas de este bot se cobran de tus créditos. Si está desactivado, el bot avisa de que no está disponible."
     },
     "namePlaceholder": "Nombre del agente",
     "colorLabel": "Color",
@@ -1061,29 +1059,14 @@
     "saveFailed": "No se pudo guardar"
   },
   "authorize": {
-    "sendMessages": "Enviar mensajes a modelos de IA",
-    "useCredits": "Usar tus créditos para llamadas API",
-    "accessModels": "Acceder a modelos disponibles",
-    "linkAccount": "Vincular tu cuenta de {{app}}",
-    "sendVia": "Enviar mensajes vía {{app}}",
-    "receiveNotifications": "Recibir notificaciones",
-    "invalidCallback": "URL de retorno inválida. Por favor intenta de nuevo desde la aplicación.",
-    "invalidPKCE": "Solicitud de autorización inválida. Falta el desafío PKCE.",
-    "authorizing": "Autorizando...",
     "linkingAccount": "Vinculando cuenta...",
     "pleaseWait": "Por favor espera mientras configuramos tu acceso",
     "authRequired": "Autenticación requerida",
     "linked": "¡Vinculado!",
-    "authorized": "¡Autorizado!",
-    "authSuccess": "¡Autorización exitosa! Redirigiendo a la aplicación...",
     "linkSuccess": "¡Tu cuenta de {{app}} ha sido vinculada exitosamente!",
     "linkFailed": "Error al vincular",
-    "authFailed": "Error de autorización",
-    "failedToAuthorize": "Error al autorizar. Por favor intenta de nuevo.",
     "failedToLink": "Error al vincular tu cuenta. Por favor intenta de nuevo.",
-    "openAppManually": "Abrir aplicación manualmente",
     "returnToApp": "¡Ahora puedes volver a {{app}} y empezar a chatear con Alia!",
-    "closeWindow": "Si no se redirige automáticamente, puedes cerrar esta ventana.",
     "requestNewLink": "Solicitar nuevo enlace",
     "invalidToken": "Token de autenticación inválido. El enlace que seguiste no es válido.",
     "tokenExpired": "Este enlace ha expirado. Por favor solicita uno nuevo.",
@@ -1091,8 +1074,7 @@
     "needLogin": "Necesitas iniciar sesión primero para vincular tu cuenta de {{app}}.",
     "missingToken": "Token de autenticación faltante.",
     "authorizeApp": "Autorizar {{app}}",
-    "appWantsAccess": "{{app}} quiere acceder a tu cuenta",
-    "willAllow": "Esto permitirá a {{app}}:"
+    "appWantsAccess": "{{app}} quiere acceder a tu cuenta"
   },
   "memory": {
     "title": "Memoria",
@@ -1669,7 +1651,6 @@
       "saveFailed": "No se pudo actualizar la automatización",
       "active": "Activa",
       "stopped": "Detenida",
-      "legacy": "Transición heredada",
       "actors": "Actores: %{actors}",
       "usesConnectedApps": "Usa apps conectadas aprobadas",
       "runHistory": "Historial de ejecuciones",
@@ -1731,8 +1712,6 @@
     "agent": {
       "tabs": {
         "steps": "Pasos",
-        "browser": "Navegador",
-        "files": "Archivos",
         "sources": "Fuentes"
       },
       "close": "Cerrar el panel del agente",
@@ -1741,13 +1720,7 @@
       "failed": "La tarea falló",
       "waitingToStart": "Esperando a que el agente empiece",
       "noSteps": "Aún no hay pasos",
-      "noBrowser": "Aún no hay actividad en el navegador",
-      "noFiles": "Aún no se han creado archivos",
       "noSources": "Aún no se han encontrado fuentes",
-      "workspaceFiles": {
-        "one": "Archivos del espacio de trabajo (1)",
-        "other": "Archivos del espacio de trabajo ({{count}})"
-      },
       "websites": {
         "one": "Sitios web (1)",
         "other": "Sitios web ({{count}})"
@@ -1768,13 +1741,8 @@
         "complete": "Tarea completada",
         "error": "Se produjo un error",
         "threat": "Amenaza detectada",
-        "shell": "Ejecutando: {{command}}",
-        "command": "comando",
         "browser": "Navegador: {{action}} {{target}}",
         "action": "acción",
-        "fileEdit": "{{action}}: {{path}}",
-        "edit": "editar",
-        "file": "archivo",
         "completing": "Completando la tarea",
         "updatingPlan": "Actualizando el plan",
         "delegate": "Contratando a @{{agent}}",

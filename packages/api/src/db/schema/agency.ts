@@ -62,8 +62,6 @@ export const automationDefinitions = pgTable(
       .notNull(),
     limits: jsonb().$type<AutomationLimit[]>().notNull().default([]),
     enabled: boolean().notNull().default(true),
-    /** Transitional one-to-one link used while legacy triggers are backfilled. */
-    legacyTriggerId: text(),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -71,7 +69,6 @@ export const automationDefinitions = pgTable(
     index('automation_definitions_owner_idx').on(table.ownerAccountId),
     index('automation_definitions_event_idx').on(table.eventAppId, table.eventType),
     index('automation_definitions_schedule_idx').on(table.triggerKind, table.enabled),
-    uniqueIndex('automation_definitions_legacy_trigger_key').on(table.legacyTriggerId),
     checkOneOf('automation_definitions_trigger_kind_check', table.triggerKind, AUTOMATION_TRIGGER_KINDS),
     checkOneOf('automation_definitions_actor_mode_check', table.actorMode, AUTOMATION_ACTOR_MODES),
     checkOneOf('automation_definitions_execution_mode_check', table.executionMode, AUTOMATION_EXECUTION_MODES),

@@ -8,12 +8,11 @@
  * ## Why a SUBSCRIPTION ROW rather than an entitlement override
  *
  * "The active plan" is not read in one place. `lib/plan-access.ts` derives
- * models and features from it, but `routes/memory.ts`,
- * `middleware/api-key-rate-limit.ts` and `routes/codea.ts` each read
- * `subscriptions` directly. An override inside the entitlement read model would
- * grant the models and leave the memory allowance, the API-key rate limit and
- * the Codea gate on the free floor — a plan that is Ultra on one surface and
- * Free on three. Writing the row is what makes every reader agree, because the
+ * models and features from it, but `routes/memory.ts` and
+ * `middleware/api-key-rate-limit.ts` each read `subscriptions` directly. An
+ * override inside the entitlement read model would grant the models and leave
+ * the memory allowance and the rate limit on the free floor — a plan that is
+ * Ultra on one surface and Free on two. Writing the row is what makes every reader agree, because the
  * row is what every reader reads.
  *
  * ## Why a SEEDER, and not the auth middleware
@@ -117,13 +116,13 @@ interface BillingPeriod {
 /**
  * The UTC calendar month this seed runs in.
  *
- * A comped subscription has no invoice to take a period from, and the period is
- * not decorative: `findActiveSubscriptionByPeriodStart` measures voice minutes
- * from `current_period_start`. A period frozen at the first grant would
- * accumulate usage forever and shrink that allowance to nothing, so every
- * release re-stamps it to the current month. Nothing revokes the plan when the
- * period ends — `liveFor` filters on `status` alone — so a release-quiet month
- * costs a wider voice window, not a lost plan.
+ * A comped subscription has no invoice to take a period from, and a period is
+ * what every reader of a subscription takes it to be: the current one. A period
+ * frozen at the first grant would describe a month long gone (it once shrank the
+ * voice-minutes allowance, measured from `current_period_start`, to nothing,
+ * until that allowance was retired in 0072), so every release re-stamps it to
+ * the current month. Nothing revokes the plan when the period ends — `liveFor`
+ * filters on `status` alone — so a release-quiet month costs nothing.
  */
 function currentMonth(): BillingPeriod {
   const now = new Date();

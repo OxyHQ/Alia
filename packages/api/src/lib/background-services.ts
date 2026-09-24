@@ -10,8 +10,8 @@
  *
  * It sat behind `connectDB().then(...)`. `MONGODB_URI` left the task definition
  * when Mongo was decommissioned, so the retry loop backed off forever and the
- * trigger engine, the moderation-outbox dispatcher, both queues and the
- * container pool never started once. Every assertion anyone had was about the
+ * trigger engine, the moderation-outbox dispatcher and both queues never
+ * started once. Every assertion anyone had was about the
  * TEXT of that code, and the text was correct throughout.
  *
  * Moving these starters is safe for the reason the boot guards' move was: they
@@ -25,8 +25,8 @@
  * `runBootGuards` refuses to start the process without `DATABASE_URL` before
  * `listen` is reached, so the Postgres pool is connected by the time this runs.
  * Everything below either reads Postgres or is self-gating on its own
- * dependency: `REDIS_URL` for the two queues, a reachable sandbox host for the
- * container pool and `CROWDSOURCE_ENABLED` for the dispatcher. None of them
+ * dependency: `REDIS_URL` for the two queues and `CROWDSOURCE_ENABLED` for the
+ * dispatcher. None of them
  * reads Mongo — `db/__tests__/
  * bootWiring.test.ts` walks the import graph from `src/index.ts` and asserts
  * that, rather than leaving it as a claim in this comment.
@@ -34,18 +34,15 @@
  * ## What is deliberately NOT here
  *
  * Seeding. `scripts/seed.ts` owns it at the deploy boundary, for the reasons
- * that file sets out; `seedBots()` used to be called from here and is now
- * called from nowhere, which `db/__tests__/seedWiring.test.ts` records as a
- * named exemption rather than an accident.
+ * that file sets out, and `db/__tests__/seedWiring.test.ts` asserts no seeder
+ * is called from here.
  */
 
 import { getDb } from '../db/index.js';
 import { failOrphanedAudioJobs } from '../db/notifications/audioJobRepository.js';
-import { syncZeroEval } from '../scripts/sync-zeroeval.js';
 import { moderationOutboxDispatcher } from './crowdsource/dispatcher.js';
 import { log } from './logger.js';
 import { reclaimOrphanedAgentSessions } from './agent/session-handoff.js';
-import { getContainerPool, shutdownContainerPool } from './sandbox/container-pool.js';
 import { initShowQueue, shutdownShowQueue, startShowWorker } from './show/show-queue.js';
 import { initTaskQueue, shutdownTaskQueue, startWorker } from './task-queue.js';
 import { startSkillRegistrySync, stopSkillRegistrySync } from './skills/scheduler.js';
@@ -60,8 +57,6 @@ import { startTriggerEngine, stopTriggerEngine } from './trigger-engine.js';
  * start.
  */
 export function startBackgroundServices(): void {
-  // Sync external models in background (non-blocking)
-  syncZeroEval().catch((err) => log.general.error({ err }, '[ZeroEval] Background sync error'));
   // Start trigger engine under leader election (non-blocking) — only the
   // elected instance runs the scheduler, so triggers fire once across tasks.
   startTriggerEngine();
@@ -74,10 +69,6 @@ export function startBackgroundServices(): void {
   initTaskQueue()
     .then(() => startWorker())
     .catch((err) => log.general.error({ err }, '[TaskQueue] Startup error'));
-  // Pre-warm agent containers when the Docker host is configured.
-  getContainerPool()
-    .initialize()
-    .catch((err) => log.general.error({ err }, '[ContainerPool] Startup error'));
   // Clean up orphaned audio jobs from previous process crashes (non-blocking).
   failOrphanedAudioJobs(getDb())
     .then((count) => {
@@ -137,6 +128,5 @@ export async function stopBackgroundServices(): Promise<void> {
   // Close task queue (drains in-flight jobs)
   await shutdownTaskQueue();
   await shutdownShowQueue();
-  await shutdownContainerPool();
   log.general.info('Task queues shut down');
 }

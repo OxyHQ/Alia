@@ -252,15 +252,15 @@ describe('agents', () => {
     expect(row?.grants).toEqual(['shell', 'mcp:conn-7']);
   });
 
-  it('defaults allowed_models to the two Kaana product profile names the schema declares', async () => {
+  it('defaults tags to an empty array', async () => {
     await db.insert(agents).values(agentValues({ id: 'ag-models' }));
 
     const [row] = await db
-      .select({ allowedModels: agents.allowedModels, tags: agents.tags })
+      .select({ tags: agents.tags })
       .from(agents)
       .where(eq(agents.id, 'ag-models'));
 
-    expect(row).toEqual({ allowedModels: ['route:auto', 'route:pro-standard'], tags: [] });
+    expect(row).toEqual({ tags: [] });
   });
 });
 

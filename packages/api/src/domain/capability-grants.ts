@@ -53,8 +53,6 @@
 export const FIXED_CAPABILITY_FAMILIES = [
   'web',
   'browser',
-  'shell',
-  'files',
   'artifacts',
   'memory',
   'messaging',
@@ -113,6 +111,31 @@ export const OXY_SERVICE_TOOL_SOURCE = 'oxy_service' as const;
  */
 export const EVERY_ROW_FAMILIES = ['agent'] as const;
 
+/**
+ * Families that EXISTED and were retired, so a stored or echoed grant naming
+ * one is known debris rather than a typo.
+ *
+ * `shell` and `files` granted the autonomous runner's `shell` and `file_edit`
+ * primitives, which acted through a sandbox container on a docker host that
+ * production never configured: every call answered "no sandbox". The host went
+ * first; these two went with the clean cut, because a switch an owner can turn
+ * on and that can never do anything is a lie told in the editor.
+ *
+ * Migration 0071 removed them from `agents.capability_grants`. They are listed
+ * here so the wire can DROP them instead of refusing the whole save — an editor
+ * still holding one from before the deploy would otherwise 400 on every
+ * autosave, which is exactly the failure this vocabulary was built to end — and
+ * so `capability-grants.test.ts` can pin that they stay gone. Anything else
+ * outside the vocabulary is still refused.
+ */
+export const RETIRED_CAPABILITY_FAMILIES = ['shell', 'files'] as const;
+
+/** A grant list with every retired family's entries removed, and nothing else touched. */
+export function withoutRetiredGrants(grants: readonly string[]): string[] {
+  const retired: readonly string[] = RETIRED_CAPABILITY_FAMILIES;
+  return grants.filter((grant) => !retired.includes(grant.split(':', 1)[0] ?? grant));
+}
+
 export const CAPABILITY_FAMILIES = [
   ...FIXED_CAPABILITY_FAMILIES,
   ...INSTANCED_CAPABILITY_FAMILIES,
@@ -133,14 +156,13 @@ export type CapabilityFamily = (typeof CAPABILITY_FAMILIES)[number];
  *
  * A tool is in exactly one family. `deepResearch` sits under `web` rather than
  * beside `delegation` because what it does is read the open web; `generateFile`
- * sits under `artifacts` rather than `files` because it writes nothing and
+ * sits under `artifacts` because it writes nothing and
  * hands the content back for rendering, which is what `canvas` does too.
  */
 export const FIXED_FAMILY_TOOLS: Readonly<Record<FixedCapabilityFamily, readonly string[]>> = {
   web: [
     'webSearch',
     'webScraper',
-    'browse',
     'deepResearch',
     // The card tools read the open web at a named service rather than at
     // whatever a search turns up. Denying `web` has to deny them too, or the
@@ -150,8 +172,6 @@ export const FIXED_FAMILY_TOOLS: Readonly<Record<FixedCapabilityFamily, readonly
     'getFairCoin',
   ],
   browser: ['browser'],
-  shell: ['shell'],
-  files: ['file_edit'],
   artifacts: ['canvas', 'generateFile'],
   /**
    * `searchThread` is here rather than in a family of its own because the
@@ -296,7 +316,7 @@ export const GRANTS_EVERYTHING: CapabilityGrantSet = {
  * Read a stored `capability_grants` array.
  *
  * Unrecognised entries are DROPPED rather than throwing: the column has no
- * CHECK — the same reasoning `allowed_models` one column over is given — so a
+ * CHECK, because a CHECK would fail a turn on a family renamed later — so a
  * value written before a family was renamed must not take the turn down with
  * it. The wire schema is where a bad grant is refused, at the moment somebody
  * can still be told about it.

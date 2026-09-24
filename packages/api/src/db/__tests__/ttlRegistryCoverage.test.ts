@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { getTableName } from 'drizzle-orm';
 import type { PgTable } from 'drizzle-orm/pg-core';
@@ -24,7 +26,8 @@ import * as schema from '../schema';
  * and keeping Mongoose installed to run it would have made "the driver is still
  * a dependency" self-justifying. So the walk is gone and {@link MONGO_TTLS} is
  * the whole subject: thirteen declarations, closed, each read off the source at
- * the commit that deleted it.
+ * the commit that deleted it — eight live, and five whose table has since been
+ * dropped, kept in {@link TTLS_RETIRED_WITH_THEIR_TABLE}.
  *
  * **The record cannot grow.** No Mongoose model can be declared in this package
  * any more, and `db/__tests__/bootWiring.test.ts` asserts that as an exact set of
@@ -32,9 +35,10 @@ import * as schema from '../schema';
  * walk: it goes red the day a model comes back, which is the only event that
  * could add a fourteenth row here.
  *
- * **The record must not shrink.** Every row is a LIVE retention requirement on
- * the Postgres sweep. Deleting one deletes the only surviving statement of what
- * Mongo did, and every assertion below is a check on `EXPIRY_TARGETS` and the
+ * **The record must not shrink.** Every live row is a retention requirement on
+ * the Postgres sweep. The only way a row leaves the live record is with its
+ * table, into the retired list, which asserts the table is gone. Deleting one
+ * outright deletes the only surviving statement of what Mongo did, and every assertion below is a check on `EXPIRY_TARGETS` and the
  * drizzle schema as they are today — a dropped table, a repointed sweep column
  * or an altered retention is red, with no Mongo anywhere.
  *
@@ -157,43 +161,6 @@ const MONGO_TTLS: readonly MongoTtl[] = [
     retiredBy: 'S5 notifications — notifications',
   },
   {
-    model: 'AuthHealthMetric',
-    collection: 'authhealthmetrics',
-    // `AuthHealthMetricSchema.index({ createdAt: 1 }, { expireAfterSeconds: 7 *
-    // 24 * 60 * 60 })`, read off `src/lib/auth-health.ts:53` before the model —
-    // which was declared INLINE in that module, beside the functions using it —
-    // was deleted. That module is gone too now: it had no importer anywhere, so
-    // `auth_health_metrics` has no writer left. The TABLE and this row stay,
-    // because dropping a table is a migration and a separate decision; what
-    // this row records is the TTL the Mongo index used to enforce, which is
-    // still what the sweeper must apply if anything writes to it again.
-    path: 'createdAt',
-    expireAfterSeconds: 7 * 24 * 60 * 60,
-    retiredBy: 'S2 providers + telemetry — auth_health_metrics',
-  },
-  {
-    model: 'FallbackEvent',
-    collection: 'fallbackevents',
-    // `FallbackEventSchema.index({ timestamp: 1 }, { expireAfterSeconds: 30 *
-    // 24 * 60 * 60 })`, read off
-    // `src/internal/providers/models/fallback-event.ts:46` before it was
-    // deleted. Note the path is `timestamp`, NOT `createdAt` — the model set its
-    // own event time and the sweep must keep measuring from that column.
-    path: 'timestamp',
-    expireAfterSeconds: 30 * 24 * 60 * 60,
-    retiredBy: 'S2 providers + telemetry — fallback_events',
-  },
-  {
-    model: 'RoutingLog',
-    collection: 'routinglogs',
-    // `RoutingLogSchema.index({ createdAt: 1 }, { expireAfterSeconds: 90 * 24 *
-    // 60 * 60 })`, read off `src/models/routing-log.ts:56` before it was
-    // deleted.
-    path: 'createdAt',
-    expireAfterSeconds: 90 * 24 * 60 * 60,
-    retiredBy: 'S2 providers + telemetry — routing_logs',
-  },
-  {
     model: 'ApiKeyUsage',
     collection: 'apikeyusages',
     // `ApiKeyUsageSchema.index({ timestamp: 1 }, { expireAfterSeconds: 90 * 24 *
@@ -202,33 +169,6 @@ const MONGO_TTLS: readonly MongoTtl[] = [
     path: 'timestamp',
     expireAfterSeconds: 90 * 24 * 60 * 60,
     retiredBy: 'S2 providers + telemetry — api_key_usage',
-  },
-  {
-    model: 'ApiUsage',
-    collection: 'apiusages',
-    // `ApiUsageSchema.index({ timestamp: 1 }, { expireAfterSeconds: 48 * 60 *
-    // 60 })`, read off `src/internal/providers/models/api-usage.ts:25` before it
-    // was deleted. 48 hours — by far the shortest retention in the service, and
-    // the one most obviously wrong to carry across as a default.
-    path: 'timestamp',
-    expireAfterSeconds: 48 * 60 * 60,
-    retiredBy: 'S2 providers + telemetry — api_usage',
-  },
-  {
-    model: 'TriggerExecution',
-    collection: 'triggerexecutions',
-    // `TriggerExecutionSchema.index({ startedAt: 1 }, { expireAfterSeconds: 30 *
-    // 24 * 60 * 60 })`, read off `src/models/trigger-execution.ts:86` before it
-    // was deleted. The ONLY TTL among S8's eight models — the other seven
-    // declared none, so no entry is owed for them.
-    //
-    // It measures from `started_at` rather than a `created_at`, because the
-    // model set `timestamps: false` and had no `created_at` to measure from;
-    // `trigger_executions` carries none either, so the sweep reads the same
-    // column the TTL index did.
-    path: 'startedAt',
-    expireAfterSeconds: 30 * 24 * 60 * 60,
-    retiredBy: 'S8 automation — trigger_executions',
   },
   {
     model: 'OrganizationInvite',
@@ -273,15 +213,10 @@ const MONGO_TTLS: readonly MongoTtl[] = [
  * exact one.
  */
 const MONGO_MODEL_TO_TABLE: Readonly<Record<string, string>> = {
-  AuthHealthMetric: 'auth_health_metrics',
-  ApiUsage: 'api_usage',
   ApiKeyUsage: 'api_key_usage',
-  FallbackEvent: 'fallback_events',
-  RoutingLog: 'routing_logs',
   OrganizationInvite: 'organization_invites',
   McpOAuthState: 'mcp_oauth_states',
   OAuthState: 'oauth_states',
-  TriggerExecution: 'trigger_executions',
   Notification: 'notifications',
   AudioJob: 'audio_jobs',
   ModerationOutbox: 'moderation_outboxes',
@@ -289,11 +224,99 @@ const MONGO_MODEL_TO_TABLE: Readonly<Record<string, string>> = {
 };
 
 /**
- * Historical TTL rules whose Alia tables are intentionally frozen for the
- * first cutover release's rollback window. They remain represented in the
- * schema but no longer owe Alia a sweeper, reader or writer.
+ * TTL rules whose TABLE was dropped, and the migration that dropped it.
+ *
+ * Moved out of {@link MONGO_TTLS} rather than deleted, because deleting a row
+ * is exactly the silent shrink the record forbids. A rule here owes nothing to
+ * the sweep — there are no rows to reap — and instead asserts the opposite of a
+ * live rule: its table is ABSENT from the schema, has no registry entry, and is
+ * dropped by the named migration. A table that came back would fail here and
+ * would have to return to the live record with its retention.
+ *
+ * The owner's clean cut (no rollback window) dropped all five in one post-phase
+ * migration: the two hosted-provider tables kept for the first cutover's
+ * rollback window (`api_usage`, `fallback_events`), and three whose writer was
+ * already gone (`auth_health_metrics`, `routing_logs`, `trigger_executions`).
  */
-const DORMANT_ROLLBACK_TABLES = new Set(['ApiUsage', 'FallbackEvent']);
+interface RetiredTtl extends MongoTtl {
+  readonly table: string;
+  readonly droppedBy: string;
+}
+
+const TTLS_RETIRED_WITH_THEIR_TABLE: readonly RetiredTtl[] = [
+  {
+    model: 'AuthHealthMetric',
+    collection: 'authhealthmetrics',
+    // `AuthHealthMetricSchema.index({ createdAt: 1 }, { expireAfterSeconds: 7 *
+    // 24 * 60 * 60 })`, read off `src/lib/auth-health.ts:53` before the model —
+    // which was declared INLINE in that module, beside the functions using it —
+    // was deleted. That module is gone too now: it had no importer anywhere, so
+    // `auth_health_metrics` had no writer left, and the table was later dropped
+    // by the clean cut.
+    path: 'createdAt',
+    expireAfterSeconds: 7 * 24 * 60 * 60,
+    retiredBy: 'S2 providers + telemetry — auth_health_metrics',
+    table: 'auth_health_metrics',
+    droppedBy: '0070_clean_cut_dormant_tables',
+  },
+  {
+    model: 'FallbackEvent',
+    collection: 'fallbackevents',
+    // `FallbackEventSchema.index({ timestamp: 1 }, { expireAfterSeconds: 30 *
+    // 24 * 60 * 60 })`, read off
+    // `src/internal/providers/models/fallback-event.ts:46` before it was
+    // deleted. Note the path is `timestamp`, NOT `createdAt` — the model set its
+    // own event time and the sweep must keep measuring from that column.
+    path: 'timestamp',
+    expireAfterSeconds: 30 * 24 * 60 * 60,
+    retiredBy: 'S2 providers + telemetry — fallback_events',
+    table: 'fallback_events',
+    droppedBy: '0070_clean_cut_dormant_tables',
+  },
+  {
+    model: 'RoutingLog',
+    collection: 'routinglogs',
+    // `RoutingLogSchema.index({ createdAt: 1 }, { expireAfterSeconds: 90 * 24 *
+    // 60 * 60 })`, read off `src/models/routing-log.ts:56` before it was
+    // deleted.
+    path: 'createdAt',
+    expireAfterSeconds: 90 * 24 * 60 * 60,
+    retiredBy: 'S2 providers + telemetry — routing_logs',
+    table: 'routing_logs',
+    droppedBy: '0070_clean_cut_dormant_tables',
+  },
+  {
+    model: 'ApiUsage',
+    collection: 'apiusages',
+    // `ApiUsageSchema.index({ timestamp: 1 }, { expireAfterSeconds: 48 * 60 *
+    // 60 })`, read off `src/internal/providers/models/api-usage.ts:25` before it
+    // was deleted. 48 hours — by far the shortest retention in the service, and
+    // the one most obviously wrong to carry across as a default.
+    path: 'timestamp',
+    expireAfterSeconds: 48 * 60 * 60,
+    retiredBy: 'S2 providers + telemetry — api_usage',
+    table: 'api_usage',
+    droppedBy: '0070_clean_cut_dormant_tables',
+  },
+  {
+    model: 'TriggerExecution',
+    collection: 'triggerexecutions',
+    // `TriggerExecutionSchema.index({ startedAt: 1 }, { expireAfterSeconds: 30 *
+    // 24 * 60 * 60 })`, read off `src/models/trigger-execution.ts:86` before it
+    // was deleted. The ONLY TTL among S8's eight models — the other seven
+    // declared none, so no entry is owed for them.
+    //
+    // It measures from `started_at` rather than a `created_at`, because the
+    // model set `timestamps: false` and had no `created_at` to measure from;
+    // `trigger_executions` carries none either, so the sweep reads the same
+    // column the TTL index did.
+    path: 'startedAt',
+    expireAfterSeconds: 30 * 24 * 60 * 60,
+    retiredBy: 'S8 automation — trigger_executions',
+    table: 'trigger_executions',
+    droppedBy: '0070_clean_cut_dormant_tables',
+  },
+];
 
 /** Postgres tables that exist today, by SQL table name. */
 function portedTables(): Map<string, PgTable> {
@@ -320,19 +343,23 @@ describe('every TTL index Mongo enforced has a matching expiry-sweep target', ()
      * EXACT rather than a floor, in the direction that matters: the record is
      * CLOSED — no Mongoose model can be declared in this package, so a
      * fourteenth row is not possible without `bootWiring.test.ts` going red
-     * first — and each row is a live retention requirement, so a twelfth is a
-     * rule silently deleted.
+     * first — and each live row is a retention requirement, so a missing one is
+     * a rule silently deleted. 13 = 8 live + 5 retired with their table.
      */
-    expect(MONGO_TTLS.length).toBe(13);
+    expect(MONGO_TTLS.length).toBe(8);
+    expect(TTLS_RETIRED_WITH_THEIR_TABLE.length).toBe(5);
+    expect(MONGO_TTLS.length + TTLS_RETIRED_WITH_THEIR_TABLE.length).toBe(13);
     expect(tables.size).toBeGreaterThanOrEqual(5);
   });
 
   it('records each declaration exactly once', () => {
     // A repeated model or collection would let one rule stand in for another
-    // while the count above still read 13.
-    const models = MONGO_TTLS.map((t) => t.model);
+    // while the count above still read 13 — across BOTH lists, so a rule
+    // cannot be live and retired at once.
+    const all = [...MONGO_TTLS, ...TTLS_RETIRED_WITH_THEIR_TABLE];
+    const models = all.map((t) => t.model);
     expect(new Set(models).size).toBe(models.length);
-    const collections = MONGO_TTLS.map((t) => t.collection);
+    const collections = all.map((t) => t.collection);
     expect(new Set(collections).size).toBe(collections.length);
     // Every entry says who retired it, so a row is auditable against history.
     expect(MONGO_TTLS.filter((t) => t.retiredBy.trim() === '')).toEqual([]);
@@ -344,14 +371,30 @@ describe('every TTL index Mongo enforced has a matching expiry-sweep target', ()
      * and retention checks below — but those find their target through
      * {@link MONGO_MODEL_TO_TABLE}, and skip when there is none. So a row whose
      * table was never mapped, or was later dropped from the schema, keeps the
-     * count at 13 while asserting about nothing at all.
+     * count up while asserting about nothing at all.
      */
-    const orphaned = MONGO_TTLS.filter((t) => !DORMANT_ROLLBACK_TABLES.has(t.model)).filter((t) => {
+    const orphaned = MONGO_TTLS.filter((t) => {
       const table = MONGO_MODEL_TO_TABLE[t.model];
       return !table || !tables.has(table);
     }).map((t) => t.model);
 
     expect(orphaned).toEqual([]);
+  });
+
+  it('a rule retired with its table really lost the table, the sweep entry and the rows', () => {
+    // The opposite of a live rule, asserted just as strictly: absent from the
+    // schema, absent from the registry, and dropped by the migration it names.
+    const swept = new Set(EXPIRY_TARGETS.map((t) => getTableName(t.table)));
+    const migrations = new Map<string, string>();
+    for (const ttl of TTLS_RETIRED_WITH_THEIR_TABLE) {
+      expect(tables.has(ttl.table), `${ttl.table} is back in the schema`).toBe(false);
+      expect(swept.has(ttl.table), `${ttl.table} still has a sweep entry`).toBe(false);
+      const sql =
+        migrations.get(ttl.droppedBy) ??
+        readFileSync(path.join(__dirname, '..', '..', '..', 'drizzle', `${ttl.droppedBy}.sql`), 'utf8');
+      migrations.set(ttl.droppedBy, sql);
+      expect(sql, `${ttl.droppedBy} does not drop ${ttl.table}`).toContain(`DROP TABLE "${ttl.table}";`);
+    }
   });
 
   it('maps nothing that the record does not name', () => {
@@ -366,7 +409,7 @@ describe('every TTL index Mongo enforced has a matching expiry-sweep target', ()
       EXPIRY_TARGETS.map((t) => [getTableName(t.table), t]),
     );
 
-    const missing = MONGO_TTLS.filter((ttl) => !DORMANT_ROLLBACK_TABLES.has(ttl.model)).filter(
+    const missing = MONGO_TTLS.filter(
       (ttl) => !byTable.has(MONGO_MODEL_TO_TABLE[ttl.model] ?? ''),
     ).map((ttl) => `${ttl.model} -> ${String(MONGO_MODEL_TO_TABLE[ttl.model])}`);
 

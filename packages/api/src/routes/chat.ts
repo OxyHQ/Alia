@@ -19,7 +19,7 @@ const router = Router();
  *
  * It was `optionalAuth` until #139 workstream 6, and the consequence was not a
  * lenient session model — it was free inference. An anonymous POST reached this
- * handler, `apiKeyRateLimit` found neither `req.apiKey` nor `req.user` and fell
+ * handler, `apiKeyRateLimit` found no `req.user` and fell
  * through to a bare `next()`, and `lib/chat/request-context.ts` gates the credit
  * reservation on `(req.user && !req.serviceApp)`, so the work ran unlimited and
  * METERED TO NOBODY. `/v1/chat/completions` — the identical handler — answered

@@ -10,10 +10,9 @@ import {
   organizationMembers,
   organizations,
 } from '../schema/organizations';
-import { developerApiKeys, developerApps } from '../schema/developers';
 
 /**
- * Organizations and the developer platform, against a REAL server.
+ * Organizations, against a REAL server.
  *
  * Two properties here exist only in Postgres and cannot be asserted anywhere
  * else: the slug's case-insensitive uniqueness is a FUNCTIONAL index, and the
@@ -187,57 +186,5 @@ describe('the invitation sweep measures from the DEADLINE, with a grace period',
     );
     // The recently-expired one survives; only the one past its grace goes.
     expect(rows.map((r) => r.id)).toEqual(['oi-recent']);
-  });
-});
-
-describe('developer API keys carry a bounded scope set', () => {
-  beforeAll(async () => {
-    await db.insert(developerApps).values({ id: 'app-1', oxyUserId: 'oxy-user-1', name: 'App One' });
-  });
-
-  it('refuses a scope outside the tuple', async () => {
-    const insert = db.execute(sql`
-      insert into ${developerApiKeys} (id, oxy_user_id, app_id, name, key_hash, key_prefix, scopes)
-      values ('dak-bad', 'oxy-user-1', 'app-1', 'k', 'hash-bad', 'alia_sk_', '{"chat:read","billing:write"}')
-    `);
-
-    await expect(insert).rejects.toSatisfy((error: unknown) => {
-      expect(isCheckViolation(error)).toBe(true);
-      expect(constraintNameOf(error)).toBe('developer_api_keys_scopes_check');
-      return true;
-    });
-  });
-
-  it('refuses a rate limit of zero, because absence is how unlimited is spelled', async () => {
-    const insert = db.execute(sql`
-      insert into ${developerApiKeys}
-        (id, oxy_user_id, app_id, name, key_hash, key_prefix, rate_limit_requests_per_day)
-      values ('dak-zero', 'oxy-user-1', 'app-1', 'k', 'hash-zero', 'alia_sk_', 0)
-    `);
-
-    await expect(insert).rejects.toSatisfy((error: unknown) => {
-      expect(isCheckViolation(error)).toBe(true);
-      expect(constraintNameOf(error)).toBe('developer_api_keys_rate_limits_positive_check');
-      return true;
-    });
-  });
-
-  it('takes a key with its app', async () => {
-    await db.insert(developerApps).values({ id: 'app-doomed', oxyUserId: 'oxy-user-1', name: 'Doomed' });
-    await db.insert(developerApiKeys).values({
-      id: 'dak-doomed',
-      oxyUserId: 'oxy-user-1',
-      appId: 'app-doomed',
-      name: 'key',
-      keyHash: 'hash-doomed',
-      keyPrefix: 'alia_sk_',
-    });
-
-    await db.delete(developerApps).where(eq(developerApps.id, 'app-doomed'));
-
-    const rows = await db.execute<{ n: string }>(
-      sql`select count(*)::text as n from ${developerApiKeys} where id = 'dak-doomed'`,
-    );
-    expect(rows[0]?.n).toBe('0');
   });
 });

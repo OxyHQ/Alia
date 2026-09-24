@@ -123,7 +123,7 @@ const DEFAULT_USER_MESSAGES: Record<AliaErrorCode, string> = {
 
 // ============== ALIA ERROR CLASS ==============
 
-export interface AliaErrorParams {
+interface AliaErrorParams {
   code: AliaErrorCode;
   /** Operator-facing. Names the deployment that failed; never rendered. */
   message: string;
@@ -155,12 +155,6 @@ export class AliaError extends Error {
     this.httpStatus = params.httpStatus ?? DEFAULT_HTTP_STATUS[params.code] ?? 500;
     this.userMessage = params.userMessage ?? DEFAULT_USER_MESSAGES[params.code];
   }
-}
-
-// ============== TYPE GUARD ==============
-
-export function isAliaError(err: unknown): err is AliaError {
-  return err instanceof AliaError;
 }
 
 // There is no `toSSEError` here any more, and its removal is the deletion of a

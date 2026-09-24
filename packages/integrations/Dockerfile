@@ -25,9 +25,7 @@ COPY packages/app/package.json ./packages/app/
 COPY packages/alia-chat/package.json ./packages/alia-chat/
 COPY packages/alia-server/package.json ./packages/alia-server/
 COPY packages/alia-canvas/package.json ./packages/alia-canvas/
-COPY packages/alia-docker-host/package.json ./packages/alia-docker-host/
 COPY packages/integrations/package.json ./packages/integrations/
-COPY packages/alia-console/package.json ./packages/alia-console/
 COPY packages/alia-codea/package.json ./packages/alia-codea/
 COPY packages/alia-codea/webview-ui/package.json ./packages/alia-codea/webview-ui/
 COPY packages/alia-cowork/package.json ./packages/alia-cowork/
@@ -98,9 +96,7 @@ COPY packages/app/package.json ./packages/app/
 COPY packages/alia-chat/package.json ./packages/alia-chat/
 COPY packages/alia-server/package.json ./packages/alia-server/
 COPY packages/alia-canvas/package.json ./packages/alia-canvas/
-COPY packages/alia-docker-host/package.json ./packages/alia-docker-host/
 COPY packages/integrations/package.json ./packages/integrations/
-COPY packages/alia-console/package.json ./packages/alia-console/
 COPY packages/alia-codea/package.json ./packages/alia-codea/
 COPY packages/alia-codea/webview-ui/package.json ./packages/alia-codea/webview-ui/
 COPY packages/alia-cowork/package.json ./packages/alia-cowork/

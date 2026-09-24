@@ -4,9 +4,9 @@
  *
  * It lands SECOND, not last. Its own references are `skills` (batch 9a) and the
  * already-ported `library_files`; everything else in the batch —
- * `agent_sessions`, `agent_reviews`, `agent_teams`, `container_templates`,
- * `containers` — points AT it. Ordering by the dependency graph is what lets
- * those later tables carry real foreign keys instead of dangling ids.
+ * `agent_sessions`, `agent_reviews`, `agent_teams` — points AT it. Ordering by
+ * the dependency graph is what lets those later tables carry real foreign keys
+ * instead of dangling ids.
  *
  * ## An agent IS an Oxy `bot` account, and `oxy_account_id` is the whole seam
  *
@@ -89,17 +89,10 @@ import { libraryFiles } from './library';
  * no `enum`, so it is free text and production may hold anything. The
  * `auth_health_metrics.method` answer.
  *
- * `allowed_models` gets none either, for a sharper reason — the values are Alia
- * model names, and `ROUTING_TIERS`/the model registry could render one. Mongoose
- * declared no enum, so a CHECK would be a NEW constraint on a column an
- * unvalidated write path has been filling for as long as the column has existed,
- * and it would fail in the routing path on the first agent pinned to a model
- * that was later renamed.
- *
  * `rating` is `double precision`, not an integer or a money column:
  * `lib/agent-rating.ts:44` stores `Math.round(avg * 10) / 10`, a fraction to one
  * decimal place. `price` is `integer` because it is CREDITS —
- * `routes/agents/hire.ts:44` passes it straight to `reserveCredits` — and
+ * `agentHirePrice` in `lib/agent/session-handoff.ts` hands it to `reserveCredits` — and
  * credits are a count, per the money rule. The agent's own balance is NOT here:
  * a bot account is an Oxy account, so it has a `user_credits` row of its own
  * keyed by `oxy_account_id`, and the `credit_balance` column this replaced was
@@ -159,10 +152,9 @@ export const agents = pgTable(
      * cannot keep meaning yes. `domain/capability-grants.ts` carries the
      * vocabulary and the argument.
      *
-     * No CHECK, for the reason `allowed_models` two columns up is given: the
-     * values are a vocabulary the product renders, and a constraint would fail
-     * a routing path on the first agent holding a family that was later
-     * renamed. `readCapabilityGrants` drops what it does not recognise, and
+     * No CHECK: the values are a vocabulary the product renders, and a
+     * constraint would fail a routing path on the first agent holding a family
+     * that was later renamed. `readCapabilityGrants` drops what it does not recognise, and
      * `routes/agents/crud.ts` refuses it at the moment somebody can be told.
      */
     capabilityGrants: text().array().notNull().default([]),
@@ -186,11 +178,8 @@ export const agents = pgTable(
       .notNull()
       .default('private'),
     systemPrompt: text(),
-    preferredImage: text(),
     /** Exact Oxy routing-profile primary key. Null only on unreconciled legacy rows. */
     routingProfileId: text(),
-    /** Legacy non-authoritative reconciliation evidence. Runtime routing never reads it. */
-    allowedModels: text().array().notNull().default(['route:auto', 'route:pro-standard']),
     scheduleInterval: integer(),
 
     /** `soul`, flattened. Absent as a group on an agent that has never evolved. */

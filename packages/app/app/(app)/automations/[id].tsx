@@ -5,7 +5,6 @@ import {
 } from '@/components/automations/automation-pill';
 import {
   actorLabel,
-  automationTitle,
   triggerLabel,
 } from '@/lib/automations/format';
 import type { AutomationUpdateInput } from '@/lib/automations/types';
@@ -158,20 +157,18 @@ export default function AutomationHistoryScreen() {
     <>
       <Stack.Screen
         options={{
-          title: automationTitle(automation),
+          title: automation.objective,
           headerBackVisible: true,
-          headerRight: !automation.legacyTriggerId
-            ? () => (
-                <ButtonGroup accessibilityLabel={t('common.edit')}>
-                  <ButtonGroupItem
-                    iconOnly
-                    leadingIcon={RiPencilLine}
-                    accessibilityLabel={t('common.edit')}
-                    onPress={() => setEditorOpen(true)}
-                  />
-                </ButtonGroup>
-              )
-            : undefined,
+          headerRight: () => (
+            <ButtonGroup accessibilityLabel={t('common.edit')}>
+              <ButtonGroupItem
+                iconOnly
+                leadingIcon={RiPencilLine}
+                accessibilityLabel={t('common.edit')}
+                onPress={() => setEditorOpen(true)}
+              />
+            </ButtonGroup>
+          ),
         }}
       />
       <ScrollView
@@ -179,9 +176,9 @@ export default function AutomationHistoryScreen() {
         contentContainerClassName="w-full max-w-[768px] self-center gap-5 p-4"
       >
         <View className="gap-2">
-          {/* The heading is the name; the objective (a legacy trigger's prompt) reads under it (#534). */}
+          {/* The heading is the objective (#534). */}
           <Text variant="title-2-semibold" selectable>
-            {automationTitle(automation)}
+            {automation.objective}
           </Text>
           <View className={ROW}>
             <Badge
@@ -194,28 +191,11 @@ export default function AutomationHistoryScreen() {
                   : t('pages.automations.stopped')
               }
             />
-            {automation.legacyTriggerId ? (
-              <Badge
-                size="label-medium"
-                variant="subtle"
-                color="warning"
-                content={t('pages.automations.legacy')}
-              />
-            ) : null}
           </View>
-          {automation.name?.trim() ? (
-            <Text variant="body-regular" selectable>
-              {automation.objective}
-            </Text>
-          ) : null}
           <Muted selectable>{triggerLabel(automation.trigger)}</Muted>
           <Muted selectable>
             {t('pages.automations.actors', {
-              actors: actorLabel(
-                automation.actorSelection,
-                agentName,
-                Boolean(automation.legacyTriggerId),
-              ),
+              actors: actorLabel(automation.actorSelection, agentName),
             })}
           </Muted>
           {automation.actions.length > 0 ? (
@@ -263,17 +243,15 @@ export default function AutomationHistoryScreen() {
           </Button>
         ) : null}
       </ScrollView>
-      {!automation.legacyTriggerId ? (
-        <AutomationEditor
-          key={`${automation.updatedAt}:${editorOpen}`}
-          automation={automation}
-          agents={agentOptions}
-          open={editorOpen}
-          saving={updateAutomation.isPending}
-          onClose={() => setEditorOpen(false)}
-          onSave={saveUpdate}
-        />
-      ) : null}
+      <AutomationEditor
+        key={`${automation.updatedAt}:${editorOpen}`}
+        automation={automation}
+        agents={agentOptions}
+        open={editorOpen}
+        saving={updateAutomation.isPending}
+        onClose={() => setEditorOpen(false)}
+        onSave={saveUpdate}
+      />
     </>
   );
 }

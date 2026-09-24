@@ -2,7 +2,6 @@ import { capabilityIconForTool } from '@/lib/constants/capability-families';
 import {
   useAgentActivity,
   type AgentActivityEvent,
-  type AgentScreenshot,
   type AgentSource,
   type PlanProgress,
 } from '@/lib/hooks/use-agent-activity';
@@ -13,16 +12,11 @@ import { AgentProgress } from '@oxy.so/bloom/agent-progress';
 import { AgentThinking } from '@oxy.so/bloom/agent-thinking';
 import { useAiChatShell } from '@oxy.so/bloom/ai-chat';
 import { Button } from '@oxy.so/bloom/button';
-import { Card } from '@oxy.so/bloom/card';
 import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { RiCheckboxCircleLine } from '@oxy.so/bloom/icons/RiCheckboxCircleLine';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
-import { RiComputerLine } from '@oxy.so/bloom/icons/RiComputerLine';
 import { RiErrorWarningLine } from '@oxy.so/bloom/icons/RiErrorWarningLine';
-import { RiFileTextLine } from '@oxy.so/bloom/icons/RiFileTextLine';
-import { RiFolderOpenLine } from '@oxy.so/bloom/icons/RiFolderOpenLine';
 import { RiSearchLine } from '@oxy.so/bloom/icons/RiSearchLine';
-import { Item } from '@oxy.so/bloom/item';
 import { LinkPreviewCard } from '@oxy.so/bloom/link-preview';
 import { Notification } from '@oxy.so/bloom/notification';
 import { StatBar } from '@oxy.so/bloom/stat-bar';
@@ -31,18 +25,22 @@ import { useTheme } from '@oxy.so/bloom/theme';
 import { Muted, Text } from '@oxy.so/bloom/typography';
 import * as WebBrowser from 'expo-web-browser';
 import { useMemo, useState } from 'react';
-import { Image, Platform, ScrollView, View } from 'react-native';
+import { Platform, ScrollView, View } from 'react-native';
 
 /**
  * AgentPanel — the right panel showing an agent run as it happens.
  *
- * Four tabs (Steps | Browser | Files | Sources) over the run's live events,
- * the plan as Bloom's `AgentProgress`, a pending approval as a warning
- * `Notification` with its two answers, and the action in flight as
- * `AgentThinking` at the foot.
+ * Two tabs (Steps | Sources) over the run's live events, the plan as Bloom's
+ * `AgentProgress`, a pending approval as a warning `Notification` with its two
+ * answers, and the action in flight as `AgentThinking` at the foot.
+ *
+ * There is no Files tab and no Browser tab. An agent has no workspace
+ * filesystem — the `files` capability was retired with the sandbox it needed —
+ * and its `browser` reads pages through Clarity as text, so there are no
+ * screenshots to show. What it read appears under Sources.
  */
 
-type Tab = 'steps' | 'browser' | 'files' | 'sources';
+type Tab = 'steps' | 'sources';
 type Translate = (key: string, params?: Record<string, unknown>) => string;
 
 /** The events worth a line in the log; system noise is left out. */
@@ -77,18 +75,11 @@ export function agentStepLabel(event: AgentActivityEvent, t: Translate): string 
       return cut(event.content, 60);
     case 'tool_call': {
       const args = event.metadata?.args;
-      if (toolName === 'shell')
-        return t('panels.agent.step.shell', { command: cut(args?.command, 50) || t('panels.agent.step.command') });
       if (toolName === 'browser')
         return t('panels.agent.step.browser', {
           action: args?.action || t('panels.agent.step.action'),
           target: cut(args?.url, 30) || cut(args?.query, 30),
         }).trim();
-      if (toolName === 'file_edit')
-        return t('panels.agent.step.fileEdit', {
-          action: args?.action || t('panels.agent.step.edit'),
-          path: cut(args?.path, 40) || t('panels.agent.step.file'),
-        });
       if (toolName === 'plan')
         return args?.action === 'complete' ? t('panels.agent.step.completing') : t('panels.agent.step.updatingPlan');
       if (toolName === 'delegate') return t('panels.agent.step.delegate', { agent: args?.agent || 'agent' });
@@ -166,69 +157,6 @@ function StepsTab({ events, isActive }: { events: AgentActivityEvent[]; isActive
   );
 }
 
-function BrowserTab({ screenshots }: { screenshots: AgentScreenshot[] }) {
-  const { t } = useTranslation();
-  if (screenshots.length === 0) {
-    return <EmptyState variant="compact" icon={RiComputerLine} description={t('panels.agent.noBrowser')} />;
-  }
-
-  const latest = screenshots[screenshots.length - 1];
-
-  return (
-    <View className="gap-3">
-      <Card appearance="outline" radius="radius-12">
-        <View className="px-3 py-1.5">
-          <Muted numberOfLines={1}>{latest.url}</Muted>
-        </View>
-        <Image
-          source={{ uri: `data:image/png;base64,${latest.base64}` }}
-          className="h-[200px] w-full"
-          resizeMode="cover"
-          accessibilityLabel={latest.url}
-        />
-      </Card>
-
-      {screenshots.length > 1 && (
-        <View className="flex-row flex-wrap gap-2">
-          {screenshots.slice(0, -1).map((s, i) => (
-            <Card key={`ss-${i}`} appearance="outline" radius="radius-8">
-              <Image
-                source={{ uri: `data:image/png;base64,${s.base64}` }}
-                className="h-[50px] w-20"
-                resizeMode="cover"
-                accessibilityLabel={s.url}
-              />
-            </Card>
-          ))}
-        </View>
-      )}
-    </View>
-  );
-}
-
-function FilesTab({ files }: { files: string[] }) {
-  const { t } = useTranslation();
-  const { colors } = useTheme();
-  if (files.length === 0) {
-    return <EmptyState variant="compact" icon={RiFolderOpenLine} description={t('panels.agent.noFiles')} />;
-  }
-
-  return (
-    <View role="list" className="gap-1">
-      <Muted>{t('panels.agent.workspaceFiles', { count: files.length })}</Muted>
-      {files.map((file, i) => (
-        <Item
-          key={`file-${i}`}
-          role="listitem"
-          density="compact"
-          leading={<RiFileTextLine size="sm" fill={colors.textSecondary} />}
-          title={file}
-        />
-      ))}
-    </View>
-  );
-}
-
 function SourcesTab({ sources }: { sources: AgentSource[] }) {
   const { t } = useTranslation();
   if (sources.length === 0) {
@@ -296,8 +224,6 @@ export function AgentPanel() {
 
   const tabs: { key: Tab; label: string; count?: number }[] = [
     { key: 'steps', label: t('panels.agent.tabs.steps') },
-    { key: 'browser', label: t('panels.agent.tabs.browser') },
-    { key: 'files', label: t('panels.agent.tabs.files') },
     { key: 'sources', label: t('panels.agent.tabs.sources'), count: activity.sources.length || undefined },
   ];
 
@@ -362,10 +288,6 @@ export function AgentPanel() {
       <ScrollView className="flex-1 px-4" contentContainerClassName="pb-6" showsVerticalScrollIndicator={false}>
         {activeTab === 'steps' ? (
           <StepsTab events={activity.events} isActive={isActive} />
-        ) : activeTab === 'browser' ? (
-          <BrowserTab screenshots={activity.screenshots} />
-        ) : activeTab === 'files' ? (
-          <FilesTab files={activity.files} />
         ) : (
           <SourcesTab sources={activity.sources} />
         )}

@@ -106,7 +106,6 @@ type Message = {
   toolInvocations?: ToolInvocation[];
   // Voice fields
   source?: 'text' | 'voice';
-  speaker?: 'primary' | 'cohost';
   isStreaming?: boolean;
   // Plan preview + research progress
   pendingPlan?: PendingPlan;
@@ -195,13 +194,9 @@ type ChatInterfaceProps = {
  */
 const NO_HISTORY: ThreadMessage[] = [];
 
-/** True for Alia's own assistant messages (excludes delegated agents and voice cohosts). */
+/** True for Alia's own assistant messages (excludes delegated agents). */
 function isAliaOwnedMessage(m: Message): boolean {
-  return (
-    m.role === 'assistant' &&
-    !m.agentInfo &&
-    !(m.source === 'voice' && m.speaker === 'cohost')
-  );
+  return m.role === 'assistant' && !m.agentInfo;
 }
 
 // Raw text extraction without the tag-stripping regex passes — cheap enough
@@ -912,10 +907,7 @@ export const ChatInterface = React.memo(function ChatInterface({
           {agentActivity &&
             agentActivity.eventCount > 0 &&
             (agentActivity.isComplete && agentSessionId ? (
-              <AgentResultCard
-                activity={agentActivity}
-                sessionId={agentSessionId}
-              />
+              <AgentResultCard activity={agentActivity} />
             ) : (
               <AgentTaskCard activity={agentActivity} />
             ))}

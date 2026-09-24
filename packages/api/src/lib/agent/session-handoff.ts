@@ -6,9 +6,9 @@
  *
  * Hiring an agent is a fixed sequence: reserve the agent's price, write the
  * session row carrying that reservation, count the hire, enqueue the job. Three
- * call sites did it — `routes/agents/hire.ts`, `lib/agent/routing-handler.ts`
- * and the agent-escalation branch of `routes/v1/chat-completions.ts` — and all
- * three answered a failure of any step with a `log.error` and nothing else.
+ * call sites did it — the retired `POST /agents/:id/hire` route,
+ * `lib/agent/routing-handler.ts` and the agent-escalation branch of
+ * `routes/v1/chat-completions.ts`, all since deleted — and all three answered a failure of any step with a `log.error` and nothing else.
  *
  * `reserveCredits` DEBITS on the way in. So every one of those failures left the
  * person short by the agent's price, for an agent that never ran, with no record
@@ -56,11 +56,23 @@ import { enqueueAgentSession } from '../task-queue.js';
 const DEFAULT_AGENT_PRICE = 15;
 
 /**
+ * The credits one hire of this agent reserves — the ONE place that is decided.
+ *
+ * Exported because a goal RECORDS its price (`agent_goals.price_credits`) before
+ * this module reserves it. The goals route wrote `agent.price ?? 0` while the
+ * reservation below charged `agent.price || 15`, so an agent with no price
+ * produced a goal that said 0 and a balance that lost 15. Both now read this.
+ */
+export function agentHirePrice(agent: { readonly price: number | null }): number {
+  return agent.price || DEFAULT_AGENT_PRICE;
+}
+
+/**
  * What KIND of act is spending these credits, which is what decides whether it
  * counts as a hire.
  *
- * `hire` — somebody CHOSE this agent: the marketplace hire route, and a chat
- * turn escalating to the agent its conversation is linked to. Moves both
+ * `hire` — somebody CHOSE this agent: an explicit goal on an agent thread
+ * (`POST /agents/threads/:threadId/goals`, the one live caller). Moves both
  * counters.
  *
  * `delegation` — a `task_router` agent routed work to it on a trigger. Real
@@ -96,7 +108,7 @@ export type AgentSessionHandoff =
   | { readonly ok: true; readonly sessionId: string; readonly queued: boolean; readonly jobId?: string }
   /**
    * `creditsNeeded` rides on the refusal so the 402 body does not need a second
-   * copy of `agent.price || DEFAULT_AGENT_PRICE` — the price that was actually
+   * copy of {@link agentHirePrice} — the price that was actually
    * asked for is reported by whoever asked for it.
    */
   | { readonly ok: false; readonly reason: 'insufficient_credits'; readonly creditsNeeded: number }
@@ -118,7 +130,7 @@ export async function startAgentSession(input: {
   readonly depth?: number;
 }): Promise<AgentSessionHandoff> {
   const { agent, userId, task, origin } = input;
-  const price = agent.price || DEFAULT_AGENT_PRICE;
+  const price = agentHirePrice(agent);
 
   /**
    * The PAYER's balance row, and only the payer's.

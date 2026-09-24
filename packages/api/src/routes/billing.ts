@@ -397,7 +397,7 @@ router.post('/checkout/subscription', authenticateToken, async (req: Request, re
  * The Postgres port changed this response shape and nothing noticed, because
  * almost every account is on the free floor and gets `null` here. The row it
  * started returning is flat — `planSnapshotName`, `planSnapshotPrice` — while
- * `packages/app` and `packages/alia-console` both read `subscription.plan.name`
+ * `packages/app` (and the since-retired developer console) read `subscription.plan.name`
  * and `subscription.plan.planId`. So a paying account rendered a blank plan on
  * the settings screen, an unmarked tier on the plans screen, and a TypeError in
  * `credits-panel.tsx`, which reaches `.plan.name` without a guard.
@@ -654,27 +654,6 @@ router.get('/entitlements', authenticateToken, async (req: Request, res: Respons
   } catch (error: unknown) {
     log.credits.error({ err: error }, 'Error fetching entitlements');
     res.status(500).json({ error: getSafeErrorMessage(error, 'Failed to fetch entitlements') });
-  }
-});
-
-// Voice usage: returns current voice minutes used vs limit for the billing period
-router.get('/voice-usage', authenticateToken, async (req: Request, res: Response) => {
-  try {
-    const { getUserEntitlements: getEntitlements } = await import('../lib/plan-access.js');
-    const { getVoiceUsageSummary } = await import('../lib/voice-usage.js');
-
-    const entitlements = await getEntitlements(req.user!.id);
-    const voiceMinutesLimit = entitlements.features['voice-minutes'];
-
-    if (typeof voiceMinutesLimit !== 'number' || voiceMinutesLimit <= 0) {
-      return res.json({ usedMinutes: 0, limitMinutes: 0, remainingMinutes: 0 });
-    }
-
-    const usage = await getVoiceUsageSummary(req.user!.id, voiceMinutesLimit);
-    res.json(usage);
-  } catch (error: unknown) {
-    log.credits.error({ err: error }, 'Error fetching voice usage');
-    res.status(500).json({ error: getSafeErrorMessage(error, 'Failed to fetch voice usage') });
   }
 });
 

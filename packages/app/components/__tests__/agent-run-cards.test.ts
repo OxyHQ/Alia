@@ -7,7 +7,6 @@ import { describe, expect, it, vi } from 'vitest';
  * all: which conversation opened it.
  */
 
-vi.mock('@/components/workspace-browser', () => ({ WorkspaceBrowser: () => null }));
 vi.mock('react-native', () => ({ View: 'View', Pressable: 'Pressable' }));
 vi.mock('expo-image', () => ({ Image: 'Image' }));
 for (const mod of [

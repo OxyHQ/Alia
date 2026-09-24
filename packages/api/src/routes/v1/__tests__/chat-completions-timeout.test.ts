@@ -126,7 +126,6 @@ vi.mock('../../../lib/tool-converter.js', () => ({
 vi.mock('../../../lib/tools/index.js', () => ({
   getCurrentDateTool: { execute: vi.fn() },
   webSearchTool: { execute: vi.fn() },
-  browseTool: { execute: vi.fn() },
   saveUserMemoryTool: vi.fn(() => ({ execute: vi.fn() })),
   updateUserMemoryTool: vi.fn(() => ({ execute: vi.fn() })),
   updateUserPreferencesTool: vi.fn(() => ({ execute: vi.fn() })),
@@ -174,12 +173,7 @@ vi.mock('../../../lib/errors/index.js', () => ({
     error: { code: e.code, message: e.userMessage, retryable: e.retryable },
   })),
   sanitizeMessage: vi.fn((msg: string) => msg),
-  AliaError: class AliaError extends Error { code = ''; retryable = false; },
-  AliaErrorCode: {},
   classifyError: vi.fn(() => 'unknown'),
-  isAliaError: vi.fn(() => false),
-  isTimeoutError: vi.fn(() => false),
-  getRetryAfterHeader: vi.fn(() => undefined),
 }));
 
 vi.mock('../../../lib/gateway-client.js', () => ({
@@ -260,8 +254,6 @@ const VALID_RESOLVED_MODEL = {
   modelId: 'gpt-4o',
   keyConfig: { provider: 'openai', key: 'sk-test', modelId: 'gpt-4o', keyId: 'key-1' },
   routingProfile: { name: 'Auto', creditMultiplier: 1 },
-  isFallback: false,
-  fallbackIndex: 0,
 };
 
 const VALID_RESERVATION = {
@@ -296,7 +288,6 @@ function getHandler(): (req: any, res: any, next: any) => Promise<void> {
 function createMockReq(overrides: Record<string, any> = {}) {
   return {
     user: { id: 'user-123' },
-    apiKey: undefined,
     body: {
       messages: [{ role: 'user', content: 'Hello' }],
       model: 'route:auto',
@@ -873,7 +864,7 @@ describe('routing policy refusals - /v1/chat/completions', () => {
 
     await handler(req, createMockRes(), vi.fn());
 
-    expect(mockResolveModel).toHaveBeenCalledWith('route:auto', undefined, undefined, {});
+    expect(mockResolveModel).toHaveBeenCalledWith('route:auto', {});
   });
 
   it('resolves Kaana once and never retries in Alia', async () => {
@@ -902,7 +893,7 @@ describe('routing policy refusals - /v1/chat/completions', () => {
     await handler(req, createMockRes(), vi.fn());
 
     expect(mockResolveModel).toHaveBeenCalledTimes(1);
-    expect(mockResolveModel.mock.calls[0]?.[3]).toEqual({});
+    expect(mockResolveModel.mock.calls[0]?.[1]).toEqual({});
   });
 
   it('rejects a mistyped policy before reserving credits, like any policy', async () => {

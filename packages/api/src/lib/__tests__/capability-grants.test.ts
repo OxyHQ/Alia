@@ -44,7 +44,10 @@ import {
   FIXED_CAPABILITY_FAMILIES,
   FIXED_FAMILY_TOOLS,
   INSTANCED_CAPABILITY_FAMILIES,
+  RETIRED_CAPABILITY_FAMILIES,
   UNGRANTED_TOOLS,
+  isCapabilityGrant,
+  withoutRetiredGrants,
   type FixedCapabilityFamily,
 } from '../../domain/capability-grants.js';
 import { NATIVE_PRODUCT_AGENT_MANIFEST } from '../../config/native-product-agents.js';
@@ -196,13 +199,6 @@ function runtimeDouble(): Parameters<typeof ToolPipeline.forUser>[0]['runtime'] 
     onComplete: () => undefined,
     onHireAgent: async () => 'done',
     todoManager: { update: () => undefined, toJSON: () => ({ items: [] }), serialize: () => 'plan' },
-    workspaceMemory: { syncTodo: async () => undefined },
-    terminalSession: {
-      run: async () => '',
-      readFile: async () => '',
-      writeFile: async () => undefined,
-      getContainerId: () => null,
-    },
     browserSession: { execute: async () => '' },
   } as unknown as NonNullable<Parameters<typeof ToolPipeline.forUser>[0]['runtime']>;
 }
@@ -276,7 +272,7 @@ describe('an agent reaches exactly what it was granted', () => {
     const names = await namesFor([]);
 
     // Deny by default, stated as an equality rather than as an absence: a set
-    // that merely lacked `shell` would also satisfy "shell is denied".
+    // that merely lacked `browser` would also satisfy "browser is denied".
     expect(names).toEqual([...UNGRANTED_TOOLS].sort());
   });
 
@@ -435,7 +431,7 @@ describe('every tool the assembler can build belongs to exactly one family', () 
     // sets — which is the shape of a passing test that measures nothing.
     const all = await namesFor(EVERY_GRANT);
     expect(all.length).toBeGreaterThanOrEqual(23);
-    expect(CAPABILITY_FAMILIES.length).toBe(12);
+    expect(CAPABILITY_FAMILIES.length).toBe(10);
   });
 });
 
@@ -474,7 +470,7 @@ describe('a turn with NO agent is not partitioned', () => {
     // Ordinary Alia is unaffected by deny-by-default. The two differ only in
     // the instanced families, where "no agent" means every row and a granted
     // agent means the rows it named.
-    expect(withoutAgent).toContain('shell');
+    expect(withoutAgent).toContain('browser');
     expect(withoutAgent).toContain('saveUserMemory');
     expect(withoutAgent.length).toBeGreaterThan(fullyGranted.length - 5);
   });
@@ -637,10 +633,10 @@ describe("the native product agent's published grant", () => {
    *
    * The equality above already fails if any of these appears, but it fails as
    * one unreadable array diff. Naming the families says WHICH capability
-   * leaked, and these are the six that let an agent act in the world rather
+   * leaked, and these are the four that let an agent act in the world rather
    * than read and answer.
    */
-  it.each(['shell', 'browser', 'files', 'messaging', 'automation', 'delegation'] as const)(
+  it.each(['browser', 'messaging', 'automation', 'delegation'] as const)(
     'cannot reach the %s family',
     async (family) => {
       const names = await namesFor([...SINDI]);
@@ -680,5 +676,57 @@ describe("the native product agent's published grant", () => {
   it('leaves the other product agent with only the ungranted tools', async () => {
     // Clarity's empty manifest entry, through the same path. Empty DENIES.
     expect(await namesFor([...CLARITY])).toEqual([...UNGRANTED_TOOLS].sort());
+  });
+});
+
+/**
+ * `shell` and `files` are RETIRED, and this is the freeze.
+ *
+ * They granted the runner's `shell` and `file_edit` primitives, which acted on a
+ * sandbox container production never had — every call answered "no sandbox".
+ * An owner could switch them on and they could never do anything. The owner's
+ * clean cut removed what cannot work; these assertions are what keep a later
+ * change from quietly offering the switch again.
+ */
+describe('the retired shell and files families stay gone', () => {
+  it('names them as retired and nowhere else in the vocabulary', () => {
+    expect([...RETIRED_CAPABILITY_FAMILIES].sort()).toEqual(['files', 'shell']);
+    for (const family of RETIRED_CAPABILITY_FAMILIES) {
+      expect(CAPABILITY_FAMILIES as readonly string[]).not.toContain(family);
+      expect(Object.keys(FIXED_FAMILY_TOOLS)).not.toContain(family);
+      expect(isCapabilityGrant(family)).toBe(false);
+    }
+  });
+
+  it('builds neither primitive for a fully granted agent, nor for ordinary Alia', async () => {
+    for (const names of [await namesFor(EVERY_GRANT), await namesFor(null)]) {
+      expect(names).not.toContain('shell');
+      expect(names).not.toContain('file_edit');
+      // The floor: the runtime primitives that DO work are still built, so the
+      // absence above is not an empty set passing for a withheld one.
+      expect(names).toContain('browser');
+      expect(names).toContain('plan');
+    }
+  });
+
+  it('reads a stored retired grant as nothing, and keeps the rest of the row', async () => {
+    const names = await namesFor(['shell', 'files', 'web']);
+    expect(names).toEqual(await namesFor(['web']));
+    expect(names).not.toEqual(await namesFor([]));
+    // `allows` is typed over the live families only, so ask through `unknown`:
+    // the stored string is exactly what an old row holds.
+    const grants = readCapabilityGrants(['shell', 'files']);
+    expect((grants.allows as (family: string) => boolean)('shell')).toBe(false);
+    expect((grants.allows as (family: string) => boolean)('files')).toBe(false);
+  });
+
+  it('strips retired entries on write and touches nothing else', () => {
+    expect(withoutRetiredGrants(['web', 'shell', 'files', 'mcp:conn-1', 'agent'])).toEqual([
+      'web',
+      'mcp:conn-1',
+      'agent',
+    ]);
+    // An unknown family is NOT retired: it stays, so the wire can still refuse it.
+    expect(withoutRetiredGrants(['not-a-family'])).toEqual(['not-a-family']);
   });
 });

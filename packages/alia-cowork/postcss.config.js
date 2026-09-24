@@ -11,7 +11,6 @@ export default {
   plugins: [
     postcssImport({
       path: [
-        join(__dirname, 'renderer/node_modules'),
         join(__dirname, 'node_modules'),
         join(__dirname, 'renderer/src'),
       ],

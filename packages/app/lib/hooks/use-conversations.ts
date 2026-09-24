@@ -34,7 +34,6 @@ export interface Message {
   toolInvocations?: ToolInvocation[];
   // Voice fields (optional, only present for voice-originated messages)
   source?: 'text' | 'voice';
-  speaker?: 'primary' | 'cohost';
   /**
    * The turn is being streamed into this message right now.
    *

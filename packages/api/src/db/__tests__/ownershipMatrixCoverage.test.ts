@@ -215,12 +215,49 @@ interface MatrixRow {
  * `routing_profile_provider_mappings`: `scripts/seed.ts` ran it on every deploy
  * for a catalogue no runtime module reads since #477 (Alia routes by exact
  * opaque Oxy profile ids). Its test left with it, which is why
- * `NOT_APPLICABLE` shrank by one in the same edit. The three tables stay until
- * the production audit that gates their DROP (#139 workstream 10).
+ * `NOT_APPLICABLE` shrank by one in the same edit. The three tables were
+ * dropped later, without waiting for that audit, by the owner's decision.
  *
  * It carries a branch name for the reason the others do.
+ *
+ * ## 110 -> 112: `cost-tracker-pricing`, `sse-named-event-contract`
+ *
+ * `lib/cost-tracker.ts` (no production caller; `recordCost` never had one) and
+ * `lib/chat-events.ts` (zero importers; the union it declared constrained
+ * nothing) are deleted in the dead-code cut.
+ *
+ * ## 112 -> 117: `corte-db-catalogue`
+ *
+ * The owner's clean cut drops `model_configs`, the routing-profile tables and
+ * the `external_models` leaderboard mirror. Their repositories, the
+ * `/external-models` route and the ZeroEval sync (three rows name the same
+ * script) go with them.
+ *
+ * ## 117 -> 121: `corte-db-alia-keys`
+ *
+ * The `alia_sk_*` developer keys are retired outright: `lib/api-key-crypto.ts`
+ * and `routes/codea.ts` (three rows), whose every route authenticated with one
+ * of those keys and nothing else, are deleted.
+ *
+ * ## 121 -> 144: `corte-db-console`
+ *
+ * `packages/alia-console`, the developer portal for those keys, is deleted
+ * whole: twenty-three rows named its screens, hooks and documentation pages.
+ *
+ * ## 144 -> 154: `corte-db-migration`
+ *
+ * Migration 0070 drops the tables, so `db/schema/providers.ts`,
+ * `db/schema/developers.ts` and `domain/model-config.ts` are deleted: ten rows
+ * named a table or field declared in them.
+ *
+ * ## 154 -> 158: `voz-en-dispositivo`
+ *
+ * Voice runs on the device (`@alia.onl/sdk` 8.0.0), so `routes/v1/voice.ts` —
+ * the LiveKit token and transcription stubs that had refused every call since
+ * #477 — is deleted: four rows named the file (both routes, its gateway-client
+ * import and the transcription behaviour).
  */
-const REMOVED_ROW_COUNT = 110;
+const REMOVED_ROW_COUNT = 161;
 
 const OWNERS = new Set(['alia', 'oxy', 'kaana', 'delete']);
 const REACHABLE = new Set(['live', 'dead', 'unverified', 'loaded-not-invoked']);
@@ -321,9 +358,11 @@ describe('the ownership matrix still describes this repository', () => {
      * in which every row is annotated as removed, which is precisely the end
      * state this gate must not slide into; the floor on rows whose file must
      * still exist is what makes that visible. 250 rather than the 318 of the
-     * day, so ordinary consolidation does not fail the build.
+     * day, so ordinary consolidation does not fail the build — lowered to 200
+     * by the owner's clean cut of the dormant tables and the `alia_sk_*` key
+     * path, which removed whole files rather than consolidating them.
      */
-    expect(matrix.filter((r) => r.removedIn === undefined).length).toBeGreaterThanOrEqual(250);
+    expect(matrix.filter((r) => r.removedIn === undefined).length).toBeGreaterThanOrEqual(200);
     expect(new Set(matrix.map((r) => r.currentPath)).size).toBeGreaterThanOrEqual(150);
   });
 

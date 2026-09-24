@@ -567,10 +567,6 @@ async function renderSegments(
         const key = await uploadToS3(
           result.value.buffer,
           `segment.${result.value.format}`,
-          // A prefix of its OWN, not a folder inside `shows/`. The one-shot purge
-          // deletes everything under `{env}/shows/`, and sharing that prefix
-          // would make it unable to tell a dead recording from an episode being
-          // assembled while it runs.
           `show-segments/${episode.userId}/${episode.id}`,
           `segment-${segment.index}`,
         );
@@ -610,7 +606,9 @@ async function renderSegments(
 }
 
 /**
- * Ask a model for this episode's script, trying each provider once.
+ * Ask a model for this episode's script, retrying the same Kaana route a
+ * bounded number of times. Kaana owns provider selection, so a retry is simply
+ * another request.
  */
 async function generateScript(
   series: ShowSeriesRow,
@@ -618,7 +616,6 @@ async function generateScript(
   previously: readonly PriorEpisode[],
 ): Promise<ShowScript | null> {
   const MAX_ATTEMPTS = 3;
-  const skipProviders = new Set<string>();
 
   const system = buildScriptSystemPrompt(series.format, series.speakers);
   const user = buildScriptUserPrompt({
@@ -638,10 +635,8 @@ async function generateScript(
   // never being asked to choose.
   const needsTopic = episode.topic === null;
 
-  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-    const resolved = await resolveModel(getDefaultRoutingProfile(), skipProviders);
-    if (!resolved) break;
-
+  const resolved = await resolveModel(getDefaultRoutingProfile());
+  for (let attempt = 0; resolved && attempt < MAX_ATTEMPTS; attempt++) {
     try {
       const result = await generateText({
         model: getAIModel(resolved, 'media'),
@@ -659,13 +654,11 @@ async function generateScript(
       // The model's own answer; only its size distinguishes an empty reply from
       // a long one that never contained usable JSON.
       log.general.warn(
-        { replyLength: (result.text ?? '').length, provider: resolved.provider },
+        { replyLength: (result.text ?? '').length, attempt },
         'Show script response was not usable',
       );
-      skipProviders.add(resolved.provider);
     } catch (err: unknown) {
-      log.general.error({ err, provider: resolved.provider, attempt }, 'Script generation failed');
-      skipProviders.add(resolved.provider);
+      log.general.error({ err, attempt }, 'Script generation failed');
     }
   }
 
@@ -681,7 +674,7 @@ async function generateScript(
  *  - fewer than three segments is not an episode;
  *  - a dialogue segment naming somebody who is not in the cast has no voice to
  *    be spoken in, so it would be dropped silently later. Rejecting the whole
- *    reply here retries with another provider instead, which is what a caller
+ *    reply here asks the model again instead, which is what a caller
  *    would want and what the old code could not do because it discovered the
  *    problem three steps downstream;
  *  - no usable `topic`, when the row has none either. That combination is an

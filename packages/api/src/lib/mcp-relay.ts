@@ -9,9 +9,6 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import type http from 'http';
 import { log } from './logger.js';
-import { getDb } from '../db/index.js';
-import { findActiveKeyByHash } from '../db/developers/developerRepository.js';
-import { hashDeveloperApiKey } from './api-key-crypto.js';
 import { oxyClient } from '../middleware/auth.js';
 
 interface LocalTool {
@@ -238,22 +235,14 @@ export function callLocalTool(
 }
 
 /**
- * Validate API key or JWT token and return the user ID.
+ * Validate an Oxy access token and return the user ID.
+ *
+ * The retired `alia_sk_*` developer keys are not a lane here: one reaches
+ * `authSocket()` like any other string and is refused, because it is not a
+ * JWT carrying an Oxy session.
  */
 async function validateToken(token: string | undefined): Promise<string | null> {
   if (!token || typeof token !== 'string') return null;
-
-  // API key (alia_sk_*) — an ALIA credential, resolved against Alia's own
-  // store. Deliberately not an Oxy lane, so the SDK has nothing to say about it.
-  if (token.startsWith('alia_sk_')) {
-    try {
-      const keyHash = hashDeveloperApiKey(token);
-      const key = await findActiveKeyByHash(getDb(), keyHash);
-      return key ? key.oxyUserId : null;
-    } catch {
-      return null;
-    }
-  }
 
   // Oxy access token — the SDK owns the session, exactly as it does for the
   // Express routes (`middleware/auth.ts`) and socket.io (`socket.ts`).
@@ -271,7 +260,7 @@ async function validateToken(token: string | undefined): Promise<string | null> 
   // bearer, reading `_id || id` off the body. That endpoint does not exist —
   // `api.oxy.so` answers 404 `NOT_FOUND` for `/me`, the route being `/users/me`
   // — so `response.ok` was never true and this lane refused EVERY caller. It is
-  // the primary lane: Cowork sends `oxy.getAccessToken()`, not an `alia_sk_`.
+  // the only lane: Cowork sends `oxy.getAccessToken()`.
   //
   // `authError` and the id read are BOTH kept, and neither is dead: on a refusal
   // the SDK calls back with the error and never populates `data`, so today

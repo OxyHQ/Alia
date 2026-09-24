@@ -13,10 +13,9 @@ Kaana's incident runbook. Removing it from Alia is cleanup, not revocation.
 | Credential | Owner and storage | Rotation effect |
 | --- | --- | --- |
 | Alia-to-Oxy application key and secret | Oxy ApplicationCredential record -> Oxy provisioner -> `/oxy/alia/OXY_SERVICE_API_*` -> ECS binding | New tasks authenticate with the replacement pair |
-| Developer API keys | `developer_api_keys.key_hash` | Revoke the row and issue a replacement; plaintext is never recoverable |
 | OAuth and connector tokens | encrypted PostgreSQL columns | API and integrations must share `TOKEN_ENCRYPTION_KEY` |
 | Bot/platform tokens | PostgreSQL; encrypted where declared | Restart or reconnect the affected integration |
-| Trigger and product webhook secrets | PostgreSQL | Producer and verifier must overlap or switch atomically |
+| Product webhook secrets | PostgreSQL | Producer and verifier must overlap or switch atomically |
 
 ## Alia-to-Oxy application credential
 

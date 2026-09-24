@@ -46,9 +46,9 @@ what lets an account keep fifty skills without paying for fifty prompts.
 in which case its body is prepended as instructions, or the model calls
 `loadSkill` after matching the index against the request.
 
-**Level 3 — resources.** `readSkillFile` returns one bundled file.
-`runSkillScript` executes one in a sandbox and returns only its output, so a
-script's source never costs tokens.
+**Level 3 — resources.** `readSkillFile` returns one bundled text file.
+Bundled scripts are stored and listed but not run: there is no sandbox to run
+them in (see *Scripts are not run* below).
 
 ## An install is the authorisation
 
@@ -93,14 +93,13 @@ is pinned to a number, and the sync leaves a pinned install alone. Re-importing
 an unchanged upstream commit produces no version at all — the bundle checksum
 decides.
 
-## Running a skill's scripts
+## Scripts are not run
 
-Scripts run in a container with **no network interface at all**
-(`network: 'none'`), no credentials, and nothing about the account or the
-conversation written into it beyond the skill's own files. That is the same
-environment Anthropic's Skills API provides, for the same reason. The bundle is
-materialised once per container, tracked by a marker file rather than by
-process memory, because the same conversation can be served by another task.
+`runSkillScript` executed a bundled script in a networkless container on the
+agent sandbox docker host. That host was never configured in production, so the
+tool was always withheld, and it was removed together with the host. A skill's
+scripts are imported and stored with the rest of its bundle; nothing executes
+them.
 
 ## What it does not do
 

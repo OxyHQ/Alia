@@ -42,15 +42,16 @@ COPY packages/alia-chat/package.json ./packages/alia-chat/
 # install outright ("Workspace not found"), whatever `--filter` says.
 COPY packages/alia-server/package.json ./packages/alia-server/
 COPY packages/alia-canvas/package.json ./packages/alia-canvas/
-COPY packages/alia-docker-host/package.json ./packages/alia-docker-host/
 COPY packages/integrations/package.json ./packages/integrations/
-COPY packages/alia-console/package.json ./packages/alia-console/
 COPY packages/alia-codea/package.json ./packages/alia-codea/
 COPY packages/alia-codea/webview-ui/package.json ./packages/alia-codea/webview-ui/
 COPY packages/alia-cowork/package.json ./packages/alia-cowork/
 COPY packages/alia-codea-cli/package.json ./packages/alia-codea-cli/
 
 # Skip heavy browser/desktop binaries pulled by unrelated workspaces.
+# The API itself ships no browser and depends on neither Playwright nor
+# Stagehand (its `browser` tool is Clarity-only); PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD
+# stays only because alia-cowork's postinstall runs `playwright install`.
 # ffmpeg-static (declared in packages/api "trustedDependencies") still fetches its
 # arch-specific binary so audio features work on the target architecture.
 ENV ELECTRON_SKIP_BINARY_DOWNLOAD=1 \
@@ -84,10 +85,8 @@ FROM node:${NODE_VERSION}-bookworm-slim AS runtime
 # Runtime system libraries:
 # - ca-certificates: outbound TLS (Redis TLS, Stripe, S3, Kaana and Oxy services).
 # - curl: container HEALTHCHECK.
-# - libglib2.0-0: required by @livekit/rtc-node's native module (libgio /
-#   libgobject / libglib) — loaded at startup, so the process crashes without it.
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends ca-certificates curl libglib2.0-0 && \
+    apt-get install -y --no-install-recommends ca-certificates curl && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 

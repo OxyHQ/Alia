@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 /**
  * The guard in front of every URL Alia did not choose.
  *
- * `webScraper` and `browse` are handed whatever the model produces — shaped by
+ * `webScraper` and `browser` are handed whatever the model produces — shaped by
  * search results and by what the person typed — and those requests leave from
  * inside the VPC, where `169.254.169.254` answers.
  *

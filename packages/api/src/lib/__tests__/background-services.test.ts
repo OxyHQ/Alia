@@ -16,7 +16,7 @@ import type { getDb as getDbSignature } from '../../db/index.js';
  * not see the defect that mattered: the function was reached ONLY from
  * `connectDB().then(...)`, a MongoDB connection whose URI left the task
  * definition at the decommission, so it retried forever and the trigger engine,
- * the dispatcher, both queues and the container pool never started at all. The
+ * the dispatcher and both queues never started at all. The
  * text of every one of those calls was correct the whole time.
  *
  * A census cannot fail on "the caller never fires". This can: every assertion
@@ -24,7 +24,7 @@ import type { getDb as getDbSignature } from '../../db/index.js';
  * behind a condition that is false turns one of these red.
  *
  * The collaborators are doubled because starting them for real would open a
- * Redis connection, elect a leader against Postgres and reach a Docker host.
+ * Redis connection and elect a leader against Postgres.
  * What is under test is the ORCHESTRATION — which of them run, and when — and
  * that is exactly what a double can carry honestly.
  */
@@ -34,10 +34,8 @@ const STOPPER_FOR: Readonly<Record<string, string>> = {
   'dispatcher.start': 'dispatcher.stop',
   initTaskQueue: 'shutdownTaskQueue',
   initShowQueue: 'shutdownShowQueue',
-  'containerPool.initialize': 'shutdownContainerPool',
   // Fire-and-forget work with no running resource behind it. Each of these
   // is one call that settles; there is nothing left to stop.
-  syncZeroEval: '',
   failOrphanedAudioJobs: '',
   reclaimOrphanedAgentSessions: '',
   startWorker: 'shutdownTaskQueue',
@@ -52,7 +50,6 @@ const traced = (name: string) => vi.fn(() => { order.push(name); return Promise.
 /** Records the call, in order, and returns nothing — for the synchronous starters. */
 const tracedSync = (name: string) => vi.fn(() => { order.push(name); });
 
-const syncZeroEval = traced('syncZeroEval');
 const startTriggerEngine = tracedSync('startTriggerEngine');
 const stopTriggerEngine = traced('stopTriggerEngine');
 const dispatcherStart = tracedSync('dispatcher.start');
@@ -63,8 +60,6 @@ const shutdownTaskQueue = traced('shutdownTaskQueue');
 const initShowQueue = traced('initShowQueue');
 const startShowWorker = traced('startShowWorker');
 const shutdownShowQueue = traced('shutdownShowQueue');
-const containerPoolInitialize = traced('containerPool.initialize');
-const shutdownContainerPool = traced('shutdownContainerPool');
 const startSkillRegistrySync = tracedSync('startSkillRegistrySync');
 const stopSkillRegistrySync = traced('stopSkillRegistrySync');
 const failOrphanedAudioJobs = vi.fn(() => { order.push('failOrphanedAudioJobs'); return Promise.resolve(0); });
@@ -74,17 +69,12 @@ const reclaimOrphanedAgentSessions = vi.fn(() => { order.push('reclaimOrphanedAg
 const DB_HANDLE = Symbol('db') as unknown as ReturnType<typeof getDbSignature>;
 const getDb = vi.fn((): ReturnType<typeof getDbSignature> => DB_HANDLE);
 
-vi.mock('../../scripts/sync-zeroeval.js', () => ({ syncZeroEval }));
 vi.mock('../trigger-engine.js', () => ({ startTriggerEngine, stopTriggerEngine }));
 vi.mock('../crowdsource/dispatcher.js', () => ({
   moderationOutboxDispatcher: { start: dispatcherStart, stop: dispatcherStop },
 }));
 vi.mock('../task-queue.js', () => ({ initTaskQueue, startWorker, shutdownTaskQueue }));
 vi.mock('../show/show-queue.js', () => ({ initShowQueue, startShowWorker, shutdownShowQueue }));
-vi.mock('../sandbox/container-pool.js', () => ({
-  getContainerPool: () => ({ initialize: containerPoolInitialize }),
-  shutdownContainerPool,
-}));
 vi.mock('../skills/scheduler.js', () => ({ startSkillRegistrySync, stopSkillRegistrySync }));
 vi.mock('../../db/notifications/audioJobRepository.js', () => ({ failOrphanedAudioJobs }));
 vi.mock('../agent/session-handoff.js', () => ({ reclaimOrphanedAgentSessions }));
@@ -116,12 +106,10 @@ describe('startBackgroundServices', () => {
      * ordering assertion below is what stops a service being added here and
      * quietly left out of the source.
      */
-    expect(syncZeroEval).toHaveBeenCalledTimes(1);
     expect(startTriggerEngine).toHaveBeenCalledTimes(1);
     expect(dispatcherStart).toHaveBeenCalledTimes(1);
     expect(initTaskQueue).toHaveBeenCalledTimes(1);
     expect(startWorker).toHaveBeenCalledTimes(1);
-    expect(containerPoolInitialize).toHaveBeenCalledTimes(1);
     expect(failOrphanedAudioJobs).toHaveBeenCalledTimes(1);
     expect(reclaimOrphanedAgentSessions).toHaveBeenCalledTimes(1);
     expect(initShowQueue).toHaveBeenCalledTimes(1);
@@ -133,21 +121,17 @@ describe('startBackgroundServices', () => {
     /*
      * The direction that is dangerous rather than merely wrong. This is called
      * from inside the `server.listen` callback; a version that awaited its
-     * starters would hold the event loop on Redis, a leader election and a
-     * Docker host before the process could answer a liveness probe, and the ALB
+     * starters would hold the event loop on Redis and a leader election
+     * before the process could answer a liveness probe, and the ALB
      * kills a task that fails one. `void` is the return type, so what is
      * asserted is that nothing here is awaited: every starter's promise is still
      * pending when the call returns.
      */
     initTaskQueue.mockImplementationOnce(() => { order.push('initTaskQueue'); return new Promise(() => {}); });
     initShowQueue.mockImplementationOnce(() => { order.push('initShowQueue'); return new Promise(() => {}); });
-    containerPoolInitialize.mockImplementationOnce(() => {
-      order.push('containerPool.initialize');
-      return new Promise(() => {});
-    });
 
     expect(startBackgroundServices()).toBeUndefined();
-    // It got all the way to the last statement despite three starters that never settle.
+    // It got all the way to the last statement despite two starters that never settle.
     expect(initShowQueue).toHaveBeenCalledTimes(1);
   });
 
@@ -165,11 +149,9 @@ describe('startBackgroundServices', () => {
      * the pre-existing shape and not an accident of the doubles.
      */
     expect(order).toEqual([
-      'syncZeroEval',
       'startTriggerEngine',
       'dispatcher.start',
       'initTaskQueue',
-      'containerPool.initialize',
       'failOrphanedAudioJobs',
       'reclaimOrphanedAgentSessions',
       'initShowQueue',
@@ -193,12 +175,12 @@ describe('startBackgroundServices', () => {
     /*
      * The positive control for every "it starts" assertion above: they would all
      * pass equally on a version that started nothing after the first failure.
-     * `syncZeroEval` is first, and an unavailable catalogue is an ordinary
-     * state — it must not be able to take the queues down with it.
+     * The audio-job cleanup runs early, and an unreachable database is an
+     * ordinary state — it must not be able to take the queues down with it.
      */
-    syncZeroEval.mockImplementationOnce(() => {
-      order.push('syncZeroEval');
-      return Promise.reject(new Error('catalogue unreachable'));
+    failOrphanedAudioJobs.mockImplementationOnce(() => {
+      order.push('failOrphanedAudioJobs');
+      return Promise.reject(new Error('database unreachable'));
     });
 
     startBackgroundServices();
@@ -219,7 +201,6 @@ describe('stopBackgroundServices', () => {
     expect(dispatcherStop).toHaveBeenCalledTimes(1);
     expect(shutdownTaskQueue).toHaveBeenCalledTimes(1);
     expect(shutdownShowQueue).toHaveBeenCalledTimes(1);
-    expect(shutdownContainerPool).toHaveBeenCalledTimes(1);
     expect(stopSkillRegistrySync).toHaveBeenCalledTimes(1);
   });
 
@@ -243,7 +224,7 @@ describe('stopBackgroundServices', () => {
     await settle();
     const started = [...order];
     // Vacuity floor: an empty `started` would make the loop below assert nothing.
-    expect(started.length).toBe(11);
+    expect(started.length).toBe(9);
 
     order.length = 0;
     await stopBackgroundServices();
@@ -272,7 +253,6 @@ describe('stopBackgroundServices', () => {
    */
   const TRACE_NAME: Readonly<Record<string, string>> = {
     start: 'dispatcher.start',
-    initialize: 'containerPool.initialize',
   };
 
   it('maps every starter the source actually calls', () => {
@@ -286,7 +266,7 @@ describe('stopBackgroundServices', () => {
     );
     // Vacuity floor on the slice: an index that missed would make every pattern
     // below match nothing and the test pass over an empty string.
-    expect(startHalf).toContain('syncZeroEval');
+    expect(startHalf).toContain('startTriggerEngine');
 
     const called = [...startHalf.matchAll(/([A-Za-z][A-Za-z0-9]*)\s*\(/g)]
       .map((match) => match[1])
@@ -318,7 +298,6 @@ describe('stopBackgroundServices', () => {
       'dispatcher.stop',
       'shutdownTaskQueue',
       'shutdownShowQueue',
-      'shutdownContainerPool',
     ]);
   });
 });

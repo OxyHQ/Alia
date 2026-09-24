@@ -1,23 +1,26 @@
 /**
  * App-specific wrapper around the SDK's useVoiceRoom hook.
  *
- * Injects the app's API URL from config and the user's voice preference
- * from the user data store, then re-exports the types for convenience.
+ * Injects the app's API URL, the user's voice preference and the app's
+ * language, then re-exports the types for convenience. `sendTurn` is how the
+ * conversation screen makes a call's turns its own turns — see
+ * `use-voice-mode.ts`.
  */
 
-import { useVoiceRoom as useVoiceRoomSDK } from '@alia.onl/sdk/voice';
+import { useVoiceRoom as useVoiceRoomSDK, type VoiceTurnSender } from '@alia.onl/sdk/voice';
 import config from '../config';
+import { speechLocale } from '../speech-locale';
 import { useUserDataStore } from '../stores/user-data-store';
 
 export type { RoomState, AgentState, VoiceMessage, VoiceToolInvocation } from '@alia.onl/sdk/voice';
 
-/** `agentId` when the open thread belongs to one; the session is Alia without it. */
-export function useVoiceRoom(agentId?: string) {
+export function useVoiceRoom(sendTurn: VoiceTurnSender) {
   const voicePref = useUserDataStore(s => s.memory?.preferences?.voice);
 
   return useVoiceRoomSDK({
     apiUrl: config.apiUrl,
     voicePreference: voicePref === 'male' ? 'male' : 'female',
-    ...(agentId ? { agentId } : {}),
+    lang: speechLocale(),
+    sendTurn,
   });
 }

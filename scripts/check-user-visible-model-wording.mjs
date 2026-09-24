@@ -31,8 +31,9 @@
  *
  * The naive census — the word "model" in any string literal in a client tree —
  * was measured before this was written and rejected: **155 hits**, dominated by
- * text that must not be flagged. `alia-console`'s documentation pages carry
- * whole `curl` and OpenAI-SDK samples whose `model` field IS the subject; the
+ * text that must not be flagged. The (since retired) developer console's
+ * documentation pages carried whole `curl` and OpenAI-SDK samples whose `model`
+ * field IS the subject; the
  * `'model'` wire discriminant and `object` value appear throughout; Electron
  * IPC channels are named `models:get`; operator logs say "Model command error".
  * An exemption list at that size is a census nobody maintains, which is how one
@@ -107,42 +108,6 @@ const PROSE_KEYS = new Set([
 const PROSE_ATTRIBUTES = new Set(['label', 'placeholder', 'title', 'aria-label', 'description']);
 
 /**
- * Files whose whole job is EXPLAINING what a model is.
- *
- * A page that cannot say "model" cannot document the distinction — and
- * `documentation/models.tsx` is the page that teaches it, opening with *"Alia
- * does not publish models of its own"*. Exempted by file rather than by string,
- * because every sentence on them is about the concept.
- *
- * Counted, and asserted to still excuse something: an exemption that has
- * stopped excusing anything is an exemption to delete, not one to keep.
- */
-const DOCUMENTATION_SURFACES = new Set([
-  'packages/alia-console/src/routes/_layout/documentation/index.tsx',
-  'packages/alia-console/src/routes/_layout/documentation/models.tsx',
-  'packages/alia-console/src/routes/_layout/documentation/chat-completions.tsx',
-  'packages/alia-console/src/routes/_layout/documentation/authentication.tsx',
-  'packages/alia-console/src/routes/_layout/examples.tsx',
-]);
-
-/**
- * The operator surface, where naming a model is REQUIRED to be truthful.
- *
- * `AGENTS.md` splits the repo's surfaces in two: the product conceals route
- * detail, and *"operator and audit surfaces (logs, `fallback_events`, admin
- * console)"* are truthful. `routes/_layout/models.tsx` is the model-statistics
- * route — it reports on the concrete third-party models behind the profiles, so
- * "Models" there is the correct word, and the nav entries that point at it
- * inherit that.
- */
-const OPERATOR_SURFACES = new Set([
-  'packages/alia-console/src/routes/_layout/models.tsx',
-  'packages/alia-console/src/components/layout/app-sidebar.tsx',
-  'packages/alia-console/src/components/command-menu.tsx',
-  'packages/alia-console/src/routes/_layout/dashboard.tsx',
-]);
-
-/**
  * Individual sentences that survive review, each with the reason.
  *
  * Keyed `<file> -> <text>`, exact, in both directions: a sentence that changes
@@ -162,18 +127,6 @@ const ALLOWED_TEXT = new Map([
   [
     'packages/alia-codea-cli/src/app.tsx -> Commands: /help, /clear, /mode <suggest|auto-edit|full-auto>, /model <name>, /exit',
     'The same address again, and here `/mode` is provably taken: it is the approval mode, listed two entries earlier in this very string.',
-  ],
-  [
-    'packages/alia-console/src/routes/_layout/playground.tsx -> Available Models',
-    'A group heading over a list whose every row carries an explicit `Model` or `Profile` badge derived from `entry.kind`, so the operator reads which each one is. The heading is imprecise where the rows are exact; changing it is a console decision, not an invariant breach.',
-  ],
-  [
-    'packages/alia-console/src/routes/_layout/playground.tsx -> Model Settings',
-    'The temperature and max-tokens popover. These are request parameters, not a name for the thing selected — the selector above it says "Select a profile".',
-  ],
-  [
-    'packages/alia-console/src/routes/_layout/playground.tsx -> Configure parameters for the AI model',
-    'Its subtitle, describing the same request parameters.',
   ],
 ]);
 
@@ -301,32 +254,22 @@ function main() {
   for (const tree of TREES) files.push(...sourceFiles(join(ROOT, tree)));
 
   // Vacuity floor, shared with `check-model-defaults.mjs` because the walk is
-  // literally the same one — see the reasoning on its floor for why 300 rather
+  // literally the same one — see the reasoning on its floor for why 200 rather
   // than a round number.
-  if (files.length < 300) {
+  if (files.length < 200) {
     console.error(
-      `check-user-visible-model-wording: walked only ${files.length} files; expected 300+.`,
+      `check-user-visible-model-wording: walked only ${files.length} files; expected 200+.`,
     );
     process.exit(1);
   }
 
   const offences = [];
   const usedAllowances = new Set();
-  let documentationHits = 0;
-  let operatorHits = 0;
 
   for (const file of files) {
     const rel = relative(ROOT, file);
     const hits = proseNamingAModel(rel, readFileSync(file, 'utf8'));
     if (hits.length === 0) continue;
-    if (DOCUMENTATION_SURFACES.has(rel)) {
-      documentationHits += hits.length;
-      continue;
-    }
-    if (OPERATOR_SURFACES.has(rel)) {
-      operatorHits += hits.length;
-      continue;
-    }
     for (const hit of hits) {
       const key = `${rel} -> ${hit.text}`;
       if (ALLOWED_TEXT.has(key)) {
@@ -337,22 +280,8 @@ function main() {
     }
   }
 
-  // Every exemption must still excuse something. An exemption list that has
-  // stopped describing the code is one that quietly excuses whatever moves into
-  // its place, and all three of these are asserted the same way the preference
-  // counts in `check-model-defaults.mjs` are.
-  if (documentationHits === 0) {
-    offences.push(
-      `DOCUMENTATION_SURFACES lists ${DOCUMENTATION_SURFACES.size} file(s) but none names a ` +
-        'model — delete the entries rather than leaving them to excuse nothing.',
-    );
-  }
-  if (operatorHits === 0) {
-    offences.push(
-      `OPERATOR_SURFACES lists ${OPERATOR_SURFACES.size} file(s) but none names a model — ` +
-        'delete the entries rather than leaving them to excuse nothing.',
-    );
-  }
+  // Every exemption must still excuse something: an entry that no longer
+  // matches is one that quietly excuses whatever moves into its place.
   for (const key of ALLOWED_TEXT.keys()) {
     if (!usedAllowances.has(key)) {
       offences.push(`ALLOWED_TEXT still excuses "${key}", which no longer appears — delete it.`);
@@ -375,7 +304,6 @@ function main() {
 
   console.log(
     `check-user-visible-model-wording: OK — ${files.length} files walked, ` +
-      `${documentationHits} documentation and ${operatorHits} operator mentions exempted, ` +
       `${ALLOWED_TEXT.size} reviewed sentences, no client naming a profile a model.`,
   );
 }

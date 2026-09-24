@@ -98,7 +98,6 @@ describe.skipIf(!MODEL)('a real local model answering through the bridge', () =>
           supportsVision: false,
           category: 'local',
         },
-        isFallback: false,
       },
       'chat',
     );

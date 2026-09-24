@@ -56,8 +56,8 @@ export interface ChatMessage {
   pendingPlan?: PendingPlan;
   /** Message origin: text chat or voice */
   source?: 'text' | 'voice';
-  /** Speaker identity in cohost voice mode */
-  speaker?: 'primary' | 'cohost';
+  /** Speaker identity in voice mode */
+  speaker?: 'primary';
   /** Whether a voice transcript is still streaming */
   isStreaming?: boolean;
   /** Cached TTS audio URL for read-aloud */
@@ -90,7 +90,7 @@ export interface VoiceToolInvocation {
 export interface VoiceMessage {
   id: string;
   role: 'user' | 'assistant';
-  speaker?: 'primary' | 'cohost';
+  speaker?: 'primary';
   content: string;
   timestamp: number;
   isStreaming: boolean;

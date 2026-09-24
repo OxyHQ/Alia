@@ -94,13 +94,19 @@ export interface ChatRequestContext {
    * Nothing downstream carries the `thinkingMode` boolean this replaced.
    */
   reasoningEffort: EffortLevel | null;
+  /**
+   * `'voice'` when the caller says the answer will be spoken (a voice call's
+   * turn), else `null`. Only the prompt reads it; routing, tools and billing
+   * are the same as for a typed turn.
+   */
+  responseMode: 'voice' | null;
   agentMode: boolean;
   deepResearch: boolean | undefined;
   /**
    * Whether Alia may reach the open web for this turn.
    *
    * `true` when the caller said nothing, which is the behaviour every request
-   * has had: `lib/tool-pipeline.ts` put `webSearch`, `webScraper` and `browse`
+   * has had: `lib/tool-pipeline.ts` put `webSearch`, `webScraper` and (then) `browse`
    * in the always-on tool set, and the composer's "Web search" switch reached
    * nothing at all. The switch means something now, and what it means is
    * REMOVAL — a person turning it off gets a turn with no web tools offered to
@@ -279,13 +285,12 @@ export async function buildChatRequestContext(
     }).catch(() => null);
   }
 
-  // Determine if this is a direct user session (not API key)
-  // API key requests should be neutral and not include creator's personal info
+  // Determine if this is a direct user session.
   // A delegated service request has a person in `req.user`, but its principal
   // is still the verified application in `req.serviceApp`. Calling it a direct
   // session would erase the application boundary and expose direct-only
   // context/tools to a machine caller.
-  const isDirectUserSession = !!req.user && !req.apiKey && !req.serviceApp;
+  const isDirectUserSession = !!req.user && !req.serviceApp;
   /**
    * A present requester (ADR 0025 in OxyHQServices): a person signed in to a
    * first-party product that entered with a requester assertion Oxy consumed
@@ -550,7 +555,6 @@ export async function buildChatRequestContext(
         supportsVision: false,
         category: 'local',
       },
-      isFallback: false,
     };
   }
 
@@ -708,8 +712,7 @@ export async function buildChatRequestContext(
       : Promise.resolve({ reservation: null, error: false as const }),
 
     /**
-     * Model resolution (includes key loading, rate limit checks, circuit
-     * breaker).
+     * Model resolution against the Kaana routing profile catalogue.
      *
      * The catch keeps the two REFUSALS instead of flattening them to `null`.
      * Everything else still becomes `null` and still becomes the same 503 it
@@ -718,12 +721,7 @@ export async function buildChatRequestContext(
      */
     localResolved !== null
       ? Promise.resolve(localResolved)
-      : resolveModel(
-          requestedModel,
-          undefined,
-          undefined,
-          routingOptions,
-        ).catch((err: unknown) => {
+      : resolveModel(requestedModel, routingOptions).catch((err: unknown) => {
           log.v1.error({ err }, 'Error resolving model');
           if (
             err instanceof UnregisteredModelError ||
@@ -749,7 +747,7 @@ export async function buildChatRequestContext(
       : Promise.resolve<OxyUserProfile | null>(null),
 
     // User entitlements (plan-based model access) — parallelized to avoid sequential delay
-    (req.user && !req.apiKey) ? getUserEntitlements(req.user.id).catch(() => null)
+    req.user ? getUserEntitlements(req.user.id).catch(() => null)
       : Promise.resolve(null),
 
     /**
@@ -968,7 +966,6 @@ export async function buildChatRequestContext(
     ? await buildSkillRuntime({
         db: getDb(),
         oxyUserId: req.user.id,
-        conversationId,
         selectedNames: selectedSkillNames,
         agentSkillIds: linkedAgent
           ? (await findAgentSkills(getDb(), linkedAgent.id)).map(
@@ -1045,10 +1042,10 @@ export async function buildChatRequestContext(
     'Using provider',
   );
 
-  // Enforce plan-based model access (skip for API-key requests)
+  // Enforce plan-based model access
   // Uses entitlements prefetched in Promise.all above
   // No plan grants a person their own hardware, so there is nothing to check.
-  if (req.user && !req.apiKey && entitlements && localRuntime === null) {
+  if (req.user && entitlements && localRuntime === null) {
     if (!entitlements.allowedModelIds.includes(routingProfileId)) {
       if (creditReservation) await refundReservation(creditReservation);
       clearTimeout(globalTimer);
@@ -1075,7 +1072,7 @@ export async function buildChatRequestContext(
       messages,
       model: routingProfileId,
       skillNames: selectedSkillNames ?? undefined,
-      platform: req.apiKey ? ('telegram' as const) : ('app' as const),
+      platform: 'app' as const,
       metadata: {},
     }).catch(() => null);
     recalledMemories = hookResult?.metadata?.recalledMemories as
@@ -1087,6 +1084,7 @@ export async function buildChatRequestContext(
     messages,
     conversationId,
     reasoningEffort,
+    responseMode: body.responseMode === 'voice' ? 'voice' : null,
     agentMode,
     deepResearch,
     webSearch,

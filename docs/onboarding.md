@@ -285,6 +285,6 @@ with an Oxy application service credential and never receives a provider key.
 | OxyHQ authentication | [docs/oxyhq-auth.md](oxyhq-auth.md) |
 | Deployment (AWS ECS Fargate) | [docs/deployment.md](deployment.md) |
 | Proactive intelligence / triggers | [docs/proactive-intelligence.md](proactive-intelligence.md) |
-| Developer access and `alia_sk_*` keys | [docs/developers-portal.md](developers-portal.md) |
+| Developer access (credentials for Alia's API) | [docs/developers-portal.md](developers-portal.md) |
 | Contributing | [CONTRIBUTING.md](../CONTRIBUTING.md) |
 | Project conventions | [AGENTS.md](../AGENTS.md) (also read by AI coding assistants) |

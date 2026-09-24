@@ -65,29 +65,14 @@ export function activate(context: vscode.ExtensionContext) {
     }),
 
     vscode.commands.registerCommand('codea.signIn', async () => {
-      const choice = await vscode.window.showQuickPick([
-        { label: '$(globe) Sign in with browser', description: 'Opens auth.oxy.so (Recommended)', value: 'browser' },
-        { label: '$(key) Enter API key', description: 'Legacy', value: 'apikey' },
-      ], { placeHolder: 'Choose sign-in method' });
-
-      if (choice?.value === 'browser') {
-        try {
-          await authProvider.signInWithBrowser();
-        } catch (error: unknown) {
-          const message = errorMessage(error);
-          if (!message.includes('timed out')) {
-            vscode.window.showErrorMessage(`Sign-in failed: ${message}`);
-          }
-        }
-      } else if (choice?.value === 'apikey') {
-        const apiKey = await vscode.window.showInputBox({
-          prompt: 'Enter your Alia API key (starts with alia_sk_)',
-          password: true,
-          placeHolder: 'alia_sk_...',
-        });
-        if (apiKey) {
-          await vscode.workspace.getConfiguration('codea').update('apiKey', apiKey, vscode.ConfigurationTarget.Global);
-          vscode.window.showInformationMessage('Alia API key saved.');
+      // Oxy is the only way in: the legacy `alia_sk_*` API keys were retired
+      // and the API refuses them.
+      try {
+        await authProvider.signInWithBrowser();
+      } catch (error: unknown) {
+        const message = errorMessage(error);
+        if (!message.includes('timed out')) {
+          vscode.window.showErrorMessage(`Sign-in failed: ${message}`);
         }
       }
     }),

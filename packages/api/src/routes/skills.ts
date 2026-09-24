@@ -351,13 +351,13 @@ router.post('/generate', authenticateToken, async (req: Request, res: Response) 
   if (prompt.length < 10) return fail(res, 400, 'A prompt of at least 10 characters is required', 'invalid_prompt');
   const language = typeof req.body?.language === 'string' ? req.body.language : 'en-US';
 
-  const MAX_PROVIDER_RETRIES = 3;
-  const skipProviders = new Set<string>();
+  // A bounded retry of the same Kaana route: Kaana owns provider selection, so
+  // there is nothing to skip between attempts.
+  const MAX_ATTEMPTS = 3;
   let text: string | null = null;
 
-  for (let attempt = 0; attempt < MAX_PROVIDER_RETRIES; attempt++) {
-    const resolved = await resolveModel(getDefaultRoutingProfile(), skipProviders);
-    if (!resolved) break;
+  const resolved = await resolveModel(getDefaultRoutingProfile());
+  for (let attempt = 0; resolved && attempt < MAX_ATTEMPTS; attempt++) {
     try {
       const result = await generateText({
         model: getAIModel(resolved, 'authoring'),
@@ -370,9 +370,8 @@ router.post('/generate', authenticateToken, async (req: Request, res: Response) 
       });
       text = result.text;
       break;
-    } catch (providerError) {
-      log.skills.error({ err: providerError, provider: resolved.provider, attempt }, 'Provider failed for skill drafting');
-      skipProviders.add(resolved.provider);
+    } catch (inferenceError) {
+      log.skills.error({ err: inferenceError, attempt }, 'Inference failed for skill drafting');
     }
   }
 

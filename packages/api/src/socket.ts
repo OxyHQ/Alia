@@ -11,7 +11,6 @@ import {
   accountHasSessionWithAgent,
   agentSessionIsOwnedBy,
 } from './db/agents/agentSessionRepository.js';
-import { canvasSessionExists } from './db/chat/canvasSessionRepository.js';
 import { findExecutionOwner } from './db/automation/workflowRepository.js';
 import {
   deliverUserRuntimeMessage,
@@ -156,13 +155,6 @@ export function initSocket(server: http.Server) {
       const owner = await findExecutionOwner(getDb(), executionId);
       if (owner !== userId) return;
       Promise.resolve(socket.join(`workflow:${executionId}`)).catch((err) => log.general.warn({ err }, 'socket.join workflow failed'));
-    });
-
-    socket.on('subscribe-canvas', async (conversationId: string) => {
-      if (typeof conversationId !== 'string' || conversationId.length === 0 || conversationId.length > 256) return;
-      if (!userId) return;
-      if (!(await canvasSessionExists(getDb(), userId, conversationId))) return;
-      Promise.resolve(socket.join(`canvas:${conversationId}`)).catch((err) => log.general.warn({ err }, 'socket.join canvas failed'));
     });
 
     socket.on('subscribe-agent', async (agentId: string) => {
@@ -337,12 +329,6 @@ export function getIO(): Server | null {
 export function emitTelegramLinked(token: string, data: any) {
   if (io) {
     io.to(`telegram-token:${token}`).emit('telegram-linked', data);
-  }
-}
-
-export function emitCanvasUpdate(conversationId: string, component: any) {
-  if (io) {
-    io.to(`canvas:${conversationId}`).emit('canvas-update', { conversationId, component });
   }
 }
 

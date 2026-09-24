@@ -28,7 +28,7 @@ Alia adds no field to the frontmatter and reads none of its own. `metadata` is s
 
 1. **The index.** Every enabled installed skill contributes `name: description` — roughly a hundred tokens — to the system prompt, capped at sixty entries and six thousand characters, ordered by recency of use.
 2. **Activation.** Either the person selected the skill for this message, in which case its body is prepended as instructions, or the model calls `loadSkill` after matching the index against the request.
-3. **Resources.** `readSkillFile` returns one bundled file; `runSkillScript` executes one in a sandbox and returns only its output, so a script's source never costs tokens.
+3. **Resources.** `readSkillFile` returns one bundled file. (`runSkillScript`, which executed a script in a networkless sandbox, was removed with the agent sandbox docker host, which production never configured; bundled scripts are stored but not run.)
 
 The three-level split is the feature, not an optimisation: it is what lets an account keep fifty skills without paying for fifty prompts.
 
@@ -56,4 +56,4 @@ Uploads accept both shapes Anthropic's Skills API takes — one zip, or path-qua
 
 **Skills now cost tokens on every turn.** Sixty names and descriptions is real context, spent whether or not a skill is used. The cap and the recency ordering are the price control; the alternative — loading nothing until asked — is the design the format exists to replace.
 
-**Alia hosts other people's instructions.** The licence check, the content scan on import, the explicit install, and the networkless sandbox are the answer to that, and each of them is a place a mistake would be quiet. Nothing here makes a malicious skill impossible; what they do is make installing one a decision somebody made.
+**Alia hosts other people's instructions.** The licence check, the content scan on import, and the explicit install are the answer to that, and each of them is a place a mistake would be quiet. Nothing here makes a malicious skill impossible; what they do is make installing one a decision somebody made.

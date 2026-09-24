@@ -73,7 +73,7 @@ Three roles, none a subset of another
 - **Oxy** is the platform and Oxy Console — accounts, applications, **all** API keys for
   Alia, Kaana and Mention, billing.
 - **Alia** is the assistant, with its own **permanent product API**: `api.alia.onl/v1/*`
-  and `/alia/chat` (`chat/completions`, `models`, `responses`, `images`, `audio`, `voice`)
+  and `/alia/chat` (`chat/completions`, `models`, `responses`, `images`, `audio`)
   plus `/conversations`, `/shows`, `/skills`, `/agents` and `/catalogue`. Three groups
   call it, all authorized by Oxy: Alia's own surfaces (the app, Codea — extension and CLI —
   and Cowork, on `/alia/chat` with the user's Oxy session), other applications in the Oxy
@@ -82,8 +82,8 @@ Three roles, none a subset of another
 
 For raw model access use Kaana through Oxy (`api.oxy.so/v1`); for the assistant use
 Alia's API. In both cases the key comes from Oxy Console — Alia issues none. Today Alia's
-API authenticates an Oxy user session or service token and, deprecated, an existing
-`alia_sk_*` key; the Oxy Console application-key path is not built yet (ADR 0010 § 2).
+API authenticates an Oxy user session or service token; the retired `alia_sk_*` keys are
+refused, and the Oxy Console application-key path is not built yet (ADR 0010 § 2).
 
 Hosted inference follows `Alia -> Oxy -> Kaana` through the published
 `OxyInferenceClient`. Alia stores no upstream provider credential, constructs no
@@ -115,9 +115,8 @@ and Kaana credential-runtime rollout gates. The
 the separate long-context refusal and its verified serving backport.
 
 `/automations` is the normalized scheduling and control API for explicit actors,
-resources, actions, data flow and autonomy. `/triggers` remains available for legacy
-routines, and both row types use the same elected scheduler rather than competing
-runtimes. There is no backward-compatible model resolution endpoint —
+resources, actions, data flow and autonomy, run by one elected scheduler. The legacy
+`/triggers` model is gone. There is no backward-compatible model resolution endpoint —
 `POST /v1/resolve-model` and `POST /v1/report-usage` return `410 Gone`.
 
 ## Storage
@@ -160,7 +159,6 @@ workspace entry. Everything lives under `packages/`.
 |---|---|---|
 | [`packages/api`](packages/api/) | `@alia/api` | Express, drizzle + PostgreSQL |
 | [`packages/integrations`](packages/integrations/) | `@alia/integrations` | Express, drizzle + PostgreSQL, MCP client |
-| [`packages/alia-docker-host`](packages/alia-docker-host/) | `@alia/docker-host` | Express |
 
 **Surfaces**
 
@@ -178,7 +176,6 @@ workspace entry. Everything lives under `packages/`.
 
 | Path | Package | Stack |
 |---|---|---|
-| [`packages/alia-console`](packages/alia-console/) | `alia-console` | TanStack Start, React |
 | [`packages/alia-canvas`](packages/alia-canvas/) | `alia-canvas` | Vite, React |
 
 **Shared**
@@ -210,9 +207,8 @@ More usefully, run only what you are working on:
 
 ```bash
 bun run dev:api          bun run dev:app
-bun run dev:admin        bun run dev:canvas
-bun run dev:integrations bun run dev:codea
-bun run dev:cowork       bun run dev:docker-host
+bun run dev:canvas       bun run dev:integrations
+bun run dev:codea        bun run dev:cowork
 ```
 
 The app has platform shortcuts at the root:
@@ -231,8 +227,8 @@ bun run web    # or ios, or android
 | Group | Scripts |
 |---|---|
 | Build all | `bun run build` |
-| Build one | `build:app`, `build:api`, `build:admin`, `build:canvas`, `build:docker-host`, `build:integrations` |
-| Start one | `start:app`, `start:api`, `start:admin`, `start:canvas`, `start:docker-host`, `start:integrations` |
+| Build one | `build:app`, `build:api`, `build:canvas`, `build:integrations` |
+| Start one | `start:app`, `start:api`, `start:canvas`, `start:integrations` |
 | Lint | `bun run lint`, `bun run lint:canvas` |
 
 </details>
@@ -270,7 +266,7 @@ bun run web    # or ios, or android
 | [Proactive intelligence](docs/proactive-intelligence.md) | Acting unprompted |
 | [Integrations](docs/integrations.mdx) | Channels and messaging |
 | [Oxy auth](docs/oxyhq-auth.md) | Identity and sessions |
-| [Developer access](docs/developers-portal.md) | `alia_sk_*` keys and their sunset |
+| [Developer access](docs/developers-portal.md) | Credentials for Alia's API; `alia_sk_*` is retired |
 | [Dependency updates](docs/dependencies.md) | Reviewable Oxy updates and Doctor |
 | [Deployment](docs/deployment.md) | Shipping it |
 

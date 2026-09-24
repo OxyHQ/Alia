@@ -19,7 +19,7 @@ Tools live in `packages/api/src/lib/tools/` and self-register through `registry.
 | Category | Tools |
 |----------|-------|
 | Utility | `getCurrentDate`, `getDeviceInfo`, `switchModel` |
-| Research | `webSearch`, `webScraper`, `browse`, `deepResearch` |
+| Research | `webSearch`, `webScraper`, `deepResearch` |
 | Memory | `saveUserMemory`, `updateUserPreferences`, `updateUserContext` |
 | Generation | `generateFile`, `canvas` |
 | Agents | `searchAgents`, `delegateToAgent`, `orchestrateAgents`, `createAgent`, `delegateSubtask` |
@@ -43,7 +43,7 @@ All tools wrap their executor in `safeExecute()` so errors surface as `alia.tool
 
 MCP integration lives in `packages/api/src/lib/tools/mcp.ts` and `packages/integrations/src/mcp/`. Users register MCP servers from their account; tools are introspected via `mcp-schema.ts` and surfaced as first-class tool calls inside chat. The runtime handles transport (stdio / HTTP / websocket), schema validation, lifecycle, and rate limiting per server.
 
-MCP capabilities are visible to the model with the same calling convention as native tools, so the LLM does not need to distinguish them. Per-user MCP policy is exposed through `GET /codea/mcp_registry` for the Codea VS Code surface.
+MCP capabilities are visible to the model with the same calling convention as native tools, so the LLM does not need to distinguish them.
 
 ## Oxy service connector
 
@@ -80,7 +80,7 @@ resource, actor, account, run, step and tool.
 | `accounts/gmail/` | Gmail | IMAP / Gmail API sync |
 | `bots/telegram-bot/` | Telegram bot | Bot API bridge |
 | `bots/discord-bot/` | Discord | Bot user that mirrors guild channels |
-| `browser/` | Headless browser | Used by `browse` and `webScraper` tools |
+| `browser/` | Headless browser | Channel bridge only; the API's web tools read pages through Clarity |
 | `terminal/` | Terminal sessions | Used by Codea CLI for shell access |
 | `realtime/` | Realtime audio | Voice-tier model bridge |
 
@@ -97,8 +97,7 @@ Outbound tools (e.g. `sendTelegramMessage`, `sendWhatsAppMessage`) require `R2` 
 `/automations` stores the objective, actor selection, exact actions and resources,
 data flow, limits, autonomy and `observe | execute` mode. Scheduled definitions use
 the one elected `trigger-engine.ts` cron registry. Event definitions are matched by
-the normalized Oxy event route. `/triggers` is read-only historical data; its writes
-and webhook execution return `410 Gone`.
+the normalized Oxy event route. The legacy `/triggers` model is gone.
 
 Active control-plane endpoints:
 
@@ -112,14 +111,6 @@ Active control-plane endpoints:
 | `GET` | `/automations/runs` | Decision and execution history |
 | `GET` | `/automations/runs/:runId/steps` | Ordered, correlated step history |
 
-Historical `GET /triggers`, `GET /triggers/:id` and
-`GET /triggers/:id/executions` remain available. All other `/triggers` methods return
-`410 Gone` without changing state.
-
 Manual execution requires `execute_on_request` or `autonomous`. Background event and
 schedule execution requires `autonomous`; `draft` and `read_only` definitions cannot
 produce effects without a future explicit approval flow.
-
-## Sandbox and Docker host
-
-`packages/alia-docker-host` provides per-conversation isolated containers for code execution and ephemeral environments. The `sandbox` tool spawns containers from `ContainerTemplate` definitions and the runtime garbage-collects idle containers after the chat closes. Use the Docker host for any tool that needs filesystem isolation, shell access, or network egress controls.

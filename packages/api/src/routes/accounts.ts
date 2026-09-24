@@ -15,6 +15,20 @@ import {
   type ConnectedAccountSafeRow,
 } from '../db/integrations/connectedAccountRepository.js';
 import { log } from '../lib/logger.js';
+import { CONNECTED_ACCOUNT_STATUSES } from '../db/schema/integrations.js';
+
+/**
+ * What the integrations service answers for a session, as far as this router
+ * reads it. `response.json()` is `unknown` under Node's fetch types.
+ */
+interface IntegrationSessionReply {
+  sessionId?: string;
+  status?: string;
+  phoneNumber?: string;
+  displayName?: string;
+  accountId?: string;
+  [key: string]: unknown;
+}
 
 const router = express.Router();
 
@@ -336,7 +350,7 @@ router.post('/:platform/connect', ...authed, async (req, res) => {
       return res.status(502).json({ error: `Integration service unavailable for ${platform}` });
     }
 
-    const data = await response.json();
+    const data = (await response.json()) as IntegrationSessionReply;
 
     if (response.ok && data.sessionId) {
       await setConnectedAccountSession(db, account.id, data.sessionId);
@@ -384,14 +398,17 @@ router.get('/:id/status', authenticateToken, async (req: express.Request<{ id: s
             },
           );
           if (response.ok) {
-            const statusData = await response.json();
+            const statusData = (await response.json()) as IntegrationSessionReply;
             // Sync status from integrations. Every optional field is passed only
             // when the poll CARRIED it, so a reply that omits a display name does
             // not erase the stored one.
-            if (statusData.status && statusData.status !== account.status) {
-              const becameConnected = statusData.status === 'connected' && !account.connectedAt;
+            // Only a status this table can hold: the reply is another
+            // service's JSON, and the column is CHECK-constrained.
+            const liveStatus = CONNECTED_ACCOUNT_STATUSES.find((known) => known === statusData.status);
+            if (liveStatus && liveStatus !== account.status) {
+              const becameConnected = liveStatus === 'connected' && !account.connectedAt;
               const synced = await setConnectedAccountStatus(db, account.id, {
-                status: statusData.status,
+                status: liveStatus,
                 phoneNumber: statusData.phoneNumber || undefined,
                 displayName: statusData.displayName || undefined,
                 ...(becameConnected

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -97,10 +97,7 @@ function wiredSeeders(): string[] {
  * assertion below: adding a member is a visible edit to a number, not a
  * defensible-looking line appended to a list.
  */
-const DELIBERATELY_UNWIRED: Readonly<Record<string, string>> = {
-  seedBots:
-    'Derives the bot id from TELEGRAM_BOT_TOKEN / DISCORD_APP_ID, neither of which the task definition sets. Running it writes rows keyed on the literal placeholders `telegram-bot` and `discord-bot`, which change the moment real credentials arrive — a wrong row that looks right.',
-};
+const DELIBERATELY_UNWIRED: Readonly<Record<string, string>> = {};
 
 describe('every table seeder reaches the entrypoint that runs', () => {
   it('found a real population, in both seeder directories', () => {
@@ -111,14 +108,15 @@ describe('every table seeder reaches the entrypoint that runs', () => {
      * would report clean while missing five.
      */
     const files = seederFiles();
-    expect(files.length).toBeGreaterThanOrEqual(7);
+    expect(files.length).toBeGreaterThanOrEqual(6);
     expect(files.some((f) => f.startsWith('src/lib/'))).toBe(true);
     expect(files.some((f) => f.startsWith('src/internal/providers/lib/'))).toBe(true);
 
     const seeders = tableSeeders();
-    // 8, not 9: `seedModelConfigs` and `seedRoutingProfiles` were deleted with
-    // the routing-catalogue seed (see the census below).
-    expect(seeders.length).toBeGreaterThanOrEqual(8);
+    // 7: `seedModelConfigs` and `seedRoutingProfiles` were deleted with the
+    // routing-catalogue seed (see the census below), and `seedBots` with the
+    // system-bot seeder nothing ran.
+    expect(seeders.length).toBeGreaterThanOrEqual(7);
     // Positive control on the MATCHER: two known members, one per directory.
     expect(seeders).toContain('seedSkills');
     expect(seeders).toContain('seedFeatures');
@@ -135,41 +133,46 @@ describe('every table seeder reaches the entrypoint that runs', () => {
     // not. This is the floor for the second case.
     expect(wired.length).toBeGreaterThanOrEqual(7);
     expect(wired).toContain('seedSkills');
-    expect(wired).not.toContain('seedBots');
   });
 
-  it('never writes the routing catalogue: model_configs, routing_profiles and their mappings', () => {
+  it('never writes the routing catalogue: its tables and repositories are gone', () => {
     /**
      * Epic #139 workstream 10, *"Stop writing new rows to Alia-owned
      * `model_configs`, `alia_models`, provider mappings ..."*. Since #477 the
      * catalogue is Kaana's — Alia routes by the exact opaque profile ids in
-     * `config/oxy-inference-routing-profile-ids.ts` — and no runtime module reads
-     * these three tables, so a deploy-time seed of them wrote rows for nobody.
-     *
-     * Three readings, because each alone can be satisfied by a change that
-     * keeps the write: the `SEEDERS` array names no such table; no seeder
-     * module imports the two catalogue repositories (a seed that reached them
-     * through a helper would still be a write); and the deleted module has not
-     * come back under any name.
+     * `config/oxy-inference-routing-profile-ids.ts` — and the three tables were
+     * dropped. Three readings, because each alone can be satisfied by a change
+     * that brings the write back: the `SEEDERS` array names no such table; the
+     * schema declares none of them; and neither the catalogue repositories nor
+     * the deleted seeder module has come back under its name.
      */
     const seedersBlock = seedScript.slice(seedScript.indexOf('const SEEDERS'), seedScript.indexOf('];', seedScript.indexOf('const SEEDERS')));
     const seededTables = [...seedersBlock.matchAll(/name:\s*'([a-z_]+)'/g)].map((m) => m[1]);
     // Vacuity floor on the slice: the array still names real tables.
     expect(seededTables).toContain('plans');
-    expect(seededTables).not.toContain('model_configs');
-    expect(seededTables).not.toContain('routing_profiles');
-    expect(seededTables).not.toContain('routing_profile_provider_mappings');
+    const schemaDir = path.join(PACKAGE_ROOT, 'src/db/schema');
+    const declaredTables = readdirSync(schemaDir)
+      .filter((file) => file.endsWith('.ts'))
+      .flatMap((file) =>
+        [...readFileSync(path.join(schemaDir, file), 'utf8').matchAll(/pgTable\(\s*'([a-z_]+)'/g)].map((m) => m[1]),
+      );
+    // Vacuity floor on the census: it reads real declarations.
+    expect(declaredTables).toContain('plans');
+    for (const table of ['model_configs', 'routing_profiles', 'routing_profile_provider_mappings']) {
+      expect(seededTables).not.toContain(table);
+      expect(declaredTables).not.toContain(table);
+    }
 
     const wired = wiredSeeders();
     expect(wired).not.toContain('seedModelConfigs');
     expect(wired).not.toContain('seedRoutingProfiles');
 
-    const importsCatalogueRepository = seederFiles().filter((file) =>
-      /db\/providers\/(modelConfigRepository|routingProfileRepository)/.test(
-        readFileSync(path.join(PACKAGE_ROOT, file), 'utf8'),
-      ),
-    );
-    expect(importsCatalogueRepository).toEqual([]);
+    for (const file of [
+      'src/db/providers/modelConfigRepository.ts',
+      'src/db/providers/routingProfileRepository.ts',
+    ]) {
+      expect(existsSync(path.join(PACKAGE_ROOT, file)), file).toBe(false);
+    }
     expect(seederFiles().some((f) => f.endsWith('seed-model-configs.ts'))).toBe(false);
   });
 
@@ -191,7 +194,7 @@ describe('every table seeder reaches the entrypoint that runs', () => {
      * to make it pass is always to add a member, and the terminus is a gate that
      * exempts everything.
      */
-    expect(Object.keys(DELIBERATELY_UNWIRED)).toEqual(['seedBots']);
+    expect(Object.keys(DELIBERATELY_UNWIRED)).toEqual([]);
     // Each reason has to SAY something. A one-word placeholder is how an
     // exemption gets added without anyone having to defend it.
     const unreasoned = Object.entries(DELIBERATELY_UNWIRED)
@@ -211,14 +214,13 @@ describe('every table seeder reaches the entrypoint that runs', () => {
      * moved to `lib/background-services.ts` when the Mongo gate came off, and a
      * scan that still read only `index.ts` would report clean for a seeder added
      * to the module the boot path actually runs. `seedBots()` was called from
-     * exactly that code and is now called from nowhere — which is what the
-     * exemption above records.
+     * exactly that code; it is now deleted.
      */
     const bootPath = ['src/index.ts', 'src/lib/background-services.ts'];
     /*
      * Comment-stripped, and it was measured rather than assumed: the first
      * version of this scan failed on `background-services.ts`, whose module
-     * comment SAYS `seedBots()` used to be called from there. A census that
+     * comment SAID `seedBots()` used to be called from there. A census that
      * cannot tell prose from code convicts its own documentation, and the fix
      * an author reaches for under that pressure is to soften the regex.
      */
