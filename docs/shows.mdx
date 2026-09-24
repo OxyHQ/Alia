@@ -31,6 +31,43 @@ Voices are cast **once, when the series is created**, and every episode reads
 `series.speakers`. A podcast whose hosts changed voice between episodes would be
 absurd, and the per-episode assignment this replaced did exactly that.
 
+## Voices are the speech endpoint's, names are Alia's
+
+Speech goes `Alia -> Oxy -> Kaana` (`lib/synthesize-speech.ts`), and Kaana's
+speech deployment accepts exactly five voices — `eve`, `ara`, `rex`, `leo`,
+`sal` — refusing anything else as an invalid `speech.voice` before a byte is
+synthesised. `lib/show/voice-roster.ts` is those five and no more:
+
+| `voiceId` | Name (said on air) | Gender |
+|---|---|---|
+| `rex` | Marcus | male |
+| `leo` | Adam | male |
+| `ara` | Sarah | female |
+| `eve` | Emily | female |
+| `sal` | Sam | neutral |
+
+The id is the slug the endpoint takes; the **name and description are product
+labels** and never an upstream vendor's. Order is policy — a role takes the
+first unused voice of its gender — so Marcus and Sarah remain the default hosts,
+and no two speakers of a series share a voice.
+
+**Series cast before the switch still store retired ids.** `show_series.speakers`
+is `jsonb`, and those ids are what made every line of every show fail once
+speech moved to Kaana. They are translated where they are spoken
+(`speakingVoices`, via `LEGACY_VOICE_IDS`), not rewritten by a migration: the
+speaker's name — the only part a listener knows — is kept, the id is read by
+nothing else, and several retired voices share one successor, so the
+translation re-casts a clash to an unused voice of the same gender. A two-host
+show always speaks in two voices.
+
+Each line is reduced before it is voiced. Kaana's speech declares no audio-tag
+support, so `speakableText` strips `[laughs]` and friends rather than have them
+read aloud (the row keeps the script as written). A line longer than one
+request's **15,000-character** ceiling is split on sentences
+(`splitForSpeech`) and joined — the prompt asks for 80 words at most, but a
+prompt is a request. Shows send no `speed`; the endpoint's default sits inside
+its 0.7–1.5 range.
+
 ## The brief belongs to the series, so an episode asks for nothing
 
 **"New episode" is one press.** Nobody is asked what it should cover, because

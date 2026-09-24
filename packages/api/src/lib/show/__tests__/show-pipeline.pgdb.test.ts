@@ -76,10 +76,16 @@ vi.mock('ai', () => ({
     generateText(options),
 }));
 
+/**
+ * Throws rather than answering null when it "fails", because the real
+ * `synthesizeSpeech` never answers null: Kaana refusing a voice is an error.
+ */
+const synthesizeSpeech = vi.fn(async (_options: { input: string; voice: string }) => {
+  if (!synthesisWorks) throw new Error('stubbed speech refused');
+  return { audio: Buffer.from('fake-mp3-bytes'), format: 'mp3', requestId: 'req' };
+});
 vi.mock('../../synthesize-speech.js', () => ({
-  synthesizeSpeech: vi.fn(async () =>
-    synthesisWorks ? { audio: Buffer.from('fake-mp3-bytes'), format: 'mp3' } : null,
-  ),
+  synthesizeSpeech: (options: { input: string; voice: string }) => synthesizeSpeech(options),
 }));
 
 /**
@@ -158,6 +164,7 @@ beforeEach(async () => {
   ingestEpisode.mockClear();
   abandonEpisodeIngest.mockClear();
   synthesizeSoundEffect.mockClear();
+  synthesizeSpeech.mockClear();
   generateText.mockClear();
   scriptPrompts.length = 0;
   /**
@@ -203,8 +210,10 @@ async function queueEpisode(
     format: 'podcast',
     brief: 'A weekly look at whatever the owner has been reading.',
     speakers: [
-      { name: 'Marcus', voiceId: 'v1', voiceName: 'Marcus', role: 'host' },
-      { name: 'Sarah', voiceId: 'v2', voiceName: 'Sarah', role: 'co-host' },
+      // The ids a series cast before the speech switch stores: retired voices
+      // the endpoint refuses, which the pipeline must translate, not send.
+      { name: 'Marcus', voiceId: 'kPzsL2i3teMYv0FxEYQ6', voiceName: 'Marcus', role: 'host' },
+      { name: 'Sarah', voiceId: 'EXAVITQu4vr4xnSDxMaL', voiceName: 'Sarah', role: 'co-host' },
     ],
     visibility: 'private',
   });
@@ -306,6 +315,38 @@ const SCRIPT_WITH_SFX = JSON.stringify({
  * pipeline ASKS, once per cue, with the script's own words, and that what comes
  * back reaches the finished file.
  */
+/**
+ * The voices actually SENT. Every series created before the roster switch
+ * stores retired voice ids, and sending one is Kaana refusing `speech.voice` on
+ * every line — the whole show silent. So this asserts on the wire, not the row.
+ */
+describe('the pipeline speaks a stored cast in voices the speech endpoint accepts', () => {
+  it('translates retired ids, keeps the two hosts distinct and never sends a tag to be read aloud', async () => {
+    await fund(50);
+    const episodeId = await queueEpisode();
+    scriptReply = JSON.stringify({
+      description: 'A short episode.',
+      summary: 'A longer summary of the episode.',
+      recap: 'They discussed what happened this week.',
+      segments: [
+        { type: 'dialogue', speaker: 'Marcus', text: 'Welcome back to the show.' },
+        { type: 'dialogue', speaker: 'Sarah', text: 'Glad to be here. [laughs]' },
+        { type: 'dialogue', speaker: 'Marcus', text: 'So, what happened this week?' },
+      ],
+    });
+
+    const { runShowPipeline } = await import('../show-pipeline.js');
+    await runShowPipeline(episodeId);
+
+    expect(synthesizeSpeech.mock.calls.map((call) => [call[0].voice, call[0].input])).toEqual([
+      ['rex', 'Welcome back to the show.'],
+      ['ara', 'Glad to be here.'],
+      ['rex', 'So, what happened this week?'],
+    ]);
+    expect((await findEpisodeById(db, episodeId))?.status).toBe('completed');
+  });
+});
+
 describe('the pipeline asks the sound-effect chain for every cue the script wrote', () => {
   it('sends each sfxPrompt, and puts the audio into the join', async () => {
     await fund(50);
@@ -464,7 +505,7 @@ describe('a failure leaves the balance exactly where it was', () => {
     const before = await balance();
     const episodeId = await queueEpisode();
 
-    // The script arrives; every synthesis call answers null, so no segment
+    // The script arrives; every synthesis call is refused, so no segment
     // renders and there is nothing to join.
     scriptReply = GOOD_SCRIPT;
     synthesisWorks = false;
