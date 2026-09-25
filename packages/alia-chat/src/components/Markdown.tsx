@@ -1,6 +1,6 @@
 import React, { useMemo, type ReactNode } from 'react';
 import { View, Text, Platform, Linking, useColorScheme } from 'react-native';
-import Markdown, { type ASTNode } from 'react-native-markdown-display';
+import Markdown, { MarkdownIt, type ASTNode } from 'react-native-markdown-display';
 import type { AliaColors } from '../theme';
 
 // Hardcoded fallback colors for standalone SDK usage (when no color override is passed).
@@ -365,9 +365,52 @@ type MarkdownBlockProps = {
   styles: ReturnType<typeof createStyles>;
 };
 
-const MarkdownBlock = React.memo(function MarkdownBlock({ content, rules, styles }: MarkdownBlockProps) {
-  return <Markdown rules={rules} style={styles}>{content}</Markdown>;
-});
+/**
+ * `react-native-markdown-display` gives three of its props DEFAULT VALUES that
+ * are new objects on every render: `markdownit = MarkdownIt({ typographer:
+ * true })`, `allowedImageHandlers = [...]` and `topLevelMaxExceededItem =
+ * <Text>`. A default parameter is evaluated per call, so each render of each
+ * `<Markdown>` built a parser (compiling linkify-it's regexes), and the two
+ * others sit in the deps of its renderer's `useMemo`, so the renderer — and
+ * the `StyleSheet.create` of every style inside it — was rebuilt every render
+ * too. A streamed answer re-renders its last block per token, and opening a
+ * thread renders every block once: both paid for it. Passing the defaults'
+ * own values, created once, makes both memos hold. The parser is shared:
+ * `parse` keeps no state between calls.
+ *
+ * The typings omit the last two props, which the component does take.
+ */
+const PARSER = MarkdownIt({ typographer: true });
+const IMAGE_HANDLERS = [
+  'data:image/png;base64',
+  'data:image/gif;base64',
+  'data:image/jpeg;base64',
+  'https://',
+  'http://',
+];
+const TOP_LEVEL_EXCEEDED = <Text key="dotdotdot">...</Text>;
+const StableMarkdown = Markdown as React.ComponentType<
+  React.ComponentProps<typeof Markdown> & {
+    allowedImageHandlers?: string[];
+    topLevelMaxExceededItem?: ReactNode;
+  }
+>;
+
+function ParsedMarkdown({ content, rules, styles }: MarkdownBlockProps) {
+  return (
+    <StableMarkdown
+      rules={rules}
+      style={styles}
+      markdownit={PARSER}
+      allowedImageHandlers={IMAGE_HANDLERS}
+      topLevelMaxExceededItem={TOP_LEVEL_EXCEEDED}
+    >
+      {content}
+    </StableMarkdown>
+  );
+}
+
+const MarkdownBlock = React.memo(ParsedMarkdown);
 
 export function AliaMarkdown({ content, colors: colorOverrides, fontFamily, renderCodeBlock }: AliaMarkdownProps) {
   const scheme = useColorScheme();
@@ -379,7 +422,7 @@ export function AliaMarkdown({ content, colors: colorOverrides, fontFamily, rend
   const blocks = useMemo(() => splitMarkdownBlocks(content), [content]);
 
   if (blocks.length === 1) {
-    return <Markdown rules={customRules} style={markdownStyles}>{blocks[0]}</Markdown>;
+    return <ParsedMarkdown content={blocks[0]} rules={customRules} styles={markdownStyles} />;
   }
 
   // Each block's `body` rule cancels its own trailing paragraph margin

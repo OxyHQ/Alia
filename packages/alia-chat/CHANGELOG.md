@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+### `AliaMarkdown` builds its parser once
+
+`react-native-markdown-display` evaluates its `markdownit`,
+`allowedImageHandlers` and `topLevelMaxExceededItem` defaults on every render,
+so each render of each block built a Markdown parser and rebuilt its renderer
+and styles. `AliaMarkdown` now passes one shared parser and those defaults'
+own values, created once. Output is unchanged; a 1,000-message thread holds
+7 MiB less heap in the app.
+
 ### Voice errors have codes
 
 Additive. `useSpeechToText` returns `errorCode` beside `error`, and
