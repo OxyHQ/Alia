@@ -10,7 +10,7 @@ This is the Alia → Bloom map that [#608](https://github.com/OxyHQ/Alia/issues/
 Definition of Done asks for. It describes the app as it is, not as it was
 planned; the planning audit it replaces is summarised in [History](#7-history).
 
-The app declares `@oxy.so/bloom` `^4.20.0` and resolves 4.20.0. Read the
+The app declares `@oxy.so/bloom` `^4.22.0` and resolves 4.22.0. Read the
 contract from the installed package (`node_modules/@oxy.so/bloom/src/<family>/types.ts`),
 never from the `~/Oxy/Bloom` checkout, and reach it only through public
 subpaths — `packages/app/__tests__/bloom-boundaries.test.ts` fails on a deep
@@ -49,7 +49,7 @@ Paths are under `packages/app/`.
 | Step progress | `chat-interface.tsx`, `src/features/chat/ui/cards/agent-task-card.tsx`, `src/features/chat/ui/workspace/agent-panel.tsx` | `agent-progress`: `AgentProgress`, `completedCount` from finished tool calls or the plan | direct reuse |
 | Waiting and working | `chat-interface.tsx` (`showTimer={false}`), `AiChatContainer.working`, `agent-panel.tsx` | `agent-thinking`: `AgentThinking` | direct reuse |
 | Thought panel and agent panel (steps, files, sources, approvals) | `src/features/chat/ui/thought-panel.tsx`, `src/features/chat/ui/workspace/agent-panel.tsx`, `src/features/chat/ui/execution/` | `agent-log` rows, `stat-bar`, `link-preview`, `notification` (a pending approval) | composition |
-| Right panel: canvas, agent terminal, gallery | `src/shell/workspace-panel.tsx` | `AiChatCodePanel` (`actions`, `browser`), `AiChatGalleryPanel` | composition, [gap 7](#gap-7) open |
+| Right panel: canvas, agent terminal, gallery | `src/shell/workspace-panel.tsx` | `AiChatCodePanel` (`actions`, `browser`), `AiChatGalleryPanel` (`actions`, `onDownload`, `onMore`) | composition; Bloom change — 4.22.0 ([gap 7](#gap-7)) |
 | Credits, context and plan limits | `src/features/chat/ui/workspace/credits-limits.tsx`, `src/features/settings/ui/usage-section.tsx`, `src/features/billing/model/credits-limits.ts`, `src/features/chat/model/context-usage.ts` | `agent-limits-card`: `AgentLimitsCard` | composition |
 | Composer | `src/features/chat/ui/composer/` (`composer.tsx`, `use-alia-composer.ts`, `add-menu.tsx`, `model-lineup.ts`, `attachment-tiles.ts`, `use-attachment-intake.ts`, `drop-zone.tsx`, `composer-suggestions.tsx`) | `composer-panel`: `ComposerPanel` (`onStop`/`busy`, `providers` of `{id, name}`, nullable `effort`, `emptyAction`, `onKeyPress`, tiles with `progress`/`error` and `onAttachmentRetry`), `ComposerPanelStatusTab` | Bloom change — 3.3.0 (stop, identity, effort), 4.7.0 (`emptyAction` on the panel), 4.11.0 (`onKeyPress` on the panel), 4.20.0 (failed tiles) |
 | Code in the canvas, tool steps and agent sessions | `src/features/chat/ui/canvas/code-renderer.tsx`, `src/features/chat/ui/execution/tool-step.tsx`, `src/features/agents/ui/session/session-event-card.tsx` | `code`: `CodeBlock`, `Pre` | direct reuse |
@@ -111,7 +111,7 @@ closed them are named in Alia's bump commits (`f346746b` 3.3.0, `916e4eb9`
 | 4 | `AiChatContainer.project` was required | CLOSED 3.3.0 | Omitted for a new chat; otherwise the chat's project, folder or "Chats", as the sidebar files it. |
 | 5 | Uploads had no real progress or failure | CLOSED 4.20.0 for `ComposerPanel` | Tiles carry the intake's measured `progress`, or `error` with a retry. `ComposerAttachments` still simulates and is not used. |
 | 6 | The feedback row said "Copied!" regardless | CLOSED 4.20.0 | `copyText` returns what the clipboard answered; a refusal is an error toast. |
-| 7 | <a id="gap-7"></a>Code and gallery panels default to demo actions and placeholders | OPEN (no Bloom change; avoided by explicit props) — partly | See below. |
+| 7 | <a id="gap-7"></a>Code and gallery panels default to demo actions and placeholders | CLOSED 4.22.0 | Undo, download and more draw only with a handler; `null` tab content removes a tab. See below. |
 | 8 | No layer behind the chat content | CLOSED 3.3.0 | `AiChatContainer.background` holds the field. |
 | 9 | The picker's effort axis could not be absent | CLOSED 3.3.0 | `effortLevels={[]}` drops it; `effort={null}` is "no level chosen". |
 | 10 | The shell could not collapse the sidebar | CLOSED 3.3.0, 3.6.0, 4.14.1 | Collapse, swipe-to-open and the closed drawer's `inert` are Bloom's; Alia's `NavRegion` wrapper went (`6b6414e7`). The app passes no `sidebarCollapsed`: the `Sidebar` sizes and animates itself. |
@@ -127,24 +127,19 @@ cannot host the thread: its `onEndReached` fires at the end while a chat pages
 upward, and react-native-web ignores `maintainVisibleContentPosition`. Measured
 in [the runtime baseline](./runtime-baseline.mdx#10-the-timeline-at-1000-and-5000-messages).
 
-**Gap 7, what the explicit props do and do not cover.** The composer passes
-`addMenu` and `permissions` always (an empty list hides each), so Bloom's
-demo menus never show, and the status tab gets only the project. The code
-panel passes its own `actions` (the terminal only where there is an agent, and
-close) and a `browser` node for the terminal or a non-code canvas. Still
-showing Bloom defaults, with no handler behind them:
-
-- **The gallery panel** passes neither `actions` nor `stylePresets`, so it
-  draws `DEFAULT_GALLERY_PANEL_ACTIONS` (new generation, expand, toggle — no
-  `onPress`, English labels) and a "Style presets" tab with a placeholder;
-  without `onDownload` / `onMore`, each image's scrim buttons do nothing.
-- **The code panel's summary** is always drawn (`changeCount` is always
-  passed), and with it an "Undo changes" button with no `onUndo`, and `-0`.
-- **The code panel's Browser tab** shows the "Browser preview" placeholder
-  while the canvas holds code and there is no agent terminal.
-
-Each is a #608 §1.6 violation to fix in Alia (pass the props, or give the tab
-real content), not a Bloom gap.
+**Gap 7, how it closed.** The composer passes `addMenu` and `permissions`
+always (an empty list hides each), so Bloom's demo menus never show, and the
+status tab gets only the project. Bloom 4.22.0 (OxyHQ/Bloom#202) draws the code
+panel's undo, and a gallery image's download and more, only when a handler is
+passed, and removes the Browser or Styles tab when its content is `null`.
+`src/shell/workspace-panel.tsx` uses that: the code panel has no undo and no
+`-0`, its header holds the terminal (where there is one) and hide-panel, and
+its tab is "Preview" only for the terminal or a non-code canvas; the gallery's
+header is hide-panel alone, with no Styles tab. Download is real on web and iOS
+(`src/features/chat/runtime/save-image.ts`); Android has none, since sharing a
+file there needs `expo-sharing`. More opens Open (web links) and Delete (Library
+images, confirmed). `src/shell/__tests__/workspace-panel-controls.test.tsx`
+mounts the real panels and fails on any control without a handler.
 
 ## 4. What stays Alia's
 
