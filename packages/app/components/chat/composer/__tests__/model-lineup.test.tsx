@@ -31,7 +31,7 @@ const catalogue = vi.hoisted(() => ({ data: undefined as unknown }));
  * fails with `Flow is not supported`, pointing at the import rather than at
  * the package.
  */
-vi.mock('../provider-marks', () => ({ FeaturedMark: () => null, DeviceMark: () => null }));
+vi.mock('../provider-marks', () => ({ FeaturedMark: () => null, DeviceMark: () => null, publisherMark: () => () => null }));
 vi.mock('react-native', () => ({
   Platform: { OS: 'web', select: (spec: Record<string, unknown>) => spec.web ?? spec.default },
   StyleSheet: { create: <T,>(styles: T) => styles },
