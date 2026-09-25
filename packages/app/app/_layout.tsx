@@ -18,7 +18,6 @@ import { AppErrorBoundary } from '@/shell/error-boundary';
 import { setTokenGetter } from '@/shared/api/client';
 import '@/shared/i18n';
 import { DEFAULT_LOCALE, SUPPORTED_LOCALES } from '@/shared/i18n';
-import { KeyboardProvider } from '@/shared/platform/keyboard';
 import { useI18nStore } from '@/shared/i18n/i18n-store';
 import {
   BLOOM_THEME_PERSIST_KEY,
@@ -81,24 +80,29 @@ function AppContent() {
   return (
     <ThemeProvider value={navigationTheme}>
     <AuthSetup>
-      <KeyboardProvider>
-        {/* Web scrolls the document: native-stack's web scene is absolutely
-            positioned, which would pin every page to one screen. */}
-        {Platform.OS === 'web' ? (
-          <Slot />
-        ) : (
-          <Stack
-            screenOptions={{
-              contentStyle: {
-                backgroundColor: colors.background,
-              },
-            }}
-          >
-            <Stack.Screen name="(app)" options={{ headerShown: false }} />
-            <Stack.Screen name="(biglayout)" options={{ headerShown: false }} />
-          </Stack>
-        )}
-      </KeyboardProvider>
+      {/* No <KeyboardProvider> here: OxyProvider mounts the app's one (its
+          KeyboardBoundary), and there must be exactly one. Each provider
+          suspends its keyboard callback while a <Modal> is up and resumes it
+          from the dialog's dismiss listener, of which a dialog keeps only the
+          last — so with a second provider, the first sheet or popover left
+          one suspended and the composer stopped rising with the keyboard
+          until a restart (#608, Android). Gate: one-keyboard-provider.test.ts */}
+      {/* Web scrolls the document: native-stack's web scene is absolutely
+          positioned, which would pin every page to one screen. */}
+      {Platform.OS === 'web' ? (
+        <Slot />
+      ) : (
+        <Stack
+          screenOptions={{
+            contentStyle: {
+              backgroundColor: colors.background,
+            },
+          }}
+        >
+          <Stack.Screen name="(app)" options={{ headerShown: false }} />
+          <Stack.Screen name="(biglayout)" options={{ headerShown: false }} />
+        </Stack>
+      )}
       {/* Neither a <ToastOutlet /> nor a <SurfaceHost /> here, for the same
           reason: OxyProvider mounts both (its <SurfaceProvider> renders the
           host next to its children). A second outlet renders every toast
