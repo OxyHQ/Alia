@@ -49,3 +49,4 @@ expo-env.d.ts
 # EAS local credentials
 credentials/
 credentials.json
+dist-fixtures/

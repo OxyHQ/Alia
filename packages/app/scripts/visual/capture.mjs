@@ -13,7 +13,19 @@
  *                      both the determinism proof and the regression gate.
  *     --rebuild        Re-run `expo export` even if `dist/` already exists.
  *     --only <text>    Capture only cases whose name contains `text`.
- *     --tolerance <n>  Override the per-channel tolerance (default 4).
+ *     --tolerance <n>  Override the per-channel tolerance (default 6).
+ *     --engine <name>  chromium (default), firefox or webkit. Chromium's
+ *                      baseline is `baseline/`; another engine's is
+ *                      `baseline-<engine>/`, and exists only where that engine
+ *                      was shown to capture deterministically.
+ *     --smoke          No pixels: at each viewport width, check that the welcome
+ *                      renders, logs no console error the app itself caused,
+ *                      and does not scroll sideways. Exits non-zero otherwise.
+ *     --dist <dir>     Capture an existing export somewhere else instead of
+ *                      `packages/app/dist` (never rebuilt).
+ *     --keep <dir>     With --check: keep every capture in `dir` instead of a
+ *                      discarded temp directory, and write `<case>.diff.png`
+ *                      beside each one that fails (red = over tolerance).
  *
  * Everything this pins, and why, is in `docs/visual-baseline.mdx`.
  */
@@ -23,15 +35,16 @@ import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { chromium } from 'playwright-core';
+import { chromium, firefox, webkit } from 'playwright-core';
 import { serveExport } from './server.mjs';
 import { installVirtualClock, playTo, VIRTUAL_FRAME_MS } from './clock.mjs';
-import { comparePngs } from './png.mjs';
+import { comparePngs, diffPng } from './png.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const APP_ROOT = resolve(HERE, '../..');
-const DIST = join(APP_ROOT, 'dist');
-const BASELINE = join(HERE, 'baseline');
+let DIST = join(APP_ROOT, 'dist');
+const ENGINES = { chromium, firefox, webkit };
+let BASELINE = join(HERE, 'baseline');
 
 /**
  * The per-channel tolerance.
@@ -95,13 +108,25 @@ const MOTION_FRAMES = [1200, 2400, 3590, 9000];
 const EPOCH = Date.UTC(2026, 0, 1, 12, 0, 0);
 
 function parseArgs(argv) {
-  const args = { check: false, rebuild: false, only: null, tolerance: TOLERANCE };
+  const args = {
+    check: false,
+    rebuild: false,
+    only: null,
+    tolerance: TOLERANCE,
+    keep: null,
+    engine: 'chromium',
+    smoke: false,
+  };
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
     if (arg === '--check') args.check = true;
     else if (arg === '--rebuild') args.rebuild = true;
     else if (arg === '--only') args.only = argv[(i += 1)];
     else if (arg === '--tolerance') args.tolerance = Number(argv[(i += 1)]);
+    else if (arg === '--keep') args.keep = resolve(argv[(i += 1)]);
+    else if (arg === '--dist') args.dist = resolve(argv[(i += 1)]);
+    else if (arg === '--engine') args.engine = argv[(i += 1)];
+    else if (arg === '--smoke') args.smoke = true;
   }
   return args;
 }
@@ -122,7 +147,8 @@ async function ensureExport({ rebuild }) {
     return false;
   }
   console.log('· exporting the web bundle — a few minutes');
-  await run('bun', ['x', 'setup-skia-web', 'public'], APP_ROOT);
+  // No `setup-skia-web`: nothing on web fetches canvaskit.wasm, and a copy in
+  // `public/` fails `check:web-bundle` on the next production build.
   await run('bun', ['x', 'expo', 'export', '--platform', 'web'], APP_ROOT);
   return true;
 }
@@ -286,22 +312,136 @@ async function captureCase(browser, origin, testCase, copy) {
   return png;
 }
 
+/**
+ * The welcome at every §12 width, on any engine, without comparing pixels.
+ *
+ * What a person on that engine would notice first: the screen does not come
+ * up, the console reports an error, or the page scrolls sideways. A console
+ * error is the app's only if its source is the export itself — the harness
+ * aborts every other request on purpose, and the engine's report of that abort
+ * is the harness talking, so it is counted separately rather than hidden.
+ */
+async function smoke(args) {
+  const copy = await welcomeCopy();
+  const server = await serveExport(DIST);
+  const browser = await ENGINES[args.engine].launch({ headless: true });
+  console.log(`· ${args.engine} ${browser.version()} on ${server.origin} — smoke`);
+  let failures = 0;
+  try {
+    for (const { width, height } of VIEWPORTS) {
+      const context = await browser.newContext({
+        viewport: { width, height },
+        deviceScaleFactor: 1,
+        colorScheme: 'light',
+        locale: 'en-US',
+        timezoneId: 'UTC',
+      });
+      const blocked = new Set();
+      await context.route('**/*', (route) => {
+        const url = route.request().url();
+        if (url.startsWith(server.origin) || url.startsWith('data:') || url.startsWith('blob:')) {
+          return route.continue();
+        }
+        blocked.add(url);
+        return route.abort('blockedbyclient');
+      });
+      const page = await context.newPage();
+      const errors = [];
+      let blockedNoise = 0;
+      page.on('pageerror', (error) => errors.push(`pageerror: ${error.message}`));
+      page.on('console', (message) => {
+        if (message.type() !== 'error') return;
+        const source = message.location()?.url ?? '';
+        const text = message.text();
+        // The engine reporting a request the harness aborted.
+        const aborted =
+          (source !== '' && !source.startsWith(server.origin)) ||
+          [...blocked].some((url) => text.includes(url)) ||
+          /Failed to load resource|NetworkError|net::ERR_FAILED|blockedbyclient/i.test(text);
+        if (aborted) blockedNoise += 1;
+        else errors.push(`console: ${text.slice(0, 300)}`);
+      });
+      let rendered = false;
+      try {
+        await page.goto(`${server.origin}/`, { waitUntil: 'load', timeout: 60_000 });
+        await page.waitForFunction(
+          (headline) =>
+            [...document.querySelectorAll('[aria-label]')].some(
+              (el) =>
+                el.getAttribute('aria-label') === headline && el.textContent?.trim() === headline,
+            ),
+          copy.headline,
+          { timeout: 60_000 },
+        );
+        await page.getByText(copy.cta, { exact: true }).first().waitFor({ timeout: 30_000 });
+        rendered = true;
+      } catch (error) {
+        errors.push(`did not render: ${error.message.split('\n')[0]}`);
+      }
+      // Let late effects run and log before judging the console.
+      await page.waitForTimeout(1500);
+      const overflow = await page.evaluate(() => {
+        const doc = document.documentElement;
+        const wide = [...document.querySelectorAll('body *')]
+          .filter((el) => {
+            const rect = el.getBoundingClientRect();
+            return rect.width > 0 && rect.right > doc.clientWidth + 1;
+          })
+          .filter((el) => getComputedStyle(el).visibility !== 'hidden')
+          .slice(0, 3)
+          .map((el) => `${el.tagName.toLowerCase()}${el.getAttribute('aria-label') ? `[${el.getAttribute('aria-label')}]` : ''} → ${Math.round(el.getBoundingClientRect().right)}px`);
+        return { scrollWidth: doc.scrollWidth, clientWidth: doc.clientWidth, wide };
+      });
+      await context.close();
+
+      const sideways = overflow.scrollWidth > overflow.clientWidth;
+      const ok = rendered && errors.length === 0 && !sideways;
+      if (!ok) failures += 1;
+      console.log(
+        `  ${ok ? '✓' : '✗'} ${width}x${height} — ${rendered ? 'rendered' : 'NOT rendered'}, ` +
+          `${errors.length} app error(s), ${blockedNoise} blocked-request report(s), ` +
+          `scrollWidth ${overflow.scrollWidth} / ${overflow.clientWidth}` +
+          // Named only when the page really scrolls sideways: a closed drawer
+          // parked off-canvas is past the edge too, and clipped.
+          (sideways && overflow.wide.length ? ` (past the edge: ${overflow.wide.join('; ')})` : ''),
+      );
+      for (const error of errors) console.log(`      ${error}`);
+    }
+  } finally {
+    await browser.close();
+    await server.close();
+  }
+  if (failures > 0) {
+    console.error(`\n${failures} viewport(s) failed the ${args.engine} smoke pass`);
+    process.exitCode = 1;
+  }
+}
+
 async function main() {
   const args = parseArgs(process.argv.slice(2));
-  await ensureExport(args);
+  if (!ENGINES[args.engine]) throw new Error(`unknown engine ${args.engine}`);
+  if (args.engine !== 'chromium') BASELINE = join(HERE, `baseline-${args.engine}`);
+  if (args.dist) DIST = args.dist;
+  else await ensureExport(args);
+  if (args.smoke) {
+    await smoke(args);
+    return;
+  }
 
   const copy = await welcomeCopy();
   const stats = await bundleStats();
   const cases = buildCases().filter((c) => !args.only || c.name.includes(args.only));
 
-  const outDir = args.check
-    ? await mkdtemp(join(tmpdir(), 'alia-visual-'))
-    : (await mkdir(BASELINE, { recursive: true }), BASELINE);
+  const outDir = !args.check
+    ? (await mkdir(BASELINE, { recursive: true }), BASELINE)
+    : args.keep
+      ? (await mkdir(args.keep, { recursive: true }), args.keep)
+      : await mkdtemp(join(tmpdir(), 'alia-visual-'));
 
   const server = await serveExport(DIST);
-  const browser = await chromium.launch({ headless: true });
+  const browser = await ENGINES[args.engine].launch({ headless: true });
   const chromiumVersion = browser.version();
-  console.log(`· chromium ${chromiumVersion} on ${server.origin}`);
+  console.log(`· ${args.engine} ${chromiumVersion} on ${server.origin}`);
 
   /** @type {{name: string, bytes: number, comparison?: object}[]} */
   const captured = [];
@@ -320,7 +460,12 @@ async function main() {
           failures += 1;
           continue;
         }
-        const result = comparePngs(await readFile(reference), png, args.tolerance);
+        const referencePng = await readFile(reference);
+        const result = comparePngs(referencePng, png, args.tolerance);
+        if (!result.ok && args.keep) {
+          const diff = diffPng(referencePng, png, args.tolerance);
+          if (diff) await writeFile(join(outDir, `${testCase.name}.diff.png`), diff);
+        }
         captured.push({ name: testCase.name, bytes: png.length, comparison: result });
         if (result.ok) {
           console.log(
@@ -352,7 +497,8 @@ async function main() {
             'Written by packages/app/scripts/visual/capture.mjs. Regenerate with ' +
             '`bun run --filter @alia/app visual:baseline`; verify with the same command plus --check.',
           capturedAt: new Date().toISOString(),
-          chromium: chromiumVersion,
+          engine: args.engine,
+          [args.engine === 'chromium' ? 'chromium' : 'version']: chromiumVersion,
           pinned: {
             deviceScaleFactor: 1,
             locale: 'en-US',
@@ -378,7 +524,8 @@ async function main() {
       `· bundle: ${stats.jsChunks} JS chunks, ${(stats.jsTotalBytes / 1024 / 1024).toFixed(2)} MB total`,
     );
   } else {
-    await rm(outDir, { recursive: true, force: true });
+    if (args.keep) console.log(`· captures and diffs kept in ${outDir}`);
+    else await rm(outDir, { recursive: true, force: true });
     const worst = captured.reduce((max, c) => Math.max(max, c.comparison?.maxDelta ?? 0), 0);
     console.log(`\n· worst per-channel delta across the matrix: ${worst} (tolerance ±${args.tolerance})`);
   }
