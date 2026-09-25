@@ -435,7 +435,7 @@ const MessageRow = React.memo(function MessageRow({
           WebSearch trail inside the turn, which streams them itself. */}
       {taskInvocations.length === 0 || !turnWorking ? null : (
         <AgentProgress
-          steps={taskInvocations.map((t) => getToolPillLabel(t.toolName))}
+          steps={taskInvocations.map((invocation) => getToolPillLabel(invocation.toolName, rowT))}
           completedCount={
             taskInvocations.filter((t) => t.state === 'result').length
           }
@@ -1103,11 +1103,13 @@ export const ChatInterface = React.memo(function ChatInterface({
                 list on purpose: it must not cover what is being read, and
                 ignoring it has to leave the thread exactly as it was. */}
           {suggestedNewConversation === null ||
-          suggestedNewConversation === undefined ? null : (
+          suggestedNewConversation === undefined ||
+          onAcceptNewConversation === undefined ||
+          onDismissNewConversation === undefined ? null : (
             <NewConversationOffer
               reason={suggestedNewConversation}
-              onAccept={onAcceptNewConversation ?? (() => {})}
-              onDismiss={onDismissNewConversation ?? (() => {})}
+              onAccept={onAcceptNewConversation}
+              onDismiss={onDismissNewConversation}
             />
           )}
 
