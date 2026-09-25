@@ -49,9 +49,8 @@ vi.mock('../../middleware/auth.js', () => ({
 }));
 
 vi.mock('../../lib/chat-core.js', () => ({
-  resolveModel: vi.fn(),
+  resolveUtilityModel: vi.fn(),
   getAIModel: vi.fn(),
-  getDefaultRoutingProfile: vi.fn(() => 'route:auto'),
 }));
 
 vi.mock('../../lib/s3.js', () => ({ readS3Object: vi.fn() }));

@@ -773,12 +773,6 @@ export function useStreamingChat(apiUrl: string, conversationId?: string, reason
                   }
                   continue;
                 }
-                case 'alia.model_switch': {
-                  if (parsed.model) {
-                    useModelStore.getState().setSelectedModel(parsed.model);
-                  }
-                  continue;
-                }
                 case 'alia.suggest_new_conversation': {
                   // A missing or blank reason degrades to an offer without
                   // one rather than to an invented one: the sentence belongs

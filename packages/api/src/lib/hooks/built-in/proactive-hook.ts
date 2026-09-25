@@ -6,13 +6,13 @@
  * - A monitoring trigger for things that change over time (prices, availability)
  * - A routine for recurring needs ("every week I have to...")
  *
- * Uses a lightweight model (route:instant) to classify, then creates a Suggestion
+ * Uses the utility model (the cheapest fit catalogue model) to classify, then creates a Suggestion
  * that appears in the user's next session.
  */
 
 import { generateText } from 'ai';
 import { registerHook } from '../hook-runner.js';
-import { resolveModel, getAIModel, getDefaultRoutingProfile } from '../../chat-core.js';
+import { resolveUtilityModel, getAIModel } from '../../chat-core.js';
 import { getDb } from '../../../db/index.js';
 import { createSuggestion } from '../../../db/notifications/suggestionRepository.js';
 import { getUserLanguage } from '../../memory/user-memory-service.js';
@@ -97,7 +97,7 @@ registerHook({
     const languagePromise = getUserLanguage(ctx.userId);
 
     try {
-      const resolved = await resolveModel(getDefaultRoutingProfile());
+      const resolved = await resolveUtilityModel();
       if (!resolved) return;
 
       const model = getAIModel(resolved, 'background');

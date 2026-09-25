@@ -121,8 +121,8 @@ Frontend                            Backend
    POST /v1/chat/completions ──────> 3. Auth middleware sets req.user
    with SSE streaming                4. Workspace/org middleware
                                      5. autonomy beforeChat (classify, recall, retrieve)
-                                     6. In parallel: reserve credits, resolve the product
-                                        routing profile, load user memory, Oxy profile,
+                                     6. In parallel: reserve credits, resolve the model
+                                        from Oxy's catalogue, load user memory, Oxy profile,
                                         skill, entitlements and agent
                                      7. Build tools: native + MCP + Oxy + integrations
                                      8. Build system prompt (fragments)
@@ -203,8 +203,7 @@ the vocabulary.
 
 ### Key files
 
-- `internal/providers/lib/routing-profile-catalogue.ts` -- the product-facing Kaana routing profiles
-- `internal/providers/lib/generate-model-mappings.ts` -- compatibility inputs for the product catalogue
+- `lib/models/` -- the catalogue from Oxy and the automatic choices (featured, default, utility, speech); ADR 0012
 - `lib/inference/oxy-inference.ts` -- the fail-closed published Oxy SDK boundary
 - `routes/v1/models.ts` -- the public catalogue
 - `lib/errors/sanitize.ts` -- the two sanitisation rules, and which surfaces each covers

@@ -7,7 +7,7 @@
  * Kaana owns deployment choice, key rotation and route changes. Alia never
  * re-resolves a hosted failure around it.
  *
- * `resolved`, `routingProfileId`, `creditReservation` and `globalTimedOut` live in
+ * `resolved`, `modelId`, `creditReservation` and `globalTimedOut` live in
  * `ChatLoopState`, owned by the route so its
  * global-timeout timer, outer catch, and last-resort synthetic observe the
  * loop's writes. Returns `completed` when a response was fully sent, or
@@ -38,7 +38,7 @@ import {
 } from '../chat-lifecycle.js';
 import { log } from '../logger.js';
 import { recordEvent } from '../observability/index.js';
-import type { EffortLevel } from '../reasoning-effort.js';
+import type { ReasoningEffort } from '../models/catalogue.js';
 import type { SkillRuntime } from '../skills/runtime.js';
 import { classifyError, toAliaError } from '../errors/index.js';
 import { AliaErrorCode, type FailoverReason } from '../errors/error-codes.js';
@@ -60,7 +60,7 @@ const TERMINAL_STREAM_ERRORS: Set<FailoverReason> = new Set(['format', 'content_
  */
 export interface ChatLoopState {
   resolved: ResolvedModel | null;
-  routingProfileId: string;
+  modelId: string;
   creditReservation: CreditReservation | null;
   /**
    * Whether the reservation has been resolved — charged or refunded. It stays
@@ -90,7 +90,7 @@ export interface ProviderLoopParams {
   /** The client's id for this turn's reply; see `ChatRequestContext`. */
   assistantMessageId: string | undefined;
   /** The level, resolved once at the request boundary. */
-  reasoningEffort: EffortLevel | null;
+  reasoningEffort: ReasoningEffort | null;
   convertedMessages: ModelMessage[];
   truncatedTools: ToolSet;
   toolNameMapping: Map<string, string>;
@@ -98,11 +98,6 @@ export interface ProviderLoopParams {
   agentMessages: AgentMessage[];
   systemPromptTokens: number;
   requestedModel: string;
-  /**
-   * The SAME routing options the first resolve used. Re-resolving under a
-   * different (wider) policy would reintroduce silent substitution one retry
-   * later, which is exactly the shape ADR 0003 invariant 3 forbids.
-   */
   autonomyRuntime: AutonomyRuntimeContext | null;
   includeUsage: boolean;
   /** Product service token selected by the authenticated app/agent binding gate. */
@@ -165,7 +160,7 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
     conversationId,
     assistantMessageId,
     messages,
-    routingProfileId: state.routingProfileId,
+    modelId: state.modelId,
     requestedModel,
     reasoningEffort,
     creditReservation: state.creditReservation,
@@ -218,7 +213,7 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
     // The route returns 503 before this function when resolution is absent.
     const resolved = state.resolved;
     if (!resolved) break hostedAttempt;
-    const routingProfileId = state.routingProfileId;
+    const modelId = state.modelId;
 
     // Shared with the stream runner and catch: reflects writes made
     // inside runStream even when the stream throws mid-flight.
@@ -251,7 +246,7 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
           globalTimer,
           baseConfig,
           clearFirstByteTimer,
-          routingProfileId,
+          modelId,
           requestedModel,
           reasoningEffort,
           conversationId,
@@ -301,7 +296,7 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
         res,
         sse,
         requestId,
-        routingProfileId,
+        modelId,
         resolved,
         baseConfig,
         convertedMessages,
@@ -340,7 +335,7 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
         baseConfig,
         res,
         requestId,
-        routingProfileId,
+        modelId,
         resolved,
       })).assistantResponse;
 
@@ -383,7 +378,7 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
           id: requestId,
           object: 'chat.completion.chunk',
           created: Math.floor(Date.now() / 1000),
-          model: routingProfileId,
+          model: modelId,
           system_fingerprint: 'fp_alia',
           service_tier: 'default',
           choices: [],

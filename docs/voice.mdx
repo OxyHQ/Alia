@@ -27,7 +27,7 @@ capabilities to Oxy and Kaana is cross-repository work; recognizing speech on th
 device needs none of it.
 
 Retiring the LiveKit room, cohost and the voice-minutes allowance is a product
-decision, recorded in [ADR 0012](./adr/0012-voice-runs-on-the-device-livekit-and-cohost-are-retired.md).
+decision, recorded in [ADR 0013](./adr/0013-voice-runs-on-the-device-livekit-and-cohost-are-retired.md).
 
 ## Listening: on the device
 
@@ -67,8 +67,8 @@ default sender (`createAliaVoiceTurnSender`) makes the same request `useAliaChat
 does, on `/v1/chat/completions`.
 
 Every voice turn carries `responseMode: "voice"`. The API layers
-`prompts/voice.md` over the turn's product prompt (`SystemPromptBuilder`, the way
-extended reasoning is layered): short, conversational, nothing that reads badly
+`prompts/voice.md` over the turn's prompt (`SystemPromptBuilder` chooses prompts by
+surface, never by model): short, conversational, nothing that reads badly
 aloud. Routing, tools and billing are those of a typed turn.
 
 ## Speaking: Oxy speech, sentence by sentence

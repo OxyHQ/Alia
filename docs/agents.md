@@ -187,8 +187,8 @@ second paid session beside the answer.
   `POST /agents/:id/hire` is gone. It re-asks `canReachAgent` at goal time, so a
   thread does not outlive a revoked membership, and the price the goal records
   is the one `startAgentSession` reserves — both read `agentHirePrice`.
-- A thread stores only an opaque reviewed Oxy routing-profile ID. Tools remain
-  deny-by-default.
+- A thread stores a real `<publisher>/<model>` in `model_id`, or `NULL` for the
+  default model (ADR 0012). Tools remain deny-by-default.
 - PostgreSQL serializes admission per person with an agent before a queued or
   running session is created, enforcing `max_concurrent_threads` across API
   replicas. The limit bounds one person's concurrent work with the agent; it is
@@ -513,8 +513,8 @@ The former `POST /webhooks/oxy/:serviceId` route is retired and returns `410 Gon
 
 ## Model Abstraction
 
-Product modes use Kaana product-routing identifiers (`route:instant`, `route:auto`
-and so on); concrete models use canonical
-`<publisher>/<model>[@revision]` references. Upstream routing detail is never
-returned to users. The product-routing set is frozen — see
-[model abstraction](./model-abstraction.mdx).
+Agents and threads name real models from Oxy's catalogue as
+`<publisher>/<model>` (`agents.model_id`, `agent_threads.model_id`); `NULL` means
+the default model. There are no product modes or routing profiles. The serving
+operator and deployment ids are never returned to users — see
+[models in Alia](./model-abstraction.mdx).

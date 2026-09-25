@@ -4,7 +4,8 @@ import { oxyServiceToken } from '../lib/oxy-service-client.js';
 
 type Case = Readonly<{
   label: string;
-  model: string;
+  /** Absent runs the QA account's default model — nothing here names one (ADR 0012). */
+  model?: string;
   prompt: string;
   marker: string;
   deepResearch?: boolean;
@@ -15,58 +16,49 @@ type Case = Readonly<{
 
 export const PRODUCTION_CANARY_CASES: readonly Case[] = [
   {
-    label: 'instant-1',
-    model: 'route:instant',
+    label: 'default-1',
     prompt: 'Reply exactly QA_INSTANT_OK_1.',
     marker: 'QA_INSTANT_OK_1',
   },
   {
-    label: 'instant-2',
-    model: 'route:instant',
+    label: 'default-2',
     prompt: 'Reply exactly QA_INSTANT_OK_2.',
     marker: 'QA_INSTANT_OK_2',
   },
   {
-    label: 'auto-1',
-    model: 'route:auto',
+    label: 'default-3',
     prompt: 'Reply exactly QA_AUTO_OK_1.',
     marker: 'QA_AUTO_OK_1',
   },
   {
-    label: 'auto-2',
-    model: 'route:auto',
+    label: 'default-4',
     prompt: 'Reply exactly QA_AUTO_OK_2.',
     marker: 'QA_AUTO_OK_2',
   },
   {
-    label: 'thinking-1',
-    model: 'route:thinking',
+    label: 'arithmetic-1',
     prompt: 'Calculate 17 + 25 and end with QA_THINKING_OK_42.',
     marker: 'QA_THINKING_OK_42',
   },
   {
-    label: 'thinking-2',
-    model: 'route:thinking',
+    label: 'arithmetic-2',
     prompt: 'Calculate 19 + 24 and end with QA_THINKING_OK_43.',
     marker: 'QA_THINKING_OK_43',
   },
   {
     label: 'research-1',
-    model: 'route:research',
     prompt: 'End your answer with QA_RESEARCH_OK_1.',
     marker: 'QA_RESEARCH_OK_1',
     deepResearch: true,
   },
   {
     label: 'research-2',
-    model: 'route:research',
     prompt: 'End your answer with QA_RESEARCH_OK_2.',
     marker: 'QA_RESEARCH_OK_2',
     deepResearch: true,
   },
   {
     label: 'search-tool',
-    model: 'route:auto',
     prompt:
       'Use web search for the official React documentation. Include https://react.dev and end with QA_SEARCH_OK.',
     marker: 'QA_SEARCH_OK',
@@ -89,14 +81,13 @@ export const PRODUCTION_CANARY_CASES: readonly Case[] = [
   },
   {
     label: 'controlled-refusal',
-    model: 'route:not-registered',
-    prompt: 'Refuse this unknown profile.',
+    model: 'not-a-publisher/not-a-model',
+    prompt: 'Refuse this unknown model.',
     marker: '',
     expectRefusal: true,
   },
   {
     label: 'recovery',
-    model: 'route:auto',
     prompt: 'Reply exactly QA_RECOVERY_OK.',
     marker: 'QA_RECOVERY_OK',
   },
@@ -289,7 +280,7 @@ async function main(): Promise<void> {
           'user-agent': 'alia-production-canary/1',
         },
         body: JSON.stringify({
-          model: entry.model,
+          ...(entry.model === undefined ? {} : { model: entry.model }),
           messages: [{ role: 'user', content: entry.prompt }],
           stream: true,
           stream_options: { include_usage: true },

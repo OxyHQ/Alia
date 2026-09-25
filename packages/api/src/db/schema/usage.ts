@@ -29,56 +29,22 @@ import { createdAt, generatedId } from '@oxy.so/db';
  * completion. Same reasoning as `auth_health_metrics.method`; revisit after the
  * backfill audits the actual values.
  *
- * ## `model` and `provider` are read by nothing, written by nothing, and NOT
- * dropped
+ * ## Which model a turn ran on
  *
- * Both are declared to hold provider identity. Today they hold none: `model`
- * receives a second copy of the alias and `provider` receives the literal
- * string `'unknown'`, because `chat-lifecycle.ts` is the only caller of
- * `runAfterChatHooks` and passes `modelUsed: routingProfileId` and
- * `metadata: { model: routingProfileId }`.
+ * `model` is the `publisher/model` the turn ran on (ADR 0012) — what the
+ * featured ranking and each person's default are computed from
+ * (`lib/models/selection.ts`). Rows written before 0078 hold a routing alias or
+ * a provider model id there; they match no catalogue id and are ignored by
+ * those readers rather than rewritten. `requested_model_id` is what the caller
+ * asked for, verbatim, and `resolved_model_reference` the revision-pinned
+ * reference Kaana reported.
  *
- * **That is a fact about the code, and the rows are older than the code.** The
- * git history of every writer says so: `899cfd21` (2026-02-11) introduced three
- * call sites passing `metadata: { provider: resolved?.provider }` and
- * `modelUsed: resolved?.keyConfig?.modelId` — the REAL provider name and the
- * REAL provider model id — and `3fed699a` (2026-03-12) replaced them with the
- * current shape. For those 29 days these two columns hold genuine routing
- * history that exists nowhere else in the schema, and no measurement available
- * from this repository can say how many such rows there are: production is
- * unreachable from here, and `docs/migration/epic-139-status.md` records
- * `chat_analytics` production rows as `UNMEASURED` with the exact operator
- * command beside it.
+ * `provider` is widened to nullable (0024), written by nothing and LEFT: rows
+ * from 2026-02-11 to 2026-03-12 hold the only record of which provider served
+ * those turns, and a dropped column cannot be un-dropped.
  *
- * So they are widened to nullable (0024), removed from every writer and from
- * every reader, and LEFT. A dropped column cannot be un-dropped, and tidying a
- * schema is not worth losing the only record of which provider served a request
- * in February. The physical drop is a later migration that needs a real row
- * count first.
- *
- * The model identity of a NEW turn is `requested_model_id` (what the caller
- * asked for, NOT NULL) with `requested_model_kind` saying what KIND of
- * identifier that is (NOT NULL), plus `routing_profile_id`, the alias that served
- * it. `GET /analytics/models` groups by the alias alone — the `coalesce` that
- * let a null alias fall back to `model` is gone — and resolves each group
- * through `getRoutingProfile()`; per the model-abstraction rule an entry that cannot
- * resolve is SKIPPED, which is what a null alias produces either way.
- *
- * `routing_profile_id` deliberately does NOT become NOT NULL. Both eras' writers set
- * it, so the constraint would probably hold — but "probably" is a claim about
- * writers, the gain is nil, and the cost of being wrong is a failed post-phase
- * migration on a table whose row count nobody has.
- *
- * The resolved model REVISION — the third identifier #139 workstream 5 asks
- * for — is `resolved_model_reference`: the Kaana catalogue's
- * `resolvedModelReference`, reported on the contract's `start` event and read
- * by `lib/inference/kaana-language-model.ts` since #477. Nullable, because a
- * turn that failed before Kaana started has none to record.
- *
- * `conversation_id` and `skill_id` were absent when the table landed while the
- * hook wrote both, and a write with nowhere to go is data thrown away rather
- * than a column nobody needs. Both are nullable because both are optional in
- * the source.
+ * The routing-profile columns (`routing_profile_id`, `requested_profile_id`,
+ * `requested_model_kind`) were dropped by 0078 with the profiles themselves.
  */
 export const chatAnalytics = pgTable(
   'chat_analytics',
@@ -86,66 +52,22 @@ export const chatAnalytics = pgTable(
     id: generatedId(),
     oxyUserId: text().notNull(),
     conversationId: text(),
-    /**
-     * The PROVIDER's model id for rows written between 2026-02-11 and
-     * 2026-03-12, a second copy of the alias for every row since. Nullable from
-     * 0024 and written by nothing — see the table comment.
-     */
+    /** The `publisher/model` this turn ran on (or `local/...`). See the table comment. */
     model: text(),
-    /** The Kaana routing profile that served this turn. What `getRoutingProfile()` resolves. */
-    routingProfileId: text(),
-    /**
-     * The provider that served the turn, over the same 29-day window; the
-     * literal `'unknown'` for every row since. Nullable from 0024 and written by
-     * nothing — see the table comment.
-     */
+    /** Written by nothing since 2026-03-12. See the table comment. */
     provider: text(),
     /**
      * What the CALLER asked for, before resolution — `body.model`, or the
-     * product default when the caller named nothing.
-     *
-     * Distinct from `routing_profile_id`, which is the alias that actually served
-     * the turn after the provider-fallback loop had its say. The two agree on
-     * most turns and diverge on exactly the turns worth looking at: a request
-     * for an alias the caller is not entitled to, or a string that is not a
-     * registered alias at all.
-     *
-     * NOT NULL, so a row that cannot say what was asked for is a write that
-     * fails rather than a row that silently falls back to whatever else is
-     * lying around — which is the shape `coalesce(routing_profile_id, model)` had
-     * before this column existed.
+     * person's default when the caller named nothing. NOT NULL, so a row
+     * cannot fail to say.
      */
     requestedModelId: text().notNull(),
     /**
-     * WHAT that identifier is: a product mode, a concrete model reference, a
-     * legacy `alia-*` alias, or something nothing serves.
+     * How much reasoning the caller asked for (`low` | `medium` | `high`), or
+     * null for the model's default.
      *
-     * One string carries all four, and they are not comparable — recording the
-     * identifier alone makes `route:pro-standard` and `qwen/qwen3-32b` two rows of one
-     * column and invites every later query to read them as two model choices.
-     * `lib/observability/requested-model.ts` owns the classification and its
-     * doc comment owns the reasoning. No CHECK, for the same reason
-     * `error_class` has none.
-     */
-    requestedModelKind: text().notNull(),
-    /**
-     * The product mode the request selects, `profile:<tier>`.
-     *
-     * Present for a product mode AND for a legacy alias, which is the point:
-     * they are the same choice in two eras, so a query grouping on this column
-     * sees them together without knowing the migration map. Null for a concrete
-     * model reference, which selects no profile.
-     */
-    requestedProfileId: text(),
-    /**
-     * How much reasoning the caller asked for, or null for the default.
-     *
-     * Its own column because reasoning is a PARAMETER and not a model:
-     * `route:thinking` and `route:pro` are one routing preset with two
-     * names, so recording the alias as a model choice would bury the reasoning
-     * request inside a model identifier — exactly the conflation this epic is
-     * removing. Populated from the `thinkingMode` flag and from that alias
-     * alike.
+     * Its own column because reasoning is a PARAMETER of the request, not a
+     * different model.
      */
     reasoningEffort: text(),
     /**
@@ -189,7 +111,7 @@ export const chatAnalytics = pgTable(
     /**
      * The revision-pinned `<publisher>/<model>@<revision>` Kaana served this
      * turn — the "safe resolved revision reference" of #139 workstream 10, and
-     * the third identifier beside `requested_model_id` and `routing_profile_id`.
+     * the third identifier beside `requested_model_id` and `model`.
      *
      * Safe because it is the model's own identity, which ADR 0003 allows in
      * analytics; the contract's `servingProvider` (an upstream operator) rides

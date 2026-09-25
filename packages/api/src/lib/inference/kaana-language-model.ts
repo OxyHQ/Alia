@@ -75,9 +75,9 @@ const TEXT_BLOCK_ID = 'kaana-text';
  *
  * `providerMetadata` rather than `response.modelId` alone: the AI SDK fills a
  * missing `response.modelId` with the REQUESTED id, so a reader of that field
- * cannot tell "Kaana said `openai/gpt-5-mini@…`" from "nothing said anything
- * and the SDK echoed `route:auto`". A key that is absent when nothing arrived
- * can.
+ * cannot tell "Kaana said `<publisher>/<model>@<revision>`" from "nothing said
+ * anything and the SDK echoed the requested id". A key that is absent when
+ * nothing arrived can.
  */
 export const KAANA_PROVIDER_METADATA_KEY = 'kaana';
 
@@ -86,12 +86,15 @@ function resolvedModelMetadata(reference: string | null): { kaana: { resolvedMod
 }
 
 export interface KaanaModelOptions {
-  /** The exact Oxy catalogue target; its kind is never inferred from its text. */
-  readonly target:
-    | { readonly kind: 'routing_profile_id'; readonly routingProfileId: string }
-    | { readonly kind: 'model'; readonly model: string };
-  /** Alia's product-facing request identity; never the opaque Oxy row ID. */
+  /** The exact `publisher/model` from Oxy's catalogue (ADR 0012). */
+  readonly target: { readonly kind: 'model'; readonly model: string };
+  /** Alia's product-facing request identity. */
   readonly modelId: string;
+  /**
+   * How hard a reasoning model should think, validated upstream against the
+   * model's catalogue `reasoningEfforts`. Absent leaves the model's default.
+   */
+  readonly reasoningEffort?: 'low' | 'medium' | 'high';
   readonly surface: AliaInferenceSurface;
   readonly oxyUserId?: string | null;
   /** Verified inbound product service token; absent keeps Alia's own credential lane. */
@@ -139,7 +142,7 @@ function requestOptions(
  * send and the warnings to attach to the answer. Returning only the first is how
  * a dropped image becomes invisible.
  */
-interface Translation {
+export interface Translation {
   readonly messages: InferenceMessage[];
   readonly tools: ToolDefinition[];
   readonly toolChoice?: ToolChoice;
@@ -455,16 +458,17 @@ function toUsage(units: readonly { unit: string; quantity: number }[] | undefine
   };
 }
 
-function requestFor(
+export function requestFor(
   modelOptions: KaanaModelOptions,
   options: LanguageModelV3CallOptions,
   translation: Translation,
 ): OxyResponsesRequest {
   const responseFormat = toResponseFormat(options.responseFormat);
   return {
-    ...(modelOptions.target.kind === 'model'
-      ? { model: modelOptions.target.model }
-      : { routingProfileId: modelOptions.target.routingProfileId }),
+    model: modelOptions.target.model,
+    ...(modelOptions.reasoningEffort === undefined
+      ? {}
+      : { reasoning: { effort: modelOptions.reasoningEffort } }),
     input: translation.messages,
     maxOutputTokens: options.maxOutputTokens ?? 4096,
     ...(options.temperature === undefined ? {} : { temperature: options.temperature }),

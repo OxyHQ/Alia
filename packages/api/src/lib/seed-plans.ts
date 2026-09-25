@@ -1,19 +1,12 @@
 /**
  * Default subscription plans, for a database that has none.
  *
- * Idempotent by INSERT: re-running never overwrites a row that exists, and that
- * now includes `modelIds`. The header of this file used to say "uses
- * $setOnInsert for idempotency — re-running never overwrites admin edits",
- * which stopped being true at the Postgres port — `seedPlan` became an
- * `ON CONFLICT DO UPDATE` on `modelIds` — and nobody noticed, because nothing
- * calls this function. `db/billing/planRepository.ts` `seedPlan` is where the
- * correction lives and why it matters: `setPlanModelIds` is the authority for
- * which models a plan grants (#139 workstream 14), and a boot writer that
- * re-asserted the list would revert it on the next deploy.
+ * Idempotent by INSERT: re-running never overwrites a row that exists.
  *
- * Features are managed through the Feature and PlanFeature tables
- * (see `internal/providers/lib/seed-features.ts`). This file seeds plan
- * metadata and the initial `modelIds` only.
+ * Plans carry no model list: every plan sees every model in the catalogue and
+ * plans differ only by credits (ADR 0012). Features are managed through the
+ * Feature and PlanFeature tables (see `internal/providers/lib/seed-features.ts`).
+ * This file seeds plan metadata only.
  *
  * ## Why it lives in `lib/` and not under `internal/providers/`
  *
@@ -53,34 +46,9 @@ interface PlanSeed {
   isFeatured: boolean;
   sortOrder: number;
   isFree: boolean;
-  modelIds: string[];
 }
-
-// ─── modelIds (cumulative) ─────────────────────────────────────────
-
-const FREE_MODEL_IDS = ['route:instant', 'route:auto', 'route:audio'];
-const GO_MODEL_IDS = [...FREE_MODEL_IDS, 'route:code', 'route:vision', 'route:research', 'route:cowork', 'route:multimodal', 'route:voice'];
-const PRO_MODEL_IDS = [...GO_MODEL_IDS, 'route:pro-standard', 'route:thinking', 'route:pro', 'route:voice-pro'];
 
 // ─── Seed data ─────────────────────────────────────────────────────
-
-/**
- * The model list each plan is SEEDED with, by plan id.
- *
- * Exported because `scripts/plan-models.ts` re-asserts it against a database
- * whose row was created before the list grew. Derived from `SEED_PLANS` below
- * rather than retyped: a second copy would be a second answer to "which models
- * does Ultra include", and the one in the database is already the stale answer
- * this exists to correct.
- */
-export function seededModelIdsFor(planId: string): readonly string[] | null {
-  return SEED_PLANS.find((plan) => plan.planId === planId)?.modelIds ?? null;
-}
-
-/** Every plan id this file seeds, for an operator listing what can be corrected. */
-export function seededPlanIds(): readonly string[] {
-  return SEED_PLANS.map((plan) => plan.planId);
-}
 
 const SEED_PLANS: PlanSeed[] = [
   // ─── Alia Plans ───────────────────────────────────────────
@@ -98,7 +66,6 @@ const SEED_PLANS: PlanSeed[] = [
     isFeatured: false,
     sortOrder: 0,
     isFree: true,
-    modelIds: FREE_MODEL_IDS,
   },
   {
     planId: 'go',
@@ -114,7 +81,6 @@ const SEED_PLANS: PlanSeed[] = [
     isFeatured: false,
     sortOrder: 1,
     isFree: false,
-    modelIds: GO_MODEL_IDS,
   },
   {
     planId: 'pro',
@@ -130,7 +96,6 @@ const SEED_PLANS: PlanSeed[] = [
     isFeatured: true,
     sortOrder: 2,
     isFree: false,
-    modelIds: PRO_MODEL_IDS,
   },
   {
     planId: 'max',
@@ -146,7 +111,6 @@ const SEED_PLANS: PlanSeed[] = [
     isFeatured: false,
     sortOrder: 3,
     isFree: false,
-    modelIds: PRO_MODEL_IDS,
   },
   {
     planId: 'ultra',
@@ -162,7 +126,6 @@ const SEED_PLANS: PlanSeed[] = [
     isFeatured: false,
     sortOrder: 4,
     isFree: false,
-    modelIds: PRO_MODEL_IDS,
   },
   // No Codea plans: every plan includes programming (drizzle/0075 retired them).
 ];
@@ -175,11 +138,10 @@ export async function seedPlans(): Promise<{ seeded: number; skipped: number }> 
 
   for (const planData of SEED_PLANS) {
     try {
-      // Every field, including `modelIds`, is set only when the row is created.
+      // Every field is set only when the row is created.
       // A plan that exists is left exactly as it is.
       const result = await seedPlan(db, {
         planId: planData.planId,
-        modelIds: planData.modelIds,
         name: planData.name,
         product: planData.product,
         creditsPerMonth: planData.creditsPerMonth,

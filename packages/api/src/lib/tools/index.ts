@@ -36,7 +36,6 @@ export { createAgentTool } from './agent-create.js';
 export { createDeepResearchTool } from './deep-research.js';
 
 // Model switching tool (AI-callable)
-export { createSwitchModelTool } from './switch-model.js';
 
 // Plan preview tool (AI-callable)
 export { createPlanPreviewTool } from './plan-preview.js';

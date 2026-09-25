@@ -33,7 +33,6 @@ vi.mock('../logger.js', () => {
   const child = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };
   return { log: { general: child, agents: child, chat: child, v1: child, providers: child } };
 });
-vi.mock('../gateway-client.js', () => ({ getRoutingProfile: vi.fn(async () => ({ name: 'Auto' })) }));
 vi.mock('../tools/oxy-services.js', () => ({
   getOxyServicePromptFragment: vi.fn(async () => ''),
   getOxyServiceContext: vi.fn(async () => ''),
@@ -84,7 +83,8 @@ function agent(overrides: Record<string, unknown> = {}) {
 }
 
 const BASE = {
-  routingProfileId: 'route:auto',
+  surface: 'chat',
+  model: { name: 'Example Model 2', publisher: { id: 'example', name: 'Example Labs' } },
   isDirectUserSession: true,
   userId: 'user-1',
 } as const;
@@ -123,16 +123,16 @@ describe('naming an agent changes the turn', () => {
     const without = await build(null);
 
     expect(withAgent).toContain('You are Pepe,');
-    expect(without).toContain('You are Auto,');
+    expect(without).toContain('You are Alia,');
     // The regression the guard rewrite fixed: an agent told to call itself Alia.
-    expect(withAgent).not.toContain('You are Auto,');
+    expect(withAgent).not.toContain('You are Alia,');
   });
 
-  it('keeps the provider secrecy on both, which is what stays scoped', async () => {
+  it('keeps the operator secrecy on both, which is what stays scoped', async () => {
     for (const prompt of [await build(agent()), await build(null)]) {
       expect(prompt).toContain('NON-NEGOTIABLE');
-      expect(prompt).toContain('OpenAI');
-      expect(prompt).toContain('Anthropic');
+      expect(prompt).toContain('HOSTS or SERVES the model');
+      expect(prompt).toContain('Example Model 2');
     }
   });
 

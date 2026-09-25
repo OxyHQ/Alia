@@ -14,7 +14,7 @@
  */
 
 import { generateText } from 'ai';
-import { resolveModel, getAIModel, getDefaultRoutingProfile } from '../chat-core.js';
+import { resolveUtilityModel, getAIModel } from '../chat-core.js';
 import { generatePlan, type ExecutionPlan } from './planner-agent.js';
 import { executeSubtasks, type ExecutorResult } from './executor-pool.js';
 import { verifyResults, type VerificationResult } from './verifier-agent.js';
@@ -226,7 +226,7 @@ async function synthesizeResult(
 
   // For multiple results, use a model to synthesize
   try {
-    const resolved = await resolveModel(getDefaultRoutingProfile());
+    const resolved = await resolveUtilityModel().catch(() => null);
     if (!resolved) {
       return successResults.map(r => `## ${r.subtask}\n${r.result}`).join('\n\n');
     }

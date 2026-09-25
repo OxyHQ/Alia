@@ -48,15 +48,14 @@ rather than an investigation.
 </table>
 
 > [!IMPORTANT]
-> **The product surface exposes Kaana routing-profile identifiers only.** The public
-> `kaana-*` profiles are defined in source; upstream operator names and deployment IDs never appear
-> in a product API response, an error, the UI or a customer-facing analytics event, and
-> user-facing errors go through a sanitiser first. The rule is a product and privacy
-> boundary, not a global ban on the words — engineering docs and ADRs name publishers,
-> because [ADR 0003](docs/adr/0003-model-revision-deployment-provider-routing-profile.md)
-> makes `<publisher>/<model>` the canonical identifier form for concrete models. Profiles
-> are routing policies, not models; see
-> [model abstraction](docs/model-abstraction.mdx).
+> **Alia has no models of its own.** A person picks a real `<publisher>/<model>` from
+> Oxy's catalogue (`GET /catalogue`, filtered to text models with tools); the default,
+> featured, utility and speech models are computed from that catalogue and Alia's usage,
+> never hardcoded. Model and publisher names are shown. The operator serving a deployment
+> and deployment IDs stay off the **product surface** — product API responses, errors, the
+> UI, customer-facing analytics — and user-facing errors go through a sanitiser first. See
+> [ADR 0012](docs/adr/0012-alia-uses-real-models.md) and
+> [models in Alia](docs/model-abstraction.mdx).
 
 ## The chat runtime
 
@@ -104,7 +103,8 @@ Alia task definition `oxy-alia:311`: pre-phase migrations and the authenticated
 reviewed-profile readiness task completed, ECS reached a healthy two-of-two
 steady state, and post-deploy reconciliation succeeded. Public readback returned
 ready with the Oxy path configured, the intentionally empty `/v1/models`, and
-only reviewed profiles from `/catalogue`. The exclusive canonical Kaana origin
+only reviewed profiles from `/catalogue` (since replaced by real models under
+[ADR 0012](docs/adr/0012-alia-uses-real-models.md)). The exclusive canonical Kaana origin
 is `https://kaana.ai`; Alia never configures that origin directly.
 
 Readiness alone does not prove that a provider can answer a chat. The
@@ -251,7 +251,7 @@ bun run web    # or ios, or android
 | [Onboarding](docs/onboarding.md) | **Start here if you are new** |
 | [Overview](docs/index.mdx) | What Alia is |
 | [Chat runtime](docs/chat-runtime.mdx) | The handler, the SSE events, the Kaana boundary |
-| [Model abstraction](docs/model-abstraction.mdx) | Product profiles, concrete models and retired alias history |
+| [Models in Alia](docs/model-abstraction.mdx) | Real models from Oxy's catalogue, chosen automatically |
 | [API reference](docs/api-reference.md) | The HTTP surface, by boundary |
 | [Architecture decisions](docs/adr/README.md) | The recorded decisions |
 | [Compatibility window](docs/migration/compatibility-window.md) | What sunsets, and on what gate |
@@ -279,12 +279,14 @@ bun run web    # or ios, or android
 Read [CONTRIBUTING.md](CONTRIBUTING.md) first. Three rules are worth repeating, because
 each is easy to break by accident and none is caught by types:
 
-1. Never expose an upstream operator name or upstream model ID on the **product surface** —
-   product API responses, errors, the UI, customer-facing analytics. It is a product and
-   privacy boundary, not a global ban on the words.
+1. Never expose the operator serving a model (Groq, Cerebras, OpenRouter…) or a deployment ID
+   on the **product surface** — product API responses, errors, the UI, customer-facing
+   analytics. Model and publisher names are fine; it is a product and privacy boundary, not
+   a global ban on the words.
 2. `trigger-engine.ts` is the only scheduler. Legacy triggers and structured automation
    schedules must both register through it; do not add a second scheduling loop.
-3. The retired Alia-owned alias set is frozen. A pull request adding one is rejected on
-   [ADR 0002](docs/adr/0002-alia-is-a-kaana-consumer-and-future-model-publisher.md), and
-   nothing may be published under the reserved `alia/*` namespace without the four
-   conditions that ADR lists.
+3. No model id in code or environment, and no curated model list. Alia names real
+   `<publisher>/<model>` ids from Oxy's catalogue and computes every default
+   ([ADR 0012](docs/adr/0012-alia-uses-real-models.md)); product modes and `route:*` profiles
+   are retired. Nothing may be published under the reserved `alia/*` namespace without the
+   four conditions [ADR 0002](docs/adr/0002-alia-is-a-kaana-consumer-and-future-model-publisher.md) lists.

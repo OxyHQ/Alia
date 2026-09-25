@@ -71,13 +71,22 @@ Minimal request:
 
 ```json
 {
-  "model": "profile:auto",
+  "model": "acme/chat-large",
   "messages": [{ "role": "user", "content": "Prepare my meeting with Sarah" }],
   "stream": true
 }
 ```
 
-Product extras: `conversationId`, `thinkingMode`, `agentMode`, `deepResearch`, `tools`,
+`model` is a `<publisher>/<model>` from [`GET /catalogue`](#get-catalogue), a
+`local/<runtime>/<model>` served by the caller's own device, or absent for the person's
+default model. Any other value — including the retired `mode:*` and `route:*`
+spellings — is refused `400` with `code: "model_not_found"` and `param: "model"`.
+
+Product extras: `conversationId`, `reasoningEffort` (`low` | `medium` | `high`, accepted
+only when the model lists that level in `reasoningEfforts`, else `400`
+`invalid_reasoning_effort`; forwarded to Oxy as `reasoning: { effort }`), `surface`
+(`chat` | `codea` | `cowork`, default `chat` — selects the system prompt, never the
+model), `responseMode: "voice"`, `agentMode`, `deepResearch`, `tools`,
 `stream_options.include_usage`.
 
 **`GET /alia/chat`** returns a service status object, not a completion.
@@ -181,8 +190,7 @@ channel emits cache-invalidation events for conversation and notification lists.
 
 | Route | Purpose |
 |---|---|
-| `GET /catalogue` | The truthful catalogue: routing profiles keyed `profile:*` and individually selectable models keyed `<publisher>/<model>`, each carrying its real kind (`routes/catalogue.ts`) |
-| `GET /catalogue/modes` | The product modes a person picks between (`routes/catalogue.ts`) |
+| `GET /catalogue` | The models a chat can use, from Oxy's catalogue, with the caller's default and the featured ids (`routes/catalogue.ts`) |
 | `/analytics` | Product analytics |
 | `/audit`, `/reports` | Audit trail and user reports |
 
@@ -262,97 +270,65 @@ The clock owner is the owner of workstream 6, recorded on the epic.
 
 ### `GET /v1/models`
 
-```json
-{ "object": "list", "data": [] }
-```
-
-**Empty, and that is the honest answer.** It listed thirteen `alia-*` identifiers as
-`object: 'model'`, and every one of them is a routing profile rather than a model —
-`docs/migration/alias-migration-map.json` records the fan-out measurement. Alia publishes no
-models, the `alia/*` publisher namespace is reserved and empty, so there is nothing for an
-OpenAI-shaped model list to name.
-
-Read [`GET /catalogue`](#catalogue-and-analytics) for the routing profiles and the models,
-and `GET /catalogue/modes` for the product modes a person picks between.
-
-**The aliases are removed.** A request using `alia-*` is refused as an
-unregistered identity; callers must use a published `kaana-*` product profile
-or a concrete model reference. `docs/migration/compatibility-window.md` retains
-the historical window and its evidence, not the current request contract.
-
-`GET /v1/models/:modelId` answers `410` for a retired alias, naming the routing profile it
-became, and `404` for anything else — a bare 404 for an identifier that worked last week is
-indistinguishable from a typo or an outage.
-
-### `GET /catalogue`
-
-Two kinds of entry, and a client switches on `object` rather than on a naming convention.
-
-**Routing profiles**, keyed by `profile:*` — the same identifier the migration map publishes
-as each alias's replacement. One per profile, `object: "routing_profile"`, carrying
-`selects_among`: how many distinct models the policy ranks over.
-
-**Models**, keyed by `<publisher>/<model>` — `object: "model"`, with `publisher` and `model`
-as separate fields. Sending one as `model` on a chat request is answered by that model, on
-whichever deployment serves it; a request that names a profile is answered by whichever
-model the profile picks.
-
-Both are what they say they are: an entry resolving to one model identity is a `model`, one
-selecting among several is a `routing_profile`, and the kind is derived from the routing
-table on every request rather than declared.
-
-Not every model in the routing table is individually selectable. A model is offered on its
-own only when its price sits inside the band its routing profile is already sold at —
-Alia bills one credit multiplier per profile, so a model that costs more per token than the
-profile's own default cannot be pinned without the multiplier becoming a lie
-(`packages/api/src/lib/routing/model-selection.ts`). A model outside that band is still
-reachable through the profiles that route to it; naming it directly answers `400` with
-`unknown_model`. `pricing.credit_multiplier` on a model entry is the profile's, which is
-what a request on that model is billed at.
-
-`publisher` names who RELEASED the model and never who serves it. Which operator answers a
-request is a property of the deployment and appears nowhere in this response. No `alia-*`
-identifier appears anywhere in it either.
-
-**`availability.status` is product-catalogue reachability from Alia's point of
-view, not live provider health.** An entry is `available` when at least one
-candidate route remains in the Kaana-facing product catalogue, and `unavailable`
-when it has none. Alia never derives this field from its dormant provider-key,
-health or circuit-breaker tables. Oxy/Kaana own live deployment availability;
-the inference response is authoritative for a particular invocation. A
-catalogue that cannot be computed is a `500`, never a fabricated availability
-result.
-
-### `GET /catalogue/modes`
-
-The product modes a person picks between. Product configuration, not models: no publisher,
-no revision, no model card, and never `object: 'model'`.
+The same list as [`GET /catalogue`](#get-catalogue), in the OpenAI shape:
 
 ```json
 {
   "object": "list",
   "data": [
-    { "id": "mode:auto", "object": "product_mode", "label": "Auto",
-      "description": "Alia picks how to answer.",
-      "routing": { "kind": "profile", "profile_id": "route:auto" }, "deep_research": false },
-    { "id": "mode:instant", "object": "product_mode", "label": "Instant",
-      "routing": { "kind": "profile", "profile_id": "route:instant" }, "deep_research": false },
-    { "id": "mode:thinking", "object": "product_mode", "label": "Thinking",
-      "routing": { "kind": "profile", "profile_id": "route:thinking" }, "deep_research": false },
-    { "id": "mode:pro", "object": "product_mode", "label": "Pro",
-      "routing": { "kind": "profile", "profile_id": "route:pro" }, "deep_research": false },
-    { "id": "mode:research", "object": "product_mode", "label": "Research",
-      "routing": { "kind": "profile", "profile_id": "route:research" }, "deep_research": true },
-    { "id": "mode:code", "object": "product_mode", "label": "Code",
-      "routing": { "kind": "profile", "profile_id": "route:code" }, "deep_research": false }
+    { "id": "acme/chat-large", "object": "model", "created": 1754006400, "owned_by": "acme" }
   ]
 }
 ```
 
-`routing.kind` is always `profile`: every mode pins one reviewed route explicitly.
-No response order, display name or environment variable participates in routing.
-Unauthenticated and unfiltered: a mode is the same for everybody, and what a given caller may use is
-entitlement, annotated per entry on `GET /catalogue`.
+`owned_by` is the publisher id. Alia publishes no models of its own; every entry is a real
+model from Oxy's catalogue, and the `alia/*` publisher namespace stays reserved and empty
+(ADR 0002).
+
+### `GET /catalogue`
+
+The models Alia's chat can use: Oxy's catalogue (`OxyInferenceClient.listModels()`),
+cached for five minutes and filtered to text in, text out and tool calls supported.
+
+```json
+{
+  "object": "list",
+  "defaultModelId": "acme/chat-large",
+  "featuredIds": ["acme/chat-large", "example/reasoner-2"],
+  "data": [
+    {
+      "id": "acme/chat-large",
+      "object": "model",
+      "name": "Chat Large",
+      "publisher": { "id": "acme", "name": "Acme" },
+      "description": null,
+      "contextWindow": 131072,
+      "maxOutput": 16384,
+      "inputModalities": ["text", "image"],
+      "outputModalities": ["text"],
+      "tools": true,
+      "reasoningEfforts": ["low", "medium", "high"],
+      "pricing": { "inputPerMTok": "0.15", "outputPerMTok": "0.60" },
+      "releasedAt": "2026-08-01",
+      "featured": true
+    }
+  ]
+}
+```
+
+- `id` is what a chat request sends as `model`.
+- `description`, `contextWindow`, `maxOutput`, `pricing` and `releasedAt` are `null` when
+  the catalogue does not carry them. `pricing` is USD per million tokens, as decimal strings.
+- `reasoningEfforts` lists the levels `reasoningEffort` may take for that model; `[]` means
+  the model takes none.
+- `defaultModelId` is the caller's default: the model they last used, else the most-used
+  featured model, else the cheapest featured model. `featuredIds` is the newest model of
+  each publisher, ranked by Alia's usage over the last 30 days, recomputed daily.
+- Every plan can use every model; plans differ only in credits.
+
+`publisher` names who released the model. The operator serving a deployment and deployment
+ids appear nowhere in this response. `GET /catalogue/modes` no longer exists
+([ADR 0012](./adr/0012-alia-uses-real-models.md)).
 
 ---
 
@@ -363,7 +339,7 @@ compatibility shim.
 
 | Endpoint | Handler | Message |
 |---|---|---|
-| `POST /v1/resolve-model` | `routes/v1.ts:109` | "Use /v1/chat/completions with Kaana routing profile IDs. Direct model resolution is internal-only." |
+| `POST /v1/resolve-model` | `routes/v1.ts:121` | The message names the replacement: `/v1/chat/completions`. |
 | `POST /v1/report-usage` | `routes/v1.ts:120` | "Usage is tracked automatically by Alia runtime." |
 
 **Deleted outright (`404`)** by the owner's clean cut, with no `410` stub: every
@@ -392,12 +368,12 @@ reported that same `shell: false, browser: false` and went with it.
 - The concealment half is a product decision and best-effort by construction: it matches
   identifiers — a proper noun, or a `/ . - _ =` joined token — and leaves ordinary prose
   alone. It is not a security control, and nothing should be designed as if it were.
-- A value the CALLER sent is echoed back readable. `"gpt-4o" is not an available product mode or model reference`
+- A value the CALLER sent is echoed back readable. `"acme/unknown" is not an available model`
   discloses nothing about Alia's routing, so it takes `redactUnsafeDetail()` — the
   absolute half alone.
-- Product responses carry Kaana routing-profile or canonical model identifiers only. See
-  [model abstraction](./model-abstraction.mdx) for the surfaces the second rule covers,
-  and the ones where publisher identity is required instead.
+- Product responses carry canonical `<publisher>/<model>` identifiers; model and publisher
+  names are shown. See [models in Alia](./model-abstraction.mdx) for what stays concealed
+  (the serving operator and deployment ids).
 
 ## Open questions
 

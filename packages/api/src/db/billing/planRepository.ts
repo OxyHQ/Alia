@@ -99,72 +99,10 @@ export async function deletePlanByPlanId(db: ApiDatabase, planId: string): Promi
 }
 
 /**
- * Which models a plan grants, changed by a person and recorded as such
- * (#139 workstream 14).
- *
- * The ONE runtime writer of `plans.model_ids`, and the reason the seeder below
- * no longer touches that column. `plan_access.ts` reads `model_ids` to decide
- * whether a request may name a model at all, so this is a routing decision
- * wearing a billing table's name — which is why the record goes through
- * `lib/security/config-audit.ts`.
- *
- * `actor` is required and has no default. An audit log whose actor defaults to
- * `system` says `system` for the one change somebody needs to attribute.
- *
- * `modelIds` is the only column this can write. Not by convention — by
- * signature: there is no `updates` object to widen, so a caller cannot reach
- * `monthly_price` through here even by passing one. The plan's identity, its
- * price and its Stripe ids are all unreachable.
- *
- * The read and the write share one transaction, so `before` is the state this
- * statement replaced rather than whatever the row held when a second query
- * happened to run.
- */
-export async function setPlanModelIds(
-  db: ApiDatabase,
-  planId: string,
-  modelIds: readonly string[],
-  actor: ConfigAuditActor,
-): Promise<PlanRow | null> {
-  return db.transaction(async (tx) => {
-    const previous = await findPlanByPlanId(tx, planId);
-    if (previous === null) return null;
-
-    const [row] = await tx
-      .update(plans)
-      .set({ modelIds: [...modelIds] })
-      .where(eq(plans.planId, planId))
-      .returning();
-    if (!row) return null;
-
-    recordConfigChange({
-      resource: 'plan',
-      action: 'update',
-      target: row.planId,
-      actor,
-      before: auditedFields('plan', previous),
-      after: auditedFields('plan', row),
-    });
-    return row;
-  });
-}
-
-/**
  * The seed's insert: create a plan that does not exist, and touch nothing that
  * does.
  *
- * ## It used to refresh `model_ids`, and that was a bug
- *
- * The upsert was `onConflictDoUpdate({ set: { modelIds } })`, carrying the
- * Mongo-era belief that the list is code-managed. Nothing ran the seeder, so
- * the belief was never tested. Wiring it up while it still overwrote would have
- * silently reverted every change made through {@link setPlanModelIds} on the
- * next deploy — a runtime writer and a boot writer cannot both be authoritative
- * for one column, and the runtime one is, because that is what
- * *"allow the product team to select which models are available per plan"*
- * means.
- *
- * So this is seed data in the strict sense: a default for a database that has
+ * Seed data in the strict sense: a default for a database that has
  * none, never a correction to one that does.
  *
  * ## `DO NOTHING RETURNING` returns NO ROW on conflict

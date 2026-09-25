@@ -21,7 +21,7 @@ import { eq } from 'drizzle-orm';
  *
  * ## The model layer is stubbed; the credits are not
  *
- * `resolveModel` and `generateText` stand for the outside world and are the two
+ * `resolveStoredModel` and `generateText` stand for the outside world and are the two
  * things being made to fail. `reserveCredits`, `finalizeCredits` and
  * `refundReservation` run for real against the real table.
  */
@@ -49,20 +49,12 @@ vi.mock('../../lib/logger.js', () => {
   return { log: { webhook: child, general: child, agents: child, chat: child, credits: child, v1: child, providers: child } };
 });
 vi.mock('../../lib/chat-core.js', () => ({
-  resolveModel: vi.fn(async () => ({
-    provider: 'stub',
-    modelId: 'stub-1',
-    keyConfig: { keyId: 'key-1' },
-  })),
-  resolveOxyRoutingProfileId: vi.fn(async (routingProfileId: string) => ({
-    routingProfileId: 'route:instant',
-    oxyInferenceTarget: { kind: 'routing_profile_id', routingProfileId },
+  resolveStoredModel: vi.fn(async () => ({
+    provider: 'kaana',
+    modelId: 'acme/stub-1',
+    oxyInferenceTarget: { kind: 'model', model: 'acme/stub-1' },
   })),
   getAIModel: vi.fn(() => ({})),
-  reportModelUsage: vi.fn(async () => undefined),
-  getDefaultRoutingProfile: vi.fn(() => 'route:instant'),
-  // `credits-manager` reads the credit multiplier from this same module.
-  getRoutingProfile: vi.fn(async () => ({ creditMultiplier: 1 })),
 }));
 
 import { generateText } from 'ai';
@@ -71,10 +63,9 @@ import { closePostgres, connectPostgres, type ApiDatabase } from '../../db/index
 import { agents } from '../../db/schema/agents.js';
 import { userCredits } from '../../db/schema/billing.js';
 import { getOrCreateUserCredits } from '../../db/billing/userCreditsRepository.js';
-import { resolveModel, resolveOxyRoutingProfileId } from '../../lib/chat-core.js';
+import { resolveStoredModel } from '../../lib/chat-core.js';
 import type { BotUserRow, InboundUserBotRow } from '../../db/integrations/botRepository.js';
 import type { ChannelInboundMessage } from '../../lib/channels/types.js';
-import { OXY_KAANA_ROUTING_PROFILE_IDS } from '../../config/oxy-inference-routing-profile-ids.js';
 import { processAgentBotMessage, processChannelMessage } from '../webhooks.js';
 
 let db: ApiDatabase;
@@ -132,7 +123,7 @@ function linkedBotUser(oxyUserId: string): BotUserRow {
     authTokenMode: null,
     // Set, so nothing has to write one to a row this fixture never inserted.
     conversationId: `${SUITE}-conv-${seq++}`,
-    preferredModel: 'route:instant',
+    preferredModel: 'acme/stub-1',
     metadata: {},
     createdAt: new Date(),
     updatedAt: new Date(),
@@ -161,7 +152,6 @@ async function userOwnedBot(
     category: 'general',
     status: 'active',
     systemPrompt: 'Be helpful.',
-    routingProfileId: OXY_KAANA_ROUTING_PROFILE_IDS['route:instant'],
   });
   return {
     _id: `${SUITE}-bot-${seq++}`,
@@ -199,7 +189,7 @@ describe('processChannelMessage — the system bot', () => {
 
   it('gives the credit back when NO MODEL can be resolved', async () => {
     const userId = await account(100, 0);
-    vi.mocked(resolveModel).mockResolvedValueOnce(null);
+    vi.mocked(resolveStoredModel).mockRejectedValueOnce(new Error('no model'));
 
     await processChannelMessage('telegram', linkedBotUser(userId), message);
 
@@ -217,7 +207,7 @@ describe('processChannelMessage — the system bot', () => {
 
   it('gives a paid-funded credit back to the PAID balance', async () => {
     const userId = await account(0, 100);
-    vi.mocked(resolveModel).mockResolvedValueOnce(null);
+    vi.mocked(resolveStoredModel).mockRejectedValueOnce(new Error('no model'));
 
     await processChannelMessage('telegram', linkedBotUser(userId), message);
 
@@ -236,7 +226,7 @@ describe('processAgentBotMessage — a user-registered bot', () => {
 
   it("gives the OWNER's credit back when NO MODEL can be resolved", async () => {
     const ownerId = await account(100, 0);
-    vi.mocked(resolveOxyRoutingProfileId).mockResolvedValueOnce(null);
+    vi.mocked(resolveStoredModel).mockRejectedValueOnce(new Error('no model'));
 
     await processAgentBotMessage(await userOwnedBot(ownerId), linkedBotUser(ownerId), message, 'telegram');
 

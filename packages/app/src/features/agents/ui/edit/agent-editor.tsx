@@ -1,4 +1,5 @@
 import { AgentIdentityFields } from '@/features/agents/ui/edit/agent-identity-fields';
+import { AgentModelField } from '@/features/agents/ui/agent-model-field';
 import {
   AgentEditorSidebar,
   type SidebarTab,
@@ -155,6 +156,9 @@ export function AgentEditor({ agent }: { agent: Agent }) {
           </View>
 
           <AgentIdentityFields identity={identity} onEdit={editIdentity} />
+
+          {/* The model the agent answers with; the server's default until one is picked. */}
+          <AgentModelField value={draft.modelId} onChange={(next) => editDraft({ modelId: next })} />
 
           {/* System prompt / instructions: the page-sized writing surface. */}
           <Textarea

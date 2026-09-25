@@ -57,16 +57,24 @@ const V3_USAGE = {
   outputTokens: { total: 5, text: 5, reasoning: 0 },
 };
 
+/** The catalogue model the turn runs on: a real `publisher/model`, which IS shown. */
+const CHAT_MODEL = 'acme/chat-1';
 const RESOLVED = {
-  routingProfileId: 'route:auto',
-  provider: UPSTREAM_PROVIDER,
-  modelId: UPSTREAM_MODEL_ID,
-  keyConfig: { provider: UPSTREAM_PROVIDER, key: 'secret', modelId: UPSTREAM_MODEL_ID, keyId: 'key-ws13' },
-  routingProfile: { name: 'Auto', creditMultiplier: 1 },
+  provider: 'kaana',
+  publisher: 'acme',
+  model: 'chat-1',
+  modelId: CHAT_MODEL,
+  keyConfig: { provider: 'kaana', modelId: CHAT_MODEL },
+  oxyInferenceTarget: { kind: 'model', model: CHAT_MODEL },
+  catalogue: { id: CHAT_MODEL, name: 'Chat 1', publisher: { id: 'acme', name: 'Acme' }, contextWindow: 128000, reasoningEfforts: [] },
 };
 
 vi.mock('../../../lib/chat-core.js', () => ({
   resolveModel: vi.fn(async () => {
+    H.state.resolveCalls += 1;
+    return RESOLVED;
+  }),
+  resolveDefaultModel: vi.fn(async () => {
     H.state.resolveCalls += 1;
     return RESOLVED;
   }),
@@ -83,7 +91,6 @@ vi.mock('../../../lib/chat-core.js', () => ({
     },
   })),
   reportModelUsage: vi.fn(async () => undefined),
-  getDefaultRoutingProfile: vi.fn(() => 'route:auto'),
 }));
 
 /**
@@ -149,12 +156,6 @@ vi.mock('../../../lib/tools/web-search.js', () => ({
   },
 }));
 
-vi.mock('../../../lib/gateway-client.js', () => ({
-  getRoutingProfile: vi.fn(async (id: string) => ({ id, name: 'Auto', tier: 'v1', creditMultiplier: 1 })),
-  getModelMappingsForTier: vi.fn(async () => [
-    { provider: UPSTREAM_PROVIDER, modelId: UPSTREAM_MODEL_ID, capabilities: { maxContextTokens: 128000 } },
-  ]),
-}));
 vi.mock('../../../lib/credits-manager.js', () => ({
   reserveCredits: vi.fn(async () => ({ userId: 'user-ws13', creditsReserved: 1, initialFreeCredits: 100, initialPaidCredits: 0 })),
   finalizeCredits: vi.fn(async () => ({ creditsCharged: 3, creditsRemaining: 97 })),
@@ -310,7 +311,7 @@ function sessionReq() {
     off: () => undefined,
     body: {
       messages: [{ role: 'user', content: 'search the web for alia' }],
-      model: 'route:auto',
+      model: CHAT_MODEL,
       stream: true,
     } as Record<string, unknown>,
   };
@@ -368,9 +369,9 @@ describe('a hosted inference failure is never retried around Kaana', () => {
     expect(res.raw.filter((frame) => frame.includes('"tool_calls"'))).toHaveLength(1);
     expect(res.raw.filter((frame) => frame.startsWith('event: alia.tool_result'))).toHaveLength(1);
 
-    // No provider identity in the bytes, on this path as on every other.
-    // Positive control on the scan: the alias IS there.
-    expect(bytes).toContain('route:auto');
+    // No serving-operator identity in the bytes, on this path as on every
+    // other. Positive control on the scan: the chosen model IS there.
+    expect(bytes).toContain(CHAT_MODEL);
     expect(bytes).not.toContain(UPSTREAM_PROVIDER);
   });
 

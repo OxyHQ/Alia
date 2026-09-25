@@ -4,6 +4,12 @@
 
 **Date:** 2026-08-15
 
+> **Superseded in part by [ADR 0012](./0012-alia-uses-real-models.md), 2026-09-25.** The five
+> definitions and invariants 2 to 4 stand. What no longer holds is the routing profile as a
+> product-owned choice a person makes in Alia, and the product modes (Auto, Instant,
+> Thinking, Pro, Research, Code) given as its example: Alia exposes no routing profile and no
+> mode, only real models. Everything below is unchanged, as the record of the decision as taken.
+
 ## Context
 
 Alia currently has one word — "model" — for at least five different concepts, and the resulting confusion is visible in the code.

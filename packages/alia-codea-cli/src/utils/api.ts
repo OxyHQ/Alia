@@ -195,8 +195,8 @@ export async function streamChat(
         /**
          * Resolved HERE because this is the one place every CLI path — the
          * REPL, `run`, `exec` and a resumed session — actually names a model.
-         * A catalogue that cannot be read leaves the identifier alone and the
-         * server stays the authority.
+         * `undefined` (no choice, or one the catalogue no longer lists) drops
+         * the key, and the server uses its default model.
          */
         model: await resolveModelId(model),
         messages: allMessages,

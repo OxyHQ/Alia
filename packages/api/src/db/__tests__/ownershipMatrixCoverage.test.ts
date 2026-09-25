@@ -72,15 +72,8 @@ const GOVERNED_PREFIX = 'packages/api/src/internal/providers/';
  * The count below is exact. Adding an entry here means editing that number in
  * the same commit, which is the point.
  */
-const NOT_APPLICABLE: Readonly<Record<string, string>> = {
-  'packages/api/src/internal/providers/lib/__tests__/routing-capability-coverage.test.ts':
-    'Test of generate-model-mappings.ts and model-capabilities-data.ts, both mapped (rows `tier-mappings-generated` and `model-capabilities-data`). Moves or dies with them.',
-  'packages/api/src/internal/providers/lib/__tests__/model-publishers.test.ts':
-    'Test of model-publishers.ts and the publisher column in generate-model-mappings.ts, both mapped (rows `tuple-model-publishers` and `tier-mappings-generated`). Moves or dies with them.',
-  'packages/api/src/internal/providers/lib/__tests__/credit-multipliers.test.ts':
-    'Test of routing-profile-catalogue.ts and the product credit multiplier that remains in Alia. It does not exercise provider credentials or provider egress.',
-};
-const NOT_APPLICABLE_COUNT = 3;
+const NOT_APPLICABLE: Readonly<Record<string, string>> = {};
+const NOT_APPLICABLE_COUNT = 0;
 
 interface MatrixRow {
   readonly id: string;
@@ -257,7 +250,7 @@ interface MatrixRow {
  * #477 — is deleted: four rows named the file (both routes, its gateway-client
  * import and the transcription behaviour).
  */
-const REMOVED_ROW_COUNT = 161;
+const REMOVED_ROW_COUNT = 169;
 
 const OWNERS = new Set(['alia', 'oxy', 'kaana', 'delete']);
 const REACHABLE = new Set(['live', 'dead', 'unverified', 'loaded-not-invoked']);
@@ -330,11 +323,13 @@ describe('the ownership matrix still describes this repository', () => {
      * that is measuring a subtree that has already finished migrating.
      */
     expect(matrix.length).toBeGreaterThanOrEqual(300);
-    expect(governed.length).toBeGreaterThanOrEqual(10);
+    // ADR 0012 deleted the routing-profile catalogue and its tables, leaving
+    // the three billing/provider-name files; the floor moved with them.
+    expect(governed.length).toBeGreaterThanOrEqual(3);
 
     // Positive control on the enumeration: a file known to be in that subtree.
     // Without it, a renamed directory reads as "everything is classified".
-    expect(governed).toContain('packages/api/src/internal/providers/lib/routing-profile-catalogue.ts');
+    expect(governed).toContain('packages/api/src/internal/providers/lib/provider-names.ts');
   });
 
   it('every currentPath still exists, unless the row says which PR removed it', () => {
@@ -360,9 +355,10 @@ describe('the ownership matrix still describes this repository', () => {
      * still exist is what makes that visible. 250 rather than the 318 of the
      * day, so ordinary consolidation does not fail the build — lowered to 200
      * by the owner's clean cut of the dormant tables and the `alia_sk_*` key
-     * path, which removed whole files rather than consolidating them.
+     * path, which removed whole files rather than consolidating them — and to
+     * 190 by ADR 0012, which deleted the routing-profile catalogue outright.
      */
-    expect(matrix.filter((r) => r.removedIn === undefined).length).toBeGreaterThanOrEqual(200);
+    expect(matrix.filter((r) => r.removedIn === undefined).length).toBeGreaterThanOrEqual(190);
     expect(new Set(matrix.map((r) => r.currentPath)).size).toBeGreaterThanOrEqual(150);
   });
 

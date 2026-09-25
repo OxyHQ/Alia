@@ -5,57 +5,36 @@
  * Each injection concern is a named method for clarity and testability.
  */
 
-import { getRoutingProfile } from './gateway-client.js';
 import { buildIdentityGuard } from './identity-guard.js';
 import { getOxyServicePromptFragment, getOxyServiceContext } from './tools/oxy-services.js';
 import { agentRemitPrompt } from './agent/archetype-prompts.js';
 import { buildAutonomyPromptFragment, type AutonomyRuntimeContext } from './autonomy/runtime.js';
 import { buildSystemPrompt as loadBasePrompt, loadPrompt } from './prompt-loader.js';
-import { getProductPromptId } from './product-prompt-registry.js';
-import type { EffortLevel } from './reasoning-effort.js';
+import type { CatalogueModel } from './models/catalogue.js';
 
 /**
- * The extended-reasoning layer, selected by the effort LEVEL rather than by a
- * model id (#139 workstream 4).
+ * Which prompt a turn speaks with, by SURFACE — never by model (ADR 0012).
  *
- * `route:thinking` and `route:pro` route to the same nine candidates at
- * the same price and differed only in which of these files their id loaded, so
- * the reasoning level was an identity when it should have been a setting. It is
- * a setting now, and any profile can carry it.
- *
- * ## It is no longer the only thing reasoning does
- *
- * This prompt layer used to be the WHOLE feature: the two provider hooks that
- * were supposed to carry `thinkingMode` wrote AI SDK v4 option names against an
- * `ai@6` install, so asking for reasoning changed a paragraph of the system
- * message and nothing else. `lib/chat/model-config.ts` sends a real budget now,
- * and this layer sits beside it rather than standing in for it.
- *
- * Added at every level ABOVE `instant`, not at one particular level: it tells
- * the model to reason carefully, which is what a person choosing any of the
- * three dearer levels asked for. The levels differ in the BUDGET they buy, and
- * that difference is made by the provider option rather than by three
- * variously-worded prompts.
- *
- * The fragment has a product-semantic name, independent from the routing
- * profile that may select it.
+ * The model is whatever the person picked; how Alia behaves depends on where
+ * it is being used. `prompts/<name>.md`, layered over `prompts/base.md`.
  */
-const EXTENDED_REASONING_PROMPT = 'extended-reasoning';
+export const PROMPT_SURFACES = ['chat', 'codea', 'cowork'] as const;
+export type PromptSurface = (typeof PROMPT_SURFACES)[number];
+const SURFACE_PROMPTS: Readonly<Record<PromptSurface, string>> = {
+  chat: 'general',
+  codea: 'codea',
+  cowork: 'cowork',
+};
 
 /**
- * The spoken-answer layer, selected by the REQUEST (`responseMode: 'voice'`),
- * not by a model id — the same move #139 workstream 4 made for reasoning.
+ * The spoken-answer layer, selected by the REQUEST (`responseMode: 'voice'`).
  *
- * A voice call used to get this through its own profile (`route:voice`), which
- * held a realtime session. The call is a chat turn now: it keeps the profile
- * the conversation chose, with its tools, and asks for an answer meant to be
- * heard. `prompts/voice.md` already says what that is — short, no formatting,
- * nothing that reads badly aloud — and it is layered over the base prompt the
- * way extended reasoning is, rather than replacing it, so the profile's own
- * instructions still apply.
+ * A voice call is a chat turn: it keeps the model and tools the conversation
+ * chose and asks for an answer meant to be heard. `prompts/voice.md` says what
+ * that is — short, no formatting, nothing that reads badly aloud — and it is
+ * layered over the surface prompt rather than replacing it.
  */
 const SPOKEN_ANSWER_PROMPT = 'voice';
-const SPOKEN_PROFILE_PROMPTS: ReadonlySet<string> = new Set(['voice', 'voice-pro']);
 import { log } from './logger.js';
 import { agentPromptName, type HydratedAgent } from './agent-identity.js';
 import { readCapabilityGrants } from '../domain/capability-grants.js';
@@ -99,8 +78,10 @@ export interface SystemPromptParts {
 }
 
 export interface SystemPromptOptions {
-  /** Canonical Kaana routing profile (for example, `route:auto`). */
-  routingProfileId: string;
+  /** The surface whose prompt the turn speaks with. Defaults to `chat`. */
+  surface?: PromptSurface;
+  /** The catalogue model answering, when hosted; named in the identity guard. */
+  model?: CatalogueModel | null;
   /** Client context string (UI language, etc.) */
   clientContext?: string;
   /** Whether this is a direct user session (not API key) */
@@ -132,12 +113,6 @@ export interface SystemPromptOptions {
   linkedAgent?: HydratedAgent | null;
   /** Whether agent mode is active */
   agentMode?: boolean;
-  /**
-   * How hard the request asked this turn to think — the runtime parameter that
-   * replaced `route:thinking` as a model identity. Any profile can carry it,
-   * which is the whole point of it being a parameter.
-   */
-  reasoningEffort?: EffortLevel | null;
   /**
    * `'voice'` when the turn was spoken in a voice call and will be read aloud.
    * Layers `prompts/voice.md` over the base prompt; see `SPOKEN_ANSWER_PROMPT`.
@@ -186,7 +161,8 @@ export class SystemPromptBuilder {
     let memoryChars = 0;
     let skillsChars = 0;
     const {
-      routingProfileId,
+      surface = 'chat',
+      model,
       clientContext,
       isDirectUserSession,
       userId,
@@ -198,7 +174,6 @@ export class SystemPromptBuilder {
       linkedAgent,
       agentMode,
       autonomyRuntime,
-      reasoningEffort,
       responseMode,
     } = opts;
 
@@ -223,36 +198,13 @@ export class SystemPromptBuilder {
     const mayDelegate = agentGrants === null || agentGrants.allows('delegation');
     const mayReadSkills = agentGrants === null || skills?.agentScoped === true;
 
-    /**
-     * 1. Base prompt, selected through the product prompt registry.
-     *
-     * `loadPrompt` reads `prompts/<name>.md`; the registry deliberately keeps
-     * that product-owned name independent from the canonical Kaana profile.
-     *
-     * An identifier the registry does not cover keeps today's behaviour — it is
-     * passed through, `loadPrompt` finds no file, and the turn runs on
-     * `base.md` alone.
-     */
-    const productPromptId = getProductPromptId(routingProfileId);
-    let systemMessage = await loadBasePrompt(productPromptId ?? routingProfileId, clientContext);
+    // 1. Base prompt: the surface's prompt over `base.md`.
+    let systemMessage = await loadBasePrompt(SURFACE_PROMPTS[surface], clientContext);
 
-    // 1b. Extended reasoning, when the request asked for it.
-    //
-    // Do not layer it twice when the selected profile's primary product prompt
-    // is already the extended-reasoning fragment.
-    if (
-      reasoningEffort != null
-      && reasoningEffort !== 'instant'
-      && productPromptId !== EXTENDED_REASONING_PROMPT
-    ) {
-      const reasoning = await loadPrompt(EXTENDED_REASONING_PROMPT);
-      if (reasoning !== '') systemMessage += `\n\n---\n\n${reasoning}`;
-    }
-
-    // 1c. A spoken answer, when the turn came from a voice call — last of the
-    // style layers, because how the answer will be DELIVERED overrides how a
-    // profile would format it on screen.
-    if (responseMode === 'voice' && !SPOKEN_PROFILE_PROMPTS.has(productPromptId ?? '')) {
+    // 1b. A spoken answer, when the turn came from a voice call — last of the
+    // style layers, because how the answer will be DELIVERED overrides how the
+    // surface would format it on screen.
+    if (responseMode === 'voice') {
       const spoken = await loadPrompt(SPOKEN_ANSWER_PROMPT);
       if (spoken !== '') systemMessage += `\n\n---\n\n${spoken}`;
     }
@@ -272,18 +224,6 @@ export class SystemPromptBuilder {
       systemMessage += recalled;
       memoryChars += recalled.length;
     }
-
-    /**
-     * 5. The active model, READ rather than restated.
-     *
-     * This layer used to append "You are currently using the **Auto**
-     * model. When asked what model you use, say you are using Auto" — which
-     * the guard at the top already says, in both its branches. On an agent's
-     * turn it was a second "You are …" sentence naming something other than the
-     * agent, sitting below the one that named the agent. Two owners of one
-     * fact; the guard is the owner, and this now only feeds it the name.
-     */
-    const routingProfile = await getRoutingProfile(routingProfileId);
 
     // 6. User-specific injections (direct sessions only)
     if (isDirectUserSession) {
@@ -446,7 +386,8 @@ export class SystemPromptBuilder {
     // ordinary turn says the model's and stays general-purpose.
     systemMessage = `${buildIdentityGuard({
       ...(linkedAgent ? { agentName: agentPromptName(linkedAgent) } : {}),
-      modelName: routingProfile?.name,
+      modelName: model?.name,
+      publisherName: model?.publisher.name,
     })}\n\n---\n\n${systemMessage}`;
 
     return { text: systemMessage, memoryChars, skillsChars };

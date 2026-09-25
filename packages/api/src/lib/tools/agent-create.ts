@@ -9,7 +9,6 @@ import { getErrorMessage } from '../errors/index.js';
 import { FIXED_CAPABILITY_FAMILIES } from '../../domain/capability-grants.js';
 import { AGENT_COLORS, agentColorFor } from '../../domain/agent-color.js';
 import { accountCategoryChoices, isOfferedAccountCategory } from '../account-category.js';
-import { OXY_KAANA_ROUTING_PROFILE_IDS } from '../../config/oxy-inference-routing-profile-ids.js';
 
 /**
  * Factory tool for creating AI agents during conversation.
@@ -169,7 +168,6 @@ export const createAgentTool = (userId: string, accessToken: string | undefined)
         description,
         authorOxyUserId: userId,
         category: category || 'Assistant',
-        routingProfileId: OXY_KAANA_ROUTING_PROFILE_IDS['route:auto'],
         tags: tags || [],
         capabilityGrants: capabilityGrants ?? [],
         isPublished: true,

@@ -14,11 +14,9 @@ export interface WorkflowNodeData {
   label: string;
   // AI Text Node
   /**
-   * The `profile:*` identifier a node asks for, absent for Automatic.
-   *
-   * There was a `provider` field beside this and nothing ever wrote one — the
-   * node badge read `data.provider || "openai"`, so the fallback was what every
-   * node displayed. See `src/lib/product-modes.ts`.
+   * The catalogue model (`publisher/model`) a node asks for; absent for the
+   * server default. Read it through `storedModelId` in `src/lib/catalogue.ts`,
+   * which treats a retired non-model identifier as absent.
    */
   model?: string;
   prompt?: string;

@@ -65,7 +65,7 @@ vi.mock('../../db/memory/userMemoryRepository.js', () => ({
 vi.mock('../../db/usage/chatAnalyticsRepository.js', () => ({
   insertChatAnalytics: vi.fn(async (_db: unknown, row: Record<string, unknown>) => {
     H.rows.push(row);
-    H.timeline.push(`learn:analytics(${String(row.routingProfileId)},${String(row.totalTokens)})`);
+    H.timeline.push(`learn:analytics(${String(row.model)},${String(row.totalTokens)})`);
   }),
 }));
 
@@ -98,16 +98,20 @@ vi.mock('ai', () => ({
   tool: vi.fn(),
 }));
 
-vi.mock('../chat-core.js', () => ({
-  resolveModel: vi.fn(async () => ({
-    routingProfileId: 'route:instant',
-    provider: 'zzprovider',
-    modelId: 'zz-lite',
-    keyConfig: { provider: 'zzprovider', key: 'k', modelId: 'zz-lite' },
-  })),
-  getAIModel: vi.fn(() => ({})),
-  getDefaultRoutingProfile: vi.fn(() => 'route:instant'),
-}));
+vi.mock('../chat-core.js', () => {
+  const resolved = {
+    provider: 'kaana',
+    modelId: 'acme/small-1',
+    keyConfig: { provider: 'kaana', modelId: 'acme/small-1' },
+    oxyInferenceTarget: { kind: 'model', model: 'acme/small-1' },
+    catalogue: null,
+  };
+  return {
+    resolveModel: vi.fn(async () => resolved),
+    resolveUtilityModel: vi.fn(async () => resolved),
+    getAIModel: vi.fn(() => ({})),
+  };
+});
 
 // `chat-lifecycle.ts` pulls the whole post-turn surface in; only the two hook
 // calls are under test here, so the rest is stubbed at its own module boundary.
@@ -156,8 +160,8 @@ function lifecycleContext(overrides: Partial<LifecycleContext> = {}): LifecycleC
     userId: 'user-ws13',
     conversationId: 'conv-ws13',
     messages: MESSAGES,
-    routingProfileId: 'route:auto',
-    requestedModel: 'route:pro-standard',
+    modelId: 'acme/chat-1',
+    requestedModel: 'acme/pro-2',
     reasoningEffort: null,
     creditReservation: null,
     tokenUsage: { promptTokens: 40, completionTokens: 20, totalTokens: 60, systemPromptTokens: 10 },
@@ -196,7 +200,7 @@ describe('memory recall happens because a hook is registered, not because a file
       userId: 'user-ws13',
       conversationId: 'conv-ws13',
       messages: MESSAGES,
-      model: 'route:auto',
+      model: 'acme/chat-1',
       platform: 'app',
       metadata: {},
     });
@@ -218,7 +222,7 @@ describe('memory recall happens because a hook is registered, not because a file
     const result = await runBeforeChatHooks({
       userId: 'user-ws13',
       messages: MESSAGES,
-      model: 'route:auto',
+      model: 'acme/chat-1',
       platform: 'app',
       metadata: {},
     });
@@ -270,7 +274,7 @@ describe('the after-run entrypoint drives every learning path there is', () => {
     // hook is excluded here because it is SAMPLED (below), and a sampled event
     // in an exact-equality assertion is a flake.
     expect(H.timeline.filter((entry) => entry.startsWith('learn:')).sort()).toEqual([
-      'learn:analytics(route:auto,60)',
+      'learn:analytics(acme/chat-1,60)',
       'learn:autonomy(research,true)',
       'learn:writingStyle(mem-ws13)',
     ]);
@@ -288,9 +292,9 @@ describe('the after-run entrypoint drives every learning path there is', () => {
    * repository test would still pass.
    */
   describe('the analytics row carries the per-turn observations, from the entrypoint', () => {
-    it('records the requested model separately from the alias that served it', async () => {
+    it('records the requested model separately from the model that served it', async () => {
       runPostChatHooks(
-        lifecycleContext({ requestedModel: 'route:pro-standard', routingProfileId: 'route:instant' }),
+        lifecycleContext({ requestedModel: 'acme/pro-2', modelId: 'acme/small-1' }),
         'answer',
         OBSERVED,
         null,
@@ -300,10 +304,10 @@ describe('the after-run entrypoint drives every learning path there is', () => {
       const [row] = H.rows;
       expect(row).toBeDefined();
       // The two are DIFFERENT values in this fixture on purpose: a hook that
-      // wrote the alias into both fields would pass an assertion that only
+      // wrote one model into both fields would pass an assertion that only
       // checked they were present.
-      expect(row.requestedModelId).toBe('route:pro-standard');
-      expect(row.routingProfileId).toBe('route:instant');
+      expect(row.requestedModelId).toBe('acme/pro-2');
+      expect(row.model).toBe('acme/small-1');
     });
 
     it('records time to first token, error class and cancellation', async () => {
@@ -321,9 +325,9 @@ describe('the after-run entrypoint drives every learning path there is', () => {
       expect(row.errorClass).toBe(AliaErrorCode.CONTENT_FILTERED);
       expect(row.cancelled).toBe(true);
       // The resolved revision (#139 L290/L703): what Kaana said it served,
-      // beside — and distinct from — the alias that was asked for.
+      // beside — and distinct from — the model that was asked for.
       expect(row.resolvedModelReference).toBe('openai/gpt-5-mini@2026-08-18');
-      expect(row.resolvedModelReference).not.toBe(row.routingProfileId);
+      expect(row.resolvedModelReference).not.toBe(row.model);
       // Latency is the field that was already recorded; asserted beside the
       // three new ones so "the row has the new fields" is not compatible with
       // "the row lost the old one".
@@ -384,7 +388,7 @@ describe('the after-run entrypoint drives every learning path there is', () => {
     expect(H.timeline).not.toContain('proactive:classify');
     // ...and the un-sampled hooks still ran, so the second half is a statement
     // about the gate rather than about the whole chain being skipped.
-    expect(H.timeline).toContain('learn:analytics(route:auto,60)');
+    expect(H.timeline).toContain('learn:analytics(acme/chat-1,60)');
 
     random.mockRestore();
   });
@@ -447,13 +451,13 @@ describe('the after-run entrypoint drives every learning path there is', () => {
     await runAfterChatHooks({
       userId: 'user-ws13',
       messages: MESSAGES,
-      model: 'route:auto',
+      model: 'acme/chat-1',
       platform: 'app',
       metadata: {},
       response: 'answer',
       tokenUsage: { promptTokens: 1, completionTokens: 1, totalTokens: 2 },
-      modelUsed: 'route:auto',
-      requestedModel: 'route:auto',
+      modelUsed: 'acme/chat-1',
+      requestedModel: 'acme/chat-1',
       reasoningEffort: null,
       latencyMs: 5,
       timeToFirstTokenMs: 5,

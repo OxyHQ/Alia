@@ -37,7 +37,7 @@ import {
   listRecentEventStreamEntries,
   type EventStreamEntryMetadata,
 } from '../../db/agents/eventStreamEntryRepository.js';
-import { resolveOxyRoutingProfileId, getAIModel } from '../chat-core.js';
+import { resolveStoredModel, getAIModel } from '../chat-core.js';
 import { log } from '../logger.js';
 import { EventStream } from './event-stream.js';
 import { AgentStateMachine } from './state-machine.js';
@@ -603,28 +603,26 @@ async function driveAgentSession(session: AgentSessionRecord, lease: RunLease, r
         },
       );
 
-      // The agent stores the reviewed Oxy routing-profile PK. Never select from
-      // an ordered list or substitute a product default for a missing binding.
-      const activeResolved = agent.routingProfileId === null
-        ? null
-        : await resolveOxyRoutingProfileId(agent.routingProfileId);
+      // The agent's own `publisher/model`, or the owner's default when it has
+      // none or the catalogue no longer offers it (ADR 0012).
+      const activeResolved = await resolveStoredModel(agent.modelId, session.oxyUserId).catch(() => null);
       if (!activeResolved) {
-        eventStream.append('error', 'Agent has no valid Oxy routing profile');
+        eventStream.append('error', 'No model is available for this agent');
         stateMachine.transition('error');
-        sessionResult = 'Agent has no valid Oxy routing profile';
+        sessionResult = 'No model is available for this agent';
         try {
           await updateAgentSession(getDb(), sessionId, {
             status: 'failed',
-            result: 'Agent has no valid Oxy routing profile',
+            result: 'No model is available for this agent',
           });
         } catch (saveErr: unknown) {
-          log.agents.warn({ saveErr, sessionId }, 'Failed to record the invalid-routing-profile failure');
+          log.agents.warn({ saveErr, sessionId }, 'Failed to record the no-model failure');
         }
-        throw new Error('Agent has no valid Oxy routing profile');
+        throw new Error('No model is available for this agent');
       }
 
-      const modelId = activeResolved.routingProfileId;
-      eventStream.append('thinking', `Step ${totalSteps + 1}: Using routing profile ${modelId} in state ${stateMachine.current()}`);
+      const modelId = activeResolved.modelId;
+      eventStream.append('thinking', `Step ${totalSteps + 1}: Using model ${modelId} in state ${stateMachine.current()}`);
 
       const model = getAIModel(activeResolved, 'agent_run');
       const startMs = Date.now();

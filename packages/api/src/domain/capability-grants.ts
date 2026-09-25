@@ -213,10 +213,6 @@ export const FIXED_FAMILY_TOOLS: Readonly<Record<FixedCapabilityFamily, readonly
  *    whose author switched tools off entirely.
  *  - `getDeviceInfo` — describes the device the surface already told us about.
  *    It cannot describe one it was not given.
- *  - `switchModel` — which model answers is the agent's exact
- *    `routing_profile_id`, a policy
- *    this agent already carries. A second switch over the same decision is the
- *    duplication this vocabulary exists to end.
  *  - `planPreview` — an SSE frame Alia's composer draws. Gated already on the
  *    caller being that composer.
  *  - `plan` — the autonomous runner's own checklist AND its completion signal.
@@ -232,7 +228,6 @@ export const FIXED_FAMILY_TOOLS: Readonly<Record<FixedCapabilityFamily, readonly
 export const UNGRANTED_TOOLS: readonly string[] = [
   'getCurrentDate',
   'getDeviceInfo',
-  'switchModel',
   'planPreview',
   'plan',
   'suggestNewConversation',

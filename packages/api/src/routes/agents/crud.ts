@@ -1,4 +1,6 @@
 import { Router } from 'express';
+import { resolveModel } from '../../lib/chat-core.js';
+import { ModelNotFoundError } from '../../lib/models/errors.js';
 import { authenticateToken, optionalAuth } from '../../middleware/auth.js';
 import { getDb } from '../../db/index.js';
 import {
@@ -40,7 +42,6 @@ import {
 } from '../../domain/agent.js';
 import { log } from '../../lib/logger.js';
 import { z } from 'zod';
-import { OXY_KAANA_ROUTING_PROFILE_IDS } from '../../config/oxy-inference-routing-profile-ids.js';
 import { formatCapabilityGrant, isCapabilityGrant, withoutRetiredGrants } from '../../domain/capability-grants.js';
 import {
   listMcpServersForUser,
@@ -383,6 +384,20 @@ const capabilityGrantsSchema = z
  * `z.ZodError` branch in the catch that turns anything the schema does not name
  * into a 400 with the field errors attached.
  */
+/** A 400 body when `modelId` names no catalogue model, else null (ADR 0012). */
+async function refuseUnknownModel(modelId: string | null | undefined): Promise<Record<string, unknown> | null> {
+  if (typeof modelId !== 'string') return null;
+  try {
+    await resolveModel(modelId);
+    return null;
+  } catch (error: unknown) {
+    if (error instanceof ModelNotFoundError) {
+      return { error: error.userMessage, param: 'modelId', code: ModelNotFoundError.WIRE_CODE };
+    }
+    throw error;
+  }
+}
+
 const createAgentSchema = z
   .object({
     oxyAccountId: z.string().min(1),
@@ -397,6 +412,8 @@ const createAgentSchema = z
     isPublished: z.boolean().optional(),
     access: accessSchema.optional(),
     systemPrompt: z.string().optional(),
+    /** A `publisher/model` from `GET /catalogue`, or null for the default model. */
+    modelId: z.string().min(1).max(200).nullable().optional(),
     archetype: archetypeSchema.optional(),
     archetypeConfig: z.unknown().optional(),
   })
@@ -410,6 +427,8 @@ router.post('/', authenticateToken, async (req: Request, res: Response) => {
     }
 
     const data = createAgentSchema.parse(req.body);
+    const modelRefusal = await refuseUnknownModel(data.modelId);
+    if (modelRefusal) return res.status(400).json(modelRefusal);
 
     /**
      * The account is verified BEFORE the row is written, and all three
@@ -446,8 +465,8 @@ router.post('/', authenticateToken, async (req: Request, res: Response) => {
        */
       isPublished: data.isPublished ?? true,
       access: data.access ?? 'private',
-      routingProfileId: OXY_KAANA_ROUTING_PROFILE_IDS['route:auto'],
       ...(data.systemPrompt !== undefined && { systemPrompt: data.systemPrompt }),
+      ...(data.modelId !== undefined && { modelId: data.modelId }),
       ...(data.archetype !== undefined && { archetype: data.archetype }),
       ...(data.archetypeConfig !== undefined && { archetypeConfig: data.archetypeConfig }),
     });
@@ -486,6 +505,8 @@ const updateAgentSchema = z
     status: statusSchema.optional(),
     access: accessSchema.optional(),
     systemPrompt: z.string().optional(),
+    /** A `publisher/model` from `GET /catalogue`, or null for the default model. */
+    modelId: z.string().min(1).max(200).nullable().optional(),
     scheduleInterval: z.number().int().min(5).max(1440).optional(),
     archetype: archetypeSchema.optional(),
     archetypeConfig: z.unknown().optional(),
@@ -503,6 +524,8 @@ router.patch('/:id', authenticateToken, async (req: Request, res: Response) => {
 
     const id = String(req.params.id);
     const data = updateAgentSchema.parse(req.body);
+    const modelRefusal = await refuseUnknownModel(data.modelId);
+    if (modelRefusal) return res.status(400).json(modelRefusal);
 
     const loaded = await loadAgentForActor(getDb(), {
       agentId: id,

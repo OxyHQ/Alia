@@ -192,9 +192,8 @@ vi.mock('ai', async () => {
 });
 
 vi.mock('../../lib/chat-core.js', () => ({
-  resolveModel: vi.fn().mockResolvedValue({ keyConfig: {}, provider: 'test', modelId: 'test' }),
+  resolveUtilityModel: vi.fn().mockResolvedValue({ keyConfig: {}, provider: 'test', modelId: 'test' }),
   getAIModel: vi.fn().mockReturnValue({}),
-  getDefaultRoutingProfile: vi.fn().mockReturnValue('route:auto'),
 }));
 
 vi.mock('../../lib/tools/index.js', () => ({
@@ -202,7 +201,7 @@ vi.mock('../../lib/tools/index.js', () => ({
 }));
 
 import { generateText } from 'ai';
-import { resolveModel } from '../../lib/chat-core.js';
+import { resolveUtilityModel } from '../../lib/chat-core.js';
 
 describe('POST /memory/import/from-text', () => {
   it('extracts and returns saved memories via the real route handler', async () => {
@@ -254,19 +253,16 @@ describe('POST /memory/import/from-text', () => {
   });
 
   it('delegates retries to Oxy and never selects a second provider in Alia', async () => {
-    const mockResolveModel = resolveModel as unknown as ReturnType<typeof vi.fn>;
+    const mockResolveModel = resolveUtilityModel as unknown as ReturnType<typeof vi.fn>;
     const mockGenerateText = generateText as unknown as ReturnType<typeof vi.fn>;
     mockResolveModel.mockClear();
     mockGenerateText.mockClear();
 
     mockResolveModel.mockResolvedValueOnce({
       provider: 'kaana',
-      modelId: 'route:auto',
-      oxyInferenceTarget: {
-        kind: 'routing_profile_id',
-        routingProfileId: '01a06477-94f5-74f0-bc25-4c5c13b93ccd',
-      },
-      keyConfig: { provider: 'kaana', modelId: 'route:auto' },
+      modelId: 'example/model',
+      oxyInferenceTarget: { kind: 'model', model: 'example/model' },
+      keyConfig: { provider: 'kaana', modelId: 'example/model' },
     });
 
     mockGenerateText.mockRejectedValueOnce(

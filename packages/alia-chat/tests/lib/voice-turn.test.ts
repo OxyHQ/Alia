@@ -1,15 +1,15 @@
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('../../src/lib/catalogue', () => ({
-  resolveModelId: vi.fn(async (_apiUrl: string, model: string) => model),
+  resolveModelId: vi.fn(async (_apiUrl: string, model?: string) => model),
 }));
 
 import { createAliaVoiceTurnSender } from '../../src/lib/voice-turn';
 
 function stream(...contents: string[]): Response {
   const frames = contents.map((content) =>
-    `data: {"id":"c1","object":"chat.completion.chunk","created":1,"model":"mode:auto","choices":[{"index":0,"delta":{"content":${JSON.stringify(content)}},"finish_reason":null}]}\n\n`);
-  frames.push('data: {"id":"c1","object":"chat.completion.chunk","created":1,"model":"mode:auto","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}\n\n');
+    `data: {"id":"c1","object":"chat.completion.chunk","created":1,"model":"example/model","choices":[{"index":0,"delta":{"content":${JSON.stringify(content)}},"finish_reason":null}]}\n\n`);
+  frames.push('data: {"id":"c1","object":"chat.completion.chunk","created":1,"model":"example/model","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}\n\n');
   frames.push('data: [DONE]\n\n');
   return new Response(frames.join(''), { headers: { 'content-type': 'text/event-stream' } });
 }
@@ -37,7 +37,6 @@ describe('the default voice turn sender', () => {
     const [config] = request.mock.calls[0] as unknown as [{ url: string; body: string }];
     expect(config.url).toBe('/v1/chat/completions');
     expect(JSON.parse(config.body)).toEqual({
-      model: 'mode:auto',
       messages: [
         { role: 'user', content: 'antes' },
         { role: 'assistant', content: 'vale' },

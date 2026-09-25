@@ -1,7 +1,7 @@
 /**
  * SSE Emitter — thin interface that decouples tools from the raw HTTP Response.
  *
- * Tools like switchModel and planPreview need to emit custom SSE events but
+ * Tools like planPreview need to emit custom SSE events but
  * should not depend on Express's Response object directly.
  */
 

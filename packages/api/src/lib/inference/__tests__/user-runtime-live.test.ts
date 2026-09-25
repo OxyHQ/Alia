@@ -74,7 +74,6 @@ describe.skipIf(!MODEL)('a real local model answering through the bridge', () =>
 
     const model = getAIModel(
       {
-        routingProfileId: `local/${RUNTIME_ID}/${MODEL}`,
         provider: USER_RUNTIME_PROVIDER,
         publisher: 'unknown',
         model: String(MODEL),
@@ -87,17 +86,7 @@ describe.skipIf(!MODEL)('a real local model answering through the bridge', () =>
           modelId: String(MODEL),
           userRuntime: { userId: OWNER, runtimeId: RUNTIME_ID },
         },
-        routingProfile: {
-          id: `local/${RUNTIME_ID}/${MODEL}`,
-          name: String(MODEL),
-          tier: 'local',
-          description: 'Served by the user\u2019s own device.',
-          creditMultiplier: 0,
-          maxTokens: 0,
-          supportsTools: true,
-          supportsVision: false,
-          category: 'local',
-        },
+        catalogue: null,
       },
       'chat',
     );

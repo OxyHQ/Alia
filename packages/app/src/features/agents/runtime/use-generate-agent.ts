@@ -42,6 +42,8 @@ export function useGenerateAgent() {
   return useCallback(async (
     prompt: string,
     archetype: AgentArchetype,
+    /** The new agent's `publisher/model`, or `null` for the server's default. */
+    modelId: string | null = null,
   ): Promise<GeneratedAgent> => {
     // Step 1: AI generates agent config from prompt. `suggestedUsername` is a
     // PROPOSAL — Oxy owns the handle namespace and resolves collisions.
@@ -108,6 +110,7 @@ export function useGenerateAgent() {
       tags: config.tags,
       capabilityGrants: config.capabilityGrants,
       systemPrompt: config.systemPrompt,
+      modelId,
       isPublished: false,
       archetype: config.archetype || archetype,
     });
