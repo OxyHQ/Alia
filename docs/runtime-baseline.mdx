@@ -440,6 +440,11 @@ two-message thread); route to `a-1000` (open); click the composer and type a
 (scroll). Three passes, medians. Then one page alternates `a-1000` and `b-1000`
 eight times, forcing a collection after each round trip (switching).
 
+Every route change — the open and each switch — goes through
+`window.__aliaFixture.navigate(id)`, which is `router.replace`: what the
+sidebar's `openConversation` does. It used to be `pushState` + `popstate`, and
+that is not a chat switch; see [the leaks below](#the-switching-leaks-were-the-harness-remounting-the-app).
+
 ### The numbers
 
 Measured 2026-09-25 on 32 cores with the load average at **22–27** — other
@@ -502,6 +507,137 @@ A switch takes 5.5s (median of 16, IQR 49% — the least stable figure here).
 
 These are the before numbers for the windowed timeline being built in
 `src/features/chat/ui/chat-interface.tsx`; the same command measures the after.
+
+### The switching leaks were the harness remounting the app
+
+A later check, on the windowed timeline, still read what the table above
+reads: **+16 listeners, +26 pending timeouts and +192 KiB of heap per switch**,
+nodes flat. Attributed on an unminified fixtures export (`expo export
+--no-minify`) by wrapping `setTimeout` and `addEventListener` before the first
+bundle script, recording a stack at every call, and keeping only what was
+created after cycle 2 and was still pending, or still attached to a live
+target, after a forced collection:
+
+- **Timeouts: TanStack Query's `scheduleGc`, 30-minute (`gcTime`) timers, from
+  a brand-new `QueryClient` on every switch.** Logging each timer's
+  `queryHash` gave the same thirteen keys each round (`catalogue`,
+  `conversations`, `credits`, `entitlements`, …) but new `Query` objects every
+  time, and `QueryClient`'s constructor was reached from `OxyProvider`'s
+  `useState` initialiser once per switch. `pushState` + `popstate` writes a
+  history entry without the router's state record, so expo-router's linking
+  (`fork/useLinking.js`) falls back to `navigation.resetRoot(state)` with
+  fresh route keys and **the whole app remounts** — root layout, `OxyProvider`
+  and all. Each old client's observers then unsubscribe and every one of its
+  queries starts a 30-minute gc timer that keeps that whole cache reachable:
+  that is the heap slope too.
+- **Listeners:** under the same remount, the survivors were RN-web's
+  `useColorScheme` subscriptions to the shared `(prefers-color-scheme)` query
+  and the `XMLHttpRequest` handlers of the refetches each fresh client
+  started. Not pursued further: the path is gone once the harness switches
+  the way the app does.
+
+The sidebar opens a chat with `router.replace`, which dispatches on the live
+navigation state; nothing remounts above the page. In the product the
+`resetRoot` path needs a history entry the router did not write. The fixture
+page now exposes `navigate` and the harness uses it for the open and every
+switch; `fixtures/__tests__/navigation.test.ts` pins both. `OxyProvider` not
+clearing the `QueryClient` it owns when it unmounts is real, and is an
+upstream item for `@oxy.so/services`: 13 queries' worth of 30-minute timers
+and cache per remount, bounded by `gcTime`.
+
+§7's signed-out loop uses the same `pushState` + `popstate` transport, so its
+slopes are very likely the same remount; it has not been re-measured here.
+
+### After: switching through the router
+
+Same command, same fixtures, 2026-09-25, 32 cores, load average **8–20**
+(other sessions were building). Timings are the committed set; two `--check`
+runs followed within ten minutes.
+
+| | Before (`popstate`, integration) | After (committed) | `--check` 1 / 2 |
+| --- | --- | --- | --- |
+| Open | 397ms | **358.5ms** | 398.7 / 358.8ms |
+| Keydown → frame p95 | 62ms | **44.5ms** | 39.8 / 36.3ms |
+| Typing: script / layout / style per key | 11.8 / 29.3 / 1.1ms | 10.1 / 24.8 / 1.0ms | 10.6 / 23.1 · 9.9 / 22.1ms |
+| Stream: task per update | 55.7ms | **55.1ms** | 52.5 / 54.1ms |
+| Stream: script / layout per update | 20 / — | 19.2 / 5.3ms | 19.6 / 5.7 · 18.2 / 5.7ms |
+| Scroll frame p95 | 50ms | 50ms | 50 / 33.4ms |
+| Heap after GC, thread open | — | **44.4 MiB** (51.5 MiB before the Markdown fix below) | 44.5 / 44.5 MiB |
+
+Switching, cycles 3–8 (and 3–30 in a separate 30-cycle run):
+
+| Counter | Before, per cycle | After, per cycle | 30 cycles |
+| --- | --- | --- | --- |
+| Live listeners (engine) | +16 | **0** (627 → 627) | −0.03 |
+| Pending timeouts | +26 | **0** (18 → 18) | −0.02 |
+| DOM nodes | 0 | 0 | 0 |
+| Heap after GC | +192 KiB | +46 to +61 KiB | +62 KiB |
+| Switch time | — | 204–232ms median | 180ms |
+
+**The heap residue is not held by the app.** Two heap snapshots of the
+unminified export, after cycles 20 and 50 with no probes installed, differ by
+20.6 KiB/cycle of V8 code objects (`InstructionStream`, `Code`, bytecode
+arrays — JIT output, retained only through V8's own code chain), 3.1 KiB/cycle
+of browser performance entries (long-task, long-animation-frame and
+layout-shift records, whose buffers the browser caps), and **2 KiB/cycle of
+JavaScript objects of every kind together**. No constructor grows with the
+cycle count. The difference from the counter's slope is heap V8 accounts that a
+snapshot does not show as objects. A 90-cycle run of the attribution probe and
+the harness's own 30-cycle run both stayed a straight line, so this is stated
+as what it is, not as a proved plateau.
+
+### The Markdown parser was built per render
+
+`react-native-markdown-display` defaults `markdownit` to `MarkdownIt({
+typographer: true })` and `allowedImageHandlers` and `topLevelMaxExceededItem`
+to fresh objects — default parameters, so evaluated on every render. Every
+render of every block built a parser (compiling linkify-it's regexes), and
+since the other two sit in its renderer's `useMemo` deps, the renderer and
+the `StyleSheet.create` inside it were rebuilt as well. The SDK's
+`AliaMarkdown` now passes one shared parser and the defaults' own values,
+created once (`packages/alia-chat/src/components/Markdown.tsx`, pinned by
+`tests/components/Markdown.stable-props.test.tsx`). Measured: **−7 MiB of heap
+with the thread open** (51.5 → 44.4 MiB; a heap-sampling profile had put
+3.8 MiB of it under `MarkdownIt` → `LinkifyIt.compile` alone), and about 1ms of
+script per streamed update, inside this machine's noise.
+
+### Typing: Bloom's composer measures by collapsing
+
+Per keystroke, three layouts from `#document`, each relaying out the thread.
+Hiding the thread takes typing layout from ~27ms to ~1ms, so the cost is the
+thread's; freezing the thread's height (`height: <px>; flex-grow: 0`) also
+takes it to ~1ms, so the thread is re-laid out because the flex column above
+it is, not because anything inside it changed. What starts it is Bloom's
+composer autosize (`ComposerPanelBase` and `ChatComposer`, a
+`useLayoutEffect` on the text): `style.height = '0px'`, read `scrollHeight`,
+set the height back. The collapse shrinks the sticky composer by a line for
+one forced layout; the card, which grows with the document, shrinks with it;
+the scroll position clamps by 20px; and the whole column is relaid out, then
+relaid out again when the height is restored — plus scroll-anchoring work
+(`overflow-anchor: none` alone removes ~10ms of it).
+
+Measured by patching that effect in an unminified export to collapse only
+when the text got shorter (growth needs no collapse: `scrollHeight` already
+exceeds the box): **3 layouts per key → 1, layout per key ~27ms → 6–8ms**.
+The one left is the text change itself, which still reaches the column; with
+`content-visibility: auto` on the rows on top of that it measured 1.4ms.
+Neither is changed here: the first is Bloom's code, and belongs upstream; the
+second would put estimated heights under the jump, restore and history-anchor
+logic of `use-timeline-window.ts`, which is not a change to make for a number.
+Without the Bloom fix, content-visibility alone does nothing (29.6ms), because
+the collapse moves the scroll.
+
+### Streaming: what is left per update
+
+~19ms of script and ~5.5ms of layout per update at 50ms cadence. The layout is
+`AiChatThread` following the end: each update's `onLayout` calls
+`window.scrollTo`, which forces the layout the frame would have done anyway
+(content-visibility on the rows measured 6 → 1.6ms). Of the script, most is
+React re-rendering `ChatPageContent` and with it the whole composer
+(`useAliaComposer`, lineup, capability modes, queries) because `messages` is a
+prop of the page; the thread itself re-renders one row. Moving the composer
+out of the page's render path is the next cheap thing, and a change to a file
+several branches are editing.
 
 ### Noise and gate
 

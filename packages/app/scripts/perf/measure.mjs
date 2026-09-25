@@ -513,6 +513,7 @@ async function runWorkspace(args, browser) {
       pinned: {
         export: 'packages/app/dist-fixtures, EXPO_PUBLIC_ALIA_FIXTURES=1',
         route: '/__fixtures/a-1000 (ChatPageContent under the real (app) layout)',
+        navigation: 'router.replace, as the sidebar opens a chat (window.__aliaFixture.navigate)',
         messages: 1000,
         viewport: VIEWPORT,
         cpuThrottlingRate: 1,

@@ -181,9 +181,17 @@ const waitOpened = (page, id) =>
   });
 
 /**
- * A route change to `/__fixtures/:id`, timed in the page from `pushState` to
+ * A route change to `/__fixtures/:id`, timed in the page from the navigation to
  * the first frame after the thread committed — the fixture page stamps that
  * moment itself, so nothing here reads the DOM of 1,000 messages to find out.
+ *
+ * The navigation is the fixture's `navigate`, which is `router.replace` — what
+ * the sidebar does to open a chat. It used to be `pushState` + `popstate`, and
+ * that is not a chat switch: an entry the router did not write has no state
+ * record, so linking calls `resetRoot` with fresh keys and the WHOLE app
+ * remounts, `OxyProvider` and its QueryClient included. Every "per-switch"
+ * leak the first workspace baseline recorded was that remount (§9 of
+ * docs/runtime-baseline.mdx).
  */
 const routeToThread = (page, id) =>
   page.evaluate(
@@ -191,8 +199,7 @@ const routeToThread = (page, id) =>
       new Promise((resolve, reject) => {
         delete window.__aliaFixture?.opened?.[key];
         const start = performance.now();
-        history.pushState({}, '', `/__fixtures/${key}`);
-        window.dispatchEvent(new PopStateEvent('popstate', { state: {} }));
+        window.__aliaFixture.navigate(key);
         const check = () => {
           const at = window.__aliaFixture?.opened?.[key];
           if (at !== undefined) resolve(at - start);
