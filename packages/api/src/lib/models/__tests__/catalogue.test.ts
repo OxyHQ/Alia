@@ -83,13 +83,14 @@ describe('normalizeCatalogueEntry', () => {
     expect(JSON.stringify(model)).not.toContain('some-operator');
   });
 
-  it('reads reasoningEfforts when Oxy sends them, and derives them from `reasoning` when it does not', () => {
+  it('reads reasoningEfforts when Oxy sends them, and offers none when it does not', () => {
     expect(normalizeCatalogueEntry(oxyEntry({ reasoningEfforts: ['high', 'low', 'max'] }))?.reasoningEfforts)
       .toEqual(['low', 'high']);
     expect(normalizeCatalogueEntry(oxyEntry({}, { reasoningEfforts: ['medium'] }))?.reasoningEfforts)
       .toEqual(['medium']);
+    // Oxy refuses a level it does not list, so `reasoning: true` alone offers none.
     expect(normalizeCatalogueEntry(oxyEntry({}, { reasoning: true }))?.reasoningEfforts)
-      .toEqual(['low', 'medium', 'high']);
+      .toEqual([]);
   });
 
   it('prefers releasedAt over releasedOn, and null when neither is sent', () => {

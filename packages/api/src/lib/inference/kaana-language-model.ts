@@ -458,24 +458,11 @@ function toUsage(units: readonly { unit: string; quantity: number }[] | undefine
   };
 }
 
-/**
- * The Oxy request, plus `reasoning`.
- *
- * `@oxy.so/core` 1.7's `OxyResponsesRequest` does not type `reasoning` yet —
- * it lands in the next core minor, beside Oxy's `/v1/responses` accepting it.
- * The client serializes the whole request object, so the field reaches the wire
- * today; this intersection keeps it typed until the core bump makes it
- * redundant (then delete it and use `OxyResponsesRequest` directly).
- */
-export type AliaResponsesRequest = OxyResponsesRequest & {
-  readonly reasoning?: { readonly effort: 'low' | 'medium' | 'high' };
-};
-
 export function requestFor(
   modelOptions: KaanaModelOptions,
   options: LanguageModelV3CallOptions,
   translation: Translation,
-): AliaResponsesRequest {
+): OxyResponsesRequest {
   const responseFormat = toResponseFormat(options.responseFormat);
   return {
     model: modelOptions.target.model,
