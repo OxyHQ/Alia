@@ -16,7 +16,7 @@ This page is the record of what now exists. The harness is
 `packages/app/scripts/visual/`; the images are committed next to it in
 `baseline/`.
 
-**Read the [honest status](#7-what-is-still-not-captured) before quoting this as
+**Read the [honest status](#8-what-is-still-not-captured) before quoting this as
 coverage.** One screen is captured. Four of #608 §3.1's six required references
 are not, and cannot be from a static export.
 
@@ -27,8 +27,8 @@ bun run --filter @alia/app visual:baseline
 ```
 
 That is the whole command. It reuses `packages/app/dist` if the export is
-already there, otherwise it runs `setup-skia-web` and `expo export --platform
-web` itself; serves `dist/` from Node's own `http` on an ephemeral loopback
+already there, otherwise it runs `expo export --platform web` itself (not
+`setup-skia-web`: nothing on web fetches `canvaskit.wasm`); serves `dist/` from Node's own `http` on an ephemeral loopback
 port; drives Chromium through `playwright-core`; and overwrites the 28 PNGs and
 `manifest.json` in `packages/app/scripts/visual/baseline/`.
 
@@ -38,6 +38,10 @@ port; drives Chromium through `playwright-core`; and overwrites the 28 PNGs and
 | `--rebuild` | Re-export even if `dist/` exists. |
 | `--only <text>` | Only cases whose file name contains `text`. |
 | `--tolerance <n>` | Override the per-channel tolerance. |
+| `--keep <dir>` | With `--check`: keep every capture in `dir`, and write `<case>.diff.png` beside each failing one — the reference as a grey ghost, pixels over tolerance in red (brighter = larger delta), pixels that moved within it in blue. |
+| `--dist <dir>` | Capture an existing export elsewhere (another checkout, an older build) instead of `packages/app/dist`. Never rebuilds it. |
+| `--engine <name>` | `chromium` (default), `firefox` or `webkit`. Chromium compares against `baseline/`, any other engine against `baseline-<engine>/` — see [§7](#7-other-engines). |
+| `--smoke` | No pixels: at every §12 width, the welcome must render, log no console error of the app's own, and not scroll sideways. |
 
 `--check` is both the determinism proof and the regression gate:
 
@@ -278,7 +282,26 @@ JavaScript in one eagerly-loaded file. Splitting exists in name only. Outside `d
 
 This is a **bundle** baseline, not a performance baseline. See below.
 
-## 7. What is still NOT captured
+## 7. Other engines
+
+`--engine firefox` and `--engine webkit` run the same matrix, the same virtual
+clock and the same screenshots on Playwright's Firefox and WebKit builds.
+
+| Engine | Smoke (`--smoke`, 320–1440) | Pixels |
+| --- | --- | --- |
+| Chromium 149 | ✅ renders at all six widths, 0 app errors, no sideways scroll | `baseline/` |
+| Firefox 151 | ✅ the same | `baseline-firefox/` — two full captures matched byte for byte (Δ0 on all 28), so it is gated like Chromium's |
+| WebKit 26.5 | ❌ not run: the browser is installed but cannot start on this host without 74 Debian packages (`libgtk-4-1`, `libgraphene-1.0-0`, `libevent-2.1-7t64`, `libgstreamer-gl1.0-0`, `libgstreamer-plugins-bad1.0-0`, `libwebpdemux2`, `libharfbuzz-icu0`, `libmanette-0.2-0`, `libenchant-2-2`, `libhyphen0`, `libsecret-1-0`, `libwoff1`, …) that need `sudo … playwright-core/cli.js install-deps webkit` | none |
+
+Every run reports 4 console errors per page that are the engine announcing a
+request the harness aborted (the network is blocked on purpose); `--smoke`
+counts them apart and fails only on errors whose source is the export itself.
+
+Chromium and Firefox render the welcome with the same composition and palette
+but not the same pixels — text rasterisation and the blur differ — which is why
+each engine has its own baseline rather than a shared one.
+
+## 8. What is still NOT captured
 
 #608 §3.1 names six references. **Two are captured, four are not.**
 
