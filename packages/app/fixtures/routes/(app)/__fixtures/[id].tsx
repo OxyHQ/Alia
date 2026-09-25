@@ -19,11 +19,17 @@
  *     message and an assistant reply streamed into the thread with the same
  *     update the real stream makes (`use-streaming-chat.ts` flushes every 50ms
  *     by replacing the last message), resolving when it has finished.
+ *   - `navigate(id)` — switch to another fixture conversation the way the
+ *     sidebar switches chats: `router.replace`. Not `pushState` + `popstate`:
+ *     a history entry the router did not write has no state record, so its
+ *     linking falls back to `resetRoot` with fresh route keys, and every
+ *     screen, the root layout and `OxyProvider` included, remounts — a
+ *     browser back/forward onto a foreign entry, not a chat switch.
  */
 import { ChatPageContent } from '@/features/chat/ui/chat-page-content';
 import { fixtureConversation, fixtureReply } from '../../../conversation';
 import type { Message } from '@/features/chat/model/chat';
-import { useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams, type Href } from 'expo-router';
 import { useCallback, useMemo, useRef, useState } from 'react';
 
 interface StreamOptions {
@@ -41,12 +47,18 @@ interface FixtureWindow {
   __aliaFixture?: {
     opened: Record<string, number>;
     threads: Record<string, FixtureThreadApi>;
+    navigate: (id: string) => void;
   };
 }
 
 function registry() {
   const w = window as unknown as FixtureWindow;
-  w.__aliaFixture ??= { opened: {}, threads: {} };
+  w.__aliaFixture ??= {
+    opened: {},
+    threads: {},
+    // Not a typed route: fixture routes live outside `app/`.
+    navigate: (id) => router.replace(`/__fixtures/${encodeURIComponent(id)}` as Href),
+  };
   return w.__aliaFixture;
 }
 
