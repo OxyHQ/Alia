@@ -108,14 +108,20 @@ next refresh without a deploy.
 The selection rules are pure functions over the catalogue and usage data
 (`packages/api/src/lib/models/`):
 
-- **Featured** — for each publisher, its newest chat-usable model (by
-  `releasedAt`), ranked by Alia's real usage over the last 30 days
-  (`chat_analytics`), top dozen. Recomputed daily.
+- **Stable release** — what Alia chooses for somebody is priced above zero (a
+  free tier is throttled and withdrawn without notice) and carries no
+  pre-release marker (`preview`, `exp`, `beta`, `alpha`) in its id or name.
+  Other models stay selectable in the picker.
+- **Featured** — for each publisher, its newest stable chat-usable model (by
+  `releasedAt`), publishers ranked by Alia's real usage over the last 30 days
+  (`chat_analytics`), then by how many chat models they have in the catalogue;
+  top dozen. Recomputed daily.
 - **Default model for a person** — the model they last used; otherwise the
-  most-used featured model in Alia; on a cold start, the cheapest featured model.
+  most-used featured model in Alia; on a cold start, the median-priced featured
+  model.
 - **Utility model** — titles, summaries, compaction, suggestions, soul, style
   refinement, planner, verifier and other internal calls use the cheapest
-  chat-usable model with a context window of at least 32k tokens.
+  stable chat-usable model with a context window of at least 32k tokens.
 - **Speech model** — the cheapest catalogue model with audio output.
 
 Stored choices hold a real model id or `NULL`: `agents.model_id`,
