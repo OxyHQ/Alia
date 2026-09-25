@@ -7,6 +7,8 @@ import {
   ComposerSuggestions,
   useComposerSuggestions,
 } from '@/components/chat/composer/composer-suggestions';
+import { useCreditWarnings } from '@/lib/chat/use-credit-warnings';
+import { useLocalModelsInvite } from '@/lib/chat/use-local-models-invite';
 import { useEntitlements } from '@/lib/hooks/use-billing';
 import { useCredits } from '@/lib/hooks/use-credits';
 import {
@@ -195,6 +197,10 @@ export const ChatPageContent = ({
     onModelChange,
   });
   const { attachments, turnOptions, restoreTurn, clearTurn } = composer;
+
+  // Toasts that belong to the chat, never to "Meet Alia" in front of it.
+  useLocalModelsInvite(intro === undefined);
+  useCreditWarnings(intro === undefined);
 
   const isVoiceActive = voice?.isVoiceActive ?? false;
   const [inputValue, setInputValue] = useState('');

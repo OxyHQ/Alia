@@ -991,6 +991,7 @@
     "failedToReset": "Failed to reset password. Please try again."
   },
   "chatHeader": {
+    "agentTerminal": "Agent terminal",
     "export": "Export",
     "settings": "Settings",
     "clearConversation": "Clear conversation",
@@ -1395,6 +1396,7 @@
     }
   },
   "thought": {
+    "reasoning": "Reasoning",
     "title": "Thought",
     "steps": "Steps",
     "sources": "Sources",
@@ -1683,6 +1685,7 @@
     "placeholder": "Ask Alia anything"
   },
   "panel": {
+    "terminal": "Terminal",
     "resize": "Resize panel",
     "code": "Canvas",
     "gallery": "Gallery",

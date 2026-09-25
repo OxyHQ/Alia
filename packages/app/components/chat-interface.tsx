@@ -4,8 +4,10 @@ import { WelcomeMessage } from '@/components/welcome-message';
 import { FailedTurnCard } from '@/components/chat/failed-turn-card';
 import { MessageBlockBoundary } from '@/components/chat/message-block-boundary';
 import { ToolResultCard } from '@/components/chat/tool-result-card';
+import { TurnStatusLine } from '@/components/chat/turn-status-line';
 import type { FailedTurn } from '@/components/chat/turn-failure';
 import { cardOf } from '@/lib/chat/tool-cards';
+import { useOpenThought, type OpenThought } from '@/lib/chat/use-open-thought';
 import { getToolPillLabel } from '@/lib/task-utils';
 import { isWebInvocation, taskListLog, webSearchLog } from '@/lib/chat/work-log';
 import { daySeparators } from '@/lib/message-days';
@@ -40,7 +42,6 @@ import {
 import { AgentThinking } from '@oxy.so/bloom/agent-thinking';
 import {
   AiChatAssistantMessage,
-  AiChatMessageLine,
   AiChatThread,
   AiChatUserMessage,
   type AiChatThreadHandle,
@@ -216,6 +217,8 @@ type MessageRowProps = {
   workEndedAt: number | null;
   onApprovePlan?: (planId: string) => void;
   onRejectPlan?: (planId: string) => void;
+  /** Open the thought panel on this turn, in the conversation it belongs to. */
+  onOpenThought?: OpenThought;
 };
 
 const MessageRow = React.memo(function MessageRow({
@@ -232,6 +235,7 @@ const MessageRow = React.memo(function MessageRow({
   onRejectPlan,
   workStartedAt,
   workEndedAt,
+  onOpenThought,
 }: MessageRowProps) {
   const { colors } = useColorScheme();
   const { t: rowT } = useTranslation();
@@ -355,13 +359,25 @@ const MessageRow = React.memo(function MessageRow({
                 }}
               >
                 {workInvocations.length === 0 || turnWorking ? null : (
-                  <AiChatMessageLine tone="secondary" selectable={false}>
-                    {workStartedAt !== null && workEndedAt !== null
-                      ? rowT('thought.workedFor', {
-                          elapsed: formatElapsed(workEndedAt - workStartedAt),
-                        })
-                      : rowT('thought.worked')}
-                  </AiChatMessageLine>
+                  <TurnStatusLine
+                    label={
+                      workStartedAt !== null && workEndedAt !== null
+                        ? rowT('thought.workedFor', {
+                            elapsed: formatElapsed(workEndedAt - workStartedAt),
+                          })
+                        : rowT('thought.worked')
+                    }
+                    hint={rowT('thought.viewDetails')}
+                    onPress={onOpenThought && (() => onOpenThought(m.id, 'steps'))}
+                  />
+                )}
+                {/* A turn that reasoned without tools: its reasoning, a press away. */}
+                {workInvocations.length > 0 || !m.thinking || turnWorking ? null : (
+                  <TurnStatusLine
+                    label={rowT('thought.reasoning')}
+                    hint={rowT('thought.viewDetails')}
+                    onPress={onOpenThought && (() => onOpenThought(m.id, 'steps'))}
+                  />
                 )}
                 {taskLog === null ? null : (
                   <TaskList
@@ -641,6 +657,7 @@ export const ChatInterface = React.memo(function ChatInterface({
   useEffect(() => {
     syncThoughtScope(liveThoughtScope);
   }, [liveThoughtScope, syncThoughtScope]);
+  const openThought = useOpenThought(liveThoughtScope, history);
 
   /**
    * The agent's first tool of a turn — a search, a page it reads, a command —
@@ -797,6 +814,7 @@ export const ChatInterface = React.memo(function ChatInterface({
           handleVote={handleVote}
           workStartedAt={timing.startedAt}
           workEndedAt={timing.endedAt}
+          onOpenThought={openThought}
           onApprovePlan={onApprovePlan}
           onRejectPlan={onRejectPlan}
         />

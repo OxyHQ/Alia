@@ -964,6 +964,7 @@
     "failedToReset": "Error al restablecer la contraseña. Por favor, intenta de nuevo."
   },
   "chatHeader": {
+    "agentTerminal": "Terminal del agente",
     "export": "Exportar",
     "settings": "Configuración",
     "clearConversation": "Limpiar conversación",
@@ -1358,6 +1359,7 @@
     }
   },
   "thought": {
+    "reasoning": "Razonamiento",
     "title": "Pensamiento",
     "steps": "Pasos",
     "sources": "Fuentes",
@@ -1646,6 +1648,7 @@
     "placeholder": "Pregúntale lo que quieras a Alia"
   },
   "panel": {
+    "terminal": "Terminal",
     "resize": "Redimensionar el panel",
     "code": "Canvas",
     "gallery": "Galería",

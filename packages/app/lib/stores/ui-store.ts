@@ -47,6 +47,27 @@ export interface ThoughtScope {
   failedTurn: FailedTurn | null;
 }
 
+/**
+ * The agent whose terminal the code panel can show, and the route it was
+ * opened from.
+ *
+ * Keyed by the ROUTE rather than held globally: the panel is the layout's and
+ * outlives a navigation, so a terminal opened in one agent's chat would
+ * otherwise keep streaming that agent's activity beside the next chat. The
+ * panel offers it only while the route is the one it was opened on (#608 §5,
+ * selection identity).
+ */
+export interface AgentTerminalSelection {
+  agentId: string;
+  route: string;
+}
+
+/**
+ * What the code panel shows: its changes, or its second tab — the canvas
+ * preview, or the agent's terminal in the same slot.
+ */
+export type CodePanelView = 'changes' | 'preview' | 'terminal';
+
 export interface CanvasArtifact {
   id: string;
   type: 'code' | 'markdown' | 'table' | 'chart' | 'image';
@@ -83,6 +104,8 @@ interface UIState {
   activeAgentId: string | null;
   /** The conversation whose turn opened the active agent session, when one did. */
   activeAgentConversationId: string | null;
+  agentTerminal: AgentTerminalSelection | null;
+  codePanelView: CodePanelView;
   /**
    * Whether the intro screen has been answered on this device — by signing in
    * or by choosing to continue without an account. Persisted, so the home
@@ -108,6 +131,9 @@ interface UIState {
    */
   syncThoughtScope: (scope: ThoughtScope) => void;
   openAgentPanel: (sessionId: string, agentId: string, conversationId?: string | null) => void;
+  /** Open the code panel on this agent's terminal, for the route it was asked for on. */
+  openAgentTerminal: (agentId: string, route: string) => void;
+  setCodePanelView: (view: CodePanelView) => void;
   setShortcutsDialogOpen: (open: boolean) => void;
   toggleShortcutsDialog: () => void;
   addCanvasArtifact: (artifact: CanvasArtifact) => void;
@@ -163,6 +189,8 @@ export const useUIStore = create<UIState>()(
   activeAgentSessionId: null,
   activeAgentId: null,
   activeAgentConversationId: null,
+  agentTerminal: null,
+  codePanelView: 'changes',
   rightPanelWidth: RIGHT_PANEL_DEFAULT_WIDTH,
 
   toggleSidebar: () =>
@@ -172,7 +200,10 @@ export const useUIStore = create<UIState>()(
     set({ sidebarOpen: open }),
 
   setRightPanel: (panel) =>
-    set({ rightPanel: panel, ...(panel === null && { thoughtMessageId: null, thoughtScope: null }) }),
+    set({
+      rightPanel: panel,
+      ...(panel === null && { thoughtMessageId: null, thoughtScope: null, codePanelView: 'changes' as const }),
+    }),
 
   toggleRightPanel: (panel) =>
     set((state) => ({
@@ -204,6 +235,11 @@ export const useUIStore = create<UIState>()(
       activeAgentId: agentId,
       activeAgentConversationId: conversationId,
     }),
+
+  openAgentTerminal: (agentId, route) =>
+    set({ rightPanel: 'canvas', agentTerminal: { agentId, route }, codePanelView: 'terminal' }),
+
+  setCodePanelView: (view) => set({ codePanelView: view }),
 
   setShortcutsDialogOpen: (open) =>
     set({ shortcutsDialogOpen: open }),
