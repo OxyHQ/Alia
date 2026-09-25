@@ -31,6 +31,7 @@ import type {
   SpeechRecognitionHandlers,
   SpeechRecognitionOptions,
   SpeechRecognitionSession,
+  SpeechRecognizerChoice,
 } from './speech-recognition-types';
 
 // ── The slice of the Web Speech API this uses ──
@@ -181,6 +182,14 @@ function meterStream(stream: MediaStream, onLevel: (level: number) => void): () 
  * over (voice mode on a silence timer, dictation on the stop button), because
  * the browser's own end-of-speech detection cuts people off mid-thought.
  */
+/**
+ * The browser has one recognizer and no way to ask it which languages it
+ * knows: the language goes as given (see the native file for Android's).
+ */
+export async function chooseSpeechRecognizer(lang: string): Promise<SpeechRecognizerChoice> {
+  return { lang, silent: false };
+}
+
 export function startSpeechRecognition(
   options: SpeechRecognitionOptions,
   handlers: SpeechRecognitionHandlers,
