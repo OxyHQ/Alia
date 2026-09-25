@@ -441,7 +441,7 @@
       "workstream": "6",
       "domain": "product-api",
       "kind": "dependency",
-      "currentPath": "packages/app/lib/api/routes.ts",
+      "currentPath": "packages/app/src/shared/api/routes.ts",
       "reachable": "live",
       "owner": "alia",
       "targetPath": "keep-alia-product",
@@ -450,7 +450,7 @@
       ],
       "removalGate": "NOT dead, and not deletable. 60f800fe (#240) made this constant the path every chat caller in packages/app names. Measured 2026-08-19: /alia/chat has SIX live in-repo call sites — use-chat-conversation.ts:76 and use-personality-sample-phrase.ts:70 through API_ROUTES.chat.alia, alia-codea/src/chatParticipant.ts:192 and inlineCompletionProvider.ts:96, and integrations/src/shared/api-client.ts:223 and :290 — against ZERO at 60f800fe^, where a git grep for the literal across packages, excluding packages/api and tests, returned only this constant and a doc-comment example in generate-api-url.ts. The superseded claim was 'ZERO live in-repo callers, so any who-uses-it answer must come from access logs'; that is now true only of EXTERNAL callers. Gate 8 of packages/api/src/__tests__/architectureGates.test.ts asserts the caller set by exact equality, so deleting the constant fails that gate rather than passing silently.",
       "provenance": "measured",
-      "evidence": "packages/app/lib/api/routes.ts:53-62 (the constant, and the comment forbidding a /v1 sibling beside it); readers at packages/app/lib/hooks/use-chat-conversation.ts:76 and packages/app/lib/hooks/use-personality-sample-phrase.ts:70; frozen by packages/api/src/__tests__/architectureGates.test.ts:3066 (PRODUCT_RUNTIME_CALLERS) and :3154"
+      "evidence": "packages/app/src/shared/api/routes.ts:53-62 (the constant, and the comment forbidding a /v1 sibling beside it); readers at packages/app/src/features/chat/runtime/use-chat-conversation.ts:76 and packages/app/src/features/settings/runtime/use-personality-sample-phrase.ts:70; frozen by packages/api/src/__tests__/architectureGates.test.ts:3066 (PRODUCT_RUNTIME_CALLERS) and :3154"
     },
     {
       "id": "alia-chat-get",
@@ -529,21 +529,21 @@
       "workstream": "5",
       "domain": "frontend-admin",
       "kind": "screen",
-      "currentPath": "packages/app/lib/api/routes.ts",
+      "currentPath": "packages/app/src/shared/api/routes.ts",
       "reachable": "live",
       "owner": "alia",
       "targetPath": "keep-as-alia-product-setting",
       "dependsOn": [],
       "removalGate": "Keep. Both endpoints must keep returning Alia aliases only; /analytics/models is rendered directly to end users in the credits panel, so it is a live abstraction-leak surface if the API ever resolves a raw provider model id there.",
       "provenance": "inventory-frontend-admin",
-      "evidence": "packages/app/lib/api/routes.ts:80,149; consumer: packages/app/components/credits-panel.tsx:390-397"
+      "evidence": "packages/app/src/shared/api/routes.ts:80,149; consumer: packages/app/components/credits-panel.tsx:390-397"
     },
     {
       "id": "app-chat-consumer",
       "workstream": "6",
       "domain": "product-api",
       "kind": "dependency",
-      "currentPath": "packages/app/lib/hooks/use-chat-conversation.ts",
+      "currentPath": "packages/app/src/features/chat/runtime/use-chat-conversation.ts",
       "reachable": "live",
       "owner": "alia",
       "targetPath": "keep-alia-product",
@@ -553,7 +553,7 @@
       ],
       "removalGate": "Ships in the mobile binary; OTA-updatable but old native builds persist. Contract changes need a version window.",
       "provenance": "inventory-product-api",
-      "evidence": "packages/app/lib/hooks/use-chat-conversation.ts:44; packages/app/lib/hooks/use-streaming-chat.ts:367-600"
+      "evidence": "packages/app/src/features/chat/runtime/use-chat-conversation.ts:44; packages/app/src/features/chat/runtime/use-streaming-chat.ts:367-600"
     },
     {
       "id": "app-chat-model-plumbing",
@@ -569,7 +569,7 @@
       ],
       "removalGate": "Keep. Recorded so the epic's edit list is complete: these four files must be visited if the model id's TYPE changes, even though none of them hard-codes a value.",
       "provenance": "inventory-frontend-admin",
-      "evidence": "packages/app/components/chat-header.tsx:8,20-21,93-95; packages/app/components/chat-page-content.tsx; packages/app/lib/hooks/use-chat-conversation.ts; packages/app/lib/hooks/use-streaming-chat.ts",
+      "evidence": "packages/app/components/chat-header.tsx:8,20-21,93-95; packages/app/src/features/chat/ui/chat-page-content.tsx; packages/app/src/features/chat/runtime/use-chat-conversation.ts; packages/app/src/features/chat/runtime/use-streaming-chat.ts",
       "removedIn": "feat/bloom-v4-migration"
     },
     {
@@ -610,14 +610,14 @@
       "workstream": "5",
       "domain": "frontend-admin",
       "kind": "behaviour",
-      "currentPath": "packages/app/lib/hooks/use-billing.ts",
+      "currentPath": "packages/app/src/features/billing/runtime/use-billing.ts",
       "reachable": "live",
       "owner": "alia",
       "targetPath": "keep-as-alia-product-setting",
       "dependsOn": [],
-      "removalGate": "Keep as a placeholder, but collapse the FOUR copies of this list to one. Measured duplicates: packages/app/lib/hooks/use-billing.ts:327, packages/app/components/model-selector.tsx:104, packages/api/src/internal/providers/lib/seed-plans.ts:33, packages/api/src/lib/plan-access.ts:12. They agree today; nothing enforces that they keep agreeing, and the two client copies decide what a user can select before the server answers.",
+      "removalGate": "Keep as a placeholder, but collapse the FOUR copies of this list to one. Measured duplicates: packages/app/src/features/billing/runtime/use-billing.ts:327, packages/app/components/model-selector.tsx:104, packages/api/src/internal/providers/lib/seed-plans.ts:33, packages/api/src/lib/plan-access.ts:12. They agree today; nothing enforces that they keep agreeing, and the two client copies decide what a user can select before the server answers.",
       "provenance": "inventory-frontend-admin",
-      "evidence": "packages/app/lib/hooks/use-billing.ts:326-330; packages/app/components/model-selector.tsx:104; packages/api/src/lib/plan-access.ts:12; packages/api/src/internal/providers/lib/seed-plans.ts:33"
+      "evidence": "packages/app/src/features/billing/runtime/use-billing.ts:326-330; packages/app/components/model-selector.tsx:104; packages/api/src/lib/plan-access.ts:12; packages/api/src/internal/providers/lib/seed-plans.ts:33"
     },
     {
       "id": "app-model-selector",
@@ -643,35 +643,35 @@
       "workstream": "5",
       "domain": "frontend-admin",
       "kind": "screen",
-      "currentPath": "packages/app/lib/stores/model-store.ts",
+      "currentPath": "packages/app/src/features/chat/runtime/model-store.ts",
       "reachable": "live",
       "owner": "alia",
       "targetPath": "keep-as-alia-product-setting",
       "dependsOn": [],
       "removalGate": "Keep. Flag for the epic: because the value is PERSISTED, retiring or renaming an alias strands every existing installation on a dead id with no migration path — the store has no validation against the fetched catalog. Verified this is the only model-holding store: the other 15 files in packages/app/lib/stores/ contain no model state.",
       "provenance": "inventory-frontend-admin",
-      "evidence": "packages/app/lib/stores/model-store.ts:16-17,26-27"
+      "evidence": "packages/app/src/features/chat/runtime/model-store.ts:16-17,26-27"
     },
     {
       "id": "app-personality-sample-alias",
       "workstream": "5",
       "domain": "frontend-admin",
       "kind": "behaviour",
-      "currentPath": "packages/app/lib/hooks/use-personality-sample-phrase.ts",
+      "currentPath": "packages/app/src/features/settings/runtime/use-personality-sample-phrase.ts",
       "reachable": "live",
       "owner": "alia",
       "targetPath": "keep-as-alia-product-setting",
       "dependsOn": [],
       "removalGate": "Keep; a client pinning a specific tier for an internal utility call should move server-side so the tier choice is not frozen in a shipped binary.",
       "provenance": "inventory-frontend-admin",
-      "evidence": "packages/app/lib/hooks/use-personality-sample-phrase.ts:72"
+      "evidence": "packages/app/src/features/settings/runtime/use-personality-sample-phrase.ts:72"
     },
     {
       "id": "app-personality-sample-consumer",
       "workstream": "6",
       "domain": "product-api",
       "kind": "dependency",
-      "currentPath": "packages/app/lib/hooks/use-personality-sample-phrase.ts",
+      "currentPath": "packages/app/src/features/settings/runtime/use-personality-sample-phrase.ts",
       "reachable": "live",
       "owner": "alia",
       "targetPath": "keep-alia-product",
@@ -680,14 +680,14 @@
       ],
       "removalGate": "Move with app-chat-consumer.",
       "provenance": "inventory-product-api",
-      "evidence": "packages/app/lib/hooks/use-personality-sample-phrase.ts:68"
+      "evidence": "packages/app/src/features/settings/runtime/use-personality-sample-phrase.ts:68"
     },
     {
       "id": "app-sends-unread-agentid",
       "workstream": "6",
       "domain": "product-api",
       "kind": "dependency",
-      "currentPath": "packages/app/lib/hooks/use-streaming-chat.ts",
+      "currentPath": "packages/app/src/features/chat/runtime/use-streaming-chat.ts",
       "reachable": "live",
       "owner": "alia",
       "targetPath": "keep-alia-product",
@@ -696,7 +696,7 @@
       ],
       "removalGate": "Decide before the port: either honour body.agentId server-side or delete it client-side. Porting the request contract as-is carries a field that looks load-bearing and is not - the next person to 'fix' agent selection will set it and see nothing happen.",
       "provenance": "inventory-product-api",
-      "evidence": "packages/app/lib/hooks/use-streaming-chat.ts:250; packages/api/src/lib/chat/request-context.ts:103-107,185-187"
+      "evidence": "packages/app/src/features/chat/runtime/use-streaming-chat.ts:250; packages/api/src/lib/chat/request-context.ts:103-107,185-187"
     },
     {
       "id": "behaviour-audio-generation",
@@ -2482,14 +2482,14 @@
       "workstream": "20",
       "domain": "product-api",
       "kind": "doc",
-      "currentPath": "packages/app/lib/i18n/locales/en.json",
+      "currentPath": "packages/app/src/shared/i18n/locales/en.json",
       "reachable": "unverified",
       "owner": "alia",
       "targetPath": "keep-alia-product",
       "dependsOn": [],
       "removalGate": "No gate. Recorded so a future audit does not re-litigate whether i18n was checked.",
       "provenance": "inventory-product-api",
-      "evidence": "packages/app/lib/i18n/locales/en.json:326,466,500,501,804"
+      "evidence": "packages/app/src/shared/i18n/locales/en.json:326,466,500,501,804"
     },
     {
       "id": "env-allowed-services-admin-usernames",
@@ -2911,7 +2911,7 @@
       ],
       "removalGate": "MEASURED DEAD, which changes this gate: every endpoint this screen calls is unmounted — packages/api/src/index.ts mounts 46 routers and none serves /internal/gateway or /internal/providers, and internal/providers/index.ts is unreachable from all three build entrypoints. So the screen cannot perform the function its inventory gate assumed it still performs; the gate below is about the FUNCTION finding a home, not about this UI continuing to work. An Alia-owned entitlements editor exists. This feeds /billing/entitlements, which packages/app consumes as allowedModelIds — deleting the editor without a replacement freezes every user's entitlements at whatever the database holds that day.",
       "provenance": "re-derived",
-      "evidence": "packages/alia-gateway-admin/src/pages/Features.tsx:78-96 (feature CRUD), :296 (getPlanFeaturesMatrix), :354 (bulkUpsertPlanFeatures); consumer: packages/app/lib/hooks/use-billing.ts:319-330"
+      "evidence": "packages/alia-gateway-admin/src/pages/Features.tsx:78-96 (feature CRUD), :296 (getPlanFeaturesMatrix), :354 (bulkUpsertPlanFeatures); consumer: packages/app/src/features/billing/runtime/use-billing.ts:319-330"
     },
     {
       "id": "ga-screen-keys",
@@ -4518,7 +4518,7 @@
       "dependsOn": [],
       "removalGate": "The app reads it with a fallback to the standard usage block, so a rename degrades credit reporting SILENTLY rather than erroring. Rename only with a client release.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/lib/chat/response-shapes.ts:22-28,69; packages/app/lib/hooks/use-streaming-chat.ts:667"
+      "evidence": "packages/api/src/lib/chat/response-shapes.ts:22-28,69; packages/app/src/features/chat/runtime/use-streaming-chat.ts:667"
     },
     {
       "id": "retired-mongoose-billing-models",
@@ -4925,7 +4925,7 @@
       "dependsOn": [],
       "removalGate": "Consumed by packages/app agent-terminal.tsx:236,462 and use-agent-activity.ts. Any 'stream event' inventory that lists only SSE names misses 13 more values here.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/socket.ts:174; packages/app/components/agent-terminal.tsx:236"
+      "evidence": "packages/api/src/socket.ts:174; packages/app/src/features/chat/ui/workspace/agent-terminal.tsx:236"
     },
     {
       "id": "socket-alia-approval-request",
@@ -4939,7 +4939,7 @@
       "dependsOn": [],
       "removalGate": "Do not port the SSE branch. Fix the doc first: R2 approvals require a live Socket.IO connection, which means a pure-HTTP API client CANNOT approve anything - that is a real product constraint the docs currently hide.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/socket.ts:216; docs/api-reference.md:99; packages/app/lib/hooks/use-streaming-chat.ts:543 (dead branch); packages/app/lib/hooks/use-agent-activity.ts:370 (live listener)"
+      "evidence": "packages/api/src/socket.ts:216; docs/api-reference.md:99; packages/app/src/features/chat/runtime/use-streaming-chat.ts:543 (dead branch); packages/app/src/features/chat/runtime/use-agent-activity.ts:370 (live listener)"
     },
     {
       "id": "socket-alia-approval-result",
@@ -4955,7 +4955,7 @@
       ],
       "removalGate": "Do not port the SSE branch: like alia.approval_request it is emitted ONLY over Socket.IO while docs/api-reference.md documents it under \"SSE Event Contract\", and the app carries a dead SSE branch for it. Fix the doc first — R2 approvals need a live socket, so a pure-HTTP client cannot approve anything, which is a real product constraint the docs currently hide. ",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/socket.ts:231; docs/api-reference.md:114; packages/app/lib/hooks/use-streaming-chat.ts:565 (dead branch); packages/app/lib/hooks/use-agent-activity.ts:389 (live listener)"
+      "evidence": "packages/api/src/socket.ts:231; docs/api-reference.md:114; packages/app/src/features/chat/runtime/use-streaming-chat.ts:565 (dead branch); packages/app/src/features/chat/runtime/use-agent-activity.ts:389 (live listener)"
     },
     {
       "id": "socket-audio-job-update",
@@ -5003,7 +5003,7 @@
       ],
       "removalGate": "Consumed by the app at use-streaming-chat.ts:453. Because it is in no type and no doc, any contract derived from the type or the doc will DROP it - the app's agent cards then silently stop rendering.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/lib/chat/stream-runner.ts:37,258; packages/app/lib/hooks/use-streaming-chat.ts:453"
+      "evidence": "packages/api/src/lib/chat/stream-runner.ts:37,258; packages/app/src/features/chat/runtime/use-streaming-chat.ts:453"
     },
     {
       "id": "sse-alia-agent-session",
@@ -5019,7 +5019,7 @@
       ],
       "removalGate": "App-only (use-streaming-chat.ts:590 -> openAgentPanel). Pairs with the Socket.IO room agent-session:<id>.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/routes/v1/chat-completions.ts:164; packages/app/lib/hooks/use-streaming-chat.ts:590-593"
+      "evidence": "packages/api/src/routes/v1/chat-completions.ts:164; packages/app/src/features/chat/runtime/use-streaming-chat.ts:590-593"
     },
     {
       "id": "sse-alia-model-switch",
@@ -5100,7 +5100,7 @@
       ],
       "removalGate": "App-only consumer, and it drives React Query cache writes (queryKeys.conversations.detail) - dropping it leaves stale titles rather than an error.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/lib/chat/provider-loop.ts:276; packages/app/lib/hooks/use-streaming-chat.ts:475-490"
+      "evidence": "packages/api/src/lib/chat/provider-loop.ts:276; packages/app/src/features/chat/runtime/use-streaming-chat.ts:475-490"
     },
     {
       "id": "sse-alia-tool-result",
@@ -5195,7 +5195,7 @@
       ],
       "removalGate": "The app reads parsed.alia_usage with a fallback to parsed.usage and surfaces credit_warning in the UI. Credits are a billing surface - this must stay in Alia even if inference moves.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/lib/chat/provider-loop.ts:296-314; packages/app/lib/hooks/use-streaming-chat.ts:666-677"
+      "evidence": "packages/api/src/lib/chat/provider-loop.ts:296-314; packages/app/src/features/chat/runtime/use-streaming-chat.ts:666-677"
     },
     {
       "id": "table-alia-model-provider-mappings",
@@ -6077,7 +6077,7 @@
       "owner": "alia",
       "targetPath": "keep-alia-product",
       "dependsOn": [],
-      "removalGate": "packages/app/lib/stores/show-store.ts:150.",
+      "removalGate": "packages/app/src/features/shows/runtime/show-store.ts:150.",
       "provenance": "re-derived",
       "evidence": "packages/api/src/routes/v1/shows.ts:168"
     },
@@ -6094,7 +6094,7 @@
       "dependsOn": [
         "socket-show-progress"
       ],
-      "removalGate": "packages/app/lib/stores/show-store.ts:120 plus the show:progress listener in use-show-progress.ts:73. Move together.",
+      "removalGate": "packages/app/src/features/shows/runtime/show-store.ts:120 plus the show:progress listener in use-show-progress.ts:73. Move together.",
       "provenance": "re-derived",
       "evidence": "packages/api/src/routes/v1/shows.ts:41"
     },
@@ -6109,7 +6109,7 @@
       "owner": "alia",
       "targetPath": "keep-alia-product",
       "dependsOn": [],
-      "removalGate": "packages/app/lib/stores/show-store.ts:103.",
+      "removalGate": "packages/app/src/features/shows/runtime/show-store.ts:103.",
       "provenance": "re-derived",
       "evidence": "packages/api/src/routes/v1/shows.ts:140"
     },
@@ -6124,7 +6124,7 @@
       "owner": "alia",
       "targetPath": "keep-alia-product",
       "dependsOn": [],
-      "removalGate": "packages/app/lib/stores/show-store.ts:94.",
+      "removalGate": "packages/app/src/features/shows/runtime/show-store.ts:94.",
       "provenance": "re-derived",
       "evidence": "packages/api/src/routes/v1/shows.ts:107"
     },
@@ -6139,7 +6139,7 @@
       "owner": "alia",
       "targetPath": "keep-alia-product",
       "dependsOn": [],
-      "removalGate": "packages/app/lib/stores/show-store.ts:161. App-only.",
+      "removalGate": "packages/app/src/features/shows/runtime/show-store.ts:161. App-only.",
       "provenance": "re-derived",
       "evidence": "packages/api/src/routes/v1.ts:31; packages/api/src/routes/v1/shows.ts:24"
     },

@@ -70,7 +70,7 @@ bun run android
 
 ## API Config
 
-Configured in `packages/app/lib/config.ts`.
+Configured in `packages/app/src/shared/platform/config.ts`.
 
 Expected production API:
 

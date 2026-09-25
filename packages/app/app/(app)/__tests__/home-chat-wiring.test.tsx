@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  * The new-chat screen is a chat, not a preview of one.
  *
  * `app/(app)/index.tsx` renders the same `ChatPageContent` as
- * `components/conversation-screen.tsx`, but it used to hand it seven props out
+ * `src/features/chat/ui/conversation-screen.tsx`, but it used to hand it seven props out
  * of the set the screen knows how to use — and the missing ones were all the
  * ones that matter when something goes wrong. A first turn could not be
  * stopped once it started. A first turn that FAILED drew nothing at all: no
@@ -26,7 +26,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  * `useChatConversation` returns identifiable handlers, so each assertion is
  * "the screen passed the hook's own X" and cannot be satisfied by a screen
  * that passes something of its own invention. What each handler then DOES is
- * the hook's contract, pinned in `lib/hooks/__tests__/`.
+ * the hook's contract, pinned in `src/features/chat/runtime/__tests__/`.
  *
  * The absence of `conversationId` is pinned here too, in the same breath. It
  * is not an oversight to be tidied up by a later reader: `ChatPageContent`
@@ -61,7 +61,7 @@ const ui = vi.hoisted(() => ({ ghostMode: false }));
 /** The props the screen handed `ChatPageContent` on its last render. */
 const captured = vi.hoisted(() => ({ props: null as Record<string, unknown> | null }));
 
-vi.mock('@/lib/hooks/use-chat-conversation', () => ({
+vi.mock('@/features/chat/runtime/use-chat-conversation', () => ({
   useChatConversation: () => chat,
 }));
 
@@ -71,7 +71,7 @@ vi.mock('@/lib/hooks/use-chat-conversation', () => ({
  * the whole design system into a runner that has no native viewport, and would
  * let a missing prop hide behind a component that happens to tolerate it.
  */
-vi.mock('@/components/chat-page-content', async () => {
+vi.mock('@/features/chat/ui/chat-page-content', async () => {
   const ReactModule = await import('react');
   return {
     ChatPageContent: (props: Record<string, unknown>) => {
@@ -127,18 +127,18 @@ vi.mock('@oxy.so/services', () => ({
   useAuth: () => ({ isAuthenticated: true, isAuthResolved: true }),
 }));
 
-vi.mock('@/components/welcome-intro', async () => {
+vi.mock('@/features/chat/ui/welcome-intro', async () => {
   const ReactModule = await import('react');
   return { WelcomeIntro: () => ReactModule.createElement('WelcomeIntro', null) };
 });
 
-vi.mock('@/lib/stores/global-store', () => {
+vi.mock('@/features/chat/runtime/global-store', () => {
   const useStore = (selector: (s: { ghostMode: boolean }) => unknown) => selector(ui);
   return { useStore };
 });
 
 const setSelectedModel = vi.hoisted(() => vi.fn());
-vi.mock('@/lib/stores/model-store', () => {
+vi.mock('@/features/chat/runtime/model-store', () => {
   const state = {
     selectedModel: 'model-of-record',
     setSelectedModel,
@@ -147,17 +147,17 @@ vi.mock('@/lib/stores/model-store', () => {
   return { useModelStore: (selector: (s: typeof state) => unknown) => selector(state) };
 });
 
-vi.mock('@/lib/hooks/use-catalogue', () => ({
+vi.mock('@/features/chat/runtime/use-catalogue', () => ({
   useCatalogue: () => ({ data: undefined }),
   resolveSelection: () => ({ effectiveId: 'model-of-record' }),
 }));
-vi.mock('@/lib/hooks/use-product-modes', () => ({ useProductModes: () => ({ data: undefined }) }));
-vi.mock('@/lib/hooks/use-conversations', () => ({
+vi.mock('@/features/chat/runtime/use-product-modes', () => ({ useProductModes: () => ({ data: undefined }) }));
+vi.mock('@/features/chat/runtime/use-conversations', () => ({
   useCreateConversation: () => ({ mutateAsync: vi.fn(async () => ({ id: 'c1' })) }),
 }));
 
 vi.mock('@oxy.so/bloom/toast', () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
-vi.mock('@/lib/hooks/use-translation', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
+vi.mock('@/shared/i18n/use-translation', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
 vi.mock('@oxy.so/bloom/content-panel', async () => {
   const ReactModule = await import('react');
   return {
@@ -166,7 +166,7 @@ vi.mock('@oxy.so/bloom/content-panel', async () => {
   };
 });
 
-import ChatPage from '@/app/(app)/index';
+import ChatPage from '../index';
 
 /** Mount the route and return the props the screen handed the chat content. */
 async function mount(): Promise<Record<string, unknown>> {

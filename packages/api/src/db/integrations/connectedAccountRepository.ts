@@ -17,7 +17,7 @@
  *
  * `ConnectedAccountSafeRow` has no token field, so the leak closes by
  * construction. Nothing reads what it drops —
- * `packages/app/lib/hooks/use-connected-accounts.ts:6` declares the DTO and
+ * `packages/app/src/features/connections/runtime/use-connected-accounts.ts:6` declares the DTO and
  * `oauthTokens` is not in it. `bots.bot_token` had `select: false` and so keeps
  * a guarantee it already had; this column never had one, which is why the
  * difference is called out rather than absorbed.

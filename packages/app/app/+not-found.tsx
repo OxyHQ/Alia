@@ -1,4 +1,4 @@
-import { useTranslation } from '@/lib/hooks/use-translation';
+import { useTranslation } from '@/shared/i18n/use-translation';
 import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { RiCompass3Line } from '@oxy.so/bloom/icons/RiCompass3Line';
 import { Screen } from '@oxy.so/bloom/screen';

@@ -2,9 +2,9 @@
  * The icons Alia draws from the shell sprite sheet, and what each is called.
  *
  * One entry per icon, and one generated component per entry — `generate.ts`
- * writes `components/ui/icons/<file>` and owns that directory outright. Adding
+ * writes `src/shared/ui/icons/<file>` and owns that directory outright. Adding
  * an icon is a line here plus `bun run generate:icons`; nothing else is
- * hand-edited, and `components/__tests__/generated-icons.test.ts` fails if the
+ * hand-edited, and `src/shared/ui/__tests__/generated-icons.test.ts` fails if the
  * committed files and a fresh run disagree.
  *
  * ## Why a subset rather than all of them

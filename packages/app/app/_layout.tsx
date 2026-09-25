@@ -14,17 +14,17 @@ import { StatusBar } from 'expo-status-bar';
 import { useMemo, useRef } from 'react';
 import { Platform } from 'react-native';
 
-import { AppErrorBoundary } from '@/components/error-boundary';
-import { setTokenGetter } from '@/lib/api/client';
-import '@/lib/i18n';
-import { DEFAULT_LOCALE, SUPPORTED_LOCALES } from '@/lib/i18n';
-import { KeyboardProvider } from '@/lib/keyboard';
-import { useI18nStore } from '@/lib/stores/i18n-store';
+import { AppErrorBoundary } from '@/shell/error-boundary';
+import { setTokenGetter } from '@/shared/api/client';
+import '@/shared/i18n';
+import { DEFAULT_LOCALE, SUPPORTED_LOCALES } from '@/shared/i18n';
+import { KeyboardProvider } from '@/shared/platform/keyboard';
+import { useI18nStore } from '@/shared/i18n/i18n-store';
 import {
   BLOOM_THEME_PERSIST_KEY,
   BLOOM_THEME_STORAGE,
-} from '@/lib/themePersistence';
-import { useColorScheme } from '@/lib/useColorScheme';
+} from '@/shared/platform/themePersistence';
+import { useColorScheme } from '@/shared/platform/useColorScheme';
 import 'react-native-reanimated';
 
 export { ErrorBoundary } from 'expo-router';

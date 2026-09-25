@@ -1,11 +1,11 @@
-import { AuthContainer } from '@/components/auth/auth-container';
-import { AuthLogo } from '@/components/auth/auth-logo';
-import { errorMessage } from '@/lib/errors/error-utils';
+import { AuthContainer } from '@/features/onboarding/ui/auth-container';
+import { AuthLogo } from '@/features/onboarding/ui/auth-logo';
+import { errorMessage } from '@/shared/api/error-utils';
 import {
   useAcceptOrgInvite,
   useOrgInviteInfo,
-} from '@/lib/hooks/use-organization-invites';
-import { useTranslation } from '@/lib/hooks/use-translation';
+} from '@/features/onboarding/runtime/use-organization-invites';
+import { useTranslation } from '@/shared/i18n/use-translation';
 import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { RiArrowRightLine } from '@oxy.so/bloom/icons/RiArrowRightLine';
 import { RiErrorWarningLine } from '@oxy.so/bloom/icons/RiErrorWarningLine';

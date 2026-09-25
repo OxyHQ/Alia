@@ -184,7 +184,7 @@ async function bundleStats() {
  * "typing has finished" signal cannot silently rot when the copy changes.
  */
 async function welcomeCopy() {
-  const en = JSON.parse(await readFile(join(APP_ROOT, 'lib/i18n/locales/en.json'), 'utf8'));
+  const en = JSON.parse(await readFile(join(APP_ROOT, 'src/shared/i18n/locales/en.json'), 'utf8'));
   return en.welcome.intro;
 }
 

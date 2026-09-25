@@ -22,7 +22,7 @@
  * extra ceremony.
  *
  * The parsing rules are stated once, at length, in
- * `packages/app/lib/hooks/use-catalogue.ts`. Both are about not inventing: an
+ * `packages/app/src/features/chat/runtime/use-catalogue.ts`. Both are about not inventing: an
  * entry whose `object` is neither known value is dropped, and a response whose
  * entries all fail to parse throws rather than reading as an empty catalogue.
  */

@@ -37,7 +37,7 @@ const ROOT = resolve(import.meta.dirname, "..");
 const RENDERERS = [
   // The composer's model lineup (Bloom v4 retired `model-selector.tsx` and the
   // credit warning banner; this is the one place a catalogue entry is named).
-  "packages/app/components/chat/composer/model-lineup.ts",
+  "packages/app/src/features/chat/ui/composer/model-lineup.ts",
 ];
 
 /**
@@ -49,7 +49,7 @@ const RENDERERS = [
  * exists to prevent — the credit banner had exactly that copy for one commit,
  * and this census is what found it.
  */
-const DECIDER_MODULE = "packages/app/lib/hooks/use-product-modes.ts";
+const DECIDER_MODULE = "packages/app/src/features/chat/runtime/use-product-modes.ts";
 const DECIDER = "presentation";
 
 /**

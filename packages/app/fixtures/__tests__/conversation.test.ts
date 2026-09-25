@@ -2,7 +2,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-import { cardOf } from '@/lib/chat/tool-cards';
+import { cardOf } from '@/features/chat/model/tool-cards';
 import { fixtureConversation, parseFixtureId } from '../conversation';
 
 const APP = join(__dirname, '..', '..');
@@ -78,7 +78,7 @@ describe('the fixtures stay out of the product', () => {
         }
       }
     };
-    for (const dir of ['app', 'components', 'lib']) walk(join(APP, dir));
+    for (const dir of ['app', 'src']) walk(join(APP, dir));
     expect(offenders).toEqual([]);
   });
 });

@@ -1,9 +1,9 @@
-import { AgentApprovalsBanner } from '@/components/agent-approvals-banner';
-import { ChatWorkspace } from '@/components/chat/chat-workspace';
-import { ConversationScreen } from '@/components/conversation-screen';
-import { agentColorPreset } from '@/lib/agents/agent-color';
-import { useAgentThread } from '@/lib/hooks/use-agent-thread';
-import { useTranslation } from '@/lib/hooks/use-translation';
+import { AgentApprovalsBanner } from '@/features/agents/ui/agent-approvals-banner';
+import { ChatWorkspace } from '@/features/chat/ui/chat-workspace';
+import { ConversationScreen } from '@/features/chat/ui/conversation-screen';
+import { agentColorPreset } from '@/shared/domain/agent-color';
+import { useAgentThread } from '@/features/agents/runtime/use-agent-thread';
+import { useTranslation } from '@/shared/i18n/use-translation';
 import { AiChatMobileHeader } from '@oxy.so/bloom/ai-chat';
 import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { RiRobot2Line } from '@oxy.so/bloom/icons/RiRobot2Line';
@@ -41,7 +41,7 @@ import { View } from 'react-native';
  * separate generic 404 would be a second page saying less.
  *
  * Everything below the identity is the ordinary conversation screen, which is
- * why this file is short — see `components/conversation-screen.tsx`.
+ * why this file is short — see `src/features/chat/ui/conversation-screen.tsx`.
  */
 const AgentThreadPage = () => {
   const { username, threadId } = useLocalSearchParams<{

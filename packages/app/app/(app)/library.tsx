@@ -1,8 +1,8 @@
-import { FileCard } from '@/components/file-card';
-import { useDocumentPicker } from '@/lib/hooks/use-document-picker';
-import { useImagePicker } from '@/lib/hooks/use-image-picker';
-import { useTranslation } from '@/lib/hooks/use-translation';
-import { useLibraryStore } from '@/lib/stores/library-store';
+import { FileCard } from '@/features/chat/ui/file-card';
+import { useDocumentPicker } from '@/shared/platform/use-document-picker';
+import { useImagePicker } from '@/shared/platform/use-image-picker';
+import { useTranslation } from '@/shared/i18n/use-translation';
+import { useLibraryStore } from '@/features/library/runtime/library-store';
 import { Button } from '@oxy.so/bloom/button';
 import { Chip, ChipRow } from '@oxy.so/bloom/chip';
 import {

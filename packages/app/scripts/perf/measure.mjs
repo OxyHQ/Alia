@@ -178,7 +178,7 @@ async function ensureExport({ rebuild }) {
  * does not fail, it times out after a minute and looks like a slow boot.
  */
 async function copy() {
-  const en = JSON.parse(await readFile(join(APP_ROOT, 'lib/i18n/locales/en.json'), 'utf8'));
+  const en = JSON.parse(await readFile(join(APP_ROOT, 'src/shared/i18n/locales/en.json'), 'utf8'));
   return {
     cta: en.welcome.intro.cta,
     greeting: en.welcome.greeting,

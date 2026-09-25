@@ -94,7 +94,7 @@ describe('the wire shape a shipped client reads', () => {
     const wire = toLibraryFileResponse(row);
 
     /**
-     * `packages/app/lib/stores/library-store.ts:93` filters the store on
+     * `packages/app/src/features/library/runtime/library-store.ts:93` filters the store on
      * `file._id`. Renaming it to `id` would leave the shipped mobile build
      * unable to delete a file, with no error anywhere.
      */

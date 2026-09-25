@@ -49,10 +49,10 @@ const REPO_ROOT = path.resolve(__dirname, '../../../../..');
 // the autosave, and the publish toggle among the editor's actions. The screen
 // under `app/(app)/agents/edit/` only composes them.
 const EDITOR = [
-  'packages/app/lib/hooks/agents/use-agent-autosave.ts',
-  'packages/app/lib/hooks/agents/use-agent-editor-actions.ts',
+  'packages/app/src/features/agents/runtime/use-agent-autosave.ts',
+  'packages/app/src/features/agents/runtime/use-agent-editor-actions.ts',
 ];
-const FAMILIES = 'packages/app/lib/constants/capability-families.ts';
+const FAMILIES = 'packages/app/src/features/chat/model/capability-families.ts';
 
 const state = vi.hoisted(() => ({ userId: 'oxy-caller', accessToken: 'token-abc' as string | undefined }));
 

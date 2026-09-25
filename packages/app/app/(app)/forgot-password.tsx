@@ -1,9 +1,9 @@
-import { AuthContainer } from '@/components/auth/auth-container';
-import { AuthError } from '@/components/auth/auth-error';
-import { AuthLogo } from '@/components/auth/auth-logo';
-import { errorMessage as getErrorMessage } from '@/lib/errors/error-utils';
-import { useRequestPasswordReset } from '@/lib/hooks/auth/use-password-reset';
-import { useTranslation } from '@/lib/hooks/use-translation';
+import { AuthContainer } from '@/features/onboarding/ui/auth-container';
+import { AuthError } from '@/features/onboarding/ui/auth-error';
+import { AuthLogo } from '@/features/onboarding/ui/auth-logo';
+import { errorMessage as getErrorMessage } from '@/shared/api/error-utils';
+import { useRequestPasswordReset } from '@/features/onboarding/runtime/use-password-reset';
+import { useTranslation } from '@/shared/i18n/use-translation';
 import { Button } from '@oxy.so/bloom/button';
 import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { RiMailCheckLine } from '@oxy.so/bloom/icons/RiMailCheckLine';

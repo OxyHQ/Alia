@@ -226,7 +226,7 @@ const aliaChat = surface(aliaChatRouter, '/alia/chat');
  * `/skills`, `/agents` and `/library`.
  *
  * **The per-route removal gate is satisfied, not waived.** Each of the five rows
- * records its gate as a line in `packages/app/lib/stores/show-store.ts`, and
+ * records its gate as a line in `packages/app/src/features/shows/runtime/show-store.ts`, and
  * that file is rewritten against the new surface in the same change — so the
  * only consumer moved with the route rather than being left behind it. No
  * external caller is affected: the routes were `optionalAuth` and returned one

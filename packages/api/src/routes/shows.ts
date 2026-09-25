@@ -15,7 +15,7 @@
  * this document entirely"* — and the workstream 1 inventory had already answered
  * it: all five old routes carry `"proposedOwner": "alia"` and
  * `"targetPath": "keep-alia-product"`. Each one's recorded removal gate is a
- * line in `packages/app/lib/stores/show-store.ts`, and that file moves in the
+ * line in `packages/app/src/features/shows/runtime/show-store.ts`, and that file moves in the
  * same change, so the gate is satisfied by construction rather than waived.
  *
  * ## Syra is called with the USER's credential, always

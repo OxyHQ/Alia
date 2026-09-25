@@ -8,7 +8,7 @@
  * `[n]` into a link when `n` names a known source, so every other spelling is
  * a marker the reader sees raw.
  *
- * The app carries a twin of this function (`packages/app/lib/citations.ts`)
+ * The app carries a twin of this function (`packages/app/src/features/research/model/citations.ts`)
  * for messages persisted before the API normalised its output. The two must
  * agree; the app's tests pin the same cases.
  */

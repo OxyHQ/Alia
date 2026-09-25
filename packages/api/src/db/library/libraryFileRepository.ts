@@ -36,7 +36,7 @@ export interface LibraryFileRow {
  *
  * ## `_id` is a versioned contract, not a leak
  *
- * `packages/app/lib/stores/library-store.ts:9` declares `_id: string` and `:93`
+ * `packages/app/src/features/library/runtime/library-store.ts:9` declares `_id: string` and `:93`
  * filters the store on `file._id`. That is a SHIPPED mobile build which cannot
  * be recalled, so the field is served from the Postgres `id` rather than
  * renamed. It retires when no supported client reads it.

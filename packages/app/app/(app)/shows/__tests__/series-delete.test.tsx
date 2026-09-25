@@ -35,7 +35,7 @@ const toastError = vi.hoisted(() => vi.fn());
 const confirmSurface = vi.hoisted(() => vi.fn());
 const routerBack = vi.hoisted(() => vi.fn());
 
-vi.mock('@/lib/api/client', () => ({
+vi.mock('@/shared/api/client', () => ({
   default: {
     get: vi.fn().mockRejectedValue(new Error('no network in this test')),
     post: vi.fn(),
@@ -217,19 +217,19 @@ vi.mock('@oxy.so/bloom/theme', () => ({
   useTheme: () => ({ colors: { primary: '#000', textSecondary: '#888' } }),
 }));
 
-vi.mock('@/components/show/show-artwork', async () => {
+vi.mock('@/features/shows/ui/show-artwork', async () => {
   const ReactModule = await import('react');
   return { ShowArtwork: () => ReactModule.createElement('ShowArtwork') };
 });
 
-vi.mock('@/components/show/episode-create-dialog', async () => {
+vi.mock('@/features/shows/ui/episode-create-dialog', async () => {
   const ReactModule = await import('react');
   return {
     EpisodeCreateDialog: () => ReactModule.createElement('EpisodeCreateDialog'),
   };
 });
 
-vi.mock('@/components/show/episode-row', async () => {
+vi.mock('@/features/shows/ui/episode-row', async () => {
   const ReactModule = await import('react');
   return {
     EpisodeRow: ({
@@ -246,7 +246,7 @@ vi.mock('@/components/show/episode-row', async () => {
   };
 });
 
-vi.mock('@/lib/hooks/use-show-progress', () => ({
+vi.mock('@/features/shows/runtime/use-show-progress', () => ({
   useShowProgress: () => undefined,
 }));
 
@@ -280,7 +280,7 @@ const EPISODE = {
 let tree: ReactTestRenderer | undefined;
 
 async function renderScreen(episodes: (typeof EPISODE)[] = []) {
-  const { useShowStore } = await import('@/lib/stores/show-store');
+  const { useShowStore } = await import('@/features/shows/runtime/show-store');
   useShowStore.setState({
     series: [SERIES],
     episodesBySeries: { 'series-abc': episodes },
@@ -343,7 +343,7 @@ describe('removing a show', () => {
     expect(toastError).toHaveBeenCalled();
     expect(routerBack).not.toHaveBeenCalled();
 
-    const { useShowStore } = await import('@/lib/stores/show-store');
+    const { useShowStore } = await import('@/features/shows/runtime/show-store');
     expect(useShowStore.getState().series.map((s) => s.id)).toEqual([
       'series-abc',
     ]);
@@ -398,7 +398,7 @@ describe('removing an episode', () => {
   it('does not say the episode is gone when the request failed', async () => {
     httpDelete.mockRejectedValueOnce(new Error('Failed to delete the episode'));
 
-    const { useShowStore } = await import('@/lib/stores/show-store');
+    const { useShowStore } = await import('@/features/shows/runtime/show-store');
     const rendered = await renderScreen([EPISODE]);
 
     const row = byLabel(rendered, 'EpisodeRow', 'row episode-xyz');

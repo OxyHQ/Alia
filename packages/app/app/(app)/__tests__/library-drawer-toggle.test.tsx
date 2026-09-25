@@ -174,20 +174,20 @@ vi.mock('@oxy.so/bloom/dropdown-menu', async () => {
     DropdownMenuItem: host('MenuItem'),
   };
 });
-vi.mock('@/components/file-card', async () => {
+vi.mock('@/features/chat/ui/file-card', async () => {
   const ReactModule = await import('react');
   return {
     FileCard: (props: Record<string, unknown>) =>
       ReactModule.createElement('FileCard', props),
   };
 });
-vi.mock('@/lib/hooks/use-image-picker', () => ({
+vi.mock('@/shared/platform/use-image-picker', () => ({
   useImagePicker: () => ({ pickImage: vi.fn() }),
 }));
-vi.mock('@/lib/hooks/use-document-picker', () => ({
+vi.mock('@/shared/platform/use-document-picker', () => ({
   useDocumentPicker: () => ({ pickDocument: vi.fn() }),
 }));
-vi.mock('@/lib/stores/library-store', () => {
+vi.mock('@/features/library/runtime/library-store', () => {
   // One state object, so a selector reading `files` returns the same array on
   // every render rather than a fresh dependency each time.
   const state = {
@@ -201,7 +201,7 @@ vi.mock('@/lib/stores/library-store', () => {
     useLibraryStore: (select: (s: typeof state) => unknown) => select(state),
   };
 });
-vi.mock('@/lib/useColorScheme', () => ({
+vi.mock('@/shared/platform/useColorScheme', () => ({
   useColorScheme: () => ({ colors: { mutedForeground: 'rgb(113 113 122)' } }),
 }));
 /**
@@ -209,7 +209,7 @@ vi.mock('@/lib/useColorScheme', () => ({
  * one language's rendering of it — the label is checked to exist in both
  * locale files separately below.
  */
-vi.mock('@/lib/hooks/use-translation', () => {
+vi.mock('@/shared/i18n/use-translation', () => {
   const t = (key: string) => key;
   return {
     useTranslation: () => ({ t, locale: 'en', changeLocale: () => undefined }),
@@ -351,7 +351,7 @@ describe('the labels are translated', () => {
         readFileSync(
           fileURLToPath(
             new URL(
-              `../../../lib/i18n/locales/${locale}.json`,
+              `../../../src/shared/i18n/locales/${locale}.json`,
               import.meta.url,
             ),
           ),

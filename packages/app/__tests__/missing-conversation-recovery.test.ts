@@ -2,11 +2,11 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 const conversations = readFileSync(
-  new URL('../lib/hooks/use-conversations.ts', import.meta.url),
+  new URL('../src/features/chat/runtime/use-conversations.ts', import.meta.url),
   'utf8',
 );
 const chat = readFileSync(
-  new URL('../lib/hooks/use-chat-conversation.ts', import.meta.url),
+  new URL('../src/features/chat/runtime/use-chat-conversation.ts', import.meta.url),
   'utf8',
 );
 

@@ -11,7 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
  * so there the draft's files and turn now go with the first message — it used
  * to send `attachments: []`. `/agents/generate` and `/skills/generate` read a
  * prompt string and nothing else, so those two offer none of the turn's controls —
- * pinned in `components/chat/composer/__tests__/use-alia-composer-prompt-only.test.tsx`.
+ * pinned in `src/features/chat/ui/composer/__tests__/use-alia-composer-prompt-only.test.tsx`.
  */
 
 const draft = vi.hoisted(() => ({
@@ -35,7 +35,7 @@ vi.mock('react-native', async () => {
       ReactModule.createElement(name, props, children);
   return { View: host('View'), ScrollView: host('ScrollView') };
 });
-vi.mock('@/components/chat/composer/use-alia-composer', () => ({
+vi.mock('@/features/chat/ui/composer/use-alia-composer', () => ({
   useAliaComposer: (options: unknown) => {
     draft.options.push(options);
     return {
@@ -48,23 +48,23 @@ vi.mock('@/components/chat/composer/use-alia-composer', () => ({
     };
   },
 }));
-vi.mock('@/components/chat/composer/composer', () => ({
+vi.mock('@/features/chat/ui/composer/composer', () => ({
   Composer: (props: Record<string, unknown>) => {
     composerProps.current = props;
     return null;
   },
 }));
-vi.mock('@/lib/attachment-utils', () => ({
+vi.mock('@/features/chat/model/attachment-utils', () => ({
   buildMessageContent: vi.fn(async (text: string) => ({
     content: [{ type: 'text', text }, { type: 'image_url', image_url: { url: 'data:image/png;base64,AA' } }],
     dropped: [],
   })),
 }));
-vi.mock('@/lib/hooks/use-chat-conversation', () => ({ reportDroppedAttachments: vi.fn() }));
-vi.mock('@/lib/hooks/use-conversations', () => ({
+vi.mock('@/features/chat/runtime/use-chat-conversation', () => ({ reportDroppedAttachments: vi.fn() }));
+vi.mock('@/features/chat/runtime/use-conversations', () => ({
   useCreateConversation: () => ({ mutateAsync, isPending: false }),
 }));
-vi.mock('@/lib/stores/global-store', () => ({
+vi.mock('@/features/chat/runtime/global-store', () => ({
   useStore: {
     getState: () => ({
       setPendingInitialMessage: pending.set,
@@ -72,7 +72,7 @@ vi.mock('@/lib/stores/global-store', () => ({
     }),
   },
 }));
-vi.mock('@/lib/hooks/use-translation', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
+vi.mock('@/shared/i18n/use-translation', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
 vi.mock('expo-router', () => ({ useRouter: () => ({ push: vi.fn() }) }));
 vi.mock('@oxy.so/bloom/toast', () => ({ toast: { error: vi.fn() } }));
 vi.mock('@oxy.so/bloom/typography', () => ({ Text: () => null, Muted: () => null }));

@@ -47,7 +47,7 @@ const replace = vi.hoisted(() => vi.fn());
  */
 const session = vi.hoisted(() => ({ isPrivateApiPending: false }));
 
-vi.mock('@/lib/api/client', () => ({
+vi.mock('@/shared/api/client', () => ({
   default: {
     get: getRequest,
     post: vi.fn(),
@@ -335,39 +335,39 @@ vi.mock('@oxy.so/bloom/icons', () => {
     RiSettings3Line: glyph,
   };
 });
-vi.mock('@/components/agent-capability-toggles', async () => {
+vi.mock('@/features/agents/ui/agent-capability-toggles', async () => {
   const ReactModule = await import('react');
   return {
     AgentCapabilityToggles: (props: Record<string, unknown>) =>
       ReactModule.createElement('AgentCapabilityToggles', props),
   };
 });
-vi.mock('@/components/agent-connector-grants', async () => {
+vi.mock('@/features/agents/ui/agent-connector-grants', async () => {
   const ReactModule = await import('react');
   return {
     AgentConnectorGrants: (props: Record<string, unknown>) =>
       ReactModule.createElement('AgentConnectorGrants', props),
   };
 });
-vi.mock('@/lib/constants/agent-colors', () => ({
+vi.mock('@/shared/domain/agent-colors', () => ({
   AGENT_SWATCHES: ['blue', 'violet'],
 }));
-vi.mock('@/lib/agents/agent-color', () => ({ agentTint: () => 'rgb(0 0 0)' }));
-vi.mock('@/lib/useColorScheme', () => ({
+vi.mock('@/shared/domain/agent-color', () => ({ agentTint: () => 'rgb(0 0 0)' }));
+vi.mock('@/shared/platform/useColorScheme', () => ({
   useColorScheme: () => ({ colors: { mutedForeground: 'rgb(113 113 122)' } }),
 }));
-vi.mock('@/lib/hooks/use-is-large-screen', () => ({
+vi.mock('@/shared/platform/use-is-large-screen', () => ({
   useIsLargeScreen: () => true,
 }));
-vi.mock('@/lib/hooks/use-agent-bots', () => ({
+vi.mock('@/features/agents/runtime/use-agent-bots', () => ({
   useAgentBots: () => ({ bots: [], registerBot: vi.fn(), removeBot: vi.fn() }),
 }));
-vi.mock('@/lib/hooks/use-translation', () => {
+vi.mock('@/shared/i18n/use-translation', () => {
   const t = (key: string) => key;
   const changeLocale = () => undefined;
   return { useTranslation: () => ({ t, locale: 'en', changeLocale }) };
 });
-vi.mock('@/lib/stores/library-store', () => {
+vi.mock('@/features/library/runtime/library-store', () => {
   const state = { files: [] as unknown[], loadFiles: () => undefined };
   return {
     useLibraryStore: (select: (s: typeof state) => unknown) => select(state),
@@ -385,7 +385,7 @@ function isHost(node: ReactTestInstance, name: string): boolean {
 }
 
 const { default: EditAgentScreen } = await import('../[id]');
-const { useAgent } = await import('@/lib/hooks/use-agents');
+const { useAgent } = await import('@/features/agents/runtime/use-agents');
 
 const AGENT_URL = '/agents/agent-1';
 

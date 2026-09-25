@@ -275,7 +275,7 @@ function appSocketListeners(): { names: string[]; filesScanned: number } {
     }
   };
 
-  walk(path.join(appRoot, 'lib'));
+  walk(path.join(appRoot, 'src'));
   walk(path.join(appRoot, 'app'));
 
   for (const transport of ['connect', 'disconnect', 'connect_error']) names.delete(transport);

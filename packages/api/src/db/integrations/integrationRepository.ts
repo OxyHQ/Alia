@@ -36,7 +36,7 @@ import { integrations, type IntegrationStatus } from '../schema/integrations';
 /**
  * An integration WITHOUT its tokens — the shape every response serves.
  *
- * `_id` is carried alongside `id` because `packages/app/lib/hooks/use-integrations.ts:14`
+ * `_id` is carried alongside `id` because `packages/app/src/features/connections/runtime/use-integrations.ts:14`
  * reads it and a shipped mobile build cannot be recalled. What retires it is a
  * mobile release that reads `id`.
  */

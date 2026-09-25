@@ -6,8 +6,8 @@ import {
   SubscribeHeader,
   type BillingPeriod,
   type PricingTier,
-} from '@/components/subscribe-shared';
-import { useCheckoutConfirmation } from '@/lib/hooks/billing/use-checkout-confirmation';
+} from '@/features/billing/ui/subscribe-shared';
+import { useCheckoutConfirmation } from '@/features/billing/runtime/use-checkout-confirmation';
 import {
   useCancelSubscription,
   useChangePlan,
@@ -15,8 +15,8 @@ import {
   useSubscription,
   useSubscriptionPlans,
   type SubscriptionPlan,
-} from '@/lib/hooks/use-billing';
-import { useTranslation } from '@/lib/hooks/use-translation';
+} from '@/features/billing/runtime/use-billing';
+import { useTranslation } from '@/shared/i18n/use-translation';
 import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { RiErrorWarningLine } from '@oxy.so/bloom/icons/RiErrorWarningLine';
 import { Loading } from '@oxy.so/bloom/loading';
@@ -28,7 +28,7 @@ import * as Linking from 'expo-linking';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { useWindowDimensions, View } from 'react-native';
-import { errorMessage as getErrorMessage } from '../../lib/errors/error-utils';
+import { errorMessage as getErrorMessage } from '@/shared/api/error-utils';
 function buildTiers(
   apiPlans: SubscriptionPlan[],
   t: (key: string) => string,

@@ -38,7 +38,7 @@
  * Nothing in the request path consumes a `mode:*` id, so what a node stores is
  * the `profile:*` identifier the catalogue publishes, or nothing at all for
  * Automatic. The rule is stated once, at length, in
- * `packages/app/lib/hooks/use-product-modes.ts`.
+ * `packages/app/src/features/chat/runtime/use-product-modes.ts`.
  */
 
 import { useQuery } from '@tanstack/react-query';

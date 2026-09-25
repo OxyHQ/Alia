@@ -68,7 +68,7 @@ export interface SseFrameReader {
 /**
  * Reassemble an SSE byte stream into whole frames.
  *
- * A port of `packages/app/lib/chat/sse-frame-reader.ts`, and the reason it is
+ * A port of `packages/app/src/features/chat/runtime/sse-frame-reader.ts`, and the reason it is
  * an object rather than two variables in a read loop is the bug that module
  * records: a frame is `event: X\ndata: {…}\n\n` and a chunk boundary falls
  * wherever the network puts it, so the event name and the payload must both

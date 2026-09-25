@@ -1,8 +1,8 @@
-import { Composer } from '@/components/chat/composer/composer';
-import { useAliaComposer } from '@/components/chat/composer/use-alia-composer';
-import { errorMessage as getErrorMessage } from '@/lib/errors/error-utils';
-import { useGenerateAgent } from '@/lib/hooks/agents/use-generate-agent';
-import { useTranslation } from '@/lib/hooks/use-translation';
+import { Composer } from '@/features/chat/ui/composer/composer';
+import { useAliaComposer } from '@/features/chat/ui/composer/use-alia-composer';
+import { errorMessage as getErrorMessage } from '@/shared/api/error-utils';
+import { useGenerateAgent } from '@/features/agents/runtime/use-generate-agent';
+import { useTranslation } from '@/shared/i18n/use-translation';
 import type { BloomIconComponent } from '@oxy.so/bloom/icons';
 import { RiBarChartHorizontalLine } from '@oxy.so/bloom/icons/RiBarChartHorizontalLine';
 import { RiCheckLine } from '@oxy.so/bloom/icons/RiCheckLine';

@@ -12,8 +12,8 @@
  * `memory.memories[…]`, `memory.settings.autoSaveEnabled`,
  * `memory.preferences.language`; the profile is projected into that nested
  * shape rather than exposing flat columns, because `res.json(memory)` IS the
- * wire contract for a shipped mobile build (`packages/app/lib/stores/
- * user-data-store.ts`).
+ * wire contract for a shipped mobile build (`packages/app/src/features/memory/
+ * runtime/user-data-store.ts`).
  *
  * ## `_id` on the profile AND on every entry
  *

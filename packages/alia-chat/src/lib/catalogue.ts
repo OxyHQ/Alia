@@ -25,7 +25,7 @@
  *
  * ## The parsing rules are the app's, because the contract is the same one
  *
- * Two rules, both about not inventing (see `packages/app/lib/hooks/use-catalogue.ts`,
+ * Two rules, both about not inventing (see `packages/app/src/features/chat/runtime/use-catalogue.ts`,
  * which states them at length):
  *
  *  - An entry whose `object` is neither known value is DROPPED. Defaulting it to

@@ -1,5 +1,5 @@
-import { AliaLogo } from '@/components/ui/alia-logo';
-import { useTranslation } from '@/lib/hooks/use-translation';
+import { AliaLogo } from '@/shared/ui/alia-logo';
+import { useTranslation } from '@/shared/i18n/use-translation';
 import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { RiAndroidFill } from '@oxy.so/bloom/icons/RiAndroidFill';
 import { RiAppleFill } from '@oxy.so/bloom/icons/RiAppleFill';

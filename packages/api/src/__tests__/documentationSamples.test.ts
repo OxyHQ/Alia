@@ -341,7 +341,7 @@ interface TranslationString {
 
 function translationStrings(): TranslationString[] {
   const out: TranslationString[] = [];
-  for (const file of tracked('packages/app/lib/i18n/locales/*.json')) {
+  for (const file of tracked('packages/app/src/shared/i18n/locales/*.json')) {
     const walk = (value: unknown, key: string): void => {
       if (typeof value === 'string') {
         out.push({ file, key, value });

@@ -62,7 +62,7 @@ export interface MessageRow {
  * ## The field the client reads is `id`, and it is the CLIENT's id
  *
  * Mongoose stored the AI SDK's client-assigned id in a field literally called
- * `id`, beside `_id`. `packages/app/lib/hooks/use-conversations.ts` declares
+ * `id`, beside `_id`. `packages/app/src/features/chat/runtime/use-conversations.ts` declares
  * `Message.id` and `components/chat-interface.tsx:605` puts that value in the
  * vote URL, so `id` on the wire has to keep meaning the client's id — not the
  * row's primary key, which is what a naive `_id -> id` rename would have made

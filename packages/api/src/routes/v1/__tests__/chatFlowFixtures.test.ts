@@ -759,7 +759,7 @@ describe('fixture: an explicit agent id is fail-closed at the streaming route', 
 // ===========================================================================
 
 /**
- * The flow `packages/app/lib/hooks/use-streaming-chat.ts` drives: a signed-in
+ * The flow `packages/app/src/features/chat/runtime/use-streaming-chat.ts` drives: a signed-in
  * user, `stream: true`, a conversation id, server-side tools.
  *
  * Ownership: `v1-chat-completions-post` is owned by ALIA and "never removed" —
@@ -937,7 +937,7 @@ describe('fixture: app chat flow — streaming, direct user session, one server 
     const res = recordingRes();
     await run(req, res);
 
-    // `packages/app/lib/hooks/use-streaming-chat.ts:543` parses
+    // `packages/app/src/features/chat/runtime/use-streaming-chat.ts:543` parses
     // `alia.approval_request` as an SSE case, but the only emitter in the
     // package is Socket.IO (`src/socket.ts:215`). Recording that here means a
     // future change that starts emitting it over SSE is a deliberate edit to

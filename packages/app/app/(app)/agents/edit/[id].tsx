@@ -1,9 +1,9 @@
-import { AgentEditor } from '@/components/agents/edit/agent-editor';
+import { AgentEditor } from '@/features/agents/ui/edit/agent-editor';
 import {
   AgentEditorLoadFailed,
   AgentEditorLoading,
-} from '@/components/agents/edit/agent-editor-load-states';
-import { useAgent } from '@/lib/hooks/use-agents';
+} from '@/features/agents/ui/edit/agent-editor-load-states';
+import { useAgent } from '@/features/agents/runtime/use-agents';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
 /**
@@ -29,7 +29,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
  *
  * ## And a save is now an EDIT's consequence
  *
- * `editDraft` and `editIdentity` (`lib/hooks/agents/use-agent-autosave.ts`)
+ * `editDraft` and `editIdentity` (`src/features/agents/runtime/use-agent-autosave.ts`)
  * are the only ways the draft changes, and each schedules its own write.
  * Nothing observes state in order to write, so no amount of re-rendering can
  * produce a request — which is the property

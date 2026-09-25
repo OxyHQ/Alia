@@ -37,7 +37,7 @@
  * A routing profile is shown with the words of the product mode that selects it
  * — Fast, Balanced, Maximum quality — falling back to the catalogue's own
  * display name for a profile no mode names. That rule is stated once, at
- * length, in `packages/app/lib/hooks/use-product-modes.ts`; {@link presentation}
+ * length, in `packages/app/src/features/chat/runtime/use-product-modes.ts`; {@link presentation}
  * below is the same rule, and the reason it is a copy rather than an import is
  * that this service deploys separately and depends on no unpublished workspace
  * package.
