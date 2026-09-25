@@ -98,12 +98,7 @@ export async function runNonStreaming(params: NonStreamingParams): Promise<void>
 
   const assistantResponse = result.text || '';
 
-  // The calls that ran. One the SDK refused went back to the model and is
-  // neither saved nor returned — the same rule as the streaming path.
-  const calls = result.toolCalls.filter((tc) => !isInvalidToolCall(tc));
-
-  // Build tool invocations from generateText result
-  const nonStreamToolInvocations = calls.map((tc) => {
+  const nonStreamToolInvocations = result.toolCalls.filter((tc) => !isInvalidToolCall(tc)).map((tc) => {
     const toolResult = result.toolResults.find((tr) => tr.toolCallId === tc.toolCallId);
     return {
       toolCallId: tc.toolCallId,
@@ -142,17 +137,11 @@ export async function runNonStreaming(params: NonStreamingParams): Promise<void>
   runPostChatHooks(lifecycleCtx, assistantResponse, observation, null);
 
   // Build tool_calls array if there were any tool calls
-  const toolCalls = calls.map((tc) => {
-    const originalToolName = toolNameMapping.get(tc.toolName) || tc.toolName;
-    return {
-      id: tc.toolCallId,
-      type: 'function' as const,
-      function: {
-        name: originalToolName,
-        arguments: JSON.stringify(tc.input ?? {})
-      }
-    };
-  });
+  const toolCalls = nonStreamToolInvocations.map((call) => ({
+    id: call.toolCallId,
+    type: 'function' as const,
+    function: { name: call.toolName, arguments: JSON.stringify(call.args ?? {}) },
+  }));
 
   // Return OpenAI-compatible non-streaming response
   res.json(buildCompletionResponse({

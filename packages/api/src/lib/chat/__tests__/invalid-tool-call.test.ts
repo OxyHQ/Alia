@@ -13,7 +13,6 @@
  */
 
 import { readdirSync, readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
 import { describe, expect, it, vi } from 'vitest';
 import { FIXED_FAMILY_TOOLS } from '../../../domain/capability-grants.js';
 
@@ -56,12 +55,12 @@ describe('no prompt file offers a tool that a grant decides', () => {
     // it names is one an ungranted agent believes it has, offers, and then
     // cannot call. Guidance for such a tool belongs in its description, which
     // reaches the model only when the tool does.
-    const dir = fileURLToPath(new URL('../../../../prompts/', import.meta.url));
+    const dir = new URL('../../../../prompts/', import.meta.url);
     const gated = Object.values(FIXED_FAMILY_TOOLS).flat();
     const named = readdirSync(dir)
       .filter((file) => file.endsWith('.md'))
       .flatMap((file) => {
-        const text = readFileSync(`${dir}${file}`, 'utf8');
+        const text = readFileSync(new URL(file, dir), 'utf8');
         return gated.filter((tool) => text.includes(`\`${tool}\``)).map((tool) => `${file}: ${tool}`);
       });
 

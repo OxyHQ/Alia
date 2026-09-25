@@ -22,6 +22,7 @@ import { log } from '../logger.js';
 import { writeTextChunk, makeChunk } from '../streaming-helpers.js';
 import type { ResolvedModel } from '../chat-core.js';
 import type { ToolInvocation } from './stream-runner.js';
+import { toolRoundTrip } from './tool-calls.js';
 
 export interface TextToolFallbackParams {
   assistantResponse: string;
@@ -77,8 +78,7 @@ export async function runTextToolFallback(params: TextToolFallbackParams): Promi
       try {
         const followUpMessages = [
           ...convertedMessages,
-          { role: 'assistant', content: '', toolCalls: [{ toolCallId, toolName, args }] },
-          { role: 'tool', content: [{ type: 'tool-result', toolCallId, toolName, output: { type: 'text', value: typeof toolOutput === 'string' ? toolOutput : JSON.stringify(toolOutput) } }] },
+          ...toolRoundTrip({ toolCallId, toolName, args, result: toolOutput }),
         ];
         const followUpResult = streamText({ ...baseConfig, messages: followUpMessages, tools: undefined, stopWhen: undefined, onFinish: undefined });
 
