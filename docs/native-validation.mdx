@@ -19,9 +19,10 @@ first pass (§1–§5) is one emulator, signed out. A second pass on a physical
 Pixel 8a ([§7](#7-second-pass-pixel-8a)) fixed and checked the keyboard defect
 from §4.4, signed in. A third, visual pass on the same Pixel 8a
 ([§8](#8-third-pass-visual-qa-on-the-pixel-8a)) went through insets, the
-keyboard, menus and sheets in both themes and at the largest font; **its first
-finding is a crash at launch in Bloom that is not fixed yet (§8.2)**. There is
-no iOS here at all.
+keyboard, menus and sheets in both themes and at the largest font; its first
+finding was a crash at launch in Bloom, fixed in Bloom 4.24.1 and re-checked
+with the published package, with the rest of §8.2, in
+[§8.7](#87-final-pass-bloom-4250). There is no iOS here at all.
 
 ## 1. Device and build
 
@@ -325,10 +326,11 @@ where a pixel mattered.
 | Signed out | Welcome correct in both themes. The device's Oxy session signs Alia back in within seconds of Sign out, so nothing further signed out could be held. |
 | Largest font | Welcome and transcript reflow. Sidebar rows and the composer's model chip clip their text vertically (Bloom, §8.2). |
 
-### 8.2 Open in Bloom (reported, not patched here)
+### 8.2 Found in Bloom (fixed in 4.24–4.25, see §8.7)
 
 Each one was seen on the device and traced to the named file of the installed
-`@oxy.so/bloom` 4.23.0; none is worked around in Alia.
+`@oxy.so/bloom` 4.23.0; none is worked around in Alia. Bloom released the
+fixes in 4.24.0, 4.24.1 and 4.25.0; §8.7 is the check against 4.25.0.
 
 1. **Crash at launch for any account with a chat (P0).** `sidebar/Sidebar.tsx`
    (`contentMorph`, lines 257–261) reads `tree` inside a `useAnimatedStyle`
@@ -338,10 +340,8 @@ Each one was seen on the device and traced to the named file of the installed
    about three seconds after `Running "main"`, on every launch. The serialized
    path (closure → tree → folders[] → items[] → `actions` element → props →
    conversation → `createdAt`) was read off the symbolicated stack. Capturing
-   `const treeShown = Boolean(tree)` outside the worklet ends it: the rest of
-   this pass ran on a build that swapped in that one-line change through a
-   local Metro redirect, which is **not committed**. Until Bloom ships it, a
-   release built from this branch crashes for every signed-in user with history.
+   `const treeShown = Boolean(tree)` outside the worklet ends it, which is the
+   fix Bloom 4.24.1 shipped.
 2. **Back with the navigation drawer open exits the app.** `AiChatShell`
    registers a hardware-back handler for the panel only
    (`ai-chat/use-panel-interaction.ts`), not for the drawer.
@@ -399,9 +399,8 @@ out beyond the welcome (§8.1); tablets and three-button navigation.
 
 ### 8.6 Follow-up: dictation, the agent page's Chat, dialogs' keyboard
 
-Same phone, same day, on `fix/608-device-qa` merged forward to `d3a60b33`.
-Built as in §8, with the Bloom sidebar fix of §8.2 swapped in locally for the
-test only (not committed; Bloom's release carries it).
+Same phone, same day, on `fix/608-device-qa` merged forward to `d3a60b33`,
+built as in §8.
 
 **Dictation.** Asked at run time (a probe build, not committed), the phone has
 exactly one recognition service, Android System Intelligence
@@ -466,4 +465,48 @@ and New project all open with the keyboard. Gate:
 Also seen: after closing a sheet from a thread's header, the composer takes
 focus back and the keyboard stays up while the navigation drawer is opened over
 it.
+
+### 8.7 Final pass: Bloom 4.25.0
+
+`fix/608-device-qa` merged forward to `feat/608-integration` with Bloom 4.25.0
+(`dd8e054f`); `node_modules/@oxy.so/bloom/package.json` read 4.25.0 and the
+release bundle's source map resolves the sidebar to the published
+`bloom/src/sidebar/Sidebar.tsx` — no local patch, no Metro redirect. Clean
+`expo prebuild`, `assembleRelease` for `arm64-v8a`, `adb install -r`; the
+phone's data was never cleared (Alia, Mention and Commons share a user id, and
+clearing one clears the others' identity). Screenshots named below are in the
+session's evidence, not in the repository.
+
+| Check | Result | Screenshot |
+| --- | --- | --- |
+| Cold start with history, 5× (`am force-stop`, `am start -W`) | **Pass**: no `FATAL EXCEPTION` in logcat, process alive 12 s after each start; `TotalTime` 925–933 ms | `200-cold5` |
+| Back with the drawer open (§8.2 #2) | **Pass**: closes the drawer, Alia stays in front | `201-drawer-hist`, `202-back-drawer` |
+| Long model name in the composer (#4) | **Pass**: the chip truncates ("DeepSee…"), + and voice stay on the card | `200-cold5`, `203-picker` |
+| Effort popover (#5) | **Pass**: opens above the model row, clear of the gesture bar | `204-effort` |
+| Code block sideways scroll under the turn menu (#3) | **Pass**: scrolls to the line's end; the long-press menu still opens | `209-code-scroll`, `210-longpress` |
+| Thread follow and jump button (#6) | **Pass**, with a note: while the answer is thinking the thread holds the question and the "Thinking" line above the composer; when a long answer lands in one piece, the thread shows its start under the question and the jump button appears; the button goes to the end | `217-follow-*`, `218-follow-*`, `206-stream-mid`, `208-jumped` |
+| Composer size for an edit (#7) | **Pass**: the whole question fills the prompt when editing starts, and Cancel brings it back to one line | `220-edit-autosize`, `221-edit-cancel` |
+| Bottom dialog with the keyboard (#8) | **Pass**: Rename's buttons sit on the keyboard, no extra gap; the keyboard opens by itself (§8.6) | `223-rename-kbd-gap` |
+| Settings field behind the keyboard (#9) | **Pass**: Personalization's Interests field scrolls above the keyboard | `224-settings-field-kbd` |
+| Largest font sidebar rows (#10) | **Pass**: rows no longer clip | `225-font2-drawer` |
+| Drawer opened over the keyboard | **Pass**: the keyboard goes down | `222-drawer-kbd` |
+| Light theme: drawer, account menu, composer on the keyboard, add menu, chat menu, right panel | **Pass** | `227`–`232` |
+| Dark theme: welcome, drawer, picker, thread | **Pass** | `200`–`221`, `234` |
+
+**Still open.**
+
+- At font 2.0 the composer's "Chat" mode pill clips its label vertically
+  (Bloom `composer-panel/PermissionMenu.tsx`, the 32 px trigger); the model
+  chip beside it no longer does. `226-font2-composer`.
+- Once, after the other QA session had used the phone, a send answered "Please
+  sign in to use this feature" while Alia still showed the account; the history
+  was empty until Alia was restarted, after which the session was back.
+  Not reproduced; worth a look at how Alia refreshes a token another Oxy app
+  on the same device has rotated. `213-failure-bottom`, `214-drawer-auth`,
+  `216-restart-drawer`.
+- Not covered by this pass: iOS; signed-out screens (they need the shared
+  device session cleared, which is not done on this phone); voice calls (paid
+  plan); dictation on a phone with Google's speech services (§8.6).
+
+The test chat this pass created was deleted from the app afterwards.
 
