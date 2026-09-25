@@ -193,8 +193,12 @@ export function CommandPalette() {
         return;
       }
     };
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
+    // The capture phase, on the window: react-native-web's TextInput stops
+    // every keydown from bubbling, so a listener on the document never heard
+    // a shortcut typed in the composer (or in the palette's own field) — the
+    // one place a person's hands already are.
+    window.addEventListener("keydown", handleKeyDown, true);
+    return () => window.removeEventListener("keydown", handleKeyDown, true);
   }, [runCommand, router, toggleShortcutsDialog]);
 
   if (Platform.OS !== "web") return null;
