@@ -21,7 +21,7 @@
  * used inline so the timeout suite's module mocks keep intercepting them.
  */
 import type { Request, Response } from 'express';
-import { streamText, type ToolSet } from 'ai';
+import { streamText, type ModelMessage, type ToolSet } from 'ai';
 import type { ResolvedModel } from '../chat-core.js';
 import { getDb } from '../../db/index.js';
 import { updateConversationTitle } from '../../db/chat/conversationRepository.js';
@@ -89,7 +89,7 @@ export interface ProviderLoopParams {
   conversationId: string | undefined;
   /** The level, resolved once at the request boundary. */
   reasoningEffort: ReasoningEffort | null;
-  convertedMessages: unknown[];
+  convertedMessages: ModelMessage[];
   truncatedTools: ToolSet;
   toolNameMapping: Map<string, string>;
   /** Accumulator for delegate-to-agent replies; mutated in place by the stream runner. */

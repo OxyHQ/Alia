@@ -21,6 +21,7 @@ import { findUserMemory, type UserMemoryProfile } from '../db/memory/userMemoryR
 import { recordUsage } from '../middleware/api-key-rate-limit.js';
 import { log } from '../lib/logger.js';
 import { getSafeErrorMessage } from '../lib/errors/sanitize.js';
+import { isInvalidToolCall } from '../lib/chat/tool-calls.js';
 
 const router = Router();
 
@@ -191,13 +192,11 @@ router.post('/trigger', oxyServiceAuth, async (req, res) => {
       log.general.error({ err: error }, 'Error recording usage');
     }
 
-    // Collect tool call results
-    const toolCalls = result.steps?.flatMap((step: any) =>
-      (step.toolCalls || []).map((tc: any) => ({
-        tool: tc.toolName,
-        args: tc.args,
-      }))
-    ) || [];
+    const toolCalls = result.steps.flatMap((step) =>
+      step.toolCalls
+        .filter((tc) => !isInvalidToolCall(tc))
+        .map((tc) => ({ tool: tc.toolName, args: tc.input })),
+    );
 
     log.general.info({ event, appName, userId, toolCalls: toolCalls.length, responseTime }, 'Trigger completed');
 
