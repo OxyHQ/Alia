@@ -500,7 +500,13 @@ function useSidebarProps() {
       : []),
   ];
 
-  const secondaryItems: SidebarNavItem[] = [
+  /**
+   * The links under the history. Signed in they live in the account menu at the
+   * foot, so on a short screen the history keeps the room; a visitor has no
+   * history and no account menu, so they stay here as rows. Settings is a row
+   * either way.
+   */
+  const links: Array<{ key: string; label: string; icon: SidebarNavItem["icon"]; onPress: () => void }> = [
     ...(isAuthenticated
       ? [
           {
@@ -548,6 +554,10 @@ function useSidebarProps() {
         void Linking.openURL(TERMS_URL);
       },
     },
+  ];
+
+  const secondaryItems: SidebarNavItem[] = [
+    ...(isAuthenticated ? [] : links),
     {
       key: "settings",
       label: t("nav.settings"),
@@ -578,6 +588,7 @@ function useSidebarProps() {
                 label: t("sidebar.upgradeToPro"),
                 onPress: () => go("/(biglayout)/subscribe"),
               },
+              ...links.map(({ key, label, onPress }) => ({ key, label, onPress })),
             ]
           : undefined
       }
