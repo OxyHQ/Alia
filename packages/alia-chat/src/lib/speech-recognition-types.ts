@@ -54,6 +54,11 @@ export interface SpeechRecognitionOptions {
   /** BCP-47 tag, e.g. `es-ES`. */
   readonly lang: string;
   /**
+   * Android: the recognition service to use, by package, instead of the
+   * system's default. `chooseSpeechRecognizer` picks it.
+   */
+  readonly service?: string;
+  /**
    * Remove the device's own playback from what the microphone hears, where the
    * platform can (iOS voice processing). Voice mode listens while it speaks,
    * so without this it can hear itself.
@@ -72,4 +77,32 @@ export interface SpeechRecognitionSession {
 export function clampLevel(level: number): number {
   if (!Number.isFinite(level)) return 0;
   return Math.min(1, Math.max(0, level));
+}
+
+/**
+ * What to start a session with, decided before the first one opens.
+ *
+ * `silent` is set when the device has recognition services and every one of
+ * them, asked, named no language at all. A `language-not-supported` from such
+ * a device is not about the language: nothing on it recognizes speech (a Pixel
+ * without Google's speech services, whose remaining service has no language
+ * pack). Where nobody could be asked — the web, iOS — it is `false` and a
+ * language error stays one.
+ */
+export type SpeechRecognizerChoice =
+  | { readonly lang: string; readonly service?: string; readonly silent: boolean }
+  | { readonly failure: SpeechRecognitionFailure };
+
+/**
+ * The tag in `offered` that recognizes `lang`: the same tag (`en-US`, however
+ * the service spells it — `en_US`, `en-us`), else another region of the same
+ * language (`es-US` for `es-ES`), else `null`.
+ */
+export function matchSpeechLocale(lang: string, offered: readonly string[]): string | null {
+  const norm = (tag: string) => tag.replace(/_/g, '-').toLowerCase();
+  const wanted = norm(lang);
+  const exact = offered.find((tag) => norm(tag) === wanted);
+  if (exact !== undefined) return exact;
+  const language = wanted.split('-')[0];
+  return offered.find((tag) => norm(tag).split('-')[0] === language) ?? null;
 }

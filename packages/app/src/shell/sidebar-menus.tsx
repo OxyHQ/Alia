@@ -20,6 +20,7 @@ import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
 import { RiMoreFill } from '@oxy.so/bloom/icons/RiMoreFill';
 import { Loading } from '@oxy.so/bloom/loading';
 import { TextFieldInput } from '@oxy.so/bloom/text-field';
+import { useKeyboardOnOpen } from '@/shared/platform/use-keyboard-on-open';
 import React from 'react';
 import { View } from 'react-native';
 
@@ -268,6 +269,8 @@ export function FolderNameDialog({
     if (state) setName(state.folder?.name ?? '');
   }, [state]);
 
+  const folderInput = useKeyboardOnOpen(state !== null);
+
   const trimmed = name.trim();
   const unchanged = state?.folder !== undefined && trimmed === state.folder.name.trim();
   const submit = () => {
@@ -298,6 +301,7 @@ export function FolderNameDialog({
         onSubmitEditing={submit}
         selectTextOnFocus
         autoFocus
+        inputRef={folderInput}
       />
     </Dialog>
   );
@@ -319,6 +323,8 @@ export function RenameConversationDialog({
   React.useEffect(() => {
     if (conversation) setTitle(conversation.title ?? '');
   }, [conversation]);
+
+  const titleInput = useKeyboardOnOpen(conversation !== null);
 
   const trimmed = title.trim();
   const unchanged = trimmed === (conversation?.title ?? '').trim();
@@ -346,6 +352,7 @@ export function RenameConversationDialog({
         onSubmitEditing={submit}
         selectTextOnFocus
         autoFocus
+        inputRef={titleInput}
       />
     </Dialog>
   );

@@ -21,14 +21,6 @@ async function createThread(agentId: string, title: string): Promise<string> {
   return String(response.data.thread.id);
 }
 
-/** A new thread with the agent. Resolves to its id. */
-export function useCreateAgentThread() {
-  return useMutation({
-    mutationFn: ({ agentId, title }: { agentId: string; title: string }) =>
-      createThread(agentId, title),
-  });
-}
-
 /**
  * Priced work, started through a GOAL in a thread of its own rather than a
  * hire.

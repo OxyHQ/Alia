@@ -39,6 +39,7 @@ vi.mock('@oxy.so/services', () => ({
 vi.mock('../../src/lib/speech-recognition', () => ({
   isSpeechRecognitionAvailable: () => fx.available,
   requestSpeechRecognitionPermission: async () => fx.refusal,
+  chooseSpeechRecognizer: async (lang: string) => ({ lang, silent: false }),
   startSpeechRecognition: (options: SpeechRecognitionOptions, handlers: SpeechRecognitionHandlers) => {
     const session: FakeSession = {
       options,

@@ -1,11 +1,13 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { create } from 'zustand';
 import {
+  chooseSpeechRecognizer,
   isSpeechRecognitionAvailable,
   requestSpeechRecognitionPermission,
   startSpeechRecognition,
 } from '../lib/speech-recognition';
 import type { SpeechRecognitionSession } from '../lib/speech-recognition-types';
+import type { SpeechRecognizerChoice } from '../lib/speech-recognition-types';
 import { speechFailureCode, VOICE_ERROR_MESSAGES, type VoiceErrorCode } from '../lib/speech-messages';
 import { defaultSpeechLanguage } from '../lib/speech-language';
 
@@ -78,6 +80,8 @@ export function useSpeechToText(options: UseSTTOptions = {}) {
   /** Text from the live session. */
   const currentTextRef = useRef('');
   const restartsRef = useRef(0);
+  /** The recognizer and tag this dictation uses, chosen once when it starts. */
+  const recognizerRef = useRef<{ lang: string; service?: string; silent: boolean }>({ lang, silent: false });
   const endWaitersRef = useRef<Array<() => void>>([]);
   const lastMeteringRef = useRef(0);
   const mountedRef = useRef(true);
@@ -107,8 +111,9 @@ export function useSpeechToText(options: UseSTTOptions = {}) {
   const openSession = useCallback(() => {
     currentTextRef.current = '';
     let failed = false;
+    const recognizer = recognizerRef.current;
     sessionRef.current = startSpeechRecognition(
-      { lang },
+      { lang: recognizer.lang, service: recognizer.service },
       {
         onResult: ({ transcript }) => {
           currentTextRef.current = transcript;
@@ -124,7 +129,10 @@ export function useSpeechToText(options: UseSTTOptions = {}) {
           const code = speechFailureCode(failure);
           if (code === null) return;
           failed = true;
-          report(code);
+          // Every recognizer on the device named no language, and the
+          // default refused this one: it is the device that cannot recognize
+          // speech, not the language that is wrong.
+          report(code === 'speech-language' && recognizer.silent ? 'speech-unsupported' : code);
         },
         onEnd: () => {
           sessionRef.current = null;
@@ -146,7 +154,7 @@ export function useSpeechToText(options: UseSTTOptions = {}) {
         },
       },
     );
-  }, [lang, report, setPhase]);
+  }, [report, setPhase]);
 
   const startRecording = useCallback(async () => {
     if (stateRef.current !== 'idle') return;
@@ -167,11 +175,20 @@ export function useSpeechToText(options: UseSTTOptions = {}) {
       return;
     }
 
+    const choice: SpeechRecognizerChoice = await chooseSpeechRecognizer(lang);
+    if ((stateRef.current as STTState) !== 'recording') return; // cancelled while choosing
+    if ('failure' in choice) {
+      report(speechFailureCode(choice.failure));
+      setPhase('idle');
+      return;
+    }
+    recognizerRef.current = choice;
+
     earlierTextRef.current = '';
     currentTextRef.current = '';
     restartsRef.current = 0;
     openSession();
-  }, [openSession, report, setPhase]);
+  }, [lang, openSession, report, setPhase]);
 
   const waitForEnd = useCallback((): Promise<void> => {
     if (sessionRef.current === null) return Promise.resolve();

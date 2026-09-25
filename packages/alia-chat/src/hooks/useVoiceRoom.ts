@@ -33,6 +33,7 @@ import { errorMessage } from '../lib/utils';
 import type { RoomState, AgentState, VoiceMessage } from '../types';
 import {
   isSpeechRecognitionAvailable,
+  chooseSpeechRecognizer,
   requestSpeechRecognitionPermission,
   startSpeechRecognition,
 } from '../lib/speech-recognition';
@@ -162,6 +163,8 @@ export function useVoiceRoom(options: UseVoiceRoomOptions = {}) {
   const mountedRef = useRef(true);
   const messagesRef = useRef<VoiceMessage[]>([]);
   const sessionRef = useRef<SpeechRecognitionSession | null>(null);
+  /** The recognizer and tag the call listens with, chosen when it connects. */
+  const recognizerRef = useRef<{ lang: string; service?: string }>({ lang: '' });
   const heardRef = useRef('');
   const committingRef = useRef(false);
   const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -383,7 +386,7 @@ export function useVoiceRoom(options: UseVoiceRoomOptions = {}) {
     sessionStartedAtRef.current = Date.now();
 
     sessionRef.current = startSpeechRecognition(
-      { lang: configRef.current.lang, echoCancellation: true },
+      { ...recognizerRef.current, echoCancellation: true },
       {
         onResult: ({ transcript }) => {
           if (phaseRef.current === 'off' || committingRef.current) return;
@@ -579,6 +582,17 @@ export function useVoiceRoom(options: UseVoiceRoomOptions = {}) {
       setRoomState('error');
       return;
     }
+
+    // The recognizer that knows the call's language, as dictation picks it.
+    const choice = await chooseSpeechRecognizer(configRef.current.lang);
+    if (!mountedRef.current) return;
+    if ('failure' in choice) {
+      const code = speechFailureCode(choice.failure) ?? 'speech-language';
+      setCallFailure({ code, message: VOICE_ERROR_MESSAGES[code] });
+      setRoomState('error');
+      return;
+    }
+    recognizerRef.current = { lang: choice.lang, service: choice.service };
 
     rapidEndsRef.current = 0;
     setRoomState('connected');
