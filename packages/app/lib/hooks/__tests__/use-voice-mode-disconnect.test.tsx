@@ -31,7 +31,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const room = vi.hoisted(() => ({
   roomState: 'disconnected' as 'disconnected' | 'connecting' | 'connected' | 'error',
   error: null as string | null,
+  errorCode: null as string | null,
   turnError: null as string | null,
+  turnErrorCode: null as string | null,
   disconnectCalls: 0,
   connectCalls: 0,
   sendTurn: null as null | ((turn: {
@@ -51,7 +53,9 @@ vi.mock('@/lib/hooks/use-voice-room', () => ({
       roomState: room.roomState,
       agentState: 'idle',
       error: room.error,
+      errorCode: room.errorCode,
       turnError: room.turnError,
+      turnErrorCode: room.turnErrorCode,
       messages: [],
       isMuted: false,
       isConnected: room.roomState === 'connected',
@@ -70,6 +74,12 @@ vi.mock('@alia.onl/sdk/voice', () => ({
 
 vi.mock('@oxy.so/bloom/toast', () => ({ toast: toasts }));
 
+// A marker instead of a catalogue: what reaches the toast must be a KEY that
+// went through `t`, never a sentence written in the hook.
+vi.mock('@/lib/hooks/use-translation', () => ({
+  useTranslation: () => ({ t: (key: string) => `t:${key}` }),
+}));
+
 import { useVoiceMode } from '@/lib/hooks/use-voice-mode';
 
 type Harness = ReturnType<typeof useVoiceMode>;
@@ -79,21 +89,29 @@ const chat = {
   stopGeneration: vi.fn(),
 };
 
+/** What the conversation screen hands the hook besides the chat: whose call, and whether it is on show. */
+interface Scope {
+  owner: string;
+  isFocused: boolean;
+}
+
 /** Mounts the hook over a conversation with no messages at all — the case the old guard missed. */
-function mountFromEmptyChat() {
+function mountFromEmptyChat(initial: Scope = { owner: 'user-a:conv-1', isFocused: true }) {
   let api: Harness | null = null;
+  let scope = initial;
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 
-  function Probe() {
-    api = useVoiceMode({ sendMessage: chat.sendMessage, stopGeneration: chat.stopGeneration });
+  function Probe(props: Scope) {
+    api = useVoiceMode({ sendMessage: chat.sendMessage, stopGeneration: chat.stopGeneration, ...props });
     return null;
   }
 
+  const tree = () =>
+    React.createElement(QueryClientProvider, { client }, React.createElement(Probe, scope));
+
   let renderer: ReturnType<typeof create>;
   act(() => {
-    renderer = create(
-      React.createElement(QueryClientProvider, { client }, React.createElement(Probe)),
-    );
+    renderer = create(tree());
   });
 
   return {
@@ -104,9 +122,15 @@ function mountFromEmptyChat() {
     /** Move the room and let the effects that watch it run. */
     setRoomState(next: typeof room.roomState) {
       room.roomState = next;
-      act(() => { renderer.update(
-        React.createElement(QueryClientProvider, { client }, React.createElement(Probe)),
-      ); });
+      act(() => { renderer.update(tree()); });
+    },
+    /** What the screen around the hook changed: its focus, its conversation, its account. */
+    setScope(next: Partial<Scope>) {
+      scope = { ...scope, ...next };
+      act(() => { renderer.update(tree()); });
+    },
+    unmount() {
+      act(() => { renderer.unmount(); });
     },
   };
 }
@@ -114,7 +138,9 @@ function mountFromEmptyChat() {
 beforeEach(() => {
   room.roomState = 'disconnected';
   room.error = null;
+  room.errorCode = null;
   room.turnError = null;
+  room.turnErrorCode = null;
   chat.sendMessage.mockReset();
   chat.sendMessage.mockResolvedValue(true);
   chat.stopGeneration.mockReset();
@@ -209,9 +235,108 @@ describe('useVoiceMode — a call speaks through the conversation', () => {
     act(() => { harness.api.activateVoice(); });
     harness.setRoomState('connected');
     room.turnError = 'The answer could not be played aloud';
+    room.turnErrorCode = 'not-played';
     harness.setRoomState('connected');
 
-    expect(toasts.error).toHaveBeenCalledWith('The answer could not be played aloud');
+    expect(toasts.error).toHaveBeenCalledWith('t:voice.errors.not-played');
     expect(harness.api.isVoiceActive).toBe(true);
+  });
+});
+
+describe('useVoiceMode — what the person is told, in their language', () => {
+  it('says why the call could not start with the translated reason', () => {
+    const harness = mountFromEmptyChat();
+    act(() => { harness.api.activateVoice(); });
+    room.error = 'Microphone permission required';
+    room.errorCode = 'microphone-denied';
+    harness.setRoomState('error');
+
+    expect(toasts.error).toHaveBeenCalledWith('t:voice.errors.microphone-denied');
+    expect(harness.api.isVoiceActive).toBe(false);
+  });
+
+  it('says the connection failed, translated, when the room fails without a reason', () => {
+    const harness = mountFromEmptyChat();
+    act(() => { harness.api.activateVoice(); });
+    harness.setRoomState('error');
+
+    expect(toasts.error).toHaveBeenCalledWith('t:voice.connectionFailed');
+    expect(harness.api.isVoiceActive).toBe(false);
+  });
+});
+
+/**
+ * A call belongs to one conversation of one account, on the screen showing it.
+ *
+ * The native stack keeps a screen mounted under the one pushed over it, so a
+ * call left running there would go on capturing the microphone behind a screen
+ * with no controls to end it — and a screen whose conversation changes in place
+ * would carry the call into a thread it was not started in. Each case below
+ * ends the call the way the person's own "end" does: the room is disconnected,
+ * which is what releases the recognizer and the microphone (the SDK's
+ * `disconnect`, pinned in `useVoiceRoom.test.tsx`).
+ */
+describe('useVoiceMode — navigation and account switches end the call', () => {
+  function liveCall() {
+    const harness = mountFromEmptyChat();
+    act(() => { harness.api.activateVoice(); });
+    harness.setRoomState('connected');
+    expect(harness.api.isVoiceActive).toBe(true);
+    return harness;
+  }
+
+  it('ends the call when another route covers its screen', () => {
+    const harness = liveCall();
+    harness.setScope({ isFocused: false });
+
+    expect(harness.api.isVoiceActive).toBe(false);
+    expect(room.disconnectCalls).toBe(1);
+  });
+
+  it('ends the call when the screen moves to another conversation', () => {
+    const harness = liveCall();
+    harness.setScope({ owner: 'user-a:conv-2' });
+
+    expect(harness.api.isVoiceActive).toBe(false);
+    expect(room.disconnectCalls).toBe(1);
+  });
+
+  it('ends the call when the account switches', () => {
+    const harness = liveCall();
+    harness.setScope({ owner: 'user-b:conv-1' });
+
+    expect(harness.api.isVoiceActive).toBe(false);
+    expect(room.disconnectCalls).toBe(1);
+  });
+
+  it('keeps a call whose screen, conversation and account are unchanged', () => {
+    const harness = liveCall();
+    harness.setScope({ owner: 'user-a:conv-1', isFocused: true });
+
+    expect(harness.api.isVoiceActive).toBe(true);
+    expect(room.disconnectCalls).toBe(0);
+  });
+
+  it('does not start a call from a screen that is not on show', () => {
+    const harness = mountFromEmptyChat({ owner: 'user-a:conv-1', isFocused: false });
+    act(() => { harness.api.activateVoice(); });
+
+    expect(harness.api.isVoiceActive).toBe(false);
+    expect(room.connectCalls).toBe(0);
+  });
+
+  it('a call started after coming back is the new owner\'s, and the next change still ends it', () => {
+    const harness = liveCall();
+    harness.setScope({ owner: 'user-a:conv-2' });
+    expect(harness.api.isVoiceActive).toBe(false);
+
+    room.roomState = 'disconnected';
+    act(() => { harness.api.activateVoice(); });
+    harness.setRoomState('connected');
+    expect(harness.api.isVoiceActive).toBe(true);
+
+    harness.setScope({ isFocused: false });
+    expect(harness.api.isVoiceActive).toBe(false);
+    expect(room.disconnectCalls).toBe(2);
   });
 });

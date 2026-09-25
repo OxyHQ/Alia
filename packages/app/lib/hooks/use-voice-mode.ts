@@ -9,6 +9,14 @@
  * like any other, and nothing has to be merged into or saved from the screen
  * when the call ends. The SDK's `useVoiceRoom` does the listening (on the
  * device) and the speaking (`/v1/audio/speech`, sentence by sentence).
+ *
+ * A call belongs to one conversation of one account, on the screen that shows
+ * it. When the screen stops being the one on show (another route pushed over
+ * it, the drawer's next chat), the conversation it speaks to changes, or the
+ * account does, the call ENDS: the microphone is released and the controls go
+ * with it. It never follows the person to another conversation, where its
+ * turns would land in a thread they did not start it in, and it never keeps
+ * listening behind a screen that has no controls to stop it.
  */
 
 import { useState, useCallback, useRef, useEffect } from 'react';
@@ -17,6 +25,8 @@ import { queryKeys } from '@/lib/hooks/query-keys';
 import { useVoiceRoom } from '@/lib/hooks/use-voice-room';
 import { useAudioLevelMonitor, useAudioLevels, type VoiceTurnSender } from '@alia.onl/sdk/voice';
 import { toast } from '@oxy.so/bloom/toast';
+import { useTranslation } from '@/lib/hooks/use-translation';
+import { voiceErrorText } from '@/lib/voice-error-text';
 import type { Attachment } from '@/lib/stores/global-store';
 import type { SendOptions } from '@/lib/hooks/use-streaming-chat';
 
@@ -33,11 +43,22 @@ interface UseVoiceModeOptions {
   /** Stops the turn streaming now; how talking over an answer cancels it. */
   stopGeneration: () => void;
   onDeactivate?: () => void;
+  /**
+   * Whose call it would be: the conversation and the account, as one key
+   * (`conversation-screen.tsx` joins the two ids). A call ends when it changes.
+   */
+  owner: string;
+  /** Whether the screen holding the call is the one on show. A call ends when it is not. */
+  isFocused: boolean;
 }
 
-export function useVoiceMode({ sendMessage, stopGeneration, onDeactivate }: UseVoiceModeOptions) {
+export function useVoiceMode({ sendMessage, stopGeneration, onDeactivate, owner, isFocused }: UseVoiceModeOptions) {
   const [isVoiceActive, setIsVoiceActive] = useState(false);
   const queryClient = useQueryClient();
+  const { t } = useTranslation();
+
+  /** The owner the live call was started for; `null` while there is none. */
+  const callOwnerRef = useRef<string | null>(null);
 
   /**
    * Whether this activation ever reached a room.
@@ -86,18 +107,29 @@ export function useVoiceMode({ sendMessage, stopGeneration, onDeactivate }: UseV
   useEffect(() => {
     if (!isVoiceActive) return;
     if (voiceRoom.error) {
-      if (voiceRoom.error !== TURN_NOT_SENT) toast.error(voiceRoom.error);
+      if (voiceRoom.error !== TURN_NOT_SENT) {
+        toast.error(voiceErrorText(t, voiceRoom.errorCode) ?? t('voice.connectionFailed'));
+      }
       deactivateVoice();
     } else if (voiceRoom.roomState === 'error') {
-      toast.error('Voice connection failed');
+      toast.error(t('voice.connectionFailed'));
       deactivateVoice();
     }
-  }, [voiceRoom.error, voiceRoom.roomState, isVoiceActive]);
+  }, [voiceRoom.error, voiceRoom.errorCode, voiceRoom.roomState, isVoiceActive]);
 
   // A turn that went wrong without ending the call: say so, keep listening.
   useEffect(() => {
-    if (isVoiceActive && voiceRoom.turnError) toast.error(voiceRoom.turnError);
-  }, [voiceRoom.turnError, isVoiceActive]);
+    if (!isVoiceActive) return;
+    const text = voiceErrorText(t, voiceRoom.turnErrorCode);
+    if (text !== null) toast.error(text);
+  }, [voiceRoom.turnErrorCode, isVoiceActive]);
+
+  // The call ends when its screen is no longer on show, or when the
+  // conversation or the account it was started for is no longer this one.
+  useEffect(() => {
+    if (!isVoiceActive) return;
+    if (!isFocused || owner !== callOwnerRef.current) deactivateVoice();
+  }, [isFocused, owner, isVoiceActive]);
 
   // Auto-deactivate on unexpected disconnection
   useEffect(() => {
@@ -112,17 +144,19 @@ export function useVoiceMode({ sendMessage, stopGeneration, onDeactivate }: UseV
   }, [voiceRoom.roomState, isVoiceActive]);
 
   const activateVoice = useCallback(() => {
-    if (isVoiceActive || voiceRoom.roomState === 'connecting') return;
+    if (isVoiceActive || voiceRoom.roomState === 'connecting' || !isFocused) return;
 
+    callOwnerRef.current = owner;
     hasConnectedRef.current = false;
     setIsVoiceActive(true);
     voiceRoom.connect();
-  }, [isVoiceActive, voiceRoom.roomState, voiceRoom]);
+  }, [isVoiceActive, voiceRoom.roomState, voiceRoom, isFocused, owner]);
 
   const deactivateVoice = useCallback(() => {
     voiceRoom.disconnect();
     setIsVoiceActive(false);
     hasConnectedRef.current = false;
+    callOwnerRef.current = null;
 
     // Every turn and every spoken answer was billed per call.
     queryClient.invalidateQueries({ queryKey: queryKeys.credits.info });

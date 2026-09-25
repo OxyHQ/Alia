@@ -36,7 +36,7 @@ import {
 } from '@oxy.so/bloom/ai-chat';
 import { ComposerPanelStatusTab } from '@oxy.so/bloom/composer-panel';
 import { useAuth } from '@oxy.so/services';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ScrollToBottomButton } from '@oxy.so/bloom/chat-screen';
 import { useAtBottom } from '@/lib/hooks/use-at-bottom';
 import { View } from 'react-native';
@@ -295,6 +295,21 @@ export const ChatPageContent = ({
     if (voice) voice.activateVoice();
     else onVoiceStart?.();
   }, [isAuthenticated, signIn, entitlements, creditsInfo, t, router, voice, onVoiceStart]);
+  /** The call bar's words, in the app's language. */
+  const voiceControlLabels = useMemo(
+    () => ({
+      connecting: t('voice.controls.connecting'),
+      connected: t('voice.controls.connected'),
+      listening: t('voice.controls.listening'),
+      muted: t('voice.controls.muted'),
+      thinking: t('voice.controls.thinking'),
+      speaking: t('voice.controls.speaking'),
+      mute: t('voice.controls.mute'),
+      unmute: t('voice.controls.unmute'),
+      end: t('voice.controls.end'),
+    }),
+    [t],
+  );
   const voiceAction =
     voice || onVoiceStart ? (
       // Alia's voice button: its own glyph (as it has always been), in the
@@ -415,6 +430,7 @@ export const ChatPageContent = ({
               onToggleMute={voice.toggleMute}
               onEnd={voice.deactivateVoice}
               primaryColor={colors.primary}
+              labels={voiceControlLabels}
             />
           </View>
         ) : (

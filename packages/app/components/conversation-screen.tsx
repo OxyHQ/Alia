@@ -34,7 +34,8 @@ import type { Message } from '@/types/chat';
 import { Button } from '@oxy.so/bloom/button';
 import { confirm } from '@oxy.so/bloom/surfaces';
 import { toast } from '@oxy.so/bloom/toast';
-import { useRouter } from 'expo-router';
+import { useOxy } from '@oxy.so/services';
+import { useIsFocused, useRouter } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { View } from 'react-native';
@@ -318,7 +319,16 @@ export const ConversationScreen = ({
    * ordinary turns of it — persisted by the server as they happen, which is
    * why nothing is saved when the call ends.
    */
-  const voice = useVoiceMode({ sendMessage: handleSubmit, stopGeneration });
+  // And it is this conversation's, this account's and this screen's: it ends
+  // when any of the three stops being true (see `use-voice-mode.ts`).
+  const { user } = useOxy();
+  const isFocused = useIsFocused();
+  const voice = useVoiceMode({
+    sendMessage: handleSubmit,
+    stopGeneration,
+    owner: `${user?.id ?? 'guest'}:${conversationId}`,
+    isFocused,
+  });
 
   // Auto-activate voice when navigated with startVoice (once only)
   const voiceAutoStartedRef = useRef(false);

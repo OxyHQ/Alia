@@ -12,6 +12,7 @@ import { MAX_ATTACHMENT_BYTES } from "@/lib/chat/attachment-intake";
 import { KeyboardAvoidingView } from "@/lib/keyboard";
 import { useTranslation } from "@/lib/hooks/use-translation";
 import { useSpeechToText } from "@/lib/hooks/use-speech-to-text";
+import { voiceErrorText } from "@/lib/voice-error-text";
 import { useComposerPasteTarget } from "./drop-zone";
 import { releaseRemovedAttachment, useAttachmentIntake } from "./use-attachment-intake";
 import type { Attachment } from "./types";
@@ -174,8 +175,9 @@ export function Composer({
 
   const stt = useSpeechToText();
   useEffect(() => {
-    if (stt.error !== null) toast.error(stt.error);
-  }, [stt.error]);
+    const text = voiceErrorText(t, stt.errorCode);
+    if (text !== null) toast.error(text);
+  }, [stt.errorCode]);
 
   const handleListeningChange = useCallback(
     async (next: boolean) => {

@@ -1305,6 +1305,34 @@
     "deepResearchLabel": "Deep research",
     "voiceMode": "Voice mode"
   },
+  "voice": {
+    "connectionFailed": "Voice connection failed",
+    "errors": {
+      "speech-unsupported": "Speech recognition is not available on this device or browser",
+      "microphone-denied": "Microphone permission required",
+      "microphone-busy": "Microphone is in use by another application",
+      "microphone-missing": "No microphone found — check your input devices",
+      "speech-network": "Speech recognition needs a network connection",
+      "speech-language": "Speech recognition does not support this language",
+      "speech-failed": "Speech recognition failed",
+      "voice-unavailable": "Voice is not available on this device",
+      "not-authenticated": "Sign in to use voice",
+      "turn-failed": "Voice request failed",
+      "no-answer": "No answer came back — try saying it again",
+      "not-played": "The answer could not be played aloud"
+    },
+    "controls": {
+      "connecting": "Connecting…",
+      "connected": "Connected",
+      "listening": "Listening…",
+      "muted": "Muted",
+      "thinking": "Thinking…",
+      "speaking": "Speaking…",
+      "mute": "Mute",
+      "unmute": "Unmute",
+      "end": "End"
+    }
+  },
   "gateways": {
     "connectedAccounts": "Connected Accounts ({{count}})",
     "scanQRCode": "Scan QR Code",

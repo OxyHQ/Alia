@@ -38,7 +38,7 @@ import {
   startSpeechRecognition,
 } from '../lib/speech-recognition';
 import type { SpeechRecognitionFailure, SpeechRecognitionSession } from '../lib/speech-recognition-types';
-import { speechFailureMessage } from '../lib/speech-messages';
+import { speechFailureCode, VOICE_ERROR_MESSAGES, type VoiceErrorCode } from '../lib/speech-messages';
 import { defaultSpeechLanguage } from '../lib/speech-language';
 import { playSpeechClip, requestSpeechClip, type ProductVoice } from '../lib/speech-synthesis';
 import { VoiceLevelChannel, type VoiceLevelSource } from '../lib/voice-levels';
@@ -143,9 +143,14 @@ export function useVoiceRoom(options: UseVoiceRoomOptions = {}) {
   const [roomState, setRoomState] = useState<RoomState>('disconnected');
   const [agentState, setAgentStateValue] = useState<AgentState>('idle');
   const [isMuted, setIsMuted] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  /**
+   * Why the call ended, as a code and as the sentence to show. The sentence is
+   * the code's English copy, except for `turn-failed`, which carries what the
+   * turn sender threw.
+   */
+  const [callFailure, setCallFailure] = useState<{ code: VoiceErrorCode; message: string } | null>(null);
   /** A turn that failed without ending the call: no answer, or no audio for it. */
-  const [turnError, setTurnError] = useState<string | null>(null);
+  const [turnErrorCode, setTurnErrorCode] = useState<VoiceErrorCode | null>(null);
   const [messages, setMessagesState] = useState<VoiceMessage[]>([]);
   const [currentSpeaker, setCurrentSpeaker] = useState<'primary' | 'user' | null>(null);
 
@@ -267,11 +272,11 @@ export function useVoiceRoom(options: UseVoiceRoomOptions = {}) {
     levels.reset();
   }, [endTurn, levels]);
 
-  const fail = useCallback((message: string) => {
+  const fail = useCallback((code: VoiceErrorCode, message: string = VOICE_ERROR_MESSAGES[code]) => {
     teardown();
     discardDraft();
     if (!mountedRef.current) return;
-    setError(message);
+    setCallFailure({ code, message });
     setRoomState('error');
     setAgentStateValue('idle');
     setCurrentSpeaker(null);
@@ -426,7 +431,7 @@ export function useVoiceRoom(options: UseVoiceRoomOptions = {}) {
 
           const failure = sessionFailedRef.current;
           if (failure !== null && failure.code !== 'other') {
-            fail(speechFailureMessage(failure) ?? 'Speech recognition failed');
+            fail(speechFailureCode(failure) ?? 'speech-failed');
             return;
           }
 
@@ -440,7 +445,7 @@ export function useVoiceRoom(options: UseVoiceRoomOptions = {}) {
           if (Date.now() - sessionStartedAtRef.current < RAPID_END_MS) {
             rapidEndsRef.current += 1;
             if (rapidEndsRef.current >= MAX_RAPID_ENDS) {
-              fail(speechFailureMessage(failure ?? { code: 'other' }) ?? 'Speech recognition failed');
+              fail(speechFailureCode(failure ?? { code: 'other' }) ?? 'speech-failed');
               return;
             }
           } else {
@@ -494,7 +499,7 @@ export function useVoiceRoom(options: UseVoiceRoomOptions = {}) {
     };
     turnRef.current = turn;
     setAgent('thinking');
-    if (mountedRef.current) setTurnError(null);
+    if (mountedRef.current) setTurnErrorCode(null);
 
     // The microphone stays open through thinking and speaking, for barge-in.
     startListeningRef.current();
@@ -520,7 +525,7 @@ export function useVoiceRoom(options: UseVoiceRoomOptions = {}) {
       } catch (caught: unknown) {
         if (signal.aborted) return;
         console.error('[useVoiceRoom] Turn failed:', caught);
-        fail(errorMessage(caught, 'Voice request failed'));
+        fail('turn-failed', errorMessage(caught, VOICE_ERROR_MESSAGES['turn-failed']));
         return;
       }
       if (signal.aborted) return;
@@ -540,9 +545,9 @@ export function useVoiceRoom(options: UseVoiceRoomOptions = {}) {
       sessionRef.current?.abort();
       if (turn.text.trim() === '') {
         updateMessages((previous) => previous.filter((message) => message.id !== assistantId));
-        if (mountedRef.current) setTurnError('No answer came back — try saying it again');
+        if (mountedRef.current) setTurnErrorCode('no-answer');
       } else if (turn.synthesisFailed) {
-        if (mountedRef.current) setTurnError('The answer could not be played aloud');
+        if (mountedRef.current) setTurnErrorCode('not-played');
       }
       setAgent('listening');
       startListeningRef.current();
@@ -554,17 +559,17 @@ export function useVoiceRoom(options: UseVoiceRoomOptions = {}) {
 
   const connect = useCallback(async () => {
     if (phaseRef.current !== 'off') return;
-    setError(null);
-    setTurnError(null);
+    setCallFailure(null);
+    setTurnErrorCode(null);
     setRoomState('connecting');
 
     if (!isSpeechRecognitionAvailable()) {
-      setError('Voice is not available on this device');
+      setCallFailure({ code: 'voice-unavailable', message: VOICE_ERROR_MESSAGES['voice-unavailable'] });
       setRoomState('error');
       return;
     }
     if (getToken() === null) {
-      setError('Not authenticated');
+      setCallFailure({ code: 'not-authenticated', message: VOICE_ERROR_MESSAGES['not-authenticated'] });
       setRoomState('error');
       return;
     }
@@ -572,7 +577,8 @@ export function useVoiceRoom(options: UseVoiceRoomOptions = {}) {
     const refusal = await requestSpeechRecognitionPermission();
     if (!mountedRef.current) return;
     if (refusal !== null) {
-      setError(speechFailureMessage(refusal) ?? 'Microphone permission required');
+      const code = speechFailureCode(refusal) ?? 'microphone-denied';
+      setCallFailure({ code, message: VOICE_ERROR_MESSAGES[code] });
       setRoomState('error');
       return;
     }
@@ -592,8 +598,8 @@ export function useVoiceRoom(options: UseVoiceRoomOptions = {}) {
     mutedRef.current = false;
     setRoomState('disconnected');
     setAgentStateValue('idle');
-    setError(null);
-    setTurnError(null);
+    setCallFailure(null);
+    setTurnErrorCode(null);
     setIsMuted(false);
     setMessagesState([]);
     setCurrentSpeaker(null);
@@ -637,8 +643,12 @@ export function useVoiceRoom(options: UseVoiceRoomOptions = {}) {
     roomState,
     agentState,
     isMuted,
-    error,
-    turnError,
+    /** Why the call ended, in English. */
+    error: callFailure?.message ?? null,
+    /** The same, as a code an app can translate. */
+    errorCode: callFailure?.code ?? null,
+    turnError: turnErrorCode === null ? null : VOICE_ERROR_MESSAGES[turnErrorCode],
+    turnErrorCode,
     messages,
     currentSpeaker,
     connect,

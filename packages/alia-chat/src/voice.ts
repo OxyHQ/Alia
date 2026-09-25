@@ -8,6 +8,8 @@ export { VoiceSession } from './components/voice/VoiceSession';
 export { AudioWaveVisualizer } from './components/voice/AudioWaveVisualizer';
 export { VoiceOverlay } from './components/voice/VoiceOverlay';
 export { VoiceControls } from './components/voice/VoiceControls';
+export { VOICE_CONTROLS_LABELS } from './components/voice/VoiceControls';
+export type { VoiceControlsLabels, VoiceControlsProps } from './components/voice/VoiceControls';
 
 // ── Voice hooks ──
 export { useVoiceRoom } from './hooks/useVoiceRoom';
@@ -15,6 +17,8 @@ export type { UseVoiceRoomOptions } from './hooks/useVoiceRoom';
 export { createAliaVoiceTurnSender } from './lib/voice-turn';
 export type { VoiceTurn, VoiceTurnMessage, VoiceTurnSender, AliaVoiceTurnSenderOptions } from './lib/voice-turn';
 export type { VoiceLevelSource } from './lib/voice-levels';
+export { VOICE_ERROR_MESSAGES } from './lib/speech-messages';
+export type { VoiceErrorCode } from './lib/speech-messages';
 export { useAudioLevelMonitor } from './hooks/useAudioLevelMonitor';
 export { useAudioLevels } from './hooks/useAudioLevels';
 export { useAmbientWave } from './hooks/useAmbientWave';

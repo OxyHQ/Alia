@@ -27,6 +27,8 @@ export type { UseAliaChatOptions, UseAliaChatReturn } from './hooks/useAliaChat'
 export { useTTS } from './hooks/useTTS';
 export type { UseTTSOptions } from './hooks/useTTS';
 export { useSpeechToText, useSTTStore } from './hooks/useSpeechToText';
+export { VOICE_ERROR_MESSAGES } from './lib/speech-messages';
+export type { VoiceErrorCode } from './lib/speech-messages';
 export type { UseSTTOptions } from './hooks/useSpeechToText';
 
 // ── Model catalogue (GET /catalogue) ──
