@@ -21,7 +21,7 @@ signed-out welcome (`welcome-intro.tsx` over `ambient-field.tsx`).
 | `sidebar={<Sidebar …/>}`, `mobileSidebar={<Sidebar … mobile surface="plain"/>}` | `src/shell/sidebar.tsx`: `logo`, `items`, `secondaryItems`, `account`, `tree`, `plan`; the drawer copy inside `NavRegion` (#532) |
 | `panel` (always, from `xl`) with `AiChatCodePanel` / `AiChatGalleryPanel` | `src/shell/workspace-panel.tsx`: the canvas as the code panel, Library and generated images as the gallery; thought, credits and agent take the slot while open |
 | `AiChatContainer project title header={<AiChatMobileHeader/>} working composer` | `src/features/chat/ui/chat-page-content.tsx` through `ChatWorkspace` (the native keyboard authority) |
-| the pill + `ComposerStatusBar` | **`ComposerPanel`** instead (`src/features/chat/ui/composer/composer.tsx`): provider-rail model picker with effort (`model-lineup.ts`), Chat / Agent / Deep research as its mode selector, attachment tiles, `ComposerPanelStatusTab` with the chat's project; the add menu in two groups (`add-menu.tsx`) |
+| the pill + `ComposerStatusBar` | **`ComposerPanel`** instead (`src/features/chat/ui/composer/composer.tsx`): provider-rail model picker (the catalogue's real models by publisher) with effort (`model-lineup.ts`), Chat / Agent as its mode selector (deep research is a tool, switched on in the add menu), attachment tiles, `ComposerPanelStatusTab` with the chat's project; the add menu in two groups (`add-menu.tsx`) |
 | `AiChatThread` → `AiChatUserMessage` / `AiChatAssistantMessage` (feedback row) | `src/features/chat/ui/chat-interface.tsx` |
 | `AiChatMessageLine`, `AiChatBulletList`, `AiChatStrong`, `AiChatLinkChip`, `CodeBlock` | `components/chat/bloom-markdown.tsx` renders each reply's Markdown into them |
 | `AgentProgress` while working, then "Worked for …" (`tone="secondary"`) | the turn's tool calls, as the runtime reports them |
@@ -547,7 +547,7 @@ None of the following has a 3.2.1 export that models it. Each stays Alia's.
   the on-device turn loop since SDK 8.0.0 ([Voice](./voice.mdx)), a LiveKit room
   before it. Bloom's `call-ui` is presentation only — correctly so.
 - **Cohost** (retired with LiveKit in SDK 8.0.0,
-  [ADR 0012](./adr/0012-voice-runs-on-the-device-livekit-and-cohost-are-retired.md)).
+  [ADR 0013](./adr/0013-voice-runs-on-the-device-livekit-and-cohost-are-retired.md)).
   `VoiceControls` has no cohost props or buttons since 8.0.0, so nothing is
   left to map onto `CallControlKey`.
 - **The rich message block renderers.** `renderMessage` / `MessageRow` in
