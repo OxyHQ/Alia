@@ -103,6 +103,8 @@ vi.mock('../../lib/logger.js', () => ({
     general: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
   },
 }));
+// The model check asks Oxy's catalogue; this file is about the body, not the catalogue.
+vi.mock('../../lib/chat-core.js', () => ({ resolveModel: vi.fn(async (modelId: string) => ({ modelId })) }));
 vi.mock('../../lib/trigger-engine.js', () => ({ reloadTrigger: vi.fn(), generateWebhookToken: () => 'tok' }));
 
 const AGENT_ROW = {
@@ -250,6 +252,7 @@ const VALUE_FOR: Readonly<Record<string, unknown>> = {
   isPublished: false,
   status: 'active',
   scheduleInterval: 60,
+  modelId: 'acme/chat-1',
 };
 
 async function patch(body: unknown): Promise<{ status: number; body: Record<string, unknown> }> {

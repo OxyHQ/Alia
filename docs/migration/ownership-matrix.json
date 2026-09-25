@@ -848,6 +848,7 @@
     },
     {
       "id": "canvas-model-list",
+      "removedIn": "adr-0012-real-models",
       "workstream": "5",
       "domain": "frontend-admin",
       "kind": "screen",
@@ -862,6 +863,7 @@
     },
     {
       "id": "canvas-models-consumer",
+      "removedIn": "adr-0012-real-models",
       "workstream": "5",
       "domain": "product-api",
       "kind": "dependency",

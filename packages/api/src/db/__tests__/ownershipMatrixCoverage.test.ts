@@ -250,7 +250,7 @@ interface MatrixRow {
  * #477 — is deleted: four rows named the file (both routes, its gateway-client
  * import and the transcription behaviour).
  */
-const REMOVED_ROW_COUNT = 167;
+const REMOVED_ROW_COUNT = 169;
 
 const OWNERS = new Set(['alia', 'oxy', 'kaana', 'delete']);
 const REACHABLE = new Set(['live', 'dead', 'unverified', 'loaded-not-invoked']);
