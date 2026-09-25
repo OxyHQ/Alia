@@ -39,4 +39,14 @@ describe('the system bars on a device', () => {
     // A page padding itself as well would sit a status bar lower than the chat.
     expect(shell).not.toMatch(/contentStyle:[^}]*paddingTop/);
   });
+
+  it("leaves the full-page routes' top inset to their PageHeader, which pads itself", () => {
+    const big = read('app/(biglayout)/_layout.tsx');
+    expect(big).not.toMatch(/paddingTop/);
+    for (const page of ['app/(biglayout)/subscribe.tsx', 'app/(biglayout)/download.tsx']) {
+      const source = read(page);
+      expect(source).toMatch(/<Screen\b/);
+      expect(source).not.toMatch(/safeArea=\{false\}/);
+    }
+  });
 });

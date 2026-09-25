@@ -505,14 +505,30 @@ function useSidebarProps() {
    * foot, so on a short screen the history keeps the room; a visitor has no
    * history and no account menu, so they stay here as rows. Settings is a row
    * either way.
+   *
+   * `accountIcon` is the same link's glyph in the Oxy account menu, which takes
+   * a MaterialCommunityIcons name rather than a component — and only a name
+   * from the subset its own icon font ships; without one it draws "…" beside
+   * the row, and with a name outside the subset a "?". `inAccountMenu: false` marks what that menu already
+   * has: its footer carries Oxy's Privacy Policy and Terms of Service, and a
+   * second pair of rows above it showed the same two documents twice (Pixel 8a,
+   * `docs/native-validation.mdx`).
    */
-  const links: Array<{ key: string; label: string; icon: SidebarNavItem["icon"]; onPress: () => void }> = [
+  const links: Array<{
+    key: string;
+    label: string;
+    icon: SidebarNavItem["icon"];
+    accountIcon?: string;
+    inAccountMenu?: false;
+    onPress: () => void;
+  }> = [
     ...(isAuthenticated
       ? [
           {
             key: "invite",
             label: t("sidebar.inviteFriends"),
             icon: RiGiftLine,
+            accountIcon: "gift-outline",
             onPress: () => {
               closeNav?.();
               setInviteOpen(true);
@@ -526,6 +542,7 @@ function useSidebarProps() {
             key: "download",
             label: t("sidebar.getTheApp"),
             icon: RiSmartphoneLine,
+            accountIcon: "download-outline",
             onPress: () => go("/(biglayout)/download"),
           },
         ]
@@ -534,6 +551,7 @@ function useSidebarProps() {
       key: "support",
       label: t("sidebar.support"),
       icon: RiCustomerServiceLine,
+      accountIcon: "headset",
       onPress: () => {
         void Linking.openURL(SUPPORT_URL);
       },
@@ -542,6 +560,7 @@ function useSidebarProps() {
       key: "privacy",
       label: t("sidebar.privacyPolicy"),
       icon: RiShieldLine,
+      inAccountMenu: false,
       onPress: () => {
         void Linking.openURL(PRIVACY_URL);
       },
@@ -550,6 +569,7 @@ function useSidebarProps() {
       key: "terms",
       label: t("sidebar.termsOfService"),
       icon: RiFileTextLine,
+      inAccountMenu: false,
       onPress: () => {
         void Linking.openURL(TERMS_URL);
       },
@@ -586,9 +606,12 @@ function useSidebarProps() {
               {
                 key: "upgrade",
                 label: t("sidebar.upgradeToPro"),
+                icon: "star",
                 onPress: () => go("/(biglayout)/subscribe"),
               },
-              ...links.map(({ key, label, onPress }) => ({ key, label, onPress })),
+              ...links
+                .filter((link) => link.inAccountMenu !== false)
+                .map(({ key, label, accountIcon, onPress }) => ({ key, label, icon: accountIcon, onPress })),
             ]
           : undefined
       }
