@@ -101,11 +101,11 @@ Approvals are real-time via Socket.IO (`alia.approval_request` / `alia.approval_
 | `app/_layout.tsx` | Root layout: OxyProvider, fonts, theme, auth setup | App-wide providers |
 | `app/(app)/_layout.tsx` | Main drawer layout: sidebar, screens, store hydration | Adding a new screen |
 | `app/(app)/c/[id]/index` | Chat conversation screen | Chat UI changes |
-| `components/chat-interface.tsx` | Core chat UI: messages, input, streaming display | Chat UX changes |
-| `lib/stores/` | Zustand stores (18 stores -- see State Management below) | Client state changes |
-| `lib/hooks/use-conversations.ts` | TanStack Query hook for conversation CRUD | Conversation data layer |
-| `lib/api/client.ts` | API client with auth token injection | API communication |
-| `lib/api/routes.ts` | All API route constants | Adding/renaming endpoints |
+| `src/features/chat/ui/chat-interface.tsx` | Core chat UI: messages, input, streaming display | Chat UX changes |
+| `src/features/*/runtime/*-store.ts` | Zustand stores, each in the feature that owns it (see State Management below) | Client state changes |
+| `src/features/chat/runtime/use-conversations.ts` | TanStack Query hook for conversation CRUD | Conversation data layer |
+| `src/shared/api/client.ts` | API client with auth token injection | API communication |
+| `src/shared/api/routes.ts` | All API route constants | Adding/renaming endpoints |
 
 ---
 
@@ -148,7 +148,7 @@ Conversations and messages are written to the `conversations` and `messages` tab
 
 Use for UI state and data that needs to persist across screens.
 
-Sixteen stores in `packages/app/lib/stores/`. The ones you meet first:
+Each store lives in the `runtime/` of the feature that owns it (`packages/app/src/features/<feature>/runtime/`); the collection factory and account scoping they share are `src/shared/state/`. The ones you meet first:
 
 | Store | Purpose |
 |-------|---------|
@@ -168,7 +168,7 @@ Sixteen stores in `packages/app/lib/stores/`. The ones you meet first:
 Use for data fetched from the API that needs caching, refetching, and stale management.
 
 - `use-conversations.ts` -- conversation list and CRUD
-- API calls go through `lib/api/client.ts` which auto-attaches the OxyHQ JWT
+- API calls go through `src/shared/api/client.ts` which auto-attaches the OxyHQ JWT
 
 **Rule of thumb**: if the data comes from the server, use TanStack Query. If it is purely UI state or needs synchronous access, use a Zustand store.
 
@@ -226,7 +226,7 @@ window that retires it.
 
 1. Create a file in `packages/app/app/(app)/` -- expo-router uses file-based routing
 2. Register it as a `<Drawer.Screen>` in `app/(app)/_layout.tsx`
-3. Add the route constant to `packages/app/lib/api/routes.ts` if it needs an API endpoint
+3. Add the route constant to `packages/app/src/shared/api/routes.ts` if it needs an API endpoint
 
 ### Adding a new AI tool
 

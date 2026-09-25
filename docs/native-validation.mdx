@@ -26,7 +26,7 @@ one emulator, signed out, and there is no iOS here at all.
 | Toolchain | OpenJDK 21, Gradle 9.3.1, compile/target SDK 36, min SDK 24, NDK 27.1.12297006 |
 | App | Expo 57.0.4, React Native 0.86.0 (new architecture, Hermes), Bloom 4.20.0, `@oxy.so/services` 4.0.1, keyboard-controller 1.21.9, Reanimated 4.5.0 |
 | Build | **release** (`assembleRelease`), JS bundled into the APK, signed with the debug keystore, `x86_64` only: 73.6 MB |
-| API | production (`https://api.alia.onl` via `lib/config.ts`; no `.env` in the worktree) |
+| API | production (`https://api.alia.onl` via `src/shared/platform/config.ts`; no `.env` in the worktree) |
 
 Built on the machine, never on EAS.
 
@@ -107,7 +107,7 @@ padded by `insets.top`, and no route pads itself again (`SELF_INSET_ROUTES` is
 gone). Web is untouched: its insets are zero and it scrolls the document, which
 a wrapping flex view would break. The strip above shows the root background,
 which is the shell's own surface colour. Gate:
-`lib/__tests__/native-system-bars.test.ts`.
+`__tests__/native-system-bars.test.ts`.
 
 ### 4.3 Composer behind the keyboard — fixed (regression from 4.2)
 
@@ -121,7 +121,7 @@ keyboard-controller's own `automaticOffset` (measure the view on screen) was
 tried first and rejected: it measures asynchronously, and on a freshly cleared
 app it lost the race to the first layout in two runs of three, leaving the same
 gap. The offset is deterministic; three runs from a cleared app all showed the
-whole composer. Gate: `components/__tests__/chat-workspace-background.test.tsx`.
+whole composer. Gate: `src/features/chat/ui/__tests__/chat-workspace-background.test.tsx`.
 
 ### 4.4 After the sign-in sheet, the composer no longer follows the keyboard — upstream, not fixed here
 

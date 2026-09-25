@@ -286,7 +286,7 @@ sole web function that reads `source.headers` is `preloadAsync`, and
 browser asked Syra for a private episode anonymously, got `404`, and reported
 `NotSupportedError: Failed to load because no supported source was found` — a
 message that names the symptom and hides the cause, and one that only ever
-appeared on web. `lib/hooks/use-episode-audio.ts` owns the fetch on web now:
+appeared on web. `src/features/shows/runtime/use-episode-audio.ts` owns the fetch on web now:
 it checks the STATUS before treating the body as audio (`preloadAsync` calls
 `response.blob()` with no `ok` check, which is how a refusal became undecodable
 audio), plays from an object URL revoked at the end of that one playback, and

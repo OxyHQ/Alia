@@ -201,8 +201,8 @@ registro nativo requerido" is not a thing to be careful about here, it is a
 thing the gate makes impossible.
 
 Editing the 89 importing files would not have worked: six of them
-(`components/ui/prompt-input/*`, `components/sidebar.tsx`,
-`components/chat-page-content.tsx`) belong to concurrent work on the chat
+(`components/ui/prompt-input/*`, `src/shell/sidebar.tsx`,
+`src/features/chat/ui/chat-page-content.tsx`) belong to concurrent work on the chat
 shell, and **one** surviving barrel import keeps all 1,747 icons. A resolver
 redirect covers every consumer at once, including future ones.
 
@@ -268,8 +268,8 @@ to describe it.
 
 `bun run build` ran `setup-skia-web public`, which copies `canvaskit.wasm` —
 8,076,553 B, more than a third of the deployed export — into `public/`. Nothing
-loads it. `components/ui/skill-cover-canvas.web.tsx` deliberately draws without
-Skia and `components/__tests__/skill-cover-static.test.tsx` holds that line, so
+loads it. `src/features/skills/ui/skill-cover-canvas.web.tsx` deliberately draws without
+Skia and `src/features/skills/ui/__tests__/skill-cover-static.test.tsx` holds that line, so
 `@shopify/react-native-skia` contributes **zero** bytes to the web bundle.
 
 Both halves were measured:
@@ -325,7 +325,7 @@ genuinely needs.
 
 ```
 app/(app)/index.tsx
-  components/chat-page-content.tsx      ← owned by concurrent work
+  src/features/chat/ui/chat-page-content.tsx      ← owned by concurrent work
     packages/alia-chat/src/voice.ts
       packages/alia-chat/src/hooks/useVoiceRoom.ts
         livekit-client
@@ -345,7 +345,7 @@ Measured, not assumed:
 
 | Suspect | Actual weight |
 | --- | --- |
-| Canvas renderers (`components/canvas/`) | 787 B in `__common`; 11,301 B in the whole baseline. Not heavy. |
+| Canvas renderers (`src/features/chat/ui/canvas/`) | 787 B in `__common`; 11,301 B in the whole baseline. Not heavy. |
 | Agent terminal | 4,665 B. xterm is 0 B in the eager set — already its own 339,317 B chunk, and not fetched at first paint. |
 | Skia / `canvaskit.wasm` | Not reachable at all. [§5](#5-eight-megabytes-of-wasm-nobody-fetched). |
 | Heavy card / chart renderers | Nothing above 6 KB. |
@@ -360,7 +360,7 @@ Both of these are exactly the failure #608 warns about — a dynamic import that
 adds a loading state and saves nothing — and both are here because a negative
 result that was measured is worth more than a change that was not.
 
-**Dropping `@oxy.so/contracts` from `lib/agents/bot-account.ts`.**
+**Dropping `@oxy.so/contracts` from `src/features/agents/model/bot-account.ts`.**
 `packages/app` imports that package from exactly one file, for exactly one
 constant, `USERNAME_MAX_LENGTH`, and it costs 236,465 B plus zod. Replacing the
 import with a literal:

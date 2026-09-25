@@ -427,14 +427,14 @@ gate-2 assertion that every file permitted to name a provider hostname is filed 
 
 ### (c) "the product runs on `/v1/chat/completions`, not `/alia/chat`" — **TRUE**
 
-Every shipped client posts to `/v1/chat/completions`: `packages/app/lib/hooks/use-chat-conversation.ts:44`,
+Every shipped client posts to `/v1/chat/completions`: `packages/app/src/features/chat/runtime/use-chat-conversation.ts:44`,
 `packages/alia-chat/src/hooks/useAliaChat.ts:217`, `packages/alia-codea/src/chatParticipant.ts:177`
 and `inlineCompletionProvider.ts:93`, `packages/integrations/src/shared/api-client.ts:198`/`:260`.
 `/alia/chat` has **zero in-repo callers**. Measured: 23 occurrences in `.ts`/`.tsx` across
 `packages/`, of which 9 are outside `__tests__` and only **5 are not comments** —
 `src/index.ts:233` and `:253` (its own two mounts), `src/index.ts:299` (the root route's endpoint
 list), `routes/chat.ts:29` (the string in its own `GET` status body), and
-`packages/app/lib/api/routes.ts:53`, which declares `API_ROUTES.chat.alia` and is **never read**
+`packages/app/src/shared/api/routes.ts:53`, which declares `API_ROUTES.chat.alia` and is **never read**
 (grepping the app for a use of it returns only an unrelated Play Store URL). The stale "13
 references" figure in [`ownership.md`](./ownership.md) predates several PRs; the conclusion it drew
 is unchanged.
@@ -880,7 +880,7 @@ files do not exist). The guards are behavioural where the 2026-08-19 hazards dem
 id and delegated user reach `respond`/`stream`; `boot-guards.test.ts` asserts a refused boot
 *terminates*; `health-route.test.ts:75-86` drives the real `/ready` handler in both directions.
 
-**One code change.** `packages/app/lib/hooks/__tests__/use-product-modes.test.ts` (10 tests, green;
+**One code change.** `packages/app/src/features/chat/runtime/__tests__/use-product-modes.test.ts` (10 tests, green;
 app `tsc --noEmit` exit 0) — the guard L283 lacked: exact-count parse of `GET /catalogue/modes`,
 drop-one → five, an entry serialized `object: "model"` refused, and the picker asserted to **call**
 `useProductModes()` / `presentation(` rather than merely import them (`mentionIsNotACall`).

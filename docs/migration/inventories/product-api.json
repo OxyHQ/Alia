@@ -262,7 +262,7 @@
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
       "dependsOn": [],
-      "removalGate": "packages/app/lib/stores/show-store.ts:161. App-only.",
+      "removalGate": "packages/app/src/features/shows/runtime/show-store.ts:161. App-only.",
       "evidence": "packages/api/src/routes/v1.ts:31; packages/api/src/routes/v1/shows.ts:24"
     },
     {
@@ -276,7 +276,7 @@
       "dependsOn": [
         "socket-show-progress"
       ],
-      "removalGate": "packages/app/lib/stores/show-store.ts:120 plus the show:progress listener in use-show-progress.ts:73. Move together.",
+      "removalGate": "packages/app/src/features/shows/runtime/show-store.ts:120 plus the show:progress listener in use-show-progress.ts:73. Move together.",
       "evidence": "packages/api/src/routes/v1/shows.ts:41"
     },
     {
@@ -288,7 +288,7 @@
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
       "dependsOn": [],
-      "removalGate": "packages/app/lib/stores/show-store.ts:94.",
+      "removalGate": "packages/app/src/features/shows/runtime/show-store.ts:94.",
       "evidence": "packages/api/src/routes/v1/shows.ts:107"
     },
     {
@@ -300,7 +300,7 @@
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
       "dependsOn": [],
-      "removalGate": "packages/app/lib/stores/show-store.ts:103.",
+      "removalGate": "packages/app/src/features/shows/runtime/show-store.ts:103.",
       "evidence": "packages/api/src/routes/v1/shows.ts:140"
     },
     {
@@ -312,7 +312,7 @@
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
       "dependsOn": [],
-      "removalGate": "packages/app/lib/stores/show-store.ts:150.",
+      "removalGate": "packages/app/src/features/shows/runtime/show-store.ts:150.",
       "evidence": "packages/api/src/routes/v1/shows.ts:168"
     },
     {
@@ -427,7 +427,7 @@
       "id": "app-chat-consumer",
       "kind": "consumer",
       "name": "Expo app - main chat stream",
-      "currentPath": "packages/app/lib/hooks/use-chat-conversation.ts",
+      "currentPath": "packages/app/src/features/chat/runtime/use-chat-conversation.ts",
       "summary": "generateAPIUrl('/v1/chat/completions') passed into useStreamingChat, which is the single richest SSE consumer in the repo (9 named event cases).",
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
@@ -436,13 +436,13 @@
         "sse-named-event-contract"
       ],
       "removalGate": "Ships in the mobile binary; OTA-updatable but old native builds persist. Contract changes need a version window.",
-      "evidence": "packages/app/lib/hooks/use-chat-conversation.ts:44; packages/app/lib/hooks/use-streaming-chat.ts:367-600"
+      "evidence": "packages/app/src/features/chat/runtime/use-chat-conversation.ts:44; packages/app/src/features/chat/runtime/use-streaming-chat.ts:367-600"
     },
     {
       "id": "app-personality-sample-consumer",
       "kind": "consumer",
       "name": "Expo app - personality sample phrase",
-      "currentPath": "packages/app/lib/hooks/use-personality-sample-phrase.ts",
+      "currentPath": "packages/app/src/features/settings/runtime/use-personality-sample-phrase.ts",
       "summary": "Second, independent app call site to /v1/chat/completions via expoFetch, easy to miss when auditing the chat path.",
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
@@ -450,7 +450,7 @@
         "v1-chat-completions-post"
       ],
       "removalGate": "Move with app-chat-consumer.",
-      "evidence": "packages/app/lib/hooks/use-personality-sample-phrase.ts:68"
+      "evidence": "packages/app/src/features/settings/runtime/use-personality-sample-phrase.ts:68"
     },
     {
       "id": "sdk-chat-consumer",
@@ -667,7 +667,7 @@
       "id": "alia-chat-app-route-constant",
       "kind": "consumer",
       "name": "DEAD: API_ROUTES.chat.alia = '/alia/chat'",
-      "currentPath": "packages/app/lib/api/routes.ts",
+      "currentPath": "packages/app/src/shared/api/routes.ts",
       "summary": "The app's route registry declares /alia/chat, but NOTHING references API_ROUTES.chat anywhere in packages/app - the app actually calls /v1/chat/completions. The same is true of API_ROUTES.v1.chatCompletions, .models, .audioSpeech, .audioGenerate and .imagesGenerations: declared, never referenced. Only API_ROUTES.v1.shows.* is live.",
       "proposedOwner": "delete",
       "targetPath": "delete",
@@ -675,7 +675,7 @@
         "alia-chat-post"
       ],
       "removalGate": "Safe to delete the dead constants now. The important consequence: /alia/chat has ZERO live in-repo callers, so any 'who uses it' answer must come from access logs.",
-      "evidence": "packages/app/lib/api/routes.ts:53,148-152 vs packages/app/lib/hooks/use-chat-conversation.ts:44"
+      "evidence": "packages/app/src/shared/api/routes.ts:53,148-152 vs packages/app/src/features/chat/runtime/use-chat-conversation.ts:44"
     },
     {
       "id": "integrations-model-resolver-dead-client",
@@ -710,7 +710,7 @@
       "id": "app-sends-unread-agentid",
       "kind": "consumer",
       "name": "MISMATCH: app sends body.agentId, server never reads it",
-      "currentPath": "packages/app/lib/hooks/use-streaming-chat.ts",
+      "currentPath": "packages/app/src/features/chat/runtime/use-streaming-chat.ts",
       "summary": "The app puts agentId in the /v1/chat/completions request body. No file in packages/api/src reads body.agentId (positive control: body.skillId has 5 readers). The server derives the agent from conversationId -> conversation.agentId instead.",
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
@@ -718,7 +718,7 @@
         "v1-chat-completions-post"
       ],
       "removalGate": "Decide before the port: either honour body.agentId server-side or delete it client-side. Porting the request contract as-is carries a field that looks load-bearing and is not - the next person to 'fix' agent selection will set it and see nothing happen.",
-      "evidence": "packages/app/lib/hooks/use-streaming-chat.ts:250; packages/api/src/lib/chat/request-context.ts:103-107,185-187"
+      "evidence": "packages/app/src/features/chat/runtime/use-streaming-chat.ts:250; packages/api/src/lib/chat/request-context.ts:103-107,185-187"
     },
     {
       "id": "sse-named-event-contract",
@@ -772,7 +772,7 @@
         "sse-named-event-contract"
       ],
       "removalGate": "Consumed by the app at use-streaming-chat.ts:453. Because it is in no type and no doc, any contract derived from the type or the doc will DROP it - the app's agent cards then silently stop rendering.",
-      "evidence": "packages/api/src/lib/chat/stream-runner.ts:37,258; packages/app/lib/hooks/use-streaming-chat.ts:453"
+      "evidence": "packages/api/src/lib/chat/stream-runner.ts:37,258; packages/app/src/features/chat/runtime/use-streaming-chat.ts:453"
     },
     {
       "id": "sse-alia-title",
@@ -786,7 +786,7 @@
         "sse-named-event-contract"
       ],
       "removalGate": "App-only consumer, and it drives React Query cache writes (queryKeys.conversations.detail) - dropping it leaves stale titles rather than an error.",
-      "evidence": "packages/api/src/lib/chat/provider-loop.ts:276; packages/app/lib/hooks/use-streaming-chat.ts:475-490"
+      "evidence": "packages/api/src/lib/chat/provider-loop.ts:276; packages/app/src/features/chat/runtime/use-streaming-chat.ts:475-490"
     },
     {
       "id": "sse-alia-agent-session",
@@ -800,7 +800,7 @@
         "sse-named-event-contract"
       ],
       "removalGate": "App-only (use-streaming-chat.ts:590 -> openAgentPanel). Pairs with the Socket.IO room agent-session:<id>.",
-      "evidence": "packages/api/src/routes/v1/chat-completions.ts:164; packages/app/lib/hooks/use-streaming-chat.ts:590-593"
+      "evidence": "packages/api/src/routes/v1/chat-completions.ts:164; packages/app/src/features/chat/runtime/use-streaming-chat.ts:590-593"
     },
     {
       "id": "sse-alia-research-progress",
@@ -871,7 +871,7 @@
         "response-ext-alia-usage"
       ],
       "removalGate": "The app reads parsed.alia_usage with a fallback to parsed.usage and surfaces credit_warning in the UI. Credits are a billing surface - this must stay in Alia even if inference moves.",
-      "evidence": "packages/api/src/lib/chat/provider-loop.ts:296-314; packages/app/lib/hooks/use-streaming-chat.ts:666-677"
+      "evidence": "packages/api/src/lib/chat/provider-loop.ts:296-314; packages/app/src/features/chat/runtime/use-streaming-chat.ts:666-677"
     },
     {
       "id": "sse-done-and-keepalive",
@@ -911,7 +911,7 @@
       "targetPath": "keep-alia-product",
       "dependsOn": [],
       "removalGate": "Do not port the SSE branch. Fix the doc first: R2 approvals require a live Socket.IO connection, which means a pure-HTTP API client CANNOT approve anything - that is a real product constraint the docs currently hide.",
-      "evidence": "packages/api/src/socket.ts:216; docs/api-reference.md:99; packages/app/lib/hooks/use-streaming-chat.ts:543 (dead branch); packages/app/lib/hooks/use-agent-activity.ts:370 (live listener)"
+      "evidence": "packages/api/src/socket.ts:216; docs/api-reference.md:99; packages/app/src/features/chat/runtime/use-streaming-chat.ts:543 (dead branch); packages/app/src/features/chat/runtime/use-agent-activity.ts:370 (live listener)"
     },
     {
       "id": "socket-alia-approval-result",
@@ -925,7 +925,7 @@
         "socket-alia-approval-request"
       ],
       "removalGate": "Same gate.",
-      "evidence": "packages/api/src/socket.ts:231; docs/api-reference.md:114; packages/app/lib/hooks/use-streaming-chat.ts:565 (dead branch); packages/app/lib/hooks/use-agent-activity.ts:389 (live listener)"
+      "evidence": "packages/api/src/socket.ts:231; docs/api-reference.md:114; packages/app/src/features/chat/runtime/use-streaming-chat.ts:565 (dead branch); packages/app/src/features/chat/runtime/use-agent-activity.ts:389 (live listener)"
     },
     {
       "id": "socket-agent-activity",
@@ -937,7 +937,7 @@
       "targetPath": "keep-alia-product",
       "dependsOn": [],
       "removalGate": "Consumed by packages/app agent-terminal.tsx:236,462 and use-agent-activity.ts. Any 'stream event' inventory that lists only SSE names misses 13 more values here.",
-      "evidence": "packages/api/src/socket.ts:174; packages/app/components/agent-terminal.tsx:236"
+      "evidence": "packages/api/src/socket.ts:174; packages/app/src/features/chat/ui/workspace/agent-terminal.tsx:236"
     },
     {
       "id": "socket-audio-job-update",
@@ -964,7 +964,7 @@
       "dependsOn": [
         "v1-shows-generate"
       ],
-      "removalGate": "packages/app/lib/hooks/use-show-progress.ts:73. Without a fallback, losing this leaves a show stuck in-progress in the UI forever.",
+      "removalGate": "packages/app/src/features/shows/runtime/use-show-progress.ts:73. Without a fallback, losing this leaves a show stuck in-progress in the UI forever.",
       "evidence": "packages/api/src/lib/show/show-pipeline.ts:63"
     },
     {
@@ -1103,7 +1103,7 @@
       "targetPath": "keep-alia-product",
       "dependsOn": [],
       "removalGate": "The app reads it with a fallback to the standard usage block, so a rename degrades credit reporting SILENTLY rather than erroring. Rename only with a client release.",
-      "evidence": "packages/api/src/lib/chat/response-shapes.ts:22-28,69; packages/app/lib/hooks/use-streaming-chat.ts:667"
+      "evidence": "packages/api/src/lib/chat/response-shapes.ts:22-28,69; packages/app/src/features/chat/runtime/use-streaming-chat.ts:667"
     },
     {
       "id": "response-ext-alia-meta",
@@ -1294,13 +1294,13 @@
       "id": "doc-translation-strings-clean",
       "kind": "doc",
       "name": "Translation strings carry NO model ids (verified absent, not unmeasured)",
-      "currentPath": "packages/app/lib/i18n/locales/en.json",
+      "currentPath": "packages/app/src/shared/i18n/locales/en.json",
       "summary": "Zero alia-* model ids in en.json and es.json. Model-related keys are generic ('Models', 'This model requires the {{plan}} plan', 'Model locked'). Positive control: 'Alia' matches 30 lines in en.json, so the files were read.",
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
       "dependsOn": [],
       "removalGate": "No gate. Recorded so a future audit does not re-litigate whether i18n was checked.",
-      "evidence": "packages/app/lib/i18n/locales/en.json:326,466,500,501,804"
+      "evidence": "packages/app/src/shared/i18n/locales/en.json:326,466,500,501,804"
     },
     {
       "id": "doc-seed-and-test-model-ids",
@@ -1326,7 +1326,7 @@
   },
   "countDefinitions": {
     "v1Routes": "20 HTTP handlers served under /v1: GET /v1, GET /v1/models, GET /v1/models/:modelId, GET /v1/me, POST /v1/resolve-model (410), POST /v1/report-usage (410), POST /v1/chat/completions, GET /v1/chat/completions, POST /v1/responses, POST /v1/voice/token, POST /v1/voice/transcribe, POST /v1/audio/speech, POST /v1/audio/generate, GET /v1/audio/jobs/:jobId, POST /v1/images/generations, GET /v1/shows/voices, POST /v1/shows/generate, GET /v1/shows, GET /v1/shows/:id, DELETE /v1/shows/:id. Enumerated from packages/api/src/routes/v1.ts plus its 7 sub-routers, cross-checked by two independent grep patterns that agreed on 16 sub-router definitions (+4 defined directly in v1.ts).",
-    "aliaChatConsumers": "1 = the single in-repo code reference, packages/app/lib/api/routes.ts:53, and it is DEAD (no file references API_ROUTES.chat). LIVE in-repo callers of POST /alia/chat = 0. The endpoint is nonetheless public and named in 6 documents. External callers are unknowable from source.",
+    "aliaChatConsumers": "1 = the single in-repo code reference, packages/app/src/shared/api/routes.ts:53, and it is DEAD (no file references API_ROUTES.chat). LIVE in-repo callers of POST /alia/chat = 0. The endpoint is nonetheless public and named in 6 documents. External callers are unknowable from source.",
     "chatCompletionsConsumers": "11 executable call sites across 7 packages (comments and docs excluded by hand): app x2 (use-chat-conversation.ts:44, use-personality-sample-phrase.ts:68), alia-chat SDK x1 (useAliaChat.ts:217), alia-codea x3 (chatParticipant.ts:177, inlineCompletionProvider.ts:93, chatProvider.ts:705 via OpenAI baseURL), alia-codea-cli x1 (api.ts:136 via OpenAI baseURL), alia-cowork x1 (chat.ts:149 via OpenAI baseURL), alia-console x1 (playground.tsx:141), integrations x2 (api-client.ts:198,260). 3 of the 11 are invisible to a literal path grep because they go through the OpenAI SDK's baseURL.",
     "streamEventTypes": "8 = named SSE events ACTUALLY EMITTED: alia.reasoning, alia.tool_result, alia.agent, alia.title, alia.agent_session, alia.research_progress, alia.plan_preview, alia.model_switch. Separately tracked as items but excluded from this number: 4 unnamed SSE frame kinds (OpenAI chunk, terminal usage chunk, [DONE], error frame), 2 Socket.IO-only alia.* events wrongly documented as SSE, 1 legacy in-data type-based event still parsed by the published SDK, and 5 further Socket.IO product events (agent-activity with its own 13-value type vocabulary, audio:job-update, show:progress, telegram-linked, notification).",
     "aliaModelIdMentionsInDocs": "89 regex MATCHES (not lines) of alia-(lite|v1)(-suffix)* across the public documentation corpus: docs/** = 46 (model-abstraction.mdx 15, index.mdx 20, onboarding.md 5, agents.md 2, api-reference.md 2, chat-runtime.mdx 1, superpowers/plans/2026-07-15 1); README/CHANGELOG/FEATURES = 12 (root README.md 6, alia-codea/README.md 3, api/src/internal/README.md 2, alia-codea-cli/README.md 1); alia-console public portal pages = 31. NOT included in 89 (counted separately because they are code, not docs): tests 39, seed data 21, drizzle generated artefacts 18, and 0 in translation strings."

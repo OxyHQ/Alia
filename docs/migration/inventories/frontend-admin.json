@@ -198,7 +198,7 @@
         "ga-screen-plans"
       ],
       "removalGate": "An Alia-owned entitlements editor exists. This feeds /billing/entitlements, which packages/app consumes as allowedModelIds \u2014 deleting the editor without a replacement freezes every user's entitlements at whatever the database holds that day.",
-      "evidence": "packages/alia-gateway-admin/src/pages/Features.tsx:78-96 (feature CRUD), :296 (getPlanFeaturesMatrix), :354 (bulkUpsertPlanFeatures); consumer: packages/app/lib/hooks/use-billing.ts:319-330"
+      "evidence": "packages/alia-gateway-admin/src/pages/Features.tsx:78-96 (feature CRUD), :296 (getPlanFeaturesMatrix), :354 (bulkUpsertPlanFeatures); consumer: packages/app/src/features/billing/runtime/use-billing.ts:319-330"
     },
     {
       "id": "ga-screen-billing",
@@ -737,14 +737,14 @@
       "id": "app-model-store",
       "kind": "store",
       "name": "useModelStore (zustand, persisted)",
-      "currentPath": "packages/app/lib/stores/model-store.ts",
+      "currentPath": "packages/app/src/features/chat/runtime/model-store.ts",
       "summary": "The only store slice holding model state: selectedModel and baseModel (last non-thinking model), both defaulting to the literal 'route:auto', persisted to AsyncStorage under the key 'chat-storage'.",
       "exposesProviderSecret": false,
       "proposedOwner": "alia",
       "targetPath": "keep-as-alia-product-setting",
       "dependsOn": [],
       "removalGate": "Keep. Flag for the epic: because the value is PERSISTED, retiring or renaming an alias strands every existing installation on a dead id with no migration path \u2014 the store has no validation against the fetched catalog. Verified this is the only model-holding store: the other 15 files in packages/app/lib/stores/ contain no model state.",
-      "evidence": "packages/app/lib/stores/model-store.ts:16-17,26-27"
+      "evidence": "packages/app/src/features/chat/runtime/model-store.ts:16-17,26-27"
     },
     {
       "id": "app-credit-warning-banner",
@@ -765,14 +765,14 @@
       "id": "app-entitlements-fallback",
       "kind": "model-alias",
       "name": "FREE_ENTITLEMENTS placeholder",
-      "currentPath": "packages/app/lib/hooks/use-billing.ts",
+      "currentPath": "packages/app/src/features/billing/runtime/use-billing.ts",
       "summary": "React Query placeholderData hard-coding the free tier's allowed aliases as ['route:instant','route:auto','route:audio'], duplicated verbatim at model-selector.tsx:104 and matching FREE_MODEL_IDS in two API files.",
       "exposesProviderSecret": false,
       "proposedOwner": "alia",
       "targetPath": "keep-as-alia-product-setting",
       "dependsOn": [],
-      "removalGate": "Keep as a placeholder, but collapse the FOUR copies of this list to one. Measured duplicates: packages/app/lib/hooks/use-billing.ts:327, packages/app/components/model-selector.tsx:104, packages/api/src/internal/providers/lib/seed-plans.ts:33, packages/api/src/lib/plan-access.ts:12. They agree today; nothing enforces that they keep agreeing, and the two client copies decide what a user can select before the server answers.",
-      "evidence": "packages/app/lib/hooks/use-billing.ts:326-330; packages/app/components/model-selector.tsx:104; packages/api/src/lib/plan-access.ts:12; packages/api/src/internal/providers/lib/seed-plans.ts:33"
+      "removalGate": "Keep as a placeholder, but collapse the FOUR copies of this list to one. Measured duplicates: packages/app/src/features/billing/runtime/use-billing.ts:327, packages/app/components/model-selector.tsx:104, packages/api/src/internal/providers/lib/seed-plans.ts:33, packages/api/src/lib/plan-access.ts:12. They agree today; nothing enforces that they keep agreeing, and the two client copies decide what a user can select before the server answers.",
+      "evidence": "packages/app/src/features/billing/runtime/use-billing.ts:326-330; packages/app/components/model-selector.tsx:104; packages/api/src/lib/plan-access.ts:12; packages/api/src/internal/providers/lib/seed-plans.ts:33"
     },
     {
       "id": "app-chat-screen-default",
@@ -793,14 +793,14 @@
       "id": "app-personality-sample-alias",
       "kind": "model-alias",
       "name": "Personality sample-phrase model",
-      "currentPath": "packages/app/lib/hooks/use-personality-sample-phrase.ts",
+      "currentPath": "packages/app/src/features/settings/runtime/use-personality-sample-phrase.ts",
       "summary": "Client-side hook pinning model:'route:instant' for generating a personality preview phrase.",
       "exposesProviderSecret": false,
       "proposedOwner": "alia",
       "targetPath": "keep-as-alia-product-setting",
       "dependsOn": [],
       "removalGate": "Keep; a client pinning a specific tier for an internal utility call should move server-side so the tier choice is not frozen in a shipped binary.",
-      "evidence": "packages/app/lib/hooks/use-personality-sample-phrase.ts:72"
+      "evidence": "packages/app/src/features/settings/runtime/use-personality-sample-phrase.ts:72"
     },
     {
       "id": "app-chat-model-plumbing",
@@ -815,20 +815,20 @@
         "app-model-selector"
       ],
       "removalGate": "Keep. Recorded so the epic's edit list is complete: these four files must be visited if the model id's TYPE changes, even though none of them hard-codes a value.",
-      "evidence": "packages/app/components/chat-header.tsx:8,20-21,93-95; packages/app/components/chat-page-content.tsx; packages/app/lib/hooks/use-chat-conversation.ts; packages/app/lib/hooks/use-streaming-chat.ts"
+      "evidence": "packages/app/components/chat-header.tsx:8,20-21,93-95; packages/app/src/features/chat/ui/chat-page-content.tsx; packages/app/src/features/chat/runtime/use-chat-conversation.ts; packages/app/src/features/chat/runtime/use-streaming-chat.ts"
     },
     {
       "id": "app-analytics-models-route",
       "kind": "component",
       "name": "App model API route constants",
-      "currentPath": "packages/app/lib/api/routes.ts",
+      "currentPath": "packages/app/src/shared/api/routes.ts",
       "summary": "Two route constants the app uses for model data: '/analytics/models' and '/v1/models'. The former feeds the credits panel's per-model breakdown.",
       "exposesProviderSecret": false,
       "proposedOwner": "alia",
       "targetPath": "keep-as-alia-product-setting",
       "dependsOn": [],
       "removalGate": "Keep. Both endpoints must keep returning Alia aliases only; /analytics/models is rendered directly to end users in the credits panel, so it is a live abstraction-leak surface if the API ever resolves a raw provider model id there.",
-      "evidence": "packages/app/lib/api/routes.ts:80,149; consumer: packages/app/components/credits-panel.tsx:390-397"
+      "evidence": "packages/app/src/shared/api/routes.ts:80,149; consumer: packages/app/components/credits-panel.tsx:390-397"
     },
     {
       "id": "sdk-alia-chat-model-defaults",
