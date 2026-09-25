@@ -80,7 +80,7 @@ function isEmptyContent(content: MessageContent | undefined): boolean {
  * would be a worse trade. What matters is that nobody finds out by noticing
  * the answer ignored their PDF.
  */
-function reportDroppedAttachments(dropped: DroppedAttachment[] | undefined): void {
+export function reportDroppedAttachments(dropped: DroppedAttachment[] | undefined): void {
   if (dropped === undefined || dropped.length === 0) return;
 
   for (const attachment of dropped) {

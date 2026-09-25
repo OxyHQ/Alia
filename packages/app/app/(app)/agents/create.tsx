@@ -77,7 +77,12 @@ export default function CreateAgentScreen() {
 
   const [inputValue, setInputValue] = useState("");
   const [generating, setGenerating] = useState(false);
-  const composer = useAliaComposer({ draft: 'surface:agent-create', locked: generating });
+  const composer = useAliaComposer({
+    draft: 'surface:agent-create',
+    locked: generating,
+    // `/agents/generate` reads a prompt string and nothing else.
+    attach: false,
+  });
   const [selectedArchetype, setSelectedArchetype] = useState<Archetype>('general');
 
   const handleGenerate = useCallback(async () => {

@@ -1,5 +1,7 @@
 import { Composer } from '@/components/chat/composer/composer';
 import { useAliaComposer } from '@/components/chat/composer/use-alia-composer';
+import { buildMessageContent } from '@/lib/attachment-utils';
+import { reportDroppedAttachments } from '@/lib/hooks/use-chat-conversation';
 import { useCreateConversation } from '@/lib/hooks/use-conversations';
 import { useTranslation } from '@/lib/hooks/use-translation';
 import { useStore } from '@/lib/stores/global-store';
@@ -10,7 +12,6 @@ import {
 import { toast } from '@oxy.so/bloom/toast';
 import { Muted, Text } from '@oxy.so/bloom/typography';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
 import { ScrollView, View } from 'react-native';
 
 /**
@@ -30,21 +31,29 @@ export default function AutomationsScreen() {
   const { t } = useTranslation();
   const createConversation = useCreateConversation();
   const composer = useAliaComposer({ draft: 'surface:automations', locked: createConversation.isPending });
-  const [prompt, setPrompt] = useState('');
 
-  const startConversation = async (message: string) => {
+  /**
+   * Starts the conversation that turns the description into a task. From the
+   * composer it carries the draft whole — its files and its connector and
+   * skills go to the chat like any first message; a suggestion is its text.
+   */
+  const startConversation = async (message: string, fromDraft: boolean) => {
     const text = message.trim();
-    if (!text || createConversation.isPending) return;
+    const attachments = fromDraft ? composer.attachments : [];
+    const turn = fromDraft ? composer.turnOptions : {};
+    if ((!text && attachments.length === 0) || createConversation.isPending) return;
+    const built = attachments.length > 0 ? await buildMessageContent(text, attachments) : null;
+    reportDroppedAttachments(built?.dropped);
     useStore.getState().setPendingInitialMessage({
-      content: text,
+      content: built ? built.content : text,
       text,
-      attachments: [],
-      mcpServerId: null,
-      skillNames: [],
+      attachments,
+      mcpServerId: turn.mcpServerId ?? null,
+      skillNames: turn.skillNames ?? [],
     });
     try {
       const conversation = await createConversation.mutateAsync({});
-      setPrompt('');
+      if (fromDraft) composer.clearDraft();
       router.push({ pathname: '/(app)/c/[id]', params: { id: conversation.id } });
     } catch {
       useStore.getState().clearPendingInitialMessage();
@@ -71,9 +80,9 @@ export default function AutomationsScreen() {
 
       <Composer
         {...composer.props}
-        value={prompt}
-        onValueChange={setPrompt}
-        onSubmit={() => void startConversation(prompt)}
+        value={composer.text}
+        onValueChange={composer.setText}
+        onSubmit={() => void startConversation(composer.text, true)}
         busy={createConversation.isPending}
         disabled={createConversation.isPending}
         placeholder={t('pages.automations.placeholder')}
@@ -90,7 +99,7 @@ export default function AutomationsScreen() {
               description={suggestion}
               accessibilityLabel={title}
               disabled={createConversation.isPending}
-              onPress={() => void startConversation(suggestion)}
+              onPress={() => void startConversation(suggestion, false)}
             />
           );
         })}

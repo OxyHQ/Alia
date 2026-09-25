@@ -5,7 +5,6 @@ import {
   type IntakeKind,
   type IntakeRefusal,
 } from "@/lib/chat/attachment-intake";
-import { releaseAttachmentUri } from "@/lib/stores/composer-draft-store";
 import type { Attachment } from "./types";
 
 /**
@@ -115,29 +114,6 @@ const startFileRead: StartRead = (file, handlers) => {
   reader.readAsDataURL(file);
   return { abort: () => reader.abort() };
 };
-
-/**
- * Give back a temporary URL — owned by the draft store, which releases what a
- * draft holds when a tile is removed or the account changes. Re-exported for
- * the composer's own uncontrolled list.
- */
-export { releaseAttachmentUri };
-
-/**
- * Give back what the attachment being removed was holding.
- *
- * A function of its own, and not a line inside the composer's remove handler,
- * because the part that can be wrong is the LOOKUP: release the wrong
- * attachment's URL and the strip keeps a tile whose picture has just been
- * revoked out from under it, which looks like a broken image and nothing like
- * a leak fix. Two attachments, one removed, is the shape of that test.
- */
-export function releaseRemovedAttachment(
-  attachments: readonly Attachment[],
-  id: string,
-): void {
-  releaseAttachmentUri(attachments.find((a) => a.id === id)?.uri);
-}
 
 export interface AttachmentIntake {
   /** In-flight and failed files, in the order they arrived. */
@@ -307,7 +283,7 @@ export function useAttachmentIntake({
            * go nowhere and reading them would be a progress bar over work that
            * exists only to produce a string nobody consumes. The object URL is
            * what the web pickers produce for the same file, it is instant, and
-           * `releaseAttachmentUri` gives it back when the tile is removed.
+           * the draft store gives it back when the tile is removed.
            */
           addAttachment({
             id,

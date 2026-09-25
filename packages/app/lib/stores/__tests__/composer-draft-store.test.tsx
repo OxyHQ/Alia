@@ -2,6 +2,7 @@ import React from 'react';
 import { act, create } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  releaseAttachmentUri,
   useComposerDraft,
   useComposerDraftStore,
   type ComposerDraft,
@@ -181,5 +182,15 @@ describe('one account’s drafts', () => {
     act(() => store().bindAccount('B'));
 
     expect(seen).toMatchObject({ text: '', attachments: [] });
+  });
+});
+
+describe('releasing a temporary URL', () => {
+  it('revokes an object URL and leaves a data URL alone', () => {
+    releaseAttachmentUri('blob:alia/kept-forever');
+    releaseAttachmentUri('data:image/png;base64,AAAA');
+    releaseAttachmentUri(undefined);
+
+    expect(revoked).toEqual(['blob:alia/kept-forever']);
   });
 });

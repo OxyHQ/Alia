@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useMemo, type ReactNode } from "react";
 import { View, type NativeSyntheticEvent, type TextInputKeyPressEventData } from "react-native";
 import {
   ComposerPanel,
@@ -12,7 +12,7 @@ import { useTranslation } from "@/lib/hooks/use-translation";
 import { useSpeechToText } from "@/lib/hooks/use-speech-to-text";
 import { composerTiles, intakeError } from "./attachment-tiles";
 import { ComposerDropOverlay, useComposerDropTarget, useComposerPasteTarget } from "./drop-zone";
-import { releaseRemovedAttachment, useAttachmentIntake } from "./use-attachment-intake";
+import { useAttachmentIntake } from "./use-attachment-intake";
 import type { Attachment } from "./types";
 
 /**
@@ -28,6 +28,7 @@ import type { Attachment } from "./types";
 const EMPTY_ADD_MENU: readonly ComposerPanelAddMenuGroup[] = [];
 /** `[]` hides the selector; Bloom's own four modes are not Alia's. */
 const NO_MODES: readonly ComposerPanelPermissionOption[] = [];
+const NO_ATTACHMENTS: readonly Attachment[] = [];
 
 export interface ComposerProps {
   value: string;
@@ -53,6 +54,11 @@ export interface ComposerProps {
   onModeChange?: (mode: string) => void;
   addMenu?: readonly ComposerPanelAddMenuGroup[];
   onAddMenuSelect?: (rowId: string) => void;
+  /**
+   * The draft's files. A composer given no `onAddAttachment` takes none: its
+   * surface sends nothing but the text, so no paste, drop or tile may say
+   * otherwise.
+   */
   attachments?: readonly Attachment[];
   onAddAttachment?: (attachment: Attachment) => void;
   onRemoveAttachment?: (id: string) => void;
@@ -90,7 +96,7 @@ export function Composer({
   onModeChange,
   addMenu,
   onAddMenuSelect,
-  attachments: controlledAttachments,
+  attachments = NO_ATTACHMENTS,
   onAddAttachment,
   onRemoveAttachment,
   status,
@@ -103,28 +109,17 @@ export function Composer({
   // Paste is a DOM gesture on a DOM node; the panel publishes no ref to one.
   const hostId = `composer-${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
 
-  const [internalAttachments, setInternalAttachments] = useState<Attachment[]>([]);
-  const attachments = controlledAttachments ?? internalAttachments;
+  // The list's owner releases what a removed tile held (the draft store does).
+  const takesFiles = onAddAttachment !== undefined;
   const addAttachment = useCallback(
-    (attachment: Attachment) => {
-      if (onAddAttachment !== undefined) onAddAttachment(attachment);
-      else setInternalAttachments((previous) => [...previous, attachment]);
-    },
+    (attachment: Attachment) => onAddAttachment?.(attachment),
     [onAddAttachment],
   );
-  const removeAttachment = useCallback(
-    (id: string) => {
-      // A controlled list's owner releases what it held (the draft store does).
-      if (onRemoveAttachment !== undefined) onRemoveAttachment(id);
-      else {
-        releaseRemovedAttachment(attachments, id);
-        setInternalAttachments((previous) => previous.filter((a) => a.id !== id));
-      }
-    },
-    [attachments, onRemoveAttachment],
-  );
+  const removeAttachment = useCallback((id: string) => onRemoveAttachment?.(id), [onRemoveAttachment]);
   const intake = useAttachmentIntake({ addAttachment });
-  const acceptsFiles = !disabled && !busy;
+  // A surface that takes no files still catches a drop or a pasted file, so
+  // the browser does not open it in place of the page — and then does nothing.
+  const acceptsFiles = takesFiles && !disabled && !busy;
   useComposerPasteTarget({ elementId: hostId, enabled: acceptsFiles, onFiles: intake.accept });
   // Web only; on native there is no drag, and the hook attaches nothing.
   const isDragOver = useComposerDropTarget({
@@ -238,7 +233,7 @@ export function Composer({
         onKeyPress={onKeyPress}
         labels={labels}
       />
-      <ComposerDropOverlay visible={isDragOver} enabled={acceptsFiles} />
+      <ComposerDropOverlay visible={takesFiles && isDragOver} enabled={acceptsFiles} />
       {accessory ? (
         <View pointerEvents="box-none" className="absolute bottom-full right-0 mb-2">
           {accessory}
