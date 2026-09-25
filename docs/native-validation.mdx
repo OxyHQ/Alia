@@ -1,6 +1,6 @@
 ---
 title: "Native validation (Android)"
-description: "Alia's Expo app built locally as a release APK and driven on an Android 16 emulator for #608: what was run, what each screen showed, the three defects the device found and how they were fixed, the one it found that belongs upstream, and what this machine cannot validate at all."
+description: "Alia's Expo app built locally as a release APK and driven on an Android 16 emulator and then a Pixel 8a for #608: what was run, what each screen showed, the defects the devices found and how they were fixed (one in Bloom), and what has not been validated."
 order: 10
 ---
 
@@ -14,8 +14,10 @@ system permission dialog, a microphone. This page is one pass of that on
 Android, on 2026-09-25, against `feat/608-integration` at `a83d0e5f` plus the
 fixes below (branch `chore/608-android`).
 
-**Read [§6](#6-what-this-does-not-cover) before quoting it as coverage.** It is
-one emulator, signed out, and there is no iOS here at all.
+**Read [§6](#6-what-this-does-not-cover) before quoting it as coverage.** The
+first pass (§1–§5) is one emulator, signed out. A second pass on a physical
+Pixel 8a ([§7](#7-second-pass-pixel-8a)) fixed and checked the keyboard defect
+from §4.4, signed in. There is no iOS here at all.
 
 ## 1. Device and build
 
@@ -123,39 +125,54 @@ app it lost the race to the first layout in two runs of three, leaving the same
 gap. The offset is deterministic; three runs from a cleared app all showed the
 whole composer. Gate: `src/features/chat/ui/__tests__/chat-workspace-background.test.tsx`.
 
-### 4.4 After the sign-in sheet, the composer no longer follows the keyboard — upstream, not fixed here
+### 4.4 After a sheet or popover, the composer no longer follows the keyboard — fixed (Alia and Bloom)
 
 Signed out, press send: the Oxy sign-in sheet (a Bloom `BottomSheet`, which is a
 React Native `<Modal>`) opens. Close it and the keyboard comes back, but the
 composer does not rise; it stays behind the keyboard. From then until the app is
-restarted, **every** focus of the composer has the same problem.
-
-At the moment the sheet opens, logcat shows three copies of:
+restarted, **every** focus of the composer has the same problem. At the moment
+the sheet opens, logcat shows one copy of this per keyboard-controller provider:
 
 ```
 E/unknown:UIManagerHelper: Unhandled SoftException
 java.lang.IllegalStateException: Fabric View [-1] does not have SurfaceId associated with it
-  at ...FabricEventDispatcher.dispatchEvent
-  at com.reactnativekeyboardcontroller.listeners.FocusedInputObserver.<init>(FocusedInputObserver.kt:46)
-  at com.reactnativekeyboardcontroller.listeners.KeyboardAnimationCallback.<init>(KeyboardAnimationCallback.kt:129)
-  at com.reactnativekeyboardcontroller.modal.ModalAttachedWatcher.onEventDispatch(ModalAttachedWatcher.kt:58)
-  at com.facebook.react.views.modal.ReactModalHostManager...onShow
+  at ...FocusedInputObserver.<init>(FocusedInputObserver.kt:46)
+  at ...KeyboardAnimationCallback.<init>(KeyboardAnimationCallback.kt:129)
+  at ...modal.ModalAttachedWatcher.onEventDispatch(ModalAttachedWatcher.kt:58)
+  at com.facebook.react.views.modal.ReactModalHostManager...
 ```
 
-`ModalAttachedWatcher` suspends the main window's keyboard callback when a
-`<Modal>` shows and resumes it from the dialog's dismiss listener. Three copies
-means three `KeyboardProvider`s: `OxyProvider`'s `KeyboardBoundary`, Alia's own
-in `app/_layout.tsx`, and the one Bloom's `BottomSheet` re-establishes inside its
-Modal. Removing Alia's (the only one Alia owns) was tried on a build and did
-**not** change the behaviour, so the fault is between Bloom's sheet and
-keyboard-controller 1.21.9 under Fabric. That the main callback is left
-suspended is the likely mechanism; it was not proven.
+The exception itself is harmless (the observer falls back to surface −1). The
+cause is next to it in `ModalAttachedWatcher` (keyboard-controller 1.21.9, and
+unchanged in 1.22.5): when a `<Modal>` shows, **every** `KeyboardProvider`'s
+watcher suspends its own main-window keyboard callback, then calls
+`dialog.setOnDismissListener { … suspend(false) }`. A dialog keeps only the
+**last** listener. With two providers or more, the dialog's dismissal resumes
+one of them, and the others stay suspended until the process dies, taking every
+`KeyboardAvoidingView` under them along.
 
-Per the rule that a Bloom gap is fixed in Bloom, Alia carries no workaround. A
-`Keyboard.dismiss()` before `signIn()` was tried: it stops the keyboard popping
-back when the sheet closes but not the broken focus after it, so it only hid
-the bug. Whether other Bloom sheets over the composer (the model picker, the
-attach menu) do the same was not checked.
+Alia had three: `OxyProvider`'s `KeyboardBoundary`, Alia's own in
+`app/_layout.tsx`, and the one Bloom's `BottomSheet` re-established inside its
+`<Modal>`. That is why removing only Alia's (tried in the first pass) did not
+fix the sign-in sheet: the Oxy provider and the sheet's still made two. It is
+also why the defect does not need the sign-in sheet. Signed in, the model
+picker (a Bloom popover in a `<Modal>`, two exceptions) and the Oxy account
+sheet (three) do the same.
+
+Fixed at both ends, so there is exactly one provider, `OxyProvider`'s:
+
+- **Bloom 4.22.1** ([OxyHQ/Bloom#203](https://github.com/OxyHQ/Bloom/pull/203)):
+  the sheet mounts no provider of its own. React context crosses the `<Modal>`,
+  and the root provider's watcher carries the dialog window's keyboard events
+  to the root provider's view, which is where the sheet's handler is
+  registered.
+- **Alia** mounts none (`app/_layout.tsx`; `@/shared/platform/keyboard` no
+  longer exports one). Gate: `__tests__/one-keyboard-provider.test.ts`. It
+  checks Alia's source, that `OxyProvider` mounts the one, and that the
+  installed Bloom sheet adds none.
+
+A `Keyboard.dismiss()` before `signIn()`, tried in the first pass, only hid the
+bug. Alia carries no workaround.
 
 ### 4.5 Smaller things seen
 
@@ -164,12 +181,26 @@ attach menu) do the same was not checked.
   SurfaceMountingManager`) in one session, in bursts at launch and when the
   welcome hands over to the chat: animated props written to views already
   unmounted. Warnings only; nothing visible.
-- **Signed-out Library calls the API.** Opening Library signed out logs
-  `E/ReactNativeJS: 'Error loading library files:', [AxiosError: Request failed
-  with status code 401]`. The page renders its empty state, but the request
-  should not be made.
-- **Sign-in sheet foot.** The sheet's language selector ("Having…") is clipped
-  under the gesture bar. It is `@oxy.so/services` UI.
+- **Signed-out Library called the API — fixed.** Opening Library signed out
+  logged `E/ReactNativeJS: 'Error loading library files:', [AxiosError: Request
+  failed with status code 401]`. The page now loads the files only for an
+  account, and signed out its "Add files" opens sign-in instead of an upload the
+  API would refuse (#608 §3.2). An audit of the other screens a visitor can
+  reach found the same pattern in the agent editor (skills, connectors,
+  library), the approvals poll (every 60 s), an agent's threads and the teams
+  list; all are gated now. Gates: `app/(app)/__tests__/library-drawer-toggle.test.tsx`,
+  `src/features/agents/runtime/__tests__/signed-out-requests.test.tsx`. Still
+  asked signed out, and left alone: `useAgentThread` (`/@handle`, where the
+  401 renders "not found" and gating would leave the page spinning) and
+  `useSessionActivity` (link-only).
+- **Sign-in sheet foot — fixed in Bloom.** It is not a language selector. It is
+  the "Having trouble?" accordion (`@oxy.so/services` `TroubleDisclosure`),
+  truncated to "Having" and painted under the gesture bar. Both are Bloom's:
+  4.21.0 gives every bottom-placement `Dialog` a spacer as tall as the bottom
+  safe area, and trigger labels keep their width. Nothing in `@oxy.so/services`
+  changed. On the Pixel 8a with 4.22.1 the Oxy account sheet's last row sits
+  clear of the gesture bar. On 4.20.0 its "Switch account" accordion was also
+  drawn as a huge circle.
 - **`action` tone is green.** "Get started", "Add files" and the send button are
   green on a purple app. That is Bloom's `purple` preset, whose action colour is
   derived as a complement by design — not the device's Material You palette
@@ -200,10 +231,12 @@ attach menu) do the same was not checked.
 - **iOS.** Not on this machine; it needs a Mac with Xcode. Nothing here says
   anything about iOS, where the keyboard avoidance runs a different behaviour
   (`padding`) and the safe areas differ.
-- **Signed in.** No account was used. Streaming turns, tools, the thread with
+- **Signed in.** The first pass used no account; the Pixel 8a pass (§7) was
+  signed in but only exercised sheets, the picker and the composer. Streaming turns, tools, the thread with
   real messages, history, read aloud, calls, notifications, attachments and the
   right-hand panel were not exercised.
-- **A real phone.** One emulator, x86_64, software GPU. No low-end device, no
+- **A real phone.** The first pass is one emulator, x86_64, software GPU; §7
+  adds one Pixel 8a, for the keyboard defect only. No low-end device, no
   gesture-vs-three-button navigation comparison, no tablet or foldable (on
   Android 16, large screens may ignore the portrait lock), no display cutout
   other than the Pixel 7 profile's.
@@ -212,3 +245,36 @@ attach menu) do the same was not checked.
 - **The web.** Nothing here was checked on web; the web harnesses are the
   reference there. The layout change keeps web on its old path by construction
   (`Platform.OS === 'web'`), and the app's unit suite passed.
+
+## 7. Second pass: Pixel 8a
+
+The same day, on a physical **Pixel 8a** (`akita`, Android 16, 1080×2400,
+420 dpi), reached through the Windows host's adb server over USB. Release APKs
+were built on this machine with `-PreactNativeArchitectures=arm64-v8a` (about
+72 MB), never on EAS. The install is `adb install -r`, the launch is
+`am start -n onl.alia.app/.MainActivity`, and screenshots are
+`exec-out screencap -p`.
+
+The phone carries Oxy Commons and Mention, and the Oxy identity is the device's:
+`pm clear onl.alia.app` does **not** sign Alia out, and after "Sign out" in
+Alia a cold start signs it straight back in through that shared session. So
+this pass is **signed in** (a QA account). Signed-out screens only last until
+the app restarts, and the phone was shared with another QA session, so the
+signed-out checks below are pending.
+
+| Build | After the model picker | After the Oxy account sheet | Exceptions when the sheet opens |
+| --- | --- | --- | --- |
+| Before (Bloom 4.20.0, Alia's own provider) | composer behind the keyboard | composer behind the keyboard | 3 |
+| Alia's provider removed, Bloom 4.20.0 | composer rises | composer behind the keyboard | 2 |
+| Alia's provider removed, Bloom with #203 | composer rises | composer rises | 1 |
+
+With only the root provider, a sheet with a text field ("New show", a
+bottom-placement `Dialog`) still lifts above the keyboard, and the composer
+still rises after it closes. The third row was built against the fix packed
+locally from the Bloom branch. The released 4.22.1 contains the same change,
+and Alia's gate checks the installed package.
+
+**Pending on a device** (for the QA pass on the merged build): signed out, the
+Library sends no `GET /library`; "Add files" opens sign-in; the sign-in sheet's
+"Having trouble?" is whole and clear of the gesture bar; the composer rises
+after the sign-in sheet closes. Each is covered by the unit gates named above.
