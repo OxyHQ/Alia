@@ -46,6 +46,7 @@ vi.mock('../text-tool-fallback.js', () => ({
 }));
 
 import { runProviderLoop } from '../provider-loop.js';
+import { saveConversationResult, startParallelTitleGeneration } from '../../chat-lifecycle.js';
 
 describe('functional completion response lifecycle', () => {
   it('keeps the close listener through beforeStreamClose and emits no success for a late disconnect', async () => {
@@ -101,6 +102,57 @@ describe('functional completion response lifecycle', () => {
     expect(result.status).toBe('completed');
     expect(H.markers).toBe(0);
     expect(closeListeners.size).toBe(0);
+    clearTimeout(params.globalTimer);
+  });
+
+  it('saves the reply under the id the client drew it with', async () => {
+    const response = {
+      writableEnded: false,
+      on: vi.fn(),
+      off: vi.fn(),
+      write: vi.fn(() => true),
+      end() { response.writableEnded = true; },
+    };
+    const params = {
+      req: { off: vi.fn(), user: { id: 'user-1' } },
+      res: response,
+      sse: { startKeepAlive: vi.fn(), stopKeepAlive: vi.fn() },
+      requestId: 'request-test',
+      requestStartTime: Date.now(),
+      globalTimer: setTimeout(() => undefined, 60_000),
+      globalTimeoutMs: 120_000,
+      state: {
+        resolved: { routingProfileId: 'route:auto', modelId: 'model-test' },
+        routingProfileId: 'route:auto',
+        creditReservation: null,
+        creditsSettled: true,
+        globalTimedOut: false,
+      },
+      body: { stream: true },
+      skills: { activated: () => [] },
+      messages: [{ role: 'user', content: 'hi', id: 'u-1' }],
+      conversationId: 'c-1',
+      assistantMessageId: 'a-1',
+      reasoningEffort: null,
+      convertedMessages: [],
+      truncatedTools: {},
+      toolNameMapping: new Map(),
+      agentMessages: [],
+      systemPromptTokens: 0,
+      requestedModel: 'route:auto',
+      autonomyRuntime: null,
+      includeUsage: false,
+    } as unknown as ProviderLoopParams;
+
+    vi.mocked(startParallelTitleGeneration).mockResolvedValue(null);
+    await runProviderLoop(params);
+
+    expect(vi.mocked(saveConversationResult)).toHaveBeenCalledWith(
+      expect.objectContaining({ conversationId: 'c-1', assistantMessageId: 'a-1' }),
+      'complete',
+      [],
+      [],
+    );
     clearTimeout(params.globalTimer);
   });
 });

@@ -96,7 +96,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
     if (!ctx) return; // response already written (validation error or gate rejection)
 
     const {
-      body, messages, conversationId, reasoningEffort, responseMode, deepResearch, webSearch,
+      body, messages, conversationId, assistantMessageId, reasoningEffort, responseMode, deepResearch, webSearch,
       mcpServerId,
       includeUsage, isDirectUserSession, requestedModel, clientContext, promptModelId,
       isLocalRuntime,
@@ -128,6 +128,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
         routingProfileId: state.routingProfileId,
         userId: req.user.id,
         conversationId,
+        assistantMessageId,
         messages,
         creditReservation: state.creditReservation,
         autonomyRuntime,
@@ -291,6 +292,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
       body,
       messages,
       conversationId,
+      assistantMessageId,
       reasoningEffort,
       convertedMessages,
       truncatedTools,

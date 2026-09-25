@@ -52,10 +52,11 @@ region or permissive fallback may be invented in Alia.
 {
   "model": "<kaana-routing-profile-id>",
   "messages": [
-    { "role": "user", "content": "Prepare my meeting with Sarah" }
+    { "id": "5c2e…", "role": "user", "content": "Prepare my meeting with Sarah" }
   ],
   "stream": true,
   "conversationId": "conv_…",
+  "assistantMessageId": "0b0f…",
   "reasoningEffort": "medium",
   "agentMode": "research",
   "deepResearch": true,
@@ -132,7 +133,23 @@ closed on that decision.
 
 ## Persistence and failure
 
-Conversations and messages are stored through the Postgres repositories. Usage
+Conversations and messages are stored through the Postgres repositories.
+
+A stored message keeps the id the client drew it under, in
+`messages.client_message_id`, and that is the id `GET /conversations/:id`
+returns and the per-message routes address (`PATCH
+/conversations/:id/messages/:messageId/vote`, `POST /v1/audio/speech` with
+`conversationId` and `messageId`). A client that wants to address a reply it
+is still showing sends each message with its `id` and names the reply it is
+drawing in `assistantMessageId`; a delegated agent's answers in that turn are
+stored as `<assistantMessageId>-agent-<n>`, in the order their `alia.agent`
+events arrived, because that event carries no id of its own. A message sent
+without an id is named by its position, `msg-<seq>`. A malformed
+`assistantMessageId` (not a string of 1–128 characters) is refused with `400
+invalid_request`. A turn is stored when it completes, so a failed turn has no
+row to address.
+
+Usage
 records persist the requested identity separately from the routing profile that
 served it. Provider/deployment detail remains internal to the Oxy/Kaana receipt
 and must not be exposed through Alia responses or errors.

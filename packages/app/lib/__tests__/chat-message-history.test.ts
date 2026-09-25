@@ -20,9 +20,10 @@ describe('chat message history', () => {
     const payload = buildOutboundMessages([previous], current);
 
     expect(advancedUiState).toHaveLength(3);
+    // Each under the id it is drawn with: the server stores the turn by them.
     expect(payload).toEqual([
-      { role: 'assistant', content: 'Previous answer' },
-      { role: 'user', content: 'Write Python' },
+      { id: 'assistant-1', role: 'assistant', content: 'Previous answer' },
+      { id: 'user-2', role: 'user', content: 'Write Python' },
     ]);
   });
 

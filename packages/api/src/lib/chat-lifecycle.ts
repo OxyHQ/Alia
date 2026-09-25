@@ -16,6 +16,8 @@ import { messageExistsInConversation } from '../db/chat/messageRepository.js';
 export interface LifecycleContext {
   userId?: string;
   conversationId?: string;
+  /** The client's id for this turn's reply, which the reply is stored under. */
+  assistantMessageId?: string;
   messages: ChatMessage[];
   /** The alias the provider loop settled on. */
   routingProfileId: string;
@@ -96,7 +98,7 @@ export async function saveConversationResult(
   toolInvocations?: Array<{ toolCallId: string; toolName: string; state: 'call' | 'result'; args?: unknown; result?: unknown }>,
   agentMessages?: Array<{ role: 'assistant'; content: string; agentInfo: { id: string; name: string; color: string | null; handle: string } }>,
 ): Promise<void> {
-  const { userId, conversationId, messages } = ctx;
+  const { userId, conversationId, assistantMessageId, messages } = ctx;
   if (!conversationId || !userId || !turnProducedOutput(assistantResponse, toolInvocations)) return;
 
   try {
@@ -105,6 +107,7 @@ export async function saveConversationResult(
       conversationId,
       messages,
       assistantResponse,
+      assistantMessageId,
       toolInvocations,
       agentMessages: agentMessages && agentMessages.length > 0 ? agentMessages : undefined,
     });

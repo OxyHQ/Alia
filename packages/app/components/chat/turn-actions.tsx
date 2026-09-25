@@ -111,19 +111,20 @@ export function useReadAloud(blocked: boolean) {
   const active = useRef(activeMessageId);
   active.current = activeMessageId;
   const toggle = useCallback(
-    (messageId: string, text: string, audioUrl?: string) => {
+    (messageId: string, text: string, audioUrl?: string, conversationId?: string) => {
       const wasThis = active.current === messageId;
       stopReadingAloud();
       if (wasThis) return;
       owner = self.current;
       /**
-       * No conversation or message id: those ask the route to STORE the clip
-       * on the message, found by the client's id — and a reply the server
-       * saved carries none (`conversation-saver.ts` writes the answer without
-       * one), so the route answers 404 and nothing is read. Without them the
-       * clip is simply made and played.
+       * `conversationId` asks the route to STORE the clip on the message,
+       * found by this same id — so the next press, here or after a reload,
+       * plays it without making it again. The caller passes it only for a
+       * message the server holds (`Message.unsaved`): for one it does not, the
+       * route answers 404 and nothing would be read. Without it the clip is
+       * simply made and played.
        */
-      void readAloud(messageId, text, undefined, audioUrl);
+      void readAloud(messageId, text, conversationId, audioUrl);
     },
     [readAloud],
   );

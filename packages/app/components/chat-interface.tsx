@@ -233,7 +233,7 @@ type MessageRowProps = {
   handleCopyMessage: (content: string) => Promise<boolean>;
   /** This reply's read-aloud, as a primitive so only its own row re-renders. */
   readAloudState: ReadAloudState;
-  onReadAloud: (messageId: string, text: string, audioUrl?: string) => void;
+  onReadAloud: (messageId: string, text: string, audioUrl?: string, conversationId?: string) => void;
   /** A call or a dictation holds the audio. */
   readAloudBlocked: boolean;
   /** Given only to the one reply that may be regenerated. */
@@ -329,6 +329,12 @@ const MessageRow = React.memo(function MessageRow({
    * same list.
    */
   const copyTurn = () => handleCopyMessage(messageText);
+  /**
+   * The conversation that holds this message under `m.id`, or `undefined`
+   * while nothing does — a turn still streaming, failed or stopped. A vote and
+   * a stored clip are addressed to it, and to nothing else.
+   */
+  const storedIn = m.unsaved === true ? undefined : chatId?.id;
   const hasText = messageText.length > 0;
   const reading =
     readAloudState === 'loading' ||
@@ -343,7 +349,7 @@ const MessageRow = React.memo(function MessageRow({
           icon: reading ? RiStopFill : RiVolumeUpLine,
           active: reading,
           disabled: readAloudBlocked && !reading,
-          onPress: () => onReadAloud(m.id, messageText, m.audioUrl),
+          onPress: () => onReadAloud(m.id, messageText, m.audioUrl, storedIn),
         };
   const regenerateAction: AiChatTurnAction | null =
     onRegenerate === undefined || m.isStreaming || isLoading
@@ -389,13 +395,13 @@ const MessageRow = React.memo(function MessageRow({
               key: 'like',
               label: rowT('chat.like'),
               icon: RiThumbUpLine,
-              onPress: () => handleVote(m.id, 'up', chatId?.id),
+              onPress: () => handleVote(m.id, 'up', storedIn),
             },
             {
               key: 'dislike',
               label: rowT('chat.dislike'),
               icon: RiThumbDownLine,
-              onPress: () => handleVote(m.id, 'down', chatId?.id),
+              onPress: () => handleVote(m.id, 'down', storedIn),
             },
           ].filter(isPresent)
         : []
@@ -476,8 +482,8 @@ const MessageRow = React.memo(function MessageRow({
                   animate={isNewMessage}
                   feedback={replyHasFeedback}
                   feedbackProps={{
-                    onLike: () => handleVote(m.id, 'up', chatId?.id),
-                    onDislike: () => handleVote(m.id, 'down', chatId?.id),
+                    onLike: () => handleVote(m.id, 'up', storedIn),
+                    onDislike: () => handleVote(m.id, 'down', storedIn),
                     onCopy: copyTurn,
                     actions: replyActions,
                     labels: {
@@ -847,16 +853,23 @@ export const ChatInterface = React.memo(function ChatInterface({
    * The vote is addressed to the conversation the message is in, and a thread
    * shows several: taking the id of the stretch on screen would send an old
    * message's vote to a conversation that does not contain it, where it can
-   * only fail — and it fails silently, because the only report is a toast on
-   * success.
+   * only fail.
+   *
+   * `undefined` is a message no conversation holds yet (`Message.unsaved`): a
+   * turn that failed or was stopped. There is nothing to record the vote on,
+   * and the button cannot be hidden on its own, so the press says so — as a
+   * refused request does — rather than thanking the person for nothing.
    */
   const handleVote = useCallback(
     (messageId: string, vote: 'up' | 'down', conversationId?: string) => {
+      if (conversationId === undefined) {
+        toast.error(t('chat.feedbackFailed'));
+        return;
+      }
       if (voteInFlightRef.current.has(messageId)) return;
       const newVote = votesRef.current[messageId] === vote ? null : vote;
       if (newVote) votesRef.current[messageId] = newVote;
       else delete votesRef.current[messageId];
-      if (conversationId === undefined) return;
       voteInFlightRef.current.add(messageId);
       apiClient
         .patch(`/conversations/${conversationId}/messages/${messageId}/vote`, {
@@ -864,7 +877,10 @@ export const ChatInterface = React.memo(function ChatInterface({
         })
         .then(() => toast.success(t('chat.thanksFeedback')))
         .catch(() => {
-          delete votesRef.current[messageId];
+          // Back to what the server holds, so the next press casts it again.
+          if (newVote) delete votesRef.current[messageId];
+          else votesRef.current[messageId] = vote;
+          toast.error(t('chat.feedbackFailed'));
         })
         .finally(() => voteInFlightRef.current.delete(messageId));
     },

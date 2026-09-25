@@ -54,6 +54,18 @@ export interface Message {
    */
   turnOutcome?: 'completed' | 'failed' | 'cancelled';
   /**
+   * The server does not hold this message yet, so nothing can be addressed to
+   * it by id — a vote, a read-aloud clip stored on it.
+   *
+   * Set by `useStreamingChat` on every message of a turn it sends (the
+   * question, the reply, a delegated agent's answer) and cleared when that
+   * turn completes, which is when the server has stored it under these same
+   * ids. A turn that failed or was stopped keeps it: a failure is never stored,
+   * and a stopped turn is stored only once the server finishes it, at a moment
+   * this screen does not learn. Absent on a message read back from the server.
+   */
+  unsaved?: true;
+  /**
    * Agent delegation metadata, when agent mode delegates to a specialist agent.
    *
    * `color` is the agent's own — `User.color` on its Oxy bot account — and is

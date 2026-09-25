@@ -119,3 +119,17 @@ export const AGENT_OUTREACH_MESSAGE_ID_PREFIX = 'agent-push-';
 export function isAgentOutreachMessageId(id: string | null | undefined): boolean {
   return typeof id === 'string' && id.startsWith(AGENT_OUTREACH_MESSAGE_ID_PREFIX);
 }
+
+/**
+ * The longest message id this service stores. The speech route caps the
+ * `messageId` it looks up at the same length, so a longer one could be stored
+ * and then never addressed.
+ */
+const MAX_MESSAGE_ID_LENGTH = 128;
+
+/** A client-sent message id worth keeping: a non-empty string of bounded length. */
+export function usableMessageId(value: unknown): string | undefined {
+  return typeof value === 'string' && value.length > 0 && value.length <= MAX_MESSAGE_ID_LENGTH
+    ? value
+    : undefined;
+}
