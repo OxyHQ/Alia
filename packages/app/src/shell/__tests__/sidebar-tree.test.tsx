@@ -352,4 +352,13 @@ describe('the sidebar tree', () => {
       params: { username: '@pepe' },
     });
   });
+
+  it('keeps the links in the account menu signed in, so only Settings is a row under the history', async () => {
+    await mount();
+    const props = state.sidebarProps as Record<string, any>;
+    expect(props.secondaryItems.map((item: { key: string }) => item.key)).toEqual(['settings']);
+    const footer = props.footer({ collapsed: false });
+    const keys = footer.props.menuItems.map((item: { key: string }) => item.key);
+    expect(keys).toEqual(expect.arrayContaining(['upgrade', 'invite', 'support', 'privacy', 'terms']));
+  });
 });
