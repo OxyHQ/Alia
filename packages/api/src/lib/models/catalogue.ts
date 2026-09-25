@@ -121,11 +121,10 @@ function pricingOf(raw: unknown): ModelPricing | null {
 /**
  * The effort levels a model accepts.
  *
- * `@oxy.so/core` 1.7 does not type `reasoningEfforts` yet (it lands in the next
- * core minor), so it is read defensively from the raw entry — top level or
- * under `capabilities`. Until Oxy sends it, a model that declares `reasoning`
- * is taken to accept every level: Kaana translates the level into each
- * provider's own parameter.
+ * Read from the raw entry — top level or under `capabilities` — because the
+ * client types its answer but does not re-parse it. Only a level Oxy lists is
+ * offered: Oxy refuses any other with a 400, so an entry that lists none (or an
+ * older Oxy that omits the field) offers no effort control at all.
  */
 function reasoningEffortsOf(entry: Record<string, unknown>, capabilities: Record<string, unknown> | null): ReasoningEffort[] {
   const declared = Array.isArray(entry.reasoningEfforts)
@@ -134,7 +133,7 @@ function reasoningEffortsOf(entry: Record<string, unknown>, capabilities: Record
       ? capabilities.reasoningEfforts
       : null;
   if (declared !== null) return REASONING_EFFORTS.filter((level) => declared.includes(level));
-  return capabilities?.reasoning === true ? [...REASONING_EFFORTS] : [];
+  return [];
 }
 
 /**

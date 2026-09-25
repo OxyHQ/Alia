@@ -156,6 +156,7 @@ vi.mock('@oxy.so/core', () => {
             ownerAccountId: 'account-1',
             scopes: ['alia:invoke'],
             environment: 'production',
+            tier: 'internal',
           };
         }
         next();
@@ -180,6 +181,7 @@ vi.mock('@oxy.so/core/server', () => ({
         ownerAccountId: 'account-1',
         scopes: ['alia:invoke'],
         environment: 'production',
+        tier: 'internal',
       };
     }
     next();
