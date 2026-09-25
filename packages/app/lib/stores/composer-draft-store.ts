@@ -65,9 +65,30 @@ export interface ComposerDraft {
   mcpServerId: string | null;
   /** The skills chosen for the next turn. */
   skillNames: string[];
+  /**
+   * Set while the composer is rewriting a turn already sent rather than
+   * writing a new one: its send replaces that turn and everything after it.
+   * Absent for an ordinary draft.
+   */
+  editing?: DraftEdit;
 }
 
 export type DraftTurn = Pick<ComposerDraft, "mcpServerId" | "skillNames">;
+
+/** What the composer held before an edit took it over, for a cancel to give back. */
+export type DraftBeforeEdit = Pick<ComposerDraft, "text" | "mcpServerId" | "skillNames">;
+
+export interface DraftEdit {
+  /** The user turn being rewritten. */
+  messageId: string;
+  before: DraftBeforeEdit;
+}
+
+/** The turn an edit loads into the composer: its words and the options it was sent with. */
+export interface EditedTurn extends DraftTurn {
+  messageId: string;
+  text: string;
+}
 
 export const EMPTY_DRAFT: ComposerDraft = Object.freeze({
   text: "",
@@ -123,6 +144,15 @@ interface DraftStoreState {
    * still needs them, and a failed one hands them back through `restore`.
    */
   clear: (address: DraftAddress) => void;
+  /**
+   * Load a sent turn into the composer to be rewritten. What the composer held
+   * is kept aside (attachments stay where they are), and a second edit started
+   * before the first is sent or cancelled keeps the ORIGINAL draft aside, not
+   * the first edit's text.
+   */
+  startEdit: (address: DraftAddress, turn: EditedTurn) => void;
+  /** Leave edit mode and give the composer back what it held before. */
+  cancelEdit: (address: DraftAddress) => void;
 }
 
 export const useComposerDraftStore = create<DraftStoreState>((set, get) => {
@@ -204,6 +234,29 @@ export const useComposerDraftStore = create<DraftStoreState>((set, get) => {
       ),
 
     clear: (address) => write(address, () => null),
+
+    startEdit: (address, turn) =>
+      write(address, (draft) => ({
+        ...draft,
+        text: turn.text,
+        mcpServerId: turn.mcpServerId,
+        skillNames: turn.skillNames,
+        editing: {
+          messageId: turn.messageId,
+          before: draft.editing?.before ?? {
+            text: draft.text,
+            mcpServerId: draft.mcpServerId,
+            skillNames: draft.skillNames,
+          },
+        },
+      })),
+
+    cancelEdit: (address) =>
+      write(address, (draft) => {
+        if (draft.editing === undefined) return draft;
+        const { editing, ...rest } = draft;
+        return { ...rest, ...editing.before };
+      }),
   };
 });
 
