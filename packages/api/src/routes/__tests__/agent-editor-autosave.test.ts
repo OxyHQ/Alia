@@ -45,7 +45,13 @@ import {
 } from '../../domain/capability-grants.js';
 
 const REPO_ROOT = path.resolve(__dirname, '../../../../..');
-const EDITOR = 'packages/app/app/(app)/agents/edit/[id].tsx';
+// The editor's saves live in its hooks since the route was thinned (#608 §4):
+// the autosave, and the publish toggle among the editor's actions. The screen
+// under `app/(app)/agents/edit/` only composes them.
+const EDITOR = [
+  'packages/app/lib/hooks/agents/use-agent-autosave.ts',
+  'packages/app/lib/hooks/agents/use-agent-editor-actions.ts',
+];
 const FAMILIES = 'packages/app/lib/constants/capability-families.ts';
 
 const state = vi.hoisted(() => ({ userId: 'oxy-caller', accessToken: 'token-abc' as string | undefined }));
@@ -179,8 +185,6 @@ beforeEach(() => {
  * state variables one edit away from finding the wrong ones.
  */
 function editorSavePayloads(): ts.ObjectLiteralExpression[] {
-  const file = path.join(REPO_ROOT, EDITOR);
-  const source = ts.createSourceFile(file, readFileSync(file, 'utf8'), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
   const payloads: ts.ObjectLiteralExpression[] = [];
 
   const visit = (node: ts.Node): void => {
@@ -204,7 +208,10 @@ function editorSavePayloads(): ts.ObjectLiteralExpression[] {
     }
     ts.forEachChild(node, visit);
   };
-  visit(source);
+  for (const relative of EDITOR) {
+    const file = path.join(REPO_ROOT, relative);
+    visit(ts.createSourceFile(file, readFileSync(file, 'utf8'), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX));
+  }
   return payloads;
 }
 
@@ -620,7 +627,8 @@ describe('the editor screen reports a failed save instead of swallowing it', () 
      * A check that fires on prose about the bug is a check that cannot tell the
      * bug from its own commit message.
      */
-    expect(emptyCatchCount(readFileSync(path.join(REPO_ROOT, EDITOR), 'utf8')), 
+    const editorSource = EDITOR.map((file) => readFileSync(path.join(REPO_ROOT, file), 'utf8')).join('\n');
+    expect(emptyCatchCount(editorSource), 
       'A save that fails must say so. An empty catch here is what turned every ' +
         'autosave 400 into a spinner that stopped and a screen that looked saved.',
     ).toBe(0);
@@ -637,10 +645,10 @@ describe('the editor screen reports a failed save instead of swallowing it', () 
   });
 
   it('finds the files it reads, so a moved screen cannot pass silently', () => {
-    // Both, and TRACKED rather than merely present: a new file is invisible to
+    // All of them, and TRACKED rather than merely present: a new file is invisible to
     // `git ls-files` until it is staged, so this also says the app half of the
     // change was actually committed.
-    const tracked = execFileSync('git', ['ls-files', EDITOR, FAMILIES], { cwd: REPO_ROOT, encoding: 'utf8' });
-    expect(tracked.trim().split('\n').sort()).toEqual([EDITOR, FAMILIES].sort());
+    const tracked = execFileSync('git', ['ls-files', ...EDITOR, FAMILIES], { cwd: REPO_ROOT, encoding: 'utf8' });
+    expect(tracked.trim().split('\n').sort()).toEqual([...EDITOR, FAMILIES].sort());
   });
 });
