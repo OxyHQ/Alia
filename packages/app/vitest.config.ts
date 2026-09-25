@@ -19,6 +19,8 @@ export default defineConfig({
       '@': fileURLToPath(new URL('.', import.meta.url)),
       // Its native module does not exist under vitest; see the stub.
       'expo-crypto': fileURLToPath(new URL('./test/expo-crypto.ts', import.meta.url)),
+      // Same, for the device locale the real `useTranslation` reads.
+      'expo-localization': fileURLToPath(new URL('./test/expo-localization.ts', import.meta.url)),
     },
   },
   /**
