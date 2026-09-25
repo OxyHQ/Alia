@@ -69,14 +69,17 @@ provider retires disappears from Alia on the next refresh without a deploy.
 
 ### 3. Every choice Alia makes about models is computed
 
-- **Featured** (the picker's first view): for each publisher, its newest chat-usable model,
-  ranked by real Alia usage over the last 30 days (`chat_analytics`), top dozen, recomputed
-  daily.
+- **Featured** (the picker's first view): for each publisher, its newest stable
+  chat-usable model (priced above zero, no `preview`/`exp`/`beta`/`alpha` marker),
+  publishers ranked by real Alia usage over the last 30 days (`chat_analytics`), then by
+  their catalogue breadth; top dozen, recomputed daily. Amended 2026-09-25: the first
+  production cold start ranked by release date and featured one-model publishers' free
+  previews ahead of every major lab.
 - **Default model for a person:** the model they last used; otherwise the most-used
-  featured model in Alia; on a cold start, the cheapest featured model with tools.
+  featured model in Alia; on a cold start, the median-priced featured model.
 - **Utility model** (titles, summaries, compaction, suggestions, soul, style refinement,
-  planner, verifier and similar internal calls): the cheapest chat-usable model with a
-  context window of at least 32k tokens.
+  planner, verifier and similar internal calls): the cheapest stable chat-usable model
+  with a context window of at least 32k tokens.
 - **Speech model:** the cheapest catalogue model with audio output.
 
 No model id appears in code, in environment variables or in a curated list. A persisted

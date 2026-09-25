@@ -53,6 +53,23 @@ function byReleaseDesc(a: CatalogueModel, b: CatalogueModel): number {
   return a.id.localeCompare(b.id);
 }
 
+/**
+ * Whether a model is a settled release worth leading with.
+ *
+ * Two signals the catalogue itself carries, not a list: a price of zero (a
+ * provider's free tier — rate-limited, and withdrawn without notice) and a
+ * pre-release marker in the provider's own id or name (`preview`, `exp`,
+ * `beta`, `alpha`). Such a model stays selectable in the picker; it is only
+ * never the one Alia CHOOSES for somebody.
+ */
+const PRE_RELEASE = /(?:^|[^a-z])(?:preview|exp|experimental|beta|alpha)(?:[^a-z]|$)/i;
+
+export function isStableRelease(model: CatalogueModel): boolean {
+  const price = blendedPrice(model);
+  if (!(price > 0) || !Number.isFinite(price)) return false;
+  return !PRE_RELEASE.test(model.id) && !PRE_RELEASE.test(model.name);
+}
+
 function usageMap(usage: readonly ModelUsage[]): Map<string, number> {
   const turns = new Map<string, number>();
   for (const row of usage) turns.set(row.modelId, (turns.get(row.modelId) ?? 0) + row.turns);
@@ -60,12 +77,17 @@ function usageMap(usage: readonly ModelUsage[]): Map<string, number> {
 }
 
 /**
- * The featured models: per publisher, its newest chat-usable model; publishers
- * ranked by how much Alia's users ran ANY of their models.
+ * The featured models: per publisher, its newest stable chat-usable model
+ * ({@link isStableRelease}); publishers ranked by how much Alia's users ran
+ * ANY of their models, then — the cold start, before anyone has run anything —
+ * by how many chat models the publisher has in the catalogue.
  *
- * Ranked by publisher usage rather than by the featured model's own usage,
- * because a model released yesterday has no usage yet and must still lead its
- * publisher's slot. Ties (a cold start) fall back to recency, then id.
+ * Breadth is the cold-start signal because it is what the providers publish:
+ * a lab that ships forty models is one people come looking for, and ranking by
+ * release date instead let a single new model from a one-model publisher
+ * outrank every major lab. Ranked by publisher usage rather than the featured
+ * model's own, because a model released yesterday has no usage yet and must
+ * still lead its publisher's slot. Ties fall back to recency, then id.
  */
 export function selectFeatured(
   models: readonly CatalogueModel[],
@@ -75,19 +97,24 @@ export function selectFeatured(
   const turns = usageMap(usage);
   const newestByPublisher = new Map<string, CatalogueModel>();
   const publisherTurns = new Map<string, number>();
+  const publisherBreadth = new Map<string, number>();
 
   for (const model of models) {
     if (!isChatUsable(model)) continue;
     const publisher = model.publisher.id;
     publisherTurns.set(publisher, (publisherTurns.get(publisher) ?? 0) + (turns.get(model.id) ?? 0));
+    publisherBreadth.set(publisher, (publisherBreadth.get(publisher) ?? 0) + 1);
+    if (!isStableRelease(model)) continue;
     const current = newestByPublisher.get(publisher);
     if (current === undefined || byReleaseDesc(model, current) < 0) newestByPublisher.set(publisher, model);
   }
 
   return [...newestByPublisher.values()]
     .sort((a, b) => {
-      const delta = (publisherTurns.get(b.publisher.id) ?? 0) - (publisherTurns.get(a.publisher.id) ?? 0);
-      return delta !== 0 ? delta : byReleaseDesc(a, b);
+      const byTurns = (publisherTurns.get(b.publisher.id) ?? 0) - (publisherTurns.get(a.publisher.id) ?? 0);
+      if (byTurns !== 0) return byTurns;
+      const byBreadth = (publisherBreadth.get(b.publisher.id) ?? 0) - (publisherBreadth.get(a.publisher.id) ?? 0);
+      return byBreadth !== 0 ? byBreadth : byReleaseDesc(a, b);
     })
     .slice(0, Math.max(0, limit))
     .map((model) => model.id);
@@ -98,8 +125,10 @@ export function selectFeatured(
  *
  *  1. the person's own last-used model, while it is still chat-usable;
  *  2. else the featured model Alia's users ran most;
- *  3. else (a cold start with no usage) the cheapest featured model;
- *  4. else the cheapest chat-usable model at all.
+ *  3. else (a cold start with no usage) the median-priced featured model —
+ *     the cheapest one is a small model and the dearest a premium tier, and
+ *     neither is what somebody opening Alia for the first time expects;
+ *  4. else the cheapest stable chat-usable model, then any at all.
  *
  * `null` only when the catalogue offers nothing a chat can run on.
  */
@@ -123,20 +152,26 @@ export function selectDefaultModelId(input: {
     .sort((a, b) => (turns.get(b.id) ?? 0) - (turns.get(a.id) ?? 0) || a.id.localeCompare(b.id))[0];
   if (mostUsed !== undefined) return mostUsed.id;
 
-  const cheapestFeatured = [...featured].sort(byPriceThenId)[0];
-  if (cheapestFeatured !== undefined) return cheapestFeatured.id;
+  const byPrice = [...featured].sort(byPriceThenId);
+  const median = byPrice[Math.floor((byPrice.length - 1) / 2)];
+  if (median !== undefined) return median.id;
 
-  return [...chat].sort(byPriceThenId)[0]?.id ?? null;
+  const stable = chat.filter(isStableRelease).sort(byPriceThenId)[0];
+  return stable?.id ?? [...chat].sort(byPriceThenId)[0]?.id ?? null;
 }
 
 /**
  * The model for Alia's own background calls — titles, summaries, compaction,
- * suggestions, planning, verification: the cheapest chat-usable model with at
- * least {@link UTILITY_MIN_CONTEXT} tokens of context. A model whose context
- * Oxy does not report is only used when no model reports one.
+ * suggestions, planning, verification: the cheapest STABLE chat-usable model
+ * ({@link isStableRelease} — a free tier throttles exactly the background calls
+ * nobody watches) with at least {@link UTILITY_MIN_CONTEXT} tokens of context.
+ * A model whose context Oxy does not report is only used when no model reports
+ * one, and an unstable one only when there is no stable one at all.
  */
 export function selectUtilityModelId(models: readonly CatalogueModel[]): string | null {
-  const chat = models.filter(isChatUsable);
+  const usable = models.filter(isChatUsable);
+  const stable = usable.filter(isStableRelease);
+  const chat = stable.length > 0 ? stable : usable;
   const roomy = chat.filter((model) => (model.contextWindow ?? 0) >= UTILITY_MIN_CONTEXT);
   const pool = roomy.length > 0 ? roomy : chat.filter((model) => model.contextWindow === null);
   return [...pool].sort(byPriceThenId)[0]?.id ?? null;

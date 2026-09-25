@@ -132,3 +132,47 @@ describe('selectSpeechModelId', () => {
     expect(selectSpeechModelId([model('a/chat')])).toBeNull();
   });
 });
+
+describe('what Alia chooses for somebody is a settled, paid release', () => {
+  it('never features a free tier or a pre-release, but keeps the publisher’s stable model', () => {
+    const models = [
+      model('a/stable', { releasedAt: '2026-01-01' }),
+      model('a/next-preview', { releasedAt: '2026-08-01' }),
+      model('a/exp-2', { releasedAt: '2026-08-02' }),
+      model('a/free', { releasedAt: '2026-08-03', pricing: { inputPerMTok: '0', outputPerMTok: '0' } }),
+      model('a/unpriced', { releasedAt: '2026-08-04', pricing: null }),
+    ];
+    expect(selectFeatured(models, [])).toEqual(['a/stable']);
+  });
+
+  it('does not read `exp` inside a word as a pre-release marker', () => {
+    expect(selectFeatured([model('a/expert-9')], [])).toEqual(['a/expert-9']);
+  });
+
+  it('ranks publishers by catalogue breadth on a cold start, not by one new release', () => {
+    const models = [
+      model('big/m1', { releasedAt: '2026-01-01' }),
+      model('big/m2', { releasedAt: '2026-02-01' }),
+      model('big/m3', { releasedAt: '2026-03-01' }),
+      model('tiny/brand-new', { releasedAt: '2026-09-01' }),
+    ];
+    expect(selectFeatured(models, [])).toEqual(['big/m3', 'tiny/brand-new']);
+  });
+
+  it('starts a newcomer on the median-priced featured model', () => {
+    const models = [
+      model('a/cheap', { pricing: { inputPerMTok: '0.1', outputPerMTok: '0.1' } }),
+      model('b/mid', { pricing: { inputPerMTok: '1', outputPerMTok: '1' } }),
+      model('c/dear', { pricing: { inputPerMTok: '10', outputPerMTok: '10' } }),
+    ];
+    expect(selectDefaultModelId({ models, featuredIds: ['a/cheap', 'b/mid', 'c/dear'], usage: [] })).toBe('b/mid');
+  });
+
+  it('runs background calls on the cheapest PAID model, not a free tier', () => {
+    const models = [
+      model('a/free', { pricing: { inputPerMTok: '0', outputPerMTok: '0' } }),
+      model('b/cheap', { pricing: { inputPerMTok: '0.02', outputPerMTok: '0.04' } }),
+    ];
+    expect(selectUtilityModelId(models)).toBe('b/cheap');
+  });
+});
