@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@oxy.so/services';
 import { useUserDataStore } from '@/features/memory/runtime/user-data-store';
 import apiClient from '@/shared/api/client';
+import { currentAccountEpoch, isCurrentAccountEpoch } from '@/shared/state/account-epoch';
 
 export const USER_MEMORY_QUERY_KEY = ['user-memory'] as const;
 
@@ -22,8 +23,10 @@ export function useUserData() {
     // copy is stale the moment anything else in the app talks to Alia.
     staleTime: 0,
     queryFn: async () => {
+      const epoch = currentAccountEpoch();
       const response = await apiClient.get('/memory');
-      if (response.data) {
+      // Asked for the account before a switch or a sign-out: not this one's.
+      if (response.data && isCurrentAccountEpoch(epoch)) {
         useUserDataStore.getState().setMemory(response.data);
       }
       return response.data;

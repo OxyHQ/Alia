@@ -14,6 +14,8 @@ import { useNotificationSetup } from '@/features/notifications/runtime/use-notif
 import { useWelcomeSuggestions } from '@/features/chat/runtime/use-suggestions';
 import i18n from '@/shared/i18n';
 import { useComposerDraftStore } from '@/features/chat/runtime/composer-draft-store';
+import { offlineConversations } from '@/features/chat/runtime/use-conversations';
+import { useAccountLifecycle } from '@/shell/account-lifecycle';
 import { useFavoritesStore } from '@/features/projects/runtime/favorites-store';
 import { useFoldersStore } from '@/features/projects/runtime/folders-store';
 import { usePinnedStore } from '@/features/projects/runtime/pinned-store';
@@ -88,7 +90,13 @@ export default function AppLayout() {
     // Composer drafts too: another account's half-written message and files
     // are not this one's (`src/features/chat/runtime/composer-draft-store.ts`).
     useComposerDraftStore.getState().bindAccount(userId);
+    // And the offline copy of the conversations (`use-conversations.ts`).
+    offlineConversations.bind(userId);
   }, [userId, loadProjects, loadFolders, loadFavorites, loadPinned]);
+
+  // Everything else the previous account left in memory, on a sign-out or a
+  // switch (`src/shell/account-lifecycle.ts`).
+  useAccountLifecycle(userId);
 
   /**
    * The template's two sidebars: the in-flow panel from `lg` up, and the drawer
