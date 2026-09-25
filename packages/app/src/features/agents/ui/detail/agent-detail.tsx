@@ -64,6 +64,7 @@ export function AgentDetail({ agent }: { agent: Agent }) {
           headerRight: () => (
             <AgentHeaderActions
               isOwner={isOwner}
+              canChat={agent.access === 'public' || isOwner}
               price={agent.price}
               onEdit={() =>
                 router.push({
