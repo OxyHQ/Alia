@@ -541,10 +541,10 @@ None of the following has a 3.2.1 export that models it. Each stays Alia's.
   (`useVoiceRoom`, `useAudioLevelMonitor`, `useAudioLevels`, `useSoundEffects`) —
   the on-device turn loop since SDK 8.0.0 ([Voice](./voice.mdx)), a LiveKit room
   before it. Bloom's `call-ui` is presentation only — correctly so.
-- **Cohost** (retired with LiveKit in SDK 8.0.0). `VoiceControlsProps` still
-  accepts `cohostActive`, `currentSpeaker`, `roundComplete` and the three cohost
-  handlers, all optional, and draws no cohost button without them.
-  `CallControlKey` has no equivalent.
+- **Cohost** (retired with LiveKit in SDK 8.0.0,
+  [ADR 0012](./adr/0012-voice-runs-on-the-device-livekit-and-cohost-are-retired.md)).
+  `VoiceControls` has no cohost props or buttons since 8.0.0, so nothing is
+  left to map onto `CallControlKey`.
 - **The rich message block renderers.** `renderMessage` / `MessageRow` in
   `components/chat-interface.tsx` handles, in order: day separators
   (`lib/message-days.ts`), thread seams (`lib/thread-history.ts`), plan preview

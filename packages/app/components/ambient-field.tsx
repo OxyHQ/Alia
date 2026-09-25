@@ -1,12 +1,15 @@
-import { useEffect, useState } from 'react';
-import { Platform, View, type LayoutChangeEvent, type ViewStyle } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { AppState, Platform, View, type LayoutChangeEvent, type ViewStyle } from 'react-native';
 import Animated, {
+  cancelAnimation,
   Easing,
   useAnimatedReaction,
   useAnimatedStyle,
+  useReducedMotion,
   useSharedValue,
   withDelay,
   withRepeat,
+  withSequence,
   withTiming,
   type SharedValue,
 } from 'react-native-reanimated';
@@ -177,6 +180,7 @@ function Flourish({
   blobOpacity,
   blend,
   entrance,
+  running,
   waveAmplitude,
   pointerX,
   pointerY,
@@ -192,6 +196,8 @@ function Flourish({
   blobOpacity: number;
   blend: 'multiply' | 'screen';
   entrance: boolean;
+  /** Whether the endless loops tick. See `paused` on {@link AmbientFieldProps}. */
+  running: boolean;
   waveAmplitude: SharedValue<number>;
   pointerX: SharedValue<number>;
   pointerY: SharedValue<number>;
@@ -205,26 +211,52 @@ function Flourish({
   // Starting an animation on mount is imperative by nature: there is no
   // derived-state or event-handler form of "run once, then loop forever".
   useEffect(() => {
-    if (entrance) {
-      enter.value = withDelay(
-        config.delay,
-        withTiming(1, { duration: ENTER_DURATION, easing: ENTER_EASE }),
-      );
-      fade.value = withDelay(
-        config.delay,
-        withTiming(1, { duration: ENTER_FADE_DURATION, easing: ENTER_EASE }),
-      );
+    if (!entrance) return;
+    enter.value = withDelay(
+      config.delay,
+      withTiming(1, { duration: ENTER_DURATION, easing: ENTER_EASE }),
+    );
+    fade.value = withDelay(
+      config.delay,
+      withTiming(1, { duration: ENTER_FADE_DURATION, easing: ENTER_EASE }),
+    );
+  }, [enter, fade, entrance, config.delay]);
+
+  /**
+   * The two endless loops: started once, stopped while the field is not on
+   * show, and resumed where they stopped — the float runs out the rest of its
+   * lap and the beat the rest of its swing before looping again, so a field
+   * coming back into view does not jump. The entrance is finite and is left
+   * to finish.
+   */
+  const loopsStarted = useRef(false);
+  useEffect(() => {
+    if (!running) {
+      cancelAnimation(phase);
+      cancelAnimation(pulse);
+      return;
     }
-    phase.value = withDelay(
-      entrance ? config.delay + ENTER_DURATION : 0,
-      withRepeat(withTiming(1, { duration: config.fdur, easing: Easing.linear }), -1, false),
+    const lap = withRepeat(withTiming(1, { duration: config.fdur, easing: Easing.linear }), -1, false);
+    const beat = (to: number) =>
+      withRepeat(withTiming(to, { duration: PULSE_DURATION, easing: Easing.inOut(Easing.sin) }), -1, true);
+    if (!loopsStarted.current) {
+      loopsStarted.current = true;
+      phase.value = withDelay(entrance ? config.delay + ENTER_DURATION : 0, lap);
+      pulse.value = beat(1);
+      return;
+    }
+    const at = phase.value;
+    // 1 and 0 are the same pose (the origin), so the lap restarts seamlessly.
+    phase.value = withSequence(
+      withTiming(1, { duration: (1 - at) * config.fdur, easing: Easing.linear }),
+      withTiming(0, { duration: 0 }),
+      lap,
     );
-    pulse.value = withRepeat(
-      withTiming(1, { duration: PULSE_DURATION, easing: Easing.inOut(Easing.sin) }),
-      -1,
-      true,
+    pulse.value = withSequence(
+      withTiming(1, { duration: (1 - pulse.value) * PULSE_DURATION, easing: Easing.inOut(Easing.sin) }),
+      beat(0),
     );
-  }, [enter, fade, phase, pulse, entrance, config.delay, config.fdur]);
+  }, [running, phase, pulse, entrance, config.delay, config.fdur]);
 
   const size = config.w * vmax;
 
@@ -333,6 +365,12 @@ export interface AmbientFieldProps {
   pointerY?: SharedValue<number>;
   /** Sink and dim the field while whatever sits behind it rises into view. */
   exiting?: boolean;
+  /**
+   * Stop the endless loops: the screen holding the field is not the one on
+   * show (a route pushed over it keeps it mounted). The field also stops by
+   * itself while the app is in the background or the browser tab is hidden.
+   */
+  paused?: boolean;
 }
 
 /**
@@ -343,6 +381,23 @@ export interface AmbientFieldProps {
  * behind. Every animation is driven through shared values and
  * `useAnimatedReaction` rather than mapper-started styles, because
  * mapper-started animations do not tick on reanimated-web.
+ *
+ * It is decoration: out of the accessibility tree on every platform, and it
+ * never takes a touch.
+ *
+ * **Reduced motion.** Every animation here uses Reanimated's default
+ * `ReduceMotion.System`, which with the setting on resolves a timing to its end
+ * at once, ends a `withRepeat` after one instant lap and does not start a
+ * reversing one at all — so the entrance lands at rest, the float settles at
+ * its origin and the beat never runs, with no frame work. What that does not
+ * cover is the pointer parallax, which is a direct response rather than an
+ * animation: it jumps instead of gliding, so it is switched off here. The
+ * response to live audio stays — it is how a call shows it is listening and
+ * speaking, not an ornament.
+ *
+ * **Reduced transparency** has nothing to act on: the field is the backmost
+ * layer, nothing is seen THROUGH it, and the translucent surfaces over it are
+ * Bloom's, which follow that setting themselves.
  */
 export function AmbientField({
   waveAmplitude,
@@ -353,8 +408,20 @@ export function AmbientField({
   pointerX,
   pointerY,
   exiting = false,
+  paused = false,
 }: AmbientFieldProps) {
   const [field, setField] = useState({ width: 0, height: 0 });
+  const reduceMotion = useReducedMotion();
+
+  // On web, AppState follows the page's visibility.
+  const [inForeground, setInForeground] = useState(AppState.currentState !== 'background');
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (state) => {
+      setInForeground(state !== 'background');
+    });
+    return () => subscription.remove();
+  }, []);
+  const running = !paused && inForeground;
 
   // Fallbacks so the hook count never depends on which optional shared values
   // the caller passed.
@@ -362,8 +429,8 @@ export function AmbientField({
   const idlePointerX = useSharedValue(0);
   const idlePointerY = useSharedValue(0);
   const amplitude = waveAmplitude ?? silence;
-  const px = pointerX ?? idlePointerX;
-  const py = pointerY ?? idlePointerY;
+  const px = (reduceMotion ? undefined : pointerX) ?? idlePointerX;
+  const py = (reduceMotion ? undefined : pointerY) ?? idlePointerY;
 
   const intensityRamp = useSharedValue(intensity);
   useAnimatedReaction(
@@ -422,6 +489,10 @@ export function AmbientField({
     <View
       className="absolute inset-0"
       pointerEvents="none"
+      // One prop for every platform: react-native-web writes `aria-hidden`, and
+      // React Native turns it into `accessibilityElementsHidden` (iOS) and
+      // `importantForAccessibility="no-hide-descendants"` (Android).
+      aria-hidden
       onLayout={handleLayout}
     >
       {field.width > 0 ? (
@@ -465,6 +536,7 @@ export function AmbientField({
                 blobOpacity={isDarkMode ? BLOB_OPACITY_DARK : BLOB_OPACITY_LIGHT}
                 blend={isDarkMode ? 'screen' : 'multiply'}
                 entrance={entrance}
+                running={running}
                 waveAmplitude={amplitude}
                 pointerX={px}
                 pointerY={py}

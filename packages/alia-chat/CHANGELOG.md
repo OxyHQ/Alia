@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+### Voice errors have codes
+
+Additive. `useSpeechToText` returns `errorCode` beside `error`, and
+`useVoiceRoom` returns `errorCode` and `turnErrorCode` beside `error` and
+`turnError`: a `VoiceErrorCode` (exported from both entries with
+`VOICE_ERROR_MESSAGES`, the English copy) so an app can say what went wrong in
+its own language. The English strings are unchanged.
+
+`VoiceControls` takes `labels` (defaults in `VOICE_CONTROLS_LABELS`) for every
+word it shows, and its mute and end buttons are named buttons for screen
+readers, mute as a toggle.
+
+`useSpeechToText` unmounted mid-dictation now also clears `useSTTStore`. It used
+to abort the recognizer but leave the store reading `isRecording: true`, which
+`useAmbientWave` then drew as dictation for as long as the page lived.
+
 ### The consumer-backend path is documented
 
 Documentation only; no code, wire or default changed, and no version is cut for

@@ -245,6 +245,7 @@ describe('the on-device voice loop', () => {
     await act(async () => sender.turns[0]!.resolve());
     await settle();
     expect(latest.turnError).toBe('No answer came back — try saying it again');
+    expect(latest.turnErrorCode).toBe('no-answer');
     expect(latest.roomState).toBe('connected');
     expect(latest.agentState).toBe('listening');
     expect(latest.messages).toMatchObject([{ role: 'user', content: 'Hola' }]);
@@ -259,6 +260,7 @@ describe('the on-device voice loop', () => {
     await act(async () => sender.turns[0]!.reject(new Error("You've run out of credits.")));
     await settle();
     expect(latest.error).toBe("You've run out of credits.");
+    expect(latest.errorCode).toBe('turn-failed');
     expect(latest.roomState).toBe('error');
   });
 
@@ -268,12 +270,14 @@ describe('the on-device voice loop', () => {
     await act(async () => latest.connect());
     expect(latest.roomState).toBe('error');
     expect(latest.error).toBe('Microphone permission required');
+    expect(latest.errorCode).toBe('microphone-denied');
     expect(fx.sessions).toHaveLength(0);
 
     fx.refusal = null;
     fx.available = false;
     await act(async () => latest.connect());
     expect(latest.error).toBe('Voice is not available on this device');
+    expect(latest.errorCode).toBe('voice-unavailable');
   });
 
   it('ends the call when the recognizer loses the microphone mid-call', async () => {
@@ -287,6 +291,7 @@ describe('the on-device voice loop', () => {
     });
     expect(latest.roomState).toBe('error');
     expect(latest.error).toBe('No microphone found — check your input devices');
+    expect(latest.errorCode).toBe('microphone-missing');
   });
 
   it('disconnect stops everything and clears the transcript', async () => {

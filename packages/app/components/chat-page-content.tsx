@@ -19,6 +19,7 @@ import { Button } from '@oxy.so/bloom/button';
 import { VoiceModeIcon } from '@/components/icons/voice-mode-icon';
 import { toast } from '@oxy.so/bloom/toast';
 import { useRouter } from 'expo-router';
+import { useScreenOnShow } from '@/lib/hooks/use-screen-on-show';
 import type { Attachment } from '@/components/chat/composer/types';
 import type { AgentActivityState } from '@/lib/hooks/use-agent-activity';
 import type { FailedTurn, SendOptions } from '@/lib/hooks/use-streaming-chat';
@@ -39,7 +40,7 @@ import {
 } from '@oxy.so/bloom/ai-chat';
 import { ComposerPanelStatusTab } from '@oxy.so/bloom/composer-panel';
 import { useAuth } from '@oxy.so/services';
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { ScrollToBottomButton } from '@oxy.so/bloom/chat-screen';
 import { useAtBottom } from '@/lib/hooks/use-at-bottom';
 import { View } from 'react-native';
@@ -230,6 +231,7 @@ export const ChatPageContent = ({
     isGenerating: isLoading,
   });
   const insets = useSafeAreaInsets();
+  const onShow = useScreenOnShow();
   /**
    * Where the sidebar's tree files the chat: its project, its folder, or
    * the tree itself ("Chats"). It is the breadcrumb's crumb and the
@@ -290,6 +292,21 @@ export const ChatPageContent = ({
     if (voice) voice.activateVoice();
     else onVoiceStart?.();
   }, [isAuthenticated, signIn, entitlements, creditsInfo, t, router, voice, onVoiceStart]);
+  /** The call bar's words, in the app's language. */
+  const voiceControlLabels = useMemo(
+    () => ({
+      connecting: t('voice.controls.connecting'),
+      connected: t('voice.controls.connected'),
+      listening: t('voice.controls.listening'),
+      muted: t('voice.controls.muted'),
+      thinking: t('voice.controls.thinking'),
+      speaking: t('voice.controls.speaking'),
+      mute: t('voice.controls.mute'),
+      unmute: t('voice.controls.unmute'),
+      end: t('voice.controls.end'),
+    }),
+    [t],
+  );
   const voiceAction =
     voice || onVoiceStart ? (
       // Alia's voice button: its own glyph (as it has always been), in the
@@ -392,6 +409,9 @@ export const ChatPageContent = ({
           agentState={wave.agentState}
           intensity={wave.intensity}
           isDarkMode={isDarkColorScheme}
+          // The native stack keeps this screen mounted under whatever is
+          // pushed over it; its field does not keep animating back there.
+          paused={!onShow}
         />
       }
       project={projectName}
@@ -408,6 +428,7 @@ export const ChatPageContent = ({
               onToggleMute={voice.toggleMute}
               onEnd={voice.deactivateVoice}
               primaryColor={colors.primary}
+              labels={voiceControlLabels}
             />
           </View>
         ) : (
