@@ -1,686 +1,253 @@
 ---
 title: "Bloom adoption"
-description: "Alia composes Bloom's AI Chat template literally; how, and how it was verified."
+description: "The map from Alia to Bloom after #608: what each feature is built from, every AI family evaluated, the contract gaps and the release that closed each, what stays Alia's, and the code and dependencies the rebuild removed."
 order: 7
 ---
 
 # Bloom adoption
 
-## Current app composition (September 2026)
-
-The Expo app declares Bloom `^4.5.0` and composes Bloom's AI Chat template
-(`templates/ai-chat/AiChatTemplate.tsx` in Bloom) **literally**: the same
-components, in the same order, with the same props. The router still owns URLs
-and conversation identity; app state, streaming, pagination, authentication,
-voice, tools and inference stay in Alia. The one surface of Alia's own is the
-signed-out welcome (`welcome-intro.tsx` over `ambient-field.tsx`).
-
-| Template | Alia |
-| --- | --- |
-| `<View style={TEMPLATE_FRAME}>` → `AiChatShell` | `app/(app)/_layout.tsx` |
-| `sidebar={<Sidebar …/>}`, `mobileSidebar={<Sidebar … mobile surface="plain"/>}` | `src/shell/sidebar.tsx`: `logo`, `items`, `secondaryItems`, `account`, `tree`, `plan`; the drawer copy inside `NavRegion` (#532) |
-| `panel` (always, from `xl`) with `AiChatCodePanel` / `AiChatGalleryPanel` | `src/shell/workspace-panel.tsx`: the canvas as the code panel, Library and generated images as the gallery; thought, credits and agent take the slot while open |
-| `AiChatContainer project title header={<AiChatMobileHeader/>} working composer` | `src/features/chat/ui/chat-page-content.tsx` through `ChatWorkspace` (the native keyboard authority) |
-| the pill + `ComposerStatusBar` | **`ComposerPanel`** instead (`src/features/chat/ui/composer/composer.tsx`): provider-rail model picker with effort (`model-lineup.ts`), Chat / Agent / Deep research as its mode selector, attachment tiles, `ComposerPanelStatusTab` with the chat's project; the add menu in two groups (`add-menu.tsx`) |
-| `AiChatThread` → `AiChatUserMessage` / `AiChatAssistantMessage` (feedback row) | `src/features/chat/ui/chat-interface.tsx` |
-| `AiChatMessageLine`, `AiChatBulletList`, `AiChatStrong`, `AiChatLinkChip`, `CodeBlock` | `components/chat/bloom-markdown.tsx` renders each reply's Markdown into them |
-| `AgentProgress` while working, then "Worked for …" (`tone="secondary"`) | the turn's tool calls, as the runtime reports them |
-
-What the template has no room for was removed, not wrapped; the list, and the
-Bloom slot each item comes back through, is
-[`bloom-template-pending.mdx`](./bloom-template-pending.mdx).
-
-### Validation and limits
-
-Compared against the template running in Bloom's own Storybook (origin/main,
-4.5.0) with Alia's `purple` preset, in a real browser, by measuring every
-`data-bloom-*` box on both pages rather than by eye: 1440×900, 1280, 1100 (panel
-as a drawer), 1023 (sidebar as a push drawer, open and closed) and 390×844, light
-and dark, plus the collapsed rail. The composer pill, the shell frame and the
-drawer land on the same pixels at every width; the remaining deltas are content
-(the template's code panel, its project crumb, its scripted turn in flight). The
-thread was checked through a temporary route rendering fixed messages, idle and
-working; it is not shipped. No authenticated session, message send or inference
-was exercised. TypeScript passes; the app suite passes (94 files, 731 tests); the
-visual baseline was re-recorded and `--check` reproduces it (worst Δ3, ±6).
-
-## Historical 3.2.1 audit
-
-The following is retained as an explicitly historical contract audit. Its version table and gap statements do not describe the current app.
-
-
-The deliverable issue [#608](https://github.com/OxyHQ/Alia/issues/608) §2 asks for: one
-row per Alia capability, the Bloom export that would own it, and a justified
-decision. This page is that matrix, plus the contract gaps that were verified
-against the published package rather than assumed.
-
-Everything below was read from the **published `@oxy.so/bloom@3.2.1` tarball**
-(`src/<family>/types.ts`, `src/<family>/index.ts`, and the implementation files
-where behaviour mattered) and from `packages/app` at
-`feat/bloom-ai-chat-refactor`. Nothing here was validated by running anything —
-see [Honest status](#5-honest-status).
-
-## 1. What Alia actually resolves
-
-| Fact | Value |
-| --- | --- |
-| Previously declared (`packages/app/package.json`, `HEAD~1`) | `^3.1.0` |
-| Previously resolved (`bun.lock`, `HEAD~1`) | `@oxy.so/bloom@3.1.0` |
-| Declared now | `^3.2.1` |
-| Resolved now (`bun.lock:1549`, and `node_modules/@oxy.so/bloom`) | `@oxy.so/bloom@3.2.1` |
-| npm `latest` (`npm view @oxy.so/bloom`) | `3.2.1` |
-| Local checkout `~/Oxy/Bloom` | `2.1.0` |
-
-The caret never floated: `^3.1.0` had pinned to exactly 3.1.0 in the lockfile, so
-the AI Chat, `composer-panel` and `call-ui` contracts this work builds on were
-not present in the installed tree at all. Commit `726bd699` moved every manifest
-in the repo and the lockfile together.
-
-**`~/Oxy/Bloom` is not the contract.** It is a stale 2.1.0 checkout. Read the
-resolved package under `node_modules`, or the tarball, when checking a prop.
-
-One workspace, `packages/alia-codea/webview-ui`, still declares `^3.1.0`
-(`bun.lock:179`). Bun resolves every declaration to the single 3.2.1 entry, so
-this is a manifest inconsistency, not a second resolution.
-
-### What the app imports today
-
-`packages/app` references 18 Bloom subpaths:
-
-```
-bottom-sheet  button  connection-status  content-panel  design-tokens
-dialog  fonts  hooks  image-resolver  item  popover  portal
-provider  search  settings-list  surfaces  theme  toast
-```
-
-**None of them is an AI family.** `ai-chat`, `composer-panel`,
-`composer-loader`, `agent-thinking`, `agent-log`, `agent-progress`, `task-list`,
-`web-search`, `questionnaire`, `agent-limits-card`, `code`, `agent-chat`,
-`ai-profile-card`, `call-ui`, `sidebar`, `page-header`, `button-group`,
-`control-surface`, `field`, `list`, `skeleton`, `error-boundary` and `motion`
-have zero import sites in the app. The bump made the contracts reachable; it
-adopted nothing.
-
-## 2. The adoption matrix
-
-Decisions are exactly one of `direct reuse`, `composition`, `needs a Bloom
-change`, `not applicable`. Every Bloom cell names exports verified in the 3.2.1
-tarball.
-
-### 2.1 The AI families
-
-| Alia capability | Current implementation (file) | Bloom family/export in 3.2.1 | Decision | Why |
-| --- | --- | --- | --- | --- |
-| Workspace frame: drawer, resizable right panel, breakpoints | `app/(app)/_layout.tsx` (expo-router `Drawer`, `permanent`/`front`), `components/right-panel.tsx` | `ai-chat`: `AiChatShell`, `AiChatMobileHeader`, `AiChatResizeHandle` | composition | `AiChatShellProps` already owns `navOpen`/`panelOpen` controlled drawers, `defaultPanelWidth` 410 clamped 320–560, and `panel: (width) => ReactNode`. Alia's four panels (`thought`, `credits`, `canvas`, `agent`) and its `ExecutionSurface` rail collapse into that one `panel` slot; the expo-router `Drawer` must not be nested inside `AiChatShell`'s own drawer. |
-| Chat centre column: header, title, composer footer | `src/features/chat/ui/chat-page-content.tsx` (~740 lines), `components/chat-header.tsx` (267 lines) | `ai-chat`: `AiChatContainer` | needs a Bloom change | `AiChatContainerProps.project` is a required `string` and the container paints an opaque `backgroundColor: palette.secondary` on its root. See [gaps 4 and 8](#3-verified-contract-gaps). |
-| Message timeline: scroll, bottom-follow, upward pagination, cursor jump | `src/features/chat/ui/chat-interface.tsx` (~1,200 lines) + `lib/hooks/use-scroll-to-bottom.ts` | `ai-chat`: `AiChatThread` | needs a Bloom change | `AiChatThreadProps` is `{ children, style, testID }`. See [gap 3](#3-verified-contract-gaps). |
-| Turn rendering: user bubble, assistant blocks | `renderMessage` / `MessageRow` in `src/features/chat/ui/chat-interface.tsx` | `ai-chat`: `AiChatUserMessage`, `AiChatAssistantMessage`, `AiChatMessageLine`, `AiChatBulletList`, `AiChatBullet`, `AiChatStrong`, `AiChatLinkChip` | composition | `children: ReactNode` takes Alia's own block renderers unchanged, and `animate?: boolean` (default `true`) exists precisely for history restored from the server. `AiChatAssistantMessage` blurs each child in 180ms apart, so a streaming turn must not remount its block list. |
-| Turn actions: copy, vote, read aloud | the reply's feedback row and the question's action row, built in `src/features/chat/ui/chat-interface.tsx` from `src/features/chat/ui/turn-actions.tsx` (`useTTS`, vote, edit, regenerate) | `ai-chat`: `AiChatFeedbackRow` (`onCopy`, `actions`, `labels`), `AiChatUserMessage.actions`; `context-menu` for the long press on native | composition | Bloom 4.20 closed [gap 6](#3-verified-contract-gaps) and added turn `actions`: copy returns the clipboard's answer, read aloud and regenerate ride the feedback row, copy and edit sit under the question. |
-| Code / diff side panel | `src/features/chat/ui/canvas/code-renderer.tsx`, `components/execution/execution-surface.tsx` | `ai-chat`: `AiChatCodePanel`, `AiChatChangedFile`, `AiChatPanelAction`, `AiChatPanelTab` | composition | Usable only with an explicit `actions` array and an explicit `browser` node. See [gap 7](#3-verified-contract-gaps). |
-| Brand ambient background behind the chat | `src/features/chat/ui/ambient-field.tsx` (~480 lines), absolute fill rendered *before* `ChatInterface` in `chat-page-content.tsx` | `ai-chat`: nothing. Nearest is `chat-screen`'s `ChatBackground` | needs a Bloom change | No `ai-chat` export takes a background node. See [gap 8](#3-verified-contract-gaps). |
-| Generated-image surface | none found in `packages/app` (only an image route named in `src/shared/api/routes.ts`) | `ai-chat`: `AiChatImageGeneration`, `AiChatGalleryPanel`, `AiChatGeneration` | not applicable | There is no image-generation surface in the app to port. Adopting these would add a capability, which §6 of the issue forbids ("nada de arte de ejemplo"). Revisit if and when the product ships one. |
-| Composer | `components/ui/prompt-input/` — 11 files, `prompt-input.tsx` is the bar, `submit-button.tsx` the send/stop control, `attachments.tsx` the tile strip, `dictation-bar.tsx` the STT replacement state | `composer-panel`: `ComposerPill`, `ComposerPanel`, `ComposerAttachments`, `ComposerStatusBar`, `ComposerPanelStatusTab`, `COMPOSER_PANEL_ADD_MENU`, `COMPOSER_PANEL_PERMISSIONS`, `MODEL_PICKER_EFFORT_LEVELS` | needs a Bloom change | Neither `ComposerPillProps` nor `ComposerPanelProps` declares `onStop`, and `ComposerPillProps` has no attachments list. See [gaps 1 and 2](#3-verified-contract-gaps). |
-| Model and effort selection | `components/model-selector.tsx` (selects by opaque id: `onModelChange(model.id)`), `components/effort-selector.tsx` (native only) | `composer-panel`: `ModelPicker`, `ModelPickerProvider`, `ModelPickerModel` | composition | `ModelPickerProps` is the correct contract — `providers: ReadonlyArray<ModelPickerProvider>`, each with `models: ReadonlyArray<{ id, name }>`, and `onValueChange: (modelId: string) => void`. It must be used *instead of* the pill's own model button. See [gap 2](#3-verified-contract-gaps). |
-| Attachment tiles with upload progress | `components/ui/prompt-input/attachments.tsx` | `composer-panel`: `ComposerPanelAttachment` fed to `ComposerPanel` — **not** `ComposerAttachments` | composition | `ComposerPanelAttachment.progress` (0–100, omitted once landed) is a real controlled contract. The `ComposerAttachments` wrapper around it is not. See [gap 5](#3-verified-contract-gaps). |
-| Composer activity light while a turn is in flight | none — the app has no composer glow; `AmbientField` is a separate, full-screen layer | `composer-loader`: `ComposerLoader`, `DEFAULT_COMPOSER_LOADER_COLORS`, `ComposerLoaderColors` | direct reuse | `active?: boolean` is a plain flag with a 450ms fade, driven straight from turn state. It is a rim light on the pill, not a progress bar and not a background — pair it with `ComposerPill`'s `surface={false}` and `glass` props as the type docs describe. |
-| Waiting / working indicator | `ThinkingIndicator` in `src/features/chat/ui/chat-interface.tsx`, labelled by `getToolActiveLabel` / `getResearchActiveLabel` | `agent-thinking`: `AgentThinking`, `AgentThinkingVariant`, `AgentThinkingTone` | direct reuse | `label` takes the runtime's own status string. `showTimer` defaults to `true` and counts **elapsed seconds since mount**, so it must be set `false` wherever Alia has the turn's persisted duration. |
-| Execution log rows and guides | `src/features/chat/ui/execution/tool-step.tsx`, `src/features/chat/ui/workspace/agent-terminal.tsx` (xterm) | `agent-log`: `AgentLogRow`, `AgentLogReveal`, `AgentLogRowConnector`, `AgentLogGuideBridge`, `AgentLogWorkingRow`, `AgentLogShimmerText`, `useAgentLogMotion`, `useAgentLogRevealTicker` | composition | These are the shared row/guide/reveal primitives under `task-list` and `web-search`; they render whatever content Alia passes. `useAgentLogRevealTicker` accepts `revealed: number` to drive the reveal from real events instead of its internal timer. The xterm terminal is not one of these. |
-| Plan preview and step progress | `PlanPreviewCard`, `ResearchProgressCard` from `@alia.onl/sdk` | `agent-progress`: `AgentProgress`, `AgentProgressLoadingText`, `DEFAULT_AGENT_PROGRESS_STEPS` | composition | `completedCount` is a controlled prop that stops the internal clock advancing steps — but the type states the rings "still animate each step over `stepDuration` as an estimate". That estimate must not be presented as measured progress. `steps` must come from Alia's plan, never from `DEFAULT_AGENT_PROGRESS_STEPS` (a hardcoded coding workflow). |
-| Work summary, tool steps, collapse | `components/execution/work-summary.tsx` + `src/features/chat/model/thought-utils.ts` (`buildSteps`, `toolCallStatus`, `turnLifecycle`) | `task-list`: `TaskList`, `TaskListTask`, `TaskListStep`, `TaskListChip` | composition | `revealed?: number` disables the internal timer and counts units (one per task header plus one per step), which maps onto Alia's tool events. `collapseOnComplete` is `boolean \| 'all'`; the user's own expand choice is not a prop, so Alia keeps owning that. |
-| Search queries and sources | `components/message-sources.tsx`, `src/features/chat/ui/execution/files-and-sources.tsx`, `m.researchProgress.sources` | `web-search`: `WebSearch`, `WebSearchStep`, `WebSearchSource`, `WebSearchBrand` | composition | `WebSearchSource.href` renders a real `<a target="_blank">` on web and `Linking.openURL` on native, so links work. `WebSearchBrand` is `SocialProvider` — only Bloom's 24 social marks; every other site needs a caller-supplied `icon` node. `revealed` counts units where a step with sources is two. |
-| Tool approvals | `src/features/chat/runtime/use-agent-activity.ts` (Socket.IO `alia.approval_request` → `agent-approval-response`), UI in `src/features/chat/ui/workspace/agent-panel.tsx` | no AI family. `dialog`: `Dialog`; `button`: `Button`; `admonition` | composition | An approval is a two-outcome decision with a deadline, not a form. `Questionnaire` is explicitly the wrong shape (issue §2: "No confundir preguntas con aprobación de acciones"). The existing Bloom `dialog`/`surfaces` primitives, already imported by the app, cover it. |
-| Credits, usage and plan limits | `components/credits-panel.tsx` (~490 lines, SVG arc ring, purchase flow) | `agent-limits-card`: `AgentLimitsCard`, `AgentLimitsContext`, `AgentLimitsContextSegment`, `AgentLimitsUsageLimit` | composition | The card models a **token** context window (`AgentLimitsContext.max`, segments in tokens) plus rolling plan limits (`used: 0–1`, `resets: string`). Alia's panel is credits and checkout. Only the parts Alia actually measures may be fed; credits are not tokens. The purchase flow has no Bloom equivalent. |
-| Code blocks inside messages | `src/features/chat/ui/canvas/code-renderer.tsx`, `CustomMarkdown` | `code`: `CodeBlock`, `CodeLines`, `Code`, `Pre`, `tokenizeCode`, `isHighlightedLanguage`, `CodeLanguage` | direct reuse | `CodeBlockProps.onCopy` is `(code: string) => void \| Promise<void>` and honours the real result — the contrast with `AiChatFeedbackRowProps.onCopy` is what makes [gap 6](#3-verified-contract-gaps) a gap rather than a house style. |
-| Whole chat surface as one component | `src/features/chat/ui/chat-page-content.tsx` + `src/features/chat/ui/chat-interface.tsx` | `agent-chat`: `AgentChat`, `AgentChatMessage`, `AgentChatComposer`, `AgentChatHistory`, `AgentChatActions` | not applicable | `AgentChatMessageData` is `{ id, role, text, at? }` and the type comment says outright that "Bloom renders text only — reasoning and tool parts of a model message are the consumer's to fold into `text` or ignore". Adopting it would flatten every card, tool invocation, plan and source in §2.1 above. `AgentChatComposerProps.onStop` is a useful precedent for [gap 1](#3-verified-contract-gaps), not a component to adopt. |
-| Agent profile / statistics | `app/(app)/agents.tsx` | `ai-profile-card`: `AiProfileCard`, `AiProfileCardStat`, `AiProfileCardPeriod` | not applicable | `contributions: number` and `cells: readonly ContributionCell[]` are both required and both are a contributions heatmap. Alia measures neither. |
-| Call controls | `VoiceControls` from `@alia.onl/sdk` + `src/features/voice/runtime/use-voice-mode.ts` | `call-ui`: `CallControls`, `CallControlButton`, `CallMinimisedPill` | composition | `CallControlsProps` is purely presentational and draws a control only when given its handler, which suits LiveKit wiring exactly. But `CallControlKey` is `mute \| speaker \| video \| flipCamera \| screenShare \| addParticipant` — there is no cohost key, so Alia's `onEnableCohost` / `onDisableCohost` / `onContinueCohost` and its `currentSpeaker` stay Alia's, beside the bar. |
-| Call stage | voice branch of `src/features/chat/ui/chat-page-content.tsx`, over `AmbientField` | `call-ui`: `CallScreen`, `IncomingCallScreen`, `GroupCallGrid`, `GroupCallBar`, `CallHistoryList` | not applicable | `CallScreenProps.accentColor` is a single hue washed over an opaque stage; it would replace the brand gradient, which issue §3.1 rules out. `IncomingCallScreen` and the group-call exports have no Alia counterpart — Alia has no inbound calls and no multi-party grid. |
-
-### 2.2 The messenger families
-
-Issue §2 asks these to be evaluated and warns against turning the AI chat into a
-messaging app. Each row names only the exports that survive that test.
-
-| Alia capability | Current implementation (file) | Bloom family/export in 3.2.1 | Decision | Why |
-| --- | --- | --- | --- | --- |
-| Messenger composer | `components/ui/prompt-input/` | `chat-composer`: `ChatComposer`, `VoiceRecorder`, `EmojiPicker`, `ReactionPicker`, `AttachmentMenu`, `MessageContextMenu`, `SuggestionList` | not applicable | Emoji pickers, reactions and voice notes are not Alia capabilities; `composer-panel` is the AI-side family. `SuggestionList` is the one near-miss — Alia's suggestions live in `prompt-input/autocomplete.tsx` with template-fill semantics the messenger list does not have. |
-| Files and images produced or attached in a turn | `src/features/chat/ui/execution/files-and-sources.tsx`, image parts in `chat-interface.tsx` | `message-media`: `DocumentGrid`, `DocumentGridItem` | composition | `DocumentGridProps` is the only export here that is bubble-free: `{ items, onPressItem, onDownloadItem, onCancelItem, divider }`. Every other block in the family accepts `MessageMediaToneProps` (`tone`, `onColor`, `bubbleColor`) and derives its contrast from a chat bubble Alia does not draw. |
-| Day separators and scroll-to-bottom | `src/features/chat/model/message-days.ts` → `DaySeparator`; `lib/hooks/use-scroll-to-bottom.ts` | `chat-screen`: `ChatDateHeader`, `ScrollToBottomButton`, `JumpToMentionButton`, `ChatBackground` | composition | `ScrollToBottomButtonProps.visible={false}` "renders NOTHING — no hidden button parked in the focus order", which is the behaviour Alia's manual `isAtBottom` wants. `ChatHeader`, `ChatInfoPanel`, `PinnedMessageBar`, `ChatMemberRow` and `ChatSplitLayout` are messenger chrome with no Alia counterpart. |
-| Conversation history rail and search | `src/shell/sidebar.tsx` (~1,000 lines) | `chat-list`: `HighlightedText`, `HighlightedRun`, `highlightRuns`, `ChatListItemSkeleton`, `ChatSearchField` | composition | These three are generic. `ChatList` / `ChatListItem` are not: `ChatSummary`, `ChatFace`, presence, unread badges, stories and swipe actions model a messenger inbox, and the `sidebar` family is the right home for Alia's history, projects and agents. |
-| Audio playback (TTS, show episodes) | `lib/hooks/use-audio-gen.ts`, `src/features/shows/runtime/use-episode-audio.ts` | `media-controls`: `PlayButton`, `PlaybackProgress`, `VolumeControl`, `NowPlayingIndicator`, `formatDuration` | composition | Presentational controls over Alia's own audio elements. `LikeButton` and `ExplicitBadge` belong to the music product, not here. |
-
-### 2.3 Shared infrastructure
-
-| Alia capability | Current implementation (file) | Bloom family/export in 3.2.1 | Decision | Why |
-| --- | --- | --- | --- | --- |
-| Drawer / rail navigation, history, projects, account | `src/shell/sidebar.tsx`, `app/(app)/_layout.tsx` | `sidebar`: `Sidebar`, `SidebarItem`, `SidebarFolder`, `SidebarRailItem`, `SidebarUserMenu`, `SidebarAccountMenuContent`, `SidebarTeamMenu`, `SidebarPlanCard`, `SidebarModeSwitcher`, `SIDEBAR_METRICS`, `SIDEBAR_RAIL_WIDTH` | composition | The family already has folders, a rail, a user menu and a plan card — the four shapes Alia's 1010-line sidebar hand-builds. Alia's agent sub-lists and per-agent recent messages have no direct export and compose on top of `SidebarFolder`. |
-| Screen headers on non-chat routes | per-screen headers, `components/chat-header.tsx` | `page-header`: `PageHeader`, `PageHeaderPresentation`, `PageHeaderScrim`, `PageHeaderTitleReveal` | direct reuse | `PageHeaderProps` already carries `scrollY: SharedValue<number>`, `scrollThreshold`, `sticky`, `safeArea` and `scrim` — the four things the app currently solves per screen. It must not be stacked over `AiChatContainer`'s breadcrumb (issue §5). |
-| Segmented toggles and grouped actions | `TabToggle` in `src/features/chat/ui/thought-panel.tsx`, the tab row in `src/features/chat/ui/workspace/agent-panel.tsx` | `button-group`: `ButtonGroup`, `ButtonGroupItem`, `ButtonGroupSize` | direct reuse | Alia's two tab strips are the exact shape this family exists for. (`segmented-control` is the other candidate.) |
-| Control density and material inheritance | ad hoc per component | `control-surface`: `ControlSurface`, `useControlSurface`, `useInheritedControl`, `ControlDensity`, `ControlMaterial` | direct reuse | This is the mechanism by which a composer's chips, a panel's buttons and a menu's rows agree on density and material without each one hardcoding it. Alia currently has no equivalent. |
-| Labelled form rows | `src/features/settings/ui/*` | `field`: `Field`, `useFieldControl`, `useFieldMembership`, `FieldLabelPlacement` | direct reuse | Pairs with the `text-field`, `select`, `switch` and `settings-list` subpaths the app already imports. |
-| Menus and anchored surfaces | `chat-header.tsx` dropdown, `prompt-input/add-menu.tsx`, `sidebar.tsx` | `dropdown-menu`, `context-menu`, `menubar`, `popover`, `bottom-sheet`, `command` | direct reuse | The app already imports `popover`, `portal` and `bottom-sheet`; the menu families are the same primitives with keyboard, focus and submenu behaviour already solved. `command` is the home for the existing `CommandPalette`. |
-| Modals, confirm, toast | already `@oxy.so/bloom/surfaces`, `/dialog`, `/toast` | `surfaces`: `SurfaceProvider`, `SurfaceHost`, `surfaces`, `present`, `dismiss`, `confirm`, `alert`, `prompt`, `useSurface` | direct reuse | Adopted already. `OxyProvider` mounts the host; issue §4 is explicit that a second `SurfaceHost` or `ToastOutlet` must not be added. |
-| Long lists (library, tasks, agents, shows, skills) | `FlatList` in `app/(app)/library.tsx`, `tasks.tsx`, `agents.tsx`, `shows.tsx`, `skills.tsx` | `list`: `VirtualList`, `VirtualListHandle`, `VirtualListProps` | direct reuse | `VirtualListProps` is documented as "a precise drop-in for the `FlatList` / `@legendapp/list` call sites it replaces", with `onEndReached`, `estimatedItemSize` and `overscan`. It is **not** a fit for the chat timeline — see [gap 3](#3-verified-contract-gaps). |
-| Loading placeholders | ad hoc `ActivityIndicator` | `skeleton`: `Text`, `Circle`, `Pill`, `Box`, `Col`, `Row` | direct reuse | Six primitives, no Alia equivalent. |
-| Error boundaries | `AppErrorBoundary` in `app/(app)/_layout.tsx` | `error-boundary`: `ErrorBoundary`, `ErrorBoundaryFallback`, `ErrorBoundaryFallbackContext` | direct reuse | `ErrorBoundaryFallback` is a render prop receiving `ErrorBoundaryFallbackContext`, so Alia's reporting and reset stay in the fallback rather than in a fork of the boundary. |
-| Design tokens and theming | `@oxy.so/bloom/theme` (37 references), NativeWind, one `design-tokens` reference | `design-tokens`: `bloomTailwindPreset`, `bloomThemeCss`, `bloomThemeBlock`, `bloomDesignTokens`, `getPresetVars`, `bloomShadowStyle` | direct reuse | One token vocabulary, one theme owner. `AmbientField`'s literal hexes are the single declared exception (issue §3.1) and do not license a second palette anywhere else. |
-| Element and screen motion | Reanimated directly throughout | `motion`: `ScaleAndFadeIn`, `ScaleAndFadeOut`, `ShrinkAndPop`, `ScreenTransition` | direct reuse | For enter/exit and route transitions. The ambient field, the dictation amplitude trace and the voice wave stay on raw Reanimated shared values — see §4. |
-| "Meet Alia" first-run intro | `src/features/chat/ui/welcome-intro.tsx` (~280 lines), overlaid at `zIndex: 20` by `app/(app)/index.tsx` | `auth-card` is the nearest family and is a sign-in form | not applicable | The intro is brand: `IdentityMark`, a character-by-character headline with a caret, pointer-reactive ambient background, and an exit coordinated with the chat rising behind it (`onExitStart`). No Bloom export models it. |
-
-### Decision counts
-
-| Decision | Rows |
-| --- | --- |
-| `direct reuse` | 14 |
-| `composition` | 17 |
-| `needs a Bloom change` | 5 |
-| `not applicable` | 6 |
-| **Total** | **42** |
-
-The five `needs a Bloom change` rows are `AiChatContainer`, `AiChatThread`,
-`AiChatFeedbackRow`, the composer, and the ambient background slot. They are the
-blocking set: each one is a published Bloom change, not an Alia workaround.
-
-## 3. Verified contract gaps
-
-Each gap was re-checked against 3.2.1. Two of the issue's claims turned out to be
-imprecise; that is noted where it applies.
-
-### 1. No `onStop` on either composer — CONFIRMED
-
-`ComposerPillProps` and `ComposerPanelProps` both end at `onSubmit` plus a
-`disabled` flag:
-
-```ts
-/** Fires on the send button and on Enter. */
-onSubmit?: (value: string) => void;
-/** Greys out send (40%) while a turn is in flight. */
-disabled?: boolean;
-```
-
-A repo-wide grep of `src/**/types.ts` finds `onStop` in exactly two places, both
-in `agent-chat`:
-
-```ts
-// agent-chat/types.ts — AgentChatComposerProps
-onStop?: () => void;
-/** Shows the stop disc and lights the `ComposerLoader` band. */
-busy?: boolean;
-```
-
-So Bloom already knows the shape; it lives on the family Alia cannot adopt (see
-the `agent-chat` row). Alia's `components/ui/prompt-input/submit-button.tsx`
-swaps the send arrow for a `Square` labelled "Stop generating", with an explicit
-`disabled={false}` so the stream-wide lock cannot reach it. With the pill as
-shipped, `disabled` greys out the only action button while a turn runs — the
-cancel affordance disappears exactly when it is needed. Overlaying a second
-button at an arbitrary offset is what issue §2 forbids.
-
-### 2. Model identity — CONFIRMED, and the issue's framing needs one correction
-
-`ComposerPillProps` takes names:
-
-```ts
-/** Model names for the model menu. Omit to hide the model button. */
-models?: ReadonlyArray<string>;
-/** Controlled model name. */
-model?: string;
-onModelChange?: (model: string) => void;
-```
-
-`ComposerPillBase.tsx` confirms the behaviour — it maps over the strings and
-compares by equality (`selected={name === model}`), and falls back to
-`models?.[0] ?? ''`. Both the ambiguous display-name key and the first-item
-fallback that issue §2 warns about are real.
-
-`ModelPickerProps`, in the same family, does not have the problem:
-
-```ts
-export interface ModelPickerModel { id: string; name: string; }
-export interface ModelPickerProps {
-  providers: ReadonlyArray<ModelPickerProvider>;
-  value?: string;            // model id
-  onValueChange?: (modelId: string) => void;
-}
-```
-
-`ComposerPanelProps` forwards that same `providers` / `model` / `onModelChange`
-triple, and its `onModelChange?: (modelId: string) => void` is documented
-"Controlled model id; see `ModelPicker`".
-
-**So the identity problem is `ComposerPill`'s alone.** `ComposerPanel` and
-`ModelPicker` are already correct. Alia's `components/model-selector.tsx`
-already selects by opaque id (`onModelChange(model.id)`), matching the
-[chat runtime](./chat-runtime.mdx) rule that a routing identifier is matched by
-exact string equality and never by display name. Adopting the pill as shipped
-would regress that; adopting `ModelPicker` beside it would not.
-
-Effort is a separate axis in both: `effort?: number` indexing
-`MODEL_PICKER_EFFORT_LEVELS` (`Low, Medium, Balanced, High, Very High, Max`,
-default index 1).
-
-### 3. `AiChatThread` has no timeline contract — CONFIRMED
-
-The whole type:
-
-```ts
-export interface AiChatThreadProps {
-  /** The turns. The thread follows the newest one with a smooth scroll as it grows. */
-  children: ReactNode;
-  style?: StyleProp<ViewStyle>;
-  testID?: string;
-}
-```
-
-The implementation is a plain `ScrollView` whose `scrollRef` is a module-private
-`useRef`, with one behaviour — `onContentSizeChange` calls
-`scrollToEnd({ animated: true })` whenever the content grows. There is no ref
-forwarding, no `onScroll`, no `maintainVisibleContentPosition`, no
-`onEndReached`, no virtualization.
-
-What Alia would lose by swapping: `lib/hooks/use-scroll-to-bottom.ts` follows the
-bottom **only while the reader is within 50px of it**, paginates history upward
-when `contentOffset.y <= 300`, and re-applies an absolute scroll anchor on every
-history layout so that loading older messages does not move the reader. Every
-programmatic scroll there is `animated: false` by design.
-`src/features/chat/ui/chat-interface.tsx` adds cursor jump via
-`onRowLayout` on the row whose `cursor === focusCursor`. Bloom's unconditional
-animated `scrollToEnd` would fight all four.
-
-Bloom does ship the missing machinery — `VirtualList` has `onEndReached`,
-`maintainVisibleContentPosition` and a `VirtualListHandle` with
-`scrollToOffset` / `scrollTo` — it is simply not wired into `AiChatThread`, and
-`VirtualListHandle` still has no `scrollToIndex`, so cursor jump has no
-primitive either.
-
-### 4. `AiChatContainerProps.project` is required — CONFIRMED
-
-```ts
-export interface AiChatContainerProps {
-  /** The project crumb, after its folder glyph. */
-  project: string;
-  /** The current chat crumb. */
-  title: string;
-```
-
-Both crumbs are unconditionally rendered as `BreadcrumbItem`s. There is no
-`hideBreadcrumb`, no `ReactNode` override, and no union that lets `project` be
-absent. Most Alia chats have no project. Passing `''` renders an empty crumb and
-its folder glyph — a visible empty control, which issue §6 rules out. The
-`header` slot renders *above* the breadcrumb, so using it for Alia's own header
-stacks two headers rather than replacing one.
-
-### 5. `ComposerAttachments` simulates uploads — CONFIRMED
-
-`src/composer-panel/use-attachment-queue.ts` drives the ring itself:
-
-```ts
-const TICK_MS = 50;
-const step = 100 / Math.max(1, uploadDuration / TICK_MS);
-const tick = () => {
-  // Uneven steps so the ring reads as a transfer rather than a timer.
-  value = Math.min(100, value + step * (0.55 + Math.random() * 0.9));
-```
-
-and the hook's own doc comment says so:
-
-> The upload is SIMULATED, so the block stays backend-agnostic; real uploads feed
-> their own `progress` to `ComposerPanel` instead.
-
-Concretely: an attachment handed to `ComposerAttachments` with `progress: 0` gets
-a ring that fills over `uploadDuration` (default 1100ms) after a `uploadGap`
-pause (default 240ms) from a `Math.random()` ramp, then `onUploadComplete` fires
-**regardless of whether any byte moved**. There is no error state, no retry, no
-cancel. Alia must use `ComposerPanel` with its own `attachments` array and set
-each tile's `progress` from real upload events — and `ComposerPanelAttachment`
-has no failure field, so a failed upload has no representation in the type at
-all.
-
-### 6. `AiChatFeedbackRow` announces success unconditionally — CONFIRMED, fixed in Bloom 4.20
-
-Bloom 4.20 widened `onCopy` to `() => void | boolean | Promise<void | boolean>`
-and confirms only on `true`/`void`; `copyText` in
-`src/features/chat/ui/turn-actions.tsx` returns what the clipboard answered. The
-finding as it stood:
-
-The type:
-
-```ts
-/**
- * Copy handler. The glyph swaps to a check and the tooltip reads "Copied!" for
- * 1.6s either way.
- */
-onCopy?: () => void;
-```
-
-and `src/ai-chat/AiChatFeedbackRowBase.tsx` implements exactly that:
-
-```ts
-const copy = () => {
-  if (timer.current) clearTimeout(timer.current);
-  onCopy?.();
-  setCopied(true);
-  setCopyTooltipOpen(true);
-```
-
-The return value is discarded — the signature is `() => void`, so a promise
-cannot even be awaited — and `setCopied(true)` runs unconditionally. A clipboard
-permission denial shows "Copied!".
-
-This is a defect specific to this row, not a Bloom convention. Two sibling
-contracts get it right:
-
-- `CodeBlockProps.onCopy: (code: string) => void | Promise<void>`
-- `AgentChatMessageProps.onCopy: (text: string) => void | Promise<void>` —
-  "Resolve (or return) to show the ✓ for 1.6s; throw to leave the icon unchanged."
-
-Widening `AiChatFeedbackRowProps.onCopy` to match either is the fix.
-
-### 7. Code and gallery panel defaults — CONFIRMED
-
-Both panels default to action arrays whose entries carry **no `onPress`**
-(`AiChatPanelAction.onPress` is optional):
-
-```ts
-export const DEFAULT_CODE_PANEL_ACTIONS: ReadonlyArray<AiChatPanelAction> = [
-  { key: 'terminal', label: 'Open terminal', icon: RiTerminalFill },
-  { key: 'expand', label: 'Expand panel', icon: RiExpandDiagonalSLine },
-  { key: 'toggle', label: 'Toggle panel', icon: RiSideBarLine },
-];
-export const DEFAULT_GALLERY_PANEL_ACTIONS: ReadonlyArray<AiChatPanelAction> = [
-  { key: 'new', label: 'New generation', icon: RiImageAddLine },
-  ...
-];
-```
-
-Rendered as-is, these are three labelled buttons that do nothing. Both panels
-also fall back to a `PanelPlaceholder` — the code panel's Browser tab reads
-"Browser preview", the gallery's Styles tab reads "Style presets" — centred grey
-text implying a feature that does not exist. `actions` and `browser` /
-`stylePresets` must both be passed explicitly.
-
-The same applies to the composer: `ComposerPanelProps.addMenu` defaults to
-`COMPOSER_PANEL_ADD_MENU` ("Goal", "Plan mode", "Documents", "Spreadsheets",
-"Presentations", "Code blocks") and `permissions` to `COMPOSER_PANEL_PERMISSIONS`
-("Auto", "Manual", "Plan mode", "Bypass all"). Neither describes Alia. `addMenu:
-[]` hides the add button, and `ComposerPanelBase.tsx` guards the permission
-trigger with `permissions.length > 0` too — so `permissions: []` hides it as
-well, although only the `addMenu` escape is documented on the type.
-`ComposerStatusBarProps` is opt-in throughout (`branch`, `folders`, `mode`,
-`context` each hide when omitted), so the template's `Main` / `context={57}` are
-avoidable.
-
-### 8. No layering slot for `AmbientField` — CONFIRMED
-
-`AiChatContainer` paints its own opaque surface on its root `View`:
-
-```tsx
-<View testID={testID} style={[{ height: '100%', minWidth: 0, flex: 1,
-  flexDirection: 'column', overflow: 'hidden',
-  borderRadius: CONTAINER_RADIUS,
-  backgroundColor: palette.secondary }, style]}>
-```
-
-`AiChatShell` does the same with `backgroundColor: palette.full`. Its slots are
-`sidebar`, `mobileSidebar`, `children`, and `panel: (width) => ReactNode` — none
-of which sits behind the chat content. `AiChatContainer`'s slots are `header`
-(above the breadcrumb), `children` and `composer`. `style` reaches only the outer
-`View`, and the `backgroundColor` in the base array is overridable by a later
-`style` — but doing so would make every inner surface transparent at once, with
-no control over which layers keep their paint.
-
-The nearest thing to a layering contract in the whole package is in a different
-family:
-
-```ts
-export interface ChatBackgroundProps {
-  variant?: ChatBackgroundVariant;   // 'plain' | 'pattern' | 'gradient' | 'image'
-  colors?: string[];
-  /** The transcript. Drawn above the wallpaper. */
-  children?: ReactNode;
-```
-
-That is the right *shape* — content above a background — but the background is
-one of four built-in variants, not a caller-supplied node, so Alia's animated,
-audio-reactive `AmbientField` cannot be passed to it either.
-
-The Bloom change needed is a background node slot on `AiChatShell` /
-`AiChatContainer`, with the internal surfaces made transparent by opt-in. Reading
-into the container with web selectors, or forking it, is what issue §2 rules out.
-
-### 9. `ModelPicker` welds an effort axis to the model list — FOUND DURING ADOPTION
-
-Not in #608's list, and the one gap found by trying to adopt rather than by
-reading. `ModelPicker` is the picker the matrix and the issue both bless,
-because its identity contract is right: `{id, name}`, `onValueChange(modelId)`,
-no display-name matching. That part is correct.
-
-Its effort axis is not separable from it. `ModelPickerBase` renders `EffortMenu`
-on the checked row **unconditionally**, indexing `effortLevels`, and
-`EffortSlider` computes `max = levels.length - 1`.
-
-Alia's levels are per-entry `capabilities.reasoningLevels`, and
-`src/features/chat/runtime/use-catalogue.ts` says what that usually holds:
-
-> Empty is the common answer: a routing profile fanning out over seventeen
-> deployments offers a level only if all seventeen can send it.
-
-So for the default selection, `effortLevels` is `[]` — and the picker draws an
-empty chip with a chevron over a slider that can never commit. A control wired
-to nothing, in the common case, which is what #608 §1.6 forbids.
-
-There is a second half. `effort?: number` cannot express what Alia's store says
-with `null`: no level chosen, the parameter omitted, the model decides. Adopting
-the prop would turn the absence of a choice into the appearance of one.
-
-What Bloom would need: `EffortMenu` conditional on `effortLevels.length > 0`,
-and an effort value that can be absent. Until then Alia composes the model rows
-itself and keeps the two axes genuinely separate.
-
-### 10. `AiChatShell` cannot express a collapsed sidebar — CLOSED in 3.3.0
-
-`AiChatShell` composes sidebar, workspace and right panel with a resize handle
-and mobile drawers, and is the obvious answer to #608 §5. Adopting it would
-cost Alia two things, and neither has a prop that recovers them.
-
-**A collapsed desktop rail.** Alia narrows its sidebar to a 56px icon rail
-through `sidebarOpen` in the UI store; `app/(app)/_layout.tsx` sets
-`drawerStyle.width` to 56 or 255 and the sidebar renders icon-only rows at that
-width. `AiChatShellProps` has `sidebar`, `mobileSidebar` and three widths — all
-three for the PANEL. The sidebar is either in flow above `lg` or a push drawer
-below it. There is no third state and no width to give it.
-
-**The accessibility fix in #532.** `DrawerSidebar` takes the sidebar out of the
-tab order and the screen-reader tree while the drawer is closed, because
-react-native-drawer-layout keeps the subtree mounted and merely translates it
-offscreen. That guard reads `useDrawerStatus`, which exists only because the
-drawer belongs to the router. Replacing the router's drawer replaces the signal
-the fix is built on.
-
-Both are closed. Bloom 3.3.0 added `sidebarWidth`, `sidebarCollapsed` and
-`collapsedSidebarWidth` (default 56 — Alia's rail width exactly), and exported
-`useAiChatShell()` with `navPresented`, which is the signal the #532 guard
-needed. `AiChatShell` is the app's shell now, and since Bloom 4.14.1 it guards
-the closed drawer itself: `inert` on web — the one attribute covering focus, tab
-order, assistive tech and find-in-page at once — and the VoiceOver/TalkBack
-flags on native. Alia's own `NavRegion` wrapper went with that.
-
-Two things did not survive the move, and neither has a Bloom contract yet:
-
-- **Swipe-to-open.** `expo-router`'s `Drawer` had `swipeEnabled`; `AiChatShell`
-  has no edge gesture.
-- **The rail's collapse animation on web.** `drawerStyle` carried
-  `transition: width 300ms`; the shell sets that column's width inline and its
-  `style` prop reaches only the shell root, so there is no hook for it.
-
-### On the AI Chat template
-
-Issue #608 names `templates/ai-chat/AiChatTemplate.tsx` as the primary
-composition reference. **The npm tarball does not ship `templates/`.** Its
-`files` field is `["NOTICE", "scripts/…", "src", "lib", "docs/*.mdx", …]`; the
-only top-level directories present are `docs`, `lib`, `scripts` and `src`. The
-`docs/*.mdx` files *are* shipped (187 of them, including `ai-chat.mdx`,
-`composer-panel.mdx`, `composer-loader.mdx`), and `docs/ai-chat.mdx` states that
-"The full screens are composed in Storybook under `Templates/AI Chat`".
-
-So this document does not describe the template's composition, because it could
-not be read from the published package. Everything above is derived from the
-exported types and their implementations. Reading the template requires the Bloom
-repository at the matching revision, not the dependency Alia installs.
-
-## 4. What Alia must keep, and Bloom cannot provide
-
-None of the following has a 3.2.1 export that models it. Each stays Alia's.
-
-- **The `AmbientField` brand gradient and its audio reactivity.** Three blurred
-  SVG radial-gradient blobs plus a resting elliptical wash, palettes keyed to
-  `AgentState` (`idle`/`listening` `#8b5ae0 #b8c24a #f26a21`, `thinking`
-  `#92400e #eab308 #fbbf24`, `speaking` `#1e2870 #6366f1 #9333ea`, rest
-  `#c7a377`), driven by a `waveAmplitude: SharedValue<number>` from
-  `useAmbientWave` so the pulse is zero at silence. `ComposerLoader` is a rim
-  light on a pill and is not a substitute.
-- **"Meet Alia".** `src/features/chat/ui/welcome-intro.tsx` — `IdentityMark`, the typed
-  headline with a caret, "Get started" / "Continue without an account", the
-  `isAuthResolved` wait, and the `onExitStart` handoff to the chat behind it.
-- **Call transport.** `src/features/voice/runtime/use-voice-mode.ts` and `@alia.onl/sdk/voice`
-  (`useVoiceRoom`, `useAudioLevelMonitor`, `useAudioLevels`, `useSoundEffects`) —
-  the on-device turn loop since SDK 8.0.0 ([Voice](./voice.mdx)), a LiveKit room
-  before it. Bloom's `call-ui` is presentation only — correctly so.
-- **Cohost** (retired with LiveKit in SDK 8.0.0,
-  [ADR 0012](./adr/0012-voice-runs-on-the-device-livekit-and-cohost-are-retired.md)).
-  `VoiceControls` has no cohost props or buttons since 8.0.0, so nothing is
-  left to map onto `CallControlKey`.
-- **The rich message block renderers.** `renderMessage` / `MessageRow` in
-  `src/features/chat/ui/chat-interface.tsx` handles, in order: day separators
-  (`src/features/chat/model/message-days.ts`), thread seams (`src/features/chat/model/thread-history.ts`), plan preview
-  (`PlanPreviewCard`), the four tool cards
-  (`CARD_TYPES = new Set(['weather','market','faircoin','scheduled-task'])` →
-  `WeatherCard`, `MarketCard`, `FairCoinCard`, `ScheduledTaskCard`), work summary
-  (`components/execution/work-summary.tsx`), research progress
-  (`ResearchProgressCard`), reasoning (`Reasoning` / `ReasoningTrigger`),
-  text/image parts, `MessageSources`, and the failed-turn card.
-- **The canvas renderers.** `src/features/chat/ui/canvas/` — `chart`, `table`, `code`,
-  `form`, `image`, `markdown`, `artifact`.
-- **Socket.IO approvals.** `src/features/chat/runtime/use-agent-activity.ts` listens for
-  `alia.approval_request` / `alia.approval_result` and emits
-  `agent-approval-response`; `src/features/chat/ui/workspace/agent-panel.tsx` is the only UI.
-- **The window over a long thread and the per-conversation scroll restore**
-  in `src/features/chat/runtime/use-timeline-window.ts`, on top of `AiChatThread`'s anchor and
-  upward paging — see gap 3.
-- **The `Alia -> Oxy -> Kaana` path.** A UI refactor does not touch inference,
-  auth, persistence or permissions. See [chat runtime](./chat-runtime.mdx) and
-  [ADR 0001](./adr/0001-alia-oxy-kaana-responsibility-boundary.md).
-
-## 5. Honest status
-
-This document establishes what the published Bloom 3.2.1 types say and what
-files exist in `packages/app`. It establishes nothing else.
-
-Specifically, **nothing in this section's matrix was validated by running
-anything**. What has since been run is listed in
-[§6](#6-what-has-been-adopted-so-far) and amounts to a typecheck, the unit
-suite and a web bundle export — no more than that:
-
-- The app was not launched, on web, iOS or Android.
-- No component was rendered, in a test, a browser or a device.
-- No screenshot, no visual comparison, no motion or audio reference was captured.
-- No performance, accessibility or reduced-motion behaviour was measured.
-- The AI Chat template was not read — it is not in the published package
-  (see [On the AI Chat template](#on-the-ai-chat-template)).
-- Every "would" and "must" in the decision columns is a reading of a type
-  signature, not a reproduced behaviour.
-
-The eight gaps in §3 are read from the 3.2.1 source and are reproducible by
-reading it. The adoption decisions in §2 are judgements about those types and
-remain open to revision the first time a component is actually mounted.
-
-## 6. What has been adopted so far
-
-This section records what is true of `main`, as distinct from §2's judgements
-about what could be. It is the part of [#608](https://github.com/OxyHQ/Alia/issues/608)
-that has actually landed.
-
-| Change | Where | Verified by |
+This is the Alia → Bloom map that [#608](https://github.com/OxyHQ/Alia/issues/608)'s
+Definition of Done asks for. It describes the app as it is, not as it was
+planned; the planning audit it replaces is summarised in [History](#7-history).
+
+The app declares `@oxy.so/bloom` `^4.20.0` and resolves 4.20.0. Read the
+contract from the installed package (`node_modules/@oxy.so/bloom/src/<family>/types.ts`),
+never from the `~/Oxy/Bloom` checkout, and reach it only through public
+subpaths — `packages/app/__tests__/bloom-boundaries.test.ts` fails on a deep
+path or a sibling checkout. Where each file lives is
+[the app architecture](./app-architecture.mdx).
+
+The composition follows Bloom's AI Chat template
+(`templates/ai-chat/AiChatTemplate.tsx` in the Bloom repository; the npm
+tarball does not ship `templates/`): `AiChatShell` with a `Sidebar` and a right
+panel, `AiChatContainer`, `AiChatThread`, the turns, the composer under them.
+The router owns URLs and conversation identity; streaming, pagination,
+authentication, voice, tools and inference stay in Alia
+([chat runtime](./chat-runtime.mdx), [ADR 0001](./adr/0001-alia-oxy-kaana-responsibility-boundary.md)).
+
+## 1. Adoption matrix
+
+Decisions are one of **direct reuse** (the Bloom export as it ships),
+**composition** (Bloom exports assembled around Alia's data, with Alia's own
+pieces where Bloom has none), **Bloom change** (a published Bloom release added
+the contract Alia needed; the version is named) and **not applicable**.
+Paths are under `packages/app/`.
+
+| Alia feature | Where | Bloom | Decision |
+| --- | --- | --- | --- |
+| Workspace frame: sidebar column, nav drawer, right panel and its resize | `app/(app)/_layout.tsx` | `ai-chat`: `AiChatShell` (`scroll="document"`, `panel`, `panelOpen`); `scroll`: `useScrollRestoration` | Bloom change — 3.3.0 (collapsed sidebar, `navPresented`, `background`), 3.6.0 (`navSwipeEnabled`), 4.13.0 (`scroll="document"`), 4.14.1 (closed drawers are `inert`) |
+| Sidebar: history by day, pinned, favorites, projects, folders, agents, search, unread badge, account | `src/shell/sidebar.tsx`, `src/shell/sidebar-menus.tsx`, `src/shell/sidebar-history.ts` | `sidebar`: `Sidebar` with `tree`, `items`, `secondaryItems`, `content`, controlled search, `footer`; Oxy's `ProfileButton` in the footer | Bloom change — 4.5.0 (tree item `actions`, `onPrefetch`, controlled search, `content`) |
+| Chat frame, breadcrumb and header menu | `src/features/chat/ui/chat-workspace.tsx`, `chat-page-content.tsx`, `chat-header-actions.tsx` | `ai-chat`: `AiChatContainer` (optional `project`, `actions`, `background`, `floatingChrome`), `AiChatMobileHeader`; `dropdown-menu` | Bloom change — 3.3.0 (optional `project`, `background`), 4.5.0 (`actions`), 4.9.0 (`floatingChrome`) |
+| Non-chat pages (settings, agents, library, tasks…) | `src/shell/page-chrome.tsx` | `AiChatContainer` with a `header` slot holding `page-header`'s `PageHeader` | composition |
+| Brand field behind the conversation | `src/features/chat/ui/ambient-field.tsx`, passed from `chat-page-content.tsx` | `AiChatContainer.background` | Bloom change — 3.3.0; the field itself is Alia's (§4) |
+| Timeline: follow, upward paging, anchor, window, restore, cursor jump | `src/features/chat/ui/chat-interface.tsx`, `src/features/chat/runtime/use-timeline-window.ts`, `src/features/chat/model/timeline.ts`, `src/features/chat/runtime/use-at-bottom.ts` | `ai-chat`: `AiChatThread` (`followThreshold`, `onStartReached`, `maintainStartPosition`, `AiChatThreadHandle`), `useAiChatChromeInsets`; `chat-screen`: `ChatDateHeader`, `ScrollToBottomButton`; `divider` | Bloom change — 3.3.0, partial ([gap 3](#gap-3)) |
+| Turns | `src/features/chat/ui/chat-interface.tsx` | `AiChatUserMessage`, `AiChatAssistantMessage` (`animate={false}` for history) | direct reuse |
+| Turn actions: copy, vote, read aloud, regenerate, edit; long press on native | `src/features/chat/ui/turn-actions.tsx`, `src/features/chat/runtime/use-turn-edit.ts`, `src/features/voice/runtime/use-tts.ts` | `AiChatAssistantMessage.feedbackProps` (`onCopy` result, `actions`), `AiChatUserMessage.actions`; `context-menu` | Bloom change — 4.20.0 |
+| Reply text: Markdown, citations, references, rich fences | `src/features/chat/ui/markdown.tsx`, `rich-blocks.tsx` | `card`, `item`, `admonition`, `rating` inside the blocks; the Markdown itself is `AliaMarkdown` from `@alia.onl/sdk` | composition (§4) |
+| Tool results: weather, market, FairCoin, scheduled task; the turn's status line | `src/features/chat/ui/tool-result-card.tsx`, `turn-status-line.tsx`, `src/features/chat/model/tool-cards.ts` | `chart-cards`, `card`, `icon-circle`, `item`; `AiChatMessageLine` | composition |
+| Work log inside a turn: tool steps, searches, sources | `src/features/chat/model/work-log.ts`, `chat-interface.tsx` | `task-list`: `TaskList`; `web-search`: `WebSearch` | composition |
+| Step progress | `chat-interface.tsx`, `src/features/chat/ui/cards/agent-task-card.tsx`, `src/features/chat/ui/workspace/agent-panel.tsx` | `agent-progress`: `AgentProgress`, `completedCount` from finished tool calls or the plan | direct reuse |
+| Waiting and working | `chat-interface.tsx` (`showTimer={false}`), `AiChatContainer.working`, `agent-panel.tsx` | `agent-thinking`: `AgentThinking` | direct reuse |
+| Thought panel and agent panel (steps, files, sources, approvals) | `src/features/chat/ui/thought-panel.tsx`, `src/features/chat/ui/workspace/agent-panel.tsx`, `src/features/chat/ui/execution/` | `agent-log` rows, `stat-bar`, `link-preview`, `notification` (a pending approval) | composition |
+| Right panel: canvas, agent terminal, gallery | `src/shell/workspace-panel.tsx` | `AiChatCodePanel` (`actions`, `browser`), `AiChatGalleryPanel` | composition, [gap 7](#gap-7) open |
+| Credits, context and plan limits | `src/features/chat/ui/workspace/credits-limits.tsx`, `src/features/settings/ui/usage-section.tsx`, `src/features/billing/model/credits-limits.ts`, `src/features/chat/model/context-usage.ts` | `agent-limits-card`: `AgentLimitsCard` | composition |
+| Composer | `src/features/chat/ui/composer/` (`composer.tsx`, `use-alia-composer.ts`, `add-menu.tsx`, `model-lineup.ts`, `attachment-tiles.ts`, `use-attachment-intake.ts`, `drop-zone.tsx`, `composer-suggestions.tsx`) | `composer-panel`: `ComposerPanel` (`onStop`/`busy`, `providers` of `{id, name}`, nullable `effort`, `emptyAction`, `onKeyPress`, tiles with `progress`/`error` and `onAttachmentRetry`), `ComposerPanelStatusTab` | Bloom change — 3.3.0 (stop, identity, effort), 4.7.0 (`emptyAction` on the panel), 4.11.0 (`onKeyPress` on the panel), 4.20.0 (failed tiles) |
+| Code in the canvas, tool steps and agent sessions | `src/features/chat/ui/canvas/code-renderer.tsx`, `src/features/chat/ui/execution/tool-step.tsx`, `src/features/agents/ui/session/session-event-card.tsx` | `code`: `CodeBlock`, `Pre` | direct reuse |
+| Canvas renderers | `src/features/chat/ui/canvas/` | `chart-cards`, `table`, `field`, `CodeBlock` | composition |
+| Dictation | `composer.tsx`, `src/features/voice/runtime/use-speech-to-text.ts` | `ComposerPanel.listening` / `onListeningChange` | direct reuse |
+| Call | `chat-page-content.tsx` (the composer slot), `src/features/voice/runtime/use-voice-mode.ts`, `src/features/voice/ui/voice-mode-icon.tsx` | none — `VoiceControls` from `@alia.onl/sdk` | not applicable (§2, `call-ui`) |
+| Error containment | `src/shell/error-boundary.tsx`, `src/features/chat/ui/message-block-boundary.tsx` | `error-boundary`: `ErrorBoundary` | direct reuse |
+| Dialogs, confirms, toasts | throughout | `surfaces`, `dialog`, `toast`; the hosts are `OxyProvider`'s | direct reuse |
+| Settings | `src/features/settings/ui/` | `settings-modal`, `settings-list`, `field`, `switch`, `select` | direct reuse |
+| Agent activity | `src/features/agents/ui/detail/activity-grid.tsx` | `activity-heatmap` | direct reuse |
+
+**The model picker** is `ComposerPanel`'s `ModelPicker`, fed by
+`model-lineup.ts`. On `main` since `21ce2b76` it lists the real models of the
+catalogue by publisher — the server's featured models and the person's pins
+first, one provider per publisher, then this account's devices — and the
+effort axis is the chosen model's own reasoning efforts: none, and
+`effortLevels={[]}` drops the axis. The mode pill is Chat / Agent (the
+panel's `permissions`); deep research is a checked row in the add menu.
+
+## 2. The AI families, evaluated
+
+Every family #608 §2 names, against 4.20.0.
+
+| Family | Used | Decision | Why |
+| --- | --- | --- | --- |
+| `ai-chat` | shell, container, thread, turns, feedback row, code and gallery panels, mobile header | composition | The base of the workspace. `AiChatImageGeneration` is not used: a generated image reaches Alia as a finished canvas artifact, and the component's `ready` has no in-flight event to follow. |
+| `composer-panel` | `ComposerPanel`, `ComposerPanelStatusTab` | composition | The panel, not the template's pill: it has the provider-rail picker, the mode pill and the attachment tiles Alia needs. `ComposerStatusBar` is not used (no branch, folders or context meter describe an Alia chat); `ComposerAttachments` is not used (its upload is simulated, `use-attachment-queue.ts`). |
+| `composer-loader` | no | not applicable | Removed with the old composer (`7e877b8a`): it traces the pill and would light the status tab. A turn in flight shows as `AiChatContainer.working` and the send slot's stop. |
+| `agent-thinking` | yes | direct reuse | The thread's is the translated "Thinking" with the mount timer off, since it would stand in for a duration the turn records; the agent panel's names the agent's current step. |
+| `agent-log` | yes | composition | The rows under the thought and agent panels, fed by the turn's tool events. |
+| `agent-progress` | yes | direct reuse | `completedCount` is controlled by finished tool calls or the agent's plan; `steps` never come from `DEFAULT_AGENT_PROGRESS_STEPS`. |
+| `task-list` | yes | composition | Tool steps inside a turn, built in `work-log.ts`. |
+| `web-search` | yes | composition | Searches and sources inside a turn; web calls are left to it rather than to `AgentProgress`. |
+| `questionnaire` | no | not applicable | The runtime has no structured-question event. Approvals are a two-answer decision with a deadline and arrive over Socket.IO (`use-agent-activity.ts`); they are a `Notification` in the agent panel, not a questionnaire. |
+| `agent-limits-card` | yes | composition | Fed only what Alia measures: credits and the plan's windows, and the context the chat reports. |
+| `ai-chat` + `code` | `AiChatCodePanel`, `CodeBlock`, `Pre` | composition | The canvas is the code panel; the agent terminal is its second tab. |
+| `ai-chat` + media | `AiChatGalleryPanel` | composition | Library images and the images generated in the chat. See [gap 7](#gap-7). |
+| `agent-chat` | no | not applicable | `AgentChatMessageData` is text only; adopting it would flatten tools, cards, plans and sources. |
+| `ai-profile-card` | no | not applicable | Its required `contributions` and `cells` are a contributions record Alia does not keep. The agent page draws the activity Alia does record with `activity-heatmap`. |
+| `call-ui` | no | not applicable | A call draws the SDK's `VoiceControls` (mute, end, the agent's state as text) in the composer's slot, over the ambient field. `CallControls` could draw the same two buttons, but `@alia.onl/sdk` does not depend on Bloom and its controls serve SDK consumers too; `CallScreen` would paint over the brand field (#608 §3.1); there are no inbound or group calls. |
+| `chat-composer` | no | not applicable | Emoji, reactions and voice notes are not Alia capabilities. |
+| `message-media` | no | not applicable | Its blocks take their contrast from a chat bubble Alia does not draw; files are `item` rows (`file-card.tsx`). |
+| `chat-screen` | `ChatDateHeader`, `ScrollToBottomButton` | composition | Day lines inline in the thread; the jump to the latest in the composer's accessory. The messenger chrome has no counterpart. |
+| `chat-list` | no | not applicable | History is the `Sidebar` tree with its own search. |
+| `media-controls` | no | not applicable | The one player, a show episode, is a row with a play button (`episode-row.tsx`). |
+| Infrastructure | `sidebar`, `page-header`, `button-group`, `segmented-control`, `field`, `dropdown-menu`, `context-menu`, `surfaces`, `toast`, `skeleton`, `error-boundary`, `theme`, `typography`, `icons` | direct reuse | One vocabulary; `AmbientField`'s literal colours are the declared exception. `control-surface`, `list` (`VirtualList`) and `motion` are not imported: nothing in the app needed them, and `VirtualList` cannot host the thread ([gap 3](#gap-3)). |
+
+## 3. Contract gaps
+
+The ten gaps the planning audit found against 3.2.1. The Bloom commits that
+closed them are named in Alia's bump commits (`f346746b` 3.3.0, `916e4eb9`
+3.5.0, `d63ce122` 3.6.0, `c578c42d` 4.20.0).
+
+| # | Gap | Status | How Alia uses it |
+| --- | --- | --- | --- |
+| 1 | No `onStop` on either composer | CLOSED 3.3.0 | `onStop` + `busy`; the stop ignores `disabled`. |
+| 2 | The pill selected a model by its display name | CLOSED 3.3.0 | `ComposerPanel`'s picker takes `{id, name}` and reports the id. |
+| 3 | <a id="gap-3"></a>`AiChatThread` had no timeline contract | PARTIAL 3.3.0; OPEN: no virtualization, no `scrollToIndex` | See below. |
+| 4 | `AiChatContainer.project` was required | CLOSED 3.3.0 | Omitted for a new chat; otherwise the chat's project, folder or "Chats", as the sidebar files it. |
+| 5 | Uploads had no real progress or failure | CLOSED 4.20.0 for `ComposerPanel` | Tiles carry the intake's measured `progress`, or `error` with a retry. `ComposerAttachments` still simulates and is not used. |
+| 6 | The feedback row said "Copied!" regardless | CLOSED 4.20.0 | `copyText` returns what the clipboard answered; a refusal is an error toast. |
+| 7 | <a id="gap-7"></a>Code and gallery panels default to demo actions and placeholders | OPEN (no Bloom change; avoided by explicit props) — partly | See below. |
+| 8 | No layer behind the chat content | CLOSED 3.3.0 | `AiChatContainer.background` holds the field. |
+| 9 | The picker's effort axis could not be absent | CLOSED 3.3.0 | `effortLevels={[]}` drops it; `effort={null}` is "no level chosen". |
+| 10 | The shell could not collapse the sidebar | CLOSED 3.3.0, 3.6.0, 4.14.1 | Collapse, swipe-to-open and the closed drawer's `inert` are Bloom's; Alia's `NavRegion` wrapper went (`6b6414e7`). The app passes no `sidebarCollapsed`: the `Sidebar` sizes and animates itself. |
+
+**Gap 3, cursor jump without `scrollToIndex`.** Long threads are windowed in
+Alia, not virtualized: `src/features/chat/model/timeline.ts` mounts the newest
+40 rows and reveals 30 more each time the reader nears the top, through the
+same anchored `onStartReached` growth history paging uses. A cursor jump asks
+the window to mount the target with 5 rows above it (`FOCUS_MARGIN`), and the
+target row's `onLayout` calls `AiChatThreadHandle.scrollToOffset` with its
+measured `y` (`handleFocusLayout` in `chat-interface.tsx`). `VirtualList`
+cannot host the thread: its `onEndReached` fires at the end while a chat pages
+upward, and react-native-web ignores `maintainVisibleContentPosition`. Measured
+in [the runtime baseline](./runtime-baseline.mdx#10-the-timeline-at-1000-and-5000-messages).
+
+**Gap 7, what the explicit props do and do not cover.** The composer passes
+`addMenu` and `permissions` always (an empty list hides each), so Bloom's
+demo menus never show, and the status tab gets only the project. The code
+panel passes its own `actions` (the terminal only where there is an agent, and
+close) and a `browser` node for the terminal or a non-code canvas. Still
+showing Bloom defaults, with no handler behind them:
+
+- **The gallery panel** passes neither `actions` nor `stylePresets`, so it
+  draws `DEFAULT_GALLERY_PANEL_ACTIONS` (new generation, expand, toggle — no
+  `onPress`, English labels) and a "Style presets" tab with a placeholder;
+  without `onDownload` / `onMore`, each image's scrim buttons do nothing.
+- **The code panel's summary** is always drawn (`changeCount` is always
+  passed), and with it an "Undo changes" button with no `onUndo`, and `-0`.
+- **The code panel's Browser tab** shows the "Browser preview" placeholder
+  while the canvas holds code and there is no agent terminal.
+
+Each is a #608 §1.6 violation to fix in Alia (pass the props, or give the tab
+real content), not a Bloom gap.
+
+## 4. What stays Alia's
+
+| Component | Where | Why no Bloom export |
 | --- | --- | --- |
-| Bloom `^3.1.0` → `^3.2.1` across all six workspaces that declare it | every `package.json`, `bun.lock` | typecheck, 686 tests, `expo export --platform web` |
-| The person's turn is `AiChatUserMessage`; the reply is `AiChatAssistantMessage` | `src/features/chat/ui/chat-interface.tsx` | `src/features/chat/ui/__tests__/ai-chat-message-composition.test.ts` |
-| Restored history and pages loaded above do not replay their reveal (`animate={isNewMessage}`) | same | same gate |
-| One entrance per arrival — the row's `FadeInUp.springify()` is gone, Bloom's reveal owns it, and honours reduced motion | same | same gate |
-| Waiting state is `AgentThinking`, with a real status label or the translated word, and no mount timer | same | typecheck, web export |
-| Skills are selectable without a runnable connector | `src/features/chat/model/turn-selection.ts` | `src/features/chat/model/__tests__/turn-selection.test.ts` |
-| One owner for ghost / agent / deep research, so the menu cannot disagree with the request body | `src/features/chat/runtime/use-capability-modes.ts` | `src/features/chat/runtime/__tests__/use-capability-modes.test.tsx` |
-| The new-chat screen can stop, retry, approve and answer like any other chat | `app/(app)/index.tsx` | `app/(app)/__tests__/home-chat-wiring.test.tsx` |
-| A dropped call started from an empty chat can be left | `src/features/voice/runtime/use-voice-mode.ts` | `src/features/voice/runtime/__tests__/use-voice-mode-disconnect.test.tsx` |
-| Each block built from tool output sits in a Bloom `ErrorBoundary`, so a malformed one cannot take the conversation down | `src/features/chat/ui/message-block-boundary.tsx` | `src/features/chat/ui/__tests__/message-block-boundary.test.tsx` |
-| Bloom components can be MOUNTED in tests instead of mocked (`server.deps.inline`) | `packages/app/vitest.config.ts` | the boundary test mounts the real `ErrorBoundary` |
-| The thread no longer costs O(n²) to draw | `src/features/chat/model/thought-utils.ts`, `src/features/chat/ui/chat-interface.tsx` | `src/features/chat/model/__tests__/turn-timings-scale.test.ts` |
-| Twelve unreachable packages left the manifest | `packages/app/package.json` | [dependency audit](./dependency-audit.mdx) |
-| The composer's rim light is Bloom's `ComposerLoader` | `components/ui/prompt-input/working-light.tsx` | `__tests__/working-light.test.tsx`, and `bloom-composer-loader-dash` appears in the emitted web bundle |
-| Enter no longer sends a message an input method was still composing | `components/ui/prompt-input/textarea.tsx`, `lib/chat/composer-state.ts` | `__tests__/textarea-ime.test.tsx` (3 of its 6 fail with the guard removed) |
-| The composer's controls carry translated accessible names; the fullscreen toggle had none at all | `components/ui/prompt-input/*` | mount tests per control |
-| The right panel is dragged, using Bloom's `AiChatResizeHandle`; it had a fixed width | `components/ui/panel.tsx`, `components/right-panel.tsx` | `components/__tests__/panel-resize.test.tsx`, `src/features/chat/runtime/__tests__/right-panel-width.test.ts` |
-| A reproducible visual baseline of "Meet Alia" and the ambient field — 6 viewports x light/dark x reduced/no-preference, plus 4 motion frames | `packages/app/scripts/visual/` | `bun run --filter @alia/app visual:baseline --check` |
+| `AmbientField` | `src/features/chat/ui/ambient-field.tsx` | The brand (#608 §3.1): three blurred radial blobs and a resting wash, palettes by agent state, driven by the call's audio level (`useAmbientWave`). Out of the accessibility tree, still under reduced motion, paused while its screen is hidden (`ce333926`). `ComposerLoader` is a rim light, not a substitute. |
+| "Meet Alia" and the greeting | `src/features/chat/ui/welcome-intro.tsx`, `welcome-message.tsx` | The signed-out intro (#608 §3.2) with `IdentityMark` from the SDK, and the "Hi {name}" over an empty chat. The template has no empty state. |
+| Reply Markdown and rich blocks | `src/features/chat/ui/markdown.tsx`, `rich-blocks.tsx` | Bloom's message primitives cover lines, bullets, bold, link chips and code — not tables, headings, citations, a references list or Alia's fences (banner, timeline, comparison, compact list, credibility). A lexer onto the primitives (`bloom-markdown.tsx`, added with `marked` in `60e0480d`) was dropped in `302d2f25`; replies render through the SDK's `AliaMarkdown`. |
+| Failed turn, new-conversation offer | `src/features/chat/ui/failed-turn-card.tsx`, `new-conversation-offer.tsx` | Alia's actions (retry; start a new chat) on Bloom's `Notification`. |
+| Plan preview, agent task and result cards | `PlanPreviewCard` from `@alia.onl/sdk`; `src/features/chat/ui/cards/` | Approve or reject a plan; an agent run's state and result, on `AgentProgress`, `AgentThinking`, `Card`, `Accordion`. |
+| Thread search | `src/features/chat/ui/thread-search.tsx` | Searches the server's history of the thread and jumps by cursor; built on `search`, `card`, `item`. |
+| Composer additions | `composer-suggestions.tsx`, `drop-zone.tsx`, `use-attachment-intake.ts`, `add-menu.tsx`, `model-lineup.ts`, `provider-marks.tsx` in `src/features/chat/ui/composer/` | Suggestions driven through `onKeyPress`; web drag-and-drop (react-native-web forwards no drag events); the reads behind the tiles; the add menu's rows and the picker's providers. |
+| Canvas renderers | `src/features/chat/ui/canvas/` | Chart, table, code, form and Markdown artifacts, each drawn with the Bloom family that fits. |
+| Agent terminal | `src/features/chat/ui/workspace/agent-terminal.tsx` | xterm.js (a WebView on native), in the code panel's second tab; loaded only when shown. |
+| Call controls | `VoiceControls` from `@alia.onl/sdk`; `src/features/voice/ui/voice-mode-icon.tsx` | See `call-ui` in §2. The call runs on the device ([Voice](./voice.mdx)). |
+| Approvals | `src/features/chat/runtime/use-agent-activity.ts`, `agent-panel.tsx` | Socket.IO `alia.approval_request` / `agent-approval-response`; drawn as a `Notification`. |
+| Timeline window and scroll restore | `use-timeline-window.ts`, `timeline.ts` | [Gap 3](#gap-3). |
 
-Bloom's own feedback row was switched off under a reply at the time: Alia's
-action bar was a superset of it (read aloud, generate audio, regenerate, vote),
-and two rows would have been two answers to the same question. It is the only
-row now — Bloom 4.20's turn `actions` carry read aloud and regenerate, and gap
-6 is fixed rather than sidestepped (`docs/bloom-template-pending.mdx`, Thread).
+## 5. Still different from the template, or from the app before #608
 
-### What #608 still asks for
+Verified in the code on the integration branch.
 
-Stated as remaining work rather than left implied. None of it is blocked by
-anything above; all of it is larger than one change.
+- **Sidebar.** No keyboard-shortcuts row; the dialog opens with ⌘/ (web). A
+  folder cannot be favourited: the folder type has an `isFavorite` field
+  (`src/features/projects/runtime/folders-store.ts`) that nothing sets or
+  reads. The foot is Oxy's `ProfileButton` rather than the template's account
+  row and plan card; upgrading is in its menu.
+- **Chat header.** No share button: the container's `actions` replace Bloom's
+  share/more, and the menu offers search, the panel, the agent terminal,
+  usage, export Markdown, clear and delete. Ghost mode moved from the header
+  to the composer's add menu.
+- **Warnings.** Low credits, the spending warning and the local-models invite
+  are Bloom toasts; the invite has no artwork (a toast has no image slot). The
+  "limit reached" banner is `UsageLimitDialog`.
+- **Composer.** Dictation is the panel's mic: it records and transcribes into
+  the draft, with no separate cancel/send bar.
+- **Thread.** "Generate audio" is not offered: `POST /v1/audio/generate`
+  answers `unavailable` to every request (`packages/api/src/routes/v1/audio.ts`).
+- **Look.** The colour preset is `purple` (`app/_layout.tsx`); Bloom's
+  Storybook shows the template in `oxy`. Below `lg` (1024) the sidebar is a
+  drawer; before #608 it was in flow from 768.
 
-- **The shell is adopted.** `AiChatShell` replaced the `expo-router` `Drawer`,
-  and the sidebar is COMPOSED from Bloom's parts (`SidebarItem`,
-  `SidebarFolder`, …) rather than swapped for the closed `<Sidebar>`, which has
-  no `children` and no slots and would have dropped the conversation context
-  menu, project and folder management, the history's infinite scroll and date
-  grouping, hover prefetch, the referral banner and the footer's unread badge.
-  What Bloom has a part for uses Bloom's; the rest stays Alia's, with the
-  missing contract named in gap 10.
+## 6. What #608 removed
 
-  One consequence is a product decision, not a defect: Bloom holds the nav in
-  flow only from `lg` (1024) while Alia's was in flow from 768, so tablet
-  portrait now gets a drawer and a full-bleed chat. The visual baseline records
-  it as a failure at 768 deliberately, pending that decision.
-- **The timeline** is `AiChatThread`: its `followThreshold`, `onStartReached`
-  and `maintainStartPosition` replaced `use-scroll-to-bottom.ts`, and a cursor
-  jump measures its row and calls `scrollToOffset`. Bloom still has no
-  virtualization and no `scrollToIndex`, and `VirtualList` cannot host the
-  thread (`onEndReached` fires at the END while Alia pages UPWARD, and
-  `maintainVisibleContentPosition` is ignored on web). So long threads are
-  WINDOWED in Alia (`src/features/chat/runtime/use-timeline-window.ts`): the newest 40 rows
-  mount and older ones are revealed a page at a time through the same anchored
-  `onStartReached` growth history paging uses — measured, and its limits
-  stated, in [the runtime baseline](./runtime-baseline.mdx#10-the-timeline-at-1000-and-5000-messages).
-  The same hook restores each conversation's position. Day lines are Bloom's
-  `ChatDateHeader` inline, and thread seams a labelled `Divider`.
-- **The composer** is done, as composition rather than adoption: `ComposerLoader`
-  is reused directly, Bloom's Enter rule is reimplemented over Alia's own field,
-  and `ComposerPill`, `ComposerPanel`, `ModelPicker`, `ComposerAttachments`,
-  `ComposerStatusBar` and `ControlSurface` were each declined with the loss
-  named — see gaps 1, 2, 5 and 9. What remains is attachments: drag-and-drop and
-  retry do not exist in Alia today, and Bloom has no contract for real upload
-  progress to adopt.
-- **Attachments.** `ComposerAttachments` simulates its uploads (gap 5). Real
-  progress, error, retry and cancel have no Bloom contract to adopt.
-- **The feature-boundary tree** in #608 §4 is done: `src/shell`,
-  `src/features/{chat,voice,agents,…}/{model,runtime,ui}` and `src/shared/*`,
-  with its import rules gated — see [the app architecture](./app-architecture.mdx).
-  What was `components/ui/` is now `src/shared/ui/` (logo, image, generated
-  icons) and the renderers the chat and skills own.
-- **§13's visual comparison, for the chat itself.** The welcome screen and the
-  ambient field now have a reproducible reference (see
-  [the visual baseline](./visual-baseline.mdx)). The conversation, dictation,
-  playback and call references #608 §3.1 also asks for remain uncaptured: each
-  needs authentication and a live API, and none was faked to fill the row.
-- **§12 runtime performance.** The bundle baseline exists and says something
-  uncomfortable: `index-*.js` is 10,528,839 B, 93% of all JS, against 752,652 B
-  spread over 47 lazy route chunks. Code splitting exists in name only. Runtime
-  cost — time to interaction, render and JS cost while streaming, memory — is
-  still unmeasured; the capture harness pins the animation clock precisely so
-  that timings cannot be read off it, so that needs a second harness.
-- **Native.** No iOS or Android run. Bloom documents different blur and mask
-  backends there, so the web baseline does not transfer.
+From the commits on `main` since 2026-09-19 and on `feat/608-integration`.
+Paths are as they were, under `packages/app/`.
+
+### Code
+
+| Removed | Commit |
+| --- | --- |
+| The local UI layer in `components/ui/`: `kbd`, `label`, `avatar`, `separator`, `skeleton`, `card`, `switch`, `textarea`, `command`, `collapsible` | `aa4d46fb`, `1a1b1e8a`, `75b939e8`, `4be81fea`, `29d96913`, `2fd7e9d2`, `4c0d5bb5`, `56374365`, `282f7fe6`, `9adcc88b` |
+| The `prompt-input` tree (`prompt-input.tsx`, `submit-button.tsx`, `textarea.tsx`, `add-menu.tsx`, `mic-button.tsx`, `working-light.tsx`, …) and `lib/chat/composer-state.ts` | `693a2e11` |
+| `lib/hooks/use-scroll-to-bottom.ts` — the thread's own scrolling | `939a8d3e` |
+| The pre-Bloom-4 sidebar parts, settings layout and header, auth inputs, and `components/ui/{button,text,input,dropdown-menu}` | `e4f21ea7` |
+| The sidebar's collapse hook, conversation menu, history grouping and skeleton | `ac8125b7` |
+| `chat-header.tsx`, the composer's autocomplete and dictation bar, `work-summary.tsx` | `2a3afc33` |
+| `right-panel.tsx` and the `bloom-verification` route | `1fb345a3` |
+| The attachment strip (and the composer's `ComposerLoader`) | `7e877b8a` |
+| `credits-panel.tsx` | `1cdeeed9` |
+| The model and effort selectors, `message-sources.tsx`, `reasoning.tsx`, `panel.tsx`, the credit banner, the Lottie loader, `bloom-markdown.tsx` and 20 hand-drawn icons | `c3da9e7f` |
+| `canvas-panel.tsx`, `execution-surface.tsx` and the execution tokens | `a3fa8c26` |
+| The weather, market, FairCoin and scheduled-task cards and their chart | `302d2f25` |
+| The lucide and radix icon shims and their generator, `use-audio-gen.ts`, `chat-layout.ts`, the local-models invite component | `3b983da8` |
+| The nav wrappers (`components/app-shell/`: `NavRegion`, `ShellNavProvider`, `shell-nav`, `metrics`), `lib/utils.ts`, dead exports | `6b6414e7` |
+| The orphaned `lib/types/events.ts` and unused locals | `8f8e2911` |
+| Routes and screens for endpoints the clean cut removed (`authorize/codea`, `authorize/cowork`, `workspace-browser.tsx`) | `69b305b9` |
+| Dead code and assets across the repo, including `components/ui/chat-text-input.tsx` and `public/audio-processor.js` | `63754618` (#621) |
+| The LiveKit session's leftovers: `useSaveConversation`, the cohost fields and no-op handlers passed through `useVoiceMode`, the message `speaker` field | `5e7bd123` |
+| The agent page's Report and Bookmark (a toast with no request; stored, never read), then the bookmark store | `6a47b9ef`, `91c70c57` |
+| `types/chat.ts` (a one-line re-export of `Message`) and shadcn's `components.json` | `c4a03b2d` |
+| The product modes (`use-product-modes.ts`), `AUTOMATIC_SELECTION_ID`, `DEFAULT_MODEL_ID` and the plan lock | `21ce2b76` (`main`) |
+
+### Dependencies
+
+| Removed from `packages/app/package.json` | Commit |
+| --- | --- |
+| `cmdk` | `282f7fe6` |
+| `@rn-primitives/separator` | `4be81fea` |
+| `@rn-primitives/collapsible`, `hooks`, `slot`, `types` | `a3c2fe1a` |
+| `@radix-ui/react-dropdown-menu`, `zeego` | `e4f21ea7` |
+| `lucide-react-native`, `@radix-ui/react-icons` | `3b983da8` |
+| `clsx`, `tailwind-merge`, `class-variance-authority`, `marked`, `@lottiefiles/dotlottie-react`, `lottie-react-native`, `react-native-drawer-layout`, `@react-native-menu/menu`, `react-native-ios-context-menu`, `react-native-ios-utilities` | `6b6414e7` |
+| `livekit-client`, `@livekit/react-native`, `@livekit/react-native-expo-plugin`, `@livekit/react-native-webrtc`, `@config-plugins/react-native-webrtc` | `621ea5e5` |
+| `@expo/html-elements`, `@radix-ui/react-scroll-area`, `@react-native-community/hooks`, `event-target-shim`, `expo-speech`, `react-native-syntax-highlighter`, `react-native-view-shot`, `zustand-persist`, `prettier-plugin-tailwindcss`, `@babel/plugin-transform-react-jsx`, `esbuild`, `patch-package` | `dfe9115c` |
+
+`@alia.onl/sdk`'s `VoiceControls` still imports `lucide-react-native`; that is
+the SDK's dependency, not the app's.
+
+## 7. History
+
+#608 was written against Bloom 3.2.1. The first audit (`726bd699` onward)
+found the app importing 18 Bloom subpaths and **no AI family**, and the ten
+gaps in §3; `templates/` was not in the published package, so the audit read
+types and implementations only. Bloom 3.3.0 closed most gaps generically
+(`f346746b`), 3.4.0–3.6.0 the composer's and the drawer's, and the app was then
+recomposed on the template at 4.5.0 (`60e0480d`), measured against the
+template running in Bloom's Storybook box by box. 4.20.0 closed the last two
+(`c578c42d`). The audit's full text is in git history, in this file before
+this rewrite.
+
+What was verified, and how: [visual baseline](./visual-baseline.mdx),
+[runtime baseline](./runtime-baseline.mdx), [bundle baseline](./bundle-baseline.mdx),
+[native validation](./native-validation.mdx). Voice runs on the device; the
+decision that retired LiveKit, cohost and voice minutes is the voice ADR in the
+[ADR index](./adr/README.md), linked from [Voice](./voice.mdx).
