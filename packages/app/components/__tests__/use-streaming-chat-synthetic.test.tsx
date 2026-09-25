@@ -156,7 +156,7 @@ describe('a synthetic reply', () => {
     // failed turn was cut out of the history before it was re-sent, so the
     // server neither sees it twice nor stores it twice.
     expect(harness.requests).toHaveLength(2);
-    expect(harness.requests[1].messages).toEqual([{ role: 'user', content: 'hello?' }]);
+    expect(harness.requests[1].messages).toEqual([{ id: expect.any(String), role: 'user', content: 'hello?' }]);
     expect(api.messages.map((m) => [m.role, m.content])).toEqual([
       ['user', 'hello?'],
       ['assistant', 'Hello!'],

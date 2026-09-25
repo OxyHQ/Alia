@@ -146,7 +146,16 @@ vi.mock('@/lib/chat/work-log', () => ({
 }));
 vi.mock('@/lib/task-utils', () => ({ getToolPillLabel: (name: string) => name }));
 vi.mock('@/lib/agents/agent-color', () => ({ agentTint: () => '#000' }));
-vi.mock('@/lib/api/client', () => ({ default: { patch: async () => ({}) } }));
+const votes = vi.hoisted(() => ({ sent: [] as [string, unknown][], fail: false }));
+vi.mock('@/lib/api/client', () => ({
+  default: {
+    patch: async (url: string, body: unknown) => {
+      votes.sent.push([url, body]);
+      if (votes.fail) throw new Error('refused');
+      return {};
+    },
+  },
+}));
 vi.mock('@/lib/useColorScheme', () => ({ useColorScheme: () => ({ colors: {} }) }));
 const translation = vi.hoisted(() => ({ t: (key: string) => key, locale: 'en-GB' }));
 vi.mock('@/lib/hooks/use-translation', () => ({ useTranslation: () => translation }));
@@ -280,6 +289,8 @@ async function mount(props: { callActive?: boolean } = {}): Promise<ReactTestRen
 
 beforeEach(() => {
   chat.messages = THREAD.map((m) => ({ ...m }));
+  votes.sent = [];
+  votes.fail = false;
   chat.appended = [];
   chat.setTo = null;
   chat.turnOptions = {};
@@ -370,7 +381,8 @@ describe('a reply', () => {
     const r = await mount();
     await press(buttons(r, 'chat.readAloud')[1]);
 
-    expect(audio.readAloud).toEqual([['a2', 'second answer', undefined, undefined]]);
+    // Stored, so the clip is kept on the message for the next press.
+    expect(audio.readAloud).toEqual([['a2', 'second answer', 'c1', undefined]]);
     const stopButton = buttons(r, 'chat.stopReading');
     expect(stopButton).toHaveLength(1);
     expect(stopButton[0].props.accessibilityState).toMatchObject({ selected: true });
@@ -381,6 +393,44 @@ describe('a reply', () => {
     expect(audio.activeMessageId).toBeNull();
     expect(buttons(r, 'chat.stopReading')).toHaveLength(0);
     expect(buttons(r, 'chat.readAloud')).toHaveLength(2);
+  });
+
+  it('reads a reply the server does not hold yet without asking to store the clip on it', async () => {
+    chat.messages[3] = { ...chat.messages[3], unsaved: true } as (typeof chat.messages)[number];
+    const r = await mount();
+    await press(buttons(r, 'chat.readAloud')[1]);
+
+    // With the conversation id the route would look the message up, answer
+    // 404, and nothing would be read.
+    expect(audio.readAloud).toEqual([['a2', 'second answer', undefined, undefined]]);
+  });
+
+  it('votes on a stored reply by the id it is drawn under', async () => {
+    const r = await mount();
+    await press(buttons(r, 'chat.like')[1]);
+
+    expect(votes.sent).toEqual([['/conversations/c1/messages/a2/vote', { vote: 'up' }]]);
+    expect(toasts.success).toEqual(['chat.thanksFeedback']);
+  });
+
+  it('says so when a vote has nothing to land on, instead of thanking nobody', async () => {
+    chat.messages[3] = { ...chat.messages[3], unsaved: true } as (typeof chat.messages)[number];
+    const r = await mount();
+    await press(buttons(r, 'chat.like')[1]);
+
+    expect(votes.sent).toEqual([]);
+    expect(toasts.error).toEqual(['chat.feedbackFailed']);
+    expect(toasts.success).toEqual([]);
+  });
+
+  it('reports a vote the server refused', async () => {
+    votes.fail = true;
+    const r = await mount();
+    await press(buttons(r, 'chat.dislike')[1]);
+
+    expect(votes.sent).toHaveLength(1);
+    expect(toasts.error).toEqual(['chat.feedbackFailed']);
+    expect(toasts.success).toEqual([]);
   });
 
   it('stops reading when a dictation starts, and holds the button until it ends', async () => {
