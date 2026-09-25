@@ -16,7 +16,6 @@ import { isAbortError, isFatalError, isTransientNetworkError } from './lib/error
 // Routes
 import healthRouter from './routes/health.js';
 import mediaRouter from './routes/media.js';
-import faviconsRouter from './routes/favicons.js';
 import authRouter from './routes/auth.js';
 import conversationsRouter from './routes/conversations.js';
 // folders route removed — was unimplemented (501 stubs)
@@ -221,15 +220,6 @@ app.use('/health', healthRouter);
  */
 app.use('/media', mediaRouter);
 
-/**
- * The favicons behind an answer's sources row — unauthenticated for the same
- * reason as `/media` above: an `<img>` presents no credential. It is mounted
- * here rather than under `/v1` for the same reason too, and `lib/favicon.ts`
- * carries the rest: why Alia fetches these itself instead of pointing readers
- * at someone else's icon service, and what guards a route that fetches an
- * attacker-influenced domain from inside the VPC.
- */
-app.use('/favicons', faviconsRouter);
 app.use('/auth', authRouter);
 app.use('/conversations', conversationsRouter);
 
