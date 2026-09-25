@@ -1,10 +1,9 @@
 import { ChatPageContent } from '@/features/chat/ui/chat-page-content';
 import { WelcomeIntro, type WelcomeIntroSlots } from '@/features/chat/ui/welcome-intro';
-import { resolveSelection, useCatalogue } from '@/features/chat/runtime/use-catalogue';
+import { useModelSelection } from '@/features/chat/runtime/use-model-selection';
 import { useChatConversation } from '@/features/chat/runtime/use-chat-conversation';
-import { useProductModes } from '@/features/chat/runtime/use-product-modes';
 import { useStore } from '@/features/chat/runtime/global-store';
-import { useModelStore } from '@/features/chat/runtime/model-store';
+import { effortFor, useModelStore } from '@/features/chat/runtime/model-store';
 import { useAuth } from '@oxy.so/services';
 import { useCreateConversation } from '@/features/chat/runtime/use-conversations';
 import { useTranslation } from '@/shared/i18n/use-translation';
@@ -29,14 +28,7 @@ const ChatPage = () => {
    * "sometimes it works".
    */
   const reasoningEffort = useModelStore((s) => s.reasoningEffort);
-  const { data: catalogue } = useCatalogue();
-  const { data: modes } = useProductModes();
-  const selection = resolveSelection(
-    selectedModel,
-    catalogue,
-    undefined,
-    modes,
-  );
+  const selection = useModelSelection(selectedModel);
 
   const ghostMode = useStore((state) => state.ghostMode);
 
@@ -96,7 +88,8 @@ const ChatPage = () => {
     regenerateMessage,
     turnOptionsOf,
   } = useChatConversation({
-    reasoningEffort,
+    // Only a level the chosen model lists is sent; anything else is its own default.
+    reasoningEffort: effortFor(reasoningEffort, selection.entry?.reasoningEfforts ?? []),
     selectedModel: selection.effectiveId ?? undefined,
   });
 

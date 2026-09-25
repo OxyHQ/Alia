@@ -1,119 +1,101 @@
 /**
  * Chat Core - Shared logic for all chat endpoints
  *
- * Resolves Alia product profiles to Kaana and preserves the user-runtime bridge.
+ * Resolves a real `publisher/model` from Oxy's catalogue to Kaana (ADR 0012),
+ * and preserves the user-runtime bridge for models on the caller's own device.
  */
 
 import { createOpenAI } from '@ai-sdk/openai';
 
-import {
-  getOxyKaanaProductProfileId,
-  getOxyKaanaRoutingProfileId,
-} from '../config/oxy-inference-routing-profile-ids.js';
 import { USER_RUNTIME_PROVIDER, userRuntimeFetch } from './inference/user-runtime-bridge.js';
 import { kaanaLanguageModel } from './inference/kaana-language-model.js';
 import type { AliaInferenceSurface } from './inference/product-seam.js';
-import { formatModelIdentity } from './routing/model-identity.js';
-import { UnregisteredModelError } from './routing/policy.js';
 import { assertUnreservedModelIdentifier } from './reserved-namespace.js';
-import {
-  getDefaultRoutingProfile,
-  getAllRoutingProfiles,
-  type KeyConfig,
-  type RoutingProfile,
-  type RoutingOptions,
-} from './gateway-client.js';
+import { isChatUsable, listCatalogueModels, type CatalogueModel, type ReasoningEffort } from './models/catalogue.js';
+import { ModelNotFoundError } from './models/errors.js';
+import { getDefaultModelId, getUtilityModelId } from './models/selection.js';
+import type { KeyConfig } from './gateway-client.js';
 
-// Re-export what chat routes import from here.
-export { getDefaultRoutingProfile };
-export type { KeyConfig, RoutingProfile, RoutingOptions };
+export type { KeyConfig };
 
 /**
- * The compatibility shape consumed by Alia's chat orchestration. Hosted
- * resolutions contain no provider credential: Kaana is the only destination.
+ * A model a turn runs on. Hosted resolutions carry no provider credential:
+ * Kaana, through Oxy, is the only destination.
  */
 export interface ResolvedModel {
-  routingProfileId: string;
-  provider: string;
-  /** Who RELEASED the model that answered. Never who serves it. */
-  publisher: string;
-  /** The publisher's own name for it, which is NOT {@link modelId}. */
-  model: string;
+  /** `publisher/model` for a hosted model; the runtime's own tag for a local one. */
   modelId: string;
+  provider: string;
+  /** Who RELEASED the model. Never who serves it. */
+  publisher: string;
+  /** The publisher's own name for it. */
+  model: string;
   keyConfig: KeyConfig;
-  /**
-   * The routing profile or pinned model to send Kaana. It is `null` only for a
-   * user-runtime model, which Kaana cannot reach by construction.
-   */
-  oxyInferenceTarget:
-    | { readonly kind: 'routing_profile_id'; readonly routingProfileId: string }
-    | { readonly kind: 'model'; readonly model: string }
-    | null;
-  routingProfile: RoutingProfile;
+  /** What Oxy is asked for; `null` only for a user-runtime model. */
+  oxyInferenceTarget: { readonly kind: 'model'; readonly model: string } | null;
+  /** The catalogue entry; `null` for a user-runtime model. */
+  catalogue: CatalogueModel | null;
 }
 
-/**
- * Resolve an Alia product profile to Kaana.
- *
- * @param routingProfileId - Alia's product profile ID (e.g., "route:auto", "route:instant")
- * @param options - Per-request routing options, including an optional model pin
- * @returns A credential-free Kaana resolution
- * @throws UnregisteredModelError when `routingProfileId` names no registered model
- */
-export async function resolveModel(
-  routingProfileId: string,
-  options?: RoutingOptions
-): Promise<ResolvedModel | null> {
-  assertUnreservedModelIdentifier(routingProfileId);
-  const models = await getAllRoutingProfiles();
-  const routingProfile = models.find((model) => model.id === routingProfileId);
-  if (routingProfile === undefined) {
-    throw new UnregisteredModelError(routingProfileId, models.map((model) => model.id));
-  }
-
-  const target = options?.pinnedModel === undefined
-    ? (() => {
-        const oxyRoutingProfileId = getOxyKaanaRoutingProfileId(routingProfileId);
-        if (oxyRoutingProfileId === null) {
-          throw new UnregisteredModelError(
-            routingProfileId,
-            models
-              .map((model) => model.id)
-              .filter((id) => getOxyKaanaRoutingProfileId(id) !== null),
-          );
-        }
-        return { kind: 'routing_profile_id' as const, routingProfileId: oxyRoutingProfileId };
-      })()
-    : { kind: 'model' as const, model: formatModelIdentity(options.pinnedModel) };
-  const productModelId = target.kind === 'model' ? target.model : routingProfileId;
-
+function hosted(model: CatalogueModel): ResolvedModel {
   return {
-    routingProfileId,
+    modelId: model.id,
     provider: 'kaana',
-    publisher: 'kaana',
-    model: productModelId,
-    modelId: productModelId,
-    keyConfig: { provider: 'kaana', modelId: productModelId },
-    oxyInferenceTarget: target,
-    routingProfile,
+    publisher: model.publisher.id,
+    model: model.id.slice(model.id.indexOf('/') + 1),
+    keyConfig: { provider: 'kaana', modelId: model.id },
+    oxyInferenceTarget: { kind: 'model', model: model.id },
+    catalogue: model,
   };
 }
 
-/** Resolve an agent's stored opaque Oxy routing-profile PK without normalising it. */
-export async function resolveOxyRoutingProfileId(
-  routingProfileId: string,
-): Promise<ResolvedModel | null> {
-  const productProfileId = getOxyKaanaProductProfileId(routingProfileId);
-  if (productProfileId === null) return null;
-  const resolved = await resolveModel(productProfileId);
-  if (
-    resolved === null
-    || resolved.oxyInferenceTarget?.kind !== 'routing_profile_id'
-    || resolved.oxyInferenceTarget.routingProfileId !== routingProfileId
-  ) {
-    return null;
+/**
+ * Resolve a `publisher/model` against the live catalogue.
+ *
+ * @throws ModelNotFoundError when the catalogue offers no chat-usable model by
+ *   that exact id.
+ */
+export async function resolveModel(modelId: string): Promise<ResolvedModel> {
+  assertUnreservedModelIdentifier(modelId);
+  const model = (await listCatalogueModels()).find((entry) => entry.id === modelId);
+  if (model === undefined || !isChatUsable(model)) throw new ModelNotFoundError(modelId);
+  return hosted(model);
+}
+
+/** The model a request that names none runs on, for this person. */
+export async function resolveDefaultModel(oxyUserId?: string | null): Promise<ResolvedModel> {
+  return resolveModel(await getDefaultModelId(oxyUserId));
+}
+
+/**
+ * The model for Alia's own background calls — titles, summaries, compaction,
+ * suggestions, planning, verification. Chosen from the catalogue, never named.
+ */
+export async function resolveUtilityModel(): Promise<ResolvedModel> {
+  return resolveModel(await getUtilityModelId());
+}
+
+/**
+ * A stored model preference (an agent's, a thread's, a bot's), or the default
+ * when it is unset or no longer offered.
+ */
+export async function resolveStoredModel(
+  modelId: string | null | undefined,
+  oxyUserId?: string | null,
+): Promise<ResolvedModel> {
+  if (modelId) {
+    try {
+      return await resolveModel(modelId);
+    } catch (error) {
+      if (!(error instanceof ModelNotFoundError)) throw error;
+    }
   }
-  return resolved;
+  return resolveDefaultModel(oxyUserId);
+}
+
+export interface AIModelOptions {
+  /** Forwarded to Oxy as `reasoning: { effort }` for a hosted model. */
+  readonly reasoningEffort?: ReasoningEffort | null;
 }
 
 /**
@@ -124,6 +106,7 @@ export function getAIModel(
   surface: AliaInferenceSurface,
   oxyUserId?: string,
   serviceToken?: string,
+  options: AIModelOptions = {},
 ) {
   if (resolved.provider === USER_RUNTIME_PROVIDER) {
     const binding = resolved.keyConfig.userRuntime;
@@ -146,5 +129,6 @@ export function getAIModel(
     surface,
     ...(oxyUserId === undefined ? {} : { oxyUserId }),
     ...(serviceToken === undefined ? {} : { serviceToken }),
+    ...(options.reasoningEffort == null ? {} : { reasoningEffort: options.reasoningEffort }),
   });
 }

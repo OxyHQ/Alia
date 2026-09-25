@@ -60,12 +60,21 @@ export default function CreateAgentScreen() {
 
   const [inputValue, setInputValue] = useState("");
   const [generating, setGenerating] = useState(false);
+  /**
+   * The model the new agent answers with, kept for this screen rather than the
+   * app's chat choice. `null` is the server's default, which is what the agent
+   * gets unless someone picks one here.
+   */
+  const [modelId, setModelId] = useState<string | null>(null);
   const composer = useAliaComposer({
     draft: 'surface:agent-create',
     locked: generating,
-    // `/agents/generate` reads the prompt and nothing else — no model, effort, mode,
-    // file, skill or connector — so the composer offers none of them.
+    // `/agents/generate` reads the prompt and nothing else — no effort, mode,
+    // file, skill or connector — so the composer offers none of them. The
+    // model picker stays: the agent is created with the model picked here.
     promptOnly: true,
+    selectedModel: modelId,
+    onModelChange: setModelId,
   });
   const [selectedArchetype, setSelectedArchetype] = useState<Archetype>('general');
 
@@ -77,6 +86,7 @@ export default function CreateAgentScreen() {
       const { agent, adjustedHandle } = await generateAgent(
         inputValue.trim(),
         selectedArchetype,
+        modelId,
       );
 
       /**
@@ -103,7 +113,7 @@ export default function CreateAgentScreen() {
     } finally {
       setGenerating(false);
     }
-  }, [inputValue, generating, generateAgent, router, t, selectedArchetype]);
+  }, [inputValue, generating, generateAgent, router, t, selectedArchetype, modelId]);
 
   if (generating) {
     return (
@@ -145,9 +155,10 @@ export default function CreateAgentScreen() {
         </View>
 
         {/*
-          The simple composer: a field and a send control. `promptOnly`
-          gives the panel no model picker, modes or add menu, which is how
-          Bloom is told to draw none. `busy` and `disabled` carry the
+          The simple composer: a field, a send control and the model picker,
+          which here chooses the NEW AGENT's model. `promptOnly` gives the
+          panel no effort, modes or add menu, which is how Bloom is told to
+          draw none. `busy` and `disabled` carry the
           same flag on purpose: there is no stream to cancel here, so
           generating greys send rather than offering a stop, and with no
           `onStop` Bloom draws no stop control at all.

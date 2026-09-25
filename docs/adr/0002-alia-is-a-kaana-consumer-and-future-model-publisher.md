@@ -4,6 +4,12 @@
 
 **Date:** 2026-08-15
 
+> **Superseded in part by [ADR 0012](./0012-alia-uses-real-models.md), 2026-09-25.** Alia's public
+> model identity is a real `<publisher>/<model>` from Oxy's catalogue; the routing-profile
+> vocabulary this record names as Alia's public identity (`kaana-*`/`route:*`) is retired.
+> The `alia/*` reservation and the Kaana-consumer boundary stand. Everything below is
+> unchanged, as the record of the decision as taken.
+
 ## Context
 
 ADR 0001 assigns provider execution to Kaana. This ADR settles the two questions that assignment leaves open: what Alia's relationship to Kaana is, and what happens if Alia ever ships a model of its own.

@@ -1115,8 +1115,6 @@
     "editBilling": "Editar facturación",
     "paymentSuccess": "¡Pago exitoso!",
     "failedCheckout": "Error al crear la sesión de pago",
-    "modelRequiresPlan": "Este modelo requiere el plan {{plan}}",
-    "modelRequiresUpgrade": "Mejora tu plan para usar este modelo.",
     "featureRequiresPlan": "{{feature}} requiere un plan de pago",
     "signInRequired": "Inicia sesión para usar esta función.",
     "downgrade": "Bajar de plan",
@@ -1326,6 +1324,10 @@
     },
     "namePlaceholder": "Nombre del agente",
     "colorLabel": "Color",
+    "modelLabel": "Modelo",
+    "modelDefaultGroup": "Predeterminado",
+    "modelDefault": "Modelo predeterminado",
+    "modelDefaultNamed": "Predeterminado (%{model})",
     "handlePlaceholder": "identificador",
     "handleAdjusted": "Ese handle estaba cogido — tu agente es @%{handle}",
     "handleTaken": "Ese identificador ya está en uso. Prueba con otro.",
@@ -1595,61 +1597,6 @@
     "chatAddPrompt": "Recuerda esto sobre mí: ",
     "chatEditPrompt": "Actualiza lo que recuerdas sobre «{{title}}». Ahora dice: «{{summary}}». Cámbialo a: ",
     "sizeKb": "~{{size}} KB"
-  },
-  "models": {
-    "selectModel": "Seleccionar modelo",
-    "onYourDevices": "En tus dispositivos",
-    "localInvite": {
-      "title": "Modelos en tu propio ordenador",
-      "body": "Si tienes Ollama, LM Studio o similar, Alia puede responder con ellos. No se toca tu máquina hasta que digas que sí.",
-      "accept": "Buscarlos",
-      "decline": "Ahora no"
-    },
-    "loadingModels": "Cargando modelos...",
-    "loadingModes": "Cargando...",
-    "legacyModels": "Modelos anteriores",
-    "catalogueUnavailable": "No se pudieron cargar los modelos",
-    "noModels": "No hay modelos disponibles",
-    "automatic": {
-      "label": "Auto",
-      "description": "Alia elige cómo responder."
-    },
-    "categories": {
-      "general": "General",
-      "coding": "Programación",
-      "vision": "Imágenes",
-      "audio": "Audio",
-      "voice": "Voz",
-      "multimodal": "Multimodal"
-    },
-    "uncategorised": "Otros",
-    "byPublisher": "Modelos, por quién los publica",
-    "routingProfile": "Perfil de enrutado, no un modelo concreto",
-    "picksAmong": "Elige entre {{count}} modelos",
-    "concreteModel": "Un modelo concreto",
-    "answersFrom": "Responde con modelos de {{publishers}}",
-    "answersFromAndOthers": "Responde con modelos de {{publishers}}, y otros",
-    "capabilitySometimes": "{{capability}} a veces",
-    "contextOf": "{{tokens}} de contexto",
-    "maxOutputOf": "{{tokens}} de respuesta",
-    "unknownOf": "{{capabilities}}: se desconoce",
-    "retiringOn": "Deja de funcionar el {{date}}",
-    "selectionReplaced": "Tu elección anterior ya no se ofrece. Se usará {{model}}.",
-    "capabilities": {
-      "tools": "Herramientas",
-      "vision": "Imágenes",
-      "audio": "Audio",
-      "reasoning": "Razonamiento",
-      "structuredOutput": "Salida estructurada",
-      "context": "Contexto",
-      "maxOutput": "Respuesta máx."
-    },
-    "availability": {
-      "always": "sí",
-      "sometimes": "a veces",
-      "never": "no",
-      "unknown": "se desconoce"
-    }
   },
   "modes": {
     "searchOn": "Búsqueda web activada",
@@ -1934,16 +1881,11 @@
     "personalEmpty": "Aún no tienes conectores personales. Añade uno con +"
   },
   "effort": {
-    "select": "Esfuerzo",
-    "costNote": "El razonamiento se factura como tokens de salida, así que más esfuerzo cuesta más.",
-    "headlinePrefix": "Esfuerzo ",
-    "headlineSuffix": "",
     "levels": {
       "default": "Predeterminado",
-      "instant": "Instantáneo",
+      "low": "Bajo",
       "medium": "Medio",
-      "high": "Alto",
-      "max": "Muy alto"
+      "high": "Alto"
     }
   },
   "weather": {
@@ -2071,6 +2013,7 @@
     "ghostDescription": "No guardar este chat",
     "agentDescription": "Trabajar en tareas largas",
     "canvasDescription": "Escribir y editar archivos",
+    "pinModel": "Fijar modelo arriba",
     "modes": "Modo",
     "removeShort": "Quitar",
     "models": "Modelos",
@@ -2081,7 +2024,7 @@
     "effort": "Esfuerzo",
     "faster": "Más rápido",
     "smarter": "Más listo",
-    "modelsGroup": "Modelos",
+    "featuredGroup": "Destacados",
     "deviceGroup": "Este dispositivo",
     "modeChat": "Chat",
     "modeChatDescription": "Responde y usa herramientas cuando ayuda",

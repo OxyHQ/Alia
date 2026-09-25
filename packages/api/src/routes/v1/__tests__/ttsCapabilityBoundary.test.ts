@@ -25,7 +25,7 @@ function response() {
     setHeader(name: string, value: string) { this.headers[name] = value; },
   });
 }
-const body = { model: 'route:voice', input: 'Hola', voice: 'female', speed: 1.15, conversationId: 'c1', messageId: 'm1' };
+const body = { input: 'Hola', voice: 'female', speed: 1.15, conversationId: 'c1', messageId: 'm1' };
 beforeEach(() => {
   vi.clearAllMocks(); H.find.mockResolvedValue(null); H.save.mockResolvedValue(1);
   H.synthesizeSpeech.mockResolvedValue({ audio: Buffer.from('ID3'), format: 'mp3', requestId: 'req_tts' });
@@ -44,9 +44,14 @@ describe('speech synthesis boundary', () => {
     expect(H.save).toHaveBeenCalledWith({}, 'u1', 'c1', 'm1', 'test/audio/u1/speech.mp3');
     expect(H.remove).not.toHaveBeenCalled(); expect(res.listenerCount('close')).toBe(0);
   });
-  it.each([{ input: '' }, { input: ' '.repeat(4) }, { input: 'a'.repeat(15001) }, { voice: 'unknown' }, { speed: 4 }, { model: 'xai/model' }])('rejects unsupported input before egress: %p', async (patch) => {
+  it.each([{ input: '' }, { input: ' '.repeat(4) }, { input: 'a'.repeat(15001) }, { voice: 'unknown' }, { speed: 4 }, { model: 42 }, { extra: true }])('rejects unsupported input before egress: %p', async (patch) => {
     const res = response(); await handler()({ user: { id: 'u1' }, body: { ...body, ...patch } }, res, undefined);
     expect(res.statusCode).toBe(400); expect(H.synthesizeSpeech).not.toHaveBeenCalled();
+  });
+  it('ignores a model an older client still names: the speech model is the catalogue\'s', async () => {
+    const res = response(); await handler()({ user: { id: 'u1' }, body: { ...body, model: 'acme/any' } }, res, undefined);
+    expect(res.statusCode).toBe(200);
+    expect(H.synthesizeSpeech).toHaveBeenCalledWith(expect.not.objectContaining({ model: expect.anything() }));
   });
   it('does not generate audio for another user’s message', async () => {
     H.find.mockResolvedValue(undefined); const res = response();

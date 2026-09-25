@@ -26,7 +26,7 @@
  */
 
 import { generateText } from 'ai';
-import { resolveModel, getAIModel } from '../chat-core.js';
+import { resolveStoredModel, resolveUtilityModel, getAIModel } from '../chat-core.js';
 import { webSearchTool } from '../tools/web-search.js';
 import { SourceTracker, formatSourceLink } from './source-tracker.js';
 import { normalizeCitationMarkers } from './citations.js';
@@ -85,6 +85,12 @@ export interface ResearchResult {
 
 interface ResearchOptions {
   userId: string;
+  /**
+   * The `publisher/model` the turn runs on; it writes the report. Absent uses
+   * the person's default. Decomposition, extraction and gap-finding always run
+   * on the utility model.
+   */
+  modelId?: string;
   onProgress: (progress: ResearchProgress) => void;
   signal?: AbortSignal;
   maxIterations?: number;
@@ -109,7 +115,7 @@ export async function runDeepResearch(
   messages: Array<{ role: string; content: string }>,
   options: ResearchOptions,
 ): Promise<ResearchResult> {
-  const { userId, onProgress, signal, maxIterations = MAX_FOLLOW_UP_ITERATIONS } = options;
+  const { userId, modelId, onProgress, signal, maxIterations = MAX_FOLLOW_UP_ITERATIONS } = options;
   const sourceTracker = new SourceTracker();
   let totalSearches = 0;
 
@@ -200,7 +206,7 @@ export async function runDeepResearch(
     sourcesFound: sourceTracker.count(),
   });
 
-  let report = await synthesize(query, contract, subQuestions, allFindings, sourceTracker, userId);
+  let report = await synthesize(query, contract, subQuestions, allFindings, sourceTracker, userId, modelId);
 
   // ── Phase 4: Follow-up iterations (identify gaps + targeted search) ──
   //
@@ -244,7 +250,7 @@ export async function runDeepResearch(
     // does not make it less of one — and stops iterating.
     const gapFindings = await extractFindings(gaps.join('; '), sourceTracker.getAll(), userId);
     allFindings.push(gapFindings);
-    const revised = await synthesize(query, contract, subQuestions, allFindings, sourceTracker, userId);
+    const revised = await synthesize(query, contract, subQuestions, allFindings, sourceTracker, userId, modelId);
     if (revised === null) break;
     report = revised;
   }
@@ -338,8 +344,7 @@ async function decomposeQuery(
   const limit = contract.shape === 'report' ? 5 : 3;
 
   try {
-    const resolved = await resolveModel('route:instant');
-    if (!resolved) throw new Error('No model available');
+    const resolved = await resolveUtilityModel();
     const model = getAIModel(resolved, 'deep_research');
 
     const contextSummary = messages
@@ -414,8 +419,7 @@ async function extractFindings(
   if (sources.length === 0) return 'No sources found.';
 
   try {
-    const resolved = await resolveModel('route:instant');
-    if (!resolved) throw new Error('No model available');
+    const resolved = await resolveUtilityModel();
     const model = getAIModel(resolved, 'deep_research');
 
     const sourcesText = sources
@@ -452,11 +456,11 @@ async function synthesize(
   subQuestions: string[],
   findings: string[],
   sourceTracker: SourceTracker,
-  _userId: string,
+  userId: string,
+  modelId?: string,
 ): Promise<string | null> {
   try {
-    const resolved = await resolveModel('route:auto');
-    if (!resolved) throw new Error('No model available');
+    const resolved = await resolveStoredModel(modelId, userId);
     const model = getAIModel(resolved, 'deep_research');
 
     const findingsText = findings
@@ -497,8 +501,7 @@ async function identifyGaps(
   _userId: string,
 ): Promise<string[]> {
   try {
-    const resolved = await resolveModel('route:instant');
-    if (!resolved) throw new Error('No model available');
+    const resolved = await resolveUtilityModel();
     const model = getAIModel(resolved, 'deep_research');
 
     const { text } = await generateText({

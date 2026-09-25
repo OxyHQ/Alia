@@ -39,9 +39,8 @@ vi.mock('ai', () => ({
 }));
 
 vi.mock('../../../lib/chat-core.js', () => ({
-  resolveModel: async () => ({ provider: 'p', modelId: 'm', keyConfig: { keyId: 'k' } }),
+  resolveUtilityModel: async () => ({ provider: 'p', modelId: 'm', keyConfig: { keyId: 'k' } }),
   getAIModel: () => ({}),
-  getDefaultRoutingProfile: () => 'route:auto',
 }));
 
 vi.mock('../../../middleware/auth.js', () => ({

@@ -144,10 +144,6 @@ function tableReads(): TableRead[] {
  * because "it looked fine" is not a reason.
  */
 const EXEMPT: Readonly<Record<string, string>> = {
-  'packages/api/src/internal/providers/lib/model-capabilities-data.ts MODEL_CAPABILITIES[modelId]':
-    'Key is `createMapping`’s parameter, called 115 times in the same file with literal model ids. No request reaches it.',
-  'packages/api/src/internal/providers/lib/model-capabilities-data.ts MODEL_PRICING[modelId]':
-    'Same call site and the same 115 literal model ids as the line above.',
   'packages/api/src/lib/observability/metrics.ts labels[k]':
     '`k` comes from `Object.keys(labels)`, so it is an OWN key of the object being read, by construction rather than by check.',
   'packages/api/src/lib/sliding-window-limiter.ts RPM_LIMITS[tier]':
@@ -157,6 +153,9 @@ const EXEMPT: Readonly<Record<string, string>> = {
 };
 
 /**
+ * 5 -> 3 (ADR 0012). `internal/providers/lib/model-capabilities-data.ts` is
+ * DELETED with the hardcoded model tables, and its two reads with it.
+ *
  * 8 -> 7. `lib/tools/registry.ts` is DELETED, and its
  * `PLAN_HIERARCHY[userPlan]` read with it.
  *
@@ -171,7 +170,7 @@ const EXEMPT: Readonly<Record<string, string>> = {
  * tier was unlimited and nothing incremented the counter), and its
  * `COST_DAY_CAPS[tier]` read with it.
  */
-const EXEMPT_COUNT = 5;
+const EXEMPT_COUNT = 3;
 
 describe('no lookup table answers an untrusted key from Object.prototype', () => {
   const reads = tableReads();
@@ -191,16 +190,19 @@ describe('no lookup table answers an untrusted key from Object.prototype', () =>
     // `sliding-window-limiter.ts`, and its `COST_DAY_CAPS[tier]` read with it.
     // 16 -> 15: `lib/skills/sandbox.ts` left with the agent sandbox docker host,
     // and its guarded `INTERPRETERS[extension]` read with it.
-    expect(reads.length).toBeGreaterThanOrEqual(15);
-    expect(reads.filter((r) => r.guarded).length).toBeGreaterThanOrEqual(5);
+    // 15 -> 7 (ADR 0012): the routing-profile catalogue, the hardcoded model
+    // tables, the curated display names, the surface table and the per-provider
+    // reasoning table are deleted, and their reads with them.
+    expect(reads.length).toBeGreaterThanOrEqual(7);
+    expect(reads.filter((r) => r.guarded).length).toBeGreaterThanOrEqual(4);
     expect(reads.filter((r) => !r.guarded).length).toBeGreaterThanOrEqual(1);
 
-    // And it can see a site this change FIXED, so `guarded` is a measurement
+    // And it can see a specific guarded site, so `guarded` is a measurement
     // and not a constant. Matched on the file and the table rather than a
     // position, for the same reason the site key carries neither.
     expect(
-      reads.some((r) => r.guarded && r.site.includes('routing-profile-catalogue.ts KAANA_ROUTING_PROFILES[modelId]')),
-      'the census stopped seeing the model gate as guarded',
+      reads.some((r) => r.guarded && r.site.includes('routes/credits.ts periodMap[period]')),
+      'the census stopped seeing the credits period table as guarded',
     ).toBe(true);
   });
 
@@ -216,7 +218,7 @@ describe('no lookup table answers an untrusted key from Object.prototype', () =>
   });
 
   it('the tier exemption rests on a producer that returns only literals', () => {
-    // Four of the exemptions say "the key comes from `getUserTier`". That is a
+    // Two of the exemptions say "the key comes from `getUserTier`". That is a
     // claim about a function, so it is measured rather than asserted: every
     // `return` in it is a string literal, so no computed string can reach the
     // tables it keys. This goes red the moment somebody returns a variable.
@@ -241,40 +243,5 @@ describe('no lookup table answers an untrusted key from Object.prototype', () =>
     expect(returns.every((r) => /^'[a-z_]+'$/.test(r)), `computed tier: ${returns.join(', ')}`).toBe(true);
     // …and none of the literals it can return is an inherited name.
     for (const value of returns) expect(INHERITED).not.toContain(value.slice(1, -1));
-  });
-});
-
-/* -------------------------------------------------------------------------- */
-/*  The behaviour, at every accessor this change fixed                         */
-/* -------------------------------------------------------------------------- */
-
-describe('every fixed accessor refuses an inherited name', () => {
-  it('the model identity gate does not admit five names nobody registered', async () => {
-    const { isRoutingProfile, getRoutingProfile, getModelMappingsForTier, KAANA_ROUTING_PROFILES } = await import(
-      '../internal/providers/lib/routing-profile-catalogue.js'
-    );
-
-    // The control first, so a gate that refuses EVERYTHING cannot pass this.
-    const real = Object.keys(KAANA_ROUTING_PROFILES)[0];
-    expect(real).toBeDefined();
-    expect(isRoutingProfile(real)).toBe(true);
-    expect(getRoutingProfile(real)).not.toBeNull();
-
-    for (const name of INHERITED) {
-      // `isRoutingProfile` used `in`, which walks the prototype chain, and it is the
-      // gate `fallback-engine.ts` uses to decide whether to REFUSE an
-      // unregistered identifier. Admitting one sent a request that can never
-      // succeed down the resolution path, where it died as "no mappings for
-      // tier" — a 503, indistinguishable from an infrastructure failure, which
-      // is the exact outcome that refusal's own comment says must not happen.
-      expect(isRoutingProfile(name), `isRoutingProfile admitted ${name}`).toBe(false);
-      expect(getRoutingProfile(name), `getRoutingProfile resolved ${name}`).toBeNull();
-      expect(getModelMappingsForTier(name as never), `tier mappings for ${name}`).toEqual([]);
-    }
-
-    // An ordinary unregistered identifier is refused the same way, so the five
-    // above are not a special case bolted on beside a different behaviour.
-    expect(isRoutingProfile('not-a-model')).toBe(false);
-    expect(getRoutingProfile('not-a-model')).toBeNull();
   });
 });

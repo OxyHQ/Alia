@@ -15,7 +15,7 @@ function chunk(
     id: 'chatcmpl-test',
     object: 'chat.completion.chunk',
     created: 1,
-    model: 'profile:auto',
+    model: 'example/model',
     choices: [{ index: 0, delta, finish_reason: finishReason }],
   };
 }

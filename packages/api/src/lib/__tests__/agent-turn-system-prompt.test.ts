@@ -32,9 +32,6 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import type { HydratedAgent } from '../agent-identity.js';
 
-vi.mock('../gateway-client.js', () => ({
-  getRoutingProfile: vi.fn(async () => ({ name: 'Auto' })),
-}));
 vi.mock('../tools/oxy-services.js', () => ({
   getOxyServicePromptFragment: vi.fn(async () => ''),
   getOxyServiceContext: vi.fn(async () => ''),
@@ -81,7 +78,23 @@ const claudio = {
 /** The default shape of an agent made through `POST /agents` without a prompt. */
 const undescribedClaudio = { ...claudio, systemPrompt: null } as HydratedAgent;
 
-const turn = { routingProfileId: 'route:auto', isDirectUserSession: true } as const;
+/** A catalogue model, as `lib/models/catalogue.ts` normalizes one. */
+const MODEL = {
+  id: 'example/example-model-2',
+  name: 'Example Model 2',
+  publisher: { id: 'example', name: 'Example Labs' },
+  description: null,
+  contextWindow: 128_000,
+  maxOutput: 8_192,
+  inputModalities: ['text'],
+  outputModalities: ['text'],
+  tools: true,
+  reasoningEfforts: [],
+  pricing: null,
+  releasedAt: null,
+} as const;
+
+const turn = { surface: 'chat', model: MODEL, isDirectUserSession: true } as const;
 
 // `loadPrompt` memoizes per process, and these tests read the real files.
 beforeEach(() => clearPromptCache());
@@ -159,9 +172,7 @@ describe('a turn that belongs to an agent', () => {
 
     expect(message).toContain('NON-NEGOTIABLE');
     expect(message).toContain('never claim to be human');
-    for (const provider of ['Google', 'OpenAI', 'Anthropic', 'Groq', 'xAI']) {
-      expect(message).toContain(provider);
-    }
+    expect(message).toContain('HOSTS or SERVES the model');
   });
 
   it('does not disclose person-owned context to a new agent with no grants', async () => {
@@ -239,7 +250,8 @@ describe('a turn that belongs to nobody — the control', () => {
   it('still says who it is, and says the model', async () => {
     const message = await SystemPromptBuilder.build(turn);
 
-    expect(message).toContain('You are Auto,');
-    expect([...new Set(identityClaimsIn(message))]).toEqual(['Auto']);
+    expect(message).toContain('You are Alia,');
+    expect(message).toContain('The model powering this conversation is Example Model 2, published by Example Labs');
+    expect([...new Set(identityClaimsIn(message))]).toEqual(['Alia']);
   });
 });

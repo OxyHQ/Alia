@@ -1,8 +1,8 @@
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import { DEFAULT_MODEL_ID } from '@/shared/platform/config';
 import type { EffortLevel } from '@/features/chat/runtime/use-catalogue';
+import { migrateModelState } from './model-store-migration';
 
 /**
  * What the user last chose, across app launches.
@@ -10,82 +10,56 @@ import type { EffortLevel } from '@/features/chat/runtime/use-catalogue';
  * The store holds the REQUESTED identifier and never validates it: the
  * catalogue is the authority on what exists, it is fetched rather than
  * persisted, and `resolveSelection` (`src/features/chat/runtime/use-catalogue.ts`) is where a
- * selection the product no longer offers is answered for. A stored `alia-*`
- * identifier is therefore fine and stays fine — the backend still resolves
- * every one of them, and the catalogue simply does not list them any more.
+ * choice the product no longer offers is answered for.
  *
- * ## Three axes, and they are not the same axis
- *
- * `baseModel` used to live beside `selectedModel` for one reason: the composer's
- * thinking toggle SWAPPED the selected model to `route:thinking` and needed
- * somewhere to remember what to swap back to. ADR 0002 calls that "a reasoning
- * setting wearing a model's name", and the routing table proves it —
- * `route:thinking` and `route:pro` are two aliases of ONE profile
- * (`profile:pro`, `lib/routing/presets.ts`), so the swap never changed
- * where a request routed.
- *
- * What a person picks is therefore three independent things, and this store
- * holds each separately because the request body has always modelled them
- * separately: WHICH model answers ({@link ModelState.selectedModel}), HOW HARD
- * it thinks ({@link ModelState.reasoningEffort}), and WHAT IT MAY REACH FOR
- * ({@link ModelState.webSearch}). Collapsing any two of them into one list is
- * the mistake that produced `route:thinking` in the first place.
+ * What a person picks is three independent things, and this store holds each
+ * separately because the request body models them separately: WHICH model
+ * answers ({@link ModelState.selectedModel}), HOW HARD it thinks
+ * ({@link ModelState.reasoningEffort}), and WHAT IT MAY REACH FOR
+ * ({@link ModelState.webSearch}). Plus the models the person pinned to the top
+ * of the picker ({@link ModelState.pinnedModels}).
  */
 interface ModelState {
-  selectedModel: string;
+  /**
+   * A real model (`publisher/model`, or a device model `local/…`), or `null`
+   * for "no choice": the request carries no `model` and the server's default
+   * answers. The app ships no model identifier, so `null` is where everyone
+   * starts.
+   */
+  selectedModel: string | null;
   /**
    * How hard the next turn should think, or `null` for the model's own default.
    *
-   * ## This was a boolean, and the boolean was a lie
-   *
-   * The comment that stood here explained, at length, why a graded control
-   * could not honestly be shipped: `thinkingMode` was a boolean, and its ONLY
-   * live effect anywhere was a paragraph in the system prompt. The two provider
-   * hooks meant to carry it — `experimental_thinking` and
-   * `experimental_providerMetadata` — are AI SDK **v4** option names against an
-   * `ai@6` install, so even the second state reached no provider at all.
-   *
-   * It named the two things that had to land first. Both have:
-   *
-   *  1. the options go out under `providerOptions`, with a real budget per
-   *     level — `reasoningEffort` for OpenAI, `thinking.budgetTokens` for
-   *     Anthropic, `thinkingConfig` for Google;
-   *  2. the request carries a LEVEL, and `GET /catalogue` publishes per entry
-   *     which levels EVERY candidate route can honour.
-   *
-   * ## Which is why this is not persisted per model
-   *
-   * The level a person picked is remembered across launches, but the CATALOGUE
-   * decides whether it can be offered at all: `capabilities.reasoningLevels` is
-   * an intersection over an entry's routes, and it is empty for every routing
-   * profile. A stored `max` on an entry that offers nothing simply does not
-   * reach the request — `effortFor` is where that is answered, once, rather
-   * than in each screen that reads the store.
+   * Remembered across launches, but the CATALOGUE decides whether it can be
+   * offered: a stored `high` on a model whose `reasoningEfforts` does not list
+   * it simply does not reach the request — `effortFor` answers that, once.
    */
   reasoningEffort: EffortLevel | null;
   /**
-   * Whether Alia may reach the open web.
-   *
-   * `true` by default, which is the behaviour every request has had: the
-   * backend put `webSearch`, `webScraper` and `browse` in the always-on tool
-   * set. What is new is that turning it OFF now does something — the composer's
-   * old "Web search" switch toggled a local `Set` that reached no request field
-   * and no backend read.
+   * Whether Alia may reach the open web. `true` by default, which is what the
+   * backend does when the request says nothing.
    */
   webSearch: boolean;
+  /**
+   * Models the person pinned to the picker's first group, most recent last.
+   *
+   * Kept on this device: Alia's API has no per-user favourites endpoint yet, so
+   * pins do not follow the account to another device.
+   */
+  pinnedModels: string[];
 
-  setSelectedModel: (model: string) => void;
+  setSelectedModel: (model: string | null) => void;
   setReasoningEffort: (level: EffortLevel | null) => void;
   setWebSearch: (on: boolean) => void;
+  togglePinnedModel: (model: string) => void;
 }
 
 /**
- * The level to actually SEND, given what the chosen entry can honour.
+ * The level to actually SEND, given what the chosen model accepts.
  *
  * Pure, and the single place a stored preference meets a catalogue: a level the
- * entry does not offer becomes `null` rather than being sent and dropped
- * server-side. Exported because the composer renders from the same answer it
- * sends, so the control cannot show `high` while the request carries nothing.
+ * model does not list becomes `null` rather than being sent and refused.
+ * Exported because the composer renders from the same answer it sends.
  */
 export function effortFor(
   stored: EffortLevel | null,
@@ -95,86 +69,35 @@ export function effortFor(
   return offered.includes(stored) ? stored : null;
 }
 
-/** The alias whose whole meaning was "this profile, with reasoning on". */
-const LEGACY_THINKING_ALIAS = 'route:thinking';
-
 export const useModelStore = create<ModelState>()(
   persist(
     (set) => ({
-      selectedModel: DEFAULT_MODEL_ID,
+      selectedModel: null,
       reasoningEffort: null,
       webSearch: true,
+      pinnedModels: [],
 
       setSelectedModel: (model) => set({ selectedModel: model }),
       setReasoningEffort: (level) => set({ reasoningEffort: level }),
       setWebSearch: (on) => set({ webSearch: on }),
+      togglePinnedModel: (model) =>
+        set((state) => ({
+          pinnedModels: state.pinnedModels.includes(model)
+            ? state.pinnedModels.filter((id) => id !== model)
+            : [...state.pinnedModels, model],
+        })),
     }),
     {
       name: 'chat-storage', // keep same key for backwards compat
       storage: createJSONStorage(() => AsyncStorage),
-      version: 2,
+      version: 3,
       /**
-       * Split the one alias whose meaning was two things.
-       *
-       * A device that stored `route:thinking` chose a profile AND a reasoning
-       * setting in a single identifier. Left alone, that user would keep getting
-       * reasoning — the alias still resolves — while the new toggle read `off`,
-       * which is the picker lying about the request it is about to send.
-       *
-       * Only that one identifier is rewritten. Every other stored `alia-*` id is
-       * left exactly as it was: it still resolves server-side, and
-       * `resolveSelection` answers for it against the catalogue on the next
-       * render. Rewriting them here would duplicate the alias→profile table the
-       * API already owns, which is the drift this epic exists to remove.
+       * Every stored state before v3 names one of Alia's invented modes or
+       * routing profiles (`mode:*`, `route:*`) or a retired `alia-*`
+       * alias. None is a model any more, so each becomes `null` — the server's
+       * default — rather than a guess at which real model it "meant".
        */
-      migrate: (persisted, version) => {
-        const state = persisted as Partial<ModelState> & {
-          baseModel?: string;
-          thinkingMode?: boolean;
-        };
-
-        /**
-         * v0 → v1 split the one alias whose meaning was two things.
-         *
-         * A device that stored `route:thinking` chose a profile AND a
-         * reasoning setting in a single identifier. Left alone, that user would
-         * keep getting reasoning — the alias still resolves — while the toggle
-         * read `off`, which is the picker lying about the request it is about
-         * to send.
-         *
-         * Only that one identifier is rewritten. Every other stored `alia-*` id
-         * is left exactly as it was: it still resolves server-side, and
-         * `resolveSelection` answers for it against the catalogue on the next
-         * render. Rewriting them here would duplicate the alias→profile table
-         * the API already owns.
-         */
-        const wasThinking = version < 1 && state.selectedModel === LEGACY_THINKING_ALIAS;
-        const selectedModel =
-          version < 1 && wasThinking
-            ? (state.baseModel ?? DEFAULT_MODEL_ID)
-            : (state.selectedModel ?? DEFAULT_MODEL_ID);
-
-        /**
-         * v1 → v2 turns the boolean into a level.
-         *
-         * `true` becomes `medium`, the SMALLEST budget the product offers, and
-         * not a higher one. The boolean meant "reason" against a code path that
-         * sent no budget at all, so anything above the smallest would silently
-         * raise the bill of every person who had left the old toggle on — a
-         * spend decision made on their behalf by a migration, which is the one
-         * place it must never be made.
-         */
-        const hadThinkingOn = wasThinking || state.thinkingMode === true;
-
-        return {
-          ...state,
-          selectedModel,
-          reasoningEffort: hadThinkingOn ? ('medium' as EffortLevel) : (state.reasoningEffort ?? null),
-          // Absent in every stored state before v2, and ON is what the backend
-          // has always done.
-          webSearch: state.webSearch ?? true,
-        } as ModelState;
-      },
+      migrate: (persisted, version) => migrateModelState(persisted, version) as ModelState,
     }
   )
 );

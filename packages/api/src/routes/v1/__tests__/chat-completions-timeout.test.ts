@@ -6,7 +6,6 @@ const {
   mockResolveModel,
   mockGetAIModel,
   mockReportModelUsage,
-  mockGetDefaultRoutingProfile,
   mockReserveCredits,
   mockFinalizeCredits,
   mockGetOrCreateUserCredits,
@@ -19,7 +18,6 @@ const {
   mockResolveModel: vi.fn(),
   mockGetAIModel: vi.fn(() => 'mock-ai-model'),
   mockReportModelUsage: vi.fn().mockResolvedValue(undefined),
-  mockGetDefaultRoutingProfile: vi.fn(() => 'route:auto'),
   mockReserveCredits: vi.fn(),
   mockFinalizeCredits: vi.fn().mockResolvedValue({ creditsCharged: 1, creditsRemaining: 99 }),
   mockGetOrCreateUserCredits: vi.fn().mockResolvedValue({}),
@@ -42,24 +40,8 @@ vi.mock('ai', () => ({
 vi.mock('../../../lib/chat-core.js', () => ({
   resolveModel: (...args: any[]) => mockResolveModel(...args),
   getAIModel: vi.fn(mockGetAIModel),
-  getDefaultRoutingProfile: () => mockGetDefaultRoutingProfile(),
+  resolveDefaultModel: (...args: any[]) => mockResolveModel(...args),
   reportModelUsage: (...args: any[]) => mockReportModelUsage(...args),
-  isRoutingProfile: vi.fn(() => true),
-  getRoutingProfile: vi.fn(() => ({ name: 'Auto', creditMultiplier: 1 })),
-  getAllRoutingProfiles: vi.fn(() => []),
-  getRoutingProfilesByCategory: vi.fn(() => []),
-  getDefaultModelForCategory: vi.fn(() => null),
-  getAvailableModels: vi.fn(() => []),
-  resolveRoutingProfileWithAttempts: vi.fn(),
-}));
-
-vi.mock('../../../internal/providers/lib/routing-profile-catalogue.js', () => ({
-  getRoutingProfile: vi.fn(() => ({ name: 'Auto', creditMultiplier: 1 })),
-  isRoutingProfile: vi.fn(() => true),
-  getAllRoutingProfiles: vi.fn(() => []),
-  getRoutingProfilesByCategory: vi.fn(() => []),
-  getDefaultModelForCategory: vi.fn(() => null),
-  getAvailableModels: vi.fn(() => []),
 }));
 
 vi.mock('../../../lib/credits-manager.js', () => ({
@@ -176,11 +158,6 @@ vi.mock('../../../lib/errors/index.js', () => ({
   classifyError: vi.fn(() => 'unknown'),
 }));
 
-vi.mock('../../../lib/gateway-client.js', () => ({
-  getRoutingProfile: vi.fn(() => ({ name: 'Auto', creditMultiplier: 1 })),
-  getModelMappingsForTier: vi.fn(() => []),
-}));
-
 vi.mock('../../../lib/conversation-saver.js', () => ({
   saveConversation: vi.fn().mockResolvedValue(undefined),
   generateConversationTitle: vi.fn().mockResolvedValue('Test Conversation'),
@@ -191,7 +168,6 @@ vi.mock('../../../lib/plan-access.js', () => ({
   getUserEntitlements: vi.fn().mockResolvedValue({
     tier: 'free',
     features: {},
-    allowedModelIds: ['route:auto', 'route:instant', 'route:pro-standard', 'route:thinking'],
   }),
 }));
 
@@ -244,16 +220,19 @@ vi.mock('../../../lib/autonomy/runtime.js', () => ({
 // ── Import router after mocks are set up ───────────────────────────────────
 
 import chatCompletionsRouter from '../chat-completions.js';
-import { FallbackNotPermittedError, UnregisteredModelError } from '../../../lib/routing/policy.js';
+import { ModelNotFoundError } from '../../../lib/models/errors.js';
+import { NoModelAvailableError } from '../../../lib/models/selection.js';
 
 // ── Test constants ─────────────────────────────────────────────────────────
 
 const VALID_RESOLVED_MODEL = {
-  routingProfileId: 'route:auto',
-  provider: 'openai',
-  modelId: 'gpt-4o',
-  keyConfig: { provider: 'openai', key: 'sk-test', modelId: 'gpt-4o', keyId: 'key-1' },
-  routingProfile: { name: 'Auto', creditMultiplier: 1 },
+  provider: 'kaana',
+  publisher: 'acme',
+  model: 'chat-1',
+  modelId: 'acme/chat-1',
+  keyConfig: { provider: 'kaana', modelId: 'acme/chat-1' },
+  oxyInferenceTarget: { kind: 'model', model: 'acme/chat-1' },
+  catalogue: { id: 'acme/chat-1', name: 'Chat 1', publisher: { id: 'acme', name: 'Acme' }, contextWindow: 128000, reasoningEfforts: [] },
 };
 
 const VALID_RESERVATION = {
@@ -290,7 +269,7 @@ function createMockReq(overrides: Record<string, any> = {}) {
     user: { id: 'user-123' },
     body: {
       messages: [{ role: 'user', content: 'Hello' }],
-      model: 'route:auto',
+      model: 'acme/chat-1',
       stream: true,
     },
     headers: {},
@@ -417,7 +396,7 @@ describe('504 timeout fixes - /v1/chat/completions', () => {
   });
 
   it('sends early SSE headers + keep-alive before provider call (streaming)', async () => {
-    const req = createMockReq({ body: { messages: [{ role: 'user', content: 'Hi' }], model: 'route:auto', stream: true } });
+    const req = createMockReq({ body: { messages: [{ role: 'user', content: 'Hi' }], model: 'acme/chat-1', stream: true } });
     const res = createMockRes();
 
     await handler(req, res, vi.fn());
@@ -444,7 +423,7 @@ describe('504 timeout fixes - /v1/chat/completions', () => {
 
   it('does NOT send early SSE headers for non-streaming requests', async () => {
     const req = createMockReq({
-      body: { messages: [{ role: 'user', content: 'Hi' }], model: 'route:auto', stream: false },
+      body: { messages: [{ role: 'user', content: 'Hi' }], model: 'acme/chat-1', stream: false },
     });
     const res = createMockRes();
 
@@ -467,7 +446,7 @@ describe('504 timeout fixes - /v1/chat/completions', () => {
     mockReserveCredits.mockResolvedValue(null);
 
     const req = createMockReq({
-      body: { messages: [{ role: 'user', content: 'Hello' }], model: 'route:auto', stream: false },
+      body: { messages: [{ role: 'user', content: 'Hello' }], model: 'acme/chat-1', stream: false },
     });
     const res = createMockRes();
 
@@ -490,10 +469,10 @@ describe('504 timeout fixes - /v1/chat/completions', () => {
   });
 
   it('returns 503 JSON and clears timer when no models available', async () => {
-    mockResolveModel.mockResolvedValue(null);
+    mockResolveModel.mockRejectedValue(new NoModelAvailableError('chat'));
 
     const req = createMockReq({
-      body: { messages: [{ role: 'user', content: 'Hello' }], model: 'route:auto', stream: false },
+      body: { messages: [{ role: 'user', content: 'Hello' }], model: 'acme/chat-1', stream: false },
     });
     const res = createMockRes();
 
@@ -543,13 +522,13 @@ describe('504 timeout fixes - /v1/chat/completions', () => {
     mockResolveModel.mockRejectedValue(new Error('Key manager DB error'));
 
     const req = createMockReq({
-      body: { messages: [{ role: 'user', content: 'Hello' }], model: 'route:auto', stream: false },
+      body: { messages: [{ role: 'user', content: 'Hello' }], model: 'acme/chat-1', stream: false },
     });
     const res = createMockRes();
 
     await handler(req, res, vi.fn());
 
-    // Should get 503 (resolveModel returned null after catch)
+    // Should get 503: an unexpected resolver failure is a shortage, not a 400
     expect(res.status).toHaveBeenCalledWith(503);
     expect(res.json).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -582,7 +561,7 @@ describe('504 timeout fixes - /v1/chat/completions', () => {
       };
     });
 
-    const req = createMockReq({ body: { messages: [{ role: 'user', content: 'Hi' }], model: 'route:auto', stream: true } });
+    const req = createMockReq({ body: { messages: [{ role: 'user', content: 'Hi' }], model: 'acme/chat-1', stream: true } });
     const res = createMockRes();
 
     await handler(req, res, vi.fn());
@@ -617,7 +596,7 @@ describe('504 timeout fixes - /v1/chat/completions', () => {
   });
 
   it('does not re-set SSE headers on subsequent chunks when earlySSE is active', async () => {
-    const req = createMockReq({ body: { messages: [{ role: 'user', content: 'Hi' }], model: 'route:auto', stream: true } });
+    const req = createMockReq({ body: { messages: [{ role: 'user', content: 'Hi' }], model: 'acme/chat-1', stream: true } });
     const res = createMockRes();
 
     await handler(req, res, vi.fn());
@@ -688,7 +667,7 @@ describe('a turn that produced nothing costs nothing - /v1/chat/completions', ()
     }));
 
     await handler(
-      createMockReq({ body: { messages: [{ role: 'user', content: 'Hi' }], model: 'route:auto', stream: true } }),
+      createMockReq({ body: { messages: [{ role: 'user', content: 'Hi' }], model: 'acme/chat-1', stream: true } }),
       createMockRes(),
       vi.fn(),
     );
@@ -703,7 +682,7 @@ describe('a turn that produced nothing costs nothing - /v1/chat/completions', ()
     mockStreamText.mockReturnValue(createMockStream([{ type: 'finish', finishReason: 'stop' }]));
 
     await handler(
-      createMockReq({ body: { messages: [{ role: 'user', content: 'Hi' }], model: 'route:auto', stream: true } }),
+      createMockReq({ body: { messages: [{ role: 'user', content: 'Hi' }], model: 'acme/chat-1', stream: true } }),
       createMockRes(),
       vi.fn(),
     );
@@ -727,7 +706,7 @@ describe('a turn that produced nothing costs nothing - /v1/chat/completions', ()
 
     const res = createMockRes();
     const pending = handler(
-      createMockReq({ body: { messages: [{ role: 'user', content: 'Hi' }], model: 'route:auto', stream: true } }),
+      createMockReq({ body: { messages: [{ role: 'user', content: 'Hi' }], model: 'acme/chat-1', stream: true } }),
       res,
       vi.fn(),
     );
@@ -770,62 +749,39 @@ describe('routing policy refusals - /v1/chat/completions', () => {
     vi.useRealTimers();
   });
 
-  it('answers an unregistered model with 400 and the product message, not 503', async () => {
-    mockResolveModel.mockRejectedValue(new UnregisteredModelError('alia-flash', ['route:auto', 'route:instant']));
+  it('answers an unknown model with 400 model_not_found, not 503', async () => {
+    mockResolveModel.mockRejectedValue(new ModelNotFoundError('nobody/no-such-model'));
 
     const req = createMockReq({
-      body: { messages: [{ role: 'user', content: 'Hello' }], model: 'alia-flash', stream: false },
+      body: { messages: [{ role: 'user', content: 'Hello' }], model: 'nobody/no-such-model', stream: false },
     });
     const res = createMockRes();
 
     await handler(req, res, vi.fn());
 
     expect(res.status).toHaveBeenCalledWith(400);
-    // 503 is what this used to be, and what a generic failure still is. Naming
-    // it here is what makes the discrimination the thing being measured.
+    // 503 is what a genuine shortage is. Naming it here is what makes the
+    // discrimination the thing being measured.
     expect(res.status).not.toHaveBeenCalledWith(503);
     const [payload] = res.json.mock.calls[0];
-    expect(payload.error.message).toContain('alia-flash');
+    expect(payload.error.message).toContain('nobody/no-such-model');
     expect(payload.error.message).toContain('GET /catalogue');
     expect(payload.error.param).toBe('model');
+    expect(payload.error.code).toBe('model_not_found');
     expect(mockStreamText).not.toHaveBeenCalled();
   });
 
-  it('refuses a removed alias before reserving credits', async () => {
-    mockResolveModel.mockRejectedValue(new UnregisteredModelError('alia-flash', ['route:auto']));
+  it('refuses an unknown model before reserving credits', async () => {
+    mockResolveModel.mockRejectedValue(new ModelNotFoundError('nobody/no-such-model'));
 
     await handler(
-      createMockReq({ body: { messages: [{ role: 'user', content: 'Hi' }], model: 'alia-flash', stream: false } }),
+      createMockReq({ body: { messages: [{ role: 'user', content: 'Hi' }], model: 'nobody/no-such-model', stream: false } }),
       createMockRes(),
       vi.fn(),
     );
 
     expect(mockReserveCredits).not.toHaveBeenCalled();
     expect(mockRefundReservation).not.toHaveBeenCalled();
-  });
-
-  it('answers a resolver refusal under a restrictive preset with the policy message', async () => {
-    // The resolver's own refusal class, reachable from a preset's policy rather
-    // than from a request parameter — `fallbackPolicy` on the body is refused
-    // with 400 before the resolver runs (the tests below).
-    mockResolveModel.mockRejectedValue(new FallbackNotPermittedError('route:auto', 'no-fallback'));
-
-    const req = createMockReq({
-      body: {
-        messages: [{ role: 'user', content: 'Hello' }],
-        model: 'route:auto',
-        stream: false,
-      },
-    });
-    const res = createMockRes();
-
-    await handler(req, res, vi.fn());
-
-    expect(res.status).toHaveBeenCalledWith(503);
-    const [payload] = res.json.mock.calls[0];
-    expect(payload.error.message).toContain('route:auto');
-    // Distinguishable from the generic shortage, which is the whole point.
-    expect(payload.error.message).not.toBe('No models available. Please try again.');
   });
 
   it('refuses a caller’s policy with 400 invalid_request instead of handing it to the resolver', async () => {
@@ -837,7 +793,7 @@ describe('routing policy refusals - /v1/chat/completions', () => {
     const req = createMockReq({
       body: {
         messages: [{ role: 'user', content: 'Hello' }],
-        model: 'route:auto',
+        model: 'acme/chat-1',
         fallbackPolicy: 'same-model-only',
         stream: false,
       },
@@ -854,17 +810,19 @@ describe('routing policy refusals - /v1/chat/completions', () => {
     expect(mockReserveCredits).not.toHaveBeenCalled();
   });
 
-  it('hands an EMPTY options object to the resolver: no fallback policy travels', async () => {
-    // Made positively: there is no per-request policy for the options object to
-    // carry, so an explicit one appearing here would be a regression to the
-    // silently-ignored parameter.
-    const req = createMockReq({
-      body: { messages: [{ role: 'user', content: 'Hello' }], model: 'route:auto', stream: false },
-    });
+  it('resolves the named model exactly, and the default when none is named', async () => {
+    mockResolveModel.mockResolvedValue(VALID_RESOLVED_MODEL);
+    await handler(createMockReq({
+      body: { messages: [{ role: 'user', content: 'Hello' }], model: 'acme/chat-1', stream: false },
+    }), createMockRes(), vi.fn());
+    expect(mockResolveModel).toHaveBeenCalledWith('acme/chat-1');
 
-    await handler(req, createMockRes(), vi.fn());
-
-    expect(mockResolveModel).toHaveBeenCalledWith('route:auto', {});
+    mockResolveModel.mockClear();
+    await handler(createMockReq({
+      body: { messages: [{ role: 'user', content: 'Hello' }], stream: false },
+    }), createMockRes(), vi.fn());
+    // `resolveDefaultModel` shares the spy here; it is asked with the person.
+    expect(mockResolveModel).toHaveBeenCalledWith('user-123');
   });
 
   it('resolves Kaana once and never retries in Alia', async () => {
@@ -885,7 +843,7 @@ describe('routing policy refusals - /v1/chat/completions', () => {
     const req = createMockReq({
       body: {
         messages: [{ role: 'user', content: 'Hi' }],
-        model: 'route:auto',
+        model: 'acme/chat-1',
         stream: true,
       },
     });
@@ -893,14 +851,13 @@ describe('routing policy refusals - /v1/chat/completions', () => {
     await handler(req, createMockRes(), vi.fn());
 
     expect(mockResolveModel).toHaveBeenCalledTimes(1);
-    expect(mockResolveModel.mock.calls[0]?.[1]).toEqual({});
   });
 
   it('rejects a mistyped policy before reserving credits, like any policy', async () => {
     const req = createMockReq({
       body: {
         messages: [{ role: 'user', content: 'Hello' }],
-        model: 'route:auto',
+        model: 'acme/chat-1',
         fallbackPolicy: 'no_fallback',
         stream: false,
       },

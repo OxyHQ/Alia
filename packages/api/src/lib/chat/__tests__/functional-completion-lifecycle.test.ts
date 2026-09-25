@@ -72,8 +72,8 @@ describe('functional completion response lifecycle', () => {
       globalTimer: setTimeout(() => undefined, 60_000),
       globalTimeoutMs: 120_000,
       state: {
-        resolved: { routingProfileId: 'route:auto', modelId: 'model-test' },
-        routingProfileId: 'route:auto',
+        resolved: { modelId: 'acme/chat-1' },
+        modelId: 'acme/chat-1',
         creditReservation: null,
         creditsSettled: true,
         globalTimedOut: false,
@@ -88,7 +88,7 @@ describe('functional completion response lifecycle', () => {
       toolNameMapping: new Map(),
       agentMessages: [],
       systemPromptTokens: 0,
-      requestedModel: 'route:auto',
+      requestedModel: 'acme/chat-1',
       autonomyRuntime: null,
       includeUsage: false,
       beforeStreamClose: async () => {

@@ -17,13 +17,13 @@ import { createConversation, findActiveAgentThreadConversation } from '../../db/
 import { canReachAgent } from '../../lib/agent-account.js';
 import { agentHirePrice, startAgentSession } from '../../lib/agent/session-handoff.js';
 import { authenticateToken } from '../../middleware/auth.js';
-import { OXY_KAANA_ROUTING_PROFILE_ID_LIST } from '../../config/oxy-inference-routing-profile-ids.js';
+import { resolveModel } from '../../lib/chat-core.js';
+import { ModelNotFoundError } from '../../lib/models/errors.js';
 import { randomUUID } from 'node:crypto';
 import type { NextFunction, Request, Response } from 'express';
 import { findOwnedCoworkDevice } from '../../db/agents/coworkDeviceRepository.js';
 
 const router = Router();
-const routingProfiles = new Set<string>(OXY_KAANA_ROUTING_PROFILE_ID_LIST);
 const route = (handler: (req: Request, res: Response) => Promise<unknown>) =>
   (req: Request, res: Response, next: NextFunction) => { void handler(req, res).catch(next); };
 
@@ -50,8 +50,24 @@ router.get('/:id/threads', authenticateToken, route(async (req: Request, res: Re
 router.post('/:id/threads', authenticateToken, route(async (req: Request, res: Response) => {
   const agent = await reachableAgent(req, res);
   if (!agent || !req.user?.id) return;
-  if (!agent.routingProfileId || !routingProfiles.has(agent.routingProfileId)) {
-    return res.status(409).json({ error: 'Agent has no reviewed Oxy routing profile' });
+  /**
+   * The thread's model: the one the request names (a `publisher/model` from
+   * the catalogue), else the agent's own, else null — the owner's default at
+   * run time (ADR 0012).
+   */
+  let modelId: string | null = agent.modelId;
+  if (req.body?.modelId !== undefined && req.body?.modelId !== null) {
+    if (typeof req.body.modelId !== 'string') {
+      return res.status(400).json({ error: { message: 'modelId must be a model id', param: 'modelId', code: 'invalid_model' } });
+    }
+    try {
+      modelId = (await resolveModel(req.body.modelId)).modelId;
+    } catch (error: unknown) {
+      if (error instanceof ModelNotFoundError) {
+        return res.status(400).json({ error: { message: error.userMessage, param: 'modelId', code: ModelNotFoundError.WIRE_CODE } });
+      }
+      throw error;
+    }
   }
 
   const executionTarget = req.body?.executionTarget === 'cowork' ? 'cowork' : 'sandbox';
@@ -71,7 +87,7 @@ router.post('/:id/threads', authenticateToken, route(async (req: Request, res: R
     oxyUserId: req.user.id,
     agentId: agent._id,
     title,
-    routingProfileId: agent.routingProfileId,
+    modelId,
     approvalMode: req.body?.approvalMode === 'supervised_auto' ? 'supervised_auto' : 'ask',
     executionTarget,
     coworkDeviceId,

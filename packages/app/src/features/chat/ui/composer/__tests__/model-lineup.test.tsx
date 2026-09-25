@@ -2,31 +2,24 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 /**
- * The catalogue, translated into the two things Bloom's model menu takes.
+ * The catalogue, translated into what Bloom's model picker takes.
  *
- * Bloom draws a flat radio list and reports the pressed row's **id**. That is
- * the identity contract `docs/chat-runtime.mdx` requires, so the id half needs
- * only to be carried across. What needed re-expressing is everything Alia's
- * own picker did BESIDES naming a model, and each of those is a test here:
+ * Alia has no models of its own, so the lineup is the real models grouped by
+ * publisher, after a first group of the server's featured models and the
+ * person's pins, and before this account's devices. Effort is the CHOSEN
+ * model's own `reasoningEfforts`, with `null` for "the model decides".
  *
- *  - a row the plan does not cover raises the upgrade path and does NOT become
- *    the selection — the old `selectEntry` returned early, and here the same
- *    refusal is an intercepted `onModelChange` over a controlled value;
- *  - a gated row still says so before it is pressed, because a control whose
- *    refusal is only discoverable by pressing it reads as broken;
- *  - effort is the levels the CHOSEN entry can honour and an index into those,
- *    with `null` for "no level chosen, the model decides" — the common answer
- *    in this catalogue, and the one thing that must never look like a choice.
- *
- * `resolveSelection` and `effortFor` are the REAL ones. They are the two pure
- * functions this file's answers are built out of, and stubbing either would
- * leave the translation checked against a re-implementation of the thing it is
- * translating.
+ * `resolveSelection` and `effortFor` are the REAL ones.
  */
 
 const router = vi.hoisted(() => ({ push: vi.fn() }));
 const toasted = vi.hoisted(() => ({ info: vi.fn(), error: vi.fn() }));
-const store = vi.hoisted(() => ({ reasoningEffort: null as string | null, setReasoningEffort: vi.fn() }));
+const store = vi.hoisted(() => ({
+  reasoningEffort: null as string | null,
+  setReasoningEffort: vi.fn(),
+  pinnedModels: [] as string[],
+  togglePinnedModel: vi.fn(),
+}));
 const catalogue = vi.hoisted(() => ({ data: undefined as unknown }));
 
 /**
@@ -38,7 +31,7 @@ const catalogue = vi.hoisted(() => ({ data: undefined as unknown }));
  * fails with `Flow is not supported`, pointing at the import rather than at
  * the package.
  */
-vi.mock('../provider-marks', () => ({ AliaMark: () => null, ModelsMark: () => null, DeviceMark: () => null }));
+vi.mock('../provider-marks', () => ({ FeaturedMark: () => null, DeviceMark: () => null }));
 vi.mock('react-native', () => ({
   Platform: { OS: 'web', select: (spec: Record<string, unknown>) => spec.web ?? spec.default },
   StyleSheet: { create: <T,>(styles: T) => styles },
@@ -84,25 +77,10 @@ vi.mock('@/features/chat/runtime/use-catalogue', async (importOriginal) => {
   return { ...actual, useCatalogue: () => catalogue };
 });
 
-/**
- * Product modes, flattened to identity.
- *
- * `presentation` decides which words a row is drawn with and is pinned by
- * `src/features/chat/runtime/__tests__/use-product-modes.test.ts`; what is under test here is
- * which IDENTIFIER a row carries, so the label is passed through unchanged and
- * no profile is fronted by a mode.
- */
-vi.mock('@/features/chat/runtime/use-product-modes', () => ({
-  useProductModes: () => ({ data: [] }),
-  modeById: (id: string) => (id === 'mode:auto' ? { id, label: 'Automatic', routing: { profileId: 'profile:auto' } } : null),
-  modeForProfile: () => null,
-  presentation: (entry: { displayName: string }) => ({ label: entry.displayName }),
-}));
-
 vi.mock('@/features/local-models/runtime/use-local-runtimes', () => ({
   useLocalModelOptions: () => ({
-    options: [{ id: 'local:llama', name: 'Llama', deviceLabel: 'Desk' }],
-    ids: ['local:llama'],
+    options: [{ id: 'local/ollama/llama', name: 'Llama', deviceLabel: 'Desk' }],
+    ids: ['local/ollama/llama'],
   }),
 }));
 
@@ -114,8 +92,8 @@ vi.mock('@/features/chat/runtime/model-store', async (importOriginal) => {
   };
 });
 
-import { useComposerLineup } from '../model-lineup';
-import type { CatalogueEntry } from '@/features/chat/runtime/use-catalogue';
+import { modelIdOfRow, useComposerLineup } from '../model-lineup';
+import type { Catalogue, CatalogueEntry } from '@/features/chat/runtime/use-catalogue';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
@@ -123,44 +101,37 @@ let renderer: ReactTestRenderer | null = null;
 afterEach(() => {
   act(() => renderer?.unmount());
   renderer = null;
-  router.push.mockClear();
-  toasted.info.mockClear();
   store.setReasoningEffort.mockClear();
+  store.togglePinnedModel.mockClear();
   store.reasoningEffort = null;
+  store.pinnedModels = [];
   catalogue.data = undefined;
 });
 
 function entry(over: Partial<CatalogueEntry> & { id: string }): CatalogueEntry {
+  const publisher = over.id.split('/')[0]!;
   return {
-    kind: 'model',
-    publisher: null,
-    model: null,
-    displayName: over.id,
-    description: '',
-    emoji: null,
-    category: 'general',
-    chatVisible: true,
-    unavailable: false,
-    requiredPlan: null,
-    entitled: true,
-    creditMultiplier: null,
-    sunsetAt: null,
-    provenance: { publishers: [], unattributedRoutes: 0 },
-    capabilities: {
-      tools: 'unknown',
-      vision: 'unknown',
-      audio: 'unknown',
-      reasoning: 'unknown',
-      reasoningLevels: [],
-      structuredOutput: 'unknown',
-      contextWindow: null,
-      maxOutput: null,
-    },
+    name: over.id,
+    publisher: { id: publisher, name: publisher.toUpperCase() },
+    description: null,
+    contextWindow: null,
+    maxOutput: null,
+    inputModalities: ['text'],
+    outputModalities: ['text'],
+    tools: true,
+    reasoningEfforts: [],
+    pricing: null,
+    releasedAt: null,
+    featured: false,
     ...over,
-  } as CatalogueEntry;
+  };
 }
 
-function run(selected: string, onModelChange = vi.fn()) {
+function load(entries: CatalogueEntry[], extra: Partial<Catalogue> = {}) {
+  catalogue.data = { entries, defaultModelId: entries[0]?.id ?? null, featuredIds: [], ...extra } satisfies Catalogue;
+}
+
+function run(selected: string | null, onModelChange = vi.fn()) {
   let lineup!: ReturnType<typeof useComposerLineup>;
   function Probe() {
     lineup = useComposerLineup(selected, onModelChange);
@@ -173,157 +144,85 @@ function run(selected: string, onModelChange = vi.fn()) {
 }
 
 describe('the lineup', () => {
-  it('leads with the automatic choice and ends with this account’s own machines', () => {
-    catalogue.data = [entry({ id: 'model:fast', displayName: 'Fast' })];
-    const { lineup } = run('mode:auto');
-    expect(lineup.models.map((m) => m.id)).toEqual(['mode:auto', 'model:fast', 'local:llama']);
-    // A device model names its device: a phone can be offered a model running
-    // on a laptop, and "which one" is the whole question then.
-    expect(lineup.models[2].name).toBe('Llama · Desk');
-  });
-
-  it('groups the rail by Alia\'s own sections, never by an operator', () => {
-    catalogue.data = [entry({ id: 'model:fast', displayName: 'Fast' })];
-    const { lineup } = run('mode:auto');
-    expect(lineup.providers.map((p) => [p.id, p.models.map((m) => m.id)])).toEqual([
-      ['alia', ['mode:auto']],
-      ['models', ['model:fast']],
-      ['device', ['local:llama']],
+  it('groups real models by publisher, alphabetically, newest release first', () => {
+    load([
+      entry({ id: 'zeta/one', name: 'Zeta One' }),
+      entry({ id: 'acme/old', name: 'Old', releasedAt: '2025-01-01' }),
+      entry({ id: 'acme/new', name: 'New', releasedAt: '2026-01-01' }),
     ]);
+    const { lineup } = run(null);
+    expect(lineup.providers.map((p) => p.name)).toEqual(['ACME', 'ZETA', 'composer.deviceGroup']);
+    expect(lineup.providers[0]!.models.map((m) => m.name)).toEqual(['New', 'Old']);
+    expect(lineup.providers[2]!.models).toEqual([{ id: 'local/ollama/llama', name: 'Llama · Desk' }]);
   });
 
-  it('drops what the catalogue says it cannot serve', () => {
-    catalogue.data = [
-      entry({ id: 'model:fast', displayName: 'Fast' }),
-      entry({ id: 'model:down', displayName: 'Down', unavailable: true }),
-      entry({ id: 'model:hidden', displayName: 'Hidden', chatVisible: false }),
-    ];
-    const { lineup } = run('mode:auto');
-    expect(lineup.models.map((m) => m.id)).toEqual(['mode:auto', 'model:fast', 'local:llama']);
+  it('puts the featured models first, in the server order, then the pins', () => {
+    store.pinnedModels = ['zeta/one', 'gone/model'];
+    load([entry({ id: 'acme/a' }), entry({ id: 'acme/b' }), entry({ id: 'zeta/one' })], {
+      featuredIds: ['acme/b', 'acme/a'],
+    });
+    const { lineup } = run(null);
+    const first = lineup.providers[0]!;
+    expect(first.name).toBe('composer.featuredGroup');
+    expect(first.models.map((m) => modelIdOfRow(m.id))).toEqual(['acme/b', 'acme/a', 'zeta/one']);
+    // Still in their publisher's group too, under a different row id.
+    expect(lineup.providers[1]!.models.map((m) => m.id)).toEqual(['acme/a', 'acme/b']);
+    expect(new Set(lineup.providers.flatMap((p) => p.models.map((m) => m.id))).size).toBe(7);
   });
 
-  it('draws a name and reports an id, which are not the same string', () => {
-    catalogue.data = [entry({ id: 'model:fast', displayName: 'Fast' })];
-    const { lineup, onModelChange } = run('mode:auto');
-    const row = lineup.models.find((m) => m.id === 'model:fast');
-    expect(row?.name).toBe('Fast');
-    lineup.onModelChange('model:fast');
-    expect(onModelChange).toHaveBeenCalledWith('model:fast');
-  });
-});
-
-describe('the plan gate, which survives as a refusal rather than a row', () => {
-  it('says a row is locked before anybody presses it', () => {
-    catalogue.data = [entry({ id: 'model:pro', displayName: 'Pro', entitled: false, requiredPlan: 'Max' })];
-    const { lineup } = run('mode:auto');
-    expect(lineup.models.find((m) => m.id === 'model:pro')?.name).toBe('🔒 Pro');
+  it('shows the server default while nothing is chosen, and reports a real id when a row is pressed', () => {
+    load([entry({ id: 'acme/a' }), entry({ id: 'acme/b' })], { defaultModelId: 'acme/b', featuredIds: ['acme/b'] });
+    const { lineup, onModelChange } = run(null);
+    expect(modelIdOfRow(lineup.model)).toBe('acme/b');
+    lineup.onModelChange(lineup.providers[0]!.models[0]!.id);
+    expect(onModelChange).toHaveBeenCalledWith('acme/b');
   });
 
-  it('offers the upgrade and leaves the selection alone', () => {
-    catalogue.data = [entry({ id: 'model:pro', displayName: 'Pro', entitled: false, requiredPlan: 'Max' })];
-    const { lineup, onModelChange } = run('mode:auto');
-    lineup.onModelChange('model:pro');
-    expect(toasted.info).toHaveBeenCalledWith('subscribe.modelRequiresPlan {"plan":"Max"}');
-    expect(router.push).toHaveBeenCalledWith('/(biglayout)/subscribe');
-    // The point of the whole interception: the chip keeps naming the model
-    // that is actually in force.
-    expect(onModelChange).not.toHaveBeenCalled();
+  it('falls back to the default for a model the catalogue no longer lists', () => {
+    load([entry({ id: 'acme/a' })]);
+    expect(run('gone/model').lineup.model).toBe('acme/a');
   });
 
-  it('says "upgrade" rather than naming a plan it was not told', () => {
-    catalogue.data = [entry({ id: 'model:pro', displayName: 'Pro', entitled: false, requiredPlan: null })];
-    const { lineup } = run('mode:auto');
-    lineup.onModelChange('model:pro');
-    expect(toasted.info).toHaveBeenCalledWith('subscribe.modelRequiresUpgrade');
-  });
-
-  it('never gates a model on the person’s own machine', () => {
-    catalogue.data = [];
-    const { lineup, onModelChange } = run('mode:auto');
-    lineup.onModelChange('local:llama');
-    expect(onModelChange).toHaveBeenCalledWith('local:llama');
-    expect(router.push).not.toHaveBeenCalled();
+  it('keeps a model on a connected device', () => {
+    load([entry({ id: 'acme/a' })]);
+    expect(run('local/ollama/llama').lineup.model).toBe('local/ollama/llama');
   });
 });
 
-describe('effort, as a second axis with its own answers', () => {
-  it('drops the axis outright when the chosen entry offers no level', () => {
-    // The common case: a routing profile fanning out over many deployments
-    // offers a level only if all of them can send it. `[]` is what tells
-    // Bloom to draw no slider — the old control drew one whose `max` was 0.
-    catalogue.data = [entry({ id: 'model:fast', displayName: 'Fast' })];
-    const { lineup } = run('model:fast');
-    expect(lineup.effortLevels).toEqual([]);
-    expect(lineup.effort).toBeNull();
+describe('effort', () => {
+  it('offers the chosen model its own levels, and none for a model without', () => {
+    load([entry({ id: 'acme/think', reasoningEfforts: ['low', 'medium', 'high'] }), entry({ id: 'acme/plain' })]);
+    expect(run('acme/think').lineup.effortLevels).toEqual([
+      'effort.levels.low',
+      'effort.levels.medium',
+      'effort.levels.high',
+    ]);
+    act(() => renderer?.unmount());
+    expect(run('acme/plain').lineup.effortLevels).toEqual([]);
   });
 
-  it('offers only the levels the chosen entry can honour', () => {
-    catalogue.data = [
-      entry({
-        id: 'model:thinks',
-        displayName: 'Thinks',
-        capabilities: { ...entry({ id: 'x' }).capabilities, reasoningLevels: ['instant', 'high'] },
-      }),
-    ];
-    const { lineup } = run('model:thinks');
-    // Two stops, not four: there is no position on this track that the model
-    // cannot serve, which is what the old slider enforced by snapping.
-    expect(lineup.effortLevels).toEqual(['effort.levels.instant', 'effort.levels.high']);
-  });
-
-  it('indexes into the OFFERED levels, not into the catalogue’s four', () => {
+  it('is null — the model decides — until a level is chosen, and a stored level the model lacks is null too', () => {
+    load([entry({ id: 'acme/think', reasoningEfforts: ['low', 'high'] })]);
+    expect(run('acme/think').lineup.effort).toBeNull();
+    act(() => renderer?.unmount());
+    store.reasoningEffort = 'medium';
+    expect(run('acme/think').lineup.effort).toBeNull();
+    act(() => renderer?.unmount());
     store.reasoningEffort = 'high';
-    catalogue.data = [
-      entry({
-        id: 'model:thinks',
-        displayName: 'Thinks',
-        capabilities: { ...entry({ id: 'x' }).capabilities, reasoningLevels: ['instant', 'high'] },
-      }),
-    ];
-    const { lineup } = run('model:thinks');
-    // `high` is the fourth of `EFFORT_LEVELS` and the SECOND thing on offer.
+    const { lineup } = run('acme/think');
     expect(lineup.effort).toBe(1);
+    lineup.onEffortChange(0);
+    expect(store.setReasoningEffort).toHaveBeenCalledWith('low');
   });
+});
 
-  it('reads a stored level the chosen entry cannot honour as no level at all', () => {
-    store.reasoningEffort = 'max';
-    catalogue.data = [
-      entry({
-        id: 'model:thinks',
-        displayName: 'Thinks',
-        capabilities: { ...entry({ id: 'x' }).capabilities, reasoningLevels: ['instant', 'high'] },
-      }),
-    ];
-    const { lineup } = run('model:thinks');
-    // Not clamped to the nearest, and not sent: a level the entry does not
-    // offer is the parameter being omitted, and `null` is how the control
-    // says so rather than showing a stop nobody chose.
-    expect(lineup.effort).toBeNull();
-  });
-
-  it('writes back the level at the index Bloom reports', () => {
-    catalogue.data = [
-      entry({
-        id: 'model:thinks',
-        displayName: 'Thinks',
-        capabilities: { ...entry({ id: 'x' }).capabilities, reasoningLevels: ['instant', 'high'] },
-      }),
-    ];
-    const { lineup } = run('model:thinks');
-    lineup.onEffortChange(1);
-    expect(store.setReasoningEffort).toHaveBeenCalledWith('high');
-  });
-
-  it('reads an index the lineup no longer has as no level, never as a guess', () => {
-    catalogue.data = [
-      entry({
-        id: 'model:thinks',
-        displayName: 'Thinks',
-        capabilities: { ...entry({ id: 'x' }).capabilities, reasoningLevels: ['instant'] },
-      }),
-    ];
-    const { lineup } = run('model:thinks');
-    lineup.onEffortChange(3);
-    expect(store.setReasoningEffort).toHaveBeenCalledWith(null);
+describe('pins', () => {
+  it('names the chosen model for the add menu and toggles its pin', () => {
+    store.pinnedModels = ['acme/a'];
+    load([entry({ id: 'acme/a', name: 'A' })]);
+    const { lineup } = run('acme/a');
+    expect(lineup.current).toEqual({ id: 'acme/a', name: 'A', pinned: true });
+    lineup.togglePinned();
+    expect(store.togglePinnedModel).toHaveBeenCalledWith('acme/a');
   });
 });

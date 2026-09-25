@@ -5,7 +5,6 @@ import { useOxy } from '@oxy.so/services';
 import { errorMessage } from '../lib/utils';
 import { create } from 'zustand';
 import { createAudioLevelMeter } from '../lib/audio-level';
-import { PREFERRED_VOICE_MODEL_ID } from '../lib/config';
 import { requestSpeechClip } from '../lib/speech-synthesis';
 
 const API_URL = process.env.EXPO_PUBLIC_ALIA_API_URL ?? 'https://api.alia.onl';
@@ -18,12 +17,8 @@ export interface UseTTSOptions {
   voice?: 'male' | 'female';
   tone?: 'brief' | 'chill' | 'default';
   /**
-   * Speech model. Defaults to the build's `PREFERRED_VOICE_MODEL_ID`.
-   *
-   * Not checked against `GET /catalogue`: that surface describes what a chat
-   * picker may offer and its resolver filters to `chat_visible` entries, so
-   * passing a voice identifier through it would substitute a chat model that
-   * cannot speak. See `lib/config.ts`.
+   * Speech model. Omitted, the request carries no `model` and the server's
+   * own speech model answers.
    */
   model?: string;
 }
@@ -90,7 +85,7 @@ useTTSStore.subscribe((state, previous) => {
 export function useTTS(options: UseTTSOptions = {}) {
   const apiUrl = options.apiUrl || API_URL;
   const voicePref = options.voice ?? 'female';
-  const voiceModel = options.model ?? PREFERRED_VOICE_MODEL_ID;
+  const voiceModel = options.model;
   const tonePref = options.tone ?? 'default';
 
   const { oxyServices } = useOxy();

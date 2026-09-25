@@ -14,7 +14,7 @@
  */
 
 import { generateText } from 'ai';
-import { resolveModel, getAIModel, getDefaultRoutingProfile } from '../chat-core.js';
+import { resolveUtilityModel, getAIModel } from '../chat-core.js';
 import { log } from '../logger.js';
 import { EventStream, type EventStreamEntry } from './event-stream.js';
 
@@ -134,7 +134,7 @@ async function summarizeEntries(entries: EventStreamEntry[]): Promise<string> {
     .join('\n');
 
   try {
-    const resolved = await resolveModel('route:instant') || await resolveModel(getDefaultRoutingProfile());
+    const resolved = await resolveUtilityModel();
     if (!resolved) {
       // Fallback: simple truncation
       return entries

@@ -55,7 +55,6 @@ import { getOrCreateUserCredits } from '../../../db/billing/userCreditsRepositor
 import { enqueueAgentSession } from '../../../lib/task-queue.js';
 import threadsRouter from '../threads.js';
 
-const ROUTING_PROFILE = '01a06477-94f5-74f0-bc25-4c5c13b93ccd';
 
 let db: ApiDatabase;
 let server: Server;
@@ -123,7 +122,6 @@ async function seedAgent(price: number | null = 15): Promise<string> {
     description: 'd',
     authorOxyUserId: SUITE,
     category: 'research',
-    routingProfileId: ROUTING_PROFILE,
     price,
     isPublished: true,
     access: 'public',
@@ -137,7 +135,6 @@ async function threadFor(userId: string, agentId: string): Promise<string> {
     oxyUserId: userId,
     agentId,
     title: 'work',
-    routingProfileId: ROUTING_PROFILE,
   });
   return thread.id;
 }

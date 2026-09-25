@@ -58,6 +58,9 @@ const api = {
 
   // User & Models
   getUserInfo: () => ipcRenderer.invoke('user:get'),
+  listModels: () => ipcRenderer.invoke('models:list'),
+  getSelectedModel: () => ipcRenderer.invoke('models:getSelected'),
+  selectModel: (modelId: string | null) => ipcRenderer.invoke('models:select', modelId),
 
   // Screen
   captureScreen: () => ipcRenderer.invoke('screen:capture'),

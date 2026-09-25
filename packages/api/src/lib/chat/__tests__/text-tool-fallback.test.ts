@@ -58,7 +58,7 @@ function runFallback({ assistantResponse, toolInvocations, execute, toolName = '
     baseConfig: {},
     res: res as never,
     requestId: 'chatcmpl-test',
-    routingProfileId: 'route:auto',
+    modelId: 'acme/chat-1',
     resolved: { provider: 'openai', modelId: 'gpt-4o' },
   });
 }

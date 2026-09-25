@@ -16,7 +16,7 @@
 
 import type { ResponseFormat } from '@oxy.so/contracts';
 
-import type { OxyKaanaRoutingProfileId } from '../../config/oxy-inference-routing-profile-ids.js';
+import { getUtilityModelId } from '../models/selection.js';
 import { getOxyInferenceClient } from './oxy-inference.js';
 import type { AliaInferenceSurface } from './product-seam.js';
 
@@ -29,8 +29,11 @@ import type { AliaInferenceSurface } from './product-seam.js';
 const DEFAULT_BUDGET_MS = 30_000;
 
 export interface KaanaTextRequest {
-  /** Exact reviewed Oxy routing-profile primary key. Never a name or default. */
-  readonly routingProfileId: OxyKaanaRoutingProfileId;
+  /**
+   * The `publisher/model` to run. Absent runs the utility model — the cheapest
+   * catalogue model fit for background work (`lib/models/selection.ts`).
+   */
+  readonly model?: string;
   /** The whole instruction. One user turn, because there is no conversation here. */
   readonly prompt: string;
   /** Which product surface is asking, for cost attribution on the receipt. */
@@ -79,7 +82,7 @@ export async function generateTextViaKaana(request: KaanaTextRequest): Promise<s
 
   const budgetMs = request.budgetMs ?? DEFAULT_BUDGET_MS;
   const completion = await client.respond({
-    routingProfileId: request.routingProfileId,
+    model: request.model ?? (await getUtilityModelId()),
     input: [{ role: 'user', content: [{ type: 'text', text: request.prompt }] }],
     maxOutputTokens: request.maxOutputTokens,
     temperature: request.temperature ?? 0.7,

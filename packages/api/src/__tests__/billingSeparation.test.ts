@@ -605,7 +605,9 @@ describe('the billing path audit matches the tree it describes (#139 ws12)', () 
     // 27 -> 24: `insertCreditPackage`, `updateCreditPackageByPackageId` and
     // `deleteCreditPackageByPackageId` had no caller outside their own test and
     // were deleted; the seed is the only writer of `credit_packages`.
-    expect(derived.length).toBe(24);
+    //
+    // 24 -> 23 (ADR 0012): `setPlanModelIds` went with `plans.model_ids`.
+    expect(derived.length).toBe(23);
     expect(audit.tables.length).toBe(7);
   });
 

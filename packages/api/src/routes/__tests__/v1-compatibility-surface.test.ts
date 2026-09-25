@@ -254,6 +254,10 @@ const FROZEN_ROUTES: readonly string[] = [
   'GET /v1/chat/completions',
   'GET /v1/me',
   'GET /v1/models',
+  // ADR 0012: a model id is `publisher/model`, two path segments, so
+  // introspecting one needs its own route; `:modelId` stays as the 404 for a
+  // one-segment id.
+  'GET /v1/models/:publisher/:model',
   'GET /v1/models/:modelId',
   'POST /v1/audio/generate',
   'POST /v1/audio/speech',
@@ -279,7 +283,7 @@ describe('the compatibility surface gains no route (#139 ws6, ADR 0004)', () => 
     // removal is what the compatibility window gates and an unrecorded removal
     // is the other way this list stops describing the surface.
     expect(v1.map((e) => e.signature)).toEqual([...FROZEN_ROUTES].sort());
-    expect(FROZEN_ROUTES).toHaveLength(13);
+    expect(FROZEN_ROUTES).toHaveLength(14);
     expect(new Set(FROZEN_ROUTES).size).toBe(FROZEN_ROUTES.length);
   });
 
@@ -333,6 +337,7 @@ const FROZEN_CHAINS: Readonly<Record<string, readonly string[]>> = {
   // `GET /v1/models` usable as a discovery endpoint.
   'GET /v1': [],
   'GET /v1/models': [],
+  'GET /v1/models/:publisher/:model': [],
   'GET /v1/models/:modelId': [],
   // Everything that can spend.
   'GET /v1/me': AUTHENTICATED,
@@ -921,7 +926,7 @@ describe('an anonymous caller is refused on both chat surfaces (#139 ws6)', () =
   });
 
   it('refuses POST /alia/chat with no credential, exactly as /v1 always has', async () => {
-    const body = JSON.stringify({ model: 'route:auto', messages: [{ role: 'user', content: 'hi' }] });
+    const body = JSON.stringify({ model: 'acme/chat-1', messages: [{ role: 'user', content: 'hi' }] });
     const send = (route: string): Promise<Response> =>
       fetch(`${base}${route}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body });
 

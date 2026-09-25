@@ -50,7 +50,7 @@ export function recorder(): Recorder {
 }
 
 export const REQUEST_ID = 'chatcmpl-0199bb4e-0341-725e-a905-11001c3659b4';
-export const MODEL = 'route:instant';
+export const MODEL = 'acme/chat-1';
 
 /** A recorder plus the API helpers already bound to it. */
 export function aliaStream(): {

@@ -33,12 +33,14 @@ commit que el `package.json` que lo cambia.
   lo rechaza (`credential_retired`) y sus tablas no existen. La clave de Oxy
   Console para la API de Alia aún no se valida aquí — no lo documentes como si
   existiera — `docs/developers-portal.md`.
-- **Perfiles de routing solo por ID opaco exacto** de
-  `packages/api/src/config/oxy-inference-routing-profile-ids.ts`; nunca por
-  nombre, slug u orden — `docs/model-abstraction.mdx`.
-- **Nombres de operador/modelo upstream nunca en la superficie de producto**
-  (respuestas, errores, UI, analítica); sí en catálogo, licencias y auditoría —
-  `README.md` § producto.
+- **Modelos reales, nada hardcodeado (ADR 0012):** Alia no tiene modelos propios.
+  `model` es `publisher/model` del catálogo de Oxy (o `local/...`); sin modos,
+  perfiles `route:*` ni alias. Cero ids de modelo en código o env y cero listas
+  curadas: destacados, por defecto, utilitario y voz se calculan —
+  `docs/model-abstraction.mdx`.
+- **Nombres de modelo y publisher sí se muestran.** El operador que lo sirve
+  (Groq, Cerebras, OpenRouter…) y los ids de deployment siguen ocultos en la
+  superficie de producto (respuestas, errores, UI, analítica).
 - `Relay` es un nombre retirado; el único origen de Kaana es `https://kaana.ai`.
   `lib/mcp-relay.ts` es el transporte WebSocket de MCP y no se renombra.
 - **Shows** (podcasts en Syra): la ruta acuña un ticket de ingesta de un solo

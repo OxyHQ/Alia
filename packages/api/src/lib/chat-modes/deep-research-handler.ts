@@ -13,7 +13,7 @@ import type { ToolInvocation } from '../../domain/conversation.js';
 export interface DeepResearchContext {
   res: Response;
   requestId: string;
-  routingProfileId: string;
+  modelId: string;
   userId: string;
   conversationId?: string;
   assistantMessageId?: string;
@@ -30,7 +30,7 @@ export interface DeepResearchContext {
  * Returns true if handled (caller should return), false if skipped (e.g. empty query).
  */
 export async function handleDeepResearch(ctx: DeepResearchContext): Promise<boolean> {
-  const { res, requestId, routingProfileId, userId, conversationId, messages, autonomyRuntime, requestStartTime, globalTimer } = ctx;
+  const { res, requestId, modelId, userId, conversationId, messages, autonomyRuntime, requestStartTime, globalTimer } = ctx;
   const { creditReservation } = ctx;
 
   const userQuery = messages.filter((m: ChatMessage) => m.role === 'user').pop()?.content || '';
@@ -43,6 +43,7 @@ export async function handleDeepResearch(ctx: DeepResearchContext): Promise<bool
   try {
     const result = await runDeepResearch(queryText, messages as Array<{ role: string; content: string }>, {
       userId,
+      modelId,
       signal: ctx.signal,
       onProgress: (progress: ResearchProgress) => {
         if (!res.writableEnded) {
@@ -62,7 +63,7 @@ export async function handleDeepResearch(ctx: DeepResearchContext): Promise<bool
     // Stream the final report as content deltas (OpenAI SSE format)
     const CHUNK_SIZE = 100;
     for (let i = 0; i < result.report.length; i += CHUNK_SIZE) {
-      writeContentChunk(res, requestId, routingProfileId, result.report.slice(i, i + CHUNK_SIZE));
+      writeContentChunk(res, requestId, modelId, result.report.slice(i, i + CHUNK_SIZE));
     }
 
     // Send sources metadata as named event.
@@ -83,7 +84,7 @@ export async function handleDeepResearch(ctx: DeepResearchContext): Promise<bool
     })}\n\n`);
 
     // Send final chunk with finish_reason
-    writeStopChunk(res, requestId, routingProfileId);
+    writeStopChunk(res, requestId, modelId);
     res.write('data: [DONE]\n\n');
     res.end();
 

@@ -11,22 +11,16 @@ import { PRODUCT_PLAN_STATUSES, productEntitlementSchema } from '@oxy.so/contrac
  *
  * ## What is already guarded, and what is not
  *
- * `chatFlowFixtures.test.ts` pins the GATE: an app request for a model outside
- * the allow-list is refused 403 `MODEL_NOT_IN_PLAN` and its reservation is
- * refunded, and an API-key request skips the gate entirely. Both drive the real
- * handler. Neither says anything about where the allow-list COMES FROM, because
- * both mock `getUserEntitlements` and hand the answer in.
+ * There is no per-plan model list any more (ADR 0012): every plan sees every
+ * model and plans differ only by credits and features. What remains is where
+ * the plan and its features COME FROM, and every failure there is permissive
+ * or silent:
  *
- * That is the half this file covers, and it is where the interesting failures
- * are, because every one of them is permissive or silent:
- *
- *  - the free floor. `FREE_MODEL_IDS` is what an account with no subscription
- *    may use. Empty it and every free user is refused every model — a total
- *    outage for the majority of accounts, from a one-line edit in a file whose
- *    name says "plan access";
+ *  - the free floor. An account with no subscription is on `free`, never on
+ *    nothing;
  *  - the ACTIVE filter. Entitlements are read from live subscriptions only, so a
  *    cancelled or past-due plan stops granting. Widen it and a cancelled
- *    customer keeps their models;
+ *    customer keeps their plan;
  *  - the five-minute cache. It is what makes the gate cheap enough to run on
  *    every request, and it is also why a plan change has to say so explicitly.
  *    A missing invalidation is invisible: the user upgrades, is refused for a
@@ -54,7 +48,7 @@ const H = vi.hoisted(() => ({
   /** Rows `findActiveSubscriptions` returns, and how many times it was asked. */
   subscriptions: [] as Array<ReturnType<typeof subscription>>,
   subscriptionReads: 0,
-  plans: [] as Array<{ planId: string; modelIds?: string[] }>,
+  plans: [] as Array<{ planId: string }>,
   planFeatures: [] as Array<{ planId: string; featureId: string; enabled?: boolean; limitValue?: number | null }>,
 }));
 
@@ -260,41 +254,29 @@ describe('the entitlement read model publishes the Oxy contract shape (#139 ws12
 /* -------------------------------------------------------------------------- */
 
 describe('entitlements are derived from live subscriptions (#139 ws6)', () => {
-  it('gives an account with no subscription the free floor, not an empty list', () => {
-    // Asserted as an exact set. A floor that merely "contains route:instant" would
-    // survive the models being widened to everything, which is the other
-    // direction of the same mistake.
+  it('gives an account with no subscription the free plan, not nothing', () => {
     expect(H.plans).toEqual([]);
     return getUserEntitlements(account()).then((entitlements) => {
-      expect([...entitlements.allowedModelIds].sort()).toEqual(['route:audio', 'route:auto', 'route:instant']);
       expect(entitlements.planId).toBe('free');
+      // Plans carry no model list: nothing here may gate a model.
+      expect(entitlements).not.toHaveProperty('allowedModelIds');
       expect(entitlements.features).toEqual({});
     });
   });
 
-  it('adds a paid plan on top of the floor rather than replacing it', async () => {
-    // The additive shape is load-bearing: a paid plan lists only what it ADDS,
-    // so a replacement would silently strip `route:instant` from every paying
-    // customer — the cheapest model, and the one titling uses.
+  it('names the paid plan the account holds, and only its features', async () => {
     H.subscriptions = [subscription('pro')];
-    H.plans = [
-      { planId: 'pro', modelIds: ['route:pro-standard', 'route:thinking'] },
-      { planId: 'go', modelIds: ['route:code'] },
+    H.plans = [{ planId: 'pro' }, { planId: 'go' }];
+    H.planFeatures = [
+      { planId: 'pro', featureId: 'seats', limitValue: 10 },
+      { planId: 'go', featureId: 'voice', enabled: true },
     ];
 
     const entitlements = await getUserEntitlements(account());
 
-    expect([...entitlements.allowedModelIds].sort()).toEqual([
-      'route:audio',
-      'route:auto',
-      'route:instant',
-      'route:pro-standard',
-      'route:thinking',
-    ]);
     expect(entitlements.planId).toBe('pro');
-    // The control: a plan the account does NOT hold contributed nothing, so the
-    // list above is a filter and not "every plan in the catalogue".
-    expect(entitlements.allowedModelIds).not.toContain('route:code');
+    // The control: a plan the account does NOT hold contributed nothing.
+    expect(entitlements.features).toEqual({ seats: 10 });
   });
 
   it('reads only the statuses Stripe calls live', () => {
@@ -356,7 +338,7 @@ describe('the entitlement cache is cleared by the writes that invalidate it (#13
   it('serves a repeat read from cache and re-reads after an invalidation', async () => {
     const userId = account();
     H.subscriptions = [subscription('go')];
-    H.plans = [{ planId: 'go', modelIds: ['route:code'] }];
+    H.plans = [{ planId: 'go' }];
 
     await getUserEntitlements(userId);
     await getUserEntitlements(userId);
@@ -365,14 +347,14 @@ describe('the entitlement cache is cleared by the writes that invalidate it (#13
     expect(H.subscriptionReads).toBe(1);
 
     // The account upgrades. Without the invalidation the next line still
-    // answers the old allow-list, which is what a customer sees as "I paid and
-    // it still says upgrade your plan".
-    H.plans = [{ planId: 'go', modelIds: ['route:code', 'route:pro-standard'] }];
+    // answers the old plan, which is what a customer sees as "I paid and it
+    // still says upgrade your plan".
+    H.subscriptions = [subscription('pro')];
     invalidateEntitlementsCache(userId);
     const after = await getUserEntitlements(userId);
 
     expect(H.subscriptionReads).toBe(2);
-    expect(after.allowedModelIds).toContain('route:pro-standard');
+    expect(after.planId).toBe('pro');
   });
 
   it('invalidates one account and leaves the rest cached', async () => {
@@ -455,8 +437,8 @@ describe('the entitlement cache is cleared by the writes that invalidate it (#13
     // text of this repository's prose must not count either.
     const billing = code('routes/billing.ts');
     expect(billing).toContain('invalidateEntitlementsCache(userId);');
-    expect(readFileSync(path.join(API_SRC, 'routes/catalogue.ts'), 'utf8')).toContain('plan-access.ts');
-    expect(code('routes/catalogue.ts')).not.toContain('invalidateEntitlementsCache');
+    expect(readFileSync(path.join(API_SRC, 'lib/seed-comped-accounts.ts'), 'utf8')).toContain('plan-access.ts');
+    expect(code('lib/seed-comped-accounts.ts')).not.toContain('plan-access.ts');
   });
 });
 
@@ -465,31 +447,14 @@ describe('the entitlement cache is cleared by the writes that invalidate it (#13
 /* -------------------------------------------------------------------------- */
 
 describe('the product runtime still runs the check (#139 ws6)', () => {
-  it('prefetches entitlements and refuses a model outside the plan', () => {
-    // The "green and inert" half. Everything above is about a function; this is
-    // about the request path calling it. `chatFlowFixtures.test.ts` asserts the
-    // 403 behaviourally, so what is added here is the SHAPE of the two
-    // conditions, which are the parts a refactor would flatten without changing
-    // any transcript: the prefetch needs a user, and so does the gate.
+  it('prefetches entitlements and gates no model on the plan', () => {
+    // Plans differ only by credits (ADR 0012). The prefetch still runs — the
+    // usage window and plan features read it — but no model is refused on it.
     const context = code('lib/chat/request-context.ts');
     expect(context).toContain('export async function buildChatRequestContext');
     expect(context).toMatch(/req\.user\s*\?\s*getUserEntitlements\(req\.user\.id\)/);
-    /**
-     * The third conjunct is the local-runtime skip, and it is spelled out here
-     * rather than matched loosely: a model served by the caller's own device is
-     * in no plan's `allowedModelIds`, so the gate has to stand aside for it —
-     * and standing aside is exactly the shape a mistake would also take. Naming
-     * the condition means widening it again is a diff in this file.
-     */
-    expect(context).toMatch(
-      /if \(req\.user && entitlements && localRuntime === null\) \{\s*if \(!entitlements\.allowedModelIds\.includes\(routingProfileId\)\) \{/,
-    );
-    // Refund before refusal, because the reservation was already taken by the
-    // parallel prefetch above it.
-    expect(context).toMatch(
-      /if \(!entitlements\.allowedModelIds\.includes\(routingProfileId\)\) \{\s*if \(creditReservation\) await refundReservation\(creditReservation\);/,
-    );
-    expect(context).toContain("code: 'MODEL_NOT_IN_PLAN'");
+    expect(context).not.toContain('allowedModelIds');
+    expect(context).not.toContain('MODEL_NOT_IN_PLAN');
   });
 
   it('is reached from the entrypoint both chat surfaces share', () => {

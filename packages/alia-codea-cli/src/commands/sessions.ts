@@ -1,6 +1,6 @@
 import chalk from 'chalk';
 import * as readline from 'readline';
-import { getSessions, getSession, config, Session } from '../utils/config.js';
+import { getSessions, getSession, configuredModel, Session } from '../utils/config.js';
 import { startRepl } from './repl.js';
 
 export async function listSessions(): Promise<void> {
@@ -112,6 +112,6 @@ async function startRestoredSession(session: Session): Promise<void> {
   console.log(chalk.gray('Session restored. Continue the conversation below.'));
   console.log();
 
-  const model = config.get('defaultModel');
+  const model = configuredModel();
   await startRepl({ model, context: true });
 }

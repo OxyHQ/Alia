@@ -110,7 +110,6 @@ All chat clients consume the same named events with `eventVersion: 1`:
 - `alia.reasoning`
 - `alia.tool_result`
 - `alia.title`
-- `alia.model_switch`
 
 ## Important
 
@@ -126,9 +125,9 @@ is available; opening an authenticated app session does not start inference or
 write new suggestions.
 
 `POST /suggestions/generate` remains an explicit authenticated operation for
-creating personal suggestions. It makes one request through Oxy using the
-reviewed `route:instant` routing-profile primary key. Oxy and Kaana own route
-selection and retry, so Alia does not loop over providers or repeat an identical
-profile request. An Oxy routing refusal is `503` with its safe request ID; an
+creating personal suggestions. It makes one request through Oxy on the utility
+model — the cheapest chat-usable catalogue model with at least 32k context,
+computed rather than configured (ADR 0012). Oxy and Kaana own route selection
+and retry, so Alia does not loop over providers or repeat an identical request. An Oxy routing refusal is `503` with its safe request ID; an
 empty or schema-invalid model answer is `502`. Neither is presented as an
 internal Alia `500`.

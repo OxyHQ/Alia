@@ -107,6 +107,12 @@ export interface Agent {
    */
   access: 'private' | 'public';
   systemPrompt?: string;
+  /**
+   * The model this agent answers with (`publisher/model`), or `null` for the
+   * server's default. Optional because a server older than real models does
+   * not send it.
+   */
+  modelId?: string | null;
   archetype?: AgentArchetype;
   archetypeConfig?: ArchetypeConfig;
   createdAt: string;
@@ -147,6 +153,7 @@ export type AgentCreate = Pick<Agent, 'oxyAccountId' | 'tagline' | 'description'
       | 'isPublished'
       | 'access'
       | 'systemPrompt'
+      | 'modelId'
       | 'archetype'
       | 'archetypeConfig'
     >

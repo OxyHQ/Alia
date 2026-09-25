@@ -96,36 +96,22 @@ describe('the request envelope cannot name a deployment at all (#139 ws17)', () 
     }
   });
 
-  it('the hosted runtime carries only explicit model/profile target fields', () => {
+  it('the hosted runtime carries only an explicit model target', () => {
     const source = code('lib/chat-core.ts');
-    expect(source).toContain("kind: 'routing_profile_id'");
+    expect(source).not.toContain("kind: 'routing_profile_id'");
     expect(source).toContain("kind: 'model'");
     expect(source).not.toContain('deploymentId');
     expect(source).not.toContain('availabilityScope');
   });
 
-  it('exactly four modules know what an availability scope is', () => {
+  it('no product module knows what an availability scope is', () => {
     /**
-     * This assertion used to read *"nothing in the API ever writes an
-     * availability scope"*, and was an empty-list census over the whole
-     * package. It was true, and it stopped being true on purpose: epic #139
-     * L604 — *"consume Oxy catalogue availability scopes"* — requires Alia to
-     * carry the scope and refuse a route whose scope does not admit the caller.
-     * A census that forbade the WORD forbade the checkbox.
-     *
-     * What it was protecting is kept, and split in two. The lexical half is
-     * here and is now an exact SET rather than an empty one, so another module
-     * learning about scopes is still a visible edit rather than a silent
-     * spread. The half that actually mattered — *"a route that echoed a
-     * deployment's scope would be telling a public caller which deployments are
-     * internal"* — is not lexical at all and could never have been caught by
-     * this scan; it is asserted against the RESPONSE in
-     * `routes/__tests__/catalogue.test.ts`, where a public caller's body is
-     * required to contain no scope it was not admitted under.
-     *
-     * Alia still never AUTHORS a scope. `ModelMapping.availabilityScope` is
-     * optional, arrives through the `gateway-client` seam, and nothing in this
-     * repository sets it — which is the assertion immediately below.
+     * Alia never AUTHORS or reads a deployment's availability scope: the
+     * catalogue it serves is what Oxy already audience-scoped for it
+     * (`OxyInferenceClient.listModels()`, ADR 0012), so a scope has no home
+     * here. A module that learns the word is a visible regression — a route
+     * that echoed a deployment's scope would be telling a public caller which
+     * deployments are internal.
      */
     const files = execFileSync('git', ['ls-files', '--', 'packages/api/src'], {
       cwd: REPO_ROOT,
@@ -138,49 +124,9 @@ describe('the request envelope cannot name a deployment at all (#139 ws17)', () 
       /\bplatform_internal\b|\bavailabilityScope\b/.test(readFileSync(path.join(REPO_ROOT, file), 'utf8')),
     );
     expect(files.length).toBeGreaterThan(300);
-    expect(naming.sort()).toEqual([
-      // The decision itself: the vocabulary, the audiences and the admission.
-      'packages/api/src/lib/availability-scope.ts',
-      // Applies it per entry.
-      'packages/api/src/lib/catalogue.ts',
-      // The seam the data will arrive through, and the only declaration of the
-      // field. A fifth entry here means a scope has grown another home.
-      'packages/api/src/lib/gateway-client.ts',
-      // Serializes the report block. Names the field, never a scope VALUE —
-      // which the assertion below is what proves.
-      'packages/api/src/routes/catalogue.ts',
-    ]);
+    expect(naming).toEqual([]);
     // The control: the predicate fires on the string it is looking for.
     expect(/\bplatform_internal\b|\bavailabilityScope\b/.test("scope: 'platform_internal'")).toBe(true);
-  });
-
-  it('never authors a scope of its own, it only reads one off a mapping', () => {
-    // The surviving half of the original claim, and the sharper one. Alia
-    // classifying a deployment itself would be Alia inventing commercial
-    // permission, which is precisely what this workstream says not to do.
-    //
-    // `lib/catalogue.ts` copies the field off the mapping and `gateway-client`
-    // declares it; neither may produce a VALUE. The literal appears only in
-    // `availability-scope.ts`, in `case` labels of the admission switch, which
-    // is a read of the contract's vocabulary rather than an assertion about any
-    // route.
-    const scopeModule = code('lib/availability-scope.ts');
-    const scopeLiterals = /'(?:platform_internal|public_payg|enterprise|byok_only|oxy_hosted)'/g;
-    const occurrences = [...scopeModule.matchAll(scopeLiterals)];
-    // The floor: the module really does name the vocabulary.
-    expect(occurrences.length).toBeGreaterThanOrEqual(5);
-    // …and every one of them is a `case` label, never an assignment.
-    for (const match of occurrences) {
-      const before = scopeModule.slice(Math.max(0, (match.index ?? 0) - 6), match.index);
-      expect(before, `authored scope at ${String(match.index)}`).toContain('case ');
-    }
-
-    // And no other product module contains one at all.
-    for (const relative of ['lib/catalogue.ts', 'lib/gateway-client.ts', 'routes/catalogue.ts']) {
-      expect(code(relative).match(scopeLiterals), relative).toBeNull();
-    }
-    // The control: the same pattern finds a literal where one exists.
-    expect("availabilityScope: 'platform_internal'".match(scopeLiterals)).toHaveLength(1);
   });
 });
 
@@ -210,6 +156,7 @@ vi.mock('@oxy.so/core', () => {
             ownerAccountId: 'account-1',
             scopes: ['alia:invoke'],
             environment: 'production',
+            tier: 'internal',
           };
         }
         next();
@@ -234,6 +181,7 @@ vi.mock('@oxy.so/core/server', () => ({
         ownerAccountId: 'account-1',
         scopes: ['alia:invoke'],
         environment: 'production',
+        tier: 'internal',
       };
     }
     next();

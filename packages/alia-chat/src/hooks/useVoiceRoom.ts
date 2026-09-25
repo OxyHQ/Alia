@@ -31,7 +31,6 @@ import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useOxy } from '@oxy.so/services';
 import { errorMessage } from '../lib/utils';
 import type { RoomState, AgentState, VoiceMessage } from '../types';
-import { PREFERRED_VOICE_MODEL_ID } from '../lib/config';
 import {
   isSpeechRecognitionAvailable,
   requestSpeechRecognitionPermission,
@@ -66,15 +65,13 @@ export interface UseVoiceRoomOptions {
   /** Bearer for speech synthesis; defaults to the surrounding Oxy session's. */
   accessToken?: string;
   /**
-   * Speech model for the answers. Defaults to the build's
-   * `PREFERRED_VOICE_MODEL_ID`, the one profile `/v1/audio/speech` accepts.
-   *
-   * Not checked against `GET /catalogue`, for the reason given in
-   * `lib/config.ts`.
+   * Speech model for the answers. Omitted, the request carries no `model` and
+   * the server's own speech model answers.
    */
   model?: string;
   /**
-   * Chat routing profile the default sender asks for. Ignored when `sendTurn`
+   * Chat model (`publisher/model`) the default sender asks for; omitted, the
+   * server's default. Ignored when `sendTurn`
    * is given — that sender carries its own conversation's choice.
    */
   chatModel?: string;
@@ -136,7 +133,7 @@ interface ActiveTurn {
 export function useVoiceRoom(options: UseVoiceRoomOptions = {}) {
   const apiUrl = options.apiUrl || API_URL;
   const voicePref: ProductVoice = options.voicePreference ?? 'female';
-  const speechModel = options.model ?? PREFERRED_VOICE_MODEL_ID;
+  const speechModel = options.model;
   const endOfUtteranceMs = options.endOfUtteranceMs ?? DEFAULT_END_OF_UTTERANCE_MS;
   const bargeIn = options.bargeIn ?? true;
 

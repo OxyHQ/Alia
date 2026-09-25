@@ -435,11 +435,11 @@ jobs:
           NODE_ENV: production
           VITE_API_URL: https://api.alia.onl
 
-      # Every client reads GET /catalogue instead of baking an `alia-*`
-      # identifier into a shipped artefact. It spans nine source trees, and
-      # every workspace the repo declares must be either walked by it or
-      # classified as shipping no picker — so it is a script rather than any one
-      # package's suite.
+      # No client names a model: with nothing chosen a request carries no
+      # `model` and the server's default answers. It spans every client source
+      # tree, and every workspace the repo declares must be either walked by it
+      # or classified as shipping no picker — so it is a script rather than any
+      # one package's suite.
       - name: Check no client hardcodes a model default
         run: node scripts/check-model-defaults.mjs
 
@@ -455,25 +455,6 @@ jobs:
       # exactly what happened when `packages/shared-types` was removed.
       - name: Check the Dockerfile copies only workspaces that exist
         run: node scripts/check-dockerfile-workspaces.mjs
-
-      # The picker labels a routing profile with the product's own words —
-      # Fast, Balanced, Maximum quality, Coding — rather than the display name
-      # of the alias it came from. The server half is gated by
-      # architectureGates gate 5; this is the client half, which this script
-      # covers as a source scan — `packages/app`'s own suite runs in the
-      # frontend job, but it asserts behaviour, not the words on the labels.
-      - name: Check the picker speaks the product's language
-        run: node scripts/check-picker-language.mjs
-
-      # #139 line 99, a non-negotiable invariant: a routing policy is never
-      # PRESENTED as an Alia-owned model. The census above covers the
-      # identifiers a request carries; this covers the text a person reads, and
-      # they failed independently — a `<Label>Model</Label>`, a Telegram command
-      # menu reading "Change AI model" and a CLI printing "Model: Kaana Lite"
-      # contain no identifier between them, so nothing turned red for any of
-      # the three.
-      - name: Check no client tells a person a profile is a model
-        run: node scripts/check-user-visible-model-wording.mjs
 
       # An agent's colour vocabulary is declared twice — the generator's and the
       # editor's — because the API must not depend on `@oxy.so/bloom` and the app

@@ -321,13 +321,11 @@ export function useCreatePortalSession() {
 // ======================
 
 export interface Entitlements {
-  allowedModelIds: string[];
   features: Record<string, boolean | number>;
   planId: string | null;
 }
 
 const FREE_ENTITLEMENTS: Entitlements = {
-  allowedModelIds: ['route:instant', 'route:auto', 'route:audio'],
   features: {},
   planId: 'free',
 };

@@ -144,14 +144,20 @@ vi.mock('@/features/chat/runtime/model-store', () => {
     setSelectedModel,
     reasoningEffort: 'medium',
   };
-  return { useModelStore: (selector: (s: typeof state) => unknown) => selector(state) };
+  return {
+    useModelStore: (selector: (s: typeof state) => unknown) => selector(state),
+    effortFor: (stored: string | null, offered: readonly string[]) => (stored !== null && offered.includes(stored) ? stored : null),
+  };
 });
 
-vi.mock('@/features/chat/runtime/use-catalogue', () => ({
-  useCatalogue: () => ({ data: undefined }),
-  resolveSelection: () => ({ effectiveId: 'model-of-record' }),
+vi.mock('@/features/chat/runtime/use-model-selection', () => ({
+  useModelSelection: () => ({
+    shownId: 'model-of-record',
+    effectiveId: 'model-of-record',
+    entry: { reasoningEfforts: ['low', 'medium', 'high'] },
+    source: 'requested',
+  }),
 }));
-vi.mock('@/features/chat/runtime/use-product-modes', () => ({ useProductModes: () => ({ data: undefined }) }));
 vi.mock('@/features/chat/runtime/use-conversations', () => ({
   useCreateConversation: () => ({ mutateAsync: vi.fn(async () => ({ id: 'c1' })) }),
 }));

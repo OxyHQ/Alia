@@ -114,7 +114,6 @@ const AGENT_COLUMNS = {
   access: agents.access,
   status: agents.status,
   isPublished: agents.isPublished,
-  routingProfileId: agents.routingProfileId,
   capabilityGrants: agents.capabilityGrants,
 };
 

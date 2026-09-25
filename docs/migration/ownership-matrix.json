@@ -848,6 +848,7 @@
     },
     {
       "id": "canvas-model-list",
+      "removedIn": "adr-0012-real-models",
       "workstream": "5",
       "domain": "frontend-admin",
       "kind": "screen",
@@ -862,6 +863,7 @@
     },
     {
       "id": "canvas-models-consumer",
+      "removedIn": "adr-0012-real-models",
       "workstream": "5",
       "domain": "product-api",
       "kind": "dependency",
@@ -3415,7 +3417,8 @@
       ],
       "removalGate": "None.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/lib/tools/switch-model.ts:11, :34"
+      "evidence": "packages/api/src/lib/tools/switch-model.ts:11, :34",
+      "removedIn": "feat/real-models-api"
     },
     {
       "id": "gwc-import-synthesize-speech",
@@ -4230,7 +4233,8 @@
       "dependsOn": [],
       "removalGate": "Two consumers: generate-model-mappings.ts (internal) and packages/api/src/lib/cost-tracker.ts:39 (getModelPricing, PRODUCT code). cost-tracker must get pricing from Kaana or from its own Alia-side table before this can go.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/internal/providers/lib/model-capabilities-data.ts:35 (MODEL_CAPABILITIES), :359 (MODEL_PRICING), :675-681; consumer packages/api/src/lib/cost-tracker.ts:39"
+      "evidence": "packages/api/src/internal/providers/lib/model-capabilities-data.ts:35 (MODEL_CAPABILITIES), :359 (MODEL_PRICING), :675-681; consumer packages/api/src/lib/cost-tracker.ts:39",
+      "removedIn": "feat/real-models-api"
     },
     {
       "id": "model-id-in-db-schema",
@@ -4563,7 +4567,8 @@
       ],
       "removalGate": "Alia may retain only the public routing-profile presentation required by product UX. Provider mappings, provider identities, egress policy, credentials and fallback belong to Kaana.",
       "provenance": "kaana-cutover",
-      "evidence": "packages/api/src/internal/providers/lib/routing-profile-catalogue.ts; packages/api/src/lib/gateway-client.ts"
+      "evidence": "packages/api/src/internal/providers/lib/routing-profile-catalogue.ts; packages/api/src/lib/gateway-client.ts",
+      "removedIn": "feat/real-models-api"
     },
     {
       "id": "sanitize-call-sites",
@@ -5609,7 +5614,8 @@
       ],
       "removalGate": "Read by gateway-client's getModelMappingsForTier, which 8 product call sites use (images, TTS, transcription, avatars, canvas, chat-completions, voice, chat.service). Every one must resolve tiers through Kaana first. NOTE: a live Postgres table `alia_model_provider_mappings` exists but the runtime reads the CODE table, not the table.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/internal/providers/lib/generate-model-mappings.ts:34-... (GENERATED_TIER_MAPPINGS); packages/api/src/db/schema/providers.ts:228 (aliaModelProviderMappings, not read by the resolver)"
+      "evidence": "packages/api/src/internal/providers/lib/generate-model-mappings.ts:34-... (GENERATED_TIER_MAPPINGS); packages/api/src/db/schema/providers.ts:228 (aliaModelProviderMappings, not read by the resolver)",
+      "removedIn": "feat/real-models-api"
     },
     {
       "id": "tool-converter-gemini-naming",
@@ -5728,7 +5734,8 @@
       ],
       "removalGate": "DO NOT DELETE with the adapters, and do NOT fold into provider-names.ts. This is the PUBLISHER vocabulary - who released a model - and provider-names.ts is who serves it. The two overlap on eight names (openai, google, anthropic, mistral, deepseek, cohere, xai, perplexity), so a census governing a catalogue response has to be scoped to a field path rather than banning provider names outright; deleting this set removes the vocabulary that distinction is expressed in. generate-model-mappings.ts types all 115 mappings' publisher against it.",
       "provenance": "authored",
-      "evidence": "packages/api/src/internal/providers/lib/model-publishers.ts:52-66; consumer packages/api/src/internal/providers/lib/alia-models.ts ModelMapping.publisher; 115 call sites in packages/api/src/internal/providers/lib/generate-model-mappings.ts; gate packages/api/src/internal/providers/lib/__tests__/model-publishers.test.ts"
+      "evidence": "packages/api/src/internal/providers/lib/model-publishers.ts:52-66; consumer packages/api/src/internal/providers/lib/alia-models.ts ModelMapping.publisher; 115 call sites in packages/api/src/internal/providers/lib/generate-model-mappings.ts; gate packages/api/src/internal/providers/lib/__tests__/model-publishers.test.ts",
+      "removedIn": "feat/real-models-api"
     },
     {
       "id": "tuple-plan-products",
@@ -5794,7 +5801,8 @@
       "dependsOn": [],
       "removalGate": "The shared routing-profile tier vocabulary must come from the Kaana contract before this local compatibility copy is removed.",
       "provenance": "kaana-cutover",
-      "evidence": "packages/api/src/internal/providers/lib/routing-tiers.ts; packages/api/src/db/schema/providers.ts"
+      "evidence": "packages/api/src/internal/providers/lib/routing-tiers.ts; packages/api/src/db/schema/providers.ts",
+      "removedIn": "feat/real-models-api"
     },
     {
       "id": "tuple-transaction-statuses",

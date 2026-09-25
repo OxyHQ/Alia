@@ -241,19 +241,6 @@ describe('deploy-aws.yml migration wiring', () => {
     expect(workflow).toContain('MIGRATION_TARGET_DATABASE: ${{ env.APP }}');
   });
 
-  it('runs the exact agent-routing readiness report before ECS is updated', () => {
-    const build = readFileSync(fileURLToPath(new URL('../../../build.ts', import.meta.url)), 'utf8');
-    expect(build).toContain("entryPoints: ['src/scripts/check-agent-routing-profile-readiness.ts']");
-    expect(build).toContain("outfile: 'dist/scripts/check-agent-routing-profile-readiness.js'");
-    expect(workflow).toContain(
-      `PRE_DEPLOY_TASK_COMMAND_JSON: '["node","packages/api/dist/scripts/check-agent-routing-profile-readiness.js","--target-database=alia"]'`,
-    );
-    expect(readFileSync(
-      fileURLToPath(new URL('../../scripts/check-agent-routing-profile-readiness.ts', import.meta.url)),
-      'utf8',
-    )).toContain('client.listRoutingProfiles');
-  });
-
   it('greps for the post-phase marker with the pattern @oxy.so/db exports, not a copy', () => {
     expect(POST_PHASE_GREP_PATTERN).toBe('^-- oxy:deploy-phase=post$');
     expect(workflow).toContain(POST_PHASE_GREP_PATTERN);

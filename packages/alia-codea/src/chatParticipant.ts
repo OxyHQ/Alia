@@ -2,7 +2,6 @@ import * as vscode from 'vscode';
 import type OpenAI from 'openai';
 import type { AliaAuthenticationProvider } from './authProvider';
 import { log } from './logger';
-import { PREFERRED_MODEL_ID } from './config';
 import { resolveModelId } from './catalogue';
 import { AliaChatError, streamAliaChat } from './aliaChat';
 
@@ -31,7 +30,8 @@ export class AliaChatParticipant {
   private loadConfig() {
     const config = vscode.workspace.getConfiguration('codea');
     this.apiBaseUrl = config.get('apiBaseUrl', 'https://api.alia.onl');
-    this.model = config.get('model', PREFERRED_MODEL_ID);
+    // Empty means the server's default model.
+    this.model = config.get<string>('model', '');
   }
 
   private registerParticipant(context: vscode.ExtensionContext) {

@@ -12,21 +12,17 @@
 import type { Request, Response } from 'express';
 import {
   resolveModel,
-  getDefaultRoutingProfile,
-  type RoutingOptions,
+  resolveDefaultModel,
+  type ResolvedModel,
 } from '../chat-core.js';
-import { resolveRequestedModel } from '../routing/model-selection.js';
-import type { RequestedModel } from '../routing/model-selection.js';
+import { isReasoningEffort, type ReasoningEffort } from '../models/catalogue.js';
+import { ModelNotFoundError } from '../models/errors.js';
 import {
   USER_RUNTIME_PROVIDER,
   parseUserRuntimeModel,
   userRuntimeCanServe,
   type UserRuntimeSelection,
 } from '../inference/user-runtime-bridge.js';
-import {
-  FallbackNotPermittedError,
-  UnregisteredModelError,
-} from '../routing/policy.js';
 /**
  * The echo of a caller's own `model` string.
  *
@@ -51,7 +47,7 @@ import {
 } from '../credits-manager.js';
 import { getUserEntitlements, type Entitlements } from '../plan-access.js';
 import { readUsageWindow, secondsUntilReset, type UsageWindow } from '../usage-window.js';
-import type { OxyUserProfile } from '../system-prompt-builder.js';
+import { PROMPT_SURFACES, type OxyUserProfile, type PromptSurface } from '../system-prompt-builder.js';
 import { oxyClient } from '../../middleware/auth.js';
 import { findAgentSkills } from '../../db/agents/agentRepository.js';
 import { buildSkillRuntime, type SkillRuntime } from '../skills/runtime.js';
@@ -72,9 +68,18 @@ import type { ChatMessage } from '../message-converter.js';
 import { usableMessageId } from '../../domain/conversation.js';
 import type { OpenAITool } from '../tool-converter.js';
 import type { SSEWriter } from './sse-writer.js';
-import { reasoningEffortOf } from '../observability/requested-model.js';
-import type { EffortLevel } from '../reasoning-effort.js';
-import { getProductMode } from '../product-modes.js';
+
+/**
+ * Which product surface a turn comes from (`body.surface`). It selects the
+ * system prompt, never the model (ADR 0012).
+ */
+
+function promptSurfaceOf(value: unknown): PromptSurface | null {
+  if (value === undefined || value === null) return 'chat';
+  return typeof value === 'string' && (PROMPT_SURFACES as readonly string[]).includes(value)
+    ? (value as PromptSurface)
+    : null;
+}
 
 export interface ChatRequestContext {
   body: Record<string, unknown> & {
@@ -96,12 +101,10 @@ export interface ChatRequestContext {
   assistantMessageId: string | undefined;
   /**
    * How hard this request was asked to think, or `null` for the model's default.
-   *
-   * Resolved ONCE, at the request boundary, from the three spellings a caller
-   * may use — see `lib/observability/requested-model.ts` `reasoningEffortOf`.
-   * Nothing downstream carries the `thinkingMode` boolean this replaced.
+   * Validated at the boundary against the model's catalogue `reasoningEfforts`
+   * and forwarded to Oxy as `reasoning: { effort }`.
    */
-  reasoningEffort: EffortLevel | null;
+  reasoningEffort: ReasoningEffort | null;
   /**
    * `'voice'` when the caller says the answer will be spoken (a voice call's
    * turn), else `null`. Only the prompt reads it; routing, tools and billing
@@ -129,18 +132,10 @@ export interface ChatRequestContext {
   mcpServerId: string | null | undefined;
   includeUsage: boolean;
   isDirectUserSession: boolean;
+  /** What the caller asked for (`body.model`), or the default it resolved to. */
   requestedModel: string;
-  /**
-   * Which personality file the turn speaks with.
-   *
-   * The same as `routingProfileId` for everything Alia routes, because the prompt
-   * belongs to the ROUTING PROFILE and that is what the alias names. A model
-   * served by the person's own device has no profile, and naming it here would
-   * ask `prompts/local/<runtime>/<model>.md` of the filesystem — a file that
-   * cannot exist, whose absence degrades to the base prompt alone. The turn
-   * would answer without Alia's personality and nothing would report an error.
-   */
-  promptModelId: string;
+  /** The surface whose prompt the turn speaks with (`body.surface`). */
+  surface: PromptSurface;
   /**
    * Whether this turn is served by the caller's own device.
    *
@@ -170,15 +165,9 @@ export interface ChatRequestContext {
   inferenceServiceToken: string | undefined;
   /** Initial values for the handler's retry-mutable state. */
   creditReservation: CreditReservation | null;
-  resolved: Awaited<ReturnType<typeof resolveModel>>;
-  routingProfileId: string;
-  /**
-   * The routing options this request resolved under. Carried on the context so
-   * the provider loop's RE-resolve uses the same policy the first resolve did —
-   * a retry that quietly widened the policy would be the silent substitution
-   * this workstream removes, arriving one attempt later.
-   */
-  routingOptions: RoutingOptions;
+  resolved: ResolvedModel;
+  /** The model this turn runs on: `publisher/model`, or the local runtime id. */
+  modelId: string;
   autonomyRuntime: AutonomyRuntimeContext | null;
   recalledMemories: Array<{ title: string; summary: string }> | undefined;
 }
@@ -246,8 +235,8 @@ export async function buildChatRequestContext(
   if (sentFallbackPolicy !== null) {
     const refusal = {
       message:
-        `"${sentFallbackPolicy}" is not a request parameter. Fallback is resolved by the routing ` +
-        'profile you select; list them at GET /catalogue.',
+        `"${sentFallbackPolicy}" is not a request parameter. Fallback between deployments of ` +
+        'the model you select is decided by Oxy.',
       type: 'invalid_request_error',
       param: sentFallbackPolicy,
       code: 'invalid_request',
@@ -284,11 +273,8 @@ export async function buildChatRequestContext(
   // Extract optional parameters for Alia internal features
   const conversationId = body.conversationId as string | undefined;
   const agentMode = (body.agentMode as boolean | undefined) ?? false;
-  const selectedProductMode = getProductMode(body.model);
-  const deepResearch =
-    selectedProductMode === null
-      ? (body.deepResearch as boolean | undefined)
-      : selectedProductMode.deepResearch;
+  // Deep research is a request flag, never implied by the model (ADR 0012).
+  const deepResearch = body.deepResearch as boolean | undefined;
   // Absent means ON, which is what every request did before the switch existed.
   const webSearch = body.webSearch !== false;
   const streamOptions = body.stream_options as
@@ -479,24 +465,39 @@ export async function buildChatRequestContext(
     mcpServerId = selectedServer.id;
   }
   /**
-   * What this request routes on, resolved at the boundary and once.
+   * What this request runs on, resolved at the boundary and once (ADR 0012):
    *
-   * Hosted selections come out as a routing profile, because that profile
-   * carries the metadata the rest of this path needs — the credit
-   * multiplier `credits-manager.ts` bills on, the entitlement id
-   * `plan-access.ts` checks, the tier the fallback engine walks, and the system
-   * prompt the id selects. Translating once, here, is what keeps every one of
-   * those from learning a second vocabulary:
-   *
-   *  - **`mode:*`**, the product vocabulary `GET /catalogue/modes` publishes,
-   *    becomes its exact reviewed `route:*` profile.
-   *  - **`route:*`** is accepted for internal callers that already hold an
-   *    authorized routing profile.
-   *  - **`<publisher>/<model>`** is refused. Concrete model selection belongs
-   *    to Oxy; accepting it here would bypass Alia's reviewed profile ID.
-   * Unknown and concrete-model selections are refused here, before downstream
-   * inference code can mistake either for an authorized route.
+   *  - **`publisher/model`** — a model from Oxy's catalogue, as `GET /catalogue`
+   *    lists it. Anything the catalogue does not offer for chat is a 400
+   *    `model_not_found`.
+   *  - **absent** — the person's default (`lib/models/selection.ts`).
+   *  - **`local/<runtime>/<model>`** — the caller's own machine, below.
    */
+  if (body.model !== undefined && body.model !== null && (typeof body.model !== 'string' || body.model.trim() === '')) {
+    clearTimeout(globalTimer);
+    res.status(400).json({
+      error: {
+        message: 'model must be a model id from GET /catalogue, or omitted for your default.',
+        type: 'invalid_request_error',
+        param: 'model',
+        code: 'invalid_model',
+      },
+    });
+    return null;
+  }
+  const surface = promptSurfaceOf(body.surface);
+  if (surface === null) {
+    clearTimeout(globalTimer);
+    res.status(400).json({
+      error: {
+        message: `surface must be one of: ${PROMPT_SURFACES.join(', ')}.`,
+        type: 'invalid_request_error',
+        param: 'surface',
+        code: 'invalid_surface',
+      },
+    });
+    return null;
+  }
   /**
    * A model served by the caller's OWN machine short-circuits the resolver.
    *
@@ -518,7 +519,7 @@ export async function buildChatRequestContext(
    * true without one, so the narrowing here is the same fact the gate already
    * established rather than an assertion on top of it.
    */
-  let localResolved: ChatRequestContext['resolved'] = null;
+  let localResolved: ResolvedModel | null = null;
   if (localRuntime !== null) {
     /**
      * Checked BEFORE the stream opens. A tab that has since been closed is the
@@ -550,7 +551,6 @@ export async function buildChatRequestContext(
     }
 
     localResolved = {
-      routingProfileId: String(body.model),
       provider: USER_RUNTIME_PROVIDER,
       /**
        * Who released the model is genuinely unknown: the person typed a tag
@@ -573,17 +573,7 @@ export async function buildChatRequestContext(
         modelId: localRuntime.model,
         userRuntime: { userId: owner, runtimeId: localRuntime.runtimeId },
       },
-      routingProfile: {
-        id: String(body.model),
-        name: localRuntime.model,
-        tier: 'local',
-        description: 'Served by the user\u2019s own device.',
-        creditMultiplier: 0,
-        maxTokens: 0,
-        supportsTools: true,
-        supportsVision: false,
-        category: 'local',
-      },
+      catalogue: null,
     };
   }
 
@@ -595,8 +585,7 @@ export async function buildChatRequestContext(
    * request flags take it straight back off:
    *
    *  - **`deepResearch`** runs `lib/research/research-engine.ts`, which resolves
-   *    `route:instant` and `route:auto` BY NAME (lines 221, 269, 300, 335) and calls
-   *    them several times per turn. `lib/chat-modes/deep-research-handler.ts`
+   *    hosted catalogue models and calls them several times per turn. `lib/chat-modes/deep-research-handler.ts`
    *    finalizes credits under `if (creditReservation)`, so with no reservation
    *    that work is charged to nobody.
    *  - **`agentMode`** adds `delegateToAgent`, and `lib/tools/agent-delegate.ts`
@@ -615,7 +604,7 @@ export async function buildChatRequestContext(
     clearTimeout(globalTimer);
     const refusal = {
       message:
-        'Deep research and agent mode run on Alia\u2019s own models, so they are not available for a model running on your device. Pick a Kaana routing profile to use them.',
+        'Deep research and agent mode run on hosted models, so they are not available for a model running on your device. Pick a model from the catalogue to use them.',
       type: 'invalid_request_error',
       param: deepResearch === true ? 'deepResearch' : 'agentMode',
       code: 'local_runtime_capability_unavailable',
@@ -628,74 +617,76 @@ export async function buildChatRequestContext(
     return null;
   }
 
-  const requested: RequestedModel =
-    localRuntime === null
-      ? await resolveRequestedModel(
-          selectedProductMode?.routing.profile ??
-            body.model ??
-            getDefaultRoutingProfile(),
-        )
-      : { kind: 'routing-profile', routingProfile: String(body.model) };
-  if (
-    requested.kind === 'unknown-profile' ||
-    requested.kind === 'unknown-model'
-  ) {
-    /**
-     * Two refusals, because they are two different mistakes.
-     *
-     * A `profile:` nobody defines is a policy that does not exist. A
-     * `<publisher>/<model>` the catalogue does not offer may well be a model
-     * that EXISTS — it is simply not one a person may pin on its own, because
-     * its price sits outside the band its profile is sold at
-     * (`lib/routing/model-selection.ts`) — and telling that caller to go and
-     * look at the profile list would be the wrong list.
-     */
-    const refusal =
-      requested.kind === 'unknown-profile'
+  /**
+   * The hosted model, resolved BEFORE any credit is reserved or the stream is
+   * opened, so an unknown model is a plain 400 rather than a refund. The
+   * catalogue read is cached (`lib/models/catalogue.ts`).
+   */
+  let resolved: ResolvedModel;
+  if (localResolved !== null) {
+    resolved = localResolved;
+  } else {
+    try {
+      resolved = typeof body.model === 'string'
+        ? await resolveModel(body.model)
+        : await resolveDefaultModel(req.user?.id);
+    } catch (err: unknown) {
+      clearTimeout(globalTimer);
+      const refusal = err instanceof ModelNotFoundError
         ? {
-            message: redactUnsafeDetail(
-              `"${requested.requested}" is not a routing profile. List them at GET /catalogue.`,
-            ),
+            message: err.userMessage,
             type: 'invalid_request_error',
             param: 'model',
-            code: 'unknown_routing_profile',
+            code: ModelNotFoundError.WIRE_CODE,
           }
         : {
-            message: redactUnsafeDetail(
-              `"${requested.requested}" is not a model you can select on its own. ` +
-                'List what you can at GET /catalogue.',
-            ),
-            type: 'invalid_request_error',
+            message: 'No models available. Please try again.',
+            type: 'server_error',
             param: 'model',
-            code: 'unknown_model',
+            code: 'model_not_available',
           };
-    if (sse.sent) {
-      sse.writeError(refusal);
-    } else {
-      res.status(400).json({ error: refusal });
+      if (!(err instanceof ModelNotFoundError)) log.v1.error({ err }, 'Error resolving model');
+      if (sse.sent) {
+        sse.writeError(refusal);
+      } else {
+        res.status(err instanceof ModelNotFoundError ? 400 : 503).json({ error: refusal });
+      }
+      return null;
     }
-    return null;
   }
-  const requestedModel = requested.routingProfile;
+  // A local turn is named by the full `local/<runtime>/<model>` the person
+  // picked; `resolved.modelId` is only the runtime's own tag.
+  const modelId = localRuntime === null ? resolved.modelId : String(body.model);
+  const requestedModel = typeof body.model === 'string' ? body.model : modelId;
+
   /**
-   * The effort level, resolved here and nowhere else.
-   *
-   * It needs `requestedModel` because one of the three spellings IS a model
-   * identifier (`route:thinking`), which is why it sits below the resolution
-   * rather than beside the other body fields.
+   * The effort level: `low` | `medium` | `high`, and only one the model
+   * declares in its catalogue `reasoningEfforts`. A local model takes none.
    */
-  const reasoningEffort = reasoningEffortOf({
-    reasoningEffort: body.reasoningEffort,
-    thinkingMode: body.thinkingMode as boolean | undefined,
-    requestedModel,
-  });
-  /**
-   * Hosted Alia requests never pin a concrete model and carry no per-request
-   * fallback policy (refused above), so there is nothing to put here: Oxy
-   * resolves routes from the exact reviewed profile and the application's
-   * routing policy. Kept as an object so the resolver's signature is one shape.
-   */
-  const routingOptions: RoutingOptions = {};
+  let reasoningEffort: ReasoningEffort | null = null;
+  if (body.reasoningEffort !== undefined && body.reasoningEffort !== null) {
+    const offered = resolved.catalogue?.reasoningEfforts ?? [];
+    if (!isReasoningEffort(body.reasoningEffort) || !offered.includes(body.reasoningEffort)) {
+      clearTimeout(globalTimer);
+      const refusal = {
+        message: redactUnsafeDetail(
+          offered.length === 0
+            ? `"${modelId}" does not take a reasoning effort.`
+            : `reasoningEffort must be one of: ${offered.join(', ')} for "${modelId}".`,
+        ),
+        type: 'invalid_request_error',
+        param: 'reasoningEffort',
+        code: 'invalid_reasoning_effort',
+      };
+      if (sse.sent) {
+        sse.writeError(refusal);
+      } else {
+        res.status(400).json({ error: refusal });
+      }
+      return null;
+    }
+    reasoningEffort = body.reasoningEffort;
+  }
 
   // Extract client context from first system message if present (from editor/client)
   let clientContext: string | undefined;
@@ -716,7 +707,6 @@ export async function buildChatRequestContext(
 
   const [
     creditResult,
-    resolvedResult,
     userMemory,
     oxyUser,
     entitlements,
@@ -748,26 +738,6 @@ export async function buildChatRequestContext(
         })
       : Promise.resolve({ reservation: null, error: false as const, window: null as UsageWindow | null }),
 
-    /**
-     * Model resolution against the Kaana routing profile catalogue.
-     *
-     * The catch keeps the two REFUSALS instead of flattening them to `null`.
-     * Everything else still becomes `null` and still becomes the same 503 it
-     * always did — the discrimination below is additive, and no error that
-     * existed before this change reaches it.
-     */
-    localResolved !== null
-      ? Promise.resolve(localResolved)
-      : resolveModel(requestedModel, routingOptions).catch((err: unknown) => {
-          log.v1.error({ err }, 'Error resolving model');
-          if (
-            err instanceof UnregisteredModelError ||
-            err instanceof FallbackNotPermittedError
-          )
-            return err;
-          return null;
-        }),
-
     // User memory
     req.user
       ? findUserMemory(getDb(), req.user.id)
@@ -783,7 +753,7 @@ export async function buildChatRequestContext(
         ]).catch(() => null)
       : Promise.resolve<OxyUserProfile | null>(null),
 
-    // User entitlements (plan-based model access) — parallelized to avoid sequential delay
+    // User entitlements (plan window, features) — parallelized to avoid sequential delay
     req.user ? getUserEntitlements(req.user.id).catch(() => null)
       : Promise.resolve(null),
 
@@ -1043,88 +1013,10 @@ export async function buildChatRequestContext(
       })
     : null;
 
-  /**
-   * A refused request is answered by the refusal, not by "no models available".
-   *
-   * Two distinct outcomes used to arrive here as the same 503: an identifier
-   * nobody registered (never a working request) and a genuine provider
-   * shortage (retry and it may work). Telling them apart is the point — the
-   * first is a 400 naming what was asked for and what exists, the second is
-   * untouched below.
-   *
-   * The reservation is refunded, matching the `MODEL_NOT_IN_PLAN` branch further
-   * down, which is the same situation: a request rejected on its `model`
-   * parameter after credits were held. The 503 path deliberately keeps its
-   * existing behaviour.
-   */
-  if (
-    resolvedResult instanceof UnregisteredModelError ||
-    resolvedResult instanceof FallbackNotPermittedError
-  ) {
-    if (creditReservation) await refundReservation(creditReservation);
-    clearTimeout(globalTimer);
-    const refusal = {
-      message: resolvedResult.userMessage,
-      type:
-        resolvedResult.httpStatus >= 500
-          ? 'server_error'
-          : 'invalid_request_error',
-      param: 'model',
-      code: resolvedResult.code,
-    };
-    if (sse.sent) {
-      sse.writeError(refusal);
-    } else {
-      res.status(resolvedResult.httpStatus).json({ error: refusal });
-    }
-    return null;
-  }
-
-  // Validate model resolution
-  const resolved = resolvedResult;
-  if (!resolved) {
-    clearTimeout(globalTimer);
-    const noModelsError = {
-      message: 'No models available. Please try again.',
-      type: 'server_error',
-      param: 'model',
-      code: 'model_not_available',
-    };
-    if (sse.sent) {
-      sse.writeError(noModelsError);
-    } else {
-      res.status(503).json({ error: noModelsError });
-    }
-    return null;
-  }
-
-  const routingProfileId = resolved.routingProfileId;
   log.v1.info(
-    { provider: resolved.provider, modelId: resolved.modelId },
+    { provider: resolved.provider, modelId },
     'Using provider',
   );
-
-  // Enforce plan-based model access
-  // Uses entitlements prefetched in Promise.all above
-  // No plan grants a person their own hardware, so there is nothing to check.
-  if (req.user && entitlements && localRuntime === null) {
-    if (!entitlements.allowedModelIds.includes(routingProfileId)) {
-      if (creditReservation) await refundReservation(creditReservation);
-      clearTimeout(globalTimer);
-      const modelError = {
-        message: 'Upgrade your plan to use this model.',
-        type: 'invalid_request_error',
-        param: 'model',
-        code: 'MODEL_NOT_IN_PLAN',
-      };
-      if (sse.sent) {
-        sse.writeError(modelError);
-      } else {
-        res.status(403).json({ error: modelError });
-      }
-      return null;
-    }
-  }
 
   let recalledMemories: Array<{ title: string; summary: string }> | undefined;
   if (req.user?.id) {
@@ -1132,7 +1024,7 @@ export async function buildChatRequestContext(
       userId: req.user.id,
       conversationId,
       messages,
-      model: routingProfileId,
+      model: modelId,
       skillNames: selectedSkillNames ?? undefined,
       platform: 'app' as const,
       metadata: {},
@@ -1155,8 +1047,7 @@ export async function buildChatRequestContext(
     includeUsage,
     isDirectUserSession,
     requestedModel,
-    promptModelId:
-      localRuntime === null ? routingProfileId : getDefaultRoutingProfile(),
+    surface,
     isLocalRuntime: localRuntime !== null,
     clientContext,
     userMemory,
@@ -1174,8 +1065,7 @@ export async function buildChatRequestContext(
     inferenceServiceToken,
     creditReservation,
     resolved,
-    routingProfileId,
-    routingOptions,
+    modelId,
     autonomyRuntime,
     recalledMemories,
   };

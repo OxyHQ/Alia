@@ -4,6 +4,12 @@
 
 **Date:** 2026-08-15
 
+> **Superseded in part by [ADR 0012](./0012-alia-uses-real-models.md), 2026-09-25.** The sentence
+> *"Alia does not own a generic model catalogue after the Oxy catalogue launches"* (§ Generic
+> inference) is refined: Alia still owns no catalogue of its own, but it publishes
+> `GET /catalogue` and `GET /v1/models` as a projection of Oxy's catalogue filtered to what
+> its chat can use.
+
 > **Amended by [ADR 0010](./0010-alia-keeps-a-product-api-credentials-come-from-oxy-console.md), 2026-09-10.**
 > Decision §3 — *"`api.alia.onl/v1/*` is a bounded-window compatibility surface, then it
 > sunsets"* — and the rejected alternative *"Keep `api.alia.onl/v1/*` permanently…"* no

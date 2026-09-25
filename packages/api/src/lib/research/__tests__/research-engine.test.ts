@@ -40,7 +40,8 @@ const H = vi.hoisted(() => ({
 }));
 
 vi.mock('../../chat-core.js', () => ({
-  resolveModel: vi.fn(async (id: string) => ({ routingProfileId: id, provider: 'p', modelId: 'm' })),
+  resolveUtilityModel: vi.fn(async () => ({ provider: 'p', modelId: 'utility/m' })),
+  resolveStoredModel: vi.fn(async (id?: string) => ({ provider: 'p', modelId: id ?? 'default/m' })),
   getAIModel: vi.fn(() => ({ modelId: 'fake' })),
 }));
 

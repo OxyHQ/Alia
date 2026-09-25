@@ -11,7 +11,7 @@ Inspect the candidate task definition and image before repointing. It must:
 - contain `OXY_API_URL` and both Oxy ApplicationCredential bindings;
 - contain no upstream-provider credential or provider endpoint;
 - contain no Kaana URL, signing key or custom signed-envelope transport;
-- depend on Oxy policy resolution for routing profiles.
+- send real `<publisher>/<model>` ids to Oxy (ADR 0012), never a routing-profile id.
 
 If the candidate violates that boundary, do not deploy it. Fix forward or stop
 hosted inference visibly.

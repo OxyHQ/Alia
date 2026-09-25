@@ -2,7 +2,7 @@ import { jsonSchema, tool } from 'ai';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 
-import { guaranteedContextWindow, measureContext } from '../context-breakdown.js';
+import { measureContext } from '../context-breakdown.js';
 
 const plain = (description: string) => tool({ description, inputSchema: z.object({ query: z.string() }) });
 
@@ -53,13 +53,5 @@ describe('what a turn puts in the context window', () => {
     });
     expect(withTools.messages).toBeGreaterThan(14 + 100);
     expect(withTools.messages).toBeLessThan(1000);
-  });
-});
-
-describe('the window a profile guarantees', () => {
-  it('is the smallest any of its routes offers, and unknown when one does not say', () => {
-    expect(guaranteedContextWindow([{ capabilities: { maxContextTokens: 200_000 } }, { capabilities: { maxContextTokens: 128_000 } }])).toBe(128_000);
-    expect(guaranteedContextWindow([{ capabilities: { maxContextTokens: 200_000 } }, { capabilities: {} }])).toBeNull();
-    expect(guaranteedContextWindow([])).toBeNull();
   });
 });

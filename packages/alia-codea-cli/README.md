@@ -70,24 +70,22 @@ codea login        # Configure API key
 |------------|----------------------------|
 | `/help`    | Show available commands    |
 | `/clear`   | Clear conversation         |
-| `/model`   | Switch model               |
+| `/model`   | List or switch models      |
 | `/context` | Show current context       |
 | `/save`    | Save conversation          |
 | `/exit`    | Exit Codea                 |
 
 ## Models
 
-| Model           | Description                       |
-|-----------------|-----------------------------------|
-| `codea`         | Fast coding assistant (default)   |
-| `codea-pro`     | Advanced reasoning                |
-| `codea-thinking`| Extended thinking for complex tasks|
+Codea uses the real models in the live Alia catalogue (ids like
+`publisher/model`). With no choice, Alia answers with its default model.
 
-Switch models with:
 ```bash
-codea --model codea-pro
+codea --model publisher/model   # or any text that matches one model
 # or in chat:
-/model codea-pro
+/model                  # list models: featured first, then by publisher
+/model <id or name>     # switch
+/model default          # back to the server's default model
 ```
 
 ## Tools
@@ -116,13 +114,14 @@ codea
 
 ## Configuration
 
-Config is stored in `~/.config/alia-codea-cli/config.json`:
+Config is stored in `~/.config/alia-codea-cli/config.json`. `defaultModel` is a
+`publisher/model` id from the catalogue, or empty for the server's default:
 
 ```json
 {
   "apiKey": "your-api-key",
   "apiBaseUrl": "https://api.alia.onl",
-  "defaultModel": "mode:code"
+  "defaultModel": ""
 }
 ```
 

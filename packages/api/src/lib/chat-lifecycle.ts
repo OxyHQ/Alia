@@ -1,6 +1,5 @@
 import type { Request } from 'express';
 import { saveConversation, generateConversationTitle, generateTitle } from './conversation-saver.js';
-import { getRoutingPreset } from './routing/presets.js';
 import { finalizeCredits, type CreditReservation, type CreditUsage } from './credits-manager.js';
 import { detectCreditAnomaly, type CreditWarning } from './credit-anomaly.js';
 import { recordUsage } from '../middleware/api-key-rate-limit.js';
@@ -19,17 +18,11 @@ export interface LifecycleContext {
   /** The client's id for this turn's reply, which the reply is stored under. */
   assistantMessageId?: string;
   messages: ChatMessage[];
-  /** The alias the provider loop settled on. */
-  routingProfileId: string;
+  /** The `publisher/model` (or local runtime model) the turn ran on. */
+  modelId: string;
   /** What the caller asked for, before resolution. */
   requestedModel: string;
-  /**
-   * The reasoning parameter, computed where `thinkingMode` is in scope.
-   *
-   * Recorded beside the model choice rather than inside it: `route:thinking`
-   * and `route:pro` are one routing preset with two names, so a reasoning
-   * request buried in a model identifier is a request nothing can count.
-   */
+  /** The reasoning effort the request asked for, recorded beside the model. */
   reasoningEffort: string | null;
   creditReservation: CreditReservation | null;
   tokenUsage: CreditUsage;
@@ -185,7 +178,7 @@ export async function finalizeChatCredits(
    */
   settlement: { creditsSettled: boolean },
 ): Promise<{ creditsCharged: number; creditsRemaining: number; creditWarning: CreditWarning | null }> {
-  const { creditReservation, tokenUsage, routingProfileId, userId } = ctx;
+  const { creditReservation, tokenUsage, modelId, userId } = ctx;
   let creditsCharged = 0;
   let creditsRemaining = 0;
   let creditWarning: CreditWarning | null = null;
@@ -195,7 +188,7 @@ export async function finalizeChatCredits(
   }
 
   try {
-    const creditResult = await finalizeCredits(creditReservation, tokenUsage, routingProfileId);
+    const creditResult = await finalizeCredits(creditReservation, tokenUsage, modelId);
     // Only once the charge returned. A finalize that threw leaves the
     // reservation unsettled, and therefore refunded rather than kept.
     settlement.creditsSettled = true;
@@ -214,13 +207,6 @@ export async function finalizeChatCredits(
   if (userId) {
     try {
       creditWarning = await detectCreditAnomaly(userId);
-      if (creditWarning) {
-        // The number the turn was BILLED on, from the same seam `credits-manager`
-        // charges through. Reading it off the catalogue instead let the warning
-        // quote a multiplier the bill never used, once the preset became the
-        // source of price.
-        creditWarning.currentModelMultiplier = getRoutingPreset(routingProfileId)?.creditMultiplier ?? 1;
-      }
     } catch { /* non-critical anomaly check */ }
   }
 
@@ -247,19 +233,19 @@ export function runPostChatHooks(
   observation: TurnObservation,
   errorClass: string | null,
 ): void {
-  const { userId, messages, routingProfileId, requestedModel, reasoningEffort, tokenUsage, requestStartTime, skillNames, autonomyRuntime } = ctx;
+  const { userId, messages, modelId, requestedModel, reasoningEffort, tokenUsage, requestStartTime, skillNames, autonomyRuntime } = ctx;
 
   runAfterChatHooks({
     userId,
     conversationId: ctx.conversationId,
     messages,
-    model: routingProfileId,
+    model: modelId,
     skillNames,
     platform: 'app' as const,
-    metadata: { model: routingProfileId },
+    metadata: { model: modelId },
     response: assistantResponse,
     tokenUsage,
-    modelUsed: routingProfileId,
+    modelUsed: modelId,
     requestedModel,
     reasoningEffort,
     latencyMs: Date.now() - requestStartTime,

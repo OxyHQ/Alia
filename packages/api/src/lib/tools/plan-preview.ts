@@ -2,7 +2,7 @@
  * Plan Preview Tool
  *
  * Lets the AI show users a structured plan before executing multi-step tasks.
- * Follows the same SSE callback pattern as switchModel.
+ * Follows the same SSE callback pattern as suggestNewConversation.
  */
 
 import { tool } from 'ai';

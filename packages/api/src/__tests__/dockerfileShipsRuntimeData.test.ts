@@ -40,10 +40,7 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
-import {
-  PRODUCT_PROMPT_BY_KAANA_PROFILE,
-  PRODUCT_PROMPT_PROFILE_IDS,
-} from '../lib/product-prompt-registry.js';
+import { PROMPT_SURFACES } from '../lib/system-prompt-builder.js';
 
 const packageRoot = fileURLToPath(new URL('../..', import.meta.url));
 const dockerfile = readFileSync(`${packageRoot}Dockerfile`, 'utf8');
@@ -180,19 +177,30 @@ describe('the runtime image ships what the code reads by path', () => {
 
   /**
    * And that the directory is not merely PRESENT but populated with the names
-   * the product prompt registry asks for. Routing profile ids and product
-   * prompt filenames are deliberately separate, so this follows the registry
-   * instead of re-coupling `kaana-*` inference ids to files on disk.
+   * the builder asks for. Prompts are chosen by SURFACE, never by model
+   * (ADR 0012): the builder's `SURFACE_PROMPTS` map, plus the spoken-answer
+   * layer and `base.md` under all of them.
    *
-   * Read from the runtime registry rather than from a list written here, or the
-   * check measures a copy of the answer instead of the answer.
+   * Read from the builder's own source rather than from a list written here,
+   * or the check measures a copy of the answer instead of the answer.
    */
-  it('ships every semantic product prompt the builder will ask for', () => {
-    const promptIds = Object.values(PRODUCT_PROMPT_BY_KAANA_PROFILE);
+  it('ships every surface prompt the builder will ask for', () => {
+    const builder = readFileSync(`${packageRoot}src/lib/system-prompt-builder.ts`, 'utf8');
+    const map = builder.match(/const SURFACE_PROMPTS[^=]*=\s*\{([^}]*)\}/);
+    expect(map).not.toBeNull();
+    const surfacePrompts = new Map(
+      [...(map?.[1] ?? '').matchAll(/(\w+):\s*'([^']+)'/g)].map((m) => [m[1], m[2]]),
+    );
+    // Every declared surface has a prompt, and no prompt names a surface that is not one.
+    expect([...surfacePrompts.keys()].sort()).toEqual([...PROMPT_SURFACES].sort());
+
+    const spoken = builder.match(/const SPOKEN_ANSWER_PROMPT = '([^']+)'/)?.[1];
+    expect(spoken).toBeDefined();
+
+    const promptIds = [...surfacePrompts.values(), spoken ?? '', 'base'];
     const missing = promptIds.filter((id) => !existsSync(`${packageRoot}prompts/${id}.md`));
     expect(missing).toEqual([]);
-    // Vacuity floors: an empty or partial registry satisfies the line above.
-    expect(PRODUCT_PROMPT_PROFILE_IDS.length).toBeGreaterThanOrEqual(10);
-    expect(promptIds).toHaveLength(PRODUCT_PROMPT_PROFILE_IDS.length);
+    // Vacuity floor: an empty map satisfies the line above.
+    expect(surfacePrompts.size).toBeGreaterThanOrEqual(3);
   });
 });

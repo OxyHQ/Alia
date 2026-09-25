@@ -51,7 +51,7 @@ import {
 } from '../db/agents/skillRepository.js';
 import { SKILL_SOURCES, type SkillSource } from '../domain/skill.js';
 import { authenticateToken, optionalAuth } from '../middleware/auth.js';
-import { resolveModel, getAIModel, getDefaultRoutingProfile } from '../lib/chat-core.js';
+import { resolveUtilityModel, getAIModel } from '../lib/chat-core.js';
 import { readS3Object } from '../lib/s3.js';
 import { log } from '../lib/logger.js';
 import { MAX_BUNDLE_BYTES, buildSkillBundle, SkillBundleError } from '../lib/skills/bundle.js';
@@ -351,12 +351,12 @@ router.post('/generate', authenticateToken, async (req: Request, res: Response) 
   if (prompt.length < 10) return fail(res, 400, 'A prompt of at least 10 characters is required', 'invalid_prompt');
   const language = typeof req.body?.language === 'string' ? req.body.language : 'en-US';
 
-  // A bounded retry of the same Kaana route: Kaana owns provider selection, so
+  // A bounded retry of the same model: Oxy and Kaana own deployment choice, so
   // there is nothing to skip between attempts.
   const MAX_ATTEMPTS = 3;
   let text: string | null = null;
 
-  const resolved = await resolveModel(getDefaultRoutingProfile());
+  const resolved = await resolveUtilityModel().catch(() => null);
   for (let attempt = 0; resolved && attempt < MAX_ATTEMPTS; attempt++) {
     try {
       const result = await generateText({

@@ -11,7 +11,7 @@
 
 import { generateObject } from 'ai';
 import { z } from 'zod';
-import { resolveModel, getAIModel, getDefaultRoutingProfile } from '../chat-core.js';
+import { resolveUtilityModel, getAIModel } from '../chat-core.js';
 import { log } from '../logger.js';
 
 export interface VerificationResult {
@@ -43,18 +43,8 @@ export async function verifyResults(
 ): Promise<VerificationResult> {
   const minScore = opts?.minScore ?? 6;
 
-  // Use a cheap model for verification (cost efficiency)
-  const verifierModels = ['route:instant', 'route:auto'];
-  let resolved: Awaited<ReturnType<typeof resolveModel>> | null = null;
-
-  for (const modelId of verifierModels) {
-    resolved = await resolveModel(modelId);
-    if (resolved) break;
-  }
-
-  if (!resolved) {
-    resolved = await resolveModel(getDefaultRoutingProfile());
-  }
+  // The utility model: the cheapest fit catalogue model (cost efficiency)
+  const resolved = await resolveUtilityModel().catch(() => null);
 
   if (!resolved) {
     // If no model available, pass by default

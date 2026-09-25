@@ -105,9 +105,9 @@ export async function handleIncomingMessage(
       botUser.oxyUserId,
       apiMessages,
       {
-        // Unset means no preference; the request names no model and the
-        // server's default applies. See `./api-client.ts`.
-        model: botUser.preferredModel,
+        // Unset, or no longer in the catalogue, means the request names no
+        // model and the server's default applies. See `./catalogue.ts`.
+        model: await apiClient.requestModel(botUser.preferredModel),
         conversationId,
       },
     );

@@ -58,12 +58,9 @@ import { TRANSACTION_STATUSES, TRANSACTION_TYPES } from '../../domain/transactio
 /**
  * A subscription plan offered for a product.
  *
- * `model_ids` is a `text[]` of Kaana routing-profile ids (`route:*`, from the
- * code catalogue in `internal/providers/lib/routing-profile-catalogue.ts`) and
- * carries NO foreign key — there is no table to point at, and Postgres could
- * not constrain array MEMBERS to one anyway. The seed rewrites it wholesale on every run (`$set`, deliberately, so
- * the list stays code-managed while the prices stay admin-managed), so a stale
- * member is corrected on the next boot rather than persisting.
+ * Plans differ only by credits (ADR 0012): every plan sees every model in the
+ * catalogue. `model_ids`, a per-plan allowlist of routing aliases, was dropped
+ * by 0078.
  */
 export const plans = pgTable(
   'plans',
@@ -94,29 +91,6 @@ export const plans = pgTable(
     creditsLabel: text().notNull().default(''),
     isFeatured: boolean().notNull().default(false),
     sortOrder: integer().notNull().default(0),
-    /**
-     * The Kaana routing profile ids this plan includes, like
-     * `route:pro-standard` — never a provider model id.
-     *
-     * Deliberately NOT a foreign key: it is a plan's advertised contents, and a
-     * model being retired from the catalogue must not cascade into deleting or
-     * silently emptying a plan somebody is paying for. Validation belonged to
-     * the write path instead.
-     *
-     * There is currently NO write path. `routes/plans.ts`, the admin route that
-     * called `findExistingRoutingProfileIds` on write, was part of the never-mounted
-     * `/internal/gateway` surface and has been deleted; `seed-plans.ts` and
-     * `setPlanModelIds` are the writers left. The old validator went with the
-     * `routing_profiles` table; whoever adds the next plan-write surface owns
-     * validating against the code catalogue — without a foreign key, nothing
-     * else will catch an id that names no model.
-     *
-     * This sentence is the only surviving copy. It was a trailing comment on the
-     * Mongoose Plan model's `modelIds`, which the Postgres port deletes, and two
-     * other files cited it by that path until this column took it over.
-     */
-    modelIds: text().array().notNull().default(sql`'{}'::text[]`),
-
     isActive: boolean().notNull().default(true),
     isFree: boolean().notNull().default(false),
 

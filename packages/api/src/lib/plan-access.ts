@@ -15,11 +15,10 @@
  * are already the right fields, and the migration is a change of SOURCE rather
  * than a change of shape.
  *
- * The three legacy fields beside it — `allowedModelIds`, `features`, `planId` —
- * are Alia's own product derivations and are DERIVED FROM the same reads, not
- * from a second query. `allowedModelIds` in particular has no contract
- * counterpart on purpose: which models a plan advertises is a catalogue decision
- * this product owns, not an allowance Oxy meters.
+ * The two legacy fields beside it — `features`, `planId` — are Alia's own
+ * product derivations and are DERIVED FROM the same reads, not from a second
+ * query. There is no per-plan model list: every plan sees every model in the
+ * catalogue, and plans differ only by credits (ADR 0012).
  *
  * ## `payAsYouGo` is `null`, and that is a measurement rather than a stub
  *
@@ -55,19 +54,15 @@ import {
 } from '@oxy.so/contracts';
 import { getDb } from '../db/index.js';
 import { findActiveSubscriptions, type SubscriptionRow } from '../db/billing/subscriptionRepository.js';
-import { getPlans, getPlanFeatures, type PlanFeatureData } from './gateway-client.js';
+import { getPlanFeatures, type PlanFeatureData } from './gateway-client.js';
 import { TTLCache } from './ttl-cache.js';
 
-const FREE_MODEL_IDS = ['route:instant', 'route:auto', 'route:audio'];
-
 export interface Entitlements {
-  allowedModelIds: string[];
   features: Record<string, boolean | number>;
   planId: string | null;
   /**
    * The same decision in the Oxy contract's own shape. This is the interface
-   * between Oxy and Alia; the three fields above are Alia-local derivations of
-   * it plus the model catalogue.
+   * between Oxy and Alia; the two fields above are Alia-local derivations of it.
    */
   entitlement: ProductEntitlement;
 }
@@ -88,9 +83,8 @@ const cache = new TTLCache<Entitlements>({ ttlMs: 5 * 60 * 1000, maxSize: 5000 }
  * from it silently, and the drift shows up as a hot-path parse throwing.
  *
  * `null` for a key that still does not fit, and the CALLER drops it rather than
- * throwing: `getUserEntitlements` failing takes the model gate with it —
- * `request-context.ts` reads a rejected promise as "no entitlements" and skips
- * the check entirely — so a bad key would open every model to everybody. It
+ * throwing: `getUserEntitlements` failing takes every plan feature with it —
+ * `request-context.ts` reads a rejected promise as "no entitlements". It
  * cannot happen silently either: `billingSeparation.test.ts` walks the seeded
  * feature ids and fails on one this cannot express.
  */
@@ -161,17 +155,8 @@ export async function getUserEntitlements(userId: string): Promise<Entitlements>
   if (planIds.length === 0) planIds.push('free');
 
   // Fetch all plans and filter client-side (providers API returns all plans)
-  const [allPlans, allPlanFeatures] = await Promise.all([
-    getPlans(),
-    Promise.all(planIds.map(id => getPlanFeatures(id))).then(results => results.flat()),
-  ]);
-  const plans = allPlans.filter(p => planIds.includes(p.planId));
+  const allPlanFeatures = await Promise.all(planIds.map(id => getPlanFeatures(id))).then(results => results.flat());
   const planFeatures = allPlanFeatures.filter(pf => pf.enabled !== false);
-
-  const modelIds = new Set(FREE_MODEL_IDS);
-  for (const plan of plans) {
-    plan.modelIds?.forEach(id => modelIds.add(id));
-  }
 
   const features: Record<string, boolean | number> = {};
   for (const pf of planFeatures) {
@@ -195,7 +180,6 @@ export async function getUserEntitlements(userId: string): Promise<Entitlements>
   const held = subscriptions.find(s => s.planSnapshotPlanId === highestPlan);
 
   const result: Entitlements = {
-    allowedModelIds: [...modelIds],
     features,
     planId: highestPlan,
     entitlement: productEntitlementSchema.parse({

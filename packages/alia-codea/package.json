@@ -153,8 +153,8 @@
         },
         "codea.model": {
           "type": "string",
-          "default": "mode:code",
-          "description": "Routing profile to use for completions. Listed by GET /catalogue.",
+          "default": "",
+          "description": "Model to use, as a `publisher/model` id listed by the Alia catalogue (GET /catalogue). Leave empty to use the server's default model.",
           "order": 3
         },
         "codea.maxTokens": {
@@ -243,7 +243,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@oxy.so/core": "^1.7.0",
+    "@oxy.so/core": "^1.8.0",
     "jwt-decode": "^4.0.0",
     "openai": "^6.46.0"
   },

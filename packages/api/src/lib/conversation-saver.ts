@@ -33,7 +33,7 @@ import {
   type MessageVote,
   type ToolInvocation,
 } from '../domain/conversation.js';
-import { resolveModel, getAIModel } from './chat-core.js';
+import { resolveUtilityModel, getAIModel } from './chat-core.js';
 import { log } from './logger.js';
 
 // Known translations of "TITLE" that LLMs may produce
@@ -300,8 +300,8 @@ export function keepAgentOutreach(stored: readonly MessageRow[], client: readonl
  * What the title call may SPEND, which is not how long a title is.
  *
  * Six words need about fifteen tokens, and this was `30` on that reasoning.
- * MEASURED against production on 2026-08-25 (UTC), on the deployment `route:instant`
- * actually resolves to today: at a budget of 30 the answer came back
+ * MEASURED against production on 2026-08-25 (UTC), on the model the cheap
+ * title route resolved to then: at a budget of 30 the answer came back
  * `finishReason: 'length'` having spent 28 of its 30 tokens on REASONING and
  * two on text, so `result.text` was the empty string. Every conversation went
  * untitled, with no error, no failed request and nothing in the logs. The same
@@ -334,19 +334,14 @@ const TITLE_OUTPUT_TOKEN_BUDGET = 512;
  * `AGENTS.md` places on the truthful side of the line, and the client is told
  * nothing at all — it simply receives no `alia.title` event.
  *
- * `resolveModel` is INSIDE the try. It throws for an unregistered identifier or
- * a policy that forbids fallback — neither reachable for `route:instant` today,
- * since it is registered and its preset is `cross-model` — and the throw would
- * otherwise leave this function entirely and land in the caller's catch, which
- * is the one place that cannot say what happened.
+ * `resolveUtilityModel` is INSIDE the try. It throws when the catalogue is
+ * unreachable or offers no fit model, and the throw would otherwise leave this
+ * function entirely and land in the caller's catch, which is the one place that
+ * cannot say what happened.
  */
 export async function generateTitle(userMessage: string): Promise<string | null> {
   try {
-    const resolved = await resolveModel('route:instant');
-    if (!resolved) {
-      log.chat.warn({ routingProfileId: 'route:instant' }, 'Title generation skipped: no model available');
-      return null;
-    }
+    const resolved = await resolveUtilityModel();
 
     const model = getAIModel(resolved, 'background');
     const result = await generateText({

@@ -73,7 +73,6 @@ import {
   createDelegateToAgentTool,
   createAgentTool,
   createDeepResearchTool,
-  createSwitchModelTool,
   createPlanPreviewTool,
   createSuggestNewConversationTool,
 } from './tools/index.js';
@@ -184,7 +183,7 @@ export interface ForUserOptions {
   runtime?: AgentRuntimeContext | null;
   /** Raw OpenAI-format tools from the client (VS Code, Cursor, Cowork) */
   editorToolDefinitions?: OpenAITool[];
-  /** SSE emitter for tools that need to push events (switchModel, planPreview) */
+  /** SSE emitter for tools that need to push events (planPreview, suggestNewConversation) */
   sseEmitter?: SSEEmitter;
   /**
    * Whether this turn may reach the open web.
@@ -201,8 +200,8 @@ export interface ForUserOptions {
    *
    * What it withholds is not "expensive tools" in general — it is the ONE tool
    * in this set that reaches inference Alia pays for. `deepResearch` runs
-   * `lib/research/research-engine.ts`, which resolves `route:instant` and `route:auto`
-   * by name; offered on an unreserved turn it is free hosted inference behind a
+   * `lib/research/research-engine.ts`, which runs hosted catalogue models
+   * several times; offered on an unreserved turn it is free hosted inference behind a
    * tool call. The matching request FLAGS are refused at the boundary
    * (`lib/chat/request-context.ts`), and `delegateToAgent` needs `agentMode`,
    * which is refused there too — so this is the remaining door.
@@ -463,16 +462,13 @@ export class ToolPipeline {
      * SSE-emitting tools: they need an emitter to push through AND a client
      * that renders what comes out.
      *
-     * `isDirectSession` as well as the emitter, because both events drive
-     * Alia's own composer — a model switch chip and a plan preview — and a
+     * `isDirectSession` as well as the emitter, because these events drive
+     * Alia's own composer — a plan preview, a new-conversation chip — and a
      * developer-key client (Codea, Cowork) has no surface for either. Offering
      * them there is a tool the model can call whose whole effect is a frame
      * nobody draws.
      */
     if (sseEmitter && isDirectSession) {
-      aliaTools.switchModel = await createSwitchModelTool((modelId, modelName) => {
-        sseEmitter.emit('alia.model_switch', { eventVersion: 1, model: modelId, modelName });
-      });
       aliaTools.planPreview = createPlanPreviewTool((steps) => {
         sseEmitter.emit('alia.plan_preview', { eventVersion: 1, planId: `plan-${requestId}`, steps });
       });

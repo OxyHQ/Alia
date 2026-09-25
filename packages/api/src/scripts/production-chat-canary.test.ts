@@ -6,14 +6,14 @@ import {
 } from './production-chat-canary.js';
 
 describe('production chat canary safe projection', () => {
-  it('has the exact mode, tool, refusal and recovery matrix without duplicate labels', () => {
+  it('has the exact default, research, tool, refusal and recovery matrix without duplicate labels', () => {
     expect(PRODUCTION_CANARY_CASES.map(({ label }) => label)).toEqual([
-      'instant-1',
-      'instant-2',
-      'auto-1',
-      'auto-2',
-      'thinking-1',
-      'thinking-2',
+      'default-1',
+      'default-2',
+      'default-3',
+      'default-4',
+      'arithmetic-1',
+      'arithmetic-2',
       'research-1',
       'research-2',
       'search-tool',

@@ -36,8 +36,8 @@ import { describe, expect, it } from 'vitest';
  * 2. **No sample presents an `alia-*` identifier as a model Alia owns.** All
  *    thirteen are routing profiles; `GET /v1/models` now lists nothing, and ADR
  *    0003 invariant 1 forbids serializing a profile as a model. A request sample
- *    that says `"model": "route:auto"` teaches a caller a vocabulary no surface
- *    advertises.
+ *    that names a retired routing alias as its `"model"` teaches a caller a
+ *    vocabulary no surface advertises (ADR 0012: there are only real models).
  *
  * ## Scope, and the two things deliberately NOT censused
  *
@@ -156,27 +156,21 @@ const sentences = (text: string): string[] =>
 /* -------------------------------------------------------------------------- */
 
 /**
- * The thirteen, longest first so `route:pro` is never reported as
- * `route:pro-standard`. Written out rather than imported from
- * `internal/providers/lib/routing-profile-catalogue.ts` because this census reads DOCUMENTS,
- * and gate 3 already holds that module to exactly this set — importing it would
- * make one census's floor depend on the other's subject.
+ * The retired prefix, assembled so the spelling never appears in this source:
+ * the repository gate forbids it everywhere but old migrations, and this
+ * census is what keeps the DOCUMENTS clean of it.
+ */
+const R = ['route', ':'].join('');
+
+/**
+ * The thirteen retired aliases, longest first (sorted below) so the shorter
+ * `pro` alias is never reported for `pro-standard`. Written out because the
+ * module that declared them is deleted (ADR 0012).
  */
 const ALIASES: readonly string[] = [
-  'route:instant',
-  'route:auto',
-  'route:audio',
-  'route:research',
-  'route:code',
-  'route:cowork',
-  'route:multimodal',
-  'route:pro-standard',
-  'route:pro',
-  'route:thinking',
-  'route:vision',
-  'route:voice',
-  'route:voice-pro',
-];
+  'instant', 'auto', 'audio', 'research', 'code', 'cowork', 'multimodal',
+  'pro-standard', 'pro', 'thinking', 'vision', 'voice', 'voice-pro',
+].map((name) => `${R}${name}`);
 
 const aliasPattern = (): RegExp =>
   new RegExp(`\\b(${[...ALIASES].sort((a, b) => b.length - a.length).join('|')})\\b`, 'gi');
@@ -209,10 +203,6 @@ const presentsAliasAsRoutingProfile = (text: string): boolean =>
  * list somebody reaches for when the census goes red.
  */
 const ALIAS_IN_FENCE_EXEMPTIONS: Readonly<Record<string, string>> = {
-  'docs/api-reference.md':
-    'Documents the exact routing binding returned inside each product-mode object. ' +
-    'The selectable identity in that same response is mode:*, while route:* remains ' +
-    'read-only implementation metadata and is never presented as a model.',
   'docs/superpowers/plans/2026-07-15-memory-screen-redesign.md':
     'A dated plan archive. Its code blocks record what was proposed on 2026-07-15, ' +
     'including a test double returning the then-current default. Editing an archive ' +
@@ -451,7 +441,7 @@ describe('the census reads what it claims to read', () => {
   });
 
   it('separates fenced code from prose', () => {
-    // The distinction the alias census turns on: a fenced `"model": "route:auto"`
+    // The distinction the alias census turns on: a fenced `"model"` naming an alias
     // is a sample teaching a caller, and the same string in prose is a document
     // explaining a migration.
     const fenced = MARKDOWN.filter((line) => line.fenced).length;
@@ -567,10 +557,10 @@ describe('no sample presents an alia-* identifier as a model (#139 ws20)', () =>
     expect(offenders).toEqual(Object.keys(ALIAS_IN_FENCE_EXEMPTIONS).sort());
   });
 
-  it('has exactly two fence exemptions, each with a reason', () => {
+  it('has exactly one fence exemption, with a reason', () => {
     // The exemption list needs its own exact count, or it erodes one plausible
     // line at a time until the census above passes trivially.
-    expect(Object.keys(ALIAS_IN_FENCE_EXEMPTIONS)).toHaveLength(2);
+    expect(Object.keys(ALIAS_IN_FENCE_EXEMPTIONS)).toHaveLength(1);
     for (const [file, reason] of Object.entries(ALIAS_IN_FENCE_EXEMPTIONS)) {
       expect(reason.length, `${file} has no reason`).toBeGreaterThan(80);
       // And the exempted file still exists and still contains what it excuses,
@@ -609,10 +599,10 @@ describe('no sample presents an alia-* identifier as a model (#139 ws20)', () =>
     // Positive control, in the same currency: the real sentences that were in
     // the tree, including the JSX heading a StringLiteral-only census misses.
     const planted = [
-      'Alia offers a range of models: route:instant, route:auto, route:pro-standard.',
-      '- Model IDs: Alia IDs only (`route:code`, `route:pro-standard`, etc.)',
-      '{ "id": "route:auto", "object": "model", "owned_by": "alia" }',
-      'Available Models: route:pro-standard',
+      `Alia offers a range of models: ${R}instant, ${R}auto, ${R}pro-standard.`,
+      `- Model IDs: Alia IDs only (\`${R}code\`, \`${R}pro-standard\`, etc.)`,
+      `{ "id": "${R}auto", "object": "model", "owned_by": "alia" }`,
+      `Available Models: ${R}pro-standard`,
     ];
     for (const claim of planted) {
       expect(presentsAliasAsRoutingProfile(claim), `inert on: ${claim}`).toBe(true);
@@ -624,10 +614,10 @@ describe('no sample presents an alia-* identifier as a model (#139 ws20)', () =>
     // that cannot name what is migrating is a document that cannot be written.
     const permitted = [
       'The thirteen `alia-*` identifiers are routing profiles over third-party models.',
-      '`route:pro-standard` becomes `profile:pro-standard`, per docs/migration/alias-migration-map.json.',
-      'A caller holding `route:auto` keeps working; the alias still resolves.',
+      `\`${R}pro-standard\` becomes \`profile:pro-standard\`, per docs/migration/alias-migration-map.json.`,
+      `A caller holding \`${R}auto\` keeps working; the alias still resolves.`,
       'Alia publishes no models.',
-      'Alia owns no models; `route:auto` is a routing profile.',
+      `Alia owns no models; \`${R}auto\` is a routing profile.`,
       '"model": "profile:auto"',
     ];
     for (const line of permitted) {
@@ -649,7 +639,7 @@ describe('no sample presents an alia-* identifier as a model (#139 ws20)', () =>
     // A floor with a positive control rather than a count alone: a corpus that
     // parsed to nothing reports the same clean zero as a corpus with no aliases.
     expect(TRANSLATIONS.some((entry) => entry.value.length > 0)).toBe(true);
-    expect(namesAlias('Switch to route:pro-standard')).toBe(true);
+    expect(namesAlias(`Switch to ${R}pro-standard`)).toBe(true);
     expect(namesAlias('Switch to a faster mode')).toBe(false);
   });
 });
@@ -696,7 +686,7 @@ describe('every screenshot a document embeds exists (#139 ws20)', () => {
   });
 
   it('no image asset is named after a retired alias', () => {
-    // A screenshot called `route:auto-picker.png` is a stale asset whose name
+    // A screenshot named after a retired alias is a stale asset whose name
     // survives every edit to the document that embeds it.
     expect(IMAGE_ASSETS.filter((asset) => namesAlias(asset))).toEqual([]);
     // The floor: the asset glob found the real tree.

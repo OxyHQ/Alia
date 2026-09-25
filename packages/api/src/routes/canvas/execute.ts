@@ -6,8 +6,7 @@ import {
   createExecution,
 } from '../../db/automation/workflowRepository.js';
 import { authenticateToken } from '../../middleware/auth.js';
-import { resolveModel, getAIModel, getDefaultRoutingProfile } from '../../lib/chat-core.js';
-import { toRoutingProfile } from '../../lib/product-modes.js';
+import { resolveStoredModel, getAIModel } from '../../lib/chat-core.js';
 import { getDb } from '../../db/index.js';
 import {
   findEntryByTitle,
@@ -235,17 +234,10 @@ async function executeNode(node: WorkflowNode, input: string, userId: string): P
 
     case 'aiText': {
       /**
-       * A node stores the canonical `kaana-*` profile published by
-       * `GET /catalogue`. Internal policy IDs and compatibility spellings are
-       * rejected rather than translated.
+       * A node stores a `publisher/model` from `GET /catalogue`, or nothing.
+       * Unset, or no longer offered, runs the person's default (ADR 0012).
        */
-      const requested = node.data.model || getDefaultRoutingProfile();
-      const modelId = toRoutingProfile(requested);
-      if (modelId === null) {
-        throw new Error(`"${requested}" is not a routing profile. List them at GET /catalogue.`);
-      }
-      const resolved = await resolveModel(modelId);
-      if (!resolved) throw new Error(`Could not resolve model: ${modelId}`);
+      const resolved = await resolveStoredModel(node.data.model || null, userId);
       const model = getAIModel(resolved, 'authoring');
       const builtPrompt = node.data.prompt
         ? node.data.prompt.replace(/\{\{input\}\}/g, input)

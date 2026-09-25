@@ -4,11 +4,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
  * `promptOnly` — the surfaces whose endpoint reads a prompt string and nothing
- * else (`/agents/generate`, `/skills/generate`, both on the default routing
- * profile) — offers no control whose value that send would ignore: no model
- * picker or effort, no mode selector, no add menu (files, search, skills,
- * connectors), and no attachment props, which is what tells the composer to
- * take no paste or drop and draw no tile.
+ * else (`/agents/generate`, `/skills/generate`) — offers no control whose value
+ * that send would ignore: no effort, no mode selector, no add menu (files,
+ * search, skills, connectors), and no attachment props, which is what tells the
+ * composer to take no paste or drop and draw no tile. The model picker stays
+ * only where the screen keeps its own model: creating an agent stores the one
+ * picked as the new agent's model.
  */
 
 const addMenu = vi.hoisted(() => ({ options: [] as Array<{ canAttach: boolean }> }));
@@ -24,6 +25,8 @@ vi.mock('@/features/chat/ui/composer/model-lineup', () => ({
     providers: [],
     model: 'm',
     onModelChange: () => {},
+    current: null,
+    togglePinned: () => {},
     effortLevels: [],
     effort: null,
     onEffortChange: () => {},
@@ -73,7 +76,8 @@ describe('a surface that sends a whole turn', () => {
     expect(props.onAddAttachment).toBeTypeOf('function');
     expect(props.attachments).toEqual([]);
     expect(props.providers).toBeDefined();
-    expect(props.modes).toHaveLength(3);
+    // Answer or agent; deep research is a tool in the add menu, not a mode.
+    expect(props.modes).toHaveLength(2);
     expect(props.addMenu).toBeDefined();
   });
 });
@@ -85,5 +89,17 @@ describe('a surface that sends only a prompt', () => {
     // Nothing at all: Bloom's panel hides the picker without `providers`, and
     // the composer defaults the add menu and the modes to `[]`, which hide them.
     expect(props).toEqual({});
+  });
+
+  it('keeps the model picker, and only it, where the screen keeps its own model', () => {
+    const onModelChange = vi.fn();
+    const { props } = render({
+      draft: 'surface:agent-create',
+      promptOnly: true,
+      selectedModel: null,
+      onModelChange,
+    });
+
+    expect(Object.keys(props).sort()).toEqual(['model', 'onModelChange', 'providers']);
   });
 });

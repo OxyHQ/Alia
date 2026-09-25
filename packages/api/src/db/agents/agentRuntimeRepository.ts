@@ -14,7 +14,8 @@ export async function createAgentThread(db: ApiDatabase, input: {
   oxyUserId: string;
   agentId: string;
   title: string;
-  routingProfileId: string;
+  /** The thread's `publisher/model`; null runs the owner's default. */
+  modelId?: string | null;
   approvalMode?: 'ask' | 'supervised_auto';
   executionTarget?: 'sandbox' | 'cowork';
   coworkDeviceId?: string;
@@ -25,7 +26,7 @@ export async function createAgentThread(db: ApiDatabase, input: {
     oxyUserId: input.oxyUserId,
     agentId: input.agentId,
     title: input.title,
-    routingProfileId: input.routingProfileId,
+    modelId: input.modelId ?? null,
     approvalMode: input.approvalMode ?? 'ask',
     executionTarget,
     coworkDeviceId: executionTarget === 'cowork' ? input.coworkDeviceId : null,

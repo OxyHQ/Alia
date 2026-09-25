@@ -16,7 +16,8 @@ export interface AuthenticatedResponseClient {
 
 export interface AliaChatRequest {
   readonly url: string;
-  readonly model: string;
+  /** `publisher/model`; omitted, the server's default model answers. */
+  readonly model?: string;
   readonly messages: ReadonlyArray<{ readonly role: string; readonly content: string }>;
   /**
    * `'voice'` asks for an answer meant to be heard: short, conversational, no
@@ -48,7 +49,7 @@ export async function streamAliaChat(
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: request.model,
+      ...(request.model === undefined ? {} : { model: request.model }),
       messages: request.messages,
       stream: true,
       ...(request.responseMode === undefined ? {} : { responseMode: request.responseMode }),

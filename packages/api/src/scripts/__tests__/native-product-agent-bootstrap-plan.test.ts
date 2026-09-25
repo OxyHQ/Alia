@@ -15,7 +15,6 @@
 
 import { describe, it, expect } from 'vitest';
 import { NATIVE_PRODUCT_AGENT_MANIFEST } from '../../config/native-product-agents.js';
-import { OXY_KAANA_ROUTING_PROFILE_IDS } from '../../config/oxy-inference-routing-profile-ids.js';
 import {
   bootstrapPlanSha256,
   manifestAgents,
@@ -28,7 +27,6 @@ import {
 
 const SINDI = NATIVE_PRODUCT_AGENT_MANIFEST.agents[0];
 const CLARITY = NATIVE_PRODUCT_AGENT_MANIFEST.agents[1];
-const AUTO = OXY_KAANA_ROUTING_PROFILE_IDS['route:auto'];
 
 /** A row exactly as a correct bootstrap leaves it. */
 function settled(agent = SINDI): NativeAgentRow {
@@ -40,7 +38,6 @@ function settled(agent = SINDI): NativeAgentRow {
     access: 'private',
     status: 'active',
     isPublished: false,
-    routingProfileId: AUTO,
     // From the MANIFEST, not a literal: a settled row is by definition one
     // carrying the published grant, so a manifest change moves this fixture
     // with it rather than leaving "settled" meaning last year's tool set.
@@ -92,7 +89,6 @@ describe('an empty database', () => {
         access: 'private',
         status: 'active',
         isPublished: false,
-        routingProfileId: NATIVE_PRODUCT_AGENT_SEEDS.homiio.routingProfileId,
       },
     });
   });
@@ -137,21 +133,17 @@ describe('an empty database', () => {
   });
 
   /**
-   * `check-agent-routing-profile-readiness.ts` is the deploy's PRE-deploy task
-   * and FAILS THE DEPLOY on an active agent with a null or unreviewed profile.
-   * An insert that left it null would make the next Alia deploy refuse to roll —
-   * a failure with no connection at all to the thing that caused it.
+   * The agent's model is not the bootstrap's to choose (ADR 0012): an inserted
+   * row carries none and runs on its owner's default model.
    */
-  it('gives every inserted agent a reviewed routing profile', () => {
+  it('inserts no model binding', () => {
     const result = planNativeProductAgentBootstrap(observe({}));
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     for (const operation of result.plan.operations) {
-      expect(operation.kind).toBe('insert');
       if (operation.kind !== 'insert') continue;
-      expect(Object.values(OXY_KAANA_ROUTING_PROFILE_IDS)).toContain(
-        operation.values.routingProfileId,
-      );
+      expect(operation.values).not.toHaveProperty('modelId');
+      expect(operation.values).not.toHaveProperty('routingProfileId');
     }
   });
 });
@@ -201,7 +193,6 @@ describe('an existing row it may finish', () => {
       ownerOxyAccountId: null,
       applicationId: null,
       status: 'idle',
-      routingProfileId: null,
     };
     const result = planNativeProductAgentBootstrap(
       observe({ homiio: { byId: draft, byOxyAccountId: draft } }),
@@ -214,7 +205,6 @@ describe('an existing row it may finish', () => {
     expect(sindi.changes.map((change) => change.field).sort()).toEqual([
       'applicationId',
       'ownerOxyAccountId',
-      'routingProfileId',
       'status',
     ]);
     expect(sindi.changes).toContainEqual({
@@ -222,25 +212,6 @@ describe('an existing row it may finish', () => {
       from: null,
       to: SINDI.applicationId,
     });
-  });
-
-  /**
-   * An operator may have tuned the profile on purpose. The seed is a default
-   * for a row this CREATES, never a correction applied to one it finds.
-   */
-  it('leaves a reviewed routing profile somebody else chose', () => {
-    const tuned: NativeAgentRow = {
-      ...settled(),
-      routingProfileId: OXY_KAANA_ROUTING_PROFILE_IDS['route:thinking'],
-    };
-    const result = planNativeProductAgentBootstrap(
-      observe({ homiio: { byId: tuned, byOxyAccountId: tuned } }),
-    );
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-    expect(result.plan.operations.find((operation) => operation.agentId === SINDI.id)?.kind).toBe(
-      'unchanged',
-    );
   });
 
   /**
@@ -400,13 +371,6 @@ describe('a row it refuses', () => {
     );
   });
 
-  it('refuses a routing profile no reviewed list contains', () => {
-    const unreviewed: NativeAgentRow = { ...settled(), routingProfileId: 'route:whatever' };
-    expect(refusalsFor({ byId: unreviewed, byOxyAccountId: unreviewed })).toContainEqual(
-      expect.objectContaining({ reason: 'unreviewed_routing_profile' }),
-    );
-  });
-
   /**
    * One refusal must not hide another, and it must not let the OTHER agent's
    * insert through either: a partial apply is the state nobody can reason about.
@@ -508,7 +472,7 @@ describe('the reach invariant', () => {
   it('never emits a widening for any state the planner accepts', () => {
     const states: NativeAgentRow[] = [
       settled(),
-      { ...settled(), applicationId: null, ownerOxyAccountId: null, routingProfileId: null },
+      { ...settled(), applicationId: null, ownerOxyAccountId: null },
       { ...settled(), access: 'public', isPublished: true },
       { ...settled(), status: 'offline' },
       { ...settled(), capabilityGrants: [] },

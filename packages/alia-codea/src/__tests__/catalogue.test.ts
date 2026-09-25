@@ -1,141 +1,176 @@
 /**
- * The picker speaks the product's language.
+ * The extension reads the real-model catalogue and never invents a model.
  *
- * The payloads are verbatim slices of what `https://api.alia.onl` served on
- * 2026-08-19 — including the `display_name` values, which still carry the alias
- * names the picker used to show. A fixture invented from the types would agree
- * with the parser by construction and measure nothing.
+ * The payload follows the `GET /catalogue` wire: `{ object, data, defaultModelId,
+ * featuredIds }`, each entry a `publisher/model`.
  */
 
 import { describe, expect, it } from 'vitest';
-import { offeredModes, parseCatalogue, parseModes, presentation, resolveSelection } from '../catalogue';
+import { parseCatalogue, pickerCatalogue, resolveSelection } from '../catalogue';
 
 const CATALOGUE = {
   object: 'list',
+  defaultModelId: 'acme/swift-2',
+  featuredIds: ['zeta/deep-1', 'acme/swift-2'],
   data: [
     {
-      id: 'profile:instant',
-      display_name: 'Instant',
-      description: 'Fast responses for simple tasks',
-      chat_visible: true,
-      object: 'routing_profile',
-      availability: { status: 'available' },
+      id: 'acme/swift-2',
+      object: 'model',
+      name: 'Swift 2',
+      publisher: { id: 'acme', name: 'Acme' },
+      description: 'Fast general model',
+      contextWindow: 128000,
+      maxOutput: 8192,
+      inputModalities: ['text', 'image'],
+      outputModalities: ['text'],
+      tools: true,
+      reasoningEfforts: [],
+      pricing: { inputPerMTok: '0.10', outputPerMTok: '0.40' },
+      releasedAt: '2026-05-01',
+      featured: true,
     },
     {
-      id: 'profile:pro-standard',
-      display_name: 'Codea Pro',
-      description: 'Advanced coding assistance',
-      chat_visible: true,
-      object: 'routing_profile',
-      availability: { status: 'available' },
+      id: 'acme/atlas',
+      object: 'model',
+      name: 'Atlas',
+      publisher: { id: 'acme', name: 'Acme' },
+      description: null,
+      contextWindow: null,
+      maxOutput: null,
+      inputModalities: ['text'],
+      outputModalities: ['text'],
+      tools: false,
+      reasoningEfforts: ['low', 'high', 'extreme'],
+      pricing: null,
+      releasedAt: null,
+      featured: false,
     },
     {
-      id: 'profile:code',
-      display_name: 'Codea',
-      description: 'Coding assistant',
-      chat_visible: false,
-      object: 'routing_profile',
-      availability: { status: 'available' },
+      id: 'beta/coder',
+      object: 'model',
+      name: 'Coder',
+      publisher: { id: 'beta', name: 'Beta Labs' },
+      description: 'Code model',
+      contextWindow: 200000,
+      maxOutput: null,
+      inputModalities: ['text'],
+      outputModalities: ['text'],
+      tools: true,
+      reasoningEfforts: ['medium'],
+      pricing: null,
+      releasedAt: null,
+      featured: false,
+    },
+    {
+      id: 'zeta/deep-1',
+      object: 'model',
+      name: 'Deep 1',
+      publisher: { id: 'zeta', name: 'Zeta' },
+      description: 'Reasoning model',
+      contextWindow: 1000000,
+      maxOutput: 32000,
+      inputModalities: ['text'],
+      outputModalities: ['text'],
+      tools: true,
+      reasoningEfforts: ['low', 'medium', 'high'],
+      pricing: { inputPerMTok: '3', outputPerMTok: '15' },
+      releasedAt: '2026-08-01',
+      featured: true,
     },
   ],
 };
 
-const MODES = {
-  object: 'list',
-  data: [
-    {
-      id: 'mode:auto',
-      object: 'product_mode',
-      label: 'Automatic',
-      description: 'Alia picks how to answer.',
-      routing: { kind: 'default' },
-      deep_research: false,
-    },
-    {
-      id: 'mode:instant',
-      object: 'product_mode',
-      label: 'Fast',
-      description: 'Quick answers to straightforward questions.',
-      routing: { kind: 'profile', profile_id: 'profile:instant' },
-      deep_research: false,
-    },
-    {
-      id: 'mode:code',
-      object: 'product_mode',
-      label: 'Coding',
-      description: 'Tuned for reading, writing and changing code.',
-      routing: { kind: 'profile', profile_id: 'profile:code' },
-      deep_research: false,
-    },
-  ],
-};
+const catalogue = parseCatalogue(CATALOGUE);
 
-const entries = parseCatalogue(CATALOGUE);
-const modes = parseModes(MODES);
-
-describe('parseModes', () => {
-  it('reads the modes and their routing', () => {
-    expect(modes.map((mode) => mode.label)).toEqual(['Automatic', 'Fast', 'Coding']);
-    expect(modes[0].routing).toEqual({ kind: 'default' });
-    expect(modes[1].routing).toEqual({ kind: 'profile', profileId: 'profile:instant' });
-  });
-
-  it('throws rather than reading an unreadable response as "no modes"', () => {
-    expect(() => parseModes({ object: 'list' })).toThrow();
-    expect(() => parseModes({ object: 'list', data: [{ id: 'mode:x' }] })).toThrow();
-  });
-
-  it('reads a `profile` routing with no id as a shape break, not a default', () => {
-    const parsed = parseModes({
-      object: 'list',
-      data: [{ ...MODES.data[1], routing: { kind: 'profile' } }],
-    });
-    // Not silently `{kind:'default'}` with the mode's meaning moved — the mode
-    // parses, but it now names no profile, so it labels nothing.
-    expect(parsed[0].routing).toEqual({ kind: 'default' });
-    expect(presentation(entries[0], parsed).label).toBe('Instant');
-  });
-});
-
-describe('presentation', () => {
-  it("uses the product's word for a profile a mode selects", () => {
-    expect(entries[0].displayName).toBe('Instant');
-    expect(presentation(entries[0], modes).label).toBe('Fast');
-  });
-
-  it("falls back to the catalogue's own name for a profile no mode selects", () => {
-    expect(presentation(entries[1], modes).label).toBe('Codea Pro');
-  });
-});
-
-describe('offeredModes', () => {
-  it("offers only the chat-visible entries, in the product's words", () => {
-    expect(offeredModes(entries, modes)).toEqual([
-      {
-        id: 'profile:instant',
-        label: 'Fast',
-        description: 'Quick answers to straightforward questions.',
-      },
-      { id: 'profile:pro-standard', label: 'Codea Pro', description: 'Advanced coding assistance' },
+describe('parseCatalogue', () => {
+  it('reads every entry, the server default and the featured ids', () => {
+    expect(catalogue.models.map((m) => m.id)).toEqual([
+      'acme/swift-2',
+      'acme/atlas',
+      'beta/coder',
+      'zeta/deep-1',
     ]);
+    expect(catalogue.defaultModelId).toBe('acme/swift-2');
+    expect(catalogue.featuredIds).toEqual(['zeta/deep-1', 'acme/swift-2']);
+    expect(catalogue.models[0]).toMatchObject({
+      name: 'Swift 2',
+      publisher: { id: 'acme', name: 'Acme' },
+      contextWindow: 128000,
+      tools: true,
+      pricing: { inputPerMTok: '0.10', outputPerMTok: '0.40' },
+    });
+  });
+
+  it('keeps only the reasoning efforts it knows', () => {
+    expect(catalogue.models[1].reasoningEfforts).toEqual(['low', 'high']);
+  });
+
+  it('drops an entry with no id or name, or of another object type', () => {
+    const parsed = parseCatalogue({
+      object: 'list',
+      data: [
+        { id: 'x/y', object: 'model' },
+        { object: 'model', name: 'Nameless' },
+        { id: 'old:thing', object: 'routing_profile', name: 'Old' },
+        CATALOGUE.data[0],
+      ],
+    });
+    expect(parsed.models.map((m) => m.id)).toEqual(['acme/swift-2']);
+    expect(parsed.defaultModelId).toBeNull();
+    expect(parsed.featuredIds).toEqual([]);
+  });
+
+  it('throws rather than reading an unreadable response as "no models"', () => {
+    expect(() => parseCatalogue({ object: 'list' })).toThrow();
+    expect(() => parseCatalogue({ object: 'list', data: [{ id: 'x/y' }] })).toThrow();
+  });
+
+  it('reads an empty list as an empty catalogue', () => {
+    expect(parseCatalogue({ object: 'list', data: [] }).models).toEqual([]);
   });
 });
 
 describe('resolveSelection', () => {
-  it('leaves a choice the catalogue offers alone', () => {
-    expect(resolveSelection('profile:instant', entries).effectiveId).toBe('profile:instant');
+  it('omits the model when nothing is configured', () => {
+    expect(resolveSelection('', catalogue)).toBeUndefined();
+    expect(resolveSelection('   ', catalogue)).toBeUndefined();
+    expect(resolveSelection(undefined, catalogue)).toBeUndefined();
+    expect(resolveSelection('', undefined)).toBeUndefined();
   });
 
-  it('replaces a choice the catalogue does not offer', () => {
-    // `profile:code` is in the catalogue but not chat-visible, so the
-    // preference is checked rather than trusted — the property the extension's
-    // `config.ts` docstring states.
-    const selection = resolveSelection('route:code', entries, 'profile:code');
-    expect(selection.source).toBe('replaced');
-    expect(selection.effectiveId).toBe('profile:instant');
+  it('sends a configured model the catalogue lists', () => {
+    expect(resolveSelection('beta/coder', catalogue)).toBe('beta/coder');
   });
 
-  it('leaves the choice alone when there is no catalogue at all', () => {
-    expect(resolveSelection('profile:instant', undefined).source).toBe('requested');
+  it('omits a configured model the catalogue no longer lists', () => {
+    expect(resolveSelection('gone/model', catalogue)).toBeUndefined();
+  });
+
+  it('sends the configured id as-is when there is no catalogue', () => {
+    expect(resolveSelection('gone/model', undefined)).toBe('gone/model');
+  });
+});
+
+describe('pickerCatalogue', () => {
+  it('puts featured models first, in server order, then groups the rest by publisher', () => {
+    const picker = pickerCatalogue(catalogue);
+    expect(picker.groups.map((g) => g.title)).toEqual(['Featured', 'Acme', 'Beta Labs']);
+    expect(picker.groups[0].models.map((m) => m.id)).toEqual(['zeta/deep-1', 'acme/swift-2']);
+    expect(picker.groups[1].models.map((m) => m.id)).toEqual(['acme/atlas']);
+  });
+
+  it('labels a row "Name — Publisher" and names the server default', () => {
+    const picker = pickerCatalogue(catalogue);
+    expect(picker.groups[0].models[0]).toEqual({
+      id: 'zeta/deep-1',
+      label: 'Deep 1 — Zeta',
+      description: 'Reasoning model · 1000K context',
+    });
+    expect(picker.defaultLabel).toBe('Default (Swift 2)');
+  });
+
+  it('falls back to the entries flagged featured when featuredIds is absent', () => {
+    const picker = pickerCatalogue({ ...catalogue, featuredIds: [] });
+    expect(picker.groups[0].models.map((m) => m.id)).toEqual(['acme/swift-2', 'zeta/deep-1']);
   });
 });

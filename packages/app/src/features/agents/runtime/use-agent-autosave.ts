@@ -59,6 +59,8 @@ export interface AgentDraft {
   access: 'private' | 'public';
   archetype: AgentArchetype;
   archetypeConfig: ArchetypeConfig;
+  /** `publisher/model`, or `null` for the server's default. */
+  modelId: string | null;
 }
 
 /**
@@ -86,6 +88,7 @@ export function agentDraftFrom(agent: Agent): AgentDraft {
     access: agent.access,
     archetype: agent.archetype || 'general',
     archetypeConfig: agent.archetypeConfig || {},
+    modelId: agent.modelId ?? null,
   };
 }
 
@@ -154,6 +157,7 @@ export function useAgentDraftAutosave(agent: Agent) {
             access: next.access,
             archetype: next.archetype,
             archetypeConfig: next.archetypeConfig,
+            modelId: next.modelId,
           },
         });
         toast.success(t('agents.autoSaved'), { id: SAVE_TOAST_ID });

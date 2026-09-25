@@ -1115,8 +1115,6 @@
     "editBilling": "Edit billing",
     "paymentSuccess": "Payment successful!",
     "failedCheckout": "Failed to create checkout session",
-    "modelRequiresPlan": "This model requires the {{plan}} plan",
-    "modelRequiresUpgrade": "Upgrade your plan to use this model.",
     "featureRequiresPlan": "{{feature}} requires a paid plan",
     "signInRequired": "Please sign in to use this feature.",
     "downgrade": "Downgrade",
@@ -1336,6 +1334,10 @@
     },
     "namePlaceholder": "Agent name",
     "colorLabel": "Colour",
+    "modelLabel": "Model",
+    "modelDefaultGroup": "Default",
+    "modelDefault": "Default model",
+    "modelDefaultNamed": "Default (%{model})",
     "handlePlaceholder": "handle",
     "handleAdjusted": "That handle was taken — your agent is @%{handle}",
     "handleTaken": "That handle is taken. Try another.",
@@ -1595,61 +1597,6 @@
     "chatAddPrompt": "Remember this about me: ",
     "chatEditPrompt": "Update what you remember about \"{{title}}\". It currently says: \"{{summary}}\". Change it to: ",
     "sizeKb": "~{{size}} KB"
-  },
-  "models": {
-    "selectModel": "Select Model",
-    "onYourDevices": "On your devices",
-    "localInvite": {
-      "title": "Models on your own computer",
-      "body": "If you run Ollama, LM Studio or similar, Alia can answer with it. Nothing is sent to your machine until you say yes.",
-      "accept": "Look for them",
-      "decline": "Not now"
-    },
-    "loadingModels": "Loading models...",
-    "loadingModes": "Loading...",
-    "legacyModels": "Older models",
-    "catalogueUnavailable": "Models could not be loaded",
-    "noModels": "No models available",
-    "automatic": {
-      "label": "Auto",
-      "description": "Alia picks how to answer."
-    },
-    "categories": {
-      "general": "General",
-      "coding": "Coding",
-      "vision": "Images",
-      "audio": "Audio",
-      "voice": "Voice",
-      "multimodal": "Multimodal"
-    },
-    "uncategorised": "Other",
-    "byPublisher": "Models, by publisher",
-    "routingProfile": "Routing profile, not a single model",
-    "picksAmong": "Picks among {{count}} models",
-    "concreteModel": "A single model",
-    "answersFrom": "Answers from {{publishers}}",
-    "answersFromAndOthers": "Answers from {{publishers}}, and others",
-    "capabilitySometimes": "{{capability}} sometimes",
-    "contextOf": "{{tokens}} context",
-    "maxOutputOf": "{{tokens}} reply",
-    "unknownOf": "{{capabilities}} unknown",
-    "retiringOn": "Stops working on {{date}}",
-    "selectionReplaced": "Your previous choice is no longer offered. Using {{model}}.",
-    "capabilities": {
-      "tools": "Tools",
-      "vision": "Images",
-      "audio": "Audio",
-      "reasoning": "Reasoning",
-      "structuredOutput": "Structured output",
-      "context": "Context",
-      "maxOutput": "Max reply"
-    },
-    "availability": {
-      "always": "yes",
-      "sometimes": "sometimes",
-      "never": "no",
-      "unknown": "unknown"
-    }
   },
   "modes": {
     "searchOn": "Web search enabled",
@@ -1934,16 +1881,11 @@
     "personalEmpty": "No personal connectors yet. Add one with +"
   },
   "effort": {
-    "select": "Effort",
-    "costNote": "Thinking is billed as output tokens, so higher effort costs more.",
-    "headlinePrefix": "",
-    "headlineSuffix": " effort",
     "levels": {
       "default": "Default",
-      "instant": "Instant",
+      "low": "Low",
       "medium": "Medium",
-      "high": "High",
-      "max": "Extra High"
+      "high": "High"
     }
   },
   "weather": {
@@ -2071,6 +2013,7 @@
     "ghostDescription": "Don't save this chat",
     "agentDescription": "Work through longer tasks",
     "canvasDescription": "Write and edit files",
+    "pinModel": "Pin model to the top",
     "modes": "Mode",
     "removeShort": "Remove",
     "models": "Models",
@@ -2081,7 +2024,7 @@
     "effort": "Effort",
     "faster": "Faster",
     "smarter": "Smarter",
-    "modelsGroup": "Models",
+    "featuredGroup": "Featured",
     "deviceGroup": "This device",
     "modeChat": "Chat",
     "modeChatDescription": "Answers, and uses tools when it helps",
