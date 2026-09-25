@@ -11,7 +11,9 @@ import type { Attachment } from "./types";
  * sentence the user needs beside the five that did, not a toast that slides
  * away. `retryable` marks the ones a second read could fix: a failed read,
  * whose `File` the intake kept. A refusal is not: the same 30 MB file reaches
- * the same verdict.
+ * the same verdict — and since Bloom's retry button is the panel's, drawn on
+ * every error tile once `onAttachmentRetry` is set, the composer shows a
+ * refusal as a toast rather than as a tile it would offer to retry.
  */
 export interface ComposerTile extends ComposerPanelAttachment {
   error?: string;

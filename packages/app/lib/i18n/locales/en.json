@@ -1679,7 +1679,7 @@
     "readingFileProgress": "Reading %{name}: %{percent}%",
     "readFailed": "%{name} could not be read — select to try again",
     "cancelRead": "Stop reading %{name}",
-    "retryRead": "Try reading %{name} again",
+    "retryShort": "Retry",
     "dismissFailed": "Discard %{name}",
     "fileTooLarge": "%{name} is larger than %{limit} and was not attached",
     "fileEmpty": "%{name} is empty — folders can't be attached",

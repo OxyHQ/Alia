@@ -1642,7 +1642,7 @@
     "readingFileProgress": "Leyendo %{name}: %{percent}%",
     "readFailed": "No se pudo leer %{name}: selecciona para reintentar",
     "cancelRead": "Detener la lectura de %{name}",
-    "retryRead": "Reintentar la lectura de %{name}",
+    "retryShort": "Reintentar",
     "dismissFailed": "Descartar %{name}",
     "fileTooLarge": "%{name} supera %{limit} y no se ha adjuntado",
     "fileEmpty": "%{name} está vacío: no se pueden adjuntar carpetas",
