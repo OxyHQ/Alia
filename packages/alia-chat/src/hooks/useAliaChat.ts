@@ -3,7 +3,6 @@ import { useOxy } from '@oxy.so/services';
 import type { ChatMessage, ToolInvocation } from '../types';
 import { getTextFromContent } from '../lib/content-utils';
 import { resolveModelId } from '../lib/catalogue';
-import { PREFERRED_CHAT_MODEL_ID } from '../lib/config';
 import { streamAliaChat } from '../lib/chat-transport';
 import type { AliaChatStreamEvent } from '../lib/chat-stream';
 
@@ -28,12 +27,12 @@ export interface UseAliaChatOptions {
    */
   apiUrl?: string;
   /**
-   * Kaana routing profile to use.
+   * The model to answer with, as `publisher/model` from `GET /catalogue`.
    *
-   * Optional, and checked against `GET /catalogue` before a request carries it:
-   * an identifier the server no longer offers is replaced rather than sent, so a
-   * retirement does not turn into a 400 inside a consumer's app. Omitted, the
-   * build's `PREFERRED_CHAT_MODEL_ID` is what gets checked.
+   * Optional, and checked against the catalogue before a request carries it: an
+   * identifier the server no longer offers is not sent, so a retirement does not
+   * turn into a 400 inside a consumer's app. Omitted, the request carries no
+   * `model` and the server's default model answers.
    */
   model?: string;
   /** App context injected as system message so Alia knows which app the user is in. */
@@ -115,7 +114,7 @@ function waitWithAbort<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> 
 export function useAliaChat(options: UseAliaChatOptions = {}): UseAliaChatReturn {
   const {
     apiUrl = API_URL,
-    model = PREFERRED_CHAT_MODEL_ID,
+    model,
     clientContext,
     accessToken: accessTokenProp,
   } = options;
@@ -377,7 +376,7 @@ export function useAliaChat(options: UseAliaChatOptions = {}): UseAliaChatReturn
 
       try {
         const effectiveModel = await waitWithAbort(
-          resolveModelId(apiUrl, model, undefined, PREFERRED_CHAT_MODEL_ID),
+          resolveModelId(apiUrl, model),
           controller.signal,
         );
         await streamAliaChat(

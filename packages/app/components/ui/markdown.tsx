@@ -8,7 +8,9 @@ import {
 import { useTranslation } from '@/lib/hooks/use-translation';
 import type { ToolInvocation } from '@/lib/types/messages';
 import { useColorScheme } from '@/lib/useColorScheme';
-import { AliaMarkdown } from '@alia.onl/sdk';
+import { AliaMarkdown, type RenderCodeBlock } from '@alia.onl/sdk';
+import { CodeBlock } from '@oxy.so/bloom/code';
+import * as Clipboard from 'expo-clipboard';
 import { fontFamilies } from '@oxy.so/bloom/fonts';
 import { Text } from '@oxy.so/bloom/typography';
 import * as WebBrowser from 'expo-web-browser';
@@ -286,6 +288,20 @@ function ReferenceList({
   );
 }
 
+/** Copy through Expo's clipboard, which Bloom's card needs on native (web has its own). */
+const copyCode = async (code: string) => {
+  await Clipboard.setStringAsync(code);
+};
+
+/**
+ * Fenced code as Bloom's code card: the language chip, a copy button and
+ * numbered lines. Module-level so its identity is stable — it is part of the
+ * SDK renderer's rules memo.
+ */
+const renderCodeBlock: RenderCodeBlock = (code, language) => (
+  <CodeBlock code={code} language={language} onCopy={copyCode} />
+);
+
 /**
  * The chat's Markdown, plus what a research answer needs on top of it.
  *
@@ -333,7 +349,7 @@ export function CustomMarkdown({
     <View>
       {blocks.map((block, idx) => {
         if (block.type === 'text') {
-          return <AliaMarkdown key={idx} content={block.content} colors={aliaColors} fontFamily={MARKDOWN_BODY_FONT} />;
+          return <AliaMarkdown key={idx} content={block.content} colors={aliaColors} fontFamily={MARKDOWN_BODY_FONT} renderCodeBlock={renderCodeBlock} />;
         } else if (block.type === 'block' && block.blockType) {
           return renderBlock(block.blockType, block.data, idx);
         }

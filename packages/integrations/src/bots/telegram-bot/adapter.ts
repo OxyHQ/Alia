@@ -44,13 +44,7 @@ export class TelegramBotAdapter implements BotAdapter {
     await bot.telegram.setMyCommands([
       { command: 'start', description: 'Link your Alia account' },
       { command: 'status', description: 'View account status and credits' },
-      // The command is still addressed as `/model`, because that is the name
-      // people have typed for a year and Telegram offers no alias. What it
-      // CHANGES is a routing profile, and #139's non-negotiable invariant is
-      // about what a routing profile is presented AS — so every word around the
-      // address says mode, starting with this menu entry, which every user of
-      // the bot reads.
-      { command: 'model', description: 'Choose how Alia answers' },
+      { command: 'model', description: 'Choose the model Alia answers with' },
       { command: 'new', description: 'Start a new conversation' },
       { command: 'history', description: 'View recent conversations' },
       { command: 'help', description: 'Show help guide' },
@@ -80,10 +74,10 @@ export class TelegramBotAdapter implements BotAdapter {
     bot.action('new', handleNewConversation);
     bot.action('history', handleHistory);
 
-    // Dynamic model selection callback
+    // Model button callback: `model_<publisher/model>` or `model_default`
     bot.action(/^model_(.+)$/, (ctx) => {
-      const modelId = ctx.match[1];
-      return handleModelSelection(ctx, modelId);
+      const data = ctx.match[1];
+      return handleModelSelection(ctx, data);
     });
 
     // Text messages => streaming chat
@@ -215,10 +209,9 @@ Be concise and friendly. Use these Telegram features when appropriate.`,
         botUser.oxyUserId.toString(),
         apiMessages,
         {
-          // Unset means the person has expressed no preference, so the request
-          // names no model and the server's own default applies — the Automatic
-          // product mode. See `shared/api-client.ts`.
-          model: botUser.preferredModel,
+          // Unset, or no longer in the catalogue, means the request names no
+          // model and the server's default applies. See `shared/catalogue.ts`.
+          model: await apiClient.requestModel(botUser.preferredModel),
           conversationId,
         },
       );

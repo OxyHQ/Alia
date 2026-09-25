@@ -14,7 +14,6 @@ export function Console() {
   const [authState, setAuthState] = React.useState<{
     isAuthenticated: boolean
     username?: string
-    preferredModel: string
   } | null>(null)
   const [apiTest, setApiTest] = React.useState<{ status: string; message: string } | null>(null)
 
@@ -134,17 +133,6 @@ export function Console() {
               <div className="space-y-1 text-xs text-muted-foreground">
                 <div>Base URL: https://api.alia.onl</div>
                 <div>Sign-in: Oxy device flow</div>
-                {/*
-                  * The identifier, named for what it is.
-                  *
-                  * It read `Model:` over a `profile:*` value, which is #139's
-                  * non-negotiable invariant broken twice over — a routing
-                  * policy presented as a model, in the label and in the value.
-                  * This panel is diagnostics, so the identifier stays (the
-                  * `Base URL` row above it is the same kind of fact); what
-                  * changes is that it is no longer called a model.
-                  */}
-                <div>Routing profile: {authState?.preferredModel ?? "—"}</div>
               </div>
             </CardContent>
           </Card>

@@ -2,6 +2,33 @@
 
 ## Unreleased
 
+## 9.0.0
+
+### Real models, and no model identifier in the package
+
+Alia has no models of its own: `GET /catalogue` now lists the real models Oxy
+serves (`publisher/model`), with the server's `defaultModelId` and
+`featuredIds`. The SDK follows it, and the product modes and routing profiles
+(`mode:*`, `route:*`) are gone from it.
+
+**Breaking:**
+
+- `PREFERRED_CHAT_MODEL_ID` and `PREFERRED_VOICE_MODEL_ID` are removed. With no
+  `model`, `useAliaChat`, the voice turn sender, `useTTS` and `useVoiceRoom` send
+  no `model` and the server's default (chat or speech) answers.
+- `parseCatalogue` and `fetchCatalogue` return a `Catalogue`
+  (`{ entries, defaultModelId, featuredIds }`), and `CatalogueEntry` is the new
+  model shape (`name`, `publisher`, `contextWindow`, `reasoningEfforts`,
+  `pricing`, …). `CatalogueEntryKind` is removed.
+- `resolveSelection(requestedId, catalogue)` and `resolveModelId(apiUrl,
+  requestedId?)` take no preferred id; an identifier the catalogue no longer
+  lists resolves to `undefined` (omit `model`) instead of a substitute.
+- The `alia.model_switch` stream event is no longer accepted; the server no
+  longer sends it.
+
+**Added:** `AliaMarkdown` takes `renderCodeBlock` to draw fenced code with the
+host's own code card (the Alia app passes Bloom's `CodeBlock`).
+
 ### The consumer-backend path is documented
 
 Documentation only; no code, wire or default changed, and no version is cut for

@@ -13,7 +13,7 @@ import { Stagehand } from '@browserbasehq/stagehand'
 import Store from 'electron-store'
 import { errorMessage, errorCode } from './errors'
 import { createLogger } from './logger'
-import { PREFERRED_BROWSER_MODEL_ID } from './config'
+import { resolveRequiredModelId } from './catalogue'
 import { currentAccessToken } from './auth'
 
 const execAsync = promisify(exec)
@@ -483,13 +483,28 @@ export class ToolExecutor {
            * Cowork's own chat moved to `/alia/chat` in `./chat.ts` because it
            * DOES read them.
            *
-           * The bearer is the Oxy session token. The model is `route:research`
-           * (`./config`), a canonical routing profile the boundary accepts; the
-           * `profile:*` spelling it used to send was refused on every call.
+           * The bearer is the Oxy session token. The model is the one the chat
+           * uses — the person's pick if the catalogue lists it — or, since
+           * Stagehand cannot omit a model name, the catalogue's own
+           * `defaultModelId`. Nothing is hardcoded.
+           *
+           * The `openai/` prefix is Stagehand's PROTOCOL selector, not part of
+           * the model id: Stagehand splits `provider/model` at the first slash
+           * and would otherwise read a catalogue id's publisher (`acme/…`) as
+           * an AI SDK provider and talk that provider's own wire protocol to
+           * Alia. With `openai/` it uses the OpenAI-compatible client against
+           * `baseURL`, and sends the whole `publisher/model` id as `model`.
+           * (Stagehand 3's AI SDK OpenAI client calls `{baseURL}/responses`,
+           * which `packages/api/src/routes/v1/responses.ts` adapts onto the same
+           * chat handler.)
            */
+          const modelId = await resolveRequiredModelId(baseUrl, store.get('model') as string | undefined, apiKey || undefined)
+          if (modelId === null) {
+            return 'Browser automation is unavailable: the model catalogue could not be read.'
+          }
           const agent = this.stagehand.agent({
             model: {
-              modelName: PREFERRED_BROWSER_MODEL_ID,
+              modelName: `openai/${modelId}`,
               apiKey: apiKey,
               baseURL: `${baseUrl}/v1`, // Alia API endpoint (OpenAI-compatible)
             }

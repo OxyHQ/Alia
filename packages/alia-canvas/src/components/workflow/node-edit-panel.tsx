@@ -6,13 +6,22 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import type { WorkflowNode } from "@/lib/workflow-types";
-import { AUTOMATIC, useOfferedModes } from "@/lib/product-modes";
+import {
+  DEFAULT_MODEL,
+  defaultLabel,
+  formatContextWindow,
+  groupModels,
+  storedModelId,
+  useCatalogue,
+} from "@/lib/catalogue";
 
 interface NodeEditPanelProps {
   node: WorkflowNode;
@@ -21,22 +30,28 @@ interface NodeEditPanelProps {
 }
 
 export function NodeEditPanel({ node, onUpdate, onClose }: NodeEditPanelProps) {
-  const { data: offeredModes } = useOfferedModes();
+  const { data: catalogue } = useCatalogue();
+  const modelGroups = catalogue === undefined ? [] : groupModels(catalogue);
+  const selectedModel = storedModelId(node.data.model);
+  /** A stored model the catalogue no longer lists stays selectable as itself. */
+  const selectedUnlisted =
+    selectedModel !== undefined &&
+    catalogue !== undefined &&
+    !catalogue.models.some((model) => model.id === selectedModel);
 
   const handleChange = (field: string, value: unknown) => {
     onUpdate(node.id, { [field]: value });
   };
 
   /**
-   * Automatic is stored as the ABSENCE of a `model`, not as a value.
+   * Default is stored as the ABSENCE of a `model`, not as a value.
    *
-   * The server routes a node that names no model through its own default
-   * (`packages/api/src/routes/canvas/execute.ts`), which is what Automatic
-   * means. Writing a sentinel into the workflow instead would put a string the
-   * API has never heard of into saved data.
+   * The server answers a node that names no model with its own default
+   * (`defaultModelId` in the catalogue), so writing a sentinel into the workflow
+   * would put a string the API has never heard of into saved data.
    */
-  const handleModeChange = (value: string) => {
-    handleChange("model", value === AUTOMATIC ? undefined : value);
+  const handleModelChange = (value: string) => {
+    handleChange("model", value === DEFAULT_MODEL ? undefined : value);
   };
 
   return (
@@ -68,19 +83,31 @@ export function NodeEditPanel({ node, onUpdate, onClose }: NodeEditPanelProps) {
           {node.type === "aiText" && (
             <>
               <div>
-                <Label htmlFor="mode">Mode</Label>
-                <Select value={node.data.model || AUTOMATIC} onValueChange={handleModeChange}>
-                  <SelectTrigger id="mode">
+                <Label htmlFor="model">Model</Label>
+                <Select value={selectedModel ?? DEFAULT_MODEL} onValueChange={handleModelChange}>
+                  <SelectTrigger id="model">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {(offeredModes ?? []).map((mode) => (
-                      <SelectItem key={mode.id} value={mode.id}>
-                        <div className="flex flex-col">
-                          <span className="font-medium">{mode.label}</span>
-                          <span className="text-xs text-muted-foreground">{mode.description}</span>
-                        </div>
-                      </SelectItem>
+                    <SelectItem value={DEFAULT_MODEL}>{defaultLabel(catalogue)}</SelectItem>
+                    {selectedUnlisted && (
+                      <SelectItem value={selectedModel}>{selectedModel}</SelectItem>
+                    )}
+                    {modelGroups.map((group) => (
+                      <SelectGroup key={group.key}>
+                        <SelectLabel>{group.label ?? "Featured"}</SelectLabel>
+                        {group.models.map((model) => {
+                          const context = formatContextWindow(model.contextWindow);
+                          return (
+                            <SelectItem key={model.id} value={model.id}>
+                              <span className="font-medium">{model.name}</span>
+                              {context !== null && (
+                                <span className="ml-2 text-xs text-muted-foreground">{context}</span>
+                              )}
+                            </SelectItem>
+                          );
+                        })}
+                      </SelectGroup>
                     ))}
                   </SelectContent>
                 </Select>

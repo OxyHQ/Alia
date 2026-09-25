@@ -1,72 +1,57 @@
 /**
- * The model catalogue and the product modes, as the bots consume them
- * (`GET /catalogue`, `GET /catalogue/modes`, epic #139 workstream 5).
+ * The model catalogue, as the bots consume it (`GET /catalogue`).
  *
- * ## Why this exists at all
+ * Alia has no models of its own: the catalogue lists the real models the
+ * server can route to, each named `publisher/model`, and reports which one the
+ * server uses when a request names none (`defaultModelId`). Nothing in this
+ * service names a model. A person's choice is stored as the id they picked, and
+ * every request goes through {@link resolveRequestModel}:
  *
- * The Telegram and Discord bots read `GET /v1/models` and, when it came back
- * empty, printed `route:instant` — a routing profile wearing a model's name, and
- * the identifier ADR 0002 froze. `docs/migration/compatibility-window.md`
- * records that `/v1/models` is CLOSED FOR ADVERTISEMENT and permanently serves
- * `{"object":"list","data":[]}`, so "when it came back empty" is now always:
- * every `/model` listing was empty and every `/status` printed the alias.
+ *  - a chosen model the loaded catalogue lists is sent;
+ *  - no choice, or a choice the catalogue no longer lists, sends NO `model`, so
+ *    the server's own default applies — a withdrawn model degrades to the
+ *    default rather than to an error;
+ *  - when the catalogue could not be read at all, the chosen id is sent as-is
+ *    (the server is the authority on whether it still exists).
  *
- * Measured 2026-08-19 against the running service:
- * `GET https://api.alia.onl/v1/models` → `{"object":"list","data":[]}`;
- * `GET https://api.alia.onl/catalogue` → twelve entries, all
- * `object: "routing_profile"`.
+ * A stored value that is not a `publisher/model` id — a retired `mode:*`,
+ * `route:*`, `profile:*` or legacy `alia-*` identifier — reads as unset.
  *
- * ## Why `/catalogue` and not something under `/v1`
- *
- * CORS is not a factor for this service and auth is not either, which is the
- * whole reason the answer here differs from the browser clients'. This is a
- * server-to-server call with no `Origin` header, which `createOxyCors` passes
- * through untouched (`packages/api/src/index.ts`), and `GET /catalogue` is
- * `optionalAuth` while `GET /catalogue/modes` is unauthenticated outright. The
- * bots hold a channel secret and an Oxy user id, not the user's own bearer
- * token, so `?entitled=true` is not available to them — they offer what the
- * product advertises (`chat_visible`), which is what they offered before.
- *
- * No `?surface=` either: `lib/surface-capability.ts` names seven surfaces and
- * none of them is a chat bot, and an unrecognised value is a 400 rather than an
- * unfiltered list. `chat_visible` already narrows to the four general-purpose
- * profiles, which is the same set a text-only channel can render.
- *
- * ## What a person reads
- *
- * A routing profile is shown with the words of the product mode that selects it
- * — Fast, Balanced, Maximum quality — falling back to the catalogue's own
- * display name for a profile no mode names. That rule is stated once, at
- * length, in `packages/app/lib/hooks/use-product-modes.ts`; {@link presentation}
- * below is the same rule, and the reason it is a copy rather than an import is
- * that this service deploys separately and depends on no unpublished workspace
- * package.
+ * The bots call it server-to-server, with no `Origin` header and no user bearer
+ * token; `GET /catalogue` is `optionalAuth`, so no credential is sent.
  */
 
+export type ReasoningEffort = 'low' | 'medium' | 'high';
+
 /** A catalogue entry, in the fields a bot renders or decides on. */
-export interface CatalogueEntry {
+export interface CatalogueModel {
+  /** `publisher/model`. */
   readonly id: string;
-  readonly displayName: string;
-  readonly description: string;
-  readonly emoji: string | null;
-  readonly chatVisible: boolean;
-  readonly unavailable: boolean;
-  readonly creditMultiplier: number | null;
+  readonly name: string;
+  readonly publisher: { readonly id: string; readonly name: string };
+  readonly description: string | null;
+  readonly contextWindow: number | null;
+  readonly maxOutput: number | null;
+  readonly inputModalities: readonly string[];
+  readonly outputModalities: readonly string[];
+  readonly tools: boolean;
+  readonly reasoningEfforts: readonly ReasoningEffort[];
+  readonly pricing: { readonly inputPerMTok: string; readonly outputPerMTok: string } | null;
+  readonly releasedAt: string | null;
+  readonly featured: boolean;
 }
 
-/** Which routing profile a request made in this mode goes through. */
-export type ProductModeRouting = { readonly kind: 'profile'; readonly profileId: string };
-
-export interface ProductMode {
-  /** `mode:*`. Never sent as a request `model` — nothing in the request path consumes one. */
-  readonly id: string;
-  readonly label: string;
-  readonly description: string;
-  readonly routing: ProductModeRouting;
-  readonly deepResearch: boolean;
+export interface Catalogue {
+  readonly models: readonly CatalogueModel[];
+  /** The model the server uses when a request names none. May be absent from `models`. */
+  readonly defaultModelId: string;
+  readonly featuredIds: readonly string[];
 }
 
 type JsonObject = Record<string, unknown>;
+
+const UNREADABLE = 'The model catalogue response could not be read.';
+const REASONING_EFFORTS: ReadonlySet<string> = new Set(['low', 'medium', 'high']);
 
 function asObject(value: unknown): JsonObject | null {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -78,208 +63,225 @@ function asText(value: unknown): string | null {
   return typeof value === 'string' ? value : null;
 }
 
-function asNumber(value: unknown): number | null {
-  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+function asCount(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null;
 }
 
-/**
- * Turn a catalogue response into entries, or throw.
- *
- * Throwing beats returning an empty list because "no entries" and "we failed to
- * read the entries" are indistinguishable to the caller, and one of them means
- * a `/model` listing that silently offers nothing.
- */
-export function parseCatalogue(payload: unknown): CatalogueEntry[] {
-  const body = asObject(payload);
-  const data = body === null ? null : body.data;
-  if (!Array.isArray(data)) throw new Error('The model catalogue response could not be read.');
-
-  const entries: CatalogueEntry[] = [];
-  for (const value of data) {
-    const raw = asObject(value);
-    if (raw === null) continue;
-    const id = asText(raw.id);
-    const displayName = asText(raw.display_name);
-    if (id === null || displayName === null) continue;
-    // An entry whose `object` is neither known value is dropped rather than
-    // guessed at: ADR 0003 reserves `model` for models, and a third value is a
-    // shape this build has never seen.
-    if (raw.object !== 'model' && raw.object !== 'routing_profile') continue;
-    const availability = asObject(raw.availability) ?? {};
-    const pricing = asObject(raw.pricing) ?? {};
-    entries.push({
-      id,
-      displayName,
-      description: asText(raw.description) ?? '',
-      emoji: asText(raw.emoji),
-      chatVisible: raw.chat_visible === true,
-      unavailable: availability.status === 'unavailable',
-      creditMultiplier: asNumber(pricing.credit_multiplier),
-    });
-  }
-  if (data.length > 0 && entries.length === 0) {
-    throw new Error('The model catalogue response could not be read.');
-  }
-  return entries;
+function asTextList(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
 }
 
-function parseRouting(value: unknown): ProductModeRouting | null {
+/** A `publisher/model` id: two or more non-empty, whitespace-free segments. */
+function isModelId(value: string): boolean {
+  return /^[^\s/]+(?:\/[^\s/]+)+$/.test(value);
+}
+
+function parseEntry(value: unknown): CatalogueModel | null {
   const raw = asObject(value);
-  if (raw === null) return null;
-  if (raw.kind === 'profile') {
-    const profileId = asText(raw.profile_id);
-    if (profileId !== null && profileId !== '' && profileId.trim() === profileId) {
-      return { kind: 'profile', profileId };
-    }
-  }
-  return null;
+  if (raw === null || raw.object !== 'model') return null;
+  const id = asText(raw.id);
+  const name = asText(raw.name);
+  const publisher = asObject(raw.publisher);
+  const publisherId = publisher === null ? null : asText(publisher.id);
+  const publisherName = publisher === null ? null : asText(publisher.name);
+  if (id === null || !isModelId(id) || name === null || name.trim() === '') return null;
+  if (publisherId === null || publisherName === null) return null;
+
+  const pricing = asObject(raw.pricing);
+  const inputPerMTok = pricing === null ? null : asText(pricing.inputPerMTok);
+  const outputPerMTok = pricing === null ? null : asText(pricing.outputPerMTok);
+
+  return {
+    id,
+    name,
+    publisher: { id: publisherId, name: publisherName },
+    description: asText(raw.description),
+    contextWindow: asCount(raw.contextWindow),
+    maxOutput: asCount(raw.maxOutput),
+    inputModalities: asTextList(raw.inputModalities),
+    outputModalities: asTextList(raw.outputModalities),
+    tools: raw.tools === true,
+    reasoningEfforts: asTextList(raw.reasoningEfforts).filter(
+      (effort): effort is ReasoningEffort => REASONING_EFFORTS.has(effort),
+    ),
+    pricing: inputPerMTok !== null && outputPerMTok !== null ? { inputPerMTok, outputPerMTok } : null,
+    releasedAt: asText(raw.releasedAt),
+    featured: raw.featured === true,
+  };
 }
 
-/** Turn a modes response into modes, or throw — same reasoning as {@link parseCatalogue}. */
-export function parseModes(payload: unknown): ProductMode[] {
+/**
+ * Turn a catalogue response into a {@link Catalogue}, or throw.
+ *
+ * Throwing beats returning an empty list because "no models" and "we failed to
+ * read the models" are indistinguishable to the caller, and one of them means a
+ * `/model` listing that silently offers nothing. A single malformed entry is
+ * dropped; every entry malformed is a shape break.
+ */
+export function parseCatalogue(payload: unknown): Catalogue {
   const body = asObject(payload);
   const data = body === null ? null : body.data;
-  if (!Array.isArray(data)) throw new Error('The product modes response could not be read.');
+  if (body === null || !Array.isArray(data)) throw new Error(UNREADABLE);
+  const defaultModelId = asText(body.defaultModelId);
+  if (defaultModelId === null || defaultModelId === '') throw new Error(UNREADABLE);
 
-  const modes: ProductMode[] = [];
+  const models: CatalogueModel[] = [];
+  const seen = new Set<string>();
   for (const value of data) {
-    const raw = asObject(value);
-    if (raw === null || raw.object !== 'product_mode') {
-      throw new Error('The product modes response could not be read.');
+    const entry = parseEntry(value);
+    if (entry === null || seen.has(entry.id)) continue;
+    seen.add(entry.id);
+    models.push(entry);
+  }
+  if (data.length > 0 && models.length === 0) throw new Error(UNREADABLE);
+
+  return { models, defaultModelId, featuredIds: asTextList(body.featuredIds) };
+}
+
+/**
+ * A stored choice, normalised: the `publisher/model` id, or `null` for unset.
+ * Anything else — empty, or a retired `mode:*` / `route:*` / `profile:*` /
+ * `alia-*` identifier — reads as unset.
+ */
+export function storedChoice(value: string | null | undefined): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  return isModelId(trimmed) ? trimmed : null;
+}
+
+export function findModel(catalogue: Catalogue, id: string): CatalogueModel | null {
+  return catalogue.models.find((model) => model.id === id) ?? null;
+}
+
+/**
+ * The `model` a request carries, or `undefined` to omit it (server default).
+ * `catalogue` is `null` when it could not be read.
+ */
+export function resolveRequestModel(
+  chosen: string | null | undefined,
+  catalogue: Catalogue | null,
+): string | undefined {
+  const id = storedChoice(chosen);
+  if (id === null) return undefined;
+  if (catalogue === null) return id;
+  return findModel(catalogue, id) === null ? undefined : id;
+}
+
+/**
+ * Every model, featured first (in `featuredIds` order, then any entry flagged
+ * `featured` the list missed), then the rest in catalogue order.
+ */
+export function modelsForListing(catalogue: Catalogue): CatalogueModel[] {
+  const featured: CatalogueModel[] = [];
+  const taken = new Set<string>();
+  for (const id of catalogue.featuredIds) {
+    const model = findModel(catalogue, id);
+    if (model !== null && !taken.has(id)) {
+      featured.push(model);
+      taken.add(id);
     }
-    const id = asText(raw.id);
-    const label = asText(raw.label);
-    const routing = parseRouting(raw.routing);
-    if (
-      id === null || id === '' || id.trim() !== id || !id.startsWith('mode:')
-      || label === null || label === '' || label.trim() !== label
-      || routing === null
-    ) throw new Error('The product modes response could not be read.');
-    modes.push({
-      id,
-      label,
-      description: asText(raw.description) ?? '',
-      routing,
-      deepResearch: raw.deep_research === true,
-    });
   }
-  if (data.length > 0 && modes.length === 0) {
-    throw new Error('The product modes response could not be read.');
+  for (const model of catalogue.models) {
+    if (model.featured && !taken.has(model.id)) {
+      featured.push(model);
+      taken.add(model.id);
+    }
   }
-  return modes;
+  return [...featured, ...catalogue.models.filter((model) => !taken.has(model.id))];
 }
 
-const PRESENTATION_MODE_IDS: ReadonlySet<string> = new Set([
-  'mode:instant',
-  'mode:thinking',
-  'mode:pro',
-  'mode:research',
-  'mode:code',
-]);
-
-/** The product's word for a routing profile, or `null` when it has none. */
-export function modeForProfile(
-  profileId: string,
-  modes: readonly ProductMode[],
-): ProductMode | null {
-  let match: ProductMode | null = null;
-  for (const mode of modes) {
-    if (!PRESENTATION_MODE_IDS.has(mode.id) || mode.routing.profileId !== profileId) continue;
-    if (match !== null) return null;
-    match = mode;
-  }
-  return match;
+export function isFeatured(catalogue: Catalogue, model: CatalogueModel): boolean {
+  return model.featured || catalogue.featuredIds.includes(model.id);
 }
 
 /**
- * What a person reads for an entry: the product's word for it, or the
- * catalogue's own.
- *
- * The fallback is a real fallback rather than a formality — the capability
- * profiles (`profile:vision` and the rest) have no mode, and inventing one
- * for them would be the same category error as the alias display names this
- * replaces, in the other direction.
+ * Models matching free text, case-insensitively, over id, name and publisher
+ * name. An exact id match comes first, then exact name matches, then the rest
+ * in listing order (featured first). Empty text matches nothing.
  */
-export function presentation(
-  entry: CatalogueEntry,
-  modes: readonly ProductMode[],
-): { readonly label: string; readonly description: string } {
-  const mode = modeForProfile(entry.id, modes);
-  if (mode === null) return { label: entry.displayName, description: entry.description };
-  return { label: mode.label, description: mode.description };
+export function searchModels(catalogue: Catalogue, text: string): CatalogueModel[] {
+  const wanted = text.trim().toLowerCase();
+  if (wanted === '') return [];
+  const rank = (model: CatalogueModel): number => {
+    if (model.id.toLowerCase() === wanted) return 0;
+    if (model.name.toLowerCase() === wanted) return 1;
+    return 2;
+  };
+  return modelsForListing(catalogue)
+    .filter((model) =>
+      model.id.toLowerCase().includes(wanted)
+      || model.name.toLowerCase().includes(wanted)
+      || model.publisher.name.toLowerCase().includes(wanted),
+    )
+    .map((model, index) => ({ model, index, rank: rank(model) }))
+    .sort((a, b) => a.rank - b.rank || a.index - b.index)
+    .map(({ model }) => model);
 }
 
-/** One row of a bot's `/model` listing. */
-export interface OfferedMode {
-  /** The `profile:*` identifier the bot stores and sends. */
-  readonly id: string;
-  readonly label: string;
-  readonly description: string;
-  readonly emoji: string | null;
-  readonly creditMultiplier: number | null;
-}
-
-/**
- * What a bot offers, in the product's words.
- *
- * `chat_visible` is the product's own visibility decision — it is
- * `isProfileOffered` on the server, keyed by profile — so this filter is read
- * off the response rather than reimplemented here.
- */
-export function offeredModes(
-  entries: readonly CatalogueEntry[],
-  modes: readonly ProductMode[],
-): OfferedMode[] {
-  return entries
-    .filter((entry) => entry.chatVisible)
-    .map((entry) => {
-      const { label, description } = presentation(entry, modes);
-      return {
-        id: entry.id,
-        label,
-        description,
-        emoji: entry.emoji,
-        creditMultiplier: entry.creditMultiplier,
-      };
-    });
+/** What a person reads for the server default: `Default (<name>)`. */
+export function defaultLabel(catalogue: Catalogue): string {
+  const model = findModel(catalogue, catalogue.defaultModelId);
+  return `Default (${model === null ? catalogue.defaultModelId : model.name})`;
 }
 
 /**
- * The mode that expresses no preference, selected by its exact product ID.
- * Profile identity is not inferred from default markers or response order.
+ * What a person's current model is called. A choice the catalogue does not
+ * list is not what requests use (they omit `model`), so it reads as the default.
  */
-function automaticMode(modes: readonly ProductMode[]): ProductMode | null {
-  return modes.find((mode) => mode.id === 'mode:auto') ?? null;
+export function currentModelLabel(
+  chosen: string | null | undefined,
+  catalogue: Catalogue,
+): string {
+  const id = resolveRequestModel(chosen, catalogue);
+  const model = id === undefined ? null : findModel(catalogue, id);
+  return model === null ? defaultLabel(catalogue) : model.name;
 }
 
+/** What a `/model <text>` command asks for. */
+export type ModelCommand =
+  | { readonly kind: 'list' }
+  | { readonly kind: 'reset' }
+  | { readonly kind: 'select'; readonly model: CatalogueModel }
+  | { readonly kind: 'matches'; readonly query: string; readonly models: readonly CatalogueModel[] }
+  | { readonly kind: 'none'; readonly query: string };
+
+const RESET_WORDS: ReadonlySet<string> = new Set(['default', 'reset']);
+
 /**
- * What a person's stored preference is CALLED, or `null` when the product has
- * no word for it.
- *
- * Three cases, and the third is the one that needs stating:
- *
- *  - no stored preference — the request names no model, which is precisely what
- *    the automatic mode is, so that mode's label is the honest answer rather
- *    than a stand-in for one;
- *  - a stored preference the catalogue describes — the product's word for it;
- *  - a stored preference the catalogue does NOT describe. That is a legacy
- *    `alia-*` identifier saved before `/v1/models` closed, and it keeps
- *    resolving on the server, so the request is unaffected. `null`, and the
- *    caller omits the row: printing the identifier is the defect this module
- *    removes, and substituting some other mode's label would claim a routing
- *    the request does not make. Deliberately NOT resolved through a
- *    `resolveSelection`-style replacement, which would report Fast for someone
- *    whose stored `route:pro` still routes to maximum quality.
+ * Resolve the argument of a `/model` command: nothing lists; `default`/`reset`
+ * clears; an exact id (case-insensitive) or a single match selects; several
+ * matches are listed; none says so.
  */
-export function labelForPreference(
-  preferredModel: string | null | undefined,
-  entries: readonly CatalogueEntry[],
-  modes: readonly ProductMode[],
-): string | null {
-  if (preferredModel === null || preferredModel === undefined || preferredModel === '') {
-    return automaticMode(modes)?.label ?? null;
+export function resolveModelCommand(argument: string | null | undefined, catalogue: Catalogue): ModelCommand {
+  const text = (argument ?? '').trim();
+  if (text === '') return { kind: 'list' };
+  if (RESET_WORDS.has(text.toLowerCase())) return { kind: 'reset' };
+  const matches = searchModels(catalogue, text);
+  const first = matches[0];
+  if (first === undefined) return { kind: 'none', query: text };
+  if (first.id.toLowerCase() === text.toLowerCase() || matches.length === 1) {
+    return { kind: 'select', model: first };
   }
-  const entry = entries.find((candidate) => candidate.id === preferredModel);
-  if (entry === undefined) return null;
-  return presentation(entry, modes).label;
+  return { kind: 'matches', query: text, models: matches };
+}
+
+/**
+ * Join lines under a character budget. When not every line fits, as many as fit
+ * are kept and `more(n)` (the count left out) is appended — the budget accounts
+ * for it.
+ */
+export function fitLines(
+  lines: readonly string[],
+  maxChars: number,
+  more: (omitted: number) => string,
+  separator = '\n',
+): string {
+  const all = lines.join(separator);
+  if (all.length <= maxChars) return all;
+  for (let kept = lines.length - 1; kept >= 0; kept -= 1) {
+    const tail = more(lines.length - kept);
+    const text = [...lines.slice(0, kept), tail].join(separator);
+    if (text.length <= maxChars) return text;
+  }
+  return more(lines.length).slice(0, maxChars);
 }

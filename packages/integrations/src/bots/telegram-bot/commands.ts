@@ -7,7 +7,18 @@
 import { Context, Markup } from 'telegraf';
 import { randomUUID } from 'node:crypto';
 import { APIClient } from '../../shared/api-client';
-import { labelForPreference } from '../../shared/catalogue';
+import {
+  currentModelLabel,
+  defaultLabel,
+  findModel,
+  fitLines,
+  isFeatured,
+  modelsForListing,
+  resolveModelCommand,
+  resolveRequestModel,
+  type Catalogue,
+  type CatalogueModel,
+} from '../../shared/catalogue';
 import { createLogger } from '../../shared/logger';
 
 const apiClient = new APIClient('telegram', process.env.TELEGRAM_BOT_SECRET || '');
@@ -183,25 +194,15 @@ export async function handleStatus(ctx: Context) {
 
     const displayName = botUser.displayName || botUser.username || 'Not set';
 
-    /**
-     * The mode row, and why it can be absent.
-     *
-     * `labelForPreference` returns `null` for a preference the catalogue does
-     * not describe — a legacy identifier saved before `GET /v1/models` closed.
-     * The request still routes on it, so nothing is broken; the product simply
-     * has no word for it, and printing the identifier instead is the defect
-     * this replaces. The row is omitted rather than filled with a guess.
-     */
-    const offeredModes = await apiClient.fetchOfferedModes();
-    const modeLabel = offeredModes === null
-      ? null
-      : labelForPreference(botUser.preferredModel, offeredModes.entries, offeredModes.modes);
+    // The model row is omitted only when the catalogue could not be read.
+    const catalogue = await apiClient.fetchCatalogue();
+    const modelLabel = catalogue === null ? null : currentModelLabel(botUser.preferredModel, catalogue);
 
     await ctx.reply(
       `📊 <b>Account Status</b>\n\n` +
       `👤 <b>Name:</b> ${displayName}\n` +
       `✅ <b>Status:</b> Connected\n` +
-      (modeLabel === null ? '' : `🤖 <b>Mode:</b> ${modeLabel}\n`) +
+      (modelLabel === null ? '' : `🤖 <b>Model:</b> ${escapeHtml(modelLabel)}\n`) +
       `🔗 <b>Linked:</b> ${botUser.linkedAt ? new Date(botUser.linkedAt).toLocaleDateString() : 'N/A'}`,
       {
         parse_mode: 'HTML',
@@ -233,7 +234,7 @@ export async function handleHelp(ctx: Context) {
 • Just send me any message to chat!
 • /new - Start a fresh conversation
 • /history - View past conversations
-• /model - Choose how Alia answers
+• /model - Choose the model (/model &lt;text&gt; searches)
 
 <b>❓ Need Help?</b>
 • /help - Show this help message
@@ -264,6 +265,160 @@ export async function handleHelp(ctx: Context) {
 // ---------------------------------------------------------------------------
 // /model + model selection callback
 // ---------------------------------------------------------------------------
+/** Telegram's message text limit. */
+const TELEGRAM_MAX_CHARS = 4096;
+/** Telegram's `callback_data` limit, in bytes. */
+const CALLBACK_DATA_MAX_BYTES = 64;
+/** At most this many models in one listing, and this many as buttons. */
+const MAX_LISTED = 30;
+const MAX_BUTTONS = 8;
+
+const MODEL_CALLBACK_PREFIX = 'model_';
+/** The callback that clears the choice. Not a `publisher/model` id, so it can never collide with one. */
+export const MODEL_RESET_CALLBACK = `${MODEL_CALLBACK_PREFIX}default`;
+
+const SEARCH_HINT =
+  '<i>Send /model &lt;text&gt; to search by name, publisher or id, or /model default to go back to the default.</i>';
+
+function escapeHtml(text: string): string {
+  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function quoted(text: string): string {
+  return escapeHtml(text.length > 80 ? `${text.slice(0, 79)}…` : text);
+}
+
+function modelLine(model: CatalogueModel, chosenId: string | undefined): string {
+  const current = model.id === chosenId ? ' ✓' : '';
+  return `• <b>${escapeHtml(model.name)}</b> — ${escapeHtml(model.publisher.name)} <code>${escapeHtml(model.id)}</code>${current}`;
+}
+
+/** A button for a model, or `null` when its id does not fit in `callback_data`. */
+function modelButton(model: CatalogueModel): TelegramModelButton | null {
+  const data = `${MODEL_CALLBACK_PREFIX}${model.id}`;
+  if (Buffer.byteLength(data, 'utf8') > CALLBACK_DATA_MAX_BYTES) return null;
+  return { label: model.name, data };
+}
+
+export interface TelegramModelButton {
+  readonly label: string;
+  readonly data: string;
+}
+
+/** What `/model` replies, or stores and then replies. */
+export type TelegramModelPlan =
+  | { readonly kind: 'reply'; readonly html: string; readonly buttons: readonly TelegramModelButton[] }
+  | { readonly kind: 'store'; readonly model: string | null; readonly html: string };
+
+/** A heading, the models and a footer within Telegram's 4096 characters, then "…and N more". */
+function renderModelList(
+  heading: string,
+  models: readonly CatalogueModel[],
+  chosenId: string | undefined,
+  footer: string,
+): string {
+  const lines = models.map((model) => modelLine(model, chosenId));
+  const shown = lines.slice(0, MAX_LISTED);
+  const beyond = lines.length - shown.length;
+  const more = (omitted: number) => `<i>…and ${omitted + beyond} more.</i>`;
+  const budget = TELEGRAM_MAX_CHARS - heading.length - footer.length - 4;
+  const body = beyond > 0
+    ? fitLines([...shown, more(0)], budget, (omitted) => more(omitted - 1))
+    : fitLines(shown, budget, more);
+  return `${heading}\n${body}\n\n${footer}`;
+}
+
+function buttonsFor(models: readonly CatalogueModel[], withReset: boolean): TelegramModelButton[] {
+  const buttons = models
+    .map(modelButton)
+    .filter((button): button is TelegramModelButton => button !== null)
+    .slice(0, MAX_BUTTONS);
+  return withReset ? [...buttons, { label: '↩️ Default', data: MODEL_RESET_CALLBACK }] : buttons;
+}
+
+/**
+ * Decide what `/model [text]` does, without doing it. `null` catalogue means it
+ * could not be read; nothing is stored then, because a model is only ever
+ * chosen from what the catalogue lists.
+ */
+export function planTelegramModelCommand(
+  catalogue: Catalogue | null,
+  preferredModel: string | undefined,
+  argument: string | null | undefined,
+): TelegramModelPlan {
+  if (catalogue === null) {
+    return { kind: 'reply', html: '❌ Unable to load the available models. Please try again later.', buttons: [] };
+  }
+  const chosenId = resolveRequestModel(preferredModel, catalogue);
+  const command = resolveModelCommand(argument, catalogue);
+  switch (command.kind) {
+    case 'list': {
+      const current = `🤖 <b>Current model:</b> ${escapeHtml(currentModelLabel(preferredModel, catalogue))}`;
+      const models = modelsForListing(catalogue);
+      if (models.length === 0) {
+        return { kind: 'reply', html: `${current}\n\nNo models are available right now.`, buttons: [] };
+      }
+      const featured = models.filter((model) => isFeatured(catalogue, model));
+      return {
+        kind: 'reply',
+        html: renderModelList(
+          `${current}\n\n<b>${featured.length > 0 ? 'Featured models' : 'Models'}:</b>`,
+          models,
+          chosenId,
+          SEARCH_HINT,
+        ),
+        buttons: buttonsFor(featured.length > 0 ? featured : models, chosenId !== undefined),
+      };
+    }
+    case 'reset':
+      return {
+        kind: 'store',
+        model: null,
+        html: `🤖 <b>Model updated</b>\n\nAlia will now use the <b>${escapeHtml(defaultLabel(catalogue))}</b> model.`,
+      };
+    case 'select':
+      return {
+        kind: 'store',
+        model: command.model.id,
+        html: `🤖 <b>Model updated</b>\n\nAlia will now answer with <b>${escapeHtml(command.model.name)}</b> ` +
+          `(<code>${escapeHtml(command.model.id)}</code>).\n\nAll future conversations will use it.`,
+      };
+    case 'matches':
+      return {
+        kind: 'reply',
+        html: renderModelList(
+          `🔎 <b>${command.models.length} models match “${quoted(command.query)}”:</b>`,
+          command.models,
+          chosenId,
+          '<i>Tap one, or send /model &lt;id&gt;.</i>',
+        ),
+        buttons: buttonsFor(command.models, false),
+      };
+    case 'none':
+      return {
+        kind: 'reply',
+        html: `❌ No model matches “${quoted(command.query)}”.\n\n${SEARCH_HINT}`,
+        buttons: [],
+      };
+  }
+}
+
+/** The text after `/model` (or `/model@SomeBot`), if the update is a text message. */
+function commandArgument(ctx: Context): string {
+  const message = ctx.message;
+  if (message === undefined || !('text' in message)) return '';
+  return message.text.replace(/^\/\S+\s*/, '');
+}
+
+function buttonRows(buttons: readonly TelegramModelButton[]) {
+  const rows: ReturnType<typeof Markup.button.callback>[][] = [];
+  for (let i = 0; i < buttons.length; i += 2) {
+    rows.push(buttons.slice(i, i + 2).map((button) => Markup.button.callback(button.label, button.data)));
+  }
+  rows.push([Markup.button.callback('« Back', 'start')]);
+  return rows;
+}
+
 export async function handleModel(ctx: Context) {
   const telegramId = ctx.from?.id.toString();
   if (!telegramId) {
@@ -276,7 +431,7 @@ export async function handleModel(ctx: Context) {
     if (!botUser || !botUser.isLinked) {
       await ctx.reply(
         '🔒 <b>Authentication Required</b>\n\n' +
-        'Please sign in first to change how Alia answers.',
+        'Please sign in first to choose a model.',
         {
           parse_mode: 'HTML',
           ...Markup.inlineKeyboard([
@@ -287,56 +442,36 @@ export async function handleModel(ctx: Context) {
       return;
     }
 
-    const offeredModes = await apiClient.fetchOfferedModes();
-    if (offeredModes === null || offeredModes.offered.length === 0) {
-      await ctx.reply('❌ Unable to load the available modes. Please try again later.');
+    const plan = planTelegramModelCommand(
+      await apiClient.fetchCatalogue(),
+      botUser.preferredModel,
+      commandArgument(ctx),
+    );
+    if (plan.kind === 'store') {
+      await apiClient.updateModel(telegramId, plan.model);
+      await ctx.reply(plan.html, {
+        parse_mode: 'HTML',
+        ...Markup.inlineKeyboard([[Markup.button.callback('« Back to Menu', 'start')]]),
+      });
       return;
     }
-
-    const currentLabel = labelForPreference(
-      botUser.preferredModel,
-      offeredModes.entries,
-      offeredModes.modes,
-    );
-    let message = '🤖 <b>Choose how Alia answers</b>\n\n';
-    if (currentLabel !== null) {
-      message += `<b>Current:</b> ${currentLabel}\n\n`;
-    }
-    message += '<b>Available modes:</b>\n';
-
-    for (const mode of offeredModes.offered) {
-      const current = mode.id === botUser.preferredModel ? ' ✓' : '';
-      message += `\n${mode.emoji || '🤖'} <b>${mode.label}</b>${current}\n`;
-      message += `   <i>${mode.description} (${mode.creditMultiplier ?? 1}x credits)</i>`;
-    }
-
-    // Build button rows (2 per row)
-    const buttonRows: ReturnType<typeof Markup.button.callback>[][] = [];
-    let currentRow: ReturnType<typeof Markup.button.callback>[] = [];
-    for (const mode of offeredModes.offered) {
-      currentRow.push(Markup.button.callback(
-        `${mode.emoji || '🤖'} ${mode.label}`,
-        `model_${mode.id}`,
-      ));
-      if (currentRow.length === 2) {
-        buttonRows.push(currentRow);
-        currentRow = [];
-      }
-    }
-    if (currentRow.length > 0) buttonRows.push(currentRow);
-    buttonRows.push([Markup.button.callback('« Back', 'start')]);
-
-    await ctx.reply(message, {
+    await ctx.reply(plan.html, {
       parse_mode: 'HTML',
-      ...Markup.inlineKeyboard(buttonRows),
+      link_preview_options: { is_disabled: true },
+      ...Markup.inlineKeyboard(buttonRows(plan.buttons)),
     });
   } catch (error) {
     logger.error('Model command error:', error);
-    await ctx.reply('❌ Error loading your mode settings. Please try again.');
+    await ctx.reply('❌ Error loading your model settings. Please try again.');
   }
 }
 
-export async function handleModelSelection(ctx: Context, modelId: string) {
+/**
+ * A tapped model button. `data` is what follows `model_`: a model id this bot
+ * rendered from the catalogue, or `default`. The id is checked against the
+ * catalogue again, since the listing may have changed since it was rendered.
+ */
+export async function handleModelSelection(ctx: Context, data: string) {
   const telegramId = ctx.from?.id.toString();
   if (!telegramId) {
     await ctx.answerCbQuery('Unable to identify you');
@@ -344,28 +479,24 @@ export async function handleModelSelection(ctx: Context, modelId: string) {
   }
 
   try {
-    await apiClient.updateModel(telegramId, modelId);
+    const catalogue = await apiClient.fetchCatalogue();
+    if (catalogue === null) {
+      await ctx.reply('❌ Unable to load the available models. Please try again later.');
+      return;
+    }
+    const reset = `${MODEL_CALLBACK_PREFIX}${data}` === MODEL_RESET_CALLBACK;
+    const model = reset ? null : findModel(catalogue, data);
+    if (!reset && model === null) {
+      await ctx.reply('❌ That model is no longer available. Send /model to see the current list.');
+      return;
+    }
 
-    /**
-     * The confirmation names the mode the person just tapped.
-     *
-     * `modelId` came from a button this bot rendered from the catalogue one
-     * message ago, so a miss here means the listing changed under them — the
-     * mode is still saved, and the confirmation says so without naming an
-     * identifier.
-     */
-    const offeredModes = await apiClient.fetchOfferedModes();
-    const chosen = offeredModes?.offered.find((mode) => mode.id === modelId) ?? null;
-
-    await ctx.answerCbQuery(
-      chosen === null ? 'Preference saved' : `Alia will answer in ${chosen.label} mode`,
-    );
+    await apiClient.updateModel(telegramId, model === null ? null : model.id);
     await ctx.reply(
-      chosen === null
-        ? '🤖 <b>Preference saved</b>\n\nAll future conversations will use it.'
-        : `${chosen.emoji || '🤖'} <b>Mode updated</b>\n\n` +
-          `Alia will now answer in <b>${chosen.label}</b> mode.\n\n` +
-          `All future conversations will use it.`,
+      model === null
+        ? `🤖 <b>Model updated</b>\n\nAlia will now use the <b>${escapeHtml(defaultLabel(catalogue))}</b> model.`
+        : `🤖 <b>Model updated</b>\n\nAlia will now answer with <b>${escapeHtml(model.name)}</b> ` +
+          `(<code>${escapeHtml(model.id)}</code>).\n\nAll future conversations will use it.`,
       {
         parse_mode: 'HTML',
         ...Markup.inlineKeyboard([
@@ -375,8 +506,7 @@ export async function handleModelSelection(ctx: Context, modelId: string) {
     );
   } catch (error) {
     logger.error('Model selection error:', error);
-    await ctx.answerCbQuery('Error updating your mode');
-    await ctx.reply('❌ Error updating your mode. Please try again.');
+    await ctx.reply('❌ Error updating your model. Please try again.');
   }
 }
 
