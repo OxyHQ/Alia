@@ -69,6 +69,7 @@ vi.mock('../logger.js', () => ({
 import { closePostgres, connectPostgres, type ApiDatabase } from '../../db/index.js';
 import { conversations, messages } from '../../db/schema/chat.js';
 import { saveConversation } from '../conversation-saver.js';
+import { findMessageAudioUrl, setMessageAudioUrl, voteMessage } from '../../db/chat/messageRepository.js';
 
 let db: ApiDatabase;
 
@@ -320,24 +321,168 @@ describe('saveConversation (append-only)', () => {
     ]);
   });
 
-  it('gives every stored message a client id, so a vote can address it', async () => {
+  it('names a message the client did not name by its position', async () => {
     /**
      * Not decoration: `packages/app` puts `Message.id` in the vote URL and
      * `routes/conversations.ts` matches on `client_message_id`, so a message
-     * stored without one cannot be voted on.
-     *
-     * The value is ALWAYS `msg-<seq>` on this path, even when the client sent an
-     * id — `saveConversation` rebuilds its history as `{role, content,
-     * toolInvocations}` and drops `id` before `buildStoredMessage` sees it.
-     * Pre-existing behaviour, pinned here rather than treated as a bug: the ids
-     * a client sends survive only through `POST /conversations`, and `seq` is
-     * the absolute position, so the two writers agree on the name of any given
-     * message either way.
+     * stored without one cannot be voted on. A caller that sends no ids — an
+     * OpenAI-shaped `/v1` client — still gets one per message, `msg-<seq>`.
      */
     await saveConversation({
       userId: USER,
       conversationId: CONV,
-      messages: [{ role: 'user', content: 'U1', id: 'client-supplied' }],
+      messages: [{ role: 'user', content: 'U1' }],
+      assistantResponse: 'A1',
+    });
+
+    expect((await stored()).map((row) => row.clientMessageId)).toEqual(['msg-0', 'msg-1']);
+  });
+});
+
+/**
+ * One identity per message: the one the client drew it under.
+ *
+ * The app votes on a reply and reads it aloud by `Message.id`, and both routes
+ * find the row by `client_message_id`. This saver used to drop every id the
+ * client sent and write `msg-<seq>`, so a reply streamed in this session was
+ * addressed by an id the server had never stored: the vote and the speech
+ * route both answered 404, until a reload swapped the ids for the server's.
+ */
+describe('saveConversation keeps the client’s message ids', () => {
+  it('stores the turn under the ids the client drew it with, and a vote and a clip find it', async () => {
+    await saveConversation({
+      userId: USER,
+      conversationId: CONV,
+      messages: [{ role: 'user', content: 'U1', id: 'u-1' }],
+      assistantResponse: 'A1',
+      assistantMessageId: 'a-1',
+    });
+
+    expect((await stored()).map((row) => row.clientMessageId)).toEqual(['u-1', 'a-1']);
+    await expect(voteMessage(db, USER, CONV, 'a-1', 'up')).resolves.toEqual({ vote: 'up' });
+    await expect(findMessageAudioUrl(db, USER, CONV, 'a-1')).resolves.toBeNull();
+    await expect(setMessageAudioUrl(db, USER, CONV, 'a-1', 'tts/clip.mp3')).resolves.toBe(1);
+  });
+
+  it('names a delegated agent’s answers after the reply they came with, in order', async () => {
+    /**
+     * `alia.agent` carries no id — the published SDK refuses a key it does not
+     * know — so both sides derive it: the app names the n-th agent answer of a
+     * turn `<assistantMessageId>-agent-<n>`, and so does this.
+     */
+    await saveConversation({
+      userId: USER,
+      conversationId: CONV,
+      messages: [{ role: 'user', content: 'U1', id: 'u-1' }],
+      assistantResponse: 'the final answer',
+      assistantMessageId: 'a-1',
+      agentMessages: [
+        { role: 'assistant', content: 'first', agentInfo: { id: 'x', name: 'X', color: null, handle: 'x' } },
+        { role: 'assistant', content: 'second', agentInfo: { id: 'y', name: 'Y', color: null, handle: 'y' } },
+      ],
+    });
+
+    expect((await stored()).map((row) => row.clientMessageId)).toEqual(['u-1', 'a-1-agent-0', 'a-1-agent-1', 'a-1']);
+  });
+
+  it('keeps the echoed ids through an append, including ones the server named', async () => {
+    await saveConversation({
+      userId: USER,
+      conversationId: CONV,
+      messages: [{ role: 'user', content: 'U1' }],
+      assistantResponse: 'A1',
+    });
+    // A reload hands the client `msg-0` / `msg-1`; the next turn echoes them.
+    await saveConversation({
+      userId: USER,
+      conversationId: CONV,
+      messages: [
+        { role: 'user', content: 'U1', id: 'msg-0' },
+        { role: 'assistant', content: 'A1', id: 'msg-1' },
+        { role: 'user', content: 'U2', id: 'u-2' },
+      ],
+      assistantResponse: 'A2',
+      assistantMessageId: 'a-2',
+    });
+
+    expect((await stored()).map((row) => row.clientMessageId)).toEqual(['msg-0', 'msg-1', 'u-2', 'a-2']);
+  });
+
+  it('keeps a vote and a clip across the rewrite an edit forces', async () => {
+    await saveConversation({
+      userId: USER,
+      conversationId: CONV,
+      messages: [{ role: 'user', content: 'U1', id: 'u-1' }],
+      assistantResponse: 'A1',
+      assistantMessageId: 'a-1',
+    });
+    await saveConversation({
+      userId: USER,
+      conversationId: CONV,
+      messages: [
+        { role: 'user', content: 'U1', id: 'u-1' },
+        { role: 'assistant', content: 'A1', id: 'a-1' },
+        { role: 'user', content: 'U2', id: 'u-2' },
+      ],
+      assistantResponse: 'A2',
+      assistantMessageId: 'a-2',
+    });
+    await voteMessage(db, USER, CONV, 'a-1', 'down');
+    await setMessageAudioUrl(db, USER, CONV, 'a-1', 'tts/a1.mp3');
+    await voteMessage(db, USER, CONV, 'a-2', 'up');
+
+    // U2 edited: the client cuts back to it and sends the new version, which
+    // diverges from the stored tail and rewrites the whole thread.
+    await saveConversation({
+      userId: USER,
+      conversationId: CONV,
+      messages: [
+        { role: 'user', content: 'U1', id: 'u-1' },
+        { role: 'assistant', content: 'A1', id: 'a-1' },
+        { role: 'user', content: 'U2, reworded', id: 'u-3' },
+      ],
+      assistantResponse: 'A3',
+      assistantMessageId: 'a-3',
+    });
+
+    const rows = await stored();
+    expect(rows.map((row) => [row.clientMessageId, row.vote, row.audioUrl])).toEqual([
+      ['u-1', null, null],
+      ['a-1', 'down', 'tts/a1.mp3'],
+      ['u-3', null, null],
+      ['a-3', null, null],
+    ]);
+  });
+
+  it('does not lend a vote to a different message that inherits a position name', async () => {
+    // No ids from the client, so the rewrite names by position — and position
+    // 1 is now a different answer. Its vote must not follow the name.
+    await saveConversation({
+      userId: USER,
+      conversationId: CONV,
+      messages: [{ role: 'user', content: 'U1' }],
+      assistantResponse: 'A1',
+    });
+    await voteMessage(db, USER, CONV, 'msg-1', 'up');
+
+    await saveConversation({
+      userId: USER,
+      conversationId: CONV,
+      messages: [{ role: 'user', content: 'U1, reworded' }],
+      assistantResponse: 'another answer',
+    });
+
+    expect((await stored()).map((row) => [row.clientMessageId, row.vote])).toEqual([
+      ['msg-0', null],
+      ['msg-1', null],
+    ]);
+  });
+
+  it('ignores an id that is not a usable name', async () => {
+    await saveConversation({
+      userId: USER,
+      conversationId: CONV,
+      messages: [{ role: 'user', content: 'U1', id: 'x'.repeat(129) }],
       assistantResponse: 'A1',
     });
 

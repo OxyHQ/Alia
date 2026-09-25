@@ -139,7 +139,8 @@ export const conversations = pgTable(
  *
  * It is nullable because `routes/webhooks.ts` appends bot turns without one:
  * both `routes/conversations.ts` (from the client's `id`) and
- * `lib/conversation-saver.ts` (falling back to `msg-<seq>`) always write one, so
+ * `lib/conversation-saver.ts` (the client's `id`, or `assistantMessageId` for
+ * the reply, falling back to `msg-<seq>`) always write one, so
  * the webhook path is the only producer of a NULL here.
  *
  * ## No `updated_at`, on purpose

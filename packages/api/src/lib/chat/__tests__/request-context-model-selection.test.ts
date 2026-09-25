@@ -142,6 +142,7 @@ async function run(
     accessToken?: string;
     /** A streaming request: headers are already out, so a refusal is an SSE event. */
     sseSent?: boolean;
+    assistantMessageId?: unknown;
   } = {},
 ) {
   const captured: Captured = { status: null, body: null };
@@ -162,6 +163,7 @@ async function run(
       messages: [{ role: 'user', content: 'hi' }],
       ...(model === undefined ? {} : { model }),
       ...('mcpServerId' in options ? { mcpServerId: options.mcpServerId } : {}),
+      ...('assistantMessageId' in options ? { assistantMessageId: options.assistantMessageId } : {}),
     },
     ...(options.directUserId === undefined ? {} : { user: { id: options.directUserId } }),
     ...(options.serviceApp === undefined
@@ -876,4 +878,28 @@ describe('a refusal names the thing the caller got wrong', () => {
     const ordinary = await run('nobody/no-such-model');
     expect(ordinary.captured.body?.error?.message).toContain('nobody/no-such-model');
   });
+});
+
+describe('the reply is stored under the id the client drew it with', () => {
+  it('puts the assistantMessageId on the context for the saver', async () => {
+    const { ctx } = await run(undefined, { assistantMessageId: 'a-1' });
+    expect(ctx?.assistantMessageId).toBe('a-1');
+  });
+
+  it('leaves it undefined when the client sent none', async () => {
+    const { ctx } = await run(undefined);
+    expect(ctx).not.toBeNull();
+    expect(ctx?.assistantMessageId).toBeUndefined();
+  });
+
+  it.each([[''], [42], ['x'.repeat(129)]])(
+    'refuses %j before any credit is reserved, rather than store the reply under a name the client lacks',
+    async (assistantMessageId) => {
+      const { ctx, captured } = await run(undefined, { assistantMessageId });
+      expect(ctx).toBeNull();
+      expect(captured.status).toBe(400);
+      expect(captured.body?.error?.param).toBe('assistantMessageId');
+      expect(reserveCredits).not.toHaveBeenCalled();
+    },
+  );
 });

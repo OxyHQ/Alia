@@ -69,6 +69,7 @@ import {
   type AutonomyRuntimeContext,
 } from '../autonomy/runtime.js';
 import type { ChatMessage } from '../message-converter.js';
+import { usableMessageId } from '../../domain/conversation.js';
 import type { OpenAITool } from '../tool-converter.js';
 import type { SSEWriter } from './sse-writer.js';
 import { reasoningEffortOf } from '../observability/requested-model.js';
@@ -87,6 +88,12 @@ export interface ChatRequestContext {
   };
   messages: ChatMessage[];
   conversationId: string | undefined;
+  /**
+   * The id the client drew this turn's reply under, which the reply is stored
+   * with — so a vote or a read-aloud on the reply it is still showing finds
+   * the row (`lib/conversation-saver.ts`). `undefined` when not sent.
+   */
+  assistantMessageId: string | undefined;
   /**
    * How hard this request was asked to think, or `null` for the model's default.
    *
@@ -243,6 +250,27 @@ export async function buildChatRequestContext(
         'profile you select; list them at GET /catalogue.',
       type: 'invalid_request_error',
       param: sentFallbackPolicy,
+      code: 'invalid_request',
+    };
+    if (sse.sent) {
+      sse.writeError(refusal);
+    } else {
+      res.status(400).json({ error: refusal });
+    }
+    return null;
+  }
+
+  /**
+   * A malformed `assistantMessageId` is refused, not dropped: dropping it
+   * stores the reply under a name the client does not hold, which is the
+   * silent 404 on every vote and read-aloud this field exists to end.
+   */
+  const assistantMessageId = usableMessageId(body.assistantMessageId);
+  if (body.assistantMessageId !== undefined && assistantMessageId === undefined) {
+    const refusal = {
+      message: '"assistantMessageId" must be a non-empty string of at most 128 characters.',
+      type: 'invalid_request_error',
+      param: 'assistantMessageId',
       code: 'invalid_request',
     };
     if (sse.sent) {
@@ -1117,6 +1145,7 @@ export async function buildChatRequestContext(
     body,
     messages,
     conversationId,
+    assistantMessageId,
     reasoningEffort,
     responseMode: body.responseMode === 'voice' ? 'voice' : null,
     agentMode,
