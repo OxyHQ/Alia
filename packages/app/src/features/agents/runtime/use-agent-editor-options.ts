@@ -4,6 +4,7 @@ import type { GrantableConnector } from '@/features/chat/model/capability-famili
 import { queryKeys } from '@/shared/api/query-keys';
 import type { LinkedFile, LinkedSkill } from '@/features/agents/runtime/use-agent-autosave';
 import { useLibraryStore, type LibraryFile } from '@/features/library/runtime/library-store';
+import { useOxy } from '@oxy.so/services';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect } from 'react';
 
@@ -12,7 +13,9 @@ import { useEffect } from 'react';
  *
  * Each of these used to be a `useEffect` + `useState` pair inside the editor
  * route. They are asked for when the editor opens, not when a picker does, so
- * the editor calls these hooks and hands the answers down.
+ * the editor calls these hooks and hands the answers down. Each is the
+ * account's, so none is asked for while signed out (#608 §3.2): the editor is
+ * reachable by link, and every one of these requests would answer 401.
  */
 
 /** One page of skills, or none: a failure leaves the picker short, not broken. */
@@ -47,6 +50,7 @@ export function mergeSkillsById(
  * conversations whether or not the person also installed them.
  */
 export function useAttachableSkills() {
+  const { isAuthenticated } = useOxy();
   return useQuery({
     queryKey: queryKeys.skills.attachable,
     queryFn: async (): Promise<LinkedSkill[]> => {
@@ -56,6 +60,7 @@ export function useAttachableSkills() {
       ]);
       return mergeSkillsById(catalogue, mine);
     },
+    enabled: isAuthenticated,
   });
 }
 
@@ -72,6 +77,7 @@ export function useAttachableSkills() {
  * of its own list.
  */
 export function useGrantableConnectors(agentId: string) {
+  const { isAuthenticated } = useOxy();
   return useQuery({
     queryKey: queryKeys.agents.capabilityConnectors(agentId),
     queryFn: async (): Promise<GrantableConnector[]> => {
@@ -84,6 +90,7 @@ export function useGrantableConnectors(agentId: string) {
         return [];
       }
     },
+    enabled: isAuthenticated,
   });
 }
 
@@ -91,9 +98,10 @@ export function useGrantableConnectors(agentId: string) {
 export function useKnowledgeLibrary(): LibraryFile[] {
   const libraryFiles = useLibraryStore((state) => state.files);
   const loadLibraryFiles = useLibraryStore((state) => state.loadFiles);
+  const { isAuthenticated } = useOxy();
   useEffect(() => {
-    loadLibraryFiles();
-  }, [loadLibraryFiles]);
+    if (isAuthenticated) void loadLibraryFiles();
+  }, [isAuthenticated, loadLibraryFiles]);
   return libraryFiles;
 }
 

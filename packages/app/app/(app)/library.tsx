@@ -21,6 +21,7 @@ import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { toast } from '@oxy.so/bloom/toast';
 import { Muted } from '@oxy.so/bloom/typography';
 import { FlashList } from '@shopify/flash-list';
+import { useAuth } from '@oxy.so/services';
 import { Stack } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { RefreshControl, View } from 'react-native';
@@ -32,8 +33,14 @@ import { RefreshControl, View } from 'react-native';
  * the mobile header with the menu button and the "Library" crumb, so this page
  * draws none of them — only its description, its "Add files" action, the search
  * field, the category filter and the files.
+ *
+ * The files are the account's, so a visitor who continued without one is never
+ * asked for them — the request could only answer 401 (#608 §3.2). They see the
+ * empty Library, and "Add files" asks them to sign in instead of opening a
+ * picker whose upload would be refused.
  */
 export default function LibraryScreen() {
+  const { isAuthenticated, signIn } = useAuth();
   const files = useLibraryStore((state) => state.files);
   const loading = useLibraryStore((state) => state.loading);
   const loadFiles = useLibraryStore((state) => state.loadFiles);
@@ -48,15 +55,16 @@ export default function LibraryScreen() {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
   useEffect(() => {
-    loadFiles();
-  }, [loadFiles]);
+    if (isAuthenticated) void loadFiles();
+  }, [isAuthenticated, loadFiles]);
 
   const [refreshing, setRefreshing] = useState(false);
   const onRefresh = useCallback(async () => {
+    if (!isAuthenticated) return;
     setRefreshing(true);
     await loadFiles();
     setRefreshing(false);
-  }, [loadFiles]);
+  }, [isAuthenticated, loadFiles]);
 
   const categories = useMemo(
     () => [
@@ -234,38 +242,52 @@ export default function LibraryScreen() {
     <>
       <Stack.Screen
         options={{
-          headerRight: () => (
-            <DropdownMenu>
-              <DropdownMenuTrigger label={t('library.addFiles')} asChild>
-                {/* The trigger IS the button, and it is named (#536). */}
-                <Button
-                  tone="action"
-                  size="md"
-                  leadingIcon={RiAddLine}
-                  accessibilityRole="button"
-                  accessibilityLabel={t('library.addFiles')}
-                >
-                  {t('library.addFiles')}
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent>
-                <DropdownMenuItem
-                  key="photos"
-                  onPress={handleUploadImage}
-                  leading={<RiImageLine size="sm" />}
-                >
-                  {t('library.addImages')}
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  key="document"
-                  onPress={handleUploadDocument}
-                  leading={<RiFileTextLine size="sm" />}
-                >
-                  {t('library.uploadFiles')}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          ),
+          headerRight: () =>
+            isAuthenticated ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger label={t('library.addFiles')} asChild>
+                  {/* The trigger IS the button, and it is named (#536). */}
+                  <Button
+                    tone="action"
+                    size="md"
+                    leadingIcon={RiAddLine}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('library.addFiles')}
+                  >
+                    {t('library.addFiles')}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent>
+                  <DropdownMenuItem
+                    key="photos"
+                    onPress={handleUploadImage}
+                    leading={<RiImageLine size="sm" />}
+                  >
+                    {t('library.addImages')}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    key="document"
+                    onPress={handleUploadDocument}
+                    leading={<RiFileTextLine size="sm" />}
+                  >
+                    {t('library.uploadFiles')}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : (
+              <Button
+                tone="action"
+                size="md"
+                leadingIcon={RiAddLine}
+                accessibilityRole="button"
+                accessibilityLabel={t('library.addFiles')}
+                onPress={() => {
+                  signIn().catch(() => {});
+                }}
+              >
+                {t('library.addFiles')}
+              </Button>
+            ),
         }}
       />
       <FlashList
