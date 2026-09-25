@@ -5,6 +5,7 @@ import { Dialog } from '@oxy.so/bloom/dialog';
 import { Field } from '@oxy.so/bloom/field';
 import { RiCheckLine } from '@oxy.so/bloom/icons/RiCheckLine';
 import { TextFieldInput } from '@oxy.so/bloom/text-field';
+import { useKeyboardOnOpen } from '@/shared/platform/use-keyboard-on-open';
 import { useEffect, useState } from 'react';
 import { View } from 'react-native';
 
@@ -43,6 +44,7 @@ interface ProjectEditDialogProps {
 export function ProjectEditDialog({ open, onOpenChange, project, onSave }: ProjectEditDialogProps) {
   const { t } = useTranslation();
   const [name, setName] = useState('');
+  const nameInput = useKeyboardOnOpen(open);
   const [description, setDescription] = useState('');
   const [color, setColor] = useState(DEFAULT_COLOR);
 
@@ -85,6 +87,7 @@ export function ProjectEditDialog({ open, onOpenChange, project, onSave }: Proje
             onValueChange={setName}
             onSubmitEditing={save}
             autoFocus
+            inputRef={nameInput}
           />
         </Field>
         <Field label={t('sidebar.projectDialog.description')}>

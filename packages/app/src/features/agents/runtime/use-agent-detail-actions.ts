@@ -1,11 +1,10 @@
-import { agentDisplayName, agentHandle } from '@/features/agents/model/identity';
+import { agentChatRoute, agentDisplayName, agentHandle } from '@/features/agents/model/identity';
 import {
   errorResponseData,
   errorStatus,
   errorMessage as getErrorMessage,
 } from '@/shared/api/error-utils';
 import {
-  useCreateAgentThread,
   useSetAgentStatus,
   useStartAgentTask,
 } from '@/features/agents/runtime/use-agent-thread-actions';
@@ -45,7 +44,6 @@ export function agentShareMessage(
 export function useAgentDetailActions(agent: Agent) {
   const router = useRouter();
   const { t } = useTranslation();
-  const createThread = useCreateAgentThread();
   const startTask = useStartAgentTask();
   const setStatus = useSetAgentStatus();
 
@@ -67,36 +65,28 @@ export function useAgentDetailActions(agent: Agent) {
   /**
    * Open the thread with this agent. It does not START one.
    *
-   * This used to create a conversation and land on `/c/:id`, which was two
-   * wrongs at once. A thread with an agent is many ordinary conversations, so
-   * creating one is beginning a NEW STRETCH — and somebody pressing a button
-   * labelled "Chat" is asking to continue, not to begin. Every press left an
-   * empty stretch behind; five presses, five empty rows.
+   * The thread is the agent's handle: `/@handle` opens it where it left off,
+   * and the API begins its first conversation only when the two have never
+   * spoken (`GET /agents/thread/:username`). That is what the Agents list's
+   * own Chat button does (`agentChatRoute`), and this one now does the same.
    *
-   * Beginning one is a separate act with its own places: the agent can offer it
-   * mid-thread, and a person can take that offer. Neither of them is this
-   * button.
+   * It used to POST a new thread and land on it — two wrongs at once. A new
+   * thread is a new STRETCH, and somebody pressing "Chat" is asking to
+   * continue; every press left an empty one behind. And on a phone the press
+   * did nothing visible at all while the request was out (#608, Pixel 8a,
+   * `docs/native-validation.mdx`), so it was pressed again.
    *
-   * The address is the HANDLE, which is Oxy's and may be unresolved — the thread
-   * has no address without one. Saying so is better than navigating to `/@`,
-   * which would sit on a loading screen that never resolves.
+   * Without a handle the thread has no address; saying so is better than
+   * navigating to `/@`, which would sit on a loading screen that never
+   * resolves.
    */
-  const handleChat = useCallback(async () => {
-    const handle = agentHandle(agent);
-    if (handle === '') {
+  const handleChat = useCallback(() => {
+    if (agentHandle(agent) === '') {
       toast.error(t('agents.chatUnavailable'));
       return;
     }
-    try {
-      const threadId = await createThread.mutateAsync({
-        agentId: agent._id,
-        title: t('agents.chatWithTitle', { name: agentDisplayName(agent) }),
-      });
-      openThread(handle, threadId);
-    } catch (error: unknown) {
-      toast.error(getErrorMessage(error, t('agents.threadCreateFailed')));
-    }
-  }, [agent, createThread.mutateAsync, openThread, t]);
+    router.push(agentChatRoute(agent));
+  }, [agent, router, t]);
 
   const handleHirePress = () => {
     if (agent.status !== 'active') {
