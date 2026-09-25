@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { randomUUID } from 'crypto';
 
 export const canvasTool = tool({
-  description: 'Create a visual canvas component (chart, table, code block, form, image, or markdown) to display rich content to the user',
+  description: 'Create a visual canvas component (chart, table, code block, form, image, or markdown) to display rich content to the user. Not for a simple text answer.',
   inputSchema: z.object({
     type: z.enum(['chart', 'table', 'code', 'form', 'image', 'markdown', 'artifact']).describe('The type of canvas component to create'),
     title: z.string().describe('Title for the canvas component'),

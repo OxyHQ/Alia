@@ -21,8 +21,6 @@
  */
 
 import { describe, expect, it, vi } from 'vitest';
-import type { Response } from 'express';
-import type { TextStreamPart, ToolSet } from 'ai';
 
 vi.mock('../../logger.js', () => {
   const child = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };
@@ -31,25 +29,7 @@ vi.mock('../../logger.js', () => {
 vi.mock('../../observability/index.js', () => ({ recordEvent: vi.fn() }));
 vi.mock('../../chat-core.js', () => ({ reportModelUsage: vi.fn() }));
 
-const { runStream } = await import('../stream-runner.js');
-const { SSEWriter } = await import('../sse-writer.js');
-
-/** Everything written to the wire, so a frame can be found by name. */
-function responseDouble(): { res: Response; written: string[] } {
-  const written: string[] = [];
-  const res = {
-    write: (chunk: string) => {
-      written.push(chunk);
-      return true;
-    },
-    writeHead: () => res,
-    setHeader: () => res,
-    flushHeaders: () => undefined,
-    headersSent: false,
-    end: () => undefined,
-  };
-  return { res: res as unknown as Response, written };
-}
+const { runChunks } = await import('./stream-harness.js');
 
 /** The `alia.agent` frames, parsed. */
 function agentFrames(written: string[]): Record<string, unknown>[] {
@@ -61,19 +41,6 @@ function agentFrames(written: string[]): Record<string, unknown>[] {
     });
 }
 
-/** One completed tool call, as the SDK reports it. */
-function toolResultStream(toolName: string, output: unknown): AsyncIterable<TextStreamPart<ToolSet>> {
-  const chunks = [
-    { type: 'tool-call', toolCallId: 'call-1', toolName, input: {} },
-    { type: 'tool-result', toolCallId: 'call-1', toolName, input: {}, output },
-  ];
-  return {
-    async *[Symbol.asyncIterator]() {
-      for (const chunk of chunks) yield chunk as unknown as TextStreamPart<ToolSet>;
-    },
-  };
-}
-
 const ANSWER = {
   agentId: 'ag-1',
   agentName: 'Archivist',
@@ -83,23 +50,14 @@ const ANSWER = {
 };
 
 async function run(toolName: string, output: unknown) {
-  const { res, written } = responseDouble();
-  const agentMessages: Parameters<typeof runStream>[0]['agentMessages'] = [];
-  await runStream({
-    result: { fullStream: toolResultStream(toolName, output) },
-    res,
-    sse: new SSEWriter(res),
-    requestId: 'req-1',
-    modelId: 'acme/chat-1',
-    resolved: { modelId: 'acme/chat-1' } as unknown as Parameters<typeof runStream>[0]['resolved'],
-    baseConfig: {},
-    convertedMessages: [],
-    toolNameMapping: new Map(),
+  const agentMessages: Parameters<typeof runChunks>[1] = [];
+  const { written } = await runChunks(
+    [
+      { type: 'tool-call', toolCallId: 'call-1', toolName, input: {} },
+      { type: 'tool-result', toolCallId: 'call-1', toolName, input: {}, output },
+    ],
     agentMessages,
-    toolCallCount: 0,
-    state: { hasStreamedContent: false },
-    onFirstChunk: () => undefined,
-  });
+  );
   return { frames: agentFrames(written), agentMessages };
 }
 
