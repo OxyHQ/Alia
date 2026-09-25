@@ -1,0 +1,214 @@
+---
+title: "Native validation (Android)"
+description: "Alia's Expo app built locally as a release APK and driven on an Android 16 emulator for #608: what was run, what each screen showed, the three defects the device found and how they were fixed, the one it found that belongs upstream, and what this machine cannot validate at all."
+order: 10
+---
+
+# Native validation (Android)
+
+[#608](https://github.com/OxyHQ/Alia/issues/608) asks for the refactor to be
+checked on a device, not only in a browser. The web harnesses
+([visual](./visual-baseline.mdx), [runtime](./runtime-baseline.mdx)) cannot see
+what only a device has: a status bar lying over the app, a software keyboard, a
+system permission dialog, a microphone. This page is one pass of that on
+Android, on 2026-09-25, against `feat/608-integration` at `a83d0e5f` plus the
+fixes below (branch `chore/608-android`).
+
+**Read [§6](#6-what-this-does-not-cover) before quoting it as coverage.** It is
+one emulator, signed out, and there is no iOS here at all.
+
+## 1. Device and build
+
+| | |
+| --- | --- |
+| Host | WSL2 (Linux 6.18), 32 cores, KVM |
+| Emulator | Android Emulator 37.1.11, own AVD `Alia608Test` (Pixel 7 profile, 1080×2400, 420 dpi, 4 GB), system image `android-36.1 google_apis_playstore x86_64`: **Android 16, API 36**. `-gpu swiftshader_indirect`, own console port 5580 and own adb server on port 5041 |
+| Toolchain | OpenJDK 21, Gradle 9.3.1, compile/target SDK 36, min SDK 24, NDK 27.1.12297006 |
+| App | Expo 57.0.4, React Native 0.86.0 (new architecture, Hermes), Bloom 4.20.0, `@oxy.so/services` 4.0.1, keyboard-controller 1.21.9, Reanimated 4.5.0 |
+| Build | **release** (`assembleRelease`), JS bundled into the APK, signed with the debug keystore, `x86_64` only: 73.6 MB |
+| API | production (`https://api.alia.onl` via `lib/config.ts`; no `.env` in the worktree) |
+
+Built on the machine, never on EAS.
+
+## 2. Commands
+
+```bash
+cd packages/app
+CI=1 bunx expo prebuild -p android --clean        # android/ is gitignored; always regenerate
+cd android
+ANDROID_HOME=~/Android/Sdk NODE_ENV=production \
+  ./gradlew assembleRelease -PreactNativeArchitectures=x86_64
+# first build 3 min 9 s from clean; later ones 1.5–2 min
+
+adb -P 5041 install -r app/build/outputs/apk/release/app-release.apk
+adb -P 5041 shell pm clear onl.alia.app           # signed-out, first-run state
+adb -P 5041 shell am start -W -n onl.alia.app/.MainActivity
+adb -P 5041 exec-out screencap -p > shot.png
+adb -P 5041 logcat -v time > logcat.txt
+```
+
+Prebuild prints one warning worth knowing: `userInterfaceStyle: Install
+expo-system-ui in your project to enable this feature`. The app's own dark mode
+works without it (§3); what is missing is the native window background
+following the theme before JS runs.
+
+Taps were `adb shell input tap` at coordinates read off the screenshots:
+`uiautomator dump` cannot be used, because the ambient field never lets the UI
+go idle.
+
+## 3. What each screen showed (final build)
+
+| Step | Result |
+| --- | --- |
+| Cold start | The Oxy splash (dark, Alia mark, Oxy mark at the foot) for about a second, then the welcome. No red box, no crash. |
+| Signed-out welcome | "Meet Alia", the line under it, **Get started** and **Continue without an account**. The ambient field is alive: two frames 2 s apart differ in the bottom half of the screen (mean luma difference 1.4) and not at all in the top half. |
+| Continue without an account | The empty chat: header with the menu button and "Alia", the "New Chat" crumb, the mark and "Hi, what's on your mind?", the composer (+, Chat, Auto, microphone, voice). The choice is not remembered: every cold start shows the welcome again. |
+| Sidebar drawer | Opens from the menu button with one tap; the chat card slides right under a veil. New Chat, Agents, Library, Tasks, Automations, Skills, Shows; theme switch; Support, Privacy Policy, Terms of Service, Settings; Sign In. |
+| A page (Library) | Header, "Add files", search, filter chips, empty state; the frame and header sit where the chat's do. |
+| Composer focus | Keyboard up, the whole composer above it, the thread shrunk to fit. Checked three times from a cleared app. |
+| Send while signed out | The Oxy sign-in sheet over a blurred chat; the draft stays in the composer. |
+| Dark mode (from the drawer) | Whole app dark; status bar icons turn light. |
+| Rotation | Not applicable: `orientation: portrait` in `app.json` puts `screenOrientation="portrait"` on the activity; asking the system for landscape leaves it at `ROTATION_0`. |
+
+The screenshots of every step are kept with the session's evidence, not in the
+repository.
+
+**Cold start** (`am start -W`, process killed before each run, app already
+installed and opened once): `TotalTime` 1253, 1332, 1391, **1400**, 1618, 1974,
+3510 ms — median 1.40 s, one outlier. The first launch after installing took
+4.44 s. In every run `ReactNativeJS: Running "main"` came 0.6–2.6 s after the
+process started and before Android reported the activity displayed, so this is
+time to the first frame with JS already running, not time to a usable welcome.
+These are emulator numbers on a shared host: use them to compare builds on the
+same machine, not as device performance.
+
+## 4. What the device found, and what was fixed
+
+### 4.1 Status bar icons invisible — fixed
+
+Nothing rendered an `expo-status-bar` `<StatusBar>`, and the app is drawn edge
+to edge, so the icons stayed light over Alia's light surface: the clock and
+battery were close to invisible. `app/_layout.tsx` now renders
+`<StatusBar style={isDarkColorScheme ? 'light' : 'dark'} />`, following the
+theme Alia resolved (which can differ from the OS's, since the drawer has its
+own switch). Verified in light and dark.
+
+### 4.2 Shell under the status bar; menu button dead on most of its area — fixed
+
+Bloom's `AiChatShell` takes no safe area, and the chat routes and Settings took
+none either (the layout's `SELF_INSET_ROUTES` exempted them, but nothing in them
+applied the top inset). On Android the frame, the header and the drawer therefore started
+at y = 0, under a status bar 136 px tall. The menu button's centre was at
+y ≈ 110, inside the status bar's window, which takes the touch: **a tap on the
+button's upper two thirds did nothing**; only its lower edge opened the drawer.
+
+`app/(app)/_layout.tsx` now wraps the shell once, on native only, in a view
+padded by `insets.top`, and no route pads itself again (`SELF_INSET_ROUTES` is
+gone). Web is untouched: its insets are zero and it scrolls the document, which
+a wrapping flex view would break. The strip above shows the root background,
+which is the shell's own surface colour. Gate:
+`lib/__tests__/native-system-bars.test.ts`.
+
+### 4.3 Composer behind the keyboard — fixed (regression from 4.2)
+
+Moving the shell down exposed an assumption in `ChatWorkspace`: its
+`KeyboardAvoidingView` (keyboard-controller) computes the overlap from its frame
+**relative to its parent**, as if it started at the top of the screen. With the
+shell a status bar lower, the composer stopped 136 px short and its bottom half
+sat behind the keyboard. It now passes `keyboardVerticalOffset={insets.top}`.
+
+keyboard-controller's own `automaticOffset` (measure the view on screen) was
+tried first and rejected: it measures asynchronously, and on a freshly cleared
+app it lost the race to the first layout in two runs of three, leaving the same
+gap. The offset is deterministic; three runs from a cleared app all showed the
+whole composer. Gate: `components/__tests__/chat-workspace-background.test.tsx`.
+
+### 4.4 After the sign-in sheet, the composer no longer follows the keyboard — upstream, not fixed here
+
+Signed out, press send: the Oxy sign-in sheet (a Bloom `BottomSheet`, which is a
+React Native `<Modal>`) opens. Close it and the keyboard comes back, but the
+composer does not rise; it stays behind the keyboard. From then until the app is
+restarted, **every** focus of the composer has the same problem.
+
+At the moment the sheet opens, logcat shows three copies of:
+
+```
+E/unknown:UIManagerHelper: Unhandled SoftException
+java.lang.IllegalStateException: Fabric View [-1] does not have SurfaceId associated with it
+  at ...FabricEventDispatcher.dispatchEvent
+  at com.reactnativekeyboardcontroller.listeners.FocusedInputObserver.<init>(FocusedInputObserver.kt:46)
+  at com.reactnativekeyboardcontroller.listeners.KeyboardAnimationCallback.<init>(KeyboardAnimationCallback.kt:129)
+  at com.reactnativekeyboardcontroller.modal.ModalAttachedWatcher.onEventDispatch(ModalAttachedWatcher.kt:58)
+  at com.facebook.react.views.modal.ReactModalHostManager...onShow
+```
+
+`ModalAttachedWatcher` suspends the main window's keyboard callback when a
+`<Modal>` shows and resumes it from the dialog's dismiss listener. Three copies
+means three `KeyboardProvider`s: `OxyProvider`'s `KeyboardBoundary`, Alia's own
+in `app/_layout.tsx`, and the one Bloom's `BottomSheet` re-establishes inside its
+Modal. Removing Alia's (the only one Alia owns) was tried on a build and did
+**not** change the behaviour, so the fault is between Bloom's sheet and
+keyboard-controller 1.21.9 under Fabric. That the main callback is left
+suspended is the likely mechanism; it was not proven.
+
+Per the rule that a Bloom gap is fixed in Bloom, Alia carries no workaround. A
+`Keyboard.dismiss()` before `signIn()` was tried: it stops the keyboard popping
+back when the sheet closes but not the broken focus after it, so it only hid
+the bug. Whether other Bloom sheets over the composer (the model picker, the
+attach menu) do the same was not checked.
+
+### 4.5 Smaller things seen
+
+- **Reanimated warnings.** 273 `W/Reanimated: synchronouslyUpdateUIProps failed
+  for tag …` (`RetryableMountingLayerException: Unable to find
+  SurfaceMountingManager`) in one session, in bursts at launch and when the
+  welcome hands over to the chat: animated props written to views already
+  unmounted. Warnings only; nothing visible.
+- **Signed-out Library calls the API.** Opening Library signed out logs
+  `E/ReactNativeJS: 'Error loading library files:', [AxiosError: Request failed
+  with status code 401]`. The page renders its empty state, but the request
+  should not be made.
+- **Sign-in sheet foot.** The sheet's language selector ("Having…") is clipped
+  under the gesture bar. It is `@oxy.so/services` UI.
+- **`action` tone is green.** "Get started", "Add files" and the send button are
+  green on a purple app. That is Bloom's `purple` preset, whose action colour is
+  derived as a complement by design — not the device's Material You palette
+  (Alia does not use `adaptive`). A design call, not a defect.
+- **Splash under dark icons.** For the fraction of a second the splash is still
+  up after JS has run, the status bar icons are already dark for the light theme
+  over the dark splash.
+- **Return inserts a newline.** On the soft keyboard ↵ adds a line; sending is
+  the send button. Expected for a multiline field on a phone.
+
+## 5. Audio
+
+- **Dictation** (the composer's microphone, which works signed out): the system
+  asks for the microphone; after "While using the app" the status bar shows the
+  green microphone chip, `dumpsys audio` shows an active `VOICE_RECOGNITION`
+  session for `onl.alia.app` at 16 kHz mono, the button turns into a level
+  meter, and after about 8 s of silence the session ends and the draft is left
+  as it was. The emulator's microphone is the host's through WSLg PulseAudio,
+  and nothing could speak into it, so **recognition itself was not validated**:
+  the microphone opens and closes cleanly, nothing more.
+- **Read aloud (TTS)** needs an assistant message, and a signed-out send only
+  opens the sign-in sheet, so it is **not reachable signed out and was not
+  validated**; neither was the speaker path through WSLg.
+- **Voice mode** (calls) needs an account and a plan: not validated.
+
+## 6. What this does not cover
+
+- **iOS.** Not on this machine; it needs a Mac with Xcode. Nothing here says
+  anything about iOS, where the keyboard avoidance runs a different behaviour
+  (`padding`) and the safe areas differ.
+- **Signed in.** No account was used. Streaming turns, tools, the thread with
+  real messages, history, read aloud, calls, notifications, attachments and the
+  right-hand panel were not exercised.
+- **A real phone.** One emulator, x86_64, software GPU. No low-end device, no
+  gesture-vs-three-button navigation comparison, no tablet or foldable (on
+  Android 16, large screens may ignore the portrait lock), no display cutout
+  other than the Pixel 7 profile's.
+- **Push delivery.** No `google-services.json` in the worktree, so FCM was not
+  configured in this build.
+- **The web.** Nothing here was checked on web; the web harnesses are the
+  reference there. The layout change keeps web on its old path by construction
+  (`Platform.OS === 'web'`), and the app's unit suite passed.
