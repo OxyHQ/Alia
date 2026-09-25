@@ -1,8 +1,7 @@
 import { useCallback, useRef } from 'react';
 import { getTextFromContent } from '@alia.onl/sdk/content';
-import type { Attachment } from '@/features/chat/runtime/global-store';
 import type { Message } from '@/features/chat/runtime/use-conversations';
-import type { SendOptions } from '@/features/chat/runtime/use-streaming-chat';
+import type { Attachment, SendOptions } from '@/shared/contracts/chat-turn';
 import {
   useComposerDraft,
   useComposerDraftStore,

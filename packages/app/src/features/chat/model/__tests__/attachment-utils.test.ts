@@ -42,7 +42,7 @@ vi.mock('expo-file-system', () => ({
 }));
 
 import { buildMessageContent } from '@/features/chat/model/attachment-utils';
-import type { Attachment } from '@/features/chat/runtime/global-store';
+import type { Attachment } from '@/shared/contracts/chat-turn';
 
 function attachment(over: Partial<Attachment> & { id: string }): Attachment {
   return {

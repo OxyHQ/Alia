@@ -27,8 +27,7 @@ import { useAudioLevelMonitor, useAudioLevels, type VoiceTurnSender } from '@ali
 import { toast } from '@oxy.so/bloom/toast';
 import { useTranslation } from '@/shared/i18n/use-translation';
 import { voiceErrorText } from '@/features/voice/model/voice-error-text';
-import type { Attachment } from '@/features/chat/runtime/global-store';
-import type { SendOptions } from '@/features/chat/runtime/use-streaming-chat';
+import type { Attachment, SendOptions } from '@/shared/contracts/chat-turn';
 
 /**
  * The call ended because the turn could not be sent at all. `sendMessage` has

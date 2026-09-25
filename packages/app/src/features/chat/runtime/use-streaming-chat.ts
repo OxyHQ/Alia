@@ -1,6 +1,7 @@
 import { parseContextUsage } from '@/features/chat/model/context-usage';
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useAgentRowPreview } from './use-agent-row-preview';
+import type { SendOptions } from '@/shared/contracts/chat-turn';
 import { fetch as expoFetch } from 'expo/fetch';
 import * as Haptics from 'expo-haptics';
 import { useOxy } from '@oxy.so/services';
@@ -44,34 +45,6 @@ export type { FailedTurn };
  *  - `aborted`: the person stopped it; partial output is theirs to keep.
  */
 export type SendOutcome = 'sent' | 'errored' | 'failed' | 'aborted';
-
-export interface SendOptions {
-  /** `null` explicitly withholds MCP tools; omission preserves legacy callers. */
-  mcpServerId?: string | null;
-  /**
-   * The skills chosen for THIS message, by name.
-   *
-   * Per turn rather than per session: the previous design set one skill id
-   * globally when a skill's page was opened, applied it to every conversation,
-   * and had nothing that could clear it. Omitted means the person chose none —
-   * Alia can still load an installed skill on its own from the index in its
-   * system prompt, which is what the format is for.
-   */
-  skillNames?: string[];
-  /**
-   * `'voice'` when the turn was spoken in a voice call: the API answers it
-   * with its voice response profile — short, conversational, nothing that
-   * cannot be read aloud. Omitted for every typed turn.
-   */
-  responseMode?: 'voice';
-  /**
-   * Called with the whole answer so far each time real content arrives, before
-   * it is batched for rendering. Voice mode speaks from this: it needs every
-   * fragment the moment it lands, and the final text before `append` resolves,
-   * neither of which the rendered message list guarantees.
-   */
-  onAnswerText?: (answerSoFar: string) => void;
-}
 
 /** Server tools that mutate the user's memory document (see packages/api `lib/tools/user-memory.ts`). */
 const MEMORY_WRITING_TOOLS = new Set([
@@ -117,7 +90,6 @@ interface ConversationsInfinite {
   pages: Array<{ conversations: Conversation[] }>;
   pageParams: unknown[];
 }
-
 
 export function useStreamingChat(apiUrl: string, conversationId?: string, reasoningEffort?: EffortLevel | null, selectedModel?: string, agentId?: string | null) {
   const [messages, setMessages] = useState<Message[]>([]);

@@ -1,4 +1,4 @@
-import { triggerLabel } from '@/features/automations/model/format';
+import { triggerLabel } from '@/shared/contracts/automations';
 import {
   degrees,
   faircoinChart,

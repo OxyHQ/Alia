@@ -2,7 +2,7 @@ import {
   buildAutomationUpdate,
   createAutomationEditDraft,
 } from '@/features/automations/model/edit';
-import { cronLabel } from '@/features/automations/model/format';
+import { cronLabel } from '@/shared/contracts/automations';
 import { useTranslation } from '@/shared/i18n/use-translation';
 import type {
   AutomationDefinition,

@@ -3,12 +3,12 @@ import {
   canRunNow,
   policyReason,
   runStatusLabel,
-  triggerLabel,
 } from '@/features/automations/model/format';
 import { useTranslation } from '@/shared/i18n/use-translation';
-import type {
-  AutomationDefinition,
-  AutomationRun,
+import {
+  triggerLabel,
+  type AutomationDefinition,
+  type AutomationRun,
 } from '@/shared/contracts/automations';
 import {
   automationLifecycle,

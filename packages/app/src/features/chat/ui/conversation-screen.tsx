@@ -19,7 +19,7 @@ import {
 } from '@/features/chat/runtime/use-conversations';
 import { useProductModes } from '@/features/chat/runtime/use-product-modes';
 import { useVoiceSoundEffects } from '@/shared/platform/use-sound-effects';
-import type { SendOptions } from '@/features/chat/runtime/use-streaming-chat';
+import type { Attachment, SendOptions } from '@/shared/contracts/chat-turn';
 import { useThreadHistory } from '@/features/chat/runtime/use-thread-history';
 import {
   useThreadWindow,
@@ -27,7 +27,6 @@ import {
 } from '@/features/chat/runtime/use-thread-search';
 import { useTranslation } from '@/shared/i18n/use-translation';
 import { useVoiceMode } from '@/features/voice/runtime/use-voice-mode';
-import { type Attachment } from '@/features/chat/runtime/global-store';
 import { useModelStore } from '@/features/chat/runtime/model-store';
 import { useUIStore } from '@/features/chat/runtime/ui-store';
 import type { Message } from '@/features/chat/model/chat';
