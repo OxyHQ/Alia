@@ -19,6 +19,8 @@
 import type { ExpoSpeechRecognitionErrorCode, ExpoSpeechRecognitionModule as NativeModule } from 'expo-speech-recognition';
 import {
   clampLevel,
+  matchSpeechLocale,
+  type SpeechRecognizerChoice,
   type SpeechRecognitionFailure,
   type SpeechRecognitionFailureCode,
   type SpeechRecognitionHandlers,
@@ -94,6 +96,58 @@ function failureOf(error: ExpoSpeechRecognitionErrorCode): SpeechRecognitionFail
 /** `volumechange` is -2..10, and anything below 0 is inaudible. */
 const VOLUME_CEILING = 10;
 
+/**
+ * Which recognizer to use for `lang`, and the tag it knows the language by.
+ *
+ * Android leaves recognition to whichever service the device has, and
+ * `SpeechRecognizer` answers a language it cannot do only by failing:
+ * `language-not-supported`, which dictation showed as "does not support this
+ * language" whatever the real reason. On a Pixel the default service is often
+ * Android System Intelligence, which recognizes only the languages whose
+ * packs are downloaded, while another service on the same phone (Google's
+ * speech services) could have done it. So each service is asked what it
+ * recognizes — the default first — and the first that has the language wins,
+ * under the spelling it uses; a service offering only another region of the
+ * language (`es-US` for `es-ES`) is taken over failing.
+ *
+ * A service that reports nothing (Android 12 and older, a service that does
+ * not implement the query) proves nothing, so when none reports, the default
+ * is tried as before, with `silent` set if there were services to ask. iOS has
+ * none to list and goes straight to Apple's recognizer.
+ */
+export async function chooseSpeechRecognizer(lang: string): Promise<SpeechRecognizerChoice> {
+  const module = speechModule();
+  if (module === null) return { failure: { code: 'unsupported' } };
+  const attempt = <T>(read: () => T, fallback: T): T => {
+    try {
+      return read();
+    } catch {
+      return fallback;
+    }
+  };
+  const preferred = attempt(() => module.getDefaultRecognitionService().packageName, '');
+  const services = attempt(() => module.getSpeechRecognitionServices(), [] as string[]);
+  const order = [...new Set([preferred, ...services].filter((name) => name !== ''))];
+
+  let reported = false;
+  let asked = 0;
+  for (const service of order) {
+    let offered: string[];
+    try {
+      offered = (await module.getSupportedLocales({ androidRecognitionServicePackage: service })).locales;
+    } catch {
+      continue;
+    }
+    asked += 1;
+    if (offered.length === 0) continue;
+    reported = true;
+    const tag = matchSpeechLocale(lang, offered);
+    if (tag !== null) return { lang: tag, service, silent: false };
+  }
+  if (reported) return { failure: { code: 'language-not-supported' } };
+  return { lang, silent: asked > 0 };
+}
+
 export function startSpeechRecognition(
   options: SpeechRecognitionOptions,
   handlers: SpeechRecognitionHandlers,
@@ -146,6 +200,7 @@ export function startSpeechRecognition(
   try {
     ExpoSpeechRecognitionModule.start({
       lang: options.lang,
+      ...(options.service ? { androidRecognitionServicePackage: options.service } : {}),
       interimResults: true,
       continuous: true,
       addsPunctuation: true,

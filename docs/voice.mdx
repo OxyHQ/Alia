@@ -51,6 +51,21 @@ engines, picked by the bundler:
 The language is the app's (`packages/app/src/features/voice/model/speech-locale.ts`): `i18n.locale`,
 widened to a regional tag from the device's locales when it is bare.
 
+**Which recognizer, on Android** (`chooseSpeechRecognizer`, run once before a
+dictation or a call starts). Android may have several recognition services — on
+a Pixel, Android System Intelligence (on-device, only the languages whose packs
+are installed) and Google's speech services — and `SpeechRecognizer` answers a
+language it cannot do only by failing. So each service is asked which languages
+it recognizes, the default first; the first that has the language (or another
+region of it: `es-US` for `es-ES`) is used, under its own spelling of the tag.
+When services answer and none has the language, dictation says so without
+opening the microphone. When every service answers with no language at all,
+the default is still tried, and if it refuses, the message is "speech
+recognition is not available on this device", not "does not support this
+language" — which is what a Pixel with no speech services and no language pack
+showed (`docs/native-validation.mdx` §8.4). iOS and the web have one recognizer
+and go straight to it.
+
 **Privacy, stated plainly.** No audio reaches Alia. What the platform's
 recognizer does is the platform's: Chrome's Web Speech API streams audio to a
 Google service; Safari and iOS use Apple's, on-device where the device supports

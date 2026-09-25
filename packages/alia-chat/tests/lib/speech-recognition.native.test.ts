@@ -14,6 +14,12 @@ const native = vi.hoisted(() => {
       isRecognitionAvailable: vi.fn(() => true),
       requestPermissionsAsync: vi.fn(async () => ({ granted: true, status: 'granted' })),
       start: vi.fn(),
+      getDefaultRecognitionService: vi.fn(() => ({ packageName: '' })),
+      getSpeechRecognitionServices: vi.fn((): string[] => []),
+      getSupportedLocales: vi.fn(async (_options: { androidRecognitionServicePackage?: string }) => ({
+        locales: [] as string[],
+        installedLocales: [] as string[],
+      })),
       stop: vi.fn(),
       abort: vi.fn(),
       addListener: vi.fn((name: string, listener: Listener) => {
@@ -42,6 +48,7 @@ nodeRequire.cache[resolved] = {
 } as unknown as NodeJS.Module;
 
 import {
+  chooseSpeechRecognizer,
   isSpeechRecognitionAvailable,
   requestSpeechRecognitionPermission,
   startSpeechRecognition,
@@ -56,6 +63,9 @@ describe('on-device recognition on iOS and Android', () => {
     native.listeners.clear();
     for (const fn of Object.values(native.module)) fn.mockClear();
     native.module.isRecognitionAvailable.mockReturnValue(true);
+    native.module.getDefaultRecognitionService.mockReturnValue({ packageName: '' });
+    native.module.getSpeechRecognitionServices.mockReturnValue([]);
+    native.module.getSupportedLocales.mockResolvedValue({ locales: [], installedLocales: [] });
   });
 
   it('starts continuous, interim, punctuated recognition in the given language, with echo cancellation on request', () => {
@@ -110,5 +120,69 @@ describe('on-device recognition on iOS and Android', () => {
       throw new Error('Cannot find native module');
     });
     expect(isSpeechRecognitionAvailable()).toBe(false);
+  });
+
+  it('starts on the service it was given instead of the default', () => {
+    startSpeechRecognition({ lang: 'en-US', service: 'com.google.android.tts' }, handlers());
+    expect(native.module.start).toHaveBeenCalledWith(
+      expect.objectContaining({ androidRecognitionServicePackage: 'com.google.android.tts' }),
+    );
+  });
+});
+
+/**
+ * A Pixel 8a (#608, `docs/native-validation.mdx` §8.4) had one recognition
+ * service, Android System Intelligence, with no language pack: every dictation
+ * failed as "does not support this language" although the language was fine.
+ */
+describe('choosing the recognizer for a language', () => {
+  const offer = (by: Record<string, string[]>) =>
+    native.module.getSupportedLocales.mockImplementation(async ({ androidRecognitionServicePackage = '' }) => ({
+      locales: by[androidRecognitionServicePackage] ?? [],
+      installedLocales: [],
+    }));
+
+  beforeEach(() => {
+    native.module.getDefaultRecognitionService.mockReturnValue({ packageName: 'com.google.android.as' });
+    native.module.getSpeechRecognitionServices.mockReturnValue(['com.google.android.as', 'com.google.android.tts']);
+  });
+
+  it('takes the default service when it knows the language, under its own spelling', async () => {
+    offer({ 'com.google.android.as': ['en_US', 'es_ES'] });
+    await expect(chooseSpeechRecognizer('es-ES')).resolves.toEqual({
+      lang: 'es_ES',
+      service: 'com.google.android.as',
+      silent: false,
+    });
+  });
+
+  it('moves to another service when the default has not got the language', async () => {
+    offer({ 'com.google.android.as': ['en-US'], 'com.google.android.tts': ['en-US', 'es-ES'] });
+    await expect(chooseSpeechRecognizer('es-ES')).resolves.toEqual({
+      lang: 'es-ES',
+      service: 'com.google.android.tts',
+      silent: false,
+    });
+  });
+
+  it('takes another region of the language over failing', async () => {
+    offer({ 'com.google.android.as': ['en-US', 'es-US'] });
+    await expect(chooseSpeechRecognizer('es-ES')).resolves.toMatchObject({ lang: 'es-US' });
+  });
+
+  it('says the language is not supported when services answered and none has it', async () => {
+    offer({ 'com.google.android.as': ['en-US'] });
+    await expect(chooseSpeechRecognizer('ja-JP')).resolves.toEqual({ failure: { code: 'language-not-supported' } });
+  });
+
+  it('tries the default as before, marked silent, when every service names no language', async () => {
+    offer({});
+    await expect(chooseSpeechRecognizer('en-US')).resolves.toEqual({ lang: 'en-US', silent: true });
+  });
+
+  it('is not silent where there is no service to ask (iOS)', async () => {
+    native.module.getDefaultRecognitionService.mockReturnValue({ packageName: '' });
+    native.module.getSpeechRecognitionServices.mockReturnValue([]);
+    await expect(chooseSpeechRecognizer('en-US')).resolves.toEqual({ lang: 'en-US', silent: false });
   });
 });
