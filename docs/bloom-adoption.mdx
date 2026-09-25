@@ -116,7 +116,7 @@ tarball.
 | Message timeline: scroll, bottom-follow, upward pagination, cursor jump | `src/features/chat/ui/chat-interface.tsx` (~1,200 lines) + `lib/hooks/use-scroll-to-bottom.ts` | `ai-chat`: `AiChatThread` | needs a Bloom change | `AiChatThreadProps` is `{ children, style, testID }`. See [gap 3](#3-verified-contract-gaps). |
 | Turn rendering: user bubble, assistant blocks | `renderMessage` / `MessageRow` in `src/features/chat/ui/chat-interface.tsx` | `ai-chat`: `AiChatUserMessage`, `AiChatAssistantMessage`, `AiChatMessageLine`, `AiChatBulletList`, `AiChatBullet`, `AiChatStrong`, `AiChatLinkChip` | composition | `children: ReactNode` takes Alia's own block renderers unchanged, and `animate?: boolean` (default `true`) exists precisely for history restored from the server. `AiChatAssistantMessage` blurs each child in 180ms apart, so a streaming turn must not remount its block list. |
 | Turn actions: copy, vote, read aloud | the reply's feedback row and the question's action row, built in `src/features/chat/ui/chat-interface.tsx` from `src/features/chat/ui/turn-actions.tsx` (`useTTS`, vote, edit, regenerate) | `ai-chat`: `AiChatFeedbackRow` (`onCopy`, `actions`, `labels`), `AiChatUserMessage.actions`; `context-menu` for the long press on native | composition | Bloom 4.20 closed [gap 6](#3-verified-contract-gaps) and added turn `actions`: copy returns the clipboard's answer, read aloud and regenerate ride the feedback row, copy and edit sit under the question. |
-| Code / diff side panel | `src/features/chat/ui/canvas/code-renderer.tsx`, `components/execution/execution-surface.tsx` | `ai-chat`: `AiChatCodePanel`, `AiChatChangedFile`, `AiChatPanelAction`, `AiChatPanelTab` | composition | Usable only with an explicit `actions` array and an explicit `browser` node. See [gap 7](#3-verified-contract-gaps). |
+| Code / diff side panel | `src/features/chat/ui/canvas/code-renderer.tsx`, `components/execution/execution-surface.tsx` | `ai-chat`: `AiChatCodePanel`, `AiChatChangedFile`, `AiChatPanelAction`, `AiChatPanelTab` | composition | `src/shell/workspace-panel.tsx` passes its own `actions`, no `onUndo`, and `browser={null}` when there is nothing to preview (Bloom 4.22), so no dead control or placeholder is drawn. See [gap 7](#3-verified-contract-gaps). |
 | Brand ambient background behind the chat | `src/features/chat/ui/ambient-field.tsx` (~480 lines), absolute fill rendered *before* `ChatInterface` in `chat-page-content.tsx` | `ai-chat`: nothing. Nearest is `chat-screen`'s `ChatBackground` | needs a Bloom change | No `ai-chat` export takes a background node. See [gap 8](#3-verified-contract-gaps). |
 | Generated-image surface | none found in `packages/app` (only an image route named in `src/shared/api/routes.ts`) | `ai-chat`: `AiChatImageGeneration`, `AiChatGalleryPanel`, `AiChatGeneration` | not applicable | There is no image-generation surface in the app to port. Adopting these would add a capability, which §6 of the issue forbids ("nada de arte de ejemplo"). Revisit if and when the product ships one. |
 | Composer | `components/ui/prompt-input/` — 11 files, `prompt-input.tsx` is the bar, `submit-button.tsx` the send/stop control, `attachments.tsx` the tile strip, `dictation-bar.tsx` the STT replacement state | `composer-panel`: `ComposerPill`, `ComposerPanel`, `ComposerAttachments`, `ComposerStatusBar`, `ComposerPanelStatusTab`, `COMPOSER_PANEL_ADD_MENU`, `COMPOSER_PANEL_PERMISSIONS`, `MODEL_PICKER_EFFORT_LEVELS` | needs a Bloom change | Neither `ComposerPillProps` nor `ComposerPanelProps` declares `onStop`, and `ComposerPillProps` has no attachments list. See [gaps 1 and 2](#3-verified-contract-gaps). |
@@ -376,7 +376,18 @@ contracts get it right:
 
 Widening `AiChatFeedbackRowProps.onCopy` to match either is the fix.
 
-### 7. Code and gallery panel defaults — CONFIRMED
+### 7. Code and gallery panel defaults — CONFIRMED, fixed in Bloom 4.22
+
+Bloom 4.22 draws the undo glyph only with `onUndo` and a tile's download and
+more actions only with `onDownload` / `onMore`. `browser={null}` and
+`stylePresets={null}` drop the Browser and Styles tabs. `src/shell/workspace-panel.tsx`
+passes only the sidebar glyph that closes the panel as its header `actions`,
+`browser={null}` for a code canvas with no terminal, and `stylePresets={null}`.
+It also passes a real download (`src/features/chat/runtime/save-image.ts`; web
+and iOS, not Android, which has no file share without `expo-sharing`) and a
+more menu (open, and delete for a Library image). `src/shell/__tests__/workspace-panel-controls.test.tsx`
+mounts the real panels and checks that every pressable they draw has a handler.
+The finding as it stood:
 
 Both panels default to action arrays whose entries carry **no `onPress`**
 (`AiChatPanelAction.onPress` is optional):
