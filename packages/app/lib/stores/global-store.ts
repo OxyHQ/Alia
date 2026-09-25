@@ -32,24 +32,9 @@ export interface PendingInitialMessage {
   skillNames: string[];
 }
 
-/** Composer text handed to the screen identified by `target` (null = new-chat screen). */
-export interface ComposerDraft {
-  text: string;
-  target: string | null;
-  mcpServerId: string | null;
-  /** The skills the composer had chosen, restored when a send fails. */
-  skillNames: string[];
-}
-
 interface StoreState {
   scrollY: number;
   setScrollY: (value: number) => void;
-  attachments: Attachment[];
-  addAttachment: (attachment: Attachment) => void;
-  updateAttachment: (id: string, updates: Partial<Attachment>) => void;
-  removeAttachment: (id: string) => void;
-  setAttachments: (attachments: Attachment[]) => void;
-  clearAttachments: () => void;
   setBottomChatHeightHandler: (value: boolean) => void;
   bottomChatHeightHandler: boolean;
   chatId: ChatIdState;
@@ -60,19 +45,6 @@ interface StoreState {
   pendingInitialMessage: PendingInitialMessage | null;
   setPendingInitialMessage: (message: PendingInitialMessage) => void;
   clearPendingInitialMessage: () => void;
-
-  /**
-   * A composer draft handed to a chat screen by another route, or handed back
-   * by a send that failed. Unlike {@link pendingInitialMessage} it is NOT sent —
-   * it lands in the input for the user to finish. `target` names the screen it
-   * belongs to so a draft never leaks into an unrelated chat, and
-   * `composerDraftSeq` counts hand-offs so a screen can tell a fresh draft from
-   * the copy it already applied.
-   */
-  composerDraft: ComposerDraft | null;
-  composerDraftSeq: number;
-  setComposerDraft: (draft: ComposerDraft) => void;
-  clearComposerDraft: () => void;
 
   ghostMode: boolean;
   setGhostMode: (value: boolean) => void;
@@ -87,26 +59,9 @@ interface StoreState {
   setStreamingChatId: (id: string | null) => void;
 }
 
-export const useStore = create<StoreState>((set, get) => ({
+export const useStore = create<StoreState>((set) => ({
   scrollY: 0,
   setScrollY: (value: number) => set({ scrollY: value }),
-  attachments: [],
-  addAttachment: (attachment: Attachment) =>
-    set((state) => ({
-      attachments: [...state.attachments, attachment],
-    })),
-  updateAttachment: (id: string, updates: Partial<Attachment>) =>
-    set((state) => ({
-      attachments: state.attachments.map((a) =>
-        a.id === id ? { ...a, ...updates } : a
-      ),
-    })),
-  removeAttachment: (id: string) =>
-    set((state) => ({
-      attachments: state.attachments.filter((a) => a.id !== id),
-    })),
-  setAttachments: (attachments: Attachment[]) => set({ attachments }),
-  clearAttachments: () => set({ attachments: [] }),
   bottomChatHeightHandler: false,
   setBottomChatHeightHandler: (value: boolean) =>
     set({ bottomChatHeightHandler: value }),
@@ -118,12 +73,6 @@ export const useStore = create<StoreState>((set, get) => ({
   pendingInitialMessage: null,
   setPendingInitialMessage: (message: PendingInitialMessage) => set({ pendingInitialMessage: message }),
   clearPendingInitialMessage: () => set({ pendingInitialMessage: null }),
-
-  composerDraft: null,
-  composerDraftSeq: 0,
-  setComposerDraft: (draft: ComposerDraft) =>
-    set((state) => ({ composerDraft: draft, composerDraftSeq: state.composerDraftSeq + 1 })),
-  clearComposerDraft: () => set({ composerDraft: null }),
 
   ghostMode: false,
   setGhostMode: (value: boolean) => set({ ghostMode: value }),

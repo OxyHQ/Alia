@@ -36,7 +36,7 @@ import {
 } from '@oxy.so/bloom/ai-chat';
 import { ComposerPanelStatusTab } from '@oxy.so/bloom/composer-panel';
 import { useAuth } from '@oxy.so/services';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { ScrollToBottomButton } from '@oxy.so/bloom/chat-screen';
 import { useAtBottom } from '@/lib/hooks/use-at-bottom';
 import { View } from 'react-native';
@@ -111,8 +111,8 @@ interface ChatPageContentProps {
   onDismissNewConversation?: () => void;
   /**
    * The chat this screen is showing, or omitted for the new-chat screen. The
-   * drawer keeps every visited chat mounted, so this is what decides which
-   * instance a `composerDraft` belongs to.
+   * drawer keeps every visited chat mounted, so this is what names the draft
+   * this screen's composer edits.
    */
   conversationId?: string;
   conversationTitle?: string;
@@ -188,35 +188,21 @@ export const ChatPageContent = ({
   const { t } = useTranslation();
   const isMainScreen = messages.length === 0;
   // The same composer every screen that asks Alia something uses.
+  // This screen's draft: its conversation, or the new-chat screen's own.
   const composer = useAliaComposer({
+    draft: conversationId ?? null,
     locked: isLoading || disabled,
     offerGhost: isMainScreen,
     selectedModel,
     onModelChange,
   });
-  const { attachments, turnOptions, restoreTurn, clearTurn } = composer;
+  const { attachments, turnOptions, clearDraft } = composer;
 
   const isVoiceActive = voice?.isVoiceActive ?? false;
-  const [inputValue, setInputValue] = useState('');
-
-  // Draft handed over by another route, or handed back by a send that failed.
-  // `target` picks the one screen it belongs to and the seq marks it consumed,
-  // so this needs no effect and no write back to the store.
-  const composerDraft = useStore((state) => state.composerDraft);
-  const composerDraftSeq = useStore((state) => state.composerDraftSeq);
-  const [appliedDraftSeq, setAppliedDraftSeq] = useState(0);
-  if (
-    composerDraft &&
-    composerDraftSeq !== appliedDraftSeq &&
-    composerDraft.target === (conversationId ?? null)
-  ) {
-    setAppliedDraftSeq(composerDraftSeq);
-    setInputValue(composerDraft.text);
-    restoreTurn({
-      mcpServerId: composerDraft.mcpServerId,
-      skillNames: composerDraft.skillNames,
-    });
-  }
+  // The text is the draft's too: a draft handed over by another route, or
+  // handed back by a send that failed, is simply there.
+  const inputValue = composer.text;
+  const setInputValue = composer.setText;
 
   const { colors, isDarkColorScheme } = useColorScheme();
   const { ttsWaveAmplitude, playbackState: ttsPlaybackState } = useTTS();
@@ -340,12 +326,10 @@ export const ChatPageContent = ({
     const options: SendOptions = turnOptions;
 
     // Clear optimistically. The send path restores text, attachments and the
-    // selected connector through composerDraft if the request fails.
-    setInputValue('');
-    useStore.getState().clearAttachments();
+    // turn's connector and skills to this draft if the request fails.
+    clearDraft();
 
-    const sent = await onSubmit(content, pendingAttachments, options);
-    if (sent) clearTurn();
+    await onSubmit(content, pendingAttachments, options);
   };
 
   /**
@@ -427,6 +411,9 @@ export const ChatPageContent = ({
               onPick={handlePickSuggestion}
             />
             <Composer
+              // A different account is a different composer: reads in flight
+              // for the last one are aborted rather than landing here.
+              key={composer.address.account ?? ''}
               onKeyPress={suggestions.onKeyPress}
               value={inputValue}
               onValueChange={setInputValue}

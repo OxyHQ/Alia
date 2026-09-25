@@ -30,9 +30,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  *
  * The absence of `conversationId` is pinned here too, in the same breath. It
  * is not an oversight to be tidied up by a later reader: `ChatPageContent`
- * uses its presence to decide which mounted screen a `composerDraft` belongs
- * to, and the drawer keeps every visited chat mounted, so naming an id here
- * would hand this screen's draft to some persisted conversation.
+ * uses it to name the draft its composer edits, and the drawer keeps every
+ * visited chat mounted, so naming an id here would hand this screen's draft
+ * to some persisted conversation.
  */
 
 /** What the mocked hook hands back. Identity is the assertion, so every handler is its own fn. */
@@ -278,9 +278,8 @@ describe('the new-chat screen wires the whole conversation', () => {
   it('names no conversation, because there is not one yet', async () => {
     const props = await mount();
 
-    // `ChatPageContent` reads the presence of this prop to decide which of the
-    // drawer's mounted screens a `composerDraft` belongs to. An id here would
-    // give this screen's draft away.
+    // `ChatPageContent` names its composer's draft by this prop; absent, it
+    // is the new chat's. An id here would give this screen's draft away.
     expect(props.conversationId).toBeUndefined();
     expect('conversationId' in props).toBe(false);
   });

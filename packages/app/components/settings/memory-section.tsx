@@ -1,7 +1,7 @@
 import { generateAPIUrl } from '@/lib/generate-api-url';
 import { useTranslation } from '@/lib/hooks/use-translation';
 import { useUserData } from '@/lib/hooks/use-user-data';
-import { useStore } from '@/lib/stores/global-store';
+import { useComposerDraftStore } from '@/lib/stores/composer-draft-store';
 import { useUserDataStore } from '@/lib/stores/user-data-store';
 import { Button } from '@oxy.so/bloom/button';
 import { ButtonGroup, ButtonGroupItem } from '@oxy.so/bloom/button-group';
@@ -160,14 +160,12 @@ export function MemorySection() {
    * The model applies it through its own `saveUserMemory` tool.
    */
   const startMemoryChat = (draft: string) => {
-    useStore
-      .getState()
-      .setComposerDraft({
-        text: draft,
-        target: null,
-        mcpServerId: null,
-        skillNames: [],
-      });
+    const drafts = useComposerDraftStore.getState();
+    drafts.restore(drafts.address(null), {
+      text: draft,
+      mcpServerId: null,
+      skillNames: [],
+    });
     router.replace('/(app)');
   };
 

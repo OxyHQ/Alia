@@ -13,6 +13,7 @@ import { useLocalRuntime } from '@/lib/hooks/use-local-runtime';
 import { useNotificationSetup } from '@/lib/hooks/use-notification-setup';
 import { useWelcomeSuggestions } from '@/lib/hooks/use-suggestions';
 import i18n from '@/lib/i18n';
+import { useComposerDraftStore } from '@/lib/stores/composer-draft-store';
 import { useFavoritesStore } from '@/lib/stores/favorites-store';
 import { useFoldersStore } from '@/lib/stores/folders-store';
 import { usePinnedStore } from '@/lib/stores/pinned-store';
@@ -92,6 +93,9 @@ export default function AppLayout() {
     loadFolders(userId);
     loadFavorites(userId);
     loadPinned(userId);
+    // Composer drafts too: another account's half-written message and files
+    // are not this one's (`lib/stores/composer-draft-store.ts`).
+    useComposerDraftStore.getState().bindAccount(userId);
   }, [userId, loadProjects, loadFolders, loadFavorites, loadPinned]);
 
   /**
