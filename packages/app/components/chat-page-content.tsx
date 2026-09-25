@@ -25,6 +25,7 @@ import type { FailedTurn, SendOptions } from '@/lib/hooks/use-streaming-chat';
 import { useTranslation } from '@/lib/hooks/use-translation';
 import type { useVoiceMode } from '@/lib/hooks/use-voice-mode';
 import { useStore } from '@/lib/stores/global-store';
+import { useFoldersStore } from '@/lib/stores/folders-store';
 import { useProjectsStore } from '@/lib/stores/projects-store';
 import type { ThreadMessage } from '@/lib/thread-history';
 import { useColorScheme } from '@/lib/useColorScheme';
@@ -230,14 +231,16 @@ export const ChatPageContent = ({
   });
   const insets = useSafeAreaInsets();
   /**
-   * The chat's folder, as the sidebar's tree files it: its project, or
-   * "Recent". It is the breadcrumb's crumb and the composer's status tab.
+   * Where the sidebar's tree files the chat: its project, its folder, or
+   * the tree itself ("Chats"). It is the breadcrumb's crumb and the
+   * composer's status tab.
    */
   const projects = useProjectsStore((state) => state.projects);
-  const recentLabel = t('sidebar.recent');
+  const folders = useFoldersStore((state) => state.folders);
   const projectName = conversationId
     ? (projects.find((p) => p.conversationIds.includes(conversationId))?.name ??
-      recentLabel)
+      folders.find((f) => f.conversationIds.includes(conversationId))?.name ??
+      t('sidebar.chats'))
     : undefined;
 
   /**
