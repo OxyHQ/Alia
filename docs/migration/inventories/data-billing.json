@@ -689,8 +689,8 @@
       "proposedOwner": "oxy",
       "targetPath": "oxy: taking a customer's money is an Oxy-wide concern, not a per-app one",
       "readers": [
-        "packages/app/lib/hooks/use-billing.ts (frontend, endpoint-grep)",
-        "packages/app/components/settings/billing-section.tsx",
+        "packages/app/src/features/billing/runtime/use-billing.ts (frontend, endpoint-grep)",
+        "packages/app/src/features/settings/ui/billing-section.tsx",
         "packages/app/app/(biglayout)/subscribe.tsx",
         "packages/app/app/(biglayout)/codea-subscribe.tsx"
       ],
@@ -738,7 +738,7 @@
       "proposedOwner": "alia",
       "targetPath": "alia",
       "readers": [
-        "packages/app/lib/hooks/use-referrals.ts (frontend, endpoint-grep)"
+        "packages/app/src/features/onboarding/runtime/use-referrals.ts (frontend, endpoint-grep)"
       ],
       "writers": [
         "packages/api/src/routes/referrals.ts:91,95"

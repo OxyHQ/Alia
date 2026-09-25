@@ -106,7 +106,7 @@ Bloom props or `style`.
 
 **That is a migration project, and this branch deliberately did not start
 it.** Half-migrating it would leave the app with two button languages, which
-is worse than either one. There is also a hard gate: `components/welcome-intro.tsx`
+is worse than either one. There is also a hard gate: `src/features/chat/ui/welcome-intro.tsx`
 — the screen the [visual baseline](./visual-baseline.mdx) pins across 24
 viewport/scheme/motion cases — imports both `ui/button` and `ui/text`. Bloom's
 Button has different padding, corner and type ramp, so that migration MUST
@@ -238,7 +238,7 @@ as "switch, on" with nothing else. They all carry the caption that was already
 rendered next to them now; swapping the import without that work would only
 have moved the warning into the console.
 
-`components/automations/automation-editor.tsx` was importing React Native's
+`src/features/automations/ui/automation-editor.tsx` was importing React Native's
 OWN `Switch` — a third implementation of one control in one app — and came
 along with it.
 

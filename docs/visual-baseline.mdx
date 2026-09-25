@@ -72,7 +72,7 @@ that matter are carried in JSDoc instead.
 
 ## 2. The problem: this screen never stops moving
 
-`packages/app/components/ambient-field.tsx` is the brand gradient #608 §3.1 says
+`packages/app/src/features/chat/ui/ambient-field.tsx` is the brand gradient #608 §3.1 says
 must be preserved. It is three blurred, blended SVG radial gradients that enter
 on a staggered 2.4s tween and then run `withRepeat(..., -1)` float loops of
 8000ms, 9500ms and 11000ms, plus a 900ms pulse. It **never settles**. "Wait a
@@ -126,7 +126,7 @@ or two to reach the DOM.
 | Capture instant | **6000ms** virtual for every still | The last blob comes to rest at 3590ms (1190ms delay + 2400ms tween). 6000 is past that and 2410ms into the float loops — a frame where the field is visibly drifting, not one where it happens to sit at its origin. |
 | `Date.now()` / `new Date()` | `2026-01-01T12:00:00Z` + virtual ms | Anything that renders a date renders the same one. |
 | `deviceScaleFactor` | `1` | A fractional factor resamples the 70px blur differently per machine. |
-| `locale` / `timezoneId` | `en-US` / `UTC` | The headline is read from `lib/i18n/locales/en.json`; a different locale is a different picture. |
+| `locale` / `timezoneId` | `en-US` / `UTC` | The headline is read from `src/shared/i18n/locales/en.json`; a different locale is a different picture. |
 | Network | everything but the local static server is `route.abort`ed | A signed-out capture of a static bundle. Letting a font CDN or the Oxy API answer would make the baseline depend on what those returned that day. |
 | Screenshot | `animations: 'disabled'`, `caret: 'hide'`, `scale: 'css'` | The virtual clock owns rAF; this covers the other half, the CSS transitions and Web Animations that NativeWind and Bloom use. |
 | Browser | Chromium 149.0.7827.55 (`playwright-core` 1.61.1, headless) | Recorded in `manifest.json`. A Chromium bump is expected to move the blur and will need a re-record. |
@@ -139,7 +139,7 @@ Two real signals gate every capture.
    character every 55ms using `setInterval` — *real* time, which the virtual
    clock deliberately does not touch. The harness waits for the element whose
    `aria-label` equals its own `textContent`, and reads the expected string from
-   `lib/i18n/locales/en.json` so the signal cannot silently rot when the copy
+   `src/shared/i18n/locales/en.json` so the signal cannot silently rot when the copy
    changes. Then it waits on `document.fonts.ready`: text measured in a fallback
    face and reflowed afterwards is the classic non-deterministic screenshot.
 2. **The body reveal has a measured height.** After the replay, the harness waits

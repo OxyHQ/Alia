@@ -61,7 +61,7 @@ Measured on the tree this ADR lands in.
   `packages/api/src/index.ts:248` and `:249`. Both carry `authenticateTokenOrApiKey` and
   `apiKeyRateLimit` (`routes/chat.ts`, `routes/v1.ts:55` and `:58`). Alia's own surfaces
   post to `/alia/chat` with the user's Oxy session: the app
-  (`packages/app/lib/api/routes.ts:67`), Codea (`packages/alia-codea/src/chatParticipant.ts:206`),
+  (`packages/app/src/shared/api/routes.ts:67`), Codea (`packages/alia-codea/src/chatParticipant.ts:206`),
   the CLI (`packages/alia-codea-cli/src/utils/api.ts:152`) and Cowork
   (`packages/alia-cowork/src/main/chat.ts:164`). `@alia.onl/sdk` enters through
   `/v1/chat/completions` (`packages/alia-chat/src/hooks/useAliaChat.ts`).

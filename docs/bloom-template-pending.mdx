@@ -19,9 +19,9 @@ as a component of Alia's placed around the template.
 
 ## Sidebar
 
-Restored through the slots below (`components/sidebar.tsx`,
-`components/sidebar-menus.tsx`, placement rules in `sidebarSections` of
-`lib/sidebar-history.ts`):
+Restored through the slots below (`src/shell/sidebar.tsx`,
+`src/shell/sidebar-menus.tsx`, placement rules in `sidebarSections` of
+`src/shell/sidebar-history.ts`):
 
 | Restored | Through |
 | --- | --- |
@@ -55,10 +55,10 @@ Kept, invisible: cursor pagination (`onScroll`) and prefetch on hover (`onPrefet
 | --- | --- |
 | Header menu: ghost mode, clear, search the thread, export Markdown | `AiChatContainer.actions`: **back** as `ChatHeaderActions` (Bloom `DropdownMenu`) with search, export, delete and **Clear conversation** — confirmed with Bloom's `confirm`, cleared on the server first (`clearConversation`, #553). Ghost mode is still missing |
 | Share | `AiChatContainer.onShare` |
-| Credit warning and usage-limit banners | **back** as Bloom `toast`s (`lib/chat/use-credit-warnings.ts`): under 50 credits once per account and session, and the server's spending warning (`alia_usage.credit_warning`, which the stream had stopped reading) once per turn that carries it. Both read the person's own balance and spend, never an error (#608 §8). Not restored: the banner's "switch to a cheaper routing profile" suggestion, and the "limit reached" banner (`UsageLimitDialog` answers the failure) |
+| Credit warning and usage-limit banners | **back** as Bloom `toast`s (`src/features/chat/runtime/use-credit-warnings.ts`): under 50 credits once per account and session, and the server's spending warning (`alia_usage.credit_warning`, which the stream had stopped reading) once per turn that carries it. Both read the person's own balance and spend, never an error (#608 §8). Not restored: the banner's "switch to a cheaper routing profile" suggestion, and the "limit reached" banner (`UsageLimitDialog` answers the failure) |
 | "Editing message" banner | the composer's `placeholder` + `toast` |
 | Scroll-to-bottom button | `AiChatThread`'s own follow (no Bloom control yet) |
-| Local models invite | **back** as a Bloom `toast` with the two answers (`lib/chat/use-local-models-invite.ts`): signed in, large screen, once, only while the chat — not "Meet Alia" — is on screen, and withdrawn if the welcome returns. The artwork did not come back: a toast has no image slot |
+| Local models invite | **back** as a Bloom `toast` with the two answers (`src/features/chat/runtime/use-local-models-invite.ts`): signed in, large screen, once, only while the chat — not "Meet Alia" — is on screen, and withdrawn if the welcome returns. The artwork did not come back: a toast has no image slot |
 | Agent terminal | **back** in the shell's `panel`: the code panel's second (`browser`) tab, opened from the chat menu's "Agent terminal" in an agent's thread or a chat whose turn started an agent run, and from the panel's terminal glyph. Kept to the route it was opened on; xterm still loads only when shown |
 
 ## Composer
@@ -81,13 +81,13 @@ not be read is a toast; the tiles have no error state.
 
 | Removed | Comes back through |
 | --- | --- |
-| Read aloud, generate audio, regenerate | **back** as the feedback row's `actions` (Bloom 4.20): read aloud is a toggle — pressed while it plays, a second press stops it — disabled during a call or a dictation, and a call or a dictation that starts stops it (`components/chat/turn-actions.tsx`); a failure is a toast. Regenerate is on Alia's last reply only, once it has finished and no turn is in flight, and replays its question with the connector and skills it was sent with (the composer's, for a question sent before a reload). Copy confirms only what the clipboard did: a refusal is an error toast and no "Copied!". **Generate audio stays out:** `POST /v1/audio/generate` answers 503 `KAANA_CAPABILITY_UNAVAILABLE` on every request |
-| Copy / edit under the user's turn | **back** as `AiChatUserMessage.actions`. Edit puts the question's words and its connector and skills into this chat's draft (`composer-draft-store.ts`, `editing`), with "Edit your message" as the placeholder and an "Editing message · Cancel" strip where the status tab sits; Cancel gives back what the composer held, and the send replaces the question and everything after it (`lib/chat/use-turn-edit.ts`). Not on a question from an earlier conversation of a thread, nor during a call |
+| Read aloud, generate audio, regenerate | **back** as the feedback row's `actions` (Bloom 4.20): read aloud is a toggle — pressed while it plays, a second press stops it — disabled during a call or a dictation, and a call or a dictation that starts stops it (`src/features/chat/ui/turn-actions.tsx`); a failure is a toast. Regenerate is on Alia's last reply only, once it has finished and no turn is in flight, and replays its question with the connector and skills it was sent with (the composer's, for a question sent before a reload). Copy confirms only what the clipboard did: a refusal is an error toast and no "Copied!". **Generate audio stays out:** `POST /v1/audio/generate` answers 503 `KAANA_CAPABILITY_UNAVAILABLE` on every request |
+| Copy / edit under the user's turn | **back** as `AiChatUserMessage.actions`. Edit puts the question's words and its connector and skills into this chat's draft (`composer-draft-store.ts`, `editing`), with "Edit your message" as the placeholder and an "Editing message · Cancel" strip where the status tab sits; Cancel gives back what the composer held, and the send replaces the question and everything after it (`src/features/chat/runtime/use-turn-edit.ts`). Not on a question from an earlier conversation of a thread, nor during a call |
 | Long-press menu on native | **back**: Bloom's `ContextMenu` around each turn, with the same actions (likes included on a reply). Web keeps the rows; a right-click there stays the browser's |
 | Weather, market, FairCoin and scheduled-task cards | blocks inside `AiChatAssistantMessage` |
 | Sources under a reply and the reference list | `AiChatLinkChip`s (inline citations are already chips) |
 | Research progress card | `AgentProgress` |
-| "Reasoning" trigger into the thought panel | **back**: a finished turn's "Worked for …" line, or a "Reasoning" line on a turn that reasoned without tools, opens the thought panel on that turn in the conversation it belongs to (`lib/chat/use-open-thought.ts`) |
+| "Reasoning" trigger into the thought panel | **back**: a finished turn's "Worked for …" line, or a "Reasoning" line on a turn that reasoned without tools, opens the thought panel on that turn in the conversation it belongs to (`src/features/chat/runtime/use-open-thought.ts`) |
 | Day separators and "new stretch" seams | back as rows: `ChatDateHeader placement="inline"` and a labelled `Divider` |
 | "Hi {name}, what's on your mind?" | no Bloom slot yet — the template has no empty state |
 | Rich blocks (`[BANNER]`, `[TIMELINE]`, `[COMPARISON]`…) | they render as text today |

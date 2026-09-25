@@ -1,0 +1,94 @@
+---
+title: "App architecture"
+description: "How packages/app is laid out: the shell, one folder per feature with ui/runtime/model layers, the shared layers under them, which feature may import which, and the test that keeps it that way."
+order: 3
+---
+
+# App architecture
+
+`packages/app` keeps its routes in `app/` (expo-router) and everything else in
+`src/`. The `@/` alias means `src/` — in `tsconfig.json`, `babel.config.js` and
+`vitest.config.ts` alike — and `global.css` scans `src/**` for NativeWind
+classes.
+
+```
+packages/app/
+  app/                      routes; thin — each composes a feature's screen
+  fixtures/                 validation fixtures, web-only, behind EXPO_PUBLIC_ALIA_FIXTURES
+  __tests__/                gates about the whole package (bloom, feature boundaries, …)
+  src/
+    shell/                  the frame: sidebar, command palette, workspace panel, error boundary
+    features/<feature>/
+      ui/                   components
+      runtime/              hooks, stores, sockets — anything with a lifecycle
+      model/                pure code: parsing, formatting, selection, types
+    shared/
+      api/                  API client, routes, query factory and keys, error text
+      contracts/            types (and pure labels) that more than one feature reads
+      domain/               product vocabulary with no owner (agent colours)
+      format/               file size, relative time, title tags
+      i18n/                 catalogs, `useTranslation`, locale store
+      platform/             config, keyboard, colour scheme, pickers, sounds, device
+      state/                account scoping, the collection store factory
+      ui/                   logo, image, generated icons — draws what it is handed
+      testing/              stubs and helpers only tests import
+```
+
+The features are `chat`, `voice`, `agents`, `automations` (tasks included),
+`research`, `memory`, `library`, `projects`, `shows`, `skills`, `connections`,
+`local-models`, `billing`, `onboarding`, `notifications` and `settings`. A
+test sits in `__tests__/` beside the layer it mainly tests.
+
+## Who may import whom
+
+`shared/` imports only `shared/`. The shell imports features; no feature imports
+the shell. Between features, only these edges exist:
+
+| Feature | May import |
+| --- | --- |
+| shell | agents, chat, library, notifications, onboarding, projects, settings |
+| settings | billing, chat, connections, library, local-models, memory |
+| automations | agents, chat |
+| agents | chat, library |
+| chat | billing, connections, library, local-models, memory, notifications, projects, research, skills, voice |
+| voice | memory |
+| shows | notifications |
+
+Every other feature imports only `shared/`. The graph has no cycle. When two
+features need the same type, it goes to `shared/contracts` rather than one
+reaching into the other: the chat draws an automation's trigger label from
+`shared/contracts/automations.ts`, and voice and the chat both send a turn
+shaped by `shared/contracts/chat-turn.ts`.
+
+## The gate
+
+`packages/app/__tests__/feature-boundaries.test.ts` runs with the app suite in
+CI. It reads every specifier — imports, re-exports, `import()`, type imports,
+`require`, `vi.mock` — with the TypeScript parser and fails when:
+
+1. a file under `src/` is outside `shell/`, `features/<x>/{ui,runtime,model}/`
+   or `shared/<y>/` (there is no `src/app`: expo-router would take it for the
+   routes directory);
+2. features form a cycle, type-only imports included;
+3. a feature edge is not in the table above (`ALLOWED` in the test), or an
+   allowed edge is no longer used;
+4. `shared/` imports a feature, the shell or a route;
+5. `shared/ui` imports `shared/api`, `@tanstack/react-query`, `socket.io-client`
+   or `zustand`;
+6. a feature imports the shell;
+7. `src/` imports a route or a fixture, or production code imports
+   `shared/testing`;
+8. anything names the old `components/`, `lib/`, `types/` or `test/` layout.
+
+Tests are exempt from rules 2–6. Each rule has a positive control that runs the
+same check against a tree built to break it. A new edge is a decision: add it
+to `ALLOWED` and to the table above in the same change, or move what both sides
+need into `shared/contracts`. How Bloom is reached is
+`__tests__/bloom-boundaries.test.ts`.
+
+## Moving a branch across
+
+The tree was produced by `packages/app/scripts/move-to-features.ts`, which maps
+each old file to its place, `git mv`s it and rewrites every specifier and path
+that named it. It is idempotent; its header says how to bring a branch cut
+before the move across.

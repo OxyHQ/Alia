@@ -116,7 +116,7 @@ validation.
 ## Enforcement
 
 - LiveKit stays out of the app:
-  `packages/app/lib/__tests__/removed-dependencies-stay-removed.test.ts`
+  `packages/app/__tests__/removed-dependencies-stay-removed.test.ts`
   (`livekit-client`, `@livekit/react-native`, `@livekit/react-native-webrtc`,
   `@livekit/react-native-expo-plugin`).
 - The SDK's text entries do not reach a retired voice module:

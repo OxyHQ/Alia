@@ -77,8 +77,8 @@ Measured here: 42 references to `/v1/chat/completions` outside `packages/api`, a
 files including every shipped client. `/alia/chat` has 13 references repo-wide and **not
 one is a call**: three in `packages/api/src/index.ts` (the mount, the SSE middleware and
 the public endpoint directory), one banner in `packages/api/src/routes/chat.ts`, a dead
-route constant at `packages/app/lib/api/routes.ts:53`, a docstring example at
-`packages/app/lib/generate-api-url.ts:9`, and five documentation mentions.
+route constant at `packages/app/src/shared/api/routes.ts:53`, a docstring example at
+`packages/app/src/shared/api/generate-api-url.ts:9`, and five documentation mentions.
 
 So workstream 6 is not only "move generic inference to Oxy". The Alia product itself
 must move OFF the compatibility endpoint onto the product runtime, which inverts the

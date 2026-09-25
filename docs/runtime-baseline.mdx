@@ -88,7 +88,7 @@ setup, and nothing else.
 | Pinned | Value | Why |
 | --- | --- | --- |
 | Viewport | 1280×800, `deviceScaleFactor: 1` | Boot cost does not vary with layout the way pixels do; six viewports would be six noise draws on one number. 1280 is the size at which the drawer and the composer are both mounted. |
-| Colour scheme / locale / timezone | light / `en-US` / `UTC` | Same reasons as the visual baseline; the copy the probes wait for is read from `lib/i18n/locales/en.json`. |
+| Colour scheme / locale / timezone | light / `en-US` / `UTC` | Same reasons as the visual baseline; the copy the probes wait for is read from `src/shared/i18n/locales/en.json`. |
 | Network | everything but the local static server is `route.abort`ed | A boot that waited on the Oxy API would be measuring that day's network. |
 | CPU rate | `1` and `4`, both measured | See below. |
 | Warm-up | 1 boot per rate, discarded | Measured, not assumed — see below. |
@@ -501,7 +501,7 @@ A switch takes 5.5s (median of 16, IQR 49% — the least stable figure here).
   flat, so it is not whole trees being kept.
 
 These are the before numbers for the windowed timeline being built in
-`components/chat-interface.tsx`; the same command measures the after.
+`src/features/chat/ui/chat-interface.tsx`; the same command measures the after.
 
 ### Noise and gate
 
@@ -517,7 +517,7 @@ all of it the scroll at this thread's current frame rate.
 §7 of #608 asks for windowing on long histories and §12 for a measurement at
 "una fixture de al menos 1.000 mensajes". The browser harness above cannot open
 a conversation, so this one is taken a level down:
-`packages/app/components/__tests__/chat-timeline.test.tsx` mounts the real
+`packages/app/src/features/chat/ui/__tests__/chat-timeline.test.tsx` mounts the real
 `ChatInterface` under `react-test-renderer`, with everything below it (Bloom's
 message components, the Markdown renderer, cards) replaced by host stubs. The
 fixture alternates turns over forty days, with answers of one to six
@@ -549,7 +549,7 @@ the recomputation but not the walk. The window is what removes the walk.
 
 ### The window, and its limits
 
-`lib/chat/timeline.ts` and `lib/hooks/use-timeline-window.ts`. It is a PAGED
+`src/features/chat/model/timeline.ts` and `src/features/chat/runtime/use-timeline-window.ts`. It is a PAGED
 window, not virtualization: the newest 40 rows mount, `onStartReached` reveals
 30 more at a time and then asks for the thread's history, and Bloom's
 `maintainStartPosition` holds the reader still while either lands above them.

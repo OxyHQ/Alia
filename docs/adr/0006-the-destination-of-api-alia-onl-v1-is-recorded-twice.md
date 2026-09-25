@@ -119,7 +119,7 @@ blocks naming ADR 0004), `packages/api/src/__tests__/architectureGates.test.ts:2
 (gate 8), `packages/api/src/index.ts:262`, `packages/api/src/routes/v1/models.ts:21,73`,
 `packages/api/src/routes/catalogue.ts:26` (*"the surface whose whole plan is to
 sunset"*), `packages/api/src/middleware/alias-deprecation.ts:141`,
-`packages/app/lib/api/routes.ts:56`, `packages/app/lib/hooks/use-chat-conversation.ts:40`,
+`packages/app/src/shared/api/routes.ts:56`, `packages/app/src/features/chat/runtime/use-chat-conversation.ts:40`,
 `packages/alia-codea/src/chatParticipant.ts:184`,
 `packages/alia-codea/src/chatProvider.ts:718`,
 `packages/alia-codea-cli/src/utils/api.ts:150`,
