@@ -31,9 +31,7 @@ import { getErrorMessage } from '../errors/index.js';
 import { recordEvent } from '../observability/index.js';
 import { writeTextChunk, writeStopChunk, writeContentChunk, makeChunk } from '../streaming-helpers.js';
 import type { SSEWriter } from './sse-writer.js';
-
-/** Extended stream chunk types not yet exported by AI SDK */
-type ExtendedChunk = { type: string; text?: string; thoughtDelta?: string; reasoningDelta?: string; [key: string]: unknown };
+import { isInvalidToolCall } from './tool-calls.js';
 
 /**
  * The tools whose result IS another agent's answer, and is drawn as one.
@@ -244,24 +242,19 @@ export async function runStream<TOOLS extends ToolSet>(params: RunStreamParams<T
       if (filtered) {
         assistantResponse += filtered;
       }
-    } else if ((chunk as ExtendedChunk).type === 'thought-delta' || (chunk as ExtendedChunk).type === 'reasoning-delta') {
+    } else if (chunk.type === 'reasoning-delta') {
       sse.ensureHeaders();
       state.hasStreamedContent = true;
 
-      // Handle Gemini thought summaries and other reasoning tokens
-      const reasoningText = (chunk as ExtendedChunk).text || (chunk as ExtendedChunk).thoughtDelta || (chunk as ExtendedChunk).reasoningDelta;
-      if (reasoningText && typeof reasoningText === 'string' && reasoningText.trim()) {
+      const reasoningText = chunk.text;
+      if (reasoningText.trim()) {
         res.write(`event: alia.reasoning\ndata: ${JSON.stringify({ eventVersion: 1, content: reasoningText.trim() })}\n\n`);
         log.v1.debug({ reasoningBytes: sizeForLog(reasoningText) }, 'Reasoning chunk (provider)');
       }
     } else if (chunk.type === 'tool-call') {
-      /**
-       * A call the SDK refused before `execute` — a tool this turn was not
-       * given, or input its schema rejects. The SDK hands the reason back to
-       * the model for its next step; the person sees neither the call nor the
-       * `tool-error` that follows it.
-       */
-      if (chunk.dynamic && chunk.invalid) {
+      // Refused before `execute`: the reason goes back to the model, and the
+      // person sees neither this call nor the `tool-error` that follows it.
+      if (isInvalidToolCall(chunk)) {
         log.v1.warn({ err: getErrorMessage(chunk.error), toolName: chunk.toolName }, 'Invalid tool call');
         invalidToolCallIds.add(chunk.toolCallId);
         continue;
@@ -380,12 +373,10 @@ export async function runStream<TOOLS extends ToolSet>(params: RunStreamParams<T
     } else if (chunk.type === 'error') {
       log.v1.error({ err: chunk.error }, 'Error chunk received');
 
-      const rawError = chunk.error;
-
       // If no content streamed yet, throw to trigger provider fallback
       if (!state.hasStreamedContent) {
         log.v1.info({ provider: resolved.provider, modelId: resolved.modelId }, 'Stream error (no content sent), trying next provider');
-        throw rawError;
+        throw chunk.error;
       }
 
       // If only tool content was streamed (no text), retry synthesis with collected tool results
@@ -405,7 +396,7 @@ export async function runStream<TOOLS extends ToolSet>(params: RunStreamParams<T
       // what prevents the provider loop from saving or billing tool progress
       // as though it were a completed answer.
       if (!hasStreamedText && !res.writableEnded) {
-        throw rawError ?? new Error('Tool result synthesis produced no assistant answer');
+        throw chunk.error ?? new Error('Tool result synthesis produced no assistant answer');
       }
     } else if (chunk.type === 'finish') {
       log.v1.debug('Finish chunk received');
