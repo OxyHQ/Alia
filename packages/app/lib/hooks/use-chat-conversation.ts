@@ -171,6 +171,7 @@ export function useChatConversation({ conversationId, reasoningEffort, selectedM
     failedTurn,
     retryFailedTurn: retry,
     clearFailedTurn,
+    turnOptionsOf,
   } = useStreamingChat(generateAPIUrl(API_ROUTES.chat.alia), conversationId, reasoningEffort, selectedModel, agentId);
 
   // Expose streaming state globally so sidebar can show a spinner
@@ -377,19 +378,42 @@ export function useChatConversation({ conversationId, reasoningEffort, selectedM
     }
   }, [router, createConversationMutation, agentId]);
 
+  /**
+   * Rewrite a user turn: cut the thread back to it and send the new version.
+   *
+   * `attachments` are the ones added in the composer while editing. They go
+   * AFTER whatever the turn already carried — a string edit keeps those, see
+   * `EditedContent` — so rewording a question and adding a second picture is
+   * one edit, not a lost picture.
+   */
   const editMessage = useCallback(async (
     messageId: string,
     newContent: EditedContent,
     options?: SendOptions,
+    attachments?: Attachment[],
   ): Promise<boolean> => {
     // Truncate to messages before the edited one, then re-send.
     // setMessages eagerly syncs messagesRef so append reads truncated history.
     const beforeEdit = messages;
     const draft = useComposerDraftStore.getState().address(conversationId ?? null);
     const original = messages.find(msg => msg.id === messageId);
+    if (original === undefined) return false;
     // A string edit keeps the original turn's attachments; only a full parts
     // array replaces them. See `EditedContent`.
-    const content = mergeEditedContent(original?.content, newContent);
+    let content = mergeEditedContent(original.content, newContent);
+    if (attachments?.length && typeof newContent === 'string') {
+      const built = await buildMessageContent(newContent, attachments);
+      reportDroppedAttachments(built.dropped);
+      const added = typeof built.content === 'string'
+        ? []
+        : built.content.filter((part) => part.type !== 'text');
+      if (added.length > 0) {
+        content = [
+          ...(typeof content === 'string' ? [{ type: 'text', text: content }] : content),
+          ...added,
+        ];
+      }
+    }
     if (isEmptyContent(content)) return false;
 
     setMessages(prev => {
@@ -403,22 +427,41 @@ export function useChatConversation({ conversationId, reasoningEffort, selectedM
     // was cut, so it restores the rest and returns the edit to the composer.
     // The original turn — attachments included — comes back with the rest, so
     // nothing the person attached is orphaned by a send that never happened;
-    // the composer gets the text, which is the part it can show.
+    // the composer gets the text, and the attachments added while editing.
     if (outcome === 'failed') {
       setMessages(beforeEdit);
       useComposerDraftStore.getState().restore(draft, {
-        text: getTextFromContent(content),
+        text: typeof newContent === 'string' ? newContent : getTextFromContent(content),
+        attachments: attachments ?? [],
         mcpServerId: options?.mcpServerId ?? null,
         skillNames: options?.skillNames ?? [],
       });
       toast.error(i18n.t('chat.sendFailed'));
+      return false;
     }
-    return outcome !== 'failed';
+    releaseAttachments(attachments ?? []);
+    return true;
   }, [setMessages, append, messages, conversationId]);
 
+  /** The user turn a reply answers: the nearest one before it, or `undefined`. */
+  const promptOf = useCallback((assistantMessageId: string): Message | undefined => {
+    const idx = messages.findIndex(msg => msg.id === assistantMessageId);
+    for (let i = idx - 1; i >= 0; i--) {
+      if (messages[i].role === 'user') return messages[i];
+    }
+    return undefined;
+  }, [messages]);
+
+  /**
+   * Ask for this reply again, with the options its prompt was sent with.
+   *
+   * `fallback` is for a prompt this screen did not send (the conversation was
+   * reloaded since): nothing records what it carried, so the caller's current
+   * choice — the composer's — is the best there is.
+   */
   const regenerateMessage = useCallback(async (
     assistantMessageId: string,
-    options?: SendOptions,
+    fallback?: SendOptions,
   ): Promise<boolean> => {
     // Regenerating IS re-sending the prompt that produced this answer. Walk back
     // to the user turn before it and replay that — editMessage already truncates
@@ -428,16 +471,10 @@ export function useChatConversation({ conversationId, reasoningEffort, selectedM
     // keeps its `image_url`/file parts. Reducing it to its text first is what
     // used to regenerate "what is in this picture" without the picture, and
     // refuse outright on a prompt that was only a picture.
-    const idx = messages.findIndex(msg => msg.id === assistantMessageId);
-    if (idx < 0) return false;
-    for (let i = idx - 1; i >= 0; i--) {
-      const candidate = messages[i];
-      if (candidate.role !== 'user') continue;
-      if (isEmptyContent(candidate.content)) return false;
-      return editMessage(candidate.id, candidate.content, options);
-    }
-    return false;
-  }, [messages, editMessage]);
+    const prompt = promptOf(assistantMessageId);
+    if (prompt === undefined || isEmptyContent(prompt.content)) return false;
+    return editMessage(prompt.id, prompt.content, turnOptionsOf(prompt.id) ?? fallback);
+  }, [promptOf, editMessage, turnOptionsOf]);
 
   const stopGeneration = useCallback(() => {
     stop();
@@ -515,6 +552,8 @@ export function useChatConversation({ conversationId, reasoningEffort, selectedM
     createNewConversation,
     editMessage,
     regenerateMessage,
+    promptOf,
+    turnOptionsOf,
     stopGeneration,
     clearConversation,
     clearError,

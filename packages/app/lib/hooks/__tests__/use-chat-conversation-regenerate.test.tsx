@@ -34,6 +34,8 @@ const chat = vi.hoisted(() => ({
   setTo: null as unknown,
   /** What the next `append` reports; 'failed' exercises the rollback path. */
   outcome: 'sent' as 'sent' | 'failed' | 'errored',
+  /** The options the streaming hook recorded per user turn it sent. */
+  turnOptions: {} as Record<string, unknown>,
 }));
 
 vi.mock('@/lib/hooks/use-streaming-chat', () => ({
@@ -57,6 +59,7 @@ vi.mock('@/lib/hooks/use-streaming-chat', () => ({
     rejectPlan: vi.fn(),
     suggestedNewConversation: null,
     dismissSuggestedNewConversation: vi.fn(),
+    turnOptionsOf: (id: string) => chat.turnOptions[id],
   }),
 }));
 
@@ -88,7 +91,16 @@ vi.mock('@oxy.so/bloom/toast', () => ({ toast: { error: vi.fn(), success: vi.fn(
 // Platform modules the hook imports for its SEND path. Neither takes part in
 // choosing which prompt a regenerate replays; they are here because importing
 // them pulls React Native's Flow source into the runner.
-vi.mock('@/lib/attachment-utils', () => ({ buildMessageContent: (text: string) => text }));
+vi.mock('@/lib/attachment-utils', () => ({
+  // An image becomes an `image_url` part, as the real one inlines it.
+  buildMessageContent: async (text: string, attachments: { uri: string }[]) => ({
+    content: [
+      { type: 'text', text },
+      ...attachments.map((a) => ({ type: 'image_url', image_url: { url: a.uri } })),
+    ],
+    dropped: [],
+  }),
+}));
 vi.mock('@/lib/generate-api-url', () => ({ generateAPIUrl: () => 'http://test.invalid/chat' }));
 vi.mock('@/lib/i18n', () => ({ default: { t: (k: string) => k } }));
 // The live agent-message listener opens the shared socket; nothing here emits on it.
@@ -123,6 +135,7 @@ beforeEach(() => {
   chat.appendedOptions = [];
   chat.setTo = null;
   chat.outcome = 'sent';
+  chat.turnOptions = {};
   useComposerDraftStore.setState({ account: null, drafts: {} });
 });
 
@@ -226,6 +239,21 @@ describe('regenerateMessage', () => {
     expect(chat.appendedOptions).toEqual([{ mcpServerId: 'mcp-1', skillNames: ['summarise'] }]);
   });
 
+  it('sends the prompt with the options it was sent with, over the fallback', async () => {
+    chat.messages = [
+      { id: 'u1', role: 'user', content: 'summarise my inbox' },
+      { id: 'a1', role: 'assistant', content: 'three emails' },
+    ];
+    chat.turnOptions = { u1: { mcpServerId: 'gmail', skillNames: ['digest'] } };
+    await mount();
+
+    await act(async () => {
+      await api.regenerateMessage('a1', { mcpServerId: null, skillNames: [] });
+    });
+
+    expect(chat.appendedOptions).toEqual([{ mcpServerId: 'gmail', skillNames: ['digest'] }]);
+  });
+
   it('refuses a user turn that has neither text nor attachments', async () => {
     chat.messages = [
       { id: 'u1', role: 'user', content: [] },
@@ -321,6 +349,36 @@ describe('editMessage', () => {
     await act(async () => { await api.editMessage('u1', withoutSecond); });
 
     expect(chat.appended).toEqual([{ role: 'user', content: withoutSecond }]);
+  });
+
+  it('adds the pictures attached while editing after the ones the turn had', async () => {
+    chat.messages = [
+      { id: 'u1', role: 'user', content: [PICTURE, { type: 'text', text: 'what is this' }] },
+      { id: 'a1', role: 'assistant', content: 'a picture' },
+    ];
+    await mount();
+
+    await act(async () => {
+      await api.editMessage('u1', 'and this one?', undefined, [
+        { id: 'n', type: 'image', name: 'b.png', uri: 'https://example.test/b.png' } as never,
+      ]);
+    });
+
+    expect(chat.appended).toEqual([{
+      role: 'user',
+      content: [PICTURE, { type: 'text', text: 'and this one?' }, SECOND_PICTURE],
+    }]);
+  });
+
+  it('refuses to edit a message that is not in the thread', async () => {
+    chat.messages = [{ id: 'u1', role: 'user', content: 'q' }];
+    await mount();
+
+    let outcome: boolean | undefined;
+    await act(async () => { outcome = await api.editMessage('gone', 'new words'); });
+
+    expect(outcome).toBe(false);
+    expect(chat.appended).toEqual([]);
   });
 
   it('restores the original turn, attachments included, when the send fails', async () => {

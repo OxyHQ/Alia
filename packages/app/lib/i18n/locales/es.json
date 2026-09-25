@@ -693,7 +693,12 @@
     },
     "richBlocks": {
       "source": "Fuente: {{source}}"
-    }
+    },
+    "copyFailed": "No se pudo copiar al portapapeles",
+    "readAloudFailed": "No se pudo leer en voz alta",
+    "stopReading": "Dejar de leer",
+    "copied": "¡Copiado!",
+    "turnActions": "Acciones del mensaje"
   },
   "credits": {
     "title": "Créditos",
@@ -1644,7 +1649,10 @@
     "deviceGroup": "Este dispositivo",
     "modeChat": "Chat",
     "modeChatDescription": "Responde y usa herramientas cuando ayuda",
-    "placeholder": "Pregúntale lo que quieras a Alia"
+    "placeholder": "Pregúntale lo que quieras a Alia",
+    "editPlaceholder": "Edita tu mensaje",
+    "editingMessage": "Editando mensaje",
+    "cancelEdit": "Cancelar"
   },
   "panel": {
     "terminal": "Terminal",

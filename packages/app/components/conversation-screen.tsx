@@ -124,6 +124,9 @@ export const ConversationScreen = ({
     dismissSuggestedNewConversation,
     failedTurn,
     retryFailedTurn,
+    editMessage,
+    regenerateMessage,
+    turnOptionsOf,
   } = useChatConversation({
     conversationId,
     reasoningEffort,
@@ -375,6 +378,9 @@ export const ConversationScreen = ({
           conversationLoading={conversationLoading}
           onSubmit={handleSubmit}
           onStop={stopGeneration}
+          onEditMessage={editMessage}
+          onRegenerateMessage={regenerateMessage}
+          turnOptionsOf={turnOptionsOf}
           disabled={!!usageLimitError}
           voice={voice}
           agentName={agentName}

@@ -719,7 +719,12 @@
     },
     "richBlocks": {
       "source": "Source: {{source}}"
-    }
+    },
+    "copyFailed": "Couldn't copy to the clipboard",
+    "readAloudFailed": "Couldn't read this aloud",
+    "stopReading": "Stop reading",
+    "copied": "Copied!",
+    "turnActions": "Message actions"
   },
   "credits": {
     "title": "Credits",
@@ -1681,7 +1686,10 @@
     "deviceGroup": "This device",
     "modeChat": "Chat",
     "modeChatDescription": "Answers, and uses tools when it helps",
-    "placeholder": "Ask Alia anything"
+    "placeholder": "Ask Alia anything",
+    "editPlaceholder": "Edit your message",
+    "editingMessage": "Editing message",
+    "cancelEdit": "Cancel"
   },
   "panel": {
     "terminal": "Terminal",
