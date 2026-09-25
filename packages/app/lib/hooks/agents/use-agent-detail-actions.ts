@@ -16,6 +16,25 @@ import { useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { Share } from 'react-native';
 
+/** Alia's web origin, where every app route is also a page. */
+const WEB_ORIGIN = 'https://alia.onl';
+
+/**
+ * The text "Share" hands the system sheet: who the agent is and its page.
+ *
+ * The link pointed at `alia.app`, which is not Alia's domain, so every shared
+ * agent was a dead link. And `agent.name` is nullable (Oxy's lookup fails
+ * open), which printed "null — …"; the display name never is.
+ */
+export function agentShareMessage(
+  agent: Pick<Agent, '_id' | 'name' | 'handle' | 'tagline'>,
+): string {
+  const who = agent.tagline
+    ? `${agentDisplayName(agent)} — ${agent.tagline}`
+    : agentDisplayName(agent);
+  return `${who}\n${WEB_ORIGIN}/agents/${agent._id}`;
+}
+
 /**
  * What the agent screen's buttons do: open a thread, start a task, share the
  * agent, pause or resume it.
@@ -71,7 +90,7 @@ export function useAgentDetailActions(agent: Agent) {
     try {
       const threadId = await createThread.mutateAsync({
         agentId: agent._id,
-        title: `Chat with ${agentDisplayName(agent)}`,
+        title: t('agents.chatWithTitle', { name: agentDisplayName(agent) }),
       });
       openThread(handle, threadId);
     } catch (error: unknown) {
@@ -112,18 +131,20 @@ export function useAgentDetailActions(agent: Agent) {
       const data = errorResponseData(err);
       if (status === 402) {
         toast.error(
-          `Insufficient credits. You need ${data?.creditsNeeded || 'more'} credits.`,
+          data?.creditsNeeded
+            ? t('agents.insufficientCreditsCount', { count: data.creditsNeeded })
+            : t('agents.insufficientCredits'),
         );
         // Open credits panel
         const { useUIStore } = await import('@/lib/stores/ui-store');
         useUIStore.getState().setRightPanel('credits');
       } else if (status === 503) {
-        toast.error('Agent infrastructure unavailable. Try again later.');
+        toast.error(t('agents.infrastructureUnavailable'));
       } else {
         // Through the extractor, not off the body: `/v1` answers
         // `{ error: { message, type } }`, and handing that object to `toast`
         // is the same React #31 crash deleting a show produced.
-        toast.error(getErrorMessage(err, 'Failed to start task'));
+        toast.error(getErrorMessage(err, t('agents.taskStartFailed')));
       }
     } finally {
       setHiring(false);
@@ -133,7 +154,7 @@ export function useAgentDetailActions(agent: Agent) {
   const handleShare = async () => {
     try {
       await Share.share({
-        message: `${agent.name} — ${agent.tagline}\nhttps://alia.app/agents/${agent._id}`,
+        message: agentShareMessage(agent),
       });
     } catch {
       // user cancelled — no action needed
@@ -144,7 +165,7 @@ export function useAgentDetailActions(agent: Agent) {
     try {
       await setStatus.mutateAsync({ agentId: agent._id, status: newStatus });
     } catch {
-      toast.error('Failed to update status');
+      toast.error(t('agents.statusUpdateFailed'));
     }
   };
 

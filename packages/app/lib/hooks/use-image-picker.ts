@@ -1,4 +1,5 @@
 import * as ImagePicker from 'expo-image-picker';
+import { useTranslation } from '@/lib/hooks/use-translation';
 import { toast } from '@oxy.so/bloom/toast';
 
 export type ImagePickerAsset = {
@@ -23,6 +24,7 @@ function toImagePickerAsset(asset: ImagePicker.ImagePickerAsset): ImagePickerAss
 }
 
 export function useImagePicker(): ImagePickerResult {
+  const { t } = useTranslation();
   const pickImage = async (): Promise<ImagePickerAsset[] | undefined> => {
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
@@ -36,7 +38,7 @@ export function useImagePicker(): ImagePickerResult {
         return result.assets.map(toImagePickerAsset);
       }
     } catch {
-      toast.error('Failed to pick image. Please try again.');
+      toast.error(t('library.pickImageFailed'));
     }
   };
 
@@ -44,7 +46,7 @@ export function useImagePicker(): ImagePickerResult {
     try {
       const permission = await ImagePicker.requestCameraPermissionsAsync();
       if (!permission.granted) {
-        toast.error('Camera access is required to take a photo.');
+        toast.error(t('library.cameraPermission'));
         return;
       }
 
@@ -56,7 +58,7 @@ export function useImagePicker(): ImagePickerResult {
         return result.assets.map(toImagePickerAsset);
       }
     } catch {
-      toast.error('Failed to take a photo. Please try again.');
+      toast.error(t('library.takePhotoFailed'));
     }
   };
 

@@ -23,6 +23,7 @@
  */
 
 import { SYRA_API_URL } from '@/lib/config';
+import { useTranslation } from '@/lib/hooks/use-translation';
 import { Card, type CardRadius } from '@oxy.so/bloom/card';
 import { RiMic2Line } from '@oxy.so/bloom/icons/RiMic2Line';
 import { useTheme } from '@oxy.so/bloom/theme';
@@ -47,13 +48,14 @@ interface ShowArtworkProps {
  */
 export function ShowArtwork({ assetId, title, size, radius, iconSize }: ShowArtworkProps) {
   const { colors } = useTheme();
+  const { t } = useTranslation();
   const hasCover = !(assetId === null || assetId === undefined || assetId === '');
 
   return (
     <Card
       appearance="subtle"
       radius={radius}
-      accessibilityLabel={hasCover ? undefined : `${title} has no cover art`}
+      accessibilityLabel={hasCover ? undefined : t('shows.noCoverArt', { title })}
       className="shrink-0 items-center justify-center"
       // The side is the caller's number (64 in a list, larger on the show page).
       style={{ width: size, height: size }}
@@ -61,7 +63,7 @@ export function ShowArtwork({ assetId, title, size, radius, iconSize }: ShowArtw
       {hasCover ? (
         <Image
           accessibilityRole="image"
-          accessibilityLabel={`${title} cover art`}
+          accessibilityLabel={t('shows.coverArt', { title })}
           source={{ uri: `${SYRA_API_URL}/api/images/${assetId}` }}
           className="h-full w-full"
           contentFit="cover"

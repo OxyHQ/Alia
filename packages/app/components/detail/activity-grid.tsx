@@ -1,5 +1,6 @@
 import { useActivityGrid } from '@/lib/hooks/use-activity-grid';
 import { useIsLargeScreen } from '@/lib/hooks/use-is-large-screen';
+import { useTranslation } from '@/lib/hooks/use-translation';
 import { ActivityHeatmap } from '@oxy.so/bloom/activity-heatmap';
 import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { toast } from '@oxy.so/bloom/toast';
@@ -39,6 +40,7 @@ interface ActivityGridProps {
 
 /** An agent's interactions per day, as Bloom's `ActivityHeatmap`. */
 export function ActivityGrid({ agentId, weeks: weeksProp }: ActivityGridProps) {
+  const { t } = useTranslation();
   const isLargeScreen = useIsLargeScreen();
   const weeks = weeksProp ?? (isLargeScreen ? 52 : 20);
 
@@ -53,8 +55,12 @@ export function ActivityGrid({ agentId, weeks: weeksProp }: ActivityGridProps) {
   return (
     <View className="gap-1.5">
       <Muted>
-        {totalSessions} interaction{totalSessions !== 1 ? 's' : ''} in the last{' '}
-        {weeks} weeks
+        {t('agents.activityGrid.summary', {
+          interactions: t('agents.activityGrid.interactions', {
+            count: totalSessions,
+          }),
+          weeks,
+        })}
       </Muted>
       <ScrollView horizontal showsHorizontalScrollIndicator={false}>
         <ActivityHeatmap
@@ -64,7 +70,12 @@ export function ActivityGrid({ agentId, weeks: weeksProp }: ActivityGridProps) {
           levels={levelsFor(data?.maxCount ?? 0)}
           onPressDay={(day) =>
             toast(
-              `${day.count} interaction${day.count !== 1 ? 's' : ''} on ${formatDisplayDate(day.date)}`,
+              t('agents.activityGrid.day', {
+                interactions: t('agents.activityGrid.interactions', {
+                  count: day.count,
+                }),
+                date: formatDisplayDate(day.date),
+              }),
             )
           }
         />

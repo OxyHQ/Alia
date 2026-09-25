@@ -46,7 +46,7 @@ export function KnowledgePickerDialog({
     >
       <View className="px-4 pb-2">
         <Search
-          label="Search library..."
+          label={t('agents.searchLibrary')}
           value={search}
           onChangeText={setSearch}
           onClearText={() => setSearch('')}
@@ -69,7 +69,7 @@ export function KnowledgePickerDialog({
         ))}
         {files.length === 0 && (
           <Muted className="p-4 text-center text-sm text-muted-foreground">
-            No files in library. Upload files on the Library screen.
+            {t('agents.libraryEmpty')}
           </Muted>
         )}
       </ScrollView>

@@ -2,6 +2,7 @@ import { AuthContainer } from '@/components/auth/auth-container';
 import { AuthLogo } from '@/components/auth/auth-logo';
 import { errorMessage } from '@/lib/errors/error-utils';
 import { useRedeemInviteCode } from '@/lib/hooks/use-referrals';
+import { useTranslation } from '@/lib/hooks/use-translation';
 import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { RiArrowRightLine } from '@oxy.so/bloom/icons/RiArrowRightLine';
 import { RiGiftLine } from '@oxy.so/bloom/icons/RiGiftLine';
@@ -13,25 +14,35 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import Head from 'expo-router/head';
 import { useEffect, useState } from 'react';
 
+/**
+ * What an invite earns each side, before there is an answer to say so.
+ *
+ * The API's `REFERRAL_CREDIT_REWARD` (`routes/referrals.ts`), which no public
+ * endpoint serves to a signed-out visitor. Once redeemed, the page shows what
+ * the API actually awarded (`creditsAwarded`) rather than this.
+ */
+const REFERRAL_CREDITS = 500;
+
 export default function InviteScreen() {
   const { code } = useLocalSearchParams<{ code: string }>();
   const router = useRouter();
   const { isAuthenticated, isLoading: authLoading, signIn } = useAuth();
   const redeemMutation = useRedeemInviteCode();
-  const [redeemed, setRedeemed] = useState(false);
+  const { t } = useTranslation();
+  const [redeemed, setRedeemed] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // Auto-redeem when authenticated
   useEffect(() => {
-    if (!isAuthenticated || authLoading || redeemed || !code) return;
+    if (!isAuthenticated || authLoading || redeemed !== null || !code) return;
     if (redeemMutation.isPending) return;
 
     redeemMutation.mutate(code, {
-      onSuccess: () => {
-        setRedeemed(true);
+      onSuccess: (data) => {
+        setRedeemed(data.creditsAwarded);
       },
       onError: (err: any) => {
-        const message = errorMessage(err, 'Failed to redeem invite code');
+        const message = errorMessage(err, t('invitePage.redeemFailed'));
         setError(message);
       },
     });
@@ -41,7 +52,7 @@ export default function InviteScreen() {
     return (
       <AuthContainer>
         <AuthLogo />
-        <Loading text="Loading..." />
+        <Loading text={t('common.loading')} />
       </AuthContainer>
     );
   }
@@ -51,21 +62,23 @@ export default function InviteScreen() {
     return (
       <>
         <Head>
-          <title>Accept Invite - Alia</title>
+          <title>{t('invitePage.acceptTitle')}</title>
           <meta
             name="description"
-            content="Accept your invitation and get 500 free credits on Alia."
+            content={t('invitePage.acceptMeta', { count: REFERRAL_CREDITS })}
           />
         </Head>
         <AuthContainer>
-          {redeemed ? (
+          {redeemed !== null ? (
             <EmptyState
               icon={RiGiftLine}
               media="circle"
-              title="You got 500 credits!"
-              description="Your invite has been redeemed successfully. Both you and your friend earned 500 credits."
+              title={t('invitePage.redeemedTitle', { count: redeemed })}
+              description={t('invitePage.redeemedDescription', {
+                count: redeemed,
+              })}
               action={{
-                label: 'Start chatting',
+                label: t('invitePage.startChatting'),
                 icon: RiArrowRightLine,
                 onPress: () => router.replace('/(app)'),
               }}
@@ -73,10 +86,10 @@ export default function InviteScreen() {
           ) : error ? (
             <EmptyState
               icon={RiUserHeartLine}
-              title="Couldn't redeem invite"
+              title={t('invitePage.redeemErrorTitle')}
               description={error}
               action={{
-                label: 'Go to Alia',
+                label: t('invitePage.goToAlia'),
                 icon: RiArrowRightLine,
                 onPress: () => router.replace('/(app)'),
               }}
@@ -85,10 +98,12 @@ export default function InviteScreen() {
             <EmptyState
               icon={RiUserHeartLine}
               media="circle"
-              title={redeemMutation.isPending ? 'Redeeming invite...' : undefined}
+              title={
+                redeemMutation.isPending ? t('invitePage.redeeming') : undefined
+              }
               description={
                 redeemMutation.isPending
-                  ? 'Please wait while we apply your credits.'
+                  ? t('invitePage.redeemingDescription')
                   : undefined
               }
             />
@@ -102,25 +117,27 @@ export default function InviteScreen() {
   return (
     <>
       <Head>
-        <title>You're Invited to Alia</title>
+        <title>{t('invitePage.invitedTitle')}</title>
         <meta
           name="description"
-          content="Join Alia and get 500 free credits with this invitation link."
+          content={t('invitePage.invitedMeta', { count: REFERRAL_CREDITS })}
         />
       </Head>
       <AuthContainer>
         <EmptyState
           icon={RiUserHeartLine}
           media="circle"
-          title="You've been invited to Alia"
-          description="Sign up now and you'll both get 500 credits to use with Alia's AI assistant."
+          title={t('invitePage.invitedHeading')}
+          description={t('invitePage.invitedDescription', {
+            count: REFERRAL_CREDITS,
+          })}
           action={{
-            label: 'Sign up & claim credits',
+            label: t('invitePage.signUp'),
             icon: RiGiftLine,
             onPress: () => signIn().catch(() => {}),
           }}
           secondaryAction={{
-            label: 'Already have an account? Sign in',
+            label: t('invitePage.signIn'),
             icon: RiLoginBoxLine,
             onPress: () => signIn().catch(() => {}),
           }}

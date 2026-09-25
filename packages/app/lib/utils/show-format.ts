@@ -17,6 +17,9 @@
  *    same day it finishes for everything the pipeline produces.
  */
 
+/** The app's translator, as a parameter: these run outside React. */
+export type Translate = (key: string, params?: Record<string, unknown>) => string;
+
 /** A day, in milliseconds. Relative dates are elapsed time, exactly as Syra's are. */
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -25,7 +28,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
  * it, so a caller joining metadata with a separator drops the part rather than
  * printing a placeholder next to real facts.
  */
-export function formatEpisodeDuration(durationMs: number | null | undefined): string {
+export function formatEpisodeDuration(durationMs: number | null | undefined, t: Translate): string {
   if (durationMs === null || durationMs === undefined) return '';
   if (!Number.isFinite(durationMs) || durationMs <= 0) return '';
 
@@ -33,9 +36,13 @@ export function formatEpisodeDuration(durationMs: number | null | undefined): st
   const hours = Math.floor(totalSeconds / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);
 
-  if (hours > 0) return minutes > 0 ? `${hours} hr ${minutes} min` : `${hours} hr`;
-  if (minutes > 0) return `${minutes} min`;
-  return `${totalSeconds} sec`;
+  if (hours > 0) {
+    return minutes > 0
+      ? t('shows.format.hoursMinutes', { hours, minutes })
+      : t('shows.format.hours', { hours });
+  }
+  if (minutes > 0) return t('shows.format.minutes', { minutes });
+  return t('shows.format.seconds', { seconds: totalSeconds });
 }
 
 /**
@@ -45,16 +52,16 @@ export function formatEpisodeDuration(durationMs: number | null | undefined): st
  * made 20 hours ago reads `Today` on both, and the two products never disagree
  * about the same recording.
  */
-export function formatEpisodeDate(iso: string | null | undefined): string {
+export function formatEpisodeDate(iso: string | null | undefined, t: Translate): string {
   if (iso === null || iso === undefined) return '';
 
   const parsed = Date.parse(iso);
   if (!Number.isFinite(parsed)) return '';
 
   const elapsedDays = Math.floor((Date.now() - parsed) / DAY_MS);
-  if (elapsedDays <= 0) return 'Today';
-  if (elapsedDays === 1) return 'Yesterday';
-  if (elapsedDays < 7) return `${elapsedDays} days ago`;
+  if (elapsedDays <= 0) return t('shows.format.today');
+  if (elapsedDays === 1) return t('shows.format.yesterday');
+  if (elapsedDays < 7) return t('shows.format.daysAgo', { count: elapsedDays });
 
   return new Date(parsed).toLocaleDateString(undefined, {
     year: 'numeric',
@@ -64,9 +71,9 @@ export function formatEpisodeDate(iso: string | null | undefined): string {
 }
 
 /** `1 episode` / `4 episodes`, the way every Syra surface counts them. */
-export function formatEpisodeCount(count: number): string {
+export function formatEpisodeCount(count: number, t: Translate): string {
   const safe = Math.max(0, Math.floor(count));
-  return safe === 1 ? '1 episode' : `${safe} episodes`;
+  return t('shows.format.episodeCount', { count: safe });
 }
 
 /**

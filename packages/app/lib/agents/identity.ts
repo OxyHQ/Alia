@@ -45,3 +45,23 @@ export function agentIdentityMatches(agent: AgentIdentityFields, query: string):
     agentHandle(agent).toLowerCase().includes(lowered)
   );
 }
+
+/**
+ * Where "Chat" with this agent goes: its permanent thread, `/@handle`, or —
+ * when Oxy resolved no handle, so the thread has no address — its profile,
+ * which says why it cannot be opened yet.
+ *
+ * The catalogue card's "Chat" used to push the profile unconditionally, the
+ * same place pressing the card itself goes, so a button labelled "Chat" was a
+ * second way to open a page (#608, rule 6).
+ */
+export function agentChatRoute(
+  agent: AgentIdentityFields & Pick<Agent, '_id'>,
+):
+  | { pathname: '/(app)/[username]'; params: { username: string } }
+  | { pathname: '/(app)/agents/[id]'; params: { id: string } } {
+  const handle = agentHandle(agent);
+  return handle === ''
+    ? { pathname: '/(app)/agents/[id]', params: { id: agent._id } }
+    : { pathname: '/(app)/[username]', params: { username: `@${handle}` } };
+}

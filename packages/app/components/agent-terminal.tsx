@@ -1,5 +1,7 @@
 import apiClient, { getSocketToken } from '@/lib/api/client';
+import i18n from '@/lib/i18n';
 import config from '@/lib/config';
+import { useTranslation } from '@/lib/hooks/use-translation';
 import { useColorScheme } from '@/lib/useColorScheme';
 import { Text } from '@oxy.so/bloom/typography';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -78,6 +80,7 @@ export function AgentTerminal({ agentId }: AgentTerminalProps) {
 
 function WebTerminal({ agentId }: AgentTerminalProps) {
   const { colors } = useColorScheme();
+  const { t } = useTranslation();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const terminalRef = useRef<any>(null);
   const fitAddonRef = useRef<any>(null);
@@ -145,14 +148,14 @@ function WebTerminal({ agentId }: AgentTerminalProps) {
         terminalRef.current = terminal;
         fitAddonRef.current = fitAddon;
 
-        terminal.writeln("\x1b[90m--- Agent terminal ---\x1b[0m");
+        terminal.writeln(`\x1b[90m--- ${i18n.t('agents.terminal.banner')} ---\x1b[0m`);
         terminal.writeln("");
 
         setReady(true);
       } catch (err: unknown) {
         if (!cancelled) {
           console.error("[AgentTerminal] xterm init error:", err);
-          setError(getErrorMessage(err) || "Failed to initialize terminal");
+          setError(getErrorMessage(err) || i18n.t('agents.terminal.initFailed'));
         }
       }
     }
@@ -201,7 +204,7 @@ function WebTerminal({ agentId }: AgentTerminalProps) {
         }
         if (events.length === 0) {
           terminalRef.current?.writeln(
-            "\x1b[90mWaiting for activity...\x1b[0m"
+            `\x1b[90m${i18n.t('agents.terminal.waiting')}\x1b[0m`
           );
         }
       })
@@ -226,7 +229,7 @@ function WebTerminal({ agentId }: AgentTerminalProps) {
       socket.emit("subscribe-agent", agentId);
       if (wasConnected) {
         terminalRef.current?.writeln(
-          "\x1b[32m\u25B8 Reconnected\x1b[0m"
+          `\x1b[32m\u25B8 ${i18n.t('agents.terminal.reconnected')}\x1b[0m`
         );
       }
       wasConnected = true;
@@ -241,14 +244,14 @@ function WebTerminal({ agentId }: AgentTerminalProps) {
     socket.on("disconnect", (reason) => {
       if (reason !== "io client disconnect") {
         terminalRef.current?.writeln(
-          "\x1b[33m\u25B8 Connection lost — reconnecting...\x1b[0m"
+          `\x1b[33m\u25B8 ${i18n.t('agents.terminal.connectionLost')}\x1b[0m`
         );
       }
     });
 
     socket.on("connect_error", () => {
       terminalRef.current?.writeln(
-        "\x1b[31m\u25B8 Connection error — retrying...\x1b[0m"
+        `\x1b[31m\u25B8 ${i18n.t('agents.terminal.connectionError')}\x1b[0m`
       );
     });
 
@@ -272,7 +275,7 @@ function WebTerminal({ agentId }: AgentTerminalProps) {
         <View className="absolute inset-0 items-center justify-center z-10">
           <ActivityIndicator size="small" color={colors.mutedForeground} />
           <Text className="text-muted-foreground text-xs mt-2">
-            Loading terminal...
+            {t('agents.terminal.loading')}
           </Text>
         </View>
       )}
@@ -369,8 +372,6 @@ const TERMINAL_HTML = `
     term.open(document.getElementById('terminal'));
     fitAddon.fit();
 
-    term.writeln('\\x1b[90m--- Agent terminal ---\\x1b[0m');
-    term.writeln('');
 
     // Listen for messages from React Native
     window.addEventListener('message', function(event) {
@@ -405,6 +406,7 @@ const TERMINAL_HTML = `
 
 function NativeTerminal({ agentId }: AgentTerminalProps) {
   const { colors } = useColorScheme();
+  const { t } = useTranslation();
   const webViewRef = useRef<any>(null);
   const socketRef = useRef<Socket | null>(null);
   const [webViewReady, setWebViewReady] = useState(false);
@@ -423,9 +425,7 @@ function NativeTerminal({ agentId }: AgentTerminalProps) {
       .catch((err) => {
         if (!cancelled) {
           console.error("[AgentTerminal] WebView not available:", err);
-          setError(
-            "WebView is not available. Install react-native-webview to use the terminal on native."
-          );
+          setError(i18n.t('agents.terminal.unavailable'));
         }
       });
     return () => {
@@ -446,6 +446,10 @@ function NativeTerminal({ agentId }: AgentTerminalProps) {
   useEffect(() => {
     if (!webViewReady) return;
 
+    // The banner is written from here, not from the page's own script, so
+    // it is in the reader's language.
+    writeToWebView(`\x1b[90m--- ${i18n.t('agents.terminal.banner')} ---\x1b[0m\r\n\r\n`);
+
     // Backfill recent activity
     apiClient
       .get(`/agents/${agentId}/activity`)
@@ -455,7 +459,7 @@ function NativeTerminal({ agentId }: AgentTerminalProps) {
           writeToWebView(formatActivity(event));
         }
         if (events.length === 0) {
-          writeToWebView("\x1b[90mWaiting for activity...\x1b[0m\r\n");
+          writeToWebView(`\x1b[90m${i18n.t('agents.terminal.waiting')}\x1b[0m\r\n`);
         }
       })
       .catch(() => {});
@@ -476,7 +480,7 @@ function NativeTerminal({ agentId }: AgentTerminalProps) {
     socket.on("connect", () => {
       socket.emit("subscribe-agent", agentId);
       if (wasConnected) {
-        writeToWebView("\x1b[32m\u25B8 Reconnected\x1b[0m\r\n");
+        writeToWebView(`\x1b[32m\u25B8 ${i18n.t('agents.terminal.reconnected')}\x1b[0m\r\n`);
       }
       wasConnected = true;
     });
@@ -489,12 +493,12 @@ function NativeTerminal({ agentId }: AgentTerminalProps) {
 
     socket.on("disconnect", (reason) => {
       if (reason !== "io client disconnect") {
-        writeToWebView("\x1b[33m\u25B8 Connection lost — reconnecting...\x1b[0m\r\n");
+        writeToWebView(`\x1b[33m\u25B8 ${i18n.t('agents.terminal.connectionLost')}\x1b[0m\r\n`);
       }
     });
 
     socket.on("connect_error", () => {
-      writeToWebView("\x1b[31m\u25B8 Connection error — retrying...\x1b[0m\r\n");
+      writeToWebView(`\x1b[31m\u25B8 ${i18n.t('agents.terminal.connectionError')}\x1b[0m\r\n`);
     });
 
     return () => {
@@ -527,7 +531,7 @@ function NativeTerminal({ agentId }: AgentTerminalProps) {
       <View className="flex-1 bg-[#0d0d0d] items-center justify-center">
         <ActivityIndicator size="small" color={colors.mutedForeground} />
         <Text className="text-muted-foreground text-xs mt-2">
-          Loading terminal...
+          {t('agents.terminal.loading')}
         </Text>
       </View>
     );

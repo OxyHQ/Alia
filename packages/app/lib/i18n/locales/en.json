@@ -15,7 +15,6 @@
     "back": "Back",
     "create": "Create",
     "search": "Search...",
-    "comingSoon": "Coming soon!",
     "noResults": "No results found",
     "tryDifferentSearch": "Try a different search term",
     "all": "All",
@@ -111,7 +110,37 @@
     "personalityStyle": {
       "title": "Try a new personality",
       "description": "Adjust the style and tone of how Alia responds to you. This doesn't impact capabilities.",
-      "popular": "Popular"
+      "popular": "Popular",
+      "styles": {
+        "alia": {
+          "name": "Alia",
+          "greeting": "Hello! I'm the original Alia you know and love. How can I help?"
+        },
+        "brief": {
+          "name": "Brief",
+          "greeting": "Okay, let's keep it brief. Your primary question or topic?"
+        },
+        "chill": {
+          "name": "Chill",
+          "greeting": "Yo! All good vibes over here, dude. Take it easy!"
+        },
+        "sweet": {
+          "name": "Sweet",
+          "greeting": "Hey friend! Here to support your goals with positive encouragement!"
+        },
+        "witty": {
+          "name": "Witty",
+          "greeting": "Well, well — looks like we've got something interesting to figure out."
+        },
+        "mentor": {
+          "name": "Mentor",
+          "greeting": "Good question. Let's think through this together — what have you tried so far?"
+        },
+        "bold": {
+          "name": "Bold",
+          "greeting": "Let's cut to it. Tell me what you need and I'll give you my honest take."
+        }
+      }
     },
     "occupation": {
       "title": "Occupation",
@@ -165,7 +194,8 @@
       "format": "Format",
       "blocked": "Blocked",
       "warning": "Warning",
-      "noThreats": "All clear — no threats detected yet"
+      "noThreats": "All clear — no threats detected yet",
+      "exportShareTitle": "Alia audit export ({{format}})"
     },
     "sections": {
       "general": "General",
@@ -598,7 +628,15 @@
     "fileDeleted": "File deleted successfully",
     "failedUploadImages": "Failed to upload images",
     "failedUploadFiles": "Failed to upload files",
-    "failedDeleteFile": "Failed to delete file"
+    "failedDeleteFile": "Failed to delete file",
+    "today": "Today",
+    "yesterday": "Yesterday",
+    "daysAgo": "{{count}}d ago",
+    "fileActions": "Actions for {{name}}",
+    "pickImageFailed": "Could not pick the image. Please try again.",
+    "cameraPermission": "Camera access is required to take a photo.",
+    "takePhotoFailed": "Could not take the photo. Please try again.",
+    "pickDocumentFailed": "Could not pick the document. Please try again."
   },
   "chat": {
     "newChat": "New Chat",
@@ -761,7 +799,6 @@
     "subtitle": "Automate work by setting up scheduled tasks",
     "exploreMore": "Explore more",
     "createAutomation": "Create automation",
-    "comingSoon": "Automations coming soon!",
     "name": "Name",
     "namePlaceholder": "My automation",
     "workspaces": "Workspaces",
@@ -777,7 +814,140 @@
     "runsEveryMinutes": "Runs every {{minutes}} minutes.",
     "created": "Automation created",
     "createdDescription": "It now shows in Tasks with your other work.",
-    "viewTasks": "View tasks"
+    "viewTasks": "View tasks",
+    "cron": {
+      "everyHour": "Every hour",
+      "everyHours": "Every {{count}} hours",
+      "everyMinutes": {
+        "one": "Every minute",
+        "other": "Every {{count}} minutes"
+      },
+      "dailyAt": "Daily at {{time}}",
+      "weekdaysAt": "Weekdays at {{time}}",
+      "weekendsAt": "Weekends at {{time}}",
+      "daysAt": "{{days}} at {{time}}",
+      "dayPlural": {
+        "0": "Sundays",
+        "1": "Mondays",
+        "2": "Tuesdays",
+        "3": "Wednesdays",
+        "4": "Thursdays",
+        "5": "Fridays",
+        "6": "Saturdays"
+      }
+    },
+    "trigger": {
+      "manual": "Manual request",
+      "anyApp": "Any app",
+      "anyEvent": "Any event",
+      "unscheduled": "Unscheduled"
+    },
+    "actor": {
+      "none": "No agent assigned",
+      "noEligible": "No eligible agents"
+    },
+    "runStatus": {
+      "planned": "Planned",
+      "running": "Running",
+      "observed": "Observed",
+      "succeeded": "Succeeded",
+      "failed": "Failed",
+      "cancelled": "Cancelled",
+      "denied": "Denied"
+    },
+    "lifecycle": {
+      "running": "Running",
+      "queued": "Queued",
+      "scheduled": "Scheduled",
+      "on_request": "On request",
+      "paused": "Paused",
+      "completed": "Completed",
+      "failed": "Failed",
+      "cancelled": "Cancelled"
+    },
+    "card": {
+      "label": "Automation {{title}}",
+      "pause": "Pause {{title}}",
+      "resume": "Resume {{title}}",
+      "kind": "Automation",
+      "latestRun": "Latest run",
+      "latestDecision": "Latest decision",
+      "runLabel": "Run {{title}}",
+      "runNow": "Run now",
+      "stopLabel": "Stop {{title}}",
+      "stop": "Stop and revoke",
+      "stopped": "Stopped",
+      "historyLabel": "View history for {{title}}",
+      "history": "History",
+      "viewHistory": "View history"
+    },
+    "controls": {
+      "revocationFailed": {
+        "one": "Automation stopped, but 1 authorization could not be revoked",
+        "other": "Automation stopped, but {{count}} authorizations could not be revoked"
+      },
+      "updateFailed": "Could not update the automation",
+      "stopped": "Automation stopped and access revoked",
+      "stopFailed": "Could not stop the automation",
+      "queued": "Automation queued",
+      "runFailed": "The automation could not run"
+    },
+    "edit": {
+      "objectiveRequired": "Objective is required",
+      "instructionsRequired": "Instructions are required",
+      "scheduleRequired": "Schedule and timezone are required",
+      "eventRequired": "Event app and type are required",
+      "eventResourceIncomplete": "The event resource is incomplete",
+      "chooseAgent": "Choose an agent",
+      "chooseEligibleAgent": "Choose at least one eligible agent",
+      "resourceIncomplete": "Every resource field is required",
+      "limitKeyRequired": "Every limit needs a key",
+      "limitDuplicated": "Limit {{key}} is duplicated",
+      "limitInvalid": "Limit {{key}} must be text, a number, a boolean, or a text list"
+    },
+    "editor": {
+      "dayShort": {
+        "0": "S",
+        "1": "M",
+        "2": "T",
+        "3": "W",
+        "4": "T",
+        "5": "F",
+        "6": "S"
+      },
+      "dayName": {
+        "0": "Sunday",
+        "1": "Monday",
+        "2": "Tuesday",
+        "3": "Wednesday",
+        "4": "Thursday",
+        "5": "Friday",
+        "6": "Saturday"
+      },
+      "invalidSchedule": "Choose a valid time and at least one day",
+      "title": "Edit task",
+      "saving": "Saving…",
+      "save": "Save",
+      "status": "Status",
+      "pausedNotScheduled": "Paused · Next run: not scheduled",
+      "active": "Task active",
+      "titleLabel": "Title",
+      "taskTitle": "Task title",
+      "instructions": "Instructions",
+      "taskInstructions": "Task instructions",
+      "repeat": "Repeat",
+      "weekly": "Weekly",
+      "time": "Time",
+      "taskTime": "Task time",
+      "timezone": "Timezone",
+      "taskTimezone": "Task timezone",
+      "agent": "Responsible agent",
+      "connectedWork": "Connected work: this task can use the connections you approved. Exact identifiers and authority remain protected by Oxy and are not editable here.",
+      "discardTitle": "Discard changes?",
+      "discardDescription": "Your unsaved task changes will be lost.",
+      "keepEditing": "Keep editing",
+      "discard": "Discard changes"
+    }
   },
   "tasks": {
     "title": "Tasks",
@@ -792,7 +962,43 @@
     "emptyHistory": "No finished tasks or stopped automations yet",
     "loadError": "Could not load your tasks and automations.",
     "retry": "Retry",
-    "loadMore": "Load more"
+    "loadMore": "Load more",
+    "stepsCompleted": "{{done}}/{{count}} steps completed",
+    "showLess": "Show less",
+    "showAllSteps": "Show all {{count}} steps",
+    "agentCount": "{{count}} agents",
+    "tool": {
+      "pill": {
+        "browse": "Browsing",
+        "webSearch": "Web search",
+        "webScraper": "Reading page",
+        "generateFile": "Generating file",
+        "sendTelegramMessage": "Telegram",
+        "sendSlack": "Slack",
+        "sendDiscord": "Discord",
+        "sendSignal": "Signal",
+        "sendEmail": "Email",
+        "delegateToAgent": "Delegating",
+        "askAgent": "Asking an agent",
+        "agentSearch": "Searching agents",
+        "userMemory": "Remembering",
+        "shellExec": "Running command",
+        "fileEdit": "Editing file",
+        "codeInterpreter": "Running code"
+      },
+      "done": {
+        "browse": "Browsed",
+        "webScraper": "Read page",
+        "generateFile": "Generated file",
+        "delegateToAgent": "Delegated",
+        "askAgent": "Asked an agent",
+        "agentSearch": "Searched agents",
+        "userMemory": "Remembered",
+        "shellExec": "Ran command",
+        "fileEdit": "Edited file",
+        "codeInterpreter": "Ran code"
+      }
+    }
   },
   "skills": {
     "title": "Skills",
@@ -998,7 +1204,6 @@
     "clearConfirmDescription": "Every message in this conversation will be deleted. This action cannot be undone.",
     "clear": "Clear",
     "clearFailed": "Couldn't clear the conversation. Your messages are still here.",
-    "settingsComingSoon": "Settings functionality coming soon!",
     "openMenu": "Open menu",
     "temporaryChat": "Temporary chat",
     "searchConversations": "Search conversations",
@@ -1023,7 +1228,8 @@
     "subtitle": "Manage your notification preferences",
     "pushNotifications": "Push Notifications",
     "pushDescription": "Receive alerts about new messages and updates",
-    "permissionDenied": "Notifications are blocked. Please enable them in your device settings to receive push notifications."
+    "permissionDenied": "Notifications are blocked. Please enable them in your device settings to receive push notifications.",
+    "channelDefault": "Default"
   },
   "agents": {
     "title": "Agents",
@@ -1032,7 +1238,6 @@
     "featured": "Featured",
     "trending": "Trending",
     "createAgent": "Create Agent",
-    "createComingSoon": "Agent creation is coming soon!",
     "hire": "Hire",
     "startTask": "Start task",
     "free": "Free",
@@ -1051,9 +1256,7 @@
     "statusIdle": "Idle",
     "statusOffline": "Offline",
     "share": "Share",
-    "shareComingSoon": "Share agent coming soon!",
     "chatUnavailable": "This agent can't be opened yet",
-    "hireComingSoon": "Hire agent coming soon!",
     "activity": "Activity",
     "taskPlaceholder": "Describe the task for this agent...",
     "hireStarted": "Agent is working on your task",
@@ -1063,10 +1266,6 @@
     "chat": "Chat",
     "native": "By Alia",
     "rating": "rating",
-    "report": "Report",
-    "reportSubmitted": "Report submitted",
-    "bookmark": "Bookmark",
-    "removeBookmark": "Remove bookmark",
     "removeSkill": "Remove skill",
     "removeKnowledge": "Remove knowledge",
     "reviews": "Reviews",
@@ -1137,7 +1336,139 @@
     "accessPublic": "Anyone can use it",
     "accessPublicHint": "Off, only you and the people you add to its account can. Being listed in the catalogue is separate.",
     "capabilitiesFooter": "An agent reaches nothing you have not switched on here.",
-    "saveFailed": "Could not save"
+    "saveFailed": "Could not save",
+    "createFirstHint": "Create an agent to give it a job, its own tools and a thread of its own.",
+    "startTaskPriced": "Start task · {{count}} credits",
+    "statusPaused": "Paused",
+    "acceptingHires": "Accepting tasks",
+    "notAcceptingHires": "Not accepting tasks",
+    "archetype": {
+      "reportConfig": "Report configuration",
+      "reportTemplate": "Report template",
+      "reportTemplatePlaceholder": "## Daily standup\n### What happened\n### Key metrics\n### Action items",
+      "compareWithPrevious": "Compare with previous report",
+      "qaConfig": "Q&A configuration",
+      "citeSources": "Cite sources in answers",
+      "routingConfig": "Routing configuration",
+      "inboundChannels": "Inbound channels",
+      "routingRules": "Routing rules",
+      "ruleCondition": "When the task is about…",
+      "priority": "Priority",
+      "priorityLow": "Low",
+      "priorityMedium": "Med",
+      "priorityHigh": "High",
+      "priorityUrgent": "Urgent",
+      "routeTo": "Route to (name)",
+      "channel": {
+        "email": "Email",
+        "slack": "Slack",
+        "discord": "Discord",
+        "webhook": "Webhook",
+        "github": "GitHub",
+        "linear": "Linear"
+      },
+      "general": {
+        "label": "General",
+        "description": "Build any custom agent"
+      },
+      "qa": {
+        "label": "Q&A",
+        "description": "Answers questions from your knowledge"
+      },
+      "task_router": {
+        "label": "Task router",
+        "description": "Triages and routes incoming tasks"
+      },
+      "status_update": {
+        "label": "Status update",
+        "description": "Writes status reports"
+      }
+    },
+    "categoryName": {
+      "Assistant": "Assistant",
+      "Creative": "Creative",
+      "Developer": "Developer",
+      "Research": "Research",
+      "Business": "Business",
+      "Education": "Education"
+    },
+    "listing": {
+      "category": "Category",
+      "tagline": "Tagline",
+      "taglinePlaceholder": "Short description",
+      "description": "Description",
+      "descriptionPlaceholder": "Full description…",
+      "price": "Price per use (credits)",
+      "pricePlaceholder": "Free (leave empty)"
+    },
+    "searchLibrary": "Search library…",
+    "libraryEmpty": "No files in your library. Upload files on the Library screen.",
+    "searchSkills": "Search skills…",
+    "threadSandbox": "Sandbox",
+    "threadOpen": "Open",
+    "threadClosed": "Closed",
+    "reviewDeleteFailed": "Could not delete the review",
+    "publishFailed": "Could not update the agent",
+    "deleteFailed": "Could not delete the agent",
+    "chatWithTitle": "Chat with {{name}}",
+    "insufficientCreditsCount": "Not enough credits. You need {{count}} credits.",
+    "insufficientCredits": "Not enough credits.",
+    "infrastructureUnavailable": "Agents are unavailable right now. Try again later.",
+    "taskStartFailed": "Could not start the task",
+    "statusUpdateFailed": "Could not update the status",
+    "activityGrid": {
+      "interactions": {
+        "one": "1 interaction",
+        "other": "{{count}} interactions"
+      },
+      "summary": "{{interactions}} in the last {{weeks}} weeks",
+      "day": "{{interactions}} on {{date}}"
+    },
+    "capabilityFamily": {
+      "web": {
+        "label": "Web",
+        "description": "Search the web, read pages and run deep research"
+      },
+      "browser": {
+        "label": "Browser",
+        "description": "Search and read web pages step by step during a long-running task"
+      },
+      "artifacts": {
+        "label": "Artifacts",
+        "description": "Produce charts, tables, code blocks and downloadable files"
+      },
+      "memory": {
+        "label": "Memory",
+        "description": "Read and update what Alia remembers about you"
+      },
+      "messaging": {
+        "label": "Messaging",
+        "description": "Send and read messages on your Telegram and WhatsApp"
+      },
+      "automation": {
+        "label": "Automations",
+        "description": "Create, edit and delete your scheduled triggers"
+      },
+      "delegation": {
+        "label": "Other agents",
+        "description": "Find, hire and create agents to work on its behalf"
+      }
+    },
+    "instancedFamily": {
+      "agent": "Your agents",
+      "mcp": "Connectors",
+      "integration": "Integrations"
+    },
+    "terminal": {
+      "banner": "Agent terminal",
+      "initFailed": "Could not start the terminal",
+      "waiting": "Waiting for activity…",
+      "reconnected": "Reconnected",
+      "connectionLost": "Connection lost — reconnecting…",
+      "connectionError": "Connection error — retrying…",
+      "unavailable": "The terminal is not available on this device.",
+      "loading": "Loading terminal…"
+    }
   },
   "authorize": {
     "linkingAccount": "Linking account...",
@@ -1256,7 +1587,8 @@
     "providerImportSuccess": "Successfully imported {{count}} memories from your other AI provider",
     "providerImportFailed": "Failed to import memories",
     "chatAddPrompt": "Remember this about me: ",
-    "chatEditPrompt": "Update what you remember about \"{{title}}\". It currently says: \"{{summary}}\". Change it to: "
+    "chatEditPrompt": "Update what you remember about \"{{title}}\". It currently says: \"{{summary}}\". Change it to: ",
+    "sizeKb": "~{{size}} KB"
   },
   "models": {
     "selectModel": "Select Model",
@@ -1457,7 +1789,44 @@
     "openOutput": "Open {{name}} in the canvas",
     "filesAndSources": "Files and sources",
     "input": "Input",
-    "output": "Output"
+    "output": "Output",
+    "audit": {
+      "agent": "Agent: {{name}}",
+      "planApproved": "Plan approved",
+      "planSteps": {
+        "one": "1 step",
+        "other": "{{count}} steps"
+      },
+      "fileGenerated": "File generated",
+      "researchIncomplete": "Research incomplete",
+      "researchComplete": "Research complete",
+      "researching": "Researching",
+      "researchPhase": {
+        "decomposing": "Research: breaking down the question",
+        "searching": "Research: searching sources",
+        "reading": "Research: reading articles",
+        "synthesizing": "Research: synthesizing findings",
+        "follow_up": "Research: following up",
+        "finalizing": "Research: finishing up"
+      }
+    },
+    "tool": {
+      "webSearch": "Searching the web",
+      "scrapeURL": "Reading URL",
+      "getTimeline": "Getting timeline",
+      "searchKnowledgeBase": "Searching knowledge base",
+      "webScraper": "Reading web page",
+      "browse": "Browsing the web",
+      "sendWhatsAppMessage": "Sending WhatsApp message",
+      "getWhatsAppChats": "Loading WhatsApp chats",
+      "getWhatsAppMessages": "Reading WhatsApp messages",
+      "sendTelegramMessage": "Sending Telegram message",
+      "getCurrentDate": "Getting current date",
+      "generateFile": "Generating file",
+      "saveUserMemory": "Saving to memory",
+      "updateUserPreferences": "Updating preferences",
+      "updateUserContext": "Updating context"
+    }
   },
   "landing": {
     "tagline": "Your intelligent AI assistant",
@@ -1476,7 +1845,8 @@
     "demo2": "Explain quantum computing in simple terms...",
     "demo3": "Help me plan a trip to Tokyo...",
     "demo4": "Debug this Python function...",
-    "demo5": "Create a workout plan for beginners..."
+    "demo5": "Create a workout plan for beginners...",
+    "metaDescription": "Meet Alia, your intelligent AI assistant. Chat naturally, remember everything, and switch between the best AI models seamlessly."
   },
   "keyboardShortcuts": {
     "title": "Keyboard Shortcuts",
@@ -1943,6 +2313,214 @@
       "redeemSuccess": "You got {{count}} credits!",
       "redeemInvalid": "Invalid invite code",
       "noReferrals": "No referrals yet"
+    }
+  },
+  "invitePage": {
+    "redeemFailed": "Could not redeem the invite code",
+    "acceptTitle": "Accept invite - Alia",
+    "acceptMeta": "Accept your invitation and get {{count}} free credits on Alia.",
+    "redeemedTitle": "You got {{count}} credits!",
+    "redeemedDescription": "Your invite has been redeemed. You and your friend each earned {{count}} credits.",
+    "startChatting": "Start chatting",
+    "redeemErrorTitle": "Couldn't redeem the invite",
+    "goToAlia": "Go to Alia",
+    "redeeming": "Redeeming invite…",
+    "redeemingDescription": "Please wait while we apply your credits.",
+    "invitedTitle": "You're invited to Alia",
+    "invitedMeta": "Join Alia and get {{count}} free credits with this invitation link.",
+    "invitedHeading": "You've been invited to Alia",
+    "invitedDescription": "Sign up now and you'll both get {{count}} credits to use with Alia.",
+    "signUp": "Sign up & claim credits",
+    "signIn": "Already have an account? Sign in"
+  },
+  "orgInvite": {
+    "thisOrganization": "this organization",
+    "role": {
+      "owner": "owner",
+      "admin": "admin",
+      "member": "member"
+    },
+    "acceptFailed": "Could not accept the invitation",
+    "invalidTitle": "Invalid invite - Alia",
+    "notFound": "Invite not found",
+    "notFoundDescription": "This invitation link is invalid, expired, or has already been used.",
+    "pageTitle": "Join {{org}} - Alia",
+    "metaJoin": "Join {{org}} on Alia as {{role}}.",
+    "metaSignIn": "Sign in to join {{org}} on Alia.",
+    "joined": "You've joined {{org}}!",
+    "joinedDescription": "You're now {{role}} of {{org}}.",
+    "joinFailed": "Couldn't join",
+    "join": "Join {{org}}",
+    "invitedAs": "You've been invited to join as {{role}}.",
+    "joining": "Joining…",
+    "accept": "Accept & join",
+    "signInDescription": "Sign in or create an account to join {{org}} as {{role}}.",
+    "signUp": "Sign up & join"
+  },
+  "shows": {
+    "subtitle": "Podcasts Alia writes, voices and publishes to Syra.",
+    "new": "New",
+    "openSeries": "Open {{title}}",
+    "empty": {
+      "title": "No shows yet",
+      "description": "Start a show and Alia will write, voice and publish each episode to Syra — where it becomes a real podcast you can share or keep to yourself.",
+      "action": "Start a show"
+    },
+    "visibility": {
+      "private": {
+        "label": "Private",
+        "description": "Only you can listen"
+      },
+      "unlisted": {
+        "label": "Unlisted",
+        "description": "Anyone with the link"
+      },
+      "public": {
+        "label": "Public",
+        "description": "Listed on Syra for everyone"
+      }
+    },
+    "formatName": {
+      "podcast": {
+        "label": "Podcast",
+        "description": "Casual conversation between two hosts"
+      },
+      "news": {
+        "label": "News",
+        "description": "Professional news broadcast"
+      },
+      "debate": {
+        "label": "Debate",
+        "description": "Two sides, one moderator"
+      },
+      "interview": {
+        "label": "Interview",
+        "description": "A host interviews a guest"
+      },
+      "explainer": {
+        "label": "Explainer",
+        "description": "A single narrator explains a topic"
+      }
+    },
+    "role": {
+      "host": "Host",
+      "co-host": "Co-host",
+      "guest": "Guest",
+      "narrator": "Narrator"
+    },
+    "format": {
+      "hoursMinutes": "{{hours}} hr {{minutes}} min",
+      "hours": "{{hours}} hr",
+      "minutes": "{{minutes}} min",
+      "seconds": "{{seconds}} sec",
+      "today": "Today",
+      "yesterday": "Yesterday",
+      "daysAgo": "{{count}} days ago",
+      "episodeCount": {
+        "one": "1 episode",
+        "other": "{{count}} episodes"
+      }
+    },
+    "episodeNumber": "Episode {{number}}",
+    "recordingStarted": "Recording started",
+    "deleteEverywhere": "Delete everywhere",
+    "deleteEpisode": {
+      "title": "Delete this episode everywhere?",
+      "description": "The recording is deleted from Syra too, along with its audio and every listener's saved place in it. This cannot be undone.",
+      "failed": "Could not remove the episode",
+      "done": "Episode deleted from Alia and Syra",
+      "label": "Delete {{name}} everywhere"
+    },
+    "deleteShow": {
+      "title": "Delete this show everywhere?",
+      "description": "The podcast is deleted from Syra too, with every episode, all of their audio, and everyone subscribed to it. This cannot be undone.",
+      "failed": "Could not remove the show",
+      "done": "Show deleted from Alia and Syra",
+      "button": "Delete this show everywhere"
+    },
+    "starting": "Starting…",
+    "newEpisode": "New episode",
+    "somethingSpecific": "Something specific",
+    "somethingSpecificLabel": "Say what this episode should cover",
+    "openOnSyra": "Open on Syra",
+    "openOnSyraLabel": "Open this podcast on Syra",
+    "showLess": "Show less",
+    "showMore": "Show more",
+    "hosts": "Hosts",
+    "hostsJoiner": " and ",
+    "episodes": "Episodes",
+    "noEpisodes": {
+      "title": "No episodes yet",
+      "description": "Alia will work out what the first one covers from what this show is about, write it, voice it with {{hosts}}, and publish it.",
+      "descriptionNoHosts": "Alia will work out what the first one covers from what this show is about, write it, voice it, and publish it.",
+      "action": "Record the first episode",
+      "secondary": "Or say what it should cover",
+      "secondaryLabel": "Say what the first episode should cover"
+    },
+    "episodeDialog": {
+      "topicTooShort": "Say a bit more, or leave it blank and the show will choose",
+      "titleTooShort": "That name is too short — leave it blank to have one written",
+      "record": "Record it",
+      "topicLabel": "Anything specific this time?",
+      "topicPlaceholder": "Leave blank and the show picks something it has not covered.",
+      "notesLabel": "Source material (optional)",
+      "notesPlaceholder": "Paste articles, notes or talking points to work from…",
+      "nameLabel": "Name (optional)",
+      "namePlaceholder": "Leave blank and it is named once it is written",
+      "nameHint": "This is the name listeners see. Left blank, the script names the episode after what it turned out to say.",
+      "noRepeat": "Either way the script knows what every earlier episode covered, so it will not repeat one."
+    },
+    "audioProblem": {
+      "signedOut": "Sign in to play this",
+      "forbidden": "Sign in again to play this",
+      "missing": "Syra has no recording for this",
+      "unavailable": "This one wouldn't play",
+      "unreachable": "Couldn't reach Syra"
+    },
+    "step": {
+      "queued": "Queued",
+      "generating_script": "Writing the script",
+      "generating_audio": "Recording",
+      "concatenating": "Assembling",
+      "publishing": "Publishing to Syra",
+      "completed": "Ready",
+      "failed": "Failed"
+    },
+    "linesMissing": {
+      "one": "1 line missing",
+      "other": "{{count}} lines missing"
+    },
+    "credits": "{{count}} credits",
+    "play": "Play {{name}}",
+    "pause": "Pause {{name}}",
+    "progress": "{{name}} progress",
+    "segment": "Segment {{index}}/{{total}}",
+    "seriesDialog": {
+      "incomplete": "A show needs a title and a sentence about what it covers",
+      "created": "Show created — add your first episode",
+      "title": "New show",
+      "creating": "Creating…",
+      "create": "Create show",
+      "name": "Name",
+      "namePlaceholder": "The Wednesday Digest",
+      "brief": "What is it about?",
+      "briefPlaceholder": "A weekly look at what I have been reading, in plain language.",
+      "briefHint": "This is the only thing an episode is written from, and — unless you say otherwise for one — the only thing its subject is chosen from. Describe the show and the ground it covers, not one episode: a line or two gives a show with nothing to vary along.",
+      "format": "Format",
+      "audience": "Who can listen?"
+    },
+    "coverArt": "{{title}} cover art",
+    "noCoverArt": "{{title}} has no cover art",
+    "errors": {
+      "loadList": "Failed to load your shows",
+      "loadOne": "Failed to load that show",
+      "create": "Failed to create the show",
+      "update": "Failed to update the show",
+      "delete": "Failed to delete the show",
+      "startEpisode": "Failed to start the episode",
+      "deleteEpisode": "Failed to delete the episode",
+      "voices": "Could not load the voice list",
+      "preferences": "Failed to save your preferences"
     }
   }
 }

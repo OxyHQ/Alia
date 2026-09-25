@@ -103,7 +103,7 @@ export function AgentEditor({ agent }: { agent: Agent }) {
                     />
                   )}
                   <DropdownMenu>
-                    <DropdownMenuTrigger label="Actions" asChild>
+                    <DropdownMenuTrigger label={t('pages.agents.moreActions')} asChild>
                       <ButtonGroupItem
                         iconOnly
                         leadingIcon={RiMore2Line}

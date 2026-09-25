@@ -188,8 +188,9 @@ describe('tool calls → TaskList tasks', () => {
     const log = taskListLog([file], false, t);
     expect(log.tasks).toEqual([
       {
-        title: 'Generated file',
-        runningTitle: 'Generating file',
+        // The task-utils labels, asked for in the reader's language.
+        title: 'tasks.tool.done.generateFile',
+        runningTitle: 'tasks.tool.pill.generateFile',
         icon: RiFileTextLine,
         steps: [{ label: 'chat.bloom.createdFile', chips: [{ label: 'report.csv' }] }],
       },
@@ -208,8 +209,8 @@ describe('tool calls → TaskList tasks', () => {
     const cut: ToolInvocation = { toolCallId: 'c', toolName: 'customThing', state: 'call', args: { count: 3 } };
     const log = taskListLog([failed, cut], false, t);
     expect(log.tasks[0]).toEqual({
-      title: 'Email',
-      runningTitle: 'Email',
+      title: 'tasks.tool.pill.sendEmail',
+      runningTitle: 'tasks.tool.pill.sendEmail',
       icon: RiToolsLine,
       steps: [
         { label: 'chat.bloom.taskInput', chips: [{ label: 'Hi' }, { label: 'ana@example.com' }] },
@@ -230,7 +231,7 @@ describe('tool calls → TaskList tasks', () => {
     const memory: ToolInvocation = { toolCallId: 'm', toolName: 'userMemory', state: 'result', args: {}, result: {} };
     const pending: ToolInvocation = { toolCallId: 'p', toolName: 'shellExec', state: 'partial-call', args: {} };
     const log = taskListLog([search, memory, pending], true, t);
-    expect(log.tasks.map((task) => task.title)).toEqual(['Remembered', 'Ran command']);
+    expect(log.tasks.map((task) => task.title)).toEqual(['tasks.tool.done.userMemory', 'tasks.tool.done.shellExec']);
     expect(log.revealed).toBe(1);
   });
 });

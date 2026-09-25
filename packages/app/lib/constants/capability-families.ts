@@ -53,6 +53,7 @@ import { ClockIcon } from '@/components/ui/icons/clock-icon';
 export interface CapabilityFamily {
   /** The grant string, exactly as it is stored and sent. */
   id: string;
+  /** i18n keys — the words are the reader's language, not this file's. */
   label: string;
   description: string;
   icon: BloomIconComponent;
@@ -83,44 +84,44 @@ export interface CapabilityFamily {
 export const CAPABILITY_FAMILIES: readonly CapabilityFamily[] = [
   {
     id: 'web',
-    label: 'Web',
-    description: 'Search the web, read pages and run deep research',
+    label: 'agents.capabilityFamily.web.label',
+    description: 'agents.capabilityFamily.web.description',
     icon: RiGlobalLine,
   },
   {
     id: 'browser',
-    label: 'Browser',
-    description: 'Search and read web pages step by step during a long-running task',
+    label: 'agents.capabilityFamily.browser.label',
+    description: 'agents.capabilityFamily.browser.description',
     icon: RiWindowLine,
   },
   {
     id: 'artifacts',
-    label: 'Artifacts',
-    description: 'Produce charts, tables, code blocks and downloadable files',
+    label: 'agents.capabilityFamily.artifacts.label',
+    description: 'agents.capabilityFamily.artifacts.description',
     icon: RiShapesLine,
   },
   {
     id: 'memory',
-    label: 'Memory',
-    description: 'Read and update what Alia remembers about you',
+    label: 'agents.capabilityFamily.memory.label',
+    description: 'agents.capabilityFamily.memory.description',
     icon: RiLightbulbFlashLine,
   },
   {
     id: 'messaging',
-    label: 'Messaging',
-    description: 'Send and read messages on your Telegram and WhatsApp',
+    label: 'agents.capabilityFamily.messaging.label',
+    description: 'agents.capabilityFamily.messaging.description',
     icon: RiMessage2Line,
   },
   {
     id: 'automation',
-    label: 'Automations',
-    description: 'Create, edit and delete your scheduled triggers',
+    label: 'agents.capabilityFamily.automation.label',
+    description: 'agents.capabilityFamily.automation.description',
     icon: ClockIcon,
   },
   {
     id: 'delegation',
-    label: 'Other agents',
-    description: 'Find, hire and create agents to work on its behalf',
+    label: 'agents.capabilityFamily.delegation.label',
+    description: 'agents.capabilityFamily.delegation.description',
     icon: AgentRobotIcon,
   },
 ];
@@ -181,16 +182,17 @@ export interface GrantableConnector {
 }
 
 /**
- * The heading each instanced family gets in the connectors section.
+ * The heading each instanced family gets in the connectors section, as an
+ * i18n key.
  *
  * `agent` comes first because it continues the fixed list above: "Other agents"
  * is the last family a person reads, and "Your agents" is the same subject
  * narrowed to the ones they already have.
  */
 export const INSTANCED_FAMILY_LABELS: Readonly<Record<string, string>> = {
-  agent: 'Your agents',
-  mcp: 'Connectors',
-  integration: 'Integrations',
+  agent: 'agents.instancedFamily.agent',
+  mcp: 'agents.instancedFamily.mcp',
+  integration: 'agents.instancedFamily.integration',
 };
 
 /**

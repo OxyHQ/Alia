@@ -1,5 +1,5 @@
 import type { TaskSession } from '../hooks/use-tasks';
-import { latestRunsByAutomation } from './format';
+import { latestRunsByAutomation, type Translate } from './format';
 import type { AutomationDefinition, AutomationRun } from './types';
 
 /**
@@ -111,19 +111,19 @@ export function automationLifecycle(
 }
 
 /** The pill text for a lifecycle, and the tone `AutomationPill` draws it in. */
-export function lifecycleLabel(lifecycle: WorkLifecycle): {
+export function lifecycleLabel(lifecycle: WorkLifecycle, t: Translate): {
   label: string;
   tone: 'neutral' | 'positive' | 'warning' | 'danger';
 } {
   switch (lifecycle) {
-    case 'running': return { label: 'Running', tone: 'warning' };
-    case 'queued': return { label: 'Queued', tone: 'neutral' };
-    case 'scheduled': return { label: 'Scheduled', tone: 'positive' };
-    case 'on_request': return { label: 'On request', tone: 'positive' };
-    case 'paused': return { label: 'Paused', tone: 'neutral' };
-    case 'completed': return { label: 'Completed', tone: 'positive' };
-    case 'failed': return { label: 'Failed', tone: 'danger' };
-    case 'cancelled': return { label: 'Cancelled', tone: 'neutral' };
+    case 'running': return { label: t('automations.lifecycle.running'), tone: 'warning' };
+    case 'queued': return { label: t('automations.lifecycle.queued'), tone: 'neutral' };
+    case 'scheduled': return { label: t('automations.lifecycle.scheduled'), tone: 'positive' };
+    case 'on_request': return { label: t('automations.lifecycle.on_request'), tone: 'positive' };
+    case 'paused': return { label: t('automations.lifecycle.paused'), tone: 'neutral' };
+    case 'completed': return { label: t('automations.lifecycle.completed'), tone: 'positive' };
+    case 'failed': return { label: t('automations.lifecycle.failed'), tone: 'danger' };
+    case 'cancelled': return { label: t('automations.lifecycle.cancelled'), tone: 'neutral' };
   }
 }
 

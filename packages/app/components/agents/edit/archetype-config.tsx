@@ -1,7 +1,5 @@
 import {
-  escalationMinutesFrom,
   routingPriorityFrom,
-  scheduleTypeFrom,
   withChannelToggled,
   withRoutingRuleAdded,
   withRoutingRuleEdited,
@@ -45,7 +43,6 @@ export function ArchetypeConfigSection({
   return null;
 }
 
-const DELIVERY_CHANNELS = ['in_app', 'telegram', 'discord', 'slack', 'email'];
 const INBOUND_CHANNELS = [
   'email',
   'slack',
@@ -55,91 +52,43 @@ const INBOUND_CHANNELS = [
   'linear',
 ];
 
+/**
+ * A status-update agent's report: its template and whether it compares with
+ * the last one — both read by the API when it writes the agent's prompt
+ * (`lib/agent/archetype-prompts.ts`).
+ *
+ * There were three more controls here, and nothing on the server read any of
+ * them (#608, rule 6). "Schedule" (daily/interval and a time) was stored in
+ * `archetypeConfig.schedule` and never scheduled anything — recurring work is
+ * an automation, which has its own real scheduler. "Delivery Channels" was
+ * stored and never delivered to. "Escalation Timeout" on the router was stored
+ * and never escalated.
+ */
 function StatusUpdateConfig({ config, onChange }: ConfigProps) {
+  const { t } = useTranslation();
   return (
     <View className="gap-4">
-      <Text variant="headline-semibold">Report Configuration</Text>
+      <Text variant="headline-semibold">{t('agents.archetype.reportConfig')}</Text>
 
       {/* Report Template */}
       <View className="gap-1.5">
-        <Label>Report Template</Label>
+        <Label>{t('agents.archetype.reportTemplate')}</Label>
         <Textarea
           value={config.reportTemplate || ''}
           onChangeText={(text) => onChange({ ...config, reportTemplate: text })}
-          placeholder="## Daily Standup\n### What happened\n### Key metrics\n### Action items"
+          placeholder={t('agents.archetype.reportTemplatePlaceholder')}
           autoResize
           rows={6}
         />
       </View>
 
-      {/* Schedule */}
-      <View className="gap-1.5">
-        <Label>Schedule</Label>
-        <View className="self-start">
-          <SegmentedControl
-            label="Schedule"
-            type="radio"
-            value={config.schedule?.type || 'daily'}
-            onValueChange={(val) =>
-              onChange({
-                ...config,
-                schedule: { ...config.schedule, type: scheduleTypeFrom(val) },
-              })
-            }
-          >
-            <SegmentedControlItem value="daily">
-              <SegmentedControlItemText>Daily</SegmentedControlItemText>
-            </SegmentedControlItem>
-            <SegmentedControlItem value="interval">
-              <SegmentedControlItemText>Interval</SegmentedControlItemText>
-            </SegmentedControlItem>
-          </SegmentedControl>
-        </View>
-        {(config.schedule?.type || 'daily') === 'daily' && (
-          <Input
-            label="09:00"
-            value={config.schedule?.time || '09:00'}
-            onChangeText={(text) =>
-              onChange({
-                ...config,
-                schedule: {
-                  ...config.schedule,
-                  type: config.schedule?.type ?? 'daily',
-                  time: text,
-                },
-              })
-            }
-            placeholder="09:00"
-          />
-        )}
-      </View>
-
-      {/* Delivery Channels */}
-      <View className="gap-1.5">
-        <Label>Delivery Channels</Label>
-        <View className="flex-row flex-wrap gap-2">
-          {DELIVERY_CHANNELS.map((channel) => (
-            <Chip
-              key={channel}
-              size="xl"
-              selected={(config.deliveryChannels || []).includes(channel)}
-              onPress={() =>
-                onChange(withChannelToggled(config, 'deliveryChannels', channel))
-              }
-            >
-              {channel.replace('_', ' ')}
-            </Chip>
-          ))}
-        </View>
-      </View>
-
       {/* Compare with Previous */}
       <SettingsListGroup>
         <SettingsListItem
-          title="Compare with previous report"
+          title={t('agents.archetype.compareWithPrevious')}
           rightElement={
             <Switch
-              accessibilityLabel="Compare with previous report"
+              accessibilityLabel={t('agents.archetype.compareWithPrevious')}
               value={config.compareWithPrevious || false}
               onValueChange={(val) =>
                 onChange({ ...config, compareWithPrevious: val })
@@ -153,9 +102,10 @@ function StatusUpdateConfig({ config, onChange }: ConfigProps) {
 }
 
 function QaConfig({ config, onChange }: ConfigProps) {
+  const { t } = useTranslation();
   return (
     <View className="gap-4">
-      <Text variant="headline-semibold">Q&A Configuration</Text>
+      <Text variant="headline-semibold">{t('agents.archetype.qaConfig')}</Text>
 
       {/* No "Knowledge Sources" picker. It wrote four hardcoded names
           into `archetypeConfig.knowledgeSources`, the third of the
@@ -166,10 +116,10 @@ function QaConfig({ config, onChange }: ConfigProps) {
       {/* Cite Sources */}
       <SettingsListGroup>
         <SettingsListItem
-          title="Cite sources in answers"
+          title={t('agents.archetype.citeSources')}
           rightElement={
             <Switch
-              accessibilityLabel="Cite sources in answers"
+              accessibilityLabel={t('agents.archetype.citeSources')}
               value={config.citeSources !== false}
               onValueChange={(val) => onChange({ ...config, citeSources: val })}
             />
@@ -185,11 +135,13 @@ function TaskRouterConfig({ config, onChange }: ConfigProps) {
 
   return (
     <View className="gap-4">
-      <Text variant="headline-semibold">Routing Configuration</Text>
+      <Text variant="headline-semibold">
+        {t('agents.archetype.routingConfig')}
+      </Text>
 
       {/* Inbound Channels */}
       <View className="gap-1.5">
-        <Label>Inbound Channels</Label>
+        <Label>{t('agents.archetype.inboundChannels')}</Label>
         <View className="flex-row flex-wrap gap-2">
           {INBOUND_CHANNELS.map((channel) => (
             <Chip
@@ -200,7 +152,7 @@ function TaskRouterConfig({ config, onChange }: ConfigProps) {
                 onChange(withChannelToggled(config, 'inboundChannels', channel))
               }
             >
-              {channel}
+              {t(`agents.archetype.channel.${channel}`)}
             </Chip>
           ))}
         </View>
@@ -209,7 +161,7 @@ function TaskRouterConfig({ config, onChange }: ConfigProps) {
       {/* Routing Rules */}
       <View className="gap-2">
         <View className="flex-row items-center justify-between">
-          <Label>Routing Rules</Label>
+          <Label>{t('agents.archetype.routingRules')}</Label>
           <Button
             size="xs"
             tone="neutral"
@@ -224,18 +176,18 @@ function TaskRouterConfig({ config, onChange }: ConfigProps) {
             <CardBody>
               <View className="gap-2 py-1">
                 <Input
-                  label="When the task is about..."
+                  label={t('agents.archetype.ruleCondition')}
                   value={rule.condition}
                   onChangeText={(text) =>
                     onChange(
                       withRoutingRuleEdited(config, index, { condition: text }),
                     )
                   }
-                  placeholder="When the task is about..."
+                  placeholder={t('agents.archetype.ruleCondition')}
                 />
                 <View className="flex-row items-center gap-2">
                   <SegmentedControl
-                    label="Priority"
+                    label={t('agents.archetype.priority')}
                     type="radio"
                     size="sm"
                     value={rule.priority}
@@ -248,17 +200,23 @@ function TaskRouterConfig({ config, onChange }: ConfigProps) {
                     }
                   >
                     <SegmentedControlItem value="low">
-                      <SegmentedControlItemText>Low</SegmentedControlItemText>
+                      <SegmentedControlItemText>
+                        {t('agents.archetype.priorityLow')}
+                      </SegmentedControlItemText>
                     </SegmentedControlItem>
                     <SegmentedControlItem value="medium">
-                      <SegmentedControlItemText>Med</SegmentedControlItemText>
+                      <SegmentedControlItemText>
+                        {t('agents.archetype.priorityMedium')}
+                      </SegmentedControlItemText>
                     </SegmentedControlItem>
                     <SegmentedControlItem value="high">
-                      <SegmentedControlItemText>High</SegmentedControlItemText>
+                      <SegmentedControlItemText>
+                        {t('agents.archetype.priorityHigh')}
+                      </SegmentedControlItemText>
                     </SegmentedControlItem>
                     <SegmentedControlItem value="urgent">
                       <SegmentedControlItemText>
-                        Urgent
+                        {t('agents.archetype.priorityUrgent')}
                       </SegmentedControlItemText>
                     </SegmentedControlItem>
                   </SegmentedControl>
@@ -275,7 +233,7 @@ function TaskRouterConfig({ config, onChange }: ConfigProps) {
                   />
                 </View>
                 <Input
-                  label="Route to (name)"
+                  label={t('agents.archetype.routeTo')}
                   value={rule.assignTo?.name || ''}
                   onChangeText={(text) =>
                     onChange(
@@ -284,29 +242,12 @@ function TaskRouterConfig({ config, onChange }: ConfigProps) {
                       }),
                     )
                   }
-                  placeholder="Route to (name)"
+                  placeholder={t('agents.archetype.routeTo')}
                 />
               </View>
             </CardBody>
           </Card>
         ))}
-      </View>
-
-      {/* Escalation Timeout */}
-      <View className="gap-1.5">
-        <Label>Escalation Timeout (minutes)</Label>
-        <Input
-          label="60"
-          value={String(config.escalationTimeoutMinutes || '')}
-          onChangeText={(text) =>
-            onChange({
-              ...config,
-              escalationTimeoutMinutes: escalationMinutesFrom(text),
-            })
-          }
-          placeholder="60"
-          keyboardType="number-pad"
-        />
       </View>
     </View>
   );

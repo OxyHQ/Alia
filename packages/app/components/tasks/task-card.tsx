@@ -1,5 +1,6 @@
 import { agentDisplayName } from '@/lib/agents/identity';
 import type { AgentActivityState } from '@/lib/hooks/use-agent-activity';
+import { useTranslation } from '@/lib/hooks/use-translation';
 import type { TaskAgentRef, TaskSession } from '@/lib/hooks/use-tasks';
 import { formatDuration, getToolPillLabel } from '@/lib/task-utils';
 import { Badge, type BadgeIcon } from '@oxy.so/bloom/badge';
@@ -29,20 +30,24 @@ interface TaskCardProps {
 
 const COLLAPSED_STEP_COUNT = 5;
 
-/** A session's status as a Bloom badge: its word, its tone and its mark. */
+/**
+ * A session's status as a Bloom badge: its word (an i18n key), its tone and
+ * its mark. The words are the automations' lifecycle words, so a task and an
+ * automation in the same list say "Running" the same way.
+ */
 const STATUS: Record<
   TaskSession['status'],
   { label: string; tone: AccentTone; icon: BadgeIcon }
 > = {
-  queued: { label: 'Queued', tone: 'default', icon: RiTimeLine },
-  running: { label: 'Running', tone: 'info', icon: RiLoader4Line },
+  queued: { label: 'automations.lifecycle.queued', tone: 'default', icon: RiTimeLine },
+  running: { label: 'automations.lifecycle.running', tone: 'info', icon: RiLoader4Line },
   completed: {
-    label: 'Completed',
+    label: 'automations.lifecycle.completed',
     tone: 'success',
     icon: RiCheckboxCircleLine,
   },
-  failed: { label: 'Failed', tone: 'error', icon: RiCloseCircleLine },
-  cancelled: { label: 'Cancelled', tone: 'default', icon: RiForbidLine },
+  failed: { label: 'automations.lifecycle.failed', tone: 'error', icon: RiCloseCircleLine },
+  cancelled: { label: 'automations.lifecycle.cancelled', tone: 'default', icon: RiForbidLine },
 };
 
 export const TaskCard = React.memo(function TaskCard({
@@ -50,6 +55,7 @@ export const TaskCard = React.memo(function TaskCard({
   activity,
   onPress,
 }: TaskCardProps) {
+  const { t } = useTranslation();
   const status = STATUS[task.status];
   const [expanded, setExpanded] = useState(false);
   const [elapsed, setElapsed] = useState('');
@@ -89,7 +95,7 @@ export const TaskCard = React.memo(function TaskCard({
   // Current tool info for the in-progress step
   const currentToolName = activity?.currentAction?.toolName ?? null;
   const currentToolLabel = currentToolName
-    ? getToolPillLabel(currentToolName)
+    ? getToolPillLabel(currentToolName, t)
     : null;
 
   // Build the agents list for the mark row
@@ -127,7 +133,7 @@ export const TaskCard = React.memo(function TaskCard({
                 variant="subtle"
                 color={status.tone}
                 icon={status.icon}
-                content={status.label}
+                content={t(status.label)}
               />
             </>
           }
@@ -158,7 +164,7 @@ export const TaskCard = React.memo(function TaskCard({
                   size="label-medium"
                   variant="subtle"
                   icon={RiLoader4Line}
-                  content={getToolPillLabel(activity.currentAction.toolName)}
+                  content={getToolPillLabel(activity.currentAction.toolName, t)}
                 />
               }
             />
@@ -176,7 +182,10 @@ export const TaskCard = React.memo(function TaskCard({
           <CardFooter>
             <View className="flex-1 flex-row items-center justify-between gap-2">
               <Muted>
-                {completedCount}/{totalCount} steps completed
+                {t('tasks.stepsCompleted', {
+                  done: completedCount,
+                  count: totalCount,
+                })}
               </Muted>
               {needsCollapse && (
                 <Button
@@ -186,7 +195,9 @@ export const TaskCard = React.memo(function TaskCard({
                   leadingIcon={expanded ? RiArrowUpSLine : RiArrowDownSLine}
                   onPress={() => setExpanded(!expanded)}
                 >
-                  {expanded ? 'Show less' : `Show all ${totalCount} steps`}
+                  {expanded
+                    ? t('tasks.showLess')
+                    : t('tasks.showAllSteps', { count: totalCount })}
                 </Button>
               )}
             </View>

@@ -1,8 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  escalationMinutesFrom,
   routingPriorityFrom,
-  scheduleTypeFrom,
   withChannelToggled,
   withRoutingRuleAdded,
   withRoutingRuleEdited,
@@ -80,18 +78,5 @@ describe('segmented-control values', () => {
     expect(routingPriorityFrom('urgent')).toBe('urgent');
     expect(routingPriorityFrom('medium')).toBe('medium');
     expect(routingPriorityFrom('whatever')).toBe('medium');
-  });
-
-  it('reads a schedule type, and anything unknown as daily', () => {
-    expect(scheduleTypeFrom('interval')).toBe('interval');
-    expect(scheduleTypeFrom('cron')).toBe('cron');
-    expect(scheduleTypeFrom('daily')).toBe('daily');
-    expect(scheduleTypeFrom('')).toBe('daily');
-  });
-
-  it('reads the escalation timeout, clearing it for anything that is not a number', () => {
-    expect(escalationMinutesFrom('45')).toBe(45);
-    expect(escalationMinutesFrom('')).toBeUndefined();
-    expect(escalationMinutesFrom('soon')).toBeUndefined();
   });
 });

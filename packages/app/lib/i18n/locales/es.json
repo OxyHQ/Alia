@@ -15,7 +15,6 @@
     "back": "Atrás",
     "create": "Crear",
     "search": "Buscar...",
-    "comingSoon": "Próximamente!",
     "noResults": "No se encontraron resultados",
     "tryDifferentSearch": "Prueba un término de búsqueda diferente",
     "all": "Todo",
@@ -111,7 +110,37 @@
     "personalityStyle": {
       "title": "Prueba una nueva personalidad",
       "description": "Ajusta el estilo y tono de cómo Alia te responde. Esto no afecta sus capacidades.",
-      "popular": "Popular"
+      "popular": "Popular",
+      "styles": {
+        "alia": {
+          "name": "Alia",
+          "greeting": "¡Hola! Soy la Alia de siempre. ¿En qué te ayudo?"
+        },
+        "brief": {
+          "name": "Breve",
+          "greeting": "Vale, seré breve. ¿Cuál es tu pregunta o tema?"
+        },
+        "chill": {
+          "name": "Relajada",
+          "greeting": "¡Buenas! Aquí todo tranqui. ¡Tómatelo con calma!"
+        },
+        "sweet": {
+          "name": "Cariñosa",
+          "greeting": "¡Hola! Estoy aquí para animarte a conseguir lo que te propongas."
+        },
+        "witty": {
+          "name": "Ingeniosa",
+          "greeting": "Vaya, vaya… parece que tenemos algo interesante que resolver."
+        },
+        "mentor": {
+          "name": "Mentora",
+          "greeting": "Buena pregunta. Pensémoslo juntos: ¿qué has probado hasta ahora?"
+        },
+        "bold": {
+          "name": "Directa",
+          "greeting": "Al grano. Dime qué necesitas y te daré mi opinión sincera."
+        }
+      }
     },
     "occupation": {
       "title": "Ocupación",
@@ -156,7 +185,8 @@
       "writingStyle": "Estilo de Escritura",
       "localModels": "Modelos locales",
       "profile": "Perfil",
-      "storage": "Almacenamiento"
+      "storage": "Almacenamiento",
+      "security": "Seguridad"
     },
     "accentColor": {
       "title": "Color de la app",
@@ -397,6 +427,31 @@
           "de": "Alemán"
         }
       }
+    },
+    "security": {
+      "approvalPreferences": "Preferencias de aprobación",
+      "approvalTimeout": "Tiempo límite de aprobación",
+      "auditExport": "Exportar auditoría",
+      "auditExportDesc": "Exporta los registros de actividad de los agentes para cumplimiento normativo",
+      "autoDenyOnTimeout": "Denegar automáticamente al agotarse el tiempo",
+      "autoDenyOnTimeoutDesc": "Deniega automáticamente las acciones marcadas si no respondes a tiempo",
+      "blocked": "Bloqueada",
+      "exportButton": "Exportar registros",
+      "exportFailed": "No se han podido exportar los registros",
+      "exportSuccess": "Registros exportados",
+      "exporting": "Exportando…",
+      "format": "Formato",
+      "from": "Desde",
+      "noThreats": "Todo en orden: no se ha detectado ninguna amenaza",
+      "requireApproval": "Pedir aprobación para las acciones marcadas",
+      "requireApprovalDesc": "Pausa al agente cuando se detecta una acción potencialmente arriesgada",
+      "threatLog": "Actividad de amenazas",
+      "threatLogDesc": "Eventos de seguridad recientes de tus agentes",
+      "threatLogEmpty": "No se han detectado amenazas",
+      "to": "Hasta",
+      "viewAll": "Ver todo",
+      "warning": "Aviso",
+      "exportShareTitle": "Exportación de auditoría de Alia ({{format}})"
     }
   },
   "nav": {
@@ -427,7 +482,8 @@
     "notifications": "Notificaciones",
     "resetPassword": "Restablecer contraseña",
     "writingStyle": "Estilo de Escritura",
-    "localModels": "Modelos locales"
+    "localModels": "Modelos locales",
+    "security": "Seguridad"
   },
   "sidebar": {
     "newChat": "Nueva conversación",
@@ -572,7 +628,15 @@
     "fileDeleted": "Archivo eliminado exitosamente",
     "failedUploadImages": "Error al subir imágenes",
     "failedUploadFiles": "Error al subir archivos",
-    "failedDeleteFile": "Error al eliminar archivo"
+    "failedDeleteFile": "Error al eliminar archivo",
+    "today": "Hoy",
+    "yesterday": "Ayer",
+    "daysAgo": "hace {{count}} d",
+    "fileActions": "Acciones de {{name}}",
+    "pickImageFailed": "No se ha podido elegir la imagen. Inténtalo de nuevo.",
+    "cameraPermission": "Necesitas dar acceso a la cámara para hacer una foto.",
+    "takePhotoFailed": "No se ha podido hacer la foto. Inténtalo de nuevo.",
+    "pickDocumentFailed": "No se ha podido elegir el documento. Inténtalo de nuevo."
   },
   "chat": {
     "newChat": "Nueva conversación",
@@ -735,7 +799,6 @@
     "subtitle": "Automatiza el trabajo configurando tareas programadas",
     "exploreMore": "Explorar más",
     "createAutomation": "Crear automatización",
-    "comingSoon": "Automatizaciones próximamente!",
     "name": "Nombre",
     "namePlaceholder": "Mi automatización",
     "workspaces": "Espacios de trabajo",
@@ -751,7 +814,140 @@
     "runsEveryMinutes": "Se ejecuta cada {{minutes}} minutos.",
     "created": "Automatización creada",
     "createdDescription": "Ya aparece en Tareas junto al resto de tu trabajo.",
-    "viewTasks": "Ver tareas"
+    "viewTasks": "Ver tareas",
+    "cron": {
+      "everyHour": "Cada hora",
+      "everyHours": "Cada {{count}} horas",
+      "everyMinutes": {
+        "one": "Cada minuto",
+        "other": "Cada {{count}} minutos"
+      },
+      "dailyAt": "Todos los días a las {{time}}",
+      "weekdaysAt": "De lunes a viernes a las {{time}}",
+      "weekendsAt": "Los fines de semana a las {{time}}",
+      "daysAt": "Los {{days}} a las {{time}}",
+      "dayPlural": {
+        "0": "domingos",
+        "1": "lunes",
+        "2": "martes",
+        "3": "miércoles",
+        "4": "jueves",
+        "5": "viernes",
+        "6": "sábados"
+      }
+    },
+    "trigger": {
+      "manual": "A petición",
+      "anyApp": "Cualquier app",
+      "anyEvent": "Cualquier evento",
+      "unscheduled": "Sin programar"
+    },
+    "actor": {
+      "none": "Ningún agente asignado",
+      "noEligible": "Ningún agente disponible"
+    },
+    "runStatus": {
+      "planned": "Planificada",
+      "running": "En curso",
+      "observed": "Observada",
+      "succeeded": "Completada",
+      "failed": "Fallida",
+      "cancelled": "Cancelada",
+      "denied": "Denegada"
+    },
+    "lifecycle": {
+      "running": "En curso",
+      "queued": "En cola",
+      "scheduled": "Programada",
+      "on_request": "A petición",
+      "paused": "En pausa",
+      "completed": "Completada",
+      "failed": "Fallida",
+      "cancelled": "Cancelada"
+    },
+    "card": {
+      "label": "Automatización {{title}}",
+      "pause": "Pausar {{title}}",
+      "resume": "Reanudar {{title}}",
+      "kind": "Automatización",
+      "latestRun": "Última ejecución",
+      "latestDecision": "Última decisión",
+      "runLabel": "Ejecutar {{title}}",
+      "runNow": "Ejecutar ahora",
+      "stopLabel": "Detener {{title}}",
+      "stop": "Detener y revocar",
+      "stopped": "Detenida",
+      "historyLabel": "Ver el historial de {{title}}",
+      "history": "Historial",
+      "viewHistory": "Ver historial"
+    },
+    "controls": {
+      "revocationFailed": {
+        "one": "Automatización detenida, pero no se ha podido revocar 1 autorización",
+        "other": "Automatización detenida, pero no se han podido revocar {{count}} autorizaciones"
+      },
+      "updateFailed": "No se ha podido actualizar la automatización",
+      "stopped": "Automatización detenida y acceso revocado",
+      "stopFailed": "No se ha podido detener la automatización",
+      "queued": "Automatización en cola",
+      "runFailed": "No se ha podido ejecutar la automatización"
+    },
+    "edit": {
+      "objectiveRequired": "El objetivo es obligatorio",
+      "instructionsRequired": "Las instrucciones son obligatorias",
+      "scheduleRequired": "La programación y la zona horaria son obligatorias",
+      "eventRequired": "La app y el tipo de evento son obligatorios",
+      "eventResourceIncomplete": "El recurso del evento está incompleto",
+      "chooseAgent": "Elige un agente",
+      "chooseEligibleAgent": "Elige al menos un agente disponible",
+      "resourceIncomplete": "Todos los campos del recurso son obligatorios",
+      "limitKeyRequired": "Cada límite necesita una clave",
+      "limitDuplicated": "El límite {{key}} está duplicado",
+      "limitInvalid": "El límite {{key}} debe ser texto, un número, un booleano o una lista de textos"
+    },
+    "editor": {
+      "dayShort": {
+        "0": "D",
+        "1": "L",
+        "2": "M",
+        "3": "X",
+        "4": "J",
+        "5": "V",
+        "6": "S"
+      },
+      "dayName": {
+        "0": "Domingo",
+        "1": "Lunes",
+        "2": "Martes",
+        "3": "Miércoles",
+        "4": "Jueves",
+        "5": "Viernes",
+        "6": "Sábado"
+      },
+      "invalidSchedule": "Elige una hora válida y al menos un día",
+      "title": "Editar tarea",
+      "saving": "Guardando…",
+      "save": "Guardar",
+      "status": "Estado",
+      "pausedNotScheduled": "En pausa · Próxima ejecución: sin programar",
+      "active": "Tarea activa",
+      "titleLabel": "Título",
+      "taskTitle": "Título de la tarea",
+      "instructions": "Instrucciones",
+      "taskInstructions": "Instrucciones de la tarea",
+      "repeat": "Repetir",
+      "weekly": "Semanal",
+      "time": "Hora",
+      "taskTime": "Hora de la tarea",
+      "timezone": "Zona horaria",
+      "taskTimezone": "Zona horaria de la tarea",
+      "agent": "Agente responsable",
+      "connectedWork": "Trabajo conectado: esta tarea puede usar las conexiones que aprobaste. Los identificadores exactos y los permisos siguen protegidos por Oxy y no se pueden editar aquí.",
+      "discardTitle": "¿Descartar los cambios?",
+      "discardDescription": "Se perderán los cambios de la tarea que no hayas guardado.",
+      "keepEditing": "Seguir editando",
+      "discard": "Descartar cambios"
+    }
   },
   "tasks": {
     "title": "Tareas",
@@ -766,7 +962,43 @@
     "emptyHistory": "Aún no hay tareas terminadas ni automatizaciones detenidas",
     "loadError": "No se pudieron cargar tus tareas y automatizaciones.",
     "retry": "Reintentar",
-    "loadMore": "Cargar más"
+    "loadMore": "Cargar más",
+    "stepsCompleted": "{{done}}/{{count}} pasos completados",
+    "showLess": "Mostrar menos",
+    "showAllSteps": "Mostrar los {{count}} pasos",
+    "agentCount": "{{count}} agentes",
+    "tool": {
+      "pill": {
+        "browse": "Navegando",
+        "webSearch": "Búsqueda web",
+        "webScraper": "Leyendo la página",
+        "generateFile": "Generando archivo",
+        "sendTelegramMessage": "Telegram",
+        "sendSlack": "Slack",
+        "sendDiscord": "Discord",
+        "sendSignal": "Signal",
+        "sendEmail": "Correo",
+        "delegateToAgent": "Delegando",
+        "askAgent": "Consultando a un agente",
+        "agentSearch": "Buscando agentes",
+        "userMemory": "Recordando",
+        "shellExec": "Ejecutando comando",
+        "fileEdit": "Editando archivo",
+        "codeInterpreter": "Ejecutando código"
+      },
+      "done": {
+        "browse": "Navegó",
+        "webScraper": "Leyó la página",
+        "generateFile": "Generó un archivo",
+        "delegateToAgent": "Delegó",
+        "askAgent": "Consultó a un agente",
+        "agentSearch": "Buscó agentes",
+        "userMemory": "Recordó",
+        "shellExec": "Ejecutó un comando",
+        "fileEdit": "Editó un archivo",
+        "codeInterpreter": "Ejecutó código"
+      }
+    }
   },
   "skills": {
     "title": "Skills",
@@ -906,7 +1138,8 @@
       "scanTitle": "Escanea para descargar",
       "scanDescription": "Escanea el código QR con el móvil para obtener la app.",
       "iosTitle": "Muy pronto",
-      "iosDescription": "La app de iOS está en camino."
+      "iosDescription": "La app de iOS está en camino.",
+      "googlePlay": "Disponible en Google Play"
     }
   },
   "usageLimit": {
@@ -971,7 +1204,6 @@
     "clearConfirmDescription": "Se eliminarán todos los mensajes de esta conversación. Esta acción no se puede deshacer.",
     "clear": "Limpiar",
     "clearFailed": "No se pudo limpiar la conversación. Tus mensajes siguen aquí.",
-    "settingsComingSoon": "La función de configuración estará disponible pronto!",
     "openMenu": "Abrir menú",
     "temporaryChat": "Chat temporal",
     "searchConversations": "Buscar conversaciones",
@@ -996,7 +1228,8 @@
     "subtitle": "Administra tus preferencias de notificaciones",
     "pushNotifications": "Notificaciones push",
     "pushDescription": "Recibe alertas sobre nuevos mensajes y actualizaciones",
-    "permissionDenied": "Las notificaciones están bloqueadas. Por favor habilítalas en la configuración de tu dispositivo para recibir notificaciones push."
+    "permissionDenied": "Las notificaciones están bloqueadas. Por favor habilítalas en la configuración de tu dispositivo para recibir notificaciones push.",
+    "channelDefault": "General"
   },
   "agents": {
     "title": "Agentes",
@@ -1005,7 +1238,6 @@
     "featured": "Destacados",
     "trending": "Tendencia",
     "createAgent": "Crear agente",
-    "createComingSoon": "La creación de agentes estará disponible pronto!",
     "hire": "Contratar",
     "startTask": "Iniciar tarea",
     "free": "Gratis",
@@ -1024,9 +1256,7 @@
     "statusIdle": "Inactivo",
     "statusOffline": "Desconectado",
     "share": "Compartir",
-    "shareComingSoon": "Compartir agente próximamente!",
     "chatUnavailable": "Este agente todavía no se puede abrir",
-    "hireComingSoon": "Contratar agente próximamente!",
     "activity": "Actividad",
     "taskPlaceholder": "Describe la tarea para este agente...",
     "hireStarted": "El agente está trabajando en tu tarea",
@@ -1036,10 +1266,6 @@
     "chat": "Chat",
     "native": "De Alia",
     "rating": "rating",
-    "report": "Reportar",
-    "reportSubmitted": "Reporte enviado",
-    "bookmark": "Guardar",
-    "removeBookmark": "Quitar guardado",
     "removeSkill": "Quitar habilidad",
     "removeKnowledge": "Quitar conocimiento",
     "edit": "Editar",
@@ -1100,7 +1326,149 @@
     "accessPublic": "Cualquiera puede usarlo",
     "accessPublicHint": "Desactivado, solo tú y quienes añadas a su cuenta. Aparecer en el catálogo es aparte.",
     "capabilitiesFooter": "Un agente no alcanza nada que no hayas activado aquí.",
-    "saveFailed": "No se pudo guardar"
+    "saveFailed": "No se pudo guardar",
+    "createFirstHint": "Crea un agente para darle un trabajo, sus propias herramientas y un hilo propio.",
+    "startTaskPriced": "Iniciar tarea · {{count}} créditos",
+    "statusPaused": "En pausa",
+    "acceptingHires": "Acepta tareas",
+    "notAcceptingHires": "No acepta tareas",
+    "archetype": {
+      "reportConfig": "Configuración del informe",
+      "reportTemplate": "Plantilla del informe",
+      "reportTemplatePlaceholder": "## Reunión diaria\n### Qué ha pasado\n### Métricas clave\n### Próximos pasos",
+      "compareWithPrevious": "Comparar con el informe anterior",
+      "qaConfig": "Configuración de preguntas y respuestas",
+      "citeSources": "Citar fuentes en las respuestas",
+      "routingConfig": "Configuración del enrutamiento",
+      "inboundChannels": "Canales de entrada",
+      "routingRules": "Reglas de enrutamiento",
+      "ruleCondition": "Cuando la tarea trate de…",
+      "priority": "Prioridad",
+      "priorityLow": "Baja",
+      "priorityMedium": "Media",
+      "priorityHigh": "Alta",
+      "priorityUrgent": "Urgente",
+      "routeTo": "Enviar a (nombre)",
+      "channel": {
+        "email": "Correo",
+        "slack": "Slack",
+        "discord": "Discord",
+        "webhook": "Webhook",
+        "github": "GitHub",
+        "linear": "Linear"
+      },
+      "general": {
+        "label": "General",
+        "description": "Crea cualquier agente a medida"
+      },
+      "qa": {
+        "label": "Preguntas y respuestas",
+        "description": "Responde preguntas a partir de tu conocimiento"
+      },
+      "task_router": {
+        "label": "Enrutador de tareas",
+        "description": "Clasifica y reparte las tareas entrantes"
+      },
+      "status_update": {
+        "label": "Informe de estado",
+        "description": "Redacta informes de estado"
+      }
+    },
+    "categoryName": {
+      "Assistant": "Asistente",
+      "Creative": "Creatividad",
+      "Developer": "Desarrollo",
+      "Research": "Investigación",
+      "Business": "Negocios",
+      "Education": "Educación"
+    },
+    "listing": {
+      "category": "Categoría",
+      "tagline": "Eslogan",
+      "taglinePlaceholder": "Descripción breve",
+      "description": "Descripción",
+      "descriptionPlaceholder": "Descripción completa…",
+      "price": "Precio por uso (créditos)",
+      "pricePlaceholder": "Gratis (déjalo vacío)"
+    },
+    "searchLibrary": "Buscar en la biblioteca…",
+    "libraryEmpty": "No hay archivos en tu biblioteca. Súbelos desde la pantalla Biblioteca.",
+    "searchSkills": "Buscar habilidades…",
+    "threadSandbox": "Entorno aislado",
+    "threadOpen": "Abierto",
+    "threadClosed": "Cerrado",
+    "reviewDeleteFailed": "No se ha podido eliminar la reseña",
+    "publishFailed": "No se ha podido actualizar el agente",
+    "deleteFailed": "No se ha podido eliminar el agente",
+    "chatWithTitle": "Chat con {{name}}",
+    "insufficientCreditsCount": "No tienes créditos suficientes. Necesitas {{count}} créditos.",
+    "insufficientCredits": "No tienes créditos suficientes.",
+    "infrastructureUnavailable": "Los agentes no están disponibles ahora mismo. Inténtalo más tarde.",
+    "taskStartFailed": "No se ha podido iniciar la tarea",
+    "statusUpdateFailed": "No se ha podido actualizar el estado",
+    "activityGrid": {
+      "interactions": {
+        "one": "1 interacción",
+        "other": "{{count}} interacciones"
+      },
+      "summary": "{{interactions}} en las últimas {{weeks}} semanas",
+      "day": "{{interactions}} el {{date}}"
+    },
+    "capabilityFamily": {
+      "web": {
+        "label": "Web",
+        "description": "Buscar en la web, leer páginas y hacer investigación a fondo"
+      },
+      "browser": {
+        "label": "Navegador",
+        "description": "Buscar y leer páginas web paso a paso durante una tarea larga"
+      },
+      "artifacts": {
+        "label": "Artefactos",
+        "description": "Crear gráficos, tablas, bloques de código y archivos descargables"
+      },
+      "memory": {
+        "label": "Memoria",
+        "description": "Leer y actualizar lo que Alia recuerda de ti"
+      },
+      "messaging": {
+        "label": "Mensajería",
+        "description": "Enviar y leer mensajes en tu Telegram y tu WhatsApp"
+      },
+      "automation": {
+        "label": "Automatizaciones",
+        "description": "Crear, editar y eliminar tus disparadores programados"
+      },
+      "delegation": {
+        "label": "Otros agentes",
+        "description": "Buscar, contratar y crear agentes que trabajen en su nombre"
+      }
+    },
+    "instancedFamily": {
+      "agent": "Tus agentes",
+      "mcp": "Conectores",
+      "integration": "Integraciones"
+    },
+    "terminal": {
+      "banner": "Terminal del agente",
+      "initFailed": "No se ha podido iniciar el terminal",
+      "waiting": "Esperando actividad…",
+      "reconnected": "Reconectado",
+      "connectionLost": "Conexión perdida — reconectando…",
+      "connectionError": "Error de conexión — reintentando…",
+      "unavailable": "El terminal no está disponible en este dispositivo.",
+      "loading": "Cargando terminal…"
+    },
+    "cannotReviewOwn": "No puedes reseñar tu propio agente",
+    "deleteReview": "Eliminar reseña",
+    "deleteReviewConfirm": "¿Eliminar tu reseña?",
+    "editReview": "Editar reseña",
+    "noReviews": "Todavía no hay reseñas",
+    "reviewDeleted": "Reseña eliminada",
+    "reviewPlaceholder": "Cuenta tu experiencia con este agente…",
+    "reviewSubmitted": "Reseña enviada",
+    "reviews": "Reseñas",
+    "writeReview": "Escribir una reseña"
   },
   "authorize": {
     "linkingAccount": "Vinculando cuenta...",
@@ -1219,7 +1587,8 @@
     "providerImportSuccess": "Se importaron exitosamente {{count}} recuerdos de tu otro proveedor de IA",
     "providerImportFailed": "Error al importar recuerdos",
     "chatAddPrompt": "Recuerda esto sobre mí: ",
-    "chatEditPrompt": "Actualiza lo que recuerdas sobre «{{title}}». Ahora dice: «{{summary}}». Cámbialo a: "
+    "chatEditPrompt": "Actualiza lo que recuerdas sobre «{{title}}». Ahora dice: «{{summary}}». Cámbialo a: ",
+    "sizeKb": "~{{size}} KB"
   },
   "models": {
     "selectModel": "Seleccionar modelo",
@@ -1420,7 +1789,44 @@
     "openOutput": "Abrir {{name}} en el lienzo",
     "filesAndSources": "Archivos y fuentes",
     "input": "Entrada",
-    "output": "Salida"
+    "output": "Salida",
+    "audit": {
+      "agent": "Agente: {{name}}",
+      "planApproved": "Plan aprobado",
+      "planSteps": {
+        "one": "1 paso",
+        "other": "{{count}} pasos"
+      },
+      "fileGenerated": "Archivo generado",
+      "researchIncomplete": "Investigación incompleta",
+      "researchComplete": "Investigación completada",
+      "researching": "Investigando",
+      "researchPhase": {
+        "decomposing": "Investigación: desglosando la pregunta",
+        "searching": "Investigación: buscando fuentes",
+        "reading": "Investigación: leyendo artículos",
+        "synthesizing": "Investigación: sintetizando hallazgos",
+        "follow_up": "Investigación: profundizando",
+        "finalizing": "Investigación: terminando"
+      }
+    },
+    "tool": {
+      "webSearch": "Buscando en la web",
+      "scrapeURL": "Leyendo URL",
+      "getTimeline": "Obteniendo la cronología",
+      "searchKnowledgeBase": "Buscando en la base de conocimiento",
+      "webScraper": "Leyendo página web",
+      "browse": "Navegando por la web",
+      "sendWhatsAppMessage": "Enviando mensaje de WhatsApp",
+      "getWhatsAppChats": "Cargando chats de WhatsApp",
+      "getWhatsAppMessages": "Leyendo mensajes de WhatsApp",
+      "sendTelegramMessage": "Enviando mensaje de Telegram",
+      "getCurrentDate": "Consultando la fecha actual",
+      "generateFile": "Generando archivo",
+      "saveUserMemory": "Guardando en la memoria",
+      "updateUserPreferences": "Actualizando preferencias",
+      "updateUserContext": "Actualizando contexto"
+    }
   },
   "landing": {
     "tagline": "Tu asistente de IA inteligente",
@@ -1439,7 +1845,8 @@
     "demo2": "Explica la computación cuántica de forma simple...",
     "demo3": "Ayúdame a planificar un viaje a Tokio...",
     "demo4": "Depura esta función de Python...",
-    "demo5": "Crea un plan de ejercicios para principiantes..."
+    "demo5": "Crea un plan de ejercicios para principiantes...",
+    "metaDescription": "Conoce a Alia, tu asistente de IA inteligente. Conversa con naturalidad, recuerda todo y cambia entre los mejores modelos de IA sin esfuerzo."
   },
   "keyboardShortcuts": {
     "title": "Atajos de teclado",
@@ -1906,6 +2313,214 @@
       "redeemSuccess": "¡Has conseguido {{count}} créditos!",
       "redeemInvalid": "Código de invitación no válido",
       "noReferrals": "Aún no hay invitaciones"
+    }
+  },
+  "invitePage": {
+    "redeemFailed": "No se ha podido canjear el código de invitación",
+    "acceptTitle": "Aceptar invitación - Alia",
+    "acceptMeta": "Acepta tu invitación y consigue {{count}} créditos gratis en Alia.",
+    "redeemedTitle": "¡Has conseguido {{count}} créditos!",
+    "redeemedDescription": "Has canjeado tu invitación. Tu amigo y tú habéis ganado {{count}} créditos cada uno.",
+    "startChatting": "Empezar a chatear",
+    "redeemErrorTitle": "No se ha podido canjear la invitación",
+    "goToAlia": "Ir a Alia",
+    "redeeming": "Canjeando la invitación…",
+    "redeemingDescription": "Espera mientras aplicamos tus créditos.",
+    "invitedTitle": "Te han invitado a Alia",
+    "invitedMeta": "Únete a Alia y consigue {{count}} créditos gratis con este enlace de invitación.",
+    "invitedHeading": "Te han invitado a Alia",
+    "invitedDescription": "Regístrate ahora y los dos recibiréis {{count}} créditos para usar en Alia.",
+    "signUp": "Regístrate y consigue los créditos",
+    "signIn": "¿Ya tienes cuenta? Inicia sesión"
+  },
+  "orgInvite": {
+    "thisOrganization": "esta organización",
+    "role": {
+      "owner": "propietario",
+      "admin": "administrador",
+      "member": "miembro"
+    },
+    "acceptFailed": "No se ha podido aceptar la invitación",
+    "invalidTitle": "Invitación no válida - Alia",
+    "notFound": "Invitación no encontrada",
+    "notFoundDescription": "Este enlace de invitación no es válido, ha caducado o ya se ha usado.",
+    "pageTitle": "Únete a {{org}} - Alia",
+    "metaJoin": "Únete a {{org}} en Alia como {{role}}.",
+    "metaSignIn": "Inicia sesión para unirte a {{org}} en Alia.",
+    "joined": "¡Te has unido a {{org}}!",
+    "joinedDescription": "Ahora eres {{role}} de {{org}}.",
+    "joinFailed": "No te has podido unir",
+    "join": "Únete a {{org}}",
+    "invitedAs": "Te han invitado a unirte como {{role}}.",
+    "joining": "Uniéndote…",
+    "accept": "Aceptar y unirme",
+    "signInDescription": "Inicia sesión o crea una cuenta para unirte a {{org}} como {{role}}.",
+    "signUp": "Regístrate y únete"
+  },
+  "shows": {
+    "subtitle": "Pódcasts que Alia escribe, locuta y publica en Syra.",
+    "new": "Nuevo",
+    "openSeries": "Abrir {{title}}",
+    "empty": {
+      "title": "Aún no tienes programas",
+      "description": "Empieza un programa y Alia escribirá, pondrá voz y publicará cada episodio en Syra, donde se convierte en un pódcast de verdad que puedes compartir o guardarte para ti.",
+      "action": "Empezar un programa"
+    },
+    "visibility": {
+      "private": {
+        "label": "Privado",
+        "description": "Solo tú puedes escucharlo"
+      },
+      "unlisted": {
+        "label": "No listado",
+        "description": "Cualquiera con el enlace"
+      },
+      "public": {
+        "label": "Público",
+        "description": "Visible en Syra para todo el mundo"
+      }
+    },
+    "formatName": {
+      "podcast": {
+        "label": "Pódcast",
+        "description": "Conversación distendida entre dos presentadores"
+      },
+      "news": {
+        "label": "Noticias",
+        "description": "Informativo profesional"
+      },
+      "debate": {
+        "label": "Debate",
+        "description": "Dos posturas y un moderador"
+      },
+      "interview": {
+        "label": "Entrevista",
+        "description": "Un presentador entrevista a un invitado"
+      },
+      "explainer": {
+        "label": "Divulgativo",
+        "description": "Un único narrador explica un tema"
+      }
+    },
+    "role": {
+      "host": "Presentador",
+      "co-host": "Copresentador",
+      "guest": "Invitado",
+      "narrator": "Narrador"
+    },
+    "format": {
+      "hoursMinutes": "{{hours}} h {{minutes}} min",
+      "hours": "{{hours}} h",
+      "minutes": "{{minutes}} min",
+      "seconds": "{{seconds}} s",
+      "today": "Hoy",
+      "yesterday": "Ayer",
+      "daysAgo": "Hace {{count}} días",
+      "episodeCount": {
+        "one": "1 episodio",
+        "other": "{{count}} episodios"
+      }
+    },
+    "episodeNumber": "Episodio {{number}}",
+    "recordingStarted": "Grabación iniciada",
+    "deleteEverywhere": "Eliminar en todas partes",
+    "deleteEpisode": {
+      "title": "¿Eliminar este episodio en todas partes?",
+      "description": "La grabación también se elimina de Syra, junto con su audio y el punto en que cada oyente la dejó. No se puede deshacer.",
+      "failed": "No se ha podido eliminar el episodio",
+      "done": "Episodio eliminado de Alia y de Syra",
+      "label": "Eliminar {{name}} en todas partes"
+    },
+    "deleteShow": {
+      "title": "¿Eliminar este programa en todas partes?",
+      "description": "El pódcast también se elimina de Syra, con todos sus episodios, todo su audio y todas sus suscripciones. No se puede deshacer.",
+      "failed": "No se ha podido eliminar el programa",
+      "done": "Programa eliminado de Alia y de Syra",
+      "button": "Eliminar este programa en todas partes"
+    },
+    "starting": "Iniciando…",
+    "newEpisode": "Nuevo episodio",
+    "somethingSpecific": "Algo concreto",
+    "somethingSpecificLabel": "Di de qué debe tratar este episodio",
+    "openOnSyra": "Abrir en Syra",
+    "openOnSyraLabel": "Abrir este pódcast en Syra",
+    "showLess": "Mostrar menos",
+    "showMore": "Mostrar más",
+    "hosts": "Presentadores",
+    "hostsJoiner": " y ",
+    "episodes": "Episodios",
+    "noEpisodes": {
+      "title": "Aún no hay episodios",
+      "description": "Alia decidirá de qué trata el primero a partir del tema del programa, lo escribirá, le pondrá voz con {{hosts}} y lo publicará.",
+      "descriptionNoHosts": "Alia decidirá de qué trata el primero a partir del tema del programa, lo escribirá, le pondrá voz y lo publicará.",
+      "action": "Grabar el primer episodio",
+      "secondary": "O di de qué debe tratar",
+      "secondaryLabel": "Di de qué debe tratar el primer episodio"
+    },
+    "episodeDialog": {
+      "topicTooShort": "Cuéntalo un poco más, o déjalo en blanco y el programa elegirá",
+      "titleTooShort": "Ese nombre es demasiado corto; déjalo en blanco para que se escriba uno",
+      "record": "Grabarlo",
+      "topicLabel": "¿Algo concreto esta vez?",
+      "topicPlaceholder": "Déjalo en blanco y el programa elegirá algo que aún no haya tratado.",
+      "notesLabel": "Material de referencia (opcional)",
+      "notesPlaceholder": "Pega artículos, notas o puntos clave con los que trabajar…",
+      "nameLabel": "Nombre (opcional)",
+      "namePlaceholder": "Déjalo en blanco y se le pondrá nombre cuando esté escrito",
+      "nameHint": "Es el nombre que verán los oyentes. Si lo dejas en blanco, el guion le pondrá nombre según lo que acabe contando.",
+      "noRepeat": "En cualquier caso, el guion sabe de qué trató cada episodio anterior, así que no repetirá ninguno."
+    },
+    "audioProblem": {
+      "signedOut": "Inicia sesión para reproducirlo",
+      "forbidden": "Vuelve a iniciar sesión para reproducirlo",
+      "missing": "Syra no tiene ninguna grabación de este episodio",
+      "unavailable": "No se ha podido reproducir",
+      "unreachable": "No se ha podido conectar con Syra"
+    },
+    "step": {
+      "queued": "En cola",
+      "generating_script": "Escribiendo el guion",
+      "generating_audio": "Grabando",
+      "concatenating": "Montando",
+      "publishing": "Publicando en Syra",
+      "completed": "Listo",
+      "failed": "Ha fallado"
+    },
+    "linesMissing": {
+      "one": "Falta 1 frase",
+      "other": "Faltan {{count}} frases"
+    },
+    "credits": "{{count}} créditos",
+    "play": "Reproducir {{name}}",
+    "pause": "Pausar {{name}}",
+    "progress": "Progreso de {{name}}",
+    "segment": "Segmento {{index}}/{{total}}",
+    "seriesDialog": {
+      "incomplete": "Un programa necesita un título y una frase sobre de qué trata",
+      "created": "Programa creado: añade tu primer episodio",
+      "title": "Nuevo programa",
+      "creating": "Creando…",
+      "create": "Crear programa",
+      "name": "Nombre",
+      "namePlaceholder": "El resumen del miércoles",
+      "brief": "¿De qué trata?",
+      "briefPlaceholder": "Un repaso semanal a lo que he estado leyendo, en lenguaje sencillo.",
+      "briefHint": "Es lo único a partir de lo que se escribe cada episodio y, salvo que indiques otra cosa para alguno, lo único de lo que se elige su tema. Describe el programa y todo lo que abarca, no un solo episodio: con una o dos líneas, el programa no tendrá por dónde variar.",
+      "format": "Formato",
+      "audience": "¿Quién puede escucharlo?"
+    },
+    "coverArt": "Portada de {{title}}",
+    "noCoverArt": "{{title}} no tiene portada",
+    "errors": {
+      "loadList": "No se han podido cargar tus programas",
+      "loadOne": "No se ha podido cargar ese programa",
+      "create": "No se ha podido crear el programa",
+      "update": "No se ha podido actualizar el programa",
+      "delete": "No se ha podido eliminar el programa",
+      "startEpisode": "No se ha podido iniciar el episodio",
+      "deleteEpisode": "No se ha podido eliminar el episodio",
+      "voices": "No se ha podido cargar la lista de voces",
+      "preferences": "No se han podido guardar tus preferencias"
     }
   }
 }

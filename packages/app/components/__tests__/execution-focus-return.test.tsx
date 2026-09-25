@@ -218,9 +218,10 @@ describe('the panel is navigable by keyboard', () => {
           node.props.accessibilityLabel.length > 0,
       ),
     ).toBe(true);
-    // The tool row is expandable and says so.
+    // The tool row is expandable and says so. It is named by the app's own
+    // words for the tool — here the key, since `t` is the identity.
     const row = controls.find(
-      (node) => node.props.accessibilityLabel === 'webSearch',
+      (node) => node.props.accessibilityLabel === 'thought.tool.webSearch',
     );
     expect(row?.props.accessibilityState).toMatchObject({ expanded: false });
   });

@@ -15,6 +15,7 @@
  * is a rival default.
  */
 
+import { useTranslation } from '@/lib/hooks/use-translation';
 import { useShowStore } from '@/lib/stores/show-store';
 import { Dialog } from '@oxy.so/bloom/dialog';
 import {
@@ -42,6 +43,7 @@ export function EpisodeCreateDialog({
   seriesId,
   nextEpisodeNumber,
 }: EpisodeCreateDialogProps) {
+  const { t } = useTranslation();
   const createEpisode = useShowStore((s) => s.createEpisode);
 
   const [title, setTitle] = useState('');
@@ -61,13 +63,11 @@ export function EpisodeCreateDialog({
 
   const handleStart = useCallback(async () => {
     if (topicTooShort) {
-      toast.error('Say a bit more, or leave it blank and the show will choose');
+      toast.error(t('shows.episodeDialog.topicTooShort'));
       return;
     }
     if (titleTooShort) {
-      toast.error(
-        'That name is too short — leave it blank to have one written',
-      );
+      toast.error(t('shows.episodeDialog.titleTooShort'));
       return;
     }
 
@@ -80,7 +80,7 @@ export function EpisodeCreateDialog({
       });
 
       if (episodeId) {
-        toast.success('Recording started');
+        toast.success(t('shows.recordingStarted'));
         onOpenChange(false);
         setTitle('');
         setTopic('');
@@ -98,6 +98,7 @@ export function EpisodeCreateDialog({
     seriesId,
     createEpisode,
     onOpenChange,
+    t,
   ]);
 
   return (
@@ -105,12 +106,14 @@ export function EpisodeCreateDialog({
       open={open}
       onClose={() => onOpenChange(false)}
       placement={{ base: 'bottom', md: 'center' }}
-      title={`Episode ${nextEpisodeNumber}`}
+      title={t('shows.episodeNumber', { number: nextEpisodeNumber })}
       maxWidth={512}
       actions={[
-        { label: 'Cancel', color: 'cancel', disabled: starting },
+        { label: t('common.cancel'), color: 'cancel', disabled: starting },
         {
-          label: starting ? 'Starting...' : 'Record it',
+          label: starting
+            ? t('shows.starting')
+            : t('shows.episodeDialog.record'),
           onPress: handleStart,
           disabled: starting || topicTooShort || titleTooShort,
           shouldCloseOnPress: false,
@@ -126,39 +129,33 @@ export function EpisodeCreateDialog({
       <ScrollView className="max-h-96" showsVerticalScrollIndicator={false}>
         <View className="gap-4 py-2">
           <Textarea
-            label="Anything specific this time?"
+            label={t('shows.episodeDialog.topicLabel')}
             value={topic}
             onChangeText={setTopic}
-            placeholder="Leave blank and the show picks something it has not covered."
+            placeholder={t('shows.episodeDialog.topicPlaceholder')}
             rows={3}
           />
 
           <Textarea
-            label="Source material (optional)"
+            label={t('shows.episodeDialog.notesLabel')}
             value={notes}
             onChangeText={setNotes}
-            placeholder="Paste articles, notes or talking points to work from..."
+            placeholder={t('shows.episodeDialog.notesPlaceholder')}
             rows={4}
           />
 
           <View>
-            <TextFieldLabel>Name (optional)</TextFieldLabel>
+            <TextFieldLabel>{t('shows.episodeDialog.nameLabel')}</TextFieldLabel>
             <TextFieldInput
-              label="Name (optional)"
+              label={t('shows.episodeDialog.nameLabel')}
               value={title}
               onChangeText={setTitle}
-              placeholder="Leave blank and it is named once it is written"
+              placeholder={t('shows.episodeDialog.namePlaceholder')}
             />
-            <TextFieldHint>
-              This is the name listeners see. Left blank, the script names the
-              episode after what it turned out to say.
-            </TextFieldHint>
+            <TextFieldHint>{t('shows.episodeDialog.nameHint')}</TextFieldHint>
           </View>
 
-          <Muted>
-            Either way the script knows what every earlier episode covered, so
-            it will not repeat one.
-          </Muted>
+          <Muted>{t('shows.episodeDialog.noRepeat')}</Muted>
         </View>
       </ScrollView>
     </Dialog>
