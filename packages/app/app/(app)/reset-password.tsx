@@ -1,8 +1,8 @@
 import { AuthContainer } from '@/components/auth/auth-container';
 import { AuthError } from '@/components/auth/auth-error';
 import { AuthLogo } from '@/components/auth/auth-logo';
-import apiClient from '@/lib/api/client';
 import { errorMessage as getErrorMessage } from '@/lib/errors/error-utils';
+import { useResetPassword } from '@/lib/hooks/auth/use-password-reset';
 import { useTranslation } from '@/lib/hooks/use-translation';
 import { Button } from '@oxy.so/bloom/button';
 import { TextFieldInput } from '@oxy.so/bloom/text-field';
@@ -18,6 +18,7 @@ export default function ResetPasswordScreen() {
   const router = useRouter();
   const { signIn } = useAuth();
   const { token } = useLocalSearchParams<{ token: string }>();
+  const resetPassword = useResetPassword();
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -56,10 +57,7 @@ export default function ResetPasswordScreen() {
     setLoading(true);
 
     try {
-      await apiClient.post('/auth/reset-password', {
-        token,
-        password,
-      });
+      await resetPassword.mutateAsync({ token, password });
 
       toast.success(t('resetPassword.successMessage'));
       router.replace('/');

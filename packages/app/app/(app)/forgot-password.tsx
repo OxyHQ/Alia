@@ -1,8 +1,8 @@
 import { AuthContainer } from '@/components/auth/auth-container';
 import { AuthError } from '@/components/auth/auth-error';
 import { AuthLogo } from '@/components/auth/auth-logo';
-import apiClient from '@/lib/api/client';
 import { errorMessage as getErrorMessage } from '@/lib/errors/error-utils';
+import { useRequestPasswordReset } from '@/lib/hooks/auth/use-password-reset';
 import { useTranslation } from '@/lib/hooks/use-translation';
 import { Button } from '@oxy.so/bloom/button';
 import { EmptyState } from '@oxy.so/bloom/empty-state';
@@ -17,6 +17,7 @@ import { View } from 'react-native';
 export default function ForgotPasswordScreen() {
   const { t } = useTranslation();
   const router = useRouter();
+  const requestReset = useRequestPasswordReset();
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
@@ -32,10 +33,7 @@ export default function ForgotPasswordScreen() {
     setError('');
 
     try {
-      // Call API reset password endpoint
-      await apiClient.post('/auth/forgot-password', {
-        email: email.trim(),
-      });
+      await requestReset.mutateAsync(email.trim());
 
       setSent(true);
       toast.success(t('forgotPassword.checkEmailToast'));

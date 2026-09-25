@@ -1,13 +1,7 @@
 import { Composer } from '@/components/chat/composer/composer';
 import { useAliaComposer } from '@/components/chat/composer/use-alia-composer';
-import {
-  applyBotUsernameSuffix,
-  createBotAccount,
-} from '@/lib/agents/bot-account';
-import apiClient from '@/lib/api/client';
-import { API_ROUTES } from '@/lib/api/routes';
 import { errorMessage as getErrorMessage } from '@/lib/errors/error-utils';
-import { useCreateAgent } from '@/lib/hooks/use-agents';
+import { useGenerateAgent } from '@/lib/hooks/agents/use-generate-agent';
 import { useTranslation } from '@/lib/hooks/use-translation';
 import type { BloomIconComponent } from '@oxy.so/bloom/icons';
 import { RiBarChartHorizontalLine } from '@oxy.so/bloom/icons/RiBarChartHorizontalLine';
@@ -19,11 +13,6 @@ import { Item } from '@oxy.so/bloom/item';
 import { Loading } from '@oxy.so/bloom/loading';
 import { toast } from '@oxy.so/bloom/toast';
 import { Muted, Text } from '@oxy.so/bloom/typography';
-import {
-  SELECTABLE_ACCOUNT_CATEGORY_IDS,
-  type AccountCategoryId,
-} from '@oxy.so/core';
-import { useOxy } from '@oxy.so/services';
 import { useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { ScrollView, View } from 'react-native';
@@ -34,12 +23,6 @@ interface ArchetypeOption {
   label: string;
   description: string;
   Icon: BloomIconComponent;
-}
-
-/** Whether a value IS one of Oxy's offered categories. See the note at the call site. */
-function isOfferedAccountCategory(value: unknown): value is AccountCategoryId {
-  return typeof value === 'string'
-    && (SELECTABLE_ACCOUNT_CATEGORY_IDS as readonly string[]).includes(value);
 }
 
 const ARCHETYPE_OPTIONS: ArchetypeOption[] = [
@@ -72,8 +55,7 @@ const ARCHETYPE_OPTIONS: ArchetypeOption[] = [
 export default function CreateAgentScreen() {
   const router = useRouter();
   const { t } = useTranslation();
-  const createAgent = useCreateAgent();
-  const { createAccount, oxyServices } = useOxy();
+  const generateAgent = useGenerateAgent();
 
   const [inputValue, setInputValue] = useState("");
   const [generating, setGenerating] = useState(false);
@@ -91,74 +73,10 @@ export default function CreateAgentScreen() {
     setGenerating(true);
 
     try {
-      // Step 1: AI generates agent config from prompt. `suggestedUsername` is a
-      // PROPOSAL — Oxy owns the handle namespace and resolves collisions.
-      const genRes = await apiClient.post(API_ROUTES.agents.generate, {
-        prompt: inputValue.trim(),
-      });
-      const config = genRes.data;
-
-      /**
-       * Step 2: mint the agent's IDENTITY at Oxy — a `bot` account under the
-       * signed-in person's own tree, which makes them its owner.
-       *
-       * This is where the agent's name and handle now live. Alia never sees
-       * them again except by reading them back.
-       *
-       * There is no avatar step. An agent's likeness is the `IdentityMark`
-       * Alia herself wears, drawn in the account's own `User.color` — a field
-       * `createAccount` cannot carry, so a new agent starts out drawn in the
-       * theme's color and stays that way until Oxy can set one.
-       */
-      const account = await createBotAccount({
-        createAccount,
-        username: config.suggestedUsername,
-        /**
-         * Ask before minting, so a taken suggestion becomes a free handle the
-         * person is TOLD about below — rather than the silent rename they used
-         * to discover afterwards, when `community-maestro` had quietly become
-         * `community-maestro1`.
-         */
-        checkAvailability: async (candidate) =>
-          (await oxyServices.checkUsernameAvailability(candidate)).available,
-        displayName: config.name,
-        bio: config.tagline,
-        /**
-         * Only when the taxonomy recognises it. The generate route validated
-         * this already, and it is checked again here for a reason that is not
-         * distrust: `genRes.data` is `any`, so without a narrowing the union
-         * `CreateAccountInput` declares would be satisfied by a claim rather
-         * than by a check.
-         *
-         * MEMBERSHIP, not `isSelectableAccountCategoryId` — that one asks "is
-         * this id still offered" against a retired list that is empty today, so
-         * it answers true for anything at all, `undefined` included.
-         *
-         * Nothing fitting is a valid agent, so absent travels as absent. An
-         * empty array would mean "clear them", which is a different request.
-         */
-        ...(isOfferedAccountCategory(config.accountCategory)
-          ? { accountCategories: [config.accountCategory] }
-          : {}),
-        // This screen builds a DRAFT (`isPublished: false` below), so the
-        // account is minted undiscoverable to match: kept out of Oxy's global
-        // people search from the moment it exists, rather than listed there
-        // under its owner's name until they publish it.
-        private: true,
-      });
-
-      // Step 3: create the RUNTIME, bound to that account.
-      const agent = await createAgent.mutateAsync({
-        oxyAccountId: account.accountId,
-        tagline: config.tagline,
-        description: config.description,
-        category: config.category,
-        tags: config.tags,
-        capabilityGrants: config.capabilityGrants,
-        systemPrompt: config.systemPrompt,
-        isPublished: false,
-        archetype: config.archetype || selectedArchetype,
-      });
+      const { agent, adjustedHandle } = await generateAgent(
+        inputValue.trim(),
+        selectedArchetype,
+      );
 
       /**
        * Say which handle it got, and only when it is not the one proposed.
@@ -168,13 +86,8 @@ export default function CreateAgentScreen() {
        * field. So the person reads what they were given and is already
        * standing where they can change it.
        */
-      const granted = account.account.username;
-      // Against the LABELLED suggestion, because a bot's handle ends in `bot`
-      // and that label is added at the mint. Comparing against the bare
-      // suggestion would announce an adjustment on every single create, which
-      // is how a message that means something becomes one nobody reads.
-      if (granted !== undefined && granted !== applyBotUsernameSuffix(config.suggestedUsername)) {
-        toast.info(t("agents.handleAdjusted", { handle: granted }));
+      if (adjustedHandle !== null) {
+        toast.info(t("agents.handleAdjusted", { handle: adjustedHandle }));
       } else {
         toast.success(t("agents.agentUpdated"));
       }
@@ -189,7 +102,7 @@ export default function CreateAgentScreen() {
     } finally {
       setGenerating(false);
     }
-  }, [inputValue, generating, createAgent.mutateAsync, router, t, selectedArchetype]);
+  }, [inputValue, generating, generateAgent, router, t, selectedArchetype]);
 
   if (generating) {
     return (
