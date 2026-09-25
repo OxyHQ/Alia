@@ -13,7 +13,7 @@
  * test can pin the rule rather than today's catalogue.
  */
 
-import { isChatUsable, isSpeechCapable, type CatalogueModel } from './catalogue.js';
+import { isChatUsable, isSpeechCapable, isStableRelease, type CatalogueModel } from './catalogue.js';
 
 /** Turns run on one model over the usage window. */
 export interface ModelUsage {
@@ -53,21 +53,15 @@ function byReleaseDesc(a: CatalogueModel, b: CatalogueModel): number {
   return a.id.localeCompare(b.id);
 }
 
-/**
- * Whether a model is a settled release worth leading with.
- *
- * Two signals the catalogue itself carries, not a list: a price of zero (a
- * provider's free tier — rate-limited, and withdrawn without notice) and a
- * pre-release marker in the provider's own id or name (`preview`, `exp`,
- * `beta`, `alpha`). Such a model stays selectable in the picker; it is only
- * never the one Alia CHOOSES for somebody.
- */
-const PRE_RELEASE = /(?:^|[^a-z])(?:preview|exp|experimental|beta|alpha)(?:[^a-z]|$)/i;
+/** Descending by a per-publisher count. */
+function byPublisherCount(counts: ReadonlyMap<string, number>) {
+  return (a: CatalogueModel, b: CatalogueModel) => (counts.get(b.publisher.id) ?? 0) - (counts.get(a.publisher.id) ?? 0);
+}
 
-export function isStableRelease(model: CatalogueModel): boolean {
-  const price = blendedPrice(model);
-  if (!(price > 0) || !Number.isFinite(price)) return false;
-  return !PRE_RELEASE.test(model.id) && !PRE_RELEASE.test(model.name);
+/** The stable releases among `models`, or all of them when none is stable. */
+function preferStable(models: readonly CatalogueModel[]): readonly CatalogueModel[] {
+  const stable = models.filter(isStableRelease);
+  return stable.length > 0 ? stable : models;
 }
 
 function usageMap(usage: readonly ModelUsage[]): Map<string, number> {
@@ -78,16 +72,10 @@ function usageMap(usage: readonly ModelUsage[]): Map<string, number> {
 
 /**
  * The featured models: per publisher, its newest stable chat-usable model
- * ({@link isStableRelease}); publishers ranked by how much Alia's users ran
- * ANY of their models, then — the cold start, before anyone has run anything —
- * by how many chat models the publisher has in the catalogue.
- *
- * Breadth is the cold-start signal because it is what the providers publish:
- * a lab that ships forty models is one people come looking for, and ranking by
- * release date instead let a single new model from a one-model publisher
- * outrank every major lab. Ranked by publisher usage rather than the featured
- * model's own, because a model released yesterday has no usage yet and must
- * still lead its publisher's slot. Ties fall back to recency, then id.
+ * ({@link isStableRelease}). Publishers rank by how much Alia's users ran ANY
+ * of their models — a model released yesterday has no usage yet and must still
+ * lead its publisher's slot — then by how many chat models they have in the
+ * catalogue (the cold-start signal), then recency, then id.
  */
 export function selectFeatured(
   models: readonly CatalogueModel[],
@@ -110,12 +98,8 @@ export function selectFeatured(
   }
 
   return [...newestByPublisher.values()]
-    .sort((a, b) => {
-      const byTurns = (publisherTurns.get(b.publisher.id) ?? 0) - (publisherTurns.get(a.publisher.id) ?? 0);
-      if (byTurns !== 0) return byTurns;
-      const byBreadth = (publisherBreadth.get(b.publisher.id) ?? 0) - (publisherBreadth.get(a.publisher.id) ?? 0);
-      return byBreadth !== 0 ? byBreadth : byReleaseDesc(a, b);
-    })
+    .sort((a, b) =>
+      byPublisherCount(publisherTurns)(a, b) || byPublisherCount(publisherBreadth)(a, b) || byReleaseDesc(a, b))
     .slice(0, Math.max(0, limit))
     .map((model) => model.id);
 }
@@ -156,8 +140,7 @@ export function selectDefaultModelId(input: {
   const median = byPrice[Math.floor((byPrice.length - 1) / 2)];
   if (median !== undefined) return median.id;
 
-  const stable = chat.filter(isStableRelease).sort(byPriceThenId)[0];
-  return stable?.id ?? [...chat].sort(byPriceThenId)[0]?.id ?? null;
+  return [...preferStable(chat)].sort(byPriceThenId)[0]?.id ?? null;
 }
 
 /**
@@ -169,9 +152,7 @@ export function selectDefaultModelId(input: {
  * one, and an unstable one only when there is no stable one at all.
  */
 export function selectUtilityModelId(models: readonly CatalogueModel[]): string | null {
-  const usable = models.filter(isChatUsable);
-  const stable = usable.filter(isStableRelease);
-  const chat = stable.length > 0 ? stable : usable;
+  const chat = preferStable(models.filter(isChatUsable));
   const roomy = chat.filter((model) => (model.contextWindow ?? 0) >= UTILITY_MIN_CONTEXT);
   const pool = roomy.length > 0 ? roomy : chat.filter((model) => model.contextWindow === null);
   return [...pool].sort(byPriceThenId)[0]?.id ?? null;
