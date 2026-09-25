@@ -72,14 +72,18 @@ let listeners: Map<string, Set<Listener>>;
 let lookedUp: string[];
 let renderer: ReactTestRenderer | null = null;
 
-/** A reader that fails, so a dropped picture exercises the failure path. */
-class FailingReader {
+/** Whether the next read fails or lands; a failed one exercises the retry. */
+let readSucceeds = false;
+class ScriptedReader {
   onprogress: unknown = null;
-  onload: unknown = null;
+  onload: (() => void) | null = null;
   onerror: (() => void) | null = null;
-  result = null;
+  result: string | null = null;
   readAsDataURL() {
-    this.onerror?.();
+    if (readSucceeds) {
+      this.result = 'data:image/png;base64,AA';
+      this.onload?.();
+    } else this.onerror?.();
   }
   abort() {}
 }
@@ -105,7 +109,8 @@ beforeEach(() => {
     addEventListener: () => {},
     removeEventListener: () => {},
   });
-  vi.stubGlobal('FileReader', FailingReader);
+  vi.stubGlobal('FileReader', ScriptedReader);
+  readSucceeds = false;
   URL.createObjectURL = vi.fn(() => 'blob:http://app/dropped');
 });
 
@@ -209,14 +214,67 @@ describe('a message that is only a file', () => {
 });
 
 describe('a file that could not be read', () => {
-  it('is reported by name rather than attached', () => {
+  it('stays as an error tile, not a toast, and is read again on retry', () => {
     const added: Attachment[] = [];
     mount({ attachments: [], onAddAttachment: (a) => added.push(a) });
 
     fire('drop', [new File(['png'], 'cat.png', { type: 'image/png' })]);
 
     expect(added).toEqual([]);
-    expect(toastError).toHaveBeenCalledWith('composer.readFailed:cat.png');
+    expect(toastError).not.toHaveBeenCalled();
+    const tiles = panel.props?.attachments as Array<Record<string, unknown>>;
+    expect(tiles).toHaveLength(1);
+    expect(tiles[0]).toMatchObject({ name: 'cat.png', error: 'composer.readFailed:cat.png' });
+    // Bloom's own tile type: the intake's flag stays on this side.
+    expect('retryable' in tiles[0]!).toBe(false);
+    // A failed read is not work in progress: it does not hold send back.
+    expect(panel.props?.disabled).toBe(true);
+
+    readSucceeds = true;
+    act(() => (panel.props?.onAttachmentRetry as (id: string) => void)(tiles[0]!.id as string));
+
+    // The same file, read again, and landed.
+    expect(added).toMatchObject([{ name: 'cat.png', uri: 'data:image/png;base64,AA' }]);
+  });
+
+  it('clears the error and shows progress again while the retry reads', () => {
+    let pendingLoad: (() => void) | null = null;
+    class SlowReader extends ScriptedReader {
+      readAsDataURL() {
+        if (!readSucceeds) return this.onerror?.();
+        pendingLoad = () => {
+          this.result = 'data:image/png;base64,AA';
+          this.onload?.();
+        };
+      }
+    }
+    vi.stubGlobal('FileReader', SlowReader);
+    mount({ attachments: [], onAddAttachment: () => {} });
+    fire('drop', [new File(['png'], 'cat.png', { type: 'image/png' })]);
+    const failed = (panel.props?.attachments as Array<Record<string, unknown>>)[0]!;
+
+    readSucceeds = true;
+    act(() => (panel.props?.onAttachmentRetry as (id: string) => void)(failed.id as string));
+
+    const retrying = (panel.props?.attachments as Array<Record<string, unknown>>)[0]!;
+    expect(retrying.error).toBeUndefined();
+    expect(retrying.progress).toBe(0);
+    expect(pendingLoad).not.toBeNull();
+  });
+
+  it('says a refusal in a toast, and draws no tile it would offer to retry', () => {
+    mount({ attachments: [], onAddAttachment: () => {} });
+
+    fire('drop', [new File([], 'empty.png', { type: 'image/png' })]);
+
+    expect(toastError).toHaveBeenCalledWith('composer.fileEmpty:empty.png');
+    expect(panel.props?.attachments).toEqual([]);
+  });
+
+  it('names the retry button in the user’s language', () => {
+    mount({ attachments: [], onAddAttachment: () => {} });
+
+    expect((panel.props?.labels as Record<string, string>).retry).toBe('composer.retryShort');
   });
 
   it('becomes an error tile the user can retry, and a refusal one they cannot', () => {
