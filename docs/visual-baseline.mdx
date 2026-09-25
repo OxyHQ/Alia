@@ -16,7 +16,7 @@ This page is the record of what now exists. The harness is
 `packages/app/scripts/visual/`; the images are committed next to it in
 `baseline/`.
 
-**Read the [honest status](#8-what-is-still-not-captured) before quoting this as
+**Read the [honest status](#9-what-is-still-not-captured) before quoting this as
 coverage.** One screen is captured. Four of #608 §3.1's six required references
 are not, and cannot be from a static export.
 
@@ -40,7 +40,7 @@ port; drives Chromium through `playwright-core`; and overwrites the 28 PNGs and
 | `--tolerance <n>` | Override the per-channel tolerance. |
 | `--keep <dir>` | With `--check`: keep every capture in `dir`, and write `<case>.diff.png` beside each failing one — the reference as a grey ghost, pixels over tolerance in red (brighter = larger delta), pixels that moved within it in blue. |
 | `--dist <dir>` | Capture an existing export elsewhere (another checkout, an older build) instead of `packages/app/dist`. Never rebuilds it. |
-| `--engine <name>` | `chromium` (default), `firefox` or `webkit`. Chromium compares against `baseline/`, any other engine against `baseline-<engine>/` — see [§7](#7-other-engines). |
+| `--engine <name>` | `chromium` (default), `firefox` or `webkit`. Chromium compares against `baseline/`, any other engine against `baseline-<engine>/` — see [§8](#8-other-engines). |
 | `--smoke` | No pixels: at every §12 width, the welcome must render, log no console error of the app's own, and not scroll sideways. |
 
 `--check` is both the determinism proof and the regression gate:
@@ -282,7 +282,47 @@ JavaScript in one eagerly-loaded file. Splitting exists in name only. Outside `d
 
 This is a **bundle** baseline, not a performance baseline. See below.
 
-## 7. Other engines
+## 7. Re-recorded on 2026-09-25, and why
+
+On `a9de8f7b` the gate failed all 28 cases (worst Δ255). Nothing in the welcome
+or the field had regressed; the shell around them had changed on purpose. The
+evidence, with `--keep` diffs:
+
+- **Harness determinism first.** `b360d49c`, the commit that recorded the
+  baseline, re-exported and captured on the same machine, matched it
+  byte for byte (Δ0 on every pixel). So the failures were changes in the app,
+  not noise.
+- **A linear scan** of the 32 commits on the ancestry path from `302d2f25`
+  (the last one still Δ0) to `a9de8f7b` that touch `packages/app`, `bun.lock` or
+  the root manifest, capturing `welcome_1280x800_light_motion` and
+  `welcome_390x844_dark_motion` at each:
+
+  | Commit | What the capture shows |
+  | --- | --- |
+  | `6bba6b3f` Bloom 4.11.0 (floating chrome) | the intro's words sit 11px lower — 15,871 px over tolerance |
+  | `4ac6ddd1` the page scrolls the document | back where they were; only the card's bottom corner differs (23 px, Δ13) |
+  | `5642ade6` Bloom 4.13.2, the card is a `ContentPanel` | the card's bottom edge changes (3,585 px, Δ68) |
+  | `da1444bc` the right panel appears when the agent works | **the change in the final capture**: from 1024 up the empty "Changes / Browser" panel ("Files Alia writes in this chat appear here.") is gone and the chat card takes the whole width, so the intro re-centres in it and the field spans it; below 1024 the header loses its `</>` panel toggle. Bloom 4.13.3 in the same commit takes the card's edge off. |
+
+  Every later commit leaves both captures identical to `da1444bc`'s.
+- **The welcome and the field are unchanged where the frame is.** At 390px,
+  where the card is the same size before and after, the only pixels over
+  tolerance are the removed toggle and the card's corners (379 px); the
+  headline, the words, the buttons and the whole gradient stay within ±6.
+  Since `b360d49c`, `ambient-field.tsx` changed only a style object for the
+  equal NativeWind class (`07ead06f`) and `welcome-intro.tsx` not at all.
+
+So the baseline was re-recorded, not the code changed: the panel an empty
+signed-out chat used to show was a control with nothing behind it (#608 rule
+6), and its removal is the product decision `da1444bc` records.
+
+The audit that first reported the failure also saw whole-screen differences at
+320px (181,736 px over tolerance, worst at the headline) that no later run
+reproduced — not from a fresh export of the same commit, and not from the
+export that audit left in the main checkout, captured again with `--dist`
+(343 px, the toggle). What produced them is not established.
+
+## 8. Other engines
 
 `--engine firefox` and `--engine webkit` run the same matrix, the same virtual
 clock and the same screenshots on Playwright's Firefox and WebKit builds.
@@ -301,7 +341,7 @@ Chromium and Firefox render the welcome with the same composition and palette
 but not the same pixels — text rasterisation and the blur differ — which is why
 each engine has its own baseline rather than a shared one.
 
-## 8. What is still NOT captured
+## 9. What is still NOT captured
 
 #608 §3.1 names six references. **Two are captured, four are not.**
 
