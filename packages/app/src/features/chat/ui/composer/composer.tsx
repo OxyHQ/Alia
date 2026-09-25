@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useId, useMemo, type ReactNode } from "react";
-import { View, type NativeSyntheticEvent, type TextInputKeyPressEventData } from "react-native";
+import { useCallback, useEffect, useId, useMemo, type ReactNode, type RefObject } from "react";
+import { View, type NativeSyntheticEvent, type TextInput, type TextInputKeyPressEventData } from "react-native";
 import {
   ComposerPanel,
   type ComposerPanelAddMenuGroup,
@@ -77,6 +77,8 @@ export interface ComposerProps {
   onKeyPress?: (event: NativeSyntheticEvent<TextInputKeyPressEventData>) => void;
   /** The host already avoids the keyboard. */
   disableKeyboardAvoidance?: boolean;
+  /** The field itself, for a host that moves focus into it. */
+  inputRef?: RefObject<TextInput | null>;
 }
 
 export function Composer({
@@ -106,6 +108,7 @@ export function Composer({
   accessory,
   onKeyPress,
   disableKeyboardAvoidance = false,
+  inputRef,
 }: ComposerProps) {
   const { t } = useTranslation();
   // Paste is a DOM gesture on a DOM node; the panel publishes no ref to one.
@@ -223,6 +226,7 @@ export function Composer({
         value={value}
         onValueChange={onValueChange}
         onSubmit={() => onSubmit()}
+        inputRef={inputRef}
         busy={busy}
         onStop={onStop}
         disabled={disabled || intake.isBusy || !hasContent}
