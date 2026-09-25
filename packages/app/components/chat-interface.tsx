@@ -11,6 +11,7 @@ import { isWebInvocation, taskListLog, webSearchLog } from '@/lib/chat/work-log'
 import { daySeparators } from '@/lib/message-days';
 import { AgentProgress } from '@oxy.so/bloom/agent-progress';
 import { ChatDateHeader } from '@oxy.so/bloom/chat-screen';
+import { Divider } from '@oxy.so/bloom/divider';
 import { TaskList } from '@oxy.so/bloom/task-list';
 import { WebSearch } from '@oxy.so/bloom/web-search';
 import { NewConversationOffer } from '@/components/new-conversation-offer';
@@ -19,16 +20,17 @@ import { agentTint } from '@/lib/agents/agent-color';
 import apiClient from '@/lib/api/client';
 import { queryKeys } from '@/lib/hooks/query-keys';
 import type { AgentActivityState } from '@/lib/hooks/use-agent-activity';
-import type { Message as ConversationMessage } from '@/lib/hooks/use-conversations';
+import type { Message } from '@/lib/hooks/use-conversations';
+import { useTimelineShape, useTimelineWindow } from '@/lib/hooks/use-timeline-window';
 import { useTranslation } from '@/lib/hooks/use-translation';
 import { processMessage } from '@/lib/message-processor';
 import { useStore, type ChatIdState } from '@/lib/stores/global-store';
 import { useUIStore, type ThoughtScope } from '@/lib/stores/ui-store';
 import { formatElapsed, turnTimings } from '@/lib/thought-utils';
-import type { ThreadMessage } from '@/lib/thread-history';
+import { threadSeamIds, type ThreadMessage } from '@/lib/thread-history';
+import { arrivedIds } from '@/lib/chat/timeline';
 import type { ToolInvocation } from '@/lib/types/messages';
 import { useColorScheme } from '@/lib/useColorScheme';
-import type { ResearchProgress as ResearchProgressData } from '@alia.onl/sdk';
 import {
   getImagesFromContent,
   getTextFromContent,
@@ -84,44 +86,14 @@ const NEAR_TOP = 300;
  */
 const EMPTY_TIMING = Object.freeze({ startedAt: null, endedAt: null });
 
-type MessagePart = {
-  type: string;
-  text?: string;
-  [key: string]: unknown;
-};
-
-type PendingPlan = {
-  planId: string;
-  steps: React.ComponentProps<typeof PlanPreviewCard>['steps'];
-  approved?: boolean;
-  rejected?: boolean;
-};
-
-type Message = {
-  id: string;
-  role: 'user' | 'assistant' | 'system' | 'function' | 'data' | 'tool';
-  content?: string | Array<{ type: string; [key: string]: unknown }>;
-  thinking?: string; // Extended thinking content
-  parts?: MessagePart[];
-  toolInvocations?: ToolInvocation[];
-  // Voice fields
-  source?: 'text' | 'voice';
-  isStreaming?: boolean;
-  // Plan preview + research progress
-  pendingPlan?: PendingPlan;
-  researchProgress?: ResearchProgressData;
-  // Agent delegation metadata
-  agentInfo?: {
-    id: string;
-    name: string;
-    color?: string | null;
-    handle: string;
-  };
-  audioUrl?: string;
-  /** When the message was written, ISO. Absent on a turn that has not been persisted yet. */
-  createdAt?: string;
-};
-
+/**
+ * The rows are the app's one `Message` (`lib/hooks/use-conversations.ts`), the
+ * shape the streaming hook writes and the thought panel reads. A history row is
+ * the same message plus where it sits in the thread (`ThreadMessage`). This
+ * component used to declare a copy of its own — wider roles, optional content, a
+ * `parts` array nothing ever sent — and cast back to the real one wherever the
+ * two met.
+ */
 type ChatInterfaceProps = {
   messages: Message[];
   /**
@@ -160,11 +132,6 @@ type ChatInterfaceProps = {
   historyMessages?: ThreadMessage[];
   /** A page of history is on its way; the reader is at the top waiting for it. */
   isLoadingHistory?: boolean;
-  /**
-   * How tall the history is, whenever that changes — the anchor that keeps the
-   * reader on the message they were reading while a page lands above them.
-   */
-  onHistoryHeight?: (height: number) => void;
   /** The conversation being streamed into, which is what the thought panel reads. */
   activeConversationId?: string;
   /**
@@ -202,16 +169,7 @@ function isAliaOwnedMessage(m: Message): boolean {
 // Raw text extraction without the tag-stripping regex passes — cheap enough
 // for per-flush presence/length checks during streaming.
 function getRawMessageText(message: Message): string {
-  if (message.content) {
-    return getTextFromContent(message.content);
-  }
-  if (message.parts && Array.isArray(message.parts)) {
-    return message.parts
-      .filter((part) => part.type === 'text')
-      .map((part) => part.text || '')
-      .join('');
-  }
-  return '';
+  return message.content ? getTextFromContent(message.content) : '';
 }
 
 // Helper function to extract and process text content for the app
@@ -495,7 +453,6 @@ export const ChatInterface = React.memo(function ChatInterface({
   onDismissNewConversation,
   historyMessages,
   isLoadingHistory = false,
-  onHistoryHeight,
   activeConversationId,
   focusCursor,
   failedTurn,
@@ -509,14 +466,8 @@ export const ChatInterface = React.memo(function ChatInterface({
   const queryClient = useQueryClient();
   const chatId = useStore((s) => s.chatId);
 
-  // Track previous message count — only animate newly added messages
-  const prevMessageCountRef = useRef(messages.length);
-  useEffect(() => {
-    prevMessageCountRef.current = messages.length;
-  }, [messages.length]);
-
   const liveMessages = useMemo(
-    () => messages.filter((m) => m != null && m.role),
+    () => messages.filter((m): m is Message => m != null && Boolean(m.role)),
     [messages],
   );
   const history = historyMessages ?? NO_HISTORY;
@@ -528,10 +479,46 @@ export const ChatInterface = React.memo(function ChatInterface({
    * Alia's — is an index into THIS, not into the live messages, which is why it
    * is built once here rather than concatenated at each use.
    */
-  const filteredMessages = useMemo(
+  const filteredMessages = useMemo<Message[]>(
     () => (history.length === 0 ? liveMessages : [...history, ...liveMessages]),
     [history, liveMessages],
   );
+
+  /**
+   * The live list as its STRUCTURE — ids, roles, stamps, speakers — which a
+   * streamed token never changes. Everything derived from the whole thread
+   * (day lines, seams, turn timings, the last answer of Alia's, the window's
+   * ids) is keyed on this rather than on the messages, so a token re-derives
+   * nothing: it re-renders the row it was written into and that is all.
+   */
+  const liveShape = useTimelineShape(liveMessages);
+  const shape = useMemo<readonly Message[]>(
+    () => (history.length === 0 ? liveShape : [...history, ...liveShape]),
+    [history, liveShape],
+  );
+  const rowIds = useMemo(() => shape.map((m) => m.id), [shape]);
+
+  /**
+   * The live rows that arrived since the last change to the list, which are
+   * the only ones that animate in. A history row never does, and neither does a
+   * conversation that was loaded or switched to (`arrivedIds`).
+   */
+  const previousLive = useRef<{ ids: readonly string[]; loading: boolean } | null>(null);
+  const arrived = useMemo(
+    () =>
+      arrivedIds(
+        previousLive.current?.ids ?? null,
+        previousLive.current?.loading ?? false,
+        liveShape,
+      ),
+    [liveShape],
+  );
+  useEffect(() => {
+    previousLive.current = {
+      ids: liveShape.map((m) => m.id),
+      loading: conversationLoading === true,
+    };
+  }, [liveShape, conversationLoading]);
 
   /**
    * Every turn's start and end, computed once for the whole thread.
@@ -549,10 +536,7 @@ export const ChatInterface = React.memo(function ChatInterface({
    * against the old function in `lib/__tests__/turn-timings-scale.test.ts` —
    * and the memo means a streamed token does not trigger even that.
    */
-  const timingsByMessage = useMemo(
-    () => turnTimings(filteredMessages as unknown as ConversationMessage[]),
-    [filteredMessages],
-  );
+  const timingsByMessage = useMemo(() => turnTimings(shape), [shape]);
 
   /**
    * The conversation each history message belongs to, as the id a row's own
@@ -586,7 +570,7 @@ export const ChatInterface = React.memo(function ChatInterface({
    */
   const dayLabels = useMemo(() => {
     const labels = new Map<string, string>();
-    for (const separator of daySeparators(filteredMessages, new Date(), locale)) {
+    for (const separator of daySeparators(shape, new Date(), locale)) {
       const { label } = separator;
       labels.set(
         separator.messageId,
@@ -598,15 +582,22 @@ export const ChatInterface = React.memo(function ChatInterface({
       );
     }
     return labels;
-  }, [filteredMessages, locale, t]);
+  }, [shape, locale, t]);
+
+  /**
+   * Where one conversation of a thread ends and the next begins: the model was
+   * given a fresh context there, and everything above is out of its sight. A
+   * rule with a label rather than the day's pill, because it is a fact about
+   * the thread and not about the calendar (`threadSeamIds`).
+   */
+  const seamIds = useMemo(
+    () => threadSeamIds(history, liveShape, activeConversationId ?? ''),
+    [history, liveShape, activeConversationId],
+  );
 
   const lastAliaIndex = useMemo(
-    () =>
-      filteredMessages.reduce(
-        (acc, m, i) => (isAliaOwnedMessage(m) ? i : acc),
-        -1,
-      ),
-    [filteredMessages],
+    () => shape.reduce((acc, m, i) => (isAliaOwnedMessage(m) ? i : acc), -1),
+    [shape],
   );
 
   /**
@@ -623,8 +614,7 @@ export const ChatInterface = React.memo(function ChatInterface({
    *
    * A load that failed is read off the query cache at the moment the memo
    * recomputes: the load's end is what flips `conversationLoading`, so the
-   * read is fresh exactly when it matters. The local Message shape is a
-   * structural superset of the conversation Message the store holds.
+   * read is fresh exactly when it matters.
    */
   const liveThoughtScope = useMemo<ThoughtScope>(() => {
     const loadFailed =
@@ -634,7 +624,7 @@ export const ChatInterface = React.memo(function ChatInterface({
       )?.status === 'error';
     return {
       conversationId: activeConversationId ?? null,
-      messages: liveMessages as unknown as ConversationMessage[],
+      messages: liveMessages,
       status: conversationLoading ? 'loading' : loadFailed ? 'failed' : 'ready',
       isLoading: isLoading === true,
       failedTurn: failedTurn ?? null,
@@ -716,20 +706,6 @@ export const ChatInterface = React.memo(function ChatInterface({
   );
 
   /**
-   * How tall the history is, reported whenever it changes.
-   *
-   * The height rather than a position: what the anchor needs is how much
-   * content was inserted above the reader, and only the history grows that
-   * way — a streamed answer grows the bottom.
-   */
-  const handleHistoryLayout = useCallback(
-    (e: LayoutChangeEvent) => {
-      onHistoryHeight?.(e.nativeEvent.layout.height);
-    },
-    [onHistoryHeight],
-  );
-
-  /**
    * Put the message a jump was aimed at under the reader's eyes.
    *
    * Re-applied on every layout of that row rather than once, for the same
@@ -737,8 +713,8 @@ export const ChatInterface = React.memo(function ChatInterface({
    * so the first position it reports is not the one it keeps. Each call
    * supersedes the last and the final one is right.
    *
-   * The `y` is measured inside the history block, which begins exactly at the
-   * list's top padding — so scrolling to it lands the message a padding's
+   * The `y` is measured inside the list, which begins exactly at the
+   * thread's top padding — so scrolling to it lands the message a padding's
    * width below the top edge rather than flush against it, which is where a
    * message you went looking for wants to be.
    */
@@ -751,12 +727,38 @@ export const ChatInterface = React.memo(function ChatInterface({
     [threadRef],
   );
 
+  /** The row a cursor jump was aimed at, as an index into what is shown, or -1. */
+  const focusIndex = useMemo(
+    () =>
+      focusCursor === undefined || focusCursor === null
+        ? -1
+        : history.findIndex((m) => m.cursor === focusCursor),
+    [history, focusCursor],
+  );
+
+  /**
+   * Which rows are mounted, and the scroll that goes with them: the newest
+   * page first, older ones revealed as the reader nears the top, and the
+   * position a conversation is returned to (`useTimelineWindow`). A jump's
+   * window of the past is not remembered — its key is `null`.
+   */
+  const timeline = useTimelineWindow({
+    ids: rowIds,
+    scrollKey: focusCursor == null ? (activeConversationId ?? null) : null,
+    ready: conversationLoading !== true,
+    focusIndex,
+    turnInFlight: isLoading === true,
+    atBottomThreshold: AT_BOTTOM_THRESHOLD,
+    threadRef,
+    onLoadHistory,
+    onScroll,
+  });
+
   /**
    * One message, wherever it sits in the whole of what is shown.
    *
    * `index` is a position in `filteredMessages` — history and live together —
-   * because that is what "is this the last one" is measured in. The two lists are rendered separately only
-   * so the history can be measured as a block.
+   * because that is what "is this the last one" is measured in.
    */
   const renderMessage = (m: Message, index: number) => {
     const fromHistory = index < history.length;
@@ -765,35 +767,32 @@ export const ChatInterface = React.memo(function ChatInterface({
     // rather than computed: see `timingsByMessage`.
     const timing = timingsByMessage.get(m.id) ?? EMPTY_TIMING;
     const dayLabel = dayLabels.get(m.id);
+    const isLastAlia = index === lastAliaIndex;
 
     return (
       <React.Fragment key={m.id || `msg-${index}`}>
+        {seamIds.has(m.id) ? (
+          <Divider spacing={16}>{t('chat.newStretch')}</Divider>
+        ) : null}
         {dayLabel === undefined ? null : (
           <ChatDateHeader label={dayLabel} placement="inline" />
         )}
         <MessageRow
           m={m}
           index={index}
-          // Only a message that arrived since the last render animates in,
-          // and none of the history ever did: it is older than everything on
-          // screen by definition, and the offset is what keeps a page landing
-          // above from animating the whole conversation.
-          isNewMessage={index >= history.length + prevMessageCountRef.current}
-          isLastAlia={index === lastAliaIndex}
-          isLoading={isLoading}
+          // Only a message that arrived while this conversation was open
+          // animates in; none of the history ever does (`arrivedIds`).
+          isNewMessage={!fromHistory && arrived.has(m.id)}
+          isLastAlia={isLastAlia}
+          // Only the last answer reads it, and handing it to every row would
+          // re-render the whole thread when a turn starts and when it ends.
+          isLoading={isLastAlia ? isLoading : false}
           chatId={
             fromHistory
               ? (historyChatIds.get(history[index].conversationId) ?? chatId)
               : chatId
           }
-          onRowLayout={
-            fromHistory &&
-            focusCursor !== undefined &&
-            focusCursor !== null &&
-            history[index].cursor === focusCursor
-              ? handleFocusLayout
-              : undefined
-          }
+          onRowLayout={index === focusIndex ? handleFocusLayout : undefined}
           handleCopyMessage={handleCopyMessage}
           handleVote={handleVote}
           workStartedAt={timing.startedAt}
@@ -863,10 +862,10 @@ export const ChatInterface = React.memo(function ChatInterface({
         ref={threadRef}
         followAnimated={false}
         followThreshold={AT_BOTTOM_THRESHOLD}
-        onStartReached={onLoadHistory}
+        onStartReached={timeline.onStartReached}
         onStartReachedThreshold={NEAR_TOP}
-        maintainStartPosition={onLoadHistory !== undefined}
-        onScroll={onScroll}
+        maintainStartPosition={timeline.onStartReached !== undefined}
+        onScroll={timeline.onScroll}
       >
         {/* The transcript column, centred: a little wider than the composer
             (896 against its 768), so the answer has room to breathe. */}
@@ -891,31 +890,22 @@ export const ChatInterface = React.memo(function ChatInterface({
               </View>
           ) : null}
 
-          <View className="relative">
-            {/* The history, MEASURED as one block. Its height is what the scroll
-                  anchor is restored against, and a block is what react-native-web
-                  will report a change for — a marker between the two lists never
-                  changes size, so its move goes unobserved and the reader is left
-                  looking at the wrong message. */}
-            {history.length === 0 && !isLoadingHistory ? null : (
-              <View onLayout={handleHistoryLayout}>
-                {/* Inside the measured block on purpose: it appears when a page
-                      is asked for and vanishes when it lands, and both of those
-                      are height changes the anchor has to account for. Left
-                      outside, its arrival and departure would displace the reader
-                      by its own height, twice, with nothing to correct it. */}
+          <View className="relative" onLayout={timeline.onListLayout}>
+            {/* The slot the history loader shows in, held open for as long as
+                there is history to load. The thread anchors ONE growth per
+                request — the first after `onStartReached` — so a loader that
+                appeared on request would spend that anchor on itself and leave
+                the page that follows it to push the reader down. */}
+            {onLoadHistory === undefined && !isLoadingHistory ? null : (
+              <View className="h-14 items-center justify-center">
                 {!isLoadingHistory ? null : (
-                  <View className="items-center py-4">
-                    <Loading variant="inline" text={t('chat.loadingHistory')} />
-                  </View>
+                  <Loading variant="inline" text={t('chat.loadingHistory')} />
                 )}
-                {history.map((m, index) => renderMessage(m, index))}
               </View>
             )}
-
-            {liveMessages.map((m, index) =>
-              renderMessage(m, history.length + index),
-            )}
+            {filteredMessages
+              .slice(timeline.start)
+              .map((m, offset) => renderMessage(m, timeline.start + offset))}
           </View>
 
           {/* Agent execution — in-progress card or completed result card */}
