@@ -87,6 +87,8 @@ export interface ProviderLoopParams {
   skills: SkillRuntime;
   messages: ChatMessage[];
   conversationId: string | undefined;
+  /** The client's id for this turn's reply; see `ChatRequestContext`. */
+  assistantMessageId: string | undefined;
   /** The level, resolved once at the request boundary. */
   reasoningEffort: EffortLevel | null;
   convertedMessages: ModelMessage[];
@@ -125,7 +127,7 @@ export type ProviderLoopResult =
 export async function runProviderLoop(params: ProviderLoopParams): Promise<ProviderLoopResult> {
   const {
     req, res, sse, requestId, requestStartTime, globalTimer, globalTimeoutMs, state,
-    body, messages, conversationId, reasoningEffort, convertedMessages, truncatedTools,
+    body, messages, conversationId, assistantMessageId, reasoningEffort, convertedMessages, truncatedTools,
     toolNameMapping, agentMessages, systemPromptTokens, requestedModel,
     autonomyRuntime, includeUsage, skills, inferenceServiceToken, beforeStreamClose,
   } = params;
@@ -161,6 +163,7 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
   const lifecycleContext = (): LifecycleContext => ({
     userId: req.user?.id,
     conversationId,
+    assistantMessageId,
     messages,
     routingProfileId: state.routingProfileId,
     requestedModel,
@@ -252,6 +255,7 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
           requestedModel,
           reasoningEffort,
           conversationId,
+          assistantMessageId,
           messages,
           creditReservation: state.creditReservation,
           systemPromptTokens,

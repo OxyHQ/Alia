@@ -127,6 +127,13 @@ export interface NewMessage {
   readonly content: MessageContent;
   readonly toolInvocations?: ToolInvocation[];
   readonly agentInfo?: AgentInfo;
+  /**
+   * Carried over by `saveConversation`'s rewrite from the row it replaces, so
+   * deleting and reinserting a thread does not erase what a person did to it.
+   * No route reads either from a request body.
+   */
+  readonly vote?: MessageVote;
+  readonly audioUrl?: string;
   readonly seq?: number;
   readonly createdAt?: Date;
 }
@@ -144,6 +151,8 @@ function toInsert(message: NewMessage): typeof messages.$inferInsert {
     agentInfoName: message.agentInfo?.name ?? null,
     agentInfoColor: message.agentInfo?.color ?? null,
     agentInfoHandle: message.agentInfo?.handle ?? null,
+    vote: message.vote ?? null,
+    audioUrl: message.audioUrl ?? null,
     seq: message.seq ?? null,
     ...(message.createdAt === undefined ? {} : { createdAt: message.createdAt }),
   };

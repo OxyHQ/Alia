@@ -16,6 +16,7 @@ export interface DeepResearchContext {
   routingProfileId: string;
   userId: string;
   conversationId?: string;
+  assistantMessageId?: string;
   messages: ChatMessage[];
   creditReservation: CreditReservation | null;
   autonomyRuntime: AutonomyRuntimeContext | null;
@@ -114,6 +115,7 @@ export async function handleDeepResearch(ctx: DeepResearchContext): Promise<bool
         conversationId,
         messages,
         assistantResponse: result.report,
+        assistantMessageId: ctx.assistantMessageId,
         toolInvocations: [researchInvocation],
       }).catch(err => log.v1.warn({ err }, 'Failed to save research conversation'));
 

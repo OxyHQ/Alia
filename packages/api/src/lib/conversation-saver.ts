@@ -25,10 +25,12 @@ import {
 } from '../db/chat/messageRepository.js';
 import {
   isAgentOutreachMessageId,
+  usableMessageId,
   type AgentInfo,
   type ConversationSource,
   type MessageContent,
   type MessageRole,
+  type MessageVote,
   type ToolInvocation,
 } from '../domain/conversation.js';
 import { resolveModel, getAIModel } from './chat-core.js';
@@ -74,10 +76,31 @@ export interface SaveConversationParams {
   conversationId: string;
   messages: InputMessage[];
   assistantResponse: string;
+  /**
+   * The id the client drew this turn's reply under — the request's
+   * `assistantMessageId`. The reply is stored under it, and so are the agent
+   * answers that came with it ({@link agentMessageId}). Absent, they are named
+   * by position like any other message the client did not name.
+   */
+  assistantMessageId?: string;
   toolInvocations?: ToolInvocation[];
   source?: ConversationSource;
   agentId?: string;
   agentMessages?: Array<{ role: 'assistant'; content: string; agentInfo: AgentInfo }>;
+}
+
+/**
+ * The id of the `index`-th delegated-agent answer of a turn whose reply is
+ * `assistantMessageId`.
+ *
+ * Derived rather than sent: `alia.agent` carries no id, and cannot grow one —
+ * `@alia.onl/sdk`'s stream parser refuses a key it does not know, for the whole
+ * stream. The app draws the n-th `alia.agent` of a turn under this same name
+ * (`packages/app/lib/chat-message-history.ts` `agentMessageId`), so the two
+ * agree without a wire change.
+ */
+export function agentMessageId(assistantMessageId: string, index: number): string {
+  return `${assistantMessageId}-agent-${index}`;
 }
 
 /** Two messages are equal for append purposes if role and content match. */
@@ -114,29 +137,44 @@ const APPEND_SEQ_INDEX = 'messages_oxy_user_conversation_seq_key';
  */
 export async function saveConversation(params: SaveConversationParams): Promise<void> {
   const { userId, conversationId, messages, assistantResponse, toolInvocations, source, agentId, agentMessages } = params;
+  const assistantMessageId = usableMessageId(params.assistantMessageId);
 
+  /**
+   * Every message keeps the id the client sent with it.
+   *
+   * It used to keep only an agent-outreach mark and drop the rest, so a turn
+   * was stored as `msg-<seq>` while the client that had just drawn it held its
+   * own ids — and the vote and read-aloud routes, which find a message by the
+   * client's id, answered 404 for every reply of the session until a reload.
+   */
   const clientHistory = messages
     .filter(m => m != null && m.role && m.content !== undefined)
-    .map(m => ({
-      role: m.role,
-      content: m.content,
-      toolInvocations: m.toolInvocations,
-      // An agent-written message keeps its mark when the client echoes it
-      // back, so the next rewrite still recognises it.
-      ...(isAgentOutreachMessageId(m.id) ? { id: m.id, agentInfo: m.agentInfo } : {}),
-    }));
+    .map(m => {
+      const id = usableMessageId(m.id);
+      return {
+        role: m.role,
+        content: m.content,
+        toolInvocations: m.toolInvocations,
+        ...(id === undefined ? {} : { id }),
+        // An agent-written message keeps its attribution when the client echoes
+        // it back, so the next rewrite still recognises it.
+        ...(isAgentOutreachMessageId(id) ? { agentInfo: m.agentInfo } : {}),
+      };
+    });
 
   const turnTail: InputMessage[] = [
     // Insert agent messages before the final assistant response
-    ...(agentMessages || []).map(am => ({
+    ...(agentMessages || []).map((am, index) => ({
       role: am.role,
       content: am.content,
       agentInfo: am.agentInfo,
+      ...(assistantMessageId === undefined ? {} : { id: agentMessageId(assistantMessageId, index) }),
     })),
     {
       role: 'assistant',
       content: stripTitleTags(assistantResponse),
       ...(toolInvocations && toolInvocations.length > 0 && { toolInvocations }),
+      ...(assistantMessageId === undefined ? {} : { id: assistantMessageId }),
     },
   ].filter(msg => msg != null && msg.role && msg.content !== undefined);
 
@@ -185,13 +223,37 @@ export async function saveConversation(params: SaveConversationParams): Promise<
   // for what arrived while it was away.
   const stored = await listMessages(getDb(), userId, conversationId);
   const allMessages = [...keepAgentOutreach(stored, clientHistory), ...turnTail];
+  const kept = feedbackById(stored);
   await deleteMessages(getDb(), userId, conversationId);
   if (allMessages.length > 0) {
     await insertMessages(
       getDb(),
-      allMessages.map((message, index) => buildStoredMessage(message, userId, conversationId, index)),
+      allMessages.map((message, index) => ({
+        ...buildStoredMessage(message, userId, conversationId, index),
+        // Only a message the client NAMED is the same message after the
+        // rewrite: a `msg-<seq>` fallback is a position, and after an edit the
+        // position may hold a different answer.
+        ...(message.id === undefined ? {} : kept.get(message.id)),
+      })),
     );
   }
+}
+
+/**
+ * What a person attached to their stored messages — a vote, a generated clip —
+ * by client id, so a rewrite puts it back instead of deleting it with the row.
+ */
+function feedbackById(stored: readonly MessageRow[]): Map<string, Pick<NewMessage, 'vote' | 'audioUrl'>> {
+  const byId = new Map<string, Pick<NewMessage, 'vote' | 'audioUrl'>>();
+  for (const row of stored) {
+    if (row.clientMessageId === null || byId.has(row.clientMessageId)) continue;
+    if (row.vote === null && row.audioUrl === null) continue;
+    byId.set(row.clientMessageId, {
+      ...(row.vote === null ? {} : { vote: row.vote as MessageVote }),
+      ...(row.audioUrl === null ? {} : { audioUrl: row.audioUrl }),
+    });
+  }
+  return byId;
 }
 
 /**

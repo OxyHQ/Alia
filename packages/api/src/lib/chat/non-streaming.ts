@@ -47,6 +47,7 @@ export interface NonStreamingParams {
   /** The reasoning parameter, computed once by the provider loop. */
   reasoningEffort: string | null;
   conversationId: string | undefined;
+  assistantMessageId: string | undefined;
   messages: ChatMessage[];
   creditReservation: CreditReservation | null;
   systemPromptTokens: number;
@@ -69,7 +70,7 @@ export interface NonStreamingParams {
 export async function runNonStreaming(params: NonStreamingParams): Promise<void> {
   const {
     req, res, requestId, globalTimer, baseConfig, clearFirstByteTimer,
-    routingProfileId, requestedModel, reasoningEffort, conversationId, messages, creditReservation,
+    routingProfileId, requestedModel, reasoningEffort, conversationId, assistantMessageId, messages, creditReservation,
     systemPromptTokens, requestStartTime, skills, autonomyRuntime, toolNameMapping,
     observation, settlement,
   } = params;
@@ -113,6 +114,7 @@ export async function runNonStreaming(params: NonStreamingParams): Promise<void>
   const lifecycleCtx: LifecycleContext = {
     userId: req.user?.id,
     conversationId,
+    assistantMessageId,
     messages,
     routingProfileId,
     requestedModel,
