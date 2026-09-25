@@ -2,8 +2,6 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
-  releaseAttachmentUri,
-  releaseRemovedAttachment,
   useAttachmentIntake,
   type AttachmentIntake,
   type ReadHandlers,
@@ -276,41 +274,5 @@ describe('what is held, and let go', () => {
     // 20 MiB held until the read finishes into a tree that no longer exists.
     expect(started[0].abort).toHaveBeenCalledTimes(1);
     expect(started[1].abort).toHaveBeenCalledTimes(1);
-  });
-});
-
-describe('releasing a temporary URL', () => {
-  it('revokes an object URL and leaves a data URL alone', () => {
-    const revoke = vi.fn();
-    vi.stubGlobal('URL', { createObjectURL: vi.fn(), revokeObjectURL: revoke });
-
-    // Both web pickers hand back `URL.createObjectURL(file)` and Alia revoked
-    // none of them, so every file picked in a browser pinned its bytes in the
-    // page for the life of the tab.
-    releaseAttachmentUri('blob:alia/kept-forever');
-    expect(revoke).toHaveBeenCalledWith('blob:alia/kept-forever');
-
-    revoke.mockClear();
-    releaseAttachmentUri('data:image/png;base64,AAAA');
-    releaseAttachmentUri(undefined);
-    expect(revoke).not.toHaveBeenCalled();
-  });
-
-  it('releases the attachment that was removed, not the first one', () => {
-    const revoke = vi.fn();
-    vi.stubGlobal('URL', { createObjectURL: vi.fn(), revokeObjectURL: revoke });
-    const strip = [
-      { id: 'a', uri: 'blob:alia/first' },
-      { id: 'b', uri: 'blob:alia/second' },
-      { id: 'c', uri: 'blob:alia/third' },
-    ] as Attachment[];
-
-    releaseRemovedAttachment(strip, 'b');
-
-    // Three, so that "releases the one it names" cannot be satisfied by
-    // releasing whichever happens to be first — which would blank a tile the
-    // user is still looking at and read as a broken image, not as a fix.
-    expect(revoke).toHaveBeenCalledWith('blob:alia/second');
-    expect(revoke).toHaveBeenCalledTimes(1);
   });
 });

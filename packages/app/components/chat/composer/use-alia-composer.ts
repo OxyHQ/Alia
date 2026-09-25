@@ -48,6 +48,12 @@ export interface AliaComposerOptions {
   draft: DraftTarget;
   /** A turn is streaming or the composer is closed: nothing may be attached. */
   locked?: boolean;
+  /**
+   * Whether this surface takes files at all. False where what is sent is a
+   * prompt string the backend reads nothing else from (creating an agent or a
+   * skill): no picker rows, no tiles, no paste or drop.
+   */
+  attach?: boolean;
   /** Offer ghost mode: only before anything in the conversation is saved. */
   offerGhost?: boolean;
   /**
@@ -79,6 +85,7 @@ export type AliaComposerProps = Pick<
 export function useAliaComposer({
   draft: target,
   locked = false,
+  attach = true,
   offerGhost = false,
   selectedModel: modelOverride,
   onModelChange: onModelOverride,
@@ -135,7 +142,7 @@ export function useAliaComposer({
 
   const addMenu = useComposerAddMenu({
     addAttachment,
-    canAttach: !locked,
+    canAttach: attach && !locked,
     modes: modeActive,
     toggleMode,
     webSearch,
@@ -182,9 +189,9 @@ export function useAliaComposer({
   );
 
   const props: AliaComposerProps = {
-    attachments,
-    onAddAttachment: addAttachment,
-    onRemoveAttachment: removeAttachment,
+    ...(attach
+      ? { attachments, onAddAttachment: addAttachment, onRemoveAttachment: removeAttachment }
+      : {}),
     providers: lineup.providers,
     model: lineup.model,
     onModelChange: lineup.onModelChange,

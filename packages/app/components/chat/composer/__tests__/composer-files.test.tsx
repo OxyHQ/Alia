@@ -172,6 +172,19 @@ describe('dropping files on the composer', () => {
     expect(added).toEqual([]);
   });
 
+  it('takes no file and draws no hint where the surface sends only text', () => {
+    // No `onAddAttachment`: create-agent, create-skill, an agent's hire box.
+    mount();
+
+    fire('dragenter');
+    expect(overlay()).toHaveLength(0);
+    const drop = fire('drop', [new File(['x'], 'a.pdf', { type: 'application/pdf' })]);
+
+    // The page is still saved from the browser opening the file in its place.
+    expect(drop.preventDefault).toHaveBeenCalled();
+    expect(panel.props?.attachments).toEqual([]);
+  });
+
   it('stops listening when it goes away', () => {
     mount();
     act(() => renderer?.unmount());

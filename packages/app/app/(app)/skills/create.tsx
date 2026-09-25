@@ -26,7 +26,12 @@ export default function CreateSkillScreen() {
   const draft = useGenerateSkillDraft();
   const create = useCreateSkill();
   const busy = draft.isPending || create.isPending;
-  const composer = useAliaComposer({ draft: 'surface:skill-create', locked: busy });
+  const composer = useAliaComposer({
+    draft: 'surface:skill-create',
+    locked: busy,
+    // `/skills/generate` reads a prompt string and nothing else.
+    attach: false,
+  });
 
   const handleCreate = async () => {
     if (prompt.trim().length < 10) return;
