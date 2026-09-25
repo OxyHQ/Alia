@@ -7,14 +7,13 @@ import {
   type BillingPeriod,
   type PricingTier,
 } from '@/components/subscribe-shared';
-import { queryKeys } from '@/lib/hooks/query-keys';
+import { useCheckoutConfirmation } from '@/lib/hooks/billing/use-checkout-confirmation';
 import {
   useCancelSubscription,
   useChangePlan,
   useCreateSubscriptionCheckout,
   useSubscription,
   useSubscriptionPlans,
-  useSubscriptionPolling,
   type SubscriptionPlan,
 } from '@/lib/hooks/use-billing';
 import { useTranslation } from '@/lib/hooks/use-translation';
@@ -25,10 +24,9 @@ import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
 import { confirm } from '@oxy.so/bloom/surfaces';
 import { toast } from '@oxy.so/bloom/toast';
 import { useAuth } from '@oxy.so/services';
-import { useQueryClient } from '@tanstack/react-query';
 import * as Linking from 'expo-linking';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useWindowDimensions, View } from 'react-native';
 import { errorMessage as getErrorMessage } from '../../lib/errors/error-utils';
 function buildTiers(
@@ -66,7 +64,6 @@ export default function SubscribeScreen() {
   const [loadingPlanId, setLoadingPlanId] = useState<string>();
   const [isMounted, setIsMounted] = useState(false);
 
-  const queryClient = useQueryClient();
   const { data: apiPlans = [], isLoading: plansLoading, isError: plansError } = useSubscriptionPlans('alia');
   const { data: subscription, refetch: refetchSubscription } =
     useSubscription('alia');
@@ -77,44 +74,20 @@ export default function SubscribeScreen() {
   const tiers = useMemo(() => buildTiers(apiPlans, t), [apiPlans, t]);
 
   const isPaymentSuccess = isMounted && success === 'true';
-  const toastShown = useRef(false);
-
-  const { data: polledSubscription } = useSubscriptionPolling('alia', {
-    enabled: isPaymentSuccess,
-  });
 
   useEffect(() => {
     setIsMounted(true);
   }, []);
 
-  // Show success toast and redirect once subscription is confirmed via polling
-  useEffect(() => {
-    if (!isPaymentSuccess || toastShown.current) return;
-
-    if (polledSubscription && (polledSubscription.status === 'active' || polledSubscription.status === 'trialing')) {
-      toastShown.current = true;
-      refetchSubscription();
-      queryClient.invalidateQueries({ queryKey: queryKeys.billing.entitlements });
+  // Show success toast and redirect once the subscription is confirmed.
+  useCheckoutConfirmation({
+    enabled: isPaymentSuccess,
+    refetchSubscription,
+    onConfirmed: () => {
       toast.success(t('subscribe.paymentSuccess'));
       setTimeout(() => router.replace('/(biglayout)/subscribe'), 100);
-    }
-  }, [isPaymentSuccess, polledSubscription]);
-
-  // Timeout fallback: if polling doesn't find subscription within 30s, still show success
-  useEffect(() => {
-    if (!isPaymentSuccess || toastShown.current) return;
-
-    const timeout = setTimeout(() => {
-      if (!toastShown.current) {
-        toastShown.current = true;
-        refetchSubscription();
-        queryClient.invalidateQueries({ queryKey: queryKeys.billing.entitlements });
-        toast.success(t('subscribe.paymentSuccess'));
-        setTimeout(() => router.replace('/(biglayout)/subscribe'), 100);
-      }
-    }, 32000);
-    return () => clearTimeout(timeout);
-  }, [isPaymentSuccess]);
+    },
+  });
 
   const executePlanChange = async (planId: string) => {
     setLoadingPlanId(planId);
