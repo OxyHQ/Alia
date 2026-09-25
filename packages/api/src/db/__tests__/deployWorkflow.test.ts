@@ -135,7 +135,7 @@ describe('deploy-aws.yml migration wiring', () => {
    * The SSM parameters are out of scope here and untouched; this is about the
    * task definition's reference to them.
    */
-  it('injects no Oxy service credential and keeps the inherited one until the binding carries its scopes', () => {
+  it('injects no Oxy service credential and now removes the inherited one too', () => {
     const from = workflow.indexOf('      - name: Stage Oxy inference configuration');
     const to = workflow.indexOf('      # RUN_MIGRATIONS', from);
     const stage = workflow.slice(from, to);
@@ -150,7 +150,7 @@ describe('deploy-aws.yml migration wiring', () => {
       'arn:aws:ssm:$AWS_REGION:237343248947:parameter/oxy/$APP/OXY_SERVICE_API_SECRET',
     );
     expect(workflow).toContain(
-      'TASK_SECRET_REMOVALS_JSON: \'["AWS_ACCESS_KEY_ID","AWS_SECRET_ACCESS_KEY","KAANA_EDGE_SIGNING_PRIVATE_KEY","ALIA_RELAY_CREDENTIAL_KEY","ALIA_RELAY_CREDENTIAL_SECRET","ALIA_KAANA_CREDENTIAL_KEY","ALIA_KAANA_CREDENTIAL_SECRET"]\'',
+      'TASK_SECRET_REMOVALS_JSON: \'["AWS_ACCESS_KEY_ID","AWS_SECRET_ACCESS_KEY","KAANA_EDGE_SIGNING_PRIVATE_KEY","ALIA_RELAY_CREDENTIAL_KEY","ALIA_RELAY_CREDENTIAL_SECRET","ALIA_KAANA_CREDENTIAL_KEY","ALIA_KAANA_CREDENTIAL_SECRET","OXY_SERVICE_API_KEY","OXY_SERVICE_API_SECRET"]\'',
     );
     /**
      * And the pair is NOT in it. The rule has never changed — a removal is
@@ -170,15 +170,28 @@ describe('deploy-aws.yml migration wiring', () => {
      * read the profiles turn out to be different things, and a probe that mints
      * a token cannot tell them apart. Only this gate can.
      *
-     * So the pair stays until a readiness run WITHOUT it comes back ready.
+     * The cause was one resolver away, not the scopes. `applicationForBearer`
+     * looked the caller up in `application_credentials` by the token's
+     * `credentialId`, which for an attested caller is a `wl_…` handle in no row
+     * — so it became a PUBLIC viewer and the unpublished catalogue served it an
+     * empty list. oxy#1355 made a verified token re-read against the row that
+     * authorised it, and oxy#1368 gave an attested identity a real row.
+     *
+     * Measured 2026-09-25 against the deployed fix, attested from
+     * `oxy-alia-task` with no pair: `GET /models/routing-profiles` answers 200
+     * with all eight visible, missingCount=0. So the pair is back in the list,
+     * and the rule it has always been governed by is unchanged — a removal is
+     * allowed once the authority survives it. The readiness task is still the
+     * final judge and still runs on the revision this list produces, so a wrong
+     * answer fails the DEPLOY rather than shipping an Alia that cannot route.
      *
      * Parsed as JSON rather than matched as a string, so a reordering cannot
-     * smuggle one in.
+     * smuggle one out.
      */
     const removals = workflow.match(/TASK_SECRET_REMOVALS_JSON: '(\[[^\]]*\])'/)?.[1];
     expect(removals).toBeDefined();
-    expect(JSON.parse(removals!)).not.toContain('OXY_SERVICE_API_KEY');
-    expect(JSON.parse(removals!)).not.toContain('OXY_SERVICE_API_SECRET');
+    expect(JSON.parse(removals!)).toContain('OXY_SERVICE_API_KEY');
+    expect(JSON.parse(removals!)).toContain('OXY_SERVICE_API_SECRET');
     expect(workflow).not.toContain('secrets.OXY_SERVICE_API_KEY');
     expect(workflow).not.toContain('secrets.OXY_SERVICE_API_SECRET');
     expect(workflow).not.toContain('sync_secret OXY_SERVICE_API_');
@@ -440,6 +453,11 @@ describe('the deploy removes retired credentials and runtime configuration', () 
       'AWS_ACCESS_KEY_ID',
       'AWS_SECRET_ACCESS_KEY',
       'KAANA_EDGE_SIGNING_PRIVATE_KEY',
+      // Alia's own Oxy credential, retired once an attested caller could both
+      // carry `capabilities:read` AND see its eight chat routing profiles —
+      // measured 200/missingCount=0 on 2026-09-25, after oxy#1355 and #1368.
+      'OXY_SERVICE_API_KEY',
+      'OXY_SERVICE_API_SECRET',
       // Alia's own Oxy credential is deliberately NOT here, and this is the
       // second time the answer has moved. `oxy-alia-task` is bound with
       // `capabilities:read`, `inference:invoke` and `user:read` (oxy#1350), and
