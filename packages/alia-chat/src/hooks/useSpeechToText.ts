@@ -6,7 +6,7 @@ import {
   startSpeechRecognition,
 } from '../lib/speech-recognition';
 import type { SpeechRecognitionSession } from '../lib/speech-recognition-types';
-import { speechFailureMessage } from '../lib/speech-messages';
+import { speechFailureCode, VOICE_ERROR_MESSAGES, type VoiceErrorCode } from '../lib/speech-messages';
 import { defaultSpeechLanguage } from '../lib/speech-language';
 
 // ============== OPTIONS ==============
@@ -68,7 +68,7 @@ export function useSpeechToText(options: UseSTTOptions = {}) {
   const lang = options.lang ?? defaultSpeechLanguage();
 
   const [state, setState] = useState<STTState>('idle');
-  const [error, setError] = useState<string | null>(null);
+  const [errorCode, setErrorCode] = useState<VoiceErrorCode | null>(null);
   const [isSupported] = useState(isSpeechRecognitionAvailable);
 
   const stateRef = useRef<STTState>('idle');
@@ -81,6 +81,11 @@ export function useSpeechToText(options: UseSTTOptions = {}) {
   const endWaitersRef = useRef<Array<() => void>>([]);
   const lastMeteringRef = useRef(0);
   const mountedRef = useRef(true);
+
+  /** What went wrong, as a code; `null` clears it. */
+  const report = useCallback((code: VoiceErrorCode | null) => {
+    if (mountedRef.current) setErrorCode(code);
+  }, []);
 
   const setPhase = useCallback((next: STTState) => {
     stateRef.current = next;
@@ -116,10 +121,10 @@ export function useSpeechToText(options: UseSTTOptions = {}) {
           useSTTStore.getState().setMetering(level);
         },
         onError: (failure) => {
-          const message = speechFailureMessage(failure);
-          if (message === null) return;
+          const code = speechFailureCode(failure);
+          if (code === null) return;
           failed = true;
-          if (mountedRef.current) setError(message);
+          report(code);
         },
         onEnd: () => {
           sessionRef.current = null;
@@ -141,14 +146,14 @@ export function useSpeechToText(options: UseSTTOptions = {}) {
         },
       },
     );
-  }, [lang, setPhase]);
+  }, [lang, report, setPhase]);
 
   const startRecording = useCallback(async () => {
     if (stateRef.current !== 'idle') return;
-    setError(null);
+    report(null);
 
     if (!isSpeechRecognitionAvailable()) {
-      setError(speechFailureMessage({ code: 'unsupported' }));
+      report('speech-unsupported');
       return;
     }
 
@@ -157,7 +162,7 @@ export function useSpeechToText(options: UseSTTOptions = {}) {
     const refusal = await requestSpeechRecognitionPermission();
     if ((stateRef.current as STTState) !== 'recording') return; // cancelled while asking
     if (refusal !== null) {
-      setError(speechFailureMessage(refusal));
+      report(speechFailureCode(refusal));
       setPhase('idle');
       return;
     }
@@ -166,7 +171,7 @@ export function useSpeechToText(options: UseSTTOptions = {}) {
     currentTextRef.current = '';
     restartsRef.current = 0;
     openSession();
-  }, [openSession, setPhase]);
+  }, [openSession, report, setPhase]);
 
   const waitForEnd = useCallback((): Promise<void> => {
     if (sessionRef.current === null) return Promise.resolve();
@@ -201,21 +206,33 @@ export function useSpeechToText(options: UseSTTOptions = {}) {
     earlierTextRef.current = '';
     currentTextRef.current = '';
     session?.abort();
-    setError(null);
-  }, [setPhase]);
+    report(null);
+  }, [report, setPhase]);
 
   useEffect(() => {
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
+      const wasListening = stateRef.current !== 'idle';
       stateRef.current = 'idle';
       sessionRef.current?.abort();
+      // The effect that mirrors the phase into the store will not run again,
+      // and the store outlives this hook: a composer unmounted mid-dictation —
+      // the call controls replacing it — would otherwise leave the ambient
+      // field and the dictation bar reading "recording" for the rest of the call.
+      if (wasListening) {
+        useSTTStore.getState().setRecording(false);
+        useSTTStore.getState().setMetering(0);
+      }
     };
   }, []);
 
   return {
     state,
-    error,
+    /** What went wrong, in English. */
+    error: errorCode === null ? null : VOICE_ERROR_MESSAGES[errorCode],
+    /** The same, as a code an app can translate. */
+    errorCode,
     /** False where the platform cannot recognize speech at all (Firefox). */
     isSupported,
     startRecording,

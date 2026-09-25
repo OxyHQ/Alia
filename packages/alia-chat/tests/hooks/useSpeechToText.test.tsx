@@ -119,6 +119,27 @@ describe('dictation recognized on the device', () => {
     expect(text).toBe('Primera parte y segunda');
   });
 
+  it('unmounted mid-dictation — the composer giving way to a call — it lets go of the microphone and the shared state', async () => {
+    const track = { stop: vi.fn() };
+    media.getUserMedia.mockResolvedValue({ getTracks: () => [track] });
+    await mount();
+    await act(async () => {
+      await latest.startRecording();
+    });
+    await flush();
+    expect(useSTTStore.getState().isRecording).toBe(true);
+    useSTTStore.getState().setMetering(0.6);
+
+    await act(async () => renderer.unmount());
+    await flush();
+
+    expect(FakeRecognition.instances[0]!.abort).toHaveBeenCalled();
+    expect(track.stop).toHaveBeenCalled();
+    // The store outlives the hook; the ambient field and the call read it.
+    expect(useSTTStore.getState().isRecording).toBe(false);
+    expect(useSTTStore.getState().metering).toBe(0);
+  });
+
   it('cancel discards what was heard', async () => {
     await mount();
     await act(async () => {
@@ -146,6 +167,7 @@ describe('dictation recognized on the device', () => {
       await latest.startRecording();
     });
     expect(latest.error).toBe('Microphone permission required');
+    expect(latest.errorCode).toBe('microphone-denied');
     expect(latest.state).toBe('idle');
     expect(FakeRecognition.instances).toHaveLength(0);
   });
@@ -174,6 +196,7 @@ describe('dictation recognized on the device', () => {
       recognition.onend?.();
     });
     expect(latest.error).toBe('Speech recognition needs a network connection');
+    expect(latest.errorCode).toBe('speech-network');
     expect(latest.state).toBe('idle');
     expect(FakeRecognition.instances).toHaveLength(1);
   });

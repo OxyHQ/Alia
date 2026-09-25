@@ -9,7 +9,32 @@ import MicOff from 'lucide-react-native/icons/mic-off';
 import PhoneOff from 'lucide-react-native/icons/phone-off';
 import type { RoomState, AgentState } from '../../types';
 
-interface VoiceControlsProps {
+/** Every word the bar shows or announces. An app in another language passes its own. */
+export interface VoiceControlsLabels {
+  connecting: string;
+  connected: string;
+  listening: string;
+  muted: string;
+  thinking: string;
+  speaking: string;
+  mute: string;
+  unmute: string;
+  end: string;
+}
+
+export const VOICE_CONTROLS_LABELS: VoiceControlsLabels = {
+  connecting: 'Connecting...',
+  connected: 'Connected',
+  listening: 'Listening...',
+  muted: 'Muted',
+  thinking: 'Thinking...',
+  speaking: 'Speaking...',
+  mute: 'Mute',
+  unmute: 'Unmute',
+  end: 'End',
+};
+
+export interface VoiceControlsProps {
   roomState: RoomState;
   agentState: AgentState;
   isMuted: boolean;
@@ -17,19 +42,22 @@ interface VoiceControlsProps {
   onEnd: () => void;
   /** Override theme primary color (resolved hex/hsl value, not CSS var) */
   primaryColor?: string;
+  /** Overrides for any of {@link VOICE_CONTROLS_LABELS}. */
+  labels?: Partial<VoiceControlsLabels>;
 }
 
 function getStatusText(
   roomState: RoomState,
   agentState: AgentState,
   isMuted: boolean,
+  labels: VoiceControlsLabels,
 ): string {
-  if (roomState === 'connecting') return 'Connecting...';
+  if (roomState === 'connecting') return labels.connecting;
   if (roomState === 'connected') {
-    if (agentState === 'listening') return isMuted ? 'Muted' : 'Listening...';
-    if (agentState === 'thinking') return 'Thinking...';
-    if (agentState === 'speaking') return 'Speaking...';
-    return 'Connected';
+    if (agentState === 'listening') return isMuted ? labels.muted : labels.listening;
+    if (agentState === 'thinking') return labels.thinking;
+    if (agentState === 'speaking') return labels.speaking;
+    return labels.connected;
   }
   return '';
 }
@@ -41,13 +69,15 @@ export function VoiceControls({
   onToggleMute,
   onEnd,
   primaryColor,
+  labels: labelOverrides,
 }: VoiceControlsProps) {
-  const statusText = getStatusText(roomState, agentState, isMuted);
+  const labels = { ...VOICE_CONTROLS_LABELS, ...labelOverrides };
+  const statusText = getStatusText(roomState, agentState, isMuted, labels);
 
   return (
     <View style={styles.container}>
       {statusText ? (
-        <Text className="text-lg font-medium mb-4 text-foreground">
+        <Text className="text-lg font-medium mb-4 text-foreground" accessibilityLiveRegion="polite" aria-live="polite">
           {statusText}
         </Text>
       ) : null}
@@ -57,6 +87,10 @@ export function VoiceControls({
           <View style={styles.buttonWrapper}>
             <Pressable
               onPress={onToggleMute}
+              accessibilityRole="button"
+              accessibilityLabel={labels.mute}
+              accessibilityState={{ selected: isMuted }}
+              aria-pressed={isMuted}
               className={isMuted ? undefined : 'bg-muted'}
               style={[styles.button, isMuted ? { backgroundColor: '#ef4444' } : undefined]}
             >
@@ -67,18 +101,20 @@ export function VoiceControls({
               )}
             </Pressable>
             <Text className="text-xs text-muted-foreground">
-              {isMuted ? 'Unmute' : 'Mute'}
+              {isMuted ? labels.unmute : labels.mute}
             </Text>
           </View>
 
           <View style={styles.buttonWrapper}>
             <Pressable
               onPress={onEnd}
+              accessibilityRole="button"
+              accessibilityLabel={labels.end}
               style={[styles.button, { backgroundColor: '#ef4444' }]}
             >
               <PhoneOff size={24} color="white" />
             </Pressable>
-            <Text className="text-xs text-muted-foreground">End</Text>
+            <Text className="text-xs text-muted-foreground">{labels.end}</Text>
           </View>
         </View>
       )}
