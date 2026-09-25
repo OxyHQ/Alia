@@ -15,6 +15,7 @@
 import { SeriesCreateDialog } from '@/components/show/series-create-dialog';
 import { ShowArtwork } from '@/components/show/show-artwork';
 import { useShowProgress } from '@/lib/hooks/use-show-progress';
+import { useTranslation } from '@/lib/hooks/use-translation';
 import {
   useShowStore,
   type ShowSeries,
@@ -41,11 +42,11 @@ import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { FlatList, RefreshControl, View } from 'react-native';
 
-/** Who can hear it, as an icon and a word. */
+/** Who can hear it, as an icon and a word (an i18n key). */
 const VISIBILITY: Record<ShowVisibility, { label: string; icon: BadgeIcon }> = {
-  private: { label: 'Private', icon: RiLockLine },
-  unlisted: { label: 'Unlisted', icon: RiLink },
-  public: { label: 'Public', icon: RiGlobalLine },
+  private: { label: 'shows.visibility.private.label', icon: RiLockLine },
+  unlisted: { label: 'shows.visibility.unlisted.label', icon: RiLink },
+  public: { label: 'shows.visibility.public.label', icon: RiGlobalLine },
 };
 
 function SeriesRow({
@@ -56,6 +57,7 @@ function SeriesRow({
   onOpen: (id: string) => void;
 }) {
   const { colors } = useTheme();
+  const { t } = useTranslation();
   const visibility = VISIBILITY[series.visibility];
   // `nextEpisodeNumber` counts from 1, so it is one past however many have been
   // started — which is what a person means by "how many episodes".
@@ -70,7 +72,7 @@ function SeriesRow({
       appearance="outline"
       onPress={() => onOpen(series.id)}
       accessibilityRole="button"
-      accessibilityLabel={`Open ${series.title}`}
+      accessibilityLabel={t('shows.openSeries', { title: series.title })}
     >
       <Item
         leading={
@@ -93,9 +95,10 @@ function SeriesRow({
             </Text>
             <Text
               numberOfLines={1}
-              className="text-xs capitalize text-muted-foreground"
+              className="text-xs text-muted-foreground"
             >
-              {formatEpisodeCount(episodeCount)} · {series.format}
+              {formatEpisodeCount(episodeCount, t)} ·{' '}
+              {t(`shows.formatName.${series.format}.label`)}
             </Text>
           </>
         }
@@ -106,7 +109,7 @@ function SeriesRow({
               size="label-small"
               variant="subtle"
               icon={visibility.icon}
-              content={visibility.label}
+              content={t(visibility.label)}
             />
             <RiArrowRightSLine
               width={20}
@@ -129,6 +132,7 @@ export default function ShowsScreen() {
   const fetchPreferences = useShowStore((s) => s.fetchPreferences);
   const { isAuthenticated } = useAuth();
   const { colors } = useTheme();
+  const { t } = useTranslation();
 
   // One listener for the whole feature, on the shared notifications socket, so
   // an episode started here keeps reporting while the user is on the list.
@@ -180,7 +184,7 @@ export default function ShowsScreen() {
               leadingIcon={RiAddLine}
               onPress={startShow}
             >
-              New
+              {t('shows.new')}
             </Button>
           ),
         }}
@@ -195,7 +199,7 @@ export default function ShowsScreen() {
         ListHeaderComponent={
           // Stacking only: the top row, the error and the placeholders.
           <View className="gap-3">
-            <Muted>Podcasts Alia writes, voices and publishes to Syra.</Muted>
+            <Muted>{t('shows.subtitle')}</Muted>
 
             {error ? <Admonition type="error">{error}</Admonition> : null}
 
@@ -222,10 +226,10 @@ export default function ShowsScreen() {
             <EmptyState
               icon={RiMic2Line}
               media="circle"
-              title="No shows yet"
-              description="Start a show and Alia will write, voice and publish each episode to Syra — where it becomes a real podcast you can share or keep to yourself."
+              title={t('shows.empty.title')}
+              description={t('shows.empty.description')}
               action={{
-                label: 'Start a show',
+                label: t('shows.empty.action'),
                 icon: RiAddLine,
                 onPress: startShow,
               }}

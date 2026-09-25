@@ -3,6 +3,7 @@ import {
   createAutomationEditDraft,
 } from '@/lib/automations/edit';
 import { cronLabel } from '@/lib/automations/format';
+import { useTranslation } from '@/lib/hooks/use-translation';
 import type {
   AutomationDefinition,
   AutomationUpdateInput,
@@ -36,15 +37,12 @@ interface AutomationEditorProps {
   onSave: (update: AutomationUpdateInput) => Promise<void>;
 }
 
-const DAYS = [
-  { label: 'S', value: 0 },
-  { label: 'M', value: 1 },
-  { label: 'T', value: 2 },
-  { label: 'W', value: 3 },
-  { label: 'T', value: 4 },
-  { label: 'F', value: 5 },
-  { label: 'S', value: 6 },
-] as const;
+/** The week, Sunday first as cron counts it; each chip's words are i18n keys. */
+const DAYS = [0, 1, 2, 3, 4, 5, 6].map((value) => ({
+  value,
+  short: `automations.editor.dayShort.${value}`,
+  name: `automations.editor.dayName.${value}`,
+}));
 
 function parseSchedule(cron: string): { time: string; days: number[] } {
   const [minute = '0', hour = '9', , , dayField = '*'] = cron
@@ -85,6 +83,7 @@ export function AutomationEditor({
   onClose,
   onSave,
 }: AutomationEditorProps) {
+  const { t } = useTranslation();
   const initial = createAutomationEditDraft(automation);
   const initialSchedule =
     automation.trigger.type === 'schedule'
@@ -133,7 +132,7 @@ export function AutomationEditor({
   const save = async () => {
     const cron = scheduleCron(time, days);
     if (!cron) {
-      toast.error('Choose a valid time and at least one day');
+      toast.error(t('automations.editor.invalidSchedule'));
       return;
     }
     const result = buildAutomationUpdate({
@@ -145,7 +144,7 @@ export function AutomationEditor({
       enabled,
     });
     if (!result.ok) {
-      toast.error(result.error);
+      toast.error(t(result.error, result.params));
       return;
     }
     await onSave(result.value);
@@ -157,16 +156,16 @@ export function AutomationEditor({
         open={open}
         onClose={close}
         placement={{ base: 'bottom', md: 'right' }}
-        title="Edit task"
+        title={t('automations.editor.title')}
         actions={[
           {
-            label: 'Cancel',
+            label: t('common.cancel'),
             onPress: close,
             shouldCloseOnPress: false,
             color: 'cancel',
           },
           {
-            label: saving ? 'Saving…' : 'Save',
+            label: saving ? t('automations.editor.saving') : t('automations.editor.save'),
             onPress: save,
             disabled: saving || !changed,
             shouldCloseOnPress: false,
@@ -179,47 +178,50 @@ export function AutomationEditor({
         >
           <SettingsListGroup>
             <SettingsListItem
-              title="Status"
+              title={t('automations.editor.status')}
               description={
-                enabled ? 'Scheduled' : 'Paused · Next run: Not scheduled'
+                enabled
+                  ? t('automations.lifecycle.scheduled')
+                  : t('automations.editor.pausedNotScheduled')
               }
               rightElement={
                 <Switch
                   value={enabled}
                   onValueChange={setEnabled}
-                  accessibilityLabel="Task active"
+                  accessibilityLabel={t('automations.editor.active')}
                 />
               }
             />
           </SettingsListGroup>
 
-          <Field label="Title">
+          <Field label={t('automations.editor.titleLabel')}>
             <TextFieldInput
-              label="Task title"
+              label={t('automations.editor.taskTitle')}
               placeholder={null}
               value={title}
               onChangeText={setTitle}
-              accessibilityLabel="Task title"
+              accessibilityLabel={t('automations.editor.taskTitle')}
             />
           </Field>
 
           <Textarea
-            label="Instructions"
+            label={t('automations.editor.instructions')}
             value={instructions}
             onChangeText={setInstructions}
-            accessibilityLabel="Task instructions"
+            accessibilityLabel={t('automations.editor.taskInstructions')}
             autoResize
             rows={6}
           />
 
           <Field
-            label="Repeat"
+            label={t('automations.editor.repeat')}
             description={
               automation.trigger.type === 'schedule'
                 ? cronLabel(
                     scheduleCron(time, days) ?? automation.trigger.cron ?? '',
+                    t,
                   )
-                : 'Weekly'
+                : t('automations.editor.weekly')
             }
             multiple
           >
@@ -229,7 +231,7 @@ export function AutomationEditor({
                 return (
                   <Chip
                     key={`${day.value}-${index}`}
-                    accessibilityLabel={`Day ${day.value}`}
+                    accessibilityLabel={t(day.name)}
                     selected={selected}
                     onPress={() =>
                       setDays((current) =>
@@ -239,7 +241,7 @@ export function AutomationEditor({
                       )
                     }
                   >
-                    {day.label}
+                    {t(day.short)}
                   </Chip>
                 );
               })}
@@ -249,30 +251,30 @@ export function AutomationEditor({
           {/* Two fields side by side, the timezone twice the time's width. */}
           <View className="flex-row gap-2">
             <View className="flex-1">
-              <Field label="Time">
+              <Field label={t('automations.editor.time')}>
                 <TextFieldInput
-                  label="Task time"
+                  label={t('automations.editor.taskTime')}
                   value={time}
                   onChangeText={setTime}
                   placeholder="09:00"
-                  accessibilityLabel="Task time"
+                  accessibilityLabel={t('automations.editor.taskTime')}
                 />
               </Field>
             </View>
             <View className="flex-[2]">
-              <Field label="Timezone">
+              <Field label={t('automations.editor.timezone')}>
                 <TextFieldInput
-                  label="Task timezone"
+                  label={t('automations.editor.taskTimezone')}
                   placeholder={null}
                   value={timezone}
                   onChangeText={setTimezone}
-                  accessibilityLabel="Task timezone"
+                  accessibilityLabel={t('automations.editor.taskTimezone')}
                 />
               </Field>
             </View>
           </View>
 
-          <Field label="Responsible agent" multiple>
+          <Field label={t('automations.editor.agent')} multiple>
             <ChipRow>
               {agents.map((agent) => (
                 <Chip
@@ -289,9 +291,7 @@ export function AutomationEditor({
 
           {automation.actions.length > 0 ? (
             <Admonition type="info">
-              Connected work: this task can use the connections you approved. Exact
-              identifiers and authority remain protected by Oxy and are not
-              editable here.
+              {t('automations.editor.connectedWork')}
             </Admonition>
           ) : null}
         </ScrollView>
@@ -301,11 +301,15 @@ export function AutomationEditor({
         open={confirmClose}
         onClose={() => setConfirmClose(false)}
         placement={{ base: 'center' }}
-        title="Discard changes?"
-        description="Your unsaved task changes will be lost."
+        title={t('automations.editor.discardTitle')}
+        description={t('automations.editor.discardDescription')}
         actions={[
-          { label: 'Keep editing', color: 'cancel' },
-          { label: 'Discard changes', color: 'destructive', onPress: onClose },
+          { label: t('automations.editor.keepEditing'), color: 'cancel' },
+          {
+            label: t('automations.editor.discard'),
+            color: 'destructive',
+            onPress: onClose,
+          },
         ]}
       />
     </>

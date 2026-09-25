@@ -12,6 +12,7 @@ import { useRouter } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { useOxy } from '@oxy.so/services';
 import apiClient from '@/lib/api/client';
+import i18n from '@/lib/i18n';
 import { acquireNotificationsSocket } from '@/lib/api/notifications-socket';
 import { queryKeys } from '@/lib/hooks/query-keys';
 
@@ -53,7 +54,7 @@ export function useNotificationSetup() {
         // Android: create notification channel
         if (Platform.OS === 'android') {
           await Notifications.setNotificationChannelAsync('default', {
-            name: 'Default',
+            name: i18n.t('notifications.channelDefault'),
             importance: Notifications.AndroidImportance.HIGH,
           });
         }

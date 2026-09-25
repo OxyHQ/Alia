@@ -5,6 +5,7 @@ import {
 } from '@/components/automations/automation-pill';
 import {
   actorLabel,
+  runStatusLabel,
   triggerLabel,
 } from '@/lib/automations/format';
 import type { AutomationUpdateInput } from '@/lib/automations/types';
@@ -174,10 +175,10 @@ export default function AutomationHistoryScreen() {
               }
             />
           </View>
-          <Muted selectable>{triggerLabel(automation.trigger)}</Muted>
+          <Muted selectable>{triggerLabel(automation.trigger, t)}</Muted>
           <Muted selectable>
             {t('pages.automations.actors', {
-              actors: actorLabel(automation.actorSelection, agentName),
+              actors: actorLabel(automation.actorSelection, agentName, t),
             })}
           </Muted>
           {automation.actions.length > 0 ? (
@@ -202,7 +203,7 @@ export default function AutomationHistoryScreen() {
                     size="label-small"
                     variant="subtle"
                     color={BADGE_COLOR[automationStatusTone(run.status)]}
-                    content={run.status}
+                    content={runStatusLabel(run.status, t)}
                   />
                 }
               />

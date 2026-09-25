@@ -20,6 +20,7 @@ type Archetype = 'general' | 'qa' | 'task_router' | 'status_update';
 
 interface ArchetypeOption {
   value: Archetype;
+  /** i18n keys, read where the option is drawn. */
   label: string;
   description: string;
   Icon: BloomIconComponent;
@@ -28,26 +29,26 @@ interface ArchetypeOption {
 const ARCHETYPE_OPTIONS: ArchetypeOption[] = [
   {
     value: 'general',
-    label: 'General',
-    description: 'Build any custom agent',
+    label: 'agents.archetype.general.label',
+    description: 'agents.archetype.general.description',
     Icon: RiSparklingLine,
   },
   {
     value: 'qa',
-    label: 'Q&A',
-    description: 'Answers questions from your knowledge',
+    label: 'agents.archetype.qa.label',
+    description: 'agents.archetype.qa.description',
     Icon: RiQuestionLine,
   },
   {
     value: 'task_router',
-    label: 'Task Router',
-    description: 'Triages and routes incoming tasks',
+    label: 'agents.archetype.task_router.label',
+    description: 'agents.archetype.task_router.description',
     Icon: RiRouteLine,
   },
   {
     value: 'status_update',
-    label: 'Status Update',
-    description: 'Generates scheduled reports',
+    label: 'agents.archetype.status_update.label',
+    description: 'agents.archetype.status_update.description',
     Icon: RiBarChartHorizontalLine,
   },
 ];
@@ -136,8 +137,8 @@ export default function CreateAgentScreen() {
                 trailing={
                   selectedArchetype === option.value ? <RiCheckLine size="md" /> : null
                 }
-                title={option.label}
-                subtitle={option.description}
+                title={t(option.label)}
+                subtitle={t(option.description)}
               />
             ))}
           </View>

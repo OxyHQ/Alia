@@ -228,7 +228,7 @@ function ScheduledTaskResult({ data }: { data: ScheduledTaskCardData }) {
         <Item
           leading={<RiCalendarScheduleLine size="md" />}
           title={data.objective}
-          subtitle={triggerLabel(data.trigger)}
+          subtitle={triggerLabel(data.trigger, t)}
           trailing={
             <View className="flex-row items-center gap-2">
               <Badge

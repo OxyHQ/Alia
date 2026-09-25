@@ -169,7 +169,9 @@ export function SecuritySection() {
       } else {
         await Share.share({
           message: content,
-          title: `Alia Audit Export (${exportFormat.toUpperCase()})`,
+          title: t('settings.security.exportShareTitle', {
+            format: exportFormat.toUpperCase(),
+          }),
         });
       }
 

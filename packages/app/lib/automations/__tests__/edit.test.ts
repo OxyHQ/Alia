@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { buildAutomationUpdate, createAutomationEditDraft } from '../edit';
 import type { AutomationDefinition } from '../types';
+import type { AutomationEditResult } from '../edit';
+import { translator } from '@/test/translate';
+
+const t = translator('en');
+
+/** What the editor's toast says for a result, in the shipped English. */
+const message = (result: AutomationEditResult): string | null =>
+  result.ok ? null : t(result.error, result.params);
 
 const mailbox = {
   appId: 'inbox',
@@ -94,40 +102,25 @@ describe('automation receipt editor', () => {
   it('rejects incomplete actor, trigger, resource, and limit inputs before PATCH', () => {
     const noActor = createAutomationEditDraft(automation);
     noActor.actorSelection = { mode: 'automatic', eligibleAgentIds: [] };
-    expect(buildAutomationUpdate(noActor)).toEqual({
-      ok: false,
-      error: 'Choose at least one eligible agent',
-    });
+    expect(message(buildAutomationUpdate(noActor))).toBe('Choose at least one eligible agent');
 
     const badEvent = createAutomationEditDraft(automation);
     badEvent.trigger = { type: 'event', appId: '', eventType: 'changed' };
-    expect(buildAutomationUpdate(badEvent)).toEqual({
-      ok: false,
-      error: 'Event app and type are required',
-    });
+    expect(message(buildAutomationUpdate(badEvent))).toBe('Event app and type are required');
 
     const badResource = createAutomationEditDraft(automation);
     badResource.resources = [{ ...mailbox, resourceId: '' }];
-    expect(buildAutomationUpdate(badResource)).toEqual({
-      ok: false,
-      error: 'Every resource field is required',
-    });
+    expect(message(buildAutomationUpdate(badResource))).toBe('Every resource field is required');
 
     const badLimit = createAutomationEditDraft(automation);
     badLimit.limits = [{ key: 'recipients', value: '[1,2]' }];
-    expect(buildAutomationUpdate(badLimit)).toEqual({
-      ok: false,
-      error: 'Limit recipients must be text, a number, a boolean, or a text list',
-    });
+    expect(message(buildAutomationUpdate(badLimit))).toBe('Limit recipients must be text, a number, a boolean, or a text list');
 
     const duplicateLimit = createAutomationEditDraft(automation);
     duplicateLimit.limits = [
       { key: 'daily', value: '5' },
       { key: 'daily', value: '10' },
     ];
-    expect(buildAutomationUpdate(duplicateLimit)).toEqual({
-      ok: false,
-      error: 'Limit daily is duplicated',
-    });
+    expect(message(buildAutomationUpdate(duplicateLimit))).toBe('Limit daily is duplicated');
   });
 });

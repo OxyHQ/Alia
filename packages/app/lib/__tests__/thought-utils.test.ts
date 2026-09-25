@@ -12,7 +12,8 @@ import { describe, expect, it, vi } from 'vitest';
  */
 vi.mock('@alia.onl/sdk', () => ({ getToolLabel: (toolName: string) => toolName }));
 
-const { buildSteps, extractSources, turnLifecycle, buildAuditTimeline } = await import('@/lib/thought-utils');
+const { buildSteps, extractSources, turnLifecycle, buildAuditTimeline, auditText, toolLabel } = await import('@/lib/thought-utils');
+const { translator } = await import('@/test/translate');
 type LifecycleMessage = Parameters<typeof turnLifecycle>[0];
 type ToolInvocation = NonNullable<Parameters<typeof extractSources>[0]>[number];
 
@@ -330,5 +331,55 @@ describe('buildAuditTimeline', () => {
     // never returned. It must not pulse forever.
     const persisted = buildAuditTimeline([{ id: 'a1', role: 'assistant', content: '', toolInvocations: unfinished }]);
     expect(persisted.map((e) => e.status)).toEqual(['interrupted']);
+  });
+});
+
+/**
+ * The Activity tab in the reader's language.
+ *
+ * Its rows were built here in English — "Plan approved", "3 steps",
+ * "Research: synthesizing" — so a Spanish reader read English. The timeline
+ * now says WHAT to show and the panel translates it; these read the result
+ * through the shipped catalogs.
+ */
+describe('the audit timeline’s words', () => {
+  const es = translator('es');
+  const en = translator('en');
+
+  it('names an approved plan and counts its steps, in either language', () => {
+    const [entry] = buildAuditTimeline([
+      { id: 'a1', role: 'assistant', content: '', pendingPlan: { approved: true, steps: [{}, {}, {}] } } as never,
+    ]);
+    expect(auditText(entry!.label, en)).toBe('Plan approved');
+    expect(auditText(entry!.description, en)).toBe('3 steps');
+    expect(auditText(entry!.label, es)).toBe('Plan aprobado');
+    expect(auditText(entry!.description, es)).toBe('3 pasos');
+  });
+
+  it('names a research phase it knows, and any other as researching — never the raw token', () => {
+    const phase = (value: string) =>
+      auditText(
+        buildAuditTimeline([
+          { id: 'a1', role: 'assistant', content: '', researchProgress: { phase: value, isComplete: false } } as never,
+        ])[0]!.label,
+        es,
+      );
+    expect(phase('synthesizing')).toBe('Investigación: sintetizando hallazgos');
+    expect(phase('something_new')).toBe('Investigando');
+  });
+
+  it('keeps what the conversation said as it was', () => {
+    const [entry] = buildAuditTimeline([
+      { id: 'a1', role: 'assistant', content: '', toolInvocations: [invocation({ toolName: 'webSearch', args: { query: 'lluvia en Lugo' } } as never)] },
+    ]);
+    expect(auditText(entry!.label, es)).toBe('Buscando en la web');
+    expect(auditText(entry!.description, es)).toBe('lluvia en Lugo');
+  });
+
+  it('asks the catalog only for tools it has words for', () => {
+    // `constructor` would resolve to `Object.prototype.constructor` inside
+    // i18n-js; an unknown name goes to the SDK label (the identity here).
+    expect(toolLabel('constructor', es)).toBe('constructor');
+    expect(toolLabel('someServerTool', es)).toBe('someServerTool');
   });
 });

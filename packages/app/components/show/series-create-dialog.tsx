@@ -12,6 +12,7 @@
  * again.
  */
 
+import { useTranslation } from '@/lib/hooks/use-translation';
 import {
   useShowStore,
   type ShowFormat,
@@ -44,6 +45,7 @@ import { toast } from '@oxy.so/bloom/toast';
 import { useCallback, useState } from 'react';
 import { ScrollView, View } from 'react-native';
 
+/** Labels and descriptions below are i18n keys. */
 const FORMATS: Array<{
   id: ShowFormat;
   label: string;
@@ -52,33 +54,33 @@ const FORMATS: Array<{
 }> = [
   {
     id: 'podcast',
-    label: 'Podcast',
+    label: 'shows.formatName.podcast.label',
     icon: RiMic2Line,
-    description: 'Casual conversation between two hosts',
+    description: 'shows.formatName.podcast.description',
   },
   {
     id: 'news',
-    label: 'News',
+    label: 'shows.formatName.news.label',
     icon: RiNewspaperLine,
-    description: 'Professional news broadcast',
+    description: 'shows.formatName.news.description',
   },
   {
     id: 'debate',
-    label: 'Debate',
+    label: 'shows.formatName.debate.label',
     icon: RiChat3Line,
-    description: 'Two sides, one moderator',
+    description: 'shows.formatName.debate.description',
   },
   {
     id: 'interview',
-    label: 'Interview',
+    label: 'shows.formatName.interview.label',
     icon: RiQuestionLine,
-    description: 'A host interviews a guest',
+    description: 'shows.formatName.interview.description',
   },
   {
     id: 'explainer',
-    label: 'Explainer',
+    label: 'shows.formatName.explainer.label',
     icon: RiBookOpenLine,
-    description: 'A single narrator explains a topic',
+    description: 'shows.formatName.explainer.description',
   },
 ];
 
@@ -96,21 +98,21 @@ const VISIBILITIES: Array<{
 }> = [
   {
     id: 'private',
-    label: 'Private',
+    label: 'shows.visibility.private.label',
     icon: RiLockLine,
-    description: 'Only you can listen',
+    description: 'shows.visibility.private.description',
   },
   {
     id: 'unlisted',
-    label: 'Unlisted',
+    label: 'shows.visibility.unlisted.label',
     icon: RiLink,
-    description: 'Anyone with the link',
+    description: 'shows.visibility.unlisted.description',
   },
   {
     id: 'public',
-    label: 'Public',
+    label: 'shows.visibility.public.label',
     icon: RiGlobalLine,
-    description: 'Listed on Syra for everyone',
+    description: 'shows.visibility.public.description',
   },
 ];
 
@@ -126,6 +128,7 @@ export function SeriesCreateDialog({
   onCreated,
 }: SeriesCreateDialogProps) {
   const { colors } = useTheme();
+  const { t } = useTranslation();
   const preferences = useShowStore((s) => s.preferences);
   const createSeries = useShowStore((s) => s.createSeries);
 
@@ -144,7 +147,7 @@ export function SeriesCreateDialog({
 
   const handleCreate = useCallback(async () => {
     if (title.trim().length < 3 || brief.trim().length < 10) {
-      toast.error('A show needs a title and a sentence about what it covers');
+      toast.error(t('shows.seriesDialog.incomplete'));
       return;
     }
 
@@ -158,7 +161,7 @@ export function SeriesCreateDialog({
       });
 
       if (seriesId) {
-        toast.success('Show created — add your first episode');
+        toast.success(t('shows.seriesDialog.created'));
         onOpenChange(false);
         setTitle('');
         setBrief('');
@@ -177,6 +180,7 @@ export function SeriesCreateDialog({
     createSeries,
     onOpenChange,
     onCreated,
+    t,
   ]);
 
   return (
@@ -184,12 +188,14 @@ export function SeriesCreateDialog({
       open={open}
       onClose={() => onOpenChange(false)}
       placement={{ base: 'bottom', md: 'center' }}
-      title="New show"
+      title={t('shows.seriesDialog.title')}
       maxWidth={512}
       actions={[
-        { label: 'Cancel', color: 'cancel', disabled: creating },
+        { label: t('common.cancel'), color: 'cancel', disabled: creating },
         {
-          label: creating ? 'Creating...' : 'Create show',
+          label: creating
+            ? t('shows.seriesDialog.creating')
+            : t('shows.seriesDialog.create'),
           onPress: handleCreate,
           disabled:
             creating || title.trim().length < 3 || brief.trim().length < 10,
@@ -203,12 +209,12 @@ export function SeriesCreateDialog({
       <ScrollView className="max-h-96" showsVerticalScrollIndicator={false}>
         <View className="gap-4 py-2">
           <View>
-            <TextFieldLabel>Name</TextFieldLabel>
+            <TextFieldLabel>{t('shows.seriesDialog.name')}</TextFieldLabel>
             <TextFieldInput
-              label="Name"
+              label={t('shows.seriesDialog.name')}
               value={title}
               onChangeText={setTitle}
-              placeholder="The Wednesday Digest"
+              placeholder={t('shows.seriesDialog.namePlaceholder')}
             />
           </View>
 
@@ -218,17 +224,20 @@ export function SeriesCreateDialog({
             show" action, and the composer would add a second send button.
           */}
           <Textarea
-            label="What is it about?"
+            label={t('shows.seriesDialog.brief')}
             value={brief}
             onChangeText={setBrief}
-            placeholder="A weekly look at what I have been reading, in plain language."
+            placeholder={t('shows.seriesDialog.briefPlaceholder')}
             rows={3}
-            hint="This is the only thing an episode is written from, and — unless you say otherwise for one — the only thing its subject is chosen from. Describe the show and the ground it covers, not one episode: a line or two gives a show with nothing to vary along."
+            hint={t('shows.seriesDialog.briefHint')}
           />
 
           <View>
-            <TextFieldLabel>Format</TextFieldLabel>
-            <ChipRow role="radiogroup" accessibilityLabel="Format">
+            <TextFieldLabel>{t('shows.seriesDialog.format')}</TextFieldLabel>
+            <ChipRow
+              role="radiogroup"
+              accessibilityLabel={t('shows.seriesDialog.format')}
+            >
               {FORMATS.map((option) => {
                 const Icon = option.icon;
                 const selected = chosenFormat === option.id;
@@ -241,32 +250,37 @@ export function SeriesCreateDialog({
                     onPress={() => setFormat(option.id)}
                     startIcon={<Icon fill={colors.textSecondary} />}
                   >
-                    {option.label}
+                    {t(option.label)}
                   </Chip>
                 );
               })}
             </ChipRow>
             <TextFieldHint>
-              {FORMATS.find((f) => f.id === chosenFormat)?.description}
+              {t(FORMATS.find((f) => f.id === chosenFormat)?.description ?? '')}
             </TextFieldHint>
           </View>
 
           <View>
-            <TextFieldLabel>Who can listen?</TextFieldLabel>
+            <TextFieldLabel>{t('shows.seriesDialog.audience')}</TextFieldLabel>
             <SegmentedControl
-              label="Who can listen?"
+              label={t('shows.seriesDialog.audience')}
               type="radio"
               value={chosenVisibility}
               onValueChange={(value) => setVisibility(value as ShowVisibility)}
             >
               {VISIBILITIES.map((option) => (
                 <SegmentedControlItem key={option.id} value={option.id}>
-                  <SegmentedControlItemText>{option.label}</SegmentedControlItemText>
+                  <SegmentedControlItemText>
+                    {t(option.label)}
+                  </SegmentedControlItemText>
                 </SegmentedControlItem>
               ))}
             </SegmentedControl>
             <TextFieldHint>
-              {VISIBILITIES.find((v) => v.id === chosenVisibility)?.description}
+              {t(
+                VISIBILITIES.find((v) => v.id === chosenVisibility)
+                  ?.description ?? '',
+              )}
             </TextFieldHint>
           </View>
         </View>

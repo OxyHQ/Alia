@@ -1,5 +1,6 @@
 import { AgentCard } from '@/components/agent-card';
-import { agentIdentityMatches } from '@/lib/agents/identity';
+import { agentCategoryLabel } from '@/lib/agents/category';
+import { agentChatRoute, agentIdentityMatches } from '@/lib/agents/identity';
 import { useAgentCatalogue } from '@/lib/hooks/use-agents';
 import { useIsLargeScreen } from '@/lib/hooks/use-is-large-screen';
 import { useTranslation } from '@/lib/hooks/use-translation';
@@ -46,6 +47,18 @@ export default function AgentsScreen() {
       router.push(`/(app)/agents/${agentId}`);
     },
     [router],
+  );
+
+  const handleChat = useCallback(
+    (agentId: string) => {
+      const agent = agents.find((entry) => entry._id === agentId);
+      router.push(
+        agent === undefined
+          ? { pathname: '/(app)/agents/[id]', params: { id: agentId } }
+          : agentChatRoute(agent),
+      );
+    },
+    [agents, router],
   );
 
   const handleHire = useCallback(
@@ -103,12 +116,12 @@ export default function AgentsScreen() {
           agent={agent}
           variant="grid"
           onPress={handleSelectAgent}
-          onChat={handleSelectAgent}
+          onChat={handleChat}
           onHire={handleHire}
         />
       </View>
     ),
-    [handleSelectAgent, handleHire],
+    [handleSelectAgent, handleChat, handleHire],
   );
 
   // ── Split header into smaller memos to avoid re-rendering everything ──
@@ -154,7 +167,9 @@ export default function AgentsScreen() {
                   )
                 }
               >
-                {category}
+                {category === t('common.all')
+                  ? category
+                  : agentCategoryLabel(category, t)}
               </Chip>
             );
           })}
@@ -181,7 +196,7 @@ export default function AgentsScreen() {
               agent={agent}
               variant="featured"
               onPress={handleSelectAgent}
-              onChat={handleSelectAgent}
+              onChat={handleChat}
               onHire={handleHire}
             />
           ))}
@@ -194,6 +209,7 @@ export default function AgentsScreen() {
     featuredAgents,
     t,
     handleSelectAgent,
+    handleChat,
     handleHire,
   ]);
 
@@ -256,11 +272,18 @@ export default function AgentsScreen() {
         description={
           searchQuery
             ? t('common.tryDifferentSearch')
-            : t('agents.createComingSoon')
+            : t('agents.createFirstHint')
+        }
+        // Creating an agent is a real screen, so an empty list offers it
+        // rather than saying it is "coming soon" (#608, rule 6).
+        action={
+          searchQuery
+            ? undefined
+            : { label: t('agents.createAgent'), onPress: handleCreateAgent }
         }
       />
     );
-  }, [loading, t, searchQuery]);
+  }, [loading, t, searchQuery, handleCreateAgent]);
 
   // FlashList measures its own content container, so the page gutter (16, the
   // layout breadcrumb's, less the 6 each cell pads) and the bottom breathing

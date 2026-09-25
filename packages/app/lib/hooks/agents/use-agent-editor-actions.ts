@@ -31,7 +31,7 @@ export function useAgentEditorActions(agent: Agent) {
       toast.success(newValue ? t('agents.published') : t('agents.draft'));
     } catch {
       setIsPublished(!newValue);
-      toast.error('Failed to update');
+      toast.error(t('agents.publishFailed'));
     }
   }, [agent._id, isPublished, updateAgent.mutateAsync, t]);
 
@@ -40,7 +40,7 @@ export function useAgentEditorActions(agent: Agent) {
       title: t('agents.deleteAgent'),
       description: t('agents.deleteAgentConfirm'),
       confirmLabel: t('agents.deleteAgent'),
-      cancelLabel: 'Cancel',
+      cancelLabel: t('common.cancel'),
       destructive: true,
     });
     if (!ok) return;
@@ -49,7 +49,7 @@ export function useAgentEditorActions(agent: Agent) {
       toast.success(t('agents.agentDeleted'));
       router.back();
     } catch {
-      toast.error('Failed to delete agent');
+      toast.error(t('agents.deleteFailed'));
     }
   }, [agent._id, deleteAgent.mutateAsync, router, t]);
 

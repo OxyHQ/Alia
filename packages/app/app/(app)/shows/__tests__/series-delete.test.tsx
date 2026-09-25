@@ -312,7 +312,9 @@ function byLabel(
 }
 
 function pressRemoveShow(rendered: ReactTestRenderer): Promise<void> {
-  const control = byLabel(rendered, 'Button', 'Remove this show from Alia');
+  // "Delete … everywhere", not "Remove … from Alia": the press deletes the
+  // podcast from Syra as well, which is what the confirm already said.
+  const control = byLabel(rendered, 'Button', 'Delete this show everywhere');
   return act(async () => {
     await control.props.onPress();
   });

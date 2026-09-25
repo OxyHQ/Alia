@@ -84,9 +84,15 @@ export function FormRenderer({ data, onSubmit }: FormRendererProps) {
         ),
       )}
 
-      <View className="mt-2">
-        <Button onPress={() => onSubmit?.(formValues)}>{t('panels.form.submit')}</Button>
-      </View>
+      {/* Only a form with somewhere to send its values offers to send them.
+          No caller passes `onSubmit` today — the workspace panel renders the
+          canvas without a path back into the conversation — and the button
+          used to render regardless, a Submit that did nothing (#608, rule 6). */}
+      {onSubmit === undefined ? null : (
+        <View className="mt-2">
+          <Button onPress={() => onSubmit(formValues)}>{t('panels.form.submit')}</Button>
+        </View>
+      )}
     </View>
   );
 }

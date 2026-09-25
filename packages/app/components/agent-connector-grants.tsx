@@ -26,6 +26,7 @@
 
 import { Switch } from '@oxy.so/bloom/switch';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
+import { useTranslation } from '@/lib/hooks/use-translation';
 import { useColorScheme } from '@/lib/useColorScheme';
 import {
   INSTANCED_FAMILY_ICONS,
@@ -48,6 +49,7 @@ export function AgentConnectorGrants({
   disabled,
 }: AgentConnectorGrantsProps) {
   const { colors } = useColorScheme();
+  const { t } = useTranslation();
 
   /**
    * Grouped by family, in the order the families are declared.
@@ -66,7 +68,7 @@ export function AgentConnectorGrants({
       {families.map(({ family, rows }) => {
         const Icon = INSTANCED_FAMILY_ICONS[family];
         return (
-          <SettingsListGroup key={family} title={INSTANCED_FAMILY_LABELS[family]}>
+          <SettingsListGroup key={family} title={t(INSTANCED_FAMILY_LABELS[family])}>
             {rows.map((connector) => {
               // Covered by the family-wide row above, if the group has one and
               // it is on. Comparing two fields the server sent, never parsing

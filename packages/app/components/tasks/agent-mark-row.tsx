@@ -1,4 +1,5 @@
 import { agentTint } from '@/lib/agents/agent-color';
+import { useTranslation } from '@/lib/hooks/use-translation';
 import { useColorScheme } from '@/lib/useColorScheme';
 import { IdentityMark } from '@alia.onl/sdk';
 import { Badge } from '@oxy.so/bloom/badge';
@@ -30,6 +31,7 @@ export const AgentMarkRow = React.memo(function AgentMarkRow({
   size = 28,
 }: AgentMarkRowProps) {
   const { colors } = useColorScheme();
+  const { t } = useTranslation();
 
   if (agents.length === 0) return null;
 
@@ -69,7 +71,7 @@ export const AgentMarkRow = React.memo(function AgentMarkRow({
       {overflow > 0 && (
         <Badge size="large" variant="subtle" content={`+${overflow}`} />
       )}
-      <Muted>{agents.length} agents</Muted>
+      <Muted>{t('tasks.agentCount', { count: agents.length })}</Muted>
     </View>
   );
 });

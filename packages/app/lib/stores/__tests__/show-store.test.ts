@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { translator } from '@/test/translate';
 
 /**
  * The show store, and the Mongo leftover it removes.
@@ -62,10 +63,13 @@ async function freshStore() {
  * copy of the module and a binding captured at import time would be a different
  * function from the one the store under test is using.
  */
-let episodeDisplayTitle: (episode: {
-  title: string | null;
-  episodeNumber: number;
-}) => string;
+let episodeDisplayTitle: (
+  episode: {
+    title: string | null;
+    episodeNumber: number;
+  },
+  t: (key: string, params?: Record<string, unknown>) => string,
+) => string;
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -206,7 +210,7 @@ describe('starting an episode', () => {
      */
     const [first] = useShowStore.getState().episodesBySeries['series-abc'] ?? [];
     expect(first?.title).toBeNull();
-    expect(first === undefined ? '' : episodeDisplayTitle(first)).toBe('Episode 3');
+    expect(first === undefined ? '' : episodeDisplayTitle(first, translator('en'))).toBe('Episode 3');
   });
 
   it('reports a refusal rather than pretending it started', async () => {

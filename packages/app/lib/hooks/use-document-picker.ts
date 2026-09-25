@@ -1,4 +1,5 @@
 import * as DocumentPicker from 'expo-document-picker';
+import { useTranslation } from '@/lib/hooks/use-translation';
 import { toast } from '@oxy.so/bloom/toast';
 
 export type DocumentPickerResult = {
@@ -13,6 +14,7 @@ type UseDocumentPickerResult = {
 };
 
 export function useDocumentPicker(): UseDocumentPickerResult {
+  const { t } = useTranslation();
   const pickDocument = async (): Promise<DocumentPickerResult[] | undefined> => {
     try {
       const result = await DocumentPicker.getDocumentAsync({
@@ -30,7 +32,7 @@ export function useDocumentPicker(): UseDocumentPickerResult {
         }));
       }
     } catch (error) {
-      toast.error('Failed to pick document. Please try again.');
+      toast.error(t('library.pickDocumentFailed'));
     }
   };
 

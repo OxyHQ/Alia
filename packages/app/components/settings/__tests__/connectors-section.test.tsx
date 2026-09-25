@@ -70,6 +70,12 @@ vi.mock('@oxy.so/bloom/button', async () => {
       ReactModule.createElement('Button', props, children),
   };
 });
+vi.mock('@oxy.so/bloom/badge', async () => {
+  const ReactModule = await import('react');
+  return {
+    Badge: (props: Record<string, unknown>) => ReactModule.createElement('Badge', props),
+  };
+});
 vi.mock('@oxy.so/bloom/settings-modal', async () => {
   const ReactModule = await import('react');
   const host = (name: string) =>
@@ -190,6 +196,21 @@ describe('ConnectorsSection', () => {
     expect(mocks.hook.install).toHaveBeenCalledWith('linear');
     expect(mocks.hook.startOAuth).toHaveBeenCalledWith('new');
     expect(mocks.openURL).toHaveBeenCalledWith('https://auth.example/linear');
+  });
+
+  it('says a connected entry is connected with a badge, not a button that cannot be pressed', () => {
+    mocks.hook.registry = [
+      { id: 'github', name: 'GitHub', description: 'Code', requiredEnv: [], requiresOAuth: true, featured: true, category: 'development' },
+    ];
+    mocks.hook.installed = [github];
+    const r = mount();
+    const row = r.root.findByProps({ label: 'GitHub' });
+    // The one button left is "View details", which does something.
+    const buttons = row.findAllByType('Button' as never);
+    expect(buttons).toHaveLength(1);
+    expect(buttons[0]!.props.onPress).toBeTypeOf('function');
+    expect(buttons.some((button) => button.props.disabled === true)).toBe(false);
+    expect(row.findByType('Badge' as never).props.content).toBe('connectors.connected');
   });
 
   it('finishes the OAuth callback from the settings params once', async () => {

@@ -70,16 +70,3 @@ export function routingPriorityFrom(value: string): RoutingRule['priority'] {
         ? 'urgent'
         : 'medium';
 }
-
-/** A segmented control's value, as a schedule type; anything unknown is daily. */
-export function scheduleTypeFrom(
-  value: string,
-): NonNullable<ArchetypeConfig['schedule']>['type'] {
-  return value === 'interval' ? 'interval' : value === 'cron' ? 'cron' : 'daily';
-}
-
-/** The escalation timeout as typed; anything that is not a number clears it. */
-export function escalationMinutesFrom(text: string): number | undefined {
-  const num = parseInt(text, 10);
-  return isNaN(num) ? undefined : num;
-}

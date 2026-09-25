@@ -10,6 +10,11 @@ import {
   triggerLabel,
 } from '../format';
 import type { AutomationDefinition, AutomationRun } from '../types';
+import { translator } from '@/test/translate';
+
+/** The shipped English catalog, so these assertions read what a person reads. */
+const t = translator('en');
+const es = translator('es');
 
 const baseAutomation = {
   id: 'automation-1',
@@ -39,14 +44,14 @@ describe('automation formatting', () => {
   });
 
   it('describes each trigger and actor-selection shape', () => {
-    expect(triggerLabel({ type: 'manual' })).toBe('Manual request');
-    expect(triggerLabel({ type: 'schedule', cron: '0 9 * * 1', timezone: 'Europe/Bucharest' }))
+    expect(triggerLabel({ type: 'manual' }, t)).toBe('Manual request');
+    expect(triggerLabel({ type: 'schedule', cron: '0 9 * * 1', timezone: 'Europe/Bucharest' }, t))
       .toBe('Mondays at 09:00 · Europe/Bucharest');
-    expect(triggerLabel({ type: 'schedule', cron: null, timezone: null }))
+    expect(triggerLabel({ type: 'schedule', cron: null, timezone: null }, t))
       .toBe('Unscheduled · UTC');
-    expect(actorLabel({ mode: 'fixed', agentId: 'agent-1' }, () => 'Writer'))
+    expect(actorLabel({ mode: 'fixed', agentId: 'agent-1' }, () => 'Writer', t))
       .toBe('Writer');
-    expect(actorLabel({ mode: 'automatic', eligibleAgentIds: [] }, () => 'unused'))
+    expect(actorLabel({ mode: 'automatic', eligibleAgentIds: [] }, () => 'unused', t))
       .toBe('No eligible agents');
     expect(resourceLabel({
       appId: 'inbox',
@@ -91,23 +96,30 @@ describe('automation formatting', () => {
  */
 describe('cronLabel', () => {
   it('reads the three shapes the app writes', () => {
-    expect(cronLabel('*/60 * * * *')).toBe('Every hour');
-    expect(cronLabel('*/15 * * * *')).toBe('Every 15 minutes');
-    expect(cronLabel('*/120 * * * *')).toBe('Every 2 hours');
-    expect(cronLabel('0 18 * * *')).toBe('Daily at 18:00');
-    expect(cronLabel('30 9 * * 1')).toBe('Mondays at 09:30');
-    expect(cronLabel('0 9 * * 1,3,5')).toBe('Mondays, Wednesdays, Fridays at 09:00');
-    expect(cronLabel('0 9 * * 1-5')).toBe('Weekdays at 09:00');
-    expect(cronLabel('0 9 * * 0,6')).toBe('Weekends at 09:00');
-    expect(cronLabel('0 9 * * 0,1,2,3,4,5,6')).toBe('Daily at 09:00');
+    expect(cronLabel('*/60 * * * *', t)).toBe('Every hour');
+    expect(cronLabel('*/15 * * * *', t)).toBe('Every 15 minutes');
+    expect(cronLabel('*/120 * * * *', t)).toBe('Every 2 hours');
+    expect(cronLabel('0 18 * * *', t)).toBe('Daily at 18:00');
+    expect(cronLabel('30 9 * * 1', t)).toBe('Mondays at 09:30');
+    expect(cronLabel('0 9 * * 1,3,5', t)).toBe('Mondays, Wednesdays, Fridays at 09:00');
+    expect(cronLabel('0 9 * * 1-5', t)).toBe('Weekdays at 09:00');
+    expect(cronLabel('0 9 * * 0,6', t)).toBe('Weekends at 09:00');
+    expect(cronLabel('0 9 * * 0,1,2,3,4,5,6', t)).toBe('Daily at 09:00');
   });
 
   it('leaves what it cannot read alone', () => {
-    expect(cronLabel('0 9 1 * *')).toBe('0 9 1 * *');
-    expect(cronLabel('0 9 * 6 *')).toBe('0 9 * 6 *');
-    expect(cronLabel('*/5 9 * * *')).toBe('*/5 9 * * *');
-    expect(cronLabel('0 25 * * *')).toBe('0 25 * * *');
-    expect(cronLabel('0 9 * * 8')).toBe('0 9 * * 8');
-    expect(cronLabel('not cron')).toBe('not cron');
+    expect(cronLabel('0 9 1 * *', t)).toBe('0 9 1 * *');
+    expect(cronLabel('0 9 * 6 *', t)).toBe('0 9 * 6 *');
+    expect(cronLabel('*/5 9 * * *', t)).toBe('*/5 9 * * *');
+    expect(cronLabel('0 25 * * *', t)).toBe('0 25 * * *');
+    expect(cronLabel('0 9 * * 8', t)).toBe('0 9 * * 8');
+    expect(cronLabel('not cron', t)).toBe('not cron');
+  });
+
+  it('says the same schedules in Spanish', () => {
+    expect(cronLabel('*/60 * * * *', es)).toBe('Cada hora');
+    expect(cronLabel('*/15 * * * *', es)).toBe('Cada 15 minutos');
+    expect(cronLabel('0 9 * * 1,3,5', es)).toBe('Los lunes, miércoles, viernes a las 09:00');
+    expect(triggerLabel({ type: 'manual' }, es)).toBe('A petición');
   });
 });

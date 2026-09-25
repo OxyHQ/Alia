@@ -306,8 +306,8 @@ export function taskListLog(
       else open = false;
 
       return {
-        title: getToolDoneLabel(inv.toolName),
-        runningTitle: getToolPillLabel(inv.toolName),
+        title: getToolDoneLabel(inv.toolName, t),
+        runningTitle: getToolPillLabel(inv.toolName, t),
         icon: TASK_ICONS[inv.toolName] ?? RiToolsLine,
         steps,
       };
