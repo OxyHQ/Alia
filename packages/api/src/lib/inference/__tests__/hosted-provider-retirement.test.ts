@@ -140,9 +140,22 @@ describe('Alia hosted provider runtime retirement', () => {
    *
    * So INJECTION is what stays forbidden here, and that half was the real
    * migration: nothing reads the pair out of SSM. REMOVAL is the separate lever,
-   * and the list must not name the pair, because a release renders from the
-   * RUNNING revision — the inherited pair survives only by being left alone. The
-   * names return to that list when the role's binding can carry the scope.
+   * and it has now been pulled — which is why this file is being touched a
+   * fourth time rather than a third.
+   *
+   * The binding carrying the scope turned out not to be enough on its own.
+   * Alia's readiness then reported all eight chat routing profiles missing, and
+   * the cause was one resolver away: `applicationForBearer` looked the caller up
+   * in `application_credentials` by the token's `credentialId`, which for an
+   * attested caller is a `wl_…` handle in no row, so it became a PUBLIC viewer
+   * and the unpublished catalogue served it an empty list. oxy#1355 made a
+   * verified token re-read against the row that authorised it; oxy#1368 gave an
+   * attested identity a real row so the usage ledger's foreign keys hold.
+   *
+   * Measured 2026-09-25, attested from `oxy-alia-task` with no pair anywhere:
+   * `GET /models/routing-profiles` answers 200 with all eight visible,
+   * missingCount=0. So the list names the pair again. Injection stays forbidden;
+   * that half never moved.
    */
   it('binds no provider credential, and injects no Oxy service key', () => {
     const workflow = readFileSync(path.join(REPO_ROOT, '.github/workflows/deploy-aws.yml'), 'utf8');
@@ -152,8 +165,8 @@ describe('Alia hosted provider runtime retirement', () => {
     expect(workflow).not.toContain('OXY_SERVICE_API_SECRET: $secret');
     const removals = workflow.match(/TASK_SECRET_REMOVALS_JSON: '(\[[^\]]*\])'/)?.[1];
     expect(removals).toBeDefined();
-    expect(JSON.parse(removals!) as string[]).not.toContain('OXY_SERVICE_API_KEY');
-    expect(JSON.parse(removals!) as string[]).not.toContain('OXY_SERVICE_API_SECRET');
+    expect(JSON.parse(removals!) as string[]).toContain('OXY_SERVICE_API_KEY');
+    expect(JSON.parse(removals!) as string[]).toContain('OXY_SERVICE_API_SECRET');
     expect(workflow).not.toContain('secrets.ALIA_KAANA_CREDENTIAL_');
     expect(workflow).not.toContain('sync_secret ALIA_RELAY_CREDENTIAL_');
     expect(workflow).not.toContain('oxy-task-ssm-alia-provider-keys');
