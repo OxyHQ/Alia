@@ -4,6 +4,18 @@
 
 ## 9.0.0
 
+### The full-screen chat clears the gesture bar and the keyboard
+
+`AliaChatScreen` padded only the top safe-area inset, so on edge-to-edge
+Android its composer sat under the gesture bar (OxyHQ/Mention#1140). It now pads
+the bottom inset too, and wraps the chat in a keyboard-avoiding view that
+measures its own position in the window (keyboard-controller's
+`automaticOffset`): the composer rises onto the keyboard, and because that view
+already ends above the inset, the inset is not added on top of the keyboard. The
+avoiding view `PromptInput` carries measured its parent-relative layout and so
+never lifted inside the screen. The web `KeyboardAvoidingView` accepts and
+ignores `automaticOffset`. Also released for 7.x as 7.2.9.
+
 ### Real models, and no model identifier in the package
 
 Alia has no models of its own: `GET /catalogue` now lists the real models Oxy
