@@ -14,15 +14,21 @@ export default function Root({ children }: PropsWithChildren) {
         <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
 
         {/* Viewport and mobile optimization */}
+        {/* `interactive-widget=resizes-content`: Chrome on Android shrinks
+            the layout viewport under the keyboard, as iOS Safari does, so the
+            composer rises with it instead of being covered. */}
         <meta
           name="viewport"
-          content="width=device-width, initial-scale=1, shrink-to-fit=no"
+          content="width=device-width, initial-scale=1, shrink-to-fit=no, interactive-widget=resizes-content"
         />
 
         {/* Security and Performance */}
         <meta httpEquiv="Content-Security-Policy" content="upgrade-insecure-requests" />
         <meta name="referrer" content="origin-when-cross-origin" />
-        <meta httpEquiv="Permissions-Policy" content="camera=(), microphone=(), geolocation=()" />
+        {/* Browsers read Permissions-Policy only as a header, so this line is
+            inert — but it must not deny what the app uses: dictation and
+            voice calls need the microphone, and the camera attaches photos. */}
+        <meta httpEquiv="Permissions-Policy" content="camera=(self), microphone=(self), geolocation=()" />
 
         {/* Primary Meta Tags */}
         <meta name="title" content="Alia" />
