@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient, useInfiniteQuery, type QueryClient } from '@tanstack/react-query';
+import i18n from '@/lib/i18n';
 import { useOxy } from '@oxy.so/services';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { toast } from '@oxy.so/bloom/toast';
@@ -574,7 +575,7 @@ export function useCreateConversation() {
           const id = createRandomUuid();
           const conversation: Conversation = {
             id,
-            title: "New chat",
+            title: i18n.t('chat.newChat'),
             lastMessage: undefined,
             createdAt: new Date(),
             updatedAt: new Date(),

@@ -706,7 +706,9 @@ export function MemorySection() {
                 </SettingsRow>
                 <SettingsRow label={t('memory.sizeJSON')}>
                   <SettingsValueField>
-                    ~{(exportStats.estimatedSizeJSON / 1024).toFixed(1)} KB
+                    {t('memory.sizeKb', {
+                      size: (exportStats.estimatedSizeJSON / 1024).toFixed(1),
+                    })}
                   </SettingsValueField>
                 </SettingsRow>
               </SettingsCard>

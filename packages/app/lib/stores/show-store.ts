@@ -21,6 +21,7 @@ import { create } from 'zustand';
 import apiClient from '../api/client';
 import { API_ROUTES } from '../api/routes';
 import { errorMessage as getErrorMessage } from '../errors/error-utils';
+import i18n from '../i18n';
 
 export type ShowFormat = 'podcast' | 'news' | 'debate' | 'interview' | 'explainer';
 export type ShowVisibility = 'private' | 'unlisted' | 'public';
@@ -226,7 +227,7 @@ export const useShowStore = create<ShowStore>((set, get) => ({
       const res = await apiClient.get(API_ROUTES.shows.series.list);
       set({ series: res.data.series, loading: false });
     } catch (err: unknown) {
-      set({ error: getErrorMessage(err, 'Failed to load your shows'), loading: false });
+      set({ error: getErrorMessage(err, i18n.t('shows.errors.loadList')), loading: false });
     }
   },
 
@@ -244,7 +245,7 @@ export const useShowStore = create<ShowStore>((set, get) => ({
 
       return series;
     } catch (err: unknown) {
-      set({ error: getErrorMessage(err, 'Failed to load that show') });
+      set({ error: getErrorMessage(err, i18n.t('shows.errors.loadOne')) });
       return null;
     }
   },
@@ -257,7 +258,7 @@ export const useShowStore = create<ShowStore>((set, get) => ({
       set((state) => ({ series: [series, ...state.series] }));
       return series.id;
     } catch (err: unknown) {
-      set({ error: getErrorMessage(err, 'Failed to create the show') });
+      set({ error: getErrorMessage(err, i18n.t('shows.errors.create')) });
       return null;
     }
   },
@@ -269,7 +270,7 @@ export const useShowStore = create<ShowStore>((set, get) => ({
       set((state) => ({ series: state.series.map((s) => (s.id === id ? updated : s)) }));
       return true;
     } catch (err: unknown) {
-      set({ error: getErrorMessage(err, 'Failed to update the show') });
+      set({ error: getErrorMessage(err, i18n.t('shows.errors.update')) });
       return false;
     }
   },
@@ -285,7 +286,7 @@ export const useShowStore = create<ShowStore>((set, get) => ({
       });
       return true;
     } catch (err: unknown) {
-      set({ error: getErrorMessage(err, 'Failed to delete the show') });
+      set({ error: getErrorMessage(err, i18n.t('shows.errors.delete')) });
       return false;
     }
   },
@@ -336,7 +337,7 @@ export const useShowStore = create<ShowStore>((set, get) => ({
 
       return episodeId;
     } catch (err: unknown) {
-      set({ error: getErrorMessage(err, 'Failed to start the episode') });
+      set({ error: getErrorMessage(err, i18n.t('shows.errors.startEpisode')) });
       return null;
     }
   },
@@ -352,7 +353,7 @@ export const useShowStore = create<ShowStore>((set, get) => ({
       }));
       return true;
     } catch (err: unknown) {
-      set({ error: getErrorMessage(err, 'Failed to delete the episode') });
+      set({ error: getErrorMessage(err, i18n.t('shows.errors.deleteEpisode')) });
       return false;
     }
   },
@@ -364,7 +365,7 @@ export const useShowStore = create<ShowStore>((set, get) => ({
     } catch (err: unknown) {
       // Voices are an optional enhancement; keep any previously loaded list
       // rather than blocking the UI with an error state.
-      set({ error: getErrorMessage(err, 'Could not load the voice list') });
+      set({ error: getErrorMessage(err, i18n.t('shows.errors.voices')) });
     }
   },
 
@@ -384,7 +385,7 @@ export const useShowStore = create<ShowStore>((set, get) => ({
       const res = await apiClient.put(API_ROUTES.shows.preferences, next);
       set({ preferences: res.data as ShowPreferences });
     } catch (err: unknown) {
-      set({ error: getErrorMessage(err, 'Failed to save your preferences') });
+      set({ error: getErrorMessage(err, i18n.t('shows.errors.preferences')) });
     }
   },
 
@@ -448,11 +449,14 @@ export const useShowStore = create<ShowStore>((set, get) => ({
  * answer for it. The episode number is the one thing that is certainly true,
  * and it is what Syra's own draft is reserved under.
  */
-export function episodeDisplayTitle(episode: {
-  title: string | null;
-  episodeNumber: number;
-}): string {
-  return episode.title ?? `Episode ${episode.episodeNumber}`;
+export function episodeDisplayTitle(
+  episode: {
+    title: string | null;
+    episodeNumber: number;
+  },
+  t: (key: string, params?: Record<string, unknown>) => string,
+): string {
+  return episode.title ?? t('shows.episodeNumber', { number: episode.episodeNumber });
 }
 
 /**

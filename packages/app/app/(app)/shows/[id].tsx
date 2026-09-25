@@ -23,6 +23,7 @@ import { EpisodeCreateDialog } from '@/components/show/episode-create-dialog';
 import { EpisodeRow } from '@/components/show/episode-row';
 import { ShowArtwork } from '@/components/show/show-artwork';
 import { useShowProgress } from '@/lib/hooks/use-show-progress';
+import { useTranslation } from '@/lib/hooks/use-translation';
 import {
   useSeriesEpisodes,
   useShowStore,
@@ -61,18 +62,31 @@ const SYRA_WEB_URL = 'https://syra.fm';
  */
 const DESCRIPTION_CLAMP_CHARS = 170;
 
-/** Who can hear it, as an icon and a word. */
+/** Who can hear it, as an icon and a word (an i18n key). */
 const VISIBILITY: Record<ShowVisibility, { label: string; icon: BadgeIcon }> = {
-  private: { label: 'Private', icon: RiLockLine },
-  unlisted: { label: 'Unlisted', icon: RiLink },
-  public: { label: 'Public', icon: RiGlobalLine },
+  private: { label: 'shows.visibility.private.label', icon: RiLockLine },
+  unlisted: { label: 'shows.visibility.unlisted.label', icon: RiLink },
+  public: { label: 'shows.visibility.public.label', icon: RiGlobalLine },
 };
+
+/**
+ * The cast roles the API assigns (`SHOW_SPEAKER_ROLES`), which have words in
+ * every locale. The row's `role` is an open string, so anything else is shown
+ * as the API sent it.
+ */
+const SPEAKER_ROLES: ReadonlySet<string> = new Set([
+  'host',
+  'co-host',
+  'guest',
+  'narrator',
+]);
 
 export default function SeriesDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const seriesId = typeof id === 'string' ? id : '';
   const router = useRouter();
   const { colors } = useTheme();
+  const { t } = useTranslation();
 
   const series = useShowStore((s) =>
     s.series.find((entry) => entry.id === seriesId),
@@ -107,11 +121,11 @@ export default function SeriesDetailScreen() {
     setStarting(true);
     try {
       const episodeId = await createEpisode(seriesId);
-      if (episodeId) toast.success('Recording started');
+      if (episodeId) toast.success(t('shows.recordingStarted'));
     } finally {
       setStarting(false);
     }
-  }, [createEpisode, seriesId]);
+  }, [createEpisode, seriesId, t]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -136,11 +150,10 @@ export default function SeriesDetailScreen() {
   const handleDeleteEpisode = useCallback(
     async (episodeId: string) => {
       const ok = await confirm({
-        title: 'Delete this episode everywhere?',
-        description:
-          'The recording is deleted from Syra too, along with its audio and every listener saved place in it. This cannot be undone.',
-        confirmLabel: 'Delete everywhere',
-        cancelLabel: 'Cancel',
+        title: t('shows.deleteEpisode.title'),
+        description: t('shows.deleteEpisode.description'),
+        confirmLabel: t('shows.deleteEverywhere'),
+        cancelLabel: t('common.cancel'),
         destructive: true,
       });
       if (!ok) return;
@@ -148,13 +161,13 @@ export default function SeriesDetailScreen() {
       const removed = await deleteEpisode(seriesId, episodeId);
       if (!removed) {
         toast.error(
-          useShowStore.getState().error ?? 'Could not remove the episode',
+          useShowStore.getState().error ?? t('shows.deleteEpisode.failed'),
         );
         return;
       }
-      toast.success('Episode deleted from Alia and Syra');
+      toast.success(t('shows.deleteEpisode.done'));
     },
-    [deleteEpisode, seriesId],
+    [deleteEpisode, seriesId, t],
   );
 
   /**
@@ -173,23 +186,24 @@ export default function SeriesDetailScreen() {
    */
   const handleDeleteSeries = useCallback(async () => {
     const ok = await confirm({
-      title: 'Delete this show everywhere?',
-      description:
-        'The podcast is deleted from Syra too, with every episode, all of their audio, and everyone subscribed to it. This cannot be undone.',
-      confirmLabel: 'Delete everywhere',
-      cancelLabel: 'Cancel',
+      title: t('shows.deleteShow.title'),
+      description: t('shows.deleteShow.description'),
+      confirmLabel: t('shows.deleteEverywhere'),
+      cancelLabel: t('common.cancel'),
       destructive: true,
     });
     if (!ok) return;
 
     const removed = await deleteSeries(seriesId);
     if (!removed) {
-      toast.error(useShowStore.getState().error ?? 'Could not remove the show');
+      toast.error(
+        useShowStore.getState().error ?? t('shows.deleteShow.failed'),
+      );
       return;
     }
-    toast.success('Show deleted from Alia and Syra');
+    toast.success(t('shows.deleteShow.done'));
     router.back();
-  }, [deleteSeries, seriesId, router]);
+  }, [deleteSeries, seriesId, router, t]);
 
   const openOnSyra = useCallback(() => {
     if (!series) return;
@@ -261,13 +275,13 @@ export default function SeriesDetailScreen() {
               size="label-small"
               variant="subtle"
               icon={visibility.icon}
-              content={visibility.label}
+              content={t(visibility.label)}
             />
-            <Text className="text-xs capitalize text-muted-foreground">
-              {series.format}
+            <Text className="text-xs text-muted-foreground">
+              {t(`shows.formatName.${series.format}.label`)}
             </Text>
             <Text className="text-xs text-muted-foreground">
-              {formatEpisodeCount(episodes.length)}
+              {formatEpisodeCount(episodes.length, t)}
             </Text>
           </View>
 
@@ -279,7 +293,7 @@ export default function SeriesDetailScreen() {
               onPress={handleNewEpisode}
               disabled={starting}
             >
-              {starting ? 'Starting...' : 'New episode'}
+              {starting ? t('shows.starting') : t('shows.newEpisode')}
             </Button>
             {/*
               The other case, kept and kept QUIET: usually there is nothing
@@ -294,9 +308,9 @@ export default function SeriesDetailScreen() {
               onPress={() => setCreateOpen(true)}
               disabled={starting}
               accessibilityRole="button"
-              accessibilityLabel="Say what this episode should cover"
+              accessibilityLabel={t('shows.somethingSpecificLabel')}
             >
-              Something specific
+              {t('shows.somethingSpecific')}
             </Button>
             <Button
               tone="neutral"
@@ -305,9 +319,9 @@ export default function SeriesDetailScreen() {
               leadingIcon={RiExternalLinkLine}
               onPress={openOnSyra}
               accessibilityRole="link"
-              accessibilityLabel="Open this podcast on Syra"
+              accessibilityLabel={t('shows.openOnSyraLabel')}
             >
-              Open on Syra
+              {t('shows.openOnSyra')}
             </Button>
           </View>
         </View>
@@ -326,14 +340,14 @@ export default function SeriesDetailScreen() {
             size="xs"
             onPress={() => setDescriptionExpanded((value) => !value)}
           >
-            {descriptionExpanded ? 'Show less' : 'Show more'}
+            {descriptionExpanded ? t('shows.showLess') : t('shows.showMore')}
           </Button>
         ) : null}
       </View>
 
       {series.speakers.length > 0 ? (
         <View className="gap-1">
-          <H5>Hosts</H5>
+          <H5>{t('shows.hosts')}</H5>
           {series.speakers.map((speaker) => (
             <Item
               key={`${speaker.name}-${speaker.voiceId}`}
@@ -346,7 +360,11 @@ export default function SeriesDetailScreen() {
                 <Avatar name={speaker.name} size={44} color="neutral" />
               }
               title={speaker.name}
-              subtitle={`${speaker.role} · ${speaker.voiceName}`}
+              subtitle={`${
+                SPEAKER_ROLES.has(speaker.role)
+                  ? t(`shows.role.${speaker.role}`)
+                  : speaker.role
+              } · ${speaker.voiceName}`}
               subtitleStyle={{ textTransform: 'capitalize' }}
             />
           ))}
@@ -354,10 +372,10 @@ export default function SeriesDetailScreen() {
       ) : null}
 
       <View className="flex-row items-baseline justify-between">
-        <H5>Episodes</H5>
+        <H5>{t('shows.episodes')}</H5>
         {episodes.length > 0 ? (
           <Text className="text-xs text-muted-foreground">
-            {formatEpisodeCount(episodes.length)}
+            {formatEpisodeCount(episodes.length, t)}
           </Text>
         ) : null}
       </View>
@@ -377,21 +395,27 @@ export default function SeriesDetailScreen() {
         ListHeaderComponent={header}
         ListEmptyComponent={
           <EmptyState
-            title="No episodes yet"
-            description={`Alia will work out what the first one covers from what this show is about, write it, voice it with ${series.speakers
-              .map((speaker) => speaker.name)
-              .join(' and ')}, and publish it.`}
+            title={t('shows.noEpisodes.title')}
+            description={
+              series.speakers.length > 0
+                ? t('shows.noEpisodes.description', {
+                    hosts: series.speakers
+                      .map((speaker) => speaker.name)
+                      .join(t('shows.hostsJoiner')),
+                  })
+                : t('shows.noEpisodes.descriptionNoHosts')
+            }
             action={{
-              label: starting ? 'Starting...' : 'Record the first episode',
+              label: starting ? t('shows.starting') : t('shows.noEpisodes.action'),
               icon: RiAddLine,
               onPress: handleNewEpisode,
               disabled: starting,
             }}
             secondaryAction={{
-              label: 'Or say what it should cover',
+              label: t('shows.noEpisodes.secondary'),
               onPress: () => setCreateOpen(true),
               disabled: starting,
-              accessibilityLabel: 'Say what the first episode should cover',
+              accessibilityLabel: t('shows.noEpisodes.secondaryLabel'),
             }}
           />
         }
@@ -404,9 +428,9 @@ export default function SeriesDetailScreen() {
               leadingIcon={RiDeleteBinLine}
               onPress={handleDeleteSeries}
               accessibilityRole="button"
-              accessibilityLabel="Remove this show from Alia"
+              accessibilityLabel={t('shows.deleteShow.button')}
             >
-              Remove this show from Alia
+              {t('shows.deleteShow.button')}
             </Button>
           </View>
         }

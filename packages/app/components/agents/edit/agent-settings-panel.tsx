@@ -1,4 +1,5 @@
 import { TelegramBotsSection } from '@/components/agents/edit/telegram-bots-section';
+import { AGENT_CATEGORIES, agentCategoryLabel } from '@/lib/agents/category';
 import type { AgentDraft } from '@/lib/hooks/agents/use-agent-autosave';
 import type { AgentTelegramBots } from '@/lib/hooks/agents/use-agent-telegram-bots';
 import { useTranslation } from '@/lib/hooks/use-translation';
@@ -12,15 +13,6 @@ import { Switch } from '@oxy.so/bloom/switch';
 import { TextFieldInput as Input } from '@oxy.so/bloom/text-field';
 import { Textarea } from '@oxy.so/bloom/textarea';
 import { View } from 'react-native';
-
-const CATEGORIES = [
-  'Assistant',
-  'Creative',
-  'Developer',
-  'Research',
-  'Business',
-  'Education',
-];
 
 /** How the agent is listed and who may use it, plus the bots it answers on. */
 export function AgentSettingsPanel({
@@ -42,9 +34,12 @@ export function AgentSettingsPanel({
     <>
       {/* Category */}
       <View className="gap-1.5">
-        <Label>Category</Label>
-        <ChipRow role="radiogroup" accessibilityLabel="Category">
-          {CATEGORIES.map((cat) => (
+        <Label>{t('agents.listing.category')}</Label>
+        <ChipRow
+          role="radiogroup"
+          accessibilityLabel={t('agents.listing.category')}
+        >
+          {AGENT_CATEGORIES.map((cat) => (
             <Chip
               key={cat}
               size="xl"
@@ -52,7 +47,7 @@ export function AgentSettingsPanel({
               selected={category === cat}
               onPress={() => onEdit({ category: cat })}
             >
-              {cat}
+              {agentCategoryLabel(cat, t)}
             </Chip>
           ))}
         </ChipRow>
@@ -60,35 +55,37 @@ export function AgentSettingsPanel({
 
       {/* Tagline */}
       <View className="gap-1.5">
-        <Label>Tagline</Label>
+        <Label>{t('agents.listing.tagline')}</Label>
         <Input
-          label="Short description"
+          label={t('agents.listing.taglinePlaceholder')}
           value={tagline}
           onChangeText={(text) => onEdit({ tagline: text })}
-          placeholder="Short description"
+          placeholder={t('agents.listing.taglinePlaceholder')}
         />
       </View>
 
       {/* Description */}
       <View className="gap-1.5">
-        <Label>Description</Label>
+        <Label>{t('agents.listing.description')}</Label>
         <Textarea
           value={description}
           onChangeText={(text) => onEdit({ description: text })}
-          placeholder="Full description..."
+          placeholder={t('agents.listing.descriptionPlaceholder')}
           autoResize
         />
       </View>
 
-      {/* Price */}
+      {/* Price — in CREDITS, a whole number: the API takes an integer
+          (`z.number().int()`) and charges it per task. It was labelled "USD"
+          with a decimal keypad, which is a currency this field never held. */}
       <View className="gap-1.5">
-        <Label>Price per use (USD)</Label>
+        <Label>{t('agents.listing.price')}</Label>
         <Input
-          label="Free (leave empty)"
+          label={t('agents.listing.pricePlaceholder')}
           value={price}
           onChangeText={(text) => onEdit({ price: text })}
-          placeholder="Free (leave empty)"
-          keyboardType="decimal-pad"
+          placeholder={t('agents.listing.pricePlaceholder')}
+          keyboardType="number-pad"
         />
       </View>
 

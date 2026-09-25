@@ -5,6 +5,7 @@ import {
   useAcceptOrgInvite,
   useOrgInviteInfo,
 } from '@/lib/hooks/use-organization-invites';
+import { useTranslation } from '@/lib/hooks/use-translation';
 import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { RiArrowRightLine } from '@oxy.so/bloom/icons/RiArrowRightLine';
 import { RiErrorWarningLine } from '@oxy.so/bloom/icons/RiErrorWarningLine';
@@ -28,25 +29,32 @@ export default function OrgInviteScreen() {
   const acceptMutation = useAcceptOrgInvite();
   const [accepted, setAccepted] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { t } = useTranslation();
 
-  const orgName = inviteData?.invite?.organization?.name || 'this organization';
-  const role = inviteData?.invite?.role || 'member';
+  const orgName =
+    inviteData?.invite?.organization?.name || t('orgInvite.thisOrganization');
+  const rawRole = inviteData?.invite?.role || 'member';
+  // The roles the API issues have words of their own; anything else is shown
+  // as the API spelled it rather than as a guessed key.
+  const role = ['owner', 'admin', 'member'].includes(rawRole)
+    ? t(`orgInvite.role.${rawRole}`)
+    : rawRole;
 
   const handleAccept = React.useCallback(() => {
     if (!token) return;
     acceptMutation.mutate(token, {
       onSuccess: () => setAccepted(true),
       onError: (err: any) => {
-        setError(errorMessage(err, 'Failed to accept invitation'));
+        setError(errorMessage(err, t('orgInvite.acceptFailed')));
       },
     });
-  }, [token, acceptMutation]);
+  }, [token, acceptMutation, t]);
 
   if (authLoading || infoLoading) {
     return (
       <AuthContainer>
         <AuthLogo />
-        <Loading text="Loading..." />
+        <Loading text={t('common.loading')} />
       </AuthContainer>
     );
   }
@@ -56,16 +64,16 @@ export default function OrgInviteScreen() {
     return (
       <>
         <Head>
-          <title>Invalid Invite - Alia</title>
+          <title>{t('orgInvite.invalidTitle')}</title>
         </Head>
         <AuthContainer>
           <EmptyState
             icon={RiErrorWarningLine}
             media="circle"
-            title="Invite not found"
-            description="This invitation link is invalid, expired, or has already been used."
+            title={t('orgInvite.notFound')}
+            description={t('orgInvite.notFoundDescription')}
             action={{
-              label: 'Go to Alia',
+              label: t('invitePage.goToAlia'),
               icon: RiArrowRightLine,
               onPress: () => router.replace('/(app)'),
             }}
@@ -80,10 +88,10 @@ export default function OrgInviteScreen() {
     return (
       <>
         <Head>
-          <title>Join {orgName} - Alia</title>
+          <title>{t('orgInvite.pageTitle', { org: orgName })}</title>
           <meta
             name="description"
-            content={`Join ${orgName} on Alia as a ${role}.`}
+            content={t('orgInvite.metaJoin', { org: orgName, role })}
           />
         </Head>
         <AuthContainer>
@@ -91,10 +99,13 @@ export default function OrgInviteScreen() {
             <EmptyState
               icon={RiTeamLine}
               media="circle"
-              title={`You've joined ${orgName}!`}
-              description={`You're now a ${role} of ${orgName}.`}
+              title={t('orgInvite.joined', { org: orgName })}
+              description={t('orgInvite.joinedDescription', {
+                org: orgName,
+                role,
+              })}
               action={{
-                label: 'Continue',
+                label: t('common.continue'),
                 icon: RiArrowRightLine,
                 onPress: () => router.replace('/(app)'),
               }}
@@ -103,10 +114,10 @@ export default function OrgInviteScreen() {
             <EmptyState
               icon={RiTeamLine}
               media="circle"
-              title="Couldn't join"
+              title={t('orgInvite.joinFailed')}
               description={error}
               action={{
-                label: 'Go to Alia',
+                label: t('invitePage.goToAlia'),
                 icon: RiArrowRightLine,
                 onPress: () => router.replace('/(app)'),
               }}
@@ -115,10 +126,12 @@ export default function OrgInviteScreen() {
             <EmptyState
               icon={RiTeamLine}
               media="circle"
-              title={`Join ${orgName}`}
-              description={`You've been invited to join as a ${role}.`}
+              title={t('orgInvite.join', { org: orgName })}
+              description={t('orgInvite.invitedAs', { role })}
               action={{
-                label: acceptMutation.isPending ? 'Joining...' : 'Accept & Join',
+                label: acceptMutation.isPending
+                  ? t('orgInvite.joining')
+                  : t('orgInvite.accept'),
                 icon: RiTeamLine,
                 onPress: handleAccept,
                 disabled: acceptMutation.isPending,
@@ -135,22 +148,28 @@ export default function OrgInviteScreen() {
   return (
     <>
       <Head>
-        <title>Join {orgName} - Alia</title>
-        <meta name="description" content={`Sign in to join ${orgName} on Alia.`} />
+        <title>{t('orgInvite.pageTitle', { org: orgName })}</title>
+        <meta
+          name="description"
+          content={t('orgInvite.metaSignIn', { org: orgName })}
+        />
       </Head>
       <AuthContainer>
         <EmptyState
           icon={RiTeamLine}
           media="circle"
-          title={`Join ${orgName}`}
-          description={`Sign in or create an account to join ${orgName} as a ${role}.`}
+          title={t('orgInvite.join', { org: orgName })}
+          description={t('orgInvite.signInDescription', {
+            org: orgName,
+            role,
+          })}
           action={{
-            label: 'Sign up & join',
+            label: t('orgInvite.signUp'),
             icon: RiTeamLine,
             onPress: () => signIn().catch(() => {}),
           }}
           secondaryAction={{
-            label: 'Already have an account? Sign in',
+            label: t('invitePage.signIn'),
             icon: RiLoginBoxLine,
             onPress: () => signIn().catch(() => {}),
           }}
