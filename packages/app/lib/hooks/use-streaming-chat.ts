@@ -1073,13 +1073,6 @@ export function useStreamingChat(apiUrl: string, conversationId?: string, reason
         }
       }
 
-      // The send landed, so a draft parked for THIS composer is stale — clearing
-      // it stops the text reappearing when the screen remounts. A draft aimed at
-      // another screen is none of this send's business.
-      const parkedDraft = useStore.getState().composerDraft;
-      if (parkedDraft && parkedDraft.target === (conversationId ?? null)) {
-        useStore.getState().clearComposerDraft();
-      }
       return 'sent';
     } catch (e: unknown) {
       // Ignore abort errors (user cancelled) — partial output is theirs to keep.

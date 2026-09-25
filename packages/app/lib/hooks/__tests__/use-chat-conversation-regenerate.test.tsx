@@ -34,7 +34,6 @@ const chat = vi.hoisted(() => ({
   setTo: null as unknown,
   /** What the next `append` reports; 'failed' exercises the rollback path. */
   outcome: 'sent' as 'sent' | 'failed' | 'errored',
-  composerDraft: null as unknown,
 }));
 
 vi.mock('@/lib/hooks/use-streaming-chat', () => ({
@@ -68,9 +67,6 @@ vi.mock('@/lib/stores/global-store', () => {
     streamingChatId: null,
     setChatId: vi.fn(),
     setBottomChatHeightHandler: vi.fn(),
-    clearAttachments: vi.fn(),
-    setAttachments: vi.fn(),
-    setComposerDraft: vi.fn((draft: unknown) => { chat.composerDraft = draft; }),
     clearPendingInitialMessage: vi.fn(),
     setPendingInitialMessage: vi.fn(),
   };
@@ -101,6 +97,7 @@ vi.mock('@/lib/api/notifications-socket', () => ({
 }));
 
 import { useChatConversation } from '@/lib/hooks/use-chat-conversation';
+import { useComposerDraftStore } from '@/lib/stores/composer-draft-store';
 
 let api: ReturnType<typeof useChatConversation>;
 
@@ -126,7 +123,7 @@ beforeEach(() => {
   chat.appendedOptions = [];
   chat.setTo = null;
   chat.outcome = 'sent';
-  chat.composerDraft = null;
+  useComposerDraftStore.setState({ account: null, drafts: {} });
 });
 
 const PICTURE = { type: 'image_url', image_url: { url: 'https://example.test/a.png' } };
@@ -338,7 +335,7 @@ describe('editMessage', () => {
     expect(outcome).toBe(false);
     // The thread is put back exactly as it was, so the picture is not orphaned.
     expect(chat.setTo).toEqual(chat.messages);
-    // The composer gets the text back — the only part it can show.
-    expect(chat.composerDraft).toMatchObject({ text: 'what breed is this', target: 'c1' });
+    // This chat's composer gets the text back — the only part it can show.
+    expect(useComposerDraftStore.getState().drafts.c1).toMatchObject({ text: 'what breed is this' });
   });
 });
