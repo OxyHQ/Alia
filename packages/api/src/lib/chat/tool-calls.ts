@@ -15,15 +15,15 @@ export function isInvalidToolCall(call: { readonly invalid?: boolean }): boolean
  * A completed call and its result, as the two messages a follow-up replays.
  *
  * A result the model reads must follow the assistant message that made the
- * call, in the SDK's own shape — `tool-call` content parts carrying `input`.
+ * call, in the SDK's own shape — `tool-call` content parts carrying `input`,
+ * not v4's `toolCalls: [{ args }]`, which v6 does not read.
  */
-export function toolRoundTrip(call: {
+export function toolRoundTrip({ toolCallId, toolName, args, result }: {
   readonly toolCallId: string;
   readonly toolName: string;
   readonly args?: unknown;
   readonly result?: unknown;
 }): ModelMessage[] {
-  const { toolCallId, toolName, args, result } = call;
   return [
     { role: 'assistant', content: [{ type: 'tool-call', toolCallId, toolName, input: args ?? {} }] },
     {

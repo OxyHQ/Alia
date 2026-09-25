@@ -20,7 +20,7 @@
  * Import seams (`ai`, `../chat-core.js`, `../logger.js`) match the paths the
  * route used inline so the timeout suite's module mocks keep intercepting them.
  */
-import { stepCountIs, type ToolSet } from 'ai';
+import { stepCountIs, type ModelMessage, type ToolSet } from 'ai';
 import { getAIModel, type ResolvedModel } from '../chat-core.js';
 import { log } from '../logger.js';
 import type { CreditUsage } from '../credits-manager.js';
@@ -32,7 +32,7 @@ export interface BuildBaseConfigParams {
   resolved: ResolvedModel;
   /** Request body — read for `temperature`, `max_tokens`, and `stream`. */
   body: Record<string, unknown> & { stream?: boolean };
-  convertedMessages: unknown[];
+  convertedMessages: ModelMessage[];
   truncatedTools: ToolSet;
   /**
    * How hard the caller asked this request to think, or `null` for the model's
