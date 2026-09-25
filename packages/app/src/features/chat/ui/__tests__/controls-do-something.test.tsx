@@ -110,6 +110,7 @@ function texts(root: ReactTestInstance): string[] {
 describe('the agent header', () => {
   const props = {
     isOwner: true,
+    canChat: true,
     price: 12,
     onEdit: vi.fn(),
     onChat: vi.fn(),
@@ -127,6 +128,12 @@ describe('the agent header', () => {
       'Share',
     ]);
     expect(items.every((item) => typeof item.props.onPress === 'function')).toBe(true);
+  });
+
+  it("offers no Chat on a private agent this person cannot talk to", () => {
+    const root = render(<AgentHeaderActions {...props} isOwner={false} canChat={false} />);
+    const labels = all(root, 'ButtonGroupItem').map((item) => item.props.accessibilityLabel ?? texts(item).join(''));
+    expect(labels).toEqual(['Start task · 12 credits', 'Share']);
   });
 
   it('has no Report or Bookmark: nothing received a report, nothing read a bookmark', () => {
