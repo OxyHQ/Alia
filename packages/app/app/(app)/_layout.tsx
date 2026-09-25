@@ -24,16 +24,8 @@ import { useOxy } from '@oxy.so/services';
 import { useScrollRestoration } from '@oxy.so/bloom/scroll';
 import { Navigator, Stack, usePathname, useRouter, type Href } from 'expo-router';
 import React, { useEffect, useMemo } from 'react';
-import { Platform } from 'react-native';
+import { Platform, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-
-// Routes that handle their own top safe area insets
-const SELF_INSET_ROUTES = new Set([
-  'index',
-  'c/[id]/index',
-  '[username]',
-  'settings',
-]);
 
 /** Routes that compose their own `AiChatContainer` (theirs holds the composer). */
 const CHAT_ROUTES = new Set(['index', 'c/[id]/index', '[username]']);
@@ -115,14 +107,12 @@ export default function AppLayout() {
     [],
   );
 
-  // The router owns routes; Bloom owns the frame and the chat header's insets.
-  const screenOptions = ({ route }: { route: { name: string } }) => ({
+  // The router owns routes; Bloom owns the frame. The status bar's inset is
+  // taken once, around the whole shell (below), so no page adds its own.
+  const screenOptions = {
     headerShown: false,
-    contentStyle: {
-      paddingTop: SELF_INSET_ROUTES.has(route.name) ? 0 : insets.top,
-      backgroundColor: 'transparent',
-    },
-  });
+    contentStyle: { backgroundColor: 'transparent' },
+  };
 
   /**
    * Every page stands on the layout's surface: Bloom's `AiChatContainer`, with
@@ -164,46 +154,61 @@ export default function AppLayout() {
     );
   };
 
+  const shell = (
+    <AiChatShell
+      // The page scrolls the document, as every Oxy web app does.
+      scroll="document"
+      sidebar={sidebar}
+      mobileSidebar={mobileSidebar}
+      labels={shellLabels}
+      defaultPanelWidth={rightPanelWidth}
+      // The panel exists only while something has opened it: the agent at
+      // work (its tools, the files it writes, a run) or the chat's menu.
+      // Closed, the conversation has the whole width.
+      panelOpen={rightPanel !== null}
+      onPanelOpenChange={(open) => {
+        if (open || rightPanel === null) return;
+        setRightPanel(null);
+        if (rightPanel === 'thought') restoreOpenerFocus();
+      }}
+      panelLabel={panelChrome.label}
+      panelIcon={panelChrome.icon}
+      panel={rightPanel === null ? undefined : (width) => <WorkspacePanel width={width} />}
+    >
+      {Platform.OS === 'web' ? (
+        // The page flows in the document, which is what scrolls on web;
+        // native-stack's web scene is absolutely positioned and would
+        // pin it to one screen.
+        <Navigator screenOptions={screenOptions}>
+          <Navigator.Screen name="c/[id]/index" options={{ title: i18n.t('nav.chat') }} />
+          <FocusedPage layout={screenLayout} />
+        </Navigator>
+      ) : (
+        <Stack screenOptions={screenOptions} screenLayout={screenLayout}>
+          <Stack.Screen
+            name="c/[id]/index"
+            options={{ title: i18n.t('nav.chat') }}
+          />
+        </Stack>
+      )}
+    </AiChatShell>
+  );
+
   return (
     <AppErrorBoundary>
       <AliaSettingsProvider>
-        <AiChatShell
-          // The page scrolls the document, as every Oxy web app does.
-          scroll="document"
-          sidebar={sidebar}
-          mobileSidebar={mobileSidebar}
-          labels={shellLabels}
-          defaultPanelWidth={rightPanelWidth}
-          // The panel exists only while something has opened it: the agent at
-          // work (its tools, the files it writes, a run) or the chat's menu.
-          // Closed, the conversation has the whole width.
-          panelOpen={rightPanel !== null}
-          onPanelOpenChange={(open) => {
-            if (open || rightPanel === null) return;
-            setRightPanel(null);
-            if (rightPanel === 'thought') restoreOpenerFocus();
-          }}
-          panelLabel={panelChrome.label}
-          panelIcon={panelChrome.icon}
-          panel={rightPanel === null ? undefined : (width) => <WorkspacePanel width={width} />}
-        >
-          {Platform.OS === 'web' ? (
-            // The page flows in the document, which is what scrolls on web;
-            // native-stack's web scene is absolutely positioned and would
-            // pin it to one screen.
-            <Navigator screenOptions={screenOptions}>
-              <Navigator.Screen name="c/[id]/index" options={{ title: i18n.t('nav.chat') }} />
-              <FocusedPage layout={screenLayout} />
-            </Navigator>
-          ) : (
-            <Stack screenOptions={screenOptions} screenLayout={screenLayout}>
-              <Stack.Screen
-                name="c/[id]/index"
-                options={{ title: i18n.t('nav.chat') }}
-              />
-            </Stack>
-          )}
-        </AiChatShell>
+        {Platform.OS === 'web' ? (
+          shell
+        ) : (
+          // Android draws the app edge to edge and Bloom's shell takes no
+          // safe area: without this its frame, the chat header's menu button
+          // and the drawer all start under the status bar, where the system
+          // takes the touch (the button did nothing to a tap on its top two
+          // thirds). The strip above shows the root's background, which is
+          // the shell's own surface colour. The composer keeps the bottom
+          // inset itself (`chat-page-content.tsx`).
+          <View style={{ flex: 1, paddingTop: insets.top }}>{shell}</View>
+        )}
         <CommandPalette />
         <KeyboardShortcutsDialog />
       </AliaSettingsProvider>
