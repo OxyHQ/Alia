@@ -17,6 +17,7 @@ import { Button } from '@oxy.so/bloom/button';
 import { VoiceModeIcon } from '@/components/icons/voice-mode-icon';
 import { toast } from '@oxy.so/bloom/toast';
 import { useRouter } from 'expo-router';
+import { useScreenOnShow } from '@/lib/hooks/use-screen-on-show';
 import type { Attachment } from '@/components/chat/composer/types';
 import type { AgentActivityState } from '@/lib/hooks/use-agent-activity';
 import type { FailedTurn, SendOptions } from '@/lib/hooks/use-streaming-chat';
@@ -237,6 +238,7 @@ export const ChatPageContent = ({
     isGenerating: isLoading,
   });
   const insets = useSafeAreaInsets();
+  const onShow = useScreenOnShow();
   /**
    * The chat's folder, as the sidebar's tree files it: its project, or
    * "Recent". It is the breadcrumb's crumb and the composer's status tab.
@@ -414,6 +416,9 @@ export const ChatPageContent = ({
           agentState={wave.agentState}
           intensity={wave.intensity}
           isDarkMode={isDarkColorScheme}
+          // The native stack keeps this screen mounted under whatever is
+          // pushed over it; its field does not keep animating back there.
+          paused={!onShow}
         />
       }
       project={projectName}

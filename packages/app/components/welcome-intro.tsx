@@ -9,6 +9,7 @@ import { IdentityMark } from '@alia.onl/sdk';
 import { Button } from '@oxy.so/bloom/button';
 import { Text } from '@oxy.so/bloom/typography';
 import { useAuth } from '@oxy.so/services';
+import { useScreenOnShow } from '@/lib/hooks/use-screen-on-show';
 import { useEffect, useState, type ReactNode } from 'react';
 import {
   Platform,
@@ -96,6 +97,8 @@ export function WelcomeIntro({
   const { t } = useTranslation();
   const { isDarkColorScheme } = useColorScheme();
   const { signIn } = useAuth();
+  // A route pushed over the intro keeps it mounted; its field stops meanwhile.
+  const onShow = useScreenOnShow();
 
   const headline = t('welcome.intro.headline');
   const [typed, setTyped] = useState(0);
@@ -270,6 +273,7 @@ export function WelcomeIntro({
       isDarkMode={isDarkColorScheme}
       pointerX={pointerX}
       pointerY={pointerY}
+      paused={!onShow}
     />
   );
 

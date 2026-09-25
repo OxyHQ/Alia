@@ -35,7 +35,8 @@ import { Button } from '@oxy.so/bloom/button';
 import { confirm } from '@oxy.so/bloom/surfaces';
 import { toast } from '@oxy.so/bloom/toast';
 import { useOxy } from '@oxy.so/services';
-import { useIsFocused, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
+import { useScreenOnShow } from '@/lib/hooks/use-screen-on-show';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { View } from 'react-native';
@@ -322,7 +323,7 @@ export const ConversationScreen = ({
   // And it is this conversation's, this account's and this screen's: it ends
   // when any of the three stops being true (see `use-voice-mode.ts`).
   const { user } = useOxy();
-  const isFocused = useIsFocused();
+  const isFocused = useScreenOnShow();
   const voice = useVoiceMode({
     sendMessage: handleSubmit,
     stopGeneration,
