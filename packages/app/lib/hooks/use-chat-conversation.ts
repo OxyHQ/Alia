@@ -3,6 +3,7 @@ import { useRouter } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/hooks/query-keys";
 import { useStore, type Attachment } from "@/lib/stores/global-store";
+import { releaseAttachments, useComposerDraftStore } from "@/lib/stores/composer-draft-store";
 import { useStreamingChat, type SendOptions } from "@/lib/hooks/use-streaming-chat";
 import { ConversationNotFoundError, useClearConversation, useConversation, useCreateConversation, useDeleteConversation, type Message } from "@/lib/hooks/use-conversations";
 import { generateAPIUrl } from "@/lib/generate-api-url";
@@ -254,6 +255,9 @@ export function useChatConversation({ conversationId, reasoningEffort, selectedM
     if (messages.length > 0) return; // Only send if no messages yet
 
     const pending = pendingInitialMessage;
+    // Taken now: a failure is handed back to the account that sent it, never
+    // to one signed in while the request was out.
+    const newChatDraft = useComposerDraftStore.getState().address(null);
     hasSentPendingMessage.current = true;
     useStore.getState().setBottomChatHeightHandler(true);
     useStore.getState().clearPendingInitialMessage();
@@ -262,17 +266,21 @@ export function useChatConversation({ conversationId, reasoningEffort, selectedM
       { role: 'user', content: pending.content },
       { mcpServerId: pending.mcpServerId, skillNames: pending.skillNames },
     ).then(async (outcome) => {
-      if (outcome !== 'failed') return;
+      // The request carries the bytes inline now; the temporary URLs behind
+      // the tiles have nothing left to show.
+      if (outcome !== 'failed') {
+        releaseAttachments(pending.attachments);
+        return;
+      }
 
       // The conversation was created by POST /conversations/new before the model
       // was ever reached, and this guard ran on messages.length === 0, so the row
       // is provably empty. Undo it rather than leave a blank chat in the sidebar.
       // A failed delete still leaves the user whole — it only leaves the row.
       await deleteConversation(conversationId).catch(() => {});
-      useStore.getState().setAttachments(pending.attachments);
-      useStore.getState().setComposerDraft({
+      useComposerDraftStore.getState().restore(newChatDraft, {
         text: pending.text,
-        target: null,
+        attachments: pending.attachments,
         mcpServerId: pending.mcpServerId,
         skillNames: pending.skillNames,
       });
@@ -288,6 +296,7 @@ export function useChatConversation({ conversationId, reasoningEffort, selectedM
     options?: SendOptions,
   ): Promise<boolean> => {
     if ((!content.trim() && !attachments?.length) || isLoading) return false;
+    const draft = useComposerDraftStore.getState().address(conversationId ?? null);
 
     useStore.getState().setBottomChatHeightHandler(true);
 
@@ -296,8 +305,6 @@ export function useChatConversation({ conversationId, reasoningEffort, selectedM
       : null;
     const messageContent = built ? built.content : content;
     reportDroppedAttachments(built?.dropped);
-
-    useStore.getState().clearAttachments();
 
     const outcome = await append(
       { role: 'user', content: messageContent },
@@ -310,16 +317,18 @@ export function useChatConversation({ conversationId, reasoningEffort, selectedM
     // is `errored` — the turn stays in the thread with its error and a retry,
     // and the composer stays clear because the text is already on screen.
     if (outcome === 'failed') {
-      useStore.getState().setAttachments(attachments ?? []);
-      useStore.getState().setComposerDraft({
+      useComposerDraftStore.getState().restore(draft, {
         text: content,
-        target: conversationId ?? null,
+        attachments: attachments ?? [],
         mcpServerId: options?.mcpServerId ?? null,
         skillNames: options?.skillNames ?? [],
       });
       toast.error(i18n.t('chat.sendFailed'));
+      return false;
     }
-    return outcome !== 'failed';
+    // A retry re-sends the built content, whose bytes are inline.
+    releaseAttachments(attachments ?? []);
+    return true;
   }, [isLoading, append, conversationId]);
 
   const createNewConversation = useCallback(async (
@@ -328,6 +337,7 @@ export function useChatConversation({ conversationId, reasoningEffort, selectedM
     options?: SendOptions,
   ): Promise<boolean> => {
     if (!initialMessage.trim() && !attachments?.length) return false;
+    const draft = useComposerDraftStore.getState().address(null);
 
     // If there are attachments, build multi-part content and store it as pending.
     // The raw text and attachments ride along so a failed send can restore them.
@@ -344,7 +354,6 @@ export function useChatConversation({ conversationId, reasoningEffort, selectedM
       mcpServerId: options?.mcpServerId ?? null,
       skillNames: options?.skillNames ?? [],
     });
-    useStore.getState().clearAttachments();
 
     try {
       // Create conversation on backend and get the ID
@@ -358,10 +367,9 @@ export function useChatConversation({ conversationId, reasoningEffort, selectedM
       // message — left behind it auto-fires into the next empty conversation the
       // user opens — and hand the composer back what it was holding.
       useStore.getState().clearPendingInitialMessage();
-      useStore.getState().setAttachments(pendingAttachments);
-      useStore.getState().setComposerDraft({
+      useComposerDraftStore.getState().restore(draft, {
         text: initialMessage,
-        target: null,
+        attachments: pendingAttachments,
         mcpServerId: options?.mcpServerId ?? null,
         skillNames: options?.skillNames ?? [],
       });
@@ -377,6 +385,7 @@ export function useChatConversation({ conversationId, reasoningEffort, selectedM
     // Truncate to messages before the edited one, then re-send.
     // setMessages eagerly syncs messagesRef so append reads truncated history.
     const beforeEdit = messages;
+    const draft = useComposerDraftStore.getState().address(conversationId ?? null);
     const original = messages.find(msg => msg.id === messageId);
     // A string edit keeps the original turn's attachments; only a full parts
     // array replaces them. See `EditedContent`.
@@ -397,9 +406,8 @@ export function useChatConversation({ conversationId, reasoningEffort, selectedM
     // the composer gets the text, which is the part it can show.
     if (outcome === 'failed') {
       setMessages(beforeEdit);
-      useStore.getState().setComposerDraft({
+      useComposerDraftStore.getState().restore(draft, {
         text: getTextFromContent(content),
-        target: conversationId ?? null,
         mcpServerId: options?.mcpServerId ?? null,
         skillNames: options?.skillNames ?? [],
       });

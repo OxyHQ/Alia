@@ -63,9 +63,6 @@ vi.mock('@/lib/stores/global-store', () => {
     streamingChatId: null,
     setChatId: vi.fn(),
     setBottomChatHeightHandler: vi.fn(),
-    clearAttachments: vi.fn(),
-    setAttachments: vi.fn(),
-    setComposerDraft: vi.fn(),
     clearPendingInitialMessage: vi.fn(),
     setPendingInitialMessage: vi.fn(),
   };

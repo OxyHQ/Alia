@@ -143,7 +143,7 @@ const ChatPage = () => {
         onVoiceStart={handleVoiceStart}
         // No `conversationId`, deliberately: this is the new-chat screen,
         // and its absence is what `ChatPageContent` reads to decide which
-        // mounted instance a `composerDraft` belongs to. The drawer keeps
+        // mounted instance's draft is the new chat's. The drawer keeps
         // every visited chat alive, so naming an id here would hand this
         // screen's draft to a persisted conversation.
         messages={messages}

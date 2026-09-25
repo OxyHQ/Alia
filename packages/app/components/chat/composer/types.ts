@@ -17,12 +17,5 @@
  * no provider and no hook: only the types they share.
  */
 
-export interface Attachment {
-  id: string;
-  uri: string;
-  type: "image" | "document";
-  name: string;
-  size: number;
-  mimeType: string;
-  isLoading?: boolean;
-}
+/** One definition, beside the other state the app keeps outside components. */
+export type { Attachment } from "@/lib/stores/global-store";

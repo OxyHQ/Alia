@@ -5,6 +5,7 @@ import {
   type IntakeKind,
   type IntakeRefusal,
 } from "@/lib/chat/attachment-intake";
+import { releaseAttachmentUri } from "@/lib/stores/composer-draft-store";
 import type { Attachment } from "./types";
 
 /**
@@ -116,26 +117,11 @@ const startFileRead: StartRead = (file, handlers) => {
 };
 
 /**
- * Give back a temporary URL, if this one is temporary.
- *
- * On web BOTH pickers hand back `URL.createObjectURL(file)` —
- * `expo-document-picker`'s `readFileAsync` and `expo-image-picker`'s
- * `ExponentImagePicker.web.ts` both do it — and Alia revoked exactly none of
- * them. Every file picked on web pinned its own bytes in the page for as long
- * as the tab lived, removed from the composer or not. That is the leak #608
- * §6 names twice, and this is the release for it.
- *
- * `data:` URLs are plain strings and are collected with the attachment that
- * holds them; there is nothing to revoke and calling `revokeObjectURL` on one
- * is a no-op in every browser, but asking the question is cheaper than relying
- * on that.
+ * Give back a temporary URL — owned by the draft store, which releases what a
+ * draft holds when a tile is removed or the account changes. Re-exported for
+ * the composer's own uncontrolled list.
  */
-export function releaseAttachmentUri(uri: string | undefined): void {
-  if (uri === undefined || !uri.startsWith("blob:")) return;
-  if (typeof URL === "undefined" || typeof URL.revokeObjectURL !== "function")
-    return;
-  URL.revokeObjectURL(uri);
-}
+export { releaseAttachmentUri };
 
 /**
  * Give back what the attachment being removed was holding.

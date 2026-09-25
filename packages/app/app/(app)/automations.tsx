@@ -29,7 +29,7 @@ export default function AutomationsScreen() {
   const router = useRouter();
   const { t } = useTranslation();
   const createConversation = useCreateConversation();
-  const composer = useAliaComposer({ locked: createConversation.isPending });
+  const composer = useAliaComposer({ draft: 'surface:automations', locked: createConversation.isPending });
   const [prompt, setPrompt] = useState('');
 
   const startConversation = async (message: string) => {
