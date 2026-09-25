@@ -47,7 +47,6 @@ ANDROID_HOME=~/Android/Sdk NODE_ENV=production \
 # first build 3 min 9 s from clean; later ones 1.5–2 min
 
 adb -P 5041 install -r app/build/outputs/apk/release/app-release.apk
-adb -P 5041 shell pm clear onl.alia.app           # signed-out, first-run state
 adb -P 5041 shell am start -W -n onl.alia.app/.MainActivity
 adb -P 5041 exec-out screencap -p > shot.png
 adb -P 5041 logcat -v time > logcat.txt
@@ -259,8 +258,11 @@ were built on this machine with `-PreactNativeArchitectures=arm64-v8a` (about
 `am start -n onl.alia.app/.MainActivity`, and screenshots are
 `exec-out screencap -p`.
 
-The phone carries Oxy Commons and Mention, and the Oxy identity is the device's:
-`pm clear onl.alia.app` does **not** sign Alia out, and after "Sign out" in
+The phone carries Oxy Commons and Mention, and the Oxy identity is the device's.
+**Never `pm clear` (or clear storage of) Alia on a device that has another Oxy
+app:** Alia, Mention and Commons share `sharedUserId so.oxy.shared`, and clearing
+any one of them wipes the Android Keystore for the whole UID — the Oxy identity
+keys and every app's sign-in. It does not even sign Alia out. After "Sign out" in
 Alia a cold start signs it straight back in through that shared session. So
 this pass is **signed in** (a QA account). Signed-out screens only last until
 the app restarts, and the phone was shared with another QA session, so the
