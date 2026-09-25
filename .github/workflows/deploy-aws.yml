@@ -438,13 +438,34 @@ jobs:
           # answered false on a task whose identity is its role — which is why
           # every Alia deploy failed its readiness gate with `Service credentials
           # not provided`. 1.7.1 fixes it, and this lockfile takes it.
-          # MEASURED 2026-09-20, and it is why the pair is out of this list again.
-          # The readiness task runs on the revision this list produces. With the
-          # pair removed it mints by attestation, and the gate reported
-          # `oxy.ready=false` with ALL EIGHT chat profiles missing — the attested
-          # token listed none of them. The rule below did not change; the answer
-          # to it did, and this is the first run that could actually test it.
-          TASK_SECRET_REMOVALS_JSON: '["AWS_ACCESS_KEY_ID","AWS_SECRET_ACCESS_KEY","KAANA_EDGE_SIGNING_PRIVATE_KEY","ALIA_RELAY_CREDENTIAL_KEY","ALIA_RELAY_CREDENTIAL_SECRET","ALIA_KAANA_CREDENTIAL_KEY","ALIA_KAANA_CREDENTIAL_SECRET"]'
+          # MEASURED 2026-09-20: with the pair removed the readiness task minted by
+          # attestation and reported `oxy.ready=false` with ALL EIGHT chat profiles
+          # missing. That is why the pair went back, twice.
+          #
+          # The cause was not scopes — it was one resolver away.
+          # `applicationForBearer` (oxy `routes/inferenceCatalogue.ts`) looked the
+          # caller up in `application_credentials` by the token's `credentialId`,
+          # which for an attested caller is a `wl_…` handle in no row. So it became
+          # a PUBLIC viewer, the unpublished catalogue served it an empty list, and
+          # eight profiles "went missing" with no error anywhere. oxy#1355 made a
+          # verified token re-read against the row that authorised it, whichever
+          # proof that is, and oxy#1368 gave an attested identity a real row so the
+          # usage ledger's foreign keys hold.
+          #
+          # MEASURED 2026-09-25 against the deployed fix, attested from
+          # `oxy-alia-task` with no pair anywhere:
+          #
+          #   GET /models/routing-profiles -> 200, count=9,
+          #   all eight of config/oxy-inference-routing-profile-ids.ts visible,
+          #   missingCount=0
+          #
+          # The rule this list has been governed by never moved: a removal is
+          # allowed once the authority survives it. Only the answer did, and it
+          # changed because something was fixed rather than because someone wanted
+          # the removal. The readiness task is still the final judge — it runs on
+          # the revision this list produces, so if the probe above is wrong the
+          # DEPLOY fails closed instead of shipping an Alia that cannot route.
+          TASK_SECRET_REMOVALS_JSON: '["AWS_ACCESS_KEY_ID","AWS_SECRET_ACCESS_KEY","KAANA_EDGE_SIGNING_PRIVATE_KEY","ALIA_RELAY_CREDENTIAL_KEY","ALIA_RELAY_CREDENTIAL_SECRET","ALIA_KAANA_CREDENTIAL_KEY","ALIA_KAANA_CREDENTIAL_SECRET","OXY_SERVICE_API_KEY","OXY_SERVICE_API_SECRET"]'
           # Remove every legacy plain Relay/direct-Kaana binding inherited from
           # the live task definition. Keeping a removal here is harmless after
           # the first clean revision and prevents a rollback descendant from
