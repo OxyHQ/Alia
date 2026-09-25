@@ -1,4 +1,6 @@
 import { useCallback, useMemo } from "react";
+import { Platform } from "react-native";
+import { toast } from "@oxy.so/bloom/toast";
 import { Image } from "@/shared/ui/image";
 import { RiCameraLine } from "@oxy.so/bloom/icons/RiCameraLine";
 import { RiImageLine } from "@oxy.so/bloom/icons/RiImageLine";
@@ -15,6 +17,7 @@ import { ActionKeyIcon } from "@/shared/ui/action-key-icon";
 import { useImagePicker, type ImagePickerAsset } from "@/shared/platform/use-image-picker";
 import { useDocumentPicker } from "@/shared/platform/use-document-picker";
 import { useTranslation } from "@/shared/i18n/use-translation";
+import { classifyIntake, MAX_ATTACHMENT_BYTES } from "@/features/chat/model/attachment-intake";
 import type { TurnSelectionOptions } from "@/features/chat/model/turn-selection";
 import type { Attachment } from "./types";
 
@@ -305,6 +308,22 @@ export function useComposerAddMenu(options: ComposerAddMenuOptions): ComposerAdd
           if (!canAttach) return;
           void pickDocument().then((docs) => {
             docs?.forEach((doc) => {
+              // The picker passes the same gate as a drop or a paste. Only on
+              // web is its size the file's own (`File.size`); a native picker
+              // may not know it and reports 0, so there only the ceiling
+              // applies.
+              const verdict = classifyIntake({ name: doc.name, mimeType: doc.mimeType, size: doc.size });
+              if (!verdict.accepted && (Platform.OS === "web" || verdict.refusal === "too-large")) {
+                toast.error(
+                  verdict.refusal === "too-large"
+                    ? t("composer.fileTooLarge", {
+                        name: doc.name,
+                        limit: `${Math.round(MAX_ATTACHMENT_BYTES / (1024 * 1024))} MB`,
+                      })
+                    : t("composer.fileEmpty", { name: doc.name }),
+                );
+                return;
+              }
               addAttachment({
                 id: `doc-${Date.now()}-${Math.random().toString(36).slice(2)}`,
                 uri: doc.uri,
@@ -342,6 +361,7 @@ export function useComposerAddMenu(options: ComposerAddMenuOptions): ComposerAdd
     [
       addAttachment,
       addImages,
+      t,
       canAttach,
       onOpenCanvas,
       onToggleConnector,

@@ -32,6 +32,10 @@ const pickers = vi.hoisted(() => ({
   pickDocument: vi.fn(async () => []),
 }));
 
+const toasts = vi.hoisted(() => ({ error: vi.fn() }));
+vi.mock('@oxy.so/bloom/toast', () => ({ toast: toasts }));
+vi.mock('react-native', () => ({ Platform: { OS: 'web' } }));
+
 vi.mock('@/shared/platform/use-image-picker', () => ({
   useImagePicker: () => ({ pickImage: pickers.pickImage, takePhoto: pickers.takePhoto }),
 }));
@@ -344,5 +348,24 @@ describe('a press reaches the thing it names', () => {
     expect(options.toggleMode).not.toHaveBeenCalled();
     expect(options.onOpenCanvas).not.toHaveBeenCalled();
     expect(pickers.pickImage).not.toHaveBeenCalled();
+  });
+});
+
+describe('the file picker passes the same gate as a drop', () => {
+  it('turns away an empty file with a toast, and attaches one with bytes in it', async () => {
+    pickers.pickDocument.mockResolvedValueOnce([
+      { uri: 'blob:empty', name: 'folder', mimeType: '', size: 0 },
+      { uri: 'blob:notes', name: 'notes.txt', mimeType: 'text/plain', size: 12 },
+    ] as never);
+    const options = base();
+    const menu = run(options);
+
+    await act(async () => {
+      menu.onSelect('add:files');
+    });
+
+    expect(toasts.error).toHaveBeenCalledWith('composer.fileEmpty');
+    expect(options.addAttachment).toHaveBeenCalledTimes(1);
+    expect(options.addAttachment).toHaveBeenCalledWith(expect.objectContaining({ name: 'notes.txt' }));
   });
 });
