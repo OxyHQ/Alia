@@ -1291,6 +1291,34 @@
     "deepResearchLabel": "Investigación profunda",
     "voiceMode": "Modo de voz"
   },
+  "voice": {
+    "connectionFailed": "No se pudo conectar la voz",
+    "errors": {
+      "speech-unsupported": "El reconocimiento de voz no está disponible en este dispositivo o navegador",
+      "microphone-denied": "Se necesita permiso para usar el micrófono",
+      "microphone-busy": "Otra aplicación está usando el micrófono",
+      "microphone-missing": "No se encontró ningún micrófono: revisa tus dispositivos de entrada",
+      "speech-network": "El reconocimiento de voz necesita conexión a internet",
+      "speech-language": "El reconocimiento de voz no admite este idioma",
+      "speech-failed": "Falló el reconocimiento de voz",
+      "voice-unavailable": "La voz no está disponible en este dispositivo",
+      "not-authenticated": "Inicia sesión para usar la voz",
+      "turn-failed": "No se pudo enviar lo que dijiste",
+      "no-answer": "No llegó ninguna respuesta: prueba a decirlo otra vez",
+      "not-played": "No se pudo reproducir la respuesta en voz alta"
+    },
+    "controls": {
+      "connecting": "Conectando…",
+      "connected": "Conectado",
+      "listening": "Escuchando…",
+      "muted": "Silenciado",
+      "thinking": "Pensando…",
+      "speaking": "Hablando…",
+      "mute": "Silenciar",
+      "unmute": "Activar micrófono",
+      "end": "Colgar"
+    }
+  },
   "gateways": {
     "connectedAccounts": "Cuentas conectadas ({{count}})",
     "scanQRCode": "Escanear código QR",

@@ -26,6 +26,9 @@ two routes answered `503` from the cut-over on, and are removed. Adding those
 capabilities to Oxy and Kaana is cross-repository work; recognizing speech on the
 device needs none of it.
 
+Retiring the LiveKit room, cohost and the voice-minutes allowance is a product
+decision, recorded in [ADR 0012](./adr/0012-voice-runs-on-the-device-livekit-and-cohost-are-retired.md).
+
 ## Listening: on the device
 
 `packages/alia-chat/src/lib/speech-recognition*.ts` is one contract with two
@@ -85,6 +88,21 @@ utterance.
 
 If speech synthesis is unavailable the call carries on: the answer is in the
 thread, and the call reports that it could not be played aloud.
+
+## When a call ends on its own
+
+A call belongs to one conversation of one account, on the screen showing it
+(`use-voice-mode.ts`). It ends — recognizer stopped, microphone released —
+when that screen is covered by another route (the native stack keeps it
+mounted), when the screen moves to another conversation, or when the account
+changes. It never follows the person into another thread.
+
+Dictation and a call never listen together: the call bar replaces the
+composer, which owns dictation, and an unmounted `useSpeechToText` aborts its
+recognizer and clears `useSTTStore`. The draft survives the call.
+
+Errors reach the app as a `VoiceErrorCode` beside the SDK's English sentence,
+and the app says them in its own language (`voice.errors.*`).
 
 ## Entitlements and billing
 
