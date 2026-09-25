@@ -1,6 +1,6 @@
 {
   "note": "Written by packages/app/scripts/visual/capture.mjs. Regenerate with `bun run --filter @alia/app visual:baseline`; verify with the same command plus --check.",
-  "capturedAt": "2026-09-25T10:29:53.705Z",
+  "capturedAt": "2026-09-25T15:52:39.826Z",
   "engine": "chromium",
   "chromium": "149.0.7827.55",
   "pinned": {
@@ -52,51 +52,51 @@
   ],
   "bundle": {
     "jsChunks": 99,
-    "jsTotalBytes": 9041813,
+    "jsTotalBytes": 9416037,
     "largestJsChunks": [
       {
-        "name": "__common-62c4ce0124365d107c7d6a572ae197cc.js",
-        "bytes": 6567889
+        "name": "__common-5d024638754cfe121c9f27b1f65de115.js",
+        "bytes": 6653330
       },
       {
-        "name": "index-0f04a5fa9e9b74417e1a8bac1c347441.js",
+        "name": "index-47c46a98ef31d2b6876671484b3df8e8.js",
         "bytes": 1114892
       },
       {
-        "name": "_layout-173bd9acea34e5528ee34778a9dfe4ec.js",
-        "bytes": 416184
+        "name": "_layout-65442db0b15a74988dfd94ff526eba74.js",
+        "bytes": 431039
       },
       {
-        "name": "xterm-2c00899525bd7ebf32da7595d487cf45.js",
+        "name": "xterm-1e4aae0658fb4a9a8e03b5a185512919.js",
         "bytes": 339317
       },
       {
-        "name": "FileManagementScreen-0292016d39209e51785630480a2dab0a.js",
-        "bytes": 63738
+        "name": "[id]-cef32e8a25cc050b842393cca8170cc0.js",
+        "bytes": 293249
       },
       {
-        "name": "index-66ee09afe1ca776f59eec2fefc6dbefc.js",
+        "name": "FileManagementScreen-e40ad4eb51dcc215bef71ee4a14bd357.js",
+        "bytes": 63743
+      },
+      {
+        "name": "index-457d5f653e1b081dcc6474a9b8489424.js",
         "bytes": 35844
       },
       {
-        "name": "PaymentGatewayScreen-6af627789eccfe9d47e7e12ac004e6e3.js",
+        "name": "PaymentGatewayScreen-431ef8d068da6469e3535f7fb30d8361.js",
         "bytes": 29264
       },
       {
-        "name": "[id]-29ddd9c66846d808fbe5655f4fed4b6e.js",
-        "bytes": 25612
+        "name": "PremiumSubscriptionScreen-9cca50d42321aa1869a7db2fe67c4982.js",
+        "bytes": 24031
       },
       {
-        "name": "[id]-b75a48f4140e1efa9475749e1e857da3.js",
-        "bytes": 25573
-      },
-      {
-        "name": "PremiumSubscriptionScreen-2f968991d7e3dc46bfae854f511b376a.js",
-        "bytes": 24030
+        "name": "[id]-8b78677070e42512360f3cd00dc6d061.js",
+        "bytes": 23401
       }
     ],
     "cssFiles": 1,
-    "cssTotalBytes": 66628
+    "cssTotalBytes": 66329
   },
   "files": [
     {
@@ -149,67 +149,67 @@
     },
     {
       "name": "welcome_1024x768_light_motion.png",
-      "bytes": 179275
+      "bytes": 183348
     },
     {
       "name": "welcome_1024x768_light_reduced.png",
-      "bytes": 181704
+      "bytes": 184939
     },
     {
       "name": "welcome_1024x768_dark_motion.png",
-      "bytes": 158464
+      "bytes": 162437
     },
     {
       "name": "welcome_1024x768_dark_reduced.png",
-      "bytes": 159555
+      "bytes": 163761
     },
     {
       "name": "welcome_1280x800_light_motion.png",
-      "bytes": 236708
+      "bytes": 241293
     },
     {
       "name": "welcome_1280x800_light_reduced.png",
-      "bytes": 241762
+      "bytes": 246078
     },
     {
       "name": "welcome_1280x800_dark_motion.png",
-      "bytes": 205776
+      "bytes": 209834
     },
     {
       "name": "welcome_1280x800_dark_reduced.png",
-      "bytes": 207497
+      "bytes": 211262
     },
     {
       "name": "welcome_1440x900_light_motion.png",
-      "bytes": 287150
+      "bytes": 293005
     },
     {
       "name": "welcome_1440x900_light_reduced.png",
-      "bytes": 295989
+      "bytes": 301536
     },
     {
       "name": "welcome_1440x900_dark_motion.png",
-      "bytes": 247530
+      "bytes": 251666
     },
     {
       "name": "welcome_1440x900_dark_reduced.png",
-      "bytes": 251740
+      "bytes": 255313
     },
     {
       "name": "ambient_1280x800_light_motion_t01200.png",
-      "bytes": 157863
+      "bytes": 162988
     },
     {
       "name": "ambient_1280x800_light_motion_t02400.png",
-      "bytes": 241350
+      "bytes": 246000
     },
     {
       "name": "ambient_1280x800_light_motion_t03590.png",
-      "bytes": 241926
+      "bytes": 246129
     },
     {
       "name": "ambient_1280x800_light_motion_t09000.png",
-      "bytes": 241566
+      "bytes": 245919
     }
   ]
 }

@@ -515,12 +515,36 @@ describe('a question', () => {
 });
 
 describe('on a phone', () => {
+  /*
+   * Bloom's trigger is not a `Pressable` on native: it times the hold off the
+   * raw touch events so a code block inside a turn can still scroll sideways
+   * (a Pressable claims the responder and Android then eats the drag). So the
+   * hold is driven the way a finger drives it — down, held past Bloom's
+   * long-press delay, up — and the screen reader's route is the `longpress`
+   * accessibility action it declares.
+   */
+  const HOLD_MS = 500;
+  const touch = (x = 20, y = 20) => ({ nativeEvent: { pageX: x, pageY: y, touches: [{}] } });
+  const turnTriggers = (r: ReactTestRenderer) =>
+    r.root.findAll(
+      (node) =>
+        isHost(node, 'View') &&
+        typeof node.props.onTouchStart === 'function' &&
+        (node.props.accessibilityActions as { name: string }[] | undefined)?.some((a) => a.name === 'longpress') ===
+          true,
+    );
+  const menuRows = (r: ReactTestRenderer) =>
+    r.root.findAll((node) => isHost(node, 'Pressable') && node.props.role === 'menuitem');
+  const REPLY_ACTIONS = ['chat.readAloud', 'chat.copy', 'chat.regenerate', 'chat.like', 'chat.dislike'];
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it('opens the same actions from a long press on the turn', async () => {
     platform.OS = 'ios';
     const r = await mount();
-    const triggers = r.root.findAll(
-      (node) => isHost(node, 'Pressable') && typeof node.props.onLongPress === 'function',
-    );
+    const triggers = turnTriggers(r);
     // One per turn: two questions, two replies.
     expect(triggers).toHaveLength(4);
     // Across the column, so a question still measures half of it: the host
@@ -532,12 +556,45 @@ describe('on a phone', () => {
       expect(Object.assign({}, ...style).alignSelf).toBe('stretch');
     }
 
-    await act(async () => triggers[3].props.onLongPress());
-    const rows = r.root.findAll((node) => isHost(node, 'Pressable') && node.props.role === 'menuitem');
-    const labels = rows.map((row) => row.props.accessibilityLabel);
-    expect(labels).toEqual(['chat.readAloud', 'chat.copy', 'chat.regenerate', 'chat.like', 'chat.dislike']);
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    const reply = triggers[3];
+    // A tap is the content's, not the menu's: lifted before the hold, nothing opens.
+    await act(async () => {
+      reply.props.onTouchStart(touch());
+      vi.advanceTimersByTime(HOLD_MS - 100);
+      reply.props.onTouchEnd(touch());
+      vi.advanceTimersByTime(HOLD_MS);
+    });
+    expect(menuRows(r)).toHaveLength(0);
+
+    // Nor does a finger that drifts off into a scroll.
+    await act(async () => {
+      reply.props.onTouchStart(touch());
+      reply.props.onTouchMove(touch(20, 60));
+      vi.advanceTimersByTime(HOLD_MS * 2);
+    });
+    expect(menuRows(r)).toHaveLength(0);
+
+    // Held in place past the delay, the menu opens with the reply's own actions.
+    await act(async () => {
+      reply.props.onTouchStart(touch());
+      reply.props.onTouchMove(touch(22, 21));
+      vi.advanceTimersByTime(HOLD_MS);
+    });
+    const rows = menuRows(r);
+    expect(rows.map((row) => row.props.accessibilityLabel)).toEqual(REPLY_ACTIONS);
 
     await act(async () => rows[2].props.onPress());
     expect(chat.appended).toHaveLength(1);
+  });
+
+  it('opens them for a screen reader through the long-press action', async () => {
+    platform.OS = 'ios';
+    const r = await mount();
+    const reply = turnTriggers(r)[3];
+
+    await act(async () => reply.props.onAccessibilityAction({ nativeEvent: { actionName: 'longpress' } }));
+
+    expect(menuRows(r).map((row) => row.props.accessibilityLabel)).toEqual(REPLY_ACTIONS);
   });
 });

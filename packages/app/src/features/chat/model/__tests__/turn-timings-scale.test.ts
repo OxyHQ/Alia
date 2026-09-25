@@ -34,14 +34,18 @@ import { turnTiming, turnTimings } from '@/features/chat/model/thought-utils';
  * agree with the slow one on every single row, including the awkward ones —
  * because a faster function that answers differently is not an optimisation.
  *
- * ## On the timing assertion
+ * ## On the cost assertion
  *
- * Wall-clock in a test is ordinarily a bad idea. The ratio asserted here is
- * deliberately loose (5×, against a real gap that is far larger) because the
- * claim is not "this takes N ms"; it is "one of these grows with the square of
- * the thread and the other does not". At 1,000 messages that difference is
- * large enough to survive a noisy machine, and a regression that reintroduced
- * the per-row scan would blow through the bound rather than drift towards it.
+ * It counts, rather than times. The first version held a stopwatch to both
+ * and asserted a 5× gap from a single run of each. Alone the gap measured
+ * 11–15×; with the machine busy running the rest of the suite it fell to 5–6×
+ * and failed about one run in four, the one pass taking a third of a
+ * millisecond, where any pause lands whole. The claim was never "this takes N ms" —
+ * it is "one of these grows with the square of the thread and the other does
+ * not" — and the number of rows each one reads says exactly that, the same on
+ * any machine under any load. Doubling the thread doubles the reads of one
+ * and quadruples the other's, and a regression that reintroduced the per-row
+ * scan would quadruple too.
  */
 
 type Fixture = { id: string; role: string; createdAt?: string };
@@ -128,20 +132,48 @@ describe('turnTimings agrees with turnTiming', () => {
   });
 });
 
+/**
+ * The thread behind a proxy that counts every row read out of it — by index,
+ * by iteration or by `findIndex`, which all come through `get` with an
+ * integer key.
+ */
+function counted(messages: Fixture[]): { messages: Fixture[]; reads: () => number } {
+  let reads = 0;
+  const proxy = new Proxy(messages, {
+    get(target, key, receiver) {
+      if (typeof key === 'string' && /^\d+$/.test(key)) reads += 1;
+      return Reflect.get(target, key, receiver);
+    },
+  });
+  return { messages: proxy, reads: () => reads };
+}
+
+/** Rows read to time every row: the old per-row lookup, and the one pass. */
+function readsToTimeEveryRow(messageCount: number): { perRow: number; onePass: number } {
+  const plain = thread(messageCount);
+
+  // What the render used to do: one lookup per row, over the whole list.
+  const perRow = counted(plain);
+  for (const message of plain) turnTiming(message, perRow.messages);
+
+  // What it does now: one pass, once, for every row at once.
+  const onePass = counted(plain);
+  turnTimings(onePass.messages);
+
+  return { perRow: perRow.reads(), onePass: onePass.reads() };
+}
+
 describe('the cost of a long thread', () => {
   it('does not grow with the square of the history', () => {
-    const messages = thread(1000);
+    const half = readsToTimeEveryRow(500);
+    const full = readsToTimeEveryRow(1000);
 
-    // What the render used to do: one lookup per row, over the whole list.
-    const perRowStart = performance.now();
-    for (const message of messages) turnTiming(message, messages);
-    const perRow = performance.now() - perRowStart;
-
-    // What it does now: one pass, once, for every row at once.
-    const onePassStart = performance.now();
-    turnTimings(messages);
-    const onePass = performance.now() - onePassStart;
-
-    expect(onePass * 5).toBeLessThan(perRow);
+    // One pass reads each row once, so twice the thread is twice the reads.
+    expect(full.onePass).toBe(1000);
+    expect(full.onePass).toBe(half.onePass * 2);
+    // The per-row lookup is the square the render paid: twice the thread,
+    // four times the reads — and hundreds of times the one pass at 1,000.
+    expect(full.perRow / half.perRow).toBeGreaterThan(3.9);
+    expect(full.perRow).toBeGreaterThan(full.onePass * 100);
   });
 });
