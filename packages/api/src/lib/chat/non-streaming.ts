@@ -31,6 +31,7 @@ import type { CreditReservation, CreditUsage } from '../credits-manager.js';
 import type { ChatMessage } from '../message-converter.js';
 import type { AutonomyRuntimeContext } from '../autonomy/runtime.js';
 import type { SkillRuntime } from '../skills/runtime.js';
+import { isInvalidToolCall } from './tool-calls.js';
 
 export interface NonStreamingParams {
   req: Request;
@@ -97,17 +98,18 @@ export async function runNonStreaming(params: NonStreamingParams): Promise<void>
 
   const assistantResponse = result.text || '';
 
+  // The calls that ran. One the SDK refused went back to the model and is
+  // neither saved nor returned — the same rule as the streaming path.
+  const calls = result.toolCalls.filter((tc) => !isInvalidToolCall(tc));
+
   // Build tool invocations from generateText result
-  // A call the SDK refused before `execute` (`invalid`) went back to the model,
-  // not to the person — the same rule as the streaming path.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SDK TypedToolCall shape varies per tool config
-  const nonStreamToolInvocations = (result.toolCalls || []).filter((tc: any) => !tc.invalid).map((tc: any) => {
-    const toolResult = (result.toolResults || []).find((tr: any) => tr.toolCallId === tc.toolCallId);
+  const nonStreamToolInvocations = calls.map((tc) => {
+    const toolResult = result.toolResults.find((tr) => tr.toolCallId === tc.toolCallId);
     return {
       toolCallId: tc.toolCallId,
       toolName: toolNameMapping.get(tc.toolName) || tc.toolName,
       state: toolResult ? 'result' as const : 'call' as const,
-      args: tc.args,
+      args: tc.input,
       ...(toolResult && { result: toolResult.output }),
     };
   });
@@ -140,14 +142,14 @@ export async function runNonStreaming(params: NonStreamingParams): Promise<void>
   runPostChatHooks(lifecycleCtx, assistantResponse, observation, null);
 
   // Build tool_calls array if there were any tool calls
-  const toolCalls = result.toolCalls?.map((tc: { toolCallId?: string; toolName: string; args?: unknown }, index: number) => {
+  const toolCalls = calls.map((tc) => {
     const originalToolName = toolNameMapping.get(tc.toolName) || tc.toolName;
     return {
-      id: tc.toolCallId || `call_${Date.now()}_${index}`,
+      id: tc.toolCallId,
       type: 'function' as const,
       function: {
         name: originalToolName,
-        arguments: JSON.stringify(tc.args || {})
+        arguments: JSON.stringify(tc.input ?? {})
       }
     };
   });
