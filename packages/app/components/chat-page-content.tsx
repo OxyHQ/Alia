@@ -462,8 +462,11 @@ export const ChatPageContent = ({
         messages={messages}
         threadRef={threadRef}
         onScroll={onThreadScroll}
+        // Only while there is something above to load: the thread anchors the
+        // next growth after any `onStartReached`, and a request that can bring
+        // nothing would leave that anchor armed for a streamed token.
         onLoadHistory={
-          onLoadHistory === undefined ? undefined : handleLoadHistory
+          onLoadHistory === undefined || !hasMoreHistory ? undefined : handleLoadHistory
         }
         isLoading={isLoading}
         conversationLoading={conversationLoading}

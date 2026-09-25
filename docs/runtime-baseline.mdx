@@ -342,7 +342,7 @@ in the wrong place.
 | Apertura de conversación | ❌ needs a session and a conversation |
 | Escritura | ❌ needs a signed-in composer |
 | Streaming | ❌ needs `POST /alia/chat` answering |
-| Scroll | ❌ needs a message list with messages |
+| Scroll | ⚠️ the timeline component only, below the browser — [§9](#9-the-timeline-at-1000-and-5000-messages) |
 | Paneles | ❌ needs the signed-in layout |
 | Llamada | ❌ needs a session, a conversation and a microphone |
 
@@ -379,3 +379,78 @@ Also outstanding:
   renderer. Nothing here says anything about them.
 - **Bundle size**, which is not repeated here: it is measured by the visual
   harness and recorded in the [visual baseline](./visual-baseline.mdx#6-bundle-baseline-12).
+
+## 9. The timeline at 1,000 and 5,000 messages
+
+§7 of #608 asks for windowing on long histories and §12 for a measurement at
+"una fixture de al menos 1.000 mensajes". The browser harness above cannot open
+a conversation, so this one is taken a level down:
+`packages/app/components/__tests__/chat-timeline.test.tsx` mounts the real
+`ChatInterface` under `react-test-renderer`, with everything below it (Bloom's
+message components, the Markdown renderer, cards) replaced by host stubs. The
+fixture alternates turns over forty days, with answers of one to six
+paragraphs, a code block in every fifth answer, an image on every seventh
+question and a tool call on every ninth answer. A run mounts the thread with a
+turn in flight and then streams forty tokens into it.
+
+So these numbers are **React's reconciliation of the timeline itself** — how
+many rows mount, what one token re-renders — and not what Bloom or the
+Markdown renderer cost to draw; on a device every mounted row also pays for
+those, which makes the row count the figure that transfers. Median of three
+runs after one untimed run, i9-14900K, Node under vitest, 2026-09-25:
+
+| | Rows mounted | Mount | Per token | Rows re-rendered per token |
+| --- | --- | --- | --- | --- |
+| 1,000 messages, before | 1,000 | 34–51 ms | 7.9–13.2 ms | 1 |
+| 1,000 messages, after | 40 | 9–13 ms | 0.6–0.75 ms | 1 |
+| 5,000 messages, before | 5,000 | 188–316 ms | 34–58 ms | 1 |
+| 5,000 messages, after | 40 | 8–14 ms | 0.5–0.8 ms | 1 |
+
+"Before" is `main` at `a9de8f7b`, run through the same test. The memoised rows
+already held — a token re-rendered one row both times — so the per-token cost
+before was the parent walking every row to find that out: creating a thousand
+elements and comparing a thousand sets of props, twenty times a second. Keying
+the whole-thread derivations (day lines, seams, turn timings, the last answer)
+on the list's structure instead of on the messages, measured on its own with
+the window disabled, takes 1,000 messages to 6.7–10.1 ms per token: it removes
+the recomputation but not the walk. The window is what removes the walk.
+
+### The window, and its limits
+
+`lib/chat/timeline.ts` and `lib/hooks/use-timeline-window.ts`. It is a PAGED
+window, not virtualization: the newest 40 rows mount, `onStartReached` reveals
+30 more at a time and then asks for the thread's history, and Bloom's
+`maintainStartPosition` holds the reader still while either lands above them.
+Nothing is ever removed above a reader who is mid-thread; the window folds back
+to 40 only when the reader is at the bottom with no turn streaming, once it has
+grown past 100.
+
+A spacer-based virtualizer was not built, on this reasoning rather than a
+measurement: `AiChatThread` compensates exactly one kind of growth above the
+reader — the first after an `onStartReached` — so swapping an estimated spacer
+for a measured row above the viewport would move the text being read by the
+estimate's error, on every swap, on web where `maintainVisibleContentPosition`
+does not exist. The paged window only ever grows through that one anchored
+path.
+
+What it costs, stated plainly:
+
+- **Browser find-in-page and screen readers see the mounted rows only.**
+  Scrolling up reveals the rest, a page per approach. The thread's own search
+  (`ThreadSearch`) is server-side and unaffected, and a jump always mounts its
+  target with five rows above it.
+- **A reader who scrolls a long way up mounts everything they pass**, until they
+  return to the bottom. The window bounds the cost of opening and of streaming,
+  not of reading the whole history in one sitting.
+- **A selection in the oldest mounted rows is lost if the window folds**, which
+  it only does when the reader arrives back at the bottom with nothing
+  streaming — at which point those rows are at least 40 rows off screen.
+
+The same hook remembers, for the session, where the reader was in each
+conversation (offset, whether at the bottom, and the window's first row), and
+restores it on the way back — once that conversation's own rows are on screen,
+since the streaming hook swaps its messages a render after the id changes.
+Coming back from a cursor jump goes to the newest turn instead. A conversation
+that loads or is switched to no longer animates every message in as if it had
+just arrived (`arrivedIds`).
+
