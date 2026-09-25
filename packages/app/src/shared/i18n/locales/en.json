@@ -2102,7 +2102,18 @@
     "files": {
       "one": "1 file",
       "other": "{{count}} files"
-    }
+    },
+    "changes": "Changes",
+    "preview": "Preview",
+    "views": "Panel views",
+    "enlarge": "Enlarge {{name}}",
+    "minimize": "Minimize {{name}}",
+    "download": "Download {{name}}",
+    "more": "More actions for {{name}}",
+    "open": "Open",
+    "downloadFailed": "Couldn't download the image",
+    "deleteImage": "Delete “{{name}}”?",
+    "deleteImageDescription": "It will be removed from your Library."
   },
   "pages": {
     "automations": {
