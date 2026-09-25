@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useOxy } from '@oxy.so/services';
 import apiClient from '@/shared/api/client';
 import { API_ROUTES } from '@/shared/api/routes';
 
@@ -22,6 +23,7 @@ export interface PendingAgentApproval {
 export const agentApprovalsKey = ['agent-approvals'] as const;
 
 export function usePendingAgentApprovals(agentId?: string) {
+  const { isAuthenticated } = useOxy();
   return useQuery({
     queryKey: agentApprovalsKey,
     queryFn: async () => {
@@ -30,6 +32,8 @@ export function usePendingAgentApprovals(agentId?: string) {
     },
     // A new request arrives with the agent's message; this is the backstop.
     refetchInterval: 60_000,
+    // The approvals are the account's; signed out this would be a 401 a minute.
+    enabled: isAuthenticated,
     select: (approvals) => (agentId ? approvals.filter((a) => a.agentId === agentId) : approvals),
   });
 }

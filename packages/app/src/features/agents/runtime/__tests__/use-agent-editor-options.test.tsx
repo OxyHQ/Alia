@@ -15,6 +15,7 @@ const getRequest = vi.hoisted(() => vi.fn());
 vi.mock('@/shared/api/client', () => ({
   default: { get: getRequest, post: vi.fn(), patch: vi.fn(), delete: vi.fn() },
 }));
+vi.mock('@oxy.so/services', () => ({ useOxy: () => ({ isAuthenticated: true }) }));
 vi.mock('@/features/library/runtime/library-store', () => ({
   useLibraryStore: (select: (s: unknown) => unknown) =>
     select({ files: [], loadFiles: () => undefined }),

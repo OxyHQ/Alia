@@ -74,15 +74,17 @@ vi.mock('@shopify/flash-list', async () => {
       ListEmptyComponent,
       data,
       renderItem,
+      refreshControl,
     }: {
       ListHeaderComponent?: React.ReactNode;
       ListEmptyComponent?: React.ReactNode;
       data: unknown[];
       renderItem: (info: { item: unknown }) => React.ReactNode;
+      refreshControl?: React.ReactNode;
     }) =>
       ReactModule.createElement(
         'FlashList',
-        null,
+        { refreshControl },
         ListHeaderComponent,
         data.length === 0
           ? ListEmptyComponent
@@ -187,13 +189,23 @@ vi.mock('@/shared/platform/use-image-picker', () => ({
 vi.mock('@/shared/platform/use-document-picker', () => ({
   useDocumentPicker: () => ({ pickDocument: vi.fn() }),
 }));
+/**
+ * The session, switchable per test. Signed in by default: most of this file is
+ * about the page's layout, which a visitor sees the same way.
+ */
+const auth = vi.hoisted(() => ({
+  isAuthenticated: true,
+  signIn: vi.fn(async () => undefined),
+}));
+vi.mock('@oxy.so/services', () => ({ useAuth: () => auth }));
+const loadFiles = vi.hoisted(() => vi.fn(async () => undefined));
 vi.mock('@/features/library/runtime/library-store', () => {
   // One state object, so a selector reading `files` returns the same array on
   // every render rather than a fresh dependency each time.
   const state = {
     files: [] as unknown[],
     loading: false,
-    loadFiles: vi.fn(async () => undefined),
+    loadFiles,
     addFile: vi.fn(),
     deleteFile: vi.fn(),
   };
@@ -255,6 +267,9 @@ afterEach(() => {
     act(() => renderer?.unmount());
     renderer = null;
   }
+  auth.isAuthenticated = true;
+  auth.signIn.mockClear();
+  loadFiles.mockClear();
 });
 
 describe("the Library on the layout's surface", () => {
@@ -335,6 +350,54 @@ describe("the Library on the layout's surface", () => {
     const trigger = root.findAll((node) => isHost(node, 'MenuTrigger'));
     expect(trigger).toHaveLength(1);
     expect(trigger[0].findAll((node) => node === adders[0])).toHaveLength(1);
+  });
+});
+
+/**
+ * "Continue without an account" grants no authenticated endpoint (#608 §3.2).
+ *
+ * On a phone the signed-out Library asked for `GET /library` anyway, and logged
+ * the 401 it got. The files are the account's: a visitor is never asked for
+ * them, and "Add files" asks them to sign in rather than opening a picker whose
+ * upload the API would refuse.
+ */
+describe('the Library signed out', () => {
+  it('does not ask for the files, and does once there is an account', async () => {
+    auth.isAuthenticated = false;
+    await renderLibrary();
+    expect(loadFiles).not.toHaveBeenCalled();
+    act(() => renderer?.unmount());
+    renderer = null;
+
+    auth.isAuthenticated = true;
+    await renderLibrary();
+    expect(loadFiles).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not ask on pull to refresh either', async () => {
+    auth.isAuthenticated = false;
+    const { root } = await renderLibrary();
+    const [list] = root.findAll((node) => isHost(node, 'FlashList'));
+    const refresh = list?.props.refreshControl as React.ReactElement<{
+      onRefresh: () => Promise<void>;
+    }>;
+    await act(async () => {
+      await refresh.props.onRefresh();
+    });
+    expect(loadFiles).not.toHaveBeenCalled();
+  });
+
+  it('"Add files" opens sign-in instead of the upload menu', async () => {
+    auth.isAuthenticated = false;
+    const { root } = await renderLibrary();
+
+    expect(root.findAll((node) => isHost(node, 'MenuTrigger'))).toHaveLength(0);
+    const adders = buttonsLabelled(root, 'library.addFiles');
+    expect(adders).toHaveLength(1);
+    await act(async () => {
+      (adders[0].props.onPress as () => void)();
+    });
+    expect(auth.signIn).toHaveBeenCalledTimes(1);
   });
 });
 
