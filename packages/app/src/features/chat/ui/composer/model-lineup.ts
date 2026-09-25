@@ -5,7 +5,7 @@ import { useCatalogue, type CatalogueEntry, type EffortLevel } from "@/features/
 import { useLocalModelOptions } from "@/features/local-models/runtime/use-local-runtimes";
 import { useModelSelection } from "@/features/chat/runtime/use-model-selection";
 import { effortFor, useModelStore } from "@/features/chat/runtime/model-store";
-import { DeviceMark, FeaturedMark } from "./provider-marks";
+import { DeviceMark, FeaturedMark, publisherMark } from "./provider-marks";
 
 /**
  * Alia's catalogue, in the shape Bloom's model picker takes.
@@ -116,6 +116,7 @@ export function buildProviders(
     .map(([id, group]) => ({
       id: `publisher:${id}`,
       name: group.name,
+      logo: publisherMark(id),
       models: [...group.entries].sort(byRelease).map(row),
     }));
 

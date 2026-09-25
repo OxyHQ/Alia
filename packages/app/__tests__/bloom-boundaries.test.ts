@@ -118,7 +118,7 @@ describe('Bloom is consumed through its public subpaths', () => {
       .map((key) => new RegExp(`^${key.split('*').map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('.*')}$`));
 
     const unknown = ALL
-      .filter(({ specifier }) => specifier.startsWith('@oxy.so/bloom'))
+      .filter(({ specifier }) => specifier === '@oxy.so/bloom' || specifier.startsWith('@oxy.so/bloom/'))
       .map(({ file, specifier }) => ({
         file,
         specifier,
