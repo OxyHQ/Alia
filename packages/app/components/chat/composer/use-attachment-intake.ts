@@ -115,44 +115,6 @@ const startFileRead: StartRead = (file, handlers) => {
   return { abort: () => reader.abort() };
 };
 
-/**
- * Give back a temporary URL, if this one is temporary.
- *
- * On web BOTH pickers hand back `URL.createObjectURL(file)` —
- * `expo-document-picker`'s `readFileAsync` and `expo-image-picker`'s
- * `ExponentImagePicker.web.ts` both do it — and Alia revoked exactly none of
- * them. Every file picked on web pinned its own bytes in the page for as long
- * as the tab lived, removed from the composer or not. That is the leak #608
- * §6 names twice, and this is the release for it.
- *
- * `data:` URLs are plain strings and are collected with the attachment that
- * holds them; there is nothing to revoke and calling `revokeObjectURL` on one
- * is a no-op in every browser, but asking the question is cheaper than relying
- * on that.
- */
-export function releaseAttachmentUri(uri: string | undefined): void {
-  if (uri === undefined || !uri.startsWith("blob:")) return;
-  if (typeof URL === "undefined" || typeof URL.revokeObjectURL !== "function")
-    return;
-  URL.revokeObjectURL(uri);
-}
-
-/**
- * Give back what the attachment being removed was holding.
- *
- * A function of its own, and not a line inside the composer's remove handler,
- * because the part that can be wrong is the LOOKUP: release the wrong
- * attachment's URL and the strip keeps a tile whose picture has just been
- * revoked out from under it, which looks like a broken image and nothing like
- * a leak fix. Two attachments, one removed, is the shape of that test.
- */
-export function releaseRemovedAttachment(
-  attachments: readonly Attachment[],
-  id: string,
-): void {
-  releaseAttachmentUri(attachments.find((a) => a.id === id)?.uri);
-}
-
 export interface AttachmentIntake {
   /** In-flight and failed files, in the order they arrived. */
   items: IntakeItem[];
@@ -321,7 +283,7 @@ export function useAttachmentIntake({
            * go nowhere and reading them would be a progress bar over work that
            * exists only to produce a string nobody consumes. The object URL is
            * what the web pickers produce for the same file, it is instant, and
-           * `releaseAttachmentUri` gives it back when the tile is removed.
+           * the draft store gives it back when the tile is removed.
            */
           addAttachment({
             id,

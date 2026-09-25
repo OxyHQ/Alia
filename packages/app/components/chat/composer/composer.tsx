@@ -1,19 +1,18 @@
-import { useCallback, useEffect, useId, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useMemo, type ReactNode } from "react";
 import { View, type NativeSyntheticEvent, type TextInputKeyPressEventData } from "react-native";
 import {
   ComposerPanel,
   type ComposerPanelAddMenuGroup,
-  type ComposerPanelAttachment,
   type ComposerPanelPermissionOption,
   type ModelPickerProvider,
 } from "@oxy.so/bloom/composer-panel";
 import { toast } from "@oxy.so/bloom/toast";
-import { MAX_ATTACHMENT_BYTES } from "@/lib/chat/attachment-intake";
 import { KeyboardAvoidingView } from "@/lib/keyboard";
 import { useTranslation } from "@/lib/hooks/use-translation";
 import { useSpeechToText } from "@/lib/hooks/use-speech-to-text";
-import { useComposerPasteTarget } from "./drop-zone";
-import { releaseRemovedAttachment, useAttachmentIntake } from "./use-attachment-intake";
+import { composerTiles, intakeError } from "./attachment-tiles";
+import { ComposerDropOverlay, useComposerDropTarget, useComposerPasteTarget } from "./drop-zone";
+import { useAttachmentIntake } from "./use-attachment-intake";
 import type { Attachment } from "./types";
 
 /**
@@ -29,6 +28,7 @@ import type { Attachment } from "./types";
 const EMPTY_ADD_MENU: readonly ComposerPanelAddMenuGroup[] = [];
 /** `[]` hides the selector; Bloom's own four modes are not Alia's. */
 const NO_MODES: readonly ComposerPanelPermissionOption[] = [];
+const NO_ATTACHMENTS: readonly Attachment[] = [];
 
 export interface ComposerProps {
   value: string;
@@ -54,6 +54,11 @@ export interface ComposerProps {
   onModeChange?: (mode: string) => void;
   addMenu?: readonly ComposerPanelAddMenuGroup[];
   onAddMenuSelect?: (rowId: string) => void;
+  /**
+   * The draft's files. A composer given no `onAddAttachment` takes none: its
+   * surface sends nothing but the text, so no paste, drop or tile may say
+   * otherwise.
+   */
   attachments?: readonly Attachment[];
   onAddAttachment?: (attachment: Attachment) => void;
   onRemoveAttachment?: (id: string) => void;
@@ -91,7 +96,7 @@ export function Composer({
   onModeChange,
   addMenu,
   onAddMenuSelect,
-  attachments: controlledAttachments,
+  attachments = NO_ATTACHMENTS,
   onAddAttachment,
   onRemoveAttachment,
   status,
@@ -104,64 +109,41 @@ export function Composer({
   // Paste is a DOM gesture on a DOM node; the panel publishes no ref to one.
   const hostId = `composer-${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
 
-  const [internalAttachments, setInternalAttachments] = useState<Attachment[]>([]);
-  const attachments = controlledAttachments ?? internalAttachments;
+  // The list's owner releases what a removed tile held (the draft store does).
+  const takesFiles = onAddAttachment !== undefined;
   const addAttachment = useCallback(
-    (attachment: Attachment) => {
-      if (onAddAttachment !== undefined) onAddAttachment(attachment);
-      else setInternalAttachments((previous) => [...previous, attachment]);
-    },
+    (attachment: Attachment) => onAddAttachment?.(attachment),
     [onAddAttachment],
   );
-  const removeAttachment = useCallback(
-    (id: string) => {
-      releaseRemovedAttachment(attachments, id);
-      if (onRemoveAttachment !== undefined) onRemoveAttachment(id);
-      else setInternalAttachments((previous) => previous.filter((a) => a.id !== id));
-    },
-    [attachments, onRemoveAttachment],
-  );
+  const removeAttachment = useCallback((id: string) => onRemoveAttachment?.(id), [onRemoveAttachment]);
   const intake = useAttachmentIntake({ addAttachment });
-  useComposerPasteTarget({ elementId: hostId, enabled: !disabled && !busy, onFiles: intake.accept });
+  // A surface that takes no files still catches a drop or a pasted file, so
+  // the browser does not open it in place of the page — and then does nothing.
+  const acceptsFiles = takesFiles && !disabled && !busy;
+  useComposerPasteTarget({ elementId: hostId, enabled: acceptsFiles, onFiles: intake.accept });
+  // Web only; on native there is no drag, and the hook attaches nothing.
+  const isDragOver = useComposerDropTarget({
+    elementId: hostId,
+    enabled: acceptsFiles,
+    onFiles: intake.accept,
+  });
 
-  // Bloom's tiles have no error state, so a file that could not be read or
-  // was refused is said once, in a toast, and leaves the queue.
+  // The intake keeps a failed read with its error and its file, for a retry
+  // (`intake.retry`), and `composerTiles` gives it an error tile. Bloom's
+  // tiles cannot draw an error yet, so until they can it is said once, in a
+  // toast, and leaves the queue.
   useEffect(() => {
     for (const item of intake.items) {
-      if (item.status === "reading") continue;
-      const name = item.name || t("composer.untitled");
-      toast.error(
-        item.status === "refused"
-          ? item.refusal === "too-large"
-            ? t("composer.fileTooLarge", {
-                name,
-                limit: `${Math.round(MAX_ATTACHMENT_BYTES / (1024 * 1024))} MB`,
-              })
-            : t("composer.fileEmpty", { name })
-          : t("composer.readFailed", { name }),
-      );
+      const error = intakeError(item, t);
+      if (error === undefined) continue;
+      toast.error(error);
       intake.dismiss(item.id);
     }
   }, [intake, t]);
 
   // Landed files, then the ones still being read with their real progress.
-  const tiles = useMemo<ComposerPanelAttachment[]>(
-    () => [
-      ...attachments.map((a) => ({
-        id: a.id,
-        name: a.name,
-        kind: a.type === "image" ? ("image" as const) : ("document" as const),
-        src: a.type === "image" ? a.uri : undefined,
-      })),
-      ...intake.items
-        .filter((item) => item.status === "reading")
-        .map((item) => ({
-          id: item.id,
-          name: item.name || t("composer.untitled"),
-          kind: item.kind === "image" ? ("image" as const) : ("document" as const),
-          progress: item.fraction === null ? 0 : Math.round(item.fraction * 100),
-        })),
-    ],
+  const tiles = useMemo(
+    () => composerTiles(attachments, intake.items, t).filter((tile) => tile.error === undefined),
     [attachments, intake.items, t],
   );
   const removeTile = useCallback(
@@ -251,6 +233,7 @@ export function Composer({
         onKeyPress={onKeyPress}
         labels={labels}
       />
+      <ComposerDropOverlay visible={takesFiles && isDragOver} enabled={acceptsFiles} />
       {accessory ? (
         <View pointerEvents="box-none" className="absolute bottom-full right-0 mb-2">
           {accessory}
