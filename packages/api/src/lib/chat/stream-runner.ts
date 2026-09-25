@@ -27,12 +27,13 @@ import type { Response } from 'express';
 import { streamText, type TextStreamPart, type ToolSet } from 'ai';
 import type { ResolvedModel } from '../chat-core.js';
 import { log } from '../logger.js';
+import { getErrorMessage } from '../errors/index.js';
 import { recordEvent } from '../observability/index.js';
 import { writeTextChunk, writeStopChunk, writeContentChunk, makeChunk } from '../streaming-helpers.js';
 import type { SSEWriter } from './sse-writer.js';
 
 /** Extended stream chunk types not yet exported by AI SDK */
-type ExtendedChunk = { type: string; text?: string; thoughtDelta?: string; reasoningDelta?: string; toolName?: string; error?: unknown; [key: string]: unknown };
+type ExtendedChunk = { type: string; text?: string; thoughtDelta?: string; reasoningDelta?: string; [key: string]: unknown };
 
 /**
  * The tools whose result IS another agent's answer, and is drawn as one.
@@ -158,6 +159,7 @@ export async function runStream<TOOLS extends ToolSet>(params: RunStreamParams<T
   let assistantResponse = ''; // Track assistant's response for conversation save
   let hasStreamedText = false; // Track whether actual text (not just tool calls) was streamed
   const toolInvocations: ToolInvocation[] = [];
+  const invalidToolCallIds = new Set<string>();
 
   /**
    * Turn completed tool results into the user-facing answer the original
@@ -253,6 +255,17 @@ export async function runStream<TOOLS extends ToolSet>(params: RunStreamParams<T
         log.v1.debug({ reasoningBytes: sizeForLog(reasoningText) }, 'Reasoning chunk (provider)');
       }
     } else if (chunk.type === 'tool-call') {
+      /**
+       * A call the SDK refused before `execute` — a tool this turn was not
+       * given, or input its schema rejects. The SDK hands the reason back to
+       * the model for its next step; the person sees neither the call nor the
+       * `tool-error` that follows it.
+       */
+      if (chunk.dynamic && chunk.invalid) {
+        log.v1.warn({ err: getErrorMessage(chunk.error), toolName: chunk.toolName }, 'Invalid tool call');
+        invalidToolCallIds.add(chunk.toolCallId);
+        continue;
+      }
       sse.ensureHeaders();
       state.hasStreamedContent = true;
 
@@ -340,31 +353,15 @@ export async function runStream<TOOLS extends ToolSet>(params: RunStreamParams<T
         });
       }
     } else if (chunk.type === 'tool-error') {
-      const originalToolName = toolNameMapping.get((chunk as ExtendedChunk).toolName ?? '') || (chunk as ExtendedChunk).toolName;
-      const rawToolError = (chunk as ExtendedChunk).error;
-
-      /**
-       * A STRING is an invalid call, not a failed one.
-       *
-       * The AI SDK reports a call it refused before `execute` — a tool this turn
-       * was not given, or input its schema rejects — with the error already
-       * flattened to a message, and hands that same message back to the model,
-       * which retries or answers without it in the next step. It is the model's
-       * to read. Written into the answer it was "Tool error (createAgent): Tool
-       * execution failed" — `.message` of a string is undefined — or, read
-       * correctly, the turn's whole list of internal tool names.
-       */
-      if (typeof rawToolError === 'string') {
-        log.v1.warn({ err: rawToolError, toolName: originalToolName }, 'Invalid tool call');
-        continue;
-      }
-      // A tool that ran and failed: the person is told, so the turn has spoken.
+      if (invalidToolCallIds.has(chunk.toolCallId)) continue;
       sse.ensureHeaders();
       state.hasStreamedContent = true;
-      log.v1.error({ err: rawToolError, toolName: originalToolName }, 'Tool error');
+
+      const originalToolName = toolNameMapping.get(chunk.toolName) || chunk.toolName;
+      log.v1.error({ err: chunk.error, toolName: originalToolName }, 'Tool error');
 
       // Send tool error as text content so the user sees what happened
-      const errorMessage = (rawToolError instanceof Error && rawToolError.message) || 'Tool execution failed';
+      const errorMessage = getErrorMessage(chunk.error) || 'Tool execution failed';
       const toolErrorContent = `\n\nTool error (${originalToolName}): ${errorMessage}`;
       writeContentChunk(res, requestId, routingProfileId, toolErrorContent);
       assistantResponse += toolErrorContent;
@@ -381,9 +378,9 @@ export async function runStream<TOOLS extends ToolSet>(params: RunStreamParams<T
     } else if (chunk.type === 'finish-step') {
       log.v1.debug('Step finished');
     } else if (chunk.type === 'error') {
-      log.v1.error({ err: (chunk as ExtendedChunk).error }, 'Error chunk received');
+      log.v1.error({ err: chunk.error }, 'Error chunk received');
 
-      const rawError = (chunk as ExtendedChunk).error;
+      const rawError = chunk.error;
 
       // If no content streamed yet, throw to trigger provider fallback
       if (!state.hasStreamedContent) {

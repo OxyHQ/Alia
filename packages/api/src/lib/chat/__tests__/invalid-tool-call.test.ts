@@ -3,20 +3,19 @@
  *
  * An agent without the `delegation` grant was told by `prompts/base.md` that it
  * had `createAgent`, offered to create one, and called a tool it was never
- * given. The AI SDK reports that as a `tool-error` whose `error` is a STRING,
- * and hands the same message back to the model for its next step. The stream
- * loop read `.message` off it and wrote "Tool error (createAgent): Tool
- * execution failed" into the answer.
+ * given. The AI SDK marks that `tool-call` `invalid`, follows it with a
+ * `tool-error` whose error is a string, and hands the reason back to the model.
+ * The stream loop sent the call to the client and wrote "Tool error
+ * (createAgent): Tool execution failed" into the answer.
  *
- * Two halves, asserted together: an invalid call writes nothing, and a tool
- * that really failed still tells the person — with its own message.
+ * Two halves, asserted together: an invalid call reaches the wire in no form,
+ * and a tool that really failed still tells the person, in its own words.
  */
 
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it, vi } from 'vitest';
-import type { Response } from 'express';
-import type { TextStreamPart, ToolSet } from 'ai';
+import { FIXED_FAMILY_TOOLS } from '../../../domain/capability-grants.js';
 
 vi.mock('../../logger.js', () => {
   const child = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };
@@ -25,82 +24,41 @@ vi.mock('../../logger.js', () => {
 vi.mock('../../observability/index.js', () => ({ recordEvent: vi.fn() }));
 vi.mock('../../chat-core.js', () => ({ reportModelUsage: vi.fn() }));
 
-const { runStream } = await import('../stream-runner.js');
-const { SSEWriter } = await import('../sse-writer.js');
-
-function responseDouble(): { res: Response; written: string[] } {
-  const written: string[] = [];
-  const res = {
-    write: (chunk: string) => {
-      written.push(chunk);
-      return true;
-    },
-    writeHead: () => res,
-    setHeader: () => res,
-    flushHeaders: () => undefined,
-    headersSent: false,
-    end: () => undefined,
-  };
-  return { res: res as unknown as Response, written };
-}
-
-function toolErrorStream(toolName: string, error: unknown): AsyncIterable<TextStreamPart<ToolSet>> {
-  const chunks = [
-    { type: 'tool-call', toolCallId: 'call-1', toolName, input: {} },
-    { type: 'tool-error', toolCallId: 'call-1', toolName, input: {}, error },
-  ];
-  return {
-    async *[Symbol.asyncIterator]() {
-      for (const chunk of chunks) yield chunk as unknown as TextStreamPart<ToolSet>;
-    },
-  };
-}
-
-async function run(toolName: string, error: unknown) {
-  const { res, written } = responseDouble();
-  const outcome = await runStream({
-    result: { fullStream: toolErrorStream(toolName, error) },
-    res,
-    sse: new SSEWriter(res),
-    requestId: 'req-1',
-    routingProfileId: 'route:auto',
-    resolved: { id: 'route:auto' } as unknown as Parameters<typeof runStream>[0]['resolved'],
-    baseConfig: {},
-    convertedMessages: [],
-    toolNameMapping: new Map(),
-    agentMessages: [],
-    toolCallCount: 0,
-    state: { hasStreamedContent: false },
-    onFirstChunk: () => undefined,
-  });
-  return { assistantResponse: outcome.assistantResponse, wire: written.join('') };
-}
+const { runChunks } = await import('./stream-harness.js');
 
 describe('a tool error reaches the person only when a tool actually failed', () => {
-  it('writes nothing for a call the SDK refused before running it', async () => {
-    const { assistantResponse, wire } = await run(
-      'createAgent',
-      "Model tried to call unavailable tool 'createAgent'. Available tools: getCurrentDate, webSearch.",
-    );
+  it('sends neither the call nor its error when the SDK refused it before running it', async () => {
+    const reason = "Model tried to call unavailable tool 'createAgent'. Available tools: getCurrentDate, webSearch.";
+    const { assistantResponse, toolInvocations, toolCallCount, written } = await runChunks([
+      { type: 'tool-call', toolCallId: 'call-1', toolName: 'createAgent', input: {}, dynamic: true, invalid: true, error: new Error(reason) },
+      { type: 'tool-error', toolCallId: 'call-1', toolName: 'createAgent', input: {}, dynamic: true, error: reason },
+    ]);
 
     expect(assistantResponse).toBe('');
-    expect(wire).not.toContain('Tool error');
-    expect(wire).not.toContain('Available tools');
+    expect(toolInvocations).toEqual([]);
+    expect(toolCallCount).toBe(0);
+    expect(written.join('')).not.toContain('createAgent');
   });
 
   it('tells the person, in the tool\'s own words, when a tool ran and failed', async () => {
-    const { assistantResponse } = await run('webScraper', new Error('page not reachable'));
+    const { assistantResponse } = await runChunks([
+      { type: 'tool-call', toolCallId: 'call-1', toolName: 'webScraper', input: {} },
+      { type: 'tool-error', toolCallId: 'call-1', toolName: 'webScraper', input: {}, error: new Error('page not reachable') },
+    ]);
 
     expect(assistantResponse).toBe('\n\nTool error (webScraper): page not reachable');
   });
 });
 
 describe('the base prompt offers no tool that a grant decides', () => {
-  it('does not name createAgent, which only a delegation grant brings', () => {
-    // `base.md` is loaded on every turn, agent or not; a tool it names is one
-    // an ungranted agent believes it has, offers, and then cannot call.
+  it('names none of the grant-gated tools', () => {
+    // `base.md` is loaded on every turn, agent or not; a gated tool it names is
+    // one an ungranted agent believes it has, offers, and then cannot call.
+    // Guidance for such a tool belongs in its description, which reaches the
+    // model only when the tool does.
     const base = readFileSync(fileURLToPath(new URL('../../../../prompts/base.md', import.meta.url)), 'utf8');
+    const named = Object.values(FIXED_FAMILY_TOOLS).flat().filter((tool) => base.includes(`\`${tool}\``));
 
-    expect(base).not.toContain('createAgent');
+    expect(named).toEqual([]);
   });
 });

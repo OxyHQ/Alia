@@ -40,7 +40,7 @@ type InitiatedBy = typeof INITIATED_BY[number];
  * own `initiatedBy` argument.
  */
 export const saveUserMemoryTool = (oxyUserId: string, opts?: { initiatedBy?: InitiatedBy }) => tool({
-  description: 'Save NEW user information for future conversations. Use ALWAYS when user shares: preferences, personal info, goals, experiences, or anything they want remembered. To change something already remembered — especially to rename it — use updateUserMemory instead; this tool keys off the title, so saving under a new title leaves the old memory behind as a duplicate.',
+  description: 'Save NEW user information for future conversations, without asking. Use ALWAYS when user shares: preferences, personal info, goals, experiences, or anything they want remembered — not one-off facts or conversational asides. To change something already remembered — especially to rename it — use updateUserMemory instead; this tool keys off the title, so saving under a new title leaves the old memory behind as a duplicate.',
 
   inputSchema: z.object({
     title: z.string().describe('Short, human-readable label (e.g. "Food", "Occupation", a person\'s name) — NOT a snake_case key'),

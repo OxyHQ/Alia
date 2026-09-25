@@ -98,8 +98,10 @@ export async function runNonStreaming(params: NonStreamingParams): Promise<void>
   const assistantResponse = result.text || '';
 
   // Build tool invocations from generateText result
+  // A call the SDK refused before `execute` (`invalid`) went back to the model,
+  // not to the person — the same rule as the streaming path.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SDK TypedToolCall shape varies per tool config
-  const nonStreamToolInvocations = (result.toolCalls || []).map((tc: any) => {
+  const nonStreamToolInvocations = (result.toolCalls || []).filter((tc: any) => !tc.invalid).map((tc: any) => {
     const toolResult = (result.toolResults || []).find((tr: any) => tr.toolCallId === tc.toolCallId);
     return {
       toolCallId: tc.toolCallId,
