@@ -1,5 +1,6 @@
 import { AiChatContainer } from '@oxy.so/bloom/ai-chat';
 import { Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { KeyboardAvoidingView } from '@/lib/keyboard';
 
@@ -40,10 +41,18 @@ export function ChatWorkspace({
   actions,
   background,
 }: ChatWorkspaceProps) {
+  const insets = useSafeAreaInsets();
   return (
     <KeyboardAvoidingView
       style={{ flex: 1 }}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      // It measures itself against its parent, as if it began at the top of
+      // the screen, but the app layout puts the shell below the status bar.
+      // Without that much offset the composer stops a status bar short, behind
+      // the keyboard (seen on the Android emulator, docs/native-validation.mdx).
+      // `automaticOffset` measures instead, but asynchronously, and it lost
+      // the race to the first layout on a fresh launch.
+      keyboardVerticalOffset={insets.top}
     >
       <AiChatContainer
         title={title}
