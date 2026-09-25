@@ -7,6 +7,7 @@ import { useOxy } from '@oxy.so/services';
 import { useQueryClient } from '@tanstack/react-query';
 import type { Message } from '@/lib/hooks/use-conversations';
 import type { CreditsInfo } from '@/lib/hooks/use-credits';
+import type { UsageWarning } from '@/lib/chat/use-credit-warnings';
 import { collectDeviceInfo } from '@/lib/device-info';
 import { UsageLimitError } from '@/lib/errors/usage-limit-error';
 import { queryKeys } from '@/lib/hooks/query-keys';
@@ -837,6 +838,36 @@ export function useStreamingChat(apiUrl: string, conversationId?: string, reason
               return keepFailedTurn(err.retryable !== false, getErrorMessage(err) || undefined);
             }
 
+            // Handle usage/credits info (comes at the end of stream).
+            // New format: alia_usage (separate from OpenAI usage), fallback to legacy usage.
+            //
+            // Read BEFORE the choice guard: the server writes it on a chunk
+            // with `choices: []`, which the guard skips — so it was never
+            // read, and neither the balance nor the spending warning reached
+            // the screen.
+            const aliaUsage = parsed.alia_usage || parsed.usage;
+            if (aliaUsage && aliaUsage.credits_remaining !== undefined) {
+              queryClient.setQueryData<CreditsInfo>(queryKeys.credits.info, (old) => {
+                if (!old) return old;
+                return { ...old, credits: aliaUsage.credits_remaining };
+              });
+              // The balance is set from the frame; the rest (the usage window) is refetched.
+              queryClient.invalidateQueries({ queryKey: queryKeys.credits.info });
+              // The person's own spending, as the server measured it — shown
+              // before a turn fails, by `useCreditWarnings`.
+              const warning = aliaUsage.credit_warning;
+              if (warning && (warning.level === 'warning' || warning.level === 'critical')) {
+                queryClient.setQueryData<UsageWarning>(queryKeys.credits.usageWarning, {
+                  level: warning.level,
+                  daysRemaining: Number(warning.daysRemaining),
+                  todaySpend: Number(warning.todaySpend),
+                  avgDailySpend: Number(warning.avgDailySpend),
+                  currentModelMultiplier:
+                    typeof warning.currentModelMultiplier === 'number' ? warning.currentModelMultiplier : undefined,
+                });
+              }
+            }
+
             // Handle OpenAI-compatible format
             const choice = parsed.choices?.[0];
             if (!choice) continue;
@@ -883,18 +914,6 @@ export function useStreamingChat(apiUrl: string, conversationId?: string, reason
                   options.onAnswerText(answerText);
                 }
               }
-            }
-
-            // Handle usage/credits info (comes at the end of stream)
-            // New format: alia_usage (separate from OpenAI usage), fallback to legacy usage
-            const aliaUsage = parsed.alia_usage || parsed.usage;
-            if (aliaUsage && aliaUsage.credits_remaining !== undefined) {
-              queryClient.setQueryData<CreditsInfo>(queryKeys.credits.info, (old) => {
-                if (!old) return old;
-                return { ...old, credits: aliaUsage.credits_remaining };
-              });
-              // The balance is set from the frame; the rest (the usage window) is refetched.
-              queryClient.invalidateQueries({ queryKey: queryKeys.credits.info });
             }
 
             // Handle tool calls (OpenAI format: delta.tool_calls)

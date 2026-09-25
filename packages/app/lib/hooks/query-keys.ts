@@ -59,6 +59,8 @@ export const queryKeys = {
   credits: {
     info: ['credits'] as const,
     price: ['credit-price'] as const,
+    /** The last turn's spending warning, written by the stream and consumed when shown. */
+    usageWarning: ['usage-warning'] as const,
   },
   billing: {
     packages: ['credit-packages'] as const,
