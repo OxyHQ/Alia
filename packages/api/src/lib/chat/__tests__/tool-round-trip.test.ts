@@ -1,12 +1,4 @@
-/**
- * A replayed tool call is a message the SDK accepts.
- *
- * The tools-off follow-ups (synthesis after a stream that ended on tool
- * results, and the text-emitted tool call) replayed each call as
- * `{ content: '', toolCalls: [{ args }] }` — AI SDK v4's shape. v6 reads the
- * call from `tool-call` content parts carrying `input`, so the result that
- * followed answered a call the model was never shown.
- */
+/** A replayed tool call is a message the SDK accepts. */
 
 import { describe, expect, it } from 'vitest';
 import { modelMessageSchema } from 'ai';

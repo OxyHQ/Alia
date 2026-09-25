@@ -9,6 +9,8 @@
  *   - Tool name mapping (sanitized names for Google Gemini compatibility)
  */
 
+import type { ModelMessage } from 'ai';
+
 /** Minimal type for OpenAI-format chat messages from request body */
 export interface ChatMessage {
   role: string;
@@ -23,8 +25,8 @@ export interface ChatMessage {
  * Convert OpenAI-format messages to AI SDK ModelMessage format.
  * Handles tool result messages which have role "tool" in OpenAI format.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- AI SDK ModelMessage types are complex/dynamic
-export function convertToAISDKMessages(messages: ChatMessage[], toolNameMapping: Map<string, string>): any[] {
+export function convertToAISDKMessages(messages: ChatMessage[], toolNameMapping: Map<string, string>): ModelMessage[] {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- AI SDK ModelMessage types are complex/dynamic
   const result: any[] = [];
   const toolCallsMap = new Map<string, { name: string; index: number }>();
   const sanitizedToolName = (originalName: string): string =>
