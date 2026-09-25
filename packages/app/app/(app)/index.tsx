@@ -92,6 +92,9 @@ const ChatPage = () => {
     dismissSuggestedNewConversation,
     failedTurn,
     retryFailedTurn,
+    editMessage,
+    regenerateMessage,
+    turnOptionsOf,
   } = useChatConversation({
     reasoningEffort,
     selectedModel: selection.effectiveId ?? undefined,
@@ -151,6 +154,9 @@ const ChatPage = () => {
         conversationLoading={conversationLoading}
         onSubmit={handleSubmit}
         onStop={stopGeneration}
+        onEditMessage={editMessage}
+        onRegenerateMessage={regenerateMessage}
+        turnOptionsOf={turnOptionsOf}
         onApprovePlan={approvePlan}
         onRejectPlan={rejectPlan}
         suggestedNewConversation={suggestedNewConversation}

@@ -115,7 +115,7 @@ tarball.
 | Chat centre column: header, title, composer footer | `components/chat-page-content.tsx` (~740 lines), `components/chat-header.tsx` (267 lines) | `ai-chat`: `AiChatContainer` | needs a Bloom change | `AiChatContainerProps.project` is a required `string` and the container paints an opaque `backgroundColor: palette.secondary` on its root. See [gaps 4 and 8](#3-verified-contract-gaps). |
 | Message timeline: scroll, bottom-follow, upward pagination, cursor jump | `components/chat-interface.tsx` (~1,200 lines) + `lib/hooks/use-scroll-to-bottom.ts` | `ai-chat`: `AiChatThread` | needs a Bloom change | `AiChatThreadProps` is `{ children, style, testID }`. See [gap 3](#3-verified-contract-gaps). |
 | Turn rendering: user bubble, assistant blocks | `renderMessage` / `MessageRow` in `components/chat-interface.tsx` | `ai-chat`: `AiChatUserMessage`, `AiChatAssistantMessage`, `AiChatMessageLine`, `AiChatBulletList`, `AiChatBullet`, `AiChatStrong`, `AiChatLinkChip` | composition | `children: ReactNode` takes Alia's own block renderers unchanged, and `animate?: boolean` (default `true`) exists precisely for history restored from the server. `AiChatAssistantMessage` blurs each child in 180ms apart, so a streaming turn must not remount its block list. |
-| Turn actions: copy, vote, read aloud | action bar in `components/chat-interface.tsx` (`useTTS`, vote, edit, regenerate) | `ai-chat`: `AiChatFeedbackRow`, `AiChatFeedbackLabels` | needs a Bloom change | `onCopy` is `() => void` and the row confirms unconditionally. See [gap 6](#3-verified-contract-gaps). There is no read-aloud, edit or regenerate control in this row. |
+| Turn actions: copy, vote, read aloud | the reply's feedback row and the question's action row, built in `components/chat-interface.tsx` from `components/chat/turn-actions.tsx` (`useTTS`, vote, edit, regenerate) | `ai-chat`: `AiChatFeedbackRow` (`onCopy`, `actions`, `labels`), `AiChatUserMessage.actions`; `context-menu` for the long press on native | composition | Bloom 4.20 closed [gap 6](#3-verified-contract-gaps) and added turn `actions`: copy returns the clipboard's answer, read aloud and regenerate ride the feedback row, copy and edit sit under the question. |
 | Code / diff side panel | `components/canvas/code-renderer.tsx`, `components/execution/execution-surface.tsx` | `ai-chat`: `AiChatCodePanel`, `AiChatChangedFile`, `AiChatPanelAction`, `AiChatPanelTab` | composition | Usable only with an explicit `actions` array and an explicit `browser` node. See [gap 7](#3-verified-contract-gaps). |
 | Brand ambient background behind the chat | `components/ambient-field.tsx` (~480 lines), absolute fill rendered *before* `ChatInterface` in `chat-page-content.tsx` | `ai-chat`: nothing. Nearest is `chat-screen`'s `ChatBackground` | needs a Bloom change | No `ai-chat` export takes a background node. See [gap 8](#3-verified-contract-gaps). |
 | Generated-image surface | none found in `packages/app` (only an image route named in `lib/api/routes.ts`) | `ai-chat`: `AiChatImageGeneration`, `AiChatGalleryPanel`, `AiChatGeneration` | not applicable | There is no image-generation surface in the app to port. Adopting these would add a capability, which §6 of the issue forbids ("nada de arte de ejemplo"). Revisit if and when the product ships one. |
@@ -336,7 +336,12 @@ each tile's `progress` from real upload events — and `ComposerPanelAttachment`
 has no failure field, so a failed upload has no representation in the type at
 all.
 
-### 6. `AiChatFeedbackRow` announces success unconditionally — CONFIRMED
+### 6. `AiChatFeedbackRow` announces success unconditionally — CONFIRMED, fixed in Bloom 4.20
+
+Bloom 4.20 widened `onCopy` to `() => void | boolean | Promise<void | boolean>`
+and confirms only on `true`/`void`; `copyText` in
+`components/chat/turn-actions.tsx` returns what the clipboard answered. The
+finding as it stood:
 
 The type:
 
@@ -616,10 +621,11 @@ that has actually landed.
 | The right panel is dragged, using Bloom's `AiChatResizeHandle`; it had a fixed width | `components/ui/panel.tsx`, `components/right-panel.tsx` | `components/__tests__/panel-resize.test.tsx`, `lib/stores/__tests__/right-panel-width.test.ts` |
 | A reproducible visual baseline of "Meet Alia" and the ambient field — 6 viewports x light/dark x reduced/no-preference, plus 4 motion frames | `packages/app/scripts/visual/` | `bun run --filter @alia/app visual:baseline --check` |
 
-Bloom's own feedback row is switched off under a reply: Alia's action bar is a
-superset of it (read aloud, generate audio, regenerate, vote), and two rows
-would be two answers to the same question. That also sidesteps gap 6 for now —
-`onCopy` announcing a success it never checked — rather than resolving it.
+Bloom's own feedback row was switched off under a reply at the time: Alia's
+action bar was a superset of it (read aloud, generate audio, regenerate, vote),
+and two rows would have been two answers to the same question. It is the only
+row now — Bloom 4.20's turn `actions` carry read aloud and regenerate, and gap
+6 is fixed rather than sidestepped (`docs/bloom-template-pending.mdx`, Thread).
 
 ### What #608 still asks for
 

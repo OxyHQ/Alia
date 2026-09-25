@@ -83,10 +83,13 @@ describe('the thread renders Bloom AI Chat turns', () => {
   });
 
   it("draws the template's feedback row, and only once the reply is done", () => {
-    // Bloom's like / dislike / copy row, wired to Alia's votes and clipboard;
-    // there is no action bar of Alia's own under a reply. A turn that is only
-    // its work log (no words) has nothing to copy or rate.
-    expect(code).toContain('feedback={!m.isStreaming && messageText.length > 0}');
+    // Bloom's like / dislike / copy row, wired to Alia's votes and clipboard,
+    // with Alia's own actions handed to it rather than drawn in a bar of its
+    // own under a reply. A turn that is only its work log (no words) has
+    // nothing to copy or rate.
+    expect(code).toContain('const replyHasFeedback = !m.isStreaming && hasText;');
+    expect(code).toContain('feedback={replyHasFeedback}');
+    expect(code).toMatch(/actions: replyActions,/);
     expect(code).toMatch(/feedbackProps=\{\{\s*onLike:/);
     expect(code).not.toContain('ACTION_BAR');
   });
