@@ -18,8 +18,3 @@ const KeyboardAwareScrollView = React.forwardRef<ScrollView, KeyboardAwareScroll
 KeyboardAwareScrollView.displayName = 'KeyboardAwareScrollView';
 
 export { KeyboardAwareScrollView, KeyboardAvoidingView };
-
-// No-op provider on web — keyboard-controller is native-only
-export function KeyboardProvider({ children }: { children: React.ReactNode }) {
-  return <>{children}</>;
-}
