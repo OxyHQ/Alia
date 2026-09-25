@@ -559,8 +559,9 @@ None of the following has a 3.2.1 export that models it. Each stays Alia's.
 - **Socket.IO approvals.** `lib/hooks/use-agent-activity.ts` listens for
   `alia.approval_request` / `alia.approval_result` and emits
   `agent-approval-response`; `components/agent-panel.tsx` is the only UI.
-- **The scroll anchor, upward pagination and cursor jump** in
-  `lib/hooks/use-scroll-to-bottom.ts` — see gap 3.
+- **The window over a long thread and the per-conversation scroll restore**
+  in `lib/hooks/use-timeline-window.ts`, on top of `AiChatThread`'s anchor and
+  upward paging — see gap 3.
 - **The `Alia -> Oxy -> Kaana` path.** A UI refactor does not touch inference,
   auth, persistence or permissions. See [chat runtime](./chat-runtime.mdx) and
   [ADR 0001](./adr/0001-alia-oxy-kaana-responsibility-boundary.md).
@@ -638,15 +639,18 @@ anything above; all of it is larger than one change.
   flow only from `lg` (1024) while Alia's was in flow from 768, so tablet
   portrait now gets a drawer and a full-bleed chat. The visual baseline records
   it as a failure at 768 deliberately, pending that decision.
-- **The timeline.** Neither `AiChatThread` nor Bloom's `VirtualList` can host
-  Alia's scroll, and this is now evidenced rather than assumed:
-  `VirtualListProps.onEndReached` fires at the END of the list while Alia pages
-  UPWARD into history; `maintainVisibleContentPosition` is documented in Bloom's
-  own types as "accepted-but-ignored on web", which is exactly where the anchor
-  restore has to work; and there is no `scrollToIndex`, so the cursor jump has
-  no primitive. The anchor, upward pagination, cursor jump and day/seam
-  separators in `lib/hooks/use-scroll-to-bottom.ts` stay until Bloom grows those
-  three things.
+- **The timeline** is `AiChatThread`: its `followThreshold`, `onStartReached`
+  and `maintainStartPosition` replaced `use-scroll-to-bottom.ts`, and a cursor
+  jump measures its row and calls `scrollToOffset`. Bloom still has no
+  virtualization and no `scrollToIndex`, and `VirtualList` cannot host the
+  thread (`onEndReached` fires at the END while Alia pages UPWARD, and
+  `maintainVisibleContentPosition` is ignored on web). So long threads are
+  WINDOWED in Alia (`lib/hooks/use-timeline-window.ts`): the newest 40 rows
+  mount and older ones are revealed a page at a time through the same anchored
+  `onStartReached` growth history paging uses — measured, and its limits
+  stated, in [the runtime baseline](./runtime-baseline.mdx#9-the-timeline-at-1000-and-5000-messages).
+  The same hook restores each conversation's position. Day lines are Bloom's
+  `ChatDateHeader` inline, and thread seams a labelled `Divider`.
 - **The composer** is done, as composition rather than adoption: `ComposerLoader`
   is reused directly, Bloom's Enter rule is reimplemented over Alia's own field,
   and `ComposerPill`, `ComposerPanel`, `ModelPicker`, `ComposerAttachments`,
