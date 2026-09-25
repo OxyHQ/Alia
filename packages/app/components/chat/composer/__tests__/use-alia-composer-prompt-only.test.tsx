@@ -3,9 +3,11 @@ import { act, create } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
- * `attach: false` — the surfaces whose backend reads a prompt string and
- * nothing else (create-agent, create-skill) — offers no way to attach: no
- * picker rows, and no attachment props, which is what tells the composer to
+ * `promptOnly` — the surfaces whose endpoint reads a prompt string and nothing
+ * else (`/agents/generate`, `/skills/generate`, both on the default routing
+ * profile) — offers no control whose value that send would ignore: no model
+ * picker or effort, no mode selector, no add menu (files, search, skills,
+ * connectors), and no attachment props, which is what tells the composer to
  * take no paste or drop and draw no tile.
  */
 
@@ -63,23 +65,25 @@ beforeEach(() => {
   addMenu.options = [];
 });
 
-describe('a surface that takes files', () => {
-  it('offers the picker rows and hands the composer its list', () => {
+describe('a surface that sends a whole turn', () => {
+  it('offers every control and hands the composer its list', () => {
     const { props } = render({ draft: 'surface:automations' });
 
     expect(addMenu.options[0]?.canAttach).toBe(true);
     expect(props.onAddAttachment).toBeTypeOf('function');
     expect(props.attachments).toEqual([]);
+    expect(props.providers).toBeDefined();
+    expect(props.modes).toHaveLength(3);
+    expect(props.addMenu).toBeDefined();
   });
 });
 
 describe('a surface that sends only a prompt', () => {
-  it('offers no picker rows and no attachment props at all', () => {
-    const { props } = render({ draft: 'surface:skill-create', attach: false });
+  it('offers no control the prompt would not carry', () => {
+    const { props } = render({ draft: 'surface:skill-create', promptOnly: true });
 
-    expect(addMenu.options[0]?.canAttach).toBe(false);
-    expect('attachments' in props).toBe(false);
-    expect('onAddAttachment' in props).toBe(false);
-    expect('onRemoveAttachment' in props).toBe(false);
+    // Nothing at all: Bloom's panel hides the picker without `providers`, and
+    // the composer defaults the add menu and the modes to `[]`, which hide them.
+    expect(props).toEqual({});
   });
 });

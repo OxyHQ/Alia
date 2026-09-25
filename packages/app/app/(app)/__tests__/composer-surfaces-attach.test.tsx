@@ -10,8 +10,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
  * attach rows included. Automations starts a chat, and a chat carries images,
  * so there the draft's files and turn now go with the first message — it used
  * to send `attachments: []`. `/agents/generate` and `/skills/generate` read a
- * prompt string and nothing else, so those two ask for no attaching at all —
- * pinned in `components/chat/composer/__tests__/use-alia-composer-attach.test.tsx`.
+ * prompt string and nothing else, so those two offer none of the turn's controls —
+ * pinned in `components/chat/composer/__tests__/use-alia-composer-prompt-only.test.tsx`.
  */
 
 const draft = vi.hoisted(() => ({
@@ -98,11 +98,11 @@ afterEach(() => {
 });
 
 describe('automations', () => {
-  it('keeps its attach control, because the chat it starts carries the files', async () => {
+  it('keeps its attach control, because the chat it starts carries the whole turn', async () => {
     act(() => {
       renderer = create(<AutomationsScreen />);
     });
-    expect(draft.options[0]).not.toMatchObject({ attach: false });
+    expect(draft.options[0]).not.toMatchObject({ promptOnly: true });
 
     await act(async () => {
       (composerProps.current?.onSubmit as () => void)();

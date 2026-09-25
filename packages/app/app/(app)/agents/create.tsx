@@ -80,8 +80,9 @@ export default function CreateAgentScreen() {
   const composer = useAliaComposer({
     draft: 'surface:agent-create',
     locked: generating,
-    // `/agents/generate` reads a prompt string and nothing else.
-    attach: false,
+    // `/agents/generate` reads the prompt and nothing else — no model, effort, mode,
+    // file, skill or connector — so the composer offers none of them.
+    promptOnly: true,
   });
   const [selectedArchetype, setSelectedArchetype] = useState<Archetype>('general');
 
@@ -230,9 +231,9 @@ export default function CreateAgentScreen() {
         </View>
 
         {/*
-          The simple composer: a field, a send control and a suggestion list.
-          No attachments and no model chip — `models` is omitted, which is how
-          Bloom's pill is told to draw none. `busy` and `disabled` carry the
+          The simple composer: a field and a send control. `promptOnly`
+          gives the panel no model picker, modes or add menu, which is how
+          Bloom is told to draw none. `busy` and `disabled` carry the
           same flag on purpose: there is no stream to cancel here, so
           generating greys send rather than offering a stop, and with no
           `onStop` Bloom draws no stop control at all.

@@ -49,11 +49,14 @@ export interface AliaComposerOptions {
   /** A turn is streaming or the composer is closed: nothing may be attached. */
   locked?: boolean;
   /**
-   * Whether this surface takes files at all. False where what is sent is a
-   * prompt string the backend reads nothing else from (creating an agent or a
-   * skill): no picker rows, no tiles, no paste or drop.
+   * The surface sends a prompt string and nothing else (creating an agent or
+   * a skill: both endpoints read the prompt and generate on the default
+   * routing profile). Every control whose value such a send would ignore goes
+   * — model and effort, the mode selector, the add menu with its files,
+   * search, skills and connectors — and with no attachment props the
+   * composer takes no paste or drop either.
    */
-  attach?: boolean;
+  promptOnly?: boolean;
   /** Offer ghost mode: only before anything in the conversation is saved. */
   offerGhost?: boolean;
   /**
@@ -85,7 +88,7 @@ export type AliaComposerProps = Pick<
 export function useAliaComposer({
   draft: target,
   locked = false,
-  attach = true,
+  promptOnly = false,
   offerGhost = false,
   selectedModel: modelOverride,
   onModelChange: onModelOverride,
@@ -142,7 +145,7 @@ export function useAliaComposer({
 
   const addMenu = useComposerAddMenu({
     addAttachment,
-    canAttach: attach && !locked,
+    canAttach: !locked,
     modes: modeActive,
     toggleMode,
     webSearch,
@@ -188,22 +191,24 @@ export function useAliaComposer({
     [mode, modeActive, toggleMode],
   );
 
-  const props: AliaComposerProps = {
-    ...(attach
-      ? { attachments, onAddAttachment: addAttachment, onRemoveAttachment: removeAttachment }
-      : {}),
-    providers: lineup.providers,
-    model: lineup.model,
-    onModelChange: lineup.onModelChange,
-    effortLevels: lineup.effortLevels,
-    effort: lineup.effort,
-    onEffortChange: lineup.onEffortChange,
-    modes,
-    mode,
-    onModeChange,
-    addMenu: addMenu.groups,
-    onAddMenuSelect: addMenu.onSelect,
-  };
+  const props: AliaComposerProps = promptOnly
+    ? {}
+    : {
+        attachments,
+        onAddAttachment: addAttachment,
+        onRemoveAttachment: removeAttachment,
+        providers: lineup.providers,
+        model: lineup.model,
+        onModelChange: lineup.onModelChange,
+        effortLevels: lineup.effortLevels,
+        effort: lineup.effort,
+        onEffortChange: lineup.onEffortChange,
+        modes,
+        mode,
+        onModeChange,
+        addMenu: addMenu.groups,
+        onAddMenuSelect: addMenu.onSelect,
+      };
 
   /** What a send carries beyond the text. */
   const turnOptions: SendOptions = { mcpServerId: connectorId, skillNames };
