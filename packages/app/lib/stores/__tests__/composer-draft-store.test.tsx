@@ -113,6 +113,36 @@ describe('one draft per composer', () => {
     });
   });
 
+  it('takes an edit over the composer and gives back what it held on cancel', () => {
+    const address = store().address('c1');
+    store().setText(address, 'half a thought');
+    store().updateTurn(address, () => ({ mcpServerId: 'm0', skillNames: [] }));
+
+    store().startEdit(address, { messageId: 'u1', text: 'first', mcpServerId: 'm1', skillNames: ['a'] });
+    // A second edit before the first is sent keeps the ORIGINAL draft aside.
+    store().startEdit(address, { messageId: 'u2', text: 'second', mcpServerId: null, skillNames: [] });
+    expect(draftOf('c1')).toMatchObject({
+      text: 'second',
+      mcpServerId: null,
+      editing: { messageId: 'u2', before: { text: 'half a thought', mcpServerId: 'm0', skillNames: [] } },
+    });
+
+    store().cancelEdit(address);
+    expect(draftOf('c1')).toEqual({
+      text: 'half a thought',
+      attachments: [],
+      mcpServerId: 'm0',
+      skillNames: [],
+    });
+  });
+
+  it('drops an edit with the draft, when the draft is cleared for its send', () => {
+    const address = store().address('c1');
+    store().startEdit(address, { messageId: 'u1', text: 'first', mcpServerId: null, skillNames: [] });
+    store().clear(address);
+    expect(draftOf('c1')).toBeUndefined();
+  });
+
   it('changes the turn from what the draft holds now', () => {
     const address = store().address('c1');
     store().updateTurn(address, (turn) => ({ ...turn, skillNames: [...turn.skillNames, 'a'] }));

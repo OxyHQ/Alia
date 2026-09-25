@@ -148,6 +148,13 @@ export function useStreamingChat(apiUrl: string, conversationId?: string, reason
   const [failedTurn, setFailedTurn] = useState<FailedTurn | null>(null);
   /** What a retry re-sends: the same content and attachments, the same options. */
   const retryRef = useRef<{ message: Omit<Message, 'id'>; options?: SendOptions; userMessageId: string } | null>(null);
+  /**
+   * The connector and skills each user turn was sent with, by its id, so an
+   * edit or a regenerate sends it the way it was sent (#608 §6). A message
+   * does not carry them and the server does not return them, so this is only
+   * known for turns sent while this screen was open.
+   */
+  const turnOptionsRef = useRef(new Map<string, Pick<SendOptions, 'mcpServerId' | 'skillNames'>>());
   const { oxyServices } = useOxy();
   const queryClient = useQueryClient();
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -225,6 +232,7 @@ export function useStreamingChat(apiUrl: string, conversationId?: string, reason
   useEffect(() => {
     setFailedTurn(null);
     retryRef.current = null;
+    turnOptionsRef.current.clear();
   }, [conversationId]);
 
   const append = useCallback(async (
@@ -332,6 +340,12 @@ export function useStreamingChat(apiUrl: string, conversationId?: string, reason
      * client `createdAt`, so this is the value that persists too.
      */
     const userMessage: Message = { ...message, id: Date.now().toString(), createdAt: new Date().toISOString() };
+    if (options !== undefined) {
+      turnOptionsRef.current.set(userMessage.id, {
+        mcpServerId: options.mcpServerId,
+        skillNames: options.skillNames,
+      });
+    }
     // Build from the pre-send snapshot before any await. The optimistic user
     // row and assistant placeholder may reach messagesRef while device info is
     // collected; reading the ref afterwards used to send both plus userMessage
@@ -1206,6 +1220,12 @@ export function useStreamingChat(apiUrl: string, conversationId?: string, reason
     setSuggestedNewConversation(null);
   }, []);
 
+  /** The options a user turn was sent with, if it was sent from this screen. */
+  const turnOptionsOf = useCallback(
+    (userMessageId: string) => turnOptionsRef.current.get(userMessageId),
+    [],
+  );
+
   return {
     messages,
     isLoading,
@@ -1222,5 +1242,6 @@ export function useStreamingChat(apiUrl: string, conversationId?: string, reason
     failedTurn,
     retryFailedTurn,
     clearFailedTurn,
+    turnOptionsOf,
   };
 }

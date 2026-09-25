@@ -25,6 +25,9 @@ import type { FailedTurn, SendOptions } from '@/lib/hooks/use-streaming-chat';
 import { useTranslation } from '@/lib/hooks/use-translation';
 import type { useVoiceMode } from '@/lib/hooks/use-voice-mode';
 import { useStore } from '@/lib/stores/global-store';
+import { useTurnEdit } from '@/lib/chat/use-turn-edit';
+import { RiEditLine } from '@oxy.so/bloom/icons/RiEditLine';
+import { Text } from '@oxy.so/bloom/typography';
 import { useFoldersStore } from '@/lib/stores/folders-store';
 import { useProjectsStore } from '@/lib/stores/projects-store';
 import type { ThreadMessage } from '@/lib/thread-history';
@@ -99,6 +102,21 @@ interface ChatPageContentProps {
     options?: SendOptions,
   ) => Promise<boolean>;
   onStop?: () => void;
+  /**
+   * Send a rewritten question in place of the one sent: the thread is cut back
+   * to it. `attachments` are the ones added while editing; the turn keeps its
+   * own. Absent where the screen cannot edit.
+   */
+  onEditMessage?: (
+    messageId: string,
+    text: string,
+    options?: SendOptions,
+    attachments?: Attachment[],
+  ) => Promise<boolean>;
+  /** Ask for a reply again; `fallback` is used when its question's options are unknown. */
+  onRegenerateMessage?: (assistantMessageId: string, fallback?: SendOptions) => Promise<boolean>;
+  /** The options a question was sent with, when this screen sent it. */
+  turnOptionsOf?: (userMessageId: string) => SendOptions | undefined;
   disabled?: boolean;
   conversationLoading?: boolean;
   voice?: VoiceState;
@@ -161,6 +179,9 @@ export const ChatPageContent = ({
   isLoading,
   onSubmit,
   onStop,
+  onEditMessage,
+  onRegenerateMessage,
+  turnOptionsOf,
   disabled = false,
   conversationLoading,
   voice,
@@ -200,6 +221,14 @@ export const ChatPageContent = ({
     onModelChange,
   });
   const { attachments, turnOptions, clearDraft } = composer;
+  // A question being rewritten in this composer, if one is (`useTurnEdit`).
+  const edit = useTurnEdit({
+    target: conversationId ?? null,
+    messages,
+    turnOptionsOf,
+    onEditMessage,
+  });
+  const { editing } = edit;
 
   // Toasts that belong to the chat, never to "Meet Alia" in front of it.
   useLocalModelsInvite(intro === undefined);
@@ -309,6 +338,19 @@ export const ChatPageContent = ({
   }, []);
 
   /**
+   * Read through a ref: the handler is a prop of the thread's last reply, and
+   * the send path's identity changes with every streamed token.
+   */
+  const latest = useRef({ onRegenerateMessage, turnOptions });
+  latest.current = { onRegenerateMessage, turnOptions };
+
+  /** A reply again, sent the way its question was (the composer's choice if unknown). */
+  const handleRegenerate = useCallback((assistantMessageId: string) => {
+    const { onRegenerateMessage: regenerate, turnOptions: fallback } = latest.current;
+    void regenerate?.(assistantMessageId, fallback);
+  }, []);
+
+  /**
    * The welcome suggestions the empty chat offers — fetched once by the layout,
    * read from the same query here.
    */
@@ -324,6 +366,9 @@ export const ChatPageContent = ({
     const draft = typeof dictated === 'string' ? dictated : inputValue;
     const hasText = draft.trim().length > 0;
     if ((!hasText && attachments.length === 0) || isLoading || disabled) return;
+    // An edit rewrites the question's words; an attachment alone does not
+    // make a replacement for them.
+    if (editing !== undefined && !hasText) return;
     // Signed-out: open the SDK sign-in dialog instead of firing a request that
     // would 401. The draft stays in the input for after sign-in.
     if (!isAuthenticated) {
@@ -337,6 +382,11 @@ export const ChatPageContent = ({
     // Clear optimistically. The send path restores text, attachments and the
     // turn's connector and skills to this draft if the request fails.
     clearDraft();
+
+    if (editing !== undefined) {
+      await edit.submit(content, options, pendingAttachments);
+      return;
+    }
 
     await onSubmit(content, pendingAttachments, options);
   };
@@ -441,10 +491,26 @@ export const ChatPageContent = ({
                 />
               }
               placeholder={
-                disabled ? t('usageLimit.inputDisabledPlaceholder') : t('composer.placeholder')
+                disabled
+                  ? t('usageLimit.inputDisabledPlaceholder')
+                  : editing !== undefined
+                    ? t('composer.editPlaceholder')
+                    : t('composer.placeholder')
               }
               status={
-                projectName ? (
+                editing !== undefined ? (
+                  // Where the chat's folder sits, while a question is being
+                  // rewritten: what is happening, and the way out of it.
+                  <View className="flex-row items-center gap-2 px-3 py-1">
+                    <RiEditLine size="sm" />
+                    <Text className="flex-1 text-xs text-muted-foreground">
+                      {t('composer.editingMessage')}
+                    </Text>
+                    <Button variant="ghost" size="xs" onPress={edit.cancel}>
+                      {t('composer.cancelEdit')}
+                    </Button>
+                  </View>
+                ) : projectName ? (
                   <ComposerPanelStatusTab project={projectName} />
                 ) : undefined
               }
@@ -481,6 +547,9 @@ export const ChatPageContent = ({
         onDismissNewConversation={onDismissNewConversation}
         failedTurn={failedTurn}
         onRetryTurn={onRetryTurn}
+        onRegenerate={onRegenerateMessage === undefined ? undefined : handleRegenerate}
+        onStartEdit={edit.start}
+        callActive={isVoiceActive}
       />
     </ChatWorkspace>
   );

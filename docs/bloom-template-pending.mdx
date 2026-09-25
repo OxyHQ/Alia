@@ -81,9 +81,9 @@ not be read is a toast; the tiles have no error state.
 
 | Removed | Comes back through |
 | --- | --- |
-| Read aloud, generate audio, regenerate | `AiChatAssistantMessage` feedback row (Bloom has like / dislike / copy) |
-| Copy / edit under the user's turn | no Bloom slot yet |
-| Long-press menu on native | no Bloom slot yet |
+| Read aloud, generate audio, regenerate | **back** as the feedback row's `actions` (Bloom 4.20): read aloud is a toggle — pressed while it plays, a second press stops it — disabled during a call or a dictation, and a call or a dictation that starts stops it (`components/chat/turn-actions.tsx`); a failure is a toast. Regenerate is on Alia's last reply only, once it has finished and no turn is in flight, and replays its question with the connector and skills it was sent with (the composer's, for a question sent before a reload). Copy confirms only what the clipboard did: a refusal is an error toast and no "Copied!". **Generate audio stays out:** `POST /v1/audio/generate` answers 503 `KAANA_CAPABILITY_UNAVAILABLE` on every request |
+| Copy / edit under the user's turn | **back** as `AiChatUserMessage.actions`. Edit puts the question's words and its connector and skills into this chat's draft (`composer-draft-store.ts`, `editing`), with "Edit your message" as the placeholder and an "Editing message · Cancel" strip where the status tab sits; Cancel gives back what the composer held, and the send replaces the question and everything after it (`lib/chat/use-turn-edit.ts`). Not on a question from an earlier conversation of a thread, nor during a call |
+| Long-press menu on native | **back**: Bloom's `ContextMenu` around each turn, with the same actions (likes included on a reply). Web keeps the rows; a right-click there stays the browser's |
 | Weather, market, FairCoin and scheduled-task cards | blocks inside `AiChatAssistantMessage` |
 | Sources under a reply and the reference list | `AiChatLinkChip`s (inline citations are already chips) |
 | Research progress card | `AgentProgress` |

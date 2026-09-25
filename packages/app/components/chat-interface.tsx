@@ -2,6 +2,12 @@ import { AgentResultCard } from '@/components/agent-result-card';
 import { AgentTaskCard } from '@/components/agent-task-card';
 import { WelcomeMessage } from '@/components/welcome-message';
 import { FailedTurnCard } from '@/components/chat/failed-turn-card';
+import {
+  copyText,
+  TurnMenu,
+  useReadAloud,
+  type ReadAloudState,
+} from '@/components/chat/turn-actions';
 import { MessageBlockBoundary } from '@/components/chat/message-block-boundary';
 import { ToolResultCard } from '@/components/chat/tool-result-card';
 import { TurnStatusLine } from '@/components/chat/turn-status-line';
@@ -45,14 +51,21 @@ import {
   AiChatThread,
   AiChatUserMessage,
   type AiChatThreadHandle,
+  type AiChatTurnAction,
   useAiChatChromeInsets,
 } from '@oxy.so/bloom/ai-chat';
+import { RiEditLine } from '@oxy.so/bloom/icons/RiEditLine';
+import { RiFileCopyLine } from '@oxy.so/bloom/icons/RiFileCopyLine';
+import { RiRefreshLine } from '@oxy.so/bloom/icons/RiRefreshLine';
+import { RiStopFill } from '@oxy.so/bloom/icons/RiStopFill';
+import { RiThumbDownLine } from '@oxy.so/bloom/icons/RiThumbDownLine';
+import { RiThumbUpLine } from '@oxy.so/bloom/icons/RiThumbUpLine';
+import { RiVolumeUpLine } from '@oxy.so/bloom/icons/RiVolumeUpLine';
 import { Loading } from '@oxy.so/bloom/loading';
 import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { toast } from '@oxy.so/bloom/toast';
 import { Text } from '@oxy.so/bloom/typography';
 import { useQueryClient } from '@tanstack/react-query';
-import * as Clipboard from 'expo-clipboard';
 import { Image } from '@/components/ui/image';
 import React, {
   useCallback,
@@ -151,6 +164,20 @@ type ChatInterfaceProps = {
    */
   failedTurn?: FailedTurn | null;
   onRetryTurn?: () => void;
+  /**
+   * Ask for Alia's last reply again. Offered on that reply only, and only once
+   * it has finished: an earlier one would throw away every turn after it, and
+   * this thread has no branches to keep them in.
+   */
+  onRegenerate?: (assistantMessageId: string) => void;
+  /** Load one of this conversation's questions into the composer to rewrite it. */
+  onStartEdit?: (userMessageId: string) => void;
+  /**
+   * A voice call is on. Its composer is the call's controls, so there is
+   * nowhere for an edit or a regenerate to go, and reading a reply aloud
+   * would talk over it.
+   */
+  callActive?: boolean;
 };
 
 /**
@@ -202,7 +229,17 @@ type MessageRowProps = {
   chatId: ChatIdState;
   /** Where this row ended up, for the one row a jump is aimed at. */
   onRowLayout?: (e: LayoutChangeEvent) => void;
-  handleCopyMessage: (content: string) => void;
+  /** Resolves whether the text really reached the clipboard. */
+  handleCopyMessage: (content: string) => Promise<boolean>;
+  /** This reply's read-aloud, as a primitive so only its own row re-renders. */
+  readAloudState: ReadAloudState;
+  onReadAloud: (messageId: string, text: string, audioUrl?: string) => void;
+  /** A call or a dictation holds the audio. */
+  readAloudBlocked: boolean;
+  /** Given only to the one reply that may be regenerated. */
+  onRegenerate?: (assistantMessageId: string) => void;
+  /** Given only to a question that may be edited. */
+  onStartEdit?: (userMessageId: string) => void;
   handleVote: (
     messageId: string,
     vote: 'up' | 'down',
@@ -231,6 +268,11 @@ const MessageRow = React.memo(function MessageRow({
   onRowLayout,
   handleCopyMessage,
   handleVote,
+  readAloudState,
+  onReadAloud,
+  readAloudBlocked,
+  onRegenerate,
+  onStartEdit,
   onApprovePlan,
   onRejectPlan,
   workStartedAt,
@@ -279,6 +321,85 @@ const MessageRow = React.memo(function MessageRow({
           return card === null ? [] : [{ key: t.toolCallId || `tool-${m.id}-${ti}`, card }];
         })
       : [];
+
+  /**
+   * The turn's own actions, each one only where it can be done: read aloud
+   * and copy need words, regenerate a finished reply and a thread not busy
+   * with another turn. The row under the turn and the long-press menu are the
+   * same list.
+   */
+  const copyTurn = () => handleCopyMessage(messageText);
+  const hasText = messageText.length > 0;
+  const reading =
+    readAloudState === 'loading' ||
+    readAloudState === 'playing' ||
+    readAloudState === 'paused';
+  const readAloudAction: AiChatTurnAction | null =
+    m.role !== 'assistant' || !hasText
+      ? null
+      : {
+          key: 'read-aloud',
+          label: reading ? rowT('chat.stopReading') : rowT('chat.readAloud'),
+          icon: reading ? RiStopFill : RiVolumeUpLine,
+          active: reading,
+          disabled: readAloudBlocked && !reading,
+          onPress: () => onReadAloud(m.id, messageText, m.audioUrl),
+        };
+  const regenerateAction: AiChatTurnAction | null =
+    onRegenerate === undefined || m.isStreaming || isLoading
+      ? null
+      : {
+          key: 'regenerate',
+          label: rowT('chat.regenerate'),
+          icon: RiRefreshLine,
+          onPress: () => onRegenerate(m.id),
+        };
+  const copyAction: AiChatTurnAction | null = !hasText
+    ? null
+    : {
+        key: 'copy',
+        label: rowT('chat.copy'),
+        icon: RiFileCopyLine,
+        onPress: () => void copyTurn(),
+      };
+  const editAction: AiChatTurnAction | null =
+    onStartEdit === undefined
+      ? null
+      : {
+          key: 'edit',
+          label: rowT('chat.edit'),
+          icon: RiEditLine,
+          onPress: () => onStartEdit(m.id),
+        };
+  const isPresent = (a: AiChatTurnAction | null): a is AiChatTurnAction => a !== null;
+  /** Under a reply, after Bloom's like / dislike / copy. */
+  const replyActions = [readAloudAction, regenerateAction].filter(isPresent);
+  /** Under a question. */
+  const questionActions = [copyAction, editAction].filter(isPresent);
+  const replyHasFeedback = !m.isStreaming && hasText;
+  /** The long-press menu: everything the rows offer, likes included. */
+  const menuActions =
+    m.role === 'assistant'
+      ? replyHasFeedback
+        ? [
+            readAloudAction,
+            copyAction,
+            regenerateAction,
+            {
+              key: 'like',
+              label: rowT('chat.like'),
+              icon: RiThumbUpLine,
+              onPress: () => handleVote(m.id, 'up', chatId?.id),
+            },
+            {
+              key: 'dislike',
+              label: rowT('chat.dislike'),
+              icon: RiThumbDownLine,
+              onPress: () => handleVote(m.id, 'down', chatId?.id),
+            },
+          ].filter(isPresent)
+        : []
+      : questionActions;
 
   return (
     /**
@@ -348,100 +469,113 @@ const MessageRow = React.memo(function MessageRow({
                 </View>
               ) : null}
               {/* The template's reply: Bloom's reveal and its own feedback
-                  row (like / dislike / copy). */}
-              <AiChatAssistantMessage
-                animate={isNewMessage}
-                feedback={!m.isStreaming && messageText.length > 0}
-                feedbackProps={{
-                  onLike: () => handleVote(m.id, 'up', chatId?.id),
-                  onDislike: () => handleVote(m.id, 'down', chatId?.id),
-                  onCopy: () => handleCopyMessage(messageText),
-                }}
-              >
-                {workInvocations.length === 0 || turnWorking ? null : (
-                  <TurnStatusLine
-                    label={
-                      workStartedAt !== null && workEndedAt !== null
-                        ? rowT('thought.workedFor', {
-                            elapsed: formatElapsed(workEndedAt - workStartedAt),
-                          })
-                        : rowT('thought.worked')
-                    }
-                    hint={rowT('thought.viewDetails')}
-                    onPress={onOpenThought && (() => onOpenThought(m.id, 'steps'))}
-                  />
-                )}
-                {/* A turn that reasoned without tools: its reasoning, a press away. */}
-                {workInvocations.length > 0 || !m.thinking || turnWorking ? null : (
-                  <TurnStatusLine
-                    label={rowT('thought.reasoning')}
-                    hint={rowT('thought.viewDetails')}
-                    onPress={onOpenThought && (() => onOpenThought(m.id, 'steps'))}
-                  />
-                )}
-                {taskLog === null ? null : (
-                  <TaskList
-                    tasks={taskLog.tasks}
-                    revealed={taskLog.revealed}
-                    collapseOnComplete="all"
-                    working={false}
-                  />
-                )}
-                {webLog === null || webLog.steps.length === 0 ? null : (
-                  <WebSearch
-                    steps={webLog.steps}
-                    revealed={webLog.revealed}
-                    working={turnWorking ? rowT('chat.working') : false}
-                    labels={{ sources: rowT('chat.sources') }}
-                  />
-                )}
-                {/* Each card in its own boundary: `cardOf` checks the card's
-                    NAME, and its data is cast unchecked. */}
-                {toolCards.map(({ key, card }) => (
-                  <MessageBlockBoundary key={key}>
-                    <ToolResultCard card={card} />
-                  </MessageBlockBoundary>
-                ))}
-                {/* The reply's text as Alia always drew it: its own Markdown
-                    renderer (tables, headings, lists, code, citations), which
-                    reads better than a line-per-block transcript. */}
-                {m.source === 'voice' ? (
-                  <Text className="text-base leading-7 text-foreground">
-                    {messageText}
-                    {m.isStreaming ? '\u258C' : ''}
-                  </Text>
-                ) : (
-                  <CustomMarkdown
-                    content={messageText}
-                    toolInvocations={m.toolInvocations}
-                    researchSources={m.researchProgress?.sources}
-                  />
-                )}
-              </AiChatAssistantMessage>
+                  row (like / dislike / copy), then read aloud and
+                  regenerate. Copy confirms only what the clipboard did. */}
+              <TurnMenu actions={menuActions} label={rowT('chat.turnActions')}>
+                <AiChatAssistantMessage
+                  animate={isNewMessage}
+                  feedback={replyHasFeedback}
+                  feedbackProps={{
+                    onLike: () => handleVote(m.id, 'up', chatId?.id),
+                    onDislike: () => handleVote(m.id, 'down', chatId?.id),
+                    onCopy: copyTurn,
+                    actions: replyActions,
+                    labels: {
+                      like: rowT('chat.like'),
+                      dislike: rowT('chat.dislike'),
+                      copy: rowT('chat.copy'),
+                      copied: rowT('chat.copied'),
+                    },
+                  }}
+                >
+                  {workInvocations.length === 0 || turnWorking ? null : (
+                    <TurnStatusLine
+                      label={
+                        workStartedAt !== null && workEndedAt !== null
+                          ? rowT('thought.workedFor', {
+                              elapsed: formatElapsed(workEndedAt - workStartedAt),
+                            })
+                          : rowT('thought.worked')
+                      }
+                      hint={rowT('thought.viewDetails')}
+                      onPress={onOpenThought && (() => onOpenThought(m.id, 'steps'))}
+                    />
+                  )}
+                  {/* A turn that reasoned without tools: its reasoning, a press away. */}
+                  {workInvocations.length > 0 || !m.thinking || turnWorking ? null : (
+                    <TurnStatusLine
+                      label={rowT('thought.reasoning')}
+                      hint={rowT('thought.viewDetails')}
+                      onPress={onOpenThought && (() => onOpenThought(m.id, 'steps'))}
+                    />
+                  )}
+                  {taskLog === null ? null : (
+                    <TaskList
+                      tasks={taskLog.tasks}
+                      revealed={taskLog.revealed}
+                      collapseOnComplete="all"
+                      working={false}
+                    />
+                  )}
+                  {webLog === null || webLog.steps.length === 0 ? null : (
+                    <WebSearch
+                      steps={webLog.steps}
+                      revealed={webLog.revealed}
+                      working={turnWorking ? rowT('chat.working') : false}
+                      labels={{ sources: rowT('chat.sources') }}
+                    />
+                  )}
+                  {/* Each card in its own boundary: `cardOf` checks the card's
+                      NAME, and its data is cast unchecked. */}
+                  {toolCards.map(({ key, card }) => (
+                    <MessageBlockBoundary key={key}>
+                      <ToolResultCard card={card} />
+                    </MessageBlockBoundary>
+                  ))}
+                  {/* The reply's text as Alia always drew it: its own Markdown
+                      renderer (tables, headings, lists, code, citations), which
+                      reads better than a line-per-block transcript. */}
+                  {m.source === 'voice' ? (
+                    <Text className="text-base leading-7 text-foreground">
+                      {messageText}
+                      {m.isStreaming ? '\u258C' : ''}
+                    </Text>
+                  ) : (
+                    <CustomMarkdown
+                      content={messageText}
+                      toolInvocations={m.toolInvocations}
+                      researchSources={m.researchProgress?.sources}
+                    />
+                  )}
+                </AiChatAssistantMessage>
+              </TurnMenu>
             </View>
           ) : (
-            // The template's user turn: Bloom's bubble, nothing under it, with
-            // the breathing room above it the thread had before the refactor.
+            // The template's user turn: Bloom's bubble with copy and edit
+            // under it, and the breathing room above it the thread had before
+            // the refactor.
             <View className="mt-2 flex-col items-end">
-              <AiChatUserMessage animate={isNewMessage}>
-                {messageImages.length > 0 && (
-                  <View className="flex-row flex-wrap gap-2">
-                    {messageImages.map((imgUrl, imgIdx) => (
-                      <View
-                        key={`img-${imgIdx}`}
-                        className="h-[120px] w-[120px] overflow-hidden rounded-xl"
-                      >
-                        <Image
-                          source={{ uri: imgUrl }}
-                          className="w-full h-full"
-                          contentFit="cover"
-                        />
-                      </View>
-                    ))}
-                  </View>
-                )}
-                {messageText}
-              </AiChatUserMessage>
+              <TurnMenu actions={menuActions} label={rowT('chat.turnActions')}>
+                <AiChatUserMessage animate={isNewMessage} actions={questionActions}>
+                  {messageImages.length > 0 && (
+                    <View className="flex-row flex-wrap gap-2">
+                      {messageImages.map((imgUrl, imgIdx) => (
+                        <View
+                          key={`img-${imgIdx}`}
+                          className="h-[120px] w-[120px] overflow-hidden rounded-xl"
+                        >
+                          <Image
+                            source={{ uri: imgUrl }}
+                            className="w-full h-full"
+                            contentFit="cover"
+                          />
+                        </View>
+                      ))}
+                    </View>
+                  )}
+                  {messageText}
+                </AiChatUserMessage>
+              </TurnMenu>
             </View>
           )}
         </View>
@@ -473,6 +607,9 @@ export const ChatInterface = React.memo(function ChatInterface({
   focusCursor,
   failedTurn,
   onRetryTurn,
+  onRegenerate,
+  onStartEdit,
+  callActive = false,
 }: ChatInterfaceProps) {
   const { t, locale } = useTranslation();
   /** This screen's votes, read to decide whether a press casts or retracts one. */
@@ -679,12 +816,30 @@ export const ChatInterface = React.memo(function ChatInterface({
 
   const handleCopyMessage = useCallback(
     async (content: string) => {
-      await Clipboard.setStringAsync(content);
-      toast.success(t('chat.copiedToClipboard'));
-      onCopyMessage?.(content);
+      const copied = await copyText(content, t);
+      if (copied) onCopyMessage?.(content);
+      return copied;
     },
     [onCopyMessage, t],
   );
+
+  const readAloud = useReadAloud(callActive);
+
+  /**
+   * Whether the reply at `index` can be asked for again: Alia's last reply,
+   * the last thing in the thread (a question after it has its own retry), not
+   * the one a failure hangs under (the retry card is its way back), and with a
+   * question of this conversation before it to replay.
+   */
+  const canRegenerate = (m: Message, index: number): boolean => {
+    if (onRegenerate === undefined || callActive) return false;
+    if (index !== lastAliaIndex || index !== filteredMessages.length - 1) return false;
+    if (index < history.length || failedTurn?.anchorMessageId === m.id) return false;
+    for (let i = index - 1; i >= history.length; i--) {
+      if (filteredMessages[i].role === 'user') return true;
+    }
+    return false;
+  };
 
   /**
    * `conversationId` comes from the ROW, not from the screen.
@@ -812,6 +967,15 @@ export const ChatInterface = React.memo(function ChatInterface({
           onRowLayout={index === focusIndex ? handleFocusLayout : undefined}
           handleCopyMessage={handleCopyMessage}
           handleVote={handleVote}
+          readAloudState={readAloud.stateOf(m.id)}
+          onReadAloud={readAloud.toggle}
+          readAloudBlocked={readAloud.blocked}
+          onRegenerate={canRegenerate(m, index) ? onRegenerate : undefined}
+          // A question of an earlier conversation is not in the list an edit
+          // cuts, so the "edit" would silently become a new turn.
+          onStartEdit={
+            m.role === 'user' && !fromHistory && !callActive ? onStartEdit : undefined
+          }
           workStartedAt={timing.startedAt}
           workEndedAt={timing.endedAt}
           onOpenThought={openThought}

@@ -155,6 +155,30 @@ vi.mock('@tanstack/react-query', () => ({
   useQueryClient: () => ({ getQueryState: () => undefined }),
 }));
 vi.mock('expo-clipboard', () => ({ setStringAsync: async () => true }));
+// The turn's actions reach TTS, dictation and Bloom's context menu; none of
+// them takes part in what a token re-renders. `stateOf` is stable, as the real
+// one is between playback transitions.
+const readAloud = vi.hoisted(() => ({
+  toggle: () => {},
+  stateOf: () => 'idle' as const,
+  blocked: false,
+}));
+vi.mock('@/components/chat/turn-actions', () => ({
+  copyText: async () => true,
+  useReadAloud: () => readAloud,
+  TurnMenu: ({ children }: React.PropsWithChildren) => children,
+}));
+for (const icon of [
+  'RiEditLine',
+  'RiFileCopyLine',
+  'RiRefreshLine',
+  'RiStopFill',
+  'RiThumbDownLine',
+  'RiThumbUpLine',
+  'RiVolumeUpLine',
+]) {
+  vi.doMock(`@oxy.so/bloom/icons/${icon}`, () => ({ [icon]: () => null }));
+}
 
 const { ChatInterface } = await import('@/components/chat-interface');
 const { timelinePositions } = await import('@/lib/chat/timeline');
