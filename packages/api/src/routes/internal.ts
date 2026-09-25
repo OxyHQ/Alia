@@ -194,7 +194,6 @@ router.post('/trigger', oxyServiceAuth, async (req, res) => {
       log.general.error({ err: error }, 'Error recording usage');
     }
 
-    // The calls that ran; one the SDK refused went back to the model.
     const toolCalls = result.steps.flatMap((step) =>
       step.toolCalls
         .filter((tc) => !isInvalidToolCall(tc))

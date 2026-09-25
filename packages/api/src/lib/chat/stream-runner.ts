@@ -31,7 +31,7 @@ import { getErrorMessage } from '../errors/index.js';
 import { recordEvent } from '../observability/index.js';
 import { writeTextChunk, writeStopChunk, writeContentChunk, makeChunk } from '../streaming-helpers.js';
 import type { SSEWriter } from './sse-writer.js';
-import { isInvalidToolCall } from './tool-calls.js';
+import { isInvalidToolCall, toolRoundTrip } from './tool-calls.js';
 
 /**
  * The tools whose result IS another agent's answer, and is drawn as one.
@@ -173,13 +173,7 @@ export async function runStream<TOOLS extends ToolSet>(params: RunStreamParams<T
     const completed = toolInvocations.filter(t => t.state === 'result');
     if (completed.length === 0 || res.writableEnded) return false;
 
-    const followUpMessages = [
-      ...convertedMessages,
-      ...completed.flatMap(t => [
-        { role: 'assistant' as const, content: '', toolCalls: [{ toolCallId: t.toolCallId, toolName: t.toolName, args: t.args }] },
-        { role: 'tool' as const, content: [{ type: 'tool-result' as const, toolCallId: t.toolCallId, toolName: t.toolName, output: { type: 'text' as const, value: typeof t.result === 'string' ? t.result : JSON.stringify(t.result) } }] },
-      ]),
-    ];
+    const followUpMessages = [...convertedMessages, ...completed.flatMap(toolRoundTrip)];
 
     const retryAbort = new AbortController();
     const retryTimer = setTimeout(() => retryAbort.abort(), 30_000);
@@ -246,14 +240,13 @@ export async function runStream<TOOLS extends ToolSet>(params: RunStreamParams<T
       sse.ensureHeaders();
       state.hasStreamedContent = true;
 
-      const reasoningText = chunk.text;
-      if (reasoningText.trim()) {
-        res.write(`event: alia.reasoning\ndata: ${JSON.stringify({ eventVersion: 1, content: reasoningText.trim() })}\n\n`);
+      const reasoningText = chunk.text.trim();
+      if (reasoningText) {
+        res.write(`event: alia.reasoning\ndata: ${JSON.stringify({ eventVersion: 1, content: reasoningText })}\n\n`);
         log.v1.debug({ reasoningBytes: sizeForLog(reasoningText) }, 'Reasoning chunk (provider)');
       }
     } else if (chunk.type === 'tool-call') {
-      // Refused before `execute`: the reason goes back to the model, and the
-      // person sees neither this call nor the `tool-error` that follows it.
+      // Neither this call nor the `tool-error` that follows it reaches the person.
       if (isInvalidToolCall(chunk)) {
         log.v1.warn({ err: getErrorMessage(chunk.error), toolName: chunk.toolName }, 'Invalid tool call');
         invalidToolCallIds.add(chunk.toolCallId);
